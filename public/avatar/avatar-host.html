@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Skin -->
-  <link rel="stylesheet" href="./avatar.css?v=122" />
+  <link rel="stylesheet" href="./avatar.css?v=123" />
 
   <style>
     html,body{height:100%}
@@ -30,12 +30,11 @@
       position:relative;
       background:#000 !important;
       isolation:isolate;
-
       height:100%;
       min-height:0;
     }
 
-    /* Dev panel (NEVER wanted in embed) */
+    /* Dev panel (should never show inside iframe) */
     #panel{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
@@ -43,7 +42,7 @@
       background:#000 !important;
     }
 
-    /* HERO stage */
+    /* HERO stage behind overlay */
     #nyxShellMount{
       position:absolute;
       inset:0;
@@ -55,7 +54,7 @@
       background:transparent !important;
     }
 
-    /* OVERLAY always on top */
+    /* Overlay always on top */
     #nyxOverlay, .overlay{
       position:absolute;
       inset:0;
@@ -87,7 +86,7 @@
       pointer-events:auto;
     }
 
-    /* KILL duplicate rail entirely (words behind bubble) */
+    /* KILL the duplicate rail (removes ghost words behind bubble) */
     #nyxChips{
       display:none !important;
       opacity:0 !important;
@@ -95,7 +94,7 @@
       pointer-events:none !important;
     }
 
-    /* Embed mode = single column, full stage, no borders */
+    /* Embed mode */
     html.embed #wrap{
       grid-template-columns: 1fr;
       padding:0;
@@ -103,7 +102,6 @@
       height:100vh;
       background:#000 !important;
     }
-
     html.embed #avatarRoot{
       border:0;
       border-radius:0;
@@ -111,7 +109,6 @@
       min-height:0;
       background:#000 !important;
     }
-
     html.embed body{ overflow:hidden !important; }
   </style>
 </head>
@@ -119,6 +116,7 @@
 <body>
   <div id="wrap">
     <div id="avatarRoot">
+
       <div id="nyxShellMount">
         <div class="avatar gaze-soft mood-attentive" id="nyxAvatar">
           <div class="silhouette">
@@ -150,7 +148,7 @@
             </div>
           </div>
 
-          <!-- duplicate rail kept in markup for compatibility, but hard-hidden above -->
+          <!-- Duplicate rail intentionally present for compatibility, but hard-hidden above -->
           <div class="chips" id="nyxChips"></div>
 
           <div class="nyx-inputdock" id="nyxInputDock" aria-label="Nyx chat input">
@@ -162,7 +160,7 @@
       </div>
     </div>
 
-    <!-- DEV PANEL (will be removed in embed) -->
+    <!-- DEV PANEL (removed in embed at runtime) -->
     <div id="panel">
       <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
         <button data-act="armAudio">Arm Audio</button>
@@ -194,23 +192,22 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=122"></script>
-  <script src="./nyx-avatar-shell.js?v=122"></script>
-  <script src="./avatar-controller.js?v=122"></script>
-  <script src="./avatar-bridge.js?v=122"></script>
+  <script src="./avatar-contract.js?v=123"></script>
+  <script src="./nyx-avatar-shell.js?v=123"></script>
+  <script src="./avatar-controller.js?v=123"></script>
+  <script src="./avatar-bridge.js?v=123"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.8 (PROD LOCK++++ devPanel removed in embed++++ hero injected webp/png++++ dupRail killed++++)";
+    var HOST_VER = "avatar-host v1.1.9 (PROD CLEAN++++ devPanel removed in embed++++ hero png forced++++ dupRail killed++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     // Robust embed detection
     var EMBEDDED = true;
     try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
-
     if (EMBEDDED) document.documentElement.classList.add("embed");
 
-    // HARD remove dev panel in embed (no chance of leaking)
+    // HARD remove dev panel inside iframe
     if (EMBEDDED){
       try{
         var p = document.getElementById("panel");
@@ -218,17 +215,8 @@
       }catch(_){}
     }
 
-    function setHud(id, val){
-      try{
-        var el = document.getElementById(id);
-        if(el) el.textContent = String(val || "—");
-      }catch(_){}
-    }
-
-    // HERO injection (webp first, png fallback)
-    // This assumes your assets live at /avatar/assets/
-    var heroWebp = '/avatar/assets/nyx-hero.webp';
-    var heroPng  = '/avatar/assets/nyx-hero.png';
+    // Force hero background via CSS var (this is what your avatar.css uses)
+    var heroPng = "/avatar/assets/nyx-hero.png";
 
     function setHero(url){
       try{
@@ -238,18 +226,23 @@
       }catch(_){}
     }
 
-    // Try webp, fallback to png
-    (function(){
-      try{
-        var img = new Image();
-        img.onload = function(){ setHero(heroWebp); };
-        img.onerror = function(){ setHero(heroPng); };
-        img.src = heroWebp + "?v=122";
-      }catch(_){
-        setHero(heroPng);
-      }
-    })();
+    // Preload + set (cache-busted)
+    try{
+      var img = new Image();
+      img.onload = function(){ setHero(heroPng + "?v=123"); };
+      img.onerror = function(){ setHero(heroPng); };
+      img.src = heroPng + "?v=123";
+    }catch(_){
+      setHero(heroPng);
+    }
 
+    // HUD (dev only; removed in embed anyway)
+    function setHud(id, val){
+      try{
+        var el = document.getElementById(id);
+        if(el) el.textContent = String(val || "—");
+      }catch(_){}
+    }
     setHud("hudHostVer", HOST_VER);
     setHud("hudBridge", EMBEDDED ? "ready" : "standalone");
     setHud("hudReason", EMBEDDED ? "waiting_config" : "standalone");
