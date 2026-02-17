@@ -616,7 +616,7 @@ const PACK_MANIFEST = [
 const ORIGINS_ALLOWLIST = String(
   process.env.CORS_ALLOW_ORIGINS ||
     process.env.ALLOW_ORIGINS ||
-    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com"
+    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com,https://sandblast-backend.onrender.com"
 )
   .split(",")
   .map((s) => s.trim())
