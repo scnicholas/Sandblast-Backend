@@ -1,13 +1,12 @@
 /* avatar.css
  *
- * v1.2.2 (HERO ABS++++ + SHELL TRANSPARENT++++ + UI CLEAN++++ + NO GHOST TEXT++++ + IFRAME CLAMP++++)
+ * v1.2.3 (PANEL-FIT++++ + CHIP ROW RESTORE++++ + MOBILE SAFE++++ + INPUT ALIGN++++ + NO GHOST TEXT++++ + IFRAME CLAMP++++)
  *
- * Critical Fixes:
- * ✅ Hero ALWAYS renders (absolute URL hardset + host var supported)
- * ✅ Nyx shell can NEVER black-wash the hero (forces transparency + pointer-events none)
- * ✅ Overlay UI ALWAYS on top + interactive
- * ✅ Removes “ghost words” behind dialog (kills duplicate rails + stray chips)
- * ✅ Iframe-safe clamp (prevents stage pushing UI / scroll)
+ * What’s new vs v1.2.2:
+ * ✅ Restores real chip rows (General/Music/Roku/Schedule/Radio/News Canada) so they render (your prior CSS was hiding them)
+ * ✅ ONLY kills truly-duplicate/legacy rails (so no “ghost words”, but your legit UI stays)
+ * ✅ Panel-fit tuning for iframe widget (no stage pushing UI, better vertical balance)
+ * ✅ Keeps: HERO absolute hardset + shell transparency + overlay authority + no scroll
  */
 
 :root{
@@ -190,8 +189,28 @@ a.action-pill,
 
 /* -------------------------
    ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
+   IMPORTANT: do NOT hide legit chip rows.
+   We only kill legacy/duplicate rails by being precise.
 ------------------------- */
-#nyxChips{
+
+/* Old/legacy rails (if present) */
+#chips,
+#chipRail,
+#chipRowLegacy,
+[data-legacy="chips"],
+[data-ui="chips-legacy"],
+[data-role="chips-legacy"]{
+  display:none !important;
+  visibility:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+}
+
+/* If something injects a *second* rail behind the bubble, it’s usually positioned fixed/absolute
+   without being inside the bubble. This hides those, but leaves bubble pills intact. */
+body > .chips,
+body > #nyxChips,
+#avatarRoot > #nyxChips{
   display:none !important;
   visibility:hidden !important;
   opacity:0 !important;
@@ -199,16 +218,13 @@ a.action-pill,
   pointer-events:none !important;
 }
 
-/* Hide any accidental chip rails that might be duplicated */
-.chips,
-.chip,
-#chips,
-[data-role="chips"],
-[data-ui="chips"]{
-  display:none !important;
-  visibility:hidden !important;
-  opacity:0 !important;
-  pointer-events:none !important;
+/* Keep all pills INSIDE the bubble visible */
+#nyxBubble .chips,
+#nyxBubble .chip,
+#nyxBubbleActions .action-pill{
+  display:inline-flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
 }
 
 /* -------------------------
@@ -217,7 +233,7 @@ a.action-pill,
 .nyx-cog-badge,
 #nyxCogBadge{
   align-self:center;
-  margin-bottom:6px;
+  margin:8px 0 6px 0;
   padding:8px 12px;
   border-radius:999px;
   border:1px solid rgba(255,255,255,.12);
@@ -231,14 +247,18 @@ a.action-pill,
 }
 
 /* -------------------------
-   BUBBLE (CLEAN)
+   BUBBLE (CLEAN + PANEL-FIT)
 ------------------------- */
 #nyxBubble{
   position:absolute !important;
   left:50% !important;
   transform:translateX(-50%) !important;
-  bottom:140px !important;
-  width:min(560px,90%) !important;
+
+  /* Panel-fit tuning:
+     In the widget iframe, we need the bubble slightly higher so chips + input breathe. */
+  bottom:132px !important;
+
+  width:min(560px,92%) !important;
 
   background:linear-gradient(145deg, rgba(28,28,36,.94), rgba(14,14,20,.96));
   border:1px solid rgba(255,255,255,.16);
@@ -250,17 +270,17 @@ a.action-pill,
 }
 
 #nyxBubbleText{
-  padding:18px 22px 14px 22px;
+  padding:16px 20px 12px 20px;
   font-size:15.5px;
   line-height:1.6;
   color:rgba(255,255,255,.92);
 }
 
-/* Actions row: no ugly bars */
+/* Actions row (chips) */
 #nyxBubbleActions{
-  display:flex;
+  display:flex !important;
   gap:8px;
-  padding:0 16px 14px 16px;
+  padding:0 14px 12px 14px;
   overflow-x:auto;
   white-space:nowrap;
 
@@ -270,6 +290,9 @@ a.action-pill,
 
 .action-pill{
   flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
   padding:8px 12px;
   border-radius:999px;
   border:1px solid rgba(255,255,255,.14);
@@ -291,14 +314,15 @@ a.action-pill,
 }
 
 /* -------------------------
-   INPUT DOCK (CLEAN)
+   INPUT DOCK (CLEAN + PANEL-FIT)
 ------------------------- */
 .nyx-inputdock,
 #nyxInputDock{
   position:absolute !important;
   left:50% !important;
   transform:translateX(-50%) !important;
-  bottom:20px !important;
+  bottom:16px !important;
+
   width:min(620px,94%) !important;
 
   display:flex !important;
@@ -343,4 +367,18 @@ html.embed body{
   height:100%;
   background:#000 !important;
   overflow:hidden !important;
+}
+
+/* -------------------------
+   MOBILE CLAMP (inside panel/iframe)
+------------------------- */
+@media (max-height: 620px){
+  #nyxBubble{ bottom:124px !important; }
+  .nyx-inputdock,#nyxInputDock{ bottom:12px !important; }
+  #nyxBubbleText{ padding:14px 18px 10px 18px; font-size:15px; }
+}
+
+@media (max-width: 420px){
+  #nyxBubble{ width:min(560px,94%) !important; }
+  .nyx-inputdock,#nyxInputDock{ width:min(620px,96%) !important; }
 }
