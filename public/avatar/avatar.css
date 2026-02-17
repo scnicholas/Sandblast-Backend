@@ -1,51 +1,27 @@
 /* avatar.css
  *
- * v1.1.9 (HIDE DUP RAIL++++ + HERO HARD FALLBACK++++ + UI HIERARCHY++++)
- *
- * Fixes:
- * ✅ Removes the duplicate words behind the bubble (hides #nyxChips rail)
- * ✅ Restores avatar/hero even if --nyx-hero-url wasn’t injected
- * ✅ Keeps overlay + input readable (premium noir)
+ * v1.2.0 (DUP RAIL OFF++++ + HERO GUARANTEE++++ + OVERLAY AUTHORITY++++)
  */
 
 :root{
-  /* PURE NOIR */
   --bg:#000000;
-  --stage-black:#000000;
-
   --text:rgba(255,255,255,.96);
   --muted:rgba(255,255,255,.75);
-  --accent:rgba(140,0,35,.95);
 
-  /* Secondary accents (mode tints) */
-  --mode-general: rgba(255,255,255,.12);
-  --mode-music:   rgba(140,0,35,.28);
-  --mode-cyber:   rgba(0,170,255,.22);
-  --mode-roku:    rgba(142,75,255,.22);
-  --mode-radio:   rgba(255,190,0,.18);
-  --mode-schedule:rgba(70,200,140,.18);
+  /* Host can override by setting --nyx-hero-url to url("...") */
+  --nyx-hero-url: url("/avatar/assets/nyx-hero.png");
 
-  /* Hero control */
-  --hero-fit:contain;
   --hero-pos:50% 12%;
   --hero-scale:132%;
-  --hero-opacity:.92; /* hero present but doesn’t overpower UI */
+  --hero-opacity:1;
 
-  /* Depth layers (NO haze; controlled anchors only) */
   --shoulder-shadow: rgba(0,0,0,.92);
   --face-spot: rgba(255,255,255,.055);
   --vignette: rgba(0,0,0,.78);
 
-  /* Motion */
   --ease:cubic-bezier(.2,.8,.2,1);
-
-  /* HERO FALLBACK (CRITICAL)
-     - Host can override by setting --nyx-hero-url to url("...")
-     - If not set, we still show the avatar */
-  --nyx-hero-url: url("/avatar/assets/nyx-hero.png");
 }
 
-/* RESET */
 *{box-sizing:border-box}
 html,body{height:100%;background:#000 !important}
 body{
@@ -55,10 +31,7 @@ body{
   color:var(--text);
 }
 
-/* -------------------------
-   STAGE (TRUE BLACK) + IFRAME CLAMP
-------------------------- */
-
+/* Stage clamp */
 #avatarRoot{
   position:relative;
   height:100%;
@@ -68,14 +41,7 @@ body{
   overflow:hidden;
 }
 
-/* REMOVE ALL HAZE */
-#avatarRoot::before,
-#nyxShellMount::before{display:none !important}
-
-/* -------------------------
-   HERO (AVATAR) - CLAMPED + FALLBACK
-------------------------- */
-
+/* HERO */
 #nyxShellMount{
   position:absolute;
   inset:0;
@@ -88,19 +54,16 @@ body{
   padding:0 !important;
 
   background:#000 !important;
-
-  /* CRITICAL: always has something to render */
-  background-image: var(--nyx-hero-url, url("/avatar/assets/nyx-hero.png"));
-  background-repeat:no-repeat;
-  background-position:var(--hero-pos);
+  background-image: var(--nyx-hero-url, url("/avatar/assets/nyx-hero.png")) !important;
+  background-repeat:no-repeat !important;
+  background-position:var(--hero-pos) !important;
   background-size:var(--hero-scale) auto !important;
 
   opacity:var(--hero-opacity);
-  z-index:1;
+  z-index:1 !important;      /* keep hero behind overlay */
   overflow:hidden;
 }
 
-/* Controlled vignette + face spotlight + shoulder anchor */
 #nyxShellMount::after{
   content:"";
   position:absolute;
@@ -123,50 +86,7 @@ body{
     );
 }
 
-/* If rendered as IMG/canvas/video */
-#nyxShellMount img,
-#nyxShellMount canvas,
-#nyxShellMount video{
-  width:100% !important;
-  height:100% !important;
-  max-height:100% !important;
-  max-width:100% !important;
-  object-fit:var(--hero-fit) !important;
-  object-position:var(--hero-pos) !important;
-  transform:scale(1.16);
-  transform-origin:50% 22%;
-  filter:contrast(1.04) saturate(1.03);
-}
-
-/* -------------------------
-   MICRO-MOTION (OPTIONAL)
-------------------------- */
-
-@keyframes nyx-bg-drift{
-  0%{ background-position: 50% 11%; }
-  50%{ background-position: 50% 13%; }
-  100%{ background-position: 50% 11%; }
-}
-@keyframes nyx-breathe{
-  0%{ transform:scale(1.155); }
-  50%{ transform:scale(1.168); }
-  100%{ transform:scale(1.155); }
-}
-html.nyx-alive #nyxShellMount{ animation: nyx-bg-drift 12s var(--ease) infinite; }
-html.nyx-alive #nyxShellMount img,
-html.nyx-alive #nyxShellMount canvas,
-html.nyx-alive #nyxShellMount video{ animation: nyx-breathe 9.5s var(--ease) infinite; }
-@media (prefers-reduced-motion: reduce){
-  html.nyx-alive #nyxShellMount,
-  html.nyx-alive #nyxShellMount img,
-  html.nyx-alive #nyxShellMount canvas,
-  html.nyx-alive #nyxShellMount video{ animation:none !important; }
-}
-
-/* -------------------------
-   OVERLAY (CRITICAL Z)
-------------------------- */
-
+/* OVERLAY AUTHORITY */
 #nyxOverlay,
 .overlay{
   position:absolute;
@@ -175,55 +95,11 @@ html.nyx-alive #nyxShellMount video{ animation: nyx-breathe 9.5s var(--ease) inf
   background:transparent !important;
   pointer-events:none;
 }
-.overlay-inner{
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-}
 
-/* -------------------------
-   REMOVE THE “WORDS BEHIND THE DIALOG”
-   (Duplicate chip rail)
-------------------------- */
-
-/* Kill it everywhere (cleanest). If you ever want it back, remove these rules. */
+/* Kill the duplicate rail so nothing sits behind the bubble */
 #nyxChips{ display:none !important; visibility:hidden !important; opacity:0 !important; }
 
-/* -------------------------
-   COGNITIVE BADGE (optional)
-------------------------- */
-
-#nyxCogBadge,
-.nyx-cog-badge{
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
-  bottom: calc(140px + 92px);
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:7px 10px;
-  font-size:12px;
-  letter-spacing:.2px;
-  color:rgba(255,255,255,.86);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:999px;
-  background:rgba(0,0,0,.55);
-  backdrop-filter:blur(10px);
-  pointer-events:none;
-  opacity:0;
-  transition:opacity .18s var(--ease), transform .18s var(--ease);
-}
-body.nyx-thinking #nyxCogBadge,
-body.nyx-thinking .nyx-cog-badge{
-  opacity:1;
-  transform:translateX(-50%) translateY(-2px);
-}
-
-/* -------------------------
-   SPEECH BUBBLE (UI AUTHORITY)
-------------------------- */
-
+/* Bubble */
 #nyxBubble{
   position:absolute;
   left:50%;
@@ -233,62 +109,27 @@ body.nyx-thinking .nyx-cog-badge{
   background:linear-gradient(145deg, rgba(28,28,36,.94), rgba(14,14,20,.96));
   border:1px solid rgba(255,255,255,.16);
   border-radius:20px;
-  box-shadow:
-    0 28px 80px rgba(0,0,0,.85),
-    0 0 0 1px rgba(255,255,255,.06),
-    0 0 60px rgba(0,0,0,.45);
+  box-shadow:0 28px 80px rgba(0,0,0,.85);
   backdrop-filter:blur(14px);
   pointer-events:auto;
-  transition:transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease);
 }
-#nyxBubble:hover{
-  transform:translateX(-50%) translateY(-2px);
-  border-color:rgba(255,255,255,.20);
-  box-shadow:
-    0 34px 96px rgba(0,0,0,.88),
-    0 0 36px rgba(140,0,35,.16);
-}
+
 #nyxBubbleText{
   padding:18px 22px 14px 22px;
   font-size:15.5px;
   line-height:1.6;
-  color:rgba(255,255,255,.98);
 }
 
-/* Actions inside bubble */
+/* Actions */
 #nyxBubbleActions{
   display:flex;
   gap:8px;
   padding:0 16px 14px 16px;
   overflow-x:auto;
   white-space:nowrap;
-  scrollbar-width:thin;
 }
 
-.action-pill{
-  flex:0 0 auto;
-  padding:8px 12px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.045);
-  font-size:13px;
-  cursor:pointer;
-  transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
-}
-.action-pill:hover{
-  transform:translateY(-1px);
-  background:rgba(255,255,255,.085);
-  border-color:rgba(255,255,255,.18);
-}
-.action-pill.is-active{
-  border-color:rgba(255,255,255,.22);
-  background:rgba(255,255,255,.10);
-}
-
-/* -------------------------
-   USER INPUT DOCK (BOTTOM + CONTRAST)
-------------------------- */
-
+/* Input dock */
 .nyx-inputdock{
   position:absolute;
   left:50%;
@@ -317,13 +158,6 @@ body.nyx-thinking .nyx-cog-badge{
   background:#0c0c12;
   color:#fff;
   outline:none;
-  transition:border-color .18s var(--ease), box-shadow .18s var(--ease);
-}
-.nyx-input:focus{
-  border-color:rgba(255,255,255,.24);
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.06),
-    0 0 22px rgba(255,255,255,.06);
 }
 
 .nyx-send{
@@ -333,23 +167,12 @@ body.nyx-thinking .nyx-cog-badge{
   background:#111119;
   color:#fff;
   cursor:pointer;
-  transition:background .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease);
-}
-.nyx-send:hover{
-  background:#171722;
-  border-color:rgba(255,255,255,.22);
-  transform:translateY(-1px);
 }
 
-/* -------------------------
-   EMBED MODE (NO SCROLL)
-------------------------- */
-
+/* Embed no-scroll */
 html.embed,
 html.embed body{
   height:100%;
   background:#000 !important;
   overflow:hidden !important;
 }
-html.embed #avatarRoot,
-html.embed #nyxShellMount{ background:#000 !important; }
