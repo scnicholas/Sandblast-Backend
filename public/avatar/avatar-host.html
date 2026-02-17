@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nyx Avatar Host</title>
 
-  <!-- Skin -->
+  <!-- Skin (cache-bust) -->
   <link rel="stylesheet" href="./avatar.css?v=124" />
 
   <style>
     html,body{height:100%}
-    body{ margin:0; background:#000 !important; }
+    body{margin:0;background:#000!important;overflow:hidden}
 
     #wrap{
       display:grid;
@@ -19,60 +19,50 @@
       padding:12px;
       height:100vh;
       box-sizing:border-box;
-      background:#000 !important;
+      background:#000!important;
     }
 
     /* Stage */
     #avatarRoot{
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:16px;
-      overflow:hidden;
       position:relative;
-      background:#000 !important;
-      isolation:isolate;
       height:100%;
       min-height:0;
-    }
-
-    /* Dev panel (should never show inside iframe) */
-    #panel{
+      overflow:hidden;
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
-      padding:12px;
-      background:#000 !important;
+      background:#000!important;
+      isolation:isolate;
     }
 
-    /* HERO stage behind overlay */
+    /* HERO mount behind overlay */
     #nyxShellMount{
       position:absolute;
       inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:0;
       z-index:1 !important;
-      background:transparent !important;
+      overflow:hidden;
+      background:#000 !important; /* IMPORTANT: not transparent */
+      background-repeat:no-repeat !important;
+      background-position:50% 12% !important;
+      background-size:132% auto !important;
     }
 
-    /* If shell injects elements, never let them cover overlay */
-    #nyxShellMount > *{
-      position:relative;
-      z-index:1;
+    /* Shell DOM never blocks hero */
+    #nyxShellMount *{
       background:transparent !important;
+      pointer-events:none !important;
+    }
+    #nyxAvatar, #nyxShellMount .avatar, #nyxShellMount .silhouette{
+      opacity:.14 !important; /* subtle fallback silhouette only */
     }
 
-    /* Overlay always on top */
+    /* Overlay always above */
     #nyxOverlay, .overlay{
       position:absolute;
       inset:0;
       z-index:2147483000 !important;
       pointer-events:none;
-      display:block !important;
-      opacity:1 !important;
-      visibility:visible !important;
       background:transparent !important;
     }
-
     .overlay-inner{
       position:absolute;
       inset:0;
@@ -84,7 +74,6 @@
       padding:0 12px 12px 12px;
       pointer-events:none;
     }
-
     .overlay-inner .bubble,
     .overlay-inner .action-pill,
     .overlay-inner input,
@@ -93,10 +82,8 @@
       pointer-events:auto;
     }
 
-    /* KILL the duplicate rail (removes ghost words behind bubble) */
-    #nyxChips,
-    .chips,
-    .chip{
+    /* Kill duplicate rails (ghost text) */
+    #nyxChips, .chips, .chip{
       display:none !important;
       opacity:0 !important;
       visibility:hidden !important;
@@ -106,20 +93,20 @@
 
     /* Embed mode */
     html.embed #wrap{
-      grid-template-columns: 1fr;
+      grid-template-columns:1fr;
       padding:0;
       gap:0;
       height:100vh;
-      background:#000 !important;
+      background:#000!important;
     }
     html.embed #avatarRoot{
       border:0;
       border-radius:0;
       height:100vh;
       min-height:0;
-      background:#000 !important;
+      background:#000!important;
     }
-    html.embed body{ overflow:hidden !important; }
+    html.embed #panel{display:none!important}
   </style>
 </head>
 
@@ -128,7 +115,8 @@
     <div id="avatarRoot">
 
       <div id="nyxShellMount">
-        <div class="avatar gaze-soft mood-attentive" id="nyxAvatar">
+        <!-- Fallback silhouette only (kept subtle) -->
+        <div class="avatar gaze-soft mood-attentive" id="nyxAvatar" aria-hidden="true">
           <div class="silhouette">
             <div class="head">
               <div class="eye left"><div class="pupil"></div><div class="lid"></div></div>
@@ -142,7 +130,6 @@
 
       <div class="overlay" id="nyxOverlay">
         <div class="overlay-inner">
-
           <div class="nyx-cog-badge" id="nyxCogBadge" aria-live="polite">Marion: standing by</div>
 
           <div class="bubble" id="nyxBubble">
@@ -154,51 +141,26 @@
               <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
               <div class="action-pill" data-chip="radio">Radio</div>
               <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
-              <div class="action-pill" data-chip="more" id="nyxMorePill" style="display:none">More</div>
             </div>
           </div>
 
-          <!-- Duplicate rail intentionally present for compatibility, but hard-hidden above -->
+          <!-- kept for compatibility, hard-hidden -->
           <div class="chips" id="nyxChips"></div>
 
           <div class="nyx-inputdock" id="nyxInputDock" aria-label="Nyx chat input">
             <input id="nyxUserInput" class="nyx-input" type="text" placeholder="Type a message…" autocomplete="off" />
             <button id="nyxSendBtn" class="nyx-send" type="button">Send</button>
           </div>
-
         </div>
       </div>
     </div>
 
-    <!-- DEV PANEL (removed in embed at runtime) -->
+    <!-- Dev panel (won’t show in iframe embed; safe to keep for direct testing) -->
     <div id="panel">
-      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
-        <button data-act="armAudio">Arm Audio</button>
-        <button data-act="idle">Idle</button>
-        <button data-act="listen">Listen</button>
-        <button data-act="speak">Speak</button>
-        <button data-act="toggleVelvet">Velvet</button>
-        <button data-act="toggleAlive">Alive</button>
+      <div style="font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.9;line-height:1.55">
+        <div><b>host</b>: <span id="hudHostVer">—</span></div>
+        <div><b>hero</b>: <span id="hudHero">—</span></div>
       </div>
-
-      <textarea id="prompt" rows="4" placeholder="Type a message…" style="width:100%;box-sizing:border-box;background:#0b0b10;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;"></textarea>
-
-      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
-        <button data-act="sendChat">Send /api/chat</button>
-        <button data-act="speakText">Speak /api/tts</button>
-      </div>
-
-      <div class="hud" style="font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.92;line-height:1.55">
-        <div><b>bridge</b>: <span id="hudBridge">waiting</span></div>
-        <div><b>reason</b>: <span id="hudReason">—</span></div>
-        <div><b>parent</b>: <span id="hudParent">—</span></div>
-        <div><b>apiBase</b>: <span id="hudApi">—</span></div>
-        <div><b>token</b>: <span id="hudToken">—</span></div>
-        <div><b>tokenHeader</b>: <span id="hudTokenHeader">—</span></div>
-        <div><b>hostVer</b>: <span id="hudHostVer">—</span></div>
-      </div>
-
-      <audio id="nyxAudio" preload="auto" style="display:none"></audio>
     </div>
   </div>
 
@@ -209,54 +171,48 @@
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.2.0 (PROD CLEAN++++ hero URL absolute++++ devPanel removed in embed++++ dupRail killed++++)";
-    try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
+    var HOST_VER = "avatar-host v1.2.0 (HERO DIRECT PAINT++++ + NO GHOST RAIL++++ + CLEAN OVERLAY++++)";
+    var HERO_URL = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
 
-    // Robust embed detection
-    var EMBEDDED = true;
-    try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
-    if (EMBEDDED) document.documentElement.classList.add("embed");
-
-    // HARD remove dev panel inside iframe
-    if (EMBEDDED){
-      try{
-        var p = document.getElementById("panel");
-        if (p && p.parentNode) p.parentNode.removeChild(p);
-      }catch(_){}
-    }
-
-    // ✅ Use ABSOLUTE hero URL (your confirmed correct path)
-    var heroPng = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
-
-    function setHero(url){
-      try{
-        var root = document.getElementById("avatarRoot");
-        if(!root) return;
-        root.style.setProperty("--nyx-hero-url", 'url("' + url + '")');
-      }catch(_){}
-    }
-
-    // Preload + set (cache-busted)
-    try{
-      var img = new Image();
-      img.onload = function(){ setHero(heroPng + "?v=124"); };
-      img.onerror = function(){ setHero(heroPng); };
-      img.src = heroPng + "?v=124";
-    }catch(_){
-      setHero(heroPng);
-    }
-
-    // HUD (dev only; removed in embed anyway)
-    function setHud(id, val){
-      try{
-        var el = document.getElementById(id);
-        if(el) el.textContent = String(val || "—");
-      }catch(_){}
+    function setHud(id,val){
+      try{ var el=document.getElementById(id); if(el) el.textContent=String(val||"—"); }catch(_){}
     }
     setHud("hudHostVer", HOST_VER);
-    setHud("hudBridge", EMBEDDED ? "ready" : "standalone");
-    setHud("hudReason", EMBEDDED ? "waiting_config" : "standalone");
-    setHud("hudParent", EMBEDDED ? "embedded" : "(direct)");
+
+    // Embed detect
+    var EMBEDDED = true;
+    try{ EMBEDDED = (window.top !== window.self); }catch(_){ EMBEDDED = true; }
+    if (EMBEDDED) document.documentElement.classList.add("embed");
+
+    // Force hero on the element itself (beats CSS wars)
+    function paintHero(url){
+      var mount = document.getElementById("nyxShellMount");
+      var root  = document.getElementById("avatarRoot");
+      if(!mount) return;
+
+      // set CSS var (for avatar.css) + direct paint (for reality)
+      try{ if(root) root.style.setProperty("--nyx-hero-url", 'url("' + url + '")'); }catch(_){}
+      mount.style.backgroundImage = 'url("' + url + '")';
+      mount.style.backgroundRepeat = "no-repeat";
+      mount.style.backgroundPosition = "50% 12%";
+      mount.style.backgroundSize = "132% auto";
+      mount.style.backgroundColor = "#000";
+
+      setHud("hudHero", url);
+    }
+
+    // Preload then paint (cache-bust once)
+    try{
+      var img = new Image();
+      img.onload  = function(){ paintHero(HERO_URL + "?v=124"); };
+      img.onerror = function(){ paintHero(HERO_URL); };
+      img.src = HERO_URL + "?v=124";
+    }catch(_){
+      paintHero(HERO_URL);
+    }
+
+    // Final safety repaint after styles load
+    setTimeout(function(){ paintHero(HERO_URL); }, 400);
   })();
   </script>
 </body>
