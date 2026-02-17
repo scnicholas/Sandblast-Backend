@@ -1,4 +1,4 @@
-code = r'''"use strict";
+"use strict";
 
 /**
  * Sandblast Backend — index.js
