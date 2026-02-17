@@ -5,12 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nyx Avatar Host</title>
 
-  <!-- Skin (cache-bust) -->
-  <link rel="stylesheet" href="./avatar.css?v=124" />
+  <link rel="stylesheet" href="./avatar.css?v=9001" />
 
   <style>
     html,body{height:100%}
-    body{margin:0;background:#000!important;overflow:hidden}
+    body{ margin:0; background:#000 !important; }
 
     #wrap{
       display:grid;
@@ -19,48 +18,63 @@
       padding:12px;
       height:100vh;
       box-sizing:border-box;
-      background:#000!important;
+      background:#000 !important;
     }
 
-    /* Stage */
     #avatarRoot{
-      position:relative;
-      height:100%;
-      min-height:0;
-      overflow:hidden;
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
-      background:#000!important;
+      overflow:hidden;
+      position:relative;
+      background:#000 !important;
       isolation:isolate;
+      height:100%;
+      min-height:0;
     }
 
-    /* HERO mount behind overlay */
-    #nyxShellMount{
+    /* HERO LAYER (absolute IMG - cannot be “CSS-var broken”) */
+    #heroLayer{
       position:absolute;
       inset:0;
-      z-index:1 !important;
+      z-index:1;
+      background:#000;
       overflow:hidden;
-      background:#000 !important; /* IMPORTANT: not transparent */
-      background-repeat:no-repeat !important;
-      background-position:50% 12% !important;
-      background-size:132% auto !important;
+    }
+    #heroImg{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      object-position:50% 12%;
+      transform:scale(1.16);
+      transform-origin:50% 22%;
+      display:block;
+    }
+    /* Depth framing (subtle, no haze) */
+    #heroLayer::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        linear-gradient(to top, rgba(0,0,0,.92) 0%, rgba(0,0,0,.72) 18%, rgba(0,0,0,0) 46%),
+        radial-gradient(40% 28% at 50% 24%, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 68%),
+        radial-gradient(120% 100% at 50% 50%, rgba(0,0,0,0) 52%, rgba(0,0,0,.78) 100%);
     }
 
-    /* Shell DOM never blocks hero */
-    #nyxShellMount *{
-      background:transparent !important;
-      pointer-events:none !important;
-    }
-    #nyxAvatar, #nyxShellMount .avatar, #nyxShellMount .silhouette{
-      opacity:.14 !important; /* subtle fallback silhouette only */
-    }
+    /* HARD KILL ANY “ghost rails” */
+    #nyxChips, .chips, .chip{ display:none !important; }
 
-    /* Overlay always above */
-    #nyxOverlay, .overlay{
+    /* OVERLAY: always above */
+    #nyxOverlay{
       position:absolute;
       inset:0;
       z-index:2147483000 !important;
       pointer-events:none;
+      display:block !important;
+      opacity:1 !important;
+      visibility:visible !important;
       background:transparent !important;
     }
     .overlay-inner{
@@ -74,39 +88,107 @@
       padding:0 12px 12px 12px;
       pointer-events:none;
     }
-    .overlay-inner .bubble,
-    .overlay-inner .action-pill,
-    .overlay-inner input,
-    .overlay-inner button,
-    .overlay-inner a{
-      pointer-events:auto;
+    .overlay-inner *{ pointer-events:auto; }
+
+    /* Bubble */
+    #nyxBubble{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      bottom:140px;
+      width:min(560px,90%);
+      background:linear-gradient(145deg, rgba(28,28,36,.94), rgba(14,14,20,.96));
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:20px;
+      box-shadow:0 28px 80px rgba(0,0,0,.85);
+      backdrop-filter:blur(14px);
+      z-index:2147483000;
+    }
+    #nyxBubbleText{ padding:18px 22px 14px 22px; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.92); }
+    #nyxBubbleActions{
+      display:flex;
+      gap:8px;
+      padding:0 16px 14px 16px;
+      overflow-x:auto;
+      white-space:nowrap;
+      scrollbar-width:none;
+    }
+    #nyxBubbleActions::-webkit-scrollbar{ width:0; height:0; }
+    .action-pill{
+      flex:0 0 auto;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.045);
+      color:rgba(255,255,255,.86);
+      font-size:13px;
+      cursor:pointer;
+    }
+    .action-pill.is-active{ border-color:rgba(255,255,255,.22); background:rgba(255,255,255,.10); }
+
+    /* Input dock */
+    #nyxInputDock{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      bottom:20px;
+      width:min(620px,94%);
+      display:flex;
+      gap:10px;
+      padding:10px;
+      border-radius:18px;
+      background:rgba(10,10,14,.82);
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 18px 60px rgba(0,0,0,.75);
+      z-index:2147483001;
+    }
+    .nyx-input{
+      flex:1;
+      padding:14px 16px;
+      font-size:15px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.18);
+      background:#0c0c12;
+      color:#fff;
+      outline:none;
+    }
+    .nyx-send{
+      padding:14px 18px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.16);
+      background:#111119;
+      color:#fff;
+      cursor:pointer;
     }
 
-    /* Kill duplicate rails (ghost text) */
-    #nyxChips, .chips, .chip{
-      display:none !important;
-      opacity:0 !important;
-      visibility:hidden !important;
-      pointer-events:none !important;
-      height:0 !important;
+    /* Dev panel */
+    #panel{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:12px;
+      background:#000 !important;
     }
 
     /* Embed mode */
-    html.embed #wrap{
-      grid-template-columns:1fr;
-      padding:0;
-      gap:0;
-      height:100vh;
-      background:#000!important;
+    html.embed #wrap{ grid-template-columns: 1fr; padding:0; gap:0; height:100vh; }
+    html.embed #panel{ display:none !important; }
+    html.embed #avatarRoot{ border:0; border-radius:0; height:100vh; }
+
+    /* Debug stamp: proves you are seeing THIS file */
+    #debugStamp{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      z-index:2147483002;
+      font:12px ui-monospace, Menlo, Consolas, monospace;
+      color:rgba(255,255,255,.65);
+      background:rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.10);
+      padding:6px 8px;
+      border-radius:10px;
+      pointer-events:none;
+      user-select:none;
     }
-    html.embed #avatarRoot{
-      border:0;
-      border-radius:0;
-      height:100vh;
-      min-height:0;
-      background:#000!important;
-    }
-    html.embed #panel{display:none!important}
   </style>
 </head>
 
@@ -114,106 +196,62 @@
   <div id="wrap">
     <div id="avatarRoot">
 
-      <div id="nyxShellMount">
-        <!-- Fallback silhouette only (kept subtle) -->
-        <div class="avatar gaze-soft mood-attentive" id="nyxAvatar" aria-hidden="true">
-          <div class="silhouette">
-            <div class="head">
-              <div class="eye left"><div class="pupil"></div><div class="lid"></div></div>
-              <div class="eye right"><div class="pupil"></div><div class="lid"></div></div>
-              <div class="mouth"></div>
-            </div>
-            <div class="shoulders"></div>
-          </div>
-        </div>
+      <!-- GUARANTEED HERO RENDER -->
+      <div id="heroLayer">
+        <img
+          id="heroImg"
+          src="https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png?v=9001"
+          alt="Nyx Hero"
+          loading="eager"
+          decoding="async"
+          referrerpolicy="no-referrer"
+          onerror="this.onerror=null;this.src='https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png?v='+Date.now();"
+        />
       </div>
+
+      <div id="debugStamp">HOST v9001 • hero IMG forced</div>
 
       <div class="overlay" id="nyxOverlay">
         <div class="overlay-inner">
-          <div class="nyx-cog-badge" id="nyxCogBadge" aria-live="polite">Marion: standing by</div>
 
           <div class="bubble" id="nyxBubble">
             <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
             <div class="bubble-actions" id="nyxBubbleActions">
-              <div class="action-pill general is-active" data-chip="general">General</div>
+              <div class="action-pill is-active" data-chip="general">General</div>
               <div class="action-pill" data-chip="music">Music</div>
               <div class="action-pill" data-chip="roku">Roku</div>
-              <div class="action-pill schedule" data-chip="schedule">Schedule<span class="ext">↗</span></div>
+              <div class="action-pill" data-chip="schedule">Schedule↗</div>
               <div class="action-pill" data-chip="radio">Radio</div>
-              <a class="action-pill general" data-chip="news-canada" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada<span class="ext">↗</span></a>
+              <a class="action-pill" id="nyxNewsCanadaPill" href="#" target="_blank" rel="noopener noreferrer">News Canada↗</a>
             </div>
           </div>
-
-          <!-- kept for compatibility, hard-hidden -->
-          <div class="chips" id="nyxChips"></div>
 
           <div class="nyx-inputdock" id="nyxInputDock" aria-label="Nyx chat input">
             <input id="nyxUserInput" class="nyx-input" type="text" placeholder="Type a message…" autocomplete="off" />
             <button id="nyxSendBtn" class="nyx-send" type="button">Send</button>
           </div>
+
         </div>
       </div>
     </div>
 
-    <!-- Dev panel (won’t show in iframe embed; safe to keep for direct testing) -->
     <div id="panel">
-      <div style="font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.9;line-height:1.55">
-        <div><b>host</b>: <span id="hudHostVer">—</span></div>
-        <div><b>hero</b>: <span id="hudHero">—</span></div>
+      <div style="color:rgba(255,255,255,.7);font:12px ui-monospace, Menlo, Consolas, monospace">
+        Dev panel (hidden in iframe). If you can see this inside the widget, embed detection is failing.
       </div>
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=124"></script>
-  <script src="./nyx-avatar-shell.js?v=124"></script>
-  <script src="./avatar-controller.js?v=124"></script>
-  <script src="./avatar-bridge.js?v=124"></script>
-
   <script>
-  (function(){
-    var HOST_VER = "avatar-host v1.2.0 (HERO DIRECT PAINT++++ + NO GHOST RAIL++++ + CLEAN OVERLAY++++)";
-    var HERO_URL = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
+    (function(){
+      var EMBEDDED = true;
+      try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
+      if (EMBEDDED) document.documentElement.classList.add("embed");
 
-    function setHud(id,val){
-      try{ var el=document.getElementById(id); if(el) el.textContent=String(val||"—"); }catch(_){}
-    }
-    setHud("hudHostVer", HOST_VER);
-
-    // Embed detect
-    var EMBEDDED = true;
-    try{ EMBEDDED = (window.top !== window.self); }catch(_){ EMBEDDED = true; }
-    if (EMBEDDED) document.documentElement.classList.add("embed");
-
-    // Force hero on the element itself (beats CSS wars)
-    function paintHero(url){
-      var mount = document.getElementById("nyxShellMount");
-      var root  = document.getElementById("avatarRoot");
-      if(!mount) return;
-
-      // set CSS var (for avatar.css) + direct paint (for reality)
-      try{ if(root) root.style.setProperty("--nyx-hero-url", 'url("' + url + '")'); }catch(_){}
-      mount.style.backgroundImage = 'url("' + url + '")';
-      mount.style.backgroundRepeat = "no-repeat";
-      mount.style.backgroundPosition = "50% 12%";
-      mount.style.backgroundSize = "132% auto";
-      mount.style.backgroundColor = "#000";
-
-      setHud("hudHero", url);
-    }
-
-    // Preload then paint (cache-bust once)
-    try{
-      var img = new Image();
-      img.onload  = function(){ paintHero(HERO_URL + "?v=124"); };
-      img.onerror = function(){ paintHero(HERO_URL); };
-      img.src = HERO_URL + "?v=124";
-    }catch(_){
-      paintHero(HERO_URL);
-    }
-
-    // Final safety repaint after styles load
-    setTimeout(function(){ paintHero(HERO_URL); }, 400);
-  })();
+      // Hard-set News Canada (safe)
+      var nc = document.getElementById("nyxNewsCanadaPill");
+      if (nc) nc.href = "https://sandblast.channel/news-canada";
+    })();
   </script>
 </body>
 </html>
