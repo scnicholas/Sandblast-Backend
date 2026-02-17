@@ -33,10 +33,15 @@
  *    - { chatEngine }
  *    - { default }
  * ✅ Prevents “exports wrong” breakages across backend loaders.
+ *
+ * v0.7bW (SESSIONPATCH MERGE ORDER++++)
+ * ✅ Makes sessionPatch merge order consistent:
+ *    baseCogPatch FIRST, then route-specific overrides AFTER.
+ *    (Prevents baseCogPatch from accidentally overriding route/music patches.)
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bV (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module | EXPORT HARDENING++++ shim)";
+  "chatEngine v0.7bW (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -199,6 +204,14 @@ function hasActionablePayload(payload) {
     "focus",
   ]);
   return keys.some((k) => actionable.has(k));
+}
+
+// Consistent merge: base FIRST, then route overrides AFTER.
+// (In reset, we still intentionally override base with hard reset flags.)
+function mergeSessionPatch(base, overrides) {
+  const b = isPlainObject(base) ? base : {};
+  const o = isPlainObject(overrides) ? overrides : {};
+  return { ...b, ...o };
 }
 
 // -------------------------
@@ -441,12 +454,13 @@ function buildDiscoveryHint(norm, session, cog, noveltyScore) {
   let options = ["Music", "Movies", "Sponsors"];
 
   if (lane === "music" || action) {
-    question = `Pick one: Top 10, cinematic, or year-end?`;
+    question = "Pick one: Top 10, cinematic, or year-end?";
     options = ["Top 10", "Make it cinematic", "Year-End Hot 100"];
   }
 
   if (!forcedChoice) {
-    question = lane === "music" ? `Which one should I do first?` : `What should we do first?`;
+    question =
+      lane === "music" ? "Which one should I do first?" : "What should we do first?";
   }
 
   return {
@@ -805,7 +819,14 @@ function computeVelvet(norm, session, cog, desire) {
     action === "custom_story" ||
     /\b(why|meaning|connect|deeper|layer)\b/i.test(safeStr(norm?.text || ""));
 
-  const repeatedTopic = !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
+  const repeatedTopic = !!(
+    lastLane &&
+    lane &&
+    lastLane === lane &&
+    yr &&
+    lastYear &&
+    yr === lastYear
+  );
   const acceptedChip = !!(
     norm?.turnSignals?.hasPayload &&
     norm?.turnSignals?.payloadActionable &&
@@ -822,17 +843,33 @@ function computeVelvet(norm, session, cog, desire) {
   if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
 
   if (!musicFirstEligible) {
-    return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
+    return {
+      velvet: already,
+      velvetSince: Number(s.velvetSince || 0) || 0,
+      reason: already ? "carry" : "no",
+    };
   }
 
   if (already) {
     if (safeStr(cog?.intent).toUpperCase() === "STABILIZE") {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
+      return {
+        velvet: false,
+        velvetSince: Number(s.velvetSince || 0) || 0,
+        reason: "stabilize_exit",
+      };
     }
     if (lastLane && lane && lastLane !== lane) {
-      return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
+      return {
+        velvet: false,
+        velvetSince: Number(s.velvetSince || 0) || 0,
+        reason: "lane_shift_exit",
+      };
     }
-    return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
+    return {
+      velvet: true,
+      velvetSince: Number(s.velvetSince || 0) || now,
+      reason: "hold",
+    };
   }
 
   if (signals >= 2) return { velvet: true, velvetSince: now, reason: "entry" };
@@ -863,7 +900,8 @@ function normalizeInbound(input) {
   const inferredAction = classifyAction(textRaw, payload);
   const action = payloadAction || inferredAction || "";
 
-  const payloadYear = normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
+  const payloadYear =
+    normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
   const year = payloadYear ?? extractYearFromText(textRaw) ?? null;
 
   const lane = safeStr(body.lane || payload.lane || ctx.lane || "").trim();
@@ -1225,7 +1263,11 @@ function runToneRegressionTests() {
   const composed = applyTurnConstitutionToReply(listBody, cFirm, {
     lastSigTransition: "",
   });
-  assert("budget_ranked_list_keeps_10_with_prefix", countNumberedLines(composed) >= 10, composed);
+  assert(
+    "budget_ranked_list_keeps_10_with_prefix",
+    countNumberedLines(composed) >= 10,
+    composed
+  );
 
   // 2) Firm ADVANCE removes softness tails
   const soft = "Do X. Let me know if you'd like.";
@@ -1243,7 +1285,11 @@ function runToneRegressionTests() {
   const out4 = applyTurnConstitutionToReply("Do X.", cFirm, s1);
   const sig4 = detectSignatureLine(out4);
   assert("no_repeat_signature_transition", sig4 !== SIGNATURE_TRANSITIONS[0], out4);
-  assert("signature_is_valid_transition_or_blank", sig4 === "" || SIGNATURE_TRANSITIONS.includes(sig4), sig4);
+  assert(
+    "signature_is_valid_transition_or_blank",
+    sig4 === "" || SIGNATURE_TRANSITIONS.includes(sig4),
+    sig4
+  );
 
   // 5) Marion trace must be bounded
   const tr = marionTraceBuild(
@@ -1490,18 +1536,19 @@ async function handleChat(input) {
       actionTaken: "served_counsel_intro",
     });
 
+    const routePatch = {
+      lane: "general",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "general",
       followUps: f.followUps,
       followUpsStrings: f.followUpsStrings,
-      sessionPatch: {
-        lane: "general",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: "counsel_intro",
@@ -1536,18 +1583,19 @@ async function handleChat(input) {
       actionTaken: "asked_year",
     });
 
+    const routePatch = {
+      lane: "music",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "music",
       followUps: fu,
       followUpsStrings: ["1973", "1988", "1992"],
-      sessionPatch: {
-        lane: "music",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: "ask_year",
@@ -1557,7 +1605,7 @@ async function handleChat(input) {
   }
 
   if (norm.action === "switch_lane") {
-    const baseMenu = `Pick a lane:\n\n• Music\n• Movies\n• Sponsors`;
+    const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• Sponsors";
     const replyRaw =
       discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
         ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• Sponsors`
@@ -1584,18 +1632,19 @@ async function handleChat(input) {
       actionTaken: "asked_lane",
     });
 
+    const routePatch = {
+      lane: "general",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "general",
       followUps: fu,
       followUpsStrings: ["Music", "Movies", "Sponsors"],
-      sessionPatch: {
-        lane: "general",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: "switch_lane",
@@ -1647,18 +1696,19 @@ async function handleChat(input) {
       actionTaken: "asked_year",
     });
 
+    const routePatch = {
+      lane: "music",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "music",
       followUps: fu,
       followUpsStrings: ["1973", "1988", "1960"],
-      sessionPatch: {
-        lane: "music",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         needYear: true,
@@ -1684,16 +1734,17 @@ async function handleChat(input) {
       actionTaken: "asked_year_range",
     });
 
+    const routePatch = {
+      lane: "music",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "music",
-      sessionPatch: {
-        lane: "music",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         outOfRange: true,
@@ -1749,16 +1800,17 @@ async function handleChat(input) {
         actionTaken: "music_module_missing",
       });
 
+      const routePatch = {
+        lane: "music",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        __spineState: coreNext,
+      };
+
       return {
         ok: true,
         reply,
         lane: "music",
-        sessionPatch: {
-          lane: "music",
-          ...(sigLine ? { lastSigTransition: sigLine } : {}),
-          __spineState: coreNext,
-          ...baseCogPatch,
-        },
+        sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
         cog,
         meta: metaBase({
           route: "music_module_missing",
@@ -1788,6 +1840,12 @@ async function handleChat(input) {
     });
 
     const musicPatch = isPlainObject(musicOut.sessionPatch) ? musicOut.sessionPatch : {};
+    const routePatch = {
+      lane: "music",
+      ...musicPatch,
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
 
     return {
       ok: true,
@@ -1795,13 +1853,7 @@ async function handleChat(input) {
       lane: "music",
       followUps: asArray(musicOut.followUps),
       followUpsStrings: asArray(musicOut.followUpsStrings),
-      sessionPatch: {
-        lane: "music",
-        ...musicPatch,
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: safeStr(musicOut.route || "music"),
@@ -1831,16 +1883,17 @@ async function handleChat(input) {
       actionTaken: "asked_year",
     });
 
+    const routePatch = {
+      lane: "music",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "music",
-      sessionPatch: {
-        lane: "music",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: "general_default_music",
@@ -1874,18 +1927,19 @@ async function handleChat(input) {
       actionTaken: "served_counsel_intro",
     });
 
+    const routePatch = {
+      lane: "general",
+      ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      __spineState: coreNext,
+    };
+
     return {
       ok: true,
       reply,
       lane: "general",
       followUps: f.followUps,
       followUpsStrings: f.followUpsStrings,
-      sessionPatch: {
-        lane: "general",
-        ...(sigLine ? { lastSigTransition: sigLine } : {}),
-        __spineState: coreNext,
-        ...baseCogPatch,
-      },
+      sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
       cog,
       meta: metaBase({
         route: "general_counsel_intro",
@@ -1898,8 +1952,8 @@ async function handleChat(input) {
     discoveryHint && discoveryHint.enabled
       ? safeStr(discoveryHint.question).trim()
       : safeStr(norm.text)
-      ? `Tell me what you want next: music, movies, or sponsors.`
-      : `Okay — tell me what you want next.`;
+      ? "Tell me what you want next: music, movies, or sponsors."
+      : "Okay — tell me what you want next.";
 
   const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
   const sigLine = detectSignatureLine(reply);
@@ -1922,18 +1976,19 @@ async function handleChat(input) {
     actionTaken: "served_menu",
   });
 
+  const routePatch = {
+    lane: lane || "general",
+    ...(sigLine ? { lastSigTransition: sigLine } : {}),
+    __spineState: coreNext,
+  };
+
   return {
     ok: true,
     reply,
     lane: lane || "general",
     followUps: fu,
     followUpsStrings: ["Music", "Movies", "Sponsors"],
-    sessionPatch: {
-      lane: lane || "general",
-      ...(sigLine ? { lastSigTransition: sigLine } : {}),
-      __spineState: coreNext,
-      ...baseCogPatch,
-    },
+    sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
     cog,
     meta: metaBase({
       route: "general",
