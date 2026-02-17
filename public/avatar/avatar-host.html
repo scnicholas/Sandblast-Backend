@@ -6,7 +6,7 @@
   <title>Nyx Avatar Host</title>
 
   <!-- Skin -->
-  <link rel="stylesheet" href="./avatar.css?v=123" />
+  <link rel="stylesheet" href="./avatar.css?v=124" />
 
   <style>
     html,body{height:100%}
@@ -54,6 +54,13 @@
       background:transparent !important;
     }
 
+    /* If shell injects elements, never let them cover overlay */
+    #nyxShellMount > *{
+      position:relative;
+      z-index:1;
+      background:transparent !important;
+    }
+
     /* Overlay always on top */
     #nyxOverlay, .overlay{
       position:absolute;
@@ -87,11 +94,14 @@
     }
 
     /* KILL the duplicate rail (removes ghost words behind bubble) */
-    #nyxChips{
+    #nyxChips,
+    .chips,
+    .chip{
       display:none !important;
       opacity:0 !important;
       visibility:hidden !important;
       pointer-events:none !important;
+      height:0 !important;
     }
 
     /* Embed mode */
@@ -192,14 +202,14 @@
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=123"></script>
-  <script src="./nyx-avatar-shell.js?v=123"></script>
-  <script src="./avatar-controller.js?v=123"></script>
-  <script src="./avatar-bridge.js?v=123"></script>
+  <script src="./avatar-contract.js?v=124"></script>
+  <script src="./nyx-avatar-shell.js?v=124"></script>
+  <script src="./avatar-controller.js?v=124"></script>
+  <script src="./avatar-bridge.js?v=124"></script>
 
   <script>
   (function(){
-    var HOST_VER = "avatar-host v1.1.9 (PROD CLEAN++++ devPanel removed in embed++++ hero png forced++++ dupRail killed++++)";
+    var HOST_VER = "avatar-host v1.2.0 (PROD CLEAN++++ hero URL absolute++++ devPanel removed in embed++++ dupRail killed++++)";
     try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
     // Robust embed detection
@@ -215,8 +225,8 @@
       }catch(_){}
     }
 
-    // Force hero background via CSS var (this is what your avatar.css uses)
-    var heroPng = "/avatar/assets/nyx-hero.png";
+    // ✅ Use ABSOLUTE hero URL (your confirmed correct path)
+    var heroPng = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
 
     function setHero(url){
       try{
@@ -229,9 +239,9 @@
     // Preload + set (cache-busted)
     try{
       var img = new Image();
-      img.onload = function(){ setHero(heroPng + "?v=123"); };
+      img.onload = function(){ setHero(heroPng + "?v=124"); };
       img.onerror = function(){ setHero(heroPng); };
-      img.src = heroPng + "?v=123";
+      img.src = heroPng + "?v=124";
     }catch(_){
       setHero(heroPng);
     }
