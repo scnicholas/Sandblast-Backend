@@ -83,6 +83,9 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 const nyxVoiceNaturalizeMod =
   safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
+const musicKnowledgeMod =
+  safeRequire("./Utils/musicKnowledge") || safeRequire("./Utils/musicKnowledge.js") || null;
+
 // =========================
 // Version
 // =========================
@@ -2327,6 +2330,8 @@ app.get("/api/discovery", (req, res) => {
       "/health",
       "/api/health",
       "/api/knowledge",
+      "/api/music/top10",
+      "/api/diag/music",
       "/api/packsight",
       "/api/debug/knowledge",
       "/api/debug/packsight",
@@ -2440,6 +2445,62 @@ app.get("/api/knowledge", (req, res) => {
     packs: getPackIndexSafe(false).summary,
   });
 });
+// =========================
+// Music: Top10 by Year (Billboard Year-End Hot 100)
+// Requires: Utils/musicKnowledge.js (FAIL-OPEN if missing)
+// =========================
+app.get("/api/music/top10/:year?", (req, res) => {
+  try {
+    const mod = musicKnowledgeMod;
+    if (!mod || typeof mod.getTop10ByYear !== "function") {
+      return res.status(501).json({ ok: false, error: "musicKnowledge module missing" });
+    }
+
+    const year = req.params.year || req.query.year;
+    const wantMeta = String(req.query.meta || "").toLowerCase() === "1" || String(req.query.meta || "").toLowerCase() === "true";
+    const format = String(req.query.format || "").toLowerCase();
+
+    const top10 = mod.getTop10ByYear(year, wantMeta ? { meta: true } : null);
+
+    if (!top10) {
+      return res.status(404).json({ ok: false, error: "Year not found" });
+    }
+
+    if (format === "text") {
+      const text = typeof mod.renderTop10Text === "function" ? mod.renderTop10Text(top10) : "";
+      res.set("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).send(text || ""); // never crash
+    }
+
+    return res.status(200).json({ ok: true, ...top10 });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "music/top10 failed" });
+  }
+});
+
+// =========================
+// Diagnostics: /api/diag/music
+// =========================
+app.get("/api/diag/music", (req, res) => {
+  try {
+    const mod = musicKnowledgeMod;
+    if (!mod || typeof mod.getMusicDiag !== "function") {
+      return res.status(200).json({
+        ok: false,
+        error: "musicKnowledge module missing",
+        exists: false
+      });
+    }
+
+    const year = req.query.year || req.query.sampleYear || 1988;
+    const diag = mod.getMusicDiag(year);
+
+    return res.status(200).json(diag || { ok: false });
+  } catch {
+    return res.status(200).json({ ok: false });
+  }
+});
+
 
 // =========================
 // Debug knowledge endpoints (kept)
