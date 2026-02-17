@@ -6,24 +6,22 @@
   <title>Nyx Avatar Host</title>
 
   <!-- skin (cache-bust) -->
-  <link rel="stylesheet" href="./avatar.css?v=9103" />
+  <link rel="stylesheet" href="./avatar.css?v=9104" />
 
   <style>
     html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden}
 
-    /* ===== HERO STAGE (BULLETPROOF) =====
-       - Default hero is ALWAYS visible (absolute URL)
-       - NYX_CONFIG can override it
-       - Dim reduced so the hero actually shows
-    */
+    /* ===== HERO STAGE (BULLETPROOF + FACE BACK) ===== */
     :root{
       --nyx-hero-abs: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
-      --nyx-hero-url: var(--nyx-hero-abs);  /* ✅ default: ALWAYS on */
+      --nyx-hero-url: var(--nyx-hero-abs);
 
-      /* panel-safe framing */
-      --nyx-hero-pos-y: 22%;
-      --nyx-hero-dim: .26; /* ✅ less wash */
+      /* ✅ FACE-FORWARD framing (this is the fix) */
+      --nyx-hero-pos-y: 12%;
+
+      /* ✅ reduce black-wash so the image actually shows */
+      --nyx-hero-dim: .14;
     }
 
     #nyxStage{
@@ -31,20 +29,23 @@
       inset:0;
       background-color:#000;
       background-image: var(--nyx-hero-url);
+
+      /* Keep cover, but let position do the work */
       background-size: cover;
       background-repeat:no-repeat;
       background-position: center var(--nyx-hero-pos-y);
+
       transition: background-position .25s ease, filter .25s ease;
-      filter: contrast(1.04) saturate(1.03);
+      filter: contrast(1.06) saturate(1.05);
     }
 
-    /* subtle vignette/contrast so UI stays legible (lighter than before) */
+    /* Lighter vignette so we don’t murder the hero */
     #nyxStage::after{
       content:"";
       position:absolute; inset:0;
       background:
-        radial-gradient(120% 90% at 50% 18%, rgba(0,0,0,0) 28%, rgba(0,0,0,.46) 78%),
-        linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.62));
+        radial-gradient(120% 90% at 50% 18%, rgba(0,0,0,0) 34%, rgba(0,0,0,.38) 78%),
+        linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.44));
       opacity: var(--nyx-hero-dim);
       pointer-events:none;
     }
@@ -178,7 +179,7 @@
         <button id="nyxSend" type="button">Send</button>
       </div>
 
-      <div id="nyxDiag">HOST v9103 • boot…</div>
+      <div id="nyxDiag">HOST v9104 • boot…</div>
     </div>
   </div>
 
@@ -186,9 +187,6 @@
 (function(){
   "use strict";
 
-  // -------------------------
-  // Config received from parent widget
-  // -------------------------
   var cfg = {
     apiBase: "",
     token: "",
@@ -200,9 +198,6 @@
   var mode = "general";
   var voiceEnabled = true;
 
-  // -------------------------
-  // Elements
-  // -------------------------
   var bubbleText = document.getElementById("nyxBubbleText");
   var actions = document.getElementById("nyxBubbleActions");
   var input = document.getElementById("nyxInput");
@@ -238,9 +233,6 @@
     return u;
   }
 
-  // -------------------------
-  // HERO loader + verifier
-  // -------------------------
   function setHeroCssUrl(url){
     if (!url) return;
     document.documentElement.style.setProperty("--nyx-hero-url", "url('" + url.replace(/'/g,"%27") + "')");
@@ -249,16 +241,16 @@
   function verifyHero(url){
     try{
       var img = new Image();
-      img.onload = function(){ setDiag("HOST v9103 • HERO OK • mode=" + mode); };
-      img.onerror = function(){ setDiag("HOST v9103 • HERO LOAD FAIL • mode=" + mode); };
+      img.onload = function(){ setDiag("HOST v9104 • HERO OK • mode=" + mode); };
+      img.onerror = function(){ setDiag("HOST v9104 • HERO LOAD FAIL • mode=" + mode); };
       img.src = url + (url.indexOf("?")>=0 ? "&" : "?") + "cb=" + Date.now();
     }catch(_){}
   }
 
-  // Always verify the DEFAULT hero first (so we know if the server path is good)
+  // Verify default hero immediately
   (function(){
     var abs = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
-    setDiag("HOST v9103 • default hero…");
+    setDiag("HOST v9104 • default hero…");
     verifyHero(abs);
   })();
 
@@ -271,13 +263,10 @@
     if (!url) return;
 
     setHeroCssUrl(url);
-    document.documentElement.style.setProperty("--nyx-hero-pos-y", "22%");
     verifyHero(url);
   }
 
-  // -------------------------
-  // Parent handshake
-  // -------------------------
+  // Handshake
   var nonce = Math.random().toString(16).slice(2) + Date.now().toString(16);
   post("NYX_READY", { nonce: nonce });
 
@@ -293,7 +282,7 @@
 
       applyHero(d.payload.heroSrc || "");
 
-      setDiag("HOST v9103 • configured • mode=" + mode);
+      setDiag("HOST v9104 • configured • mode=" + mode);
       post("NYX_ACK", { ok:true });
       return;
     }
@@ -311,9 +300,6 @@
     }
   });
 
-  // -------------------------
-  // Chips behavior
-  // -------------------------
   function normalizeKey(k){ return safeStr(k).toLowerCase().trim(); }
 
   function getUrlForChip(chip){
@@ -336,7 +322,7 @@
     if (chip === "general" || chip === "music") {
       mode = chip;
       setBubble("Mode set: " + (mode === "music" ? "Music" : "General") + ". What do you want to do?");
-      setDiag("HOST v9103 • configured • mode=" + mode);
+      setDiag("HOST v9104 • configured • mode=" + mode);
       return;
     }
 
@@ -354,9 +340,6 @@
     });
   }
 
-  // -------------------------
-  // API calls
-  // -------------------------
   async function apiChat(userText){
     var url = cfg.apiBase ? (cfg.apiBase + "/api/chat") : "";
     if (!url) throw new Error("missing apiBase");
@@ -463,9 +446,6 @@
     });
   }
 
-  // -------------------------
-  // Speech-to-text
-  // -------------------------
   var recognizer = null;
 
   function canSTT(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
@@ -504,9 +484,6 @@
     }
   }
 
-  // -------------------------
-  // Voice toggle
-  // -------------------------
   if (voiceBtn) {
     voiceBtn.setAttribute("aria-pressed", "true");
     voiceBtn.addEventListener("click", function(){
