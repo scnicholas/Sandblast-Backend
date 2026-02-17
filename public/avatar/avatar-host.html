@@ -6,23 +6,96 @@
   <title>Nyx Avatar Host</title>
 
   <!-- your existing skin -->
-  <link rel="stylesheet" href="./avatar.css?v=9999" />
+  <link rel="stylesheet" href="./avatar.css?v=9101" />
 
   <style>
-    /* tiny host-only helpers; real design stays in avatar.css */
     html,body{height:100%}
-    body{margin:0;background:#000}
-    /* make sure input row is clickable even if overlays exist */
-    .bubble, .bubble * { pointer-events:auto; }
-    .action-pill{ cursor:pointer; }
+    body{margin:0;background:#000;overflow:hidden}
 
-    /* small controls for mic + voice toggle */
+    /* ===== HERO STAGE (CRITICAL FIX) ===== */
+    :root{
+      --nyx-hero-url: none;                 /* set by NYX_CONFIG heroSrc */
+      --nyx-hero-pos-y: 62%;                /* move hero DOWN so head isn't clipped */
+      --nyx-hero-dim: .55;                  /* soften for readability */
+    }
+
+    #nyxStage{
+      position:absolute;
+      inset:0;
+      background-color:#000;
+      background-image: var(--nyx-hero-url);
+      background-size: cover;
+      background-repeat:no-repeat;
+      background-position: center var(--nyx-hero-pos-y);
+      transition: background-position .25s ease;
+    }
+
+    /* subtle vignette/contrast so bubble text stays legible */
+    #nyxStage::after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(120% 90% at 50% 20%, rgba(0,0,0,0) 30%, rgba(0,0,0,.55) 78%),
+        linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.70));
+      opacity: var(--nyx-hero-dim);
+      pointer-events:none;
+    }
+
+    /* ===== Overlay UI ===== */
+    #nyxOverlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      padding:16px;
+      pointer-events:none; /* only UI elements opt-in */
+      z-index:10;
+    }
+
+    /* Everything interactive must opt back in */
+    .bubble, .bubble * { pointer-events:auto; }
+
+    .bubble{
+      max-width: 100%;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      padding:14px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+    }
+
+    .bubble-text{
+      color:rgba(255,255,255,.90);
+      font:16px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    }
+
+    .bubble-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:12px;
+    }
+
+    .action-pill{
+      font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.28);
+      color: rgba(255,255,255,.86);
+      cursor:pointer;
+      user-select:none;
+    }
+
     .nyx-controls{
       display:flex;
       gap:8px;
       align-items:center;
       margin-top:10px;
     }
+
     .nyx-mini{
       font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       padding:8px 10px;
@@ -37,60 +110,68 @@
       border-color: rgba(70,200,140,.35);
       box-shadow: 0 0 0 2px rgba(70,200,140,.10) inset;
     }
+
+    .nyx-row{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      align-items:stretch;
+    }
+    #nyxInput{
+      flex:1;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.25);
+      color:rgba(255,255,255,.90);
+      padding:12px 14px;
+      outline:none;
+      min-width:0;
+    }
+    #nyxSend{
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.08);
+      color:#fff;
+      padding:12px 16px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    #nyxDiag{
+      margin-top:8px;
+      font:12px ui-monospace,Menlo,Consolas,monospace;
+      color:rgba(255,255,255,.55);
+    }
   </style>
 </head>
 
 <body>
-  <!-- IMPORTANT:
-       This assumes your avatar-host.html already contains the Nyx DOM:
-       - #nyxBubbleText
-       - #nyxBubbleActions with .action-pill[data-chip]
-       - input #nyxInput
-       - button #nyxSend
-       If your IDs differ, adjust them in the JS section. -->
+  <div id="nyxStage" aria-hidden="true"></div>
 
-  <div id="wrap" style="height:100vh;display:grid;grid-template-columns:1fr;place-items:stretch;">
-    <!-- Your existing Nyx shell markup should be here.
-         If you already have it in your current file, KEEP IT.
-         The JS below wires functionality to the existing elements. -->
+  <div id="nyxOverlay">
+    <div class="bubble" id="nyxBubble">
+      <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
 
-    <!-- Minimal safe fallback if your shell is injected elsewhere -->
-    <div id="nyxShellMount" style="height:100%;position:relative;">
-      <!-- If your actual shell exists, it will override this visual layer via CSS/DOM -->
-      <div id="nyxOverlay" style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;">
-        <div class="bubble" id="nyxBubble" style="pointer-events:auto;margin:16px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.35);backdrop-filter:blur(10px);padding:14px;">
-          <div class="bubble-text" id="nyxBubbleText" style="color:rgba(255,255,255,.90);font:16px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
-            Hi… I’m Nyx. How are you today?
-          </div>
-
-          <div class="bubble-actions" id="nyxBubbleActions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-            <div class="action-pill general nyx-mini" data-chip="general">General</div>
-            <div class="action-pill music nyx-mini" data-chip="music">Music</div>
-            <div class="action-pill roku nyx-mini" data-chip="roku">Roku</div>
-            <div class="action-pill schedule nyx-mini" data-chip="schedule">Schedule↗</div>
-            <div class="action-pill radio nyx-mini" data-chip="radio">Radio</div>
-            <div class="action-pill news-canada nyx-mini" data-chip="news-canada">News Canada↗</div>
-          </div>
-
-          <div class="nyx-controls">
-            <button class="nyx-mini" id="nyxMic" type="button" title="Speech to text">🎙️</button>
-            <button class="nyx-mini" id="nyxVoiceToggle" type="button" aria-pressed="true" title="Toggle voice">🔊 Voice</button>
-          </div>
-
-          <div style="display:flex;gap:10px;margin-top:12px;">
-            <input id="nyxInput" type="text" placeholder="Type a message…"
-              style="flex:1;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.25);color:rgba(255,255,255,.90);padding:12px 14px;outline:none;" />
-            <button id="nyxSend" type="button"
-              style="border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);color:#fff;padding:12px 16px;cursor:pointer;">
-              Send
-            </button>
-          </div>
-
-          <div id="nyxDiag" style="margin-top:8px;font:12px ui-monospace,Menlo,Consolas,monospace;color:rgba(255,255,255,.55);">
-            HOST v9100 • waiting config…
-          </div>
-        </div>
+      <div class="bubble-actions" id="nyxBubbleActions">
+        <div class="action-pill" data-chip="general">General</div>
+        <div class="action-pill" data-chip="music">Music</div>
+        <div class="action-pill" data-chip="roku">Roku</div>
+        <div class="action-pill" data-chip="schedule">Schedule↗</div>
+        <div class="action-pill" data-chip="radio">Radio</div>
+        <div class="action-pill" data-chip="news-canada">News Canada↗</div>
       </div>
+
+      <div class="nyx-controls">
+        <button class="nyx-mini" id="nyxMic" type="button" title="Speech to text">🎙️</button>
+        <button class="nyx-mini" id="nyxVoiceToggle" type="button" aria-pressed="true" title="Toggle voice">🔊 Voice</button>
+      </div>
+
+      <div class="nyx-row">
+        <input id="nyxInput" type="text" placeholder="Type a message…" />
+        <button id="nyxSend" type="button">Send</button>
+      </div>
+
+      <div id="nyxDiag">HOST v9101 • waiting config…</div>
     </div>
   </div>
 
@@ -105,7 +186,8 @@
     apiBase: "",
     token: "",
     tokenHeader: "X-SB-WIDGET-TOKEN",
-    urls: {}
+    urls: {},
+    heroSrc: ""
   };
 
   var mode = "general";
@@ -114,6 +196,7 @@
   // -------------------------
   // Elements
   // -------------------------
+  var stage = document.getElementById("nyxStage");
   var bubbleText = document.getElementById("nyxBubbleText");
   var actions = document.getElementById("nyxBubbleActions");
   var input = document.getElementById("nyxInput");
@@ -124,68 +207,88 @@
 
   function safeStr(x){ return (x===null||x===undefined) ? "" : String(x); }
   function setDiag(t){ if (diag) diag.textContent = t; }
+  function setBubble(t){ if (bubbleText) bubbleText.textContent = t; }
+
+  function post(type, payload){
+    try{ window.parent && window.parent.postMessage({ type:type, payload:payload||{} }, "*"); }catch(_){}
+  }
+
+  function normalizeApiBase(s){ return safeStr(s).trim().replace(/\/+$/,""); }
+
+  function normalizeHeroSrc(src){
+    src = safeStr(src).trim();
+    if(!src) return "";
+    if (/^file:\/\//i.test(src)) return "";
+    if (/^https?:\/\//i.test(src)) return src;
+    if (src[0] !== "/") src = "/" + src;
+    return src;
+  }
+
+  function applyHero(heroSrc){
+    heroSrc = normalizeHeroSrc(heroSrc);
+    cfg.heroSrc = heroSrc;
+    if (!heroSrc || !stage) return;
+
+    // If relative path, resolve against cfg.apiBase (so iframe can fetch it reliably)
+    var url = heroSrc;
+    if (!/^https?:\/\//i.test(url)) {
+      if (cfg.apiBase) url = cfg.apiBase + url;
+    }
+
+    document.documentElement.style.setProperty("--nyx-hero-url", "url('" + url.replace(/'/g,"%27") + "')");
+
+    // nudge down (head-safe) – you can tune this later if needed
+    document.documentElement.style.setProperty("--nyx-hero-pos-y", "62%");
+  }
 
   // -------------------------
   // Parent handshake
   // -------------------------
-  function post(type, payload){
-    try { window.parent && window.parent.postMessage({ type:type, payload:payload||{} }, "*"); } catch(_){}
-  }
-
-  // Let parent know we're alive (nonce optional)
   var nonce = Math.random().toString(16).slice(2) + Date.now().toString(16);
   post("NYX_READY", { nonce: nonce });
 
-  // Accept config
   window.addEventListener("message", function(ev){
     var d = ev && ev.data;
     if (!d || typeof d !== "object") return;
 
     if (d.type === "NYX_CONFIG" && d.payload) {
-      cfg.apiBase = safeStr(d.payload.apiBase).trim().replace(/\/+$/,"");
+      cfg.apiBase = normalizeApiBase(d.payload.apiBase);
       cfg.token = safeStr(d.payload.token).trim();
       cfg.tokenHeader = safeStr(d.payload.tokenHeader || "X-SB-WIDGET-TOKEN").trim();
       cfg.urls = (d.payload.urls && typeof d.payload.urls === "object") ? d.payload.urls : {};
-      setDiag("HOST v9100 • configured • mode=" + mode);
+      applyHero(d.payload.heroSrc || "");
+
+      setDiag("HOST v9101 • configured • mode=" + mode);
       post("NYX_ACK", { ok:true });
+    }
+
+    // Optional: parent can tune hero position live if you want later
+    if (d.type === "NYX_HERO_TUNE" && d.payload) {
+      var y = safeStr(d.payload.posY).trim();
+      if (y) document.documentElement.style.setProperty("--nyx-hero-pos-y", y);
     }
   });
 
   // -------------------------
-  // UI helpers
+  // Chips behavior
   // -------------------------
-  function setBubble(text){
-    if (!bubbleText) return;
-    bubbleText.textContent = text;
-  }
-
-  function normalizeUrlKey(k){
-    return safeStr(k).toLowerCase().trim();
-  }
+  function normalizeKey(k){ return safeStr(k).toLowerCase().trim(); }
 
   function getUrlForChip(chip){
-    chip = normalizeUrlKey(chip);
-    // direct key match
+    chip = normalizeKey(chip);
     if (cfg.urls && cfg.urls[chip]) return safeStr(cfg.urls[chip]);
-    // tolerate camel/space variations
     if (chip === "newscanada" && cfg.urls["news-canada"]) return safeStr(cfg.urls["news-canada"]);
     return "";
   }
 
-  // -------------------------
-  // Chips behavior
-  // -------------------------
   function onChip(chip){
-    chip = normalizeUrlKey(chip);
+    chip = normalizeKey(chip);
 
-    // navigation chips open URL via parent
+    // navigation chips open URL via parent (parent must handle NYX_OPEN_URL)
     if (chip === "roku" || chip === "radio" || chip === "schedule" || chip === "news-canada") {
       var u = getUrlForChip(chip);
-      if (u) {
-        post("NYX_OPEN_URL", { key: chip, url: u });
-        return;
-      }
-      setBubble("I don’t have a destination URL for “" + chip + "” yet.");
+      if (u) { post("NYX_OPEN_URL", { key: chip, url: u }); return; }
+      setBubble("No destination URL for “" + chip + "” yet.");
       return;
     }
 
@@ -193,19 +296,17 @@
     if (chip === "general" || chip === "music") {
       mode = chip;
       setBubble("Mode set: " + (mode === "music" ? "Music" : "General") + ". What do you want to do?");
-      setDiag("HOST v9100 • configured • mode=" + mode);
+      setDiag("HOST v9101 • configured • mode=" + mode);
       return;
     }
 
-    // default
     setBubble("Chip: " + chip);
   }
 
   if (actions) {
     actions.addEventListener("click", function(e){
       var t = e.target;
-      if (!t) return;
-      var el = t.closest ? t.closest("[data-chip]") : t;
+      var el = t && t.closest ? t.closest("[data-chip]") : null;
       if (!el) return;
       var chip = el.getAttribute("data-chip");
       if (!chip) return;
@@ -214,31 +315,30 @@
   }
 
   // -------------------------
-  // Chat send (bridge test + real message path)
+  // API calls
   // -------------------------
   async function apiChat(userText){
-    // You can map this to your existing endpoint.
-    // Default assumption: POST { message, mode } -> { reply: "..." }
     var url = cfg.apiBase ? (cfg.apiBase + "/api/chat") : "";
     if (!url) throw new Error("missing apiBase");
 
     var headers = { "Content-Type":"application/json" };
     if (cfg.token) headers[cfg.tokenHeader || "X-SB-WIDGET-TOKEN"] = cfg.token;
 
-    var body = JSON.stringify({ message: userText, mode: mode });
+    var res = await fetch(url, {
+      method:"POST",
+      headers: headers,
+      body: JSON.stringify({ message: userText, mode: mode }),
+      credentials:"omit"
+    });
 
-    var res = await fetch(url, { method:"POST", headers: headers, body: body, credentials:"omit" });
     if (!res.ok) {
       var txt = await res.text().catch(function(){ return ""; });
       throw new Error("chat http " + res.status + " " + txt.slice(0,120));
     }
-    var json = await res.json().catch(function(){ return {}; });
-    return json;
+    return await res.json().catch(function(){ return {}; });
   }
 
   async function apiTTS(text){
-    // Your backend already has /api/tts or /api/voice (per your notes).
-    // We'll try /api/tts first, then fall back to /api/voice.
     if (!cfg.apiBase) throw new Error("missing apiBase");
     if (!text) return null;
 
@@ -253,30 +353,25 @@
         credentials:"omit"
       });
 
-      // Your server may return 204 fail-open; treat as no-audio
-      if (res.status === 204) return null;
+      if (res.status === 204) return null; // fail-open
       if (!res.ok) return null;
 
-      // Prefer audio blob
       var ct = (res.headers.get("content-type") || "").toLowerCase();
       if (ct.includes("audio")) return await res.blob();
 
-      // If server returns JSON with audioUrl/base64, handle gently
       var j = await res.json().catch(function(){ return null; });
       if (j && j.audioUrl) return j.audioUrl;
       return null;
     }
 
-    var b = await hit("/api/tts");
-    if (b) return b;
-    return await hit("/api/voice");
+    return (await hit("/api/tts")) || (await hit("/api/voice"));
   }
 
   function playAudioBlob(blob){
     try{
-      var url = URL.createObjectURL(blob);
-      var a = new Audio(url);
-      a.onended = function(){ try{ URL.revokeObjectURL(url); }catch(_){} };
+      var u = URL.createObjectURL(blob);
+      var a = new Audio(u);
+      a.onended = function(){ try{ URL.revokeObjectURL(u); }catch(_){} };
       a.play().catch(function(){});
     }catch(_){}
   }
@@ -289,18 +384,15 @@
     setBubble("…");
     post("NYX_PRESENCE", { presence:"thinking" });
 
-    // If the bridge isn’t configured yet, we at least confirm the UI pipeline works
     if (!cfg.apiBase) {
-      setBubble("I’m not configured yet (no API base). Open/close the widget once so NYX_CONFIG arrives.");
+      setBubble("Not configured yet (no API base). Close/open the widget once so NYX_CONFIG arrives.");
       post("NYX_PRESENCE", { presence:"ready" });
       return;
     }
 
     try{
       var out = await apiChat(txt);
-      // flexible: support {reply}, {text}, {message}
-      var reply =
-        safeStr(out && (out.reply || out.text || out.message || out.output)).trim()
+      var reply = safeStr(out && (out.reply || out.text || out.message || out.output)).trim()
         || "I got that. (No reply payload returned.)";
 
       setBubble(reply);
@@ -310,12 +402,11 @@
         try{
           var audio = await apiTTS(reply);
           if (audio && typeof audio === "string") {
-            // audioUrl case
             try{ new Audio(audio).play().catch(function(){}); }catch(_){}
           } else if (audio) {
             playAudioBlob(audio);
           }
-        }catch(_){ /* fail-open */ }
+        }catch(_){}
       }
 
       post("NYX_PRESENCE", { presence:"ready" });
@@ -328,27 +419,24 @@
   if (sendBtn) sendBtn.addEventListener("click", sendMessage);
   if (input) {
     input.addEventListener("keydown", function(e){
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendMessage();
-      }
+      if (e.key === "Enter") { e.preventDefault(); sendMessage(); }
     });
   }
 
   // -------------------------
-  // Speech-to-text (browser)
+  // Speech-to-text
   // -------------------------
   var recognizer = null;
-  function canSTT(){
-    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-  }
+
+  function canSTT(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+
   function initSTT(){
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var r = new SR();
     r.continuous = false;
     r.interimResults = false;
-    r.lang = "en-US"; // change if needed
+    r.lang = "en-US";
     r.onresult = function(ev){
       try{
         var t = ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript;
@@ -356,10 +444,7 @@
         if (t && input) input.value = t;
       }catch(_){}
     };
-    r.onerror = function(){};
-    r.onend = function(){
-      if (micBtn) micBtn.textContent = "🎙️";
-    };
+    r.onend = function(){ if (micBtn) micBtn.textContent = "🎙️"; };
     return r;
   }
 
@@ -374,12 +459,7 @@
       micBtn.addEventListener("click", function(){
         if (!recognizer) recognizer = initSTT();
         if (!recognizer) return;
-        try{
-          micBtn.textContent = "⏺️";
-          recognizer.start();
-        }catch(_){
-          micBtn.textContent = "🎙️";
-        }
+        try{ micBtn.textContent = "⏺️"; recognizer.start(); }catch(_){ micBtn.textContent = "🎙️"; }
       });
     }
   }
