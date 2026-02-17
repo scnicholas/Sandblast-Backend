@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.2.0 (DUP RAIL OFF++++ + HERO GUARANTEE++++ + OVERLAY AUTHORITY++++)
+ * v1.2.1 (HERO FRAME FIX++++ + NO SCROLL PILL WRAP++++ + CLEAN LAYERING++++)
  */
 
 :root{
@@ -11,8 +11,9 @@
   /* Host can override by setting --nyx-hero-url to url("...") */
   --nyx-hero-url: url("/avatar/assets/nyx-hero.png");
 
-  --hero-pos:50% 12%;
-  --hero-scale:132%;
+  /* ✅ FIXED HERO FRAMING (was too zoomed + too high) */
+  --hero-pos:50% 35%;
+  --hero-scale:105%;
   --hero-opacity:1;
 
   --shoulder-shadow: rgba(0,0,0,.92);
@@ -73,7 +74,7 @@ body{
   background:
     linear-gradient(to top,
       var(--shoulder-shadow) 0%,
-      rgba(0,0,0,.72) 18%,
+      rgba(0,0,0,.80) 18%,     /* ✅ deeper noir (was .72) */
       rgba(0,0,0,0) 46%
     ),
     radial-gradient(40% 28% at 50% 24%,
@@ -97,7 +98,13 @@ body{
 }
 
 /* Kill the duplicate rail so nothing sits behind the bubble */
-#nyxChips{ display:none !important; visibility:hidden !important; opacity:0 !important; }
+#nyxChips{
+  display:none !important;
+  visibility:hidden !important;
+  opacity:0 !important;
+  height:0 !important;
+  pointer-events:none !important;
+}
 
 /* Bubble */
 #nyxBubble{
@@ -120,13 +127,35 @@ body{
   line-height:1.6;
 }
 
-/* Actions */
+/* Actions — ✅ NO SCROLLBAR */
 #nyxBubbleActions{
   display:flex;
+  flex-wrap:wrap;            /* ✅ wrap instead of overflow */
   gap:8px;
   padding:0 16px 14px 16px;
-  overflow-x:auto;
-  white-space:nowrap;
+  justify-content:center;    /* ✅ looks intentional */
+}
+
+.action-pill{
+  flex:0 0 auto;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.05);
+  color:rgba(255,255,255,.88);
+  font-size:13px;
+  cursor:pointer;
+  pointer-events:auto;
+  transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
+}
+.action-pill:hover{
+  transform:translateY(-1px);
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,255,255,.20);
+}
+.action-pill.is-active{
+  background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.24);
 }
 
 /* Input dock */
@@ -134,7 +163,7 @@ body{
   position:absolute;
   left:50%;
   transform:translateX(-50%);
-  bottom:20px;
+  bottom:22px;               /* ✅ lifted (was 20) */
   width:min(620px,94%);
   display:flex;
   gap:10px;
@@ -159,6 +188,7 @@ body{
   color:#fff;
   outline:none;
 }
+.nyx-input::placeholder{ color: rgba(255,255,255,.35); }
 
 .nyx-send{
   padding:14px 18px;
@@ -167,6 +197,12 @@ body{
   background:#111119;
   color:#fff;
   cursor:pointer;
+  transition:transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
+}
+.nyx-send:hover{
+  transform:translateY(-1px);
+  background:#161622;
+  border-color:rgba(255,255,255,.22);
 }
 
 /* Embed no-scroll */
