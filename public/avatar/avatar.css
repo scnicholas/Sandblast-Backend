@@ -1,11 +1,11 @@
 /* avatar.css
  *
- * v1.1.7 (CRITICAL OVERLAY Z++++ + IFRAME STAGE CLAMP++++ + HERO DEPTH SAFE++++ + COGNITIVE CUES++++ + UX MICRO-MOTION++++)
+ * v1.1.8 (HIERARCHY RESTORE++++ + UI AUTHORITY++++ + BUBBLE/DOCK CONTRAST++++ + HERO DIM SAFE++++)
  *
- * Critical Fixes:
- * ✅ Overlay always above hero (bubble/input never disappear behind hero stage)
- * ✅ Stage clamp for iframe widgets (prevents "tall stage pushes UI off-screen")
- * ✅ Embed-safe sizing (min-height:0 + overflow hidden)
+ * What this fixes (the real issue you’re seeing):
+ * ✅ Bubble + chat dock are PRESENT but “visually buried” by stage/hero depth.
+ * ✅ Restores visual hierarchy so the UI reads instantly (without z-index hacks).
+ * ✅ Keeps true noir + premium depth (no haze, no blur wash).
  *
  * Optional classes:
  *   html.nyx-alive
@@ -34,14 +34,14 @@
   --hero-fit:contain;
   --hero-pos:50% 12%;
   --hero-scale:132%;
-  --hero-opacity:1;
+  --hero-opacity:.92; /* HIERARCHY FIX: was 1 (hero too dominant) */
 
   /* Depth layers (NO haze; controlled anchors only) */
   --shoulder-shadow: rgba(0,0,0,.92);
   --face-spot: rgba(255,255,255,.055);
-  --vignette: rgba(0,0,0,.68);
+  --vignette: rgba(0,0,0,.78); /* HIERARCHY FIX: slightly stronger edge frame */
 
-  /* Bubble (quieter, avatar leads) */
+  /* Bubble base (still used for non-critical pieces) */
   --bubble-bg-1:rgba(22,22,28,.82);
   --bubble-bg-2:rgba(12,12,18,.88);
   --bubble-border:rgba(255,255,255,.12);
@@ -112,8 +112,8 @@ body{
   background-size:var(--hero-scale) auto !important;
   opacity:var(--hero-opacity);
 
-  z-index:1;               /* CRITICAL: keep hero behind overlay */
-  overflow:hidden;         /* CRITICAL: clips tall assets */
+  z-index:1;               /* hero behind overlay */
+  overflow:hidden;         /* clips tall assets */
 }
 
 /* Controlled vignette + face spotlight + shoulder anchor */
@@ -193,12 +193,11 @@ html.nyx-alive #nyxShellMount video{
    OVERLAY (CRITICAL Z-LAYER FIX)
 ------------------------- */
 
-/* CRITICAL: overlay must ALWAYS be above hero stage */
 #nyxOverlay,
 .overlay{
   position:absolute;
   inset:0;
-  z-index:2147483000 !important; /* CRITICAL: beats any hero/shell stacking */
+  z-index:2147483000 !important; /* beats any hero/shell stacking */
   background:transparent !important;
   pointer-events:none;
 }
@@ -215,9 +214,9 @@ html.nyx-alive #nyxShellMount video{
 
 body.nyx-thinking #nyxBubble{
   box-shadow:
-    0 18px 60px rgba(0,0,0,.82),
+    0 28px 80px rgba(0,0,0,.85),
     0 0 0 1px rgba(255,255,255,.06),
-    0 0 36px rgba(255,255,255,.05);
+    0 0 36px rgba(255,255,255,.06);
 }
 
 #nyxCogBadge,
@@ -225,7 +224,7 @@ body.nyx-thinking #nyxBubble{
   position:absolute;
   left:50%;
   transform:translateX(-50%);
-  bottom: calc(140px + 84px);
+  bottom: calc(140px + 92px);
   display:inline-flex;
   align-items:center;
   gap:8px;
@@ -277,7 +276,7 @@ body.nyx-thinking .nyx-cog-badge::after{
 }
 
 /* -------------------------
-   SPEECH BUBBLE (SHOULDER HEIGHT)
+   SPEECH BUBBLE (AUTHORITY RESTORED)
 ------------------------- */
 
 #nyxBubble{
@@ -287,12 +286,17 @@ body.nyx-thinking .nyx-cog-badge::after{
   bottom:140px;
   width:min(560px,90%);
 
-  background:linear-gradient(145deg,var(--bubble-bg-1),var(--bubble-bg-2));
-  border:1px solid var(--bubble-border);
+  /* HIERARCHY FIX: stronger surface so it reads over hero */
+  background:linear-gradient(145deg, rgba(28,28,36,.94), rgba(14,14,20,.96));
+  border:1px solid rgba(255,255,255,.16);
   border-radius:20px;
 
-  box-shadow:0 18px 60px var(--bubble-shadow);
-  backdrop-filter:blur(10px);
+  box-shadow:
+    0 28px 80px rgba(0,0,0,.85),
+    0 0 0 1px rgba(255,255,255,.06),
+    0 0 60px rgba(0,0,0,.45);
+
+  backdrop-filter:blur(14px);
 
   pointer-events:auto;
   transition:transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s var(--ease);
@@ -300,16 +304,17 @@ body.nyx-thinking .nyx-cog-badge::after{
 
 #nyxBubble:hover{
   transform:translateX(-50%) translateY(-2px);
-  border-color:rgba(255,255,255,.16);
+  border-color:rgba(255,255,255,.20);
   box-shadow:
-    0 22px 70px rgba(0,0,0,.84),
-    0 0 28px rgba(140,0,35,.18);
+    0 34px 96px rgba(0,0,0,.88),
+    0 0 36px rgba(140,0,35,.16);
 }
 
 #nyxBubbleText{
-  padding:16px 20px 12px 20px;
-  font-size:15px;
-  line-height:1.55;
+  padding:18px 22px 14px 22px;
+  font-size:15.5px;
+  line-height:1.6;
+  color:rgba(255,255,255,.98);
 }
 
 /* -------------------------
@@ -356,19 +361,27 @@ body.nyx-thinking .nyx-cog-badge::after{
 }
 
 /* -------------------------
-   USER INPUT DOCK (BOTTOM PIN)
+   USER INPUT DOCK (ANCHOR + CONTRAST)
 ------------------------- */
 
 .nyx-inputdock{
   position:absolute;
   left:50%;
   transform:translateX(-50%);
-  bottom:18px;
+  bottom:20px;
   width:min(620px,94%);
   display:flex;
   gap:10px;
   pointer-events:auto;
-  z-index:2147483001; /* stays above bubble if needed */
+
+  /* HIERARCHY FIX: dock gets its own surface */
+  padding:10px;
+  border-radius:18px;
+  background:rgba(10,10,14,.82);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 18px 60px rgba(0,0,0,.75);
+
+  z-index:2147483001;
 }
 
 .nyx-input{
@@ -376,30 +389,30 @@ body.nyx-thinking .nyx-cog-badge::after{
   padding:14px 16px;
   font-size:15px;
   border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background:#07070b;
+  border:1px solid rgba(255,255,255,.18);
+  background:#0c0c12;
   color:#fff;
   outline:none;
   transition:border-color .18s var(--ease), box-shadow .18s var(--ease);
 }
 .nyx-input:focus{
-  border-color:rgba(255,255,255,.22);
+  border-color:rgba(255,255,255,.24);
   box-shadow:
     0 0 0 1px rgba(255,255,255,.06),
-    0 0 22px rgba(255,255,255,.05);
+    0 0 22px rgba(255,255,255,.06);
 }
 
 .nyx-send{
   padding:14px 18px;
   border-radius:14px;
   border:1px solid rgba(255,255,255,.16);
-  background:#0d0d12;
+  background:#111119;
   color:#fff;
   cursor:pointer;
   transition:background .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease);
 }
 .nyx-send:hover{
-  background:#14141b;
+  background:#171722;
   border-color:rgba(255,255,255,.22);
   transform:translateY(-1px);
 }
@@ -408,11 +421,11 @@ body.nyx-thinking .nyx-cog-badge::after{
    MODE TINT HOOKS
 ------------------------- */
 
-body.nyx-mode-music #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(140,0,35,.14); }
-body.nyx-mode-cyber #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(0,170,255,.12); }
-body.nyx-mode-roku  #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(142,75,255,.12); }
-body.nyx-mode-radio #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(255,190,0,.10); }
-body.nyx-mode-schedule #nyxBubble{ box-shadow:0 18px 60px rgba(0,0,0,.82), 0 0 40px rgba(70,200,140,.10); }
+body.nyx-mode-music #nyxBubble{ box-shadow:0 28px 80px rgba(0,0,0,.85), 0 0 40px rgba(140,0,35,.14); }
+body.nyx-mode-cyber #nyxBubble{ box-shadow:0 28px 80px rgba(0,0,0,.85), 0 0 40px rgba(0,170,255,.12); }
+body.nyx-mode-roku  #nyxBubble{ box-shadow:0 28px 80px rgba(0,0,0,.85), 0 0 40px rgba(142,75,255,.12); }
+body.nyx-mode-radio #nyxBubble{ box-shadow:0 28px 80px rgba(0,0,0,.85), 0 0 40px rgba(255,190,0,.10); }
+body.nyx-mode-schedule #nyxBubble{ box-shadow:0 28px 80px rgba(0,0,0,.85), 0 0 40px rgba(70,200,140,.10); }
 
 /* -------------------------
    EMBED MODE (FULL BLACK + NO SCROLL)
@@ -422,7 +435,7 @@ html.embed,
 html.embed body{
   height:100%;
   background:#000 !important;
-  overflow:hidden !important; /* CRITICAL */
+  overflow:hidden !important;
 }
 
 html.embed #avatarRoot,
