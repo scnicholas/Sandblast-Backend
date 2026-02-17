@@ -3095,8 +3095,3 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 module.exports = { app, INDEX_VERSION };
-
-path = "/mnt/data/index.js"
-with open(path, "w", encoding="utf-8") as f:
-    f.write(code)
-path
