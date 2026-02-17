@@ -5,20 +5,25 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nyx Avatar Host</title>
 
-  <!-- your existing skin (cache-bust) -->
-  <link rel="stylesheet" href="./avatar.css?v=9102" />
+  <!-- skin (cache-bust) -->
+  <link rel="stylesheet" href="./avatar.css?v=9103" />
 
   <style>
     html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden}
 
-    /* ===== HERO STAGE (CRITICAL FIX) =====
-       NOTE: avatar.css already hardens hero rendering, but this stage guarantees a visible
-       background even if shell/overlay structure changes. */
+    /* ===== HERO STAGE (BULLETPROOF) =====
+       - Default hero is ALWAYS visible (absolute URL)
+       - NYX_CONFIG can override it
+       - Dim reduced so the hero actually shows
+    */
     :root{
-      --nyx-hero-url: none;                 /* set by NYX_CONFIG heroSrc */
-      --nyx-hero-pos-y: 22%;                /* panel-safe default (face higher in small iframe) */
-      --nyx-hero-dim: .48;                  /* soften for readability */
+      --nyx-hero-abs: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
+      --nyx-hero-url: var(--nyx-hero-abs);  /* ✅ default: ALWAYS on */
+
+      /* panel-safe framing */
+      --nyx-hero-pos-y: 22%;
+      --nyx-hero-dim: .26; /* ✅ less wash */
     }
 
     #nyxStage{
@@ -33,13 +38,13 @@
       filter: contrast(1.04) saturate(1.03);
     }
 
-    /* subtle vignette/contrast so bubble text stays legible */
+    /* subtle vignette/contrast so UI stays legible (lighter than before) */
     #nyxStage::after{
       content:"";
       position:absolute; inset:0;
       background:
-        radial-gradient(120% 90% at 50% 18%, rgba(0,0,0,0) 30%, rgba(0,0,0,.55) 78%),
-        linear-gradient(180deg, rgba(0,0,0,.20), rgba(0,0,0,.74));
+        radial-gradient(120% 90% at 50% 18%, rgba(0,0,0,0) 28%, rgba(0,0,0,.46) 78%),
+        linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.62));
       opacity: var(--nyx-hero-dim);
       pointer-events:none;
     }
@@ -52,11 +57,10 @@
       flex-direction:column;
       justify-content:flex-end;
       padding:16px;
-      pointer-events:none; /* only UI elements opt-in */
+      pointer-events:none;
       z-index:10;
     }
 
-    /* Everything interactive must opt back in */
     .bubble, .bubble * { pointer-events:auto; }
 
     .bubble{
@@ -174,7 +178,7 @@
         <button id="nyxSend" type="button">Send</button>
       </div>
 
-      <div id="nyxDiag">HOST v9102 • waiting config…</div>
+      <div id="nyxDiag">HOST v9103 • boot…</div>
     </div>
   </div>
 
@@ -199,7 +203,6 @@
   // -------------------------
   // Elements
   // -------------------------
-  var stage = document.getElementById("nyxStage");
   var bubbleText = document.getElementById("nyxBubbleText");
   var actions = document.getElementById("nyxBubbleActions");
   var input = document.getElementById("nyxInput");
@@ -235,6 +238,30 @@
     return u;
   }
 
+  // -------------------------
+  // HERO loader + verifier
+  // -------------------------
+  function setHeroCssUrl(url){
+    if (!url) return;
+    document.documentElement.style.setProperty("--nyx-hero-url", "url('" + url.replace(/'/g,"%27") + "')");
+  }
+
+  function verifyHero(url){
+    try{
+      var img = new Image();
+      img.onload = function(){ setDiag("HOST v9103 • HERO OK • mode=" + mode); };
+      img.onerror = function(){ setDiag("HOST v9103 • HERO LOAD FAIL • mode=" + mode); };
+      img.src = url + (url.indexOf("?")>=0 ? "&" : "?") + "cb=" + Date.now();
+    }catch(_){}
+  }
+
+  // Always verify the DEFAULT hero first (so we know if the server path is good)
+  (function(){
+    var abs = "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
+    setDiag("HOST v9103 • default hero…");
+    verifyHero(abs);
+  })();
+
   function applyHero(heroSrc){
     heroSrc = normalizeHeroSrc(heroSrc);
     cfg.heroSrc = heroSrc;
@@ -243,15 +270,13 @@
     var url = resolveUrlMaybeRelative(heroSrc);
     if (!url) return;
 
-    // CSS var for stage
-    document.documentElement.style.setProperty("--nyx-hero-url", "url('" + url.replace(/'/g,"%27") + "')");
-
-    // panel-safe default (face visible behind UI). Parent can tune later.
+    setHeroCssUrl(url);
     document.documentElement.style.setProperty("--nyx-hero-pos-y", "22%");
+    verifyHero(url);
   }
 
   // -------------------------
-  // Parent handshake (nonce + optional origin binding)
+  // Parent handshake
   // -------------------------
   var nonce = Math.random().toString(16).slice(2) + Date.now().toString(16);
   post("NYX_READY", { nonce: nonce });
@@ -261,9 +286,6 @@
     if (!d || typeof d !== "object") return;
 
     if (d.type === "NYX_CONFIG" && d.payload) {
-      // NOTE: we don't hard-block by origin because your widget posts "*" and you may test across domains.
-      // The tokenHeader/token acts as the real control plane for API access.
-
       cfg.apiBase = normalizeApiBase(d.payload.apiBase);
       cfg.token = safeStr(d.payload.token).trim();
       cfg.tokenHeader = safeStr(d.payload.tokenHeader || "X-SB-WIDGET-TOKEN").trim();
@@ -271,19 +293,17 @@
 
       applyHero(d.payload.heroSrc || "");
 
-      setDiag("HOST v9102 • configured • mode=" + mode);
+      setDiag("HOST v9103 • configured • mode=" + mode);
       post("NYX_ACK", { ok:true });
       return;
     }
 
-    // Optional: parent can tune hero position live
     if (d.type === "NYX_HERO_TUNE" && d.payload) {
       var y = safeStr(d.payload.posY).trim();
       if (y) document.documentElement.style.setProperty("--nyx-hero-pos-y", y);
       return;
     }
 
-    // Optional: parent can dim stage a bit more/less
     if (d.type === "NYX_HERO_DIM" && d.payload) {
       var dim = safeStr(d.payload.dim).trim();
       if (dim) document.documentElement.style.setProperty("--nyx-hero-dim", dim);
@@ -306,7 +326,6 @@
   function onChip(chip){
     chip = normalizeKey(chip);
 
-    // navigation chips open URL via parent (parent must handle NYX_OPEN_URL)
     if (chip === "roku" || chip === "radio" || chip === "schedule" || chip === "news-canada") {
       var u = getUrlForChip(chip);
       if (u) { post("NYX_OPEN_URL", { key: chip, url: u }); return; }
@@ -314,11 +333,10 @@
       return;
     }
 
-    // mode chips
     if (chip === "general" || chip === "music") {
       mode = chip;
       setBubble("Mode set: " + (mode === "music" ? "Music" : "General") + ". What do you want to do?");
-      setDiag("HOST v9102 • configured • mode=" + mode);
+      setDiag("HOST v9103 • configured • mode=" + mode);
       return;
     }
 
@@ -375,7 +393,7 @@
         credentials:"omit"
       });
 
-      if (res.status === 204) return null; // fail-open
+      if (res.status === 204) return null;
       if (!res.ok) return null;
 
       var ct = (res.headers.get("content-type") || "").toLowerCase();
