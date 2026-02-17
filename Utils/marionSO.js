@@ -12,56 +12,43 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.4 (TRACE POLICY CHECK HARDEN++++ + ETHICS SIGNAL FIX++++ + SAFER SERIALIZATION++++)
- * ✅ Hardens tracePolicyCheck: safe serialization for objects/arrays so raw-text leaks are actually detectable in dev checks
- * ✅ Fixes ETHICS signal value typo/casing ("offer_options_not_orders")
- * ✅ Preserves: aiKnowledge integration (FAIL-OPEN; NO RAW TEXT) + trace bit ak + all prior layers
+ * v1.1.5 (PSYCHE BRIDGE ENABLED++++ + KNOWLEDGE OFFLOAD++++ + FINANCE CASE FIX++++)
+ * ✅ Integrates PsycheBridge (option 2): Marion stops doing domain retrieval/merging; PsycheBridge aggregates knowledge into a single psyche object
+ * ✅ Preserves FAIL-OPEN behavior: if PsycheBridge missing, falls back to legacy per-domain hint calls (optional modules)
+ * ✅ Fixes Finance module case on Linux/Render: "./FinanceKnowledge" (capital F)
+ * ✅ Keeps TRACE POLICY CHECK HARDEN++++ + ETHICS SIGNAL FIX++++ + SAFER SERIALIZATION++++
  */
 
-const MARION_VERSION = "marionSO v1.1.4";
+const MARION_VERSION = "marionSO v1.1.5";
 
 // -------------------------
-// Optional Knowledge modules (FAIL-OPEN)
+// Optional PsycheBridge (FAIL-OPEN)
 // -------------------------
-let PsychologyK = null;
+let PsycheBridge = null;
 try {
   // eslint-disable-next-line global-require
-  PsychologyK = require("./psychologyKnowledge");
+  PsycheBridge = require("./psycheBridge");
 } catch (e) {
-  PsychologyK = null;
+  PsycheBridge = null;
 }
 
-let CyberK = null;
-try {
-  // eslint-disable-next-line global-require
-  CyberK = require("./cyberKnowledge");
-} catch (e) {
-  CyberK = null;
+// -------------------------
+// Optional Knowledge modules (legacy fallback; FAIL-OPEN)
+// -------------------------
+function safeRequire(relPath) {
+  try {
+    // eslint-disable-next-line global-require
+    return require(relPath);
+  } catch (_e) {
+    return null;
+  }
 }
 
-let EnglishK = null;
-try {
-  // eslint-disable-next-line global-require
-  EnglishK = require("./englishKnowledge");
-} catch (e) {
-  EnglishK = null;
-}
-
-let FinanceK = null;
-try {
-  // eslint-disable-next-line global-require
-  FinanceK = require("./financeKnowledge");
-} catch (e) {
-  FinanceK = null;
-}
-
-let AIK = null;
-try {
-  // eslint-disable-next-line global-require
-  AIK = require("./aiKnowledge");
-} catch (e) {
-  AIK = null;
-}
+let PsychologyK = safeRequire("./psychologyKnowledge");
+let CyberK = safeRequire("./cyberKnowledge");
+let EnglishK = safeRequire("./englishKnowledge");
+let FinanceK = safeRequire("./FinanceKnowledge"); // FIX++++ (capital F) for Linux/Render
+let AIK = safeRequire("./aiKnowledge");
 
 // -------------------------
 // helpers
@@ -139,7 +126,6 @@ function toLowerToken(x, max = 24) {
 }
 function safeSerialize(x, max = 1200) {
   // Dev-only helper: attempt to stringify objects so tracePolicyCheck can detect leaks.
-  // NOTE: This does NOT imply the object contains raw text; it's a guard to catch bugs.
   try {
     if (x === null || x === undefined) return "";
     if (typeof x === "string") return safeStr(x, max);
@@ -214,7 +200,7 @@ const ETHICS = Object.freeze({
   SIGNALS: Object.freeze({
     MINIMIZE_RISKY_DETAIL: "minimize_risky_detail",
     USE_NEUTRAL_TONE: "use_neutral_tone",
-    OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_orders", // FIX++++ (was offer_options_not_ORDERS)
+    OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_orders",
     ENCOURAGE_HELP_SEEKING: "encourage_help_seeking",
   }),
 });
@@ -497,7 +483,8 @@ function safeTokenSet(tokens, max = 10) {
 }
 
 // -------------------------
-// PSYCHOLOGY KNOWLEDGE WIRE (bounded, non-PII)
+// PSYCHOLOGY KNOWLEDGE WIRE (legacy fallback; bounded, non-PII)
+// NOTE: With PsycheBridge enabled, Marion does NOT need to call this.
 // -------------------------
 function buildPsychologyQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -661,7 +648,7 @@ function queryPsychologyKnowledge(norm, session, cog) {
 }
 
 // -------------------------
-// CYBER KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// CYBER KNOWLEDGE WIRE (legacy fallback)
 // -------------------------
 function buildCyberQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -794,7 +781,7 @@ function queryCyberKnowledge(norm, session, cog) {
 }
 
 // -------------------------
-// ENGLISH KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// ENGLISH KNOWLEDGE WIRE (legacy fallback)
 // -------------------------
 function buildEnglishQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -932,7 +919,7 @@ function queryEnglishKnowledge(norm, session, cog) {
 }
 
 // -------------------------
-// FINANCE KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// FINANCE KNOWLEDGE WIRE (legacy fallback)
 // -------------------------
 function buildFinanceQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -1065,7 +1052,7 @@ function queryFinanceKnowledge(norm, session, cog) {
 }
 
 // -------------------------
-// AI KNOWLEDGE WIRE (bounded, non-PII, NO RAW TEXT)
+// AI KNOWLEDGE WIRE (legacy fallback)
 // -------------------------
 function buildAIQuery(norm, session, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -1089,7 +1076,6 @@ function buildAIQuery(norm, session, cog) {
   if (aiSignals.includes(AI.SIGNALS.ASK_CONSTRAINTS)) needs.push("ask_constraints");
   if (aiSignals.includes(AI.SIGNALS.SAFETY_POSTURE)) needs.push("safety_posture");
 
-  // keep this conservative; we do not inject raw user text into knowledge modules.
   const tokens = safeTokenSet(
     ["ai", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...aiTags, ...aiSignals, ...needs],
     16
@@ -1714,7 +1700,10 @@ function computeFinanceLayer(norm) {
     }
   }
 
-  return { finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
+  return {
+    finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
+    finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
+  };
 }
 
 // -------------------------
@@ -1764,7 +1753,10 @@ function computeStrategyLayer(norm, seed, psych) {
     signals.push(STRATEGY.SIGNALS.NEXT_ACTIONS);
   }
 
-  return { strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
+  return {
+    strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8),
+    strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
+  };
 }
 
 // -------------------------
@@ -2058,6 +2050,9 @@ function buildTrace(norm, session, med) {
     `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
     `ai=${Array.isArray(med?.aiTags) && med.aiTags.length ? safeStr(med.aiTags[0], 12) : "-"}`,
     `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
+
+    // Knowledge flags (PsycheBridge sets psyche.enabled; legacy uses *_Hints)
+    `pb=${med?.psyche?.enabled ? "1" : "0"}`,
     `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
     `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
     `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
@@ -2092,6 +2087,7 @@ function tracePolicyCheck(cog, norm, opts) {
     "lawReasons",
     "riskSignals",
     "ethicsSignals",
+    "psyche",
     "psychologyHints",
     "cyberKnowledgeHints",
     "englishKnowledgeHints",
@@ -2101,7 +2097,6 @@ function tracePolicyCheck(cog, norm, opts) {
 
   for (const f of fields) {
     const v = cog && cog[f];
-    // HARDEN++++: serialize objects/arrays so a raw-text leak is detectable in dev checks
     const s = safeSerialize(v, 1200);
     if (!s) continue;
     for (const needle of needles) {
@@ -2187,19 +2182,38 @@ function finalizeContract(cog, nowMs, extra) {
     marionReason: safeStr(c.marionReason || "default", 40),
 
     marionStyle: MARION_STYLE_CONTRACT,
-    handoff: isPlainObject(c.handoff) ? { ...c.handoff } : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
+    handoff: isPlainObject(c.handoff)
+      ? { ...c.handoff }
+      : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
 
     macModeOverride: safeStr(c.macModeOverride || "", 60),
     macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
 
+    // PsycheBridge payload (bounded by PsycheBridge itself; we still clamp string lengths)
+    psyche: isPlainObject(c.psyche)
+      ? {
+          enabled: !!c.psyche.enabled,
+          version: safeStr(c.psyche.version || "", 24),
+          queryKey: safeStr(c.psyche.queryKey || "", 24),
+          mode: safeStr(c.psyche.mode || "", 24),
+          regulation: safeStr(c.psyche.regulation || "", 24),
+          stance: safeStr(c.psyche.stance || "", 32),
+          toneCues: uniqBounded(c.psyche.toneCues || [], 10),
+          uiCues: uniqBounded(c.psyche.uiCues || [], 10),
+          responseCues: uniqBounded(c.psyche.responseCues || [], 12),
+          guardrails: uniqBounded(c.psyche.guardrails || [], 10),
+          confidence: clamp01(c.psyche.confidence),
+          reason: safeStr(c.psyche.reason || "", 60),
+          // keep domains optional but bounded (for debug); avoid deep nesting explosion
+          domains: isPlainObject(c.psyche.domains) ? c.psyche.domains : undefined,
+        }
+      : { enabled: false, reason: "none" },
+
+    // Legacy hints kept for backward compatibility (Nyx can ignore when psyche.enabled=1)
     psychologyHints: isPlainObject(c.psychologyHints) ? clampPsychHints(c.psychologyHints) : { enabled: false, reason: "none" },
-
     cyberKnowledgeHints: isPlainObject(c.cyberKnowledgeHints) ? clampCyberHints(c.cyberKnowledgeHints) : { enabled: false, reason: "none" },
-
     englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints) ? clampEnglishHints(c.englishKnowledgeHints) : { enabled: false, reason: "none" },
-
     financeKnowledgeHints: isPlainObject(c.financeKnowledgeHints) ? clampFinanceHints(c.financeKnowledgeHints) : { enabled: false, reason: "none" },
-
     aiKnowledgeHints: isPlainObject(c.aiKnowledgeHints) ? clampAIHints(c.aiKnowledgeHints) : { enabled: false, reason: "none" },
 
     privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
@@ -2221,6 +2235,109 @@ function finalizeContract(cog, nowMs, extra) {
   }
 
   return out;
+}
+
+// -------------------------
+// PsycheBridge integration (option 2)
+// Marion provides ONLY: features/tokens/queryKey/sessionKey + current cog
+// -------------------------
+function buildPsycheBridgeInput(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const tokens = safeTokenSet(
+    []
+      .concat(c.riskDomains || [])
+      .concat(c.ethicsTags || [])
+      .concat(c.cyberTags || [])
+      .concat(c.englishTags || [])
+      .concat(c.finTags || [])
+      .concat(c.aiTags || [])
+      .concat(c.strategyTags || []),
+    24
+  );
+
+  const features = {
+    lane: safeStr(n.lane || s.lane || "", 24).trim().toLowerCase(),
+    action: safeStr(n.action || "", 24).trim().toLowerCase(),
+    intent: safeStr(c.intent || "", 16).trim().toUpperCase(),
+    mode: safeStr(c.mode || "", 16).trim().toLowerCase(),
+    desire: safeStr(c.latentDesire || "", 16).trim().toLowerCase(),
+
+    regulationState: safeStr(c?.psychology?.regulationState || "", 16),
+    cognitiveLoad: safeStr(c?.psychology?.cognitiveLoad || "", 12),
+    agencyPreference: safeStr(c?.psychology?.agencyPreference || "", 16),
+    socialPressure: safeStr(c?.psychology?.socialPressure || "", 12),
+
+    riskTier: safeStr(c.riskTier || "", 10).trim().toLowerCase(),
+    riskDomains: safeTokenSet(c.riskDomains || [], 8),
+  };
+
+  // Deterministic queryKey: use existing trace hash inputs but never raw text.
+  const keyObj = { features, tokens, v: "psycheBridgeInput:v1" };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return { features, tokens, queryKey };
+}
+
+function callPsycheBridge(norm, session, cog) {
+  if (!PsycheBridge || typeof PsycheBridge !== "object") return null;
+
+  const input = buildPsycheBridgeInput(norm, session, cog);
+
+  try {
+    // Supported API shapes (FAIL-OPEN):
+    // - PsycheBridge.build({features,tokens,queryKey,session,cog,normMeta})
+    // - PsycheBridge.query(...)
+    // - PsycheBridge.buildPsyche(...)
+    const payload = {
+      features: input.features,
+      tokens: input.tokens,
+      queryKey: input.queryKey,
+      session: isPlainObject(session) ? session : {},
+      cog: isPlainObject(cog) ? cog : {},
+      normMeta: {
+        lane: safeStr(norm?.lane || "", 24),
+        action: safeStr(norm?.action || "", 24),
+        hasPayload: !!norm?.turnSignals?.hasPayload,
+        payloadActionable: !!norm?.turnSignals?.payloadActionable,
+        textEmpty: !!norm?.turnSignals?.textEmpty,
+      },
+    };
+
+    let out = null;
+    if (typeof PsycheBridge.build === "function") out = PsycheBridge.build(payload);
+    else if (typeof PsycheBridge.buildPsyche === "function") out = PsycheBridge.buildPsyche(payload);
+    else if (typeof PsycheBridge.query === "function") out = PsycheBridge.query(payload);
+
+    if (!isPlainObject(out)) return null;
+
+    // Minimal sanity clamp here (bridge should already be bounded)
+    return {
+      enabled: !!out.enabled,
+      version: safeStr(out.version || "", 24) || "psycheBridge",
+      queryKey: safeStr(out.queryKey || input.queryKey, 24),
+      mode: safeStr(out.mode || "", 24),
+      regulation: safeStr(out.regulation || "", 24),
+      stance: safeStr(out.stance || "", 32),
+      toneCues: uniqBounded(out.toneCues || [], 10),
+      uiCues: uniqBounded(out.uiCues || [], 10),
+      responseCues: uniqBounded(out.responseCues || [], 12),
+      guardrails: uniqBounded(out.guardrails || [], 10),
+      confidence: clamp01(out.confidence),
+      reason: safeStr(out.reason || "psyche_bridge", 60),
+      domains: isPlainObject(out.domains) ? out.domains : undefined,
+    };
+  } catch (e) {
+    return {
+      enabled: false,
+      version: "psycheBridge",
+      queryKey: "",
+      confidence: 0,
+      reason: `psyche_bridge_fail:${safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40)}`,
+    };
+  }
 }
 
 // -------------------------
@@ -2410,8 +2527,10 @@ function mediate(norm, session, opts = {}) {
       privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
     };
 
+    // Apply psych shaping to mediator outputs
     cog = applyPsychologyToMediator(cog, psych0);
 
+    // Recompute ethics after psych is attached (single authoritative set)
     const ethics = computeEthicsLayer(n, psych0, cog);
     cog.ethicsTags = ethics.ethicsTags;
     cog.ethicsSignals = ethics.ethicsSignals;
@@ -2436,21 +2555,39 @@ function mediate(norm, session, opts = {}) {
     cog.aiTags = ai.aiTags;
     cog.aiSignals = ai.aiSignals;
 
-    // Knowledge hints (mediator-safe; NO RAW TEXT)
-    const psyHints = queryPsychologyKnowledge(n, s, cog);
-    cog.psychologyHints = clampPsychHints(psyHints);
+    // =========================
+    // KNOWLEDGE: PsycheBridge first (option 2)
+    // If available, Marion DOES NOT do per-domain retrieval.
+    // =========================
+    const psyche = callPsycheBridge(n, s, cog);
+    if (psyche && psyche.enabled) {
+      cog.psyche = psyche;
 
-    const cyHints = queryCyberKnowledge(n, s, cog);
-    cog.cyberKnowledgeHints = clampCyberHints(cyHints);
+      // Keep legacy hint fields disabled (Nyx should use psyche.*)
+      cog.psychologyHints = { enabled: false, reason: "psyche_bridge" };
+      cog.cyberKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.englishKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.financeKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.aiKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+    } else {
+      // Legacy fallback (only if PsycheBridge missing/disabled)
+      const psyHints = queryPsychologyKnowledge(n, s, cog);
+      cog.psychologyHints = clampPsychHints(psyHints);
 
-    const enHints = queryEnglishKnowledge(n, s, cog);
-    cog.englishKnowledgeHints = clampEnglishHints(enHints);
+      const cyHints = queryCyberKnowledge(n, s, cog);
+      cog.cyberKnowledgeHints = clampCyberHints(cyHints);
 
-    const fiHints = queryFinanceKnowledge(n, s, cog);
-    cog.financeKnowledgeHints = clampFinanceHints(fiHints);
+      const enHints = queryEnglishKnowledge(n, s, cog);
+      cog.englishKnowledgeHints = clampEnglishHints(enHints);
 
-    const aiHints = queryAIKnowledge(n, s, cog);
-    cog.aiKnowledgeHints = clampAIHints(aiHints);
+      const fiHints = queryFinanceKnowledge(n, s, cog);
+      cog.financeKnowledgeHints = clampFinanceHints(fiHints);
+
+      const aiHints = queryAIKnowledge(n, s, cog);
+      cog.aiKnowledgeHints = clampAIHints(aiHints);
+
+      cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
+    }
 
     const trace = buildTrace(n, s, {
       ...cog,
@@ -2463,6 +2600,7 @@ function mediate(norm, session, opts = {}) {
       ethicsTags: cog.ethicsTags,
       cyberTags: cog.cyberTags,
       aiTags: cog.aiTags,
+      psyche: cog.psyche,
       psychologyHints: cog.psychologyHints,
       cyberKnowledgeHints: cog.cyberKnowledgeHints,
       englishKnowledgeHints: cog.englishKnowledgeHints,
@@ -2473,6 +2611,7 @@ function mediate(norm, session, opts = {}) {
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
     cog.marionTraceHash = hashTrace(trace);
 
+    // External overrides (kept)
     if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) {
       cog.budget = o.forceBudget;
     }
@@ -2540,6 +2679,7 @@ function mediate(norm, session, opts = {}) {
       strategySignals: [],
       aiTags: [],
       aiSignals: [],
+      psyche: { enabled: false, reason: "fail_open" },
       psychologyHints: { enabled: false, reason: "fail_open" },
       cyberKnowledgeHints: { enabled: false, reason: "fail_open" },
       englishKnowledgeHints: { enabled: false, reason: "fail_open" },
@@ -2588,27 +2728,31 @@ module.exports = {
   tracePolicyCheck,
   suggestModeHysteresisPatch,
 
-  // psych knowledge exports (integration tests)
+  // psyche bridge exports
+  buildPsycheBridgeInput,
+  callPsycheBridge,
+
+  // legacy psych knowledge exports (integration tests)
   buildPsychologyQuery,
   queryPsychologyKnowledge,
   clampPsychHints,
 
-  // cyber knowledge exports (integration tests)
+  // legacy cyber knowledge exports (integration tests)
   buildCyberQuery,
   queryCyberKnowledge,
   clampCyberHints,
 
-  // english knowledge exports (integration tests)
+  // legacy english knowledge exports (integration tests)
   buildEnglishQuery,
   queryEnglishKnowledge,
   clampEnglishHints,
 
-  // finance knowledge exports (integration tests)
+  // legacy finance knowledge exports (integration tests)
   buildFinanceQuery,
   queryFinanceKnowledge,
   clampFinanceHints,
 
-  // ai knowledge exports (integration tests)
+  // legacy ai knowledge exports (integration tests)
   buildAIQuery,
   queryAIKnowledge,
   clampAIHints,
