@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nyx Avatar Host</title>
 
-  <!-- Use the real skin (CACHE-BUST so you actually see updates) -->
-  <link rel="stylesheet" href="./avatar.css?v=120" />
+  <!-- Skin -->
+  <link rel="stylesheet" href="./avatar.css?v=122" />
 
   <style>
     html,body{height:100%}
@@ -22,16 +22,20 @@
       background:#000 !important;
     }
 
+    /* Stage */
     #avatarRoot{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
       overflow:hidden;
-      min-height:420px;
       position:relative;
       background:#000 !important;
       isolation:isolate;
+
+      height:100%;
+      min-height:0;
     }
 
+    /* Dev panel (NEVER wanted in embed) */
     #panel{
       border:1px solid rgba(255,255,255,.08);
       border-radius:16px;
@@ -39,40 +43,28 @@
       background:#000 !important;
     }
 
-    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-
-    textarea{
-      width:100%;
-      box-sizing:border-box;
-      background:#0b0b10;
-      color:#fff;
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:10px;
-      padding:10px;
-    }
-
-    .hud{font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.92;line-height:1.55}
-    .hud b{opacity:.85}
-
-    button{
-      background:#0b0b10;
-      color:#fff;
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:10px;
-      padding:8px 10px;
-      cursor:pointer;
-    }
-    button:hover{ border-color: rgba(255,255,255,.22); }
-
-    /* Overlay must be clickable but sit above hero */
-    .overlay{
+    /* HERO stage */
+    #nyxShellMount{
       position:absolute;
       inset:0;
-      z-index:2147483000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      z-index:1 !important;
+      background:transparent !important;
+    }
+
+    /* OVERLAY always on top */
+    #nyxOverlay, .overlay{
+      position:absolute;
+      inset:0;
+      z-index:2147483000 !important;
       pointer-events:none;
       display:block !important;
       opacity:1 !important;
       visibility:visible !important;
+      background:transparent !important;
     }
 
     .overlay-inner{
@@ -88,61 +80,45 @@
     }
 
     .overlay-inner .bubble,
-    .overlay-inner .chip,
     .overlay-inner .action-pill,
     .overlay-inner input,
-    .overlay-inner textarea,
-    .overlay-inner button{
+    .overlay-inner button,
+    .overlay-inner a{
       pointer-events:auto;
     }
 
-    /* IMPORTANT:
-       DO NOT visually style #nyxShellMount here.
-       avatar.css owns hero/avatar visuals now. */
-
-    .nyx-cog-badge{
-      align-self:center;
-      margin-bottom:6px;
-      padding:8px 12px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(10,10,14,.78);
-      color:rgba(255,255,255,.84);
-      font:12px ui-monospace, Menlo, Consolas, monospace;
-      letter-spacing:.2px;
-      box-shadow:0 14px 40px rgba(0,0,0,.55);
-      backdrop-filter: blur(10px);
-      pointer-events:none;
-      user-select:none;
+    /* KILL duplicate rail entirely (words behind bubble) */
+    #nyxChips{
+      display:none !important;
+      opacity:0 !important;
+      visibility:hidden !important;
+      pointer-events:none !important;
     }
 
-    #nyxBubble,
-    #nyxBubbleText,
-    #nyxBubbleActions,
-    #nyxInputDock{
-      display:block !important;
-      opacity:1 !important;
-      visibility:visible !important;
-    }
-    #nyxInputDock{ display:flex !important; }
-
-    /* embed tweaks */
-    .embed #wrap{ grid-template-columns: 1fr; padding:0; height:100vh; background:#000 !important; }
-    .embed #panel{ display:none; }
-    .embed #avatarRoot{
-      border-radius:0;
-      border:0;
+    /* Embed mode = single column, full stage, no borders */
+    html.embed #wrap{
+      grid-template-columns: 1fr;
+      padding:0;
+      gap:0;
       height:100vh;
-      min-height:100vh;
       background:#000 !important;
     }
+
+    html.embed #avatarRoot{
+      border:0;
+      border-radius:0;
+      height:100vh;
+      min-height:0;
+      background:#000 !important;
+    }
+
+    html.embed body{ overflow:hidden !important; }
   </style>
 </head>
 
 <body>
   <div id="wrap">
     <div id="avatarRoot">
-
       <div id="nyxShellMount">
         <div class="avatar gaze-soft mood-attentive" id="nyxAvatar">
           <div class="silhouette">
@@ -163,7 +139,6 @@
 
           <div class="bubble" id="nyxBubble">
             <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
-
             <div class="bubble-actions" id="nyxBubbleActions">
               <div class="action-pill general is-active" data-chip="general">General</div>
               <div class="action-pill" data-chip="music">Music</div>
@@ -175,14 +150,8 @@
             </div>
           </div>
 
-          <!-- duplicate rail stays in HTML but CSS will hide it -->
-          <div class="chips" id="nyxChips">
-            <div class="chip is-active" data-chip="general">General</div>
-            <div class="chip" data-chip="music">Music</div>
-            <div class="chip" data-chip="roku">Roku</div>
-            <div class="chip" data-chip="schedule">Schedule<span class="ext">↗</span></div>
-            <div class="chip" data-chip="radio">Radio</div>
-          </div>
+          <!-- duplicate rail kept in markup for compatibility, but hard-hidden above -->
+          <div class="chips" id="nyxChips"></div>
 
           <div class="nyx-inputdock" id="nyxInputDock" aria-label="Nyx chat input">
             <input id="nyxUserInput" class="nyx-input" type="text" placeholder="Type a message…" autocomplete="off" />
@@ -193,8 +162,9 @@
       </div>
     </div>
 
+    <!-- DEV PANEL (will be removed in embed) -->
     <div id="panel">
-      <div class="row">
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
         <button data-act="armAudio">Arm Audio</button>
         <button data-act="idle">Idle</button>
         <button data-act="listen">Listen</button>
@@ -203,13 +173,14 @@
         <button data-act="toggleAlive">Alive</button>
       </div>
 
-      <textarea id="prompt" rows="4" placeholder="Type a message…"></textarea>
-      <div class="row">
+      <textarea id="prompt" rows="4" placeholder="Type a message…" style="width:100%;box-sizing:border-box;background:#0b0b10;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;"></textarea>
+
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
         <button data-act="sendChat">Send /api/chat</button>
         <button data-act="speakText">Speak /api/tts</button>
       </div>
 
-      <div class="hud">
+      <div class="hud" style="font:12px ui-monospace,Menlo,Consolas,monospace;opacity:.92;line-height:1.55">
         <div><b>bridge</b>: <span id="hudBridge">waiting</span></div>
         <div><b>reason</b>: <span id="hudReason">—</span></div>
         <div><b>parent</b>: <span id="hudParent">—</span></div>
@@ -217,27 +188,73 @@
         <div><b>token</b>: <span id="hudToken">—</span></div>
         <div><b>tokenHeader</b>: <span id="hudTokenHeader">—</span></div>
         <div><b>hostVer</b>: <span id="hudHostVer">—</span></div>
-        <div style="margin-top:10px;opacity:.9">
-          <b>presence</b>: <span id="hudPresence">idle</span><br/>
-          <b>stage</b>: <span id="hudStage">warm</span><br/>
-          <b>dominance</b>: <span id="hudDom">neutral</span><br/>
-          <b>velvet</b>: <span id="hudVelvet">0</span><br/>
-          <b>anim</b>: <span id="hudAnim"></span><br/>
-          <b>amp</b>: <span id="hudAmp">0.00</span><br/>
-        </div>
       </div>
 
       <audio id="nyxAudio" preload="auto" style="display:none"></audio>
     </div>
   </div>
 
-  <script src="./avatar-contract.js?v=120"></script>
-  <script src="./nyx-avatar-shell.js?v=120"></script>
-  <script src="./avatar-controller.js?v=120"></script>
-  <script src="./avatar-bridge.js?v=120"></script>
+  <script src="./avatar-contract.js?v=122"></script>
+  <script src="./nyx-avatar-shell.js?v=122"></script>
+  <script src="./avatar-controller.js?v=122"></script>
+  <script src="./avatar-bridge.js?v=122"></script>
 
-  <!-- Keep your existing big script block exactly as you had it -->
-  <!-- (no functional changes needed to fix the visual issue) -->
+  <script>
+  (function(){
+    var HOST_VER = "avatar-host v1.1.8 (PROD LOCK++++ devPanel removed in embed++++ hero injected webp/png++++ dupRail killed++++)";
+    try{ console.log("[NyxHost]", HOST_VER); }catch(_){}
 
+    // Robust embed detection
+    var EMBEDDED = true;
+    try{ EMBEDDED = (window.top !== window.self); } catch(_){ EMBEDDED = true; }
+
+    if (EMBEDDED) document.documentElement.classList.add("embed");
+
+    // HARD remove dev panel in embed (no chance of leaking)
+    if (EMBEDDED){
+      try{
+        var p = document.getElementById("panel");
+        if (p && p.parentNode) p.parentNode.removeChild(p);
+      }catch(_){}
+    }
+
+    function setHud(id, val){
+      try{
+        var el = document.getElementById(id);
+        if(el) el.textContent = String(val || "—");
+      }catch(_){}
+    }
+
+    // HERO injection (webp first, png fallback)
+    // This assumes your assets live at /avatar/assets/
+    var heroWebp = '/avatar/assets/nyx-hero.webp';
+    var heroPng  = '/avatar/assets/nyx-hero.png';
+
+    function setHero(url){
+      try{
+        var root = document.getElementById("avatarRoot");
+        if(!root) return;
+        root.style.setProperty("--nyx-hero-url", 'url("' + url + '")');
+      }catch(_){}
+    }
+
+    // Try webp, fallback to png
+    (function(){
+      try{
+        var img = new Image();
+        img.onload = function(){ setHero(heroWebp); };
+        img.onerror = function(){ setHero(heroPng); };
+        img.src = heroWebp + "?v=122";
+      }catch(_){
+        setHero(heroPng);
+      }
+    })();
+
+    setHud("hudHostVer", HOST_VER);
+    setHud("hudBridge", EMBEDDED ? "ready" : "standalone");
+    setHud("hudReason", EMBEDDED ? "waiting_config" : "standalone");
+    setHud("hudParent", EMBEDDED ? "embedded" : "(direct)");
+  })();
+  </script>
 </body>
 </html>
