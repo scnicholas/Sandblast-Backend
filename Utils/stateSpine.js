@@ -10,15 +10,14 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.4 (CHATENGINE COMPAT++++ + FAIL-OPEN++++ + CASE HARDEN++++)
- * ✅ Fix++++: normalizeInbound now understands chatEngine’s ctx + payload aliases (turnSignals -> signals, effectiveYear/year).
- * ✅ Fix++++: action detection understands payload.route + ctx.action + body.action (matches chatEngine normalizeInbound behavior).
- * ✅ Fix++++: chip-year clear uses inbound normalized year (payload.year OR extracted OR body.year OR ctx.year).
- * ✅ Fix++++: resolves need_pick via chip lane/action OR typed lane token (kept).
- * ✅ Keeps: PRIVACY turnSig hash-only; pendingAsk schema dual-support; need_year detection; safe clear rules.
+ * v1.1.5 (YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + MINOR HARDEN++++)
+ * ✅ Fix++++: extractYearFromText no longer hard-stops at 2025 (supports 1900..2100 via normYear).
+ * ✅ Fix++++: safeStr(max<=0) returns "" (prevents "…" leakage when max=0, keeping PRIVACY default truly empty).
+ * ✅ Fix++++: empty inbound narrowing no longer triggers just because topic defaults to "unknown".
+ * ✅ Keeps: CHATENGINE COMPAT++++ + FAIL-OPEN++++ + CASE HARDEN++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.4";
+const SPINE_VERSION = "stateSpine v1.1.5";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -55,6 +54,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 function safeStr(x, max = 240) {
+  // HARDEN++++: max<=0 must yield empty string (prevents "…" leak at max=0)
+  if (max <= 0) return "";
   if (x === null || x === undefined) return "";
   const s = String(x);
   return s.length > max ? s.slice(0, max) + "…" : s;
@@ -88,7 +89,10 @@ function normYear(y) {
 function extractYearFromText(t) {
   const s = safeStr(t, 2000).trim();
   if (!s) return null;
-  const m = s.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
+
+  // FIX++++: do not cap at 2025; accept any 4-digit year and let normYear clamp to 1900..2100.
+  // (We still keep this tight to 19xx/20xx/2100 to avoid random numbers.)
+  const m = s.match(/\b(19\d{2}|20\d{2}|2100)\b/);
   if (!m) return null;
   return normYear(Number(m[1]));
 }
@@ -448,7 +452,7 @@ function createState(seed = {}) {
     lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
 
     // Evidence trail (NO raw user text by default; callers may provide sanitized summaries)
-    lastUserText: safeStr(seed.lastUserText || "", 0), // default empty; keep at 0 unless caller overrides intentionally
+    lastUserText: safeStr(seed.lastUserText || "", 0), // stays "" by default (see safeStr fix)
     lastAssistantSummary: safeStr(seed.lastAssistantSummary || "", 320),
 
     // Stats
@@ -700,11 +704,7 @@ function normalizeInbound(inbound = {}) {
 
   // action: prefer explicit payload.action/body.action/ctx.action, else payload.route
   const action = safeStr(
-    body.action ||
-      ctx.action ||
-      payload.action ||
-      payload.route ||
-      "",
+    body.action || ctx.action || payload.action || payload.route || "",
     80
   ).trim();
 
@@ -715,8 +715,6 @@ function normalizeInbound(inbound = {}) {
     normYear(body.year) ??
     normYear(ctx.year) ??
     normYear(payload.year) ??
-    // chatEngine passes "year" already normalized on its own norm,
-    // but if it ever passes "effectiveYear" through ctx, accept it.
     normYear(ctx.effectiveYear) ??
     extractYearFromText(text) ??
     null;
@@ -815,9 +813,15 @@ function decideNextMove(state, inbound = {}) {
     };
   }
 
-  // Empty text and non-actionable -> NARROW if context exists, else CLARIFY
+  // Empty text and non-actionable -> NARROW if meaningful context exists, else CLARIFY
   if (!hasText && textEmpty) {
-    const hasCtx = !!s.activeContext || !!s.topic || !!s.lane;
+    // FIX++++: topic defaults to "unknown" and should NOT count as real context.
+    const hasCtx =
+      !!s.activeContext ||
+      (safeStr(s.topic || "", 80).trim() && safeStr(s.topic || "", 80).trim() !== "unknown") ||
+      (safeStr(s.lane || "", 24).trim() && safeStr(s.lane || "", 24).trim() !== LANE.GENERAL) ||
+      !!s.pendingAsk;
+
     return hasCtx
       ? {
           move: MOVE.NARROW,
