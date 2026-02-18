@@ -5,16 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Nyx Avatar Host</title>
 
-<link rel="stylesheet" href="./avatar.css?v=9115" />
+<link rel="stylesheet" href="./avatar.css?v=9116" />
 
 <style>
   html,body{height:100%}
   body{margin:0;background:#000;overflow:hidden}
 
   /* ============================================================
-     NYX HOST — PREMIUM + HARDENED
-     - Host owns UI layout + glass
-     - avatar.css owns hero hardening + base palette
+     NYX HOST — PREMIUM + HARDENED (FACE-FIRST LAYOUT)
+     Critical changes:
+     ✅ Reserve HERO STAGE so face is never sacrificed
+     ✅ Dock card to bottom; card scrolls internally
+     ✅ Chips become 1-row rail (no vertical bloat)
+     ✅ Mic + Voice moved into header beside Expand
+     ✅ Accept NYX_CAL from widget to tune hero framing
      ============================================================ */
 
   :root{
@@ -22,15 +26,26 @@
     --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
     --nyx-hero-url:var(--nyx-hero-abs);
 
-    /* Widget framing */
+    /* Widget framing knobs (calibrated via NYX_CAL) */
     --nyx-hero-pos-x:50%;
-    --nyx-hero-pos-y:18%;
-    --nyx-hero-scale:118%;
+    --nyx-hero-pos-y:12%;
+    --nyx-hero-scale:128%;
     --nyx-hero-dim:.12;
+
+    /* === NEW: Stage reservation (face protection) === */
+    --nyx-stage-h: 46%;              /* hero stage height */
+    --nyx-dock-gap: 12px;            /* breathing room between stage and card */
 
     /* Card sizing */
     --nyx-card-w: min(420px, calc(100vw - 28px));
     --nyx-card-radius: 20px;
+
+    /* Card dock position */
+    --nyx-card-bottom: 16px;
+    --nyx-card-pad: 14px;
+
+    /* Card max height inside dock (so face stays visible) */
+    --nyx-card-max: 54%;             /* card max height; internal scroll takes over */
 
     /* Typography */
     --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -45,19 +60,14 @@
     --nyx-accent: rgba(140,0,35,.92);
     --nyx-accent-soft: rgba(140,0,35,.26);
 
-    /* Layout clamps */
-    --nyx-safe-bottom: 16px;
-    --nyx-card-bottom: 16px;
-    --nyx-card-pad: 14px;
-
-    /* Dialogue viewport clamp */
-    --nyx-text-max: 132px;         /* collapsed */
-    --nyx-text-max-open: 280px;    /* expanded */
+    /* Dialogue viewport clamp (within scroll area) */
+    --nyx-text-max: 120px;         /* collapsed */
+    --nyx-text-max-open: 240px;    /* expanded */
 
     --ease: cubic-bezier(.2,.8,.2,1);
   }
 
-  /* ===== HERO STAGE ===== */
+  /* ===== HERO STAGE (reserved area) ===== */
   #nyxStage{
     position:absolute;
     inset:0;
@@ -81,7 +91,7 @@
       linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.28));
   }
 
-  /* ===== Overlay layout ===== */
+  /* ===== Overlay layout (face-first) ===== */
   #nyxOverlay{
     position:absolute;
     inset:0;
@@ -97,10 +107,10 @@
     z-index:10;
   }
 
-  /* card is interactive */
+  /* Card is interactive */
   #nyxCard, #nyxCard * { pointer-events:auto; }
 
-  /* ===== Premium card ===== */
+  /* ===== Docked Card (never enters hero stage) ===== */
   #nyxCard{
     width:var(--nyx-card-w);
     border-radius:var(--nyx-card-radius);
@@ -115,6 +125,23 @@
     -webkit-backdrop-filter: blur(18px);
 
     padding:var(--nyx-card-pad);
+
+    /* Critical: max height to preserve face */
+    max-height: var(--nyx-card-max);
+    overflow:hidden;
+
+    /* Keep card below the reserved stage */
+    margin-bottom: var(--nyx-card-bottom);
+  }
+
+  /* Inner scroll area (so chips/input never push upward into face) */
+  #nyxScroll{
+    overflow:auto;
+    max-height: calc(var(--nyx-card-max) - 72px);
+    padding-right: 4px;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,0);
   }
 
   /* ===== Header row ===== */
@@ -157,6 +184,7 @@
     cursor:pointer;
     user-select:none;
     transition: filter .16s var(--ease), background .16s var(--ease), border-color .16s var(--ease);
+    white-space:nowrap;
   }
   .nyx-btn:hover{
     filter: brightness(1.08);
@@ -202,14 +230,22 @@
     margin:12px 0 12px 0;
   }
 
-  /* ===== Chips ===== */
+  /* ===== Chips (ONE ROW RAIL) ===== */
   #nyxChips{
     display:flex;
-    flex-wrap:wrap;
+    flex-wrap:nowrap;            /* critical */
     gap:8px;
+    overflow-x:auto;             /* rail */
+    overflow-y:hidden;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+
+    scrollbar-width: none;       /* hide rail scrollbar */
   }
+  #nyxChips::-webkit-scrollbar{ display:none; }
 
   .action-pill{
+    flex:0 0 auto;
     font: 12.5px var(--nyx-font);
     padding:8px 12px;
     border-radius:999px;
@@ -224,6 +260,7 @@
       border-color .16s var(--ease),
       box-shadow .16s var(--ease);
     text-decoration:none;
+    white-space:nowrap;
   }
 
   .action-pill:hover{
@@ -236,21 +273,6 @@
   .action-pill.is-active{
     border-color: rgba(140,0,35,.60);
     background: rgba(140,0,35,.22);
-  }
-
-  /* ===== Controls ===== */
-  .nyx-controls{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    margin-top:12px;
-  }
-
-  .nyx-left-controls{
-    display:flex;
-    gap:8px;
-    align-items:center;
   }
 
   /* ===== Input row ===== */
@@ -269,6 +291,7 @@
     padding:12px 14px;
     outline:none;
     font: 14px var(--nyx-font);
+    min-width: 0;
   }
   #nyxInput::placeholder{ color: rgba(255,255,255,.50); }
 
@@ -281,6 +304,7 @@
     cursor:pointer;
     font: 600 13px var(--nyx-font);
     transition: background .16s var(--ease), border-color .16s var(--ease), filter .16s var(--ease);
+    white-space:nowrap;
   }
   #nyxSend:hover{
     background: rgba(140,0,35,.18);
@@ -303,14 +327,16 @@
     border-color: rgba(140,0,35,.55) !important;
   }
 
-  /* Mobile: center card */
+  /* Mobile: center card + adjust stage */
   @media (max-width:520px){
     #nyxOverlay{ align-items:center; padding:12px; }
     :root{
       --nyx-card-w: min(460px, calc(100vw - 20px));
-      --nyx-text-max: 120px;
-      --nyx-text-max-open: 250px;
-      --nyx-hero-pos-y: 22%;
+      --nyx-text-max: 110px;
+      --nyx-text-max-open: 220px;
+      --nyx-stage-h: 48%;
+      --nyx-card-max: 56%;
+      --nyx-hero-pos-y: 20%;
       --nyx-hero-scale: 120%;
     }
   }
@@ -333,38 +359,37 @@
           <span class="nyx-dot" aria-hidden="true"></span>
           <span>Nyx</span>
         </div>
+
+        <!-- Header controls moved up (premium + saves space) -->
         <div class="nyx-head-right">
+          <button class="nyx-btn" id="nyxMic" type="button" aria-label="Mic">🎙️</button>
+          <button class="nyx-btn" id="nyxVoiceToggle" type="button">🔊 Voice</button>
           <button class="nyx-btn" id="nyxExpand" type="button">Expand</button>
         </div>
       </div>
 
-      <div id="nyxText">Hi… I’m Nyx. How are you today?</div>
+      <!-- Inner scroll region so the card never grows into the face zone -->
+      <div id="nyxScroll">
+        <div id="nyxText">Hi… I’m Nyx. How are you today?</div>
 
-      <div class="nyx-divider"></div>
+        <div class="nyx-divider"></div>
 
-      <div id="nyxChips">
-        <div class="action-pill is-active" data-chip="general">General</div>
-        <div class="action-pill" data-chip="music">Music</div>
-        <div class="action-pill" data-chip="roku">Roku</div>
-        <div class="action-pill" data-chip="schedule">Schedule↗</div>
-        <div class="action-pill" data-chip="radio">Radio</div>
-        <div class="action-pill" data-chip="news-canada">News Canada↗</div>
-      </div>
-
-      <div class="nyx-controls">
-        <div class="nyx-left-controls">
-          <button class="nyx-btn" id="nyxMic" type="button">🎙️</button>
-          <button class="nyx-btn" id="nyxVoiceToggle" type="button">🔊 Voice</button>
+        <div id="nyxChips" aria-label="Nyx modes">
+          <div class="action-pill is-active" data-chip="general">General</div>
+          <div class="action-pill" data-chip="music">Music</div>
+          <div class="action-pill" data-chip="roku">Roku</div>
+          <div class="action-pill" data-chip="schedule">Schedule↗</div>
+          <div class="action-pill" data-chip="radio">Radio</div>
+          <div class="action-pill" data-chip="news-canada">News Canada↗</div>
         </div>
-        <div></div>
-      </div>
 
-      <div class="nyx-row">
-        <input id="nyxInput" type="text" placeholder="Type a message…" autocomplete="off" />
-        <button id="nyxSend" type="button">Send</button>
-      </div>
+        <div class="nyx-row">
+          <input id="nyxInput" type="text" placeholder="Type a message…" autocomplete="off" />
+          <button id="nyxSend" type="button">Send</button>
+        </div>
 
-      <div id="nyxDiag">HOST v9115 • ready</div>
+        <div id="nyxDiag">HOST v9116 • ready</div>
+      </div>
     </div>
   </div>
 
@@ -406,13 +431,11 @@
 
   // ==========
   // Bridge hardening
-  // - Learn parent origin from first valid inbound message
-  // - Then lock to it
   // ==========
   var PARENT_ORIGIN = null;
   var READY_ACK = false;
   var CONFIG = {
-    version: "9115",
+    version: "9116",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -456,7 +479,7 @@
       // Learn origin on first valid message
       if(!PARENT_ORIGIN && ev && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9115 • origin locked");
+        diag("HOST v9116 • origin locked");
       }
 
       // Reject others after lock
@@ -473,7 +496,7 @@
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9115 • ready (ack)");
+        diag("HOST v9116 • ready (ack)");
         return;
       }
 
@@ -496,8 +519,31 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9115 • config loaded");
+        diag("HOST v9116 • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
+        return;
+      }
+
+      /* ✅ NEW: accept NYX_CAL from widget to tune hero + dock */
+      if(t === "NYX_CAL" && data.cal && typeof data.cal === "object"){
+        var cal = data.cal;
+
+        // map widget fields to CSS vars safely
+        if(typeof cal.heroPosX === "string") document.documentElement.style.setProperty("--nyx-hero-pos-x", cal.heroPosX);
+        if(typeof cal.heroPosY === "string") document.documentElement.style.setProperty("--nyx-hero-pos-y", cal.heroPosY);
+        if(typeof cal.heroScale === "string") document.documentElement.style.setProperty("--nyx-hero-scale", cal.heroScale);
+
+        // optional: allow dock tuning if provided
+        if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
+        if(typeof cal.stageH === "string") document.documentElement.style.setProperty("--nyx-stage-h", cal.stageH);
+
+        // bubbleTop from widget maps to "card max" behavior more reliably via cardMax,
+        // but accept it as a nudge by adjusting cardMax if user sends it.
+        if(typeof cal.bubbleTop === "string"){
+          // no-op placeholder: kept for compatibility; host uses fixed dock model now
+        }
+
+        diag("HOST v9116 • cal applied");
         return;
       }
 
@@ -795,7 +841,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9115 • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9116 • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -818,10 +864,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9115 • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9116 • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9115 • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9116 • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -837,7 +883,7 @@
   async function sendPacket(packet){
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9115 • sending…");
+    diag("HOST v9116 • sending…");
 
     postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: packet }, false);
 
@@ -848,12 +894,11 @@
       setText(out.reply);
       speak(out.reply);
       postToParent({ type:"NYX_REPLY", v:CONFIG.version, ts:now(), reply: out.reply, meta: out.meta || {} }, false);
-      diag("HOST v9115 • ok");
+      diag("HOST v9116 • ok");
     }else{
-      var msg = (out && (out.error || out.detail)) ? (out.error + (out.detail ? (": "+out.detail) : "")) : "No reply.";
       setText("Hmm. I didn’t get a clean reply. Try again.");
-      diag("HOST v9115 • error " + safeStr(out && out.status ? out.status : (out && out.__httpStatus)));
-      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error: msg, raw: out }, false);
+      diag("HOST v9116 • error " + safeStr(out && out.status ? out.status : (out && out.__httpStatus)));
+      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error: (out && out.error) || "error", raw: out }, false);
     }
 
     setPending(false);
