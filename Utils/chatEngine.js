@@ -17,31 +17,17 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7bU (MUSIC EXTRACTION++++ + HARDENING++++)
- * ✅ Pulls ALL music knowledge/resolvers/formatting out into Utils/musicKnowledge.js
- * ✅ Keeps: MARION SO WIRED++++ (Utils/marionSO.js canonical mediator) + TELEMETRY++++ + DISCOVERY HINT++++
- * ✅ Keeps: STATE SPINE WIRED++++ (Utils/stateSpine.js canonical planner + pendingAsk clear on chip-year)
- * ✅ Fix++++: Ranked-list budgeting now guarantees 10 numbered lines survive constitution prefixes
- * ✅ Fix++++: reset sessionPatch ordering (reset flags cannot be overridden by baseCogPatch)
- * ✅ Fix++++: Option A greeting never triggers on reset
- * ✅ Fix++++: Music.handleMusicTurn is now awaited (supports sync OR async implementations safely)
- *
- * v0.7bV (EXPORT HARDENING++++)
- * ✅ Adds bulletproof export shim: supports require("./chatEngine") as:
- *    - function (callable)
- *    - { handleChat }
- *    - { chatEngine }
- *    - { default }
- * ✅ Prevents “exports wrong” breakages across backend loaders.
- *
- * v0.7bW (SESSIONPATCH MERGE ORDER++++)
- * ✅ Makes sessionPatch merge order consistent:
- *    baseCogPatch FIRST, then route-specific overrides AFTER.
- *    (Prevents baseCogPatch from accidentally overriding route/music patches.)
+ * v0.7bX (COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++)
+ * ✅ Normalizes MarionSO outputs so required fields always exist:
+ *    mode/intent/dominance/budget/confidence/latentDesire/velvet/marionTraceHash
+ * ✅ Keeps: MUSIC EXTRACTION++++ (Utils/musicKnowledge.js) + STATE SPINE WIRED++++ + TELEMETRY++++ + DISCOVERY HINT++++
+ * ✅ Keeps: Ranked-list budgeting guarantee + reset ordering fix + await music module + export hardening shim
+ * ✅ Adds: hard cap on inbound text/payload size (prevents crash / abuse)
+ * ✅ Adds: safe JSON stringify for inboundKey (never throws)
  */
 
 const CE_VERSION =
-  "chatEngine v0.7bW (MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7bX (COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC EXTRACTION++++ -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | STATE SPINE WIRED++++ via Utils/stateSpine.js | HARDENING++++ + ranked-list budget guarantee + reset ordering fix + await music module | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -214,6 +200,18 @@ function mergeSessionPatch(base, overrides) {
   return { ...b, ...o };
 }
 
+function safeJsonStringify(x) {
+  try {
+    return JSON.stringify(x);
+  } catch (e) {
+    try {
+      return JSON.stringify({ _fail: true, t: safeStr(x) });
+    } catch (_e) {
+      return '{"_fail":true}';
+    }
+  }
+}
+
 // -------------------------
 // Option A greeting prefix (once per session, never on replay/burst)
 // -------------------------
@@ -231,7 +229,7 @@ function buildInboundKey(norm) {
     pr: safeStr(p.route || ""),
     pv: safeStr(p.vibe || ""),
   };
-  return sha1Lite(JSON.stringify(keyObj)).slice(0, 18);
+  return sha1Lite(safeJsonStringify(keyObj)).slice(0, 18);
 }
 
 function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
@@ -264,6 +262,11 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
 // -------------------------
 const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = 2025;
+
+// INPUT HARD LIMITS (crash / abuse guards)
+const MAX_TEXT_CHARS = 6500;
+const MAX_PAYLOAD_KEYS = 60;
+const MAX_PAYLOAD_STR_CHARS = 4000;
 
 // -------------------------
 // STATE SPINE (canonical) — WIRED TO Utils/stateSpine.js
@@ -545,8 +548,8 @@ const SIGNATURE_TRANSITIONS = Object.freeze([
 ]);
 
 function pickSignatureTransition(session, cog) {
-  if (!cog || cog.intent !== "ADVANCE") return "";
-  if (cog.dominance !== "firm") return "";
+  if (!cog || safeStr(cog.intent).toUpperCase() !== "ADVANCE") return "";
+  if (safeStr(cog.dominance) !== "firm") return "";
   if (clamp01(cog?.confidence?.nyx) < 0.65) return "";
 
   const last = safeStr(session?.lastSigTransition || "").trim();
@@ -878,15 +881,35 @@ function computeVelvet(norm, session, cog, desire) {
 }
 
 // -------------------------
-// normalize inbound
+// normalize inbound (with hard limits)
 // -------------------------
+function clampPayload(payloadRaw) {
+  const payload = isPlainObject(payloadRaw) ? payloadRaw : {};
+  const keys = Object.keys(payload);
+  if (keys.length > MAX_PAYLOAD_KEYS) {
+    const out = {};
+    // keep earliest keys deterministically
+    for (let i = 0; i < MAX_PAYLOAD_KEYS; i++) out[keys[i]] = payload[keys[i]];
+    return out;
+  }
+
+  // cap huge strings so we don't blow up traces/telemetry
+  const out = { ...payload };
+  for (const k of Object.keys(out)) {
+    if (typeof out[k] === "string" && out[k].length > MAX_PAYLOAD_STR_CHARS) {
+      out[k] = out[k].slice(0, MAX_PAYLOAD_STR_CHARS);
+    }
+  }
+  return out;
+}
+
 function normalizeInbound(input) {
   const body = isPlainObject(input) ? input : {};
-  const payload = isPlainObject(body.payload) ? body.payload : {};
+  const payload = clampPayload(body.payload);
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-  const textRaw = safeStr(
+  const textRaw0 = safeStr(
     body.text ||
       body.message ||
       body.prompt ||
@@ -895,6 +918,9 @@ function normalizeInbound(input) {
       payload.message ||
       ""
   ).trim();
+
+  const textRaw =
+    textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   const payloadAction = safeStr(payload.action || body.action || ctx.action || "").trim();
   const inferredAction = classifyAction(textRaw, payload);
@@ -1092,6 +1118,101 @@ function mediatorMarion(norm, session) {
   };
 }
 
+/**
+ * COG NORMALIZATION++++
+ * If MarionSO.mediate returns a partial contract, we fill the gaps so downstream
+ * logic (telemetry, constitution, velvet) never breaks.
+ */
+function normalizeCog(norm, session, cogRaw) {
+  const base = isPlainObject(cogRaw) ? { ...cogRaw } : {};
+  const fallback = mediatorMarion(norm, session);
+
+  // Normalize enums
+  const mode = safeStr(base.mode || fallback.mode).toLowerCase();
+  const intent = safeStr(base.intent || fallback.intent).toUpperCase();
+  const dominance = safeStr(base.dominance || fallback.dominance);
+  const budget = safeStr(base.budget || fallback.budget);
+
+  // Confidence (must exist)
+  const conf = isPlainObject(base.confidence) ? base.confidence : {};
+  const confidence = {
+    user: clamp01(conf.user ?? fallback.confidence.user),
+    nyx: clamp01(conf.nyx ?? fallback.confidence.nyx),
+  };
+
+  // Latent desire
+  let latentDesire = safeStr(base.latentDesire || fallback.latentDesire);
+  if (!latentDesire) latentDesire = fallback.latentDesire;
+
+  // Actionable/textEmpty/stalled
+  const actionable =
+    typeof base.actionable === "boolean" ? base.actionable : !!fallback.actionable;
+  const textEmpty =
+    typeof base.textEmpty === "boolean" ? base.textEmpty : !!fallback.textEmpty;
+  const stalled = typeof base.stalled === "boolean" ? base.stalled : !!fallback.stalled;
+
+  // Velvet: if Marion doesn't supply it, compute it
+  let velvet = typeof base.velvet === "boolean" ? base.velvet : undefined;
+  let velvetSince = Number(base.velvetSince || 0) || 0;
+  let velvetReason = safeStr(base.velvetReason || "");
+
+  if (velvet === undefined) {
+    const v = computeVelvet(
+      norm,
+      session,
+      { mode, intent, dominance, budget, confidence },
+      latentDesire
+    );
+    velvet = !!v.velvet;
+    velvetSince = v.velvet ? Number(v.velvetSince || 0) || nowMs() : 0;
+    velvetReason = v.reason || "";
+  }
+
+  // Marion trace/hash (bounded)
+  const trace = safeStr(base.marionTrace || "") || marionTraceBuild(norm, session || {}, {
+    mode,
+    intent,
+    dominance,
+    budget,
+    stalled,
+    actionable,
+    textEmpty,
+    latentDesire,
+    confidence,
+    velvet,
+    velvetReason,
+  });
+
+  const traceHash = safeStr(base.marionTraceHash || "") || marionTraceHash(trace);
+
+  // Marion state/reason
+  const marionState = safeStr(base.marionState || fallback.marionState || "");
+  const marionReason = safeStr(base.marionReason || fallback.marionReason || "");
+
+  return {
+    ...base,
+
+    // canonical fields (guaranteed)
+    mode,
+    intent,
+    dominance,
+    budget,
+    actionable,
+    textEmpty,
+    stalled,
+    latentDesire,
+    confidence,
+    velvet,
+    velvetSince,
+    velvetReason,
+
+    marionState,
+    marionReason,
+    marionTrace: trace,
+    marionTraceHash: traceHash,
+  };
+}
+
 // -------------------------
 // counselor-lite (non-clinical) scaffolding
 // -------------------------
@@ -1171,12 +1292,12 @@ function validateNyxTone(cog, reply) {
   )
     return { ok: false, reason: "ban:meta_memory" };
 
-  if (cog?.intent === "ADVANCE" && cog?.dominance === "firm") {
+  if (safeStr(cog?.intent).toUpperCase() === "ADVANCE" && safeStr(cog?.dominance) === "firm") {
     if (/\b(i think|maybe|perhaps|might be|could be)\b/i.test(text))
       return { ok: false, reason: "ban:overhedge_firm" };
   }
 
-  if (cog?.intent === "ADVANCE" && cog?.dominance === "firm") {
+  if (safeStr(cog?.intent).toUpperCase() === "ADVANCE" && safeStr(cog?.dominance) === "firm") {
     if (/\b(if you want|if you'd like|let me know)\b/i.test(text))
       return { ok: false, reason: "ban:softness_tail_firm" };
   }
@@ -1200,9 +1321,9 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
 
   let reply = parts.join("\n\n");
 
-  reply = applyBudgetText(reply, cog.budget);
+  reply = applyBudgetText(reply, safeStr(cog.budget) || "short");
 
-  if (cog.intent === "ADVANCE" && cog.dominance === "firm") {
+  if (safeStr(cog.intent).toUpperCase() === "ADVANCE" && safeStr(cog.dominance) === "firm") {
     reply = reply
       .replace(/\b(if you want|if you'd like|let me know)\b.*$/i, "")
       .trim();
@@ -1218,19 +1339,19 @@ function applyTurnConstitutionToReply(rawReply, cog, session) {
       )
       .trim();
 
-    if (cog?.intent === "ADVANCE" && cog?.dominance === "firm") {
+    if (safeStr(cog?.intent).toUpperCase() === "ADVANCE" && safeStr(cog?.dominance) === "firm") {
       reply = reply
         .replace(/\b(i think|maybe|perhaps|might be|could be)\b/gi, "")
         .replace(/\s{2,}/g, " ")
         .trim();
     }
 
-    reply = applyBudgetText(reply, cog.budget);
+    reply = applyBudgetText(reply, safeStr(cog.budget) || "short");
   }
 
   if (!reply) {
     reply = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`;
-    reply = applyBudgetText(reply, cog.budget);
+    reply = applyBudgetText(reply, safeStr(cog.budget) || "short");
   }
 
   return reply;
@@ -1333,7 +1454,16 @@ function runToneRegressionTests() {
   );
   assert("optionA_no_greet_on_reset", g2 === "", g2);
 
-  return { ok: failures.length === 0, failures, ran: 8 };
+  // 9) normalizeCog guarantees confidence + traceHash
+  const n9 = normalizeCog(
+    { text: "hi", turnSignals: { hasPayload: false, payloadActionable: false, textEmpty: false } },
+    {},
+    { mode: "architect", intent: "ADVANCE" } // missing many fields
+  );
+  assert("normalizeCog_confidence_present", isPlainObject(n9.confidence), safeJsonStringify(n9));
+  assert("normalizeCog_trace_hash_present", safeStr(n9.marionTraceHash).length > 0, safeJsonStringify(n9));
+
+  return { ok: failures.length === 0, failures, ran: 9 };
 }
 
 // -------------------------
@@ -1357,15 +1487,17 @@ async function handleChat(input) {
 
   const corePrev = coerceCoreSpine(session);
 
-  let cog = null;
+  let cogRaw = null;
   try {
     if (MarionSO && typeof MarionSO.mediate === "function") {
-      cog = MarionSO.mediate(norm, session, {});
+      cogRaw = MarionSO.mediate(norm, session, {});
     }
   } catch (e) {
-    cog = null;
+    cogRaw = null;
   }
-  if (!cog) cog = mediatorMarion(norm, session);
+
+  // ALWAYS normalize to guarantee required fields
+  const cog = normalizeCog(norm, session, cogRaw);
 
   const corePlan = Spine.decideNextMove(corePrev, { text: norm.text || "" });
 
@@ -1866,7 +1998,7 @@ async function handleChat(input) {
   // -------------------------
   // GENERAL handling
   // -------------------------
-  if ((cog.mode === "architect" || cog.mode === "transitional") && cog.intent === "ADVANCE") {
+  if ((cog.mode === "architect" || cog.mode === "transitional") && safeStr(cog.intent).toUpperCase() === "ADVANCE") {
     const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
     const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
     const sigLine = detectSignatureLine(reply);
