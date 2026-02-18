@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cos (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + rate guard + graceful shutdown + load visibility retained)
+ * index.js v1.5.19cot (TOKEN OPTIONAL++++: API_TOKEN_MODE optional default; missing token allowed for public widget; invalid token still 401; keeps cos security suite)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -179,6 +179,8 @@ const ENABLE_COMPRESSION = toBool(process.env.ENABLE_COMPRESSION, true);
 
 // --- API token gate (optional; OFF unless EXPECTED_API_TOKEN set) ---
 const EXPECTED_API_TOKEN = String(process.env.EXPECTED_API_TOKEN || "").trim();
+// API token behavior: "required" enforces token, "optional" allows missing token (recommended for public widgets)
+const API_TOKEN_MODE = String(process.env.API_TOKEN_MODE || "optional").toLowerCase();
 const API_TOKEN_HEADER = String(process.env.API_TOKEN_HEADER || "x-sb-token").trim().toLowerCase();
 
 // --- IP rate guard (simple; pre-session) ---
@@ -785,27 +787,36 @@ function readApiToken(req) {
   return viaHeader || viaBearer || "";
 }
 function apiTokenGate(req, res, next) {
-  // OPTION A (Mac): Token gate OFF unless explicitly enabled.
-  // Enable by setting REQUIRE_API_TOKEN=true and EXPECTED_API_TOKEN to a long random string.
-  if (!REQUIRE_API_TOKEN) return next();
+  // If no expected token is configured, the gate is effectively OFF.
   if (!EXPECTED_API_TOKEN) return next();
 
-  const tok = readApiToken(req);
-  if (!tok) {
-    return res.status(401).json({ ok: false, error: "missing_token" });
-  }
+  // Modes:
+  //  - required: token must be present + valid
+  //  - optional: missing token is allowed; invalid provided token is rejected (to surface misconfig)
+  const mode = (API_TOKEN_MODE === "required") ? "required" : "optional";
 
-  // timingSafeEqual throws if buffers differ in length — guard it.
+  const tok = readApiToken(req);
+
+  // OPTIONAL mode: allow missing token
+  if (mode === "optional" && !tok) return next();
+
+  // Validate provided token (or required mode)
+  let ok = false;
   try {
-    if (tok.length === EXPECTED_API_TOKEN.length) {
-      const ok = crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN));
-      if (ok) return next();
+    if (tok && tok.length === EXPECTED_API_TOKEN.length) {
+      ok = crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN));
     }
   } catch (_) {
-    // fall through to 401
+    ok = false;
   }
 
-  return res.status(401).json({ ok: false, error: "bad_token" });
+  if (ok) return next();
+
+  return res.status(401).json({
+    ok: false,
+    error: "unauthorized",
+    detail: mode === "optional" ? "invalid_token" : "missing_or_invalid_token"
+  });
 }
 
 // =========================
