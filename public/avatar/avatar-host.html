@@ -13,7 +13,7 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117
+     v9117b (MARION ⇄ NYX BRIDGE LOCK++++)
      Fixes:
      ✅ NO "blank slab": flex-card + scroll region (min-height:0)
      ✅ Clamp-based dock sizing (no % - px calc hazards)
@@ -21,6 +21,9 @@
      ✅ Input row always visible
      ✅ Expand enlarges dialogue viewport only (not card height)
      ✅ Accept NYX_CAL for hero + dock tuning
+     ✅ Marion bridge: payloadLane/payloadAction/payloadIntent/payloadLabel/payloadChip
+     ✅ Lane mapping includes schedule + news-canada
+     ✅ Origin lock handshake hardened
      ============================================================ */
 
   :root{
@@ -404,7 +407,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117 • ready</div>
+        <div id="nyxDiag">HOST v9117b • ready</div>
       </div>
     </div>
   </div>
@@ -423,6 +426,13 @@
   function makeId(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
     return (Math.random().toString(16).slice(2) + now().toString(16)).slice(0, 24);
+  }
+  function clampToken(s, minLen){
+    s = safeStr(s).trim();
+    if(!s) return "";
+    if(minLen && s.length < minLen) return "";
+    if(s.length > 256) s = s.slice(0,256);
+    return s;
   }
 
   // ==========
@@ -452,7 +462,7 @@
   var READY_ACK = false;
 
   var CONFIG = {
-    version: "9117",
+    version: "9117b",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -462,14 +472,24 @@
   function postToParent(payload, allowWildcard){
     if(!window.parent || window.parent === window) return false;
     try{
+      // NEVER wildcard after origin lock (secrets/events)
       var target = PARENT_ORIGIN || (allowWildcard ? "*" : null);
       if(!target) return false;
+
+      // redact tokens if any (defense-in-depth)
+      if(payload && typeof payload === "object"){
+        if(payload.token) payload = Object.assign({}, payload, { token: "[redacted]" });
+        if(payload.packet && payload.packet.__token) payload.packet.__token = "[redacted]";
+        if(payload.packet && payload.packet.token) payload.packet.token = "[redacted]";
+      }
+
       window.parent.postMessage(payload, target);
       return true;
     }catch(e){ return false; }
   }
 
   function sendReady(){
+    // handshake ping (no secrets)
     postToParent({ type:"NYX_READY", v:CONFIG.version, ts: now() }, true);
   }
 
@@ -491,9 +511,12 @@
   // ==========
   window.addEventListener("message", function(ev){
     try{
-      if(!PARENT_ORIGIN && ev && typeof ev.origin === "string" && ev.origin){
+      if(!ev) return;
+
+      // Learn origin from first valid-ish message only
+      if(!PARENT_ORIGIN && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117 • origin locked");
+        diag("HOST v9117b • origin locked");
       }
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
@@ -508,15 +531,16 @@
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117 • ready (ack)");
+        diag("HOST v9117b • ready (ack)");
         return;
       }
 
       if(t === "NYX_CONFIG"){
         var c = (data.config && typeof data.config === "object") ? data.config : {};
-        if(typeof c.apiBase === "string") CONFIG.apiBase = c.apiBase;
-        if(typeof c.token === "string") CONFIG.token = c.token.trim();
-        if(typeof c.heroSrc === "string") CONFIG.heroSrc = c.heroSrc.trim();
+
+        if(typeof c.apiBase === "string") CONFIG.apiBase = safeStr(c.apiBase).trim();
+        if(typeof c.token === "string") CONFIG.token = clampToken(c.token, 16);
+        if(typeof c.heroSrc === "string") CONFIG.heroSrc = safeStr(c.heroSrc).trim();
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
 
         if(CONFIG.heroSrc){
@@ -526,11 +550,12 @@
 
         if(CONFIG.voiceDefaultOn) setVoice(true);
 
-        if(!CONFIG.token || CONFIG.token.length < 16){
+        if(!CONFIG.token){
+          // request token (no wildcard)
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117 • config loaded");
+        diag("HOST v9117b • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -544,7 +569,7 @@
 
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117 • cal applied");
+        diag("HOST v9117b • cal applied");
         return;
       }
 
@@ -573,12 +598,15 @@
     timeoutMs = timeoutMs || 12000;
 
     var headers = { "Content-Type":"application/json" };
+
+    // Auth (fail-open if missing token; server may still allow)
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
     }
+
     headers["X-Client-Source"] = "nyx_host_iframe";
-    headers["X-Route-Hint"] = safeStr(payload && payload.routeHint ? payload.routeHint : UI_STATE.lane);
+    headers["X-Route-Hint"] = safeStr(payload && payload.client && payload.client.routeHint ? payload.client.routeHint : UI_STATE.lane);
 
     var ctrl = new AbortController();
     var to = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, timeoutMs);
@@ -596,14 +624,14 @@
       var json = safeJsonParse(txt);
 
       if(!json){
-        return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 600) };
+        return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 600), __httpStatus: r.status };
       }
       json.__httpStatus = r.status;
       return json;
 
     } catch(e){
       var code = (e && e.name === "AbortError") ? "timeout" : "network";
-      return { ok:false, error: code, status: 0 };
+      return { ok:false, error: code, status: 0, __httpStatus: 0 };
     } finally {
       clearTimeout(to);
     }
@@ -621,44 +649,69 @@
     lastRequestId: null
   };
 
+  // Marion lane canonicalization (must match marionSO normalizeLaneRaw allowlist)
   function laneFromChip(chip){
-    chip = safeStr(chip).toLowerCase();
+    chip = safeStr(chip).toLowerCase().trim();
+    if(chip === "general") return "general";
     if(chip === "music") return "music";
     if(chip === "roku") return "roku";
     if(chip === "radio") return "radio";
-    if(chip === "general") return "general";
+    if(chip === "schedule") return "schedule";
+    if(chip === "news-canada") return "news-canada";
     return "general";
   }
 
+  // ==========
+  // Packet builder (MARION BRIDGE CANON)
+  // ==========
   function buildIntentPacket(opts){
     opts = (opts && typeof opts === "object") ? opts : {};
+
     var text = safeStr(opts.text).trim();
     var chip = safeStr(opts.chip || UI_STATE.chip || "general").trim();
     var lane = safeStr(opts.lane || UI_STATE.lane || "general").trim();
     var action = safeStr(opts.action || "").trim();
     var intent = safeStr(opts.intent || "").trim();
-    var route = safeStr(opts.route || "").trim();
-    var label = safeStr(opts.label || "").trim();
+    var label = safeStr(opts.label || chip).trim();
 
+    // Default for chip event
     if(!text && !action){
       action = "chip";
       intent = intent || "select";
-      route = route || lane;
       label = label || chip;
     }
 
     var requestId = makeId();
+
+    // Core payload (what your backend already uses)
+    var payload = {
+      lane: lane,
+      action: action || undefined,
+      intent: intent || undefined,
+      label: label || undefined,
+      chip: chip || undefined
+    };
+
+    // turnSignals mirror (what marionSO reads first)
+    var turnSignals = {
+      hasPayload: true,
+      textEmpty: !text,
+      payloadActionable: true,
+      payloadLane: lane,
+      payloadAction: action || "",
+      payloadIntent: intent || "",
+      payloadLabel: label || "",
+      payloadChip: chip || ""
+    };
+
     return {
       requestId: requestId,
       text: text,
-      payload: {
-        lane: lane,
-        action: action || undefined,
-        intent: intent || undefined,
-        route: route || undefined,
-        label: label || undefined,
-        chip: chip || undefined
-      },
+      lane: lane,           // convenience mirror
+      action: action,       // convenience mirror
+      payload: payload,
+      turnSignals: turnSignals,
+
       client: {
         source: "nyx_host_iframe",
         routeHint: lane,
@@ -710,27 +763,30 @@
   }
 
   function openLinkForChip(chip){
-    postToParent({ type:"NYX_NAV", where: chip, ts: now() }, false);
+    // Parent decides what “Schedule↗” and “News Canada↗” do.
+    postToParent({ type:"NYX_NAV", where: chip, lane: laneFromChip(chip), ts: now() }, false);
   }
 
   function handleChipClick(chip){
     chip = safeStr(chip).trim();
     if(!chip) return;
 
+    // External nav-only chips
     if(chip === "schedule" || chip === "news-canada"){
+      setActiveChip(chip); // still set lane so future text uses correct lane if you want it
       openLinkForChip(chip);
       return;
     }
 
     setActiveChip(chip);
 
+    // CHIP SELECT → Marion BRIDGE path (payload.action="chip")
     var packet = buildIntentPacket({
       text: "",
       chip: chip,
       lane: UI_STATE.lane,
       action: "chip",
       intent: "select",
-      route: UI_STATE.lane,
       label: chip
     });
 
@@ -841,7 +897,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117 • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117b • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -864,10 +920,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117 • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117b • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117 • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117b • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -883,22 +939,29 @@
   async function sendPacket(packet){
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117 • sending…");
+    diag("HOST v9117b • sending…");
 
-    postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: packet }, false);
+    // Telemetry to parent (sanitized)
+    postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: { requestId: packet.requestId, lane: packet.lane, action: packet.action, client: packet.client, turnSignals: packet.turnSignals } }, false);
 
     var url = apiBase() + "/api/chat";
     var out = await postJson(url, packet, 12000);
 
-    if(out && out.reply){
+    var status = Number(out && (out.__httpStatus || out.status || 0)) || 0;
+
+    if(out && typeof out.reply === "string" && out.reply){
       setText(out.reply);
       speak(out.reply);
       postToParent({ type:"NYX_REPLY", v:CONFIG.version, ts:now(), reply: out.reply, meta: out.meta || {} }, false);
-      diag("HOST v9117 • ok");
+      diag("HOST v9117b • ok");
     }else{
-      setText("Hmm. I didn’t get a clean reply. Try again.");
-      diag("HOST v9117 • error " + safeStr(out && out.status ? out.status : (out && out.__httpStatus)));
-      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error: (out && out.error) || "error", raw: out }, false);
+      var msg = "Hmm. I didn’t get a clean reply. Try again.";
+      if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
+      if(out && out.error === "timeout") msg = "Timeout. Try again.";
+      setText(msg);
+
+      diag("HOST v9117b • error " + (status || "unknown"));
+      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), status: status, error: (out && out.error) || "error", meta: out && out.meta ? out.meta : {} }, false);
     }
 
     setPending(false);
@@ -915,7 +978,6 @@
       lane: UI_STATE.lane,
       action: "user_text",
       intent: "message",
-      route: UI_STATE.lane,
       label: UI_STATE.chip
     });
 
