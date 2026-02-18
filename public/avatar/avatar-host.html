@@ -16,7 +16,7 @@ body{margin:0;background:#000;overflow:hidden}
   --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
   --nyx-hero-url:var(--nyx-hero-abs);
 
-  /* tuned for ~600px widget height */
+  /* 600px panel height framing */
   --nyx-hero-pos-x:50%;
   --nyx-hero-pos-y:18%;
   --nyx-hero-scale:118%;
@@ -196,7 +196,6 @@ body{margin:0;background:#000;overflow:hidden}
   function safeStr(x){ return (x===null || x===undefined) ? "" : String(x); }
   function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
   function now(){ return Date.now(); }
-  function trimSlash(s){ return String(s||"").replace(/\/+$/,""); }
   function makeId(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
     return (Math.random().toString(16).slice(2) + now().toString(16)).slice(0, 24);
@@ -206,33 +205,67 @@ body{margin:0;background:#000;overflow:hidden}
       var r = document.referrer || "";
       if(!r) return null;
       return (new URL(r)).origin;
-    }catch(e){ return null; }
+    }catch(e){
+      return null;
+    }
   }
-  function parseQuery(){
-    var out = {};
+  function getQueryParam(name){
     try{
-      var qs = new URLSearchParams(location.search || "");
-      qs.forEach(function(v,k){ out[String(k||"").toLowerCase()] = String(v||""); });
-    }catch(_){}
-    return out;
+      var u = new URL(location.href);
+      return u.searchParams.get(name);
+    }catch(_){
+      return null;
+    }
   }
 
+  // =========================
+  // Diagnostics
+  // =========================
   var diagEl = $("nyxDiag");
-  function diag(msg){ if(diagEl) diagEl.textContent = msg; }
+  function diag(msg){
+    try{ if(diagEl) diagEl.textContent = msg; }catch(_){}
+  }
 
   // =========================
   // Bridge State
   // =========================
-  var PARENT_ORIGIN = getOriginFromReferrer();
+  var PARENT_ORIGIN = getOriginFromReferrer(); // may be null
+  var READY_SENT = false;
   var READY_ACK = false;
 
   var CONFIG = {
     version: "9112",
-    apiBase: null,
-    token: null,
+    apiBase: null,         // default: location.origin
+    token: null,           // optional
     heroSrc: null,
     voiceDefaultOn: false
   };
+
+  // Token storage key (optional)
+  var TOKEN_KEY = "nyx_api_token";
+
+  function setToken(token){
+    var t = safeStr(token).trim();
+    CONFIG.token = t || null;
+    // Optional: persist so refreshes don't lose it (no prompts; silent)
+    try{
+      if(t) localStorage.setItem(TOKEN_KEY, t);
+      else localStorage.removeItem(TOKEN_KEY);
+    }catch(_){}
+  }
+
+  // Bootstrap token from URL (?t=) or localStorage (silent, no prompts)
+  (function bootstrapToken(){
+    var t = safeStr(getQueryParam("t")).trim();
+    if(t){
+      setToken(t);
+      return;
+    }
+    try{
+      var ls = safeStr(localStorage.getItem(TOKEN_KEY)).trim();
+      if(ls) setToken(ls);
+    }catch(_){}
+  })();
 
   // Local UI State
   var UI_STATE = {
@@ -241,35 +274,9 @@ body{margin:0;background:#000;overflow:hidden}
     voiceOn: false,
     sttOn: false,
     pending: false,
-    lastRequestId: null
+    lastRequestId: null,
+    lastHttpStatus: 0
   };
-
-  // =========================
-  // Token persistence
-  // =========================
-  var LS_TOKEN_KEY = "nyx_api_token_v1";
-  var LS_API_KEY   = "nyx_api_base_v1";
-
-  function loadPersisted(){
-    try{
-      var t = localStorage.getItem(LS_TOKEN_KEY);
-      if(t && !CONFIG.token) CONFIG.token = String(t).trim();
-    }catch(_){}
-    try{
-      var a = localStorage.getItem(LS_API_KEY);
-      if(a && !CONFIG.apiBase) CONFIG.apiBase = String(a).trim();
-    }catch(_){}
-  }
-  function persistToken(tok){
-    try{
-      localStorage.setItem(LS_TOKEN_KEY, String(tok||"").trim());
-    }catch(_){}
-  }
-  function persistApiBase(base){
-    try{
-      localStorage.setItem(LS_API_KEY, String(base||"").trim());
-    }catch(_){}
-  }
 
   // =========================
   // Parent messaging
@@ -277,63 +284,96 @@ body{margin:0;background:#000;overflow:hidden}
   function postToParent(payload){
     if(!window.parent || window.parent === window) return false;
     try{
-      window.parent.postMessage(payload, PARENT_ORIGIN || "*");
+      var target = PARENT_ORIGIN || "*";
+      window.parent.postMessage(payload, target);
       return true;
-    }catch(e){ return false; }
+    }catch(e){
+      return false;
+    }
   }
 
   function sendReady(){
+    READY_SENT = true;
     postToParent({ type:"NYX_READY", v: CONFIG.version, ts: now() });
   }
 
-  // =========================
-  // Bootstrap from query + localStorage
-  // =========================
-  (function bootstrap(){
-    loadPersisted();
-
-    var q = parseQuery();
-
-    // api base
-    var api = q.api || q.apibase || q.base || "";
-    if(api) CONFIG.apiBase = api;
-
-    // token
-    var tok = q.token || q.t || "";
-    if(tok) CONFIG.token = tok;
-
-    // hero
-    var hero = q.hero || q.herosrc || "";
-    if(hero) CONFIG.heroSrc = hero;
-
-    // voice default
-    var voice = (q.voice || "").toLowerCase();
-    if(voice === "1" || voice === "true") CONFIG.voiceDefaultOn = true;
-
-    if(CONFIG.apiBase) persistApiBase(CONFIG.apiBase);
-    if(CONFIG.token) persistToken(CONFIG.token);
-
-    if(CONFIG.heroSrc){
-      document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
-      document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
-    }
-  })();
-
-  // READY retry to beat race conditions
-  sendReady();
+  // Retry READY a few times
   var tries = 0;
   var maxTries = 12;
   var timer = setInterval(function(){
     tries++;
-    if(READY_ACK || tries > maxTries){ clearInterval(timer); return; }
+    if(READY_ACK || tries > maxTries){
+      clearInterval(timer);
+      return;
+    }
     sendReady();
   }, 250);
-
-  // Ask parent for config (safe if ignored)
-  postToParent({ type:"NYX_NEED_CONFIG", v: CONFIG.version, ts: now() });
+  sendReady();
 
   // =========================
-  // Inbound messages
+  // Bubble + Voice
+  // =========================
+  var bubbleEl = $("nyxBubbleText");
+  function setBubbleText(t){
+    if(!bubbleEl) return;
+    bubbleEl.textContent = safeStr(t || "");
+  }
+
+  var voiceBtn = $("nyxVoiceToggle");
+  function setVoice(on){
+    UI_STATE.voiceOn = !!on;
+    if(voiceBtn){
+      if(UI_STATE.voiceOn) voiceBtn.classList.add("is-on");
+      else voiceBtn.classList.remove("is-on");
+    }
+  }
+
+  function stopAudio(){
+    try{
+      if(window.__NYX_AUDIO && typeof window.__NYX_AUDIO.pause === "function"){
+        window.__NYX_AUDIO.pause();
+        window.__NYX_AUDIO.currentTime = 0;
+      }
+    }catch(_){}
+  }
+
+  async function speak(text){
+    if(!UI_STATE.voiceOn) return;
+    var s = safeStr(text).trim();
+    if(!s) return;
+
+    stopAudio();
+
+    try{
+      var url = apiBase().replace(/\/+$/,"") + "/api/tts";
+      var headers = { "Content-Type":"application/json" };
+      if(CONFIG.token){
+        headers["Authorization"] = "Bearer " + CONFIG.token;
+        headers["X-API-Token"] = CONFIG.token;
+      }
+
+      var r = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ text: s }),
+        credentials: "include"
+      });
+
+      if(!r.ok) return;
+
+      var buf = await r.arrayBuffer();
+      var blob = new Blob([buf], { type: "audio/mpeg" });
+      var objUrl = URL.createObjectURL(blob);
+
+      var a = new Audio(objUrl);
+      window.__NYX_AUDIO = a;
+      a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
+      a.play().catch(function(){});
+    }catch(_){}
+  }
+
+  // =========================
+  // Inbound messages (hardened)
   // =========================
   window.addEventListener("message", function(ev){
     try{
@@ -357,12 +397,9 @@ body{margin:0;background:#000;overflow:hidden}
       if(t === "NYX_CONFIG"){
         var c = (data.config && typeof data.config === "object") ? data.config : {};
         if(typeof c.apiBase === "string") CONFIG.apiBase = c.apiBase;
-        if(typeof c.token === "string") CONFIG.token = c.token;
+        if(typeof c.token === "string") setToken(c.token);
         if(typeof c.heroSrc === "string") CONFIG.heroSrc = c.heroSrc;
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
-
-        if(CONFIG.apiBase) persistApiBase(CONFIG.apiBase);
-        if(CONFIG.token) persistToken(CONFIG.token);
 
         if(CONFIG.heroSrc){
           document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
@@ -371,7 +408,7 @@ body{margin:0;background:#000;overflow:hidden}
 
         if(CONFIG.voiceDefaultOn) setVoice(true);
 
-        diag("HOST v9112 • config loaded" + (CONFIG.token ? " (token)" : " (no token)"));
+        diag("HOST v9112 • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() });
         return;
       }
@@ -385,47 +422,45 @@ body{margin:0;background:#000;overflow:hidden}
         setBubbleText(data.text);
         return;
       }
-    }catch(_){}
+
+    }catch(_){
+      // never throw
+    }
   });
 
   // =========================
-  // Backend client
+  // Backend client (NO PROMPTS EVER)
   // =========================
   function apiBase(){
-    return (CONFIG.apiBase && String(CONFIG.apiBase).trim())
-      ? String(CONFIG.apiBase).trim()
-      : location.origin;
+    return (CONFIG.apiBase && String(CONFIG.apiBase).trim()) ? String(CONFIG.apiBase).trim() : location.origin;
   }
 
-  function authHeaders(headers){
+  async function postJson(url, payload){
+    var headers = { "Content-Type":"application/json" };
+
+    // Optional token gate
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
     }
-    return headers;
-  }
 
-  async function postJson(url, payload){
-    var headers = authHeaders({ "Content-Type":"application/json" });
     headers["X-Client-Source"] = "nyx_host_iframe";
     headers["X-Route-Hint"] = safeStr(payload && payload.routeHint ? payload.routeHint : UI_STATE.lane);
 
-    var r, txt, json;
-    try{
-      r = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(payload),
-        credentials: "include"
-      });
-    }catch(e){
-      return { ok:false, error:"network_error", status:0, detail:safeStr(e && e.message) };
-    }
+    var r = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload),
+      credentials: "include"
+    });
 
-    try{ txt = await r.text(); }catch(_){ txt = ""; }
-    json = safeJsonParse(txt);
+    UI_STATE.lastHttpStatus = r.status;
+
+    var txt = await r.text().catch(function(){ return ""; });
+    var json = safeJsonParse(txt);
+
     if(!json){
-      return { ok:false, error:"bad_json", status:r.status, raw: (txt || "").slice(0, 600) };
+      return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 600) };
     }
     json.__httpStatus = r.status;
     return json;
@@ -449,6 +484,7 @@ body{margin:0;background:#000;overflow:hidden}
     var chip = safeStr(opts.chip || UI_STATE.chip || "general").trim();
     var lane = safeStr(opts.lane || UI_STATE.lane || "general").trim();
     var action = safeStr(opts.action || "").trim();
+
     var intent = safeStr(opts.intent || "").trim();
     var route = safeStr(opts.route || "").trim();
     var label = safeStr(opts.label || "").trim();
@@ -482,81 +518,6 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   // =========================
-  // Bubble + Voice
-  // =========================
-  var bubbleEl = $("nyxBubbleText");
-  function setBubbleText(t){
-    if(bubbleEl) bubbleEl.textContent = safeStr(t || "");
-  }
-
-  var voiceBtn = $("nyxVoiceToggle");
-  function setVoice(on){
-    UI_STATE.voiceOn = !!on;
-    if(voiceBtn){
-      if(UI_STATE.voiceOn) voiceBtn.classList.add("is-on");
-      else voiceBtn.classList.remove("is-on");
-    }
-  }
-
-  function stopAudio(){
-    try{
-      if(window.__NYX_AUDIO && typeof window.__NYX_AUDIO.pause === "function"){
-        window.__NYX_AUDIO.pause();
-        window.__NYX_AUDIO.currentTime = 0;
-      }
-    }catch(_){}
-  }
-
-  async function speak(text){
-    if(!UI_STATE.voiceOn) return;
-    var s = safeStr(text).trim();
-    if(!s) return;
-
-    stopAudio();
-
-    try{
-      var url = trimSlash(apiBase()) + "/api/tts";
-      var headers = authHeaders({ "Content-Type":"application/json" });
-
-      var r = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({ text: s }),
-        credentials: "include"
-      });
-
-      if(!r.ok) return;
-
-      var buf = await r.arrayBuffer();
-      var blob = new Blob([buf], { type: "audio/mpeg" });
-      var objUrl = URL.createObjectURL(blob);
-
-      var a = new Audio(objUrl);
-      window.__NYX_AUDIO = a;
-      a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
-      a.play().catch(function(){});
-    }catch(_){}
-  }
-
-  // =========================
-  // Token recovery on 401
-  // =========================
-  function promptForToken(){
-    try{
-      var current = CONFIG.token ? "(already set)" : "";
-      var tok = window.prompt("Nyx needs an API token (401). Paste token here:", "");
-      tok = (tok || "").trim();
-      if(tok){
-        CONFIG.token = tok;
-        persistToken(tok);
-        diag("HOST v9112 • token saved");
-        return true;
-      }
-    }catch(_){}
-    return false;
-  }
-
-  // =========================
   // Core send pipeline
   // =========================
   var input = $("nyxInput");
@@ -569,27 +530,35 @@ body{margin:0;background:#000;overflow:hidden}
     if(input) input.disabled = UI_STATE.pending;
   }
 
-  async function sendPacket(packet, didRetry){
+  function hasToken(){
+    return !!(CONFIG.token && String(CONFIG.token).trim());
+  }
+
+  function handleAuthNeeded(){
+    // NO PROMPTS. Tell the user nicely and notify parent to supply token.
+    setBubbleText("Nyx can’t reach the API right now (missing/invalid token).");
+    diag("HOST v9112 • 401 (no token)");
+    postToParent({ type:"NYX_NEED_TOKEN", v:CONFIG.version, ts:now() });
+  }
+
+  async function sendPacket(packet){
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
 
-    diag("HOST v9112 • sending…" + (CONFIG.token ? "" : " (no token)"));
+    var tokenState = hasToken() ? "token" : "no-token";
+    diag("HOST v9112 • sending… (" + tokenState + ")");
+
     postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: packet });
 
-    var url = trimSlash(apiBase()) + "/api/chat";
+    var url = apiBase().replace(/\/+$/,"") + "/api/chat";
     var out = await postJson(url, packet);
-    var status = Number(out && out.__httpStatus) || Number(out && out.status) || 0;
 
-    if(status === 401 && !didRetry){
-      // Ask once for token, save, retry same packet
+    // If backend says unauthorized, do NOT prompt; just signal parent
+    var status = Number(out && out.__httpStatus) || 0;
+    if(status === 401 || status === 403){
+      handleAuthNeeded();
+      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error:"auth_required", raw: out });
       setPending(false);
-      setBubbleText("Auth required (401). Setting token now…");
-      diag("HOST v9112 • 401 auth required");
-      if(promptForToken()){
-        return sendPacket(packet, true);
-      }
-      setBubbleText("Auth required (401). Token not provided.");
-      diag("HOST v9112 • 401 (no token provided)");
       return out;
     }
 
@@ -599,25 +568,9 @@ body{margin:0;background:#000;overflow:hidden}
       postToParent({ type:"NYX_REPLY", v:CONFIG.version, ts:now(), reply: out.reply, meta: out.meta || {} });
       diag("HOST v9112 • ok");
     }else{
-      if(status === 401){
-        setBubbleText("Auth required (401). Token is missing/invalid.");
-        diag("HOST v9112 • error 401");
-      }else if(status === 403){
-        setBubbleText("Blocked (403). Token/CORS policy mismatch.");
-        diag("HOST v9112 • error 403");
-      }else if(status === 0){
-        setBubbleText("Network error. Backend unreachable or blocked.");
-        diag("HOST v9112 • network error");
-      }else{
-        setBubbleText("Hmm. I didn’t get a clean reply. Try again.");
-        diag("HOST v9112 • error " + safeStr(status));
-      }
-
-      var msg = (out && (out.error || out.detail))
-        ? (safeStr(out.error) + (out.detail ? (": "+safeStr(out.detail)) : ""))
-        : "No reply.";
-
-      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error: msg, raw: out });
+      setBubbleText("Hmm. I didn’t get a clean reply. Try again.");
+      diag("HOST v9112 • error " + safeStr(out && out.__httpStatus));
+      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error:(out && (out.error||out.detail)) || "no_reply", raw: out });
     }
 
     setPending(false);
@@ -637,7 +590,7 @@ body{margin:0;background:#000;overflow:hidden}
       label: UI_STATE.chip
     });
     if(input) input.value = "";
-    return sendPacket(packet, false);
+    return sendPacket(packet);
   }
 
   // =========================
@@ -684,12 +637,15 @@ body{margin:0;background:#000;overflow:hidden}
     });
 
     postToParent({ type:"NYX_CHIP", v:CONFIG.version, ts:now(), chip: chip, lane: UI_STATE.lane });
-    return sendPacket(packet, false);
+    return sendPacket(packet);
   }
 
   if(sendBtn){
-    sendBtn.addEventListener("click", function(){ try{ sendTypedText(); }catch(_){ } });
+    sendBtn.addEventListener("click", function(){
+      try{ sendTypedText(); }catch(_){}
+    });
   }
+
   if(input){
     input.addEventListener("keydown", function(e){
       try{
@@ -700,16 +656,22 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     });
   }
+
   if(chips){
     chips.addEventListener("click", function(e){
       try{
         var t = e.target;
+        if(!t) return;
+
         while(t && t !== chips && !(t.classList && t.classList.contains("action-pill"))){
           t = t.parentNode;
         }
         if(!t || t === chips) return;
+
         var chip = t.getAttribute("data-chip");
-        if(chip) handleChipClick(chip);
+        if(!chip) return;
+
+        handleChipClick(chip);
       }catch(_){}
     });
   }
@@ -718,7 +680,7 @@ body{margin:0;background:#000;overflow:hidden}
   setActiveChip("general");
 
   // =========================
-  // STT
+  // STT (Speech-to-Text)
   // =========================
   var micBtn = $("nyxMic");
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -771,10 +733,22 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9112 • STT error"); };
-    rec.onend = function(){ setMic(false); };
+    rec.onerror = function(){
+      stopSTT();
+      diag("HOST v9112 • STT error");
+    };
 
-    try{ rec.start(); setMic(true); diag("HOST v9112 • listening…"); }catch(_){ setMic(false); }
+    rec.onend = function(){
+      setMic(false);
+    };
+
+    try{
+      rec.start();
+      setMic(true);
+      diag("HOST v9112 • listening…");
+    }catch(_){
+      setMic(false);
+    }
   }
 
   if(micBtn){
@@ -790,7 +764,6 @@ body{margin:0;background:#000;overflow:hidden}
   // =========================
   // Voice toggle
   // =========================
-  var voiceBtn = $("nyxVoiceToggle");
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
       try{
@@ -802,9 +775,6 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   if(CONFIG.voiceDefaultOn) setVoice(true);
-
-  // Boot diag shows if token is present
-  diag("HOST v9112 • ready" + (CONFIG.token ? " (token)" : " (no token)"));
 
 })();
 </script>
