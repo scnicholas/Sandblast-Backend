@@ -613,7 +613,7 @@ const PACK_MANIFEST = [
 const ORIGINS_ALLOWLIST = String(
   process.env.CORS_ALLOW_ORIGINS ||
     process.env.ALLOW_ORIGINS ||
-    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com"
+    "https://sandblast.channel,https://www.sandblast.channel,https://sandblast-backend.onrender.com,https://sandblastchannel.com,https://www.sandblastchannel.com,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
 )
   .split(",")
   .map((s) => s.trim())
@@ -785,6 +785,11 @@ function readApiToken(req) {
   return viaHeader || viaBearer || "";
 }
 function apiTokenGate(req, res, next) {
+  // PUBLIC endpoints must remain reachable by the Nyx widget even when a token is configured.
+  const p = safeStr(req.path || "").toLowerCase();
+  if (p === "/api/chat" || p === "/api/tts" || p === "/api/voice" || p.startsWith("/api/diag")) {
+    return next();
+  }
   if (!EXPECTED_API_TOKEN) return next(); // gate off by default
   const tok = readApiToken(req);
   if (tok && crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN))) return next();
