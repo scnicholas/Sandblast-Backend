@@ -83,9 +83,6 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 const nyxVoiceNaturalizeMod =
   safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
-const musicKnowledgeMod =
-  safeRequire("./Utils/musicKnowledge") || safeRequire("./Utils/musicKnowledge.js") || null;
-
 // =========================
 // Version
 // =========================
@@ -616,7 +613,7 @@ const PACK_MANIFEST = [
 const ORIGINS_ALLOWLIST = String(
   process.env.CORS_ALLOW_ORIGINS ||
     process.env.ALLOW_ORIGINS ||
-    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com,https://sandblast-backend.onrender.com"
+    "https://sandblast.channel,https://www.sandblast.channel,https://sandblastchannel.com,https://www.sandblastchannel.com"
 )
   .split(",")
   .map((s) => s.trim())
@@ -788,16 +785,27 @@ function readApiToken(req) {
   return viaHeader || viaBearer || "";
 }
 function apiTokenGate(req, res, next) {
-  if (!EXPECTED_API_TOKEN) return next(); // gate off by default
+  // OPTION A (Mac): Token gate OFF unless explicitly enabled.
+  // Enable by setting REQUIRE_API_TOKEN=true and EXPECTED_API_TOKEN to a long random string.
+  if (!REQUIRE_API_TOKEN) return next();
+  if (!EXPECTED_API_TOKEN) return next();
+
   const tok = readApiToken(req);
-  if (tok && crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN))) return next();
-  // timingSafeEqual throws if lengths differ; fallback constant-ish behavior:
+  if (!tok) {
+    return res.status(401).json({ ok: false, error: "missing_token" });
+  }
+
+  // timingSafeEqual throws if buffers differ in length — guard it.
   try {
-    if (tok && tok.length === EXPECTED_API_TOKEN.length) {
-      if (crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN))) return next();
+    if (tok.length === EXPECTED_API_TOKEN.length) {
+      const ok = crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN));
+      if (ok) return next();
     }
-  } catch (_) {}
-  return res.status(401).json({ ok: false, error: "unauthorized", meta: { index: INDEX_VERSION } });
+  } catch (_) {
+    // fall through to 401
+  }
+
+  return res.status(401).json({ ok: false, error: "bad_token" });
 }
 
 // =========================
@@ -2330,8 +2338,6 @@ app.get("/api/discovery", (req, res) => {
       "/health",
       "/api/health",
       "/api/knowledge",
-      "/api/music/top10",
-      "/api/diag/music",
       "/api/packsight",
       "/api/debug/knowledge",
       "/api/debug/packsight",
@@ -2445,62 +2451,6 @@ app.get("/api/knowledge", (req, res) => {
     packs: getPackIndexSafe(false).summary,
   });
 });
-// =========================
-// Music: Top10 by Year (Billboard Year-End Hot 100)
-// Requires: Utils/musicKnowledge.js (FAIL-OPEN if missing)
-// =========================
-app.get("/api/music/top10/:year?", (req, res) => {
-  try {
-    const mod = musicKnowledgeMod;
-    if (!mod || typeof mod.getTop10ByYear !== "function") {
-      return res.status(501).json({ ok: false, error: "musicKnowledge module missing" });
-    }
-
-    const year = req.params.year || req.query.year;
-    const wantMeta = String(req.query.meta || "").toLowerCase() === "1" || String(req.query.meta || "").toLowerCase() === "true";
-    const format = String(req.query.format || "").toLowerCase();
-
-    const top10 = mod.getTop10ByYear(year, wantMeta ? { meta: true } : null);
-
-    if (!top10) {
-      return res.status(404).json({ ok: false, error: "Year not found" });
-    }
-
-    if (format === "text") {
-      const text = typeof mod.renderTop10Text === "function" ? mod.renderTop10Text(top10) : "";
-      res.set("Content-Type", "text/plain; charset=utf-8");
-      return res.status(200).send(text || ""); // never crash
-    }
-
-    return res.status(200).json({ ok: true, ...top10 });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: "music/top10 failed" });
-  }
-});
-
-// =========================
-// Diagnostics: /api/diag/music
-// =========================
-app.get("/api/diag/music", (req, res) => {
-  try {
-    const mod = musicKnowledgeMod;
-    if (!mod || typeof mod.getMusicDiag !== "function") {
-      return res.status(200).json({
-        ok: false,
-        error: "musicKnowledge module missing",
-        exists: false
-      });
-    }
-
-    const year = req.query.year || req.query.sampleYear || 1988;
-    const diag = mod.getMusicDiag(year);
-
-    return res.status(200).json(diag || { ok: false });
-  } catch {
-    return res.status(200).json({ ok: false });
-  }
-});
-
 
 // =========================
 // Debug knowledge endpoints (kept)
