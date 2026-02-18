@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Nyx Avatar Host</title>
 
-<link rel="stylesheet" href="./avatar.css?v=9112" />
+<link rel="stylesheet" href="./avatar.css?v=9113" />
 
 <style>
 html,body{height:100%}
@@ -16,12 +16,16 @@ body{margin:0;background:#000;overflow:hidden}
   --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
   --nyx-hero-url:var(--nyx-hero-abs);
 
-  /* 600px panel height framing */
+  /* panel framing */
   --nyx-hero-pos-x:50%;
   --nyx-hero-pos-y:18%;
   --nyx-hero-scale:118%;
-
   --nyx-hero-dim:.10;
+
+  /* ===== DIALOGUE LAYOUT (NEW) ===== */
+  --nyx-bubble-w: min(380px, calc(100vw - 32px));
+  --nyx-bubble-max-h: 180px;     /* collapsed text viewport */
+  --nyx-bubble-max-h-open: 340px;/* expanded text viewport */
 }
 
 #nyxStage{
@@ -54,6 +58,7 @@ body{margin:0;background:#000;overflow:hidden}
   display:flex;
   flex-direction:column;
   justify-content:flex-end;
+  align-items:flex-end;             /* ✅ keeps bubble to the right so face stays clear */
   padding:16px;
   pointer-events:none;
   z-index:10;
@@ -62,26 +67,47 @@ body{margin:0;background:#000;overflow:hidden}
 .bubble,.bubble *{pointer-events:auto}
 
 .bubble{
+  width:var(--nyx-bubble-w);
   border-radius:18px;
   border:1px solid rgba(255,255,255,.10);
-  background:rgba(0,0,0,.38);
+  background:rgba(0,0,0,.36);
   backdrop-filter:blur(10px);
-  padding:14px;
+  padding:12px;
   box-shadow:0 18px 60px rgba(0,0,0,.55);
 }
 
+/* ===== Bounded dialogue viewport (NEW) ===== */
 .bubble-text{
   color:rgba(255,255,255,.92);
   font:16px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   line-height:1.35;
   white-space:pre-wrap;
+
+  /* ✅ prevents the bubble from growing upward over Nyx */
+  max-height:var(--nyx-bubble-max-h);
+  overflow:auto;
+  padding-right:6px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.18) rgba(0,0,0,0);
+}
+
+/* subtle fade at bottom when scrollable */
+.bubble-text.is-clamped{
+  mask-image: linear-gradient(180deg, #000 78%, rgba(0,0,0,0));
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, rgba(0,0,0,0));
+}
+
+.bubble.is-open .bubble-text{
+  max-height:var(--nyx-bubble-max-h-open);
+  mask-image:none;
+  -webkit-mask-image:none;
 }
 
 .bubble-actions{
   display:flex;
   gap:10px;
   flex-wrap:wrap;
-  margin-top:12px;
+  margin-top:10px;
 }
 
 .action-pill{
@@ -96,7 +122,6 @@ body{margin:0;background:#000;overflow:hidden}
   transition:transform .08s ease, background .12s ease, border-color .12s ease;
 }
 .action-pill:active{ transform:scale(.98); }
-
 .action-pill.is-active{
   border-color:rgba(255,255,255,.24);
   background:rgba(255,255,255,.10);
@@ -106,6 +131,14 @@ body{margin:0;background:#000;overflow:hidden}
   display:flex;
   gap:8px;
   margin-top:10px;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.nyx-left-controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
 }
 
 .nyx-mini{
@@ -122,10 +155,22 @@ body{margin:0;background:#000;overflow:hidden}
   background:rgba(255,255,255,.10);
 }
 
+/* Expand/Collapse button (NEW) */
+#nyxExpand{
+  font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(0,0,0,.20);
+  color:rgba(255,255,255,.86);
+  cursor:pointer;
+  user-select:none;
+}
+
 .nyx-row{
   display:flex;
   gap:10px;
-  margin-top:12px;
+  margin-top:10px;
 }
 
 #nyxInput{
@@ -152,6 +197,16 @@ body{margin:0;background:#000;overflow:hidden}
   font:12px ui-monospace,Menlo,Consolas,monospace;
   color:rgba(255,255,255,.55);
 }
+
+/* Small screens: keep bubble readable but still not covering hero */
+@media (max-width:520px){
+  #nyxOverlay{ align-items:center; }
+  :root{
+    --nyx-bubble-w: min(420px, calc(100vw - 20px));
+    --nyx-bubble-max-h: 160px;
+    --nyx-bubble-max-h-open: 300px;
+  }
+}
 </style>
 </head>
 
@@ -159,8 +214,8 @@ body{margin:0;background:#000;overflow:hidden}
 <div id="nyxStage"></div>
 
 <div id="nyxOverlay">
-  <div class="bubble">
-    <div class="bubble-text" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
+  <div class="bubble" id="nyxBubble">
+    <div class="bubble-text is-clamped" id="nyxBubbleText">Hi… I’m Nyx. How are you today?</div>
 
     <div class="bubble-actions" id="nyxChips">
       <div class="action-pill" data-chip="general">General</div>
@@ -172,8 +227,11 @@ body{margin:0;background:#000;overflow:hidden}
     </div>
 
     <div class="nyx-controls">
-      <button class="nyx-mini" id="nyxMic" type="button">🎙️</button>
-      <button class="nyx-mini" id="nyxVoiceToggle" type="button">🔊 Voice</button>
+      <div class="nyx-left-controls">
+        <button class="nyx-mini" id="nyxMic" type="button">🎙️</button>
+        <button class="nyx-mini" id="nyxVoiceToggle" type="button">🔊 Voice</button>
+      </div>
+      <button id="nyxExpand" type="button">Expand</button>
     </div>
 
     <div class="nyx-row">
@@ -181,7 +239,7 @@ body{margin:0;background:#000;overflow:hidden}
       <button id="nyxSend" type="button">Send</button>
     </div>
 
-    <div id="nyxDiag">HOST v9112 • ready</div>
+    <div id="nyxDiag">HOST v9113 • ready</div>
   </div>
 </div>
 
@@ -189,9 +247,9 @@ body{margin:0;background:#000;overflow:hidden}
 (function(){
   "use strict";
 
-  // =========================
+  // ==========
   // Utilities
-  // =========================
+  // ==========
   function $(id){ return document.getElementById(id); }
   function safeStr(x){ return (x===null || x===undefined) ? "" : String(x); }
   function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
@@ -209,78 +267,37 @@ body{margin:0;background:#000;overflow:hidden}
       return null;
     }
   }
-  function getQueryParam(name){
-    try{
-      var u = new URL(location.href);
-      return u.searchParams.get(name);
-    }catch(_){
-      return null;
-    }
-  }
 
-  // =========================
-  // Diagnostics
-  // =========================
   var diagEl = $("nyxDiag");
-  function diag(msg){
-    try{ if(diagEl) diagEl.textContent = msg; }catch(_){}
-  }
+  function diag(msg){ if(diagEl) diagEl.textContent = msg; }
 
-  // =========================
+  // ==========
   // Bridge State
-  // =========================
-  var PARENT_ORIGIN = getOriginFromReferrer(); // may be null
+  // ==========
+  var PARENT_ORIGIN = getOriginFromReferrer();
   var READY_SENT = false;
   var READY_ACK = false;
 
   var CONFIG = {
-    version: "9112",
-    apiBase: null,         // default: location.origin
-    token: null,           // optional
+    version: "9113",
+    apiBase: null,
+    token: null,
     heroSrc: null,
     voiceDefaultOn: false
   };
 
-  // Token storage key (optional)
-  var TOKEN_KEY = "nyx_api_token";
-
-  function setToken(token){
-    var t = safeStr(token).trim();
-    CONFIG.token = t || null;
-    // Optional: persist so refreshes don't lose it (no prompts; silent)
-    try{
-      if(t) localStorage.setItem(TOKEN_KEY, t);
-      else localStorage.removeItem(TOKEN_KEY);
-    }catch(_){}
-  }
-
-  // Bootstrap token from URL (?t=) or localStorage (silent, no prompts)
-  (function bootstrapToken(){
-    var t = safeStr(getQueryParam("t")).trim();
-    if(t){
-      setToken(t);
-      return;
-    }
-    try{
-      var ls = safeStr(localStorage.getItem(TOKEN_KEY)).trim();
-      if(ls) setToken(ls);
-    }catch(_){}
-  })();
-
-  // Local UI State
   var UI_STATE = {
     lane: "general",
     chip: "general",
     voiceOn: false,
     sttOn: false,
     pending: false,
-    lastRequestId: null,
-    lastHttpStatus: 0
+    lastRequestId: null
   };
 
-  // =========================
+  // ==========
   // Parent messaging
-  // =========================
+  // ==========
   function postToParent(payload){
     if(!window.parent || window.parent === window) return false;
     try{
@@ -297,84 +314,18 @@ body{margin:0;background:#000;overflow:hidden}
     postToParent({ type:"NYX_READY", v: CONFIG.version, ts: now() });
   }
 
-  // Retry READY a few times
   var tries = 0;
   var maxTries = 12;
   var timer = setInterval(function(){
     tries++;
-    if(READY_ACK || tries > maxTries){
-      clearInterval(timer);
-      return;
-    }
+    if(READY_ACK || tries > maxTries){ clearInterval(timer); return; }
     sendReady();
   }, 250);
   sendReady();
 
-  // =========================
-  // Bubble + Voice
-  // =========================
-  var bubbleEl = $("nyxBubbleText");
-  function setBubbleText(t){
-    if(!bubbleEl) return;
-    bubbleEl.textContent = safeStr(t || "");
-  }
-
-  var voiceBtn = $("nyxVoiceToggle");
-  function setVoice(on){
-    UI_STATE.voiceOn = !!on;
-    if(voiceBtn){
-      if(UI_STATE.voiceOn) voiceBtn.classList.add("is-on");
-      else voiceBtn.classList.remove("is-on");
-    }
-  }
-
-  function stopAudio(){
-    try{
-      if(window.__NYX_AUDIO && typeof window.__NYX_AUDIO.pause === "function"){
-        window.__NYX_AUDIO.pause();
-        window.__NYX_AUDIO.currentTime = 0;
-      }
-    }catch(_){}
-  }
-
-  async function speak(text){
-    if(!UI_STATE.voiceOn) return;
-    var s = safeStr(text).trim();
-    if(!s) return;
-
-    stopAudio();
-
-    try{
-      var url = apiBase().replace(/\/+$/,"") + "/api/tts";
-      var headers = { "Content-Type":"application/json" };
-      if(CONFIG.token){
-        headers["Authorization"] = "Bearer " + CONFIG.token;
-        headers["X-API-Token"] = CONFIG.token;
-      }
-
-      var r = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({ text: s }),
-        credentials: "include"
-      });
-
-      if(!r.ok) return;
-
-      var buf = await r.arrayBuffer();
-      var blob = new Blob([buf], { type: "audio/mpeg" });
-      var objUrl = URL.createObjectURL(blob);
-
-      var a = new Audio(objUrl);
-      window.__NYX_AUDIO = a;
-      a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
-      a.play().catch(function(){});
-    }catch(_){}
-  }
-
-  // =========================
-  // Inbound messages (hardened)
-  // =========================
+  // ==========
+  // Inbound messages
+  // ==========
   window.addEventListener("message", function(ev){
     try{
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
@@ -390,14 +341,14 @@ body{margin:0;background:#000;overflow:hidden}
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9112 • ready (ack)");
+        diag("HOST v9113 • ready (ack)");
         return;
       }
 
       if(t === "NYX_CONFIG"){
         var c = (data.config && typeof data.config === "object") ? data.config : {};
         if(typeof c.apiBase === "string") CONFIG.apiBase = c.apiBase;
-        if(typeof c.token === "string") setToken(c.token);
+        if(typeof c.token === "string") CONFIG.token = c.token;
         if(typeof c.heroSrc === "string") CONFIG.heroSrc = c.heroSrc;
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
 
@@ -408,7 +359,7 @@ body{margin:0;background:#000;overflow:hidden}
 
         if(CONFIG.voiceDefaultOn) setVoice(true);
 
-        diag("HOST v9112 • config loaded");
+        diag("HOST v9113 • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() });
         return;
       }
@@ -423,27 +374,22 @@ body{margin:0;background:#000;overflow:hidden}
         return;
       }
 
-    }catch(_){
-      // never throw
-    }
+    }catch(err){}
   });
 
-  // =========================
-  // Backend client (NO PROMPTS EVER)
-  // =========================
+  // ==========
+  // Backend client
+  // ==========
   function apiBase(){
     return (CONFIG.apiBase && String(CONFIG.apiBase).trim()) ? String(CONFIG.apiBase).trim() : location.origin;
   }
 
   async function postJson(url, payload){
     var headers = { "Content-Type":"application/json" };
-
-    // Optional token gate
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
     }
-
     headers["X-Client-Source"] = "nyx_host_iframe";
     headers["X-Route-Hint"] = safeStr(payload && payload.routeHint ? payload.routeHint : UI_STATE.lane);
 
@@ -454,11 +400,8 @@ body{margin:0;background:#000;overflow:hidden}
       credentials: "include"
     });
 
-    UI_STATE.lastHttpStatus = r.status;
-
     var txt = await r.text().catch(function(){ return ""; });
     var json = safeJsonParse(txt);
-
     if(!json){
       return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 600) };
     }
@@ -466,9 +409,9 @@ body{margin:0;background:#000;overflow:hidden}
     return json;
   }
 
-  // =========================
+  // ==========
   // Intent packet builder
-  // =========================
+  // ==========
   function laneFromChip(chip){
     chip = safeStr(chip).toLowerCase();
     if(chip === "music") return "music";
@@ -517,9 +460,97 @@ body{margin:0;background:#000;overflow:hidden}
     };
   }
 
-  // =========================
+  // ==========
+  // Bubble + Expand/Collapse (NEW)
+  // ==========
+  var bubbleEl = $("nyxBubbleText");
+  var bubbleWrap = $("nyxBubble");
+  var expandBtn = $("nyxExpand");
+  var isExpanded = false;
+
+  function applyClampUI(){
+    if(!bubbleEl || !bubbleWrap || !expandBtn) return;
+
+    bubbleWrap.classList.toggle("is-open", isExpanded);
+    bubbleEl.classList.toggle("is-clamped", !isExpanded);
+    expandBtn.textContent = isExpanded ? "Collapse" : "Expand";
+  }
+
+  function setBubbleText(t){
+    if(!bubbleEl) return;
+    bubbleEl.textContent = safeStr(t || "");
+    // keep scroll at top on new reply when collapsed (feels clean)
+    try{ bubbleEl.scrollTop = 0; }catch(_){}
+  }
+
+  if(expandBtn){
+    expandBtn.addEventListener("click", function(){
+      try{
+        isExpanded = !isExpanded;
+        applyClampUI();
+      }catch(_){}
+    });
+  }
+  applyClampUI();
+
+  // ==========
+  // Voice
+  // ==========
+  var voiceBtn = $("nyxVoiceToggle");
+  function setVoice(on){
+    UI_STATE.voiceOn = !!on;
+    if(voiceBtn){
+      voiceBtn.classList.toggle("is-on", UI_STATE.voiceOn);
+    }
+  }
+
+  function stopAudio(){
+    try{
+      if(window.__NYX_AUDIO && typeof window.__NYX_AUDIO.pause === "function"){
+        window.__NYX_AUDIO.pause();
+        window.__NYX_AUDIO.currentTime = 0;
+      }
+    }catch(_){}
+  }
+
+  async function speak(text){
+    if(!UI_STATE.voiceOn) return;
+    var s = safeStr(text).trim();
+    if(!s) return;
+
+    stopAudio();
+
+    try{
+      var url = apiBase().replace(/\/+$/,"") + "/api/tts";
+      var headers = { "Content-Type":"application/json" };
+      if(CONFIG.token){
+        headers["Authorization"] = "Bearer " + CONFIG.token;
+        headers["X-API-Token"] = CONFIG.token;
+      }
+
+      var r = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ text: s }),
+        credentials: "include"
+      });
+
+      if(!r.ok) return;
+
+      var buf = await r.arrayBuffer();
+      var blob = new Blob([buf], { type: "audio/mpeg" });
+      var objUrl = URL.createObjectURL(blob);
+
+      var a = new Audio(objUrl);
+      window.__NYX_AUDIO = a;
+      a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
+      a.play().catch(function(){});
+    }catch(_){}
+  }
+
+  // ==========
   // Core send pipeline
-  // =========================
+  // ==========
   var input = $("nyxInput");
   var sendBtn = $("nyxSend");
   var chips = $("nyxChips");
@@ -530,47 +561,25 @@ body{margin:0;background:#000;overflow:hidden}
     if(input) input.disabled = UI_STATE.pending;
   }
 
-  function hasToken(){
-    return !!(CONFIG.token && String(CONFIG.token).trim());
-  }
-
-  function handleAuthNeeded(){
-    // NO PROMPTS. Tell the user nicely and notify parent to supply token.
-    setBubbleText("Nyx can’t reach the API right now (missing/invalid token).");
-    diag("HOST v9112 • 401 (no token)");
-    postToParent({ type:"NYX_NEED_TOKEN", v:CONFIG.version, ts:now() });
-  }
-
   async function sendPacket(packet){
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-
-    var tokenState = hasToken() ? "token" : "no-token";
-    diag("HOST v9112 • sending… (" + tokenState + ")");
-
+    diag("HOST v9113 • sending…");
     postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: packet });
 
     var url = apiBase().replace(/\/+$/,"") + "/api/chat";
     var out = await postJson(url, packet);
 
-    // If backend says unauthorized, do NOT prompt; just signal parent
-    var status = Number(out && out.__httpStatus) || 0;
-    if(status === 401 || status === 403){
-      handleAuthNeeded();
-      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error:"auth_required", raw: out });
-      setPending(false);
-      return out;
-    }
-
     if(out && out.reply){
       setBubbleText(out.reply);
       speak(out.reply);
       postToParent({ type:"NYX_REPLY", v:CONFIG.version, ts:now(), reply: out.reply, meta: out.meta || {} });
-      diag("HOST v9112 • ok");
+      diag("HOST v9113 • ok");
     }else{
+      var msg = (out && (out.error || out.detail)) ? (out.error + (out.detail ? (": "+out.detail) : "")) : "No reply.";
       setBubbleText("Hmm. I didn’t get a clean reply. Try again.");
-      diag("HOST v9112 • error " + safeStr(out && out.__httpStatus));
-      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error:(out && (out.error||out.detail)) || "no_reply", raw: out });
+      diag("HOST v9113 • error " + safeStr(out && out.__httpStatus));
+      postToParent({ type:"NYX_ERROR", v:CONFIG.version, ts:now(), error: msg, raw: out });
     }
 
     setPending(false);
@@ -593,9 +602,9 @@ body{margin:0;background:#000;overflow:hidden}
     return sendPacket(packet);
   }
 
-  // =========================
+  // ==========
   // Chip handling
-  // =========================
+  // ==========
   function setActiveChip(chip){
     UI_STATE.chip = chip;
     UI_STATE.lane = laneFromChip(chip);
@@ -605,8 +614,7 @@ body{margin:0;background:#000;overflow:hidden}
       for(var i=0;i<pills.length;i++){
         var p = pills[i];
         var c = p.getAttribute("data-chip");
-        if(c === chip) p.classList.add("is-active");
-        else p.classList.remove("is-active");
+        p.classList.toggle("is-active", c === chip);
       }
     }
   }
@@ -641,11 +649,8 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   if(sendBtn){
-    sendBtn.addEventListener("click", function(){
-      try{ sendTypedText(); }catch(_){}
-    });
+    sendBtn.addEventListener("click", function(){ try{ sendTypedText(); }catch(_){ } });
   }
-
   if(input){
     input.addEventListener("keydown", function(e){
       try{
@@ -656,50 +661,39 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     });
   }
-
   if(chips){
     chips.addEventListener("click", function(e){
       try{
         var t = e.target;
-        if(!t) return;
-
         while(t && t !== chips && !(t.classList && t.classList.contains("action-pill"))){
           t = t.parentNode;
         }
         if(!t || t === chips) return;
-
         var chip = t.getAttribute("data-chip");
         if(!chip) return;
-
         handleChipClick(chip);
       }catch(_){}
     });
   }
 
-  // Default chip state
   setActiveChip("general");
 
-  // =========================
-  // STT (Speech-to-Text)
-  // =========================
+  // ==========
+  // STT
+  // ==========
   var micBtn = $("nyxMic");
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
   var rec = null;
 
   function setMic(on){
     UI_STATE.sttOn = !!on;
-    if(micBtn){
-      if(UI_STATE.sttOn) micBtn.classList.add("is-on");
-      else micBtn.classList.remove("is-on");
-    }
+    if(micBtn) micBtn.classList.toggle("is-on", UI_STATE.sttOn);
   }
 
   function stopSTT(){
     try{
       if(rec){
-        rec.onresult = null;
-        rec.onerror = null;
-        rec.onend = null;
+        rec.onresult = null; rec.onerror = null; rec.onend = null;
         rec.stop();
       }
     }catch(_){}
@@ -707,10 +701,7 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   function startSTT(){
-    if(!SpeechRecognition){
-      diag("HOST v9112 • STT unsupported");
-      return;
-    }
+    if(!SpeechRecognition){ diag("HOST v9113 • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -733,37 +724,24 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     };
 
-    rec.onerror = function(){
-      stopSTT();
-      diag("HOST v9112 • STT error");
-    };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9113 • STT error"); };
+    rec.onend = function(){ setMic(false); };
 
-    rec.onend = function(){
-      setMic(false);
-    };
-
-    try{
-      rec.start();
-      setMic(true);
-      diag("HOST v9112 • listening…");
-    }catch(_){
-      setMic(false);
-    }
+    try{ rec.start(); setMic(true); diag("HOST v9113 • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
     micBtn.addEventListener("click", function(){
       try{
-        if(UI_STATE.sttOn) stopSTT();
-        else startSTT();
+        if(UI_STATE.sttOn) stopSTT(); else startSTT();
         postToParent({ type:"NYX_MIC_TOGGLE", v:CONFIG.version, ts:now(), on: UI_STATE.sttOn });
       }catch(_){}
     });
   }
 
-  // =========================
+  // ==========
   // Voice toggle
-  // =========================
+  // ==========
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
       try{
