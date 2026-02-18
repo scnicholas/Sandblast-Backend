@@ -2221,7 +2221,12 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
   const origin = normalizeOrigin(originRaw);
-  const allow = origin ? isAllowedOrigin(origin) : false;
+
+  // Treat same-origin as allowed even if not in the explicit allowlist.
+  // This prevents accidental 403s when the host itself is the caller (e.g., onrender service origin).
+  const serverOrigin = normalizeOrigin(`${req.protocol}://${req.get("host")}`);
+
+  const allow = origin ? (isAllowedOrigin(origin) || origin === serverOrigin) : false;
 
   if (origin) res.setHeader("Vary", "Origin");
 
