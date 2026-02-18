@@ -10,14 +10,14 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.5 (YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + MINOR HARDEN++++)
- * ✅ Fix++++: extractYearFromText no longer hard-stops at 2025 (supports 1900..2100 via normYear).
- * ✅ Fix++++: safeStr(max<=0) returns "" (prevents "…" leakage when max=0, keeping PRIVACY default truly empty).
- * ✅ Fix++++: empty inbound narrowing no longer triggers just because topic defaults to "unknown".
- * ✅ Keeps: CHATENGINE COMPAT++++ + FAIL-OPEN++++ + CASE HARDEN++++
+ * v1.1.6 (COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++)
+ * ✅ Fix++++: coerceState no longer mutates updatedAt on read/coercion (only updateState/finalizeTurn mutate it)
+ * ✅ Harden++++: patch fields sanitized (prevents accidental shape poisoning)
+ * ✅ Add++++: runSpineSelfTests() (no deps, no side effects)
+ * ✅ Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.5";
+const SPINE_VERSION = "stateSpine v1.1.6";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -479,11 +479,16 @@ function coerceState(prev) {
   const d = createState();
   if (!prev || typeof prev !== "object") return d;
 
+  // IMPORTANT: coerce must NOT mutate timestamps (only updateState/finalizeTurn do).
   const out = { ...d, ...prev };
   out.__spineVersion = SPINE_VERSION;
 
   out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
   if (out.rev < 0) out.rev = 0;
+
+  // Preserve timestamps if present; else default
+  out.createdAt = safeStr(out.createdAt || d.createdAt, 64) || d.createdAt;
+  out.updatedAt = safeStr(out.updatedAt || d.updatedAt, 64) || d.updatedAt;
 
   out.lane = normalizeLane(out.lane);
   out.stage = normalizeStage(out.stage);
@@ -526,7 +531,9 @@ function coerceState(prev) {
       : 0;
   }
 
-  out.updatedAt = nowIso();
+  // Privacy default
+  out.lastUserText = safeStr(out.lastUserText || "", 0);
+
   return out;
 }
 
@@ -538,45 +545,52 @@ function coerceState(prev) {
  */
 function updateState(prev, patch = {}, reason = "turn") {
   const p = coerceState(prev);
+  const patchObj = isPlainObject(patch) ? patch : {};
   const updatedAt = nowIso();
 
   // Normalize pendingAsk in patch (supports chatEngine schema)
   const patchPendingAsk =
-    patch.pendingAsk === null
+    Object.prototype.hasOwnProperty.call(patchObj, "pendingAsk") && patchObj.pendingAsk === null
       ? null
-      : patch.pendingAsk
-      ? normalizePendingAsk(patch.pendingAsk)
+      : patchObj.pendingAsk
+      ? normalizePendingAsk(patchObj.pendingAsk)
       : undefined;
+
+  // Guard: prevent patch poisoning with non-objects
+  const patchDiag = isPlainObject(patchObj.diag) ? patchObj.diag : null;
+  const patchGoal = isPlainObject(patchObj.goal) ? patchObj.goal : null;
 
   const next = {
     ...p,
-    ...patch,
-    lane: patch.lane ? normalizeLane(patch.lane) : p.lane,
-    stage: patch.stage ? normalizeStage(patch.stage) : p.stage,
-    topic: patch.topic != null ? safeStr(patch.topic, 80) : p.topic,
+    ...patchObj,
+
+    // core normalized
+    lane: patchObj.lane ? normalizeLane(patchObj.lane) : p.lane,
+    stage: patchObj.stage ? normalizeStage(patchObj.stage) : p.stage,
+    topic: patchObj.topic != null ? safeStr(patchObj.topic, 80) : p.topic,
     lastUserIntent:
-      patch.lastUserIntent != null
-        ? safeStr(patch.lastUserIntent, 40)
+      patchObj.lastUserIntent != null
+        ? safeStr(patchObj.lastUserIntent, 40)
         : p.lastUserIntent,
 
     // Evidence trail (bounded, caller-controlled)
     lastUserText:
-      patch.lastUserText != null ? safeStr(patch.lastUserText, 0) : p.lastUserText,
+      patchObj.lastUserText != null ? safeStr(patchObj.lastUserText, 0) : p.lastUserText,
     lastAssistantSummary:
-      patch.lastAssistantSummary != null
-        ? safeStr(patch.lastAssistantSummary, 320)
+      patchObj.lastAssistantSummary != null
+        ? safeStr(patchObj.lastAssistantSummary, 320)
         : p.lastAssistantSummary,
 
-    goal: patch.goal
+    goal: patchGoal
       ? {
           ...p.goal,
-          ...patch.goal,
+          ...patchGoal,
           primary:
-            patch.goal.primary != null
-              ? safeStr(patch.goal.primary, 120)
+            patchGoal.primary != null
+              ? safeStr(patchGoal.primary, 120)
               : p.goal.primary,
-          secondary: Array.isArray(patch.goal.secondary)
-            ? patch.goal.secondary.slice(0, 8)
+          secondary: Array.isArray(patchGoal.secondary)
+            ? patchGoal.secondary.slice(0, 8)
             : p.goal.secondary,
           updatedAt: nowMs(),
         }
@@ -603,60 +617,61 @@ function updateState(prev, patch = {}, reason = "turn") {
         : p.pendingAsk,
 
     activeContext:
-      patch.activeContext === null
+      patchObj.activeContext === null
         ? null
-        : patch.activeContext
-        ? patch.activeContext
+        : patchObj.activeContext && typeof patchObj.activeContext === "object"
+        ? patchObj.activeContext
         : p.activeContext,
 
-    lastChipsOffered: Array.isArray(patch.lastChipsOffered)
-      ? patch.lastChipsOffered.slice(0, 12)
+    lastChipsOffered: Array.isArray(patchObj.lastChipsOffered)
+      ? patchObj.lastChipsOffered.slice(0, 12)
       : p.lastChipsOffered,
 
     lastChipClicked:
-      patch.lastChipClicked === null
+      patchObj.lastChipClicked === null
         ? null
-        : patch.lastChipClicked
-        ? patch.lastChipClicked
+        : patchObj.lastChipClicked && typeof patchObj.lastChipClicked === "object"
+        ? patchObj.lastChipClicked
         : p.lastChipClicked,
 
-    lastMove: patch.lastMove != null ? safeStr(patch.lastMove, 20) : p.lastMove,
+    lastMove: patchObj.lastMove != null ? safeStr(patchObj.lastMove, 20) : p.lastMove,
     lastDecision:
-      patch.lastDecision && typeof patch.lastDecision === "object"
+      patchObj.lastDecision && typeof patchObj.lastDecision === "object"
         ? {
-            move: safeStr(patch.lastDecision.move || "", 20),
-            rationale: safeStr(patch.lastDecision.rationale || "", 60),
+            move: safeStr(patchObj.lastDecision.move || "", 20),
+            rationale: safeStr(patchObj.lastDecision.rationale || "", 60),
           }
         : p.lastDecision,
 
     lastActionTaken:
-      patch.lastActionTaken != null
-        ? safeStr(patch.lastActionTaken, 40)
+      patchObj.lastActionTaken != null
+        ? safeStr(patchObj.lastActionTaken, 40)
         : p.lastActionTaken,
     lastTurnSig:
-      patch.lastTurnSig != null ? safeStr(patch.lastTurnSig, 240) : p.lastTurnSig,
+      patchObj.lastTurnSig != null ? safeStr(patchObj.lastTurnSig, 240) : p.lastTurnSig,
 
     turns:
-      patch.turns && typeof patch.turns === "object"
+      patchObj.turns && typeof patchObj.turns === "object"
         ? {
-            user: Number.isFinite(patch.turns.user)
-              ? Math.max(0, Math.trunc(patch.turns.user))
+            user: Number.isFinite(patchObj.turns.user)
+              ? Math.max(0, Math.trunc(patchObj.turns.user))
               : p.turns.user,
-            assistant: Number.isFinite(patch.turns.assistant)
-              ? Math.max(0, Math.trunc(patch.turns.assistant))
+            assistant: Number.isFinite(patchObj.turns.assistant)
+              ? Math.max(0, Math.trunc(patchObj.turns.assistant))
               : p.turns.assistant,
-            sinceReset: Number.isFinite(patch.turns.sinceReset)
-              ? Math.max(0, Math.trunc(patch.turns.sinceReset))
+            sinceReset: Number.isFinite(patchObj.turns.sinceReset)
+              ? Math.max(0, Math.trunc(patchObj.turns.sinceReset))
               : p.turns.sinceReset,
           }
         : p.turns,
 
+    // only updateState mutates updatedAt + rev
     updatedAt,
     rev: (Number.isFinite(p.rev) ? p.rev : 0) + 1,
 
     diag: {
       ...p.diag,
-      ...(patch.diag && typeof patch.diag === "object" ? patch.diag : {}),
+      ...(patchDiag ? patchDiag : {}),
       lastUpdateReason: safeStr(reason, 120),
     },
   };
@@ -1022,6 +1037,49 @@ function assertTurnUpdated(prevState, nextState) {
   }
 }
 
+// -------------------------
+// self-tests (no deps, no side effects)
+// -------------------------
+function runSpineSelfTests() {
+  const failures = [];
+  function assert(name, cond, detail) {
+    if (!cond) failures.push({ name, detail: safeStr(detail || "", 400) });
+  }
+
+  // 1) coerceState must not mutate updatedAt
+  const st0 = createState({ lane: "music" });
+  const before = st0.updatedAt;
+  const st1 = coerceState(st0);
+  assert("coerce_does_not_touch_updatedAt", st1.updatedAt === before, `${before} -> ${st1.updatedAt}`);
+
+  // 2) updateState increments rev exactly once
+  const u1 = updateState(st0, { topic: "help" }, "turn");
+  assert("update_rev_inc", u1.rev === st0.rev + 1, `${st0.rev} -> ${u1.rev}`);
+
+  // 3) assertTurnUpdated passes on normal update
+  try {
+    assertTurnUpdated(st0, u1);
+    assert("assertTurnUpdated_ok", true, "");
+  } catch (e) {
+    assert("assertTurnUpdated_ok", false, e && e.message ? e.message : String(e));
+  }
+
+  // 4) pendingAsk normalize supports chatEngine schema
+  const pa = normalizePendingAsk({ id: "need_year", type: "clarify", prompt: "Give year", required: true });
+  assert("pendingAsk_norm_kind", !!safeStr(pa.kind), safeStr(pa.kind));
+  assert("pendingAsk_norm_prompt", safeStr(pa.prompt).toLowerCase().includes("year"), pa.prompt);
+
+  // 5) decideNextMove honors actionable payload silent click
+  const dm = decideNextMove(createState(), {
+    payload: { action: "top10", year: 1988, lane: "music" },
+    turnSignals: { hasPayload: true, payloadActionable: true, textEmpty: true },
+    text: "",
+  });
+  assert("decide_actionable_payload_advance", dm.move === MOVE.ADVANCE, safeStr(dm.move));
+
+  return { ok: failures.length === 0, failures, ran: 5, v: SPINE_VERSION };
+}
+
 module.exports = {
   SPINE_VERSION,
   LANE,
@@ -1043,4 +1101,7 @@ module.exports = {
   buildPendingAsk,
   buildChipsOffered,
   assertTurnUpdated,
+
+  // tests
+  runSpineSelfTests,
 };
