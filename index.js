@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cos (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + rate guard + graceful shutdown + load visibility retained)
+ * index.js v1.5.19cor (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + rate guard + graceful shutdown + load visibility retained)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -68,6 +68,8 @@ function safeRequire(p) {
 
 // Engine + fetch
 const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
+// Knowledge registry (manifest-driven loader). Optional: fail-open if missing.
+const knowledgeRegistryMod = safeRequire("./Utils/knowledgeRegistry") || safeRequire("./Utils/knowledgeRegistry.js") || null;
 
 // fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
 const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
@@ -1846,6 +1848,13 @@ function knowledgeStatusForMeta() {
     skips: { ...KNOWLEDGE.__skips },
     collisions: KNOWLEDGE.__collisions.length,
     manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
+    registry: {
+      ok: !!(KNOWREG_BOOT && KNOWREG_BOOT.ok),
+      domains: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.domains) ? KNOWREG_BOOT.domains.slice(0, 24) : [],
+      loadedAt: (KNOWREG_BOOT && KNOWREG_BOOT.loadedAt) || 0,
+      errorCount: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.errors) ? KNOWREG_BOOT.errors.length : 0,
+      errorsPreview: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.errors) ? KNOWREG_BOOT.errors.slice(0, 3) : [],
+    },
   };
 }
 
@@ -1893,6 +1902,72 @@ if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
   }, KNOWLEDGE_RELOAD_INTERVAL_MS).unref?.();
 }
 
+// =========================
+// KnowledgeRegistry (manifest-driven) — optional (fail-open)
+// =========================
+let KNOWREG = null;
+let KNOWREG_BOOT = { ok: false, domains: [], loadedAt: 0, errors: [] };
+
+function initKnowledgeRegistryBridge() {
+  if (!knowledgeRegistryMod || typeof knowledgeRegistryMod.initKnowledgeRegistry !== "function") {
+    KNOWREG_BOOT = { ok: false, domains: [], loadedAt: 0, errors: ["module_missing"] };
+    return KNOWREG_BOOT;
+  }
+  try {
+    const rootDir = process.env.KNOWLEDGE_ROOT || undefined;
+    KNOWREG_BOOT = knowledgeRegistryMod.initKnowledgeRegistry({ rootDir });
+    if (typeof knowledgeRegistryMod.getRegistry === "function") {
+      KNOWREG = knowledgeRegistryMod.getRegistry(rootDir);
+    }
+    return KNOWREG_BOOT;
+  } catch (e) {
+    KNOWREG_BOOT = { ok: false, domains: [], loadedAt: Date.now(), errors: [safeStr(e?.message || e)] };
+    return KNOWREG_BOOT;
+  }
+}
+
+// Boot-load registry (same cadence as knowledge packs; can be disabled)
+const KNOWLEDGE_REGISTRY_AUTOLOAD = toBool(process.env.KNOWLEDGE_REGISTRY_AUTOLOAD, true);
+if (KNOWLEDGE_REGISTRY_AUTOLOAD) {
+  initKnowledgeRegistryBridge();
+}
+
+// Domain hint mapping for Nyx lanes (best-effort; registry is free to ignore unknown domains)
+function registryDomainFromLane(lane) {
+  const l = safeStr(lane).toLowerCase().trim();
+  if (!l) return "";
+  if (l === "music") return "music";
+  if (l === "roku") return "roku";
+  if (l === "radio") return "radio";
+  if (l === "cyber") return "cyber";
+  if (l === "law") return "law";
+  if (l === "english") return "english";
+  if (l === "ai") return "ai";
+  return ""; // all
+}
+
+function registryBundleFor(text, lane) {
+  if (!KNOWREG || typeof KNOWREG.query !== "function") return null;
+  const qText = safeStr(text).trim();
+  const l = safeStr(lane).toLowerCase().trim();
+  const domain = registryDomainFromLane(l);
+
+  // Bounded bundle; Marion/chatEngine can choose to use or ignore
+  try {
+    const bundle = KNOWREG.query({
+      text: qText,
+      lane: l || undefined,
+      domain: domain || undefined,
+      limit: 7,
+      charMax: 1800,
+      factsMax: 10,
+      hintsMax: 10,
+    });
+    return bundle && bundle.ok ? bundle : null;
+  } catch (_) {
+    return null;
+  }
+}
 // =========================
 // Built-in Pack Index (no dependency) — kept
 // =========================
@@ -3046,6 +3121,16 @@ app.use((err, req, res, next) => {
     meta: { index: INDEX_VERSION },
   });
 });
+app.post("/api/debug/knowledge/registry-reload", (req, res) => {
+  // Token-gated by global guard; fail-open so ops can see why it failed
+  try {
+    const out = initKnowledgeRegistryBridge();
+    res.json({ ok: !!(out && out.ok), registry: out });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: safeStr(e?.message || e) });
+  }
+});
+
 
 // =========================
 // Start + graceful shutdown
