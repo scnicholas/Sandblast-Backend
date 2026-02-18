@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cot (TOKEN OPTIONAL++++: API_TOKEN_MODE optional default; missing token allowed for public widget; invalid token still 401; keeps cos security suite)
+ * index.js v1.5.19cos (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + rate guard + graceful shutdown + load visibility retained)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -15,7 +15,7 @@
  *
  * And adds critical "production operating system" gaps:
  * ✅ Hard CORS deny (origin present but not allowed => 403, stops stealth browser calls)
- * ✅ Optional API token gate (env EXPECTED_API_TOKEN) for /api/chat + /api/tts (+ siblings)
+ * ✅ Optional API token gate (env EXPECTED_API_TOKEN) available (not required for public /api/chat,/api/tts,/api/voice)
  * ✅ Security headers middleware (CSP frame-ancestors allowlist, CORP/COEP sensible defaults)
  * ✅ Static avatar host + assets at /avatar (cache + immutable for hashed assets)
  * ✅ Simple IP rate guard (pre-session) to prevent abuse/DoS spikes
@@ -179,8 +179,6 @@ const ENABLE_COMPRESSION = toBool(process.env.ENABLE_COMPRESSION, true);
 
 // --- API token gate (optional; OFF unless EXPECTED_API_TOKEN set) ---
 const EXPECTED_API_TOKEN = String(process.env.EXPECTED_API_TOKEN || "").trim();
-// API token behavior: "required" enforces token, "optional" allows missing token (recommended for public widgets)
-const API_TOKEN_MODE = String(process.env.API_TOKEN_MODE || "optional").toLowerCase();
 const API_TOKEN_HEADER = String(process.env.API_TOKEN_HEADER || "x-sb-token").trim().toLowerCase();
 
 // --- IP rate guard (simple; pre-session) ---
@@ -787,36 +785,16 @@ function readApiToken(req) {
   return viaHeader || viaBearer || "";
 }
 function apiTokenGate(req, res, next) {
-  // If no expected token is configured, the gate is effectively OFF.
-  if (!EXPECTED_API_TOKEN) return next();
-
-  // Modes:
-  //  - required: token must be present + valid
-  //  - optional: missing token is allowed; invalid provided token is rejected (to surface misconfig)
-  const mode = (API_TOKEN_MODE === "required") ? "required" : "optional";
-
+  if (!EXPECTED_API_TOKEN) return next(); // gate off by default
   const tok = readApiToken(req);
-
-  // OPTIONAL mode: allow missing token
-  if (mode === "optional" && !tok) return next();
-
-  // Validate provided token (or required mode)
-  let ok = false;
+  if (tok && crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN))) return next();
+  // timingSafeEqual throws if lengths differ; fallback constant-ish behavior:
   try {
     if (tok && tok.length === EXPECTED_API_TOKEN.length) {
-      ok = crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN));
+      if (crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(EXPECTED_API_TOKEN))) return next();
     }
-  } catch (_) {
-    ok = false;
-  }
-
-  if (ok) return next();
-
-  return res.status(401).json({
-    ok: false,
-    error: "unauthorized",
-    detail: mode === "optional" ? "invalid_token" : "missing_or_invalid_token"
-  });
+  } catch (_) {}
+  return res.status(401).json({ ok: false, error: "unauthorized", meta: { index: INDEX_VERSION } });
 }
 
 // =========================
@@ -2221,12 +2199,7 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 app.use((req, res, next) => {
   const originRaw = safeStr(req.headers.origin || "");
   const origin = normalizeOrigin(originRaw);
-
-  // Treat same-origin as allowed even if not in the explicit allowlist.
-  // This prevents accidental 403s when the host itself is the caller (e.g., onrender service origin).
-  const serverOrigin = normalizeOrigin(`${req.protocol}://${req.get("host")}`);
-
-  const allow = origin ? (isAllowedOrigin(origin) || origin === serverOrigin) : false;
+  const allow = origin ? isAllowedOrigin(origin) : false;
 
   if (origin) res.setHeader("Vary", "Origin");
 
@@ -2933,9 +2906,9 @@ async function handleChatRoute(req, res) {
 // =========================
 // Chat endpoints (guarded)
 // =========================
-app.post("/api/sandblast-gpt", ipRateGuard, apiTokenGate, handleChatRoute);
-app.post("/api/nyx/chat", ipRateGuard, apiTokenGate, handleChatRoute);
-app.post("/api/chat", ipRateGuard, apiTokenGate, handleChatRoute);
+app.post("/api/sandblast-gpt", ipRateGuard, handleChatRoute);
+app.post("/api/nyx/chat", ipRateGuard, handleChatRoute);
+app.post("/api/chat", ipRateGuard, handleChatRoute);
 
 // GET guidance
 function chatGetGuidance(req, res) {
@@ -3040,8 +3013,8 @@ async function handleTtsRoute(req, res) {
   }
 }
 
-app.post("/api/tts", ipRateGuard, apiTokenGate, handleTtsRoute);
-app.post("/api/voice", ipRateGuard, apiTokenGate, handleTtsRoute);
+app.post("/api/tts", ipRateGuard, handleTtsRoute);
+app.post("/api/voice", ipRateGuard, handleTtsRoute);
 
 function ttsGetGuidance(req, res) {
   return res.status(405).json({
