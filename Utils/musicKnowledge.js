@@ -3,7 +3,7 @@
 /**
  * Utils/musicKnowledge.js
  *
- * v1.3.0 (HANDLEMUSICTURN++++ + ROUTE CONTRACT++++ + YEAR-END/Story/Micro scaffolds++++ + DIAG HARDENING++++)
+ * v1.3.1 (FAIL-OPEN GUARANTEE++++ + DISPATCH HARDEN++++ + VIBE/PAYLOAD READ FIX++++ + DIAG SAFETY++++)
  *
  * Guarantees:
  *  - Top10 returns exactly 10 items (1..10 deterministic selection)
@@ -12,6 +12,7 @@
  *  - Defensive structure validation
  *  - Visible failure modes
  *  - Safe rendering (never empty output)
+ *  - Never throws (all public entrypoints fail-open)
  *
  * Accepts store shapes:
  *  A) { years: { "1988": { items:[...] } } }   ✅ preferred
@@ -61,7 +62,15 @@ let _cache = {
 function isObject(x) {
   return x !== null && typeof x === "object" && !Array.isArray(x);
 }
-
+function asArray(x) {
+  return Array.isArray(x) ? x : [];
+}
+function safeStr(x) {
+  return x === undefined || x === null ? "" : String(x);
+}
+function cleanText(v) {
+  return safeStr(v).trim();
+}
 function safeStat(file) {
   try {
     return fs.statSync(file);
@@ -69,7 +78,6 @@ function safeStat(file) {
     return null;
   }
 }
-
 function safeReadJSON(file) {
   try {
     const raw = fs.readFileSync(file, "utf8");
@@ -79,7 +87,6 @@ function safeReadJSON(file) {
     return null;
   }
 }
-
 function loadStore() {
   const st = safeStat(TOP10_FILE);
   if (!st || !st.isFile()) {
@@ -88,17 +95,11 @@ function loadStore() {
   }
 
   const mtimeMs = Number(st.mtimeMs || 0);
-  if (_cache.store && _cache.mtimeMs === mtimeMs) {
-    return _cache.store;
-  }
+  if (_cache.store && _cache.mtimeMs === mtimeMs) return _cache.store;
 
   const store = safeReadJSON(TOP10_FILE);
   _cache = { mtimeMs, store: store || null, file: TOP10_FILE };
   return _cache.store;
-}
-
-function safeStr(x) {
-  return x === undefined || x === null ? "" : String(x);
 }
 
 function normalizeYear(year) {
@@ -108,7 +109,6 @@ function normalizeYear(year) {
   if (!Number.isFinite(n) || n < 1800 || n > 3000) return null;
   return String(n);
 }
-
 function toIntYear(year) {
   const y = normalizeYear(year);
   if (!y) return null;
@@ -116,13 +116,9 @@ function toIntYear(year) {
   return Number.isFinite(n) ? n : null;
 }
 
-function cleanText(v) {
-  return safeStr(v).trim();
-}
-
 /**
  * Fix common wiki-cache artifacts:
- * - \" / \" fragments
+ * - \" fragments
  * - doubled quotes from scraped "A" / "B" formatting
  */
 function cleanTitleArtifacts(s) {
@@ -138,7 +134,6 @@ function cleanTitleArtifacts(s) {
   out = out.replace(/\s+/g, " ").trim();
   return out;
 }
-
 function cleanArtistArtifacts(s) {
   const t = cleanText(s);
   if (!t) return "";
@@ -150,19 +145,17 @@ function coercePos(rawPos, fallback) {
   if (Number.isFinite(n) && n >= 1 && n <= 1000) return Math.trunc(n);
   return fallback;
 }
-
 function normalizeItem(raw, index) {
+  const r = isObject(raw) ? raw : {};
   return {
-    pos: coercePos(raw?.pos ?? raw?.rank, index + 1),
-    title: cleanTitleArtifacts(raw?.title),
-    artist: cleanArtistArtifacts(raw?.artist ?? raw?.artists),
+    pos: coercePos(r.pos ?? r.rank, index + 1),
+    title: cleanTitleArtifacts(r.title),
+    artist: cleanArtistArtifacts(r.artist ?? r.artists),
   };
 }
-
 function makePlaceholder(pos) {
   return { pos, title: "—", artist: "" };
 }
-
 function keySong(title, artist) {
   return `${cleanText(title).toLowerCase()}||${cleanText(artist).toLowerCase()}`;
 }
@@ -183,7 +176,7 @@ function dedupeExactSongs(items, meta) {
       continue;
     }
     if (seen.has(k)) {
-      if (meta) {
+      if (meta && Array.isArray(meta.warnings)) {
         meta.warnings.push({
           code: "DUPLICATE_SONG_IGNORED",
           title: it.title || "",
@@ -218,25 +211,18 @@ function buildTop10(rawItems, meta) {
         title: it.title || "",
         artist: it.artist || "",
       });
-    } else if (meta) {
-      meta.warnings.push({
-        code: "DUPLICATE_POSITION",
-        pos: p,
-      });
+    } else if (meta && Array.isArray(meta.warnings)) {
+      meta.warnings.push({ code: "DUPLICATE_POSITION", pos: p });
     }
   }
 
   const items = [];
-
   for (let pos = 1; pos <= TOP10_REQUIRED_COUNT; pos++) {
     const found = byPos.get(pos);
 
     if (!found) {
-      if (meta) {
-        meta.warnings.push({
-          code: "MISSING_POSITION",
-          pos,
-        });
+      if (meta && Array.isArray(meta.warnings)) {
+        meta.warnings.push({ code: "MISSING_POSITION", pos });
       }
       items.push(makePlaceholder(pos));
       continue;
@@ -249,17 +235,14 @@ function buildTop10(rawItems, meta) {
     });
   }
 
-  if (meta) {
+  if (meta && Array.isArray(meta.warnings)) {
     const extras = [];
     for (const [p, it] of byPos.entries()) {
       if (p > TOP10_REQUIRED_COUNT) extras.push(it);
     }
 
     if (extras.length) {
-      meta.warnings.push({
-        code: "EXTRA_ROWS_IGNORED",
-        count: extras.length,
-      });
+      meta.warnings.push({ code: "EXTRA_ROWS_IGNORED", count: extras.length });
       meta.extrasIgnored = extras.slice(0, 50);
     }
   }
@@ -291,62 +274,66 @@ function getYearBucket(store, y) {
 // Public: Get Top10 by Year
 // =========================
 function getTop10ByYear(year, opts) {
-  const y = normalizeYear(year);
-  if (!y) return null;
+  try {
+    const y = normalizeYear(year);
+    if (!y) return null;
 
-  const store = loadStore();
-  const bucket = getYearBucket(store, y);
-  if (!bucket) return null;
+    const store = loadStore();
+    const bucket = getYearBucket(store, y);
+    if (!bucket) return null;
 
-  const wantMeta = !!(opts && opts.meta === true);
+    const wantMeta = !!(opts && opts.meta === true);
 
-  const meta = wantMeta
-    ? {
-        sourceFile: TOP10_FILE,
-        storeVersion: cleanText(store?.version) || "",
-        storeChart: cleanText(store?.chart) || "",
-        year: y,
-        warnings: [],
-        extrasIgnored: [],
-      }
-    : null;
+    const meta = wantMeta
+      ? {
+          sourceFile: TOP10_FILE,
+          storeVersion: cleanText(store?.version) || "",
+          storeChart: cleanText(store?.chart) || "",
+          year: y,
+          warnings: [],
+          extrasIgnored: [],
+        }
+      : null;
 
-  const items = buildTop10(bucket.items, meta);
+    const items = buildTop10(bucket.items, meta);
 
-  const resolvedChart =
-    cleanText(bucket.chart) ||
-    cleanText(store?.chart) ||
-    "Billboard Year-End Hot 100";
+    const resolvedChart =
+      cleanText(bucket.chart) ||
+      cleanText(store?.chart) ||
+      "Billboard Year-End Hot 100";
 
-  return {
-    year: y,
-    chart: resolvedChart,
-    count: TOP10_REQUIRED_COUNT,
-    items,
-    ...(wantMeta ? { meta } : {}),
-  };
+    return {
+      year: y,
+      chart: resolvedChart,
+      count: TOP10_REQUIRED_COUNT,
+      items,
+      ...(wantMeta ? { meta } : {}),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // =========================
 // Render (Legacy Compatibility)
 // =========================
 function renderTop10Text(top10) {
-  if (!top10 || !Array.isArray(top10.items)) {
+  try {
+    if (!top10 || !Array.isArray(top10.items)) return "";
+
+    const lines = [];
+    for (let i = 0; i < top10.items.length; i++) {
+      const it = top10.items[i];
+      const pos = Number.isFinite(it?.pos) ? it.pos : i + 1;
+      const title = cleanText(it?.title) || "—";
+      const artist = cleanText(it?.artist);
+      lines.push(`${pos}. "${title}"${artist ? " — " + artist : ""}`);
+    }
+    return lines.join("\n");
+  } catch {
+    // Never throw
     return "";
   }
-
-  const lines = [];
-
-  for (let i = 0; i < top10.items.length; i++) {
-    const it = top10.items[i];
-    const pos = Number.isFinite(it?.pos) ? it.pos : i + 1;
-    const title = cleanText(it?.title) || "—";
-    const artist = cleanText(it?.artist);
-
-    lines.push(`${pos}. "${title}"${artist ? " — " + artist : ""}`);
-  }
-
-  return lines.join("\n");
 }
 
 // =========================
@@ -354,8 +341,8 @@ function renderTop10Text(top10) {
 // =========================
 function yearFollowUps(baseAction, year) {
   const y = toIntYear(year);
-  const y2 = y ? y - 1 : 1988;
-  const y3 = y ? y + 1 : 1992;
+  const y2 = y ? y - 1 : 1987;
+  const y3 = y ? y + 1 : 1989;
 
   const make = (yy) => ({
     id: `fu_${baseAction}_${yy}`,
@@ -410,14 +397,15 @@ function pendingAskObj(id, type, prompt, required) {
 function handleTop10(year, opts) {
   const y = normalizeYear(year);
   if (!y) {
+    const fu = yearFollowUps("top10", 1988);
     return {
       ok: false,
       replyRaw: "Give me a valid year (YYYY).",
       route: "top10",
       actionTaken: "need_year",
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
-      followUps: yearFollowUps("top10", 1988),
-      followUpsStrings: ["1987", "1988", "1989"],
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "BAD_YEAR" },
     };
   }
@@ -426,20 +414,23 @@ function handleTop10(year, opts) {
   const top10 = getTop10ByYear(y, { meta: wantMeta });
 
   if (!top10) {
+    const fu = yearFollowUps("top10", y);
     return {
       ok: false,
       replyRaw: `I don’t have Top 10 data loaded for ${y}.`,
       route: "top10",
       actionTaken: "year_not_found",
       pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
-      followUps: yearFollowUps("top10", y),
-      followUpsStrings: yearFollowUps("top10", y).map((x) => x.label),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
   }
 
   const header = `Top 10 — ${y}`;
-  const body = renderTop10Text(top10) || `1. "—"\n2. "—"\n3. "—"\n4. "—"\n5. "—"\n6. "—"\n7. "—"\n8. "—"\n9. "—"\n10. "—"`;
+  const body =
+    renderTop10Text(top10) ||
+    `1. "—"\n2. "—"\n3. "—"\n4. "—"\n5. "—"\n6. "—"\n7. "—"\n8. "—"\n9. "—"\n10. "—"`;
 
   const replyRaw = `${header}\n\n${body}`;
 
@@ -476,32 +467,33 @@ function handleTop10(year, opts) {
  * They work by anchoring on Top10 and applying an internal template.
  * If you later add richer story assets, slot them in here safely.
  */
-function handleStoryMoment(year, opts) {
+function handleStoryMoment(year) {
   const y = normalizeYear(year);
   if (!y) {
+    const fu = yearFollowUps("story_moment", 1988);
     return {
       ok: false,
       replyRaw: "Give me a year (YYYY) for the cinematic moment.",
       route: "story_moment",
       actionTaken: "need_year",
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
-      followUps: yearFollowUps("story_moment", 1988),
-      followUpsStrings: ["1987", "1988", "1989"],
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "BAD_YEAR" },
     };
   }
 
   const top10 = getTop10ByYear(y, { meta: false });
-
   if (!top10) {
+    const fu = yearFollowUps("story_moment", y);
     return {
       ok: false,
       replyRaw: `I don’t have chart data loaded for ${y}. Pick another year.`,
       route: "story_moment",
       actionTaken: "year_not_found",
       pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
-      followUps: yearFollowUps("story_moment", y),
-      followUpsStrings: yearFollowUps("story_moment", y).map((x) => x.label),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
   }
@@ -564,32 +556,33 @@ function handleStoryMoment(year, opts) {
   };
 }
 
-function handleMicroMoment(year, opts) {
+function handleMicroMoment(year) {
   const y = normalizeYear(year);
   if (!y) {
+    const fu = yearFollowUps("micro_moment", 1988);
     return {
       ok: false,
       replyRaw: "Give me a year (YYYY) for the micro-moment.",
       route: "micro_moment",
       actionTaken: "need_year",
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
-      followUps: yearFollowUps("micro_moment", 1988),
-      followUpsStrings: ["1987", "1988", "1989"],
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "BAD_YEAR" },
     };
   }
 
   const top10 = getTop10ByYear(y, { meta: false });
-
   if (!top10) {
+    const fu = yearFollowUps("micro_moment", y);
     return {
       ok: false,
       replyRaw: `I don’t have chart data loaded for ${y}. Pick another year.`,
       route: "micro_moment",
       actionTaken: "year_not_found",
       pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
-      followUps: yearFollowUps("micro_moment", y),
-      followUpsStrings: yearFollowUps("micro_moment", y).map((x) => x.label),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
   }
@@ -635,17 +628,18 @@ function handleMicroMoment(year, opts) {
   };
 }
 
-function handleCustomStory(year, vibe, opts) {
+function handleCustomStory(year, vibe) {
   const y = normalizeYear(year);
   if (!y) {
+    const fu = yearFollowUps("custom_story", 1988);
     return {
       ok: false,
       replyRaw: "Give me a year (YYYY), then pick a vibe.",
       route: "custom_story",
       actionTaken: "need_year",
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
-      followUps: yearFollowUps("custom_story", 1988),
-      followUpsStrings: ["1987", "1988", "1989"],
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "BAD_YEAR" },
     };
   }
@@ -655,14 +649,15 @@ function handleCustomStory(year, vibe, opts) {
 
   const top10 = getTop10ByYear(y, { meta: false });
   if (!top10) {
+    const fu = yearFollowUps("custom_story", y);
     return {
       ok: false,
       replyRaw: `I don’t have chart data loaded for ${y}. Pick another year.`,
       route: "custom_story",
       actionTaken: "year_not_found",
       pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
-      followUps: yearFollowUps("custom_story", y),
-      followUpsStrings: yearFollowUps("custom_story", y).map((x) => x.label),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
   }
@@ -724,14 +719,15 @@ function handleCustomStory(year, vibe, opts) {
 function handleYearEndHot100(year, opts) {
   const y = normalizeYear(year);
   if (!y) {
+    const fu = yearFollowUps("yearend_hot100", 1988);
     return {
       ok: false,
       replyRaw: "Give me a year (YYYY) for the year-end list.",
       route: "yearend_hot100",
       actionTaken: "need_year",
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
-      followUps: yearFollowUps("yearend_hot100", 1988),
-      followUpsStrings: ["1987", "1988", "1989"],
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "BAD_YEAR" },
     };
   }
@@ -740,20 +736,23 @@ function handleYearEndHot100(year, opts) {
   const top10 = getTop10ByYear(y, { meta: wantMeta });
 
   if (!top10) {
+    const fu = yearFollowUps("yearend_hot100", y);
     return {
       ok: false,
       replyRaw: `I don’t have year-end data loaded for ${y}. Pick another year.`,
       route: "yearend_hot100",
       actionTaken: "year_not_found",
       pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
-      followUps: yearFollowUps("yearend_hot100", y),
-      followUpsStrings: yearFollowUps("yearend_hot100", y).map((x) => x.label),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
   }
 
   const header = `Year-End Hot 100 — ${y}\n(Excerpt: Top 10)`;
-  const body = renderTop10Text(top10) || `1. "—"\n2. "—"\n3. "—"\n4. "—"\n5. "—"\n6. "—"\n7. "—"\n8. "—"\n9. "—"\n10. "—"`;
+  const body =
+    renderTop10Text(top10) ||
+    `1. "—"\n2. "—"\n3. "—"\n4. "—"\n5. "—"\n6. "—"\n7. "—"\n8. "—"\n9. "—"\n10. "—"`;
 
   const replyRaw = `${header}\n\n${body}`;
 
@@ -780,7 +779,9 @@ function handleYearEndHot100(year, opts) {
     pendingAsk: null,
     followUps: fu,
     followUpsStrings: fu.map((x) => x.label),
-    meta: wantMeta ? { top10Meta: top10.meta || null, note: "excerpt_top10_only" } : { note: "excerpt_top10_only" },
+    meta: wantMeta
+      ? { top10Meta: top10.meta || null, note: "excerpt_top10_only" }
+      : { note: "excerpt_top10_only" },
   };
 }
 
@@ -788,114 +789,172 @@ function handleYearEndHot100(year, opts) {
 // handleMusicTurn (ChatEngine entrypoint)
 // =========================
 async function handleMusicTurn(args) {
-  const norm = isObject(args?.norm) ? args.norm : {};
-  const session = isObject(args?.session) ? args.session : {};
-  const knowledge = isObject(args?.knowledge) ? args.knowledge : {};
-  const opts = isObject(args?.opts) ? args.opts : {};
+  try {
+    const norm = isObject(args?.norm) ? args.norm : {};
+    const session = isObject(args?.session) ? args.session : {};
+    // knowledge is reserved for future enrichments (kept for signature compatibility)
+    // eslint-disable-next-line no-unused-vars
+    const knowledge = isObject(args?.knowledge) ? args.knowledge : {};
+    const opts = isObject(args?.opts) ? args.opts : {};
 
-  const action = cleanText(args?.action || norm?.action || "");
-  const year = args?.year ?? norm?.year ?? session?.lastYear ?? null;
+    const action = cleanText(args?.action || norm?.action || "");
+    const year = args?.year ?? norm?.year ?? session?.lastYear ?? null;
 
-  const minY = Number.isFinite(Number(opts.publicMinYear)) ? Number(opts.publicMinYear) : DEFAULT_PUBLIC_MIN_YEAR;
-  const maxY = Number.isFinite(Number(opts.publicMaxYear)) ? Number(opts.publicMaxYear) : DEFAULT_PUBLIC_MAX_YEAR;
+    const minY = Number.isFinite(Number(opts.publicMinYear))
+      ? Number(opts.publicMinYear)
+      : DEFAULT_PUBLIC_MIN_YEAR;
+    const maxY = Number.isFinite(Number(opts.publicMaxYear))
+      ? Number(opts.publicMaxYear)
+      : DEFAULT_PUBLIC_MAX_YEAR;
 
-  const yInt = toIntYear(year);
+    const yInt = toIntYear(year);
 
-  // If action implies year but year missing, return a clean pendingAsk bundle
-  const requiresYear = new Set(["top10", "story_moment", "micro_moment", "yearend_hot100", "custom_story"]);
-  if (requiresYear.has(action) && (yInt === null || !Number.isFinite(yInt))) {
+    // If action implies year but year missing, return a clean pendingAsk bundle
+    const requiresYear = new Set([
+      "top10",
+      "story_moment",
+      "micro_moment",
+      "yearend_hot100",
+      "custom_story",
+    ]);
+
+    if (requiresYear.has(action) && (yInt === null || !Number.isFinite(yInt))) {
+      const a = action || "top10";
+      return {
+        ok: true,
+        replyRaw: `Give me a year (${minY}–${maxY}).`,
+        route: a,
+        actionTaken: "need_year",
+        topic: "music",
+        spineStage: "clarify",
+        sessionPatch: { lane: "music" },
+        pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${minY}–${maxY}).`, true),
+        followUps: [
+          { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: a, year: 1973, route: a } },
+          { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: a, year: 1988, route: a } },
+          { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: a, year: 1992, route: a } },
+        ],
+        followUpsStrings: ["1973", "1988", "1992"],
+        meta: { code: "NEED_YEAR" },
+      };
+    }
+
+    // Range guard (soft-fail with same UX)
+    if (yInt !== null && (yInt < minY || yInt > maxY)) {
+      const fu = yearFollowUps(action || "top10", yInt);
+      return {
+        ok: true,
+        replyRaw: `Use a year in ${minY}–${maxY}.`,
+        route: action || "music",
+        actionTaken: "year_out_of_range",
+        topic: "music",
+        spineStage: "clarify",
+        sessionPatch: { lane: "music" },
+        pendingAsk: pendingAskObj("need_year", "clarify", `Use a year in ${minY}–${maxY}.`, true),
+        followUps: fu,
+        followUpsStrings: fu.map((x) => x.label),
+        meta: { code: "YEAR_OUT_OF_RANGE", year: yInt, minY, maxY },
+      };
+    }
+
+    // If no action provided but we have a year, default to top10
+    const act = action || (yInt !== null ? "top10" : "ask_year");
+
+    // Dispatch (never throw)
+    if (act === "top10") return handleTop10(yInt, { meta: !!opts.meta });
+    if (act === "story_moment") return handleStoryMoment(yInt);
+    if (act === "micro_moment") return handleMicroMoment(yInt);
+    if (act === "yearend_hot100") return handleYearEndHot100(yInt, { meta: !!opts.meta });
+    if (act === "custom_story") {
+      const vibe =
+        cleanText(norm?.vibe) ||
+        cleanText(norm?.payload?.vibe) ||
+        cleanText(norm?.turnSignals?.vibe) ||
+        "";
+      return handleCustomStory(yInt, vibe || "nostalgic");
+    }
+
+    // ask_year / default menu
     return {
       ok: true,
-      replyRaw: `Give me a year (${minY}–${maxY}).`,
-      route: action || "music",
-      actionTaken: "need_year",
+      replyRaw: `Give me a year (${minY}–${maxY}). I’ll start with Top 10.`,
+      route: "ask_year",
+      actionTaken: "asked_year",
       topic: "music",
       spineStage: "clarify",
       sessionPatch: { lane: "music" },
       pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${minY}–${maxY}).`, true),
       followUps: [
-        { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: action || "top10", year: 1973, route: action || "top10" } },
-        { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: action || "top10", year: 1988, route: action || "top10" } },
-        { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: action || "top10", year: 1992, route: action || "top10" } },
+        { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
+        { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: "top10", year: 1988, route: "top10" } },
+        { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992, route: "top10" } },
       ],
       followUpsStrings: ["1973", "1988", "1992"],
-      meta: { code: "NEED_YEAR" },
+      meta: { code: "ASK_YEAR" },
     };
-  }
-
-  // Range guard (soft-fail with same UX)
-  if (yInt !== null && (yInt < minY || yInt > maxY)) {
+  } catch (e) {
+    // FAIL-OPEN: never crash chatEngine
     return {
       ok: true,
-      replyRaw: `Use a year in ${minY}–${maxY}.`,
-      route: action || "music",
-      actionTaken: "year_out_of_range",
+      replyRaw: 'Music lane hit a snag. Give me a year (1950–2025) and I’ll start with Top 10.',
+      route: "music",
+      actionTaken: "exception_failopen",
       topic: "music",
       spineStage: "clarify",
       sessionPatch: { lane: "music" },
-      pendingAsk: pendingAskObj("need_year", "clarify", `Use a year in ${minY}–${maxY}.`, true),
-      followUps: yearFollowUps(action || "top10", yInt),
-      followUpsStrings: yearFollowUps(action || "top10", yInt).map((x) => x.label),
-      meta: { code: "YEAR_OUT_OF_RANGE", year: yInt, minY, maxY },
+      pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (1950–2025).", true),
+      followUps: [
+        { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
+        { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: "top10", year: 1988, route: "top10" } },
+        { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992, route: "top10" } },
+      ],
+      followUpsStrings: ["1973", "1988", "1992"],
+      meta: { code: "EXCEPTION", error: safeStr(e && e.message ? e.message : e) },
     };
   }
-
-  // If no action provided but we have a year, default to top10
-  const act = action || (yInt !== null ? "top10" : "ask_year");
-
-  // Dispatch
-  if (act === "top10") return handleTop10(yInt, { meta: !!opts.meta });
-  if (act === "story_moment") return handleStoryMoment(yInt, {});
-  if (act === "micro_moment") return handleMicroMoment(yInt, {});
-  if (act === "yearend_hot100") return handleYearEndHot100(yInt, { meta: !!opts.meta });
-  if (act === "custom_story") {
-    const vibe = cleanText(norm?.vibe || norm?.payload?.vibe || "");
-    return handleCustomStory(yInt, vibe || "nostalgic", {});
-  }
-
-  // ask_year / default menu
-  return {
-    ok: true,
-    replyRaw: `Give me a year (${minY}–${maxY}). I’ll start with Top 10.`,
-    route: "ask_year",
-    actionTaken: "asked_year",
-    topic: "music",
-    spineStage: "clarify",
-    sessionPatch: { lane: "music" },
-    pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${minY}–${maxY}).`, true),
-    followUps: [
-      { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
-      { id: "fu_1988", type: "chip", label: "1988", payload: { lane: "music", action: "top10", year: 1988, route: "top10" } },
-      { id: "fu_1992", type: "chip", label: "1992", payload: { lane: "music", action: "top10", year: 1992, route: "top10" } },
-    ],
-    followUpsStrings: ["1973", "1988", "1992"],
-    meta: { code: "ASK_YEAR" },
-  };
 }
 
 // =========================
 // Diagnostics (for /api/diag/music)
 // =========================
 function getMusicDiag(sampleYear) {
-  const st = safeStat(TOP10_FILE);
-  const store = loadStore();
-  const y = normalizeYear(sampleYear || 1988);
+  try {
+    const st = safeStat(TOP10_FILE);
+    const store = loadStore();
+    const y = normalizeYear(sampleYear || 1988);
 
-  const bucket = getYearBucket(store, y);
-  const sample = bucket ? getTop10ByYear(y, { meta: true }) : null;
+    const bucket = getYearBucket(store, y);
+    const sample = bucket ? getTop10ByYear(y, { meta: true }) : null;
 
-  return {
-    ok: !!(st && st.isFile() && store && isObject(store.years)),
-    file: TOP10_FILE,
-    exists: !!(st && st.isFile()),
-    mtimeMs: st ? Number(st.mtimeMs || 0) : 0,
-    storeVersion: cleanText(store?.version) || "",
-    storeChart: cleanText(store?.chart) || "",
-    yearCount: store && isObject(store.years) ? Object.keys(store.years).length : 0,
-    sampleYear: y,
-    sampleOk: !!sample,
-    sampleWarnings: (sample && sample.meta && Array.isArray(sample.meta.warnings)) ? sample.meta.warnings : [],
-  };
+    return {
+      ok: !!(st && st.isFile() && store && isObject(store.years)),
+      file: TOP10_FILE,
+      exists: !!(st && st.isFile()),
+      mtimeMs: st ? Number(st.mtimeMs || 0) : 0,
+      storeVersion: cleanText(store?.version) || "",
+      storeChart: cleanText(store?.chart) || "",
+      yearCount: store && isObject(store.years) ? Object.keys(store.years).length : 0,
+      sampleYear: y,
+      sampleOk: !!sample,
+      sampleWarnings:
+        sample && sample.meta && Array.isArray(sample.meta.warnings)
+          ? sample.meta.warnings
+          : [],
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      file: TOP10_FILE,
+      exists: false,
+      mtimeMs: 0,
+      storeVersion: "",
+      storeChart: "",
+      yearCount: 0,
+      sampleYear: normalizeYear(sampleYear || 1988) || "1988",
+      sampleOk: false,
+      sampleWarnings: [{ code: "DIAG_EXCEPTION", error: safeStr(e && e.message ? e.message : e) }],
+    };
+  }
 }
 
 // =========================
