@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Nyx Avatar Host</title>
 
-<link rel="stylesheet" href="./avatar.css?v=9111" />
+<link rel="stylesheet" href="./avatar.css?v=9112" />
 
 <style>
 html,body{height:100%}
@@ -16,7 +16,7 @@ body{margin:0;background:#000;overflow:hidden}
   --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
   --nyx-hero-url:var(--nyx-hero-abs);
 
-  /* 🔥 FIXED FOR 600px PANEL HEIGHT */
+  /* tuned for ~600px widget height */
   --nyx-hero-pos-x:50%;
   --nyx-hero-pos-y:18%;
   --nyx-hero-scale:118%;
@@ -30,11 +30,8 @@ body{margin:0;background:#000;overflow:hidden}
   background-color:#000;
   background-image:var(--nyx-hero-url);
   background-repeat:no-repeat;
-
-  /* proper framing */
   background-size:var(--nyx-hero-scale) auto;
   background-position:var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
-
   transition:background-position .2s ease,background-size .2s ease;
   filter:saturate(1.02);
 }
@@ -100,7 +97,6 @@ body{margin:0;background:#000;overflow:hidden}
 }
 .action-pill:active{ transform:scale(.98); }
 
-/* Minimal “selected chip” affordance (no redesign) */
 .action-pill.is-active{
   border-color:rgba(255,255,255,.24);
   background:rgba(255,255,255,.10);
@@ -185,7 +181,7 @@ body{margin:0;background:#000;overflow:hidden}
       <button id="nyxSend" type="button">Send</button>
     </div>
 
-    <div id="nyxDiag">HOST v9111 • ready</div>
+    <div id="nyxDiag">HOST v9112 • ready</div>
   </div>
 </div>
 
@@ -198,14 +194,11 @@ body{margin:0;background:#000;overflow:hidden}
   // =========================
   function $(id){ return document.getElementById(id); }
   function safeStr(x){ return (x===null || x===undefined) ? "" : String(x); }
-  function safeJsonParse(str){
-    try { return JSON.parse(str); } catch(e){ return null; }
-  }
+  function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
   function now(){ return Date.now(); }
+  function trimSlash(s){ return String(s||"").replace(/\/+$/,""); }
   function makeId(){
-    try{
-      if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    }catch(_){}
+    try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
     return (Math.random().toString(16).slice(2) + now().toString(16)).slice(0, 24);
   }
   function getOriginFromReferrer(){
@@ -213,9 +206,7 @@ body{margin:0;background:#000;overflow:hidden}
       var r = document.referrer || "";
       if(!r) return null;
       return (new URL(r)).origin;
-    }catch(e){
-      return null;
-    }
+    }catch(e){ return null; }
   }
   function parseQuery(){
     var out = {};
@@ -225,31 +216,25 @@ body{margin:0;background:#000;overflow:hidden}
     }catch(_){}
     return out;
   }
-  function trimSlash(s){ return String(s||"").replace(/\/+$/,""); }
 
   var diagEl = $("nyxDiag");
-  function diag(msg){
-    if(!diagEl) return;
-    diagEl.textContent = msg;
-  }
+  function diag(msg){ if(diagEl) diagEl.textContent = msg; }
 
   // =========================
   // Bridge State
   // =========================
-  var PARENT_ORIGIN = getOriginFromReferrer(); // null if unknown
-  var READY_SENT = false;
+  var PARENT_ORIGIN = getOriginFromReferrer();
   var READY_ACK = false;
 
-  // NOTE: v9111 adds "querystring fallback" for apiBase/token/hero
   var CONFIG = {
-    version: "9111",
-    apiBase: null,     // if not set, defaults to location.origin
-    token: null,       // optional (only if your backend expects it)
+    version: "9112",
+    apiBase: null,
+    token: null,
     heroSrc: null,
     voiceDefaultOn: false
   };
 
-  // Local UI State (critical for chip continuity)
+  // Local UI State
   var UI_STATE = {
     lane: "general",
     chip: "general",
@@ -260,43 +245,73 @@ body{margin:0;background:#000;overflow:hidden}
   };
 
   // =========================
-  // Parent messaging (kept for compatibility; not required for operation)
+  // Token persistence
+  // =========================
+  var LS_TOKEN_KEY = "nyx_api_token_v1";
+  var LS_API_KEY   = "nyx_api_base_v1";
+
+  function loadPersisted(){
+    try{
+      var t = localStorage.getItem(LS_TOKEN_KEY);
+      if(t && !CONFIG.token) CONFIG.token = String(t).trim();
+    }catch(_){}
+    try{
+      var a = localStorage.getItem(LS_API_KEY);
+      if(a && !CONFIG.apiBase) CONFIG.apiBase = String(a).trim();
+    }catch(_){}
+  }
+  function persistToken(tok){
+    try{
+      localStorage.setItem(LS_TOKEN_KEY, String(tok||"").trim());
+    }catch(_){}
+  }
+  function persistApiBase(base){
+    try{
+      localStorage.setItem(LS_API_KEY, String(base||"").trim());
+    }catch(_){}
+  }
+
+  // =========================
+  // Parent messaging
   // =========================
   function postToParent(payload){
     if(!window.parent || window.parent === window) return false;
     try{
-      var target = PARENT_ORIGIN || "*";
-      window.parent.postMessage(payload, target);
+      window.parent.postMessage(payload, PARENT_ORIGIN || "*");
       return true;
-    }catch(e){
-      return false;
-    }
+    }catch(e){ return false; }
   }
 
   function sendReady(){
-    READY_SENT = true;
     postToParent({ type:"NYX_READY", v: CONFIG.version, ts: now() });
   }
 
   // =========================
-  // Querystring bootstrap (CRITICAL FOR 403 FIX)
+  // Bootstrap from query + localStorage
   // =========================
-  // Supports:
-  //  - ?api=https://sandblast-backend.onrender.com
-  //  - ?token=YOUR_EXPECTED_API_TOKEN   (or ?t=)
-  //  - ?hero=https://.../nyx-hero.png
-  //  - ?voice=1
-  (function bootstrapFromQuery(){
-    var q = parseQuery();
-    var api = q.api || q.apibase || q.base || "";
-    var tok = q.token || q.t || "";
-    var hero = q.hero || q.herosrc || "";
-    var voice = q.voice || "";
+  (function bootstrap(){
+    loadPersisted();
 
+    var q = parseQuery();
+
+    // api base
+    var api = q.api || q.apibase || q.base || "";
     if(api) CONFIG.apiBase = api;
+
+    // token
+    var tok = q.token || q.t || "";
     if(tok) CONFIG.token = tok;
+
+    // hero
+    var hero = q.hero || q.herosrc || "";
     if(hero) CONFIG.heroSrc = hero;
+
+    // voice default
+    var voice = (q.voice || "").toLowerCase();
     if(voice === "1" || voice === "true") CONFIG.voiceDefaultOn = true;
+
+    if(CONFIG.apiBase) persistApiBase(CONFIG.apiBase);
+    if(CONFIG.token) persistToken(CONFIG.token);
 
     if(CONFIG.heroSrc){
       document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
@@ -304,25 +319,21 @@ body{margin:0;background:#000;overflow:hidden}
     }
   })();
 
-  // Retry READY a few times to beat race conditions
+  // READY retry to beat race conditions
+  sendReady();
   var tries = 0;
-  var maxTries = 12; // ~3s at 250ms
+  var maxTries = 12;
   var timer = setInterval(function(){
     tries++;
-    if(READY_ACK || tries > maxTries){
-      clearInterval(timer);
-      return;
-    }
+    if(READY_ACK || tries > maxTries){ clearInterval(timer); return; }
     sendReady();
   }, 250);
-  sendReady();
 
-  // If parent is present but didn't send config yet, nudge it
-  // (This is safe even if parent ignores it)
+  // Ask parent for config (safe if ignored)
   postToParent({ type:"NYX_NEED_CONFIG", v: CONFIG.version, ts: now() });
 
   // =========================
-  // Inbound messages (hardened)
+  // Inbound messages
   // =========================
   window.addEventListener("message", function(ev){
     try{
@@ -339,7 +350,7 @@ body{margin:0;background:#000;overflow:hidden}
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9111 • ready (ack)");
+        diag("HOST v9112 • ready (ack)");
         return;
       }
 
@@ -350,15 +361,17 @@ body{margin:0;background:#000;overflow:hidden}
         if(typeof c.heroSrc === "string") CONFIG.heroSrc = c.heroSrc;
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
 
+        if(CONFIG.apiBase) persistApiBase(CONFIG.apiBase);
+        if(CONFIG.token) persistToken(CONFIG.token);
+
         if(CONFIG.heroSrc){
           document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
           document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
         }
 
-        // Apply default voice state if provided
         if(CONFIG.voiceDefaultOn) setVoice(true);
 
-        diag("HOST v9111 • config loaded");
+        diag("HOST v9112 • config loaded" + (CONFIG.token ? " (token)" : " (no token)"));
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() });
         return;
       }
@@ -372,10 +385,7 @@ body{margin:0;background:#000;overflow:hidden}
         setBubbleText(data.text);
         return;
       }
-
-    }catch(err){
-      // never throw
-    }
+    }catch(_){}
   });
 
   // =========================
@@ -388,7 +398,6 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   function authHeaders(headers){
-    // Optional token gate (matches index.js gate if enabled)
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
@@ -398,13 +407,10 @@ body{margin:0;background:#000;overflow:hidden}
 
   async function postJson(url, payload){
     var headers = authHeaders({ "Content-Type":"application/json" });
-
-    // Helpful provenance headers (index.js already allows these)
     headers["X-Client-Source"] = "nyx_host_iframe";
     headers["X-Route-Hint"] = safeStr(payload && payload.routeHint ? payload.routeHint : UI_STATE.lane);
 
     var r, txt, json;
-
     try{
       r = await fetch(url, {
         method: "POST",
@@ -416,12 +422,7 @@ body{margin:0;background:#000;overflow:hidden}
       return { ok:false, error:"network_error", status:0, detail:safeStr(e && e.message) };
     }
 
-    try{
-      txt = await r.text();
-    }catch(_){
-      txt = "";
-    }
-
+    try{ txt = await r.text(); }catch(_){ txt = ""; }
     json = safeJsonParse(txt);
     if(!json){
       return { ok:false, error:"bad_json", status:r.status, raw: (txt || "").slice(0, 600) };
@@ -431,7 +432,7 @@ body{margin:0;background:#000;overflow:hidden}
   }
 
   // =========================
-  // Intent packet builder (STANDARD CONTRACT)
+  // Intent packet builder
   // =========================
   function laneFromChip(chip){
     chip = safeStr(chip).toLowerCase();
@@ -448,8 +449,6 @@ body{margin:0;background:#000;overflow:hidden}
     var chip = safeStr(opts.chip || UI_STATE.chip || "general").trim();
     var lane = safeStr(opts.lane || UI_STATE.lane || "general").trim();
     var action = safeStr(opts.action || "").trim();
-
-    // Make chips meaningful even with empty text:
     var intent = safeStr(opts.intent || "").trim();
     var route = safeStr(opts.route || "").trim();
     var label = safeStr(opts.label || "").trim();
@@ -487,8 +486,7 @@ body{margin:0;background:#000;overflow:hidden}
   // =========================
   var bubbleEl = $("nyxBubbleText");
   function setBubbleText(t){
-    if(!bubbleEl) return;
-    bubbleEl.textContent = safeStr(t || "");
+    if(bubbleEl) bubbleEl.textContent = safeStr(t || "");
   }
 
   var voiceBtn = $("nyxVoiceToggle");
@@ -535,15 +533,31 @@ body{margin:0;background:#000;overflow:hidden}
 
       var a = new Audio(objUrl);
       window.__NYX_AUDIO = a;
-      a.onended = function(){
-        try{ URL.revokeObjectURL(objUrl); }catch(_){}
-      };
+      a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
       a.play().catch(function(){});
     }catch(_){}
   }
 
   // =========================
-  // Core send pipeline (typed + chip)
+  // Token recovery on 401
+  // =========================
+  function promptForToken(){
+    try{
+      var current = CONFIG.token ? "(already set)" : "";
+      var tok = window.prompt("Nyx needs an API token (401). Paste token here:", "");
+      tok = (tok || "").trim();
+      if(tok){
+        CONFIG.token = tok;
+        persistToken(tok);
+        diag("HOST v9112 • token saved");
+        return true;
+      }
+    }catch(_){}
+    return false;
+  }
+
+  // =========================
+  // Core send pipeline
   // =========================
   var input = $("nyxInput");
   var sendBtn = $("nyxSend");
@@ -555,40 +569,48 @@ body{margin:0;background:#000;overflow:hidden}
     if(input) input.disabled = UI_STATE.pending;
   }
 
-  async function sendPacket(packet){
+  async function sendPacket(packet, didRetry){
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
 
-    // Pre-flight hint for the exact issue you're seeing: 403
-    if(!CONFIG.token){
-      diag("HOST v9111 • sending… (no token)");
-    }else{
-      diag("HOST v9111 • sending…");
-    }
-
+    diag("HOST v9112 • sending…" + (CONFIG.token ? "" : " (no token)"));
     postToParent({ type:"NYX_OUTBOUND", v:CONFIG.version, ts:now(), packet: packet });
 
     var url = trimSlash(apiBase()) + "/api/chat";
     var out = await postJson(url, packet);
+    var status = Number(out && out.__httpStatus) || Number(out && out.status) || 0;
 
-    var status = Number(out && out.__httpStatus) || 0;
+    if(status === 401 && !didRetry){
+      // Ask once for token, save, retry same packet
+      setPending(false);
+      setBubbleText("Auth required (401). Setting token now…");
+      diag("HOST v9112 • 401 auth required");
+      if(promptForToken()){
+        return sendPacket(packet, true);
+      }
+      setBubbleText("Auth required (401). Token not provided.");
+      diag("HOST v9112 • 401 (no token provided)");
+      return out;
+    }
 
     if(out && out.reply){
       setBubbleText(out.reply);
       speak(out.reply);
       postToParent({ type:"NYX_REPLY", v:CONFIG.version, ts:now(), reply: out.reply, meta: out.meta || {} });
-      diag("HOST v9111 • ok");
+      diag("HOST v9112 • ok");
     }else{
-      // Better, truthful error surface:
-      if(status === 403){
-        setBubbleText("Blocked (403). This is almost always token/CORS security. I need the correct token in NYX_CONFIG or ?token=...");
-        diag("HOST v9111 • error 403 (token/cors)");
+      if(status === 401){
+        setBubbleText("Auth required (401). Token is missing/invalid.");
+        diag("HOST v9112 • error 401");
+      }else if(status === 403){
+        setBubbleText("Blocked (403). Token/CORS policy mismatch.");
+        diag("HOST v9112 • error 403");
       }else if(status === 0){
         setBubbleText("Network error. Backend unreachable or blocked.");
-        diag("HOST v9111 • network error");
+        diag("HOST v9112 • network error");
       }else{
         setBubbleText("Hmm. I didn’t get a clean reply. Try again.");
-        diag("HOST v9111 • error " + safeStr(status));
+        diag("HOST v9112 • error " + safeStr(status));
       }
 
       var msg = (out && (out.error || out.detail))
@@ -615,11 +637,11 @@ body{margin:0;background:#000;overflow:hidden}
       label: UI_STATE.chip
     });
     if(input) input.value = "";
-    return sendPacket(packet);
+    return sendPacket(packet, false);
   }
 
   // =========================
-  // Chip handling (CRITICAL)
+  // Chip handling
   // =========================
   function setActiveChip(chip){
     UI_STATE.chip = chip;
@@ -638,7 +660,6 @@ body{margin:0;background:#000;overflow:hidden}
 
   function openLinkForChip(chip){
     postToParent({ type:"NYX_NAV", where: chip, ts: now() });
-    // no forced navigation
   }
 
   function handleChipClick(chip){
@@ -663,16 +684,12 @@ body{margin:0;background:#000;overflow:hidden}
     });
 
     postToParent({ type:"NYX_CHIP", v:CONFIG.version, ts:now(), chip: chip, lane: UI_STATE.lane });
-
-    return sendPacket(packet);
+    return sendPacket(packet, false);
   }
 
   if(sendBtn){
-    sendBtn.addEventListener("click", function(){
-      try{ sendTypedText(); }catch(_){}
-    });
+    sendBtn.addEventListener("click", function(){ try{ sendTypedText(); }catch(_){ } });
   }
-
   if(input){
     input.addEventListener("keydown", function(e){
       try{
@@ -683,22 +700,16 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     });
   }
-
   if(chips){
     chips.addEventListener("click", function(e){
       try{
         var t = e.target;
-        if(!t) return;
-
         while(t && t !== chips && !(t.classList && t.classList.contains("action-pill"))){
           t = t.parentNode;
         }
         if(!t || t === chips) return;
-
         var chip = t.getAttribute("data-chip");
-        if(!chip) return;
-
-        handleChipClick(chip);
+        if(chip) handleChipClick(chip);
       }catch(_){}
     });
   }
@@ -707,7 +718,7 @@ body{margin:0;background:#000;overflow:hidden}
   setActiveChip("general");
 
   // =========================
-  // STT (Speech-to-Text) — minimal, robust
+  // STT
   // =========================
   var micBtn = $("nyxMic");
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -735,7 +746,7 @@ body{margin:0;background:#000;overflow:hidden}
 
   function startSTT(){
     if(!SpeechRecognition){
-      diag("HOST v9111 • STT unsupported");
+      diag("HOST v9112 • STT unsupported");
       return;
     }
     if(UI_STATE.pending) return;
@@ -760,22 +771,10 @@ body{margin:0;background:#000;overflow:hidden}
       }catch(_){}
     };
 
-    rec.onerror = function(){
-      stopSTT();
-      diag("HOST v9111 • STT error");
-    };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9112 • STT error"); };
+    rec.onend = function(){ setMic(false); };
 
-    rec.onend = function(){
-      setMic(false);
-    };
-
-    try{
-      rec.start();
-      setMic(true);
-      diag("HOST v9111 • listening…");
-    }catch(_){
-      setMic(false);
-    }
+    try{ rec.start(); setMic(true); diag("HOST v9112 • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -791,6 +790,7 @@ body{margin:0;background:#000;overflow:hidden}
   // =========================
   // Voice toggle
   // =========================
+  var voiceBtn = $("nyxVoiceToggle");
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
       try{
@@ -801,11 +801,10 @@ body{margin:0;background:#000;overflow:hidden}
     });
   }
 
-  // Apply config default voice on load
   if(CONFIG.voiceDefaultOn) setVoice(true);
 
-  // Final boot message (useful to see whether token fallback is present)
-  diag("HOST v9111 • ready" + (CONFIG.token ? " (token)" : " (no token)"));
+  // Boot diag shows if token is present
+  diag("HOST v9112 • ready" + (CONFIG.token ? " (token)" : " (no token)"));
 
 })();
 </script>
