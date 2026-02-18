@@ -12,14 +12,12 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.7 (KNOWLEDGE REGISTRY++++ + NYX CONSCIOUSNESS BLEED++++ + LANE→DOMAIN MAP++++ + NEWS-CANADA READY++++)
- * ✅ Integrates KnowledgeRegistry (manifest-driven) as primary knowledge bundle source (FAIL-OPEN)
- * ✅ Produces compact `knowledgeBundle` for Nyx “consciousness bleed”: facts + hints + sources (bounded)
- * ✅ Lane→Domain mapping (music/roku/schedule/news-canada/...) with safe fallbacks
- * ✅ Keeps PsycheBridge option 2 as top-level aggregator; registry still provides bundle (optional)
- * ✅ Chip bridge lock preserved: payload.action="chip" creates BRIDGE state + lane switch signals
- * ✅ Risk forceIntent override still wins even when actionable (Law final)
- * ✅ No raw user text in trace: policy check retained + hardened
+ * v1.1.7 (MARION↔NYX BRIDGE CANON++++ + SESSION PATCH ROUTING++++ + HANDOFF CUE++++)
+ * ✅ Adds canonical "bridge" contract for Nyx routing + UI cues (chip select OR payload lane change)
+ * ✅ Emits bridge even when not chip (payload lane differs from session lane)
+ * ✅ Upgrades sessionPatchSuggestion: lane routing, lastLane, bridge markers, lastAdvanceAt on actionable bridge
+ * ✅ Keeps CHIP BRIDGE LOCK++++ + PAYLOAD LANE CANON++++ + BRIDGE STATE++++ + RISK FORCE INTENT FIX++++
+ * ✅ Preserves FAIL-OPEN + PsycheBridge option 2 + legacy per-domain hint fallback
  */
 
 const MARION_VERSION = "marionSO v1.1.7";
@@ -31,19 +29,8 @@ let PsycheBridge = null;
 try {
   // eslint-disable-next-line global-require
   PsycheBridge = require("./psycheBridge");
-} catch (_e) {
+} catch (e) {
   PsycheBridge = null;
-}
-
-// -------------------------
-// Optional KnowledgeRegistry (primary) (FAIL-OPEN)
-// -------------------------
-let KnowledgeRegistry = null;
-try {
-  // eslint-disable-next-line global-require
-  KnowledgeRegistry = require("./knowledgeRegistry");
-} catch (_e) {
-  KnowledgeRegistry = null;
 }
 
 // -------------------------
@@ -123,7 +110,7 @@ function uniqBounded(arr, max = 8) {
   const out = [];
   const seen = new Set();
   for (const it of Array.isArray(arr) ? arr : []) {
-    const v = safeStr(it, 120);
+    const v = safeStr(it, 80);
     if (!v) continue;
     if (seen.has(v)) continue;
     seen.add(v);
@@ -148,7 +135,7 @@ function safeSerialize(x, max = 1200) {
       return safeStr(s, max);
     }
     return safeStr(String(x), max);
-  } catch (_e) {
+  } catch (e) {
     return safeStr(String(x), max);
   }
 }
@@ -372,8 +359,7 @@ function normalizeLaneRaw(v) {
     s === "radio" ||
     s === "schedule" ||
     s === "news-canada"
-  )
-    return s;
+  ) return s;
   // allow other lanes but clamp token shape
   if (/^[a-z0-9][a-z0-9_-]{0,30}$/.test(s)) return s;
   return "";
@@ -409,6 +395,38 @@ function detectChipSelect(norm) {
   if (payloadAction === "chip") return { isChip: true, why: "payload_action_chip", label: payloadLabel };
   if (payloadIntent === "select" && payloadLabel) return { isChip: true, why: "payload_intent_select", label: payloadLabel };
   return { isChip: false, why: "", label: "" };
+}
+
+// -------------------------
+// NEW: canonical bridge contract (Marion ↔ Nyx)
+// -------------------------
+function normalizeBridgeKind(k) {
+  const s = safeStr(k, 24).trim().toLowerCase();
+  if (s === "chip_select") return "chip_select";
+  if (s === "lane_switch") return "lane_switch";
+  if (s === "route") return "route";
+  return "";
+}
+function buildBridgeContract(args) {
+  const a = isPlainObject(args) ? args : {};
+  const kind = normalizeBridgeKind(a.kind) || "";
+  const laneFrom = normalizeLaneRaw(a.laneFrom) || "";
+  const laneTo = normalizeLaneRaw(a.laneTo) || "";
+  const reason = safeStr(a.reason || "", 40);
+  const chipLabel = safeStr(a.chipLabel || "", 24).trim().toLowerCase();
+  const payloadAction = safeStr(a.payloadAction || "", 24).trim().toLowerCase();
+
+  if (!kind || !laneTo) return null;
+
+  return {
+    enabled: true,
+    kind,
+    laneFrom: laneFrom || "",
+    laneTo,
+    reason: reason || kind,
+    chipLabel: chipLabel || "",
+    payloadAction: payloadAction || "",
+  };
 }
 
 // -------------------------
@@ -1829,182 +1847,13 @@ function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
 }
 
 // -------------------------
-// Knowledge Bundle (NEW): registry-driven “consciousness bleed”
-// -------------------------
-
-function clampKnowledgeBundle(bundle, maxFacts = 10, maxHints = 8, maxSources = 6) {
-  const b = isPlainObject(bundle) ? bundle : {};
-  const facts = uniqBounded(b.knowledgeFacts || b.facts || [], maxFacts);
-  const hints = uniqBounded(b.knowledgeHints || b.hints || [], maxHints);
-
-  const src = Array.isArray(b.sources) ? b.sources : [];
-  const sources = [];
-  for (const s of src) {
-    if (sources.length >= maxSources) break;
-    if (!isPlainObject(s)) continue;
-    sources.push({
-      domain: safeStr(s.domain || "", 32),
-      title: safeStr(s.title || "", 64),
-      file: safeStr(s.file || "", 80),
-      score: clampInt(s.score, 0, 999, 0),
-    });
-  }
-
-  return {
-    enabled: true,
-    domain: safeStr(b.domain || "all", 24),
-    lane: safeStr(b.lane || "", 24) || null,
-    queryTokens: uniqBounded(b.queryTokens || [], 12),
-    facts,
-    hints,
-    sources,
-    meta: isPlainObject(b.meta)
-      ? {
-          charMax: clampInt(b.meta.charMax, 200, 12000, 1800),
-          factsMax: clampInt(b.meta.factsMax, 1, 30, maxFacts),
-          hintsMax: clampInt(b.meta.hintsMax, 1, 30, maxHints),
-          loadedAt: clampInt(b.meta.loadedAt, 0, 9999999999999, 0),
-        }
-      : { charMax: 1800, factsMax: maxFacts, hintsMax: maxHints, loadedAt: 0 },
-    reason: safeStr(b.reason || "", 60),
-  };
-}
-
-function laneToDomains(lane) {
-  const ln = normalizeLaneRaw(lane) || "general";
-
-  // Your “bleed into consciousness” rule: we always allow general/strategy/ai as glue;
-  // lane adds specialized domains. (This is *selection*, not retrieval itself.)
-  if (ln === "music") return ["psychology", "english", "ai"];
-  if (ln === "roku") return ["cyber", "english", "ai"];
-  if (ln === "schedule") return ["english", "psychology"];
-  if (ln === "radio") return ["english", "psychology", "ai"];
-  if (ln === "news-canada") return ["news-canada", "english", "psychology", "ai"]; // ready for NewsCanada bridge pack
-  return ["psychology", "cyber", "english", "finance", "ai"];
-}
-
-function buildRegistryBundle(norm, session, cog, opts) {
-  // FAIL-OPEN: missing registry or errors -> disabled bundle with reason
-  if (!KnowledgeRegistry || typeof KnowledgeRegistry !== "object") {
-    return { enabled: false, reason: "registry_missing" };
-  }
-
-  const getRegistry = KnowledgeRegistry.getRegistry;
-  if (typeof getRegistry !== "function") {
-    return { enabled: false, reason: "registry_api_missing" };
-  }
-
-  const o = isPlainObject(opts) ? opts : {};
-  const n = isPlainObject(norm) ? norm : {};
-  const s = isPlainObject(session) ? session : {};
-  const c = isPlainObject(cog) ? cog : {};
-
-  const lane = normalizeLaneRaw(c.lane || n.lane || s.lane || "") || "general";
-  const domainHint = safeStr(o.registryDomain || "", 32).trim();
-  const domains = laneToDomains(lane);
-
-  // Query text: do NOT store it, do NOT pass raw into traces; only used in-memory inside registry query.
-  // We pass `text` but never attach it to cog outputs.
-  const text = safeStr(n.text || "", 1800).trim();
-
-  // Budget/limits: tie to Marion budget + risk tier
-  const riskTier = safeStr(c.riskTier || "", 10).toLowerCase();
-  const baseFacts = c.budget === "short" ? 8 : 10;
-  const baseHints = c.budget === "short" ? 6 : 8;
-  const baseCharMax = c.budget === "short" ? 1500 : 2200;
-
-  const factsMax = clampInt(o.registryFactsMax, 4, 18, baseFacts);
-  const hintsMax = clampInt(o.registryHintsMax, 4, 18, baseHints);
-  let charMax = clampInt(o.registryCharMax, 600, 12000, baseCharMax);
-
-  if (riskTier === RISK.TIERS.HIGH) {
-    charMax = Math.min(charMax, 1200);
-  } else if (riskTier === RISK.TIERS.MEDIUM) {
-    charMax = Math.min(charMax, 1500);
-  }
-
-  // Domain targeting strategy:
-  // - If caller forces domain -> use it
-  // - Else use "all" but lane influences via `lane` passed into query
-  // For more control, we provide `domain` per domain pass and merge.
-  const reg = getRegistry();
-  if (!reg || typeof reg.query !== "function") return { enabled: false, reason: "registry_not_ready" };
-
-  // If no user text (chip select), still provide lane hints; registry can do hints-only
-  try {
-    let mergedFacts = [];
-    let mergedHints = [];
-    let mergedSources = [];
-
-    const wantsPerDomain = truthy(o.registryPerDomain); // optional: true merges per domain
-    const domainList = domainHint ? [domainHint] : (wantsPerDomain ? domains : [""]);
-
-    for (const d of domainList) {
-      const res = text
-        ? reg.query({
-            text,
-            lane,
-            domain: d || "",
-            limit: 8,
-            charMax,
-            factsMax,
-            hintsMax,
-          })
-        : reg.getHints
-        ? reg.getHints({ lane, domain: d || "", hintsMax })
-        : { ok: false };
-
-      if (!isPlainObject(res) || res.ok !== true) continue;
-
-      const facts = uniqBounded(res.knowledgeFacts || [], factsMax);
-      const hints = uniqBounded(res.knowledgeHints || [], hintsMax);
-
-      const src = Array.isArray(res.sources) ? res.sources : [];
-      const sources = [];
-      for (const si of src) {
-        if (sources.length >= 6) break;
-        if (!isPlainObject(si)) continue;
-        sources.push({
-          domain: safeStr(si.domain || "", 32),
-          title: safeStr(si.title || "", 64),
-          file: safeStr(si.file || "", 80),
-          score: clampInt(si.score, 0, 999, 0),
-        });
-      }
-
-      mergedFacts = uniqBounded(mergedFacts.concat(facts), factsMax);
-      mergedHints = uniqBounded(mergedHints.concat(hints), hintsMax);
-      mergedSources = mergedSources.concat(sources).slice(0, 6);
-
-      // Early break if we filled facts budget
-      if (mergedFacts.length >= factsMax) break;
-    }
-
-    return clampKnowledgeBundle(
-      {
-        enabled: true,
-        domain: domainHint || (wantsPerDomain ? "lane_set" : "all"),
-        lane,
-        knowledgeFacts: mergedFacts,
-        knowledgeHints: mergedHints,
-        sources: mergedSources,
-        meta: { charMax, factsMax, hintsMax, loadedAt: Number(reg.loadedAt || 0) || 0 },
-        reason: wantsPerDomain ? "per_domain_merge" : "single_query",
-      },
-      factsMax,
-      hintsMax,
-      6
-    );
-  } catch (e) {
-    return { enabled: false, reason: `registry_fail:${safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40)}` };
-  }
-}
-
-// -------------------------
 // bounded trace (no raw user text)
 // -------------------------
 function buildTrace(norm, session, med) {
   const y = normYear(norm?.year);
+  const bridgeKind = safeStr(med?.bridge?.kind || "", 16);
+  const bridgeTo = safeStr(med?.bridge?.laneTo || "", 12);
+
   const parts = [
     `m=${safeStr(med?.mode || "", 16)}`,
     `i=${safeStr(med?.intent || "", 10)}`,
@@ -2023,13 +1872,14 @@ function buildTrace(norm, session, med) {
     `v=${med?.velvet ? "1" : "0"}`,
     `pl=${safeStr(med?.psychology?.cognitiveLoad || "", 6) || "-"}`,
     `pr=${safeStr(med?.psychology?.regulationState || "", 10) || "-"}`,
+    `br=${bridgeKind || "-"}`,
+    `bt=${bridgeTo || "-"}`,
     `lw=${Array.isArray(med?.lawTags) && med.lawTags.length ? safeStr(med.lawTags[0], 12) : "-"}`,
     `et=${Array.isArray(med?.ethicsTags) && med.ethicsTags.length ? safeStr(med.ethicsTags[0], 12) : "-"}`,
     `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
     `ai=${Array.isArray(med?.aiTags) && med.aiTags.length ? safeStr(med.aiTags[0], 12) : "-"}`,
     `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
     `pb=${med?.psyche?.enabled ? "1" : "0"}`,
-    `kr=${med?.knowledgeBundle?.enabled ? "1" : "0"}`,
     `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
     `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
     `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
@@ -2065,12 +1915,13 @@ function tracePolicyCheck(cog, norm, opts) {
     "riskSignals",
     "ethicsSignals",
     "psyche",
-    "knowledgeBundle",
     "psychologyHints",
     "cyberKnowledgeHints",
     "englishKnowledgeHints",
     "financeKnowledgeHints",
     "aiKnowledgeHints",
+    "bridge",
+    "handoff",
   ];
 
   for (const f of fields) {
@@ -2112,9 +1963,9 @@ function finalizeContract(cog, nowMs, extra) {
     ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault())
     : 0;
 
-  const kb = isPlainObject(c.knowledgeBundle)
-    ? clampKnowledgeBundle(c.knowledgeBundle, 10, 8, 6)
-    : { enabled: false, reason: "none" };
+  const bridge = isPlainObject(c.bridge) && c.bridge.enabled
+    ? buildBridgeContract(c.bridge) || null
+    : null;
 
   const out = {
     ...c,
@@ -2171,8 +2022,8 @@ function finalizeContract(cog, nowMs, extra) {
     marionState: safeStr(c.marionState || "SEEK", 16).toUpperCase(),
     marionReason: safeStr(c.marionReason || "default", 40),
 
-    // NYX “consciousness bleed” payload:
-    knowledgeBundle: kb,
+    // NEW: canonical bridge output
+    bridge: bridge || { enabled: false, reason: "none" },
 
     marionStyle: MARION_STYLE_CONTRACT,
     handoff: isPlainObject(c.handoff)
@@ -2331,9 +2182,12 @@ function mediate(norm, session, opts = {}) {
 
     // CANON LANE FIRST (payload lane wins)
     const payloadLane = readPayloadLane(n0);
-    const lane = payloadLane || normalizeLaneRaw(s.lane) || "general";
-    const laneReason = payloadLane ? "payload_lane" : (normalizeLaneRaw(s.lane) ? "session_lane" : "default");
+    const sessionLane = normalizeLaneRaw(s.lane) || "";
+    const lane = payloadLane || sessionLane || "general";
+    const laneReason = payloadLane ? "payload_lane" : (sessionLane ? "session_lane" : "default");
+
     const chipMeta = detectChipSelect(n0);
+    const isChip = !!chipMeta.isChip;
 
     // Build a shallow norm copy with canonical lane (no mutation of caller object)
     const n = { ...n0, lane };
@@ -2376,12 +2230,16 @@ function mediate(norm, session, opts = {}) {
       (payloadActionable && hasPayload && (safeStr(payloadAction, 60).trim() || payloadYear !== null)) ||
       (payloadActionable && textEmpty && hasPayload);
 
+    // Bridge triggers:
+    // 1) chip select (explicit)
+    // 2) payload lane differs from session lane (implicit lane switch)
+    const laneChanged = !!(payloadLane && sessionLane && payloadLane !== sessionLane);
+
     // CHIP FAST-PATH: treat chip select as actionable bridge + lane switch signal
-    const isChip = !!chipMeta.isChip;
-    const laneAction = isChip ? "switch_lane" : "";
+    const laneAction = (isChip || laneChanged) ? "switch_lane" : "";
 
     if (actionable) intent = "ADVANCE";
-    if (isChip) intent = "ADVANCE";
+    if (isChip || laneChanged) intent = "ADVANCE";
 
     if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") intent = "CLARIFY";
 
@@ -2444,13 +2302,37 @@ function mediate(norm, session, opts = {}) {
     if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
     if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") dominance = "firm";
 
+    // ---------
+    // BRIDGE CONTRACT (Marion → Nyx routing)
+    // ---------
+    let bridge = null;
+    if (isChip) {
+      bridge = buildBridgeContract({
+        kind: "chip_select",
+        laneFrom: sessionLane || "",
+        laneTo: lane,
+        reason: chipMeta.why || "chip_select",
+        chipLabel: chipMeta.label || "",
+        payloadAction: payloadAction || "chip",
+      });
+    } else if (laneChanged) {
+      bridge = buildBridgeContract({
+        kind: "lane_switch",
+        laneFrom: sessionLane || "",
+        laneTo: lane,
+        reason: "payload_lane_change",
+        chipLabel: "",
+        payloadAction: payloadAction || "route",
+      });
+    }
+
     let marionState = "SEEK";
     let marionReason = "default";
     const a = safeStr(n.action || "", 80).trim();
 
-    if (isChip) {
+    if (bridge && bridge.enabled) {
       marionState = "BRIDGE";
-      marionReason = "chip_select";
+      marionReason = bridge.kind;
     } else if (intent === "STABILIZE") {
       marionState = "STABILIZE";
       marionReason = "intent_stabilize";
@@ -2478,9 +2360,12 @@ function mediate(norm, session, opts = {}) {
       laneReason,
 
       stalled: !!stalled,
-      actionable: !!actionable,
+      actionable: !!actionable || !!(bridge && bridge.enabled),
       textEmpty: !!textEmpty,
       groundingMaxLines,
+
+      // bridge payload for Nyx
+      bridge: bridge || { enabled: false, reason: "none" },
 
       riskTier: safeStr(risk0?.riskTier || RISK.TIERS.NONE, 10),
       riskDomains: uniqBounded(risk0?.riskDomains || [], 6),
@@ -2502,6 +2387,8 @@ function mediate(norm, session, opts = {}) {
       marionReason,
 
       marionStyle: MARION_STYLE_CONTRACT,
+
+      // NEW: handoff cue for Nyx UI
       handoff: {
         marionEndsHard: true,
         nyxBeginsAfter: true,
@@ -2512,6 +2399,8 @@ function mediate(norm, session, opts = {}) {
             : intent === "STABILIZE"
             ? MARION_STYLE_CONTRACT.tags.hold
             : MARION_STYLE_CONTRACT.tags.ok,
+        nyxCue: bridge && bridge.enabled ? "route" : (intent === "STABILIZE" ? "hold" : "respond"),
+        bridge: bridge && bridge.enabled ? { kind: bridge.kind, laneTo: bridge.laneTo } : { kind: "", laneTo: "" },
       },
 
       macModeOverride: macModeOverride || "",
@@ -2551,33 +2440,12 @@ function mediate(norm, session, opts = {}) {
     cog.aiSignals = ai.aiSignals;
 
     // =========================
-    // KNOWLEDGE (1): PsycheBridge (option 2)
+    // KNOWLEDGE: PsycheBridge first (option 2)
     // =========================
     const psyche = callPsycheBridge(n, s, cog);
     if (psyche && psyche.enabled) {
       cog.psyche = psyche;
-    } else {
-      cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
-    }
 
-    // =========================
-    // KNOWLEDGE (2): Registry bundle (Nyx consciousness bleed)
-    // Always attempt registry; if missing, keep disabled.
-    // =========================
-    const kb = buildRegistryBundle(n, s, cog, o);
-    cog.knowledgeBundle = isPlainObject(kb) && kb.enabled ? kb : { enabled: false, reason: safeStr(kb?.reason || "none", 60) };
-
-    // =========================
-    // LEGACY per-domain hints (kept as fallback / parallel signals)
-    // If you want registry-only, set opts.registryOnly=true at callsite.
-    // =========================
-    if (truthy(o.registryOnly)) {
-      cog.psychologyHints = { enabled: false, reason: "registry_only" };
-      cog.cyberKnowledgeHints = { enabled: false, reason: "registry_only" };
-      cog.englishKnowledgeHints = { enabled: false, reason: "registry_only" };
-      cog.financeKnowledgeHints = { enabled: false, reason: "registry_only" };
-      cog.aiKnowledgeHints = { enabled: false, reason: "registry_only" };
-    } else if (psyche && psyche.enabled && truthy(o.psycheBridgeSuppressLegacy)) {
       cog.psychologyHints = { enabled: false, reason: "psyche_bridge" };
       cog.cyberKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
       cog.englishKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
@@ -2598,7 +2466,27 @@ function mediate(norm, session, opts = {}) {
 
       const aiHints = queryAIKnowledge(n, s, cog);
       cog.aiKnowledgeHints = clampAIHints(aiHints);
+
+      cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
     }
+
+    // ---------
+    // SESSION PATCH SUGGESTION (UPGRADED for bridge)
+    // ---------
+    const patch = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+    if (bridge && bridge.enabled) {
+      patch.lane = bridge.laneTo;
+      patch.lastLane = bridge.laneFrom || sessionLane || "";
+      patch.bridgeKind = bridge.kind;
+      patch.bridgeLaneTo = bridge.laneTo;
+      patch.bridgeReason = bridge.reason || bridge.kind;
+      patch.lastAdvanceAt = now; // actionable route should advance clocks
+    } else if (payloadLane && payloadLane !== sessionLane) {
+      // still safe to patch lane on canonical payload lane
+      patch.lane = payloadLane;
+      patch.lastLane = sessionLane || "";
+    }
+    if (Object.keys(patch).length) cog.sessionPatchSuggestion = patch;
 
     const trace = buildTrace(n, s, {
       ...cog,
@@ -2612,7 +2500,6 @@ function mediate(norm, session, opts = {}) {
       cyberTags: cog.cyberTags,
       aiTags: cog.aiTags,
       psyche: cog.psyche,
-      knowledgeBundle: cog.knowledgeBundle,
       psychologyHints: cog.psychologyHints,
       cyberKnowledgeHints: cog.cyberKnowledgeHints,
       englishKnowledgeHints: cog.englishKnowledgeHints,
@@ -2620,6 +2507,7 @@ function mediate(norm, session, opts = {}) {
       aiKnowledgeHints: cog.aiKnowledgeHints,
       lane: cog.lane,
       laneAction: cog.laneAction,
+      bridge: cog.bridge,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -2659,9 +2547,11 @@ function mediate(norm, session, opts = {}) {
       actionable: false,
       textEmpty: false,
       groundingMaxLines: 0,
+      bridge: { enabled: false, reason: "fail_open" },
       riskTier: RISK.TIERS.LOW,
       riskDomains: [],
       riskSignals: ["fail_open"],
+      riskLawOverrides: {},
       lawTags: [LAW.TAGS.COHERENCE],
       lawReasons: ["fail_open"],
       velvetAllowed: false,
@@ -2692,7 +2582,6 @@ function mediate(norm, session, opts = {}) {
       aiTags: [],
       aiSignals: [],
       psyche: { enabled: false, reason: "fail_open" },
-      knowledgeBundle: { enabled: false, reason: "fail_open" },
       psychologyHints: { enabled: false, reason: "fail_open" },
       cyberKnowledgeHints: { enabled: false, reason: "fail_open" },
       englishKnowledgeHints: { enabled: false, reason: "fail_open" },
@@ -2705,6 +2594,8 @@ function mediate(norm, session, opts = {}) {
         nyxBeginsAfter: true,
         allowSameTurnSplit: true,
         marionTagSuggested: MARION_STYLE_CONTRACT.tags.retry,
+        nyxCue: "retry",
+        bridge: { kind: "", laneTo: "" },
       },
       marionTrace: "fail_open",
       marionTraceHash: sha1Lite("fail_open").slice(0, 10),
@@ -2741,14 +2632,13 @@ module.exports = {
   tracePolicyCheck,
   suggestModeHysteresisPatch,
 
+  // bridge exports (unit tests)
+  buildBridgeContract,
+  normalizeBridgeKind,
+
   // psyche bridge exports
   buildPsycheBridgeInput,
   callPsycheBridge,
-
-  // knowledge registry exports
-  laneToDomains,
-  buildRegistryBundle,
-  clampKnowledgeBundle,
 
   // legacy psych knowledge exports (integration tests)
   buildPsychologyQuery,
