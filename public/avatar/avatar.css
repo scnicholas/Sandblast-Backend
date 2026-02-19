@@ -1,26 +1,19 @@
 /* avatar.css
  *
- * v1.2.6 (CHIP RAIL SCROLL++++ + CHIP ANCHOR LOCK++++ + SCROLLBAR SUBTLE++++ | PRESENTATION FIX++++ + GLASS CONTRAST++++ + PANEL SEPARATION++++ + INPUT CLARITY++++ + HERO HARDEN PRESERVED++++)
+ * v1.2.7 (HOST-CARD COEXIST++++ + HERO VAR BRIDGE++++ + LEGACY-KILL SAFE++++ + SCROLL SAFE++++ + INPUT FOCUS++++)
  *
- * Critical Fixes:
+ * What changed vs v1.2.6:
+ * ✅ Coexists with NEW avatar-host “nyxCard” layout (doesn’t accidentally style/kill it)
+ * ✅ Bridges hero vars: supports host-set --nyx-hero-abs/--nyx-hero-url AND legacy --nyx-hero-src
+ * ✅ “Ghost words” kill-list tightened so we don’t nuke valid host chip rails (#nyxChips in the new card)
+ * ✅ Scrollbar styling kept subtle but avoids forcing stable gutters where unsupported
+ * ✅ Stronger focus ring defaults for both legacy input dock and new host input
+ *
+ * Keeps:
  * ✅ Hero ALWAYS renders (dual-path URL system + cover fallback)
- * ✅ Safer hero framing in small iframes/panels (cover + tuned position)
  * ✅ Shell can NEVER black-wash hero (forces transparency + pointer-events none)
  * ✅ Overlay UI ALWAYS on top + interactive
- * ✅ Removes “ghost words” behind dialog (kills legacy rails only)
- * ✅ Iframe-safe clamp (prevents stage pushing UI / scroll)
- *
- * Presentation Fixes:
- * ✅ Fixes low-contrast “shadow blob” look inside dark site
- * ✅ Stronger glass + clearer borders for bubble & dock
- * ✅ Chips look active (not disabled) + accent hover
- * ✅ Divider separates chip row from rest of UI
- * ✅ Input + placeholder visibility improved
- *
- * Chip Rail Lock (NEW):
- * ✅ Chips stay in the SAME spot (no wrap-driven layout jump)
- * ✅ Horizontal scroll reveals overflow chips (touch + mousewheel friendly)
- * ✅ Subtle scrollbar (not ugly) + iOS momentum scrolling
+ * ✅ Chip rail lock (scrollable, no wrap jump)
  */
 
 :root{
@@ -29,11 +22,14 @@
   --muted:rgba(255,255,255,.75);
 
   /* -------------------------
-     HERO URL HARDENING
-     Use a raw string URL + a legacy url() var for maximum compatibility.
+     HERO URL HARDENING (BRIDGED)
+     - Host (new) may set: --nyx-hero-abs: url("..."); --nyx-hero-url: var(--nyx-hero-abs)
+     - Legacy (css) uses: --nyx-hero-src: "https://..."; --nyx-hero-url: url("...")
+     We support BOTH without breaking either.
      ------------------------- */
   --nyx-hero-src: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
-  --nyx-hero-url: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
+  --nyx-hero-abs: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
+  --nyx-hero-url: var(--nyx-hero-abs);
 
   /* Framing defaults for iframe panels */
   --hero-pos: 50% 22%;
@@ -87,6 +83,7 @@ body{
 
 /* -------------------------
    HERO (GUARANTEED)
+   NOTE: host may use its own stage (#nyxStage) — this block is for the shell mount path.
 ------------------------- */
 #nyxShellMount{
   position:absolute !important;
@@ -101,10 +98,15 @@ body{
 
   background-color:#000 !important;
 
-  /* ✅ Dual-path background: url(var()) + legacy var(--nyx-hero-url) */
+  /* ✅ Triple-path background:
+     1) new host var: var(--nyx-hero-url) (already a url())
+     2) abs var: var(--nyx-hero-abs) (url())
+     3) legacy raw string: url(var(--nyx-hero-src))
+  */
   background-image:
-    url(var(--nyx-hero-src)),
-    var(--nyx-hero-url) !important;
+    var(--nyx-hero-url),
+    var(--nyx-hero-abs),
+    url(var(--nyx-hero-src)) !important;
 
   background-repeat:no-repeat !important;
   background-position: var(--hero-pos) !important;
@@ -186,6 +188,8 @@ body{
 
 /* -------------------------
    OVERLAY AUTHORITY (UI ALWAYS ON TOP)
+   IMPORTANT: new host uses #nyxOverlay + #nyxCard, and it already manages pointer-events.
+   We keep this minimal and avoid messing with #nyxCard layout.
 ------------------------- */
 #nyxOverlay,
 .overlay{
@@ -202,7 +206,7 @@ body{
   pointer-events:none;
 }
 
-/* Ensure bubble/input can be interacted with */
+/* Ensure bubble/input can be interacted with (legacy + host) */
 #nyxBubble,
 #nyxBubbleActions,
 #nyxBubbleText,
@@ -213,29 +217,34 @@ body{
 .action-pill,
 a.action-pill,
 .nyx-cog-badge,
-#nyxCogBadge{
+#nyxCogBadge,
+#nyxCard,
+#nyxCard *{
   pointer-events:auto;
 }
 
 /* -------------------------
    ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
-   (Kill legacy rails only; keep real chip buttons)
+   Tightened: kill only true legacy rails, DO NOT target #nyxChips (new host rail).
 ------------------------- */
 #chips,
 #chipRail,
 #chipRowLegacy,
 [data-legacy="chips"],
 [data-ui="chips-legacy"],
-[data-role="chips-legacy"]{
+[data-role="chips-legacy"],
+[data-role="chiprail-legacy"]{
   display:none !important;
   visibility:hidden !important;
   opacity:0 !important;
   pointer-events:none !important;
 }
 
+/* Only hide stray top-level chip rows if they are NOT inside the nyxCard/bubble */
 body > .chips,
-body > #nyxChips,
-#avatarRoot > #nyxChips{
+#avatarRoot > .chips,
+#avatarRoot > #chips,
+#avatarRoot > #chipRail{
   display:none !important;
   visibility:hidden !important;
   opacity:0 !important;
@@ -243,7 +252,7 @@ body > #nyxChips,
   pointer-events:none !important;
 }
 
-/* Keep pills inside the bubble visible */
+/* Keep pills inside the bubble visible (legacy bubble path) */
 #nyxBubble .chips,
 #nyxBubble .chip,
 #nyxBubbleActions .action-pill{
@@ -272,14 +281,13 @@ body > #nyxChips,
 }
 
 /* -------------------------
-   BUBBLE (CLEAN + PANEL-FIT + HIGHER CONTRAST)
+   BUBBLE (LEGACY PATH)
+   New host uses #nyxCard; we keep these scoped to #nyxBubble only.
 ------------------------- */
 #nyxBubble{
   position:absolute !important;
   left:50% !important;
   transform:translateX(-50%) !important;
-
-  /* keep face visible while still feeling anchored */
   bottom:132px !important;
 
   width:min(560px,92%) !important;
@@ -311,30 +319,24 @@ body > #nyxChips,
 
 /* -------------------------
    ACTIONS ROW (CHIPS): ANCHORED + SCROLLABLE (NO WRAP JUMP)
+   Scoped to legacy bubble actions only.
 ------------------------- */
 #nyxBubbleActions{
   display:flex !important;
   gap:8px;
   padding:0 14px 12px 14px;
 
-  /* ✅ Lock position + prevent bubble from growing taller */
   flex-wrap:nowrap !important;
   white-space:nowrap !important;
 
-  /* ✅ Horizontal scroll for overflow chips */
   overflow-x:auto !important;
   overflow-y:hidden !important;
 
-  /* separation */
   border-top:1px solid rgba(255,255,255,.05);
   margin-top:2px;
   padding-top:12px;
 
-  /* smooth touch scrolling */
   -webkit-overflow-scrolling:touch;
-
-  /* prevent layout shift when scrollbar appears */
-  scrollbar-gutter: stable both-edges;
 
   /* Firefox */
   scrollbar-width:thin;
@@ -355,7 +357,7 @@ body > #nyxChips,
   background: rgba(255,255,255,.26);
 }
 
-/* Optional: keep pills from shrinking */
+/* Pills (shared look; used by legacy bubble and new host card) */
 .action-pill{
   flex:0 0 auto;
   display:inline-flex;
@@ -394,7 +396,8 @@ body > #nyxChips,
 }
 
 /* -------------------------
-   INPUT DOCK (CLEAN + HIGHER CONTRAST)
+   INPUT DOCK (LEGACY PATH)
+   New host uses #nyxInput/#nyxSend; we add focus style for both below.
 ------------------------- */
 .nyx-inputdock,
 #nyxInputDock{
@@ -450,6 +453,19 @@ body > #nyxChips,
   border-color: rgba(255,255,255,.20);
   background: rgba(140,0,35,.18);
   filter: brightness(1.05);
+}
+
+/* -------------------------
+   FOCUS RING (LEGACY + NEW HOST)
+------------------------- */
+.nyx-input:focus,
+#nyxInput:focus,
+#nyxSend:focus,
+.nyx-send:focus,
+button:focus{
+  outline:none;
+  box-shadow: 0 0 0 3px rgba(140,0,35,.25);
+  border-color: rgba(140,0,35,.55) !important;
 }
 
 /* -------------------------
