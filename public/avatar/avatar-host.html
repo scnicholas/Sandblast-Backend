@@ -13,24 +13,30 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117e (CSS-URL SANITIZE++++ + PAYLOAD NO-MUTATE++++ + PUBLIC SANITIZER FIX++++)
+     v9117f (MP4 STAGE++++ + HERO CAL→VIDEO MAP++++ + SAFE HERO URL++++ + IMAGE FALLBACK++++)
      Fixes:
-     ✅ heroSrc hardened (prevents CSS breakouts / bad protocols)
-     ✅ postMessage redaction no longer mutates original payload
-     ✅ publicMode name sanitizer replaced “there” artifact + cleanup improved
+     ✅ MP4 hero renders correctly (no CSS background-image misuse)
+     ✅ heroPosX/heroPosY mapped to video object-position
+     ✅ heroScale mapped to video transform scale
+     ✅ heroSrc supports mp4 OR image (mp4 loads into <video>, image becomes poster+bg fallback)
      ✅ Keeps: debug gate, Marion indicator, loop guards, docked card, chips rail
      ✅ Origin lock: only learn origin from NYX_* allowlist
      ============================================================ */
 
   :root{
-    /* Hero source (host can override via NYX_CONFIG heroSrc) */
-    --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/avatar3.mp4");
-    --nyx-hero-url:var(--nyx-hero-abs);
+    /* Default hero: MP4 */
+    --nyx-hero-video: "https://sandblast-backend.onrender.com/avatar/assets/avatar3.mp4";
+    /* Default image fallback (poster / bg) */
+    --nyx-hero-img: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
 
     /* Widget framing knobs (calibrated via NYX_CAL) */
     --nyx-hero-pos-x:50%;
     --nyx-hero-pos-y:10%;
-    --nyx-hero-scale:132%;
+
+    /* For MP4: numeric scale (derived from "132%") */
+    --nyx-hero-scale-num: 1.32;
+
+    /* Dim overlay */
     --nyx-hero-dim:.12;
 
     /* Card sizing */
@@ -50,8 +56,6 @@
     /* Premium glass */
     --nyx-glass-1: rgba(24,24,30,.84);
     --nyx-glass-2: rgba(14,14,20,.92);
-    --nyx-line: rgba(255,255,255,.12);
-    --nyx-line-soft: rgba(255,255,255,.07);
 
     /* Accent */
     --nyx-accent: rgba(140,0,35,.92);
@@ -64,19 +68,39 @@
     --ease: cubic-bezier(.2,.8,.2,1);
   }
 
-  /* ===== HERO STAGE ===== */
+  /* ===== HERO STAGE (VIDEO-FIRST) ===== */
   #nyxStage{
     position:absolute;
     inset:0;
-    background-color:#000;
-    background-image:var(--nyx-hero-url);
-    background-repeat:no-repeat;
-    background-size:var(--nyx-hero-scale) auto;
-    background-position:var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
-    transition:background-position .2s ease, background-size .2s ease;
-    filter:saturate(1.04) contrast(1.02);
+    background:#000;
+    overflow:hidden;
+    z-index:1;
   }
 
+  /* Video layer */
+  #nyxHeroVideo{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    object-position: var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
+    transform: scale(var(--nyx-hero-scale-num));
+    transform-origin: var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
+    filter:saturate(1.04) contrast(1.02);
+    pointer-events:none;
+  }
+
+  /* Fallback image if video fails/blocked */
+  #nyxStage.is-image{
+    background-image: url(var(--nyx-hero-img));
+    background-repeat:no-repeat;
+    background-size: 132% auto;
+    background-position: var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
+  }
+  #nyxStage.is-image #nyxHeroVideo{ display:none; }
+
+  /* Dim / vignette overlay */
   #nyxStage::after{
     content:"";
     position:absolute;
@@ -86,6 +110,7 @@
     background:
       radial-gradient(120% 100% at 52% 34%, rgba(0,0,0,0) 58%, rgba(0,0,0,.48) 100%),
       linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.28));
+    z-index:2;
   }
 
   /* ===== Overlay layout (face-first) ===== */
@@ -374,7 +399,6 @@
     display:none;
   }
 
-  /* Debug gate */
   html.nyx-debug #nyxDiag{ display:block; }
   html.nyx-debug #nyxCogBadge{ display:inline-flex; }
 
@@ -392,14 +416,13 @@
       --nyx-text-max: 110px;
       --nyx-text-max-open: 220px;
       --nyx-hero-pos-y: 20%;
-      --nyx-hero-scale: 120%;
+      --nyx-hero-scale-num: 1.20;
     }
     .nyx-rail::before,.nyx-rail::after{ width:16px; }
     #nyxChips{ padding-left:14px; padding-right:14px; }
   }
 
   @media (prefers-reduced-motion: reduce){
-    #nyxStage{ transition:none; }
     .action-pill{ transition:none; }
     .nyx-btn{ transition:none; }
   }
@@ -407,7 +430,9 @@
 </head>
 
 <body>
-  <div id="nyxStage"></div>
+  <div id="nyxStage" aria-hidden="true">
+    <video id="nyxHeroVideo" autoplay muted loop playsinline preload="auto"></video>
+  </div>
 
   <div id="nyxOverlay">
     <div id="nyxCard" class="is-clamped" role="region" aria-label="Nyx Assistant">
@@ -425,7 +450,6 @@
         </div>
       </div>
 
-      <!-- DEBUG ONLY: Marion ⇄ Nyx bridge visibility -->
       <div id="nyxCogBadge" aria-live="polite"></div>
 
       <div id="nyxScroll">
@@ -449,7 +473,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117e • ready</div>
+        <div id="nyxDiag">HOST v9117f • ready</div>
       </div>
     </div>
   </div>
@@ -488,14 +512,33 @@
     }
     return (h >>> 0).toString(16);
   }
+
   function safeCssUrl(raw){
-    // Allows only http(s). Escapes quotes/backslashes/parens to avoid CSS url() breakouts.
+    // Allows only http(s). Strips control chars; blocks JS/data/file protocols.
     var s = safeStr(raw).trim();
     if(!s) return "";
     if(!/^https?:\/\//i.test(s)) return "";
     s = s.replace(/[\r\n\t]/g, "");
-    s = s.replace(/["\\\)]/g, function(m){ return "\\" + m; });
     return s;
+  }
+
+  function isMp4Url(u){
+    u = safeStr(u).toLowerCase();
+    return u.indexOf(".mp4") > -1 || u.indexOf("video/mp4") > -1;
+  }
+
+  function parseScaleToNumber(v){
+    // Accept "132%" or "1.32"
+    var s = safeStr(v).trim();
+    if(!s) return 1.0;
+    if(s.indexOf("%") > -1){
+      var n = parseFloat(s.replace("%",""));
+      if(isFinite(n) && n > 0) return n / 100;
+      return 1.0;
+    }
+    var f = parseFloat(s);
+    if(isFinite(f) && f > 0) return f;
+    return 1.0;
   }
 
   // ==========
@@ -513,6 +556,9 @@
   var cogEl = $("nyxCogBadge");
   var marionEl = $("nyxMarion");
 
+  var stageEl = $("nyxStage");
+  var heroVid = $("nyxHeroVideo");
+
   function diag(msg){
     if(diagEl) diagEl.textContent = msg;
   }
@@ -524,7 +570,7 @@
   var READY_ACK = false;
 
   var CONFIG = {
-    version: "9117e",
+    version: "9117f",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -540,13 +586,12 @@
   }
 
   // ==========
-  // Public text sanitizer (no dev/owner names)
+  // Public text sanitizer
   // ==========
   function sanitizeReplyText(t){
     var s = safeStr(t || "");
     if(!CONFIG.publicMode) return s;
 
-    // Replace forbidden names with a neutral placeholder
     var names = Array.isArray(CONFIG.forbiddenNames) ? CONFIG.forbiddenNames.slice(0) : [];
     if(names.indexOf("Mac") === -1) names.push("Mac");
 
@@ -559,7 +604,6 @@
       }catch(_){}
     }
 
-    // Cleanup artifacts like "friend," "friend." etc.
     s = s
       .replace(/\bfriend\b\s*([,.;:!?])/gi, "$1")
       .replace(/\(\s*friend\s*\)/gi, "")
@@ -567,9 +611,7 @@
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
-    // Avoid weird leading phrases after replacement
     s = s.replace(/^(alright|okay|hey)\s*,\s*friend\b\.?/i, "$1.").trim();
-
     return s;
   }
 
@@ -580,7 +622,7 @@
   }
 
   // ==========
-  // Marion presence indicator (NON-DEBUG)
+  // Marion indicator
   // ==========
   function setMarionOn(on){
     if(!marionEl) return;
@@ -622,6 +664,53 @@
   }
 
   // ==========
+  // Hero video wiring
+  // ==========
+  function setStageImageFallback(on){
+    if(!stageEl) return;
+    stageEl.classList.toggle("is-image", !!on);
+  }
+
+  function setHeroVideoSrc(url){
+    if(!heroVid) return false;
+    var u = safeCssUrl(url);
+    if(!u) return false;
+
+    // Reset sources safely
+    try{
+      heroVid.pause();
+      heroVid.removeAttribute("src");
+      while(heroVid.firstChild) heroVid.removeChild(heroVid.firstChild);
+    }catch(_){}
+
+    var source = document.createElement("source");
+    source.src = u;
+    source.type = "video/mp4";
+    heroVid.appendChild(source);
+
+    // Attempt play
+    heroVid.load();
+    var p = heroVid.play();
+    if(p && typeof p.catch === "function"){ p.catch(function(){}); }
+
+    return true;
+  }
+
+  function setHeroImageSrc(url){
+    var u = safeCssUrl(url);
+    if(!u) return false;
+    // set CSS var used by fallback bg
+    document.documentElement.style.setProperty("--nyx-hero-img", '"' + u + '"');
+    // also set as poster so you see something quickly
+    if(heroVid) heroVid.setAttribute("poster", u);
+    return true;
+  }
+
+  // default wiring: mp4
+  setStageImageFallback(false);
+  setHeroVideoSrc(getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-video").replace(/["']/g,"").trim());
+
+  // ==========
   // postMessage bridge (hardened)
   // ==========
   function postToParent(payload, allowWildcard){
@@ -630,7 +719,6 @@
       var target = PARENT_ORIGIN || (allowWildcard ? "*" : null);
       if(!target) return false;
 
-      // Redact WITHOUT mutating the original payload object
       var out = payload;
       if(payload && typeof payload === "object"){
         out = Object.assign({}, payload);
@@ -691,14 +779,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117e • origin locked");
+        diag("HOST v9117f • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117e • ready (ack)");
+        diag("HOST v9117f • ready (ack)");
         return;
       }
 
@@ -718,8 +806,14 @@
         if(CONFIG.heroSrc){
           var safeUrl = safeCssUrl(CONFIG.heroSrc);
           if(safeUrl){
-            document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + safeUrl + '")');
-            document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
+            // if mp4 -> video src; else treat as image fallback/poster
+            if(isMp4Url(safeUrl)){
+              setStageImageFallback(false);
+              setHeroVideoSrc(safeUrl);
+            }else{
+              setHeroImageSrc(safeUrl);
+              setStageImageFallback(true);
+            }
           }
         }
 
@@ -729,7 +823,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117e • config loaded");
+        diag("HOST v9117f • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -739,10 +833,15 @@
 
         if(typeof cal.heroPosX === "string") document.documentElement.style.setProperty("--nyx-hero-pos-x", cal.heroPosX);
         if(typeof cal.heroPosY === "string") document.documentElement.style.setProperty("--nyx-hero-pos-y", cal.heroPosY);
-        if(typeof cal.heroScale === "string") document.documentElement.style.setProperty("--nyx-hero-scale", cal.heroScale);
+
+        if(typeof cal.heroScale === "string"){
+          var n = parseScaleToNumber(cal.heroScale);
+          document.documentElement.style.setProperty("--nyx-hero-scale-num", String(n));
+        }
+
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117e • cal applied");
+        diag("HOST v9117f • cal applied");
         return;
       }
 
@@ -820,7 +919,6 @@
     pending: false,
     lastRequestId: null,
 
-    // Loop guards
     __lastOutboundSig: "",
     __lastOutboundAt: 0,
     __lastReplySig: "",
@@ -838,9 +936,6 @@
     return "general";
   }
 
-  // ==========
-  // Packet builder (MARION BRIDGE CANON)
-  // ==========
   function buildIntentPacket(opts){
     opts = (opts && typeof opts === "object") ? opts : {};
 
@@ -1068,7 +1163,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117e • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117f • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1091,10 +1186,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117e • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117f • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117e • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117f • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1152,11 +1247,10 @@
   async function sendPacket(packet){
     if(UI_STATE.pending) return;
 
-    // Outbound dedupe
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117e • deduped outbound");
+      diag("HOST v9117f • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1164,7 +1258,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117e • sending…");
+    diag("HOST v9117f • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1178,17 +1272,13 @@
 
     var status = Number(out && (out.__httpStatus || out.status || 0)) || 0;
 
-    // Marion indicator (non-debug)
     setMarionOn(marionPresent(out));
-
-    // Debug badge only if debug
     renderCogBadge(out);
 
-    // Reply dedupe
     var rSig = replySig(out, packet.lane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117e • deduped reply");
+      diag("HOST v9117f • deduped reply");
       setPending(false);
       return out;
     }
@@ -1210,14 +1300,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117e • ok");
+      diag("HOST v9117f • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       setText(msg);
 
-      diag("HOST v9117e • error " + (status || "unknown"));
+      diag("HOST v9117f • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
@@ -1263,7 +1353,6 @@
     });
   }
 
-  // Default: Marion indicator OFF until we see evidence
   setMarionOn(false);
   applyDebugGate();
 
