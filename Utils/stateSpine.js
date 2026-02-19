@@ -10,16 +10,19 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.7 (PATCH POISON SHIELD++++ + VERSION LOCK++++ + PENDINGASK KIND FIX++++ + SELF-TESTS EXPAND++++)
- * ✅ Fix++++: updateState/finalizeTurn always lock __spineVersion to SPINE_VERSION (prevents patch poisoning)
- * ✅ Harden++++: patch cannot override createdAt/updatedAt/rev/__spineVersion
- * ✅ Fix++++: normalizePendingAsk no longer maps id/type into kind (kind stays semantic, id/type remain compat)
- * ✅ Add++++: self-tests cover version lock + poison shield
- * ✅ Keeps: v1.1.6 COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++
- * ✅ Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
+ * v1.1.8 (TURN-SIGNALS SHAPE FIX++++ + ACTIVECTX TYPE SAFETY++++ + ASK RESOLUTION HARDEN++++ + TESTS++++)
+ * ✅ Fix++++: normalizeInbound reads BOTH {turnSignals} and {signals} and tolerates partial signal sets
+ * ✅ Harden++++: activeContext / lastChipClicked sanitized (lane normalized, route/id bounded, payload mini)
+ * ✅ Harden++++: pendingAsk resolution: "need_pick" resolves on lane tokens OR lane-bearing payload.route
+ * ✅ Harden++++: hasActionablePayload includes publicMode (matches chatEngine) + guards against huge payload key sets
+ * ✅ Add++++: self-tests cover signals compatibility + activeContext sanitation + need_pick resolve via route
+ *
+ * Keeps: v1.1.7 PATCH POISON SHIELD++++ + VERSION LOCK++++ + PENDINGASK KIND FIX++++ + SELF-TESTS EXPAND++++
+ * Keeps: v1.1.6 COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++
+ * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.7";
+const SPINE_VERSION = "stateSpine v1.1.8";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -114,6 +117,8 @@ function sha1Lite(str) {
 
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
+
+  // HARDEN++++: cap key scan to avoid pathological objects
   const keys = Object.keys(payload);
   if (!keys.length) return false;
 
@@ -132,8 +137,15 @@ function hasActionablePayload(payload) {
     "allowDerivedTop10",
     "allowYearendFallback",
     "focus",
+    "publicMode", // align with chatEngine
   ]);
-  return keys.some((k) => actionable.has(k));
+
+  // scan at most first 120 keys deterministically
+  const lim = Math.min(keys.length, 120);
+  for (let i = 0; i < lim; i++) {
+    if (actionable.has(keys[i])) return true;
+  }
+  return false;
 }
 
 function isLaneToken(t) {
@@ -226,6 +238,50 @@ function buildPendingAsk(kind, prompt, options) {
   });
 }
 
+function miniPayload(payload) {
+  const p = isPlainObject(payload) ? payload : {};
+  const out = {};
+  if (safeStr(p.action)) out.action = safeStr(p.action, 60);
+  if (safeStr(p.route)) out.route = safeStr(p.route, 60);
+  if (safeStr(p.lane)) out.lane = safeStr(p.lane, 24);
+  const yr = normYear(p.year);
+  if (yr !== null) out.year = yr;
+  if (safeStr(p.vibe)) out.vibe = safeStr(p.vibe, 40);
+  if (Object.prototype.hasOwnProperty.call(p, "publicMode"))
+    out.publicMode = !!p.publicMode;
+  return Object.keys(out).length ? out : undefined;
+}
+
+function sanitizeActiveContext(ctx) {
+  if (!ctx || typeof ctx !== "object") return null;
+
+  const kind = safeStr(ctx.kind || "", 24).trim() || "unknown";
+  const id = safeStr(ctx.id || "", 80).trim();
+  const route = safeStr(ctx.route || "", 80).trim();
+  const lane = normalizeLane(ctx.lane || "");
+  const label = safeStr(ctx.label || "", 140).trim();
+  const year = normYear(ctx.year);
+  const clickedAt = Number(ctx.clickedAt || 0) || 0;
+
+  // payload may be large; keep it tiny
+  const payload = miniPayload(ctx.payload);
+
+  const out = {
+    kind,
+    id,
+    route,
+    lane,
+    label,
+    clickedAt: clickedAt || nowMs(),
+  };
+  if (year !== null) out.year = year;
+  if (payload) out.payload = payload;
+
+  // If basically empty, drop
+  if (!out.id && !out.route && !out.label) return null;
+  return out;
+}
+
 function buildChipsOffered(followUps) {
   const arr = Array.isArray(followUps) ? followUps : [];
   const mapped = arr
@@ -236,20 +292,12 @@ function buildChipsOffered(followUps) {
       const route = safeStr(payload.route || payload.action || "", 80).trim();
       const lane = safeStr(payload.lane || "", 24).trim();
 
-      const mini = {};
-      if (safeStr(payload.action)) mini.action = safeStr(payload.action, 60);
-      if (safeStr(payload.route)) mini.route = safeStr(payload.route, 60);
-      if (safeStr(payload.lane)) mini.lane = safeStr(payload.lane, 24);
-      const yr = normYear(payload.year);
-      if (yr !== null) mini.year = yr;
-      if (safeStr(payload.vibe)) mini.vibe = safeStr(payload.vibe, 40);
-
       return {
         id,
         label,
         route,
         lane,
-        payload: Object.keys(mini).length ? mini : undefined,
+        payload: miniPayload(payload),
       };
     })
     .filter((x) => x.id || x.label || x.route);
@@ -333,7 +381,7 @@ function buildActiveContext(norm, spinePrev) {
 
   const p = isPlainObject(norm?.payload) ? norm.payload : {};
   const route = safeStr(p.route || p.action || "", 80).trim();
-  const lane = safeStr(p.lane || norm?.lane || spinePrev?.lane || "", 24).trim();
+  const lane = normalizeLane(p.lane || norm?.lane || spinePrev?.lane || "");
   const year = normYear(p.year) ?? normYear(norm?.year) ?? null;
 
   // Silent click with actionable payload -> chip context
@@ -345,23 +393,17 @@ function buildActiveContext(norm, spinePrev) {
       "";
     const label = safeStr(p.label || "", 140).trim();
 
-    const payloadMini = {};
-    if (safeStr(p.action)) payloadMini.action = safeStr(p.action, 60);
-    if (safeStr(p.route)) payloadMini.route = safeStr(p.route, 60);
-    if (safeStr(p.lane)) payloadMini.lane = safeStr(p.lane, 24);
-    if (year !== null) payloadMini.year = year;
-    if (safeStr(p.vibe)) payloadMini.vibe = safeStr(p.vibe, 40);
-
-    return {
+    const ctx = {
       kind: "chip",
       id,
       route: route || safeStr(norm?.action || "", 60).trim(),
-      lane: lane || LANE.GENERAL,
+      lane,
       label,
       year: year !== null ? year : undefined,
-      payload: Object.keys(payloadMini).length ? payloadMini : undefined,
+      payload: p,
       clickedAt: nowMs(),
     };
+    return sanitizeActiveContext(ctx);
   }
 
   // If the user typed (non-empty text) and provided action/year, do NOT carry stale chip context.
@@ -375,21 +417,19 @@ function buildActiveContext(norm, spinePrev) {
     if (hasExplicitAction) typedCtx.route = safeStr(norm?.action || "", 60).trim();
     if (hasYear) typedCtx.year = normYear(norm?.year);
     if (safeStr(norm?.lane || "", 24).trim())
-      typedCtx.lane = safeStr(norm.lane, 24).trim();
+      typedCtx.lane = normalizeLane(norm.lane);
 
-    return Object.keys(typedCtx).length
-      ? {
-          kind: "typed",
-          id: "typed",
-          route: typedCtx.route || "",
-          lane: typedCtx.lane || (spinePrev?.lane || LANE.GENERAL),
-          year: typedCtx.year,
-          clickedAt: nowMs(),
-        }
-      : null;
+    return sanitizeActiveContext({
+      kind: "typed",
+      id: "typed",
+      route: typedCtx.route || "",
+      lane: typedCtx.lane || normalizeLane(spinePrev?.lane || LANE.GENERAL),
+      year: typedCtx.year,
+      clickedAt: nowMs(),
+    });
   }
 
-  return spinePrev?.activeContext || null;
+  return sanitizeActiveContext(spinePrev?.activeContext) || null;
 }
 
 // -------------------------
@@ -414,17 +454,11 @@ function createState(seed = {}) {
     pendingAsk: pendingAsk || null,
 
     // Context memory
-    activeContext:
-      seed.activeContext && typeof seed.activeContext === "object"
-        ? seed.activeContext
-        : null,
+    activeContext: sanitizeActiveContext(seed.activeContext),
     lastChipsOffered: Array.isArray(seed.lastChipsOffered)
       ? seed.lastChipsOffered.slice(0, 12)
       : [],
-    lastChipClicked:
-      seed.lastChipClicked && typeof seed.lastChipClicked === "object"
-        ? seed.lastChipClicked
-        : null,
+    lastChipClicked: sanitizeActiveContext(seed.lastChipClicked),
 
     // Goal inference (small)
     goal:
@@ -506,8 +540,8 @@ function coerceState(prev) {
   if (out.lastChipsOffered.length > 12)
     out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
 
-  if (out.activeContext && typeof out.activeContext !== "object")
-    out.activeContext = null;
+  out.activeContext = sanitizeActiveContext(out.activeContext);
+  out.lastChipClicked = sanitizeActiveContext(out.lastChipClicked);
 
   if (out.lastDecision && typeof out.lastDecision === "object") {
     out.lastDecision = {
@@ -639,9 +673,9 @@ function updateState(prev, patch = {}, reason = "turn") {
     activeContext:
       patchObj.activeContext === null
         ? null
-        : patchObj.activeContext && typeof patchObj.activeContext === "object"
-        ? patchObj.activeContext
-        : p.activeContext,
+        : sanitizeActiveContext(patchObj.activeContext) ||
+          sanitizeActiveContext(p.activeContext) ||
+          null,
 
     lastChipsOffered: Array.isArray(patchObj.lastChipsOffered)
       ? patchObj.lastChipsOffered.slice(0, 12)
@@ -650,9 +684,9 @@ function updateState(prev, patch = {}, reason = "turn") {
     lastChipClicked:
       patchObj.lastChipClicked === null
         ? null
-        : patchObj.lastChipClicked && typeof patchObj.lastChipClicked === "object"
-        ? patchObj.lastChipClicked
-        : p.lastChipClicked,
+        : sanitizeActiveContext(patchObj.lastChipClicked) ||
+          sanitizeActiveContext(p.lastChipClicked) ||
+          null,
 
     lastMove:
       patchObj.lastMove != null ? safeStr(patchObj.lastMove, 20) : p.lastMove,
@@ -710,6 +744,8 @@ function updateState(prev, patch = {}, reason = "turn") {
   }
 
   next.pendingAsk = normalizePendingAsk(next.pendingAsk);
+  next.activeContext = sanitizeActiveContext(next.activeContext);
+  next.lastChipClicked = sanitizeActiveContext(next.lastChipClicked);
 
   return next;
 }
@@ -718,8 +754,8 @@ function updateState(prev, patch = {}, reason = "turn") {
 // inbound normalization (tiny, for planner/spine only)
 // -------------------------
 // NOTE: This must accept chatEngine's inbound shapes:
-// - body.ctx and/or body.payload
-// - chatEngine turnSignals naming
+// - inbound.ctx and/or inbound.payload
+// - chatEngine uses turnSignals; some older callers use signals
 function normalizeInbound(inbound = {}) {
   const body = isPlainObject(inbound) ? inbound : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
@@ -760,8 +796,14 @@ function normalizeInbound(inbound = {}) {
   const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
   const payloadActionable = hasPayload && hasActionablePayload(payload);
 
-  // chatEngine calls it turnSignals; accept it when present
-  const ts = isPlainObject(body.turnSignals) ? body.turnSignals : null;
+  // Compatibility: accept {turnSignals} OR {signals}
+  const ts = isPlainObject(body.turnSignals)
+    ? body.turnSignals
+    : isPlainObject(body.signals)
+    ? body.signals
+    : null;
+
+  // Some callers only pass partial signals; fill from computed defaults.
   const signals = {
     textEmpty: ts && typeof ts.textEmpty === "boolean" ? ts.textEmpty : textEmpty,
     hasPayload: ts && typeof ts.hasPayload === "boolean" ? ts.hasPayload : hasPayload,
@@ -808,9 +850,12 @@ function decideNextMove(state, inbound = {}) {
       (textHasYearToken(text) || (payloadActionable && n.year !== null));
 
     // “need_pick” can be answered by short lane words OR a lane-bearing chip.
+    // Harden++++: treat payload.route as a lane answer when it is a lane token.
+    const routeAsPick = payloadActionable && isLaneToken(safeStr(n.payload?.route || "", 24));
     const answeredPick =
       (kind === "need_pick" || id === "need_pick" || isNeedPickAsk(pa)) &&
       (isLaneToken(text) ||
+        routeAsPick ||
         (payloadActionable && !!safeStr(n.payload?.lane || "", 24).trim()) ||
         (payloadActionable && !!safeStr(n.lane || "", 24).trim()));
 
@@ -970,9 +1015,13 @@ function finalizeTurn({
 
   // Also resolve need_pick via lane-bearing evidence
   const typedLaneResolved = !n.signals.textEmpty && isLaneToken(n.text || "");
+  const routeAsLane =
+    n.signals.payloadActionable && isLaneToken(safeStr(n.payload?.route || "", 24));
   const chipLaneResolved =
     n.signals.payloadActionable &&
-    (safeStr(n.payload?.lane || "", 24).trim() || safeStr(n.lane || "", 24).trim()) &&
+    (routeAsLane ||
+      safeStr(n.payload?.lane || "", 24).trim() ||
+      safeStr(n.lane || "", 24).trim()) &&
     (lastUserIntent === "silent_click" || lastUserIntent === "choose");
 
   let nextPendingAsk = prev.pendingAsk;
@@ -1021,14 +1070,15 @@ function finalizeTurn({
     activeContext.kind === "chip" &&
     lastUserIntent === "silent_click"
       ? {
-          lastChipClicked: {
+          lastChipClicked: sanitizeActiveContext({
             id: safeStr(activeContext.id, 80),
             label: safeStr(activeContext.label || "", 140),
             route: safeStr(activeContext.route || "", 80),
             lane: safeStr(activeContext.lane || "", 24),
             payload: activeContext.payload,
             clickedAt: activeContext.clickedAt || nowMs(),
-          },
+            kind: "chip",
+          }),
         }
       : {}),
   };
@@ -1071,7 +1121,11 @@ function runSpineSelfTests() {
   const st0 = createState({ lane: "music" });
   const before = st0.updatedAt;
   const st1 = coerceState(st0);
-  assert("coerce_does_not_touch_updatedAt", st1.updatedAt === before, `${before} -> ${st1.updatedAt}`);
+  assert(
+    "coerce_does_not_touch_updatedAt",
+    st1.updatedAt === before,
+    `${before} -> ${st1.updatedAt}`
+  );
 
   // 2) updateState increments rev exactly once
   const u1 = updateState(st0, { topic: "help" }, "turn");
@@ -1086,7 +1140,12 @@ function runSpineSelfTests() {
   }
 
   // 4) pendingAsk normalize supports chatEngine schema
-  const pa = normalizePendingAsk({ id: "need_year", type: "clarify", prompt: "Give year", required: true });
+  const pa = normalizePendingAsk({
+    id: "need_year",
+    type: "clarify",
+    prompt: "Give year",
+    required: true,
+  });
   assert("pendingAsk_kind_default", safeStr(pa.kind) === "need_more_detail", safeStr(pa.kind));
   assert("pendingAsk_prompt_has_year", safeStr(pa.prompt).toLowerCase().includes("year"), pa.prompt);
   assert("pendingAsk_id_preserved", safeStr(pa.id) === "need_year", safeStr(pa.id));
@@ -1100,13 +1159,49 @@ function runSpineSelfTests() {
   assert("decide_actionable_payload_advance", dm.move === MOVE.ADVANCE, safeStr(dm.move));
 
   // 6) Patch poison shield: cannot override rev/createdAt/updatedAt/__spineVersion
-  const poison = updateState(st0, { rev: 999, createdAt: "X", updatedAt: "Y", __spineVersion: "BAD" }, "poison");
+  const poison = updateState(
+    st0,
+    { rev: 999, createdAt: "X", updatedAt: "Y", __spineVersion: "BAD" },
+    "poison"
+  );
   assert("poison_rev_ignored", poison.rev === st0.rev + 1, `${poison.rev}`);
   assert("poison_createdAt_ignored", poison.createdAt === st0.createdAt, `${poison.createdAt}`);
   assert("poison_updatedAt_overwritten", poison.updatedAt !== "Y", `${poison.updatedAt}`);
   assert("poison_version_locked", poison.__spineVersion === SPINE_VERSION, `${poison.__spineVersion}`);
 
-  return { ok: failures.length === 0, failures, ran: 6, v: SPINE_VERSION };
+  // 7) signals compatibility: accept {signals} alias
+  const dm2 = decideNextMove(createState(), {
+    payload: { action: "top10", year: 1992, lane: "music" },
+    signals: { hasPayload: true, payloadActionable: true, textEmpty: true },
+    text: "",
+  });
+  assert("signals_alias_advances", dm2.move === MOVE.ADVANCE, safeStr(dm2.move));
+
+  // 8) activeContext sanitation: lane normalized + payload mini only
+  const ac = buildActiveContext(
+    {
+      text: "",
+      payload: { action: "top10", year: 1988, lane: "MUSIC", vibe: "x", extra: "NOPE" },
+      year: 1988,
+      lane: "",
+      action: "",
+      signals: { hasPayload: true, payloadActionable: true, textEmpty: true },
+    },
+    createState()
+  );
+  assert("activeContext_lane_normalized", ac && ac.lane === "music", safeStr(ac && ac.lane));
+  assert("activeContext_payload_mini", ac && ac.payload && !ac.payload.extra, safeStr(ac && JSON.stringify(ac.payload)));
+
+  // 9) need_pick resolves via payload.route lane token
+  const stPick = createState({ pendingAsk: { kind: "need_pick", prompt: "Pick a lane" } });
+  const planPick = decideNextMove(stPick, {
+    payload: { route: "movies" },
+    turnSignals: { hasPayload: true, payloadActionable: true, textEmpty: true },
+    text: "",
+  });
+  assert("need_pick_resolves_via_route", planPick.move === MOVE.ADVANCE, safeStr(planPick.move));
+
+  return { ok: failures.length === 0, failures, ran: 9, v: SPINE_VERSION };
 }
 
 module.exports = {
