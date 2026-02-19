@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.2.5 (PRESENTATION FIX++++ + GLASS CONTRAST++++ + CHIP LIFT++++ + PANEL SEPARATION++++ + INPUT CLARITY++++ + HERO HARDEN PRESERVED++++)
+ * v1.2.6 (CHIP RAIL SCROLL++++ + CHIP ANCHOR LOCK++++ + SCROLLBAR SUBTLE++++ | PRESENTATION FIX++++ + GLASS CONTRAST++++ + PANEL SEPARATION++++ + INPUT CLARITY++++ + HERO HARDEN PRESERVED++++)
  *
  * Critical Fixes:
  * ✅ Hero ALWAYS renders (dual-path URL system + cover fallback)
@@ -10,12 +10,17 @@
  * ✅ Removes “ghost words” behind dialog (kills legacy rails only)
  * ✅ Iframe-safe clamp (prevents stage pushing UI / scroll)
  *
- * Presentation Fixes (NEW):
+ * Presentation Fixes:
  * ✅ Fixes low-contrast “shadow blob” look inside dark site
  * ✅ Stronger glass + clearer borders for bubble & dock
  * ✅ Chips look active (not disabled) + accent hover
  * ✅ Divider separates chip row from rest of UI
  * ✅ Input + placeholder visibility improved
+ *
+ * Chip Rail Lock (NEW):
+ * ✅ Chips stay in the SAME spot (no wrap-driven layout jump)
+ * ✅ Horizontal scroll reveals overflow chips (touch + mousewheel friendly)
+ * ✅ Subtle scrollbar (not ugly) + iOS momentum scrolling
  */
 
 :root{
@@ -304,24 +309,53 @@ body > #nyxChips,
   font-weight:500;
 }
 
-/* Actions row (chips): WRAP + better contrast */
+/* -------------------------
+   ACTIONS ROW (CHIPS): ANCHORED + SCROLLABLE (NO WRAP JUMP)
+------------------------- */
 #nyxBubbleActions{
   display:flex !important;
   gap:8px;
   padding:0 14px 12px 14px;
 
-  flex-wrap:wrap;          /* ✅ fixes cramped / “disabled row” look */
-  overflow:hidden;         /* avoid ugly scroll bars */
-  white-space:normal;
+  /* ✅ Lock position + prevent bubble from growing taller */
+  flex-wrap:nowrap !important;
+  white-space:nowrap !important;
 
-  border-top:1px solid rgba(255,255,255,.05); /* subtle separation */
+  /* ✅ Horizontal scroll for overflow chips */
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+
+  /* separation */
+  border-top:1px solid rgba(255,255,255,.05);
   margin-top:2px;
   padding-top:12px;
 
-  scrollbar-width:none;
-}
-#nyxBubbleActions::-webkit-scrollbar{ width:0; height:0; }
+  /* smooth touch scrolling */
+  -webkit-overflow-scrolling:touch;
 
+  /* prevent layout shift when scrollbar appears */
+  scrollbar-gutter: stable both-edges;
+
+  /* Firefox */
+  scrollbar-width:thin;
+  scrollbar-color: rgba(255,255,255,.18) rgba(255,255,255,.05);
+}
+
+/* WebKit scrollbar (subtle, not ugly) */
+#nyxBubbleActions::-webkit-scrollbar{ height:8px; }
+#nyxBubbleActions::-webkit-scrollbar-track{
+  background: rgba(255,255,255,.05);
+  border-radius:999px;
+}
+#nyxBubbleActions::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.18);
+  border-radius:999px;
+}
+#nyxBubbleActions::-webkit-scrollbar-thumb:hover{
+  background: rgba(255,255,255,.26);
+}
+
+/* Optional: keep pills from shrinking */
 .action-pill{
   flex:0 0 auto;
   display:inline-flex;
