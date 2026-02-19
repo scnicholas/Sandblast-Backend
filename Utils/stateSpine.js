@@ -10,14 +10,16 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.6 (COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++)
- * ✅ Fix++++: coerceState no longer mutates updatedAt on read/coercion (only updateState/finalizeTurn mutate it)
- * ✅ Harden++++: patch fields sanitized (prevents accidental shape poisoning)
- * ✅ Add++++: runSpineSelfTests() (no deps, no side effects)
+ * v1.1.7 (PATCH POISON SHIELD++++ + VERSION LOCK++++ + PENDINGASK KIND FIX++++ + SELF-TESTS EXPAND++++)
+ * ✅ Fix++++: updateState/finalizeTurn always lock __spineVersion to SPINE_VERSION (prevents patch poisoning)
+ * ✅ Harden++++: patch cannot override createdAt/updatedAt/rev/__spineVersion
+ * ✅ Fix++++: normalizePendingAsk no longer maps id/type into kind (kind stays semantic, id/type remain compat)
+ * ✅ Add++++: self-tests cover version lock + poison shield
+ * ✅ Keeps: v1.1.6 COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++
  * ✅ Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.6";
+const SPINE_VERSION = "stateSpine v1.1.7";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -160,12 +162,9 @@ function normalizePendingAsk(p) {
   const idRaw = safeStr(p.id || "", 80).trim();
   const typeRaw = safeStr(p.type || "", 40).trim();
 
-  // Heuristic: prefer explicit kind; else map id/type into kind.
-  const kind =
-    kindRaw ||
-    (idRaw ? safeStr(idRaw, 40) : "") ||
-    (typeRaw ? safeStr(typeRaw, 40) : "") ||
-    "need_more_detail";
+  // FIX++++: kind stays semantic; do NOT map id/type into kind.
+  // (id/type remain as compat hints, but kind is the planner axis.)
+  const kind = kindRaw || "need_more_detail";
 
   const prompt = safeStr(p.prompt || "", 220).trim();
   const options = Array.isArray(p.options) ? p.options.slice(0, 8) : [];
@@ -186,11 +185,11 @@ function normalizePendingAsk(p) {
     prompt,
     options,
     createdAt,
+    required,
 
     // compat fields retained
     id: idRaw || undefined,
     type: typeRaw || undefined,
-    required,
   };
 
   return out;
@@ -481,6 +480,8 @@ function coerceState(prev) {
 
   // IMPORTANT: coerce must NOT mutate timestamps (only updateState/finalizeTurn do).
   const out = { ...d, ...prev };
+
+  // Always lock version marker (prevents patch poisoning)
   out.__spineVersion = SPINE_VERSION;
 
   out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
@@ -537,6 +538,16 @@ function coerceState(prev) {
   return out;
 }
 
+function stripPoisonKeys(patchObj) {
+  // PATCH POISON SHIELD++++: do not allow callers to overwrite these
+  const out = { ...patchObj };
+  delete out.__spineVersion;
+  delete out.rev;
+  delete out.createdAt;
+  delete out.updatedAt;
+  return out;
+}
+
 /**
  * Must be called ON EVERY TURN.
  * - merges safe fields
@@ -545,12 +556,14 @@ function coerceState(prev) {
  */
 function updateState(prev, patch = {}, reason = "turn") {
   const p = coerceState(prev);
-  const patchObj = isPlainObject(patch) ? patch : {};
+  const patchObjRaw = isPlainObject(patch) ? patch : {};
+  const patchObj = stripPoisonKeys(patchObjRaw);
   const updatedAt = nowIso();
 
   // Normalize pendingAsk in patch (supports chatEngine schema)
   const patchPendingAsk =
-    Object.prototype.hasOwnProperty.call(patchObj, "pendingAsk") && patchObj.pendingAsk === null
+    Object.prototype.hasOwnProperty.call(patchObj, "pendingAsk") &&
+    patchObj.pendingAsk === null
       ? null
       : patchObj.pendingAsk
       ? normalizePendingAsk(patchObj.pendingAsk)
@@ -564,6 +577,9 @@ function updateState(prev, patch = {}, reason = "turn") {
     ...p,
     ...patchObj,
 
+    // Always lock version marker (prevents patch poisoning)
+    __spineVersion: SPINE_VERSION,
+
     // core normalized
     lane: patchObj.lane ? normalizeLane(patchObj.lane) : p.lane,
     stage: patchObj.stage ? normalizeStage(patchObj.stage) : p.stage,
@@ -575,7 +591,9 @@ function updateState(prev, patch = {}, reason = "turn") {
 
     // Evidence trail (bounded, caller-controlled)
     lastUserText:
-      patchObj.lastUserText != null ? safeStr(patchObj.lastUserText, 0) : p.lastUserText,
+      patchObj.lastUserText != null
+        ? safeStr(patchObj.lastUserText, 0)
+        : p.lastUserText,
     lastAssistantSummary:
       patchObj.lastAssistantSummary != null
         ? safeStr(patchObj.lastAssistantSummary, 320)
@@ -613,6 +631,8 @@ function updateState(prev, patch = {}, reason = "turn") {
               typeof patchPendingAsk.required === "boolean"
                 ? patchPendingAsk.required
                 : true,
+            id: safeStr(patchPendingAsk.id || "", 80) || undefined,
+            type: safeStr(patchPendingAsk.type || "", 40) || undefined,
           }
         : p.pendingAsk,
 
@@ -634,7 +654,8 @@ function updateState(prev, patch = {}, reason = "turn") {
         ? patchObj.lastChipClicked
         : p.lastChipClicked,
 
-    lastMove: patchObj.lastMove != null ? safeStr(patchObj.lastMove, 20) : p.lastMove,
+    lastMove:
+      patchObj.lastMove != null ? safeStr(patchObj.lastMove, 20) : p.lastMove,
     lastDecision:
       patchObj.lastDecision && typeof patchObj.lastDecision === "object"
         ? {
@@ -1066,8 +1087,9 @@ function runSpineSelfTests() {
 
   // 4) pendingAsk normalize supports chatEngine schema
   const pa = normalizePendingAsk({ id: "need_year", type: "clarify", prompt: "Give year", required: true });
-  assert("pendingAsk_norm_kind", !!safeStr(pa.kind), safeStr(pa.kind));
-  assert("pendingAsk_norm_prompt", safeStr(pa.prompt).toLowerCase().includes("year"), pa.prompt);
+  assert("pendingAsk_kind_default", safeStr(pa.kind) === "need_more_detail", safeStr(pa.kind));
+  assert("pendingAsk_prompt_has_year", safeStr(pa.prompt).toLowerCase().includes("year"), pa.prompt);
+  assert("pendingAsk_id_preserved", safeStr(pa.id) === "need_year", safeStr(pa.id));
 
   // 5) decideNextMove honors actionable payload silent click
   const dm = decideNextMove(createState(), {
@@ -1077,7 +1099,14 @@ function runSpineSelfTests() {
   });
   assert("decide_actionable_payload_advance", dm.move === MOVE.ADVANCE, safeStr(dm.move));
 
-  return { ok: failures.length === 0, failures, ran: 5, v: SPINE_VERSION };
+  // 6) Patch poison shield: cannot override rev/createdAt/updatedAt/__spineVersion
+  const poison = updateState(st0, { rev: 999, createdAt: "X", updatedAt: "Y", __spineVersion: "BAD" }, "poison");
+  assert("poison_rev_ignored", poison.rev === st0.rev + 1, `${poison.rev}`);
+  assert("poison_createdAt_ignored", poison.createdAt === st0.createdAt, `${poison.createdAt}`);
+  assert("poison_updatedAt_overwritten", poison.updatedAt !== "Y", `${poison.updatedAt}`);
+  assert("poison_version_locked", poison.__spineVersion === SPINE_VERSION, `${poison.__spineVersion}`);
+
+  return { ok: failures.length === 0, failures, ran: 6, v: SPINE_VERSION };
 }
 
 module.exports = {
