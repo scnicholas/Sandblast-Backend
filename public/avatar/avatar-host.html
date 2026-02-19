@@ -13,11 +13,11 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117i (DEBUG HARD-GATE++++ + PROD CLEAN++++)
-     Fixes:
-     ✅ Cog badge + diag cannot be enabled by parent config
-     ✅ Debug UI ONLY via ?nyx_debug=1
-     ✅ Keeps all v9117h hero restore + fallback harden + loop/origin safe
+     v9117i (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+             + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
+     Notes:
+     - Avatar framing is HARD-LOCKED: hero stage logic preserved.
+     - Cog badge (Lane:music etc) is now DOUBLE-GATED: ?debug=1 AND config.debug=true.
      ============================================================ */
 
   :root{
@@ -26,26 +26,18 @@
     /* Default image fallback (poster / bg) */
     --nyx-hero-img-url: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
 
-    /* Widget framing knobs (calibrated via NYX_CAL) */
+    /* Widget framing knobs (calibrated via NYX_CAL) — HARD LOCKED */
     --nyx-hero-pos-x:50%;
     --nyx-hero-pos-y:10%;
-
-    /* For MP4: numeric scale */
     --nyx-hero-scale-num: 1.32;
-
-    /* Dim overlay */
     --nyx-hero-dim:.12;
 
     /* Card sizing */
     --nyx-card-w: min(448px, calc(100vw - 28px));
     --nyx-card-radius: 20px;
-
-    /* Card dock position */
     --nyx-card-bottom: 16px;
     --nyx-card-pad: 14px;
-
-    /* Card max height */
-    --nyx-card-max: clamp(320px, 54vh, 420px);
+    --nyx-card-max: clamp(320px, 54vh, 440px);
 
     /* Typography */
     --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -60,7 +52,7 @@
 
     /* Dialogue viewport clamp */
     --nyx-text-max: 118px;
-    --nyx-text-max-open: 240px;
+    --nyx-text-max-open: 260px;
 
     /* Efficiency tuning */
     --nyx-chrome-scale: .86;
@@ -73,7 +65,7 @@
     --ease: cubic-bezier(.2,.8,.2,1);
   }
 
-  /* ===== HERO STAGE (VIDEO-FIRST) ===== */
+  /* ===== HERO STAGE (VIDEO-FIRST) — HARD LOCKED ===== */
   #nyxStage{
     position:absolute;
     inset:0;
@@ -82,7 +74,6 @@
     z-index:1;
   }
 
-  /* Video layer */
   #nyxHeroVideo{
     position:absolute;
     inset:0;
@@ -96,16 +87,13 @@
     pointer-events:none;
   }
 
-  /* Fallback image if video fails/blocked */
   #nyxStage.is-image{
     background-repeat:no-repeat;
     background-size: 132% auto;
     background-position: var(--nyx-hero-pos-x) var(--nyx-hero-pos-y);
-    /* NOTE: background-image is set inline by JS as url("...") */
   }
   #nyxStage.is-image #nyxHeroVideo{ display:none; }
 
-  /* Dim / vignette overlay */
   #nyxStage::after{
     content:"";
     position:absolute;
@@ -118,17 +106,14 @@
     z-index:2;
   }
 
-  /* Micro-pause pulse */
   @keyframes nyxPulse{
     0%{filter:brightness(1) saturate(1);}
     50%{filter:brightness(1.08) saturate(1.06);}
     100%{filter:brightness(1) saturate(1);}
   }
-  html.nyx-thinking #nyxStage{
-    animation: nyxPulse .55s ease-in-out 1;
-  }
+  html.nyx-thinking #nyxStage{ animation: nyxPulse .55s ease-in-out 1; }
 
-  /* ===== Overlay layout (face-first) ===== */
+  /* ===== Overlay layout ===== */
   #nyxOverlay{
     position:absolute;
     inset:0;
@@ -140,7 +125,6 @@
     pointer-events:none;
     z-index:10;
   }
-
   #nyxCard, #nyxCard * { pointer-events:auto; }
 
   /* ===== Docked Card ===== */
@@ -154,15 +138,16 @@
     box-shadow:0 26px 90px rgba(0,0,0,.78);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
+
     padding:var(--nyx-card-pad);
     margin-bottom: var(--nyx-card-bottom);
     max-height: var(--nyx-card-max);
     overflow:hidden;
+
     display:flex;
     flex-direction:column;
   }
 
-  /* ===== Header row ===== */
   .nyx-head{
     display:flex;
     align-items:center;
@@ -240,7 +225,7 @@
     border-color: rgba(255,255,255,.22);
   }
 
-  /* ===== Cog badge (DEBUG-ONLY) ===== */
+  /* ===== Debug surfaces (DOUBLE-GATED) ===== */
   #nyxCogBadge{
     margin: 0 0 10px 0;
     padding:8px 12px;
@@ -257,6 +242,17 @@
     display:none;
   }
 
+  #nyxDiag{
+    margin-top:10px;
+    font:12px ui-monospace, Menlo, Consolas, monospace;
+    color: rgba(255,255,255,.55);
+    user-select:none;
+    display:none;
+  }
+
+  html.nyx-debug #nyxDiag{ display:block; }
+  html.nyx-debug #nyxCogBadge{ display:inline-flex; }
+
   /* ===== Scroll region ===== */
   #nyxScroll{
     flex: 1 1 auto;
@@ -267,10 +263,10 @@
     scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,0);
   }
 
-  /* ===== Dialogue text ===== */
+  /* ===== Dialogue: clamped shows last assistant line only ===== */
   #nyxText{
     color: rgba(255,255,255,.96);
-    font: 500 15.4px var(--nyx-font);
+    font: 500 15.2px var(--nyx-font);
     line-height: 1.55;
     letter-spacing: .15px;
     white-space: pre-wrap;
@@ -285,7 +281,6 @@
     mask-image: linear-gradient(180deg, #000 78%, rgba(0,0,0,0));
     -webkit-mask-image: linear-gradient(180deg, #000 78%, rgba(0,0,0,0));
   }
-
   #nyxCard.is-open #nyxText{
     max-height: var(--nyx-text-max-open);
     mask-image:none;
@@ -298,39 +293,67 @@
     margin:12px 0 12px 0;
   }
 
-  /* ===== Chips rail ===== */
-  .nyx-rail{ position:relative; }
-  .nyx-rail::before,
-  .nyx-rail::after{
-    content:"";
-    position:absolute;
-    top:0; bottom:0;
-    width:22px;
-    pointer-events:none;
-    opacity:.9;
+  /* ===== Transcript (EXPAND-ONLY) ===== */
+  #nyxThread{
+    display:none;
+    margin: 8px 0 10px 0;
+    gap:8px;
+    flex-direction:column;
   }
-  .nyx-rail::before{
-    left:0;
-    background: linear-gradient(90deg, rgba(12,12,16,.95), rgba(12,12,16,0));
+  #nyxCard.is-open #nyxThread{ display:flex; }
+
+  .nyx-msg{
+    display:flex;
+    gap:8px;
+    align-items:flex-start;
   }
-  .nyx-rail::after{
-    right:0;
-    background: linear-gradient(270deg, rgba(12,12,16,.95), rgba(12,12,16,0));
+  .nyx-msg .who{
+    flex:0 0 auto;
+    width:28px;height:28px;
+    border-radius:999px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font: 750 12px var(--nyx-font);
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.22);
+    color: rgba(255,255,255,.86);
+  }
+  .nyx-msg.user .who{
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.92);
+  }
+  .nyx-msg.nyx .who{
+    background: rgba(140,0,35,.18);
+    border-color: rgba(140,0,35,.45);
+  }
+  .nyx-msg .bubble{
+    flex:1 1 auto;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.26);
+    padding:10px 12px;
+    color: rgba(255,255,255,.94);
+    font: 500 13.6px var(--nyx-font);
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+  .nyx-msg.user .bubble{
+    background: rgba(255,255,255,.06);
+    border-color: rgba(255,255,255,.12);
   }
 
+  /* ===== Chips rail — NOW WRAPS CLEANLY (no cut-off) ===== */
+  .nyx-rail{ position:relative; }
   #nyxChips{
     display:flex;
-    flex-wrap:nowrap;
+    flex-wrap:wrap;          /* CRITICAL: fit all chips */
     gap:8px;
-    overflow-x:auto;
-    overflow-y:hidden;
-    padding: 2px 18px 2px 18px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    overflow:hidden;         /* no “smidgen” peeking */
+    padding: 2px 0 2px 0;
     transition: opacity .22s var(--ease), transform .22s var(--ease), filter .22s var(--ease);
     will-change: opacity, transform, filter;
   }
-  #nyxChips::-webkit-scrollbar{ display:none; }
 
   html.nyx-chips-hidden #nyxChips{
     opacity:0;
@@ -347,8 +370,8 @@
 
   .action-pill{
     flex:0 0 auto;
-    font: 12.5px var(--nyx-font);
-    padding:8px 12px;
+    font: 12.2px var(--nyx-font);
+    padding:8px 11px;
     border-radius:999px;
     border:1px solid rgba(255,255,255,.14);
     background: rgba(255,255,255,.06);
@@ -363,17 +386,41 @@
     text-decoration:none;
     white-space:nowrap;
   }
-
   .action-pill:hover{
     transform: translateY(-1px);
     background: var(--nyx-accent-soft);
     border-color: rgba(140,0,35,.55);
     box-shadow: 0 12px 28px rgba(0,0,0,.35);
   }
-
   .action-pill.is-active{
     border-color: rgba(140,0,35,.60);
     background: rgba(140,0,35,.22);
+  }
+
+  /* ===== Roku link row (shown only on Roku lane) ===== */
+  #nyxLinks{
+    display:none;
+    gap:10px;
+    margin-top:10px;
+  }
+  #nyxLinks.show{ display:flex; }
+  .nyx-link{
+    flex:0 0 auto;
+    font: 12px var(--nyx-font);
+    padding:8px 10px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.18);
+    color: rgba(255,255,255,.88);
+    cursor:pointer;
+    user-select:none;
+    transition: filter .16s var(--ease), border-color .16s var(--ease), transform .16s var(--ease);
+    white-space:nowrap;
+  }
+  .nyx-link:hover{
+    filter: brightness(1.08);
+    border-color: rgba(255,255,255,.18);
+    transform: translateY(-1px);
   }
 
   /* ===== Input row ===== */
@@ -382,7 +429,6 @@
     gap:10px;
     margin-top:12px;
   }
-
   #nyxInput{
     flex:1;
     min-width: 0;
@@ -418,20 +464,6 @@
     filter:none;
   }
 
-  /* ===== Diagnostics ===== */
-  #nyxDiag{
-    margin-top:10px;
-    font:12px ui-monospace, Menlo, Consolas, monospace;
-    color: rgba(255,255,255,.55);
-    user-select:none;
-    display:none;
-  }
-
-  /* IMPORTANT: debug UI only shows when html has .nyx-debug,
-     and .nyx-debug can only be enabled via ?nyx_debug=1 (JS hard gate). */
-  html.nyx-debug #nyxDiag{ display:block; }
-  html.nyx-debug #nyxCogBadge{ display:inline-flex; }
-
   button:focus, input:focus{
     outline: none;
     box-shadow: 0 0 0 3px rgba(140,0,35,.25);
@@ -442,20 +474,18 @@
     #nyxOverlay{ align-items:center; padding:12px; }
     :root{
       --nyx-card-w: min(460px, calc(100vw - 20px));
-      --nyx-card-max: clamp(320px, 58vh, 460px);
+      --nyx-card-max: clamp(320px, 58vh, 480px);
       --nyx-text-max: 110px;
-      --nyx-text-max-open: 220px;
+      --nyx-text-max-open: 240px;
       --nyx-hero-pos-y: 20%;
       --nyx-hero-scale-num: 1.20;
     }
-    .nyx-rail::before,.nyx-rail::after{ width:16px; }
-    #nyxChips{ padding-left:14px; padding-right:14px; }
+    .action-pill{ font-size:12px; padding:8px 10px; }
   }
 
   @media (prefers-reduced-motion: reduce){
     .action-pill{ transition:none; }
     .nyx-btn{ transition:none; }
-    #nyxChips{ transition:none; }
     html.nyx-thinking #nyxStage{ animation:none; }
   }
 </style>
@@ -485,6 +515,10 @@
       <div id="nyxCogBadge" aria-live="polite"></div>
 
       <div id="nyxScroll">
+        <!-- EXPAND-ONLY transcript -->
+        <div id="nyxThread" aria-label="Conversation transcript"></div>
+
+        <!-- Always present: last Nyx output (sleek mode) -->
         <div id="nyxText" aria-live="polite">Hi… I’m Nyx. How are you today?</div>
 
         <div class="nyx-divider"></div>
@@ -494,10 +528,17 @@
             <div class="action-pill is-active" data-chip="general">General</div>
             <div class="action-pill" data-chip="music">Music</div>
             <div class="action-pill" data-chip="roku">Roku</div>
+            <div class="action-pill" data-chip="movies">Movies</div>
             <div class="action-pill" data-chip="schedule">Schedule↗</div>
             <div class="action-pill" data-chip="radio">Radio</div>
-            <div class="action-pill" data-chip="news-canada">News Canada↗</div>
+            <!-- News Canada removed for now to keep chips clean and fully visible -->
           </div>
+        </div>
+
+        <!-- Roku lane links (clean + not chip-crowding) -->
+        <div id="nyxLinks" aria-label="Roku links">
+          <button class="nyx-link" id="nyxLinkRoku" type="button">Open Roku</button>
+          <button class="nyx-link" id="nyxLinkSBTV" type="button">Sandblast TV</button>
         </div>
 
         <div class="nyx-row">
@@ -513,13 +554,6 @@
 <script>
 (function(){
   "use strict";
-
-  // ===== Debug hard gate (cannot be enabled by parent config) =====
-  var DEBUG_ALLOWED = false;
-  try{
-    var qs = new URLSearchParams(location.search || "");
-    DEBUG_ALLOWED = (qs.get("nyx_debug") === "1");
-  }catch(_){}
 
   // ==========
   // Utilities
@@ -540,7 +574,6 @@
     return s;
   }
   function escapeRegExp(s){
-    // FIXED: correct character class
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
   function sha1Lite(str){
@@ -552,7 +585,6 @@
     }
     return (h >>> 0).toString(16);
   }
-
   function safeCssUrl(raw){
     var s = safeStr(raw).trim();
     if(!s) return "";
@@ -560,12 +592,10 @@
     s = s.replace(/[\r\n\t]/g, "");
     return s;
   }
-
   function isMp4Url(u){
     u = safeStr(u).toLowerCase();
     return (u.indexOf(".mp4") > -1) || (u.indexOf("video/mp4") > -1);
   }
-
   function parseScaleToNumber(v){
     var s = safeStr(v).trim();
     if(!s) return 1.0;
@@ -585,6 +615,7 @@
   var diagEl = $("nyxDiag");
   var cardEl = $("nyxCard");
   var textEl = $("nyxText");
+  var threadEl = $("nyxThread");
   var expandBtn = $("nyxExpand");
   var chipsEl = $("nyxChips");
   var inputEl = $("nyxInput");
@@ -593,13 +624,14 @@
   var voiceBtn = $("nyxVoiceToggle");
   var cogEl = $("nyxCogBadge");
   var marionEl = $("nyxMarion");
+  var linksWrap = $("nyxLinks");
+  var linkRoku = $("nyxLinkRoku");
+  var linkSBTV = $("nyxLinkSBTV");
 
   var stageEl = $("nyxStage");
   var heroVid = $("nyxHeroVideo");
 
-  function diag(msg){
-    if(diagEl) diagEl.textContent = msg;
-  }
+  function diag(msg){ if(diagEl) diagEl.textContent = msg; }
 
   // ==========
   // Efficiency states
@@ -624,15 +656,22 @@
     return new Promise(function(res){ setTimeout(res, ms); });
   }
 
+  // Hide chips until first real assistant reply
   var HAS_ASSISTANT_SPOKEN = false;
   setChipsHidden();
 
   // ==========
-  // Config / Debug gate
+  // Config / Debug gate (DOUBLE-GATED)
   // ==========
   var PARENT_ORIGIN = null;
   var READY_ACK = false;
   var CONFIG_ONCE_HASH = "";
+
+  function urlHasDebug(){
+    try{
+      return /(?:\?|&)debug=1(?:&|$)/i.test(location.search || "");
+    }catch(_){ return false; }
+  }
 
   var CONFIG = {
     version: "9117i",
@@ -642,17 +681,21 @@
     voiceDefaultOn: false,
     publicMode: true,
     forbiddenNames: ["Mac"],
-    debug: false
+    debug: false,
+
+    // optional nav urls (parent may override)
+    nav: {
+      roku: "https://www.roku.com/",
+      sandblastTV: "https://sandblast.channel/"
+    }
   };
 
   function applyDebugGate(){
-    // Debug can ONLY be enabled locally via ?nyx_debug=1
-    var dbg = !!(CONFIG.debug && DEBUG_ALLOWED);
-
-    document.documentElement.classList.toggle("nyx-debug", dbg);
-
-    if(cogEl) cogEl.style.display = dbg ? "inline-flex" : "none";
-    if(diagEl) diagEl.style.display = dbg ? "block" : "none";
+    // DOUBLE-GATE: must be URL ?debug=1 AND config.debug true
+    var allow = !!CONFIG.debug && urlHasDebug();
+    document.documentElement.classList.toggle("nyx-debug", allow);
+    if(!allow && cogEl) cogEl.style.display = "none";
+    if(!allow && diagEl) diagEl.style.display = "none";
   }
 
   // ==========
@@ -700,18 +743,20 @@
   }
 
   // ==========
-  // Debug badge renderer (DEBUG-ONLY, hard gated)
+  // Debug badge renderer (only when debug gate passes)
   // ==========
   function renderCogBadge(data){
     if(!cogEl) return;
-    if(!(CONFIG.debug && DEBUG_ALLOWED)) { cogEl.style.display = "none"; return; }
+    if(!(document.documentElement.classList.contains("nyx-debug"))){
+      cogEl.style.display = "none";
+      return;
+    }
 
     var lane = (data && typeof data.lane === "string") ? data.lane : "";
     var cog = (data && data.cog && typeof data.cog === "object") ? data.cog : null;
 
     var parts = [];
     if(lane) parts.push("lane:" + safeStr(lane));
-
     if(cog){
       if(cog.mode) parts.push("mode:" + safeStr(cog.mode));
       if(cog.intent) parts.push("intent:" + safeStr(cog.intent));
@@ -734,7 +779,7 @@
   }
 
   // ==========
-  // Hero stage wiring (CRITICAL FIXES)
+  // Hero stage wiring (HARDENED)
   // ==========
   function setStageImage(url){
     if(!stageEl) return;
@@ -781,7 +826,6 @@
     return true;
   }
 
-  // Boot defaults so Nyx is never black even without config
   (function bootHeroDefaults(){
     try{
       var rawImg = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-img-url");
@@ -811,7 +855,6 @@
     heroVid.setAttribute("muted", "muted");
     heroVid.setAttribute("autoplay", "autoplay");
 
-    // If autoplay is blocked, fallback to image after a short grace window.
     var autoplayGuard = setTimeout(function(){
       try{
         if(heroVid.readyState < 2){
@@ -875,7 +918,7 @@
   sendReady();
 
   // ==========
-  // Inbound messages (origin lock hardened)
+  // Inbound messages (origin lock)
   // ==========
   var ORIGIN_LEARN_TYPES = {
     "NYX_READY_ACK": true,
@@ -921,7 +964,8 @@
           heroSrc: safeStr(c.heroSrc||"").trim(),
           voiceDefaultOn: !!c.voiceDefaultOn,
           publicMode: (c.publicMode !== false),
-          debug: !!c.debug
+          debug: !!c.debug,
+          nav: c.nav || null
         })).slice(0,18);
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
@@ -937,9 +981,12 @@
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
         if(typeof c.publicMode === "boolean") CONFIG.publicMode = c.publicMode;
         if(Array.isArray(c.forbiddenNames)) CONFIG.forbiddenNames = c.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
+        if(typeof c.debug === "boolean") CONFIG.debug = c.debug;
 
-        // HARD GATE: parent cannot enable debug unless URL allows it
-        if(typeof c.debug === "boolean") CONFIG.debug = (DEBUG_ALLOWED ? c.debug : false);
+        if(c.nav && typeof c.nav === "object"){
+          if(typeof c.nav.roku === "string") CONFIG.nav.roku = safeStr(c.nav.roku).trim();
+          if(typeof c.nav.sandblastTV === "string") CONFIG.nav.sandblastTV = safeStr(c.nav.sandblastTV).trim();
+        }
 
         applyDebugGate();
 
@@ -969,7 +1016,6 @@
 
       if(t === "NYX_CAL" && data.cal && typeof data.cal === "object"){
         var cal = data.cal;
-
         if(typeof cal.heroPosX === "string") document.documentElement.style.setProperty("--nyx-hero-pos-x", cal.heroPosX);
         if(typeof cal.heroPosY === "string") document.documentElement.style.setProperty("--nyx-hero-pos-y", cal.heroPosY);
 
@@ -977,7 +1023,6 @@
           var n = parseScaleToNumber(cal.heroScale);
           document.documentElement.style.setProperty("--nyx-hero-scale-num", String(n));
         }
-
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
         diag("HOST v9117i • cal applied");
@@ -1011,12 +1056,10 @@
     timeoutMs = timeoutMs || 12000;
 
     var headers = { "Content-Type":"application/json" };
-
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
     }
-
     headers["X-Client-Source"] = "nyx_host_iframe";
     headers["X-Route-Hint"] = safeStr(payload && payload.client && payload.client.routeHint ? payload.client.routeHint : UI_STATE.lane);
 
@@ -1050,7 +1093,7 @@
   }
 
   // ==========
-  // UI State
+  // UI State + Lane Hard-Lock
   // ==========
   var UI_STATE = {
     lane: "general",
@@ -1059,6 +1102,7 @@
     sttOn: false,
     pending: false,
     lastRequestId: null,
+    laneHardLock: true,   // CRITICAL: never drift lanes visually
 
     __lastOutboundSig: "",
     __lastOutboundAt: 0,
@@ -1071,12 +1115,152 @@
     if(chip === "general") return "general";
     if(chip === "music") return "music";
     if(chip === "roku") return "roku";
+    if(chip === "movies") return "movies";
     if(chip === "radio") return "radio";
     if(chip === "schedule") return "schedule";
-    if(chip === "news-canada") return "news-canada";
     return "general";
   }
 
+  // ==========
+  // Transcript (expand-only)
+  // ==========
+  var THREAD = [];
+  var MAX_TURNS = 14;
+
+  function pushThread(role, text){
+    var t = safeStr(text).trim();
+    if(!t) return;
+    THREAD.push({ role: role, text: t, ts: now() });
+    if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS);
+  }
+
+  function renderThread(){
+    if(!threadEl) return;
+    if(!(cardEl && cardEl.classList.contains("is-open"))){
+      threadEl.innerHTML = "";
+      return;
+    }
+    var html = "";
+    for(var i=0;i<THREAD.length;i++){
+      var m = THREAD[i];
+      var who = (m.role === "user") ? "U" : "N";
+      var cls = (m.role === "user") ? "nyx-msg user" : "nyx-msg nyx";
+      html += '<div class="'+cls+'"><div class="who">'+who+'</div><div class="bubble"></div></div>';
+    }
+    threadEl.innerHTML = html;
+
+    // fill text safely
+    var rows = threadEl.querySelectorAll(".nyx-msg");
+    for(var j=0;j<rows.length;j++){
+      var bub = rows[j].querySelector(".bubble");
+      if(bub) bub.textContent = THREAD[j].text;
+    }
+  }
+
+  // ==========
+  // Expand/Collapse
+  // ==========
+  var isExpanded = false;
+  function applyClampUI(){
+    if(!cardEl) return;
+    cardEl.classList.toggle("is-open", isExpanded);
+    cardEl.classList.toggle("is-clamped", !isExpanded);
+    if(expandBtn) expandBtn.textContent = isExpanded ? "Collapse" : "Expand";
+    renderThread();
+  }
+  if(expandBtn){
+    expandBtn.addEventListener("click", function(){
+      isExpanded = !isExpanded;
+      applyClampUI();
+    });
+  }
+  applyClampUI();
+
+  // ==========
+  // Chips + lane + Roku link row
+  // ==========
+  function updateRokuLinksVisibility(){
+    if(!linksWrap) return;
+    linksWrap.classList.toggle("show", UI_STATE.lane === "roku");
+  }
+
+  function setActiveChip(chip){
+    UI_STATE.chip = chip;
+    UI_STATE.lane = laneFromChip(chip);
+    updateRokuLinksVisibility();
+
+    if(chipsEl){
+      var pills = chipsEl.querySelectorAll(".action-pill");
+      for(var i=0;i<pills.length;i++){
+        var p = pills[i];
+        var c = p.getAttribute("data-chip");
+        p.classList.toggle("is-active", c === chip);
+      }
+    }
+  }
+
+  function openLink(where){
+    postToParent({ type:"NYX_NAV", where: where, lane: UI_STATE.lane, ts: now() }, false);
+  }
+
+  function handleChipClick(chip){
+    chip = safeStr(chip).trim();
+    if(!chip) return;
+
+    setActiveChip(chip);
+
+    // external nav chip
+    if(chip === "schedule"){
+      openLink("schedule");
+      return;
+    }
+
+    // internal lanes
+    var packet = buildIntentPacket({
+      text: "",
+      chip: chip,
+      lane: UI_STATE.lane,
+      action: "chip",
+      intent: "select",
+      label: chip
+    });
+
+    postToParent({ type:"NYX_CHIP", v:CONFIG.version, ts:now(), chip: chip, lane: UI_STATE.lane }, false);
+    return sendPacket(packet);
+  }
+
+  if(chipsEl){
+    chipsEl.addEventListener("click", function(e){
+      try{
+        var t = e.target;
+        while(t && t !== chipsEl && !(t.classList && t.classList.contains("action-pill"))){
+          t = t.parentNode;
+        }
+        if(!t || t === chipsEl) return;
+        var chip = t.getAttribute("data-chip");
+        if(!chip) return;
+        handleChipClick(chip);
+      }catch(_){}
+    });
+  }
+
+  if(linkRoku){
+    linkRoku.addEventListener("click", function(){
+      // parent should open the actual URL; host just requests navigation
+      postToParent({ type:"NYX_NAV", where:"roku-site", url: CONFIG.nav.roku, ts: now() }, false);
+    });
+  }
+  if(linkSBTV){
+    linkSBTV.addEventListener("click", function(){
+      postToParent({ type:"NYX_NAV", where:"sandblast-tv", url: CONFIG.nav.sandblastTV, ts: now() }, false);
+    });
+  }
+
+  setActiveChip("general");
+
+  // ==========
+  // Intent packet builder (lane hard-lock included)
+  // ==========
   function buildIntentPacket(opts){
     opts = (opts && typeof opts === "object") ? opts : {};
 
@@ -1097,10 +1281,13 @@
 
     var payload = {
       lane: lane,
+      chip: chip || undefined,
       action: action || undefined,
       intent: intent || undefined,
       label: label || undefined,
-      chip: chip || undefined
+
+      // CRITICAL: tell backend we consider lane locked (it should respect this)
+      laneHardLock: true
     };
 
     var turnSignals = {
@@ -1132,88 +1319,12 @@
   }
 
   // ==========
-  // Expand/Collapse
+  // Voice (intro unlock)
   // ==========
-  var isExpanded = false;
-  function applyClampUI(){
-    if(!cardEl) return;
-    cardEl.classList.toggle("is-open", isExpanded);
-    cardEl.classList.toggle("is-clamped", !isExpanded);
-    if(expandBtn) expandBtn.textContent = isExpanded ? "Collapse" : "Expand";
-  }
-  if(expandBtn){
-    expandBtn.addEventListener("click", function(){
-      isExpanded = !isExpanded;
-      applyClampUI();
-    });
-  }
-  applyClampUI();
+  var AUDIO_UNLOCKED = false;
+  var INTRO_SPOKEN = false;
+  var INTRO_TEXT = "Hi… I’m Nyx. How are you today?";
 
-  // ==========
-  // Chips
-  // ==========
-  function setActiveChip(chip){
-    UI_STATE.chip = chip;
-    UI_STATE.lane = laneFromChip(chip);
-
-    if(chipsEl){
-      var pills = chipsEl.querySelectorAll(".action-pill");
-      for(var i=0;i<pills.length;i++){
-        var p = pills[i];
-        var c = p.getAttribute("data-chip");
-        p.classList.toggle("is-active", c === chip);
-      }
-    }
-  }
-
-  function openLinkForChip(chip){
-    postToParent({ type:"NYX_NAV", where: chip, lane: laneFromChip(chip), ts: now() }, false);
-  }
-
-  function handleChipClick(chip){
-    chip = safeStr(chip).trim();
-    if(!chip) return;
-
-    if(chip === "schedule" || chip === "news-canada"){
-      setActiveChip(chip);
-      openLinkForChip(chip);
-      return;
-    }
-
-    setActiveChip(chip);
-
-    var packet = buildIntentPacket({
-      text: "",
-      chip: chip,
-      lane: UI_STATE.lane,
-      action: "chip",
-      intent: "select",
-      label: chip
-    });
-
-    postToParent({ type:"NYX_CHIP", v:CONFIG.version, ts:now(), chip: chip, lane: UI_STATE.lane }, false);
-    return sendPacket(packet);
-  }
-
-  if(chipsEl){
-    chipsEl.addEventListener("click", function(e){
-      try{
-        var t = e.target;
-        while(t && t !== chipsEl && !(t.classList && t.classList.contains("action-pill"))){
-          t = t.parentNode;
-        }
-        if(!t || t === chipsEl) return;
-        var chip = t.getAttribute("data-chip");
-        if(!chip) return;
-        handleChipClick(chip);
-      }catch(_){}
-    });
-  }
-  setActiveChip("general");
-
-  // ==========
-  // Voice
-  // ==========
   function setVoice(on){
     UI_STATE.voiceOn = !!on;
     if(voiceBtn) voiceBtn.classList.toggle("is-on", UI_STATE.voiceOn);
@@ -1232,6 +1343,7 @@
     if(!UI_STATE.voiceOn) return;
     var s = safeStr(text).trim();
     if(!s) return;
+    if(!AUDIO_UNLOCKED) return; // browser gesture policy
 
     stopAudio();
 
@@ -1268,11 +1380,34 @@
     }catch(_){}
   }
 
+  function unlockAudioAndMaybeIntro(){
+    if(AUDIO_UNLOCKED) return;
+    AUDIO_UNLOCKED = true;
+
+    // If voice is ON, speak the intro once right after first interaction
+    if(UI_STATE.voiceOn && !INTRO_SPOKEN){
+      INTRO_SPOKEN = true;
+      speak(INTRO_TEXT);
+    }
+  }
+
+  // Any interaction in card unlocks audio for later TTS
+  if(cardEl){
+    cardEl.addEventListener("pointerdown", unlockAudioAndMaybeIntro, { passive:true });
+    cardEl.addEventListener("keydown", unlockAudioAndMaybeIntro, { passive:true });
+  }
+
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
       setVoice(!UI_STATE.voiceOn);
       if(!UI_STATE.voiceOn) stopAudio();
       postToParent({ type:"NYX_VOICE_TOGGLE", v:CONFIG.version, ts:now(), on: UI_STATE.voiceOn }, false);
+
+      // If turning ON after interaction, speak intro once (nice touch)
+      if(UI_STATE.voiceOn && AUDIO_UNLOCKED && !INTRO_SPOKEN){
+        INTRO_SPOKEN = true;
+        speak(INTRO_TEXT);
+      }
     });
   }
 
@@ -1383,6 +1518,8 @@
     thinkingOff();
 
     setText(text);
+    pushThread("nyx", text);
+    renderThread();
 
     if(!HAS_ASSISTANT_SPOKEN){
       HAS_ASSISTANT_SPOKEN = true;
@@ -1421,7 +1558,12 @@
     setMarionOn(marionPresent(out));
     renderCogBadge(out);
 
-    var rSig = replySig(out, packet.lane);
+    // LANE HARD-LOCK: never let backend drift change the UI lane.
+    // We still include backend lane in NYX_REPLY for telemetry, but UI stays stable.
+    var backendLane = safeStr(out && out.lane || "");
+    var uiLane = packet.lane;
+
+    var rSig = replySig(out, uiLane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
       diag("HOST v9117i • deduped reply");
@@ -1441,7 +1583,8 @@
         v:CONFIG.version,
         ts:now(),
         reply: out.reply,
-        lane: out.lane || packet.lane,
+        lane: backendLane || uiLane,
+        uiLane: uiLane,
         cog: sanitizeCog(out.cog),
         meta: out.meta || {}
       }, false);
@@ -1460,7 +1603,8 @@
         ts:now(),
         status: status,
         error: (out && out.error) || "error",
-        lane: out && out.lane ? out.lane : packet.lane,
+        lane: backendLane || uiLane,
+        uiLane: uiLane,
         cog: sanitizeCog(out && out.cog ? out.cog : null),
         meta: out && out.meta ? out.meta : {}
       }, false);
@@ -1473,6 +1617,10 @@
   function sendTypedText(){
     var text = (inputEl && inputEl.value) ? String(inputEl.value).trim() : "";
     if(!text) return;
+
+    // transcript: show user message when expanded (and keep it for context)
+    pushThread("user", text);
+    renderThread();
 
     var packet = buildIntentPacket({
       text: text,
@@ -1497,13 +1645,11 @@
         sendTypedText();
       }
     });
-
-    // v9117h FIX preserved: do not hide/show chips loop while typing
-    inputEl.addEventListener("input", function(){
-      if(!HAS_ASSISTANT_SPOKEN) return;
-    }, { passive:true });
   }
 
+  // ==========
+  // Final init
+  // ==========
   setMarionOn(false);
   applyDebugGate();
 
