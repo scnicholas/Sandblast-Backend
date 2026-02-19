@@ -1,0 +1,206 @@
+{
+  "packId": "cyber_foundations_v1",
+  "domain": "cybersecurity",
+  "packType": "foundations",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Foundational cybersecurity concepts, models, and vocabulary for Nyx/Marion to reason with defensively and explain clearly.",
+  "principles": [
+    {
+      "id": "principle_cia",
+      "name": "CIA Triad",
+      "summary": "Confidentiality, Integrity, Availability: the classic security outcome goals.",
+      "useWhen": ["risk framing", "control selection", "incident impact assessment"],
+      "notes": ["Use as a simple mental model; modern programs also emphasize privacy, safety, and resilience."],
+      "retrievalHints": {
+        "keywords": ["confidentiality", "integrity", "availability", "cia triad"],
+        "intentSignals": ["risk", "controls", "security basics"]
+      }
+    },
+    {
+      "id": "principle_least_privilege",
+      "name": "Least Privilege",
+      "summary": "Grant only the minimum access needed, for the minimum time needed.",
+      "useWhen": ["IAM design", "admin access", "service accounts", "RBAC reviews"],
+      "notes": ["Pair with periodic access reviews and just-in-time (JIT) access where possible."],
+      "retrievalHints": {
+        "keywords": ["least privilege", "rbac", "admin", "permissions", "jit access"],
+        "intentSignals": ["identity", "access", "iam"]
+      }
+    },
+    {
+      "id": "principle_defense_in_depth",
+      "name": "Defense in Depth",
+      "summary": "Multiple overlapping controls so a single failure doesn’t become a full compromise.",
+      "useWhen": ["architecture", "control strategy", "security roadmap"],
+      "notes": ["Avoid piling controls without threat-model logic; layers should be purposeful."],
+      "retrievalHints": {
+        "keywords": ["defense in depth", "layers", "multiple controls"],
+        "intentSignals": ["architecture", "strategy", "roadmap"]
+      }
+    },
+    {
+      "id": "principle_assume_breach",
+      "name": "Assume Breach",
+      "summary": "Design as if compromise will happen; optimize for detection and containment.",
+      "useWhen": ["logging strategy", "segmentation", "incident readiness", "zero trust"],
+      "notes": ["This is a posture, not paranoia: it drives telemetry and response readiness."],
+      "retrievalHints": {
+        "keywords": ["assume breach", "containment", "detect", "telemetry"],
+        "intentSignals": ["incident", "zero trust", "monitoring"]
+      }
+    },
+    {
+      "id": "principle_secure_by_default",
+      "name": "Secure by Default",
+      "summary": "Systems should start in a safe configuration; requiring insecure opt-ins is a failure mode.",
+      "useWhen": ["product design", "configuration", "templates", "platform hardening"],
+      "notes": ["Combine with secure-by-design and secure-by-deployment guidance."],
+      "retrievalHints": {
+        "keywords": ["secure by default", "hardening", "baseline", "configuration"],
+        "intentSignals": ["setup", "config", "best practice"]
+      }
+    }
+  ],
+  "models": [
+    {
+      "id": "model_threat_actor_capability",
+      "name": "Threat Actor / Capability / Intent",
+      "summary": "Model threats by who might attack, what they can do, and why they’d do it.",
+      "useWhen": ["threat modeling", "risk analysis", "prioritization"],
+      "steps": [
+        "Identify assets and business impact.",
+        "Identify plausible actors (opportunistic, criminal, insider, nation-state).",
+        "Assess capability (tools, access, skill) and intent (motive).",
+        "Map to likely attack paths and mitigations."
+      ],
+      "retrievalHints": {
+        "keywords": ["threat actor", "capability", "intent", "motive", "insider"],
+        "intentSignals": ["threat model", "risk", "prioritize"]
+      }
+    },
+    {
+      "id": "model_kill_chain",
+      "name": "Intrusion Kill Chain (high-level)",
+      "summary": "A generic sequence of attack stages (recon to actions on objectives) to plan detections and controls.",
+      "useWhen": ["SOC detection mapping", "blue team planning", "incident reviews"],
+      "notes": ["Use at a high level; avoid turning it into operational offensive guidance."],
+      "stages": [
+        "Reconnaissance",
+        "Weaponization",
+        "Delivery",
+        "Exploitation",
+        "Installation",
+        "Command and Control",
+        "Actions on Objectives"
+      ],
+      "retrievalHints": {
+        "keywords": ["kill chain", "reconnaissance", "c2", "command and control"],
+        "intentSignals": ["detection", "incident", "soc"]
+      }
+    },
+    {
+      "id": "model_zero_trust",
+      "name": "Zero Trust (outcomes view)",
+      "summary": "Continuously verify and minimize trust: strong identity, device posture, least privilege, segmentation, and telemetry.",
+      "useWhen": ["architecture", "access modernization", "cloud security"],
+      "components": [
+        "Strong authentication & identity governance",
+        "Device posture / endpoint health",
+        "Micro-segmentation / network policy",
+        "Continuous authorization & risk-based access",
+        "Centralized logging & detection"
+      ],
+      "retrievalHints": {
+        "keywords": ["zero trust", "continuous verification", "microsegmentation"],
+        "intentSignals": ["architecture", "iam", "cloud"]
+      }
+    }
+  ],
+  "vocabulary": [
+    {
+      "id": "term_asset",
+      "term": "Asset",
+      "definition": "Anything of value to protect: data, systems, credentials, people, reputation.",
+      "examples": ["customer PII", "API keys", "streaming content library", "billing system"],
+      "retrievalHints": { "keywords": ["asset", "what to protect"], "intentSignals": ["risk", "inventory"] }
+    },
+    {
+      "id": "term_attack_surface",
+      "term": "Attack Surface",
+      "definition": "All the ways an attacker can interact with or reach a system (interfaces, endpoints, users).",
+      "examples": ["public APIs", "admin panels", "email accounts", "third-party integrations"],
+      "retrievalHints": { "keywords": ["attack surface", "exposure"], "intentSignals": ["reduce", "harden"] }
+    },
+    {
+      "id": "term_vulnerability",
+      "term": "Vulnerability",
+      "definition": "A weakness that can be exploited to violate security properties.",
+      "examples": ["unpatched software", "misconfiguration", "injection flaw"],
+      "retrievalHints": { "keywords": ["vulnerability", "cve", "weakness"], "intentSignals": ["patch", "scan"] }
+    },
+    {
+      "id": "term_threat",
+      "term": "Threat",
+      "definition": "A potential cause of an unwanted incident (actor + capability + intent).",
+      "examples": ["phishing campaign", "ransomware group", "malicious insider"],
+      "retrievalHints": { "keywords": ["threat", "attacker"], "intentSignals": ["model", "risk"] }
+    },
+    {
+      "id": "term_risk",
+      "term": "Risk",
+      "definition": "Likelihood × impact of a threat exploiting a vulnerability against an asset.",
+      "examples": ["credential theft leading to account takeover", "DDoS causing downtime"],
+      "retrievalHints": { "keywords": ["risk", "likelihood", "impact"], "intentSignals": ["prioritize", "decide"] }
+    },
+    {
+      "id": "term_control",
+      "term": "Control",
+      "definition": "A safeguard that reduces risk (prevent, detect, respond, recover).",
+      "examples": ["MFA", "WAF", "backups", "EDR", "logging"],
+      "retrievalHints": { "keywords": ["control", "safeguard", "mitigation"], "intentSignals": ["implement", "baseline"] }
+    }
+  ],
+  "foundational_topics": [
+    {
+      "id": "topic_identity_access",
+      "name": "Identity & Access Management (IAM)",
+      "summary": "Authentication, authorization, lifecycle management, and monitoring of identities.",
+      "keyIdeas": ["MFA everywhere", "least privilege", "access reviews", "service account hygiene"],
+      "retrievalHints": { "keywords": ["iam", "mfa", "rbac", "access review"], "intentSignals": ["identity", "permissions"] }
+    },
+    {
+      "id": "topic_security_telemetry",
+      "name": "Logging & Telemetry",
+      "summary": "Visibility is a prerequisite for detection and response; logs should be meaningful and protected.",
+      "keyIdeas": ["centralize logs", "time sync", "immutable storage", "alert on high-signal events"],
+      "retrievalHints": { "keywords": ["logging", "telemetry", "siem", "alerts"], "intentSignals": ["detect", "monitor"] }
+    },
+    {
+      "id": "topic_patch_vuln_mgmt",
+      "name": "Vulnerability & Patch Management",
+      "summary": "Identify, prioritize, and remediate known weaknesses in a disciplined cadence.",
+      "keyIdeas": ["asset inventory", "scan", "prioritize by exposure/impact", "patch SLAs", "verify fixes"],
+      "retrievalHints": { "keywords": ["patch", "vulnerability management", "scan", "cve"], "intentSignals": ["remediate", "prioritize"] }
+    },
+    {
+      "id": "topic_backup_recovery",
+      "name": "Backups & Recovery",
+      "summary": "Resilience against ransomware and failures depends on tested backups and recovery procedures.",
+      "keyIdeas": ["3-2-1 backups", "immutable/offline copies", "restore testing", "RPO/RTO planning"],
+      "retrievalHints": { "keywords": ["backup", "restore", "rpo", "rto", "ransomware"], "intentSignals": ["recover", "resilience"] }
+    }
+  ],
+  "retrievalHints": {
+    "keywords": [
+      "security basics",
+      "cybersecurity fundamentals",
+      "least privilege",
+      "zero trust",
+      "threat modeling",
+      "risk",
+      "controls"
+    ],
+    "intentSignals": ["explain", "framework", "baseline", "start here"]
+  }
+}

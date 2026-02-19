@@ -1,0 +1,135 @@
+{
+  "id": "fin_macro_principles_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Macroeconomic principles that influence business performance, capital costs, demand cycles, and risk regimes. Educational and scenario-based decision support.",
+  "posture": {
+    "type": "educational_macro_framework",
+    "not_investment_advice": true,
+    "scenario_based_reasoning": true
+  },
+  "corePrinciples": [
+    "Inflation changes behavior, not just prices.",
+    "Interest rates determine the price of time and risk.",
+    "Credit availability amplifies economic cycles.",
+    "Policy changes create second-order effects.",
+    "Labor markets are sticky and lag adjustments.",
+    "Liquidity conditions shape asset valuations.",
+    "Expectations drive short-term market volatility."
+  ],
+  "macroVariables": {
+    "inflation": {
+      "definition": "Sustained increase in general price levels.",
+      "businessImpact": [
+        "input_cost_increase",
+        "margin_pressure",
+        "wage_adjustment_lag"
+      ],
+      "monitorSignals": [
+        "consumer_price_index_trends",
+        "supplier_price_changes",
+        "wage_growth_data"
+      ]
+    },
+    "interest_rates": {
+      "definition": "Cost of borrowing money over time.",
+      "businessImpact": [
+        "higher_debt_service_costs",
+        "reduced_consumer_financing",
+        "valuation_pressure"
+      ],
+      "monitorSignals": [
+        "central_bank_announcements",
+        "bond_yield_movements",
+        "credit_spreads"
+      ]
+    },
+    "unemployment": {
+      "definition": "Percentage of labor force without jobs.",
+      "businessImpact": [
+        "labor_cost_pressure",
+        "consumer_spending_patterns",
+        "hiring_friction"
+      ],
+      "monitorSignals": [
+        "labor_force_participation",
+        "wage_growth_rates"
+      ]
+    },
+    "liquidity": {
+      "definition": "Ease of accessing capital and transacting.",
+      "businessImpact": [
+        "funding_availability",
+        "investment_activity",
+        "valuation_multiples"
+      ],
+      "monitorSignals": [
+        "credit_availability",
+        "bank_lending_conditions",
+        "venture_funding_levels"
+      ]
+    }
+  },
+  "frameworks": {
+    "three_variable_model": [
+      "inflation",
+      "unemployment",
+      "interest_rates"
+    ],
+    "demand_vs_cost_shock_diagnosis": [
+      "if_revenue_drops_and_costs_stable_then_demand_shock",
+      "if_costs_rise_and_revenue_stable_then_cost_shock"
+    ],
+    "transmission_channels": [
+      "rates_to_credit",
+      "credit_to_spending",
+      "spending_to_revenue"
+    ],
+    "scenarioBands": [
+      "base_case",
+      "downside_case",
+      "upside_case"
+    ]
+  },
+  "riskSignals": [
+    "rapid_interest_rate_hikes",
+    "widening_credit_spreads",
+    "persistent_high_inflation",
+    "tightening_bank_lending",
+    "declining_consumer_confidence"
+  ],
+  "businessImplications": [
+    "reprice_products_under_inflation",
+    "reduce_variable_cost_exposure",
+    "lock_in_fixed_rate_debt_when_possible",
+    "build_liquidity_buffer",
+    "stress_test_revenue_under_demand_contraction"
+  ],
+  "diagnosticQuestions": [
+    "Is this demand-driven or cost-driven?",
+    "Are customers financing purchases?",
+    "Do you have variable-rate debt exposure?",
+    "What happens if revenue declines 20 percent?",
+    "How quickly can you adjust pricing?"
+  ],
+  "guardrails": [
+    "avoid_point_forecasts",
+    "separate_nominal_and_real_values",
+    "assume_policy_lags",
+    "clarify_assumptions_before_modeling",
+    "do_not_provide_specific_market_predictions"
+  ],
+  "exampleTypes": [
+    "revenue_stress_test",
+    "cost_pass_through_strategy",
+    "macro_sensitivity_analysis",
+    "liquidity_buffer_planning"
+  ],
+  "glossary": {
+    "real_rate": "interest_rate_adjusted_for_inflation",
+    "credit_spread": "difference_between_risky_and_safe_interest_rates",
+    "liquidity": "ease_of_accessing_capital",
+    "tightening_cycle": "period_of_rising_interest_rates",
+    "demand_shock": "sudden_drop_in_consumer_or_business_spending"
+  }
+}

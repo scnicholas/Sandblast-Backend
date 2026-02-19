@@ -1,0 +1,23 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "dialogue",
+  "version": "1.0.0",
+  "snippets": [
+    {
+      "context": "ai_agent_design",
+      "example": "What state variables are required for the agent to maintain coherent decision continuity?"
+    },
+    {
+      "context": "ai_ethics",
+      "example": "How do we mitigate bias introduced during model training?"
+    },
+    {
+      "context": "ai_cybersecurity",
+      "example": "Is this anomaly statistically significant or expected variance?"
+    },
+    {
+      "context": "ai_marketing",
+      "example": "What behavioral signals most strongly predict conversion likelihood?"
+    }
+  ]
+}

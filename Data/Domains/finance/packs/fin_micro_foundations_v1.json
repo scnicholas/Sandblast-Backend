@@ -1,0 +1,142 @@
+{
+  "id": "fin_micro_foundations_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Microeconomic foundations for pricing, incentives, demand behavior, substitution, and market structure. Applied to business-level decision making.",
+  "posture": {
+    "type": "educational_micro_framework",
+    "applied_reasoning": true,
+    "not_personal_financial_advice": true
+  },
+  "corePrinciples": [
+    "Scarcity forces tradeoffs and opportunity cost.",
+    "People respond to incentives both explicit and implicit.",
+    "Demand changes with price sensitivity (elasticity).",
+    "Substitutes and complements shape real demand.",
+    "Diminishing marginal returns apply to spending and scaling.",
+    "Information asymmetry creates adverse selection and moral hazard.",
+    "Market structure determines pricing power.",
+    "Switching costs influence customer retention."
+  ],
+  "demandMechanics": {
+    "drivers": [
+      "price_changes",
+      "income_changes",
+      "substitute_availability",
+      "complement_price_changes",
+      "consumer_expectations"
+    ],
+    "elasticityTypes": [
+      "price_elasticity",
+      "income_elasticity",
+      "cross_elasticity"
+    ],
+    "implications": [
+      "high_elasticity_limits_pricing_power",
+      "low_elasticity_enables_margin_expansion"
+    ]
+  },
+  "marketStructures": [
+    {
+      "type": "perfect_competition",
+      "traits": [
+        "many_sellers",
+        "low_pricing_power",
+        "price_taker_behavior"
+      ]
+    },
+    {
+      "type": "monopolistic_competition",
+      "traits": [
+        "differentiated_products",
+        "moderate_pricing_power"
+      ]
+    },
+    {
+      "type": "oligopoly",
+      "traits": [
+        "few_large_competitors",
+        "strategic_interdependence"
+      ]
+    },
+    {
+      "type": "monopoly",
+      "traits": [
+        "single_provider",
+        "strong_pricing_power"
+      ]
+    }
+  ],
+  "incentiveStructures": [
+    "align_employee_compensation_with_outcomes",
+    "identify_hidden_incentives",
+    "avoid_perverse_incentives",
+    "map_risk_sharing_dynamics"
+  ],
+  "transactionCosts": [
+    "search_costs",
+    "switching_costs",
+    "trust_barriers",
+    "contract_complexity"
+  ],
+  "frameworks": {
+    "supply_demand_shift_model": [
+      "identify_curve_shift",
+      "determine_direction_of_change",
+      "estimate_price_quantity_effect"
+    ],
+    "substitution_analysis": [
+      "define_next_best_alternative",
+      "estimate_switching_likelihood",
+      "evaluate_relative_value"
+    ],
+    "opportunity_cost_evaluation": [
+      "identify_alternative_use_of_resources",
+      "quantify_tradeoff"
+    ],
+    "marginal_analysis": [
+      "evaluate_incremental_cost",
+      "evaluate_incremental_benefit",
+      "compare_at_margin"
+    ]
+  },
+  "businessImplications": [
+    "test_price_sensitivity_before_scaling",
+    "segment_customers_by_elasticity",
+    "reduce_switching_friction_to_increase_retention",
+    "invest_where_marginal_return_exceeds_cost"
+  ],
+  "diagnosticQuestions": [
+    "What is the closest substitute?",
+    "How sensitive are customers to price changes?",
+    "Where are diminishing returns visible?",
+    "What incentives drive current behavior?",
+    "Is pricing cost-based or value-based?"
+  ],
+  "riskSignals": [
+    "excessive_discounting",
+    "rapid_margin_compression",
+    "high_customer_churn",
+    "unprofitable_growth"
+  ],
+  "guardrails": [
+    "avoid_assuming_rational_perfect_information",
+    "validate_elasticity_with_real_data",
+    "do_not_confuse_revenue_with_value_creation",
+    "clarify_time_horizon_for_analysis"
+  ],
+  "exampleTypes": [
+    "elasticity_estimation_example",
+    "substitution_mapping_example",
+    "marginal_cost_vs_marginal_revenue_example",
+    "switching_cost_analysis"
+  ],
+  "glossary": {
+    "elasticity": "responsiveness_of_quantity_demanded_to_price_change",
+    "opportunity_cost": "value_of_next_best_alternative",
+    "marginal_cost": "cost_of_producing_one_additional_unit",
+    "marginal_revenue": "revenue_from_one_additional_unit",
+    "adverse_selection": "risk_from_information_asymmetry_before_transaction",
+    "moral_hazard": "risk_from_behavior_change_after_transaction"
+  }
+}

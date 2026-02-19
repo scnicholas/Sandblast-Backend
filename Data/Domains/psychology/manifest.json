@@ -1,0 +1,33 @@
+{
+  "domain": "psychology",
+  "domainVersion": "1.0.0",
+  "updatedAt": "2026-02-12",
+  "defaultLoadOrder": [
+    "psy_clinical_safety_v1.json",
+    "psy_foundations_v1.json",
+    "psy_research_methods_v1.json",
+    "psy_cognitive_v1.json",
+    "psy_social_v1.json",
+    "psy_development_v1.json",
+    "psy_biases_and_fallacies_v1.json",
+    "psy_interventions_skills_v1.json"
+  ],
+  "packs": [
+    {
+      "file": "psy_foundations_v1.json",
+      "version": 1,
+      "tags": ["intro", "theories", "core"],
+      "priority": 70
+    },
+    {
+      "file": "psy_clinical_safety_v1.json",
+      "version": 1,
+      "tags": ["safety", "boundaries", "non-clinical"],
+      "priority": 100
+    }
+  ],
+  "examples": [
+    { "file": "psy_face_examples_v1.json", "version": 1 },
+    { "file": "psy_dialogue_snippets_v1.json", "version": 1 }
+  ]
+}

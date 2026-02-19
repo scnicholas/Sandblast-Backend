@@ -1,0 +1,33 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "foundations",
+  "version": "1.0.0",
+  "description": "Core theoretical and computational foundations of artificial intelligence aligned with University of Toronto and Amii curricula.",
+  "core_topics": [
+    "search_and_optimization",
+    "probability_and_bayesian_reasoning",
+    "machine_learning_basics",
+    "neural_networks",
+    "reinforcement_learning",
+    "knowledge_representation",
+    "symbolic_vs_statistical_ai"
+  ],
+  "primary_text_references": [
+    {
+      "title": "Artificial Intelligence: A Modern Approach",
+      "authors": ["Russell", "Norvig"],
+      "type": "foundational_textbook"
+    },
+    {
+      "title": "Pattern Recognition and Machine Learning",
+      "author": "Christopher Bishop",
+      "type": "probabilistic_foundations"
+    }
+  ],
+  "learning_objectives": [
+    "understand_intelligent_agents",
+    "model_decision_under_uncertainty",
+    "distinguish_supervised_unsupervised_rl",
+    "evaluate_model_generalization"
+  ]
+}

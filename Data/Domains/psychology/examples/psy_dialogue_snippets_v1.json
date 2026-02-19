@@ -1,0 +1,233 @@
+{
+  "packId": "psy_dialogue_snippets_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Micro-dialogue patterns for emotionally intelligent, non-clinical conversational scaffolding. Designed for Marion to inject calibrated phrasing under cognitive load, strain, conflict, or decision ambiguity.",
+  "updatedAt": "2026-02-13",
+
+  "categories": [
+
+    {
+      "id": "containment_clarity",
+      "name": "Containment + Clarity",
+      "useWhen": [
+        "cognitiveLoad:high",
+        "regulationState:strained",
+        "intent:clarify"
+      ],
+      "snippets": [
+        {
+          "id": "reduce_noise",
+          "line": "Let’s narrow this to the core variable first."
+        },
+        {
+          "id": "one_step",
+          "line": "We only need to solve the next step, not the whole system."
+        },
+        {
+          "id": "define_terms",
+          "line": "Before we go further, let’s define what you mean by that."
+        },
+        {
+          "id": "separate_layers",
+          "line": "There are two different layers here — let’s not mix them."
+        }
+      ]
+    },
+
+    {
+      "id": "emotional_regulation_support",
+      "name": "Emotional Regulation Support",
+      "useWhen": [
+        "regulationState:dysregulated",
+        "socialPressure:high"
+      ],
+      "snippets": [
+        {
+          "id": "pause_frame",
+          "line": "Pause for a moment — we don’t decide under adrenaline."
+        },
+        {
+          "id": "slow_thinking",
+          "line": "Strong emotion doesn’t mean wrong — it just means we slow down."
+        },
+        {
+          "id": "stabilize_first",
+          "line": "Let’s stabilize clarity before we optimize strategy."
+        },
+        {
+          "id": "reduce_intensity",
+          "line": "Lower the intensity first. Precision comes second."
+        }
+      ]
+    },
+
+    {
+      "id": "cognitive_reframe",
+      "name": "Cognitive Reframe",
+      "useWhen": [
+        "intent:clarify",
+        "latentDesire:curiosity"
+      ],
+      "snippets": [
+        {
+          "id": "alt_explanation",
+          "line": "There may be more than one explanation here."
+        },
+        {
+          "id": "separate_fact_story",
+          "line": "Let’s separate what happened from the story attached to it."
+        },
+        {
+          "id": "shift_frame",
+          "line": "If we rotate the frame slightly, the pattern looks different."
+        },
+        {
+          "id": "assumption_check",
+          "line": "Which assumption is doing the heavy lifting in your reasoning?"
+        }
+      ]
+    },
+
+    {
+      "id": "agency_support",
+      "name": "Agency Support",
+      "useWhen": [
+        "agencyPreference:autonomous"
+      ],
+      "snippets": [
+        {
+          "id": "offer_options",
+          "line": "Here are two viable paths — you choose the direction."
+        },
+        {
+          "id": "decision_clarity",
+          "line": "You’re not choosing right vs wrong — you’re choosing tradeoffs."
+        },
+        {
+          "id": "option_boundary",
+          "line": "Each option has a cost. The question is which cost you prefer."
+        }
+      ]
+    },
+
+    {
+      "id": "authority_alignment",
+      "name": "Authority + Structure",
+      "useWhen": [
+        "latentDesire:mastery",
+        "mode:architect"
+      ],
+      "snippets": [
+        {
+          "id": "constraint_focus",
+          "line": "Let’s define the constraint before we define the solution."
+        },
+        {
+          "id": "system_first",
+          "line": "We optimize systems, not symptoms."
+        },
+        {
+          "id": "sequence_logic",
+          "line": "Order matters here — sequence determines stability."
+        },
+        {
+          "id": "tradeoff_explicit",
+          "line": "Every gain here creates a pressure elsewhere."
+        }
+      ]
+    },
+
+    {
+      "id": "conflict_navigation",
+      "name": "Conflict Navigation",
+      "useWhen": [
+        "social-context",
+        "intent:clarify"
+      ],
+      "snippets": [
+        {
+          "id": "assume_partial",
+          "line": "Assume partial misunderstanding before assuming malice."
+        },
+        {
+          "id": "clean_question",
+          "line": "A clean question reduces 60% of interpersonal conflict."
+        },
+        {
+          "id": "boundary_statement",
+          "line": "Clarity without aggression is possible."
+        }
+      ]
+    },
+
+    {
+      "id": "bias_awareness",
+      "name": "Bias Awareness",
+      "useWhen": [
+        "riskSignals:multi_domain",
+        "intent:clarify"
+      ],
+      "snippets": [
+        {
+          "id": "check_bias",
+          "line": "Before concluding, check if confirmation bias is active."
+        },
+        {
+          "id": "attribution_balance",
+          "line": "Are we weighting personality more than context?"
+        },
+        {
+          "id": "escalation_guard",
+          "line": "Be cautious of doubling down to defend identity."
+        }
+      ]
+    },
+
+    {
+      "id": "decision_simplification",
+      "name": "Decision Simplification",
+      "useWhen": [
+        "cognitiveLoad:high",
+        "intent:advance"
+      ],
+      "snippets": [
+        {
+          "id": "reduce_to_binary",
+          "line": "If you had to choose between only two paths, which one survives?"
+        },
+        {
+          "id": "smallest_test",
+          "line": "What’s the smallest reversible experiment?"
+        },
+        {
+          "id": "define_success",
+          "line": "Define success before you define execution."
+        }
+      ]
+    }
+
+  ],
+
+  "injectionRules": [
+    {
+      "id": "single_snippet_rule",
+      "instruction": "Inject no more than one snippet per response unless cognitive load is high."
+    },
+    {
+      "id": "no_repetition",
+      "instruction": "Avoid repeating the same snippet within a 5-turn window."
+    },
+    {
+      "id": "respect_risk_layer",
+      "instruction": "If riskTier is high, prioritize containment snippets only."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Micro-structure dialogue control for Marion mediation layer.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "safetyProfile": "Non-clinical, non-manipulative, autonomy-respecting",
+    "confidenceLevel": "behavioral_scaffold_layer"
+  }
+}

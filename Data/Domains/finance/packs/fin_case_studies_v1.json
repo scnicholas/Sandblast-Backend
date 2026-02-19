@@ -1,0 +1,184 @@
+{
+  "id": "fin_case_studies_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Reusable finance and economics case study patterns for diagnostic reasoning. Structured for mediator-safe decision support.",
+  "posture": {
+    "type": "educational_pattern_library",
+    "not_predictive": true,
+    "requires_context_mapping": true
+  },
+  "caseStudyPatterns": [
+    {
+      "id": "high_cac_low_retention",
+      "title": "High CAC, Low Retention",
+      "symptoms": [
+        "revenue_growth_but_negative_cashflow",
+        "increasing_marketing_spend",
+        "poor_repeat_usage"
+      ],
+      "diagnosis": [
+        "weak_product_market_fit",
+        "misaligned_acquisition_channel",
+        "poor_onboarding_or_activation"
+      ],
+      "financialImpact": [
+        "long_cac_payback_period",
+        "unsustainable_growth",
+        "declining_ltv_to_cac_ratio"
+      ],
+      "recommendedFocus": [
+        "tighten_target_customer_profile",
+        "improve_activation_metrics",
+        "optimize_retention_before_scaling"
+      ]
+    },
+    {
+      "id": "price_too_low_support_too_high",
+      "title": "Low Pricing, High Support Load",
+      "symptoms": [
+        "high_volume_low_margin",
+        "excessive_customer_support_requests",
+        "team_burnout"
+      ],
+      "diagnosis": [
+        "underpricing_relative_to_value",
+        "lack_of_price_fences",
+        "scope_creep"
+      ],
+      "financialImpact": [
+        "eroded_contribution_margin",
+        "cashflow_pressure",
+        "resource_misalignment"
+      ],
+      "recommendedFocus": [
+        "introduce_tiered_pricing",
+        "increase_base_price",
+        "define_clear_scope_boundaries"
+      ]
+    },
+    {
+      "id": "concentration_risk",
+      "title": "Revenue Concentration Risk",
+      "symptoms": [
+        "single_client_above_30_percent_revenue",
+        "single_channel_dependency",
+        "supplier_dependency"
+      ],
+      "diagnosis": [
+        "fragile_revenue_structure",
+        "negotiation_power_asymmetry"
+      ],
+      "financialImpact": [
+        "high_volatility_exposure",
+        "loss_event_severity_high"
+      ],
+      "recommendedFocus": [
+        "diversify_customer_base",
+        "develop_secondary_channels",
+        "renegotiate_contract_terms"
+      ]
+    },
+    {
+      "id": "cost_shock_exposure",
+      "title": "Cost Shock Vulnerability",
+      "symptoms": [
+        "sudden_margin_collapse",
+        "supplier_price_increase",
+        "interest_rate_increase_effect"
+      ],
+      "diagnosis": [
+        "no_pass_through_mechanism",
+        "fixed_price_contracts",
+        "unhedged_input_costs"
+      ],
+      "financialImpact": [
+        "margin_compression",
+        "liquidity_pressure"
+      ],
+      "recommendedFocus": [
+        "reprice_products_or_services",
+        "negotiate_long_term_supplier_contracts",
+        "identify_alternative_suppliers"
+      ]
+    },
+    {
+      "id": "inventory_or_capacity_bottleneck",
+      "title": "Capacity Constraint Bottleneck",
+      "symptoms": [
+        "unfulfilled_orders",
+        "long_delivery_times",
+        "customer_complaints_about_speed"
+      ],
+      "diagnosis": [
+        "operational_capacity_constraint",
+        "underinvestment_in_infrastructure"
+      ],
+      "financialImpact": [
+        "lost_revenue_opportunity",
+        "customer_churn_risk"
+      ],
+      "recommendedFocus": [
+        "invest_in_capacity",
+        "increase_prices_to_manage_demand",
+        "prioritize_high_margin_customers"
+      ]
+    },
+    {
+      "id": "cashflow_mismatch",
+      "title": "Cashflow Timing Mismatch",
+      "symptoms": [
+        "profitable_on_paper_but_cash_shortage",
+        "slow_accounts_receivable",
+        "inventory_lockup"
+      ],
+      "diagnosis": [
+        "working_capital_misalignment",
+        "long_collection_cycles"
+      ],
+      "financialImpact": [
+        "liquidity_stress",
+        "reliance_on_short_term_credit"
+      ],
+      "recommendedFocus": [
+        "shorten_payment_terms",
+        "improve_collection_process",
+        "optimize_inventory_turnover"
+      ]
+    },
+    {
+      "id": "overexpansion_leverage_risk",
+      "title": "Overexpansion with Debt",
+      "symptoms": [
+        "rapid_scaling_with_borrowed_capital",
+        "increasing_debt_service_ratio"
+      ],
+      "diagnosis": [
+        "overestimation_of_demand",
+        "aggressive_leverage_strategy"
+      ],
+      "financialImpact": [
+        "high_default_risk",
+        "restricted_operational_flexibility"
+      ],
+      "recommendedFocus": [
+        "slow_growth_temporarily",
+        "renegotiate_debt_terms",
+        "reduce_fixed_cost_commitments"
+      ]
+    }
+  ],
+  "diagnosticQuestions": [
+    "What metric moved first?",
+    "Which cost category changed?",
+    "Is this a demand problem or a cost problem?",
+    "Is the issue structural or temporary?",
+    "What data would disprove this diagnosis?"
+  ],
+  "guardrails": [
+    "case_patterns_are_templates_not_predictions",
+    "always_map_to_actual_financial_data",
+    "avoid_overgeneralization_without_metrics",
+    "clarify_time_horizon"
+  ]
+}

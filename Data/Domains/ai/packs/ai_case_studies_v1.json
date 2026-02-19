@@ -1,0 +1,34 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "case_studies",
+  "version": "1.0.0",
+  "cases": [
+    {
+      "title": "Deep Reinforcement Learning in Game Systems",
+      "focus": "AlphaGo",
+      "learning_points": [
+        "reward_signal_design",
+        "exploration_vs_exploitation",
+        "policy_network_scaling"
+      ]
+    },
+    {
+      "title": "AI in Medical Diagnostics",
+      "focus": "Radiology_Assist_Systems",
+      "learning_points": [
+        "model_accuracy_vs_trust",
+        "human_in_the_loop",
+        "risk_governance"
+      ]
+    },
+    {
+      "title": "LLM-Based Conversational Agents",
+      "focus": "Enterprise_Agent_Architecture",
+      "learning_points": [
+        "state_management",
+        "knowledge_layering",
+        "risk_mediation"
+      ]
+    }
+  ]
+}

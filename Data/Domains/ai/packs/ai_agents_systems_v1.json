@@ -1,0 +1,26 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "agents_systems",
+  "version": "1.0.0",
+  "description": "Design, architecture, and control of intelligent agents and multi-agent systems.",
+  "core_topics": [
+    "agent_architecture",
+    "goal_planning",
+    "state_management",
+    "multi_agent_coordination",
+    "reinforcement_learning_agents",
+    "llm_agent_orchestration"
+  ],
+  "concept_models": [
+    "perceive_plan_act_loop",
+    "belief_desire_intention_model",
+    "state_spine_architecture",
+    "reward_signal_design"
+  ],
+  "skills": [
+    "design_modular_agents",
+    "evaluate_autonomy_levels",
+    "build_safety_constraints",
+    "integrate_external_tools"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "eng_sources_index_v1",
+  "version": "1.0.0",
+  "description": "Index of core source anchors used to inform this English domain layer (no copyrighted text included).",
+  "sources": [
+    {
+      "key": "S_QUARK_CGEL",
+      "type": "reference_grammar",
+      "title": "A Comprehensive Grammar of the English Language",
+      "authors": ["Randolph Quirk", "Sidney Greenbaum", "Geoffrey Leech", "Jan Svartvik"],
+      "useInLayer": ["syntax_grammar_core", "clause types", "functions", "complements", "coordination/subordination"]
+    },
+    {
+      "key": "S_BIBER_LGSWE",
+      "type": "corpus_grammar",
+      "title": "Longman Grammar of Spoken and Written English",
+      "authors": ["Douglas Biber", "Stig Johansson", "Geoffrey Leech", "Susan Conrad", "Edward Finegan"],
+      "useInLayer": ["register_corpus_usage", "conversation vs news vs academic prose features", "frequency-driven reasoning"]
+    },
+    {
+      "key": "S_SWAN_PEU",
+      "type": "usage_reference",
+      "title": "Practical English Usage",
+      "authors": ["Michael Swan"],
+      "useInLayer": ["usage_diagnostics", "common learner confusions", "problem-solution lookup patterns"]
+    },
+    {
+      "key": "S_WILLIAMS_STYLE",
+      "type": "academic_writing",
+      "title": "Style: Lessons in Clarity and Grace",
+      "authors": ["Joseph M. Williams", "Gregory G. Colomb", "Joseph Bizup"],
+      "useInLayer": ["academic_writing_clarity", "clarity principles", "revision strategies", "reader-centered prose"]
+    },
+    {
+      "key": "S_EAP_CANADA_SURVEY",
+      "type": "case_study_research",
+      "title": "English for Academic Purposes in Canada: Results From an Exploratory National Survey",
+      "authors": ["James N. Corcoran", "Julia Williams", "Kris Pierre Johnston"],
+      "useInLayer": ["eap_canada_case_studies", "program models", "support structures", "assessment and equity themes"]
+    },
+    {
+      "key": "S_EAP_ACTION_RESEARCH",
+      "type": "case_study_research",
+      "title": "A Self-Study Action Research Approach to English for Academic Purposes Development",
+      "authors": ["Judith Kerekes"],
+      "useInLayer": ["eap_canada_case_studies", "student self-study plans", "portfolio evidence", "iteration framework"]
+    }
+  ]
+}

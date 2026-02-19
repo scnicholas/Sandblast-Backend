@@ -1,0 +1,30 @@
+{
+  "id": "eng_morphology_word_formation_v1",
+  "version": "1.0.0",
+  "description": "Morphology: internal word structure, inflection/derivation, and productive word-formation.",
+  "anchors": ["S_QUARK_CGEL"],
+  "topics": [
+    {
+      "name": "Morphemes and Productivity",
+      "coreClaims": [
+        "Morphemes are meaning-bearing units (free vs bound).",
+        "Productive processes generate new forms (compounding, affixation, conversion)."
+      ],
+      "practice": [
+        "Segment words into morphemes and justify boundaries.",
+        "Explain why a coinage feels 'natural' or 'awkward' (productivity constraints)."
+      ]
+    },
+    {
+      "name": "Inflection vs Derivation",
+      "coreClaims": [
+        "Inflection encodes grammatical features (tense, number) without changing lexical category.",
+        "Derivation often changes meaning and/or category (e.g., verb → noun)."
+      ],
+      "practice": [
+        "Classify affixes and predict category output.",
+        "Map derivational families (decide → decision → decisive)."
+      ]
+    }
+  ]
+}

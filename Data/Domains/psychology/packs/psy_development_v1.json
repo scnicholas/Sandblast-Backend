@@ -1,0 +1,383 @@
+{
+  "packId": "psy_development_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Developmental psychology essentials across lifespan: infancy, childhood, adolescence, adulthood. Covers cognitive, social, emotional, moral, and language development with applied, non-clinical framing.",
+  "updatedAt": "2026-02-13",
+  "scope": [
+    "lifespan-development",
+    "infancy",
+    "childhood",
+    "adolescence",
+    "adulthood",
+    "aging",
+    "attachment",
+    "parenting",
+    "language-development",
+    "moral-development",
+    "executive-function"
+  ],
+
+  "theories": [
+    {
+      "id": "piaget_cognitive_development",
+      "name": "Piaget: Cognitive Development Stages",
+      "category": "cognition",
+      "oneLiner": "Children’s thinking changes qualitatively through stages as they build mental models of the world.",
+      "coreMechanism": [
+        "Schemas change via assimilation and accommodation.",
+        "Stage-like shifts: sensorimotor, preoperational, concrete operational, formal operational.",
+        "Limits depend on maturation + experience."
+      ],
+      "actionablePrinciples": [
+        "Match explanations to the person’s cognitive level (concrete vs abstract).",
+        "Use examples and hands-on demonstrations before formal rules.",
+        "Check comprehension with ‘show me’ rather than ‘tell me’ when possible."
+      ],
+      "faceExamples": [
+        {
+          "title": "Explaining a complex idea to a child",
+          "scenario": "User needs to explain a concept to a kid.",
+          "application": "Use concrete analogies and visible steps; avoid heavy abstraction."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["piaget", "stages", "child thinking", "concrete", "abstract"],
+        "intentSignals": ["how do kids understand", "how to explain to a child"]
+      }
+    },
+
+    {
+      "id": "vygotsky_zpd_scaffolding",
+      "name": "Vygotsky: Zone of Proximal Development & Scaffolding",
+      "category": "learning",
+      "oneLiner": "Learning accelerates when support is calibrated to what someone can almost do independently.",
+      "coreMechanism": [
+        "ZPD: gap between independent ability and guided ability.",
+        "Scaffolding: temporary supports removed over time.",
+        "Language and social interaction shape thought."
+      ],
+      "actionablePrinciples": [
+        "Identify the ‘next doable step’ and scaffold just that.",
+        "Use prompts, hints, and partial solutions—then fade support.",
+        "Translate tasks into manageable subskills with feedback loops."
+      ],
+      "faceExamples": [
+        {
+          "title": "Teaching a new workflow",
+          "scenario": "User is onboarding someone to a process.",
+          "application": "Demonstrate, then guide, then hand off as competence grows."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["scaffold", "zpd", "zone of proximal development", "coach"],
+        "intentSignals": ["teach me this", "help me learn", "how to train someone"]
+      }
+    },
+
+    {
+      "id": "erikson_psychosocial",
+      "name": "Erikson: Psychosocial Development",
+      "category": "social-emotional",
+      "oneLiner": "Across life stages, people face identity and relationship tasks that shape well-being and behavior.",
+      "coreMechanism": [
+        "Stage challenges (e.g., trust vs mistrust; identity vs role confusion).",
+        "Successful resolution supports resilience and future relationships.",
+        "Unresolved tension can reappear under stress."
+      ],
+      "actionablePrinciples": [
+        "When conflict repeats, check the underlying stage-task (trust, autonomy, identity, intimacy).",
+        "Support identity coherence: values, roles, and goals alignment.",
+        "Separate the ‘problem’ from the ‘developmental task’ it threatens."
+      ],
+      "faceExamples": [
+        {
+          "title": "Identity friction in a pivot",
+          "scenario": "User feels unsettled when changing direction.",
+          "application": "Frame it as identity + role integration, not just logistics."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["identity", "role", "intimacy", "erikson", "life stage"],
+        "intentSignals": ["who am I now", "why does this feel threatening", "life transition"]
+      }
+    },
+
+    {
+      "id": "attachment_theory",
+      "name": "Attachment Theory",
+      "category": "relationships",
+      "oneLiner": "Early relationship patterns shape expectations of support, closeness, and safety—especially under stress.",
+      "coreMechanism": [
+        "Attachment behaviors activate when threat or uncertainty rises.",
+        "Secure attachment supports exploration and emotion regulation.",
+        "Insecurity can increase avoidance, anxiety, or mixed signals."
+      ],
+      "actionablePrinciples": [
+        "Under stress, increase predictability and reassurance through clear commitments.",
+        "Use repair language after conflict: name impact, take responsibility, propose a concrete change.",
+        "Don’t pathologize: treat patterns as adaptive responses to past conditions."
+      ],
+      "faceExamples": [
+        {
+          "title": "Conflict escalates under pressure",
+          "scenario": "User sees relationship tension spike during deadlines.",
+          "application": "Stabilize safety signals first; then discuss the issue."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["attachment", "clingy", "avoidant", "secure", "relationship anxiety"],
+        "intentSignals": ["why do I react like this", "relationship pattern", "trust issues"]
+      }
+    },
+
+    {
+      "id": "temperament_goodness_of_fit",
+      "name": "Temperament & Goodness-of-Fit",
+      "category": "individual-differences",
+      "oneLiner": "People differ in baseline reactivity and self-regulation; outcomes improve when environments fit temperament.",
+      "coreMechanism": [
+        "Temperament includes reactivity, emotional intensity, and regulation capacity.",
+        "Goodness-of-fit: the same trait can thrive or struggle depending on context.",
+        "Misfit increases friction, not moral failure."
+      ],
+      "actionablePrinciples": [
+        "Design environments around strengths (energy, sensitivity, routine need).",
+        "When friction repeats, adjust context before blaming character.",
+        "Use predictable routines for high-reactivity profiles."
+      ],
+      "faceExamples": [
+        {
+          "title": "High-intensity kid in chaotic routine",
+          "scenario": "User reports frequent blow-ups in evenings.",
+          "application": "Simplify transitions; increase predictability; reduce overstimulation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["temperament", "sensitive", "high energy", "meltdown", "routine"],
+        "intentSignals": ["why is this person like this", "how do I handle this pattern"]
+      }
+    },
+
+    {
+      "id": "parenting_styles",
+      "name": "Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)",
+      "category": "family-systems",
+      "oneLiner": "Balanced warmth + structure (authoritative) tends to support competence and self-regulation.",
+      "coreMechanism": [
+        "Warmth/Responsiveness and Control/Demandingness as core dimensions.",
+        "Authoritative combines high warmth + clear boundaries.",
+        "Inconsistent or harsh control can increase conflict or avoidance."
+      ],
+      "actionablePrinciples": [
+        "Pair limits with empathy: ‘I get it’ + ‘here’s the boundary.’",
+        "Make consequences predictable and proportional.",
+        "Use ‘do this next’ instructions instead of only ‘don’t.’"
+      ],
+      "faceExamples": [
+        {
+          "title": "Boundary setting without power struggle",
+          "scenario": "User needs compliance without escalation.",
+          "application": "Warmth + clarity + consistent follow-through."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["parenting style", "discipline", "boundaries", "authoritative"],
+        "intentSignals": ["how do I set rules", "stop the power struggle"]
+      }
+    },
+
+    {
+      "id": "theory_of_mind",
+      "name": "Theory of Mind",
+      "category": "social-cognition",
+      "oneLiner": "Social understanding grows as people learn others have different beliefs, intentions, and perspectives.",
+      "coreMechanism": [
+        "Perspective-taking improves with development and practice.",
+        "Misreads often come from assuming shared knowledge.",
+        "Stress narrows perspective-taking."
+      ],
+      "actionablePrinciples": [
+        "When conflict arises, check assumptions: ‘What do they believe is happening?’",
+        "Use ‘steelman then respond’ in disagreements.",
+        "Make implicit context explicit in instructions and collaboration."
+      ],
+      "faceExamples": [
+        {
+          "title": "Team misunderstanding",
+          "scenario": "User sees repeated miscommunication.",
+          "application": "Force shared mental model: definitions, goals, constraints."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["miscommunication", "they don't get it", "perspective", "assumptions"],
+        "intentSignals": ["how do I explain", "why do we keep misunderstanding"]
+      }
+    },
+
+    {
+      "id": "executive_function_development",
+      "name": "Executive Function Development",
+      "category": "self-regulation",
+      "oneLiner": "Planning, inhibition, and working memory mature over time and are vulnerable under stress and sleep loss.",
+      "coreMechanism": [
+        "Executive functions include inhibition, shifting, updating.",
+        "Prefrontal systems develop into early adulthood.",
+        "Stress, fatigue, and overload degrade EF performance."
+      ],
+      "actionablePrinciples": [
+        "Use external scaffolds: checklists, timers, environmental design.",
+        "Reduce choices under high load; pre-decide defaults.",
+        "Treat EF failures as context failures first (sleep, stress, complexity)."
+      ],
+      "faceExamples": [
+        {
+          "title": "Procrastination under pressure",
+          "scenario": "User delays tasks despite importance.",
+          "application": "Shrink task, reduce friction, commit to a 10-minute start."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["procrastination", "self control", "impulse", "can't plan"],
+        "intentSignals": ["why can't I do it", "how do I stop procrastinating"]
+      }
+    },
+
+    {
+      "id": "adolescent_brain_risk",
+      "name": "Adolescent Development: Reward Sensitivity & Risk",
+      "category": "adolescence",
+      "oneLiner": "During adolescence, reward systems can outpace control systems, increasing novelty seeking and sensitivity to peers.",
+      "coreMechanism": [
+        "Heightened reward sensitivity and social salience.",
+        "Developing prefrontal control and long-term planning.",
+        "Peer context can amplify risk behavior."
+      ],
+      "actionablePrinciples": [
+        "Reduce risk through context design (supervision, structure, alternatives).",
+        "Use collaborative rule-setting and clear rationale.",
+        "Avoid shame; focus on skill-building and decision environments."
+      ],
+      "faceExamples": [
+        {
+          "title": "Risky choices with friends",
+          "scenario": "User worries about teen behavior in groups.",
+          "application": "Plan safer defaults before the situation occurs."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["teen", "adolescent", "risk", "peer pressure", "impulsive"],
+        "intentSignals": ["why does my teen", "how do I handle risky behavior"]
+      }
+    },
+
+    {
+      "id": "kohlberg_moral_development",
+      "name": "Kohlberg: Moral Development",
+      "category": "moral-reasoning",
+      "oneLiner": "Moral reasoning can progress from rule-avoidance to principled ethics, often shaped by discussion and perspective-taking.",
+      "coreMechanism": [
+        "Preconventional: punishment/reward focus.",
+        "Conventional: social approval and law/order.",
+        "Postconventional: principles and rights."
+      ],
+      "actionablePrinciples": [
+        "Frame dilemmas with reasons, not just rules.",
+        "Use guided discussion: ‘What values conflict here?’",
+        "Expect mixed-stage reasoning under stress."
+      ],
+      "faceExamples": [
+        {
+          "title": "Values conflict in a decision",
+          "scenario": "User debates the ‘right’ choice under pressure.",
+          "application": "Clarify principles, stakeholders, and tradeoffs."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["moral", "right thing", "ethics", "values conflict"],
+        "intentSignals": ["what should I do", "what's ethical here"]
+      }
+    },
+
+    {
+      "id": "language_development_overview",
+      "name": "Language Development: Input, Interaction, and Practice",
+      "category": "language",
+      "oneLiner": "Language grows through exposure, social interaction, and feedback; comprehension usually precedes production.",
+      "coreMechanism": [
+        "Vocabulary growth via repeated meaningful exposure.",
+        "Social interaction strengthens learning and usage.",
+        "Feedback loops refine grammar and pragmatics."
+      ],
+      "actionablePrinciples": [
+        "Increase high-quality input (reading, conversation) and repetition.",
+        "Use expansion: repeat the child’s sentence in correct, richer form.",
+        "Practice in real contexts, not only drills."
+      ],
+      "faceExamples": [
+        {
+          "title": "Supporting language growth",
+          "scenario": "User wants to help a child communicate better.",
+          "application": "More meaningful conversation, expansions, and routines."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["language delay", "speech", "vocabulary", "talking"],
+        "intentSignals": ["how to support language", "help with communication"]
+      }
+    },
+
+    {
+      "id": "lifespan_aging_selective_optimization",
+      "name": "Aging: Selective Optimization with Compensation",
+      "category": "aging",
+      "oneLiner": "With aging, people adapt by focusing on key goals, optimizing strengths, and compensating for losses.",
+      "coreMechanism": [
+        "Selection: prioritize what matters most.",
+        "Optimization: invest in chosen domains.",
+        "Compensation: tools/strategies to offset declines."
+      ],
+      "actionablePrinciples": [
+        "Choose fewer high-impact goals; protect energy.",
+        "Use aids and routines to compensate (calendars, automation).",
+        "Design systems for consistency over intensity."
+      ],
+      "faceExamples": [
+        {
+          "title": "Sustaining output over time",
+          "scenario": "User wants long-term productivity without burnout.",
+          "application": "Fewer priorities + stronger supports + smart compensation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["aging", "memory changes", "long-term sustainability", "burnout"],
+        "intentSignals": ["how do I keep going long term", "how to sustain performance"]
+      }
+    }
+  ],
+
+  "applicationRules": [
+    {
+      "id": "non_clinical_posture",
+      "instruction": "Use developmental concepts for education and practical framing; do not diagnose disorders or recommend clinical treatment."
+    },
+    {
+      "id": "context_before_character",
+      "instruction": "When interpreting behavior, prefer context + developmental stage explanations before trait judgments."
+    },
+    {
+      "id": "actionable_minimum",
+      "instruction": "When surfacing a theory, include at least one actionable principle and one clarifying question if uncertainty is high."
+    },
+    {
+      "id": "age_sensitivity",
+      "instruction": "Avoid rigid milestone claims; acknowledge variability and emphasize supportive environments."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Developmental reasoning support layer for Marion psychology domain; improves interpretation and response framing for age/stage-related queries.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "confidenceLevel": "core_foundational"
+  }
+}

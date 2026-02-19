@@ -1,0 +1,19 @@
+{
+  "domain": "english",
+  "domainVersion": "2.0.0",
+  "updatedAt": "2026-02-12",
+  "defaultLoadOrder": [
+    "eng_curriculum_sequence_v1.json",
+    "eng_sources_index_v1.json",
+    "eng_foundations_language_science_v1.json",
+    "eng_phonetics_phonology_v1.json",
+    "eng_morphology_word_formation_v1.json",
+    "eng_syntax_grammar_core_v1.json",
+    "eng_semantics_pragmatics_v1.json",
+    "eng_register_corpus_usage_v1.json",
+    "eng_academic_writing_clarity_v1.json",
+    "eng_eap_canada_case_studies_v1.json",
+    "eng_face_examples_v1.json",
+    "eng_dialogue_snippets_v1.json"
+  ]
+}

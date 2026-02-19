@@ -1,0 +1,75 @@
+{
+  "id": "eng_curriculum_sequence_v1",
+  "version": "1.0.0",
+  "description": "Curriculum sequencing for an English major with a language/linguistics + academic writing emphasis (not literature).",
+  "sequenceModel": {
+    "principles": [
+      "Year 1 builds metalanguage + observation skills (what to notice, how to label it).",
+      "Year 2 builds structure (phonology/morphology/syntax) and controlled analysis.",
+      "Year 3 builds meaning + discourse + register/corpus and applied research habits.",
+      "Year 4 builds specialization + capstone outputs (analysis report, pedagogy design, or writing portfolio)."
+    ],
+    "yearPlans": [
+      {
+        "year": 1,
+        "focus": ["foundations", "basic grammar terminology", "intro linguistics lens", "intro academic writing"],
+        "packs": [
+          "eng_foundations_language_science_v1",
+          "eng_syntax_grammar_core_v1",
+          "eng_academic_writing_clarity_v1",
+          "eng_eap_canada_case_studies_v1"
+        ],
+        "milestones": [
+          "Build a personal glossary of 150 core terms (clause, constituent, register, pragmatics).",
+          "Write 3 short analytical memos using claim-evidence-warrant.",
+          "Run a simple error-log (usage/grammar) and fix via reference lookup."
+        ]
+      },
+      {
+        "year": 2,
+        "focus": ["phonetics/phonology", "morphology", "syntax deeper", "usage diagnostics"],
+        "packs": [
+          "eng_phonetics_phonology_v1",
+          "eng_morphology_word_formation_v1",
+          "eng_syntax_grammar_core_v1",
+          "eng_register_corpus_usage_v1"
+        ],
+        "milestones": [
+          "Do 10 phonological transcriptions + 3 minimal-pair analyses.",
+          "Analyze 10 sentences with bracketed constituency trees (basic).",
+          "Produce a 6–8 page mini-paper: form → function → evidence."
+        ]
+      },
+      {
+        "year": 3,
+        "focus": ["semantics/pragmatics", "discourse", "register/corpus reasoning", "applied analysis"],
+        "packs": [
+          "eng_semantics_pragmatics_v1",
+          "eng_register_corpus_usage_v1",
+          "eng_academic_writing_clarity_v1",
+          "eng_eap_canada_case_studies_v1"
+        ],
+        "milestones": [
+          "Complete a small corpus snapshot (e.g., 50 headlines vs 50 academic sentences) and compare features.",
+          "Write a structured argument that anticipates counter-interpretations (pragmatics).",
+          "Produce an annotated bibliography (8 sources) with method + finding + limitation."
+        ]
+      },
+      {
+        "year": 4,
+        "focus": ["capstone specialization", "methods", "professional output"],
+        "packs": [
+          "eng_sources_index_v1",
+          "eng_register_corpus_usage_v1",
+          "eng_academic_writing_clarity_v1",
+          "eng_eap_canada_case_studies_v1"
+        ],
+        "milestones": [
+          "Capstone option A: Applied linguistics case write-up + intervention design.",
+          "Capstone option B: Register/corpus analysis report (methods + results + implications).",
+          "Capstone option C: Academic writing portfolio (revisions with rationale)."
+        ]
+      }
+    ]
+  }
+}

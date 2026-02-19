@@ -1,0 +1,40 @@
+{
+  "id": "eng_academic_writing_clarity_v1",
+  "version": "1.0.0",
+  "description": "Academic writing: clarity, cohesion, argument structure, and revision methodology for reader-centered prose.",
+  "anchors": ["S_WILLIAMS_STYLE"],
+  "topics": [
+    {
+      "name": "Clarity as Reader Experience",
+      "coreClaims": [
+        "Clarity improves when subjects name the main actors and verbs name the main actions.",
+        "Nominalizations can be useful but often hide action; use intentionally."
+      ],
+      "practice": [
+        "Rewrite 5 sentences by restoring action to verbs.",
+        "Add a 'who does what' pass to a paragraph."
+      ]
+    },
+    {
+      "name": "Cohesion and Flow",
+      "coreClaims": [
+        "Readers track familiar information before new information; sentence openings matter.",
+        "Paragraphs should have a visible controlling idea and a logical sequence of support."
+      ],
+      "practice": [
+        "Add topic-stringing (consistent terms) across a paragraph.",
+        "Create a reverse outline and repair structure."
+      ]
+    },
+    {
+      "name": "Revision Protocol (Deterministic)",
+      "protocol": [
+        "Step 1: Identify the main claim.",
+        "Step 2: Mark key terms (ensure consistency).",
+        "Step 3: Diagnose sentence-level clarity (actor/action).",
+        "Step 4: Diagnose paragraph logic (claim → evidence → warrant).",
+        "Step 5: Calibrate stance/hedges."
+      ]
+    }
+  ]
+}

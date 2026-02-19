@@ -1,0 +1,173 @@
+{
+  "packId": "law_contracts_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "description": "High-level overview of Canadian contract law principles. Covers formation, interpretation, breach, damages, and common defences. Educational framework only — not legal advice.",
+  "topics": [
+    {
+      "id": "lc_formation_offer_acceptance",
+      "title": "Formation: Offer and Acceptance",
+      "coreDefinition": "A legally binding contract requires a clear offer, an unequivocal acceptance, consideration, and intention to create legal relations.",
+      "frameworkSteps": [
+        "Identify a clear offer with definite terms.",
+        "Confirm acceptance that mirrors the offer (no material variation).",
+        "Verify consideration (something of value exchanged).",
+        "Assess intention to create legal relations."
+      ],
+      "quickExamples": [
+        "A signed service agreement outlining scope and payment.",
+        "An email confirming acceptance of quoted terms."
+      ],
+      "commonMistakes": [
+        "Confusing negotiations with a final offer.",
+        "Assuming informal discussions automatically create binding agreements."
+      ],
+      "retrievalHints": {
+        "keywords": ["offer", "acceptance", "binding", "agreement", "consideration"],
+        "intentSignals": ["do we have a contract", "is this enforceable"]
+      }
+    },
+    {
+      "id": "lc_consideration",
+      "title": "Consideration",
+      "coreDefinition": "Consideration requires that each party provide something of value. Past consideration generally does not qualify.",
+      "frameworkSteps": [
+        "Identify what each party is promising or providing.",
+        "Determine whether exchange is legally sufficient.",
+        "Assess whether modification requires fresh consideration."
+      ],
+      "quickExamples": [
+        "Payment in exchange for services.",
+        "Promise to deliver goods in exchange for payment."
+      ],
+      "commonMistakes": [
+        "Assuming moral obligation equals legal consideration.",
+        "Believing contract modifications are valid without new consideration."
+      ],
+      "retrievalHints": {
+        "keywords": ["consideration", "exchange", "value", "past consideration"],
+        "intentSignals": ["is this valid", "does this count"]
+      }
+    },
+    {
+      "id": "lc_intention_and_capacity",
+      "title": "Intention and Capacity",
+      "coreDefinition": "Parties must intend legal consequences and possess legal capacity to contract.",
+      "frameworkSteps": [
+        "Assess whether context implies legal intent (commercial vs social setting).",
+        "Confirm parties have legal capacity (age, mental competence).",
+        "Evaluate whether any incapacity renders agreement voidable."
+      ],
+      "quickExamples": [
+        "Commercial agreements presume legal intent.",
+        "Contracts with minors may be unenforceable in some contexts."
+      ],
+      "commonMistakes": [
+        "Assuming all written agreements are automatically enforceable.",
+        "Ignoring capacity concerns."
+      ],
+      "retrievalHints": {
+        "keywords": ["capacity", "intent to create legal relations", "minor contract"],
+        "intentSignals": ["is this valid contract"]
+      }
+    },
+    {
+      "id": "lc_interpretation",
+      "title": "Contract Interpretation",
+      "coreDefinition": "Contracts are interpreted contextually, giving words their ordinary meaning within the entire agreement and surrounding circumstances.",
+      "frameworkSteps": [
+        "Read entire contract as a whole.",
+        "Consider factual matrix (background context).",
+        "Resolve ambiguities using standard interpretive principles."
+      ],
+      "quickExamples": [
+        "Ambiguous clause interpreted against drafter (contra proferentem)."
+      ],
+      "commonMistakes": [
+        "Isolating one clause without reading entire agreement.",
+        "Ignoring context at time of formation."
+      ],
+      "retrievalHints": {
+        "keywords": ["interpretation", "ambiguous clause", "meaning of term"],
+        "intentSignals": ["what does this clause mean"]
+      }
+    },
+    {
+      "id": "lc_breach",
+      "title": "Breach of Contract",
+      "coreDefinition": "A breach occurs when a party fails to perform contractual obligations without lawful excuse.",
+      "frameworkSteps": [
+        "Identify contractual obligation.",
+        "Determine whether performance failed or was deficient.",
+        "Assess materiality of breach.",
+        "Consider available remedies."
+      ],
+      "quickExamples": [
+        "Failure to deliver goods on agreed date.",
+        "Failure to pay agreed compensation."
+      ],
+      "commonMistakes": [
+        "Assuming minor deviation automatically voids contract.",
+        "Failing to review termination clauses."
+      ],
+      "retrievalHints": {
+        "keywords": ["breach", "violation", "non-performance"],
+        "intentSignals": ["what happens if they don't"]
+      }
+    },
+    {
+      "id": "lc_damages",
+      "title": "Damages and Remedies",
+      "coreDefinition": "Damages aim to place the injured party in the position they would have been in had the contract been performed.",
+      "frameworkSteps": [
+        "Assess direct losses.",
+        "Evaluate foreseeability (Hadley principle).",
+        "Consider mitigation obligations.",
+        "Review contractual limitation clauses."
+      ],
+      "quickExamples": [
+        "Lost profits reasonably foreseeable at time of contract.",
+        "Duty to mitigate loss by seeking substitute contract."
+      ],
+      "commonMistakes": [
+        "Claiming speculative damages.",
+        "Ignoring mitigation requirement."
+      ],
+      "retrievalHints": {
+        "keywords": ["damages", "compensation", "loss", "mitigation"],
+        "intentSignals": ["what can I claim", "how much"]
+      }
+    },
+    {
+      "id": "lc_defences_contract",
+      "title": "Common Contract Defences",
+      "coreDefinition": "Certain circumstances may render contracts void, voidable, or unenforceable.",
+      "frameworkSteps": [
+        "Identify alleged defect (misrepresentation, mistake, duress, undue influence).",
+        "Determine whether defence voids or makes contract voidable.",
+        "Assess evidence supporting defence."
+      ],
+      "quickExamples": [
+        "Material misrepresentation may allow rescission.",
+        "Duress may invalidate agreement."
+      ],
+      "commonMistakes": [
+        "Confusing unfair bargain with legal duress.",
+        "Assuming verbal misstatements automatically void agreement."
+      ],
+      "retrievalHints": {
+        "keywords": ["misrepresentation", "duress", "mistake", "voidable"],
+        "intentSignals": ["can I get out of this contract"]
+      }
+    }
+  ],
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "Provides structural explanation of Canadian contract principles.",
+      "Jurisdictional variations may apply.",
+      "Avoid case-specific legal advice."
+    ]
+  }
+}

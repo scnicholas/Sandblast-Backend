@@ -1,0 +1,408 @@
+{
+  "packId": "psy_interventions_skills_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Non-clinical, skills-first psychological interventions and micro-skills Marion can apply safely: behavior change, motivation, habit design, communication, emotion regulation, stress management, problem solving, and interpersonal repair. NOT therapy; no diagnosis; no treatment plans.",
+  "updatedAt": "2026-02-13",
+  "scope": [
+    "behavior-change",
+    "habit-building",
+    "motivation",
+    "goal-setting",
+    "communication",
+    "conflict-repair",
+    "emotion-regulation",
+    "stress-management",
+    "cognitive-reframing",
+    "attention-training",
+    "sleep-hygiene",
+    "decision-making",
+    "implementation-intentions"
+  ],
+
+  "skills": [
+    {
+      "id": "if_then_planning",
+      "name": "Implementation Intentions (If–Then Planning)",
+      "category": "behavior-change",
+      "oneLiner": "Pre-decide a trigger and a response so action happens automatically under real-world friction.",
+      "coreSteps": [
+        "Pick a specific cue (time/place/feeling).",
+        "Choose a tiny response that’s unquestionably doable.",
+        "Write it as: If X happens, then I will do Y.",
+        "Rehearse once; adjust if it fails in reality."
+      ],
+      "actionablePrinciples": [
+        "Make the cue observable (e.g., 'after coffee', not 'when I feel ready').",
+        "Make the response small (2 minutes) to beat avoidance.",
+        "Treat failure as signal to shrink the step or sharpen the cue."
+      ],
+      "faceExamples": [
+        {
+          "title": "Starting the task you avoid",
+          "scenario": "User procrastinates on a big deliverable.",
+          "application": "If it’s 9:00 and I open my laptop, then I write 3 ugly bullet points."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["if then", "implementation intention", "plan", "procrastination"],
+        "intentSignals": ["I keep putting it off", "I need a plan", "how do I make myself do it"]
+      }
+    },
+
+    {
+      "id": "habit_loop_design",
+      "name": "Habit Loop Design (Cue → Routine → Reward)",
+      "category": "habits",
+      "oneLiner": "Habits stick when the cue is consistent, the routine is easy, and the reward is immediate.",
+      "coreSteps": [
+        "Identify the cue (time, place, emotion, preceding action).",
+        "Define the routine (small, repeatable behavior).",
+        "Attach a reward (immediate satisfaction or relief).",
+        "Reduce friction for the good habit; increase friction for the competing habit."
+      ],
+      "actionablePrinciples": [
+        "Environment beats willpower; redesign the environment.",
+        "Stack onto an existing habit (after X, do Y).",
+        "Use immediate rewards—future benefits don’t reinforce behavior well."
+      ],
+      "faceExamples": [
+        {
+          "title": "Daily training consistency",
+          "scenario": "User wants to train but skips days.",
+          "application": "After brushing teeth, do 10 minutes; then enjoy a favorite playlist."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["habit", "routine", "consistency", "cue reward", "environment"],
+        "intentSignals": ["I can’t stay consistent", "how do I build a habit"]
+      }
+    },
+
+    {
+      "id": "motivation_interviewing_micro",
+      "name": "Motivational Interviewing Micro-Skills (OARS-lite)",
+      "category": "motivation",
+      "oneLiner": "Elicit a person’s own reasons for change with reflections and choice, not lectures.",
+      "coreSteps": [
+        "Ask an open question (what/why/how).",
+        "Reflect back the core meaning (one sentence).",
+        "Affirm agency/effort (not traits).",
+        "Summarize and ask for the next step."
+      ],
+      "actionablePrinciples": [
+        "Don’t argue the case for change harder than the user does.",
+        "Elicit 'change talk': reasons, desire, ability, need.",
+        "Offer a menu of options when resistance rises."
+      ],
+      "faceExamples": [
+        {
+          "title": "User is stuck and resistant",
+          "scenario": "User says they 'should' change but won’t act.",
+          "application": "What matters most if this *did* change? What’s one tiny step you’d accept?"
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["motivational interviewing", "resistance", "change talk", "ambivalence"],
+        "intentSignals": ["I want to but I don’t", "I know I should", "I’m not motivated"]
+      }
+    },
+
+    {
+      "id": "cbt_reframe_light",
+      "name": "Cognitive Reframing (CBT-style, Non-clinical)",
+      "category": "cognition",
+      "oneLiner": "Stressful feelings often follow interpretations; test the interpretation and generate a more useful one.",
+      "coreSteps": [
+        "Name the situation (facts only).",
+        "Name the thought/interpretation.",
+        "Name the feeling + intensity (0–10).",
+        "Test the thought: evidence for/against; alternative explanations.",
+        "Choose a more balanced, workable thought; pick one action."
+      ],
+      "actionablePrinciples": [
+        "Separate facts from stories.",
+        "Replace absolutist language (always/never) with precise language.",
+        "Don’t force positivity—aim for accuracy and usefulness."
+      ],
+      "faceExamples": [
+        {
+          "title": "Catastrophizing a setback",
+          "scenario": "User thinks one failure means everything is doomed.",
+          "application": "Alternative: 'This is a setback, not a verdict. Next best step is X.'"
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["reframe", "thoughts", "catastrophize", "cognitive distortion"],
+        "intentSignals": ["I can’t stop thinking", "my mind says", "I’m spiraling"]
+      }
+    },
+
+    {
+      "id": "emotion_labeling",
+      "name": "Affect Labeling (Name It to Tame It)",
+      "category": "emotion-regulation",
+      "oneLiner": "Briefly naming the emotion reduces intensity and improves self-control.",
+      "coreSteps": [
+        "Name the emotion (one word).",
+        "Name the trigger (one sentence).",
+        "Name the need (safety, respect, clarity, rest).",
+        "Proceed with one small regulated action."
+      ],
+      "actionablePrinciples": [
+        "Use precise labels (irritated vs furious) to reduce overwhelm.",
+        "Don’t over-explain—labeling works best short.",
+        "Pair with breathing or grounding for faster downshift."
+      ],
+      "faceExamples": [
+        {
+          "title": "Anger spike in a conversation",
+          "scenario": "User is about to snap at someone.",
+          "application": "‘I’m feeling threatened and disrespected’ → pause → ask one clarifying question."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["emotion labeling", "name it", "regulate", "overwhelmed"],
+        "intentSignals": ["I’m losing it", "I’m so angry", "I’m overwhelmed"]
+      }
+    },
+
+    {
+      "id": "box_breathing",
+      "name": "Box Breathing (4-4-4-4)",
+      "category": "stress-management",
+      "oneLiner": "A simple breath pattern to reduce arousal and restore executive control.",
+      "coreSteps": [
+        "Inhale 4 seconds.",
+        "Hold 4 seconds.",
+        "Exhale 4 seconds.",
+        "Hold 4 seconds.",
+        "Repeat 3–6 rounds."
+      ],
+      "actionablePrinciples": [
+        "Use when intensity is 6/10 or higher.",
+        "Pair with a micro-commitment after (one small next action).",
+        "If dizziness occurs, shorten counts and breathe normally."
+      ],
+      "faceExamples": [
+        {
+          "title": "Pre-meeting anxiety",
+          "scenario": "User is anxious before a call.",
+          "application": "3 rounds, then write the first sentence you’ll say."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["breathing", "calm", "anxiety", "panic", "box breathing"],
+        "intentSignals": ["I need to calm down", "panic", "my heart is racing"]
+      }
+    },
+
+    {
+      "id": "grounding_5_4_3_2_1",
+      "name": "5-4-3-2-1 Grounding",
+      "category": "stress-management",
+      "oneLiner": "Shift attention to immediate sensory data to interrupt spirals and rumination.",
+      "coreSteps": [
+        "5 things you see.",
+        "4 things you feel (touch).",
+        "3 things you hear.",
+        "2 things you smell.",
+        "1 thing you taste."
+      ],
+      "actionablePrinciples": [
+        "Best when intrusive thoughts loop.",
+        "Keep it fast: 60–90 seconds.",
+        "Then choose one controllable next step."
+      ],
+      "faceExamples": [
+        {
+          "title": "Rumination loop",
+          "scenario": "User can’t stop replaying a mistake.",
+          "application": "Do 5-4-3-2-1, then write one repair message or one next action."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["grounding", "panic", "spiral", "rumination"],
+        "intentSignals": ["I’m spiraling", "I can’t stop thinking", "I feel unreal"]
+      }
+    },
+
+    {
+      "id": "problem_solving_steps",
+      "name": "Structured Problem Solving (Define → Options → Choose → Test)",
+      "category": "decision-making",
+      "oneLiner": "Reduce overwhelm by converting vague stress into a defined problem and a testable plan.",
+      "coreSteps": [
+        "Define the problem in one sentence (facts).",
+        "Set a success criterion (what ‘better’ looks like).",
+        "Generate 3–5 options (no judgment).",
+        "Pick one option; define the smallest test.",
+        "Review result; iterate."
+      ],
+      "actionablePrinciples": [
+        "If stuck, shrink the test until it’s unavoidable.",
+        "Measure outcomes, not feelings alone.",
+        "Prefer reversible decisions when uncertain."
+      ],
+      "faceExamples": [
+        {
+          "title": "Too many moving parts",
+          "scenario": "User is overwhelmed by a project.",
+          "application": "Define the bottleneck; pick one 30-minute test; review."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["problem solving", "overwhelmed", "decision", "next step"],
+        "intentSignals": ["I don’t know what to do", "too many things", "help me choose"]
+      }
+    },
+
+    {
+      "id": "assertive_request_script",
+      "name": "Assertive Request Script (DEAR-lite)",
+      "category": "communication",
+      "oneLiner": "Ask clearly without aggression: describe, express, ask, and reinforce.",
+      "coreSteps": [
+        "Describe: facts, no accusations.",
+        "Express: impact/feeling (one sentence).",
+        "Ask: specific request.",
+        "Reinforce: why it matters / shared benefit."
+      ],
+      "actionablePrinciples": [
+        "Use specific behaviors and timelines.",
+        "Avoid mind-reading and global labels.",
+        "If they say no, ask for an alternative offer."
+      ],
+      "faceExamples": [
+        {
+          "title": "Negotiating a deadline",
+          "scenario": "User needs a deliverable sooner.",
+          "application": "‘When X slipped, I felt boxed in. Can you send Y by 3pm? It keeps us on track.’"
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["assertive", "boundaries", "request", "communication script"],
+        "intentSignals": ["how do I say", "set a boundary", "ask without conflict"]
+      }
+    },
+
+    {
+      "id": "repair_after_conflict",
+      "name": "Repair After Conflict (Impact → Ownership → Change)",
+      "category": "relationships",
+      "oneLiner": "Repair works when you name impact, take responsibility, and propose a concrete behavioral change.",
+      "coreSteps": [
+        "Name impact: what happened + effect.",
+        "Ownership: your part (no excuses).",
+        "Change: what you’ll do next time.",
+        "Invite: ask what they need to feel safe/clean."
+      ],
+      "actionablePrinciples": [
+        "Don’t mix apology with defense in the same sentence.",
+        "Offer one concrete future behavior, not vague intent.",
+        "Ask one clarifying question and stop talking."
+      ],
+      "faceExamples": [
+        {
+          "title": "You snapped at someone",
+          "scenario": "User regrets how they handled a moment.",
+          "application": "‘I raised my voice. That likely felt unsafe. I’ll pause next time and ask for 5 minutes.’"
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["repair", "apology", "conflict", "relationship"],
+        "intentSignals": ["I messed up", "how do I apologize", "how do I fix it"]
+      }
+    },
+
+    {
+      "id": "sleep_hygiene_micro",
+      "name": "Sleep Hygiene (Micro-Protocol)",
+      "category": "self-care",
+      "oneLiner": "Better sleep improves mood and executive function; small changes beat perfect routines.",
+      "coreSteps": [
+        "Set a consistent wake time.",
+        "Cut caffeine 8 hours before bed (or reduce).",
+        "Dim light/screens 60 minutes before bed.",
+        "Brain-dump thoughts to paper; plan tomorrow in 3 bullets.",
+        "Cool, dark room; phone out of reach."
+      ],
+      "actionablePrinciples": [
+        "Fix wake time first; bedtime follows.",
+        "If racing thoughts: write them, don’t fight them.",
+        "Treat sleep as performance infrastructure, not virtue."
+      ],
+      "faceExamples": [
+        {
+          "title": "Late-night overthinking",
+          "scenario": "User can’t shut off their mind.",
+          "application": "3-bullet brain dump + 2 minutes of slow breathing."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["sleep", "insomnia", "racing thoughts", "hygiene"],
+        "intentSignals": ["can’t sleep", "mind won’t stop", "always tired"]
+      }
+    }
+  ],
+
+  "microProtocols": [
+    {
+      "id": "two_minute_start",
+      "name": "2-Minute Start Protocol",
+      "goal": "Break inertia and build momentum.",
+      "steps": [
+        "Choose the smallest visible action (open doc, title it, write 1 bullet).",
+        "Set a 2-minute timer.",
+        "Stop at 2 minutes or continue if momentum appears.",
+        "If stopped, schedule the next 2-minute start."
+      ],
+      "whenToUse": [
+        "procrastination",
+        "overwhelm",
+        "low motivation",
+        "task avoidance"
+      ],
+      "safetyNotes": "Non-clinical. If user expresses self-harm intent, switch to safety/containment guidance."
+    },
+    {
+      "id": "conflict_pause_reset",
+      "name": "Conflict Pause → Reset",
+      "goal": "Prevent escalation and preserve relationship repair.",
+      "steps": [
+        "Label emotion (one word).",
+        "Ask for a short pause (5–20 minutes).",
+        "Regulate (breathing/grounding).",
+        "Return with one clear request and one listening question."
+      ],
+      "whenToUse": ["escalating argument", "snapping", "defensiveness"],
+      "safetyNotes": "If violence risk is present, prioritize de-escalation and safe exit."
+    }
+  ],
+
+  "applicationRules": [
+    {
+      "id": "non_clinical_boundary",
+      "instruction": "Do not diagnose, label disorders, or prescribe treatment. Provide skills, education, and options."
+    },
+    {
+      "id": "risk_gate",
+      "instruction": "If self-harm/violence/illegal intent is detected, shift to safety framing and high-level support; avoid operational details."
+    },
+    {
+      "id": "agency_first",
+      "instruction": "Offer choices and ask preference when uncertainty is high; avoid commanding tone unless user explicitly asks for direct instruction."
+    },
+    {
+      "id": "minimum_action_unit",
+      "instruction": "Prefer smallest testable step (2–10 minutes) over large plans when motivation is low or overload is high."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Skills and interventions layer for Marion (psychology domain). Drives practical, non-clinical guidance and structured responses.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "confidenceLevel": "applied_non_clinical",
+    "safetyProfile": "skills_only_no_diagnosis_no_treatment"
+  }
+}

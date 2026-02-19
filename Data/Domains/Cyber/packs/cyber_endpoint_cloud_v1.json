@@ -1,0 +1,156 @@
+{
+  "packId": "cyber_endpoint_cloud_v1",
+  "domain": "cybersecurity",
+  "packType": "infrastructure",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Endpoint and cloud security fundamentals for defensive posture, hardening, and risk reasoning.",
+  "sections": [
+    {
+      "id": "endpoint_security_basics",
+      "name": "Endpoint Security Fundamentals",
+      "summary": "Endpoints (laptops, servers, mobile devices) are common initial access points and require layered protection.",
+      "principles": [
+        "Use endpoint detection and response (EDR) or equivalent monitoring.",
+        "Enforce automatic OS and application updates.",
+        "Restrict local administrator privileges.",
+        "Enable disk encryption by default.",
+        "Harden default configurations."
+      ],
+      "riskPatterns": [
+        "Unpatched software exploited via known vulnerabilities.",
+        "Credential theft through malware or phishing.",
+        "Lateral movement from a compromised workstation."
+      ],
+      "retrievalHints": {
+        "keywords": ["endpoint", "edr", "antivirus", "workstation", "device security"],
+        "intentSignals": ["harden", "protect", "monitor"]
+      }
+    },
+    {
+      "id": "endpoint_hardening_controls",
+      "name": "Endpoint Hardening Controls",
+      "summary": "Configuration standards reduce attack surface and privilege misuse.",
+      "controls": [
+        "Disable unused services and ports.",
+        "Enforce strong password policies and MFA.",
+        "Restrict macro execution and script abuse.",
+        "Use application allowlisting where feasible.",
+        "Monitor privilege escalation attempts."
+      ],
+      "retrievalHints": {
+        "keywords": ["hardening", "configuration", "allowlisting", "macros"],
+        "intentSignals": ["secure setup", "baseline"]
+      }
+    },
+    {
+      "id": "cloud_shared_responsibility",
+      "name": "Cloud Shared Responsibility Model",
+      "summary": "Cloud providers secure the infrastructure; customers secure their configurations, identities, and data.",
+      "coreIdeas": [
+        "Understand IaaS vs PaaS vs SaaS responsibility differences.",
+        "Misconfiguration is a major cloud breach driver.",
+        "Identity is the new perimeter in cloud environments."
+      ],
+      "retrievalHints": {
+        "keywords": ["shared responsibility", "cloud security", "aws", "azure", "gcp"],
+        "intentSignals": ["cloud", "infrastructure", "compliance"]
+      }
+    },
+    {
+      "id": "cloud_identity_governance",
+      "name": "Cloud Identity & Access Governance",
+      "summary": "Cloud compromise often begins with credential misuse or privilege escalation.",
+      "principles": [
+        "Use MFA for all privileged accounts.",
+        "Rotate keys and secrets regularly.",
+        "Avoid long-lived access tokens.",
+        "Audit and reduce overly permissive IAM policies."
+      ],
+      "riskPatterns": [
+        "Exposed API keys in public repositories.",
+        "Overprivileged service accounts.",
+        "Stale credentials remaining active."
+      ],
+      "retrievalHints": {
+        "keywords": ["iam", "api key", "access token", "cloud identity"],
+        "intentSignals": ["credentials", "permissions"]
+      }
+    },
+    {
+      "id": "cloud_network_segmentation",
+      "name": "Cloud Network Segmentation",
+      "summary": "Segmentation limits blast radius when compromise occurs.",
+      "controls": [
+        "Use private subnets for sensitive workloads.",
+        "Limit inbound exposure to only required ports.",
+        "Implement firewall rules and security groups.",
+        "Log and monitor network flow data."
+      ],
+      "retrievalHints": {
+        "keywords": ["segmentation", "security groups", "vpc", "firewall"],
+        "intentSignals": ["architecture", "design"]
+      }
+    },
+    {
+      "id": "container_and_runtime_security",
+      "name": "Container & Runtime Security",
+      "summary": "Containers require image integrity, runtime monitoring, and minimal privileges.",
+      "principles": [
+        "Scan container images before deployment.",
+        "Use minimal base images.",
+        "Avoid running containers as root.",
+        "Monitor runtime behavior for anomalies."
+      ],
+      "retrievalHints": {
+        "keywords": ["docker", "kubernetes", "container security", "image scan"],
+        "intentSignals": ["deploy", "cloud native"]
+      }
+    },
+    {
+      "id": "logging_monitoring_cloud",
+      "name": "Cloud Logging & Monitoring",
+      "summary": "Visibility into cloud events is essential for detecting misuse and breach indicators.",
+      "keyIdeas": [
+        "Enable audit logs for all accounts.",
+        "Centralize logs into a secure location.",
+        "Alert on privilege escalation and policy changes.",
+        "Monitor failed login attempts and anomalous API calls."
+      ],
+      "retrievalHints": {
+        "keywords": ["cloud logs", "audit trail", "siem", "monitoring"],
+        "intentSignals": ["detect", "investigate"]
+      }
+    }
+  ],
+  "crossDomainSignals": {
+    "riskEscalationTriggers": [
+      "Privilege escalation detected",
+      "Unauthorized configuration change",
+      "Data exfiltration indicators",
+      "Suspicious API usage"
+    ],
+    "lawAndComplianceOverlap": [
+      "Data protection regulations",
+      "Breach notification requirements",
+      "Access audit obligations"
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "endpoint security",
+      "cloud security",
+      "hardening",
+      "shared responsibility",
+      "iam",
+      "segmentation"
+    ],
+    "intentSignals": [
+      "design",
+      "secure",
+      "protect",
+      "deploy",
+      "architecture"
+    ]
+  }
+}

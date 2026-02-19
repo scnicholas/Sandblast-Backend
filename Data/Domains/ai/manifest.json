@@ -1,0 +1,107 @@
+{
+  "domain": "artificial_intelligence",
+  "domainVersion": "1.0.0",
+  "updatedAt": "2026-02-12",
+  "defaultLoadOrder": [
+    "ai_foundations_v1.json",
+    "ai_agents_systems_v1.json",
+    "ai_ethics_law_v1.json",
+    "ai_ai_psychology_v1.json",
+    "ai_ai_cybersecurity_v1.json",
+    "ai_ai_marketing_v1.json",
+    "ai_case_studies_v1.json",
+    "ai_face_examples_v1.json",
+    "ai_dialogue_snippets_v1.json"
+  ],
+  "packs": {
+    "foundations": {
+      "file": "ai_foundations_v1.json",
+      "version": "1.0.0",
+      "tags": ["intro", "core", "ml", "probability", "search", "rl"]
+    },
+    "agentsSystems": {
+      "file": "ai_agents_systems_v1.json",
+      "version": "1.0.0",
+      "tags": ["agents", "multi-agent", "planning", "state", "orchestration"]
+    },
+    "ethicsLaw": {
+      "file": "ai_ethics_law_v1.json",
+      "version": "1.0.0",
+      "tags": ["ethics", "governance", "privacy", "bias", "compliance", "law"]
+    },
+    "aiPsychology": {
+      "file": "ai_ai_psychology_v1.json",
+      "version": "1.0.0",
+      "tags": ["hci", "cog", "human-in-the-loop", "behavior", "decision-support"]
+    },
+    "aiCybersecurity": {
+      "file": "ai_ai_cybersecurity_v1.json",
+      "version": "1.0.0",
+      "tags": ["security", "defensive", "anomaly", "adversarial-ml", "threat"]
+    },
+    "aiMarketing": {
+      "file": "ai_ai_marketing_v1.json",
+      "version": "1.0.0",
+      "tags": ["marketing", "recommendation", "segmentation", "attribution", "clv"]
+    },
+    "caseStudies": {
+      "file": "ai_case_studies_v1.json",
+      "version": "1.0.0",
+      "tags": ["cases", "applied", "lessons", "real-world"]
+    },
+    "faces": {
+      "file": "ai_face_examples_v1.json",
+      "version": "1.0.0",
+      "tags": ["archetypes", "personas", "roles"]
+    },
+    "dialogue": {
+      "file": "ai_dialogue_snippets_v1.json",
+      "version": "1.0.0",
+      "tags": ["snippets", "prompting", "questions", "coaching"]
+    }
+  },
+  "routing": {
+    "primaryLane": "ai",
+    "secondaryLanes": ["law", "psychology", "cyber", "finance", "strategy", "english"],
+    "keywords": [
+      "artificial intelligence",
+      "ai",
+      "machine learning",
+      "ml",
+      "deep learning",
+      "neural network",
+      "reinforcement learning",
+      "rl",
+      "agent",
+      "multi-agent",
+      "planning",
+      "optimization",
+      "bayesian",
+      "probability",
+      "inference",
+      "model",
+      "training",
+      "inference-time",
+      "alignment",
+      "bias",
+      "explainability",
+      "governance",
+      "llm",
+      "prompt",
+      "rag",
+      "embedding"
+    ]
+  },
+  "constraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true
+  },
+  "notes": [
+    "Folder name should be 'ai' (Data/ai/).",
+    "Manifest keys are stable; pack filenames match defaultLoadOrder.",
+    "Designed for Marion hinting + lane routing without storing raw user text."
+  ]
+}

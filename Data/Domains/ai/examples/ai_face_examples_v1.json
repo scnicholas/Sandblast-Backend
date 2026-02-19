@@ -1,0 +1,23 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "face_examples",
+  "version": "1.0.0",
+  "archetypes": [
+    {
+      "type": "researcher",
+      "traits": ["theoretical", "data_driven", "methodical"]
+    },
+    {
+      "type": "ai_engineer",
+      "traits": ["implementation_focused", "systems_thinker", "iterative"]
+    },
+    {
+      "type": "ethics_lead",
+      "traits": ["risk_aware", "policy_minded", "accountability_oriented"]
+    },
+    {
+      "type": "ai_product_builder",
+      "traits": ["market_driven", "metrics_focused", "rapid_experimentation"]
+    }
+  ]
+}

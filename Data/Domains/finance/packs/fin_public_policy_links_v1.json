@@ -1,0 +1,213 @@
+{
+  "id": "fin_public_policy_links_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Structured mapping of public policy mechanisms to financial and economic outcomes. Designed for macro reasoning, regulatory awareness, and business strategy alignment.",
+  "posture": {
+    "type": "policy_finance_bridge",
+    "analytical": true,
+    "non_partisan": true,
+    "not_legal_or_investment_advice": true
+  },
+  "corePrinciple": "Public policy shapes incentives. Incentives shape capital flows. Capital flows shape economic outcomes.",
+  "policyCategories": [
+    {
+      "category": "monetary_policy",
+      "instruments": [
+        "policy_interest_rate",
+        "open_market_operations",
+        "quantitative_easing",
+        "quantitative_tightening",
+        "forward_guidance",
+        "reserve_requirements"
+      ],
+      "transmissionChannels": [
+        "credit_cost",
+        "asset_prices",
+        "exchange_rate",
+        "inflation_expectations",
+        "bank_lending"
+      ],
+      "financialImpact": [
+        "equity_valuations",
+        "bond_yields",
+        "risk_premia",
+        "venture_funding_conditions",
+        "mortgage_rates"
+      ],
+      "businessImplications": [
+        "cost_of_capital_adjustment",
+        "hiring_freeze_or_expansion",
+        "inventory_strategy",
+        "pricing_power_shift"
+      ]
+    },
+    {
+      "category": "fiscal_policy",
+      "instruments": [
+        "government_spending",
+        "tax_policy",
+        "transfer_payments",
+        "subsidies",
+        "infrastructure_investment"
+      ],
+      "transmissionChannels": [
+        "aggregate_demand",
+        "sector_targeting",
+        "income_distribution",
+        "private_investment_crowding_in_or_out"
+      ],
+      "financialImpact": [
+        "sector_rotation",
+        "consumer_discretionary_spending",
+        "public_debt_levels",
+        "bond_supply_effects"
+      ],
+      "businessImplications": [
+        "demand_shock",
+        "grant_or_credit_access",
+        "procurement_opportunities",
+        "tax_planning_adjustment"
+      ]
+    },
+    {
+      "category": "regulatory_policy",
+      "instruments": [
+        "capital_requirements",
+        "licensing_rules",
+        "consumer_protection_laws",
+        "data_privacy_laws",
+        "competition_policy"
+      ],
+      "transmissionChannels": [
+        "compliance_cost",
+        "market_entry_barriers",
+        "risk_transfer",
+        "industry_consolidation"
+      ],
+      "financialImpact": [
+        "margin_compression_or_expansion",
+        "valuation_multiples",
+        "compliance_investment",
+        "litigation_risk"
+      ],
+      "businessImplications": [
+        "product_design_constraints",
+        "legal_structuring",
+        "operational_risk_controls",
+        "competitive_advantage_shift"
+      ]
+    },
+    {
+      "category": "trade_policy",
+      "instruments": [
+        "tariffs",
+        "trade_agreements",
+        "export_controls",
+        "sanctions"
+      ],
+      "transmissionChannels": [
+        "input_costs",
+        "supply_chain_risk",
+        "currency_volatility",
+        "market_access"
+      ],
+      "financialImpact": [
+        "import_export_margin_change",
+        "commodity_price_fluctuation",
+        "cross_border_capital_flow"
+      ],
+      "businessImplications": [
+        "supplier_diversification",
+        "inventory_buffering",
+        "localization_strategy"
+      ]
+    },
+    {
+      "category": "financial_stability_policy",
+      "instruments": [
+        "stress_testing",
+        "deposit_insurance",
+        "liquidity_facilities",
+        "macroprudential_tools"
+      ],
+      "transmissionChannels": [
+        "bank_confidence",
+        "systemic_risk_containment",
+        "credit_availability"
+      ],
+      "financialImpact": [
+        "bank_equity_volatility",
+        "credit_spreads",
+        "risk_aversion_cycles"
+      ],
+      "businessImplications": [
+        "counterparty_risk_assessment",
+        "cash_management_adjustment",
+        "contingency_planning"
+      ]
+    }
+  ],
+  "crossDomainLinkages": [
+    {
+      "policy": "interest_rate_hikes",
+      "macroEffect": "demand_slowdown",
+      "microEffect": "higher_debt_service_costs",
+      "capitalMarketEffect": "equity_multiple_compression",
+      "businessStrategicShift": "focus_on_cashflow_and_margin"
+    },
+    {
+      "policy": "corporate_tax_cut",
+      "macroEffect": "after_tax_income_increase",
+      "microEffect": "higher_retained_earnings",
+      "capitalMarketEffect": "earnings_growth_expectation",
+      "businessStrategicShift": "investment_or_share_buybacks"
+    },
+    {
+      "policy": "data_privacy_regulation",
+      "macroEffect": "higher_compliance_costs",
+      "microEffect": "platform_business_model_adjustment",
+      "capitalMarketEffect": "valuation_reset_for_ad_based_models",
+      "businessStrategicShift": "shift_to_subscription_or_first_party_data"
+    }
+  ],
+  "riskConsiderations": {
+    "policyUncertainty": [
+      "election_cycle_risk",
+      "regulatory_interpretation_variance",
+      "implementation_delay"
+    ],
+    "financialExposure": [
+      "interest_rate_sensitivity",
+      "leverage_ratio",
+      "cross_border_revenue_dependency"
+    ],
+    "strategicGuardrails": [
+      "maintain_liquidity_buffer",
+      "scenario_planning",
+      "diversify_revenue_streams",
+      "stress_test_cost_structure"
+    ]
+  },
+  "diagnosticQuestions": [
+    "Which policy lever most directly affects your cost of capital?",
+    "Is your revenue demand-sensitive to fiscal stimulus or contraction?",
+    "How exposed is your supply chain to trade shifts?",
+    "What regulatory change could structurally alter your margin profile?",
+    "How resilient is your balance sheet under tighter credit?"
+  ],
+  "analysisFrameworks": [
+    "policy_transmission_model",
+    "scenario_analysis",
+    "stress_testing",
+    "incentive_mapping",
+    "regulatory_impact_matrix"
+  ],
+  "exampleUseCases": [
+    "mapping_interest_rate_policy_to_saas_valuation",
+    "analyzing_trade_policy_impact_on_import_retailer",
+    "assessing_tax_policy_shift_on_cashflow",
+    "evaluating_regulatory_change_on_fintech_margin",
+    "building_policy_risk_scenario_for_board_review"
+  ]
+}

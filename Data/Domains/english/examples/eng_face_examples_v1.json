@@ -1,0 +1,146 @@
+{
+  "id": "eng_face_examples_v1",
+  "version": "1.0.0",
+  "description": "Face examples for English domain: common student intents, input shapes, expected outputs, and diagnostic cues (language/linguistics/writing/EAP; not literature).",
+  "usage": {
+    "goal": "Help Marion/Nyx classify English requests quickly and respond with the right depth, method, and format.",
+    "guardrails": [
+      "Do not write full graded assignments end-to-end; prefer scaffolding, outlines, feedback, and revision.",
+      "Avoid copying copyrighted text; use paraphrase, explanation, and original examples.",
+      "If the user asks for plagiarism, refuse and offer ethical alternatives (study plan, draft feedback)."
+    ]
+  },
+  "faces": [
+    {
+      "faceId": "ENG_FACE_01_GRAMMAR_DIAGNOSE_FIX",
+      "label": "Grammar diagnosis + fixes",
+      "userIntents": ["fix grammar", "is this correct", "why is this wrong", "rewrite for correctness"],
+      "inputShape": "User provides 1-6 sentences or a paragraph.",
+      "diagnosticCues": ["subject-verb agreement", "comma splice", "fragment", "tense consistency", "article/preposition errors"],
+      "preferredOutputs": [
+        "Corrected version",
+        "Brief rule explanation",
+        "2-3 alternative rewrites by register (casual vs academic)",
+        "Pattern-based mini-drills"
+      ],
+      "antiPatterns": ["Rewrite entire essay without user draft", "Over-correct dialect features unless asked"],
+      "exampleUserPrompt": "Can you fix this paragraph and tell me what I keep doing wrong?",
+      "nyxResponsePattern": [
+        "Return corrected text.",
+        "List 3 recurring patterns (named).",
+        "Give 1 rule-of-thumb per pattern.",
+        "Give 3 practice sentences tailored to the user's errors."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_02_REGISTER_SHIFT",
+      "label": "Register shift: conversational → academic/professional",
+      "userIntents": ["make it more academic", "sound professional", "reduce informality"],
+      "inputShape": "User provides raw text + target audience/context.",
+      "diagnosticCues": ["stance/hedging", "nominalization density", "sentence length", "pronoun use", "claims too absolute"],
+      "preferredOutputs": [
+        "Two rewrites (moderate academic, strong academic)",
+        "Register checklist applied to their text",
+        "Notes on stance/hedges and evidence language"
+      ],
+      "exampleUserPrompt": "Turn this into academic tone without sounding robotic.",
+      "nyxResponsePattern": [
+        "Ask for audience if missing; otherwise proceed.",
+        "Provide two versions + bullet notes explaining key changes (stance, cohesion, precision)."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_03_ARGUMENT_STRUCTURE",
+      "label": "Argument structure (claim–evidence–warrant)",
+      "userIntents": ["make my argument stronger", "improve thesis", "add evidence", "counterargument"],
+      "inputShape": "Topic + draft claim or paragraph.",
+      "diagnosticCues": ["claim too broad", "evidence not tied to claim", "missing warrant", "no counter-interpretation"],
+      "preferredOutputs": [
+        "Reframed thesis options",
+        "Argument map",
+        "Counterargument + rebuttal templates",
+        "Evidence integration wording (reporting verbs, hedges)"
+      ],
+      "exampleUserPrompt": "My professor says my paragraphs don’t 'prove' anything. Help.",
+      "nyxResponsePattern": [
+        "Convert their paragraph into claim/evidence/warrant.",
+        "Show what's missing.",
+        "Offer 2 revised paragraph skeletons they can fill."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_04_LINGUISTICS_ANALYSIS",
+      "label": "Linguistics: analyze structure (syntax/morphology/phonology)",
+      "userIntents": ["parse this sentence", "what's the clause type", "morpheme breakdown", "phonology pattern"],
+      "inputShape": "A sentence/word list + task type.",
+      "diagnosticCues": ["constituency", "function vs category", "complement frames", "derivation vs inflection"],
+      "preferredOutputs": [
+        "Step-by-step analysis",
+        "Labeled structure (brackets or trees in plain text)",
+        "Short justification using diagnostics",
+        "Common pitfalls"
+      ],
+      "exampleUserPrompt": "Break down 'uncharacteristically' and explain what’s happening.",
+      "nyxResponsePattern": [
+        "Segment word.",
+        "Label morphemes (type/function).",
+        "Explain meaning contribution.",
+        "Note productivity/constraints."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_05_RESEARCH_SUMMARY_EVAL",
+      "label": "Summarize & evaluate a scholarly source (EAP-friendly)",
+      "userIntents": ["summarize this paper", "explain methodology", "limitations", "annotated bibliography"],
+      "inputShape": "Abstract/excerpt or user-provided notes.",
+      "diagnosticCues": ["method vs claim confusion", "over-quoting", "missing limitation"],
+      "preferredOutputs": [
+        "Structured summary (aim, method, findings, implications)",
+        "1-2 limitations",
+        "How to cite/position (reporting verbs + hedges)",
+        "Annotated bibliography entry format"
+      ],
+      "exampleUserPrompt": "Help me write an annotated bibliography entry for this study.",
+      "nyxResponsePattern": [
+        "Ask for excerpt if missing.",
+        "Return structured annotation + 2 discussion questions."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_06_REVISION_PROTOCOL",
+      "label": "Revision protocol (clarity, cohesion, flow)",
+      "userIntents": ["my writing is unclear", "it doesn’t flow", "tighten this"],
+      "inputShape": "Paragraphs or section draft.",
+      "diagnosticCues": ["actor/action mismatch", "topic drift", "weak sentence openings", "uncontrolled nominalizations"],
+      "preferredOutputs": [
+        "Reverse outline",
+        "Rewrites of 3 representative sentences",
+        "A revision checklist + next actions",
+        "Before/after rationale"
+      ],
+      "exampleUserPrompt": "Can you make this clearer but keep my voice?",
+      "nyxResponsePattern": [
+        "Do a quick reverse outline.",
+        "Rewrite 2-3 sentences to demonstrate pattern.",
+        "Give rules they can apply to the rest."
+      ]
+    },
+    {
+      "faceId": "ENG_FACE_07_PLAGIARISM_RISK_REQUEST",
+      "label": "Plagiarism risk / 'write my paper' request",
+      "userIntents": ["write my essay", "do my assignment", "make it undetectable"],
+      "inputShape": "User asks for full deliverable or evasion.",
+      "diagnosticCues": ["explicit cheating request", "undetectable phrasing", "submit-ready demand"],
+      "preferredOutputs": [
+        "Refuse the unethical part",
+        "Offer outline, study plan, feedback on their draft",
+        "Offer citation and research guidance"
+      ],
+      "exampleUserPrompt": "Write my 1500-word paper due tonight.",
+      "nyxResponsePattern": [
+        "Decline writing a full graded assignment.",
+        "Offer thesis options, outline, paragraph templates, and revision support."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "eng_phonetics_phonology_v1",
+  "version": "1.0.0",
+  "description": "Sound system layer: phonetics (how sounds are made) and phonology (how sounds function in a system).",
+  "anchors": [],
+  "topics": [
+    {
+      "name": "Phonetics Essentials",
+      "coreClaims": [
+        "Articulatory features explain how consonants and vowels are produced (place/manner/voicing).",
+        "Transcription is a tool for precision and pattern discovery."
+      ],
+      "practice": [
+        "Minimal pairs: identify contrastive phonemes.",
+        "Allophones: identify predictable variants in context."
+      ]
+    },
+    {
+      "name": "Phonology Patterns",
+      "coreClaims": [
+        "Phonological rules describe systematic alternations (e.g., assimilation) without treating them as errors.",
+        "Stress and rhythm affect intelligibility and perceived fluency."
+      ],
+      "practice": [
+        "Mark stress patterns in multisyllabic words.",
+        "Explain a reduction pattern in fast speech vs careful speech."
+      ]
+    }
+  ]
+}

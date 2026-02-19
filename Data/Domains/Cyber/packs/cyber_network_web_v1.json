@@ -1,0 +1,152 @@
+{
+  "packId": "cyber_network_web_v1",
+  "domain": "cybersecurity",
+  "packType": "network_web",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Defensive network and web security fundamentals, architecture reasoning, and common risk patterns. No exploit instructions.",
+  "sections": [
+    {
+      "id": "network_segmentation",
+      "name": "Network Segmentation",
+      "summary": "Divide networks into logical segments to reduce lateral movement and blast radius.",
+      "principles": [
+        "Separate public-facing systems from internal systems.",
+        "Restrict east-west traffic with policy controls.",
+        "Use VLANs, firewalls, or microsegmentation for isolation.",
+        "Monitor cross-segment traffic."
+      ],
+      "riskPatterns": [
+        "Flat networks enabling rapid lateral movement.",
+        "Overly permissive firewall rules.",
+        "No monitoring between internal segments."
+      ],
+      "retrievalHints": {
+        "keywords": ["segmentation", "vlan", "firewall rules", "lateral movement"],
+        "intentSignals": ["architecture", "reduce risk", "design"]
+      }
+    },
+    {
+      "id": "firewalls_and_gateways",
+      "name": "Firewalls & Gateways",
+      "summary": "Control inbound and outbound traffic based on defined policies.",
+      "principles": [
+        "Default-deny inbound traffic.",
+        "Limit exposed ports to required services.",
+        "Review firewall policies regularly.",
+        "Log and alert on policy violations."
+      ],
+      "retrievalHints": {
+        "keywords": ["firewall", "port exposure", "gateway", "ingress"],
+        "intentSignals": ["secure perimeter", "harden"]
+      }
+    },
+    {
+      "id": "secure_web_architecture",
+      "name": "Secure Web Architecture",
+      "summary": "Design web applications and APIs to minimize attack surface and enforce validation.",
+      "principles": [
+        "Validate and sanitize all user input.",
+        "Use parameterized queries to prevent injection flaws.",
+        "Implement proper authentication and session management.",
+        "Enforce HTTPS everywhere."
+      ],
+      "riskPatterns": [
+        "Injection vulnerabilities.",
+        "Improper session handling.",
+        "Unencrypted traffic."
+      ],
+      "retrievalHints": {
+        "keywords": ["web security", "input validation", "https", "api security"],
+        "intentSignals": ["secure app", "protect website"]
+      }
+    },
+    {
+      "id": "common_web_risks",
+      "name": "Common Web Application Risks",
+      "summary": "High-level defensive awareness of common vulnerability classes.",
+      "examples": [
+        "Injection flaws (SQL, command).",
+        "Cross-site scripting (XSS).",
+        "Cross-site request forgery (CSRF).",
+        "Broken access control.",
+        "Insecure deserialization."
+      ],
+      "notes": [
+        "Focus on mitigation strategies rather than exploit mechanics.",
+        "Tie vulnerabilities to secure coding and review practices."
+      ],
+      "retrievalHints": {
+        "keywords": ["owasp", "xss", "csrf", "injection", "broken access control"],
+        "intentSignals": ["vulnerability", "secure coding"]
+      }
+    },
+    {
+      "id": "ddos_resilience",
+      "name": "DDoS & Availability Resilience",
+      "summary": "Protect availability through redundancy and traffic management.",
+      "principles": [
+        "Use content delivery networks (CDNs).",
+        "Implement rate limiting.",
+        "Scale infrastructure horizontally.",
+        "Monitor abnormal traffic spikes."
+      ],
+      "riskPatterns": [
+        "Single points of failure.",
+        "Unprotected public endpoints.",
+        "Lack of rate limiting."
+      ],
+      "retrievalHints": {
+        "keywords": ["ddos", "cdn", "rate limit", "traffic spike"],
+        "intentSignals": ["availability", "resilience"]
+      }
+    },
+    {
+      "id": "tls_and_encryption",
+      "name": "TLS & Data Encryption",
+      "summary": "Protect data in transit using strong cryptographic protocols.",
+      "principles": [
+        "Enforce modern TLS versions.",
+        "Disable weak cipher suites.",
+        "Use certificates from trusted authorities.",
+        "Rotate keys regularly."
+      ],
+      "riskPatterns": [
+        "Expired certificates.",
+        "Deprecated protocol versions.",
+        "Weak cipher configurations."
+      ],
+      "retrievalHints": {
+        "keywords": ["tls", "ssl", "certificate", "encryption"],
+        "intentSignals": ["secure communication", "data protection"]
+      }
+    }
+  ],
+  "crossDomainSignals": {
+    "lawOverlap": [
+      "Data protection regulations related to transmission security.",
+      "Breach liability exposure for insecure web design."
+    ],
+    "financeOverlap": [
+      "Transaction integrity in payment systems.",
+      "Fraud detection through anomaly monitoring."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "network security",
+      "web security",
+      "firewall",
+      "segmentation",
+      "owasp",
+      "https"
+    ],
+    "intentSignals": [
+      "design",
+      "secure",
+      "harden",
+      "protect",
+      "architecture"
+    ]
+  }
+}

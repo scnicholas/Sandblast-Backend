@@ -1,0 +1,233 @@
+{
+  "id": "fin_pricing_models_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "A practical pricing-model pack: common pricing architectures, when to use them, how to test them, and guardrails for unit economics and ethics. Built for business decision-making and offer design.",
+  "posture": {
+    "type": "educational_pricing_framework",
+    "applied_reasoning": true,
+    "not_personal_financial_advice": true
+  },
+  "corePrinciples": [
+    "Pricing is a strategy lever, not a math exercise.",
+    "Value-based pricing dominates cost-plus when differentiation exists.",
+    "A pricing model is a constraint system: it shapes behavior, churn, and support load.",
+    "Unit economics must work at the margin (contribution margin > 0 at target CAC).",
+    "Good pricing is legible: customers understand what they pay and why.",
+    "Segmentation is the engine: different willingness-to-pay deserves different offers.",
+    "Always test: price sensitivity is discovered, not assumed."
+  ],
+  "pricingModelCatalog": [
+    {
+      "model": "one_time",
+      "aka": ["fixed_fee", "purchase"],
+      "bestFor": ["discrete_deliverables", "simple_offers", "low_ongoing_costs"],
+      "strengths": ["simple_to_explain", "fast_cash_collection"],
+      "risks": ["revenue_volatility", "misalignment_with_ongoing_support"],
+      "notes": "Use when ongoing marginal cost is low or explicitly carved out via maintenance/support add-ons."
+    },
+    {
+      "model": "subscription_flat",
+      "aka": ["monthly_recurring", "membership"],
+      "bestFor": ["ongoing_value", "retention_driven_products", "continuous_updates"],
+      "strengths": ["predictable_revenue", "lifecycle_relationship"],
+      "risks": ["churn_sensitivity", "requires_continuous_value_delivery"],
+      "notes": "Keep tiers few and crisp. Define renewal value clearly."
+    },
+    {
+      "model": "subscription_tiered",
+      "aka": ["good_better_best", "bundles"],
+      "bestFor": ["heterogeneous_customers", "feature_segmentation", "enterprise_upgrades"],
+      "strengths": ["captures_more_willingness_to_pay", "clear_upgrade_path"],
+      "risks": ["tier_confusion", "support_overhead_if_too_many_tiers"],
+      "notes": "Differentiate tiers by outcomes/limits, not a long list of tiny features."
+    },
+    {
+      "model": "usage_based",
+      "aka": ["pay_as_you_go", "metered"],
+      "bestFor": ["variable_consumption", "api_or_compute_costs", "aligned_value_per_unit"],
+      "strengths": ["scales_with_customer_success", "low_entry_barrier"],
+      "risks": ["bill_shock", "forecasting_anxiety", "complex_billing"],
+      "notes": "Add caps, alerts, and a predictable middle tier to reduce anxiety."
+    },
+    {
+      "model": "seat_based",
+      "aka": ["per_user", "per_agent"],
+      "bestFor": ["collaboration_tools", "team_software", "b2b_products"],
+      "strengths": ["simple_growth_lever", "aligns_with_team_adoption"],
+      "risks": ["seat_hoarding", "pressure_to_downsell_or_shared_accounts"],
+      "notes": "Consider active-user pricing or role-based seats to prevent gaming."
+    },
+    {
+      "model": "outcome_based",
+      "aka": ["performance_fee", "success_fee"],
+      "bestFor": ["clear_measurable_outcomes", "high_trust_relationships"],
+      "strengths": ["strong_alignment", "easy_to_sell_if_credible"],
+      "risks": ["attribution_disputes", "measurement_manipulation", "cashflow_variability"],
+      "notes": "Define measurement rules up front. Prefer hybrid (base + success) for stability."
+    },
+    {
+      "model": "freemium",
+      "aka": ["free_tier", "land_and_expand"],
+      "bestFor": ["low_marginal_costs", "viral_or_product_led_growth"],
+      "strengths": ["low_friction_adoption", "top_of_funnel_scale"],
+      "risks": ["support_burden", "conversion_difficulty", "value_leakage"],
+      "notes": "Gate by limits that correlate with value: usage caps, collaboration, automation, or premium outcomes."
+    },
+    {
+      "model": "trial",
+      "aka": ["free_trial", "pilot"],
+      "bestFor": ["higher_ticket_offers", "reducing_risk_for_buyer"],
+      "strengths": ["boosts_conversion", "builds_trust_fast"],
+      "risks": ["non_serious_users", "implementation_cost"],
+      "notes": "Time-box, define success criteria, and require activation steps. Trials without activation are fake signals."
+    },
+    {
+      "model": "bundling",
+      "aka": ["package_pricing", "suite"],
+      "bestFor": ["cross_sell", "reducing_comparison_shopping", "increasing_arpu"],
+      "strengths": ["raises_perceived_value", "reduces_line_item_friction"],
+      "risks": ["unwanted_features_inflate_cost", "harder_value_story"],
+      "notes": "Bundle around a job-to-be-done, not a random pile of features."
+    },
+    {
+      "model": "penetration_pricing",
+      "aka": ["intro_offer", "launch_discount"],
+      "bestFor": ["new_market_entry", "fast_adoption"],
+      "strengths": ["quick_volume", "learning_speed"],
+      "risks": ["anchors_low_value", "hard_to_raise_price"],
+      "notes": "Treat as a campaign with an end date. Communicate future list price early."
+    },
+    {
+      "model": "skimming",
+      "aka": ["premium_first"],
+      "bestFor": ["differentiated_offers", "early_adopters", "limited_supply_or_attention"],
+      "strengths": ["maximizes_margin", "signals_quality"],
+      "risks": ["smaller_initial_market", "competitive_entry"],
+      "notes": "Requires strong positioning and credible proof."
+    }
+  ],
+  "segmentation": {
+    "dimensions": [
+      "willingness_to_pay",
+      "use_case_criticality",
+      "frequency_of_use",
+      "buyer_type_b2b_vs_b2c",
+      "risk_tolerance",
+      "compliance_requirements"
+    ],
+    "guidelines": [
+      "Segment by value and constraints, not demographics.",
+      "Use tiers to map segments to clear outcomes.",
+      "Keep one tier that is an obvious default."
+    ]
+  },
+  "offerArchitecture": {
+    "valueMetric": [
+      "Define the unit that correlates with delivered value (seat, usage, outcome, project).",
+      "Ensure the value metric is measurable, understandable, and hard to game.",
+      "Align value metric with cost drivers when possible."
+    ],
+    "packagingRules": [
+      "3 tiers is usually enough.",
+      "Differentiate on outcomes, limits, access, and risk reduction.",
+      "Avoid gating core success behind too many paywalls."
+    ],
+    "discountingRules": [
+      "Discounts are a lever; apply with intent and a deadline.",
+      "Prefer giving more value over lowering price (bonus, bundle, extended support).",
+      "Never discount without tracking effect on conversion and churn."
+    ]
+  },
+  "testingAndIteration": {
+    "methods": [
+      {
+        "name": "van_westendorp",
+        "purpose": "estimate price bands from perceived value",
+        "notes": "Good for early exploration; validate with real conversion data."
+      },
+      {
+        "name": "conjoint",
+        "purpose": "estimate feature/value tradeoffs",
+        "notes": "Best when you have multiple attributes and segments."
+      },
+      {
+        "name": "ab_price_test",
+        "purpose": "measure conversion and revenue differences",
+        "notes": "Requires sufficient traffic; watch for seasonality and channel mix."
+      },
+      {
+        "name": "sales_discovery",
+        "purpose": "qualitative willingness-to-pay signal",
+        "notes": "Use consistent questions to avoid biasing responses."
+      }
+    ],
+    "metricsToTrack": [
+      "conversion_rate",
+      "arpu",
+      "gross_margin",
+      "net_revenue_retention",
+      "churn_rate",
+      "support_tickets_per_customer",
+      "payback_period",
+      "ltv_to_cac"
+    ]
+  },
+  "unitEconomicsGuardrails": {
+    "minimumChecks": [
+      "contribution_margin_positive_at_target_pricing",
+      "pricing_supports_cac_payback_target",
+      "churn_assumptions_realistic",
+      "support_and_onboarding_costs_accounted_for"
+    ],
+    "commonFailureModes": [
+      "pricing_below_cost_due_to_discounting",
+      "freemium_with_high_support_costs",
+      "usage_pricing_without_caps_creates_anxiety",
+      "seat_pricing_incentivizes_account_sharing",
+      "outcome_pricing_with_unclear_attribution"
+    ]
+  },
+  "ethicalAndComplianceNotes": {
+    "principles": [
+      "Avoid deceptive pricing (hidden fees, surprise renewals).",
+      "Make terms legible: cancellation, renewal, limits, overages.",
+      "Be careful with vulnerable populations and high-pressure sales tactics."
+    ],
+    "riskSignals": [
+      "bill_shock_complaints",
+      "high_refund_rates",
+      "high_dispute_or_chargeback_rates",
+      "customers_confused_about_billing"
+    ]
+  },
+  "decisionHeuristics": [
+    "If value scales with usage and costs scale with usage, consider usage-based pricing.",
+    "If adoption is team-based and collaboration is core, consider seat-based pricing.",
+    "If outcomes are measurable and trusted, consider hybrid outcome pricing.",
+    "If there are multiple segments, use tiered subscription and clear upgrade triggers.",
+    "If buyer risk is high, use a trial/pilot with explicit success criteria."
+  ],
+  "diagnosticQuestions": [
+    "What value metric best represents delivered value?",
+    "Which segment is the default tier designed for?",
+    "What is the main churn driver and how does pricing interact with it?",
+    "Where can customers get surprised (fees, renewals, overages)?",
+    "Does discounting improve retention or just win low-quality customers?"
+  ],
+  "exampleTypes": [
+    "choose_pricing_model_for_b2b_saas",
+    "design_three_tier_packaging",
+    "usage_pricing_with_caps_and_alerts",
+    "hybrid_base_plus_success_fee_contract",
+    "freemium_limit_design"
+  ],
+  "glossary": {
+    "arpu": "average_revenue_per_user_or_account",
+    "nrr": "net_revenue_retention_existing_revenue_growth_minus_churn",
+    "ltv": "lifetime_value_expected_gross_profit_from_customer",
+    "cac": "customer_acquisition_cost_all_in",
+    "payback_period": "time_to_recover_cac_from_gross_profit",
+    "value_metric": "the_unit_used_to_measure_and_price_value_delivered"
+  }
+}

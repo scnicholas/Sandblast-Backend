@@ -1,0 +1,165 @@
+{
+  "id": "fin_capital_markets_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Capital markets fundamentals: debt, equity, hybrid instruments, cost of capital, dilution logic, runway, and capital stack reasoning. Educational and decision-support only.",
+  "posture": {
+    "type": "educational_decision_support",
+    "adviceBoundary": "not_legal_or_investment_advice",
+    "requireAssumptions": true
+  },
+  "principles": [
+    "Capital always has a cost explicit or implicit.",
+    "Liquidity is not profitability and not solvency.",
+    "Match duration of capital to duration of assets.",
+    "Risk and return are inseparable.",
+    "Control has economic value.",
+    "Optionality is a strategic asset.",
+    "Market timing influences cost of capital.",
+    "Dilution compounds across funding rounds."
+  ],
+  "capitalCategories": {
+    "debt": {
+      "examples": [
+        "bank_loans",
+        "lines_of_credit",
+        "asset_backed_lending",
+        "revenue_based_financing",
+        "bonds"
+      ],
+      "characteristics": [
+        "fixed_repayment",
+        "no_ownership_dilution",
+        "requires_cashflow_stability",
+        "increases_default_risk_if_revenue_drops"
+      ]
+    },
+    "equity": {
+      "examples": [
+        "angel_investors",
+        "venture_capital",
+        "private_equity",
+        "public_equity",
+        "strategic_investors"
+      ],
+      "characteristics": [
+        "ownership_dilution",
+        "no_mandatory_repayment",
+        "investor_expected_high_return",
+        "governance_rights_possible"
+      ]
+    },
+    "hybrid": {
+      "examples": [
+        "convertible_notes",
+        "safe_agreements",
+        "mezzanine_debt",
+        "preferred_shares"
+      ],
+      "characteristics": [
+        "blend_debt_and_equity_features",
+        "delayed_valuation_possible",
+        "structured_conversion_terms"
+      ]
+    }
+  },
+  "frameworks": {
+    "capitalDecisionTree": [
+      "if_cashflow_stable_consider_debt",
+      "if_growth_high_and_scalable_equity_aligned",
+      "if_control_priority_minimize_dilution",
+      "if_survival_capital_prioritize_stability"
+    ],
+    "costOfCapital": [
+      "cost_of_debt_interest_rate_adjusted",
+      "cost_of_equity_expected_return",
+      "weighted_cost_of_capital_blended_rate",
+      "higher_risk_requires_higher_return"
+    ],
+    "runwayModel": {
+      "formula": "runway_months = cash_on_hand / monthly_burn",
+      "stressTests": [
+        "revenue_drop_20_to_30_percent",
+        "cost_increase_shock",
+        "receivable_delay"
+      ]
+    },
+    "dilutionLogic": [
+      "post_money_ownership = pre_money_value / post_money_value",
+      "dilution_compounds_across_rounds"
+    ],
+    "capitalStack": [
+      "senior_secured_debt",
+      "subordinated_debt",
+      "mezzanine",
+      "preferred_equity",
+      "common_equity"
+    ]
+  },
+  "strategicConsiderations": [
+    "Debt_amplifies_upside_and_downside.",
+    "Equity_buys_time_but_reduces_control.",
+    "Overcapitalization_reduces_operational_discipline.",
+    "Undercapitalization_kills_momentum.",
+    "Capital_timing_can_matter_more_than_valuation.",
+    "Funding_changes_incentives_and_reporting_obligations."
+  ],
+  "riskSignals": [
+    "debt_service_exceeds_30_percent_operating_cashflow",
+    "single_investor_dominance",
+    "bridge_financing_dependency",
+    "runway_below_six_months",
+    "duration_mismatch_between_assets_and_funding"
+  ],
+  "guardrails": [
+    "do_not_provide_specific_legal_structuring_advice",
+    "encourage_professional_consultation_for_securities_and_tax",
+    "avoid_deterministic_valuation_predictions",
+    "clarify_assumptions_before_modeling",
+    "separate_need_capital_from_want_capital"
+  ],
+  "responseCues": [
+    "is_this_survival_or_growth_capital",
+    "how_stable_is_monthly_revenue",
+    "what_control_are_you_willing_to_trade",
+    "what_happens_if_revenue_stalls_six_months",
+    "are_you_optimizing_for_speed_or_ownership"
+  ],
+  "exampleTypes": [
+    "funding_comparison_table",
+    "runway_stress_test",
+    "dilution_projection_conceptual",
+    "debt_vs_equity_scenario_analysis",
+    "capital_stack_visual_explanation"
+  ],
+  "casePatterns": [
+    {
+      "id": "growth_without_margin",
+      "symptom": "high_growth_low_profitability",
+      "risk": "debt_unsustainable",
+      "bias": "prefer_equity"
+    },
+    {
+      "id": "stable_cashflow_low_growth",
+      "symptom": "predictable_revenue",
+      "bias": "debt_viable"
+    },
+    {
+      "id": "founder_control_priority",
+      "symptom": "mission_driven_founder",
+      "bias": "minimize_dilution"
+    },
+    {
+      "id": "operational_gap_capital",
+      "symptom": "short_term_liquidity_issue",
+      "bias": "bridge_financing_or_credit_line"
+    }
+  ],
+  "glossary": {
+    "burn_rate": "monthly_net_cash_outflow",
+    "runway": "months_until_cash_depletion",
+    "dilution": "reduction_in_ownership_percentage",
+    "cost_of_capital": "required_return_by_funders",
+    "leverage": "use_of_borrowed_funds_to_amplify_returns"
+  }
+}

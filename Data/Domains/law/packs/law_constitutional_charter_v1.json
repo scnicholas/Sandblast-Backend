@@ -1,0 +1,149 @@
+{
+  "packId": "law_constitutional_charter_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "description": "High-level overview of Canadian constitutional law and the Charter of Rights and Freedoms. Covers division of powers, Charter structure, Section 1 analysis, remedies, and constitutional supremacy. Educational framework only — not legal advice.",
+  "topics": [
+    {
+      "id": "lcc_constitutional_supremacy",
+      "title": "Constitutional Supremacy",
+      "coreDefinition": "The Constitution is the supreme law of Canada. Any law inconsistent with it is of no force or effect to the extent of the inconsistency (Constitution Act, 1982, s.52).",
+      "frameworkSteps": [
+        "Identify the challenged law or government action.",
+        "Determine relevant constitutional provision.",
+        "Assess whether inconsistency exists.",
+        "Consider remedy (e.g., declaration of invalidity)."
+      ],
+      "quickExamples": [
+        "A provincial law conflicting with Charter protections may be struck down.",
+        "Federal law exceeding division-of-powers authority may be invalid."
+      ],
+      "commonMistakes": [
+        "Assuming all unfair laws are unconstitutional.",
+        "Ignoring division-of-powers analysis before Charter analysis."
+      ],
+      "retrievalHints": {
+        "keywords": ["constitutional supremacy", "section 52", "invalid law"],
+        "intentSignals": ["is this law constitutional"]
+      }
+    },
+    {
+      "id": "lcc_division_of_powers",
+      "title": "Division of Powers (Federal vs Provincial)",
+      "coreDefinition": "Legislative powers are divided between federal and provincial governments under sections 91 and 92 of the Constitution Act, 1867.",
+      "frameworkSteps": [
+        "Identify the subject matter of legislation.",
+        "Classify under federal or provincial head of power.",
+        "Apply pith and substance analysis if necessary."
+      ],
+      "quickExamples": [
+        "Criminal law falls under federal authority.",
+        "Property and civil rights fall under provincial authority."
+      ],
+      "commonMistakes": [
+        "Assuming overlap automatically invalidates legislation.",
+        "Ignoring cooperative federalism principles."
+      ],
+      "retrievalHints": {
+        "keywords": ["division of powers", "section 91", "section 92", "federal jurisdiction"],
+        "intentSignals": ["who has authority", "can province do this"]
+      }
+    },
+    {
+      "id": "lcc_charter_structure",
+      "title": "Structure of the Charter",
+      "coreDefinition": "The Charter protects fundamental freedoms, democratic rights, mobility rights, legal rights, equality rights, and language rights.",
+      "frameworkSteps": [
+        "Identify relevant Charter right.",
+        "Determine whether state action is involved.",
+        "Assess whether right is infringed.",
+        "Apply Section 1 analysis if infringement found."
+      ],
+      "quickExamples": [
+        "Section 2 protects freedom of expression.",
+        "Section 7 protects life, liberty, and security of the person."
+      ],
+      "commonMistakes": [
+        "Assuming Charter applies to private disputes.",
+        "Skipping state action requirement."
+      ],
+      "retrievalHints": {
+        "keywords": ["charter rights", "section 2", "section 7", "freedom of expression"],
+        "intentSignals": ["are my rights violated"]
+      }
+    },
+    {
+      "id": "lcc_section_1_oakes",
+      "title": "Section 1 and the Oakes Test",
+      "coreDefinition": "Even if a Charter right is infringed, the government may justify the limitation under Section 1 if it is reasonable and demonstrably justified in a free and democratic society.",
+      "frameworkSteps": [
+        "Identify pressing and substantial objective.",
+        "Establish rational connection.",
+        "Demonstrate minimal impairment.",
+        "Assess proportionality of effects."
+      ],
+      "quickExamples": [
+        "Limits on speech may be upheld if proportional and narrowly tailored."
+      ],
+      "commonMistakes": [
+        "Assuming any infringement is automatically invalid.",
+        "Ignoring proportionality analysis."
+      ],
+      "retrievalHints": {
+        "keywords": ["section 1", "oakes test", "minimal impairment", "proportionality"],
+        "intentSignals": ["can government limit"]
+      }
+    },
+    {
+      "id": "lcc_section_24_remedies",
+      "title": "Charter Remedies (Section 24)",
+      "coreDefinition": "Section 24(1) allows courts to grant appropriate and just remedies for Charter breaches. Section 24(2) may exclude evidence obtained in violation of rights.",
+      "frameworkSteps": [
+        "Identify Charter breach.",
+        "Determine appropriate remedy.",
+        "Apply exclusion test under section 24(2) if applicable."
+      ],
+      "quickExamples": [
+        "Evidence excluded if admission would bring administration of justice into disrepute."
+      ],
+      "commonMistakes": [
+        "Assuming breach automatically invalidates proceedings.",
+        "Ignoring judicial discretion."
+      ],
+      "retrievalHints": {
+        "keywords": ["section 24", "remedy", "exclude evidence"],
+        "intentSignals": ["what happens if rights violated"]
+      }
+    },
+    {
+      "id": "lcc_notwithstanding_clause",
+      "title": "Notwithstanding Clause (Section 33)",
+      "coreDefinition": "Section 33 permits Parliament or provincial legislatures to override certain Charter rights temporarily.",
+      "frameworkSteps": [
+        "Determine if legislation invokes section 33 explicitly.",
+        "Identify affected rights.",
+        "Confirm five-year limitation and renewal requirements."
+      ],
+      "quickExamples": [
+        "Section 33 cannot override democratic or mobility rights."
+      ],
+      "commonMistakes": [
+        "Assuming override applies automatically without express declaration.",
+        "Believing all rights can be overridden."
+      ],
+      "retrievalHints": {
+        "keywords": ["notwithstanding clause", "section 33", "override"],
+        "intentSignals": ["can government override"]
+      }
+    }
+  ],
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "Supports high-level Charter and constitutional analysis.",
+      "Requires state action to engage Charter rights.",
+      "Encourage consultation with qualified counsel for case-specific matters."
+    ]
+  }
+}

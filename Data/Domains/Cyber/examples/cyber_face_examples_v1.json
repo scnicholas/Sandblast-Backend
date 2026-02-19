@@ -1,0 +1,194 @@
+{
+  "packId": "cyber_face_examples_v1",
+  "domain": "cybersecurity",
+  "packType": "face_examples",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Canonical real-world cybersecurity scenarios for structured reasoning, containment posture, and safe response patterns.",
+  "examples": [
+    {
+      "id": "face_phishing_credentials_entered",
+      "scenario": "User clicked a phishing email and entered login credentials on a suspicious site.",
+      "observables": [
+        "User reports entering credentials after clicking an email link.",
+        "Unusual login alerts shortly afterward.",
+        "MFA prompt that user did not initiate."
+      ],
+      "riskTierDefault": "high",
+      "responsePlan": {
+        "contain": [
+          "Immediately reset the affected account password.",
+          "Invalidate active sessions.",
+          "Revoke and reissue authentication tokens."
+        ],
+        "verify": [
+          "Review login history for anomalous activity.",
+          "Check privilege escalation events.",
+          "Scan device for malware."
+        ],
+        "recover": [
+          "Enable or strengthen MFA.",
+          "Notify affected stakeholders if required.",
+          "Monitor account for recurrence."
+        ]
+      },
+      "avoid": [
+        "Do not shame the user.",
+        "Do not provide counter-hacking steps.",
+        "Do not assume full compromise without verification."
+      ],
+      "clarifiers": [
+        "Did you reuse this password elsewhere?",
+        "Was MFA enabled before the incident?"
+      ]
+    },
+    {
+      "id": "face_suspicious_login_alert",
+      "scenario": "User receives an unexpected login or MFA notification.",
+      "observables": [
+        "Push notification for login not initiated by user.",
+        "Security alert from cloud provider."
+      ],
+      "riskTierDefault": "medium",
+      "responsePlan": {
+        "contain": [
+          "Do not approve unexpected MFA prompts.",
+          "Immediately change account password.",
+          "Log out of all active sessions."
+        ],
+        "verify": [
+          "Check recent login IP addresses.",
+          "Review account recovery settings."
+        ],
+        "recover": [
+          "Enable phishing-resistant MFA if not already active.",
+          "Remove suspicious devices from account."
+        ]
+      },
+      "avoid": [
+        "Do not ignore repeated MFA prompts.",
+        "Do not delay credential reset."
+      ],
+      "clarifiers": [
+        "Did you attempt to log in from another device?",
+        "Are backup authentication methods secure?"
+      ]
+    },
+    {
+      "id": "face_ransomware_event",
+      "scenario": "Organization reports files encrypted and ransom demand displayed.",
+      "observables": [
+        "Encrypted files with changed extensions.",
+        "Ransom note on desktop.",
+        "Systems unable to access shared drives."
+      ],
+      "riskTierDefault": "high",
+      "responsePlan": {
+        "contain": [
+          "Disconnect affected systems from network immediately.",
+          "Disable compromised credentials.",
+          "Preserve evidence and logs."
+        ],
+        "verify": [
+          "Determine scope of encryption.",
+          "Identify entry vector if known.",
+          "Assess backup integrity."
+        ],
+        "recover": [
+          "Restore from verified clean backups.",
+          "Notify legal/compliance teams.",
+          "Engage professional incident response if necessary."
+        ]
+      },
+      "avoid": [
+        "Do not delete evidence prematurely.",
+        "Do not provide negotiation tactics.",
+        "Do not assume backups are intact without verification."
+      ],
+      "clarifiers": [
+        "Are backups available and tested?",
+        "Has legal counsel been informed?"
+      ]
+    },
+    {
+      "id": "face_public_cloud_misconfig",
+      "scenario": "Sensitive cloud storage bucket discovered publicly accessible.",
+      "observables": [
+        "Public URL exposes private data.",
+        "No authentication required to download files."
+      ],
+      "riskTierDefault": "high",
+      "responsePlan": {
+        "contain": [
+          "Immediately restrict public access.",
+          "Rotate exposed credentials or keys.",
+          "Review access logs for unauthorized downloads."
+        ],
+        "verify": [
+          "Determine duration of exposure.",
+          "Identify affected data types."
+        ],
+        "recover": [
+          "Notify stakeholders if legally required.",
+          "Implement automated configuration scanning."
+        ]
+      },
+      "avoid": [
+        "Do not ignore exposure duration.",
+        "Do not attempt to erase logs."
+      ],
+      "clarifiers": [
+        "Was sensitive personal data exposed?",
+        "Is automated misconfiguration scanning in place?"
+      ]
+    },
+    {
+      "id": "face_vendor_access_request",
+      "scenario": "Third-party vendor requests administrative system access.",
+      "observables": [
+        "Vendor requesting broad privileges.",
+        "No defined access expiration."
+      ],
+      "riskTierDefault": "medium",
+      "responsePlan": {
+        "contain": [
+          "Limit access to minimum required privileges.",
+          "Enforce time-bound access.",
+          "Require MFA for vendor accounts."
+        ],
+        "verify": [
+          "Review vendor contract and security obligations.",
+          "Ensure audit logging is enabled."
+        ],
+        "recover": [
+          "Conduct periodic access reviews.",
+          "Disable access immediately upon project completion."
+        ]
+      },
+      "avoid": [
+        "Do not grant blanket admin privileges.",
+        "Do not allow indefinite access."
+      ],
+      "clarifiers": [
+        "Is there a documented scope of work?",
+        "Is access monitored and logged?"
+      ]
+    }
+  ],
+  "retrievalHints": {
+    "keywords": [
+      "phishing",
+      "ransomware",
+      "suspicious login",
+      "cloud misconfiguration",
+      "vendor access"
+    ],
+    "intentSignals": [
+      "I clicked",
+      "my account was hacked",
+      "files encrypted",
+      "public bucket",
+      "third-party access"
+    ]
+  }
+}

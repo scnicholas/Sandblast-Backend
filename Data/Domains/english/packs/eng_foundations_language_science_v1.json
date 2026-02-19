@@ -1,0 +1,41 @@
+{
+  "id": "eng_foundations_language_science_v1",
+  "version": "1.0.0",
+  "description": "Foundations of English as a language system: observation, description vs prescription, core analytic lenses.",
+  "anchors": ["S_QUARK_CGEL", "S_BIBER_LGSWE"],
+  "topics": [
+    {
+      "name": "Descriptive vs Prescriptive",
+      "coreClaims": [
+        "Descriptive grammar models how language is used across contexts; prescriptive rules enforce preferred norms.",
+        "Academic analysis often prioritizes description first, then evaluates appropriateness by audience/context."
+      ],
+      "skills": [
+        "Separate 'is used' from 'should be used'.",
+        "Explain why a form is marked/unmarked in a given context."
+      ]
+    },
+    {
+      "name": "Units of Analysis",
+      "coreClaims": [
+        "Sound → morpheme → word → phrase → clause → sentence → discourse.",
+        "Each level has structure (form) and function (what it does)."
+      ],
+      "skills": [
+        "Label the level you’re analyzing before making a claim.",
+        "Avoid mixing levels (e.g., treating a discourse effect as a syntax error)."
+      ]
+    },
+    {
+      "name": "Form–Function Reasoning",
+      "coreClaims": [
+        "Good analysis links form (structure) to function (meaning/use) with evidence.",
+        "Evidence can be intuitive judgments, corpora, or usage references, depending on task."
+      ],
+      "skills": [
+        "Write micro-arguments: claim → example → explanation.",
+        "State limitations (register, dialect, audience)."
+      ]
+    }
+  ]
+}

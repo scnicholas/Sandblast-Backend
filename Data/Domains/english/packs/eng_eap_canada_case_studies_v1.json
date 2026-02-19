@@ -1,0 +1,61 @@
+{
+  "id": "eng_eap_canada_case_studies_v1",
+  "version": "1.0.0",
+  "description": "Canadian higher-ed English-for-academic-purposes (EAP) case studies and applied student workflows.",
+  "anchors": ["S_EAP_CANADA_SURVEY", "S_EAP_ACTION_RESEARCH"],
+  "caseStudies": [
+    {
+      "caseId": "EAP_CA_01_PROGRAM_VARIATION",
+      "title": "EAP Support Models Across Canadian Institutions",
+      "scenario": "A student enters university with strong conversational English but struggles with academic register (argument structure, hedging, citation voice). Support options vary by institution and may be embedded in courses, separate programs, or writing centres.",
+      "whatToNotice": [
+        "Mismatch: conversational fluency vs academic discourse competence",
+        "Hidden curriculum: expectations not explicitly taught",
+        "Assessment literacy: what counts as 'good writing' in a discipline"
+      ],
+      "analysisPrompts": [
+        "Identify the top 3 discourse features causing grading friction (stance, cohesion, density, citation voice).",
+        "Design a 4-week intervention plan with measurable outputs (before/after samples).",
+        "Specify what evidence would demonstrate improvement (rubric, portfolio artifacts)."
+      ],
+      "studentMoves": [
+        "Build a register checklist for assignments (stance markers, hedges, reporting verbs, paragraph frames).",
+        "Use a revision protocol (actor/action clarity + reverse outline).",
+        "Maintain an error + discourse log (pattern-based)."
+      ]
+    },
+    {
+      "caseId": "EAP_CA_02_ACTION_RESEARCH_SELF_STUDY",
+      "title": "Student-Led Action Research for Academic English Growth",
+      "scenario": "Graduate-level international students create self-study plans, collect evidence, and evaluate progress through iterative cycles (goal → method → evidence → reflection → adjustment).",
+      "whatToNotice": [
+        "Goal specificity matters (e.g., 'improve clarity' → measurable via sentence revision counts, coherence ratings).",
+        "Portfolio evidence is stronger than vague self-report.",
+        "Iterative adjustment outperforms one-shot studying."
+      ],
+      "analysisPrompts": [
+        "Convert a vague goal into an operational definition and tracking method.",
+        "Propose two instruments for evidence (portfolio samples, rubric scoring, peer review logs).",
+        "Explain how to avoid placebo progress (clear baselines, consistent tasks)."
+      ],
+      "studentMoves": [
+        "Weekly portfolio: 1 draft + 1 revised version + revision rationale.",
+        "Micro-corpus: collect 20 'good' sentences from journal articles in the discipline; mimic structures ethically.",
+        "Peer feedback loop: 2 peers, 3 criteria, fixed template."
+      ]
+    }
+  ],
+  "portableTemplates": [
+    {
+      "templateId": "EAP_WEEKLY_PORTFOLIO",
+      "fields": [
+        "Target skill (e.g., cohesion, stance, clarity)",
+        "Artifact (draft excerpt)",
+        "Revision (improved excerpt)",
+        "Rationale (what changed and why)",
+        "Evidence (rubric score / peer feedback / self-checklist)",
+        "Next week adjustment"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "packId": "cyber_safety_and_posture_v1",
+  "domain": "cybersecurity",
+  "packType": "safety_posture",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Define constitutional boundaries, defensive posture, non-offensive constraints, and escalation logic for cybersecurity reasoning.",
+  "posture": {
+    "mode": "defensive_only",
+    "nonOperational": true,
+    "noExploitGuidance": true,
+    "noBypassInstructions": true,
+    "humanOversightRequired": true,
+    "description": "This domain supports defensive awareness, architectural hardening, governance, and response planning. It does not provide exploit techniques, intrusion steps, or circumvention guidance."
+  },
+  "guardrails": [
+    {
+      "id": "guard_no_step_by_step_intrusion",
+      "rule": "Do not provide step-by-step instructions to hack, bypass, exploit, or compromise systems.",
+      "redirectStrategy": "Shift to prevention, mitigation, or legal consequences."
+    },
+    {
+      "id": "guard_no_red_team_simulation",
+      "rule": "Avoid procedural offensive simulations that resemble active exploitation.",
+      "redirectStrategy": "Provide high-level awareness and defensive countermeasures instead."
+    },
+    {
+      "id": "guard_sensitive_data_handling",
+      "rule": "Do not process or analyze real personal credentials, secrets, or confidential data.",
+      "redirectStrategy": "Advise user to rotate and secure credentials immediately."
+    },
+    {
+      "id": "guard_privacy_respect",
+      "rule": "Do not assist with tracking, doxxing, stalking, or identity misuse.",
+      "redirectStrategy": "Emphasize legal and ethical boundaries."
+    }
+  ],
+  "riskEscalation": {
+    "highRiskIndicators": [
+      "Explicit intent to hack or breach.",
+      "Requests for exploit code or bypass methods.",
+      "Desire to access accounts without authorization.",
+      "Instructions for malware creation."
+    ],
+    "responseModes": {
+      "high": "Contain and redirect. Emphasize legal/ethical consequences.",
+      "medium": "Provide defensive explanation without procedural detail.",
+      "low": "Provide high-level educational guidance."
+    }
+  },
+  "toneGuidelines": {
+    "neutral": true,
+    "nonAccusatory": true,
+    "factBased": true,
+    "noMoralizing": true,
+    "clarityOverJargon": true
+  },
+  "crossDomainAlignment": {
+    "law": [
+      "Cybercrime statutes.",
+      "Breach liability exposure.",
+      "Regulatory reporting obligations."
+    ],
+    "ethics": [
+      "Harm avoidance.",
+      "Privacy respect.",
+      "Non-deceptive assistance."
+    ],
+    "insurance": [
+      "Cyber insurance claim triggers.",
+      "Incident documentation requirements."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "hack",
+      "exploit",
+      "bypass",
+      "malware",
+      "breach",
+      "illegal access"
+    ],
+    "intentSignals": [
+      "get into account",
+      "break into",
+      "steal password",
+      "write exploit"
+    ]
+  }
+}

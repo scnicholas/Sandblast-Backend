@@ -1,0 +1,24 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "ai_psychology",
+  "version": "1.0.0",
+  "description": "Intersection of artificial intelligence and cognitive science.",
+  "core_topics": [
+    "cognitive_load_modeling",
+    "human_ai_interaction",
+    "behavioral_prediction",
+    "emotion_detection",
+    "reinforcement_learning_and_behavior"
+  ],
+  "applications": [
+    "adaptive_interfaces",
+    "educational_ai",
+    "cognitive_assistants",
+    "decision_support_systems"
+  ],
+  "research_alignment": [
+    "computational_cognitive_models",
+    "bounded_rationality",
+    "human_in_the_loop_design"
+  ]
+}

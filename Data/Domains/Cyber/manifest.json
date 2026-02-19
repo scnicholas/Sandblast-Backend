@@ -1,0 +1,75 @@
+{
+  "domain": "cybersecurity",
+  "domainVersion": "1.0.0",
+  "updatedAt": "2026-02-12",
+  "defaultLoadOrder": [
+    "cyber_safety_and_posture_v1.json",
+    "cyber_source_ladder_v1.json",
+    "cyber_foundations_v1.json",
+    "cyber_identity_access_v1.json",
+    "cyber_endpoint_cloud_v1.json",
+    "cyber_network_web_v1.json",
+    "cyber_privacy_data_protection_v1.json",
+    "cyber_incident_response_v1.json",
+    "cyber_security_culture_v1.json"
+  ],
+  "packs": [
+    {
+      "file": "cyber_safety_and_posture_v1.json",
+      "version": 1,
+      "tags": ["safety", "guardrails", "defensive-only", "boundaries"],
+      "priority": 100
+    },
+    {
+      "file": "cyber_incident_response_v1.json",
+      "version": 1,
+      "tags": ["incident-response", "triage", "containment", "recovery"],
+      "priority": 90
+    },
+    {
+      "file": "cyber_identity_access_v1.json",
+      "version": 1,
+      "tags": ["iam", "mfa", "least-privilege", "access-review"],
+      "priority": 85
+    },
+    {
+      "file": "cyber_endpoint_cloud_v1.json",
+      "version": 1,
+      "tags": ["endpoint", "cloud", "hardening", "patching", "edr"],
+      "priority": 82
+    },
+    {
+      "file": "cyber_network_web_v1.json",
+      "version": 1,
+      "tags": ["network", "web", "tls", "waf", "segmentation"],
+      "priority": 80
+    },
+    {
+      "file": "cyber_privacy_data_protection_v1.json",
+      "version": 1,
+      "tags": ["privacy", "pii", "data-protection", "classification", "breach-readiness"],
+      "priority": 78
+    },
+    {
+      "file": "cyber_foundations_v1.json",
+      "version": 1,
+      "tags": ["core", "threat-modeling", "risk", "defense-in-depth"],
+      "priority": 72
+    },
+    {
+      "file": "cyber_security_culture_v1.json",
+      "version": 1,
+      "tags": ["people", "process", "training", "awareness", "policy"],
+      "priority": 70
+    },
+    {
+      "file": "cyber_source_ladder_v1.json",
+      "version": 1,
+      "tags": ["sources", "standards", "verification", "recency"],
+      "priority": 65
+    }
+  ],
+  "examples": [
+    { "file": "cyber_face_examples_v1.json", "version": 1 }
+  ]
+}

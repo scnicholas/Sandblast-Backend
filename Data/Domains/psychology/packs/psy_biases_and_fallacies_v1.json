@@ -1,0 +1,266 @@
+{
+  "packId": "psy_biases_and_fallacies_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Cognitive biases, heuristics, and reasoning fallacies structured for applied conversational use. Educational, non-clinical.",
+  "updatedAt": "2026-02-12",
+  "scope": [
+    "decision-making",
+    "critical-thinking",
+    "business",
+    "self-reflection",
+    "debate",
+    "strategy"
+  ],
+
+  "biases": [
+
+    {
+      "id": "confirmation_bias",
+      "name": "Confirmation Bias",
+      "category": "information_processing",
+      "oneLiner": "We seek and interpret information that confirms our existing beliefs.",
+      "coreMechanism": [
+        "Selective attention toward belief-consistent evidence.",
+        "Discounting contradictory data.",
+        "Reinforcement through repetition."
+      ],
+      "actionablePrinciples": [
+        "Actively search for disconfirming evidence.",
+        "Ask: 'What would prove me wrong?'",
+        "Invite a structured counter-argument."
+      ],
+      "whenToApply": [
+        "Strategic decisions",
+        "Political discussions",
+        "Business validation",
+        "Conflict analysis"
+      ],
+      "faceExamples": [
+        {
+          "title": "Startup validation bias",
+          "scenario": "Founder only listens to positive user feedback.",
+          "application": "Create structured negative feedback channels."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["only seeing what I want", "echo chamber", "biased research"],
+        "intentSignals": ["am I being biased", "why do I ignore criticism"]
+      }
+    },
+
+    {
+      "id": "availability_heuristic",
+      "name": "Availability Heuristic",
+      "category": "judgment",
+      "oneLiner": "We estimate likelihood based on how easily examples come to mind.",
+      "coreMechanism": [
+        "Emotionally vivid events dominate perception.",
+        "Recent exposure increases perceived probability."
+      ],
+      "actionablePrinciples": [
+        "Check base rates before reacting.",
+        "Ask: 'Is this common or just memorable?'",
+        "Separate emotional intensity from statistical frequency."
+      ],
+      "whenToApply": [
+        "Risk perception",
+        "Media reactions",
+        "Fear-based decisions"
+      ],
+      "faceExamples": [
+        {
+          "title": "News-driven fear",
+          "scenario": "User fears rare event after media exposure.",
+          "application": "Re-anchor to statistical context."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["it feels common", "everyone is doing it", "news makes it seem"],
+        "intentSignals": ["why does this feel bigger than it is"]
+      }
+    },
+
+    {
+      "id": "anchoring_bias",
+      "name": "Anchoring Bias",
+      "category": "decision-making",
+      "oneLiner": "Initial information disproportionately influences later judgments.",
+      "coreMechanism": [
+        "First exposure sets a cognitive reference point.",
+        "Subsequent adjustments are insufficient."
+      ],
+      "actionablePrinciples": [
+        "Generate multiple independent estimates.",
+        "Delay exposure to irrelevant anchors.",
+        "Recalculate from first principles."
+      ],
+      "whenToApply": [
+        "Negotiations",
+        "Pricing",
+        "Forecasting"
+      ],
+      "faceExamples": [
+        {
+          "title": "Salary negotiation",
+          "scenario": "First offer sets psychological ceiling.",
+          "application": "Enter with pre-calculated independent valuation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["first number", "initial offer", "price expectation"],
+        "intentSignals": ["did that first number affect me"]
+      }
+    },
+
+    {
+      "id": "sunk_cost_fallacy",
+      "name": "Sunk Cost Fallacy",
+      "category": "economic_behavior",
+      "oneLiner": "We continue investing because of past costs rather than future value.",
+      "coreMechanism": [
+        "Loss aversion.",
+        "Identity attachment to prior decisions.",
+        "Fear of admitting error."
+      ],
+      "actionablePrinciples": [
+        "Evaluate future value independent of past cost.",
+        "Ask: 'If I hadn’t invested already, would I start today?'",
+        "Normalize course correction."
+      ],
+      "whenToApply": [
+        "Business pivots",
+        "Relationships",
+        "Long-term projects"
+      ],
+      "faceExamples": [
+        {
+          "title": "Failing project persistence",
+          "scenario": "Founder continues funding non-performing product.",
+          "application": "Run forward-looking ROI-only analysis."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["already invested", "too much time spent", "can’t quit now"],
+        "intentSignals": ["should I let this go"]
+      }
+    },
+
+    {
+      "id": "dunning_kruger_effect",
+      "name": "Dunning-Kruger Effect",
+      "category": "metacognition",
+      "oneLiner": "Low competence can reduce awareness of one’s own limitations.",
+      "coreMechanism": [
+        "Lack of skill reduces ability to evaluate skill.",
+        "Confidence may peak early in learning."
+      ],
+      "actionablePrinciples": [
+        "Build feedback loops.",
+        "Use external evaluation metrics.",
+        "Track performance objectively."
+      ],
+      "whenToApply": [
+        "Skill development",
+        "Leadership blind spots",
+        "Overconfidence analysis"
+      ],
+      "faceExamples": [
+        {
+          "title": "Premature mastery",
+          "scenario": "User believes they’ve mastered a domain quickly.",
+          "application": "Introduce benchmark testing."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["overconfident", "I know enough", "they don’t see their flaws"],
+        "intentSignals": ["why are beginners so confident"]
+      }
+    },
+
+    {
+      "id": "loss_aversion",
+      "name": "Loss Aversion",
+      "category": "behavioral_economics",
+      "oneLiner": "Losses psychologically weigh more than equivalent gains.",
+      "coreMechanism": [
+        "Emotional asymmetry between gains and losses.",
+        "Risk avoidance in gain domain; risk seeking in loss domain."
+      ],
+      "actionablePrinciples": [
+        "Reframe losses as tuition.",
+        "Quantify downside realistically.",
+        "Pre-commit to risk thresholds."
+      ],
+      "whenToApply": [
+        "Investment decisions",
+        "Entrepreneurial risk",
+        "Personal change resistance"
+      ],
+      "faceExamples": [
+        {
+          "title": "Investment hesitation",
+          "scenario": "User avoids opportunity due to potential minor loss.",
+          "application": "Compare expected value, not emotional weight."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["fear of losing", "risk avoidance", "can’t afford to fail"],
+        "intentSignals": ["why am I so afraid of small losses"]
+      }
+    }
+
+  ],
+
+  "reasoningFallacies": [
+
+    {
+      "id": "straw_man",
+      "name": "Straw Man Fallacy",
+      "oneLiner": "Misrepresenting an opponent’s position to make it easier to attack.",
+      "correctionStrategy": [
+        "Restate opponent’s position fairly before critique.",
+        "Ask: 'Is that what you’re actually arguing?'"
+      ]
+    },
+    {
+      "id": "false_dichotomy",
+      "name": "False Dichotomy",
+      "oneLiner": "Presenting two options as the only possibilities when more exist.",
+      "correctionStrategy": [
+        "Generate at least one third option.",
+        "Ask: 'What’s between these extremes?'"
+      ]
+    },
+    {
+      "id": "appeal_to_authority",
+      "name": "Appeal to Authority (Misapplied)",
+      "oneLiner": "Assuming a claim is true solely because an authority figure says it.",
+      "correctionStrategy": [
+        "Check evidence quality.",
+        "Verify domain-specific expertise."
+      ]
+    }
+  ],
+
+  "applicationRules": [
+    {
+      "id": "educational_not_accusatory",
+      "instruction": "Frame bias explanations as shared human tendencies, not personal accusations."
+    },
+    {
+      "id": "avoid_labeling_user",
+      "instruction": "Do not label the user directly as biased; describe the pattern neutrally."
+    },
+    {
+      "id": "offer_corrective_action",
+      "instruction": "Every bias explanation should include at least one corrective strategy."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Critical thinking enhancement layer for Marion domain reasoning.",
+    "compatibleWith": ["MarionSO", "chatEngine"],
+    "confidenceLevel": "applied_foundational"
+  }
+}

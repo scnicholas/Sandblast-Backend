@@ -1,0 +1,148 @@
+{
+  "packId": "cyber_incident_response_v1",
+  "domain": "cybersecurity",
+  "packType": "incident_response",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Defensive incident response principles, lifecycle structure, and containment-oriented reasoning. No offensive or exploit guidance.",
+  "lifecycle": [
+    {
+      "id": "ir_preparation",
+      "name": "Preparation",
+      "summary": "Build readiness before incidents occur.",
+      "objectives": [
+        "Define incident response roles and responsibilities.",
+        "Maintain updated contact and escalation lists.",
+        "Ensure logging and telemetry are enabled.",
+        "Conduct tabletop exercises and drills."
+      ],
+      "retrievalHints": {
+        "keywords": ["incident plan", "tabletop", "preparedness", "ir plan"],
+        "intentSignals": ["plan", "prepare", "policy"]
+      }
+    },
+    {
+      "id": "ir_detection_analysis",
+      "name": "Detection & Analysis",
+      "summary": "Identify potential incidents and assess scope and impact.",
+      "objectives": [
+        "Validate alerts before escalation.",
+        "Determine affected assets and accounts.",
+        "Preserve logs and relevant evidence.",
+        "Classify severity and risk tier."
+      ],
+      "riskSignals": [
+        "Unusual login patterns.",
+        "Unexpected outbound data transfers.",
+        "Privilege escalation events."
+      ],
+      "retrievalHints": {
+        "keywords": ["detect", "alert", "investigate", "analysis"],
+        "intentSignals": ["incident", "breach", "suspicious"]
+      }
+    },
+    {
+      "id": "ir_containment",
+      "name": "Containment",
+      "summary": "Limit damage and prevent further spread.",
+      "objectives": [
+        "Isolate compromised systems.",
+        "Disable or reset affected credentials.",
+        "Block malicious IPs or indicators.",
+        "Preserve forensic evidence."
+      ],
+      "notes": [
+        "Containment decisions should balance speed and evidence preservation.",
+        "Avoid premature system shutdown if forensic data is needed."
+      ],
+      "retrievalHints": {
+        "keywords": ["contain", "isolate", "block access"],
+        "intentSignals": ["urgent", "compromised", "active breach"]
+      }
+    },
+    {
+      "id": "ir_eradication_recovery",
+      "name": "Eradication & Recovery",
+      "summary": "Remove root cause and restore systems safely.",
+      "objectives": [
+        "Patch exploited vulnerabilities.",
+        "Remove malicious artifacts.",
+        "Restore from clean backups.",
+        "Monitor for reinfection."
+      ],
+      "retrievalHints": {
+        "keywords": ["eradicate", "restore", "recover", "backup"],
+        "intentSignals": ["fix", "cleanup", "post-breach"]
+      }
+    },
+    {
+      "id": "ir_lessons_learned",
+      "name": "Post-Incident Review",
+      "summary": "Conduct structured review to improve resilience.",
+      "objectives": [
+        "Document timeline and root causes.",
+        "Update controls and detection logic.",
+        "Revise incident response procedures.",
+        "Communicate findings to stakeholders."
+      ],
+      "retrievalHints": {
+        "keywords": ["postmortem", "lessons learned", "root cause"],
+        "intentSignals": ["review", "improve"]
+      }
+    }
+  ],
+  "severityFramework": {
+    "tiers": [
+      {
+        "level": "low",
+        "description": "Limited impact, minimal sensitive data exposure.",
+        "responseGuidance": "Investigate and remediate with standard procedures."
+      },
+      {
+        "level": "medium",
+        "description": "Moderate impact or exposure risk.",
+        "responseGuidance": "Escalate internally, document thoroughly, contain quickly."
+      },
+      {
+        "level": "high",
+        "description": "Significant data loss, operational outage, or regulatory exposure.",
+        "responseGuidance": "Immediate escalation to leadership and legal/compliance."
+      }
+    ]
+  },
+  "communicationGuidelines": [
+    "Use clear, factual language.",
+    "Avoid speculation during early investigation.",
+    "Align statements with legal and compliance review.",
+    "Notify affected stakeholders according to regulatory requirements."
+  ],
+  "crossDomainSignals": {
+    "lawOverlap": [
+      "Breach notification requirements.",
+      "Evidence preservation obligations."
+    ],
+    "financeOverlap": [
+      "Fraud investigation procedures.",
+      "Financial impact analysis."
+    ],
+    "insuranceOverlap": [
+      "Cyber insurance notification timelines.",
+      "Claims documentation requirements."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "incident response",
+      "breach",
+      "containment",
+      "recovery",
+      "postmortem"
+    ],
+    "intentSignals": [
+      "compromised",
+      "attack",
+      "data leak",
+      "security incident"
+    ]
+  }
+}

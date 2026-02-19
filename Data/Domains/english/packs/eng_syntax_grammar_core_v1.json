@@ -1,0 +1,55 @@
+{
+  "id": "eng_syntax_grammar_core_v1",
+  "version": "1.0.0",
+  "description": "Core syntax and grammar: clause structure, complementation, subordination, coordination, information structure.",
+  "anchors": ["S_QUARK_CGEL", "S_BIBER_LGSWE", "S_SWAN_PEU"],
+  "topics": [
+    {
+      "name": "Constituency and Functions",
+      "coreClaims": [
+        "Constituents form hierarchical structures (phrases inside clauses).",
+        "Grammatical functions (subject/object/complement/adjunct) differ from word class labels."
+      ],
+      "diagnostics": [
+        "Substitution (pro-forms), movement, coordination tests (use cautiously)."
+      ],
+      "practice": [
+        "Bracket a sentence into NP/VP/PP units.",
+        "Explain function-role: 'NP' can be subject or object depending on position/structure."
+      ]
+    },
+    {
+      "name": "Clause Types and Subordination",
+      "coreClaims": [
+        "Independent vs dependent clauses behave differently with respect to tense, embedding, and linkage.",
+        "Subordinate clauses can act as complements or adjuncts."
+      ],
+      "practice": [
+        "Classify subordinate clause role (complement vs adjunct).",
+        "Diagnose common learner errors: fragment vs stylistic non-finite clause."
+      ]
+    },
+    {
+      "name": "Coordination and Parallelism",
+      "coreClaims": [
+        "Coordination joins comparable structures; mismatched coordination often creates processing difficulty.",
+        "Parallelism is both a grammatical and rhetorical constraint."
+      ],
+      "practice": [
+        "Repair parallelism errors without changing meaning.",
+        "Explain why a coordination is unbalanced (category/function mismatch)."
+      ]
+    },
+    {
+      "name": "Complementation",
+      "coreClaims": [
+        "Verbs and adjectives license specific complement patterns (that-clauses, infinitives, -ing clauses).",
+        "Choice of complement often shifts meaning (promise vs persuade patterns)."
+      ],
+      "practice": [
+        "Map verb + complement frames.",
+        "Write a brief usage note: what patterns are acceptable in academic register."
+      ]
+    }
+  ]
+}

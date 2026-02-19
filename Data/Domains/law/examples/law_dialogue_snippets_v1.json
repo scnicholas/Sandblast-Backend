@@ -1,0 +1,260 @@
+{
+  "packId": "law_dialogue_snippets_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "packType": "dialogue_snippets",
+  "description": "Reusable dialogue snippets for Canadian legal topics. Designed to keep Nyx conversational while preserving non-advice posture, clarifying questions, and safe next steps. Snippets are short, composable, and tagged for retrieval.",
+  "defaults": {
+    "stance": "INFORMATIONAL_NOT_LEGAL_ADVICE",
+    "tone": "calm_direct",
+    "constraints": {
+      "noGuaranteedOutcomes": true,
+      "noProceduralDeadlinesAsFacts": true,
+      "noCaseLawCitationsByDefault": true,
+      "encourageOfficialSources": true
+    }
+  },
+  "snippets": [
+    {
+      "id": "snip_non_advice_opener",
+      "label": "Non-advice opener",
+      "type": "opener",
+      "text": "I can share general legal information and a practical framework — not legal advice. If you tell me your province/territory and a couple details, I’ll tailor the checklist.",
+      "tags": ["stance", "non_advice", "clarify"],
+      "retrievalHints": {
+        "keywords": ["is this legal", "what should i do", "legal advice"],
+        "intentSignals": ["help", "rights", "can they"]
+      }
+    },
+    {
+      "id": "snip_jurisdiction_first",
+      "label": "Jurisdiction first",
+      "type": "clarifier",
+      "text": "First thing: which province/territory is this in? A lot of day-to-day law (tenancy, employment, small claims) changes by province.",
+      "tags": ["clarify", "jurisdiction", "canada"],
+      "retrievalHints": {
+        "keywords": ["canada", "province", "ontario", "bc", "alberta", "quebec"],
+        "intentSignals": ["which rules apply", "where do i file"]
+      }
+    },
+    {
+      "id": "snip_high_stakes_flag",
+      "label": "High-stakes caution",
+      "type": "risk_gate",
+      "text": "This can be high-stakes (deadlines and rights can move fast). I can outline the general process and what to document, but if there’s a deadline, police involvement, or big money at stake, talking to a lawyer/clinic is worth it.",
+      "tags": ["risk", "high_stakes", "escalate"],
+      "retrievalHints": {
+        "keywords": ["urgent", "deadline", "court", "police", "lawsuit"],
+        "intentSignals": ["right now", "today", "immediately"]
+      }
+    },
+    {
+      "id": "snip_evidence_packet",
+      "label": "Evidence packet builder",
+      "type": "next_steps",
+      "text": "Before you do anything else, build a clean evidence packet: (1) timeline with dates, (2) the key documents, (3) screenshots/messages, (4) payment records, (5) names of witnesses. That alone improves your position a lot.",
+      "tags": ["evidence", "next_steps", "procedure"],
+      "retrievalHints": {
+        "keywords": ["proof", "evidence", "documents", "screenshots", "timeline"],
+        "intentSignals": ["what do i need", "what should i gather"]
+      }
+    },
+    {
+      "id": "snip_neutral_fact_note",
+      "label": "Neutral facts-only note",
+      "type": "template",
+      "text": "If you need to write to them, keep it boring and factual: “On [date], [event]. The agreement was [term]. The issue is [problem]. Please respond by [reasonable date].” No threats, no insults, just facts.",
+      "tags": ["communication", "template", "de_escalate"],
+      "retrievalHints": {
+        "keywords": ["email", "letter", "message", "demand"],
+        "intentSignals": ["what do i say", "help me write"]
+      }
+    },
+    {
+      "id": "snip_options_tradeoffs",
+      "label": "Options + tradeoffs",
+      "type": "framework",
+      "text": "Usually you’ve got 2–3 lanes: (A) informal resolution, (B) complaint/tribunal process, (C) court. The best lane depends on cost, time, and the evidence you can prove.",
+      "tags": ["framework", "tradeoffs", "options"],
+      "retrievalHints": {
+        "keywords": ["options", "choices", "next", "path"],
+        "intentSignals": ["what are my options", "what can i do"]
+      }
+    },
+    {
+      "id": "snip_deadline_warning",
+      "label": "Deadline warning (no specifics)",
+      "type": "risk_gate",
+      "text": "Quick warning: many legal processes have short limitation periods or filing deadlines. If you share the date the key event happened, I can help you identify what deadlines *might* apply and where to confirm them officially.",
+      "tags": ["risk", "deadline", "clarify"],
+      "retrievalHints": {
+        "keywords": ["deadline", "limitation", "time limit", "how long do i have"],
+        "intentSignals": ["can i still", "is it too late"]
+      }
+    },
+    {
+      "id": "snip_official_sources",
+      "label": "Official sources nudge",
+      "type": "next_steps",
+      "text": "For the final word, check the official source (your province’s tribunal/court site or the relevant statute page). If you tell me the topic and province, I’ll point you to the right category of official page to verify.",
+      "tags": ["official_sources", "verification", "next_steps"],
+      "retrievalHints": {
+        "keywords": ["official", "government", "statute", "tribunal", "court site"],
+        "intentSignals": ["where can i verify", "source", "link"]
+      }
+    },
+    {
+      "id": "snip_tenancy_rent_increase_clarifiers",
+      "label": "Tenancy: rent increase clarifiers",
+      "type": "clarifier",
+      "text": "For rent increases, I need: province, lease type (fixed vs month-to-month), whether you got *written* notice, and the date it starts. With that, we can check the usual notice + frequency rules for your tribunal.",
+      "tags": ["tenancy", "rent_increase", "clarify"],
+      "retrievalHints": {
+        "keywords": ["rent increase", "raised rent", "notice", "tenant"],
+        "intentSignals": ["can they raise", "is it allowed"]
+      }
+    },
+    {
+      "id": "snip_tenancy_eviction_basics",
+      "label": "Tenancy: eviction process basics",
+      "type": "framework",
+      "text": "In most provinces, a notice isn’t the same thing as an immediate eviction. There’s usually a formal process and timelines. The safest move is to (1) preserve the notice, (2) identify the stated reason, (3) confirm the tribunal route, and (4) calendar the dispute window.",
+      "tags": ["tenancy", "eviction", "framework"],
+      "retrievalHints": {
+        "keywords": ["eviction notice", "leave now", "tribunal", "hearing"],
+        "intentSignals": ["do i have to leave", "can they kick me out"]
+      }
+    },
+    {
+      "id": "snip_employment_termination_basics",
+      "label": "Employment: termination basics",
+      "type": "framework",
+      "text": "Termination in Canada often has two layers: statutory minimums (employment standards) and potential common law notice (which can be higher unless a valid contract clause limits it). The contract language matters a lot here.",
+      "tags": ["employment", "termination", "framework"],
+      "retrievalHints": {
+        "keywords": ["terminated", "severance", "notice", "without cause"],
+        "intentSignals": ["entitled", "should i sign", "release"]
+      }
+    },
+    {
+      "id": "snip_employment_release_pressure",
+      "label": "Employment: release pressure line",
+      "type": "risk_gate",
+      "text": "If they’re asking you to sign a release fast, it’s reasonable to ask for time to review. Don’t add extra facts; just request the offer in writing and the time window to consider it.",
+      "tags": ["employment", "release", "risk_gate"],
+      "retrievalHints": {
+        "keywords": ["release", "sign", "deadline", "offer"],
+        "intentSignals": ["they want me to sign", "pressure"]
+      }
+    },
+    {
+      "id": "snip_small_claims_basics",
+      "label": "Small claims: basics",
+      "type": "framework",
+      "text": "Small claims is usually about a clean story: agreement → performance → breach → damages. The court/limit varies by province, so we start with province + amount + your best documents.",
+      "tags": ["small_claims", "contracts", "framework"],
+      "retrievalHints": {
+        "keywords": ["small claims", "sue", "owed money", "invoice"],
+        "intentSignals": ["how do i file", "is it worth it"]
+      }
+    },
+    {
+      "id": "snip_defamation_preserve_evidence",
+      "label": "Defamation: preserve evidence",
+      "type": "next_steps",
+      "text": "Before reacting, preserve evidence: screenshots, URLs, timestamps, and any impact notes. Keep your responses factual — emotional replies can backfire later.",
+      "tags": ["defamation", "evidence", "next_steps"],
+      "retrievalHints": {
+        "keywords": ["defamation", "libel", "review", "false statements"],
+        "intentSignals": ["what do i do", "can i sue"]
+      }
+    },
+    {
+      "id": "snip_privacy_doxxing_safety",
+      "label": "Privacy: doxxing safety line",
+      "type": "risk_gate",
+      "text": "If there’s a credible threat to your safety, treat it as a safety issue first: preserve evidence, report to the platform, and consider contacting local law enforcement or victim services.",
+      "tags": ["privacy", "doxxing", "safety", "risk_gate"],
+      "retrievalHints": {
+        "keywords": ["dox", "address", "private info", "threat"],
+        "intentSignals": ["i'm scared", "urgent", "help now"]
+      }
+    },
+    {
+      "id": "snip_police_rights_general",
+      "label": "Police: general rights framing",
+      "type": "risk_gate",
+      "text": "I can give general info: whether you’re detained/arrested vs a voluntary chat matters a lot, and so does your right to counsel. If you’re a suspect, talking to a lawyer promptly is the safest move.",
+      "tags": ["criminal", "rights", "risk_gate"],
+      "retrievalHints": {
+        "keywords": ["police", "detained", "arrested", "interview", "lawyer"],
+        "intentSignals": ["do i have to answer", "what do i say"]
+      }
+    },
+    {
+      "id": "snip_ip_trademark_basics",
+      "label": "IP: trademark basics",
+      "type": "framework",
+      "text": "Trademarks are mainly about confusion in the marketplace (similar name + similar goods/services). A quick high-level check is registries + obvious common-law usage, then a professional clearance if it’s core to the brand.",
+      "tags": ["ip", "trademark", "framework"],
+      "retrievalHints": {
+        "keywords": ["trademark", "brand", "logo", "name taken"],
+        "intentSignals": ["can i use", "is it safe"]
+      }
+    },
+    {
+      "id": "snip_family_law_sensitivity",
+      "label": "Family: sensitivity + safety",
+      "type": "risk_gate",
+      "text": "Family matters can move fast, and safety comes first. I can outline the usual topics (parenting arrangements, support, property) and help you build a question list — but if there’s any violence or coercive control, local supports and legal advice are important.",
+      "tags": ["family", "safety", "risk_gate"],
+      "retrievalHints": {
+        "keywords": ["separation", "custody", "child support", "abuse"],
+        "intentSignals": ["what happens now", "i feel unsafe"]
+      }
+    },
+    {
+      "id": "snip_wills_intestacy_basics",
+      "label": "Estates: intestacy basics",
+      "type": "framework",
+      "text": "When there’s no will, the estate is handled under intestacy rules (province-specific). Debts and taxes come first, then distribution to eligible relatives. The first practical step is assembling a document list and an asset/debt inventory.",
+      "tags": ["estates", "intestacy", "framework"],
+      "retrievalHints": {
+        "keywords": ["no will", "intestate", "probate", "estate"],
+        "intentSignals": ["who gets what", "how do we start"]
+      }
+    },
+    {
+      "id": "snip_contract_clause_translate",
+      "label": "Contracts: clause translation",
+      "type": "template",
+      "text": "If you paste the clause (remove names/prices), I can translate it into plain English and point out the levers: scope, triggers, exclusions, caps, and who controls defense/notice.",
+      "tags": ["contracts", "plain_language", "template"],
+      "retrievalHints": {
+        "keywords": ["indemnity", "limitation of liability", "clause", "terms"],
+        "intentSignals": ["what does this mean", "translate"]
+      }
+    },
+    {
+      "id": "snip_closing_checklist",
+      "label": "Closing checklist",
+      "type": "closing",
+      "text": "If you answer those 2–4 questions, I’ll map the most likely lane (resolve vs tribunal vs court) and give you a clean next-step checklist.",
+      "tags": ["closing", "clarify", "next_steps"],
+      "retrievalHints": {
+        "keywords": ["ok", "next", "what now"],
+        "intentSignals": ["what should i do next"]
+      }
+    }
+  ],
+  "meta": {
+    "createdBy": "Nyx Domain Builder",
+    "stability": "high",
+    "notes": [
+      "Snippets are designed to be composable. Retrieval should pick 1 opener (optional), 1–2 clarifiers, and 1 next-step.",
+      "Keep outputs short; avoid quoting statutes; avoid firm procedural deadlines as factual unless verified.",
+      "For high-stakes topics (criminal, family safety, imminent eviction/violence), prioritize risk_gate snippets."
+    ]
+  }
+}

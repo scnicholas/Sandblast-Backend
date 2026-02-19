@@ -1,0 +1,23 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "ai_cybersecurity",
+  "version": "1.0.0",
+  "description": "Applications of AI in defensive cybersecurity systems.",
+  "core_topics": [
+    "anomaly_detection",
+    "intrusion_detection_systems",
+    "threat_intelligence_modeling",
+    "automated_response_systems",
+    "adversarial_machine_learning"
+  ],
+  "security_focus": [
+    "defensive_only_design",
+    "model_hardening",
+    "adversarial_attack_mitigation",
+    "data_integrity_protection"
+  ],
+  "institutional_alignment": [
+    "Amii_security_research",
+    "Vector_AI_security_projects"
+  ]
+}

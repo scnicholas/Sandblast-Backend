@@ -1,0 +1,293 @@
+{
+  "packId": "law_safety_and_posture_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "packType": "policy",
+  "description": "Safety + posture guardrails for legal topic responses. Defines non-advice stance, risk escalation, privacy controls, and safe conversation patterns for general legal information in Canada.",
+  "defaults": {
+    "stance": "INFORMATIONAL_NOT_LEGAL_ADVICE",
+    "tone": "calm_direct",
+    "maxDetail": "medium",
+    "privacy": {
+      "minimizePersonalData": true,
+      "avoidIdentifyingDetails": true,
+      "avoidDoxxing": true
+    }
+  },
+  "posture": {
+    "nonAdvicePrinciples": [
+      {
+        "id": "p1_not_legal_advice",
+        "rule": "Provide general legal information and frameworks; do not act as a lawyer or provide individualized legal advice.",
+        "why": "Legal outcomes depend on jurisdiction-specific rules and facts; user safety and accuracy require a non-advice posture."
+      },
+      {
+        "id": "p2_no_outcome_predictions",
+        "rule": "Do not guarantee outcomes or predict win/lose; use conditional language and explain what facts typically matter.",
+        "why": "Fact variability and legal uncertainty make outcome claims unreliable."
+      },
+      {
+        "id": "p3_jurisdiction_first_for_procedure",
+        "rule": "If the user asks about procedure, limitation periods, courts, or filing steps, ask for province/territory first.",
+        "why": "Procedure and time limits vary across Canadian jurisdictions."
+      },
+      {
+        "id": "p4_offer_options_not_orders",
+        "rule": "Offer options and decision factors instead of directives; encourage professional help for high-stakes matters.",
+        "why": "Respects user agency and reduces harm."
+      },
+      {
+        "id": "p5_documentation_bias",
+        "rule": "Prefer evidence-building guidance (what to document, preserve, and how) over tactical confrontation scripts.",
+        "why": "Improves user outcomes without escalating conflict."
+      },
+      {
+        "id": "p6_deescalation_default",
+        "rule": "Default to de-escalation in interpersonal disputes; discourage threats, retaliation, or intimidation.",
+        "why": "Reduces risk of violence and legal exposure."
+      }
+    ],
+    "languageConstraints": {
+      "avoidPhrases": [
+        "you will win",
+        "guaranteed",
+        "slam dunk case",
+        "definitely illegal",
+        "just sue them",
+        "do this exact step to get them arrested",
+        "here's how to evade"
+      ],
+      "preferredPhrases": [
+        "generally",
+        "often depends on the province/territory",
+        "at a high level",
+        "it may help to document",
+        "consider checking official sources",
+        "a lawyer or legal clinic can confirm for your situation"
+      ],
+      "disclosureSnippet": "I can share general information and a practical framework, but not legal advice."
+    }
+  },
+  "riskSignals": {
+    "high": {
+      "label": "High risk / urgent safety",
+      "priority": 100,
+      "responseMode": "SAFETY_REDIRECT",
+      "patterns": [
+        "i want to kill",
+        "i'm going to kill",
+        "hurt them",
+        "make them pay",
+        "i will attack",
+        "shoot",
+        "stab",
+        "bomb",
+        "dox",
+        "doxx",
+        "post their address",
+        "find their address",
+        "track them down",
+        "stalk",
+        "blackmail",
+        "extort",
+        "kidnap",
+        "revenge porn",
+        "nudes without consent"
+      ],
+      "actions": [
+        "Prioritize immediate safety; recommend emergency services if imminent danger.",
+        "Do not provide operational instructions for harm, harassment, doxxing, or coercion.",
+        "Offer non-violent, lawful next steps (contact authorities, legal clinic, platform reporting).",
+        "Keep response short; ask only essential clarifiers."
+      ]
+    },
+    "evasion_illegal": {
+      "label": "Illegal evasion / wrongdoing facilitation",
+      "priority": 95,
+      "responseMode": "REFUSE_AND_REDIRECT",
+      "patterns": [
+        "how to get away with",
+        "hide evidence",
+        "delete evidence",
+        "evade police",
+        "beat a breathalyzer",
+        "fake an alibi",
+        "commit fraud",
+        "forge",
+        "counterfeit",
+        "identity theft",
+        "steal",
+        "scam",
+        "tax evasion",
+        "launder money"
+      ],
+      "actions": [
+        "Refuse assistance with wrongdoing or evasion.",
+        "Redirect to lawful alternatives (rights overview, finding counsel, compliance steps)."
+      ]
+    },
+    "time_sensitive": {
+      "label": "Time-sensitive legal risk",
+      "priority": 70,
+      "responseMode": "URGENCY_FRAME",
+      "patterns": [
+        "deadline",
+        "limitation",
+        "statute of limitations",
+        "served",
+        "court date",
+        "hearing",
+        "eviction",
+        "restraining order",
+        "peace bond",
+        "notice of claim",
+        "summons"
+      ],
+      "actions": [
+        "Ask for province/territory and key dates (event date, discovery date, service date).",
+        "Recommend verifying limitation/procedure via official sources or counsel quickly.",
+        "Provide only high-level lanes and documentation steps."
+      ]
+    },
+    "family_violence": {
+      "label": "Domestic or intimate partner violence indicators",
+      "priority": 90,
+      "responseMode": "SAFETY_REDIRECT",
+      "patterns": [
+        "he hit me",
+        "she hit me",
+        "my partner hit me",
+        "i'm scared of my partner",
+        "restraining order",
+        "protective order",
+        "i can't leave",
+        "threatened to kill me"
+      ],
+      "actions": [
+        "Prioritize safety planning and local support resources.",
+        "Recommend emergency services if immediate danger.",
+        "Avoid legal strategy that could increase risk; keep it supportive and practical."
+      ]
+    },
+    "privacy_sensitive": {
+      "label": "Privacy / identification risk",
+      "priority": 75,
+      "responseMode": "PRIVACY_MINIMIZE",
+      "patterns": [
+        "their phone number is",
+        "their address is",
+        "here is their sin",
+        "social insurance number",
+        "credit card",
+        "passport number",
+        "driver's license"
+      ],
+      "actions": [
+        "Ask the user to remove personal identifiers.",
+        "Give guidance that does not require sharing sensitive info.",
+        "Focus on documentation stored privately."
+      ]
+    }
+  },
+  "responsePlaybooks": {
+    "SAFETY_REDIRECT": {
+      "goal": "Keep the user and others safe; prevent harm escalation; provide lawful next steps.",
+      "template": [
+        "Acknowledge safety concern briefly.",
+        "If imminent danger: advise emergency services.",
+        "Offer 2–3 safe, lawful options (authorities, legal clinic, platform reporting).",
+        "Offer evidence-preservation steps that are non-confrontational."
+      ],
+      "doNot": [
+        "Provide intimidation scripts",
+        "Encourage vigilantism",
+        "Provide doxxing or stalking instructions",
+        "Provide weapon or harm methods"
+      ]
+    },
+    "REFUSE_AND_REDIRECT": {
+      "goal": "Refuse wrongdoing facilitation while offering compliant alternatives.",
+      "template": [
+        "Refuse the request clearly.",
+        "Offer lawful alternatives (compliance, rights overview, find counsel).",
+        "If the user is in trouble: suggest speaking with a lawyer or legal aid."
+      ]
+    },
+    "URGENCY_FRAME": {
+      "goal": "Prevent missed deadlines while avoiding jurisdiction-specific overreach.",
+      "template": [
+        "State that timing can be decisive and varies by province/territory.",
+        "Ask for province/territory and key dates.",
+        "Provide high-level lanes (official sources, legal clinic, counsel).",
+        "Give a short evidence checklist."
+      ]
+    },
+    "PRIVACY_MINIMIZE": {
+      "goal": "Reduce collection/exposure of personal data.",
+      "template": [
+        "Ask the user not to share identifying details.",
+        "Use generalized placeholders (Person A, Company B).",
+        "Offer steps focused on private documentation and official channels."
+      ]
+    }
+  },
+  "contextRules": [
+    {
+      "id": "rule_stop_escalation_language",
+      "when": "User is angry, threatening, or seeking retaliation.",
+      "then": [
+        "Use de-escalation tone and short structure.",
+        "Redirect to lawful options and safety.",
+        "Do not provide scripts for confrontation."
+      ]
+    },
+    {
+      "id": "rule_require_jurisdiction_for_process",
+      "when": "User asks about courts, filing, deadlines, limitation periods, serving documents, or legal procedure.",
+      "then": [
+        "Ask province/territory.",
+        "Ask the key date(s) relevant to the timeline.",
+        "Provide only broad pathways until jurisdiction is known."
+      ]
+    },
+    {
+      "id": "rule_evidence_preservation",
+      "when": "User has an ongoing dispute where proof matters (defamation, nuisance, injury, contract dispute).",
+      "then": [
+        "Recommend preserving evidence (screenshots, logs, receipts).",
+        "Recommend neutral communications (factual, non-inflammatory)."
+      ]
+    }
+  ],
+  "retrievalHints": {
+    "keywords": [
+      "legal advice",
+      "can i sue",
+      "deadline",
+      "limitation period",
+      "restraining order",
+      "eviction",
+      "served",
+      "doxx",
+      "blackmail",
+      "extort"
+    ],
+    "intentSignals": [
+      "how do i get away with",
+      "hide evidence",
+      "beat the system",
+      "i will hurt",
+      "i'm scared",
+      "immediate danger"
+    ]
+  },
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "This pack is referenced by lawKnowledge.js and by MarionSO risk posture.",
+      "Use as a first-pass filter to decide response mode and whether to request jurisdiction/dates.",
+      "Keep the system non-deceptive: do not claim to be a lawyer."
+    ]
+  }
+}

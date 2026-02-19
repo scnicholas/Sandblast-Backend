@@ -1,0 +1,24 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "ai_marketing",
+  "version": "1.0.0",
+  "description": "AI applications in digital marketing and behavioral targeting.",
+  "core_topics": [
+    "predictive_analytics",
+    "recommendation_systems",
+    "customer_segmentation",
+    "conversion_optimization",
+    "marketing_automation"
+  ],
+  "metrics_focus": [
+    "customer_lifetime_value",
+    "conversion_rate",
+    "engagement_scoring",
+    "attribution_modeling"
+  ],
+  "ethical_constraints": [
+    "privacy_preservation",
+    "bias_detection",
+    "consent_management"
+  ]
+}

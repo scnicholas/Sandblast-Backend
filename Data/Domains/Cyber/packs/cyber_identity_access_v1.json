@@ -1,0 +1,135 @@
+{
+  "packId": "cyber_identity_access_v1",
+  "domain": "cybersecurity",
+  "packType": "identity_access",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Identity, authentication, authorization, and access governance principles for defensive reasoning and secure system design.",
+  "principles": [
+    {
+      "id": "iam_identity_is_perimeter",
+      "name": "Identity Is the New Perimeter",
+      "summary": "In modern systems, identity and access controls define trust boundaries more than network location.",
+      "useWhen": ["cloud architecture", "remote workforce", "zero trust design"],
+      "retrievalHints": {
+        "keywords": ["identity perimeter", "zero trust", "cloud identity"],
+        "intentSignals": ["architecture", "remote access"]
+      }
+    },
+    {
+      "id": "iam_strong_authentication",
+      "name": "Strong Authentication",
+      "summary": "Authentication should rely on multiple factors and resistant methods (e.g., phishing-resistant MFA).",
+      "coreIdeas": [
+        "Use multi-factor authentication (MFA) everywhere possible.",
+        "Prefer hardware-based or app-based MFA over SMS when feasible.",
+        "Enforce strong password policies or passwordless models."
+      ],
+      "retrievalHints": {
+        "keywords": ["mfa", "2fa", "passwordless", "authentication"],
+        "intentSignals": ["login security", "account protection"]
+      }
+    },
+    {
+      "id": "iam_least_privilege",
+      "name": "Least Privilege & Role-Based Access",
+      "summary": "Users and systems should have only the permissions necessary to perform required tasks.",
+      "coreIdeas": [
+        "Define roles clearly and avoid blanket admin access.",
+        "Review permissions periodically.",
+        "Use temporary privilege elevation where possible."
+      ],
+      "retrievalHints": {
+        "keywords": ["least privilege", "rbac", "permissions", "admin access"],
+        "intentSignals": ["access review", "iam policy"]
+      }
+    },
+    {
+      "id": "iam_lifecycle_management",
+      "name": "Identity Lifecycle Management",
+      "summary": "Access rights must reflect employment status and role changes in real time.",
+      "coreIdeas": [
+        "Provision access upon onboarding.",
+        "Adjust permissions when roles change.",
+        "Immediately revoke access upon termination."
+      ],
+      "riskPatterns": [
+        "Orphaned accounts after employee departure.",
+        "Overprivileged legacy accounts.",
+        "Dormant accounts exploited by attackers."
+      ],
+      "retrievalHints": {
+        "keywords": ["onboarding", "offboarding", "account lifecycle", "provisioning"],
+        "intentSignals": ["process", "governance"]
+      }
+    }
+  ],
+  "controls": [
+    {
+      "id": "control_account_monitoring",
+      "name": "Account Activity Monitoring",
+      "description": "Monitor login attempts, privilege escalation, and anomalous access patterns.",
+      "signals": [
+        "Multiple failed login attempts.",
+        "Login from unusual geolocation.",
+        "Access outside normal working hours."
+      ],
+      "retrievalHints": {
+        "keywords": ["login monitoring", "anomaly detection", "account alert"],
+        "intentSignals": ["detect", "alert"]
+      }
+    },
+    {
+      "id": "control_secret_management",
+      "name": "Secrets & Credential Management",
+      "description": "Protect and rotate API keys, tokens, and service credentials.",
+      "principles": [
+        "Never hardcode secrets in source code.",
+        "Use secret vaults or secure storage.",
+        "Rotate credentials on a defined schedule."
+      ],
+      "retrievalHints": {
+        "keywords": ["api key", "secret", "credential rotation", "vault"],
+        "intentSignals": ["secure storage", "protect credentials"]
+      }
+    }
+  ],
+  "riskPatterns": [
+    {
+      "id": "risk_credential_theft",
+      "description": "Phishing or malware leading to stolen credentials.",
+      "impact": "Account takeover, lateral movement, data exfiltration."
+    },
+    {
+      "id": "risk_privilege_escalation",
+      "description": "User gains elevated permissions beyond intended scope.",
+      "impact": "Administrative control and potential systemic compromise."
+    }
+  ],
+  "crossDomainSignals": {
+    "lawOverlap": [
+      "Data protection compliance (PII access control).",
+      "Audit logging requirements."
+    ],
+    "financeOverlap": [
+      "Fraud prevention controls.",
+      "Transaction authorization verification."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "identity management",
+      "access control",
+      "authentication",
+      "authorization",
+      "iam",
+      "mfa"
+    ],
+    "intentSignals": [
+      "secure login",
+      "account protection",
+      "policy design",
+      "governance"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "eng_semantics_pragmatics_v1",
+  "version": "1.0.0",
+  "description": "Meaning layer: semantics (encoded meaning) and pragmatics (contextual meaning), with university-level reasoning tools.",
+  "anchors": [],
+  "topics": [
+    {
+      "name": "Semantic Relations",
+      "coreClaims": [
+        "Meaning relations include entailment, contradiction, presupposition, and ambiguity.",
+        "Ambiguity can be structural (syntax) or lexical (word meaning)."
+      ],
+      "practice": [
+        "Test entailment with paraphrase and negation.",
+        "Identify ambiguity type and propose disambiguations."
+      ]
+    },
+    {
+      "name": "Pragmatics and Implicature",
+      "coreClaims": [
+        "Speakers imply more than they state; hearers infer based on norms and context.",
+        "Politeness, hedging, and stance are pragmatic tools heavily used in academic writing."
+      ],
+      "practice": [
+        "Rewrite a claim with calibrated hedging appropriate for academic prose.",
+        "Explain a misunderstanding as a pragmatic mismatch (not just 'bad grammar')."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,432 @@
+{
+  "packId": "psy_research_methods_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Core research methods and statistics literacy for psychology: study designs, measurement, validity/reliability, sampling, bias/confounds, inference, ethics, and practical evaluation. Built for Marion to answer 'how do we know' questions and to help users design, critique, and interpret studies responsibly (non-medical, non-legal).",
+  "updatedAt": "2026-02-13",
+  "scope": [
+    "scientific-method",
+    "research-design",
+    "measurement",
+    "validity-reliability",
+    "sampling",
+    "bias-confounds",
+    "statistics-literacy",
+    "causal-inference",
+    "ethics-irb",
+    "replication-open-science"
+  ],
+
+  "coreConcepts": [
+    {
+      "id": "research_question_to_design",
+      "name": "From Research Question to Design",
+      "oneLiner": "Match the question type (describe, predict, explain) to the design that can actually answer it.",
+      "keyPoints": [
+        "Descriptive questions → surveys/observational description.",
+        "Predictive questions → correlational models; avoid causal wording.",
+        "Causal questions → experiments or quasi-experiments with strong identification.",
+        "Feasibility and ethics constrain design choice."
+      ],
+      "commonMisconceptions": [
+        "Correlation proves cause.",
+        "One study settles a question.",
+        "Bigger sample automatically fixes bad measurement."
+      ],
+      "retrievalHints": {
+        "keywords": ["research question", "design", "causal", "correlational", "experiment"],
+        "intentSignals": ["how would you study", "what design should I use", "does this prove"]
+      }
+    },
+
+    {
+      "id": "variables_operationalization",
+      "name": "Variables and Operationalization",
+      "oneLiner": "A construct is an idea; an operational definition is how you measure it in the real world.",
+      "keyPoints": [
+        "Define constructs (e.g., anxiety) and specify measurable indicators.",
+        "Operational definitions must be observable, repeatable, and documented.",
+        "Use multiple measures (triangulation) when feasible."
+      ],
+      "commonMisconceptions": [
+        "A single questionnaire score equals the construct.",
+        "Changing a label changes what you measured."
+      ],
+      "retrievalHints": {
+        "keywords": ["operationalize", "construct", "measure", "variable"],
+        "intentSignals": ["how do we measure", "define operationally", "what counts as"]
+      }
+    },
+
+    {
+      "id": "reliability_validity",
+      "name": "Reliability vs Validity",
+      "oneLiner": "Reliability is consistency; validity is truthfulness to the construct. You need both.",
+      "keyPoints": [
+        "Reliability types: test-retest, inter-rater, internal consistency.",
+        "Validity types: content, criterion, construct; convergent/discriminant.",
+        "Reliable but invalid measures can be consistently wrong."
+      ],
+      "commonMisconceptions": [
+        "High reliability implies high validity.",
+        "Cronbach’s alpha alone proves a scale is good."
+      ],
+      "retrievalHints": {
+        "keywords": ["reliability", "validity", "alpha", "inter-rater"],
+        "intentSignals": ["is this measure good", "how do we know it’s valid"]
+      }
+    },
+
+    {
+      "id": "sampling_generalizability",
+      "name": "Sampling and Generalizability",
+      "oneLiner": "What you can conclude depends on who you studied and how they were selected.",
+      "keyPoints": [
+        "Random sampling supports population generalization; convenience samples don’t.",
+        "Selection bias occurs when inclusion is related to variables of interest.",
+        "External validity: does this result travel to other settings/people/times?"
+      ],
+      "commonMisconceptions": [
+        "University student samples represent everyone.",
+        "Large convenience samples are automatically generalizable."
+      ],
+      "retrievalHints": {
+        "keywords": ["sampling", "generalize", "external validity", "selection bias"],
+        "intentSignals": ["does this apply to", "can we generalize", "sample bias"]
+      }
+    },
+
+    {
+      "id": "confounds_controls_randomization",
+      "name": "Confounds, Controls, and Randomization",
+      "oneLiner": "A confound is an alternative explanation; good design anticipates and blocks it.",
+      "keyPoints": [
+        "Confounds threaten internal validity.",
+        "Random assignment balances confounds on average.",
+        "Control variables help, but can introduce bias if chosen poorly."
+      ],
+      "commonMisconceptions": [
+        "Controlling for everything is always better.",
+        "Random sampling is the same as random assignment."
+      ],
+      "retrievalHints": {
+        "keywords": ["confound", "internal validity", "random assignment", "control variable"],
+        "intentSignals": ["alternative explanation", "how do we rule out", "what’s the confound"]
+      }
+    },
+
+    {
+      "id": "ethics_in_psych_research",
+      "name": "Ethics in Psychological Research",
+      "oneLiner": "Ethical research minimizes harm, uses informed consent, and protects privacy—especially with vulnerable groups.",
+      "keyPoints": [
+        "Informed consent, right to withdraw, and debriefing when deception is used.",
+        "Minimize risk; benefits must justify remaining risk.",
+        "Confidentiality and data protection; special care with sensitive topics.",
+        "Institutional review processes (IRB/REB) enforce standards."
+      ],
+      "commonMisconceptions": [
+        "If data is anonymous, ethics doesn’t matter.",
+        "Deception is always unethical (it can be allowed with safeguards)."
+      ],
+      "retrievalHints": {
+        "keywords": ["ethics", "informed consent", "debriefing", "IRB", "REB"],
+        "intentSignals": ["is this ethical", "can we deceive participants", "consent"]
+      }
+    },
+
+    {
+      "id": "replication_open_science",
+      "name": "Replication and Open Science",
+      "oneLiner": "Reliable knowledge needs replication, transparency, and practices that reduce researcher degrees of freedom.",
+      "keyPoints": [
+        "Direct vs conceptual replication.",
+        "Preregistration reduces p-hacking and HARKing.",
+        "Sharing materials/data/code improves verification.",
+        "Meta-analysis aggregates evidence across studies."
+      ],
+      "commonMisconceptions": [
+        "A single failed replication proves the original was fake.",
+        "Open science means no privacy protections (it doesn’t)."
+      ],
+      "retrievalHints": {
+        "keywords": ["replication", "preregistration", "p-hacking", "HARKing", "meta-analysis"],
+        "intentSignals": ["replication crisis", "why studies fail", "can we trust this finding"]
+      }
+    }
+  ],
+
+  "designs": [
+    {
+      "id": "experimental",
+      "name": "Experiment (Randomized Controlled)",
+      "whatItAnswers": "Causal effects (with assumptions and good execution).",
+      "strengths": [
+        "Strongest internal validity with random assignment.",
+        "Clear temporal ordering with manipulation."
+      ],
+      "limitations": [
+        "May be impractical or unethical.",
+        "External validity can be limited by artificial settings."
+      ],
+      "qualityChecklist": [
+        "Random assignment and allocation concealment (when relevant).",
+        "Manipulation check (did the manipulation work?).",
+        "Blinding where possible (participants/assessors).",
+        "Pre-specified outcomes and analysis plan.",
+        "Attrition handled transparently."
+      ]
+    },
+    {
+      "id": "quasi_experimental",
+      "name": "Quasi-Experiment",
+      "whatItAnswers": "Causal claims when random assignment isn’t feasible, using design-based identification.",
+      "strengths": [
+        "Can leverage real-world policy changes or natural experiments.",
+        "Often higher ecological validity than lab studies."
+      ],
+      "limitations": [
+        "Stronger assumptions; confounding remains a risk.",
+        "Requires careful identification and robustness checks."
+      ],
+      "qualityChecklist": [
+        "Clear identification strategy (RDD, DiD, IV, matching, etc.).",
+        "Pre-trends or balance checks (when applicable).",
+        "Sensitivity/robustness analyses.",
+        "Transparent limitations and alternative explanations."
+      ]
+    },
+    {
+      "id": "correlational",
+      "name": "Correlational / Observational",
+      "whatItAnswers": "Associations and prediction; not definitive causality.",
+      "strengths": [
+        "Often feasible and scalable.",
+        "Useful for hypothesis generation and predictive modeling."
+      ],
+      "limitations": [
+        "Confounding and reverse causality.",
+        "Selection bias can distort associations."
+      ],
+      "qualityChecklist": [
+        "Clear operational definitions and measurement quality.",
+        "Confound discussion and plausible mechanisms.",
+        "Avoid causal language unless design supports it."
+      ]
+    },
+    {
+      "id": "survey",
+      "name": "Survey Research",
+      "whatItAnswers": "Attitudes, self-report patterns, prevalence estimates (if sampling is appropriate).",
+      "strengths": [
+        "Fast data collection; broad coverage possible.",
+        "Captures subjective experience directly."
+      ],
+      "limitations": [
+        "Self-report biases and measurement error.",
+        "Sampling issues often dominate interpretation."
+      ],
+      "qualityChecklist": [
+        "Sampling frame and response rate documented.",
+        "Question wording tested (pilot/cognitive interviews).",
+        "Scale reliability and validity addressed.",
+        "Plan for missing data and nonresponse bias."
+      ]
+    },
+    {
+      "id": "case_study",
+      "name": "Case Study / Single-Case Design",
+      "whatItAnswers": "Rich understanding of processes; within-person change over time.",
+      "strengths": [
+        "Deep, contextual insight.",
+        "Can support hypothesis generation and theory refinement."
+      ],
+      "limitations": [
+        "Limited generalizability.",
+        "Higher risk of confirmation bias without structure."
+      ],
+      "qualityChecklist": [
+        "Clear case selection rationale.",
+        "Systematic measurement over time.",
+        "Alternative explanations considered.",
+        "Transparency about limits."
+      ]
+    }
+  ],
+
+  "measurementToolbox": [
+    {
+      "id": "scale_quality",
+      "name": "Scale Quality Quick Check",
+      "checks": [
+        "Reliability evidence (test-retest, internal consistency, inter-rater).",
+        "Validity evidence (construct/criterion; convergent/discriminant).",
+        "Appropriateness for the target population and context.",
+        "Sensitivity to change (if used for intervention evaluation)."
+      ],
+      "commonPitfalls": [
+        "Using a scale outside validated populations.",
+        "Overinterpreting small differences without measurement invariance."
+      ]
+    },
+    {
+      "id": "observer_ratings",
+      "name": "Observer Ratings and Coding",
+      "checks": [
+        "Clear codebook and training.",
+        "Inter-rater reliability (e.g., ICC/kappa) reported.",
+        "Blind coding to condition/hypothesis when possible."
+      ],
+      "commonPitfalls": ["Coder drift", "expectancy effects"]
+    }
+  ],
+
+  "statsLiteracy": [
+    {
+      "id": "p_values_ci_effects",
+      "name": "p-values, Confidence Intervals, and Effect Sizes",
+      "oneLiner": "Statistical significance isn’t practical significance; effect size and uncertainty matter.",
+      "keyPoints": [
+        "p-value: compatibility of data with a null model; not 'probability the hypothesis is true'.",
+        "Confidence interval: plausible range for the parameter under repeated sampling logic.",
+        "Effect size: magnitude (e.g., Cohen’s d, r, odds ratio) should be interpreted in context."
+      ],
+      "commonMisconceptions": [
+        "p < .05 means the effect is big.",
+        "p > .05 means there is no effect.",
+        "Confidence intervals contain 95% of the data."
+      ]
+    },
+    {
+      "id": "power_and_sample_size",
+      "name": "Power, Sample Size, and False Negatives",
+      "oneLiner": "Low power increases false negatives and inflates published effect sizes via selection.",
+      "keyPoints": [
+        "Power depends on effect size, alpha, sample size, and noise.",
+        "Underpowered studies are unstable; results vary widely.",
+        "Pre-specify analyses to avoid 'researcher degrees of freedom'."
+      ],
+      "commonMisconceptions": [
+        "If it’s significant, power doesn’t matter.",
+        "Bigger N fixes bad design and confounding."
+      ]
+    },
+    {
+      "id": "multiple_comparisons",
+      "name": "Multiple Comparisons and Researcher Degrees of Freedom",
+      "oneLiner": "Testing many hypotheses raises false positives unless corrected or pre-registered.",
+      "keyPoints": [
+        "Adjustments: Bonferroni/FDR; or pre-register primary outcomes.",
+        "Exploratory analyses are fine—label them honestly.",
+        "Avoid p-hacking and HARKing (hypothesizing after results known)."
+      ]
+    },
+    {
+      "id": "causal_language",
+      "name": "Causal Language Discipline",
+      "oneLiner": "Use causal language only when design supports identification; otherwise describe associations.",
+      "keyPoints": [
+        "Experiments support causal claims; observational studies usually support associations.",
+        "Mechanisms require additional evidence beyond correlations.",
+        "Confounding and reverse causality must be considered explicitly."
+      ]
+    }
+  ],
+
+  "biasAndQuality": [
+    {
+      "id": "threats_to_validity",
+      "name": "Threats to Validity (Internal / External / Construct / Statistical)",
+      "internal": [
+        "Confounding",
+        "History/maturation (time effects)",
+        "Selection bias",
+        "Attrition",
+        "Demand characteristics / expectancy effects"
+      ],
+      "external": [
+        "Non-representative sampling",
+        "Context dependence",
+        "Cultural/time shifts"
+      ],
+      "construct": [
+        "Poor operationalization",
+        "Mono-method bias",
+        "Measurement reactivity"
+      ],
+      "statistical": [
+        "Low power",
+        "Multiple comparisons",
+        "Model overfitting"
+      ]
+    },
+    {
+      "id": "quality_checklist_general",
+      "name": "General Study Quality Checklist",
+      "checks": [
+        "Clear question and hypothesis (or clearly labeled exploratory).",
+        "Appropriate design for the claim being made.",
+        "Transparent sampling and inclusion/exclusion criteria.",
+        "Sound measurement (reliability/validity evidence).",
+        "Pre-specified primary outcomes and analysis plan.",
+        "Transparent reporting (effect sizes, uncertainty, missing data).",
+        "Limitations acknowledged; avoids overgeneralization."
+      ]
+    }
+  ],
+
+  "applicationRules": [
+    {
+      "id": "non_medical_non_legal",
+      "instruction": "Explain research concepts and critical appraisal. Do not provide medical diagnosis or legal advice."
+    },
+    {
+      "id": "causal_claim_guard",
+      "instruction": "When user asks 'does X cause Y', prompt for design evidence; default to association language unless RCT/quasi-experimental identification is established."
+    },
+    {
+      "id": "interpretation_guard",
+      "instruction": "Translate stats into plain meaning: effect size + uncertainty + limitations. Avoid definitive claims from single studies."
+    },
+    {
+      "id": "ethics_guard",
+      "instruction": "If user proposes potentially harmful or deceptive research, steer to ethical alternatives and consent-focused designs."
+    }
+  ],
+
+  "responseTemplates": [
+    {
+      "id": "critique_template",
+      "name": "Study Critique Skeleton",
+      "template": [
+        "Claim being made:",
+        "Design used:",
+        "Key measures (and quality):",
+        "Main finding (effect size + uncertainty):",
+        "Biggest threats to validity:",
+        "What would increase confidence:"
+      ]
+    },
+    {
+      "id": "design_template",
+      "name": "Design Proposal Skeleton",
+      "template": [
+        "Research question:",
+        "Population and sampling:",
+        "Variables + operational definitions:",
+        "Design (experiment/quasi/observational):",
+        "Procedure (high-level):",
+        "Confounds and how addressed:",
+        "Analysis plan (high-level):",
+        "Ethics and consent:"
+      ]
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Marion psychology domain pack: research-methods literacy for critique/design/inference.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "safetyProfile": "education + critical appraisal; avoids medical/legal advice",
+    "confidenceLevel": "foundational_methods"
+  }
+}

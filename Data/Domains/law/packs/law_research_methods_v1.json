@@ -1,0 +1,177 @@
+{
+  "packId": "law_research_methods_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "description": "High-level legal research framework for Canadian law. Covers how to find statutes, regulations, cases, and secondary sources; how to read a case; and how to validate authority using public tools.",
+  "topics": [
+    {
+      "id": "lr_hierarchy_of_sources",
+      "title": "Hierarchy of Legal Sources in Canada",
+      "coreDefinition": "Canadian legal authority generally flows from constitutional law, statutes (and regulations), and case law. Secondary sources interpret but do not create binding law.",
+      "frameworkSteps": [
+        "Identify the legal issue and relevant jurisdiction (federal vs province/territory).",
+        "Check for governing statute(s) and regulations first.",
+        "Review leading cases interpreting that statute.",
+        "Consult secondary sources for context and interpretation."
+      ],
+      "quickExamples": [
+        "Employment standards: Start with the provincial Employment Standards Act, then look at tribunal or court interpretations.",
+        "Criminal law: Refer to the Criminal Code (federal), then leading Supreme Court cases."
+      ],
+      "commonMistakes": [
+        "Relying solely on blog posts without checking statutes.",
+        "Ignoring jurisdiction (Ontario vs Alberta rules may differ).",
+        "Confusing persuasive authority with binding authority."
+      ],
+      "retrievalHints": {
+        "keywords": ["where do i find", "research", "source", "authority", "canlii", "statute"],
+        "intentSignals": ["how do i research", "where can i read the law"]
+      }
+    },
+    {
+      "id": "lr_statutes_and_regulations",
+      "title": "Finding Statutes and Regulations",
+      "coreDefinition": "Statutes are enacted by legislatures (Parliament or provincial assemblies). Regulations are subordinate legislation made under statutory authority.",
+      "frameworkSteps": [
+        "Identify jurisdiction (federal or province/territory).",
+        "Search official government websites for consolidated statutes.",
+        "Check regulations linked to the statute.",
+        "Confirm currency (in force date and amendments)."
+      ],
+      "quickExamples": [
+        "Federal: laws-lois.justice.gc.ca for consolidated statutes.",
+        "Ontario: e-Laws website for statutes and regulations."
+      ],
+      "commonMistakes": [
+        "Using outdated versions.",
+        "Not checking if the section has been amended."
+      ],
+      "retrievalHints": {
+        "keywords": ["statute", "regulation", "act", "section", "amended"],
+        "intentSignals": ["what does the law say", "what section covers"]
+      }
+    },
+    {
+      "id": "lr_case_law_research",
+      "title": "Case Law Research",
+      "coreDefinition": "Case law consists of judicial decisions interpreting statutes or developing common law principles.",
+      "frameworkSteps": [
+        "Search CanLII or official court websites.",
+        "Identify leading or frequently cited cases.",
+        "Note the court level (Supreme Court decisions bind lower courts).",
+        "Check if the case has been followed, distinguished, or overturned."
+      ],
+      "quickExamples": [
+        "Use keyword search plus jurisdiction filter on CanLII.",
+        "Review headnotes for quick overview but read key reasoning sections."
+      ],
+      "commonMistakes": [
+        "Relying only on headnotes.",
+        "Not verifying whether a case is still good law."
+      ],
+      "retrievalHints": {
+        "keywords": ["case law", "precedent", "supreme court", "appeal"],
+        "intentSignals": ["what case says", "leading case"]
+      }
+    },
+    {
+      "id": "lr_reading_a_case",
+      "title": "How to Read a Case",
+      "coreDefinition": "Judicial decisions contain procedural history, facts, issues, reasoning, and a holding (ratio decidendi).",
+      "frameworkSteps": [
+        "Identify material facts.",
+        "Determine the legal issue(s).",
+        "Extract the court’s reasoning.",
+        "Isolate the binding principle (ratio).",
+        "Distinguish obiter dicta from binding reasoning."
+      ],
+      "quickExamples": [
+        "Ratio: The principle necessary for the decision.",
+        "Obiter: Comments not essential to the decision."
+      ],
+      "commonMistakes": [
+        "Confusing facts with legal principles.",
+        "Treating obiter dicta as binding."
+      ],
+      "retrievalHints": {
+        "keywords": ["ratio", "obiter", "holding", "reasoning"],
+        "intentSignals": ["how do i read a case"]
+      }
+    },
+    {
+      "id": "lr_noting_up",
+      "title": "Noting Up and Validating Authority",
+      "coreDefinition": "Noting up is the process of checking how a case or statute has been treated by subsequent decisions.",
+      "frameworkSteps": [
+        "Use citation tools (e.g., CanLII’s cited-by feature).",
+        "Check if the decision was overturned or distinguished.",
+        "Confirm the section of statute is still in force."
+      ],
+      "quickExamples": [
+        "Look for 'overruled' or 'reversed' in citing cases.",
+        "Verify statute consolidation date."
+      ],
+      "commonMistakes": [
+        "Failing to confirm current validity.",
+        "Ignoring appellate history."
+      ],
+      "retrievalHints": {
+        "keywords": ["noted up", "overruled", "cited by"],
+        "intentSignals": ["is this still valid law"]
+      }
+    },
+    {
+      "id": "lr_secondary_sources",
+      "title": "Using Secondary Sources",
+      "coreDefinition": "Secondary sources include textbooks, law review articles, legal encyclopedias, and practice guides. They interpret but do not bind.",
+      "frameworkSteps": [
+        "Use encyclopedias (e.g., Canadian Encyclopedic Digest) for overviews.",
+        "Consult textbooks for doctrinal clarity.",
+        "Check law review articles for deeper analysis."
+      ],
+      "quickExamples": [
+        "Textbooks for structured frameworks.",
+        "Law journals for policy analysis."
+      ],
+      "commonMistakes": [
+        "Treating commentary as binding law.",
+        "Ignoring primary authority verification."
+      ],
+      "retrievalHints": {
+        "keywords": ["textbook", "article", "journal", "encyclopedia"],
+        "intentSignals": ["overview of", "background on"]
+      }
+    },
+    {
+      "id": "lr_limitations_and_deadlines",
+      "title": "Researching Limitation Periods",
+      "coreDefinition": "Limitation periods restrict the time within which a legal action may be commenced. They vary by jurisdiction and cause of action.",
+      "frameworkSteps": [
+        "Identify jurisdiction.",
+        "Locate the relevant Limitations Act.",
+        "Determine discovery date and applicable exceptions.",
+        "Confirm tolling or extension rules."
+      ],
+      "quickExamples": [
+        "Ontario’s basic two-year limitation period (subject to exceptions)."
+      ],
+      "commonMistakes": [
+        "Confusing event date with discovery date.",
+        "Assuming federal rules apply provincially."
+      ],
+      "retrievalHints": {
+        "keywords": ["limitation", "deadline", "statute of limitations"],
+        "intentSignals": ["am i too late to sue"]
+      }
+    }
+  ],
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "This pack supports structured responses when users ask how to research or verify legal information.",
+      "Always require jurisdiction when discussing procedure or limitation periods.",
+      "Encourage consulting official sources and legal professionals for confirmation."
+    ]
+  }
+}

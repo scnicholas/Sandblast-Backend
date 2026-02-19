@@ -1,0 +1,37 @@
+{
+  "domain": "finance",
+  "domainVersion": "1.0.0",
+  "updatedAt": "2026-02-12",
+  "description": "Finance and applied economics knowledge layer covering micro foundations, macro principles, pricing, capital markets, risk management, public policy linkages, unit economics, case studies, dialogue modeling, and archetype reasoning.",
+  "defaultLoadOrder": [
+    "fin_micro_foundations_v1.json",
+    "fin_macro_principles_v1.json",
+    "fin_unit_economics_v1.json",
+    "fin_pricing_models_v1.json",
+    "fin_capital_markets_v1.json",
+    "fin_risk_management_v1.json",
+    "fin_public_policy_links_v1.json",
+    "fin_case_studies_v1.json",
+    "fin_face_examples_v1.json",
+    "fin_dialogue_snippets_v1.json"
+  ],
+  "integrationHints": {
+    "primaryIntentMappings": {
+      "pricing": "fin_pricing_models_v1.json",
+      "unit_economics": "fin_unit_economics_v1.json",
+      "macro_analysis": "fin_macro_principles_v1.json",
+      "risk": "fin_risk_management_v1.json",
+      "capital_structure": "fin_capital_markets_v1.json",
+      "policy": "fin_public_policy_links_v1.json"
+    },
+    "archetypeSupport": "fin_face_examples_v1.json",
+    "dialogueModeling": "fin_dialogue_snippets_v1.json",
+    "caseSupport": "fin_case_studies_v1.json"
+  },
+  "riskPosture": {
+    "nonInvestmentAdvice": true,
+    "scenarioBasedReasoning": true,
+    "encourageAssumptionDisclosure": true,
+    "avoidMarketPrediction": true
+  }
+}

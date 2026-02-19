@@ -1,0 +1,154 @@
+{
+  "packId": "cyber_privacy_data_protection_v1",
+  "domain": "cybersecurity",
+  "packType": "privacy_data_protection",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Privacy, data protection, and information governance principles for defensive reasoning, compliance awareness, and risk mitigation.",
+  "coreConcepts": [
+    {
+      "id": "concept_data_classification",
+      "name": "Data Classification",
+      "summary": "Categorize data by sensitivity to determine appropriate controls.",
+      "levels": [
+        "Public",
+        "Internal",
+        "Confidential",
+        "Restricted / Highly Sensitive"
+      ],
+      "examples": [
+        "Marketing materials (Public)",
+        "Internal strategy documents (Internal)",
+        "Customer PII (Confidential)",
+        "Health or financial records (Restricted)"
+      ],
+      "retrievalHints": {
+        "keywords": ["data classification", "sensitive data", "pii"],
+        "intentSignals": ["protect", "categorize", "compliance"]
+      }
+    },
+    {
+      "id": "concept_data_minimization",
+      "name": "Data Minimization",
+      "summary": "Collect and retain only the data necessary for a defined purpose.",
+      "principles": [
+        "Avoid collecting unnecessary personal data.",
+        "Define retention limits.",
+        "Delete or anonymize data when no longer needed."
+      ],
+      "retrievalHints": {
+        "keywords": ["data minimization", "retention", "anonymize"],
+        "intentSignals": ["privacy policy", "reduce risk"]
+      }
+    },
+    {
+      "id": "concept_data_lifecycle",
+      "name": "Data Lifecycle Management",
+      "summary": "Govern data from creation to destruction.",
+      "stages": [
+        "Collection",
+        "Storage",
+        "Use",
+        "Sharing",
+        "Archival",
+        "Deletion"
+      ],
+      "retrievalHints": {
+        "keywords": ["data lifecycle", "retention policy", "data governance"],
+        "intentSignals": ["process", "policy"]
+      }
+    }
+  ],
+  "privacyPrinciples": [
+    {
+      "id": "principle_consent_transparency",
+      "name": "Consent & Transparency",
+      "summary": "Users should understand what data is collected and why.",
+      "controls": [
+        "Clear privacy notices.",
+        "Explicit consent mechanisms where required.",
+        "Easy opt-out processes."
+      ],
+      "retrievalHints": {
+        "keywords": ["consent", "privacy notice", "transparency"],
+        "intentSignals": ["policy", "legal compliance"]
+      }
+    },
+    {
+      "id": "principle_access_control",
+      "name": "Access Control & Logging",
+      "summary": "Restrict and monitor access to sensitive information.",
+      "controls": [
+        "Role-based access control (RBAC).",
+        "MFA for privileged access.",
+        "Audit logging of data access events."
+      ],
+      "retrievalHints": {
+        "keywords": ["access control", "audit log", "rbac"],
+        "intentSignals": ["secure data", "monitor access"]
+      }
+    },
+    {
+      "id": "principle_encryption",
+      "name": "Encryption & Data Protection",
+      "summary": "Protect data at rest and in transit using strong encryption.",
+      "controls": [
+        "Encrypt storage volumes.",
+        "Enforce TLS for network communication.",
+        "Secure key management practices."
+      ],
+      "retrievalHints": {
+        "keywords": ["encryption", "data at rest", "tls"],
+        "intentSignals": ["protect data", "secure transmission"]
+      }
+    }
+  ],
+  "riskPatterns": [
+    {
+      "id": "risk_unencrypted_storage",
+      "description": "Sensitive data stored without encryption.",
+      "impact": "High breach liability and regulatory penalties."
+    },
+    {
+      "id": "risk_excessive_data_collection",
+      "description": "Collecting more personal data than necessary.",
+      "impact": "Increased exposure in the event of compromise."
+    },
+    {
+      "id": "risk_unrestricted_internal_access",
+      "description": "Employees accessing data outside job scope.",
+      "impact": "Insider misuse and compliance violations."
+    }
+  ],
+  "regulatoryOverlap": {
+    "lawDomainSignals": [
+      "Data protection regulations.",
+      "Breach notification requirements.",
+      "User access and correction rights."
+    ],
+    "financeDomainSignals": [
+      "Financial record protection standards.",
+      "Fraud monitoring obligations."
+    ],
+    "insuranceDomainSignals": [
+      "Policyholder data protection.",
+      "Claims documentation security."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "privacy",
+      "data protection",
+      "pii",
+      "encryption",
+      "compliance",
+      "retention policy"
+    ],
+    "intentSignals": [
+      "secure data",
+      "compliance",
+      "protect information",
+      "governance"
+    ]
+  }
+}

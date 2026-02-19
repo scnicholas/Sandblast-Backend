@@ -1,0 +1,252 @@
+{
+  "packId": "cyber_source_ladder_v1",
+  "domain": "cybersecurity",
+  "packType": "source_ladder",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Provide a structured ladder of authoritative cybersecurity sources (primary/secondary/tertiary) with access notes and when-to-use guidance.",
+  "scope": {
+    "jurisdictions": ["Canada", "US", "International"],
+    "audience": ["general", "business", "technical"],
+    "use": ["policy", "compliance", "incident-response", "risk-management", "training", "architecture"]
+  },
+  "definitions": {
+    "primary": "Normative or original sources: laws, regulations, official standards, official advisories, vendor security advisories, original research.",
+    "secondary": "Interpretations and syntheses: security frameworks, guidance docs, textbooks, peer-reviewed reviews, professional handbooks.",
+    "tertiary": "Convenience and orientation: encyclopedic summaries, checklists, blog explainers, high-level training resources."
+  },
+  "ladder": {
+    "primary": [
+      {
+        "id": "prim_ca_pipeda",
+        "title": "PIPEDA (Personal Information Protection and Electronic Documents Act)",
+        "jurisdiction": "Canada",
+        "type": "law",
+        "authority": "Federal statute",
+        "whatItIs": "Canada’s federal private-sector privacy law (baseline obligations around personal information).",
+        "useWhen": ["privacy program design", "incident reporting posture", "data handling rules", "vendor/privacy clauses"],
+        "access": { "public": true, "notes": "Official government publication." },
+        "retrievalHints": { "keywords": ["pipeda", "privacy law", "personal information", "canada privacy"], "intentSignals": ["compliance", "policy", "breach", "privacy"] }
+      },
+      {
+        "id": "prim_ca_privacy_act",
+        "title": "Privacy Act (Canada)",
+        "jurisdiction": "Canada",
+        "type": "law",
+        "authority": "Federal statute",
+        "whatItIs": "Rules for how federal government institutions handle personal information.",
+        "useWhen": ["public sector context", "government contracting", "records handling"],
+        "access": { "public": true, "notes": "Official government publication." },
+        "retrievalHints": { "keywords": ["privacy act canada", "federal institution", "government privacy"], "intentSignals": ["public sector", "government", "policy"] }
+      },
+      {
+        "id": "prim_ca_criminal_code_cyber",
+        "title": "Criminal Code (Canada) — computer-related offences (selected provisions)",
+        "jurisdiction": "Canada",
+        "type": "law",
+        "authority": "Federal statute",
+        "whatItIs": "Offences relevant to unauthorized access, mischief to data, fraud and related acts.",
+        "useWhen": ["threat/legal posture", "incident documentation", "law enforcement liaison"],
+        "access": { "public": true, "notes": "Official government publication." },
+        "retrievalHints": { "keywords": ["criminal code", "unauthorized use", "mischief to data", "computer crime"], "intentSignals": ["illegal", "crime", "reporting", "law enforcement"] }
+      },
+      {
+        "id": "prim_ca_ccc_guidance",
+        "title": "Canadian Centre for Cyber Security (CCCS) advisories & guidance",
+        "jurisdiction": "Canada",
+        "type": "government_advisory",
+        "authority": "National cyber authority guidance",
+        "whatItIs": "Threat alerts, mitigation guidance, baseline security guidance for organizations.",
+        "useWhen": ["current threats", "defensive recommendations", "baseline controls", "incident response hygiene"],
+        "access": { "public": true, "notes": "Public advisories; operational details vary by doc." },
+        "retrievalHints": { "keywords": ["canadian centre for cyber security", "cccs", "advisory", "mitigation"], "intentSignals": ["threat", "mitigate", "guidance", "incident"] }
+      },
+      {
+        "id": "prim_nist_800_53",
+        "title": "NIST SP 800-53 (Security and Privacy Controls)",
+        "jurisdiction": "US (widely used internationally)",
+        "type": "standard",
+        "authority": "NIST Special Publication",
+        "whatItIs": "Comprehensive catalog of security/privacy controls; used as a control baseline and mapping target.",
+        "useWhen": ["control selection", "audit prep", "security program design", "vendor security requirements"],
+        "access": { "public": true, "notes": "Free from NIST." },
+        "retrievalHints": { "keywords": ["800-53", "nist controls", "control baseline"], "intentSignals": ["controls", "audit", "compliance", "policy"] }
+      },
+      {
+        "id": "prim_nist_800_61",
+        "title": "NIST SP 800-61 (Computer Security Incident Handling Guide)",
+        "jurisdiction": "US (widely used internationally)",
+        "type": "standard",
+        "authority": "NIST Special Publication",
+        "whatItIs": "Canonical incident response lifecycle and program guidance.",
+        "useWhen": ["incident response playbooks", "roles and responsibilities", "post-incident review"],
+        "access": { "public": true, "notes": "Free from NIST." },
+        "retrievalHints": { "keywords": ["800-61", "incident handling", "incident response guide"], "intentSignals": ["incident", "ir plan", "playbook"] }
+      },
+      {
+        "id": "prim_nist_csf",
+        "title": "NIST Cybersecurity Framework (CSF)",
+        "jurisdiction": "US (widely used internationally)",
+        "type": "framework",
+        "authority": "NIST Framework",
+        "whatItIs": "Risk-based framework for organizing cybersecurity outcomes (Identify/Protect/Detect/Respond/Recover).",
+        "useWhen": ["executive alignment", "program maturity", "roadmapping", "risk communication"],
+        "access": { "public": true, "notes": "Free from NIST." },
+        "retrievalHints": { "keywords": ["nist csf", "identify protect detect respond recover"], "intentSignals": ["framework", "maturity", "roadmap"] }
+      },
+      {
+        "id": "prim_iso_27001",
+        "title": "ISO/IEC 27001 (ISMS requirements) & ISO/IEC 27002 (controls guidance)",
+        "jurisdiction": "International",
+        "type": "standard",
+        "authority": "ISO/IEC",
+        "whatItIs": "International standard for information security management systems and control guidance.",
+        "useWhen": ["ISMS design", "certification planning", "control mapping", "governance"],
+        "access": { "public": "partial", "notes": "Often paid; many libraries provide access to ISO standards portals." },
+        "retrievalHints": { "keywords": ["iso 27001", "isms", "iso 27002"], "intentSignals": ["certification", "isms", "governance"] }
+      },
+      {
+        "id": "prim_rfc_tls_http",
+        "title": "IETF RFCs (selected): TLS, HTTP, DNSSEC, OAuth/OIDC and related security RFCs",
+        "jurisdiction": "International",
+        "type": "technical_spec",
+        "authority": "IETF",
+        "whatItIs": "Primary technical specifications for core internet security protocols.",
+        "useWhen": ["protocol correctness", "implementation reviews", "architectural decisions"],
+        "access": { "public": true, "notes": "Freely accessible RFC repository." },
+        "retrievalHints": { "keywords": ["rfc", "tls", "http", "oauth", "oidc", "dnssec"], "intentSignals": ["protocol", "implementation", "spec"] }
+      },
+      {
+        "id": "prim_vendor_advisories",
+        "title": "Vendor Security Advisories (Microsoft, Apple, Google, Cisco, OpenSSL, etc.)",
+        "jurisdiction": "International",
+        "type": "vendor_advisory",
+        "authority": "Original source from vendor/maintainer",
+        "whatItIs": "Official vulnerability disclosures, patch guidance, and mitigations.",
+        "useWhen": ["patching decisions", "vuln triage", "exposure assessment"],
+        "access": { "public": true, "notes": "Always prefer original vendor/maintainer notice over reposts." },
+        "retrievalHints": { "keywords": ["security advisory", "cve", "patch", "update", "hotfix"], "intentSignals": ["vulnerability", "patch", "mitigation"] }
+      }
+    ],
+    "secondary": [
+      {
+        "id": "sec_cis_controls",
+        "title": "CIS Critical Security Controls (CIS Controls)",
+        "jurisdiction": "International",
+        "type": "controls_framework",
+        "authority": "Center for Internet Security (CIS)",
+        "whatItIs": "Prioritized set of security controls aimed at practical risk reduction.",
+        "useWhen": ["baseline controls", "quick-start security roadmap", "SMB security program"],
+        "access": { "public": true, "notes": "Many CIS resources are freely available; some are membership-gated." },
+        "retrievalHints": { "keywords": ["cis controls", "critical security controls"], "intentSignals": ["baseline", "controls", "roadmap"] }
+      },
+      {
+        "id": "sec_owasp_top10",
+        "title": "OWASP Top 10 & OWASP Application Security Verification Standard (ASVS)",
+        "jurisdiction": "International",
+        "type": "appsec_guidance",
+        "authority": "OWASP",
+        "whatItIs": "Widely used appsec risk list (Top 10) and verification standard (ASVS).",
+        "useWhen": ["web security", "secure SDLC", "app security requirements", "security reviews"],
+        "access": { "public": true, "notes": "Free." },
+        "retrievalHints": { "keywords": ["owasp top 10", "asvs", "xss", "sql injection"], "intentSignals": ["web", "appsec", "secure coding"] }
+      },
+      {
+        "id": "sec_sans_whitepapers",
+        "title": "SANS reading room (whitepapers) & practitioner guidance",
+        "jurisdiction": "International",
+        "type": "practitioner_guidance",
+        "authority": "SANS Institute (varies by author)",
+        "whatItIs": "Practical syntheses; quality varies by paper but often useful for operations and training.",
+        "useWhen": ["training", "operational playbooks", "tooling concepts"],
+        "access": { "public": true, "notes": "Many papers are free." },
+        "retrievalHints": { "keywords": ["sans reading room", "whitepaper", "incident response"], "intentSignals": ["training", "operations", "playbook"] }
+      },
+      {
+        "id": "sec_textbook_security_eng",
+        "title": "Security Engineering (Ross Anderson) — textbook",
+        "jurisdiction": "International",
+        "type": "textbook",
+        "authority": "Academic/practitioner",
+        "whatItIs": "Foundational security engineering principles, threat models, and system design thinking.",
+        "useWhen": ["conceptual grounding", "architecture reviews", "threat modeling"],
+        "access": { "public": "partial", "notes": "Common in libraries; some editions/chapters may be online." },
+        "retrievalHints": { "keywords": ["security engineering", "anderson", "threat model"], "intentSignals": ["architecture", "design", "principles"] }
+      },
+      {
+        "id": "sec_applied_crypto",
+        "title": "Applied Cryptography (Bruce Schneier) / modern crypto references (varies)",
+        "jurisdiction": "International",
+        "type": "textbook_reference",
+        "authority": "Academic/practitioner",
+        "whatItIs": "Crypto concepts and patterns; use carefully for modern recommendations.",
+        "useWhen": ["conceptual crypto literacy", "historical background", "terminology"],
+        "access": { "public": "library", "notes": "Available in many libraries; pair with current standards (RFCs/NIST) for modern guidance." },
+        "retrievalHints": { "keywords": ["applied cryptography", "schneier", "encryption", "hash"], "intentSignals": ["crypto", "encryption", "protocol"] }
+      }
+    ],
+    "tertiary": [
+      {
+        "id": "ter_mitre_attack",
+        "title": "MITRE ATT&CK (tactics, techniques, procedures knowledge base)",
+        "jurisdiction": "International",
+        "type": "knowledge_base",
+        "authority": "MITRE",
+        "whatItIs": "Curated catalogue of adversary behaviors used for detection engineering and threat modeling.",
+        "useWhen": ["threat modeling", "SOC detection mapping", "purple-team planning"],
+        "access": { "public": true, "notes": "Free." },
+        "retrievalHints": { "keywords": ["mitre attack", "tactics techniques", "ttp"], "intentSignals": ["detection", "threat model", "soc"] }
+      },
+      {
+        "id": "ter_mitre_cwe_cve",
+        "title": "MITRE CWE/CVE (weaknesses & vulnerabilities registries)",
+        "jurisdiction": "International",
+        "type": "registry",
+        "authority": "MITRE / CVE Program",
+        "whatItIs": "Reference identifiers for software weaknesses and vulnerabilities.",
+        "useWhen": ["triage vocabulary", "report writing", "security testing taxonomy"],
+        "access": { "public": true, "notes": "Free." },
+        "retrievalHints": { "keywords": ["cwe", "cve", "vulnerability id"], "intentSignals": ["vuln", "triage", "report"] }
+      },
+      {
+        "id": "ter_wikipedia_general",
+        "title": "Wikipedia (orientation only)",
+        "jurisdiction": "International",
+        "type": "encyclopedia",
+        "authority": "Community",
+        "whatItIs": "High-level summaries; useful for definitions but not authoritative for compliance or operations.",
+        "useWhen": ["quick definitions", "concept orientation"],
+        "access": { "public": true, "notes": "Always verify with primary/secondary sources for anything operational or compliance-related." },
+        "retrievalHints": { "keywords": ["definition", "what is", "overview"], "intentSignals": ["explain", "overview"] }
+      },
+      {
+        "id": "ter_vendor_blogs",
+        "title": "Vendor blogs & security researcher blogs (context, not authority)",
+        "jurisdiction": "International",
+        "type": "blog",
+        "authority": "Varies",
+        "whatItIs": "Fast-moving explanations and commentary; quality varies widely.",
+        "useWhen": ["context building", "triage clues", "learning emerging issues"],
+        "access": { "public": true, "notes": "Prefer original research writeups; confirm with advisories/standards." },
+        "retrievalHints": { "keywords": ["blog", "writeup", "analysis", "postmortem"], "intentSignals": ["explain", "why", "analysis"] }
+      }
+    ]
+  },
+  "policies": {
+    "retrievalDoctrine": [
+      "Prefer primary sources for compliance, safety posture, and operational decisions.",
+      "Use secondary sources for structured program-building and best-practice synthesis.",
+      "Use tertiary sources for orientation only; never treat as decisive authority."
+    ],
+    "safetyGuards": [
+      "If user requests offensive/illegal instructions, refuse and pivot to defensive guidance.",
+      "Avoid step-by-step exploit instructions; focus on detection, prevention, and recovery.",
+      "Minimize sensitive data handling; encourage privacy hygiene."
+    ],
+    "citationHinting": [
+      "For legal/compliance claims: cite the specific statute/regulation/official guidance.",
+      "For incident-response process: cite NIST 800-61 or recognized national guidance.",
+      "For controls: cite NIST 800-53 / ISO 27001/27002 / CIS Controls as appropriate."
+    ]
+  }
+}

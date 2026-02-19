@@ -1,0 +1,26 @@
+{
+  "domain": "artificial_intelligence",
+  "layer": "ethics_law",
+  "version": "1.0.0",
+  "description": "Ethical, governance, and legal frameworks for responsible AI development.",
+  "core_topics": [
+    "algorithmic_bias",
+    "explainability",
+    "accountability",
+    "data_governance",
+    "ai_regulation",
+    "privacy_and_surveillance",
+    "alignment_problem"
+  ],
+  "academic_sources": [
+    "Oxford_AI_Ethics_Framework",
+    "Toronto_Vector_AI_Governance_Papers",
+    "Amii_Responsible_AI_Guidelines"
+  ],
+  "application_focus": [
+    "risk_assessment",
+    "regulatory_compliance",
+    "harm_mitigation",
+    "ethical_agent_design"
+  ]
+}

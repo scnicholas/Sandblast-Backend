@@ -1,0 +1,117 @@
+{
+  "packId": "law_source_ladder_v1",
+  "domain": "law",
+  "layer": "lower",
+  "version": "1.0.0",
+  "jurisdiction": "Canada",
+  "purpose": "Provide a source hierarchy (primary/secondary/tertiary) for law queries; guide retrieval and trust weighting.",
+  "sourceLadder": {
+    "primary": [
+      {
+        "id": "law_primary_justice_laws_gc",
+        "name": "Justice Laws Website (Government of Canada)",
+        "type": "statutes_and_regulations",
+        "authority": "official",
+        "access": { "public": true, "free": true, "notes": "Federal Acts & Regulations (consolidated)" },
+        "useWhen": ["statutory wording", "definitions", "federal regulatory requirements", "what the law says"],
+        "trustWeight": 1.0,
+        "limits": ["Federal scope; provincial law not covered"]
+      },
+      {
+        "id": "law_primary_scc_lexum",
+        "name": "Supreme Court of Canada Decisions (Lexum)",
+        "type": "case_law",
+        "authority": "official",
+        "access": { "public": true, "free": true, "notes": "SCC judgments database" },
+        "useWhen": ["precedent", "constitutional standards/tests", "landmark holdings", "highest-court interpretation"],
+        "trustWeight": 0.98,
+        "limits": ["Only SCC; lower court jurisprudence may be needed"]
+      },
+      {
+        "id": "law_primary_canlii",
+        "name": "CanLII (Canadian Legal Information Institute)",
+        "type": "case_law_and_legislation",
+        "authority": "public_repository",
+        "access": { "public": true, "free": true, "notes": "Coverage varies by jurisdiction/time" },
+        "useWhen": ["find cases on topic", "compare provinces", "quick legislative/case lookup"],
+        "trustWeight": 0.92,
+        "limits": ["Coverage depth varies; for final wording prefer official consolidations where applicable"]
+      }
+    ],
+    "secondary": [
+      {
+        "id": "law_secondary_hogg_constitutional",
+        "name": "Hogg — Constitutional Law of Canada",
+        "type": "treatise",
+        "authority": "academic",
+        "access": { "public": "library_likely", "free": false, "notes": "Commonly accessible through libraries" },
+        "useWhen": ["Charter analysis", "division of powers", "constitutional doctrine", "tests/standards explanations"],
+        "trustWeight": 0.88,
+        "limits": ["Don’t quote extensively unless text provided; use as doctrinal anchor"]
+      },
+      {
+        "id": "law_secondary_swan_adamski_contracts",
+        "name": "Swan & Adamski — Canadian Contract Law",
+        "type": "textbook",
+        "authority": "academic",
+        "access": { "public": "library_likely", "free": false, "notes": "Often used/held in academic libraries" },
+        "useWhen": ["contract formation", "interpretation", "remedies", "defences in contract"],
+        "trustWeight": 0.86,
+        "limits": ["Doctrinal summary only without user-provided excerpts"]
+      },
+      {
+        "id": "law_secondary_stuart_criminal",
+        "name": "Stuart — Canadian Criminal Law",
+        "type": "textbook",
+        "authority": "academic",
+        "access": { "public": "library_likely", "free": false, "notes": "Often used/held in academic libraries" },
+        "useWhen": ["actus reus/mens rea", "defences", "offence structure", "sentencing principles"],
+        "trustWeight": 0.86,
+        "limits": ["Doctrinal summary only without user-provided excerpts"]
+      }
+    ],
+    "tertiary": [
+      {
+        "id": "law_tertiary_legal_research_writing_guides",
+        "name": "Legal Research & Writing Guides (Library Guides / LibGuides)",
+        "type": "methodology_guides",
+        "authority": "instructional",
+        "access": { "public": true, "free": true, "notes": "Many library guides are published openly" },
+        "useWhen": ["how to research", "how to write a memo", "how to brief a case", "how to cite"],
+        "trustWeight": 0.72,
+        "limits": ["Not authority on substantive law"]
+      },
+      {
+        "id": "law_tertiary_canlii_help",
+        "name": "CanLII Help / Research Guidance",
+        "type": "tool_guidance",
+        "authority": "instructional",
+        "access": { "public": true, "free": true, "notes": "Search syntax and research workflows" },
+        "useWhen": ["how to search CanLII", "filtering cases", "finding legislation quickly"],
+        "trustWeight": 0.70,
+        "limits": ["Tool guidance only"]
+      },
+      {
+        "id": "law_tertiary_open_legal_method_notes",
+        "name": "Open Legal Method Notes (public course notes/explainers when available)",
+        "type": "learning_scaffold",
+        "authority": "instructional",
+        "access": { "public": true, "free": true, "notes": "Only use reputable sources; avoid low-quality blogs" },
+        "useWhen": ["ratio vs obiter", "common law reasoning", "standards of review", "legal system overview"],
+        "trustWeight": 0.66,
+        "limits": ["Verify quality; not authority on substantive law"]
+      }
+    ]
+  },
+  "retrievalRules": {
+    "defaultPriorityOrder": ["primary", "secondary", "tertiary"],
+    "preferPrimaryFor": ["exact language", "what the law is", "citations", "current rules"],
+    "preferSecondaryFor": ["structured explanations", "tests/standards overview", "doctrinal framing"],
+    "preferTertiaryFor": ["how to research", "how to write", "study scaffolding"],
+    "copyrightGuard": {
+      "noLongQuotes": true,
+      "summarizeInstead": true,
+      "useUserProvidedExcerpts": true
+    }
+  }
+}

@@ -1,0 +1,239 @@
+{
+  "packId": "psy_foundations_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Core foundational psychological theories and actionable principles for structured conversational use. Non-clinical. Educational and applied focus.",
+  "updatedAt": "2026-02-12",
+  "scope": [
+    "general",
+    "education",
+    "self-improvement",
+    "performance",
+    "workplace",
+    "decision-making"
+  ],
+
+  "theories": [
+
+    {
+      "id": "operant_conditioning",
+      "name": "Operant Conditioning",
+      "category": "behavioral",
+      "oneLiner": "Behavior is shaped and maintained by its consequences.",
+      "coreClaims": [
+        "Positive reinforcement increases behavior by adding a desirable outcome.",
+        "Negative reinforcement increases behavior by removing an aversive condition.",
+        "Punishment decreases behavior but may create avoidance rather than learning.",
+        "Consistency of reinforcement determines habit strength."
+      ],
+      "actionablePrinciples": [
+        "If you want a behavior to stick, reward it immediately and consistently.",
+        "Reduce friction for desired behavior; increase friction for undesired behavior.",
+        "Small, frequent reinforcement is stronger than rare, large reinforcement."
+      ],
+      "whenToApply": [
+        "Habit formation",
+        "Productivity systems",
+        "Motivation problems",
+        "Behavior change discussions"
+      ],
+      "faceExamples": [
+        {
+          "title": "Building a workout habit",
+          "scenario": "User struggles with consistency at the gym.",
+          "application": "Attach immediate reward (music, tracking streak, social accountability).",
+          "expectedTone": "practical, structured"
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["habit", "reward", "punishment", "reinforcement", "behavior", "consistency"],
+        "intentSignals": ["fix habit", "motivation system", "can't stick to"]
+      }
+    },
+
+    {
+      "id": "classical_conditioning",
+      "name": "Classical Conditioning",
+      "category": "behavioral",
+      "oneLiner": "Associations between stimuli create automatic emotional responses.",
+      "coreClaims": [
+        "Repeated pairing of stimuli creates learned associations.",
+        "Emotional responses can be conditioned unconsciously.",
+        "Environment strongly shapes automatic reactions."
+      ],
+      "actionablePrinciples": [
+        "Control your environment to control emotional triggers.",
+        "Pair difficult tasks with positive stimuli.",
+        "Interrupt negative stimulus chains early."
+      ],
+      "whenToApply": [
+        "Trigger analysis",
+        "Emotional response patterns",
+        "Branding and perception discussions"
+      ],
+      "faceExamples": [
+        {
+          "title": "Email anxiety",
+          "scenario": "User feels stress when opening inbox.",
+          "application": "Recondition inbox with structured ritual and positive reinforcement."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["trigger", "association", "automatic response", "conditioning"],
+        "intentSignals": ["why do I react", "why does this trigger me"]
+      }
+    },
+
+    {
+      "id": "cognitive_dissonance",
+      "name": "Cognitive Dissonance",
+      "category": "cognitive",
+      "oneLiner": "Psychological discomfort arises when beliefs and actions conflict.",
+      "coreClaims": [
+        "Humans seek internal consistency.",
+        "People rationalize behavior to reduce mental discomfort.",
+        "Behavior often changes belief more than belief changes behavior."
+      ],
+      "actionablePrinciples": [
+        "If behavior conflicts with identity, adjust environment or redefine identity.",
+        "Small public commitments reduce future inconsistency.",
+        "Awareness reduces automatic rationalization."
+      ],
+      "whenToApply": [
+        "Self-justification patterns",
+        "Identity conflict",
+        "Behavioral inconsistency"
+      ],
+      "faceExamples": [
+        {
+          "title": "Healthy identity conflict",
+          "scenario": "User sees themselves as disciplined but skips routines.",
+          "application": "Align identity with smallest consistent behavior."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["conflict", "rationalize", "justify", "identity", "inconsistent"],
+        "intentSignals": ["why do I say one thing but do another"]
+      }
+    },
+
+    {
+      "id": "maslow_hierarchy",
+      "name": "Maslow's Hierarchy of Needs",
+      "category": "motivation",
+      "oneLiner": "Basic needs must be sufficiently met before higher growth motives dominate.",
+      "coreClaims": [
+        "Physiological and safety needs precede growth needs.",
+        "Belonging and esteem influence performance.",
+        "Self-actualization requires stability at lower levels."
+      ],
+      "actionablePrinciples": [
+        "If performance drops, check foundational needs first.",
+        "Belonging and recognition amplify output.",
+        "High-level goals fail when basic needs are unstable."
+      ],
+      "whenToApply": [
+        "Motivation breakdown",
+        "Team leadership",
+        "Burnout analysis"
+      ],
+      "faceExamples": [
+        {
+          "title": "Entrepreneur burnout",
+          "scenario": "User pushing high performance but sleeping poorly.",
+          "application": "Rebuild physiological stability before scaling goals."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["motivation", "needs", "burnout", "performance", "belonging"],
+        "intentSignals": ["why am I not motivated"]
+      }
+    },
+
+    {
+      "id": "self_determination_theory",
+      "name": "Self-Determination Theory",
+      "category": "motivation",
+      "oneLiner": "Autonomy, competence, and relatedness drive intrinsic motivation.",
+      "coreClaims": [
+        "Autonomy increases engagement.",
+        "Perceived competence sustains effort.",
+        "Connection enhances persistence."
+      ],
+      "actionablePrinciples": [
+        "Give choice to increase ownership.",
+        "Track visible progress to increase competence.",
+        "Build accountability loops for relatedness."
+      ],
+      "whenToApply": [
+        "Engagement problems",
+        "Leadership strategy",
+        "Personal motivation design"
+      ],
+      "faceExamples": [
+        {
+          "title": "Team disengagement",
+          "scenario": "Employees lack initiative.",
+          "application": "Increase autonomy and transparent performance metrics."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["intrinsic motivation", "autonomy", "competence", "engagement"],
+        "intentSignals": ["how do I stay motivated"]
+      }
+    },
+
+    {
+      "id": "growth_vs_fixed_mindset",
+      "name": "Growth vs Fixed Mindset",
+      "category": "learning",
+      "oneLiner": "Beliefs about ability shape resilience and learning outcomes.",
+      "coreClaims": [
+        "Growth mindset correlates with persistence.",
+        "Effort attribution increases adaptability.",
+        "Fixed identity reduces risk-taking."
+      ],
+      "actionablePrinciples": [
+        "Reframe failure as feedback.",
+        "Praise effort and strategy, not identity.",
+        "Separate performance from self-worth."
+      ],
+      "whenToApply": [
+        "Skill development",
+        "Resilience coaching",
+        "Performance review discussions"
+      ],
+      "faceExamples": [
+        {
+          "title": "Business pivot fear",
+          "scenario": "User avoids new market due to fear of failure.",
+          "application": "Shift from identity-based fear to iterative learning."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["failure", "growth", "mindset", "learning", "improve"],
+        "intentSignals": ["I’m bad at this", "I can’t improve"]
+      }
+    }
+
+  ],
+
+  "rules": [
+    {
+      "id": "non_clinical_boundary",
+      "type": "safety",
+      "instruction": "Do not diagnose mental health conditions. Provide educational explanation only."
+    },
+    {
+      "id": "no_medical_advice",
+      "type": "safety",
+      "instruction": "Do not provide medical or therapeutic directives."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Structured retrieval for domain-based conversational intelligence.",
+    "compatibleWith": ["MarionSO", "chatEngine domain routing"],
+    "confidenceLevel": "educational_foundational"
+  }
+}

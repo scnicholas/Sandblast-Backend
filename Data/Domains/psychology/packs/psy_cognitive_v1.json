@@ -1,0 +1,205 @@
+{
+  "packId": "psy_cognitive_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Core cognitive psychology principles: attention, memory, learning, decision processes, and cognitive load. Structured for applied reasoning support.",
+  "updatedAt": "2026-02-13",
+  "scope": [
+    "memory",
+    "attention",
+    "learning",
+    "decision-making",
+    "problem-solving",
+    "cognitive-load"
+  ],
+
+  "theories": [
+
+    {
+      "id": "working_memory_model",
+      "name": "Working Memory Model",
+      "category": "memory",
+      "oneLiner": "Working memory has limited capacity and is responsible for short-term information manipulation.",
+      "coreMechanism": [
+        "Limited capacity (~4 chunks).",
+        "Active manipulation of information.",
+        "Overload reduces performance."
+      ],
+      "actionablePrinciples": [
+        "Break complex tasks into chunks.",
+        "Reduce simultaneous information streams.",
+        "Externalize memory (notes, checklists)."
+      ],
+      "faceExamples": [
+        {
+          "title": "Overloaded founder",
+          "scenario": "User juggling multiple technical layers at once.",
+          "application": "Offload decisions into structured steps."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["overloaded", "too much information", "can't hold it all", "brain full"],
+        "intentSignals": ["simplify this", "break this down"]
+      }
+    },
+
+    {
+      "id": "cognitive_load_theory",
+      "name": "Cognitive Load Theory",
+      "category": "learning",
+      "oneLiner": "Learning efficiency declines when intrinsic and extraneous load exceed processing capacity.",
+      "coreMechanism": [
+        "Intrinsic load (task complexity).",
+        "Extraneous load (presentation noise).",
+        "Germane load (schema building)."
+      ],
+      "actionablePrinciples": [
+        "Remove unnecessary information.",
+        "Sequence complexity gradually.",
+        "Use worked examples before abstraction."
+      ],
+      "faceExamples": [
+        {
+          "title": "Documentation overload",
+          "scenario": "User overwhelmed by too many moving system components.",
+          "application": "Reduce noise before adding optimization."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["too complex", "hard to understand", "overwhelming"],
+        "intentSignals": ["why is this hard to learn"]
+      }
+    },
+
+    {
+      "id": "dual_process_theory",
+      "name": "Dual Process Theory",
+      "category": "decision-making",
+      "oneLiner": "Human reasoning operates through fast intuitive (System 1) and slow analytical (System 2) processes.",
+      "coreMechanism": [
+        "System 1: automatic, emotional, heuristic-driven.",
+        "System 2: deliberate, logical, effortful."
+      ],
+      "actionablePrinciples": [
+        "Pause before high-stakes decisions.",
+        "Separate emotional reaction from analysis.",
+        "Run a slow-pass review on major moves."
+      ],
+      "faceExamples": [
+        {
+          "title": "Reactive decision",
+          "scenario": "User wants to pivot immediately after frustration.",
+          "application": "Introduce deliberate evaluation step."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["gut feeling", "instinct", "reacting"],
+        "intentSignals": ["am I thinking clearly"]
+      }
+    },
+
+    {
+      "id": "metacognition",
+      "name": "Metacognition",
+      "category": "self-regulation",
+      "oneLiner": "Thinking about one's own thinking improves strategy and learning efficiency.",
+      "coreMechanism": [
+        "Monitoring understanding.",
+        "Evaluating strategy effectiveness.",
+        "Adjusting approaches deliberately."
+      ],
+      "actionablePrinciples": [
+        "Ask: 'What do I actually understand?'",
+        "Test assumptions explicitly.",
+        "Build feedback loops."
+      ],
+      "faceExamples": [
+        {
+          "title": "Overconfidence check",
+          "scenario": "User believes they have mastered a domain quickly.",
+          "application": "Introduce benchmark validation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["how do I know", "am I missing something", "blind spot"],
+        "intentSignals": ["evaluate my thinking"]
+      }
+    },
+
+    {
+      "id": "spaced_repetition",
+      "name": "Spaced Repetition",
+      "category": "memory",
+      "oneLiner": "Information retained better when exposure is spaced over time.",
+      "coreMechanism": [
+        "Forgetting curve decay.",
+        "Reinforcement at increasing intervals."
+      ],
+      "actionablePrinciples": [
+        "Review material at spaced intervals.",
+        "Use retrieval practice instead of rereading.",
+        "Schedule micro-reviews."
+      ],
+      "faceExamples": [
+        {
+          "title": "Skill retention",
+          "scenario": "User forgets system structures after short bursts.",
+          "application": "Implement structured review cadence."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["forget quickly", "can't retain", "memory fading"],
+        "intentSignals": ["how do I remember this"]
+      }
+    },
+
+    {
+      "id": "attention_control_theory",
+      "name": "Attention Control Theory",
+      "category": "attention",
+      "oneLiner": "Anxiety and stress reduce attentional control and working memory efficiency.",
+      "coreMechanism": [
+        "Threat-related stimuli capture attention.",
+        "Executive control weakens under stress."
+      ],
+      "actionablePrinciples": [
+        "Stabilize emotional state before complex reasoning.",
+        "Reduce distractions.",
+        "Single-task under pressure."
+      ],
+      "faceExamples": [
+        {
+          "title": "High-pressure launch",
+          "scenario": "User under deadline cannot think clearly.",
+          "application": "Contain emotional load before strategy."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": ["can't focus", "distracted", "stress"],
+        "intentSignals": ["why can't I concentrate"]
+      }
+    }
+
+  ],
+
+  "applicationRules": [
+    {
+      "id": "never_diagnose",
+      "instruction": "Use cognitive explanations as educational framing, not medical diagnosis."
+    },
+    {
+      "id": "always_include_actionable",
+      "instruction": "When a theory is surfaced, include at least one actionable principle."
+    },
+    {
+      "id": "match_load_to_user",
+      "instruction": "If cognitive load is high, simplify theory explanation."
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Cognitive reasoning support layer for Marion psychology domain.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "confidenceLevel": "core_foundational"
+  }
+}

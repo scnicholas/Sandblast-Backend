@@ -1,0 +1,152 @@
+{
+  "packId": "law_foundations_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "description": "Core structural foundations of Canadian law. Covers jurisdiction, sources of authority, burden of proof, statutory interpretation basics, remedies, and procedural posture. Designed for high-level framework explanations, not legal advice.",
+  "topics": [
+    {
+      "id": "lf_jurisdiction",
+      "title": "Jurisdiction (Federal vs Provincial Authority)",
+      "coreDefinition": "Jurisdiction determines which level of government or court has authority over a legal matter. In Canada, powers are divided between federal and provincial governments under the Constitution Act, 1867.",
+      "frameworkSteps": [
+        "Identify subject matter (criminal, property, employment, contracts, immigration, etc.).",
+        "Determine whether authority flows from federal or provincial legislation.",
+        "Confirm which court or tribunal has subject-matter jurisdiction."
+      ],
+      "quickExamples": [
+        "Criminal law is federal (Criminal Code).",
+        "Property and civil rights are primarily provincial.",
+        "Immigration is primarily federal jurisdiction."
+      ],
+      "commonMistakes": [
+        "Assuming federal law applies to all matters.",
+        "Ignoring tribunal-specific jurisdiction limits."
+      ],
+      "retrievalHints": {
+        "keywords": ["jurisdiction", "federal or provincial", "which court", "authority"],
+        "intentSignals": ["who has authority", "which law applies"]
+      }
+    },
+    {
+      "id": "lf_sources_of_law",
+      "title": "Sources of Law in Canada",
+      "coreDefinition": "Canadian law derives from constitutional law, statutes and regulations, and case law. Secondary sources interpret but do not bind.",
+      "frameworkSteps": [
+        "Check constitutional provisions if rights or division of powers are involved.",
+        "Locate relevant statute and regulations.",
+        "Identify leading cases interpreting the statute.",
+        "Consult secondary sources for context."
+      ],
+      "quickExamples": [
+        "Charter rights questions begin with constitutional analysis.",
+        "Employment disputes often begin with provincial statutes."
+      ],
+      "commonMistakes": [
+        "Treating commentary as binding authority.",
+        "Ignoring hierarchy of courts."
+      ],
+      "retrievalHints": {
+        "keywords": ["source of law", "primary authority", "statute", "precedent"],
+        "intentSignals": ["where does this law come from"]
+      }
+    },
+    {
+      "id": "lf_burden_and_standard_of_proof",
+      "title": "Burden and Standard of Proof",
+      "coreDefinition": "The burden of proof determines who must prove a claim. The standard of proof determines how convincing that proof must be.",
+      "frameworkSteps": [
+        "Identify which party bears the burden.",
+        "Determine applicable standard (balance of probabilities or beyond a reasonable doubt).",
+        "Assess whether evidence meets threshold."
+      ],
+      "quickExamples": [
+        "Civil cases use balance of probabilities.",
+        "Criminal cases require proof beyond a reasonable doubt."
+      ],
+      "commonMistakes": [
+        "Confusing criminal and civil standards.",
+        "Assuming equal evidentiary thresholds."
+      ],
+      "retrievalHints": {
+        "keywords": ["burden of proof", "standard of proof", "reasonable doubt", "balance of probabilities"],
+        "intentSignals": ["how much proof", "what do they need to prove"]
+      }
+    },
+    {
+      "id": "lf_statutory_interpretation",
+      "title": "Statutory Interpretation (Modern Principle)",
+      "coreDefinition": "Statutes are interpreted according to the modern principle: words are read in their entire context and in their grammatical and ordinary sense harmoniously with the scheme and object of the Act.",
+      "frameworkSteps": [
+        "Read text in ordinary grammatical sense.",
+        "Consider broader statutory context.",
+        "Review legislative purpose.",
+        "Consult case law interpreting similar provisions."
+      ],
+      "quickExamples": [
+        "A word may have ordinary meaning unless context indicates otherwise.",
+        "Purpose of consumer protection legislation may favor consumer interpretation."
+      ],
+      "commonMistakes": [
+        "Isolating a single word without context.",
+        "Ignoring legislative purpose."
+      ],
+      "retrievalHints": {
+        "keywords": ["interpretation", "meaning of section", "legislative intent", "modern principle"],
+        "intentSignals": ["what does this section mean"]
+      }
+    },
+    {
+      "id": "lf_remedies",
+      "title": "Legal Remedies",
+      "coreDefinition": "Remedies are legal responses to wrongdoing. They may be monetary (damages) or equitable (injunctions, specific performance).",
+      "frameworkSteps": [
+        "Identify legal wrong or breach.",
+        "Determine appropriate category of remedy.",
+        "Assess limitations (mitigation, causation, foreseeability)."
+      ],
+      "quickExamples": [
+        "Contract breach → damages.",
+        "Ongoing harm → injunction."
+      ],
+      "commonMistakes": [
+        "Assuming all breaches result in large damages.",
+        "Ignoring mitigation duty."
+      ],
+      "retrievalHints": {
+        "keywords": ["remedy", "damages", "injunction", "compensation"],
+        "intentSignals": ["what can I get", "what happens if"]
+      }
+    },
+    {
+      "id": "lf_procedural_posture",
+      "title": "Procedural Posture",
+      "coreDefinition": "Procedural posture refers to the stage and procedural context of a case (trial, appeal, motion).",
+      "frameworkSteps": [
+        "Identify current stage (trial, appeal, summary judgment).",
+        "Determine applicable procedural rules.",
+        "Clarify what issues are preserved for review."
+      ],
+      "quickExamples": [
+        "Appeal courts review legal errors.",
+        "Summary judgment may resolve cases without trial."
+      ],
+      "commonMistakes": [
+        "Confusing trial facts with appellate review standards.",
+        "Ignoring procedural timelines."
+      ],
+      "retrievalHints": {
+        "keywords": ["appeal", "motion", "trial stage", "procedure"],
+        "intentSignals": ["can I appeal", "what happens next"]
+      }
+    }
+  ],
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "This pack supports structural explanations across most legal domains.",
+      "Always require jurisdiction clarification when uncertainty exists.",
+      "Designed for framework-level educational guidance, not case-specific advice."
+    ]
+  }
+}

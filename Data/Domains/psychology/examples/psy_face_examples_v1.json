@@ -1,0 +1,283 @@
+{
+  "packId": "psy_face_examples_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Human-scale 'face examples' (micro-scenes) that make psychological concepts feel real. Designed for invisible insertion into Nyx replies via Marion/psychologyKnowledge.js without exposing sources or sounding academic.",
+  "updatedAt": "2026-02-13",
+
+  "principles": [
+    "Keep examples short and relatable (work, relationships, health, money, tech).",
+    "Avoid diagnosis language; describe patterns, not labels.",
+    "Avoid clinical claims, therapy framing, or prescriptive medical guidance.",
+    "Prefer neutral, non-judgmental tone; respect user agency.",
+    "Examples should be reusable across domains (psych, strategy, finance, cyber, law)."
+  ],
+
+  "schema": {
+    "example": {
+      "id": "string",
+      "conceptTags": ["string"],
+      "useWhen": ["string"],
+      "scene": {
+        "setting": "string",
+        "trigger": "string",
+        "thought": "string",
+        "feeling": "string",
+        "behavior": "string",
+        "result": "string"
+      },
+      "microTakeaway": "string",
+      "safety": {
+        "riskTierMax": "low|medium",
+        "avoidIf": ["string"]
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "id": "face_conf_bias_01",
+      "conceptTags": ["confirmation_bias", "selective_attention", "belief_perseverance"],
+      "useWhen": ["intent:clarify", "latentDesire:curiosity"],
+      "scene": {
+        "setting": "A creator checks analytics after posting.",
+        "trigger": "One negative comment lands early.",
+        "thought": "“See? People hate this idea.”",
+        "feeling": "Tight chest, irritation.",
+        "behavior": "They scroll for more negatives and ignore the quiet positive signals.",
+        "result": "Mood drops, they change strategy too fast."
+      },
+      "microTakeaway": "The mind goes hunting for proof when it’s already decided.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:self_harm", "risk:violence"] }
+    },
+
+    {
+      "id": "face_negativity_01",
+      "conceptTags": ["negativity_bias", "threat_salience"],
+      "useWhen": ["cognitiveLoad:high", "socialPressure:high"],
+      "scene": {
+        "setting": "Before a meeting, someone re-reads a message.",
+        "trigger": "A short reply: “We need to talk.”",
+        "thought": "“I’m in trouble.”",
+        "feeling": "Adrenaline spike.",
+        "behavior": "They rehearse defenses instead of clarifying.",
+        "result": "They enter tense, which creates the conflict they feared."
+      },
+      "microTakeaway": "Threat interpretations expand under pressure.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:self_harm"] }
+    },
+
+    {
+      "id": "face_fundamental_attr_01",
+      "conceptTags": ["fundamental_attribution_error", "situational_factors"],
+      "useWhen": ["intent:clarify", "social-context"],
+      "scene": {
+        "setting": "Someone gets cut off in traffic.",
+        "trigger": "A sudden merge without signaling.",
+        "thought": "“What a selfish person.”",
+        "feeling": "Anger.",
+        "behavior": "They tailgate and escalate.",
+        "result": "Risk increases — but the other driver was rushing to a hospital."
+      },
+      "microTakeaway": "We explain others by character and ourselves by context.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:violence"] }
+    },
+
+    {
+      "id": "face_planning_fallacy_01",
+      "conceptTags": ["planning_fallacy", "optimism_bias", "time_estimation"],
+      "useWhen": ["mode:architect", "latentDesire:mastery"],
+      "scene": {
+        "setting": "A dev schedules a refactor.",
+        "trigger": "They assume “just two hours.”",
+        "thought": "“It’s mostly straightforward.”",
+        "feeling": "Confidence.",
+        "behavior": "They skip buffering for unknowns.",
+        "result": "It takes a full day; the deadline suffers."
+      },
+      "microTakeaway": "We budget for the known tasks and forget the unknown tasks.",
+      "safety": { "riskTierMax": "medium", "avoidIf": [] }
+    },
+
+    {
+      "id": "face_working_memory_01",
+      "conceptTags": ["working_memory_limits", "cognitive_load"],
+      "useWhen": ["cognitiveLoad:high", "intent:advance"],
+      "scene": {
+        "setting": "Someone tries to follow a 12-step setup guide.",
+        "trigger": "They keep switching tabs and copying strings.",
+        "thought": "“Why can’t I hold this in my head?”",
+        "feeling": "Frustration.",
+        "behavior": "They reread and redo steps, increasing errors.",
+        "result": "Time balloons and confidence drops."
+      },
+      "microTakeaway": "Working memory isn’t a moral failing — it’s a hard limit.",
+      "safety": { "riskTierMax": "medium", "avoidIf": [] }
+    },
+
+    {
+      "id": "face_ego_depletion_proxy_01",
+      "conceptTags": ["decision_fatigue", "self_control_strain"],
+      "useWhen": ["cognitiveLoad:high", "intent:clarify"],
+      "scene": {
+        "setting": "Late afternoon after nonstop decisions.",
+        "trigger": "A small choice comes up: one more email or not.",
+        "thought": "“I can’t.”",
+        "feeling": "Flat exhaustion.",
+        "behavior": "They procrastinate and avoid all decisions.",
+        "result": "Backlog grows; stress rises."
+      },
+      "microTakeaway": "When decisions stack, motivation looks like it vanished.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:self_harm"] }
+    },
+
+    {
+      "id": "face_social_proof_01",
+      "conceptTags": ["social_proof", "normative_influence"],
+      "useWhen": ["intent:clarify", "latentDesire:validation"],
+      "scene": {
+        "setting": "A group chat reacts to a new idea.",
+        "trigger": "Two people dunk on it early.",
+        "thought": "“Okay, guess it’s bad.”",
+        "feeling": "Embarrassment.",
+        "behavior": "Others pile on without evaluating.",
+        "result": "The group shuts down a good idea to stay aligned."
+      },
+      "microTakeaway": "Consensus can be a shortcut, not evidence.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:hate"] }
+    },
+
+    {
+      "id": "face_imposter_01",
+      "conceptTags": ["impostor_feelings", "self_doubt", "attribution_bias"],
+      "useWhen": ["regulationState:strained", "latentDesire:comfort"],
+      "scene": {
+        "setting": "Someone gets praise for good work.",
+        "trigger": "A compliment lands unexpectedly.",
+        "thought": "“They’re being nice. They don’t know the flaws.”",
+        "feeling": "Unease, pressure.",
+        "behavior": "They overwork to ‘earn’ the praise.",
+        "result": "Quality stays high but burnout begins."
+      },
+      "microTakeaway": "Some minds treat praise as a future debt.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:self_harm"] }
+    },
+
+    {
+      "id": "face_cbt_triangle_01",
+      "conceptTags": ["thought_feeling_behavior_link", "reappraisal"],
+      "useWhen": ["intent:clarify", "regulationState:strained"],
+      "scene": {
+        "setting": "A message is left on read.",
+        "trigger": "No reply for hours.",
+        "thought": "“They’re ignoring me.”",
+        "feeling": "Rejected.",
+        "behavior": "They send a sharp follow-up.",
+        "result": "Tone escalates; the relationship strains."
+      },
+      "microTakeaway": "The interpretation is the hinge, not the event.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:violence"] }
+    },
+
+    {
+      "id": "face_sleep_attention_01",
+      "conceptTags": ["sleep_cognition", "attention_control"],
+      "useWhen": ["cognitiveLoad:high", "intent:advance"],
+      "scene": {
+        "setting": "Working after poor sleep.",
+        "trigger": "Small errors keep appearing.",
+        "thought": "“I’m losing it.”",
+        "feeling": "Irritable, foggy.",
+        "behavior": "They push harder instead of simplifying.",
+        "result": "Errors multiply."
+      },
+      "microTakeaway": "Fatigue turns easy tasks into complex ones.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:self_harm"] }
+    },
+
+    {
+      "id": "face_bystander_01",
+      "conceptTags": ["bystander_effect", "diffusion_of_responsibility"],
+      "useWhen": ["intent:clarify", "social-context"],
+      "scene": {
+        "setting": "A team thread has a clear bug report.",
+        "trigger": "Everyone sees it; no one acts.",
+        "thought": "“Someone else will handle it.”",
+        "feeling": "Low urgency.",
+        "behavior": "No owner is assigned.",
+        "result": "The issue persists until a deadline crisis."
+      },
+      "microTakeaway": "Responsibility diffuses unless someone names it.",
+      "safety": { "riskTierMax": "medium", "avoidIf": [] }
+    },
+
+    {
+      "id": "face_anchoring_01",
+      "conceptTags": ["anchoring", "pricing_psychology"],
+      "useWhen": ["fin:pricing", "intent:clarify"],
+      "scene": {
+        "setting": "A client hears a price range first.",
+        "trigger": "The first number becomes the ‘reference.’",
+        "thought": "“That’s what it should cost.”",
+        "feeling": "Certainty.",
+        "behavior": "They negotiate around the anchor.",
+        "result": "Later numbers are judged relative to the first."
+      },
+      "microTakeaway": "The first number often becomes gravity.",
+      "safety": { "riskTierMax": "medium", "avoidIf": [] }
+    },
+
+    {
+      "id": "face_security_phish_01",
+      "conceptTags": ["authority_bias", "cyber_social_engineering", "urgency_bias"],
+      "useWhen": ["risk:cyber", "intent:clarify"],
+      "scene": {
+        "setting": "An email claims to be IT.",
+        "trigger": "It says the account will lock in 10 minutes.",
+        "thought": "“I have to act now.”",
+        "feeling": "Panic urgency.",
+        "behavior": "They click without verifying.",
+        "result": "Credentials are compromised."
+      },
+      "microTakeaway": "Urgency + authority is the classic trap combo.",
+      "safety": { "riskTierMax": "medium", "avoidIf": ["risk:illegal"] }
+    }
+  ],
+
+  "selectionRules": [
+    {
+      "id": "match_by_tags_first",
+      "instruction": "Prefer examples whose conceptTags overlap the detected psych concepts or bias tags."
+    },
+    {
+      "id": "respect_risk",
+      "instruction": "If riskTier is high, do not inject face examples; containment only."
+    },
+    {
+      "id": "load_sensitive_length",
+      "instruction": "If cognitiveLoad is high, pick examples with shortest scene fields (or truncate to 1-2 sentences)."
+    },
+    {
+      "id": "no_repeat_window",
+      "instruction": "Do not repeat the same example within a 6-turn window."
+    }
+  ],
+
+  "injectionTemplates": [
+    {
+      "id": "template_soft_insert",
+      "instruction": "Insert as a quick mirror: 'Example: <one sentence scene>. Takeaway: <microTakeaway>'. Keep it subtle."
+    },
+    {
+      "id": "template_architect_insert",
+      "instruction": "Insert as a system analog: 'This is like <scene>. The hinge is <microTakeaway>.'"
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Concrete examples that reduce abstraction and increase comprehension.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "safetyProfile": "Non-clinical, non-diagnostic, autonomy-preserving",
+    "defaultRiskTierMax": "medium"
+  }
+}

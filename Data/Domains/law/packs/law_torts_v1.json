@@ -1,0 +1,608 @@
+{
+  "packId": "law_torts_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "packType": "theories",
+  "description": "Core Canadian tort law concepts for general-information retrieval (not legal advice). Focused on common user questions: negligence, defamation, nuisance, occupiers’ liability, product liability, intentional torts, and remedies. Includes practical checklists, pitfalls, and clarifiers.",
+  "defaults": {
+    "stance": "INFORMATIONAL_NOT_LEGAL_ADVICE",
+    "tone": "calm_direct",
+    "constraints": {
+      "noGuaranteedOutcomes": true,
+      "noFactualDeadlinesUnlessVerified": true,
+      "noSpecificCaseCitationsByDefault": true,
+      "jurisdictionMatters": true
+    }
+  },
+  "topLevelRouting": {
+    "keywords": [
+      "negligence",
+      "injury",
+      "accident",
+      "defamation",
+      "libel",
+      "slander",
+      "nuisance",
+      "trespass",
+      "assault",
+      "battery",
+      "false imprisonment",
+      "product liability",
+      "occupier",
+      "premises",
+      "dog bite",
+      "emotional distress",
+      "misrepresentation",
+      "economic loss"
+    ],
+    "notes": [
+      "Use this pack when user is asking about civil harm, injury, reputation damage, interference with property enjoyment, or compensation.",
+      "Always ask province/territory when the question touches limitations, courts, or statutory regimes (occupiers, defamation nuances, etc.)."
+    ]
+  },
+  "theories": [
+    {
+      "id": "tort_negligence_elements",
+      "label": "Negligence: the 4-element frame",
+      "category": "negligence",
+      "summary": "Negligence generally asks whether someone owed a duty of care, breached the standard of care, caused the harm, and whether compensable damages resulted.",
+      "corePoints": [
+        "Duty: relationship + foreseeability; sometimes limited by policy considerations.",
+        "Standard: what a reasonable person would do in the circumstances (context matters).",
+        "Causation: factual cause (often framed as 'but for') and legal cause/remoteness.",
+        "Damages: you usually need actual loss/harm; not just annoyance."
+      ],
+      "useCases": [
+        "car accident or slip-and-fall",
+        "professional mistake or careless advice",
+        "personal injury or property damage"
+      ],
+      "clarifiers": [
+        "Which province/territory did this happen in?",
+        "What exactly is the harm (injury, property loss, financial loss, reputation)?",
+        "When did the key event happen and when did you first learn about the harm?",
+        "Is there evidence of what a reasonable person would have done differently?"
+      ],
+      "checklists": {
+        "evidencePacket": [
+          "Timeline with dates and locations",
+          "Photos/video, incident reports, medical notes (if relevant)",
+          "Names/contact info for witnesses",
+          "Receipts/estimates/invoices for losses",
+          "Any written communications or admissions"
+        ],
+        "decisionLanes": [
+          "Informal resolution / insurer discussion",
+          "Complaint/tribunal (if a statutory scheme applies)",
+          "Court (small claims vs superior court varies by province and claim size)"
+        ]
+      },
+      "pitfalls": [
+        "Assuming fault equals negligence without evidence of breach/standard",
+        "Missing limitation periods (province-specific)",
+        "Conflating moral blame with legal causation/remoteness"
+      ],
+      "retrievalHints": {
+        "keywords": ["negligence", "careless", "accident", "injury", "fault", "liable", "sue"],
+        "intentSignals": ["do i have a case", "can i sue", "who is responsible", "what can i claim"]
+      }
+    },
+    {
+      "id": "tort_duty_of_care_foreseeability",
+      "label": "Duty of care: foreseeability + relationship + policy limits",
+      "category": "negligence",
+      "summary": "Duty of care usually turns on whether harm was reasonably foreseeable in a sufficiently close relationship, sometimes constrained by broader policy concerns.",
+      "corePoints": [
+        "Foreseeability: could a reasonable person anticipate harm to someone like the plaintiff?",
+        "Proximity: relationship closeness (expectations, reliance, physical closeness, established categories).",
+        "Policy: courts may limit duty for floodgates, indeterminate liability, or institutional roles."
+      ],
+      "useCases": [
+        "neighbour disputes escalating into damage",
+        "business advice/reliance",
+        "public authority or institutional settings"
+      ],
+      "clarifiers": [
+        "How directly were you affected (physically close, relied on them, contractual link)?",
+        "Was the harm predictable from what they did or didn’t do?",
+        "Were there warnings, signs, or known risks?"
+      ],
+      "pitfalls": [
+        "Assuming everyone owes everyone a duty in every context",
+        "Over-relying on 'it was obvious' without details that show foreseeability"
+      ],
+      "retrievalHints": {
+        "keywords": ["duty of care", "foreseeable", "should have known", "responsibility"],
+        "intentSignals": ["do they owe me", "were they required", "should they have prevented"]
+      }
+    },
+    {
+      "id": "tort_standard_of_care_contextual",
+      "label": "Standard of care: contextual reasonableness",
+      "category": "negligence",
+      "summary": "Breach is measured against what a reasonable person (or professional) would do in the same circumstances, including risk magnitude and practicality of precautions.",
+      "corePoints": [
+        "Higher risk generally demands higher precautions.",
+        "Industry custom can matter but doesn’t automatically decide reasonableness.",
+        "Professional standards may apply for licensed roles."
+      ],
+      "useCases": [
+        "slip-and-fall / premises hazards",
+        "contractor work and safety",
+        "professional services (care standard issues)"
+      ],
+      "clarifiers": [
+        "What precautions were taken (signage, maintenance, warnings, safety steps)?",
+        "Was there a known hazard or prior incident?",
+        "Was this a professional context with guidelines or common practice?"
+      ],
+      "pitfalls": [
+        "Confusing 'mistake' with 'breach'—some accidents happen without negligence",
+        "Assuming a policy/handbook equals the legal standard in all cases"
+      ],
+      "retrievalHints": {
+        "keywords": ["standard of care", "reasonable", "should have", "precautions", "warning sign"],
+        "intentSignals": ["were they negligent", "did they breach", "did they do enough"]
+      }
+    },
+    {
+      "id": "tort_causation_remoteness",
+      "label": "Causation + remoteness: linking act to harm",
+      "category": "negligence",
+      "summary": "Even if there was carelessness, liability typically requires a causal link to the harm and limits for remote/unforeseeable consequences.",
+      "corePoints": [
+        "Factual causation: would the harm have happened 'but for' the defendant’s conduct (often simplified).",
+        "Legal causation/remoteness: some consequences are too remote; foreseeability shapes the boundary.",
+        "Intervening acts can break the chain in some scenarios."
+      ],
+      "useCases": [
+        "multiple contributors to an injury",
+        "harm discovered later",
+        "unexpected downstream losses"
+      ],
+      "clarifiers": [
+        "What specifically caused the harm event-by-event?",
+        "Were there other independent events that could explain the harm?",
+        "How soon after the conduct did the harm appear?"
+      ],
+      "pitfalls": [
+        "Treating correlation as proof of causation",
+        "Assuming all downstream harm is recoverable"
+      ],
+      "retrievalHints": {
+        "keywords": ["caused", "because of", "chain", "resulted in", "remote"],
+        "intentSignals": ["is that their fault", "can i prove", "they started it"]
+      }
+    },
+    {
+      "id": "tort_damages_overview",
+      "label": "Damages: what can be claimed (high level)",
+      "category": "remedies",
+      "summary": "Civil claims typically focus on compensating proven losses. Heads of damage vary: out-of-pocket losses, lost income, repair costs, and (in some contexts) non-pecuniary pain/suffering.",
+      "corePoints": [
+        "You usually need proof: receipts, estimates, pay records, medical records (as applicable).",
+        "Mitigation: claimants often must take reasonable steps to reduce losses.",
+        "Punitive damages are exceptional and not the default."
+      ],
+      "useCases": [
+        "how much can i claim",
+        "settlement planning",
+        "evidence planning"
+      ],
+      "clarifiers": [
+        "What losses are measurable right now (receipts/quotes)?",
+        "Any continuing losses (future repairs, missed work)?",
+        "Have you taken steps to reduce ongoing harm?"
+      ],
+      "pitfalls": [
+        "Overstating damages without documentation",
+        "Ignoring mitigation expectations"
+      ],
+      "retrievalHints": {
+        "keywords": ["damages", "compensation", "how much", "settlement", "pain and suffering"],
+        "intentSignals": ["what can i claim", "what is it worth", "how do i calculate"]
+      }
+    },
+    {
+      "id": "tort_defences_contrib_negl",
+      "label": "Defences: contributory negligence + assumption of risk",
+      "category": "defences",
+      "summary": "Even if negligence exists, responsibility can be reduced if the claimant contributed to the harm, or (rarely) if they truly accepted the risk knowingly and voluntarily.",
+      "corePoints": [
+        "Contributory negligence can reduce recovery by an assessed percentage.",
+        "Assumption of risk is narrow and fact-specific.",
+        "Reasonableness is contextual: what was the claimant expected to do?"
+      ],
+      "useCases": [
+        "shared-fault accidents",
+        "unsafe behaviour allegations",
+        "waivers and risky activities"
+      ],
+      "clarifiers": [
+        "What choices did each person make immediately before the harm?",
+        "Were there warnings, waivers, or clear risk disclosures?",
+        "Was protective equipment available/required?"
+      ],
+      "pitfalls": [
+        "Assuming any minor mistake wipes out a claim",
+        "Treating a waiver as automatic immunity"
+      ],
+      "retrievalHints": {
+        "keywords": ["contributory negligence", "shared fault", "partial fault", "waiver", "assumption of risk"],
+        "intentSignals": ["is it my fault too", "does this reduce", "can they blame me"]
+      }
+    },
+    {
+      "id": "tort_intentional_torts_basics",
+      "label": "Intentional torts: assault, battery, false imprisonment (overview)",
+      "category": "intentional_torts",
+      "summary": "Intentional torts focus on deliberate interference with bodily integrity or liberty (not just carelessness).",
+      "corePoints": [
+        "Assault: threat creating reasonable apprehension of imminent harm.",
+        "Battery: intentional non-consensual physical contact.",
+        "False imprisonment: unlawful restraint of movement without lawful authority."
+      ],
+      "useCases": [
+        "workplace or security incidents",
+        "harassment escalating into physical contact",
+        "detention disputes (non-criminal framing)"
+      ],
+      "clarifiers": [
+        "What exactly was said/done, and was there contact?",
+        "Were you physically restrained or blocked from leaving?",
+        "Was any authority claimed (security, store policy, citizen’s arrest)?"
+      ],
+      "pitfalls": [
+        "Confusing a criminal complaint with civil tort elements (they can overlap but differ)",
+        "Skipping the evidence timeline (who/what/when/where)"
+      ],
+      "retrievalHints": {
+        "keywords": ["assault", "battery", "hit", "grabbed", "detained", "wouldn't let me leave"],
+        "intentSignals": ["can i sue", "is that allowed", "what are my rights"]
+      }
+    },
+    {
+      "id": "tort_defamation_canada_overview",
+      "label": "Defamation: basics + practical triage",
+      "category": "defamation",
+      "summary": "Defamation generally concerns false statements that harm reputation. Practical triage: what was said, to whom, is it identifiable, and what’s the evidence of publication and harm.",
+      "corePoints": [
+        "Libel (written) vs slander (spoken) is a common distinction; online posts usually fall under written/publication concepts.",
+        "Key facts: the statement, audience/publication, identification, and reputational harm.",
+        "Defences can include truth/justification, fair comment/opinion, qualified privilege, responsible communication (context-dependent)."
+      ],
+      "useCases": [
+        "bad reviews and social posts",
+        "false accusations",
+        "reputation management + takedown strategy"
+      ],
+      "clarifiers": [
+        "What exactly was said (quote it), where, and when?",
+        "How many people could see it, and is it still up?",
+        "Is it stated as a fact or clearly as opinion?",
+        "What measurable harm exists (lost clients, threats, harassment)?"
+      ],
+      "checklists": {
+        "firstMoves": [
+          "Preserve evidence (screenshots, URLs, timestamps)",
+          "Avoid emotional replies; keep responses factual",
+          "Use platform reporting tools",
+          "Consider a concise factual correction + request for removal"
+        ]
+      },
+      "pitfalls": [
+        "Reacting publicly in a way that escalates exposure",
+        "Assuming 'mean' equals defamatory—opinion vs fact distinction matters"
+      ],
+      "retrievalHints": {
+        "keywords": ["defamation", "libel", "slander", "false", "posted", "review", "accused"],
+        "intentSignals": ["can i sue them", "is this defamation", "can i get it removed"]
+      }
+    },
+    {
+      "id": "tort_nuisance_overview",
+      "label": "Private nuisance: interference with land enjoyment",
+      "category": "property_torts",
+      "summary": "Nuisance is about unreasonable interference with the use/enjoyment of property (noise, smoke, odours, vibrations, flooding, etc.), balancing reasonableness in context.",
+      "corePoints": [
+        "Not every annoyance qualifies; intensity, duration, and locality matter.",
+        "Documentation is king: logs, recordings, bylaw complaints, expert notes if needed.",
+        "Often starts with bylaw/municipal routes before court."
+      ],
+      "useCases": [
+        "neighbour noise/smoke/odours",
+        "construction vibrations",
+        "recurring flooding runoff"
+      ],
+      "clarifiers": [
+        "How often, how intense, and how long has it persisted?",
+        "Have you documented dates/times and attempted informal resolution?",
+        "Any municipal bylaw process or condo/HOA rules involved?"
+      ],
+      "pitfalls": [
+        "No documentation beyond memory",
+        "Skipping the most efficient administrative route"
+      ],
+      "retrievalHints": {
+        "keywords": ["nuisance", "noise", "smell", "odour", "vibration", "runoff", "neighbour"],
+        "intentSignals": ["what can i do", "can i force them", "is it illegal"]
+      }
+    },
+    {
+      "id": "tort_trespass_overview",
+      "label": "Trespass to land: unauthorized entry",
+      "category": "property_torts",
+      "summary": "Trespass generally involves intentional entry onto land without permission. Remedies can include damages and sometimes injunctions depending on facts and persistence.",
+      "corePoints": [
+        "Key facts: boundaries, permission, notice, and whether entry is ongoing.",
+        "De-escalation and clear written notice can matter before litigation."
+      ],
+      "useCases": [
+        "neighbour crossing property",
+        "unauthorized access",
+        "persistent entry/disputes"
+      ],
+      "clarifiers": [
+        "Do you have clear boundary evidence (survey, markers, maps)?",
+        "Have you explicitly withdrawn consent / given notice?",
+        "Is there any safety risk or threat component?"
+      ],
+      "pitfalls": [
+        "Escalating into confrontation instead of documenting and using lawful channels",
+        "Assuming criminal enforcement when it’s primarily civil"
+      ],
+      "retrievalHints": {
+        "keywords": ["trespass", "on my property", "entered", "won't stay off", "boundary"],
+        "intentSignals": ["can i stop them", "can i call police", "what are my options"]
+      }
+    },
+    {
+      "id": "tort_occupiers_liability_overview",
+      "label": "Occupiers’ liability: premises safety (overview)",
+      "category": "premises",
+      "summary": "Occupiers’ liability generally concerns reasonable care to keep premises reasonably safe for visitors; details often vary by province’s statute and context (commercial vs residential).",
+      "corePoints": [
+        "Key facts: hazard, knowledge/notice, inspection/maintenance, warnings, and foreseeability of harm.",
+        "Documentation: incident report, photos, footwear conditions, weather, signage, witness statements."
+      ],
+      "useCases": [
+        "slip-and-fall",
+        "store injury",
+        "event venue accidents"
+      ],
+      "clarifiers": [
+        "Province/territory and location type (store, private home, rental common area)?",
+        "What was the hazard and was it visible/warned?",
+        "Any incident report or video footage?"
+      ],
+      "pitfalls": [
+        "Waiting too long to document the scene",
+        "Assuming any fall equals liability"
+      ],
+      "retrievalHints": {
+        "keywords": ["slip and fall", "premises", "occupier", "store", "ice", "wet floor"],
+        "intentSignals": ["are they liable", "can i claim", "what do i do next"]
+      }
+    },
+    {
+      "id": "tort_product_liability_overview",
+      "label": "Product liability: defect + warning + causation",
+      "category": "product_liability",
+      "summary": "Product liability often turns on whether a product was defective or lacked adequate warnings, and whether that caused the harm. Proof and chain-of-custody can matter a lot.",
+      "corePoints": [
+        "Types: manufacturing defect, design defect, failure-to-warn (high level).",
+        "Preserve the product and packaging; don’t alter it if possible.",
+        "Document injuries/damages and how the product was used."
+      ],
+      "useCases": [
+        "defective device injury",
+        "contaminated goods",
+        "dangerous consumer product"
+      ],
+      "clarifiers": [
+        "What product, model, and when purchased?",
+        "How was it used (normal use vs misuse allegation)?",
+        "Do you still have the product/packaging/receipts?"
+      ],
+      "pitfalls": [
+        "Discarding or altering the product",
+        "No proof of purchase or usage context"
+      ],
+      "retrievalHints": {
+        "keywords": ["defective", "product liability", "recall", "faulty", "broke", "injured me"],
+        "intentSignals": ["can i sue the manufacturer", "who is responsible", "what should i keep"]
+      }
+    },
+    {
+      "id": "tort_negligent_misrepresentation_overview",
+      "label": "Negligent misrepresentation: careless statements + reliance",
+      "category": "economic_torts",
+      "summary": "Negligent misrepresentation is a high-level frame where someone makes a careless statement, you reasonably rely on it, and you suffer loss as a result (context-sensitive and fact-heavy).",
+      "corePoints": [
+        "Key facts: what was said, context/relationship, reasonableness of reliance, and proof of loss.",
+        "Written communications matter (emails/texts/marketing materials).",
+        "Causation can be contested: would you have acted the same anyway?"
+      ],
+      "useCases": [
+        "service provider assurances",
+        "sales claims and reliance",
+        "business-to-business statements"
+      ],
+      "clarifiers": [
+        "What statement did you rely on and do you have it in writing?",
+        "Why was it reasonable to rely on them (expertise, role, relationship)?",
+        "What exact loss followed and how is it documented?"
+      ],
+      "pitfalls": [
+        "Relying on vague opinions rather than concrete representations",
+        "Weak documentation of reliance and loss"
+      ],
+      "retrievalHints": {
+        "keywords": ["misrepresentation", "lied", "told me", "guaranteed", "promised", "relied on"],
+        "intentSignals": ["can i sue", "they misled me", "false claims"]
+      }
+    },
+    {
+      "id": "tort_intentional_infliction_emotional_distress",
+      "label": "Intentional infliction of mental suffering (high-level)",
+      "category": "intentional_torts",
+      "summary": "Some civil claims involve serious, wrongful conduct causing severe emotional harm. The threshold is typically high and very fact-specific; documentation is important.",
+      "corePoints": [
+        "Courts usually look for extreme/outrageous conduct and serious harm.",
+        "Evidence can include contemporaneous records, medical notes, witness accounts, and message logs.",
+        "Often overlaps with employment, harassment, or family contexts (choose the right lane)."
+      ],
+      "useCases": [
+        "severe harassment",
+        "threat campaigns",
+        "workplace coercion or abuse-like conduct"
+      ],
+      "clarifiers": [
+        "What conduct occurred and over what duration?",
+        "What evidence exists (messages, witnesses, reports)?",
+        "Any safety concerns right now?"
+      ],
+      "pitfalls": [
+        "Treating ordinary conflict as actionable without severe conduct and harm",
+        "Ignoring safety planning when threats are present"
+      ],
+      "retrievalHints": {
+        "keywords": ["emotional distress", "mental suffering", "harassment", "threats", "traumatized"],
+        "intentSignals": ["can i sue", "what are my options", "how do i stop this"]
+      }
+    },
+    {
+      "id": "tort_vicarious_liability_overview",
+      "label": "Vicarious liability: responsibility for others’ acts (overview)",
+      "category": "liability_structures",
+      "summary": "Sometimes an organization can be responsible for the wrongful acts of its employees/agents when the relationship and context connect the act to the enterprise.",
+      "corePoints": [
+        "Commonly raised in workplace incidents, service delivery, or institutional contexts.",
+        "Independent contractor vs employee classification can matter.",
+        "Facts: role, control, job duties, and context of the act."
+      ],
+      "useCases": [
+        "employee causes harm while working",
+        "security staff incidents",
+        "institutional wrongdoing patterns"
+      ],
+      "clarifiers": [
+        "Was the person acting in a work role at the time?",
+        "Who controlled the work and provided tools/uniform?",
+        "Is there an employer/organization with policies and oversight?"
+      ],
+      "pitfalls": [
+        "Assuming 'worked there' automatically makes the employer liable",
+        "Not identifying the correct defendant(s)"
+      ],
+      "retrievalHints": {
+        "keywords": ["employer liable", "employee", "staff", "security", "company responsible"],
+        "intentSignals": ["can i sue the company", "who do i go after", "is the employer responsible"]
+      }
+    },
+    {
+      "id": "tort_limitation_periods_guardrail",
+      "label": "Limitations guardrail: timing matters (non-specific)",
+      "category": "procedure",
+      "summary": "Most civil claims have limitation periods that vary by province and by claim type. Timing can be decisive, so always identify event date(s) and verify the limitation rules officially.",
+      "corePoints": [
+        "Ask: when did the event happen and when did you discover the harm?",
+        "Province/territory matters.",
+        "Don’t treat generic timelines as gospel—verify on official sources or with counsel."
+      ],
+      "useCases": [
+        "is it too late",
+        "old injury or discovery later",
+        "delayed reporting"
+      ],
+      "clarifiers": [
+        "Province/territory?",
+        "Event date and discovery date?",
+        "Any ongoing conduct or repeated incidents?"
+      ],
+      "pitfalls": [
+        "Assuming you have years without checking",
+        "Delaying evidence preservation"
+      ],
+      "retrievalHints": {
+        "keywords": ["limitation", "too late", "time limit", "deadline", "years ago"],
+        "intentSignals": ["can i still sue", "is it expired", "how long do i have"]
+      }
+    },
+    {
+      "id": "tort_remedies_injunctions_overview",
+      "label": "Remedies: damages vs injunctions (overview)",
+      "category": "remedies",
+      "summary": "Some disputes are mainly about stopping conduct (injunction) rather than money. The right remedy depends on ongoing harm and adequacy of damages.",
+      "corePoints": [
+        "Ongoing interference (nuisance/trespass/harassment-like patterns) often raises injunction thinking.",
+        "Courts/tribunals vary; sometimes administrative routes are faster.",
+        "Evidence of ongoing harm is crucial (logs, notices, repeated incidents)."
+      ],
+      "useCases": [
+        "stop a neighbour interference",
+        "stop repeated entry",
+        "stop ongoing harmful publication (complex—often seek counsel)"
+      ],
+      "clarifiers": [
+        "Is the harm ongoing or already ended?",
+        "What would “fixed” look like (stop behaviour, removal, repairs)?",
+        "Have you sent a factual notice or used an administrative route?"
+      ],
+      "pitfalls": [
+        "Seeking a remedy mismatched to the actual goal",
+        "Trying to force takedowns without evidence trail"
+      ],
+      "retrievalHints": {
+        "keywords": ["injunction", "make them stop", "ongoing", "cease and desist", "remove it"],
+        "intentSignals": ["how do i stop", "can a court order", "what is the remedy"]
+      }
+    }
+  ],
+  "contextRules": [
+    {
+      "id": "rule_jurisdiction_required_for_procedure",
+      "when": "User asks about filing, limitation periods, court level, or specific legal process steps.",
+      "then": [
+        "Ask province/territory first.",
+        "Provide only high-level lanes (informal / tribunal / court).",
+        "Encourage verification on official sources."
+      ]
+    },
+    {
+      "id": "rule_non_advice_posture",
+      "when": "User asks 'should I sue' or requests outcome prediction.",
+      "then": [
+        "Use probability-free language (avoid 'you will win').",
+        "Offer a decision framework (evidence strength, damages, cost/time, alternatives).",
+        "Encourage legal clinic/lawyer for high-stakes or urgent timelines."
+      ]
+    },
+    {
+      "id": "rule_safety_priority",
+      "when": "Threats, stalking/doxxing, credible safety risk, or violence indicators appear.",
+      "then": [
+        "Prioritize safety planning and official reporting options.",
+        "Keep responses short and practical.",
+        "Avoid escalation scripts or vigilantism cues."
+      ]
+    }
+  ],
+  "faces": {
+    "references": [
+      {
+        "pack": "law_face_examples_v1",
+        "note": "Use for quick, relatable 'face' scenarios (e.g., slip-and-fall, neighbour nuisance, online review defamation)."
+      }
+    ]
+  },
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "This pack is designed for retrieval and explanation, not for generating legal advice or filling court forms.",
+      "For procedural specifics, always route to jurisdiction-specific official sources.",
+      "Prefer: clarify → framework → evidence packet → options."
+    ]
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "id": "fin_dialogue_snippets_v1",
+  "version": "1.1.0",
+  "domain": "finance",
+  "description": "Structured dialogue snippets for financial reasoning, pricing, capital decisions, macro interpretation, and risk framing. Designed for mediator-safe educational responses.",
+  "posture": {
+    "type": "educational_dialogue_support",
+    "non_investment_advice": true,
+    "scenario_based": true
+  },
+  "dialogueSnippets": [
+    {
+      "scenario": "pricing_strategy_discussion",
+      "context": "Founder evaluating price increase.",
+      "dialogue": [
+        {
+          "role": "founder",
+          "line": "If we raise prices, won't we lose customers?"
+        },
+        {
+          "role": "advisor",
+          "line": "Possibly. The real question is elasticity. If demand is relatively inelastic, a moderate increase may improve margin more than it harms volume."
+        },
+        {
+          "role": "advisor",
+          "line": "Test incrementally and measure conversion, churn, and net revenue retention before rolling out broadly."
+        }
+      ]
+    },
+    {
+      "scenario": "unit_economics_analysis",
+      "context": "Startup scaling paid ads.",
+      "dialogue": [
+        {
+          "role": "operator",
+          "line": "Our revenue is growing, but cash keeps dropping."
+        },
+        {
+          "role": "advisor",
+          "line": "Check CAC versus contribution margin. If payback exceeds your cash runway tolerance, growth will strain liquidity."
+        },
+        {
+          "role": "advisor",
+          "line": "Sustainable scaling requires LTV meaningfully greater than CAC."
+        }
+      ]
+    },
+    {
+      "scenario": "interest_rate_environment",
+      "context": "Business owner during rate hikes.",
+      "dialogue": [
+        {
+          "role": "owner",
+          "line": "Why does raising interest rates affect my business?"
+        },
+        {
+          "role": "advisor",
+          "line": "Higher rates increase borrowing costs and can reduce consumer demand. They also compress valuation multiples in capital markets."
+        },
+        {
+          "role": "advisor",
+          "line": "Stress test cash flow under slower revenue and higher financing expense."
+        }
+      ]
+    },
+    {
+      "scenario": "capital_structure_decision",
+      "context": "Considering debt vs equity.",
+      "dialogue": [
+        {
+          "role": "founder",
+          "line": "Should we take debt or raise equity?"
+        },
+        {
+          "role": "advisor",
+          "line": "Debt preserves ownership but increases fixed obligations. Equity reduces liquidity pressure but dilutes control."
+        },
+        {
+          "role": "advisor",
+          "line": "Evaluate stability of cash flows and risk tolerance before choosing."
+        }
+      ]
+    },
+    {
+      "scenario": "risk_management_conversation",
+      "context": "Board-level discussion on resilience.",
+      "dialogue": [
+        {
+          "role": "board_member",
+          "line": "What is our biggest financial risk?"
+        },
+        {
+          "role": "cfo",
+          "line": "Liquidity risk under revenue contraction. We are solvent long-term, but short-term cash compression is our vulnerability."
+        },
+        {
+          "role": "cfo",
+          "line": "Building a buffer and reducing fixed cost exposure improves resilience."
+        }
+      ]
+    },
+    {
+      "scenario": "macro_policy_shift",
+      "context": "Government announces new regulation.",
+      "dialogue": [
+        {
+          "role": "executive",
+          "line": "How will this regulation affect us?"
+        },
+        {
+          "role": "advisor",
+          "line": "It may increase compliance costs and alter pricing flexibility."
+        },
+        {
+          "role": "advisor",
+          "line": "Map the policy to cost structure, demand elasticity, and capital requirements."
+        }
+      ]
+    },
+    {
+      "scenario": "ltv_cac_review",
+      "context": "Investor questioning business health.",
+      "dialogue": [
+        {
+          "role": "investor",
+          "line": "What is your LTV to CAC ratio?"
+        },
+        {
+          "role": "founder",
+          "line": "Approximately 3.5x with a 9-month payback."
+        },
+        {
+          "role": "investor",
+          "line": "Then focus on retention improvements rather than pure acquisition scale."
+        }
+      ]
+    },
+    {
+      "scenario": "inflation_pressure",
+      "context": "Input costs rising.",
+      "dialogue": [
+        {
+          "role": "operator",
+          "line": "Our suppliers raised prices 12 percent."
+        },
+        {
+          "role": "advisor",
+          "line": "That’s a cost shock. Decide whether to absorb margin compression or pass costs through."
+        },
+        {
+          "role": "advisor",
+          "line": "Evaluate elasticity and competitive positioning before adjusting pricing."
+        }
+      ]
+    }
+  ],
+  "usageNotes": [
+    "Use snippets as structured examples, not scripts.",
+    "Avoid giving individualized financial advice.",
+    "Encourage scenario analysis instead of prediction.",
+    "Focus on risk awareness and unit economics clarity."
+  ]
+}

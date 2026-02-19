@@ -1,0 +1,153 @@
+{
+  "packId": "law_criminal_v1",
+  "version": "1.0.0",
+  "domain": "law",
+  "jurisdiction": "CA",
+  "description": "High-level overview of Canadian criminal law principles. Covers actus reus, mens rea, defenses, procedure basics, and sentencing concepts. Educational framework only — not legal advice.",
+  "topics": [
+    {
+      "id": "lc_elements_of_offence",
+      "title": "Elements of a Criminal Offence (Actus Reus + Mens Rea)",
+      "coreDefinition": "Most criminal offences require proof of both a prohibited act (actus reus) and a guilty mind (mens rea). The Crown must prove both elements beyond a reasonable doubt.",
+      "frameworkSteps": [
+        "Identify the statutory offence under the Criminal Code or other federal statute.",
+        "Determine the required actus reus (physical act or omission).",
+        "Determine the required mens rea (intent, knowledge, recklessness, or negligence).",
+        "Assess whether evidence satisfies both elements beyond a reasonable doubt."
+      ],
+      "quickExamples": [
+        "Theft requires taking property (actus reus) with intent to deprive (mens rea).",
+        "Assault requires intentional application of force without consent."
+      ],
+      "commonMistakes": [
+        "Assuming harm alone proves guilt.",
+        "Confusing motive with intent."
+      ],
+      "retrievalHints": {
+        "keywords": ["actus reus", "mens rea", "intent", "criminal element", "beyond reasonable doubt"],
+        "intentSignals": ["what do they have to prove", "what are the elements"]
+      }
+    },
+    {
+      "id": "lc_strict_and_absolute_liability",
+      "title": "Strict and Absolute Liability Offences",
+      "coreDefinition": "Some regulatory offences do not require traditional mens rea. Strict liability allows a due diligence defence; absolute liability does not.",
+      "frameworkSteps": [
+        "Identify whether offence is regulatory in nature.",
+        "Determine if statute specifies strict or absolute liability.",
+        "Assess availability of due diligence defence."
+      ],
+      "quickExamples": [
+        "Traffic offences are often strict liability.",
+        "Absolute liability offences cannot result in imprisonment under the Charter."
+      ],
+      "commonMistakes": [
+        "Assuming all offences require intent.",
+        "Confusing strict with absolute liability."
+      ],
+      "retrievalHints": {
+        "keywords": ["strict liability", "absolute liability", "due diligence"],
+        "intentSignals": ["do they need intent"]
+      }
+    },
+    {
+      "id": "lc_defences_general",
+      "title": "General Criminal Defences",
+      "coreDefinition": "Defences may negate elements of the offence or justify/excuse conduct. The burden may shift depending on the defence raised.",
+      "frameworkSteps": [
+        "Identify which element the defence targets (actus reus or mens rea).",
+        "Determine evidentiary burden to raise defence.",
+        "Assess whether Crown must disprove defence beyond reasonable doubt."
+      ],
+      "quickExamples": [
+        "Self-defence requires reasonable belief in threat and proportional response.",
+        "Intoxication may negate specific intent in limited contexts."
+      ],
+      "commonMistakes": [
+        "Assuming all defences fully excuse conduct.",
+        "Overgeneralizing intoxication as a universal defence."
+      ],
+      "retrievalHints": {
+        "keywords": ["defence", "self defence", "duress", "necessity"],
+        "intentSignals": ["can I claim", "is there a defence"]
+      }
+    },
+    {
+      "id": "lc_charter_in_criminal",
+      "title": "Charter Rights in Criminal Proceedings",
+      "coreDefinition": "The Canadian Charter of Rights and Freedoms protects individuals during investigation and prosecution, including rights to counsel, protection against unreasonable search, and trial within a reasonable time.",
+      "frameworkSteps": [
+        "Identify alleged Charter breach (e.g., section 8 search and seizure, section 10 right to counsel).",
+        "Assess whether state action violated Charter right.",
+        "Determine appropriate remedy (e.g., exclusion of evidence under section 24(2))."
+      ],
+      "quickExamples": [
+        "Failure to inform accused of right to counsel may violate section 10(b).",
+        "Unlawful search may lead to exclusion of evidence."
+      ],
+      "commonMistakes": [
+        "Assuming all Charter breaches invalidate charges.",
+        "Ignoring requirement of state action."
+      ],
+      "retrievalHints": {
+        "keywords": ["charter breach", "section 8", "section 10", "search and seizure"],
+        "intentSignals": ["were my rights violated"]
+      }
+    },
+    {
+      "id": "lc_procedure_overview",
+      "title": "Criminal Procedure Overview",
+      "coreDefinition": "Criminal proceedings follow structured stages: investigation, charge, bail, disclosure, trial, sentencing, and appeal.",
+      "frameworkSteps": [
+        "Charge laid by Crown.",
+        "Bail hearing (judicial interim release).",
+        "Disclosure obligations.",
+        "Trial (judge or jury depending on offence).",
+        "Sentencing if convicted."
+      ],
+      "quickExamples": [
+        "Indictable offences may allow jury trial.",
+        "Summary conviction offences proceed more quickly."
+      ],
+      "commonMistakes": [
+        "Confusing summary and indictable offences.",
+        "Ignoring procedural deadlines."
+      ],
+      "retrievalHints": {
+        "keywords": ["bail", "trial", "jury", "indictable", "summary conviction"],
+        "intentSignals": ["what happens next", "what is the process"]
+      }
+    },
+    {
+      "id": "lc_sentencing_principles",
+      "title": "Sentencing Principles",
+      "coreDefinition": "Sentencing balances objectives such as denunciation, deterrence, rehabilitation, and proportionality.",
+      "frameworkSteps": [
+        "Determine statutory maximum/minimum penalties.",
+        "Assess aggravating and mitigating factors.",
+        "Apply principle of proportionality.",
+        "Consider conditional sentences or probation where applicable."
+      ],
+      "quickExamples": [
+        "Prior convictions may be aggravating.",
+        "Early guilty plea may be mitigating."
+      ],
+      "commonMistakes": [
+        "Assuming maximum sentence is typical outcome.",
+        "Ignoring judicial discretion."
+      ],
+      "retrievalHints": {
+        "keywords": ["sentence", "penalty", "probation", "jail time"],
+        "intentSignals": ["what sentence could", "how much time"]
+      }
+    }
+  ],
+  "meta": {
+    "stability": "high",
+    "notes": [
+      "This pack supports high-level explanations of criminal law concepts.",
+      "Avoid providing case-specific advice or strategic guidance.",
+      "Encourage consultation with qualified counsel for individual matters."
+    ]
+  }
+}

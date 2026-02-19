@@ -1,0 +1,169 @@
+{
+  "id": "fin_face_examples_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Structured financial reasoning faces (archetypes) used to contextualize macro, micro, pricing, and risk discussions. Designed for educational modeling and scenario-based analysis.",
+  "posture": {
+    "type": "educational_archetype_framework",
+    "non_investment_advice": true,
+    "scenario_based_reasoning": true
+  },
+  "faces": [
+    {
+      "name": "bootstrapped_founder",
+      "profile": {
+        "cash_sensitive": true,
+        "capital_access": "limited",
+        "risk_tolerance": "moderate",
+        "primary_focus": "cashflow_and_survival"
+      },
+      "financialPriorities": [
+        "positive_contribution_margin",
+        "short_cac_payback",
+        "low_fixed_cost_structure",
+        "liquidity_buffer"
+      ],
+      "riskExposure": [
+        "liquidity_risk",
+        "customer_concentration",
+        "pricing_pressure"
+      ],
+      "typicalQuestions": [
+        "How do I grow without burning cash?",
+        "Can I afford to hire?",
+        "Should I raise prices?"
+      ]
+    },
+    {
+      "name": "venture_backed_scaler",
+      "profile": {
+        "cash_sensitive": false,
+        "capital_access": "external_investors",
+        "risk_tolerance": "high",
+        "primary_focus": "growth_and_market_share"
+      },
+      "financialPriorities": [
+        "ltv_to_cac_ratio",
+        "net_revenue_retention",
+        "market_expansion",
+        "valuation_growth"
+      ],
+      "riskExposure": [
+        "burn_rate",
+        "overexpansion",
+        "valuation_compression"
+      ],
+      "typicalQuestions": [
+        "How fast can we scale?",
+        "Is CAC increasing unsustainably?",
+        "When should we raise the next round?"
+      ]
+    },
+    {
+      "name": "conservative_cfo",
+      "profile": {
+        "cash_sensitive": true,
+        "capital_access": "stable_but_controlled",
+        "risk_tolerance": "low",
+        "primary_focus": "balance_sheet_strength"
+      },
+      "financialPriorities": [
+        "interest_coverage_ratio",
+        "liquidity_coverage",
+        "cost_control",
+        "debt_maturity_management"
+      ],
+      "riskExposure": [
+        "interest_rate_risk",
+        "credit_risk",
+        "regulatory_risk"
+      ],
+      "typicalQuestions": [
+        "What breaks first under stress?",
+        "How exposed are we to rate hikes?",
+        "Do we have adequate reserves?"
+      ]
+    },
+    {
+      "name": "policy_aware_operator",
+      "profile": {
+        "cash_sensitive": "variable",
+        "capital_access": "dependent_on_sector",
+        "risk_tolerance": "moderate",
+        "primary_focus": "regulatory_alignment"
+      },
+      "financialPriorities": [
+        "compliance_cost_management",
+        "tax_efficiency",
+        "grant_or_subsidy_leverage",
+        "sector_exposure_analysis"
+      ],
+      "riskExposure": [
+        "regulatory_shift",
+        "subsidy_removal",
+        "trade_policy_change"
+      ],
+      "typicalQuestions": [
+        "How does this policy change affect our margins?",
+        "Should we restructure operations?",
+        "Is this sector becoming higher risk?"
+      ]
+    },
+    {
+      "name": "capital_markets_investor",
+      "profile": {
+        "cash_sensitive": false,
+        "capital_access": "institutional_or_personal_portfolio",
+        "risk_tolerance": "variable",
+        "primary_focus": "risk_adjusted_return"
+      },
+      "financialPriorities": [
+        "portfolio_diversification",
+        "volatility_management",
+        "macro_exposure",
+        "valuation_multiples"
+      ],
+      "riskExposure": [
+        "market_volatility",
+        "interest_rate_fluctuation",
+        "liquidity_constraints"
+      ],
+      "typicalQuestions": [
+        "How does macro risk affect allocation?",
+        "What is the downside exposure?",
+        "Are valuations pricing in policy shifts?"
+      ]
+    },
+    {
+      "name": "pricing_strategist",
+      "profile": {
+        "cash_sensitive": "model_dependent",
+        "capital_access": "business_contextual",
+        "risk_tolerance": "moderate",
+        "primary_focus": "revenue_optimization"
+      },
+      "financialPriorities": [
+        "elasticity_analysis",
+        "segmentation_strategy",
+        "margin_expansion",
+        "churn_reduction"
+      ],
+      "riskExposure": [
+        "customer_backlash",
+        "excessive_discounting",
+        "margin_compression"
+      ],
+      "typicalQuestions": [
+        "How much pricing power do we have?",
+        "Will a price increase reduce retention?",
+        "Should we move to usage-based pricing?"
+      ]
+    }
+  ],
+  "applicationGuidelines": [
+    "Select the face that best matches the decision-maker profile.",
+    "Frame analysis according to that face’s risk tolerance and priorities.",
+    "Adjust recommendations to liquidity constraints and capital access.",
+    "Avoid individualized financial advice; use scenario modeling."
+  ]
+}

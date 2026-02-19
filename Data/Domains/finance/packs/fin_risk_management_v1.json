@@ -1,0 +1,248 @@
+{
+  "id": "fin_risk_management_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "description": "Comprehensive risk management framework for financial decision-making, capital allocation, and business resilience. Covers identification, measurement, mitigation, governance, and scenario design.",
+  "posture": {
+    "type": "enterprise_risk_framework",
+    "analytical": true,
+    "non_investment_advice": true,
+    "defensive_orientation": true
+  },
+  "corePrinciples": [
+    "Risk is the probability of adverse deviation from expected outcomes.",
+    "Return and risk are inseparable; higher expected return implies higher uncertainty.",
+    "Liquidity risk can destroy otherwise solvent businesses.",
+    "Leverage amplifies both gains and losses.",
+    "Unknown risks are more dangerous than measured risks.",
+    "Resilience requires redundancy, liquidity, and optionality.",
+    "Risk must be managed at the system level, not just at the transaction level."
+  ],
+  "riskCategories": [
+    {
+      "type": "market_risk",
+      "drivers": [
+        "interest_rate_volatility",
+        "equity_price_fluctuation",
+        "currency_movements",
+        "commodity_price_shifts"
+      ],
+      "measurementTools": [
+        "value_at_risk_var",
+        "stress_testing",
+        "beta_analysis",
+        "duration_analysis",
+        "sensitivity_scenarios"
+      ],
+      "mitigation": [
+        "diversification",
+        "hedging",
+        "asset_allocation_adjustment",
+        "duration_matching"
+      ]
+    },
+    {
+      "type": "credit_risk",
+      "drivers": [
+        "counterparty_default",
+        "payment_delay",
+        "credit_deterioration"
+      ],
+      "measurementTools": [
+        "credit_scoring",
+        "probability_of_default_pd",
+        "loss_given_default_lgd",
+        "exposure_at_default_ead"
+      ],
+      "mitigation": [
+        "collateralization",
+        "credit_limits",
+        "diversified_customer_base",
+        "insurance"
+      ]
+    },
+    {
+      "type": "liquidity_risk",
+      "drivers": [
+        "cash_flow_mismatch",
+        "market_freeze",
+        "funding_withdrawal"
+      ],
+      "measurementTools": [
+        "cash_runway_analysis",
+        "liquidity_coverage_ratio",
+        "cash_conversion_cycle"
+      ],
+      "mitigation": [
+        "cash_reserve_buffer",
+        "diversified_funding_sources",
+        "contingency_credit_lines"
+      ]
+    },
+    {
+      "type": "operational_risk",
+      "drivers": [
+        "process_failure",
+        "fraud",
+        "technology_failure",
+        "cyber_incidents"
+      ],
+      "measurementTools": [
+        "loss_event_tracking",
+        "control_testing",
+        "risk_heat_maps"
+      ],
+      "mitigation": [
+        "internal_controls",
+        "segregation_of_duties",
+        "redundant_systems",
+        "incident_response_plans"
+      ]
+    },
+    {
+      "type": "regulatory_risk",
+      "drivers": [
+        "policy_change",
+        "compliance_failure",
+        "licensing_constraints"
+      ],
+      "measurementTools": [
+        "compliance_audit",
+        "legal_review",
+        "regulatory_scenario_analysis"
+      ],
+      "mitigation": [
+        "compliance_programs",
+        "external_legal_advisors",
+        "policy_monitoring"
+      ]
+    },
+    {
+      "type": "strategic_risk",
+      "drivers": [
+        "competitive_disruption",
+        "technology_shift",
+        "demand_collapse",
+        "reputation_damage"
+      ],
+      "measurementTools": [
+        "scenario_planning",
+        "competitive_analysis",
+        "market_share_tracking"
+      ],
+      "mitigation": [
+        "diversification_of_revenue",
+        "innovation_pipeline",
+        "brand_management"
+      ]
+    }
+  ],
+  "riskMeasurementFramework": {
+    "steps": [
+      "identify_risk",
+      "quantify_probability",
+      "estimate_impact",
+      "model_scenarios",
+      "design_controls",
+      "monitor_continuously"
+    ],
+    "quantitativeMetrics": [
+      "value_at_risk",
+      "expected_shortfall",
+      "standard_deviation",
+      "downside_deviation",
+      "debt_service_coverage_ratio",
+      "interest_coverage_ratio"
+    ],
+    "qualitativeMetrics": [
+      "control_effectiveness",
+      "governance_strength",
+      "reputational_exposure",
+      "dependency_concentration"
+    ]
+  },
+  "leverageAndCapitalRisk": {
+    "principles": [
+      "Higher leverage increases volatility of equity returns.",
+      "Fixed obligations reduce flexibility during downturns.",
+      "Debt structure maturity profile affects refinancing risk."
+    ],
+    "diagnostics": [
+      "net_debt_to_ebitda",
+      "interest_coverage_ratio",
+      "debt_maturity_schedule",
+      "covenant_sensitivity"
+    ]
+  },
+  "scenarioDesign": {
+    "types": [
+      "base_case",
+      "downside_case",
+      "severe_stress_case",
+      "liquidity_shock_case",
+      "policy_shift_case"
+    ],
+    "designPrinciples": [
+      "Model correlated shocks, not isolated variables.",
+      "Stress revenue and cost simultaneously.",
+      "Incorporate time dimension (duration of shock).",
+      "Evaluate both solvency and liquidity."
+    ]
+  },
+  "governanceAndControls": {
+    "bestPractices": [
+      "board_level_risk_oversight",
+      "clearly_defined_risk_appetite",
+      "independent_audit_function",
+      "documented_risk_register",
+      "segregation_of_duties"
+    ],
+    "earlyWarningSignals": [
+      "declining_cash_reserves",
+      "rising_churn_or_default_rates",
+      "margin_compression",
+      "supply_chain_disruptions",
+      "regulatory_inquiries"
+    ]
+  },
+  "hedgingOverview": {
+    "instruments": [
+      "forwards",
+      "futures",
+      "options",
+      "swaps"
+    ],
+    "objectives": [
+      "reduce_volatility",
+      "protect_margin",
+      "lock_in_costs",
+      "limit_downside_exposure"
+    ],
+    "cautions": [
+      "hedging_reduces_upside",
+      "counterparty_risk_remains",
+      "improper_use_can_amplify_risk"
+    ]
+  },
+  "resilienceHeuristics": [
+    "Maintain liquidity buffer for worst-case duration scenario.",
+    "Avoid concentration in single revenue source.",
+    "Match debt maturity with asset duration.",
+    "Build redundancy in mission-critical systems.",
+    "Test crisis response before crisis occurs."
+  ],
+  "diagnosticQuestions": [
+    "What risk could permanently impair the business?",
+    "What scenario causes liquidity failure?",
+    "How correlated are your main risk exposures?",
+    "Where are you overconfident in assumptions?",
+    "If revenue dropped 30 percent, what breaks first?"
+  ],
+  "exampleUseCases": [
+    "stress_testing_saas_revenue_under_rate_hikes",
+    "analyzing_leverage_risk_for_small_business",
+    "designing_liquidity_buffer_strategy",
+    "evaluating_currency_exposure_for_exporter",
+    "building_enterprise_risk_dashboard"
+  ]
+}

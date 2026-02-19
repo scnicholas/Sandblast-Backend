@@ -1,0 +1,39 @@
+{
+  "id": "eng_register_corpus_usage_v1",
+  "version": "1.0.0",
+  "description": "Register and corpus-informed usage: how English differs across conversation, news, fiction, academic prose, and professional writing.",
+  "anchors": ["S_BIBER_LGSWE", "S_SWAN_PEU"],
+  "topics": [
+    {
+      "name": "Register Differences (High-Level)",
+      "coreClaims": [
+        "Academic prose tends to compress information (nominalizations, dense noun phrases).",
+        "Conversation tends to be interactive (pronouns, stance markers, ellipsis, discourse particles)."
+      ],
+      "practice": [
+        "Convert conversational phrasing into academic register while preserving meaning.",
+        "Spot register-inappropriate forms (not errors, but mismatches)."
+      ]
+    },
+    {
+      "name": "Frequency-Driven Reasoning",
+      "coreClaims": [
+        "When multiple grammatical options exist, distribution by register helps decide which to use.",
+        "A usage decision can be supported by: (a) register expectations, (b) clarity goals, (c) audience norms."
+      ],
+      "practice": [
+        "Write a brief 'usage justification' note for one contested form (e.g., passive voice in methods sections)."
+      ]
+    },
+    {
+      "name": "Usage Diagnostic Workflow",
+      "coreClaims": [
+        "High-performing students treat usage as a debugging task: identify pattern → consult reference → test in context.",
+        "Error logs work best when grouped by pattern (articles, prepositions, complement frames)."
+      ],
+      "practice": [
+        "Maintain a 20-item error log with: pattern, example, correction, rule-of-thumb, register note."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "domain": "law",
+  "domainVersion": "1.0.0",
+  "updatedAt": "2026-02-12",
+  "defaultLoadOrder": [
+    "law_safety_and_posture_v1.json",
+    "law_foundations_v1.json",
+    "law_constitutional_charter_v1.json",
+    "law_criminal_v1.json",
+    "law_contracts_v1.json",
+    "law_torts_v1.json",
+    "law_research_methods_v1.json"
+  ],
+  "packs": [
+    {
+      "file": "law_safety_and_posture_v1.json",
+      "version": 1,
+      "tags": ["safety", "posture", "non-advice", "boundaries"],
+      "priority": 100
+    },
+    {
+      "file": "law_foundations_v1.json",
+      "version": 1,
+      "tags": ["intro", "legal-system", "core"],
+      "priority": 85
+    },
+    {
+      "file": "law_constitutional_charter_v1.json",
+      "version": 1,
+      "tags": ["constitutional", "charter", "rights"],
+      "priority": 80
+    },
+    {
+      "file": "law_criminal_v1.json",
+      "version": 1,
+      "tags": ["criminal", "liability", "procedure"],
+      "priority": 75
+    },
+    {
+      "file": "law_contracts_v1.json",
+      "version": 1,
+      "tags": ["contracts", "agreements", "obligations"],
+      "priority": 75
+    },
+    {
+      "file": "law_torts_v1.json",
+      "version": 1,
+      "tags": ["torts", "negligence", "civil-liability"],
+      "priority": 70
+    },
+    {
+      "file": "law_research_methods_v1.json",
+      "version": 1,
+      "tags": ["research", "case-law", "precedent"],
+      "priority": 65
+    }
+  ],
+  "examples": [
+    { "file": "law_face_examples_v1.json", "version": 1 },
+    { "file": "law_dialogue_snippets_v1.json", "version": 1 }
+  ]
+}

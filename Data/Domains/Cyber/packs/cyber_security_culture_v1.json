@@ -1,0 +1,128 @@
+{
+  "packId": "cyber_security_culture_v1",
+  "domain": "cybersecurity",
+  "packType": "security_culture",
+  "version": 1,
+  "updatedAt": "2026-02-12",
+  "intent": "Organizational security culture, human factors, governance mindset, and behavioral risk reduction principles.",
+  "coreThesis": "Security failures are often behavioral and systemic, not purely technical. Culture determines resilience.",
+  "principles": [
+    {
+      "id": "culture_shared_responsibility",
+      "name": "Security Is a Shared Responsibility",
+      "summary": "Security is not only an IT function; it requires participation across leadership, engineering, operations, and staff.",
+      "useWhen": ["governance design", "policy rollouts", "executive alignment"],
+      "retrievalHints": {
+        "keywords": ["security culture", "shared responsibility", "leadership"],
+        "intentSignals": ["policy", "organization", "governance"]
+      }
+    },
+    {
+      "id": "culture_psychological_safety",
+      "name": "Psychological Safety in Reporting",
+      "summary": "Employees must feel safe reporting mistakes or suspicious events without fear of punishment.",
+      "impact": "Improves early detection and reduces concealment of incidents.",
+      "retrievalHints": {
+        "keywords": ["report incident", "whistleblowing", "fear of reporting"],
+        "intentSignals": ["culture", "improve reporting"]
+      }
+    },
+    {
+      "id": "culture_training_awareness",
+      "name": "Continuous Training & Awareness",
+      "summary": "Security awareness is an ongoing behavioral reinforcement process.",
+      "methods": [
+        "Phishing simulation exercises.",
+        "Short, periodic security refreshers.",
+        "Contextual training tied to real workflows."
+      ],
+      "retrievalHints": {
+        "keywords": ["security training", "phishing awareness", "education"],
+        "intentSignals": ["train", "educate", "improve awareness"]
+      }
+    },
+    {
+      "id": "culture_executive_buyin",
+      "name": "Executive Buy-In & Tone from the Top",
+      "summary": "Leadership behavior signals organizational priorities.",
+      "impact": [
+        "Budget allocation for controls.",
+        "Resource prioritization.",
+        "Incident transparency."
+      ],
+      "retrievalHints": {
+        "keywords": ["executive support", "board", "leadership"],
+        "intentSignals": ["strategy", "investment"]
+      }
+    }
+  ],
+  "humanRiskPatterns": [
+    {
+      "id": "risk_social_engineering",
+      "description": "Manipulation of human trust to bypass technical controls.",
+      "examples": [
+        "Phishing emails.",
+        "Pretexting phone calls.",
+        "Impersonation attacks."
+      ],
+      "impact": "Credential compromise or financial fraud."
+    },
+    {
+      "id": "risk_shadow_it",
+      "description": "Unauthorized use of tools or services outside governance oversight.",
+      "impact": "Unmonitored data exposure and compliance gaps."
+    },
+    {
+      "id": "risk_normalization_of_deviation",
+      "description": "Gradual acceptance of insecure shortcuts due to productivity pressure.",
+      "impact": "Control erosion over time."
+    }
+  ],
+  "organizationalControls": [
+    {
+      "id": "control_clear_policy_framework",
+      "name": "Clear Policy Framework",
+      "description": "Policies must be understandable, enforceable, and aligned with daily operations."
+    },
+    {
+      "id": "control_incident_playbooks",
+      "name": "Defined Incident Playbooks",
+      "description": "Employees should know exactly what to do if they suspect compromise."
+    },
+    {
+      "id": "control_metrics_reporting",
+      "name": "Security Metrics & Reporting",
+      "description": "Track phishing rates, patch timelines, incident detection speed, and awareness engagement."
+    }
+  ],
+  "crossDomainSignals": {
+    "psychologyOverlap": [
+      "Cognitive bias in phishing susceptibility.",
+      "Behavioral reinforcement loops.",
+      "Stress-induced decision errors."
+    ],
+    "lawOverlap": [
+      "Compliance training obligations.",
+      "Regulatory reporting requirements."
+    ],
+    "financeOverlap": [
+      "Fraud prevention culture.",
+      "Insider threat mitigation."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "security culture",
+      "human risk",
+      "phishing training",
+      "governance",
+      "leadership",
+      "insider threat"
+    ],
+    "intentSignals": [
+      "improve culture",
+      "reduce human risk",
+      "organizational security"
+    ]
+  }
+}
