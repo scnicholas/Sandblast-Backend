@@ -13,14 +13,11 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117h (CRITICAL HERO RESTORE++++ + FALLBACK HARDEN++++ + LOOP/ORIGIN SAFE++++)
+     v9117i (DEBUG HARD-GATE++++ + PROD CLEAN++++)
      Fixes:
-     ✅ CRITICAL: image fallback fixed (no invalid url(var(--x)) quoting)
-     ✅ Video autoplay/slow-load guarded: “black stage” prevented
-     ✅ Default hero ALWAYS visible even without parent config
-     ✅ Config storms deduped; origin lock remains strict
-     ✅ Chips hide/show no longer gets stuck while typing
-     ✅ escapeRegExp fixed (regex class bug)
+     ✅ Cog badge + diag cannot be enabled by parent config
+     ✅ Debug UI ONLY via ?nyx_debug=1
+     ✅ Keeps all v9117h hero restore + fallback harden + loop/origin safe
      ============================================================ */
 
   :root{
@@ -430,6 +427,8 @@
     display:none;
   }
 
+  /* IMPORTANT: debug UI only shows when html has .nyx-debug,
+     and .nyx-debug can only be enabled via ?nyx_debug=1 (JS hard gate). */
   html.nyx-debug #nyxDiag{ display:block; }
   html.nyx-debug #nyxCogBadge{ display:inline-flex; }
 
@@ -506,7 +505,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117h • ready</div>
+        <div id="nyxDiag">HOST v9117i • ready</div>
       </div>
     </div>
   </div>
@@ -514,6 +513,13 @@
 <script>
 (function(){
   "use strict";
+
+  // ===== Debug hard gate (cannot be enabled by parent config) =====
+  var DEBUG_ALLOWED = false;
+  try{
+    var qs = new URLSearchParams(location.search || "");
+    DEBUG_ALLOWED = (qs.get("nyx_debug") === "1");
+  }catch(_){}
 
   // ==========
   // Utilities
@@ -629,7 +635,7 @@
   var CONFIG_ONCE_HASH = "";
 
   var CONFIG = {
-    version: "9117h",
+    version: "9117i",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -640,8 +646,13 @@
   };
 
   function applyDebugGate(){
-    document.documentElement.classList.toggle("nyx-debug", !!CONFIG.debug);
-    if(!CONFIG.debug && cogEl) cogEl.style.display = "none";
+    // Debug can ONLY be enabled locally via ?nyx_debug=1
+    var dbg = !!(CONFIG.debug && DEBUG_ALLOWED);
+
+    document.documentElement.classList.toggle("nyx-debug", dbg);
+
+    if(cogEl) cogEl.style.display = dbg ? "inline-flex" : "none";
+    if(diagEl) diagEl.style.display = dbg ? "block" : "none";
   }
 
   // ==========
@@ -689,11 +700,11 @@
   }
 
   // ==========
-  // Debug badge renderer (DEBUG-ONLY)
+  // Debug badge renderer (DEBUG-ONLY, hard gated)
   // ==========
   function renderCogBadge(data){
     if(!cogEl) return;
-    if(!CONFIG.debug) { cogEl.style.display = "none"; return; }
+    if(!(CONFIG.debug && DEBUG_ALLOWED)) { cogEl.style.display = "none"; return; }
 
     var lane = (data && typeof data.lane === "string") ? data.lane : "";
     var cog = (data && data.cog && typeof data.cog === "object") ? data.cog : null;
@@ -765,7 +776,6 @@
   function setHeroImageSrc(url){
     var u = safeCssUrl(url);
     if(!u) return false;
-    // store poster + stage background
     try{ if(heroVid) heroVid.setAttribute("poster", u); }catch(_){}
     setStageImage(u);
     return true;
@@ -804,16 +814,16 @@
     // If autoplay is blocked, fallback to image after a short grace window.
     var autoplayGuard = setTimeout(function(){
       try{
-        if(heroVid.readyState < 2){ // HAVE_CURRENT_DATA
+        if(heroVid.readyState < 2){
           setStageImageFallback(true);
-          diag("HOST v9117h • autoplay blocked (fallback)");
+          diag("HOST v9117i • autoplay blocked (fallback)");
         }
       }catch(_){}
     }, 900);
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117h • video error (fallback)");
+      diag("HOST v9117i • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
@@ -891,14 +901,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117h • origin locked");
+        diag("HOST v9117i • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117h • ready (ack)");
+        diag("HOST v9117i • ready (ack)");
         return;
       }
 
@@ -916,7 +926,7 @@
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
           postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
-          diag("HOST v9117h • config deduped");
+          diag("HOST v9117i • config deduped");
           return;
         }
         CONFIG_ONCE_HASH = cfgSig;
@@ -927,7 +937,9 @@
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
         if(typeof c.publicMode === "boolean") CONFIG.publicMode = c.publicMode;
         if(Array.isArray(c.forbiddenNames)) CONFIG.forbiddenNames = c.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
-        if(typeof c.debug === "boolean") CONFIG.debug = c.debug;
+
+        // HARD GATE: parent cannot enable debug unless URL allows it
+        if(typeof c.debug === "boolean") CONFIG.debug = (DEBUG_ALLOWED ? c.debug : false);
 
         applyDebugGate();
 
@@ -950,7 +962,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117h • config loaded");
+        diag("HOST v9117i • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -968,7 +980,7 @@
 
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117h • cal applied");
+        diag("HOST v9117i • cal applied");
         return;
       }
 
@@ -1162,7 +1174,6 @@
     chip = safeStr(chip).trim();
     if(!chip) return;
 
-    // External nav chips: do NOT hit backend chat unless you explicitly want that behavior.
     if(chip === "schedule" || chip === "news-canada"){
       setActiveChip(chip);
       openLinkForChip(chip);
@@ -1287,7 +1298,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117h • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117i • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1310,10 +1321,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117h • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117i • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117h • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117i • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1385,7 +1396,7 @@
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117h • deduped outbound");
+      diag("HOST v9117i • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1393,7 +1404,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117h • sending…");
+    diag("HOST v9117i • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1413,7 +1424,7 @@
     var rSig = replySig(out, packet.lane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117h • deduped reply");
+      diag("HOST v9117i • deduped reply");
       setPending(false);
       return out;
     }
@@ -1435,14 +1446,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117h • ok");
+      diag("HOST v9117i • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       await renderAssistantReply(msg);
 
-      diag("HOST v9117h • error " + (status || "unknown"));
+      diag("HOST v9117i • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
@@ -1487,16 +1498,12 @@
       }
     });
 
-    // FIXED: do not permanently hide chips while typing; only soften visually if desired.
+    // v9117h FIX preserved: do not hide/show chips loop while typing
     inputEl.addEventListener("input", function(){
       if(!HAS_ASSISTANT_SPOKEN) return;
-      // leave chips shown; no toggling loop here
     }, { passive:true });
   }
 
-  // ==========
-  // Chip show on first assistant output: initial default text is NOT “assistant spoken”
-  // ==========
   setMarionOn(false);
   applyDebugGate();
 
