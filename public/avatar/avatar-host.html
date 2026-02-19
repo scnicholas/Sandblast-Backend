@@ -676,7 +676,6 @@
     var u = safeCssUrl(url);
     if(!u) return false;
 
-    // Reset sources safely
     try{
       heroVid.pause();
       heroVid.removeAttribute("src");
@@ -688,7 +687,6 @@
     source.type = "video/mp4";
     heroVid.appendChild(source);
 
-    // Attempt play
     heroVid.load();
     var p = heroVid.play();
     if(p && typeof p.catch === "function"){ p.catch(function(){}); }
@@ -699,16 +697,48 @@
   function setHeroImageSrc(url){
     var u = safeCssUrl(url);
     if(!u) return false;
-    // set CSS var used by fallback bg
     document.documentElement.style.setProperty("--nyx-hero-img", '"' + u + '"');
-    // also set as poster so you see something quickly
     if(heroVid) heroVid.setAttribute("poster", u);
     return true;
   }
 
+  // IMPORTANT: iOS/Safari sometimes refuses autoplay until metadata is ready;
+  // if video errors, we fall back to image stage.
+  if(heroVid){
+    heroVid.muted = true;
+    heroVid.loop = true;
+    heroVid.playsInline = true;
+    heroVid.setAttribute("playsinline", "playsinline");
+    heroVid.setAttribute("muted", "muted");
+    heroVid.setAttribute("autoplay", "autoplay");
+
+    heroVid.addEventListener("error", function(){
+      setStageImageFallback(true);
+      diag("HOST v9117f • video error (fallback)");
+    });
+
+    heroVid.addEventListener("loadeddata", function(){
+      // if we got frames, keep video mode
+      setStageImageFallback(false);
+    });
+  }
+
   // default wiring: mp4
   setStageImageFallback(false);
-  setHeroVideoSrc(getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-video").replace(/["']/g,"").trim());
+  (function(){
+    try{
+      var raw = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-video");
+      raw = raw.replace(/["']/g,"").trim();
+      if(raw){
+        var ok = setHeroVideoSrc(raw);
+        if(!ok) setStageImageFallback(true);
+      }else{
+        setStageImageFallback(true);
+      }
+    }catch(_){
+      setStageImageFallback(true);
+    }
+  })();
 
   // ==========
   // postMessage bridge (hardened)
@@ -806,7 +836,6 @@
         if(CONFIG.heroSrc){
           var safeUrl = safeCssUrl(CONFIG.heroSrc);
           if(safeUrl){
-            // if mp4 -> video src; else treat as image fallback/poster
             if(isMp4Url(safeUrl)){
               setStageImageFallback(false);
               setHeroVideoSrc(safeUrl);
