@@ -3235,12 +3235,11 @@ function shutdown(signal) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
+Updated upstream
+Updated upstream
 module.exports = { app, INDEX_VERSION };
-=======
-=======
->>>>>>> Stashed changes
+
+Stashed changes
 module.exports = { app, INDEX_VERSION };"use strict";
 
 /**
