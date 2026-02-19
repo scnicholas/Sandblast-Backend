@@ -17,18 +17,17 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7g (YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++)
- * ✅ Fix++++: correct `"use strict";` header (no malformed quote)
- * ✅ Fix++++: PUBLIC_MAX_YEAR now dynamic (current year) while spine still supports 1900..2100
- * ✅ Harden++++: publicMode safety default remains TRUE unless explicitly forced false (kept)
- * ✅ Harden++++: payload clamp + inbound hard limits preserved
+ * v0.7h (CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++)
+ * ✅ Fix++++: ALWAYS return ctx/ui/directives/requestId (stops front-end null reads / layout oddities)
+ * ✅ Fix++++: reset returns a short reply (no “blank bubble”)
+ * ✅ Keeps: YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++
  * ✅ Keeps: Loop governor, public redaction, greeting privacy, central reply pipeline
  * ✅ Keeps: spine finalizeTurn/updateState exactly-once semantics
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
 const CE_VERSION =
-  "chatEngine v0.7g (YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7h (CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -1545,6 +1544,56 @@ function pendingAskObj(id, type, prompt, required) {
 }
 
 // -------------------------
+// contract hardening++++
+// -------------------------
+function coerceFollowUps(fu) {
+  const out = asArray(fu)
+    .map((c, i) => {
+      if (!c) return null;
+      const id = safeStr(c.id || `fu_${i + 1}`);
+      const type = safeStr(c.type || "chip");
+      const label = safeStr(c.label || c.title || "Next").trim();
+      const payload = isPlainObject(c.payload) ? c.payload : {};
+      return { id, type, label, payload };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  return out;
+}
+
+function buildUi(followUps, followUpsStrings) {
+  const fu = coerceFollowUps(followUps);
+  const fustr = asArray(followUpsStrings)
+    .map((x) => safeStr(x).trim())
+    .filter(Boolean)
+    .slice(0, 12);
+
+  // UI is optional, but we ALWAYS return a stable shape (prevents undefined reads)
+  return {
+    followUps: fu,
+    followUpsStrings: fustr,
+  };
+}
+
+function resolveRequestId(input, norm, inboundKey) {
+  const cands = [
+    input?.requestId,
+    norm?.body?.requestId,
+    norm?.body?.rid,
+    norm?.ctx?.requestId,
+    norm?.ctx?.rid,
+    norm?.payload?.requestId,
+    norm?.payload?.rid,
+  ]
+    .map((x) => safeStr(x).trim())
+    .filter(Boolean);
+
+  if (cands.length) return cands[0].slice(0, 64);
+  // deterministic per inbound within this engine instance
+  return `r_${sha1Lite(`${inboundKey}|${nowMs()}`).slice(0, 16)}`;
+}
+
+// -------------------------
 // main engine
 // -------------------------
 async function handleChat(input) {
@@ -1608,6 +1657,8 @@ async function handleChat(input) {
   cog.inboundKey = inboundKey;
   cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
+  const requestId = resolveRequestId(input, norm, inboundKey);
+
   const yearSticky = normYear(session.lastYear) ?? null;
   const year = norm.year ?? yearSticky ?? null;
 
@@ -1658,10 +1709,43 @@ async function handleChat(input) {
   function metaBase(extra) {
     return {
       engine: CE_VERSION,
+      requestId,
       ...extra,
       turnSignals: norm.turnSignals,
       telemetry,
       elapsedMs: nowMs() - started,
+    };
+  }
+
+  function buildContract(out) {
+    const followUps = coerceFollowUps(out.followUps);
+    const followUpsStrings = asArray(out.followUpsStrings)
+      .map((x) => safeStr(x).trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    const ui = buildUi(followUps, followUpsStrings);
+
+    return {
+      ok: true,
+      reply: safeStr(out.reply || "").trim(),
+      lane: safeStr(out.lane || lane || "general"),
+
+      // ALWAYS present (prevents UI null errors)
+      ctx: isPlainObject(norm.ctx) ? norm.ctx : {},
+      ui,
+
+      // Always present (empty array default)
+      directives: asArray(out.directives).filter(Boolean),
+
+      // Compatibility fields
+      followUps,
+      followUpsStrings,
+
+      sessionPatch: out.sessionPatch,
+      cog,
+      requestId,
+      meta: out.meta,
     };
   }
 
@@ -1682,42 +1766,44 @@ async function handleChat(input) {
       updateReason: "reset",
     });
 
-    return {
-      ok: true,
-      reply: "",
+    const reply = finalizeReply("Reset complete.");
+
+    const sessionPatch = {
+      ...baseCogPatch,
+
       lane: "general",
-      sessionPatch: {
-        ...baseCogPatch,
+      lastYear: null,
+      lastMode: null,
+      lastMusicYear: null,
+      __musicLastSig: "",
+      activeMusicChart: "",
+      lastMusicChart: "",
+      musicMomentsLoaded: false,
+      musicMomentsLoadedAt: 0,
+      lastSigTransition: "",
+      velvetMode: false,
+      velvetSince: 0,
 
-        lane: "general",
-        lastYear: null,
-        lastMode: null,
-        lastMusicYear: null,
-        __musicLastSig: "",
-        activeMusicChart: "",
-        lastMusicChart: "",
-        musicMomentsLoaded: false,
-        musicMomentsLoadedAt: 0,
-        lastSigTransition: "",
-        velvetMode: false,
-        velvetSince: 0,
+      __greeted: false,
+      __greetedAt: 0,
+      __lastInboundKey: "",
 
-        __greeted: false,
-        __greetedAt: 0,
-        __lastInboundKey: "",
+      __loopSig: "",
+      __loopAt: 0,
+      __loopN: 0,
 
-        __loopSig: "",
-        __loopAt: 0,
-        __loopN: 0,
+      __spineState: coreNext,
+    };
 
-        __spineState: coreNext,
-      },
-      cog,
+    return buildContract({
+      reply,
+      lane: "general",
+      sessionPatch,
       meta: metaBase({
         resetHint: true,
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -1753,20 +1839,18 @@ async function handleChat(input) {
       __spineState: coreNext,
     };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "general",
       followUps: f.followUps,
       followUpsStrings: f.followUpsStrings,
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "counsel_intro",
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -1802,20 +1886,18 @@ async function handleChat(input) {
 
     const routePatch = { lane: "music", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "music",
       followUps: fu,
       followUpsStrings: ["1973", "1988", "1992"],
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "ask_year",
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   if (norm.action === "switch_lane") {
@@ -1851,20 +1933,18 @@ async function handleChat(input) {
 
     const routePatch = { lane: "general", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "general",
       followUps: fu,
       followUpsStrings: ["Music", "Movies", "Sponsors"],
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "switch_lane",
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -1925,20 +2005,18 @@ async function handleChat(input) {
 
       const routePatch = { lane: "movies", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-      return {
-        ok: true,
+      return buildContract({
         reply,
         lane: "movies",
         followUps: fu,
         followUpsStrings: ["Recommend something", "Classic TV"],
         sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-        cog,
         meta: metaBase({
           route: "movies_lane_missing",
           loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
           spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
         }),
-      };
+      });
     }
 
     const reply0 = finalizeReply(safeStr(out.reply || out.message || ""));
@@ -1975,21 +2053,19 @@ async function handleChat(input) {
 
     const routePatch = { lane: "movies", ...moviesPatch, ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "movies",
       followUps,
       followUpsStrings,
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "movies",
         ...(isPlainObject(out.meta) ? out.meta : {}),
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -2025,20 +2101,18 @@ async function handleChat(input) {
 
     const routePatch = { lane: "music", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "music",
       followUps: fu,
       followUpsStrings: ["1973", "1988", "1960"],
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         needYear: true,
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
@@ -2063,19 +2137,17 @@ async function handleChat(input) {
 
     const routePatch = { lane: "music", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "music",
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         outOfRange: true,
         year,
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -2128,18 +2200,16 @@ async function handleChat(input) {
 
       const routePatch = { lane: "music", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-      return {
-        ok: true,
+      return buildContract({
         reply,
         lane: "music",
         sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-        cog,
         meta: metaBase({
           route: "music_module_missing",
           loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
           spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
         }),
-      };
+      });
     }
 
     const reply0 = finalizeReply(safeStr(musicOut.replyRaw || ""));
@@ -2164,21 +2234,19 @@ async function handleChat(input) {
     const musicPatch = isPlainObject(musicOut.sessionPatch) ? musicOut.sessionPatch : {};
     const routePatch = { lane: "music", ...musicPatch, ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "music",
       followUps: asArray(musicOut.followUps),
       followUpsStrings: asArray(musicOut.followUpsStrings),
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: safeStr(musicOut.route || "music"),
         ...(isPlainObject(musicOut.meta) ? musicOut.meta : {}),
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   // -------------------------
@@ -2206,12 +2274,10 @@ async function handleChat(input) {
 
     const routePatch = { lane: "music", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "music",
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "general_default_music",
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
@@ -2220,7 +2286,7 @@ async function handleChat(input) {
         confidence: cog.confidence,
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   if (/\b(what do you want to talk about|what should we talk about|can we talk|i need to talk|just talk)\b/i.test(safeStr(norm.text || ""))) {
@@ -2246,20 +2312,18 @@ async function handleChat(input) {
 
     const routePatch = { lane: "general", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-    return {
-      ok: true,
+    return buildContract({
       reply,
       lane: "general",
       followUps: f.followUps,
       followUpsStrings: f.followUpsStrings,
       sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-      cog,
       meta: metaBase({
         route: "general_counsel_intro",
         loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
       }),
-    };
+    });
   }
 
   const reply0 = finalizeReply(
@@ -2296,14 +2360,12 @@ async function handleChat(input) {
 
   const routePatch = { lane: lane || "general", ...(sigLine ? { lastSigTransition: sigLine } : {}), ...loop.patch, __spineState: coreNext };
 
-  return {
-    ok: true,
+  return buildContract({
     reply,
     lane: lane || "general",
     followUps: fu,
     followUpsStrings: ["Music", "Movies", "Sponsors"],
     sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-    cog,
     meta: metaBase({
       route: "general",
       loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
@@ -2312,7 +2374,7 @@ async function handleChat(input) {
       confidence: cog.confidence,
       spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
     }),
-  };
+  });
 }
 
 /**
