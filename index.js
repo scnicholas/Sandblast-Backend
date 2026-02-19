@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cor (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + rate guard + graceful shutdown + load visibility retained)
+ * index.js v1.5.19aa (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -2277,6 +2277,23 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 // CORS hard-lock + HARD DENY
 // =========================
 app.use((req, res, next) => {
+  // Public static avatar assets must NEVER be blocked by strict CORS.
+  // Browsers may send Origin on iframe/document requests; treat /avatar as public.
+  const p = safeStr(req.path || "");
+  if (p === "/avatar-host.html" || p === "/avatar" || p.startsWith("/avatar/")) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      req.headers["access-control-request-headers"] ||
+        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
+    );
+    res.setHeader("Access-Control-Max-Age", "600");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    return next();
+  }
+
   const originRaw = safeStr(req.headers.origin || "");
   const origin = normalizeOrigin(originRaw);
   const allow = origin ? isAllowedOrigin(origin) : false;
@@ -2376,6 +2393,14 @@ app.get("/health", (req, res) => {
     knowledge: knowledgeStatusForMeta(),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
+
+
+// Render/uptime keep-alive (public)
+app.get("/_warm", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({ ok: true, ts: Date.now(), v: VERSION });
+});
+
 });
 
 app.get("/api/health", (req, res) => {
@@ -2452,7 +2477,7 @@ function doPacksRefresh(req, res) {
 }
 
 app.post("/api/packs/refresh", doPacksRefresh);
-app.get("/api/packs/refresh", doPacksRefresh);
+app.get("/api/packs/refresh", apiTokenGate, doPacksRefresh);
 
 // =========================
 // PUBLIC Packsight (SAFE)
@@ -2712,7 +2737,33 @@ function applySessionPatch(session, patch) {
     "cog",
     "allowPackets",
     "__nyxIntro",
-    "__nyxVelvet",
+    "__nyxVelvet",,
+    "lastMacMode",
+    "lastTurnIntent",
+    "lastAdvanceAt",
+    "lastLatentDesire",
+    "lastUserConfidence",
+    "lastNyxConfidence",
+    "velvetMode",
+    "velvetSince",
+    "marionState",
+    "marionReason",
+    "marionTrace",
+    "marionTraceHash",
+    "lastNoveltyScore",
+    "lastDiscoveryHintOn",
+    "lastDiscoveryHintReason",
+    "__greeted",
+    "__greetedAt",
+    "__lastInboundKey",
+    "__spineState",
+    "lastAction",
+    "lastSigTransition",
+    "__musicLastSig",
+    "activeMusicChart",
+    "lastMusicChart",
+    "musicMomentsLoaded",
+    "musicMomentsLoadedAt"
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
@@ -2988,7 +3039,7 @@ async function handleChatRoute(req, res) {
 // =========================
 app.post("/api/sandblast-gpt", ipRateGuard, handleChatRoute);
 app.post("/api/nyx/chat", ipRateGuard, handleChatRoute);
-app.post("/api/chat", ipRateGuard, handleChatRoute);
+app.post("/api/chat", ipRateGuard, apiTokenGate, handleChatRoute);
 
 // GET guidance
 function chatGetGuidance(req, res) {
