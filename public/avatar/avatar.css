@@ -1,19 +1,11 @@
 /* avatar.css
  *
- * v1.2.7 (HOST-CARD COEXIST++++ + HERO VAR BRIDGE++++ + LEGACY-KILL SAFE++++ + SCROLL SAFE++++ + INPUT FOCUS++++)
+ * v1.2.8 (MP4 HERO WIRING++++ + VIDEO STAGE SUPPORT++++ + PNG FALLBACK PRESERVED++++ + HOST-CARD COEXIST++++)
  *
- * What changed vs v1.2.6:
- * ✅ Coexists with NEW avatar-host “nyxCard” layout (doesn’t accidentally style/kill it)
- * ✅ Bridges hero vars: supports host-set --nyx-hero-abs/--nyx-hero-url AND legacy --nyx-hero-src
- * ✅ “Ghost words” kill-list tightened so we don’t nuke valid host chip rails (#nyxChips in the new card)
- * ✅ Scrollbar styling kept subtle but avoids forcing stable gutters where unsupported
- * ✅ Stronger focus ring defaults for both legacy input dock and new host input
- *
- * Keeps:
- * ✅ Hero ALWAYS renders (dual-path URL system + cover fallback)
- * ✅ Shell can NEVER black-wash hero (forces transparency + pointer-events none)
- * ✅ Overlay UI ALWAYS on top + interactive
- * ✅ Chip rail lock (scrollable, no wrap jump)
+ * Reality check:
+ * - CSS cannot render/play an MP4 as background-image.
+ * - This CSS wires an MP4 URL var + styles a hero <video> if present.
+ * - If your host does NOT include a <video>, you will see the PNG fallback.
  */
 
 :root{
@@ -22,19 +14,27 @@
   --muted:rgba(255,255,255,.75);
 
   /* -------------------------
-     HERO URL HARDENING (BRIDGED)
-     - Host (new) may set: --nyx-hero-abs: url("..."); --nyx-hero-url: var(--nyx-hero-abs)
-     - Legacy (css) uses: --nyx-hero-src: "https://..."; --nyx-hero-url: url("...")
-     We support BOTH without breaking either.
+     HERO SOURCES (BRIDGED)
+     - MP4 is the intended hero now (requires <video>)
+     - PNG remains as fallback for browsers/paths without <video>
      ------------------------- */
+  --nyx-hero-video-src: "https://sandblast-backend.onrender.com/avatar/assets/avatar3.mp4";
+
   --nyx-hero-src: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
   --nyx-hero-abs: url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
   --nyx-hero-url: var(--nyx-hero-abs);
 
   /* Framing defaults for iframe panels */
   --hero-pos: 50% 22%;
-  --hero-scale: cover;
+  --hero-scale: cover; /* for image fallback */
   --hero-opacity: 1;
+
+  /* Video framing knobs */
+  --hero-video-fit: cover;      /* cover | contain */
+  --hero-video-scale: 1.00;     /* additional scale */
+  --hero-video-bright: 1.00;
+  --hero-video-contrast: 1.06;
+  --hero-video-sat: 1.05;
 
   /* Depth framing (clean, no haze) */
   --shoulder-shadow: rgba(0,0,0,.92);
@@ -82,8 +82,9 @@ body{
 }
 
 /* -------------------------
-   HERO (GUARANTEED)
-   NOTE: host may use its own stage (#nyxStage) — this block is for the shell mount path.
+   HERO (FALLBACK IMAGE PATH)
+   - This remains as fallback.
+   - If your host uses #nyxStage with a <video>, see MP4 VIDEO SUPPORT below.
 ------------------------- */
 #nyxShellMount{
   position:absolute !important;
@@ -98,11 +99,7 @@ body{
 
   background-color:#000 !important;
 
-  /* ✅ Triple-path background:
-     1) new host var: var(--nyx-hero-url) (already a url())
-     2) abs var: var(--nyx-hero-abs) (url())
-     3) legacy raw string: url(var(--nyx-hero-src))
-  */
+  /* Fallback image background (PNG/WebP/etc) */
   background-image:
     var(--nyx-hero-url),
     var(--nyx-hero-abs),
@@ -141,10 +138,54 @@ body{
     );
 }
 
+/* -------------------------
+   MP4 VIDEO SUPPORT (TAKES OVER IF VIDEO EXISTS)
+   Targets either:
+   - #nyxStage video   (new host pattern)
+   - #nyxShellMount video (shell-mounted pattern)
+------------------------- */
+
+/* Ensure stage containers can host a full-bleed video */
+#nyxStage,
+#nyxShellMount{
+  position:absolute;
+  inset:0;
+}
+
+/* If a video exists, make it the visual hero */
+#nyxStage video,
+#nyxShellMount video{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+
+  object-fit: var(--hero-video-fit) !important;
+  object-position: var(--hero-pos) !important;
+
+  transform: scale(var(--hero-video-scale)) !important;
+  transform-origin: 50% 24% !important;
+
+  filter:
+    brightness(var(--hero-video-bright))
+    contrast(var(--hero-video-contrast))
+    saturate(var(--hero-video-sat)) !important;
+
+  opacity: var(--hero-opacity) !important;
+  z-index:1 !important;
+  pointer-events:none !important;
+}
+
+/* When a hero video exists, avoid competing image paint on shell mount */
+#nyxShellMount:has(video){
+  background-image:none !important;
+}
+
+/* If your browser lacks :has(), the video still sits on top; image fallback is underneath. */
+
 /* If the shell uses an <img>/<canvas>/<video>, keep it framed */
 #nyxShellMount img,
-#nyxShellMount canvas,
-#nyxShellMount video{
+#nyxShellMount canvas{
   width:100% !important;
   height:100% !important;
   max-width:100% !important;
@@ -188,8 +229,6 @@ body{
 
 /* -------------------------
    OVERLAY AUTHORITY (UI ALWAYS ON TOP)
-   IMPORTANT: new host uses #nyxOverlay + #nyxCard, and it already manages pointer-events.
-   We keep this minimal and avoid messing with #nyxCard layout.
 ------------------------- */
 #nyxOverlay,
 .overlay{
@@ -225,7 +264,6 @@ a.action-pill,
 
 /* -------------------------
    ✅ REMOVE “GHOST WORDS” BEHIND DIALOG
-   Tightened: kill only true legacy rails, DO NOT target #nyxChips (new host rail).
 ------------------------- */
 #chips,
 #chipRail,
@@ -240,7 +278,6 @@ a.action-pill,
   pointer-events:none !important;
 }
 
-/* Only hide stray top-level chip rows if they are NOT inside the nyxCard/bubble */
 body > .chips,
 #avatarRoot > .chips,
 #avatarRoot > #chips,
@@ -282,7 +319,6 @@ body > .chips,
 
 /* -------------------------
    BUBBLE (LEGACY PATH)
-   New host uses #nyxCard; we keep these scoped to #nyxBubble only.
 ------------------------- */
 #nyxBubble{
   position:absolute !important;
@@ -307,7 +343,6 @@ body > .chips,
   z-index:2147483000 !important;
 }
 
-/* Header text: readable + confident */
 #nyxBubbleText{
   padding:16px 20px 12px 20px;
   font-size:15.6px;
@@ -319,7 +354,6 @@ body > .chips,
 
 /* -------------------------
    ACTIONS ROW (CHIPS): ANCHORED + SCROLLABLE (NO WRAP JUMP)
-   Scoped to legacy bubble actions only.
 ------------------------- */
 #nyxBubbleActions{
   display:flex !important;
@@ -338,12 +372,10 @@ body > .chips,
 
   -webkit-overflow-scrolling:touch;
 
-  /* Firefox */
   scrollbar-width:thin;
   scrollbar-color: rgba(255,255,255,.18) rgba(255,255,255,.05);
 }
 
-/* WebKit scrollbar (subtle, not ugly) */
 #nyxBubbleActions::-webkit-scrollbar{ height:8px; }
 #nyxBubbleActions::-webkit-scrollbar-track{
   background: rgba(255,255,255,.05);
@@ -357,7 +389,6 @@ body > .chips,
   background: rgba(255,255,255,.26);
 }
 
-/* Pills (shared look; used by legacy bubble and new host card) */
 .action-pill{
   flex:0 0 auto;
   display:inline-flex;
@@ -397,7 +428,6 @@ body > .chips,
 
 /* -------------------------
    INPUT DOCK (LEGACY PATH)
-   New host uses #nyxInput/#nyxSend; we add focus style for both below.
 ------------------------- */
 .nyx-inputdock,
 #nyxInputDock{
