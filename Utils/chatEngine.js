@@ -17,15 +17,16 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7d (SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ + MINOR HARDEN++++)
- * ✅ Fix++++: extractYearFromText no longer caps at 2025 (supports 1900..2100 via normYear) — matches stateSpine v1.1.5
- * ✅ Fix++++: payloadActionable now tracks the SAME actionable keyset as stateSpine (adds "year", "label", "_id", etc. already present) + stable
- * ✅ Fix++++: year range guards now sync with musicKnowledge defaults (DEFAULT_PUBLIC_MAX_YEAR=2025 kept; extraction supports 2100 but range guard still enforces public window)
- * ✅ Keeps: Spine.finalizeTurn() as ONLY mutator + full inbound shape + Movies lane + MarionSO + budget guarantees + reset ordering + export hardening shim
+ * v0.7e (PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++)
+ * ✅ Adds publicMode (default SAFE=TRUE) and sanitizes replies to prevent identity leakage (e.g., "Alright, Mac.")
+ * ✅ computeOptionAGreetingLine now respects publicMode (no names in public)
+ * ✅ Adds sanitizePublicReply() + applyPublicSanitization() applied to ALL outbound replies
+ * ✅ Leaves Marion ⇄ Nyx bridge intact; lane/mode/intent remain visible
+ * ✅ Keeps: v0.7d fixes (year extraction supports 1900..2100; actionable payload coherence; year range sync)
  */
 
 const CE_VERSION =
-  "chatEngine v0.7d (SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7e (PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -110,6 +111,11 @@ function truthy(v) {
   if (v === true) return true;
   const s = safeStr(v).trim().toLowerCase();
   return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
+}
+function falsy(v) {
+  if (v === false) return true;
+  const s = safeStr(v).trim().toLowerCase();
+  return s === "0" || s === "false" || s === "no" || s === "n" || s === "off";
 }
 function oneLine(s) {
   return safeStr(s).replace(/\s+/g, " ").trim();
@@ -197,6 +203,7 @@ function hasActionablePayload(payload) {
     "allowDerivedTop10",
     "allowYearendFallback",
     "focus",
+    "publicMode",
   ]);
   return keys.some((k) => actionable.has(k));
 }
@@ -219,6 +226,131 @@ function safeJsonStringify(x) {
       return '{"_fail":true}';
     }
   }
+}
+
+// -------------------------
+// PUBLIC MODE / REPLY SANITIZATION (PRIVACY LOCK++++)
+// -------------------------
+function computePublicMode(norm, session) {
+  // SAFE DEFAULT: publicMode=true unless explicitly forced false
+  // Sources (highest priority first): payload.publicMode, ctx.publicMode, body.publicMode, session.publicMode
+  const p = norm && isPlainObject(norm.payload) ? norm.payload : {};
+  const c = norm && isPlainObject(norm.ctx) ? norm.ctx : {};
+  const b = norm && isPlainObject(norm.body) ? norm.body : {};
+  const s = isPlainObject(session) ? session : {};
+
+  const candidates = [
+    p.publicMode,
+    c.publicMode,
+    b.publicMode,
+    s.publicMode,
+    p.public,
+    c.public,
+    b.public,
+    s.public,
+  ];
+
+  for (const v of candidates) {
+    if (v === undefined || v === null || v === "") continue;
+    if (falsy(v)) return false;
+    if (truthy(v)) return true;
+  }
+
+  return true;
+}
+
+function collectForbiddenNames(norm, session) {
+  const out = new Set();
+
+  // hard default (your current owner/dev name)
+  out.add("Mac");
+
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(norm?.ctx) ? norm.ctx : {};
+  const b = isPlainObject(norm?.body) ? norm.body : {};
+  const p = isPlainObject(norm?.payload) ? norm.payload : {};
+
+  const candidates = [
+    s.ownerName,
+    s.userName,
+    s.displayName,
+    s.name,
+    s.macName,
+    c.ownerName,
+    c.userName,
+    c.displayName,
+    c.name,
+    b.ownerName,
+    b.userName,
+    b.displayName,
+    b.name,
+    p.ownerName,
+    p.userName,
+    p.displayName,
+    p.name,
+  ];
+
+  for (const v of candidates) {
+    const name = oneLine(safeStr(v)).trim();
+    // keep sane; avoid injecting big strings into regex
+    if (name && name.length >= 2 && name.length <= 36) out.add(name);
+  }
+
+  // remove empties and duplicates automatically via Set
+  return Array.from(out).filter(Boolean);
+}
+
+function escapeRegExp(s) {
+  return safeStr(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sanitizePublicReply(text, forbiddenNames) {
+  let out = safeStr(text || "");
+  if (!out) return "";
+
+  const names = Array.isArray(forbiddenNames) ? forbiddenNames : [];
+  if (!names.length) return out;
+
+  // 1) Remove direct salutations like "Alright, Mac." / "Okay Mac," / "Hey, Mac."
+  for (const nm of names) {
+    const n = escapeRegExp(nm);
+    // common patterns at sentence starts
+    const reStart = new RegExp(
+      `(^|\\n)\\s*(Alright|Okay|Hey|Hi|Hello)\\s*,?\\s*${n}\\s*([.!?]|,)?\\s*`,
+      "gi"
+    );
+    out = out.replace(reStart, "$1$2. ");
+
+    // "…, Mac." inside a line
+    const reComma = new RegExp(`,\\s*${n}\\b\\s*([.!?])`, "gi");
+    out = out.replace(reComma, "$1");
+
+    // standalone "Mac." line
+    const reSoloLine = new RegExp(`(^|\\n)\\s*${n}\\s*([.!?])?\\s*(?=\\n|$)`, "gi");
+    out = out.replace(reSoloLine, "$1");
+  }
+
+  // 2) Replace remaining name tokens as a last resort (keep grammar readable)
+  for (const nm of names) {
+    const n = escapeRegExp(nm);
+    const reWord = new RegExp(`\\b${n}\\b`, "gi");
+    out = out.replace(reWord, "there");
+  }
+
+  // 3) Cleanup double spaces / punctuation artifacts
+  out = out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\.\s*\./g, ".")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return out;
+}
+
+function applyPublicSanitization(reply, norm, session, publicMode) {
+  if (!publicMode) return safeStr(reply || "").trim();
+  const forbidden = collectForbiddenNames(norm, session);
+  return sanitizePublicReply(reply, forbidden);
 }
 
 // -------------------------
@@ -259,7 +391,15 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
   // Don’t step on counselor-lite boundary/intro.
   if (safeStr(norm?.action || "") === "counsel_intro") return "";
 
-  // Keep tiny; mode-sensitive but not verbose.
+  // PUBLIC MODE: never address by name
+  if (cog && cog.publicMode) {
+    const modeP = safeStr(cog?.mode || "").toLowerCase();
+    if (modeP === "architect") return "Alright.";
+    if (modeP === "transitional") return "Okay.";
+    return "Hey.";
+  }
+
+  // Private/dev mode greeting can be personalized (kept for tooling)
   const mode = safeStr(cog?.mode || "").toLowerCase();
   if (mode === "architect") return "Alright, Mac.";
   if (mode === "transitional") return "Okay, Mac.";
@@ -511,6 +651,7 @@ function buildBoundedTelemetry(
             reason: safeStr(discoveryHint.reason || ""),
           }
         : { enabled: false, reason: safeStr(discoveryHint?.reason || "no") },
+      publicMode: !!cog?.publicMode,
     },
     turn: {
       lane: safeStr(norm?.lane || s.lane || corePrev?.lane || ""),
@@ -1380,7 +1521,8 @@ function runToneRegressionTests() {
     budget: "short",
     confidence: { nyx: 0.9 },
     nextMoveSpeak: "I’m going to advance: smallest next change first, then we verify.",
-    greetLine: "Alright, Mac.",
+    greetLine: "Alright.",
+    publicMode: true,
   };
   const listBody =
     "Top 10 — 1984\n\n" +
@@ -1452,7 +1594,7 @@ function runToneRegressionTests() {
   const g = computeOptionAGreetingLine(
     sess,
     { action: "", turnSignals: { textEmpty: false, hasPayload: false } },
-    { mode: "user" },
+    { mode: "user", publicMode: true },
     "abc"
   );
   assert("optionA_no_greet_on_replay", g === "", g);
@@ -1461,7 +1603,7 @@ function runToneRegressionTests() {
   const g2 = computeOptionAGreetingLine(
     { __greeted: false, __lastInboundKey: "" },
     { action: "reset", turnSignals: { textEmpty: false, hasPayload: false } },
-    { mode: "user" },
+    { mode: "user", publicMode: true },
     "zzz"
   );
   assert("optionA_no_greet_on_reset", g2 === "", g2);
@@ -1479,7 +1621,11 @@ function runToneRegressionTests() {
     safeJsonStringify(n9)
   );
 
-  return { ok: failures.length === 0, failures, ran: 9 };
+  // 10) public sanitization strips owner name
+  const s10 = sanitizePublicReply("Alright, Mac.\n\nDo X.", ["Mac"]);
+  assert("sanitize_strips_mac", !/\bMac\b/i.test(s10), s10);
+
+  return { ok: failures.length === 0, failures, ran: 10 };
 }
 
 // -------------------------
@@ -1515,6 +1661,9 @@ async function handleChat(input) {
 
   const corePrev = coerceCoreSpine(session);
 
+  // PUBLIC MODE (SAFE DEFAULT TRUE)
+  const publicMode = computePublicMode(norm, session);
+
   // Marion mediation (fail-open)
   let cogRaw = null;
   try {
@@ -1527,6 +1676,9 @@ async function handleChat(input) {
 
   // ALWAYS normalize to guarantee required fields
   const cog = normalizeCog(norm, session, cogRaw);
+
+  // Lock publicMode into cog
+  cog.publicMode = !!publicMode;
 
   // Planner must see the full inbound (payload/ctx/turnSignals)
   const spineInbound = buildSpineInbound(norm);
@@ -1571,6 +1723,12 @@ async function handleChat(input) {
     safeStr(corePrev?.lane || "").trim() ||
     (norm.action ? "music" : "general");
 
+  // Central reply pipeline (constitution -> (public sanitize) -> trim)
+  function finalizeReply(replyRaw) {
+    const composed = applyTurnConstitutionToReply(replyRaw, cog, session);
+    return applyPublicSanitization(composed, norm, session, publicMode);
+  }
+
   // Common session telemetry patch (kept small and safe)
   const baseCogPatch = {
     lastMacMode: safeStr(cog.mode || ""),
@@ -1596,6 +1754,9 @@ async function handleChat(input) {
     lastNoveltyScore: clamp01(cog.noveltyScore),
     lastDiscoveryHintOn: !!(cog.discoveryHint && cog.discoveryHint.enabled),
     lastDiscoveryHintReason: safeStr(cog.discoveryHint?.reason || ""),
+
+    // persist publicMode so future turns keep the same safety default
+    publicMode: !!publicMode,
   };
 
   function metaBase(extra) {
@@ -1670,8 +1831,7 @@ async function handleChat(input) {
   // counselor-lite
   // -------------------------
   if (norm.action === "counsel_intro") {
-    const replyRaw = counselorLiteIntro(norm, session, cog);
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(counselorLiteIntro(norm, session, cog));
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
@@ -1719,8 +1879,9 @@ async function handleChat(input) {
   // ask_year + switch_lane (engine-owned UI, not knowledge)
   // -------------------------
   if (norm.action === "ask_year") {
-    const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`;
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(
+      `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`
+    );
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -1776,12 +1937,11 @@ async function handleChat(input) {
 
   if (norm.action === "switch_lane") {
     const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• Sponsors";
-    const replyRaw =
+    const reply = finalizeReply(
       discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
         ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• Sponsors`
-        : baseMenu;
-
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+        : baseMenu
+    );
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -1867,9 +2027,9 @@ async function handleChat(input) {
     }
 
     if (!out || !isPlainObject(out)) {
-      const replyRaw =
-        'Movies lane isn’t wired yet. Ensure Utils/moviesLane.js exports { handleChat }.';
-      const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+      const reply = finalizeReply(
+        'Movies lane isn’t wired yet. Ensure Utils/moviesLane.js exports { handleChat }.'
+      );
       const sigLine = detectSignatureLine(reply);
 
       const fu = [
@@ -1917,8 +2077,7 @@ async function handleChat(input) {
       };
     }
 
-    const replyRaw = safeStr(out.reply || out.message || "");
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(safeStr(out.reply || out.message || ""));
     const sigLine = detectSignatureLine(reply);
 
     const followUpsRaw = asArray(out.followUps);
@@ -1983,8 +2142,7 @@ async function handleChat(input) {
   const requiresYear = ["top10", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
 
   if (requiresYear.includes(norm.action) && !year) {
-    const replyRaw = `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(`Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`);
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -2054,8 +2212,7 @@ async function handleChat(input) {
   }
 
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
-    const replyRaw = `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`;
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(`Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`);
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2131,9 +2288,9 @@ async function handleChat(input) {
     }
 
     if (!musicOut || !isPlainObject(musicOut)) {
-      const replyRaw =
-        "Music module isn’t wired yet. Drop Utils/musicKnowledge.js (with handleMusicTurn) and I’ll route cleanly.";
-      const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+      const reply = finalizeReply(
+        "Music module isn’t wired yet. Drop Utils/musicKnowledge.js (with handleMusicTurn) and I’ll route cleanly."
+      );
       const sigLine = detectSignatureLine(reply);
 
       const coreNext = finalizeSpineTurn({
@@ -2179,7 +2336,7 @@ async function handleChat(input) {
       };
     }
 
-    const reply = applyTurnConstitutionToReply(safeStr(musicOut.replyRaw || ""), cog, session);
+    const reply = finalizeReply(safeStr(musicOut.replyRaw || ""));
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2232,8 +2389,9 @@ async function handleChat(input) {
     (cog.mode === "architect" || cog.mode === "transitional") &&
     safeStr(cog.intent).toUpperCase() === "ADVANCE"
   ) {
-    const replyRaw = `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`;
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(
+      `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`
+    );
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2287,8 +2445,7 @@ async function handleChat(input) {
       safeStr(norm.text || "")
     )
   ) {
-    const replyRaw = counselorLiteIntro(norm, session, cog);
-    const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+    const reply = finalizeReply(counselorLiteIntro(norm, session, cog));
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
@@ -2332,14 +2489,13 @@ async function handleChat(input) {
     };
   }
 
-  const replyRaw =
+  const reply = finalizeReply(
     discoveryHint && discoveryHint.enabled
       ? safeStr(discoveryHint.question).trim()
       : safeStr(norm.text)
       ? "Tell me what you want next: music, movies, or sponsors."
-      : "Okay — tell me what you want next.";
-
-  const reply = applyTurnConstitutionToReply(replyRaw, cog, session);
+      : "Okay — tell me what you want next."
+  );
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
@@ -2414,6 +2570,10 @@ const _exportObj = {
   SIGNATURE_TRANSITIONS,
   validateNyxTone,
   runToneRegressionTests,
+
+  // public mode helpers (safe)
+  computePublicMode,
+  sanitizePublicReply,
 
   // canonical spine module reference (safe)
   STATE_SPINE_VERSION: Spine.SPINE_VERSION,
