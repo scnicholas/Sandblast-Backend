@@ -13,17 +13,13 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117c (MARION ⇄ NYX BRIDGE VISIBLE++++ + ORIGIN LEARN HARDEN++++)
+     v9117d (DEBUG GATED++++ + LOOP GUARD++++ + MARION INDICATOR++++)
      Fixes:
-     ✅ NO "blank slab": flex-card + scroll region (min-height:0)
-     ✅ Clamp-based dock sizing (no % - px calc hazards)
-     ✅ Chips rail is 1-row with subtle edge fades
-     ✅ Input row always visible
-     ✅ Expand enlarges dialogue viewport only (not card height)
-     ✅ Accept NYX_CAL for hero + dock tuning
-     ✅ Marion bridge: renders cog badge (lane/mode/intent/stage/tags) + forwards sanitized cog/meta to parent
-     ✅ Lane mapping includes schedule + news-canada
-     ✅ Origin lock: only learn origin from NYX_* messages + tight allowlist
+     ✅ Debug leak removed: cog badge + diag are DEBUG-ONLY
+     ✅ Marion presence shown via subtle header indicator (non-debug)
+     ✅ Loop guard: outbound dedupe + reply dedupe + in-flight lock
+     ✅ Keeps: premium dock + scroll region + chips rail + expand clamp
+     ✅ Origin lock: only learn origin from NYX_* allowlist
      ============================================================ */
 
   :root{
@@ -38,7 +34,7 @@
     --nyx-hero-dim:.12;
 
     /* Card sizing */
-    --nyx-card-w: min(448px, calc(100vw - 28px)); /* matches widened widget nicely */
+    --nyx-card-w: min(448px, calc(100vw - 28px));
     --nyx-card-radius: 20px;
 
     /* Card dock position */
@@ -62,8 +58,8 @@
     --nyx-accent-soft: rgba(140,0,35,.22);
 
     /* Dialogue viewport clamp (within scroll area) */
-    --nyx-text-max: 118px;         /* collapsed */
-    --nyx-text-max-open: 240px;    /* expanded */
+    --nyx-text-max: 118px;
+    --nyx-text-max-open: 240px;
 
     --ease: cubic-bezier(.2,.8,.2,1);
   }
@@ -99,13 +95,12 @@
     display:flex;
     flex-direction:column;
     justify-content:flex-end;
-    align-items:flex-end;          /* keep card right so face stays clear */
+    align-items:flex-end;
     padding:16px;
     pointer-events:none;
     z-index:10;
   }
 
-  /* Card is interactive */
   #nyxCard, #nyxCard * { pointer-events:auto; }
 
   /* ===== Docked Card ===== */
@@ -125,11 +120,9 @@
     padding:var(--nyx-card-pad);
     margin-bottom: var(--nyx-card-bottom);
 
-    /* ✅ reliable sizing */
     max-height: var(--nyx-card-max);
     overflow:hidden;
 
-    /* ✅ critical: flex column so scroll region gets real height */
     display:flex;
     flex-direction:column;
   }
@@ -159,6 +152,27 @@
     box-shadow: 0 0 14px rgba(140,0,35,.45);
   }
 
+  /* Marion presence indicator (NON-DEBUG) */
+  .nyx-marion{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;height:18px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.18);
+    color: rgba(255,255,255,.72);
+    font: 700 11px var(--nyx-font);
+    letter-spacing: .2px;
+    transform: translateY(-.5px);
+  }
+  .nyx-marion.on{
+    background: rgba(140,0,35,.16);
+    border-color: rgba(140,0,35,.55);
+    color: rgba(255,255,255,.90);
+    box-shadow: 0 0 16px rgba(140,0,35,.25);
+  }
+
   .nyx-head-right{
     display:flex;
     gap:8px;
@@ -186,7 +200,7 @@
     border-color: rgba(255,255,255,.22);
   }
 
-  /* ===== Cog badge (Marion ⇄ Nyx bridge visibility) ===== */
+  /* ===== Cog badge (DEBUG-ONLY) ===== */
   #nyxCogBadge{
     margin: 0 0 10px 0;
     padding:8px 12px;
@@ -200,13 +214,13 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     user-select:none;
-    display:none; /* shown when we have data */
+    display:none;
   }
 
   /* ===== Scroll region ===== */
   #nyxScroll{
     flex: 1 1 auto;
-    min-height: 0;              /* ✅ critical for flex scroll */
+    min-height: 0;
     overflow:auto;
     padding-right: 4px;
     scrollbar-width: thin;
@@ -247,9 +261,7 @@
   }
 
   /* ===== Chips rail with premium edge fades ===== */
-  .nyx-rail{
-    position:relative;
-  }
+  .nyx-rail{ position:relative; }
   .nyx-rail::before,
   .nyx-rail::after{
     content:"";
@@ -274,7 +286,7 @@
     gap:8px;
     overflow-x:auto;
     overflow-y:hidden;
-    padding: 2px 18px 2px 18px; /* space for fades */
+    padding: 2px 18px 2px 18px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
@@ -348,13 +360,18 @@
     filter: brightness(1.04);
   }
 
-  /* ===== Diagnostics (subtle) ===== */
+  /* ===== Diagnostics (DEBUG-ONLY) ===== */
   #nyxDiag{
     margin-top:10px;
     font:12px ui-monospace, Menlo, Consolas, monospace;
     color: rgba(255,255,255,.55);
     user-select:none;
+    display:none;
   }
+
+  /* Debug gate */
+  html.nyx-debug #nyxDiag{ display:block; }
+  html.nyx-debug #nyxCogBadge{ display:inline-flex; }
 
   button:focus, input:focus{
     outline: none;
@@ -393,6 +410,7 @@
         <div class="nyx-title">
           <span class="nyx-dot" aria-hidden="true"></span>
           <span>Nyx</span>
+          <span id="nyxMarion" class="nyx-marion" title="Marion guiding" aria-label="Marion guiding">M</span>
         </div>
 
         <div class="nyx-head-right">
@@ -402,7 +420,7 @@
         </div>
       </div>
 
-      <!-- Marion ⇄ Nyx bridge visibility -->
+      <!-- DEBUG ONLY: Marion ⇄ Nyx bridge visibility -->
       <div id="nyxCogBadge" aria-live="polite"></div>
 
       <div id="nyxScroll">
@@ -426,7 +444,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117c • ready</div>
+        <div id="nyxDiag">HOST v9117d • ready</div>
       </div>
     </div>
   </div>
@@ -456,6 +474,18 @@
   function isPlainObject(x){
     return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
   }
+  function escapeRegExp(s){
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function sha1Lite(str){
+    var s = safeStr(str);
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++){
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
 
   // ==========
   // Elements
@@ -470,25 +500,46 @@
   var micBtn = $("nyxMic");
   var voiceBtn = $("nyxVoiceToggle");
   var cogEl = $("nyxCogBadge");
+  var marionEl = $("nyxMarion");
 
-  function diag(msg){ if(diagEl) diagEl.textContent = msg; }
-  function setText(t){
-    if(!textEl) return;
-    textEl.textContent = sanitizeReplyText(t || "");
-    try{ textEl.scrollTop = 0; }catch(_){}
-  }
-  function escapeRegExp(s){
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function diag(msg){
+    if(diagEl) diagEl.textContent = msg;
   }
 
+  // ==========
+  // Config / Debug gate
+  // ==========
+  var PARENT_ORIGIN = null;
+  var READY_ACK = false;
+
+  var CONFIG = {
+    version: "9117d",
+    apiBase: null,
+    token: null,
+    heroSrc: null,
+    voiceDefaultOn: false,
+    publicMode: true,
+    forbiddenNames: ["Mac"],
+    debug: false
+  };
+
+  function applyDebugGate(){
+    document.documentElement.classList.toggle("nyx-debug", !!CONFIG.debug);
+    // keep debug elements hidden unless debug mode
+    if(!CONFIG.debug){
+      if(cogEl) cogEl.style.display = "none";
+    }
+  }
+
+  // ==========
+  // Public text sanitizer (no dev/owner names)
+  // ==========
   function sanitizeReplyText(t){
-    // PUBLIC MODE: never leak owner/dev names into public-facing dialogue.
     var s = safeStr(t || "");
     if(!CONFIG.publicMode) return s;
 
-    var names = Array.isArray(CONFIG.forbiddenNames) ? CONFIG.forbiddenNames : [];
-    // Always include "Mac" as a default hard block.
-    if(names.indexOf("Mac") === -1) names = names.concat(["Mac"]);
+    var names = Array.isArray(CONFIG.forbiddenNames) ? CONFIG.forbiddenNames.slice(0) : [];
+    if(names.indexOf("Mac") === -1) names.push("Mac");
 
     for(var i=0;i<names.length;i++){
       var n = safeStr(names[i]).trim();
@@ -499,22 +550,39 @@
       }catch(_){}
     }
 
-    // Clean up common patterns like "Alright, there." -> "Alright."
-    s = s.replace(/\bthere\b\s*[,.;:!?]/gi, function(m){
-      return m.trim().slice(-1); // keep punctuation
-    });
+    // Clean up common artifacts after replacement
+    s = s
+      .replace(/\bthere\b\s*[,.;:!?]/gi, function(m){ return m.trim().slice(-1); })
+      .replace(/\s{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
 
-    // Double spaces after replacements
-    s = s.replace(/\s{2,}/g, " ").trim();
+    // Avoid weird leading "Alright, there." lines becoming awkward
+    s = s.replace(/^(alright|okay|hey)\s*,\s*there\b\.?/i, "$1.").trim();
+
     return s;
   }
 
+  function setText(t){
+    if(!textEl) return;
+    textEl.textContent = sanitizeReplyText(t || "");
+    try{ textEl.scrollTop = 0; }catch(_){}
+  }
 
   // ==========
-  // Marion ⇄ Nyx bridge badge renderer (NO raw user text)
+  // Marion presence indicator (NON-DEBUG)
+  // ==========
+  function setMarionOn(on){
+    if(!marionEl) return;
+    marionEl.classList.toggle("on", !!on);
+  }
+
+  // ==========
+  // Debug badge renderer (DEBUG-ONLY)
   // ==========
   function renderCogBadge(data){
     if(!cogEl) return;
+    if(!CONFIG.debug) { cogEl.style.display = "none"; return; }
 
     var lane = (data && typeof data.lane === "string") ? data.lane : "";
     var cog = (data && data.cog && typeof data.cog === "object") ? data.cog : null;
@@ -525,10 +593,9 @@
     if(cog){
       if(cog.mode) parts.push("mode:" + safeStr(cog.mode));
       if(cog.intent) parts.push("intent:" + safeStr(cog.intent));
-      if(cog.stage) parts.push("stage:" + safeStr(cog.stage));
+      if(cog.nextMoveStage) parts.push("stage:" + safeStr(cog.nextMoveStage));
       if(cog.budget) parts.push("budget:" + safeStr(cog.budget));
       if(cog.dominance !== undefined && cog.dominance !== null) parts.push("dom:" + safeStr(cog.dominance));
-
       if(Array.isArray(cog.tags) && cog.tags.length){
         parts.push("tags:" + cog.tags.slice(0,3).map(function(x){ return safeStr(x); }).join(","));
       }
@@ -544,27 +611,15 @@
   }
 
   // ==========
-  // Bridge hardening
+  // postMessage bridge (hardened)
   // ==========
-  var PARENT_ORIGIN = null;
-  var READY_ACK = false;
-
-  var CONFIG = {
-    version: "9117c",
-    apiBase: null,
-    token: null,
-    heroSrc: null,
-    voiceDefaultOn: false
-  };
-
   function postToParent(payload, allowWildcard){
     if(!window.parent || window.parent === window) return false;
     try{
-      // NEVER wildcard after origin lock (secrets/events)
       var target = PARENT_ORIGIN || (allowWildcard ? "*" : null);
       if(!target) return false;
 
-      // redact tokens if any (defense-in-depth)
+      // redact tokens
       if(payload && typeof payload === "object"){
         if(payload.token) payload = Object.assign({}, payload, { token: "[redacted]" });
         if(payload.packet && payload.packet.__token) payload.packet.__token = "[redacted]";
@@ -577,11 +632,9 @@
   }
 
   function sendReady(){
-    // handshake ping (no secrets)
     postToParent({ type:"NYX_READY", v:CONFIG.version, ts: now() }, true);
   }
 
-  // READY retry loop (wildcard allowed only until we learn origin)
   var tries = 0;
   var maxTries = 14;
   var readyTimer = setInterval(function(){
@@ -619,17 +672,16 @@
       var t = data.type;
       if(typeof t !== "string" || t.indexOf("NYX_") !== 0) return;
 
-      // Learn origin only from allowlisted NYX_* types
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117c • origin locked");
+        diag("HOST v9117d • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117c • ready (ack)");
+        diag("HOST v9117d • ready (ack)");
         return;
       }
 
@@ -642,6 +694,9 @@
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
         if(typeof c.publicMode === "boolean") CONFIG.publicMode = c.publicMode;
         if(Array.isArray(c.forbiddenNames)) CONFIG.forbiddenNames = c.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
+        if(typeof c.debug === "boolean") CONFIG.debug = c.debug;
+
+        applyDebugGate();
 
         if(CONFIG.heroSrc){
           document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
@@ -651,11 +706,10 @@
         if(CONFIG.voiceDefaultOn) setVoice(true);
 
         if(!CONFIG.token){
-          // request token (no wildcard)
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117c • config loaded");
+        diag("HOST v9117d • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -666,10 +720,9 @@
         if(typeof cal.heroPosX === "string") document.documentElement.style.setProperty("--nyx-hero-pos-x", cal.heroPosX);
         if(typeof cal.heroPosY === "string") document.documentElement.style.setProperty("--nyx-hero-pos-y", cal.heroPosY);
         if(typeof cal.heroScale === "string") document.documentElement.style.setProperty("--nyx-hero-scale", cal.heroScale);
-
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117c • cal applied");
+        diag("HOST v9117d • cal applied");
         return;
       }
 
@@ -699,7 +752,6 @@
 
     var headers = { "Content-Type":"application/json" };
 
-    // Auth (fail-open if missing token; server may still allow)
     if(CONFIG.token){
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
@@ -746,10 +798,15 @@
     voiceOn: false,
     sttOn: false,
     pending: false,
-    lastRequestId: null
+    lastRequestId: null,
+
+    // Loop guards
+    __lastOutboundSig: "",
+    __lastOutboundAt: 0,
+    __lastReplySig: "",
+    __lastReplyAt: 0
   };
 
-  // Marion lane canonicalization
   function laneFromChip(chip){
     chip = safeStr(chip).toLowerCase().trim();
     if(chip === "general") return "general";
@@ -774,7 +831,6 @@
     var intent = safeStr(opts.intent || "").trim();
     var label = safeStr(opts.label || chip).trim();
 
-    // Default for chip event
     if(!text && !action){
       action = "chip";
       intent = intent || "select";
@@ -992,7 +1048,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117c • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117d • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1015,10 +1071,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117c • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117d • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117c • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117d • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1029,24 +1085,69 @@
   }
 
   // ==========
-  // Send pipeline
+  // Send pipeline (loop guards + Marion indicator)
   // ==========
   function sanitizeCog(cog){
     if(!cog || typeof cog !== "object") return null;
     var out = {};
     if(cog.mode) out.mode = safeStr(cog.mode);
     if(cog.intent) out.intent = safeStr(cog.intent);
-    if(cog.stage) out.stage = safeStr(cog.stage);
+    if(cog.nextMoveStage) out.nextMoveStage = safeStr(cog.nextMoveStage);
     if(cog.budget) out.budget = safeStr(cog.budget);
     if(cog.dominance !== undefined && cog.dominance !== null) out.dominance = cog.dominance;
     if(Array.isArray(cog.tags)) out.tags = cog.tags.slice(0,5).map(function(x){ return safeStr(x); });
+    if(cog.marionTraceHash) out.marionTraceHash = safeStr(cog.marionTraceHash);
     return out;
   }
 
+  function marionPresent(out){
+    // Prefer cog.marionTraceHash; fallback to telemetry traceHash
+    var c = out && out.cog && typeof out.cog === "object" ? out.cog : null;
+    if(c && c.marionTraceHash) return true;
+
+    var t = out && out.meta && out.meta.telemetry && out.meta.telemetry.marion ? out.meta.telemetry.marion : null;
+    if(t && t.traceHash) return true;
+
+    return false;
+  }
+
+  function outboundSig(packet){
+    // stable signature without secrets
+    var keyObj = {
+      t: safeStr(packet && packet.text || ""),
+      lane: safeStr(packet && packet.lane || ""),
+      action: safeStr(packet && packet.action || ""),
+      chip: safeStr(packet && packet.client && packet.client.chip || ""),
+      p: packet && packet.payload ? Object.keys(packet.payload).sort().join(",") : ""
+    };
+    return sha1Lite(JSON.stringify(keyObj)).slice(0, 18);
+  }
+
+  function replySig(out, fallbackLane){
+    var rid = safeStr(out && (out.requestId || out.meta && out.meta.requestId) || "");
+    if(rid) return "rid:" + rid;
+    var r = safeStr(out && out.reply || "");
+    var lane = safeStr(out && out.lane || fallbackLane || "");
+    return "sig:" + sha1Lite(lane + "|" + r.slice(0,220)).slice(0, 18);
+  }
+
   async function sendPacket(packet){
+    // In-flight lock
+    if(UI_STATE.pending) return;
+
+    // Outbound dedupe (prevents accidental double-send / parent spam)
+    var sig = outboundSig(packet);
+    var t = now();
+    if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
+      diag("HOST v9117d • deduped outbound");
+      return;
+    }
+    UI_STATE.__lastOutboundSig = sig;
+    UI_STATE.__lastOutboundAt = t;
+
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117c • sending…");
+    diag("HOST v9117d • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1060,8 +1161,22 @@
 
     var status = Number(out && (out.__httpStatus || out.status || 0)) || 0;
 
-    // Always try to render bridge badge even on error (helps debugging)
+    // Marion indicator (non-debug)
+    setMarionOn(marionPresent(out));
+
+    // Debug badge only if debug
     renderCogBadge(out);
+
+    // Reply dedupe (prevents repeating the same response visually)
+    var rSig = replySig(out, packet.lane);
+    var rt = now();
+    if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
+      diag("HOST v9117d • deduped reply");
+      setPending(false);
+      return out;
+    }
+    UI_STATE.__lastReplySig = rSig;
+    UI_STATE.__lastReplyAt = rt;
 
     if(out && typeof out.reply === "string" && out.reply){
       var clean = sanitizeReplyText(out.reply);
@@ -1078,14 +1193,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117c • ok");
+      diag("HOST v9117d • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       setText(msg);
 
-      diag("HOST v9117c • error " + (status || "unknown"));
+      diag("HOST v9117d • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
@@ -1130,6 +1245,10 @@
       }
     });
   }
+
+  // Default: Marion indicator OFF until we see evidence
+  setMarionOn(false);
+  applyDebugGate();
 
 })();
 </script>
