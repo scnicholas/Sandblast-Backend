@@ -13,12 +13,12 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117d (DEBUG GATED++++ + LOOP GUARD++++ + MARION INDICATOR++++)
+     v9117e (CSS-URL SANITIZE++++ + PAYLOAD NO-MUTATE++++ + PUBLIC SANITIZER FIX++++)
      Fixes:
-     ✅ Debug leak removed: cog badge + diag are DEBUG-ONLY
-     ✅ Marion presence shown via subtle header indicator (non-debug)
-     ✅ Loop guard: outbound dedupe + reply dedupe + in-flight lock
-     ✅ Keeps: premium dock + scroll region + chips rail + expand clamp
+     ✅ heroSrc hardened (prevents CSS breakouts / bad protocols)
+     ✅ postMessage redaction no longer mutates original payload
+     ✅ publicMode name sanitizer replaced “there” artifact + cleanup improved
+     ✅ Keeps: debug gate, Marion indicator, loop guards, docked card, chips rail
      ✅ Origin lock: only learn origin from NYX_* allowlist
      ============================================================ */
 
@@ -359,6 +359,11 @@
     border-color: rgba(255,255,255,.20);
     filter: brightness(1.04);
   }
+  #nyxSend:disabled{
+    opacity:.65;
+    cursor:not-allowed;
+    filter:none;
+  }
 
   /* ===== Diagnostics (DEBUG-ONLY) ===== */
   #nyxDiag{
@@ -414,9 +419,9 @@
         </div>
 
         <div class="nyx-head-right">
-          <button class="nyx-btn" id="nyxMic" type="button" aria-label="Mic">🎙️</button>
-          <button class="nyx-btn" id="nyxVoiceToggle" type="button" aria-label="Voice">🔊 Voice</button>
-          <button class="nyx-btn" id="nyxExpand" type="button" aria-label="Expand">Expand</button>
+          <button class="nyx-btn" id="nyxMic" type="button" aria-label="Mic" title="Mic">🎙️</button>
+          <button class="nyx-btn" id="nyxVoiceToggle" type="button" aria-label="Voice" title="Voice">🔊 Voice</button>
+          <button class="nyx-btn" id="nyxExpand" type="button" aria-label="Expand" title="Expand">Expand</button>
         </div>
       </div>
 
@@ -424,7 +429,7 @@
       <div id="nyxCogBadge" aria-live="polite"></div>
 
       <div id="nyxScroll">
-        <div id="nyxText">Hi… I’m Nyx. How are you today?</div>
+        <div id="nyxText" aria-live="polite">Hi… I’m Nyx. How are you today?</div>
 
         <div class="nyx-divider"></div>
 
@@ -444,7 +449,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117d • ready</div>
+        <div id="nyxDiag">HOST v9117e • ready</div>
       </div>
     </div>
   </div>
@@ -471,9 +476,6 @@
     if(s.length > 256) s = s.slice(0,256);
     return s;
   }
-  function isPlainObject(x){
-    return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
-  }
   function escapeRegExp(s){
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -485,6 +487,15 @@
       h = Math.imul(h, 16777619);
     }
     return (h >>> 0).toString(16);
+  }
+  function safeCssUrl(raw){
+    // Allows only http(s). Escapes quotes/backslashes/parens to avoid CSS url() breakouts.
+    var s = safeStr(raw).trim();
+    if(!s) return "";
+    if(!/^https?:\/\//i.test(s)) return "";
+    s = s.replace(/[\r\n\t]/g, "");
+    s = s.replace(/["\\\)]/g, function(m){ return "\\" + m; });
+    return s;
   }
 
   // ==========
@@ -513,7 +524,7 @@
   var READY_ACK = false;
 
   var CONFIG = {
-    version: "9117d",
+    version: "9117e",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -525,10 +536,7 @@
 
   function applyDebugGate(){
     document.documentElement.classList.toggle("nyx-debug", !!CONFIG.debug);
-    // keep debug elements hidden unless debug mode
-    if(!CONFIG.debug){
-      if(cogEl) cogEl.style.display = "none";
-    }
+    if(!CONFIG.debug && cogEl) cogEl.style.display = "none";
   }
 
   // ==========
@@ -538,6 +546,7 @@
     var s = safeStr(t || "");
     if(!CONFIG.publicMode) return s;
 
+    // Replace forbidden names with a neutral placeholder
     var names = Array.isArray(CONFIG.forbiddenNames) ? CONFIG.forbiddenNames.slice(0) : [];
     if(names.indexOf("Mac") === -1) names.push("Mac");
 
@@ -546,19 +555,20 @@
       if(!n) continue;
       try{
         var rx = new RegExp("\\b" + escapeRegExp(n) + "\\b", "gi");
-        s = s.replace(rx, "there");
+        s = s.replace(rx, "friend");
       }catch(_){}
     }
 
-    // Clean up common artifacts after replacement
+    // Cleanup artifacts like "friend," "friend." etc.
     s = s
-      .replace(/\bthere\b\s*[,.;:!?]/gi, function(m){ return m.trim().slice(-1); })
+      .replace(/\bfriend\b\s*([,.;:!?])/gi, "$1")
+      .replace(/\(\s*friend\s*\)/gi, "")
       .replace(/\s{2,}/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
-    // Avoid weird leading "Alright, there." lines becoming awkward
-    s = s.replace(/^(alright|okay|hey)\s*,\s*there\b\.?/i, "$1.").trim();
+    // Avoid weird leading phrases after replacement
+    s = s.replace(/^(alright|okay|hey)\s*,\s*friend\b\.?/i, "$1.").trim();
 
     return s;
   }
@@ -599,6 +609,7 @@
       if(Array.isArray(cog.tags) && cog.tags.length){
         parts.push("tags:" + cog.tags.slice(0,3).map(function(x){ return safeStr(x); }).join(","));
       }
+      if(cog.marionTraceHash) parts.push("m:" + safeStr(cog.marionTraceHash).slice(0,10));
     }else{
       parts.push("cog:missing");
     }
@@ -619,14 +630,20 @@
       var target = PARENT_ORIGIN || (allowWildcard ? "*" : null);
       if(!target) return false;
 
-      // redact tokens
+      // Redact WITHOUT mutating the original payload object
+      var out = payload;
       if(payload && typeof payload === "object"){
-        if(payload.token) payload = Object.assign({}, payload, { token: "[redacted]" });
-        if(payload.packet && payload.packet.__token) payload.packet.__token = "[redacted]";
-        if(payload.packet && payload.packet.token) payload.packet.token = "[redacted]";
+        out = Object.assign({}, payload);
+        if(out.token) out.token = "[redacted]";
+        if(out.packet && typeof out.packet === "object"){
+          var pkt = Object.assign({}, out.packet);
+          if(pkt.__token) pkt.__token = "[redacted]";
+          if(pkt.token) pkt.token = "[redacted]";
+          out.packet = pkt;
+        }
       }
 
-      window.parent.postMessage(payload, target);
+      window.parent.postMessage(out, target);
       return true;
     }catch(e){ return false; }
   }
@@ -674,14 +691,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117d • origin locked");
+        diag("HOST v9117e • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117d • ready (ack)");
+        diag("HOST v9117e • ready (ack)");
         return;
       }
 
@@ -699,8 +716,11 @@
         applyDebugGate();
 
         if(CONFIG.heroSrc){
-          document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
-          document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
+          var safeUrl = safeCssUrl(CONFIG.heroSrc);
+          if(safeUrl){
+            document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + safeUrl + '")');
+            document.documentElement.style.setProperty("--nyx-hero-url", 'var(--nyx-hero-abs)');
+          }
         }
 
         if(CONFIG.voiceDefaultOn) setVoice(true);
@@ -709,7 +729,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117d • config loaded");
+        diag("HOST v9117e • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -722,7 +742,7 @@
         if(typeof cal.heroScale === "string") document.documentElement.style.setProperty("--nyx-hero-scale", cal.heroScale);
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117d • cal applied");
+        diag("HOST v9117e • cal applied");
         return;
       }
 
@@ -1048,7 +1068,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117d • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117e • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1071,10 +1091,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117d • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117e • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117d • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117e • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1101,7 +1121,6 @@
   }
 
   function marionPresent(out){
-    // Prefer cog.marionTraceHash; fallback to telemetry traceHash
     var c = out && out.cog && typeof out.cog === "object" ? out.cog : null;
     if(c && c.marionTraceHash) return true;
 
@@ -1112,7 +1131,6 @@
   }
 
   function outboundSig(packet){
-    // stable signature without secrets
     var keyObj = {
       t: safeStr(packet && packet.text || ""),
       lane: safeStr(packet && packet.lane || ""),
@@ -1124,7 +1142,7 @@
   }
 
   function replySig(out, fallbackLane){
-    var rid = safeStr(out && (out.requestId || out.meta && out.meta.requestId) || "");
+    var rid = safeStr(out && (out.requestId || (out.meta && out.meta.requestId)) || "");
     if(rid) return "rid:" + rid;
     var r = safeStr(out && out.reply || "");
     var lane = safeStr(out && out.lane || fallbackLane || "");
@@ -1132,14 +1150,13 @@
   }
 
   async function sendPacket(packet){
-    // In-flight lock
     if(UI_STATE.pending) return;
 
-    // Outbound dedupe (prevents accidental double-send / parent spam)
+    // Outbound dedupe
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117d • deduped outbound");
+      diag("HOST v9117e • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1147,7 +1164,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117d • sending…");
+    diag("HOST v9117e • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1167,11 +1184,11 @@
     // Debug badge only if debug
     renderCogBadge(out);
 
-    // Reply dedupe (prevents repeating the same response visually)
+    // Reply dedupe
     var rSig = replySig(out, packet.lane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117d • deduped reply");
+      diag("HOST v9117e • deduped reply");
       setPending(false);
       return out;
     }
@@ -1193,14 +1210,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117d • ok");
+      diag("HOST v9117e • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       setText(msg);
 
-      diag("HOST v9117d • error " + (status || "unknown"));
+      diag("HOST v9117e • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
