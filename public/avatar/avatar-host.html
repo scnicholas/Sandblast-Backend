@@ -13,12 +13,18 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117f (MP4 STAGE++++ + HERO CAL→VIDEO MAP++++ + SAFE HERO URL++++ + IMAGE FALLBACK++++)
+     v9117g (EFFICIENCY 95% PASS++++ + ADAPTIVE CHIPS++++ + MICRO-PAUSE++++ + CHROME REDUCE++++ + NO-LOOP HARDEN++++)
      Fixes:
      ✅ MP4 hero renders correctly (no CSS background-image misuse)
      ✅ heroPosX/heroPosY mapped to video object-position
      ✅ heroScale mapped to video transform scale
      ✅ heroSrc supports mp4 OR image (mp4 loads into <video>, image becomes poster+bg fallback)
+     ✅ Efficiency pass:
+        - Top chrome reduced ~30% visual weight (scale + opacity + hover reveal)
+        - Chips hidden until first assistant reply (adaptive)
+        - Micro-pause cognition beat before rendering assistant reply (with subtle pulse)
+        - Card glass slightly softened so hero/eyes remain dominant
+        - Loop guards strengthened (outbound + reply + config/ready ack stability)
      ✅ Keeps: debug gate, Marion indicator, loop guards, docked card, chips rail
      ✅ Origin lock: only learn origin from NYX_* allowlist
      ============================================================ */
@@ -53,9 +59,9 @@
     /* Typography */
     --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 
-    /* Premium glass */
-    --nyx-glass-1: rgba(24,24,30,.84);
-    --nyx-glass-2: rgba(14,14,20,.92);
+    /* Premium glass (slightly softened so hero dominates) */
+    --nyx-glass-1: rgba(24,24,30,.76);
+    --nyx-glass-2: rgba(14,14,20,.86);
 
     /* Accent */
     --nyx-accent: rgba(140,0,35,.92);
@@ -64,6 +70,14 @@
     /* Dialogue viewport clamp (within scroll area) */
     --nyx-text-max: 118px;
     --nyx-text-max-open: 240px;
+
+    /* Efficiency tuning */
+    --nyx-chrome-scale: .86;            /* ~30% perceived weight reduction */
+    --nyx-chrome-idle-opacity: .62;
+    --nyx-chrome-hover-opacity: .94;
+
+    --nyx-micropause-min: 420;          /* ms */
+    --nyx-micropause-jitter: 340;       /* ms */
 
     --ease: cubic-bezier(.2,.8,.2,1);
   }
@@ -113,6 +127,16 @@
     z-index:2;
   }
 
+  /* Micro-pause pulse (subtle cognition beat) */
+  @keyframes nyxPulse{
+    0%{filter:brightness(1) saturate(1);}
+    50%{filter:brightness(1.08) saturate(1.06);}
+    100%{filter:brightness(1) saturate(1);}
+  }
+  html.nyx-thinking #nyxStage{
+    animation: nyxPulse .55s ease-in-out 1;
+  }
+
   /* ===== Overlay layout (face-first) ===== */
   #nyxOverlay{
     position:absolute;
@@ -132,10 +156,10 @@
   #nyxCard{
     width:var(--nyx-card-w);
     border-radius:var(--nyx-card-radius);
-    border:1px solid rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.11);
 
     background:
-      radial-gradient(120% 160% at 50% 0%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 44%),
+      radial-gradient(120% 160% at 50% 0%, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 46%),
       linear-gradient(145deg, var(--nyx-glass-1), var(--nyx-glass-2));
 
     box-shadow:0 26px 90px rgba(0,0,0,.78);
@@ -202,7 +226,14 @@
     display:flex;
     gap:8px;
     align-items:center;
+
+    /* Reduce top chrome weight */
+    transform: scale(var(--nyx-chrome-scale));
+    transform-origin: top right;
+    opacity: var(--nyx-chrome-idle-opacity);
+    transition: opacity .18s var(--ease);
   }
+  .nyx-head-right:hover{ opacity: var(--nyx-chrome-hover-opacity); }
 
   .nyx-btn{
     font: 12px var(--nyx-font);
@@ -213,12 +244,13 @@
     color: rgba(255,255,255,.88);
     cursor:pointer;
     user-select:none;
-    transition: filter .16s var(--ease), background .16s var(--ease), border-color .16s var(--ease);
+    transition: filter .16s var(--ease), background .16s var(--ease), border-color .16s var(--ease), transform .16s var(--ease);
     white-space:nowrap;
   }
   .nyx-btn:hover{
     filter: brightness(1.08);
     border-color: rgba(255,255,255,.18);
+    transform: translateY(-1px);
   }
   .nyx-btn.is-on{
     background: rgba(255,255,255,.08);
@@ -314,8 +346,24 @@
     padding: 2px 18px 2px 18px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    transition: opacity .22s var(--ease), transform .22s var(--ease), filter .22s var(--ease);
+    will-change: opacity, transform, filter;
   }
   #nyxChips::-webkit-scrollbar{ display:none; }
+
+  /* Adaptive chips: hidden until first assistant reply */
+  html.nyx-chips-hidden #nyxChips{
+    opacity:0;
+    transform: translateY(6px);
+    pointer-events:none;
+    filter: blur(1.5px);
+  }
+  html.nyx-chips-shown #nyxChips{
+    opacity:1;
+    transform: translateY(0);
+    pointer-events:auto;
+    filter:none;
+  }
 
   .action-pill{
     flex:0 0 auto;
@@ -425,6 +473,8 @@
   @media (prefers-reduced-motion: reduce){
     .action-pill{ transition:none; }
     .nyx-btn{ transition:none; }
+    #nyxChips{ transition:none; }
+    html.nyx-thinking #nyxStage{ animation:none; }
   }
 </style>
 </head>
@@ -473,7 +523,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117f • ready</div>
+        <div id="nyxDiag">HOST v9117g • ready</div>
       </div>
     </div>
   </div>
@@ -501,7 +551,7 @@
     return s;
   }
   function escapeRegExp(s){
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
   }
   function sha1Lite(str){
     var s = safeStr(str);
@@ -514,11 +564,10 @@
   }
 
   function safeCssUrl(raw){
-    // Allows only http(s). Strips control chars; blocks JS/data/file protocols.
     var s = safeStr(raw).trim();
     if(!s) return "";
-    if(!/^https?:\/\//i.test(s)) return "";
-    s = s.replace(/[\r\n\t]/g, "");
+    if(!/^https?:\\/\\//i.test(s)) return "";
+    s = s.replace(/[\\r\\n\\t]/g, "");
     return s;
   }
 
@@ -528,7 +577,6 @@
   }
 
   function parseScaleToNumber(v){
-    // Accept "132%" or "1.32"
     var s = safeStr(v).trim();
     if(!s) return 1.0;
     if(s.indexOf("%") > -1){
@@ -564,13 +612,43 @@
   }
 
   // ==========
+  // Efficiency states
+  // ==========
+  function setChipsHidden(){
+    document.documentElement.classList.add("nyx-chips-hidden");
+    document.documentElement.classList.remove("nyx-chips-shown");
+  }
+  function setChipsShown(){
+    document.documentElement.classList.add("nyx-chips-shown");
+    document.documentElement.classList.remove("nyx-chips-hidden");
+  }
+  function thinkingOn(){
+    document.documentElement.classList.add("nyx-thinking");
+  }
+  function thinkingOff(){
+    document.documentElement.classList.remove("nyx-thinking");
+  }
+  function microPause(){
+    var cs = getComputedStyle(document.documentElement);
+    var min = parseInt(cs.getPropertyValue("--nyx-micropause-min"), 10);
+    var jit = parseInt(cs.getPropertyValue("--nyx-micropause-jitter"), 10);
+    if(!isFinite(min)) min = 420;
+    if(!isFinite(jit)) jit = 340;
+    var ms = min + Math.floor(Math.random() * Math.max(0, jit));
+    return new Promise(function(res){ setTimeout(res, ms); });
+  }
+
+  var HAS_ASSISTANT_SPOKEN = false;
+
+  // ==========
   // Config / Debug gate
   // ==========
   var PARENT_ORIGIN = null;
   var READY_ACK = false;
+  var CONFIG_ONCE_HASH = ""; // prevents config loop storms
 
   var CONFIG = {
-    version: "9117f",
+    version: "9117g",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -599,19 +677,19 @@
       var n = safeStr(names[i]).trim();
       if(!n) continue;
       try{
-        var rx = new RegExp("\\b" + escapeRegExp(n) + "\\b", "gi");
+        var rx = new RegExp("\\\\b" + escapeRegExp(n) + "\\\\b", "gi");
         s = s.replace(rx, "friend");
       }catch(_){}
     }
 
     s = s
-      .replace(/\bfriend\b\s*([,.;:!?])/gi, "$1")
-      .replace(/\(\s*friend\s*\)/gi, "")
-      .replace(/\s{2,}/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
+      .replace(/\\bfriend\\b\\s*([,.;:!?])/gi, "$1")
+      .replace(/\\(\\s*friend\\s*\\)/gi, "")
+      .replace(/\\s{2,}/g, " ")
+      .replace(/\\n{3,}/g, "\\n\\n")
       .trim();
 
-    s = s.replace(/^(alright|okay|hey)\s*,\s*friend\b\.?/i, "$1.").trim();
+    s = s.replace(/^(alright|okay|hey)\\s*,\\s*friend\\b\\.?/i, "$1.").trim();
     return s;
   }
 
@@ -702,8 +780,6 @@
     return true;
   }
 
-  // IMPORTANT: iOS/Safari sometimes refuses autoplay until metadata is ready;
-  // if video errors, we fall back to image stage.
   if(heroVid){
     heroVid.muted = true;
     heroVid.loop = true;
@@ -714,16 +790,14 @@
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117f • video error (fallback)");
+      diag("HOST v9117g • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
-      // if we got frames, keep video mode
       setStageImageFallback(false);
     });
   }
 
-  // default wiring: mp4
   setStageImageFallback(false);
   (function(){
     try{
@@ -809,19 +883,36 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117f • origin locked");
+        diag("HOST v9117g • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117f • ready (ack)");
+        diag("HOST v9117g • ready (ack)");
         return;
       }
 
       if(t === "NYX_CONFIG"){
         var c = (data.config && typeof data.config === "object") ? data.config : {};
+
+        // Config dedupe: prevents parent storms from retriggering voice/hero every time.
+        var cfgSig = sha1Lite(JSON.stringify({
+          apiBase: safeStr(c.apiBase||"").trim(),
+          token: safeStr(c.token||"").trim(),
+          heroSrc: safeStr(c.heroSrc||"").trim(),
+          voiceDefaultOn: !!c.voiceDefaultOn,
+          publicMode: (c.publicMode !== false),
+          debug: !!c.debug
+        })).slice(0,18);
+
+        if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
+          postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
+          diag("HOST v9117g • config deduped");
+          return;
+        }
+        CONFIG_ONCE_HASH = cfgSig;
 
         if(typeof c.apiBase === "string") CONFIG.apiBase = safeStr(c.apiBase).trim();
         if(typeof c.token === "string") CONFIG.token = clampToken(c.token, 16);
@@ -852,7 +943,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117f • config loaded");
+        diag("HOST v9117g • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -870,7 +961,7 @@
 
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117f • cal applied");
+        diag("HOST v9117g • cal applied");
         return;
       }
 
@@ -881,6 +972,8 @@
 
       if(t === "NYX_SET_BUBBLE" && typeof data.text === "string"){
         setText(data.text);
+        // Consider this an assistant output (from parent), show chips.
+        if(!HAS_ASSISTANT_SPOKEN){ HAS_ASSISTANT_SPOKEN = true; setChipsShown(); }
         return;
       }
 
@@ -953,6 +1046,9 @@
     __lastReplySig: "",
     __lastReplyAt: 0
   };
+
+  // Start with chips hidden until first assistant reply
+  setChipsHidden();
 
   function laneFromChip(chip){
     chip = safeStr(chip).toLowerCase().trim();
@@ -1192,7 +1288,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117f • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117g • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1215,10 +1311,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117f • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117g • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117f • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117g • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1229,7 +1325,7 @@
   }
 
   // ==========
-  // Send pipeline (loop guards + Marion indicator)
+  // Send pipeline (loop guards + Marion indicator + micro-pause)
   // ==========
   function sanitizeCog(cog){
     if(!cog || typeof cog !== "object") return null;
@@ -1273,13 +1369,26 @@
     return "sig:" + sha1Lite(lane + "|" + r.slice(0,220)).slice(0, 18);
   }
 
+  async function renderAssistantReply(text){
+    thinkingOn();
+    await microPause();
+    thinkingOff();
+
+    setText(text);
+
+    if(!HAS_ASSISTANT_SPOKEN){
+      HAS_ASSISTANT_SPOKEN = true;
+      setChipsShown();
+    }
+  }
+
   async function sendPacket(packet){
     if(UI_STATE.pending) return;
 
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117f • deduped outbound");
+      diag("HOST v9117g • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1287,7 +1396,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117f • sending…");
+    diag("HOST v9117g • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1307,7 +1416,7 @@
     var rSig = replySig(out, packet.lane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117f • deduped reply");
+      diag("HOST v9117g • deduped reply");
       setPending(false);
       return out;
     }
@@ -1316,7 +1425,7 @@
 
     if(out && typeof out.reply === "string" && out.reply){
       var clean = sanitizeReplyText(out.reply);
-      setText(clean);
+      await renderAssistantReply(clean);
       speak(clean);
 
       postToParent({
@@ -1329,14 +1438,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117f • ok");
+      diag("HOST v9117g • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
-      setText(msg);
+      await renderAssistantReply(msg);
 
-      diag("HOST v9117f • error " + (status || "unknown"));
+      diag("HOST v9117g • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
@@ -1380,6 +1489,18 @@
         sendTypedText();
       }
     });
+
+    // Optional: if user is actively typing, dim chips slightly (feels intelligent)
+    inputEl.addEventListener("input", function(){
+      if(!HAS_ASSISTANT_SPOKEN) return;
+      var v = String(inputEl.value || "");
+      if(v.length > 0){
+        document.documentElement.classList.add("nyx-chips-hidden");
+        document.documentElement.classList.remove("nyx-chips-shown");
+      }else{
+        setChipsShown();
+      }
+    }, { passive:true });
   }
 
   setMarionOn(false);
