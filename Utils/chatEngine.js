@@ -17,17 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7c (SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++)
- * ✅ Uses Utils/stateSpine.finalizeTurn() as the ONLY state mutator (no custom patch-spine)
- * ✅ Passes full inbound shape to Spine.decideNextMove/ finalizeTurn (payload/ctx/turnSignals/action/year/lane)
- * ✅ Adds Movies lane execution via Utils/moviesLane.js (fail-open)
- * ✅ Keeps: MarionSO mediation + COG normalization + hard inbound limits + trace safety
- * ✅ Keeps: Music delegated to Utils/musicKnowledge.js (handleMusicTurn) + year guards
- * ✅ Keeps: ranked-list budget guarantee + reset ordering + export hardening shim
+ * v0.7d (SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ + MINOR HARDEN++++)
+ * ✅ Fix++++: extractYearFromText no longer caps at 2025 (supports 1900..2100 via normYear) — matches stateSpine v1.1.5
+ * ✅ Fix++++: payloadActionable now tracks the SAME actionable keyset as stateSpine (adds "year", "label", "_id", etc. already present) + stable
+ * ✅ Fix++++: year range guards now sync with musicKnowledge defaults (DEFAULT_PUBLIC_MAX_YEAR=2025 kept; extraction supports 2100 but range guard still enforces public window)
+ * ✅ Keeps: Spine.finalizeTurn() as ONLY mutator + full inbound shape + Movies lane + MarionSO + budget guarantees + reset ordering + export hardening shim
  */
 
 const CE_VERSION =
-  "chatEngine v0.7c (SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7d (SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -126,10 +124,11 @@ function takeLines(s, maxLines) {
 function extractYearFromText(t) {
   const s = safeStr(t).trim();
   if (!s) return null;
-  const m = s.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
+
+  // FIX++++: do not cap at 2025; accept 1900..2100 tokens and clamp via normYear.
+  const m = s.match(/\b(19\d{2}|20\d{2}|2100)\b/);
   if (!m) return null;
-  const y = Number(m[1]);
-  return normYear(y);
+  return normYear(Number(m[1]));
 }
 function textHasYearToken(t) {
   return extractYearFromText(t) !== null;
@@ -183,7 +182,7 @@ function hasActionablePayload(payload) {
   const keys = Object.keys(payload);
   if (!keys.length) return false;
 
-  // Only these keys count as "turn is actionable"
+  // Coherent with stateSpine.hasActionablePayload
   const actionable = new Set([
     "action",
     "route",
@@ -1431,7 +1430,12 @@ function runToneRegressionTests() {
   const sp0 = Spine.createState({ lane: "general" });
   const sp1 = Spine.finalizeTurn({
     prevState: sp0,
-    inbound: { text: "hi", payload: {}, ctx: {}, turnSignals: { textEmpty: false, hasPayload: false, payloadActionable: false } },
+    inbound: {
+      text: "hi",
+      payload: {},
+      ctx: {},
+      turnSignals: { textEmpty: false, hasPayload: false, payloadActionable: false },
+    },
     lane: "general",
     topicOverride: "help",
     actionTaken: "test",
@@ -1469,7 +1473,11 @@ function runToneRegressionTests() {
     { mode: "architect", intent: "ADVANCE" } // missing many fields
   );
   assert("normalizeCog_confidence_present", isPlainObject(n9.confidence), safeJsonStringify(n9));
-  assert("normalizeCog_trace_hash_present", safeStr(n9.marionTraceHash).length > 0, safeJsonStringify(n9));
+  assert(
+    "normalizeCog_trace_hash_present",
+    safeStr(n9.marionTraceHash).length > 0,
+    safeJsonStringify(n9)
+  );
 
   return { ok: failures.length === 0, failures, ran: 9 };
 }
@@ -1728,7 +1736,12 @@ async function handleChat(input) {
       topic: "help",
       actionTaken: "asked_year",
       followUps: fu,
-      pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
+      pendingAsk: pendingAskObj(
+        "need_year",
+        "clarify",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        true
+      ),
       decision: corePlan,
       assistantSummary: "asked_year",
       updateReason: "ask_year",
@@ -1750,7 +1763,13 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "ask_year",
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -1800,7 +1819,13 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "switch_lane",
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -1881,7 +1906,13 @@ async function handleChat(input) {
         cog,
         meta: metaBase({
           route: "movies_lane_missing",
-          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: safeStr(corePlan.move || ""),
+          },
         }),
       };
     }
@@ -1935,7 +1966,13 @@ async function handleChat(input) {
       meta: metaBase({
         route: "movies",
         ...(isPlainObject(out.meta) ? out.meta : {}),
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -1978,7 +2015,12 @@ async function handleChat(input) {
       topic: "help",
       actionTaken: "asked_year",
       followUps: fu,
-      pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
+      pendingAsk: pendingAskObj(
+        "need_year",
+        "clarify",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        true
+      ),
       decision: corePlan,
       assistantSummary: "asked_year",
       updateReason: "need_year",
@@ -2000,7 +2042,13 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         needYear: true,
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -2017,7 +2065,12 @@ async function handleChat(input) {
       topic: "help",
       actionTaken: "asked_year_range",
       followUps: [],
-      pendingAsk: pendingAskObj("need_year", "clarify", `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`, true),
+      pendingAsk: pendingAskObj(
+        "need_year",
+        "clarify",
+        `Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`,
+        true
+      ),
       decision: corePlan,
       assistantSummary: "asked_year_range",
       updateReason: "year_range",
@@ -2038,7 +2091,13 @@ async function handleChat(input) {
       meta: metaBase({
         outOfRange: true,
         year,
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -2084,7 +2143,12 @@ async function handleChat(input) {
         topic: "help",
         actionTaken: "music_module_missing",
         followUps: [],
-        pendingAsk: pendingAskObj("need_music_module", "clarify", "Wire Utils/musicKnowledge.js (handleMusicTurn).", true),
+        pendingAsk: pendingAskObj(
+          "need_music_module",
+          "clarify",
+          "Wire Utils/musicKnowledge.js (handleMusicTurn).",
+          true
+        ),
         decision: corePlan,
         assistantSummary: "music_module_missing",
         updateReason: "music_missing",
@@ -2104,7 +2168,13 @@ async function handleChat(input) {
         cog,
         meta: metaBase({
           route: "music_module_missing",
-          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: safeStr(corePlan.move || ""),
+          },
         }),
       };
     }
@@ -2144,7 +2214,13 @@ async function handleChat(input) {
       meta: metaBase({
         route: safeStr(musicOut.route || "music"),
         ...(isPlainObject(musicOut.meta) ? musicOut.meta : {}),
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -2167,7 +2243,12 @@ async function handleChat(input) {
       topic: "help",
       actionTaken: "asked_year",
       followUps: [],
-      pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`, true),
+      pendingAsk: pendingAskObj(
+        "need_year",
+        "clarify",
+        `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`,
+        true
+      ),
       decision: corePlan,
       assistantSummary: "asked_year",
       updateReason: "general_default_music",
@@ -2190,7 +2271,13 @@ async function handleChat(input) {
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -2234,7 +2321,13 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "general_counsel_intro",
-        spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        spine: {
+          v: Spine.SPINE_VERSION,
+          rev: coreNext.rev,
+          lane: coreNext.lane,
+          stage: coreNext.stage,
+          move: safeStr(corePlan.move || ""),
+        },
       }),
     };
   }
@@ -2287,7 +2380,13 @@ async function handleChat(input) {
       velvet: !!cog.velvet,
       desire: cog.latentDesire,
       confidence: cog.confidence,
-      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+      spine: {
+        v: Spine.SPINE_VERSION,
+        rev: coreNext.rev,
+        lane: coreNext.lane,
+        stage: coreNext.stage,
+        move: safeStr(corePlan.move || ""),
+      },
     }),
   };
 }
