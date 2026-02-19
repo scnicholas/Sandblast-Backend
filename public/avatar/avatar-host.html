@@ -474,9 +474,41 @@
   function diag(msg){ if(diagEl) diagEl.textContent = msg; }
   function setText(t){
     if(!textEl) return;
-    textEl.textContent = safeStr(t || "");
+    textEl.textContent = sanitizeReplyText(t || "");
     try{ textEl.scrollTop = 0; }catch(_){}
   }
+  function escapeRegExp(s){
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function sanitizeReplyText(t){
+    // PUBLIC MODE: never leak owner/dev names into public-facing dialogue.
+    var s = safeStr(t || "");
+    if(!CONFIG.publicMode) return s;
+
+    var names = Array.isArray(CONFIG.forbiddenNames) ? CONFIG.forbiddenNames : [];
+    // Always include "Mac" as a default hard block.
+    if(names.indexOf("Mac") === -1) names = names.concat(["Mac"]);
+
+    for(var i=0;i<names.length;i++){
+      var n = safeStr(names[i]).trim();
+      if(!n) continue;
+      try{
+        var rx = new RegExp("\\b" + escapeRegExp(n) + "\\b", "gi");
+        s = s.replace(rx, "there");
+      }catch(_){}
+    }
+
+    // Clean up common patterns like "Alright, there." -> "Alright."
+    s = s.replace(/\bthere\b\s*[,.;:!?]/gi, function(m){
+      return m.trim().slice(-1); // keep punctuation
+    });
+
+    // Double spaces after replacements
+    s = s.replace(/\s{2,}/g, " ").trim();
+    return s;
+  }
+
 
   // ==========
   // Marion ⇄ Nyx bridge badge renderer (NO raw user text)
@@ -608,6 +640,8 @@
         if(typeof c.token === "string") CONFIG.token = clampToken(c.token, 16);
         if(typeof c.heroSrc === "string") CONFIG.heroSrc = safeStr(c.heroSrc).trim();
         if(typeof c.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = c.voiceDefaultOn;
+        if(typeof c.publicMode === "boolean") CONFIG.publicMode = c.publicMode;
+        if(Array.isArray(c.forbiddenNames)) CONFIG.forbiddenNames = c.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
 
         if(CONFIG.heroSrc){
           document.documentElement.style.setProperty("--nyx-hero-abs", 'url("' + CONFIG.heroSrc + '")');
@@ -1030,8 +1064,9 @@
     renderCogBadge(out);
 
     if(out && typeof out.reply === "string" && out.reply){
-      setText(out.reply);
-      speak(out.reply);
+      var clean = sanitizeReplyText(out.reply);
+      setText(clean);
+      speak(clean);
 
       postToParent({
         type:"NYX_REPLY",
