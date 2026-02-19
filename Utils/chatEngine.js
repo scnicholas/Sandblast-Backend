@@ -1,4 +1,4 @@
-"use strict";
+content = r'''use strict";
 
 /**
  * Utils/chatEngine.js
@@ -17,16 +17,15 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7e (PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++)
- * ✅ Adds publicMode (default SAFE=TRUE) and sanitizes replies to prevent identity leakage (e.g., "Alright, Mac.")
- * ✅ computeOptionAGreetingLine now respects publicMode (no names in public)
- * ✅ Adds sanitizePublicReply() + applyPublicSanitization() applied to ALL outbound replies
- * ✅ Leaves Marion ⇄ Nyx bridge intact; lane/mode/intent remain visible
- * ✅ Keeps: v0.7d fixes (year extraction supports 1900..2100; actionable payload coherence; year range sync)
+ * v0.7f (LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++)
+ * ✅ Adds loop governor to stop Marion⇄Nyx “echo” / repeat-reply spirals (signature-based, bounded, fail-open)
+ * ✅ Keeps publicMode safety default + reply sanitization (no identity leakage)
+ * ✅ Keeps spine canonical finalizeTurn/updateState exactly-once semantics
+ * ✅ Keeps: v0.7e fixes (year extraction supports 1900..2100; actionable payload coherence; year range sync)
  */
 
 const CE_VERSION =
-  "chatEngine v0.7e (PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7f (LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ + YEAR RANGE SYNC++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -229,6 +228,43 @@ function safeJsonStringify(x) {
 }
 
 // -------------------------
+// LOOP GOVERNOR++++ (stops repeat reply spirals)
+// -------------------------
+const LOOP_WINDOW_MS = 9000;
+const LOOP_HARD_LIMIT = 2; // allow 2 repeats in window, then break
+function replyLoopSig(lane, replyText) {
+  const l = safeStr(lane || "").trim().toLowerCase();
+  const r = oneLine(replyText || "").slice(0, 260);
+  return sha1Lite(`${l}|${r}`).slice(0, 18);
+}
+function detectAndPatchLoop(session, lane, replyText) {
+  const s = isPlainObject(session) ? session : {};
+  const sig = replyLoopSig(lane, replyText);
+  const now = nowMs();
+
+  const lastSig = safeStr(s.__loopSig || "");
+  const lastAt = Number(s.__loopAt || 0) || 0;
+  const lastN = clampInt(s.__loopN || 0, 0, 0, 99);
+
+  const same = !!(sig && lastSig && sig === lastSig);
+  const inWindow = !!(lastAt && now - lastAt <= LOOP_WINDOW_MS);
+
+  let n = lastN;
+  if (same && inWindow) n += 1;
+  else n = 0;
+
+  const tripped = same && inWindow && n >= LOOP_HARD_LIMIT;
+
+  const patch = {
+    __loopSig: sig,
+    __loopAt: now,
+    __loopN: n,
+  };
+
+  return { tripped, patch, sig, n };
+}
+
+// -------------------------
 // PUBLIC MODE / REPLY SANITIZATION (PRIVACY LOCK++++)
 // -------------------------
 function computePublicMode(norm, session) {
@@ -410,7 +446,7 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
 // config
 // -------------------------
 const PUBLIC_MIN_YEAR = 1950;
-const PUBLIC_MAX_YEAR = 2025;
+const PUBLIC_MAX_YEAR = 2026;
 
 // INPUT HARD LIMITS (crash / abuse guards)
 const MAX_TEXT_CHARS = 6500;
@@ -1811,6 +1847,10 @@ async function handleChat(input) {
         __greetedAt: 0,
         __lastInboundKey: "",
 
+        __loopSig: "",
+        __loopAt: 0,
+        __loopN: 0,
+
         __spineState: coreNext,
       },
       cog,
@@ -1831,7 +1871,12 @@ async function handleChat(input) {
   // counselor-lite
   // -------------------------
   if (norm.action === "counsel_intro") {
-    const reply = finalizeReply(counselorLiteIntro(norm, session, cog));
+    const reply0 = finalizeReply(counselorLiteIntro(norm, session, cog));
+    const loop = detectAndPatchLoop(session, "general", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("I’m repeating myself — pick one concrete next step: Music, Movies, or Sponsors.")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
@@ -1840,7 +1885,7 @@ async function handleChat(input) {
       norm,
       lane: "general",
       topic: "help",
-      actionTaken: "served_counsel_intro",
+      actionTaken: loop.tripped ? "served_counsel_intro_loop_break" : "served_counsel_intro",
       followUps: f.followUps,
       pendingAsk: null,
       decision: corePlan,
@@ -1851,6 +1896,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -1864,6 +1910,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "counsel_intro",
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -1879,9 +1926,14 @@ async function handleChat(input) {
   // ask_year + switch_lane (engine-owned UI, not knowledge)
   // -------------------------
   if (norm.action === "ask_year") {
-    const reply = finalizeReply(
+    const reply0 = finalizeReply(
       `Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}). I’ll start with Top 10.`
     );
+    const loop = detectAndPatchLoop(session, "music", reply0);
+    const reply = loop.tripped
+      ? finalizeReply(`We’re looping. Drop ONE year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`)
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -1895,7 +1947,7 @@ async function handleChat(input) {
       norm,
       lane: "music",
       topic: "help",
-      actionTaken: "asked_year",
+      actionTaken: loop.tripped ? "asked_year_loop_break" : "asked_year",
       followUps: fu,
       pendingAsk: pendingAskObj(
         "need_year",
@@ -1911,6 +1963,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "music",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -1924,6 +1977,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "ask_year",
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -1937,11 +1991,16 @@ async function handleChat(input) {
 
   if (norm.action === "switch_lane") {
     const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• Sponsors";
-    const reply = finalizeReply(
+    const reply0 = finalizeReply(
       discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
         ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• Sponsors`
         : baseMenu
     );
+    const loop = detectAndPatchLoop(session, lane || "general", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("We’re looping. Pick ONE: Music, Movies, or Sponsors.")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -1955,7 +2014,7 @@ async function handleChat(input) {
       norm,
       lane: "general",
       topic: "help",
-      actionTaken: "asked_lane",
+      actionTaken: loop.tripped ? "asked_lane_loop_break" : "asked_lane",
       followUps: fu,
       pendingAsk: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
       decision: corePlan,
@@ -1966,6 +2025,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -1979,6 +2039,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "switch_lane",
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2027,9 +2088,14 @@ async function handleChat(input) {
     }
 
     if (!out || !isPlainObject(out)) {
-      const reply = finalizeReply(
+      const reply0 = finalizeReply(
         'Movies lane isn’t wired yet. Ensure Utils/moviesLane.js exports { handleChat }.'
       );
+      const loop = detectAndPatchLoop(session, "movies", reply0);
+      const reply = loop.tripped
+        ? finalizeReply("Movies lane is looping. Fix Utils/moviesLane.js export { handleChat } and retry.")
+        : reply0;
+
       const sigLine = detectSignatureLine(reply);
 
       const fu = [
@@ -2042,7 +2108,7 @@ async function handleChat(input) {
         norm,
         lane: "movies",
         topic: "movies",
-        actionTaken: "movies_lane_missing",
+        actionTaken: loop.tripped ? "movies_lane_missing_loop_break" : "movies_lane_missing",
         followUps: fu,
         pendingAsk: null,
         decision: corePlan,
@@ -2053,6 +2119,7 @@ async function handleChat(input) {
       const routePatch = {
         lane: "movies",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
         __spineState: coreNext,
       };
 
@@ -2066,6 +2133,7 @@ async function handleChat(input) {
         cog,
         meta: metaBase({
           route: "movies_lane_missing",
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -2077,7 +2145,12 @@ async function handleChat(input) {
       };
     }
 
-    const reply = finalizeReply(safeStr(out.reply || out.message || ""));
+    const reply0 = finalizeReply(safeStr(out.reply || out.message || ""));
+    const loop = detectAndPatchLoop(session, "movies", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("I’m looping on Movies. Give me ONE constraint: genre, decade, or vibe.")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const followUpsRaw = asArray(out.followUps);
@@ -2111,6 +2184,7 @@ async function handleChat(input) {
       lane: "movies",
       ...moviesPatch,
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2125,6 +2199,7 @@ async function handleChat(input) {
       meta: metaBase({
         route: "movies",
         ...(isPlainObject(out.meta) ? out.meta : {}),
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2142,7 +2217,12 @@ async function handleChat(input) {
   const requiresYear = ["top10", "story_moment", "micro_moment", "yearend_hot100", "custom_story"];
 
   if (requiresYear.includes(norm.action) && !year) {
-    const reply = finalizeReply(`Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`);
+    const reply0 = finalizeReply(`Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`);
+    const loop = detectAndPatchLoop(session, "music", reply0);
+    const reply = loop.tripped
+      ? finalizeReply(`We’re looping. Give ONE year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`)
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
@@ -2171,7 +2251,7 @@ async function handleChat(input) {
       norm,
       lane: "music",
       topic: "help",
-      actionTaken: "asked_year",
+      actionTaken: loop.tripped ? "asked_year_loop_break" : "asked_year",
       followUps: fu,
       pendingAsk: pendingAskObj(
         "need_year",
@@ -2187,6 +2267,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "music",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2200,6 +2281,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         needYear: true,
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2212,7 +2294,12 @@ async function handleChat(input) {
   }
 
   if (year && (year < PUBLIC_MIN_YEAR || year > PUBLIC_MAX_YEAR)) {
-    const reply = finalizeReply(`Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`);
+    const reply0 = finalizeReply(`Use a year in ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`);
+    const loop = detectAndPatchLoop(session, "music", reply0);
+    const reply = loop.tripped
+      ? finalizeReply(`Stop. One year only: ${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}.`)
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2220,7 +2307,7 @@ async function handleChat(input) {
       norm,
       lane: "music",
       topic: "help",
-      actionTaken: "asked_year_range",
+      actionTaken: loop.tripped ? "asked_year_range_loop_break" : "asked_year_range",
       followUps: [],
       pendingAsk: pendingAskObj(
         "need_year",
@@ -2236,6 +2323,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "music",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2248,6 +2336,7 @@ async function handleChat(input) {
       meta: metaBase({
         outOfRange: true,
         year,
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2288,9 +2377,14 @@ async function handleChat(input) {
     }
 
     if (!musicOut || !isPlainObject(musicOut)) {
-      const reply = finalizeReply(
+      const reply0 = finalizeReply(
         "Music module isn’t wired yet. Drop Utils/musicKnowledge.js (with handleMusicTurn) and I’ll route cleanly."
       );
+      const loop = detectAndPatchLoop(session, "music", reply0);
+      const reply = loop.tripped
+        ? finalizeReply("We’re looping because Music isn’t wired. Add Utils/musicKnowledge.js::handleMusicTurn.")
+        : reply0;
+
       const sigLine = detectSignatureLine(reply);
 
       const coreNext = finalizeSpineTurn({
@@ -2298,7 +2392,7 @@ async function handleChat(input) {
         norm,
         lane: "music",
         topic: "help",
-        actionTaken: "music_module_missing",
+        actionTaken: loop.tripped ? "music_module_missing_loop_break" : "music_module_missing",
         followUps: [],
         pendingAsk: pendingAskObj(
           "need_music_module",
@@ -2314,6 +2408,7 @@ async function handleChat(input) {
       const routePatch = {
         lane: "music",
         ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
         __spineState: coreNext,
       };
 
@@ -2325,6 +2420,7 @@ async function handleChat(input) {
         cog,
         meta: metaBase({
           route: "music_module_missing",
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
           spine: {
             v: Spine.SPINE_VERSION,
             rev: coreNext.rev,
@@ -2336,7 +2432,12 @@ async function handleChat(input) {
       };
     }
 
-    const reply = finalizeReply(safeStr(musicOut.replyRaw || ""));
+    const reply0 = finalizeReply(safeStr(musicOut.replyRaw || ""));
+    const loop = detectAndPatchLoop(session, "music", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("Loop detected. Pick ONE: Top 10, cinematic, or year-end — and give a year.")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2357,6 +2458,7 @@ async function handleChat(input) {
       lane: "music",
       ...musicPatch,
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2371,6 +2473,7 @@ async function handleChat(input) {
       meta: metaBase({
         route: safeStr(musicOut.route || "music"),
         ...(isPlainObject(musicOut.meta) ? musicOut.meta : {}),
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2389,9 +2492,14 @@ async function handleChat(input) {
     (cog.mode === "architect" || cog.mode === "transitional") &&
     safeStr(cog.intent).toUpperCase() === "ADVANCE"
   ) {
-    const reply = finalizeReply(
+    const reply0 = finalizeReply(
       `Defaulting to Music. Give me a year (${PUBLIC_MIN_YEAR}–${PUBLIC_MAX_YEAR}).`
     );
+    const loop = detectAndPatchLoop(session, "music", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("Loop detected. Give ONE year (e.g., 1988).")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
 
     const coreNext = finalizeSpineTurn({
@@ -2399,7 +2507,7 @@ async function handleChat(input) {
       norm,
       lane: "music",
       topic: "help",
-      actionTaken: "asked_year",
+      actionTaken: loop.tripped ? "asked_year_loop_break" : "asked_year",
       followUps: [],
       pendingAsk: pendingAskObj(
         "need_year",
@@ -2415,6 +2523,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "music",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2426,6 +2535,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "general_default_music",
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         velvet: !!cog.velvet,
         desire: cog.latentDesire,
         confidence: cog.confidence,
@@ -2445,7 +2555,12 @@ async function handleChat(input) {
       safeStr(norm.text || "")
     )
   ) {
-    const reply = finalizeReply(counselorLiteIntro(norm, session, cog));
+    const reply0 = finalizeReply(counselorLiteIntro(norm, session, cog));
+    const loop = detectAndPatchLoop(session, "general", reply0);
+    const reply = loop.tripped
+      ? finalizeReply("Loop detected. Pick ONE: I want a plan, Just listen, Music, or Movies.")
+      : reply0;
+
     const sigLine = detectSignatureLine(reply);
     const f = counselorFollowUps();
 
@@ -2454,7 +2569,7 @@ async function handleChat(input) {
       norm,
       lane: "general",
       topic: "help",
-      actionTaken: "served_counsel_intro",
+      actionTaken: loop.tripped ? "served_counsel_intro_loop_break" : "served_counsel_intro",
       followUps: f.followUps,
       pendingAsk: null,
       decision: corePlan,
@@ -2465,6 +2580,7 @@ async function handleChat(input) {
     const routePatch = {
       lane: "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
+      ...loop.patch,
       __spineState: coreNext,
     };
 
@@ -2478,6 +2594,7 @@ async function handleChat(input) {
       cog,
       meta: metaBase({
         route: "general_counsel_intro",
+        loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
         spine: {
           v: Spine.SPINE_VERSION,
           rev: coreNext.rev,
@@ -2489,13 +2606,18 @@ async function handleChat(input) {
     };
   }
 
-  const reply = finalizeReply(
+  const reply0 = finalizeReply(
     discoveryHint && discoveryHint.enabled
       ? safeStr(discoveryHint.question).trim()
       : safeStr(norm.text)
       ? "Tell me what you want next: music, movies, or sponsors."
       : "Okay — tell me what you want next."
   );
+  const loop = detectAndPatchLoop(session, lane || "general", reply0);
+  const reply = loop.tripped
+    ? finalizeReply("Loop detected. Pick ONE: Music, Movies, or Sponsors.")
+    : reply0;
+
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
@@ -2509,7 +2631,7 @@ async function handleChat(input) {
     norm,
     lane: lane || "general",
     topic: "help",
-    actionTaken: "served_menu",
+    actionTaken: loop.tripped ? "served_menu_loop_break" : "served_menu",
     followUps: fu,
     pendingAsk: pendingAskObj("need_pick", "clarify", "Pick what you want next.", true),
     decision: corePlan,
@@ -2520,6 +2642,7 @@ async function handleChat(input) {
   const routePatch = {
     lane: lane || "general",
     ...(sigLine ? { lastSigTransition: sigLine } : {}),
+    ...loop.patch,
     __spineState: coreNext,
   };
 
@@ -2533,6 +2656,7 @@ async function handleChat(input) {
     cog,
     meta: metaBase({
       route: "general",
+      loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
       velvet: !!cog.velvet,
       desire: cog.latentDesire,
       confidence: cog.confidence,
@@ -2597,3 +2721,10 @@ _callable.default = handleChat;
 _callable.__esModule = true;
 
 module.exports = _callable;
+'''
+# Fix accidental leading quote in use strict
+content = content.replace('use strict";', '"use strict";', 1)
+outpath = "/mnt/data/chatEngine.v0.7f.js"
+pathlib.Path(outpath).write_text(content, encoding="utf-8")
+outpath, len(content.splitlines())
+
