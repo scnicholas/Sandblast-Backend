@@ -1713,106 +1713,84 @@ function handleChipClick(chip){
   async function sendPacket(packet){
     if(UI_STATE.pending) return;
 
+    // HARDEN++++: outbound de-dupe (prevents accidental loops / double-submits)
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117l • deduped outbound");
+      diag("HOST outbound dedupe hit");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
     UI_STATE.__lastOutboundAt = t;
 
-    UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
+    var reqId = safeStr(packet && packet.reqId ? packet.reqId : ("req_" + t + "_" + Math.floor(Math.random()*1e6)), 64);
+    UI_STATE.lastRequestId = reqId;
+
     setPending(true);
-    diag("HOST v9117l • sending…");
 
-    postToParent({
-      type:"NYX_OUTBOUND",
-      v:CONFIG.version,
-      ts:now(),
-      packet: { requestId: packet.requestId, lane: packet.lane, action: packet.action, client: packet.client, turnSignals: packet.turnSignals }
-    }, false);
+    try{
+      // Tell parent (optional telemetry)
+      postToParent({ type:"NYX_OUTBOUND", ts: Date.now(), reqId: reqId, packet: {
+        text: safeStr(packet.text || "", 220),
+        action: safeStr(packet.action || "", 80),
+        lane: safeStr(packet.lane || "", 24),
+        year: packet.year || null,
+        hasPayload: !!(packet.payload && typeof packet.payload === "object" && Object.keys(packet.payload).length),
+        payloadKeys: (packet.payload && typeof packet.payload === "object") ? Object.keys(packet.payload).slice(0,12) : []
+      }}, false);
 
-    var url = apiBase() + "/api/chat";
-    var out = await postJson(url, packet, 12000);
+      var url = normalizeBase(API_BASE) + "/api/chat";
+      var body = {
+        // NOTE: backend expects ctx + payload + text etc.
+        text: packet.text || "",
+        action: packet.action || "",
+        lane: packet.lane || "",
+        year: packet.year || null,
+        payload: packet.payload || {},
+        ctx: packet.ctx || {},
+        turnSignals: packet.turnSignals || packet.signals || {}
+      };
 
-    // ✅ CONTEXT PERSISTENCE++++: keep engine state across turns (prevents looping / disjoint replies)
-    if (out && out.ctx && typeof out.ctx === "object") {
-      UI_STATE.ctx = out.ctx;
-    }
-    // Optional cognition capture (for badge/diagnostics)
-    if (out && out.cog && typeof out.cog === "object") {
-      UI_STATE.lastCog = out.cog;
-    }
+      var out = await postJson(url, body, TOKEN);
 
-    var status = Number(out && (out.__httpStatus || out.status || 0)) || 0;
+      // Defensive: ensure shape
+      if(!out || typeof out !== "object") out = { error:"bad_response" };
 
-    setMarionOn(marionPresent(out));
-    renderCogBadge(out);
+      // Render assistant
+      if(out.reply){
+        await renderAssistantReply(out.reply);
+      }else if(out.text){
+        await renderAssistantReply(out.text);
+      }else if(out.error){
+        await renderAssistantReply("I hit an error: " + safeStr(out.error, 140));
+      }
 
-    // LANE HARD-LOCK: never let backend drift change the UI lane.
-    // We still include backend lane in NYX_REPLY for telemetry, but UI stays stable.
-    var backendLane = safeStr(out && out.lane || "");
-    var uiLane = packet.lane;
+      // Chips (followUps)
+      if(Array.isArray(out.followUps)){
+        renderSmartChips(out.followUps);
+      }else if(Array.isArray(out.chips)){
+        renderSmartChips(out.chips);
+      }
 
-    var rSig = replySig(out, uiLane);
-    var rt = now();
-    if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117l • deduped reply");
-      setPending(false);
+      // Optional: keep lane in state if returned
+      if(out.lane){
+        UI_STATE.lane = safeStr(out.lane, 24).toLowerCase();
+      }
+
+      postToParent({ type:"NYX_REPLY", ts: Date.now(), reqId: reqId, meta: (out && out.meta) ? out.meta : {} }, false);
       return out;
-    }
-    UI_STATE.__lastReplySig = rSig;
-    UI_STATE.__lastReplyAt = rt;
-
-    if(out && typeof out.reply === "string" && out.reply){
-      var clean = sanitizeReplyText(out.reply);
-      await renderAssistantReply(clean);
-
-      // Render Marion/chatEngine suggestions (followUps) if provided
-      renderSmartChips(out.followUps || out.followups || out.suggestions || null);
-
-      speak(clean);
-
-      postToParent({
-        type:"NYX_REPLY",
-        v:CONFIG.version,
-        ts:now(),
-        reply: out.reply,
-        lane: backendLane || uiLane,
-        uiLane: uiLane,
-        cog: sanitizeCog(out.cog),
-        meta: out.meta || {}
-      }, false);
-
-      diag("HOST v9117l • ok");
-    }else{
-      var msg = "Hmm. I didn’t get a clean reply. Try again.";
-      if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
-      if(out && out.error === "timeout") msg = "Timeout. Try again.";
-      await renderAssistantReply(msg);
-      renderSmartChips(null);
-
-      diag("HOST v9117l • error " + (status || "unknown"));
-      postToParent({
-        type:"NYX_ERROR",
-        v:CONFIG.version,
-        ts:now(),
-        status: status,
-        error: (out && out.error) || "error",
-        lane: backendLane || uiLane,
-        uiLane: uiLane,
-        cog: sanitizeCog(out && out.cog ? out.cog : null),
-        meta: out && out.meta ? out.meta : {}
-      }, false);
-    }
-
-    setPending(false);
-    return out;
-    } finally {
+    }catch(err){
+      var msg = (err && err.message) ? err.message : String(err);
+      diag("HOST sendPacket exception: " + msg);
+      try{ await renderAssistantReply("Something hiccupped on my side. Try that again."); }catch(_){}
+      try{ renderSmartChips(null); }catch(_){}
+      postToParent({ type:"NYX_ERROR", ts: Date.now(), error:"exception", detail: safeStr(msg, 180) }, false);
+      return { error:"exception" };
+    }finally{
       // HARDEN++++: never let UI lock if any downstream render/speech throws
       setPending(false);
     }
+  }
   }
 
   function sendTypedText(){
