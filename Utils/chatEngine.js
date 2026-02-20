@@ -10,7 +10,7 @@
  *
  * Returns (NyxReplyContract v1 + backwards compatibility):
  *  {
- *    ok, reply, lane, ctx, ui,
+ *    ok, reply, lane, laneId, sessionLane, bridge, ctx, ui,
  *    directives: [{type, ...}],             // optional
  *    followUps: [{id,type,label,payload}],  // preferred
  *    followUpsStrings: ["..."],             // legacy
@@ -1642,6 +1642,91 @@ function ensureNonEmptyReply(reply, fallback) {
   return safeStr(fallback || "Okay. Tell me what you want next.").trim();
 }
 
+
+// -------------------------
+// lane identity + bridge helpers (MARION↔NYX STABILIZATION++++)
+// -------------------------
+function resolveSessionKey(session, norm, requestId) {
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(norm?.client) ? norm.client : {};
+  const body = isPlainObject(norm?.body) ? norm.body : {};
+  const ctx = isPlainObject(norm?.ctx) ? norm.ctx : {};
+  const payload = isPlainObject(norm?.payload) ? norm.payload : {};
+
+  const cands = [
+    s.sessionId,
+    s.sid,
+    s.id,
+    s.session_id,
+    s.clientId,
+    s.userId,
+    body.sessionId,
+    body.sid,
+    body.session_id,
+    ctx.sessionId,
+    ctx.sid,
+    ctx.session_id,
+    payload.sessionId,
+    payload.sid,
+    payload.session_id,
+    c.sessionId,
+    c.sid,
+    c.clientId,
+    c.visitorId,
+    c.fingerprint,
+  ]
+    .map((x) => safeStr(x).trim())
+    .filter(Boolean);
+
+  // IMPORTANT: this is NOT personal identity; it's a routing key.
+  // If none provided, fall back to requestId to keep deterministic within the request.
+  return (cands[0] || safeStr(requestId || "anon")).slice(0, 128);
+}
+
+function computeLaneId(sessionKey, lane) {
+  const k = safeStr(sessionKey || "anon").trim();
+  const l = safeStr(lane || "general").trim().toLowerCase();
+  return `ln_${sha1Lite(`${k}|${l}`).slice(0, 12)}`;
+}
+
+function computeSessionLaneState(session, corePrev, lane, norm) {
+  const s = isPlainObject(session) ? session : {};
+  const prev =
+    safeStr(s.lane || "").trim() || safeStr(corePrev?.lane || "").trim() || "general";
+  const cur = safeStr(lane || "").trim() || "general";
+
+  const payloadLane = safeStr(norm?.payload?.lane || "").trim();
+  const bodyLane = safeStr(norm?.body?.lane || "").trim();
+  const ctxLane = safeStr(norm?.ctx?.lane || "").trim();
+  const route = safeStr(norm?.payload?.route || norm?.payload?.action || "").trim();
+
+  const changed = !!(prev && cur && prev !== cur);
+
+  let reason = "carry";
+  if (changed) reason = "lane_change";
+  if (payloadLane && payloadLane === cur) reason = "payload_lane";
+  else if (bodyLane && bodyLane === cur) reason = "body_lane";
+  else if (ctxLane && ctxLane === cur) reason = "ctx_lane";
+  else if (route) reason = "route_or_action";
+  else if (safeStr(norm?.action || "").trim()) reason = "typed_action";
+
+  return { current: cur, previous: prev, changed, reason };
+}
+
+function computeBridge(sessionLaneState, requestId) {
+  const st = isPlainObject(sessionLaneState) ? sessionLaneState : null;
+  if (!st) return null;
+  if (!st.changed) return null;
+  return {
+    v: "bridge.v1",
+    requestId: safeStr(requestId || ""),
+    fromLane: safeStr(st.previous || ""),
+    toLane: safeStr(st.current || ""),
+    reason: safeStr(st.reason || "lane_change"),
+    at: nowMs(),
+  };
+}
+
 // -------------------------
 // main engine
 // -------------------------
@@ -1728,7 +1813,19 @@ async function handleChat(input) {
       safeStr(norm.payload?.lane || "").trim() ||
       safeStr(session.lane || "").trim() ||
       safeStr(corePrev?.lane || "").trim() ||
-      (norm.action ? "music" : "general");
+      (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : "music")) : "general");
+
+
+// Session lane identity (deterministic routing key, NOT PII)
+const sessionKey = resolveSessionKey(session, norm, requestId);
+const laneIdComputed = computeLaneId(sessionKey, lane);
+const sessionLane = computeSessionLaneState(session, corePrev, lane, norm);
+const bridge = computeBridge(sessionLane, requestId);
+
+// Make stabilization info visible to downstream consumers (UI / index.js)
+cog.laneId = laneIdComputed;
+cog.sessionLane = sessionLaneState;
+if (bridgeEvent) cog.bridge = bridgeEvent;
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
@@ -1753,6 +1850,13 @@ async function handleChat(input) {
       velvetMode: !!cog.velvet,
       velvetSince: cog.velvet ? Number(cog.velvetSince || 0) || nowMs() : 0,
       lastAction: safeStr(norm.action || ""),
+
+      // Lane stabilization
+      lane: safeStr(sessionLaneState.current || lane || "general"),
+      lastLane: safeStr(sessionLaneState.previous || ""),
+      laneId: safeStr(laneIdComputed || ""),
+      laneAt: nowMs(),
+      ...(bridgeEvent ? { lastBridgeAt: Number(bridgeEvent.at || 0) || nowMs(), lastBridgeReason: safeStr(bridgeEvent.reason || "") } : {}),
 
       marionState: safeStr(cog.marionState || ""),
       marionReason: safeStr(cog.marionReason || ""),
@@ -1787,10 +1891,20 @@ async function handleChat(input) {
 
       const ui = buildUi(followUps, followUpsStrings);
 
+      const laneResolved = safeStr(out.lane || lane || "general");
+      const laneId = safeStr(out.laneId || (typeof laneIdComputed !== "undefined" ? laneIdComputed : "") || "");
+      const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLaneState !== "undefined" ? sessionLaneState : undefined);
+      const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridgeEvent !== "undefined" ? bridgeEvent : undefined);
+
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
         reply: ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next."),
-        lane: safeStr(out.lane || lane || "general"),
+        lane: laneResolved,
+
+        // Stabilization fields (safe for legacy clients to ignore)
+        laneId: laneId || undefined,
+        sessionLane: sessionLaneInfo || undefined,
+        bridge: bridgeInfo || undefined,
 
         // ALWAYS present (prevents UI null errors)
         ctx: isPlainObject(norm.ctx) ? norm.ctx : {},
