@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19ca (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.19cb (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -2402,14 +2402,12 @@ app.get("/health", (req, res) => {
     knowledge: knowledgeStatusForMeta(),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
-
+});
 
 // Render/uptime keep-alive (public)
 app.get("/_warm", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.status(200).json({ ok: true, ts: Date.now(), v: VERSION });
-});
-
+  res.status(200).json({ ok: true, ts: Date.now(), v: INDEX_VERSION });
 });
 
 app.get("/api/health", (req, res) => {
