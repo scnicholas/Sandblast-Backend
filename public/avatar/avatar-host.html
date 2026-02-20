@@ -13,7 +13,7 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117j (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+     v9117k (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
              + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
      Notes:
      - Avatar framing is HARD-LOCKED: hero stage logic preserved.
@@ -488,6 +488,33 @@
     .nyx-btn{ transition:none; }
     html.nyx-thinking #nyxStage{ animation:none; }
   }
+
+
+  /* ============================================================
+     SMART CHIPS (Marion followUps)
+     - separate rail, can wrap to 2 rows, but height-capped
+     - visually consistent with existing action pills
+  ============================================================ */
+  #nyxSmartChips{
+    margin-top:8px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    max-height:84px;
+    overflow:auto;
+    padding:2px 2px 0 2px;
+    scrollbar-width: thin;
+  }
+  #nyxSmartChips::-webkit-scrollbar{ height:8px; width:8px; }
+  #nyxSmartChips::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.12); border-radius: 999px; }
+
+  .action-pill.smart{
+    border-color: rgba(140,0,35,.28);
+    background: rgba(140,0,35,.10);
+  }
+  .action-pill.smart:hover{
+    filter: brightness(1.08);
+  }
 </style>
 </head>
 
@@ -533,6 +560,9 @@
             <div class="action-pill" data-chip="radio">Radio</div>
             <!-- News Canada removed for now to keep chips clean and fully visible -->
           </div>
+
+          <!-- SMART CHIPS (from Marion/chatEngine followUps) -->
+          <div class="chips smart" id="nyxSmartChips" aria-label="Suggestions" style="display:none"></div>
         </div>
 
         <!-- Roku lane links (clean + not chip-crowding) -->
@@ -546,7 +576,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117j • ready</div>
+        <div id="nyxDiag">HOST v9117k • ready</div>
       </div>
     </div>
   </div>
@@ -618,6 +648,7 @@
   var threadEl = $("nyxThread");
   var expandBtn = $("nyxExpand");
   var chipsEl = $("nyxChips");
+  var smartChipsEl = $("nyxSmartChips");
   var inputEl = $("nyxInput");
   var sendBtn = $("nyxSend");
   var micBtn = $("nyxMic");
@@ -859,14 +890,14 @@
       try{
         if(heroVid.readyState < 2){
           setStageImageFallback(true);
-          diag("HOST v9117j • autoplay blocked (fallback)");
+          diag("HOST v9117k • autoplay blocked (fallback)");
         }
       }catch(_){}
     }, 900);
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117j • video error (fallback)");
+      diag("HOST v9117k • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
@@ -944,14 +975,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117j • origin locked");
+        diag("HOST v9117k • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117j • ready (ack)");
+        diag("HOST v9117k • ready (ack)");
         return;
       }
 
@@ -970,7 +1001,7 @@
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
           postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
-          diag("HOST v9117j • config deduped");
+          diag("HOST v9117k • config deduped");
           return;
         }
         CONFIG_ONCE_HASH = cfgSig;
@@ -1009,7 +1040,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117j • config loaded");
+        diag("HOST v9117k • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -1025,7 +1056,7 @@
         }
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117j • cal applied");
+        diag("HOST v9117k • cal applied");
         return;
       }
 
@@ -1212,7 +1243,88 @@
     );
   }
 
-  function handleChipClick(chip){
+  
+  // =========================
+  // SMART CHIPS (from backend followUps)
+  // - followUps: [{id,label,payload}]
+  // - clicking a smart chip sends its payload (route/action/year/lane/etc)
+  // - ALSO records a visible user-line so conversation is not disjointed
+  // =========================
+  var LAST_FOLLOWUPS = [];
+
+  function normalizeFollowUps(fu){
+    var arr = Array.isArray(fu) ? fu : [];
+    var out = [];
+    for(var i=0;i<arr.length && out.length<12;i++){
+      var it = arr[i] || {};
+      var id = safeStr(it.id || it._id || "", 80).trim();
+      var label = safeStr(it.label || it.title || it.text || "", 120).trim();
+      var payload = (it.payload && typeof it.payload === "object") ? it.payload : {};
+      // Minimal payload normalization for stateSpine actionability
+      var p = {};
+      if(safeStr(payload.action)) p.action = safeStr(payload.action, 60);
+      if(safeStr(payload.route)) p.route = safeStr(payload.route, 60);
+      if(safeStr(payload.lane)) p.lane = safeStr(payload.lane, 24);
+      if(Number.isFinite(Number(payload.year))) p.year = Number(payload.year);
+      // Keep small identifiers
+      if(safeStr(payload.id)) p.id = safeStr(payload.id, 80);
+      if(safeStr(payload.label)) p.label = safeStr(payload.label, 120);
+      // Always include chip id/label for UI + traces
+      if(id) p.id = p.id || id;
+      if(label) p.label = p.label || label;
+
+      // If payload is empty but we do have an id/label, keep it so backend can interpret
+      if(!Object.keys(p).length && (id || label)){
+        if(id) p.id = id;
+        if(label) p.label = label;
+        p.action = "followup";
+      }
+
+      if(!label && id) label = id;
+      if(!label) continue;
+
+      out.push({ id: id || ("fu_" + i), label: label, payload: p });
+    }
+    return out;
+  }
+
+  function renderSmartChips(followUps){
+    if(!smartChipsEl) return;
+    LAST_FOLLOWUPS = normalizeFollowUps(followUps);
+
+    if(!LAST_FOLLOWUPS.length){
+      smartChipsEl.style.display = "none";
+      smartChipsEl.innerHTML = "";
+      return;
+    }
+
+    var html = "";
+    for(var i=0;i<LAST_FOLLOWUPS.length;i++){
+      var it = LAST_FOLLOWUPS[i];
+      html += '<div class="action-pill smart" role="button" tabindex="0" data-fu="' + i + '">' +
+              escapeHtml(it.label) +
+              '</div>';
+    }
+    smartChipsEl.innerHTML = html;
+    smartChipsEl.style.display = "flex";
+  }
+
+  function handleSmartChipClick(idx){
+    var i = Number(idx);
+    if(!Number.isFinite(i)) return;
+    var it = LAST_FOLLOWUPS[i];
+    if(!it) return;
+
+    // Visible user intent line (prevents "ghost clicks" and broken conversational flow)
+    pushThread("user", it.label);
+    renderThread();
+
+    // Use payload as the actionable packet; action param should agree with payload.action/route.
+    var p = (it.payload && typeof it.payload === "object") ? it.payload : {};
+    var act = safeStr(p.action || p.route || "followup", 60).trim();
+    sendPacket("", act, p, { textEmpty:true, hasPayload:true, payloadActionable:true });
+  }
+function handleChipClick(chip){
     chip = safeStr(chip).trim();
     if(!chip) return;
 
@@ -1266,6 +1378,32 @@
   }
 
   setActiveChip("general");
+
+  // Smart chips: backend followUps
+  if(smartChipsEl){
+    smartChipsEl.addEventListener("click", function(ev){
+      try{
+        var t = ev.target;
+        if(!t) return;
+        var idx = t.getAttribute && t.getAttribute("data-fu");
+        if(idx == null) return;
+        handleSmartChipClick(idx);
+      }catch(_){ }
+    });
+
+    smartChipsEl.addEventListener("keydown", function(ev){
+      try{
+        if(ev.key !== "Enter" && ev.key !== " ") return;
+        var t = ev.target;
+        if(!t) return;
+        var idx = t.getAttribute && t.getAttribute("data-fu");
+        if(idx == null) return;
+        ev.preventDefault();
+        handleSmartChipClick(idx);
+      }catch(_){ }
+    });
+  }
+
 
   // ==========
   // Intent packet builder (lane hard-lock included)
@@ -1458,7 +1596,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117j • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117k • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1481,10 +1619,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117j • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117k • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117j • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117k • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1578,7 +1716,7 @@
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117j • deduped outbound");
+      diag("HOST v9117k • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1586,7 +1724,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117j • sending…");
+    diag("HOST v9117k • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1611,7 +1749,7 @@
     var rSig = replySig(out, uiLane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117j • deduped reply");
+      diag("HOST v9117k • deduped reply");
       setPending(false);
       return out;
     }
@@ -1621,6 +1759,10 @@
     if(out && typeof out.reply === "string" && out.reply){
       var clean = sanitizeReplyText(out.reply);
       await renderAssistantReply(clean);
+
+      // Render Marion/chatEngine suggestions (followUps) if provided
+      renderSmartChips(out.followUps || out.followups || out.suggestions || null);
+
       speak(clean);
 
       postToParent({
@@ -1634,14 +1776,15 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117j • ok");
+      diag("HOST v9117k • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       await renderAssistantReply(msg);
+      renderSmartChips(null);
 
-      diag("HOST v9117j • error " + (status || "unknown"));
+      diag("HOST v9117k • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
