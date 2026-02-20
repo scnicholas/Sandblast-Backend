@@ -1619,6 +1619,7 @@ function handleChipClick(chip){
       var url = apiBase() + "/api/tts";
       var headers = { "Content-Type":"application/json" };
       if(CONFIG.token){
+        headers["x-sb-token"] = CONFIG.token;
         headers["Authorization"] = "Bearer " + CONFIG.token;
         headers["X-API-Token"] = CONFIG.token;
       }
@@ -1815,7 +1816,9 @@ function handleChipClick(chip){
     }
   }
 
-  async function sendPacket(packet){
+  
+<script src="./chat.js?v=9201"></script>
+async function sendPacket(packet){
     if(UI_STATE.pending) return;
 
     // HARDEN++++: outbound de-dupe (prevents accidental loops / double-submits)
@@ -1828,7 +1831,7 @@ function handleChipClick(chip){
     UI_STATE.__lastOutboundSig = sig;
     UI_STATE.__lastOutboundAt = t;
 
-    var reqId = safeStr(packet && packet.reqId ? packet.reqId : ("req_" + t + "_" + Math.floor(Math.random()*1e6)), 64);
+    var reqId = safeStr((packet && (packet.requestId || packet.reqId)) ? (packet.requestId || packet.reqId) : ("req_" + t + "_" + Math.floor(Math.random()*1e6)), 64);
     UI_STATE.lastRequestId = reqId;
 
     setPending(true);
@@ -1843,21 +1846,48 @@ function handleChipClick(chip){
         hasPayload: !!(packet.payload && typeof packet.payload === "object" && Object.keys(packet.payload).length),
         payloadKeys: (packet.payload && typeof packet.payload === "object") ? Object.keys(packet.payload).slice(0,12) : []
       }}, false);
+      // Prefer shared chat client (public/avatar/chat.js) when available.
+      // Fallback to local postJson for payload-rich actions until chat.js is present everywhere.
+      var out = null;
+      var canUseNyxChat = !!(window.NyxChat && typeof window.NyxChat.sendMessage === "function");
 
-      
-var url = apiBase() + "/api/chat";
-var body = {
-  // NOTE: backend expects ctx + payload + text etc.
-  text: packet.text || "",
-  action: packet.action || "",
-  lane: packet.lane || "",
-  year: packet.year || null,
-  payload: packet.payload || {},
-  ctx: packet.ctx || {},
-  turnSignals: packet.turnSignals || packet.signals || {}
-};
+      // Determine sessionId if NyxChat is managing it
+      var sid = null;
+      try{
+        if(window.NyxChat && typeof window.NyxChat.getState === "function"){
+          var st = window.NyxChat.getState();
+          if(st && st.sessionId) sid = String(st.sessionId);
+        }
+      }catch(_){}
 
-var out = await postJson(url, body, 12000);
+      // If this is plain user text (no payload) we route through NyxChat for deterministic session/lane handling.
+      var hasPayload = !!(packet && packet.payload && typeof packet.payload === "object" && Object.keys(packet.payload).length);
+      if(canUseNyxChat && !hasPayload){
+        out = await window.NyxChat.sendMessage(packet.text || "", {
+          lane: safeStr(packet.lane || UI_STATE.lane, 24).toLowerCase(),
+          action: safeStr(packet.action || "user_text", 80),
+          chip: safeStr(UI_STATE.chip || "", 24),
+          route: null,
+          timeoutMs: 12000
+        });
+      }else{
+        // Legacy direct POST (also used for smart-chip payload actions)
+        var url = apiBase() + "/api/chat";
+        var body = {
+          message: packet.text || "",
+          requestId: reqId,
+          sessionId: sid || undefined,
+          lane: packet.lane || "",
+          action: packet.action || "",
+          chip: UI_STATE.chip || undefined,
+          route: (packet.payload && packet.payload.route) ? safeStr(packet.payload.route, 80) : undefined,
+          year: packet.year || null,
+          payload: packet.payload || {},
+          ctx: packet.ctx || {},
+          turnSignals: packet.turnSignals || packet.signals || {}
+        };
+        out = await postJson(url, body, 12000);
+      }
 
       // Defensive: ensure shape
       if(!out || typeof out !== "object") out = { error:"bad_response" };
