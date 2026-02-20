@@ -12,9 +12,27 @@
   html,body{height:100%}
   body{margin:0;background:#000;overflow:hidden}
 
+  /* ===== PHASE 1 KILL-SWITCH: prevent legacy overlay/widget fragments ===== */
+  body.nyx-phase1 #nyxOverlay,
+  body.nyx-phase1 #sbnyx-host,
+  body.nyx-phase1 #sbnyx-launcher,
+  body.nyx-phase1 #nyxLauncher,
+  body.nyx-phase1 #nyx-host,
+  body.nyx-phase1 .sbnyx-launcher,
+  body.nyx-phase1 .sbnyx-host,
+  body.nyx-phase1 .nyx-mic-puck,
+  body.nyx-phase1 .mic-puck,
+  body.nyx-phase1 .floating-mic,
+  body.nyx-phase1 .micOrb,
+  body.nyx-phase1 #micOrb,
+  body.nyx-phase1 #nyxMicOrb{
+    display:none !important;
+  }
+
+
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117m (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+     v9121a (PHASE 1 HARD-Lock++++ + LEGACY UI KILL++++ + COMPACT WIDGET DOCK++++ + HERO SACRED++++ + INTRO VOICE CANON++++)++++ + INTRO VOICE UNLOCK++++
              + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
      Notes:
      - Avatar framing is HARD-LOCKED: hero stage logic preserved.
@@ -502,16 +520,33 @@
   }
 
 
+  
   @media (max-width:520px){
-    #nyxOverlay{ align-items:center; padding:12px; }
+    /* COMPACT IFRAME: keep hero dominant, dock becomes a peek drawer below */
+    #nyxApp{
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto;
+      gap:10px;
+      padding:10px;
+    }
+    #nyxHeroWrap{
+      min-height: 0;
+      height: 100%;
+    }
+    #nyxDockWrap{
+      min-height: 0;
+      max-height: 34vh;   /* key: dock cannot eat the frame */
+      height: auto;
+    }
     :root{
-      --nyx-card-w: min(460px, calc(100vw - 20px));
-      --nyx-card-max: clamp(320px, 58vh, 480px);
-      --nyx-text-max: 110px;
-      --nyx-text-max-open: 240px;
+      --nyx-card-max: clamp(220px, 34vh, 320px);
+      --nyx-text-max: 96px;
+      --nyx-text-max-open: 200px;
       --nyx-hero-pos-y: 20%;
       --nyx-hero-scale-num: 1.20;
     }
+    .action-pill{ font-size:12px; padding:8px 10px; }
+  }
     .action-pill{ font-size:12px; padding:8px 10px; }
   }
 
@@ -563,7 +598,7 @@
 </style>
 </head>
 
-<body>
+<body class="nyx-phase1">
   <div id="nyxApp">
     <div id="nyxHeroWrap" aria-label="Nyx hero" role="img">
       <div id="nyxStage" aria-hidden="true">
@@ -636,10 +671,31 @@
     </div>
   </div>
 
+<script>window.NYX_HOST_PHASE1=true;window.NYX_HOST_MODE="phase1";</script>
 <script src="./chat.js?v=9201"></script>
 <script>
 (function(){
   "use strict";
+
+  // =========================
+  // PHASE 1 HARD-KILL: remove legacy UI fragments injected by older shells
+  // =========================
+  (function killLegacyUI(){
+    try{
+      var legacyIds = ["nyxOverlay","wrap","avatarRoot","panel","nyxShellMount","nyx-host","sbnyx-host","sbnyx-launcher","nyxLauncher","micOrb","nyxMicOrb"];
+      legacyIds.forEach(function(id){
+        var el = document.getElementById(id);
+        if(el && !el.closest("#nyxApp")) el.remove();
+      });
+
+      // Kill legacy class-based fragments
+      var legacySel = ".sbnyx-launcher,.sbnyx-host,.nyx-mic-puck,.mic-puck,.floating-mic,.micOrb";
+      document.querySelectorAll(legacySel).forEach(function(el){
+        if(!el.closest("#nyxApp")) el.remove();
+      });
+    }catch(_){}
+  })();
+
 
   // ==========
   // Utilities
