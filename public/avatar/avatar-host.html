@@ -13,7 +13,7 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117l (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+     v9117m (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
              + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
      Notes:
      - Avatar framing is HARD-LOCKED: hero stage logic preserved.
@@ -576,7 +576,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117l • ready</div>
+        <div id="nyxDiag">HOST v9117m • ready</div>
       </div>
     </div>
   </div>
@@ -589,8 +589,17 @@
   // Utilities
   // ==========
   function $(id){ return document.getElementById(id); }
-  function safeStr(x){ return (x===null || x===undefined) ? "" : String(x); }
+  function safeStr(x, maxLen){
+    var s = (x===null || x===undefined) ? "" : String(x);
+    if(maxLen && isFinite(maxLen) && maxLen>0 && s.length>maxLen) s = s.slice(0, maxLen);
+    return s;
+  }
   function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
+
+  function escapeHtml(str){
+    var s = safeStr(str);
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
   function now(){ return Date.now(); }
   function makeId(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
@@ -705,7 +714,7 @@
   }
 
   var CONFIG = {
-    version: "9117i",
+    version: "9117m",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -720,6 +729,76 @@
       sandblastTV: "https://sandblast.channel/"
     }
   };
+
+// ==========
+// Bootstrap config (NO POSTMESSAGE REQUIRED)
+// - Allows avatar-host.html to run standalone and always have API_BASE/TOKEN.
+// - Parent postMessage can still override later via NYX_CONFIG.
+// ==========
+function parseQuery(){
+  var out = {};
+  try{
+    var qs = (location.search || "").replace(/^\?/,"");
+    if(!qs) return out;
+    qs.split("&").forEach(function(kv){
+      if(!kv) return;
+      var p = kv.split("=");
+      var k = decodeURIComponent(p[0]||"").trim();
+      var v = decodeURIComponent((p[1]||"").replace(/\+/g," ")).trim();
+      if(!k) return;
+      out[k] = v;
+    });
+  }catch(_){}
+  return out;
+}
+
+function applyConfigPartial(part){
+  if(!part || typeof part !== "object") return;
+
+  if(typeof part.apiBase === "string" && part.apiBase.trim()) CONFIG.apiBase = part.apiBase.trim();
+  if(typeof part.token === "string") CONFIG.token = clampToken(part.token, 16);
+  if(typeof part.heroSrc === "string" && part.heroSrc.trim()) CONFIG.heroSrc = part.heroSrc.trim();
+  if(typeof part.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = part.voiceDefaultOn;
+  if(typeof part.publicMode === "boolean") CONFIG.publicMode = part.publicMode;
+  if(Array.isArray(part.forbiddenNames)) CONFIG.forbiddenNames = part.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
+  if(typeof part.debug === "boolean") CONFIG.debug = part.debug;
+
+  if(part.nav && typeof part.nav === "object"){
+    if(typeof part.nav.roku === "string") CONFIG.nav.roku = safeStr(part.nav.roku).trim();
+    if(typeof part.nav.sandblastTV === "string") CONFIG.nav.sandblastTV = safeStr(part.nav.sandblastTV).trim();
+  }
+}
+
+function bootstrapFromQuery(){
+  var q = parseQuery();
+  // Support multiple naming conventions used in older embeds
+  var apiBaseQ = q.apiBase || q.API_BASE || q.base || q.backend || "";
+  var tokenQ = q.token || q.TOKEN || q.sbToken || q.sbt || "";
+  var heroQ = q.heroSrc || q.hero || q.hero_url || "";
+  var voiceQ = q.voiceDefaultOn || q.voice || "";
+  var publicQ = q.publicMode || q.public || "";
+  var debugQ = q.debug || "";
+
+  var part = {};
+  if(apiBaseQ) part.apiBase = apiBaseQ;
+  if(tokenQ) part.token = tokenQ;
+  if(heroQ) part.heroSrc = heroQ;
+
+  if(voiceQ !== ""){
+    part.voiceDefaultOn = /^(1|true|yes|on)$/i.test(String(voiceQ));
+  }
+  if(publicQ !== ""){
+    part.publicMode = !/^(0|false|no|off)$/i.test(String(publicQ));
+  }
+  if(debugQ !== ""){
+    part.debug = /^(1|true|yes|on)$/i.test(String(debugQ));
+  }
+
+  applyConfigPartial(part);
+}
+
+// Apply query bootstrap immediately (can be overridden later by NYX_CONFIG postMessage)
+bootstrapFromQuery();
 
   function applyDebugGate(){
     // DOUBLE-GATE: must be URL ?debug=1 AND config.debug true
@@ -890,14 +969,14 @@
       try{
         if(heroVid.readyState < 2){
           setStageImageFallback(true);
-          diag("HOST v9117l • autoplay blocked (fallback)");
+          diag("HOST v9117m • autoplay blocked (fallback)");
         }
       }catch(_){}
     }, 900);
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117l • video error (fallback)");
+      diag("HOST v9117m • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
@@ -975,14 +1054,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117l • origin locked");
+        diag("HOST v9117m • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117l • ready (ack)");
+        diag("HOST v9117m • ready (ack)");
         return;
       }
 
@@ -1001,7 +1080,7 @@
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
           postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
-          diag("HOST v9117l • config deduped");
+          diag("HOST v9117m • config deduped");
           return;
         }
         CONFIG_ONCE_HASH = cfgSig;
@@ -1040,7 +1119,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117l • config loaded");
+        diag("HOST v9117m • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -1056,7 +1135,7 @@
         }
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117l • cal applied");
+        diag("HOST v9117m • cal applied");
         return;
       }
 
@@ -1088,6 +1167,9 @@
 
     var headers = { "Content-Type":"application/json" };
     if(CONFIG.token){
+      // Primary token header (matches backend tokenGate)
+      headers["x-sb-token"] = CONFIG.token;
+      // Back-compat (some builds accept bearer / alt header)
       headers["Authorization"] = "Bearer " + CONFIG.token;
       headers["X-API-Token"] = CONFIG.token;
     }
@@ -1134,6 +1216,7 @@
     pending: false,
     lastRequestId: null,
     laneHardLock: true,   // CRITICAL: never drift lanes visually
+    activeChip: null,
 
     __lastOutboundSig: "",
     __lastOutboundAt: 0,
@@ -1322,7 +1405,28 @@
     // Use payload as the actionable packet; action param should agree with payload.action/route.
     var p = (it.payload && typeof it.payload === "object") ? it.payload : {};
     var act = safeStr(p.action || p.route || "followup", 60).trim();
-    var packet = buildIntentPacket("", act, p, { textEmpty:true, hasPayload:true, payloadActionable:true });
+
+    // If followup payload explicitly targets a lane, honor it (still hard-lock visually).
+    if(p.lane) {
+      UI_STATE.lane = safeStr(p.lane, 24).toLowerCase();
+      UI_STATE.chip = UI_STATE.lane;
+      setActiveChip(UI_STATE.lane);
+    }
+
+    var packet = buildIntentPacket({
+      text: "",
+      chip: UI_STATE.chip,
+      lane: UI_STATE.lane,
+      action: act,
+      intent: "followup",
+      label: it.label
+    });
+
+    // Merge payload so backend receives the actionable bits.
+    packet.payload = Object.assign({}, packet.payload || {}, p || {});
+    if(packet.payload && packet.payload.lane) packet.lane = safeStr(packet.payload.lane, 24).toLowerCase();
+    if(packet.payload && packet.payload.action) packet.action = safeStr(packet.payload.action, 60);
+
     sendPacket(packet);
   }
 function handleChipClick(chip){
@@ -1597,7 +1701,7 @@ function handleChipClick(chip){
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117l • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117m • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1620,10 +1724,10 @@ function handleChipClick(chip){
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117l • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117m • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117l • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117m • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1740,19 +1844,20 @@ function handleChipClick(chip){
         payloadKeys: (packet.payload && typeof packet.payload === "object") ? Object.keys(packet.payload).slice(0,12) : []
       }}, false);
 
-      var url = normalizeBase(API_BASE) + "/api/chat";
-      var body = {
-        // NOTE: backend expects ctx + payload + text etc.
-        text: packet.text || "",
-        action: packet.action || "",
-        lane: packet.lane || "",
-        year: packet.year || null,
-        payload: packet.payload || {},
-        ctx: packet.ctx || {},
-        turnSignals: packet.turnSignals || packet.signals || {}
-      };
+      
+var url = apiBase() + "/api/chat";
+var body = {
+  // NOTE: backend expects ctx + payload + text etc.
+  text: packet.text || "",
+  action: packet.action || "",
+  lane: packet.lane || "",
+  year: packet.year || null,
+  payload: packet.payload || {},
+  ctx: packet.ctx || {},
+  turnSignals: packet.turnSignals || packet.signals || {}
+};
 
-      var out = await postJson(url, body, TOKEN);
+var out = await postJson(url, body, 12000);
 
       // Defensive: ensure shape
       if(!out || typeof out !== "object") out = { error:"bad_response" };
