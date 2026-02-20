@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cb (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.19cc (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -89,7 +89,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.19ca (COGNITIVE OS STANDARD++++: hard CORS deny + API token gate + security headers + avatar static + ip rate guard + graceful shutdown + keeps v1.5.18ax load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + crash-proof boot + safe JSON parse + diagnostics + CORS hard-lock + loop fuse + silent reset + replayKey hardening + boot replay isolation + output normalization + REAL ElevenLabs TTS)";
+  "index.js v1.5.19cc (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -2730,6 +2730,12 @@ function applySessionPatch(session, patch) {
     "lastTurnAt",
     "lane",
     "lastLane",
+    "laneId",
+    "laneAt",
+    "lastBridgeAt",
+    "lastBridgeReason",
+    "lastBridgeFrom",
+    "lastBridgeTo",
     "lastYear",
     "lastMode",
     "activeMusicMode",
@@ -2744,7 +2750,7 @@ function applySessionPatch(session, patch) {
     "cog",
     "allowPackets",
     "__nyxIntro",
-    "__nyxVelvet",,
+    "__nyxVelvet",
     "lastMacMode",
     "lastTurnIntent",
     "lastAdvanceAt",
@@ -2757,6 +2763,7 @@ function applySessionPatch(session, patch) {
     "marionReason",
     "marionTrace",
     "marionTraceHash",
+    "sessionLane",
     "lastNoveltyScore",
     "lastDiscoveryHintOn",
     "lastDiscoveryHintReason",
@@ -2839,6 +2846,8 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply,
         lane: cached.lane || rec.data.lane || "general",
+        laneId: rec.data.laneId || undefined,
+        sessionLane: rec.data.sessionLane || undefined,
         directives: cached.directives,
         followUps: cached.followUps,
         followUpsStrings: cached.followUpsStrings,
@@ -2872,6 +2881,8 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply,
         lane: rec.data.lane || "general",
+        laneId: rec.data.laneId || undefined,
+        sessionLane: rec.data.sessionLane || undefined,
         sessionPatch: {},
         requestId: serverRequestId,
         meta: {
@@ -3014,6 +3025,9 @@ async function handleChatRoute(req, res) {
     ok: true,
     reply,
     lane,
+    laneId: out?.laneId || rec.data.laneId || undefined,
+    sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
+    bridge: out?.bridge || undefined,
     ctx: out?.ctx,
     ui: out?.ui,
     directives,
