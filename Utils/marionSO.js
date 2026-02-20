@@ -12,15 +12,14 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.7 (MARION↔NYX BRIDGE CANON++++ + SESSION PATCH ROUTING++++ + HANDOFF CUE++++)
- * ✅ Adds canonical "bridge" contract for Nyx routing + UI cues (chip select OR payload lane change)
- * ✅ Emits bridge even when not chip (payload lane differs from session lane)
- * ✅ Upgrades sessionPatchSuggestion: lane routing, lastLane, bridge markers, lastAdvanceAt on actionable bridge
- * ✅ Keeps CHIP BRIDGE LOCK++++ + PAYLOAD LANE CANON++++ + BRIDGE STATE++++ + RISK FORCE INTENT FIX++++
- * ✅ Preserves FAIL-OPEN + PsycheBridge option 2 + legacy per-domain hint fallback
+ * v1.1.8 (LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
+ * ✅ Adds lane expert routing contract: effectiveLane + lanesUsed + crossLaneAllowed + lanesAvailable
+ * ✅ General lane becomes true router across ALL knowledge lanes (English always-on as governor)
+ * ✅ Hard guards against lane bleed: music/roku/news-canada/schedule default crossLaneAllowed=false
+ * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.1.7";
+const MARION_VERSION = "marionSO v1.1.8";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -346,6 +345,120 @@ const MARION_STYLE_CONTRACT = Object.freeze({
 });
 
 // -------------------------
+// NEW: Lane Expert Router contract (Nyx gets ALL knowledge lanes via Marion)
+// -------------------------
+const LANE_EXPERTS = Object.freeze({
+  // internal “knowledge lanes” (NOT UI chips)
+  ENGLISH: "english",
+  CYBER: "cyber",
+  FINANCE: "finance",
+  STRATEGY: "strategy",
+  AI: "ai",
+  PSYCHOLOGY: "psychology",
+  ETHICS: "ethics",
+  LAW: "law",
+  // UI-chip-specific lanes (still treated as lanesUsed when locked)
+  MUSIC: "music",
+  ROKU: "roku",
+  RADIO: "radio",
+  SCHEDULE: "schedule",
+  NEWS_CANADA: "news-canada",
+  GENERAL: "general",
+});
+
+const LANES_AVAILABLE = Object.freeze([
+  LANE_EXPERTS.ENGLISH,
+  LANE_EXPERTS.CYBER,
+  LANE_EXPERTS.FINANCE,
+  LANE_EXPERTS.STRATEGY,
+  LANE_EXPERTS.AI,
+  LANE_EXPERTS.PSYCHOLOGY,
+  LANE_EXPERTS.ETHICS,
+  LANE_EXPERTS.LAW,
+  // chip lanes
+  LANE_EXPERTS.MUSIC,
+  LANE_EXPERTS.ROKU,
+  LANE_EXPERTS.RADIO,
+  LANE_EXPERTS.SCHEDULE,
+  LANE_EXPERTS.NEWS_CANADA,
+  LANE_EXPERTS.GENERAL,
+]);
+
+function clampLaneExperts(list, max = 6) {
+  return uniqBounded(
+    (Array.isArray(list) ? list : []).map((x) => safeStr(x, 24).trim().toLowerCase()),
+    max
+  );
+}
+
+function laneCrossAllowedByDefault(effectiveLane) {
+  const ln = safeStr(effectiveLane || "", 40).trim().toLowerCase();
+  // HARD GUARD: chip lanes do NOT cross by default (stops music bleed)
+  if (ln === "music" || ln === "roku" || ln === "schedule" || ln === "news-canada" || ln === "radio") return false;
+  // general is the router across all lanes
+  if (ln === "general") return true;
+  // unknown lanes: conservative default
+  return false;
+}
+
+// Decide which knowledge experts to use this turn (Marion decides; Nyx displays)
+// - General: English always-on + choose up to 4 more based on tags/risk
+// - Music/Roku/etc: locked lane (no cross), but we still return English as “render governor” only if cross is allowed (it isn’t), so we keep it out to avoid bleed.
+// - Stabilize intent: include psychology/ethics/law even in general
+function computeLaneExpertRouting(effectiveLane, cog) {
+  const ln = safeStr(effectiveLane || "", 40).trim().toLowerCase() || "general";
+  const c = isPlainObject(cog) ? cog : {};
+
+  const crossLaneAllowed = laneCrossAllowedByDefault(ln);
+
+  // Locked chip lanes: keep them pure
+  if (!crossLaneAllowed && ln !== "general") {
+    const locked = ln;
+    return {
+      effectiveLane: locked,
+      crossLaneAllowed: false,
+      lanesUsed: clampLaneExperts([locked], 3),
+      lanesAvailable: LANES_AVAILABLE,
+      reason: "lane_lock",
+    };
+  }
+
+  // General router (ALL knowledge lanes available; English is governor)
+  const lanes = [];
+  lanes.push(LANE_EXPERTS.ENGLISH);
+
+  // Safety & regulation: pull in these lanes
+  const intent = safeStr(c.intent || "", 16).toUpperCase();
+  const riskTier = safeStr(c.riskTier || "", 10).toLowerCase();
+  const riskDomains = Array.isArray(c.riskDomains) ? c.riskDomains : [];
+
+  if (intent === "STABILIZE" || riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
+    lanes.push(LANE_EXPERTS.PSYCHOLOGY, LANE_EXPERTS.ETHICS, LANE_EXPERTS.LAW);
+  }
+
+  // Topic-based adds (bounded)
+  if (Array.isArray(c.cyberTags) && c.cyberTags.length) lanes.push(LANE_EXPERTS.CYBER);
+  if (Array.isArray(c.finTags) && c.finTags.length) lanes.push(LANE_EXPERTS.FINANCE);
+  if (Array.isArray(c.strategyTags) && c.strategyTags.length) lanes.push(LANE_EXPERTS.STRATEGY);
+  if (Array.isArray(c.aiTags) && c.aiTags.length) lanes.push(LANE_EXPERTS.AI);
+
+  // If risk domain flags exist, map them
+  if (riskDomains.includes(RISK.DOMAINS.CYBER)) lanes.push(LANE_EXPERTS.CYBER);
+  if (riskDomains.includes(RISK.DOMAINS.FINANCIAL)) lanes.push(LANE_EXPERTS.FINANCE);
+  if (riskDomains.includes(RISK.DOMAINS.LEGAL)) lanes.push(LANE_EXPERTS.LAW);
+
+  // Keep it crisp: English + up to 4 others
+  const pruned = clampLaneExperts(lanes, 5);
+  return {
+    effectiveLane: "general",
+    crossLaneAllowed: true,
+    lanesUsed: pruned,
+    lanesAvailable: LANES_AVAILABLE,
+    reason: "general_router",
+  };
+}
+
+// -------------------------
 // NEW: lane canonicalization (CHIP BRIDGE LOCK)
 // -------------------------
 function normalizeLaneRaw(v) {
@@ -359,7 +472,8 @@ function normalizeLaneRaw(v) {
     s === "radio" ||
     s === "schedule" ||
     s === "news-canada"
-  ) return s;
+  )
+    return s;
   // allow other lanes but clamp token shape
   if (/^[a-z0-9][a-z0-9_-]{0,30}$/.test(s)) return s;
   return "";
@@ -369,13 +483,7 @@ function readPayloadLane(norm) {
   const n = isPlainObject(norm) ? norm : {};
   const ts = isPlainObject(n.turnSignals) ? n.turnSignals : {};
   // common places your stack might stash lane
-  const candidates = [
-    ts.payloadLane,
-    ts.lane,
-    n.payload && n.payload.lane,
-    n.body && n.body.lane,
-    n.lane,
-  ];
+  const candidates = [ts.payloadLane, ts.lane, n.payload && n.payload.lane, n.body && n.body.lane, n.lane];
   for (const c of candidates) {
     const v = normalizeLaneRaw(c);
     if (v) return v;
@@ -446,30 +554,41 @@ function detectMacModeImplicit(text) {
   if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
 
   const s = t.toLowerCase();
-  let a = 0, u = 0, tr = 0;
+  let a = 0,
+    u = 0,
+    tr = 0;
   const why = [];
 
   if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
-    a += 3; why.push("architect:lets-define/design");
+    a += 3;
+    why.push("architect:lets-define/design");
   }
   if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
-    a += 3; why.push("architect:constraints/architecture");
+    a += 3;
+    why.push("architect:constraints/architecture");
   }
   if (/\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s)) {
-    a += 2; why.push("architect:enumeration");
+    a += 2;
+    why.push("architect:enumeration");
   }
   if (/\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(s)) {
-    a += 2; why.push("architect:technical");
+    a += 2;
+    why.push("architect:technical");
   }
 
   if (/\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do i|get\s+the\s+url)\b/.test(s)) {
-    u += 3; why.push("user:uncertainty/how-to");
+    u += 3;
+    why.push("user:uncertainty/how-to");
   }
   if (/\b(confused|stuck|frustrated|overwhelmed|worried)\b/.test(s)) {
-    u += 2; why.push("user:emotion");
+    u += 2;
+    why.push("user:emotion");
   }
 
-  if (a > 0 && u > 0) { tr += 3; why.push("transitional:mixed-signals"); }
+  if (a > 0 && u > 0) {
+    tr += 3;
+    why.push("transitional:mixed-signals");
+  }
 
   let mode = "";
   if (tr >= 3) mode = "transitional";
@@ -656,7 +775,11 @@ function queryPsychologyKnowledge(norm, session, cog) {
       return clampPsychHints({
         enabled: true,
         queryKey: q.queryKey,
-        packs: { foundations: packs.foundations || "", clinicalSafety: packs.clinicalSafety || "", biases: packs.biases || "" },
+        packs: {
+          foundations: packs.foundations || "",
+          clinicalSafety: packs.clinicalSafety || "",
+          biases: packs.biases || "",
+        },
         confidence: 0,
         reason: "packs_only",
       });
@@ -705,7 +828,12 @@ function buildCyberQuery(norm, session, cog) {
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, needs: safeTokenSet(needs, 8) } };
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, needs: safeTokenSet(needs, 8) },
+  };
 }
 
 function clampCyberHints(hints) {
@@ -714,7 +842,11 @@ function clampCyberHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? { safetyPosture: safeStr(h.packs.safetyPosture || "", 48), topPacks: uniqBounded(h.packs.topPacks || [], 3), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
+      ? {
+          safetyPosture: safeStr(h.packs.safetyPosture || "", 48),
+          topPacks: uniqBounded(h.packs.topPacks || [], 3),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -803,7 +935,12 @@ function buildEnglishQuery(norm, session, cog) {
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, needs: safeTokenSet(needs, 10) } };
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, needs: safeTokenSet(needs, 10) },
+  };
 }
 
 function clampEnglishHints(hints) {
@@ -812,7 +949,13 @@ function clampEnglishHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? { curriculum: safeStr(h.packs.curriculum || "", 48), core: uniqBounded(h.packs.core || [], 6), faces: uniqBounded(h.packs.faces || [], 4), dialogue: uniqBounded(h.packs.dialogue || [], 4), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
+      ? {
+          curriculum: safeStr(h.packs.curriculum || "", 48),
+          core: uniqBounded(h.packs.core || [], 6),
+          faces: uniqBounded(h.packs.faces || [], 4),
+          dialogue: uniqBounded(h.packs.dialogue || [], 4),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -901,7 +1044,12 @@ function buildFinanceQuery(norm, session, cog) {
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, needs: safeTokenSet(needs, 10) } };
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, needs: safeTokenSet(needs, 10) },
+  };
 }
 
 function clampFinanceHints(hints) {
@@ -992,7 +1140,12 @@ function buildAIQuery(norm, session, cog) {
   const keyObj = { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, tokens };
   const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
 
-  return { enabled: true, queryKey, tokens, features: { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, needs: safeTokenSet(needs, 10) } };
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, needs: safeTokenSet(needs, 10) },
+  };
 }
 
 function clampAIHints(hints) {
@@ -1001,7 +1154,13 @@ function clampAIHints(hints) {
     enabled: !!h.enabled,
     queryKey: safeStr(h.queryKey || "", 18),
     packs: isPlainObject(h.packs)
-      ? { intro: safeStr(h.packs.intro || "", 64), ethicsLaw: safeStr(h.packs.ethicsLaw || "", 64), agents: safeStr(h.packs.agents || "", 64), cross: uniqBounded(h.packs.cross || [], 6), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} }
+      ? {
+          intro: safeStr(h.packs.intro || "", 64),
+          ethicsLaw: safeStr(h.packs.ethicsLaw || "", 64),
+          agents: safeStr(h.packs.agents || "", 64),
+          cross: uniqBounded(h.packs.cross || [], 6),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
       : {},
     focus: safeStr(h.focus || "", 32),
     stance: safeStr(h.stance || "", 32),
@@ -1195,8 +1354,7 @@ function computeEthicsLayer(norm, psych, seed) {
   const reg = safeStr(p.regulationState || "", 16);
   const agencyPref = safeStr(p.agencyPreference || "", 16);
 
-  const selfHarm =
-    /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
+  const selfHarm = /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
 
   if (selfHarm) {
     tags.push(ETHICS.TAGS.HARM_AVOIDANCE, ETHICS.TAGS.SAFETY_REDIRECT);
@@ -1218,6 +1376,7 @@ function computeEthicsLayer(norm, psych, seed) {
 // -------------------------
 // RISKBRIDGE v1
 // -------------------------
+// (UNCHANGED)
 function computeRiskBridge(norm, psych, ethics, lawSeed) {
   const n = isPlainObject(norm) ? norm : {};
   const p = isPlainObject(psych) ? psych : {};
@@ -1235,24 +1394,21 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
   const pressure = safeStr(p.socialPressure || "", 12);
   const actionable = !!seed.actionable;
 
-  const selfHarm =
-    /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
+  const selfHarm = /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
   if (selfHarm) {
     domains.push(RISK.DOMAINS.SELF_HARM);
     tier = RISK.TIERS.HIGH;
     signals.push("containment_required");
   }
 
-  const violence =
-    /\b(kill|murder|shoot|stab|bomb|attack|hurt them|hurt him|hurt her|beat (them|him|her)|make a weapon)\b/.test(text);
+  const violence = /\b(kill|murder|shoot|stab|bomb|attack|hurt them|hurt him|hurt her|beat (them|him|her)|make a weapon)\b/.test(text);
   if (violence) {
     domains.push(RISK.DOMAINS.VIOLENCE);
     if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
     signals.push("violence_related");
   }
 
-  const illegal =
-    /\b(how to (steal|fraud)|bypass (the )?law|evade (the )?law|counterfeit|forg(e|ery)|identity theft)\b/.test(text);
+  const illegal = /\b(how to (steal|fraud)|bypass (the )?law|evade (the )?law|counterfeit|forg(e|ery)|identity theft)\b/.test(text);
   if (illegal) {
     domains.push(RISK.DOMAINS.ILLEGAL);
     tier = RISK.TIERS.HIGH;
@@ -1353,7 +1509,7 @@ function applyRiskOverridesToLawSeed(lawSeed, risk) {
   const r = isPlainObject(risk) ? risk : {};
   const o = isPlainObject(r.lawOverrides) ? r.lawOverrides : {};
 
-  // FIX++++: forceIntent must win even if actionable (safety precedence)
+  // forceIntent must win even if actionable (safety precedence)
   if (o.forceIntent) {
     const fi = normalizeMove(o.forceIntent);
     seed.intent = fi;
@@ -1453,8 +1609,7 @@ function computeCyberLayer(norm, psych) {
   const mentionsSecurity =
     /\b(cyber|security|infosec|privacy|phish|phishing|malware|ransom|ddos|sql injection|xss|csrf|breach|exploit|hack)\b/.test(text);
 
-  const socialEng =
-    /\b(phish|phishing|social engineering|impersonat|spoof|fraud|scam|otp|2fa code|verification code)\b/.test(text);
+  const socialEng = /\b(phish|phishing|social engineering|impersonat|spoof|fraud|scam|otp|2fa code|verification code)\b/.test(text);
 
   const suspiciousAsk =
     /\b(how to hack|hack into|steal password|bypass|crack|keylog|ddos (a|an)|make malware|write malware|exploit (a|an)|phish (a|an) (email|site)|credential stuffing)\b/.test(
@@ -1491,8 +1646,7 @@ function computeEnglishLayer(norm, seed) {
   const tags = [];
   const signals = [];
 
-  const writingAsk =
-    /\b(rewrite|revise|edit|proofread|grammar|spelling|tone|make this clearer|summarize|shorten|simplify|translate)\b/.test(text);
+  const writingAsk = /\b(rewrite|revise|edit|proofread|grammar|spelling|tone|make this clearer|summarize|shorten|simplify|translate)\b/.test(text);
 
   const docOrComms = /\b(email|letter|proposal|pitch|script|press release|bio|about page|copy|caption)\b/.test(text);
 
@@ -1885,6 +2039,9 @@ function buildTrace(norm, session, med) {
     `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
     `fk=${med?.financeKnowledgeHints?.enabled ? "1" : "0"}`,
     `ak=${med?.aiKnowledgeHints?.enabled ? "1" : "0"}`,
+    // NEW: expert router summary
+    `xl=${Array.isArray(med?.lanesUsed) ? med.lanesUsed.join(",").slice(0, 24) : "-"}`,
+    `xc=${med?.crossLaneAllowed ? "1" : "0"}`,
   ];
 
   const base = parts.join("|");
@@ -1922,6 +2079,8 @@ function tracePolicyCheck(cog, norm, opts) {
     "aiKnowledgeHints",
     "bridge",
     "handoff",
+    "lanesUsed",
+    "lanesAvailable",
   ];
 
   for (const f of fields) {
@@ -1959,13 +2118,9 @@ function finalizeContract(cog, nowMs, extra) {
 
   const velvetAllowed = c.velvetAllowed !== false;
   const velvet = !!c.velvet && velvetAllowed && intent !== "STABILIZE";
-  const velvetSince = velvet
-    ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault())
-    : 0;
+  const velvetSince = velvet ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault()) : 0;
 
-  const bridge = isPlainObject(c.bridge) && c.bridge.enabled
-    ? buildBridgeContract(c.bridge) || null
-    : null;
+  const bridge = isPlainObject(c.bridge) && c.bridge.enabled ? buildBridgeContract(c.bridge) || null : null;
 
   const out = {
     ...c,
@@ -2021,6 +2176,12 @@ function finalizeContract(cog, nowMs, extra) {
 
     marionState: safeStr(c.marionState || "SEEK", 16).toUpperCase(),
     marionReason: safeStr(c.marionReason || "default", 40),
+
+    // NEW: expert router contract (Nyx lane brain payload)
+    effectiveLane: normalizeLaneRaw(c.effectiveLane) || lane,
+    crossLaneAllowed: !!c.crossLaneAllowed,
+    lanesUsed: clampLaneExperts(c.lanesUsed || [], 6),
+    lanesAvailable: Array.isArray(c.lanesAvailable) ? clampLaneExperts(c.lanesAvailable, 24) : LANES_AVAILABLE,
 
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
@@ -2184,7 +2345,7 @@ function mediate(norm, session, opts = {}) {
     const payloadLane = readPayloadLane(n0);
     const sessionLane = normalizeLaneRaw(s.lane) || "";
     const lane = payloadLane || sessionLane || "general";
-    const laneReason = payloadLane ? "payload_lane" : (sessionLane ? "session_lane" : "default");
+    const laneReason = payloadLane ? "payload_lane" : sessionLane ? "session_lane" : "default";
 
     const chipMeta = detectChipSelect(n0);
     const isChip = !!chipMeta.isChip;
@@ -2236,7 +2397,7 @@ function mediate(norm, session, opts = {}) {
     const laneChanged = !!(payloadLane && sessionLane && payloadLane !== sessionLane);
 
     // CHIP FAST-PATH: treat chip select as actionable bridge + lane switch signal
-    const laneAction = (isChip || laneChanged) ? "switch_lane" : "";
+    const laneAction = isChip || laneChanged ? "switch_lane" : "";
 
     if (actionable) intent = "ADVANCE";
     if (isChip || laneChanged) intent = "ADVANCE";
@@ -2399,7 +2560,7 @@ function mediate(norm, session, opts = {}) {
             : intent === "STABILIZE"
             ? MARION_STYLE_CONTRACT.tags.hold
             : MARION_STYLE_CONTRACT.tags.ok,
-        nyxCue: bridge && bridge.enabled ? "route" : (intent === "STABILIZE" ? "hold" : "respond"),
+        nyxCue: bridge && bridge.enabled ? "route" : intent === "STABILIZE" ? "hold" : "respond",
         bridge: bridge && bridge.enabled ? { kind: bridge.kind, laneTo: bridge.laneTo } : { kind: "", laneTo: "" },
       },
 
@@ -2470,6 +2631,19 @@ function mediate(norm, session, opts = {}) {
       cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
     }
 
+    // =========================
+    // NEW: Lane Expert Router (Marion applies ALL knowledge lanes to Nyx)
+    // =========================
+    // IMPORTANT:
+    // - This does not change the widget structure.
+    // - It only adds deterministic routing metadata that chatEngine can consume.
+    const routing = computeLaneExpertRouting(cog.lane, cog);
+    cog.effectiveLane = routing.effectiveLane;
+    cog.crossLaneAllowed = !!routing.crossLaneAllowed;
+    cog.lanesUsed = Array.isArray(routing.lanesUsed) ? routing.lanesUsed : [];
+    cog.lanesAvailable = Array.isArray(routing.lanesAvailable) ? routing.lanesAvailable : LANES_AVAILABLE;
+    cog.laneExpertReason = safeStr(routing.reason || "", 24);
+
     // ---------
     // SESSION PATCH SUGGESTION (UPGRADED for bridge)
     // ---------
@@ -2508,6 +2682,8 @@ function mediate(norm, session, opts = {}) {
       lane: cog.lane,
       laneAction: cog.laneAction,
       bridge: cog.bridge,
+      lanesUsed: cog.lanesUsed,
+      crossLaneAllowed: cog.crossLaneAllowed,
     });
 
     cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
@@ -2548,6 +2724,11 @@ function mediate(norm, session, opts = {}) {
       textEmpty: false,
       groundingMaxLines: 0,
       bridge: { enabled: false, reason: "fail_open" },
+      // NEW router defaults
+      effectiveLane: "general",
+      crossLaneAllowed: true,
+      lanesUsed: [LANE_EXPERTS.ENGLISH],
+      lanesAvailable: LANES_AVAILABLE,
       riskTier: RISK.TIERS.LOW,
       riskDomains: [],
       riskSignals: ["fail_open"],
@@ -2621,6 +2802,12 @@ module.exports = {
   FIN,
   STRATEGY,
   AI,
+
+  // NEW router exports
+  LANE_EXPERTS,
+  LANES_AVAILABLE,
+  computeLaneExpertRouting,
+
   mediate,
 
   // diagnostics
