@@ -12,14 +12,14 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.8 (LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
+ * v1.1.9 (COG CONTRACT COMPAT++++ + STAGE/LAYERS/TRACE++++ + CLARIFY HINT++++)LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
  * ✅ Adds lane expert routing contract: effectiveLane + lanesUsed + crossLaneAllowed + lanesAvailable
  * ✅ General lane becomes true router across ALL knowledge lanes (English always-on as governor)
  * ✅ Hard guards against lane bleed: music/roku/news-canada/schedule default crossLaneAllowed=false
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.1.8";
+const MARION_VERSION = "marionSO v1.1.9";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -2229,6 +2229,71 @@ function finalizeContract(cog, nowMs, extra) {
   out.marionTraceHash = safeStr(out.marionTraceHash || "", 16);
 
   if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
+
+  
+  // ==========================================================
+  // COG CONTRACT COMPAT (for stateSpine sanitizeMarionCog)
+  // Expose small, stable top-level fields:
+  //   mode, intent, stage, layers, needsClarify, askKind, rationale, trace
+  // ==========================================================
+  const needsClarify =
+    safeStr(out.intent || "", 16).toUpperCase() === "CLARIFY" ||
+    safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
+    safeStr(out.bridge?.kind || "", 24).toLowerCase() === "clarify";
+
+  const stage = needsClarify
+    ? "clarify"
+    : safeStr(out.intent || "", 16).toUpperCase() === "ADVANCE"
+    ? "deliver"
+    : "triage";
+
+  // layers: infer from present hint/tag payloads (bounded)
+  const layers = [];
+  function pushLayer(x){
+    const v = safeStr(x || "", 24).toLowerCase().trim();
+    if (!v) return;
+    if (!layers.includes(v)) layers.push(v);
+  }
+
+  // lane as a "layer" (kept compact)
+  pushLayer(out.lane);
+
+  if (Array.isArray(out.aiKnowledgeHints) && out.aiKnowledgeHints.length) pushLayer("ai");
+  if (Array.isArray(out.financeHints) && out.financeHints.length) pushLayer("finance");
+  if (Array.isArray(out.englishHints) && out.englishHints.length) pushLayer("english");
+  if (Array.isArray(out.cyberHints) && out.cyberHints.length) pushLayer("cyber");
+  if (Array.isArray(out.psychologyHints) && out.psychologyHints.length) pushLayer("psy");
+  if (Array.isArray(out.lawTags) && out.lawTags.length) pushLayer("law");
+  if (Array.isArray(out.ethicsTags) && out.ethicsTags.length) pushLayer("ethics");
+  if (Array.isArray(out.strategyHints) && out.strategyHints.length) pushLayer("strategy");
+
+  // cap layers to 8 (stateSpine bound)
+  if (layers.length > 8) layers.length = 8;
+
+  // trace: compact boolean flags only (NO raw text)
+  const trace = {
+    ak: Array.isArray(out.aiKnowledgeHints) && out.aiKnowledgeHints.length > 0,
+    fin: Array.isArray(out.financeHints) && out.financeHints.length > 0,
+    eng: Array.isArray(out.englishHints) && out.englishHints.length > 0,
+    cyber: Array.isArray(out.cyberHints) && out.cyberHints.length > 0,
+    psy: Array.isArray(out.psychologyHints) && out.psychologyHints.length > 0,
+    law: Array.isArray(out.lawTags) && out.lawTags.length > 0,
+    eth: Array.isArray(out.ethicsTags) && out.ethicsTags.length > 0,
+    strat: Array.isArray(out.strategyHints) && out.strategyHints.length > 0,
+  };
+
+  // attach compat keys
+  out.needsClarify = needsClarify;
+  out.stage = stage;
+  out.layers = layers;
+
+  // optional hints for clarifying flows
+  if (needsClarify) {
+    out.askKind = safeStr(out.bridge?.askKind || "need_more_detail", 40) || "need_more_detail";
+    out.rationale = safeStr(out.bridge?.reason || out.bridge?.why || "", 160) || undefined;
+  }
+
+  out.trace = trace;
 
   return out;
 }
