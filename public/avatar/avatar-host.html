@@ -13,7 +13,7 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117k (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+     v9117l (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
              + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
      Notes:
      - Avatar framing is HARD-LOCKED: hero stage logic preserved.
@@ -576,7 +576,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117k • ready</div>
+        <div id="nyxDiag">HOST v9117l • ready</div>
       </div>
     </div>
   </div>
@@ -890,14 +890,14 @@
       try{
         if(heroVid.readyState < 2){
           setStageImageFallback(true);
-          diag("HOST v9117k • autoplay blocked (fallback)");
+          diag("HOST v9117l • autoplay blocked (fallback)");
         }
       }catch(_){}
     }, 900);
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117k • video error (fallback)");
+      diag("HOST v9117l • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
@@ -975,14 +975,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117k • origin locked");
+        diag("HOST v9117l • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117k • ready (ack)");
+        diag("HOST v9117l • ready (ack)");
         return;
       }
 
@@ -1001,7 +1001,7 @@
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
           postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
-          diag("HOST v9117k • config deduped");
+          diag("HOST v9117l • config deduped");
           return;
         }
         CONFIG_ONCE_HASH = cfgSig;
@@ -1040,7 +1040,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117k • config loaded");
+        diag("HOST v9117l • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -1056,7 +1056,7 @@
         }
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117k • cal applied");
+        diag("HOST v9117l • cal applied");
         return;
       }
 
@@ -1596,7 +1596,7 @@ function handleChipClick(chip){
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117k • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117l • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1619,10 +1619,10 @@ function handleChipClick(chip){
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117k • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117l • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117k • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117l • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1716,7 +1716,7 @@ function handleChipClick(chip){
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117k • deduped outbound");
+      diag("HOST v9117l • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1724,7 +1724,7 @@ function handleChipClick(chip){
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117k • sending…");
+    diag("HOST v9117l • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1735,6 +1735,15 @@ function handleChipClick(chip){
 
     var url = apiBase() + "/api/chat";
     var out = await postJson(url, packet, 12000);
+
+    // ✅ CONTEXT PERSISTENCE++++: keep engine state across turns (prevents looping / disjoint replies)
+    if (out && out.ctx && typeof out.ctx === "object") {
+      UI_STATE.ctx = out.ctx;
+    }
+    // Optional cognition capture (for badge/diagnostics)
+    if (out && out.cog && typeof out.cog === "object") {
+      UI_STATE.lastCog = out.cog;
+    }
 
     var status = Number(out && (out.__httpStatus || out.status || 0)) || 0;
 
@@ -1749,7 +1758,7 @@ function handleChipClick(chip){
     var rSig = replySig(out, uiLane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117k • deduped reply");
+      diag("HOST v9117l • deduped reply");
       setPending(false);
       return out;
     }
@@ -1776,7 +1785,7 @@ function handleChipClick(chip){
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117k • ok");
+      diag("HOST v9117l • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
@@ -1784,7 +1793,7 @@ function handleChipClick(chip){
       await renderAssistantReply(msg);
       renderSmartChips(null);
 
-      diag("HOST v9117k • error " + (status || "unknown"));
+      diag("HOST v9117l • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
@@ -1800,6 +1809,10 @@ function handleChipClick(chip){
 
     setPending(false);
     return out;
+    } finally {
+      // HARDEN++++: never let UI lock if any downstream render/speech throws
+      setPending(false);
+    }
   }
 
   function sendTypedText(){
