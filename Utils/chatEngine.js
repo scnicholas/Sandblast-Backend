@@ -17,7 +17,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7i (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
+ * v0.7k (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
  * ✅ Add++++: top-level try/catch fail-safe returns hardened contract (prevents total API crash)
  * ✅ Add++++: marionVersion wiring (best-effort: MarionSO.MARION_VERSION / SO_VERSION / version)
  * ✅ Fix++++: ALWAYS sessionPatch is object (never undefined)
@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7j (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.7k (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -1824,8 +1824,8 @@ const bridge = computeBridge(sessionLane, requestId);
 
 // Make stabilization info visible to downstream consumers (UI / index.js)
 cog.laneId = laneIdComputed;
-cog.sessionLane = sessionLaneState;
-if (bridgeEvent) cog.bridge = bridgeEvent;
+cog.sessionLane = sessionLane;
+if (bridge) cog.bridge = bridge;
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
@@ -1852,11 +1852,11 @@ if (bridgeEvent) cog.bridge = bridgeEvent;
       lastAction: safeStr(norm.action || ""),
 
       // Lane stabilization
-      lane: safeStr(sessionLaneState.current || lane || "general"),
-      lastLane: safeStr(sessionLaneState.previous || ""),
+      lane: safeStr(sessionLane.current || lane || "general"),
+      lastLane: safeStr(sessionLane.previous || ""),
       laneId: safeStr(laneIdComputed || ""),
       laneAt: nowMs(),
-      ...(bridgeEvent ? { lastBridgeAt: Number(bridgeEvent.at || 0) || nowMs(), lastBridgeReason: safeStr(bridgeEvent.reason || "") } : {}),
+      ...(bridge ? { lastBridgeAt: Number(bridge.at || 0) || nowMs(), lastBridgeReason: safeStr(bridge.reason || "") } : {}),
 
       marionState: safeStr(cog.marionState || ""),
       marionReason: safeStr(cog.marionReason || ""),
@@ -1893,8 +1893,8 @@ if (bridgeEvent) cog.bridge = bridgeEvent;
 
       const laneResolved = safeStr(out.lane || lane || "general");
       const laneId = safeStr(out.laneId || (typeof laneIdComputed !== "undefined" ? laneIdComputed : "") || "");
-      const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLaneState !== "undefined" ? sessionLaneState : undefined);
-      const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridgeEvent !== "undefined" ? bridgeEvent : undefined);
+      const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
+      const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridge !== "undefined" ? bridge : undefined);
 
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
