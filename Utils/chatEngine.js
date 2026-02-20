@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7i (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | SPINE YEAR TOKEN FIX++++ + PAYLOAD-ACTIONABLE COHERENCE++++ | SPINE FINALIZE++++ + MOVIES LANE ROUTE++++ + INBOUND->SPINE FULL SHAPE++++ | COG NORMALIZATION++++ + INPUT HARD LIMIT++++ + TRACE SAFETY++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js | TELEMETRY++++ + DISCOVERY HINT++++ | EXPORT HARDENING++++ shim | SESSIONPATCH MERGE ORDER++++)";
+  "chatEngine v0.7j (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -487,9 +487,10 @@ function coerceCoreSpine(session) {
   return Spine.coerceState({ ...seed, ...prev });
 }
 
-function buildSpineInbound(norm) {
+function buildSpineInbound(norm, cog) {
   // IMPORTANT: matches stateSpine.normalizeInbound expectations:
-  // { text, payload, ctx, lane, year, action, turnSignals }
+  // { text, payload, ctx, lane, year, action, turnSignals, cog }
+  // We pass Marion cog so the planner can honor "needsClarify" hints deterministically.
   return {
     text: norm.text,
     payload: norm.payload,
@@ -498,6 +499,7 @@ function buildSpineInbound(norm) {
     year: norm.year,
     action: norm.action,
     turnSignals: norm.turnSignals,
+    cog: cog && typeof cog === "object" ? cog : undefined,
   };
 }
 
@@ -511,10 +513,11 @@ function finalizeSpineTurn({
   pendingAsk,
   decision, // from Spine.decideNextMove (already deterministic)
   assistantSummary,
+  marionCog, // optional: MarionSO/chatEngine cog (stateSpine will sanitize + bound)
   updateReason,
 }) {
   const prev = corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
-  const inbound = buildSpineInbound(norm);
+  const inbound = buildSpineInbound(norm, marionCog);
 
   const next = Spine.finalizeTurn({
     prevState: prev,
@@ -532,6 +535,7 @@ function finalizeSpineTurn({
           stage: safeStr(decision.stage || ""),
         }
       : null,
+    marionCog: marionCog === undefined ? undefined : marionCog,
     assistantSummary,
     updateReason: safeStr(updateReason || "turn"),
   });
@@ -1682,7 +1686,7 @@ async function handleChat(input) {
     cog.publicMode = !!publicMode;
 
     // Planner must see the full inbound (payload/ctx/turnSignals)
-    const spineInbound = buildSpineInbound(norm);
+    const spineInbound = buildSpineInbound(norm, cog);
     const corePlan = Spine.decideNextMove(corePrev, spineInbound);
 
     cog.nextMove = toUpperMove(corePlan.move);
@@ -1822,6 +1826,7 @@ async function handleChat(input) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "",
+  marionCog: cog,
         updateReason: "reset",
       });
 
@@ -1895,6 +1900,7 @@ async function handleChat(input) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "counsel_intro",
+  marionCog: cog,
         updateReason: "counsel_intro",
       });
 
@@ -1976,6 +1982,7 @@ async function handleChat(input) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
+  marionCog: cog,
         updateReason: "ask_year",
       });
 
@@ -2047,6 +2054,7 @@ async function handleChat(input) {
         pendingAsk: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
         decision: corePlan,
         assistantSummary: "asked_lane",
+  marionCog: cog,
         updateReason: "switch_lane",
       });
 
@@ -2147,6 +2155,7 @@ async function handleChat(input) {
           pendingAsk: null,
           decision: corePlan,
           assistantSummary: "movies_lane_missing",
+  marionCog: cog,
           updateReason: "movies",
         });
 
@@ -2208,6 +2217,7 @@ async function handleChat(input) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "served_movies",
+  marionCog: cog,
         updateReason: "movies",
       });
 
@@ -2308,6 +2318,7 @@ async function handleChat(input) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
+  marionCog: cog,
         updateReason: "need_year",
       });
 
@@ -2365,6 +2376,7 @@ async function handleChat(input) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year_range",
+  marionCog: cog,
         updateReason: "year_range",
       });
 
@@ -2449,6 +2461,7 @@ async function handleChat(input) {
           ),
           decision: corePlan,
           assistantSummary: "music_module_missing",
+  marionCog: cog,
           updateReason: "music_missing",
         });
 
@@ -2498,6 +2511,7 @@ async function handleChat(input) {
         pendingAsk: musicOut.pendingAsk || null,
         decision: corePlan,
         assistantSummary: safeStr(musicOut.lastAssistantSummary || "served_music"),
+  marionCog: cog,
         updateReason: "music",
       });
 
@@ -2562,6 +2576,7 @@ async function handleChat(input) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
+  marionCog: cog,
         updateReason: "general_default_music",
       });
 
@@ -2617,6 +2632,7 @@ async function handleChat(input) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "counsel_intro",
+  marionCog: cog,
         updateReason: "general_counsel_intro",
       });
 
@@ -2682,6 +2698,7 @@ async function handleChat(input) {
       pendingAsk: pendingAskObj("need_pick", "clarify", "Pick what you want next.", true),
       decision: corePlan,
       assistantSummary: "served_menu",
+  marionCog: cog,
       updateReason: "general_menu",
     });
 
