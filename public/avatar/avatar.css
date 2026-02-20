@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.4.0 (PHASE1 DOCK LAYOUT++++ + HERO SACRED++++ + VOICE GATE++++ + SCROLL CONTAIN++++)
+ * v1.4.2 (PHASE1 HARD LOCK++++ + COMPACT WIDGET++++ + LEGACY KILL SWITCH++++ + DEDUPE++++)
  *
  * Upgrades:
  * - Top chrome reduced ~30% visual weight
@@ -349,267 +349,7 @@ body{
 }
 
 /* ============================================================
-   PHASE 1 — NYX 3.0 HOST LAYOUT (HERO SACRED + DOCK + SCROLL)
-   Targets the Phase1 avatar-host.html structure:
-     #nyxApp / #nyxHero / #nyxHeroBg / #nyxBubble / #nyxDock / #nyxScroll
-   Notes:
-   - Safe to coexist with legacy (#avatarRoot/#nyxShellMount) styles
-============================================================ */
-
-/* App grid (hero left, dock right) */
-#nyxApp{
-  height:100vh;
-  display:grid;
-  grid-template-columns: 1fr 360px;
-  gap:12px;
-  padding:12px;
-  box-sizing:border-box;
-  background:#000;
-}
-
-/* HERO = sacred zone (never scrolls, never gets covered) */
-#nyxHero{
-  position:relative;
-  border-radius:22px;
-  overflow:hidden;
-  border:1px solid var(--ui-line-soft);
-  background:#000;
-  isolation:isolate;
-  min-height:520px;
-}
-
-/* Hero background uses same variable contract as legacy */
-#nyxHeroBg{
-  position:absolute; inset:0;
-  background-color:#000;
-  background-image:
-    var(--nyx-hero-url),
-    var(--nyx-hero-abs),
-    url(var(--nyx-hero-src));
-  background-repeat:no-repeat;
-  background-position: var(--hero-pos);
-  background-size: var(--hero-scale);
-  opacity: var(--hero-opacity);
-  transform: translateZ(0);
-}
-
-/* Hero overlays (face spot + vignette + shoulder shadow) */
-#nyxHeroBg::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  background:
-    linear-gradient(to top,
-      var(--shoulder-shadow) 0%,
-      rgba(0,0,0,.70) 18%,
-      rgba(0,0,0,0) 46%
-    ),
-    radial-gradient(40% 28% at 50% 22%,
-      var(--face-spot) 0%,
-      rgba(255,255,255,0) 68%
-    ),
-    radial-gradient(120% 100% at 50% 50%,
-      rgba(0,0,0,0) 52%,
-      var(--vignette) 100%
-    );
-}
-
-/* Top controls (voice toggle etc.) */
-#nyxTopControls{
-  position:absolute;
-  top:12px; right:12px;
-  z-index:6;
-  display:flex;
-  gap:8px;
-  pointer-events:auto;
-}
-
-#nyxVoiceBtn{
-  font: 12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  border-radius:14px;
-  padding:8px 10px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(18,18,22,.55);
-  color: rgba(255,255,255,.92);
-  cursor:pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: opacity .18s var(--ease), transform .18s var(--ease);
-}
-#nyxVoiceBtn:hover{ opacity:.96; transform: translateY(-1px); }
-
-/* Bubble stays in shoulder zone; never reaches face */
-#nyxHero #nyxBubble{
-  position:absolute !important;
-  left:18px !important;
-  right:18px !important;
-  bottom:18px !important;
-  top:auto !important;
-  transform:none !important;
-  z-index:5;
-
-  width:auto !important;
-  max-width: 92%;
-  max-height: min(32vh, 280px); /* stricter clamp to protect face */
-  overflow:hidden;
-
-  background:
-    radial-gradient(120% 140% at 50% 0%,
-      rgba(255,255,255,.05) 0%,
-      rgba(255,255,255,0) 42%),
-    linear-gradient(145deg, var(--ui-glass-1), var(--ui-glass-2));
-
-  border:1px solid rgba(255,255,255,.12);
-  border-radius:20px;
-  box-shadow:var(--bubble-shadow);
-  backdrop-filter:blur(var(--bubble-blur));
-  -webkit-backdrop-filter:blur(var(--bubble-blur));
-}
-
-/* Bubble text scroll clamp */
-#nyxHero #nyxBubbleText{
-  max-height: min(20vh, 180px);
-  overflow:auto;
-  -webkit-overflow-scrolling: touch;
-  padding:14px 16px 10px 16px;
-  font-size:15px;
-  line-height:1.55;
-  color:rgba(255,255,255,.96);
-}
-
-/* Bubble actions rail */
-#nyxHero #nyxBubbleActions{
-  display:flex;
-  gap:8px;
-  padding:10px 12px 12px 12px;
-  overflow-x:auto;
-  border-top:1px solid rgba(255,255,255,.05);
-}
-
-/* Dock panel */
-#nyxDock{
-  position:relative;
-  border-radius:22px;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,.08);
-  background: rgba(12,12,16,.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 22px 80px rgba(0,0,0,.72);
-  display:flex;
-  flex-direction:column;
-  min-height:520px;
-}
-
-/* Dock header badge */
-#nyxDockHeader{
-  padding:12px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-}
-#nyxBadge{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  color:rgba(255,255,255,.78);
-}
-#nyxBadge b{ color:rgba(255,255,255,.95); font-weight:700; }
-
-/* Scroll-contained message viewport (only this scrolls) */
-#nyxScroll{
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow:auto;
-  padding:12px;
-}
-#nyxMsgs{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-/* Basic message styling (safe defaults; JS can add classes) */
-.nyx-msg{
-  max-width: 92%;
-  padding:10px 12px;
-  border-radius: 16px;
-  border:1px solid rgba(255,255,255,.08);
-  background: rgba(0,0,0,.26);
-  color: rgba(255,255,255,.92);
-  font: 13.5px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-}
-.nyx-msg.me{
-  margin-left:auto;
-  background: rgba(140,0,35,.22);
-  border-color: rgba(140,0,35,.34);
-}
-.nyx-msg.nyx{
-  margin-right:auto;
-}
-
-/* Input row anchored, safe-area aware */
-#nyxInputRow{
-  display:flex;
-  gap:8px;
-  padding:12px;
-  border-top:1px solid rgba(255,255,255,.08);
-  background: rgba(0,0,0,.20);
-  padding-bottom: calc(12px + var(--safe-b));
-}
-#nyxInput{
-  flex:1;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.35);
-  color: rgba(255,255,255,.92);
-  padding:10px 12px;
-  outline:none;
-}
-#nyxInput:focus{
-  border-color: rgba(255,255,255,.16);
-  box-shadow: 0 0 0 3px rgba(140,0,35,.12);
-}
-#nyxSend{
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(140,0,35,.85);
-  color: rgba(255,255,255,.95);
-  padding:10px 12px;
-  cursor:pointer;
-}
-#nyxSend:hover{ filter:brightness(1.05); }
-
-/* Voice gate CTA */
-#nyxVoiceGate{
-  position:absolute;
-  left:12px; right:12px;
-  bottom: calc(12px + var(--safe-b));
-  z-index: 12;
-  pointer-events:auto;
-}
-#nyxEnableVoice{
-  width:100%;
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,.12);
-  background: rgba(18,18,22,.70);
-  color: rgba(255,255,255,.95);
-  padding:12px;
-  cursor:pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-/* Responsive: collapse dock under hero for narrow widths */
-@media (max-width: 980px){
-  #nyxApp{
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(420px, 56vh) 1fr;
-  }
-  #nyxDock{ min-height: 340px; }
-}
-
-
+   
 #nyxShellMount{
   position:absolute;
   inset:0;
@@ -678,7 +418,7 @@ body{
 
 #nyxBubble,
 #nyxInputDock,
-#nyxBubbleActions{
+body:not(.nyx-phase1) #nyxBubbleActions{
 flex:0 0 auto;
 
   pointer-events:auto;
@@ -687,7 +427,7 @@ flex:0 0 auto;
 /* ============================================================
    SHOULDER-ANCHORED BUBBLE
 ============================================================ */
-#nyxBubble{
+body:not(.nyx-phase1) #nyxBubble{
 display:flex;
   flex-direction:column;
   max-height: var(--bubble-max-h);
@@ -713,7 +453,7 @@ display:flex;
   -webkit-backdrop-filter:blur(var(--bubble-blur));
 }
 
-#nyxBubbleText{
+body:not(.nyx-phase1) #nyxBubbleText{
 flex:1 1 auto;
   max-height: var(--bubble-text-max-h);
   overflow:auto;
@@ -755,7 +495,7 @@ html.nyx-chips-shown #nyxBubbleActions{
 /* ============================================================
    INPUT DOCK
 ============================================================ */
-#nyxInputDock{
+body:not(.nyx-phase1) #nyxInputDock{
   position:absolute !important;
   left:50% !important;
   transform:translateX(-50%) !important;
@@ -811,4 +551,90 @@ html.nyx-thinking #avatarRoot{
 @media (max-height:620px){
   :root{ --hero-pos:50% 26%; }
   #nyxBubble{ top:70% !important; }
+}
+
+
+/* ============================================================
+   PHASE 1 — HARD LOCK / LEGACY SUPPRESSION
+   Ensures Phase1 layout wins and legacy overlay widgets do not
+   render on top of it inside the iframe.
+============================================================ */
+
+body.nyx-phase1 #nyxOverlay,
+body.nyx-phase1 .overlay,
+body.nyx-phase1 #nyxInputDock,
+body.nyx-phase1 .nyx-topbar,
+body.nyx-phase1 #nyxTopbar,
+body.nyx-phase1 .nyx-controls{
+  display:none !important;
+}
+
+/* If legacy bubble rules exist, fence them off from Phase1 */
+body.nyx-phase1 #nyxBubble{
+  left:18px !important;
+  right:18px !important;
+  top:auto !important;
+  bottom:18px !important;
+  transform:none !important;
+}
+
+/* Prevent any legacy absolute-centered bubble from overriding Phase1 */
+body.nyx-phase1 #nyxBubbleText{
+  padding:14px 16px 12px 16px !important;
+}
+
+/* Make sure only the dock scrolls */
+body.nyx-phase1 #nyxHero{ overflow:hidden !important; }
+body.nyx-phase1 #nyxDock{ overflow:hidden !important; }
+body.nyx-phase1 #nyxScroll{ overflow:auto !important; }
+
+/* ============================================================
+   PHASE 1 — COMPACT WIDGET MODE (Small iframe)
+   Keeps hero dominant and turns dock into a peek drawer.
+============================================================ */
+@media (max-width: 520px){
+  body.nyx-phase1 #nyxApp{
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr auto !important;
+    padding: 10px !important;
+    gap: 10px !important;
+  }
+
+  body.nyx-phase1 #nyxHero{
+    min-height: unset !important;
+    height: 100% !important;
+  }
+
+  body.nyx-phase1 #nyxDock{
+    min-height: 180px !important;
+    max-height: 34vh !important;
+  }
+
+  body.nyx-phase1 #nyxDockHeader{
+    padding: 10px !important;
+  }
+
+  body.nyx-phase1 #nyxScroll{
+    padding: 10px !important;
+  }
+
+  /* bubble clamp stricter for face protection */
+  body.nyx-phase1 #nyxHero #nyxBubble{
+    max-height: 24vh !important;
+  }
+  body.nyx-phase1 #nyxHero #nyxBubbleText{
+    max-height: 14vh !important;
+  }
+
+  /* Inputs stay tappable */
+  body.nyx-phase1 #nyxInputRow{
+    padding: 10px !important;
+    padding-bottom: calc(10px + var(--safe-b)) !important;
+  }
+}
+
+/* Extra: avoid greeting clip on some browsers */
+body.nyx-phase1 #nyxHero #nyxBubbleText,
+body.nyx-phase1 #nyxScroll{
+  padding-bottom: 14px !important;
 }
