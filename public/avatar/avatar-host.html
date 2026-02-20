@@ -13,7 +13,7 @@
 
   /* ============================================================
      NYX HOST — PREMIUM + HARDENED (FACE-FIRST / DOCKED CARD)
-     v9117i (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
+     v9117j (CHIPS FIT++++ + TRANSCRIPT (EXPAND-ONLY)++++ + INTRO VOICE UNLOCK++++
              + LANE HARD-LOCK++++ + DEBUG SURFACE KILLED++++ + ROKU LINKS++++)
      Notes:
      - Avatar framing is HARD-LOCKED: hero stage logic preserved.
@@ -546,7 +546,7 @@
           <button id="nyxSend" type="button">Send</button>
         </div>
 
-        <div id="nyxDiag">HOST v9117i • ready</div>
+        <div id="nyxDiag">HOST v9117j • ready</div>
       </div>
     </div>
   </div>
@@ -859,14 +859,14 @@
       try{
         if(heroVid.readyState < 2){
           setStageImageFallback(true);
-          diag("HOST v9117i • autoplay blocked (fallback)");
+          diag("HOST v9117j • autoplay blocked (fallback)");
         }
       }catch(_){}
     }, 900);
 
     heroVid.addEventListener("error", function(){
       setStageImageFallback(true);
-      diag("HOST v9117i • video error (fallback)");
+      diag("HOST v9117j • video error (fallback)");
     });
 
     heroVid.addEventListener("loadeddata", function(){
@@ -944,14 +944,14 @@
 
       if(!PARENT_ORIGIN && ORIGIN_LEARN_TYPES[t] && typeof ev.origin === "string" && ev.origin){
         PARENT_ORIGIN = ev.origin;
-        diag("HOST v9117i • origin locked");
+        diag("HOST v9117j • origin locked");
       }
 
       if(PARENT_ORIGIN && ev.origin !== PARENT_ORIGIN) return;
 
       if(t === "NYX_READY_ACK"){
         READY_ACK = true;
-        diag("HOST v9117i • ready (ack)");
+        diag("HOST v9117j • ready (ack)");
         return;
       }
 
@@ -970,7 +970,7 @@
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
           postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), deduped:true }, false);
-          diag("HOST v9117i • config deduped");
+          diag("HOST v9117j • config deduped");
           return;
         }
         CONFIG_ONCE_HASH = cfgSig;
@@ -1009,7 +1009,7 @@
           postToParent({ type:"NYX_NEED_TOKEN", v: CONFIG.version, ts: now() }, false);
         }
 
-        diag("HOST v9117i • config loaded");
+        diag("HOST v9117j • config loaded");
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         return;
       }
@@ -1025,7 +1025,7 @@
         }
         if(typeof cal.cardMax === "string") document.documentElement.style.setProperty("--nyx-card-max", cal.cardMax);
 
-        diag("HOST v9117i • cal applied");
+        diag("HOST v9117j • cal applied");
         return;
       }
 
@@ -1200,7 +1200,16 @@
   }
 
   function openLink(where){
-    postToParent({ type:"NYX_NAV", where: where, lane: UI_STATE.lane, ts: now() }, false);
+    // Allow either a known key (help/support/privacy/schedule/docs) or a full URL.
+    var key = safeStr(where, 160).trim();
+    var url = "";
+    if (/^https?:\/\//i.test(key)) url = key;
+    else if (CONFIG.nav && CONFIG.nav[key]) url = CONFIG.nav[key];
+
+    postToParent(
+      { type:"NYX_NAV", where: key, url: url || undefined, lane: UI_STATE.lane, ts: now() },
+      false
+    );
   }
 
   function handleChipClick(chip){
@@ -1261,6 +1270,21 @@
   // ==========
   // Intent packet builder (lane hard-lock included)
   // ==========
+  function buildCtxSnapshot(){
+    // Small, bounded context to help the backend keep the conversation coherent.
+    // NOTE: this is intentionally tiny; no HTML, capped lengths, last few turns only.
+    var tail = THREAD.slice(-6).map(function(m){
+      return { r: safeStr(m.role, 10), t: safeStr(m.text, 380), ts: Number(m.ts||0)||0 };
+    });
+    var ac = UI_STATE.activeChip ? {
+      id: safeStr(UI_STATE.activeChip.id||"", 80),
+      lane: safeStr(UI_STATE.lane||"", 24),
+      route: safeStr(UI_STATE.activeChip.payload && (UI_STATE.activeChip.payload.route||UI_STATE.activeChip.payload.action)||"", 80),
+      year: UI_STATE.activeChip.payload && UI_STATE.activeChip.payload.year ? Number(UI_STATE.activeChip.payload.year)||undefined : undefined
+    } : null;
+    return { threadTail: tail, active: ac || undefined };
+  }
+
   function buildIntentPacket(opts){
     opts = (opts && typeof opts === "object") ? opts : {};
 
@@ -1307,6 +1331,7 @@
       lane: lane,
       action: action,
       payload: payload,
+      ctx: buildCtxSnapshot(),
       turnSignals: turnSignals,
       client: { source: "nyx_host_iframe", routeHint: lane, chip: chip }
     };
@@ -1433,7 +1458,7 @@
   }
 
   function startSTT(){
-    if(!SpeechRecognition){ diag("HOST v9117i • STT unsupported"); return; }
+    if(!SpeechRecognition){ diag("HOST v9117j • STT unsupported"); return; }
     if(UI_STATE.pending) return;
 
     if(!rec){
@@ -1456,10 +1481,10 @@
       }catch(_){}
     };
 
-    rec.onerror = function(){ stopSTT(); diag("HOST v9117i • STT error"); };
+    rec.onerror = function(){ stopSTT(); diag("HOST v9117j • STT error"); };
     rec.onend = function(){ setMic(false); };
 
-    try{ rec.start(); setMic(true); diag("HOST v9117i • listening…"); }catch(_){ setMic(false); }
+    try{ rec.start(); setMic(true); diag("HOST v9117j • listening…"); }catch(_){ setMic(false); }
   }
 
   if(micBtn){
@@ -1486,10 +1511,30 @@
   }
 
   function marionPresent(out){
-    var c = out && out.cog && typeof out.cog === "object" ? out.cog : null;
-    if(c && c.marionTraceHash) return true;
-    var t = out && out.meta && out.meta.telemetry && out.meta.telemetry.marion ? out.meta.telemetry.marion : null;
-    if(t && t.traceHash) return true;
+    // Detect Marion cognition bridge across multiple response shapes (fail-open).
+    if(!out || typeof out!=="object") return false;
+
+    // Preferred: out.marion (sanitized MarionSO) OR out.state.marion
+    if(out.marion && typeof out.marion === "object") return true;
+    if(out.state && out.state.marion && typeof out.state.marion === "object") return true;
+
+    // Alternate: out.cog.traceBits / out.cog.marionTraceHash (older contract)
+    var c = out.cog && typeof out.cog === "object" ? out.cog : null;
+    if(c){
+      if(c.marionTraceHash) return true;
+      if(c.traceBits && typeof c.traceBits === "object" && Object.keys(c.traceBits).length) return true;
+      if(c.trace && typeof c.trace === "object" && Object.keys(c.trace).length) return true;
+    }
+
+    // Telemetry variants
+    var t = out.meta && out.meta.telemetry ? out.meta.telemetry : null;
+    if(t){
+      if(t.marionTraceHash) return true;
+      if(t.marion && typeof t.marion === "object"){
+        if(t.marion.traceHash) return true;
+        if(t.marion.bits && typeof t.marion.bits === "object" && Object.keys(t.marion.bits).length) return true;
+      }
+    }
     return false;
   }
 
@@ -1533,7 +1578,7 @@
     var sig = outboundSig(packet);
     var t = now();
     if(sig && UI_STATE.__lastOutboundSig === sig && (t - UI_STATE.__lastOutboundAt) < 1200){
-      diag("HOST v9117i • deduped outbound");
+      diag("HOST v9117j • deduped outbound");
       return;
     }
     UI_STATE.__lastOutboundSig = sig;
@@ -1541,7 +1586,7 @@
 
     UI_STATE.lastRequestId = safeStr(packet && packet.requestId);
     setPending(true);
-    diag("HOST v9117i • sending…");
+    diag("HOST v9117j • sending…");
 
     postToParent({
       type:"NYX_OUTBOUND",
@@ -1566,7 +1611,7 @@
     var rSig = replySig(out, uiLane);
     var rt = now();
     if(rSig && UI_STATE.__lastReplySig === rSig && (rt - UI_STATE.__lastReplyAt) < 2000){
-      diag("HOST v9117i • deduped reply");
+      diag("HOST v9117j • deduped reply");
       setPending(false);
       return out;
     }
@@ -1589,14 +1634,14 @@
         meta: out.meta || {}
       }, false);
 
-      diag("HOST v9117i • ok");
+      diag("HOST v9117j • ok");
     }else{
       var msg = "Hmm. I didn’t get a clean reply. Try again.";
       if(status === 401 || status === 403) msg = "Auth blocked (401/403). Token/origin mismatch — fix the parent config.";
       if(out && out.error === "timeout") msg = "Timeout. Try again.";
       await renderAssistantReply(msg);
 
-      diag("HOST v9117i • error " + (status || "unknown"));
+      diag("HOST v9117j • error " + (status || "unknown"));
       postToParent({
         type:"NYX_ERROR",
         v:CONFIG.version,
