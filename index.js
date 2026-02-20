@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cc (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.19cd (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -89,7 +89,7 @@ const nyxVoiceNaturalizeMod =
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.19cc (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
+  "index.js v1.5.19cd (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -2289,6 +2289,21 @@ app.use((req, res, next) => {
   // Public static avatar assets must NEVER be blocked by strict CORS.
   // Browsers may send Origin on iframe/document requests; treat /avatar as public.
   const p = safeStr(req.path || "");
+// Public diagnostics endpoints (must not be blocked by strict CORS)
+if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    req.headers["access-control-request-headers"] ||
+      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
+  );
+  res.setHeader("Access-Control-Max-Age", "600");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  return next();
+}
+
   if (p === "/avatar-host.html" || p === "/avatar" || p.startsWith("/avatar/")) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Vary", "Origin");
@@ -2410,18 +2425,88 @@ app.get("/_warm", (req, res) => {
   res.status(200).json({ ok: true, ts: Date.now(), v: INDEX_VERSION });
 });
 
-app.get("/api/health", (req, res) => {
+
+// Health + diagnostics (public)
+app.get("/_health", (req, res) => {
+  res.set("Cache-Control", "no-store");
   res.status(200).json({
     ok: true,
+    ts: Date.now(),
+    uptimeS: Math.round(process.uptime()),
     version: INDEX_VERSION,
+    node: process.version,
+    env: NODE_ENV,
+  });
+});
+
+// Alias (some callers prefer /api/health)
+app.get("/api/health", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({
+    ok: true,
+    ts: Date.now(),
+    uptimeS: Math.round(process.uptime()),
+    version: INDEX_VERSION,
+    node: process.version,
+    env: NODE_ENV,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
-    up: true,
-    now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
 });
+
+// Diagnostics (redacted; safe to expose publicly)
+app.get("/_diag", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const originRaw = safeStr(req.headers.origin || "");
+  const origin = normalizeOrigin(originRaw);
+  res.status(200).json({
+    ok: true,
+    ts: Date.now(),
+    version: INDEX_VERSION,
+    origin: origin || null,
+    originAllowed: origin ? isAllowedOrigin(origin) : null,
+    tokenGate: {
+      enabled: !!EXPECTED_API_TOKEN,
+      header: API_TOKEN_HEADER,
+      bearerAllowed: true,
+      // never expose the token itself
+      tokenConfigured: !!EXPECTED_API_TOKEN,
+    },
+    avatar: {
+      dir: AVATAR_DIR,
+      exists: fileExists(AVATAR_DIR),
+    },
+    limits: {
+      maxJsonBody: MAX_JSON_BODY,
+      reqTimeoutMs: REQ_TIMEOUT_MS,
+      ipRateEnabled: IP_RATE_ENABLED,
+    },
+  });
+});
+
+// Minimal ping/echo to prove browser->server reachability (public)
+app.post("/api/ping", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({
+    ok: true,
+    ts: Date.now(),
+    version: INDEX_VERSION,
+    method: req.method,
+    path: req.path,
+    origin: safeStr(req.headers.origin || "") || null,
+    ua: safeStr(req.headers["user-agent"] || "")?.slice(0, 160) || null,
+    ip: pickClientIp(req) || null,
+    bodyKeys: isPlainObject(req.body) ? Object.keys(req.body).slice(0, 40) : [],
+  });
+});
+
+// Back-compat: /api/diag/*
+app.get("/api/diag", (req, res) => {
+  res.redirect(302, "/_diag");
+});
+
 
 app.get("/api/discovery", (req, res) => {
   res.status(200).json({
