@@ -10,19 +10,20 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.8 (TURN-SIGNALS SHAPE FIX++++ + ACTIVECTX TYPE SAFETY++++ + ASK RESOLUTION HARDEN++++ + TESTS++++)
- * ✅ Fix++++: normalizeInbound reads BOTH {turnSignals} and {signals} and tolerates partial signal sets
- * ✅ Harden++++: activeContext / lastChipClicked sanitized (lane normalized, route/id bounded, payload mini)
- * ✅ Harden++++: pendingAsk resolution: "need_pick" resolves on lane tokens OR lane-bearing payload.route
- * ✅ Harden++++: hasActionablePayload includes publicMode (matches chatEngine) + guards against huge payload key sets
- * ✅ Add++++: self-tests cover signals compatibility + activeContext sanitation + need_pick resolve via route
+ * v1.1.9 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
+ * ✅ Add++++: normalizeInbound reads inbound.cog / inbound.marion (MarionSO output) and sanitizes it
+ * ✅ Add++++: state.marion stores bounded cognition summary (mode/intent/stage/layers/budget/dominance/traceBits)
+ * ✅ Add++++: finalizeTurn can persist marionCog (from chatEngine) OR inbound.cog (if provided)
+ * ✅ Harden++++: planner uses cog hints to prefer CLARIFY when Marion says clarify-needed
+ * ✅ Add++++: self-tests cover cog ingestion + sanitization bounds
  *
+ * Keeps: v1.1.8 (TURN-SIGNALS SHAPE FIX++++ + ACTIVECTX TYPE SAFETY++++ + ASK RESOLUTION HARDEN++++ + TESTS++++)
  * Keeps: v1.1.7 PATCH POISON SHIELD++++ + VERSION LOCK++++ + PENDINGASK KIND FIX++++ + SELF-TESTS EXPAND++++
  * Keeps: v1.1.6 COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++
  * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.8";
+const SPINE_VERSION = "stateSpine v1.1.9";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -95,8 +96,7 @@ function extractYearFromText(t) {
   const s = safeStr(t, 2000).trim();
   if (!s) return null;
 
-  // FIX++++: do not cap at 2025; accept any 4-digit year and let normYear clamp to 1900..2100.
-  // (We still keep this tight to 19xx/20xx/2100 to avoid random numbers.)
+  // Accept any 4-digit year and let normYear clamp to 1900..2100.
   const m = s.match(/\b(19\d{2}|20\d{2}|2100)\b/);
   if (!m) return null;
   return normYear(Number(m[1]));
@@ -161,6 +161,112 @@ function isLaneToken(t) {
 }
 
 // -------------------------
+// MARION COG (sanitized, bounded)
+// -------------------------
+function normalizeCogStage(x) {
+  const v = safeStr(x, 40).toLowerCase().trim();
+  // Keep aligned with STAGE but tolerate Marion-specific synonyms.
+  if (Object.values(STAGE).includes(v)) return v;
+  if (v === "plan") return STAGE.TRIAGE;
+  if (v === "execute") return STAGE.DELIVER;
+  return STAGE.OPEN;
+}
+function normalizeCogMode(x) {
+  const v = safeStr(x, 40).toLowerCase().trim();
+  // keep permissive but bounded
+  if (!v) return "unknown";
+  // avoid weird injection
+  return v.replace(/[^a-z0-9_\-]/g, "").slice(0, 40) || "unknown";
+}
+function normalizeCogIntent(x) {
+  const v = safeStr(x, 48).toLowerCase().trim();
+  if (!v) return "unknown";
+  return v.replace(/[^a-z0-9_\-]/g, "").slice(0, 48) || "unknown";
+}
+function normalizeCogLayers(layers) {
+  const arr = Array.isArray(layers) ? layers : [];
+  const out = [];
+  for (let i = 0; i < arr.length && out.length < 8; i++) {
+    const v = safeStr(arr[i], 32).toLowerCase().trim();
+    if (!v) continue;
+    const clean = v.replace(/[^a-z0-9_\-]/g, "").slice(0, 32);
+    if (!clean) continue;
+    if (!out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
+function normalizeTraceBits(x) {
+  // trace bits are tiny flags like { ak:true, psy:true } etc.
+  const src = isPlainObject(x) ? x : {};
+  const keys = Object.keys(src);
+  const out = {};
+  for (let i = 0; i < keys.length && i < 24; i++) {
+    const k = safeStr(keys[i], 12).toLowerCase().trim();
+    if (!k) continue;
+    // only allow compact keys
+    if (!/^[a-z0-9_]{1,12}$/.test(k)) continue;
+    out[k] = !!src[keys[i]];
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+function sanitizeMarionCog(cog) {
+  if (!isPlainObject(cog)) return null;
+
+  const mode = normalizeCogMode(cog.mode || cog.macMode || cog.persona || "");
+  const intent = normalizeCogIntent(cog.intent || cog.userIntent || "");
+  const stage = normalizeCogStage(cog.stage || cog.step || "");
+
+  // budget/dominance: numeric but bounded
+  const budgetRaw = Number(cog.budget);
+  const budget =
+    Number.isFinite(budgetRaw) ? Math.max(0, Math.min(100, Math.trunc(budgetRaw))) : undefined;
+
+  const domRaw = Number(cog.dominance);
+  const dominance =
+    Number.isFinite(domRaw) ? Math.max(0, Math.min(100, Math.trunc(domRaw))) : undefined;
+
+  const layers = normalizeCogLayers(
+    cog.layers || cog.layerTags || cog.layer || cog.tags || []
+  );
+
+  const rationale = safeStr(cog.rationale || cog.why || "", 160).trim() || undefined;
+  const askKind = safeStr(cog.askKind || "", 40).trim() || undefined;
+
+  // “needsClarify” is the useful planner hint.
+  const needsClarify =
+    typeof cog.needsClarify === "boolean"
+      ? cog.needsClarify
+      : typeof cog.clarifyNeeded === "boolean"
+      ? cog.clarifyNeeded
+      : undefined;
+
+  const traceBits = normalizeTraceBits(cog.trace || cog.traceBits || cog.bits || undefined);
+
+  const out = {
+    mode,
+    intent,
+    stage,
+    layers,
+    ...(budget !== undefined ? { budget } : {}),
+    ...(dominance !== undefined ? { dominance } : {}),
+    ...(needsClarify !== undefined ? { needsClarify: !!needsClarify } : {}),
+    ...(askKind ? { askKind } : {}),
+    ...(rationale ? { rationale } : {}),
+    ...(traceBits ? { traceBits } : {}),
+    at: nowMs(),
+  };
+
+  // if it’s basically empty, drop it
+  const meaningful =
+    out.mode !== "unknown" ||
+    out.intent !== "unknown" ||
+    (Array.isArray(out.layers) && out.layers.length) ||
+    out.needsClarify === true;
+
+  return meaningful ? out : null;
+}
+
+// -------------------------
 // CRITICAL: pendingAsk schema compatibility
 // Supports BOTH shapes:
 //  A) { kind, prompt, options, createdAt }
@@ -174,8 +280,7 @@ function normalizePendingAsk(p) {
   const idRaw = safeStr(p.id || "", 80).trim();
   const typeRaw = safeStr(p.type || "", 40).trim();
 
-  // FIX++++: kind stays semantic; do NOT map id/type into kind.
-  // (id/type remain as compat hints, but kind is the planner axis.)
+  // kind stays semantic; do NOT map id/type into kind.
   const kind = kindRaw || "need_more_detail";
 
   const prompt = safeStr(p.prompt || "", 220).trim();
@@ -438,6 +543,7 @@ function buildActiveContext(norm, spinePrev) {
 function createState(seed = {}) {
   const createdAtIso = nowIso();
   const pendingAsk = normalizePendingAsk(seed.pendingAsk);
+  const marion = sanitizeMarionCog(seed.marion);
 
   return {
     __spineVersion: SPINE_VERSION,
@@ -452,6 +558,9 @@ function createState(seed = {}) {
 
     lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
     pendingAsk: pendingAsk || null,
+
+    // Marion cognition (sanitized; no raw text)
+    marion: marion || null,
 
     // Context memory
     activeContext: sanitizeActiveContext(seed.activeContext),
@@ -485,7 +594,7 @@ function createState(seed = {}) {
     lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
 
     // Evidence trail (NO raw user text by default; callers may provide sanitized summaries)
-    lastUserText: safeStr(seed.lastUserText || "", 0), // stays "" by default (see safeStr fix)
+    lastUserText: safeStr(seed.lastUserText || "", 0), // stays "" by default
     lastAssistantSummary: safeStr(seed.lastAssistantSummary || "", 320),
 
     // Stats
@@ -531,6 +640,9 @@ function coerceState(prev) {
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
 
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
+
+  // Marion (sanitized)
+  out.marion = sanitizeMarionCog(out.marion);
 
   if (!out.goal || typeof out.goal !== "object")
     out.goal = { primary: null, secondary: [], updatedAt: 0 };
@@ -603,15 +715,21 @@ function updateState(prev, patch = {}, reason = "turn") {
       ? normalizePendingAsk(patchObj.pendingAsk)
       : undefined;
 
-  // Guard: prevent patch poisoning with non-objects
   const patchDiag = isPlainObject(patchObj.diag) ? patchObj.diag : null;
   const patchGoal = isPlainObject(patchObj.goal) ? patchObj.goal : null;
+
+  const patchMarion =
+    Object.prototype.hasOwnProperty.call(patchObj, "marion") &&
+    patchObj.marion === null
+      ? null
+      : patchObj.marion
+      ? sanitizeMarionCog(patchObj.marion)
+      : undefined;
 
   const next = {
     ...p,
     ...patchObj,
 
-    // Always lock version marker (prevents patch poisoning)
     __spineVersion: SPINE_VERSION,
 
     // core normalized
@@ -622,6 +740,14 @@ function updateState(prev, patch = {}, reason = "turn") {
       patchObj.lastUserIntent != null
         ? safeStr(patchObj.lastUserIntent, 40)
         : p.lastUserIntent,
+
+    // Marion cognition
+    marion:
+      patchMarion === null
+        ? null
+        : patchMarion
+        ? patchMarion
+        : p.marion,
 
     // Evidence trail (bounded, caller-controlled)
     lastUserText:
@@ -746,6 +872,7 @@ function updateState(prev, patch = {}, reason = "turn") {
   next.pendingAsk = normalizePendingAsk(next.pendingAsk);
   next.activeContext = sanitizeActiveContext(next.activeContext);
   next.lastChipClicked = sanitizeActiveContext(next.lastChipClicked);
+  next.marion = sanitizeMarionCog(next.marion);
 
   return next;
 }
@@ -756,6 +883,7 @@ function updateState(prev, patch = {}, reason = "turn") {
 // NOTE: This must accept chatEngine's inbound shapes:
 // - inbound.ctx and/or inbound.payload
 // - chatEngine uses turnSignals; some older callers use signals
+// - marion may be provided as inbound.cog or inbound.marion
 function normalizeInbound(inbound = {}) {
   const body = isPlainObject(inbound) ? inbound : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
@@ -813,6 +941,9 @@ function normalizeInbound(inbound = {}) {
         : payloadActionable,
   };
 
+  // Marion cog: accept either body.cog OR body.marion
+  const cog = sanitizeMarionCog(body.cog || body.marion || null);
+
   return {
     text,
     payload,
@@ -821,6 +952,7 @@ function normalizeInbound(inbound = {}) {
     year,
     action,
     signals,
+    cog,
   };
 }
 
@@ -838,6 +970,22 @@ function decideNextMove(state, inbound = {}) {
   const hasAction = !!safeStr(n.action || "", 80).trim();
   const payloadActionable = !!n.signals.payloadActionable;
   const hasPayload = !!n.signals.hasPayload;
+
+  // If Marion explicitly thinks we need clarify, respect it.
+  const marionHint = n.cog || s.marion;
+  if (marionHint && marionHint.needsClarify === true) {
+    return {
+      move: MOVE.CLARIFY,
+      stage: STAGE.CLARIFY,
+      speak: "One quick detail, then I’ll execute cleanly.",
+      ask: buildPendingAsk(
+        marionHint.askKind || "need_more_detail",
+        "Give me the missing detail in one line so I can proceed.",
+        []
+      ),
+      rationale: "marion_needs_clarify",
+    };
+  }
 
   // If we already have a pending ask, try to resolve it based on typed/click evidence.
   if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
@@ -896,12 +1044,13 @@ function decideNextMove(state, inbound = {}) {
 
   // Empty text and non-actionable -> NARROW if meaningful context exists, else CLARIFY
   if (!hasText && textEmpty) {
-    // FIX++++: topic defaults to "unknown" and should NOT count as real context.
+    // topic defaults to "unknown" and should NOT count as real context.
     const hasCtx =
       !!s.activeContext ||
       (safeStr(s.topic || "", 80).trim() && safeStr(s.topic || "", 80).trim() !== "unknown") ||
       (safeStr(s.lane || "", 24).trim() && safeStr(s.lane || "", 24).trim() !== LANE.GENERAL) ||
-      !!s.pendingAsk;
+      !!s.pendingAsk ||
+      !!s.marion;
 
     return hasCtx
       ? {
@@ -962,6 +1111,7 @@ function finalizeTurn({
   pendingAsk, // optional; if undefined, keep logic-controlled value
   decision, // {move, rationale, speak, stage}
   assistantSummary, // optional, bounded
+  marionCog, // optional: sanitized MarionSO output (preferred from chatEngine)
   updateReason = "turn",
 }) {
   const prev = coerceState(prevState);
@@ -1003,6 +1153,16 @@ function finalizeTurn({
     activeContext,
     text: n.text,
   });
+
+  // Choose marion: explicit arg beats inbound.cog beats prev.marion
+  const nextMarion =
+    marionCog === null
+      ? null
+      : marionCog
+      ? sanitizeMarionCog(marionCog)
+      : n.cog
+      ? sanitizeMarionCog(n.cog)
+      : prev.marion;
 
   // PendingAsk hygiene:
   // - clear need_year if user typed a year token, OR
@@ -1046,6 +1206,9 @@ function finalizeTurn({
     lastUserIntent,
     activeContext,
     pendingAsk: nextPendingAsk,
+
+    // Marion cognition (sanitized)
+    marion: nextMarion,
 
     lastActionTaken: safeStr(actionTaken || "", 40).trim() || null,
 
@@ -1190,7 +1353,11 @@ function runSpineSelfTests() {
     createState()
   );
   assert("activeContext_lane_normalized", ac && ac.lane === "music", safeStr(ac && ac.lane));
-  assert("activeContext_payload_mini", ac && ac.payload && !ac.payload.extra, safeStr(ac && JSON.stringify(ac.payload)));
+  assert(
+    "activeContext_payload_mini",
+    ac && ac.payload && !ac.payload.extra,
+    safeStr(ac && JSON.stringify(ac.payload))
+  );
 
   // 9) need_pick resolves via payload.route lane token
   const stPick = createState({ pendingAsk: { kind: "need_pick", prompt: "Pick a lane" } });
@@ -1201,7 +1368,16 @@ function runSpineSelfTests() {
   });
   assert("need_pick_resolves_via_route", planPick.move === MOVE.ADVANCE, safeStr(planPick.move));
 
-  return { ok: failures.length === 0, failures, ran: 9, v: SPINE_VERSION };
+  // 10) marion cog ingestion (normalizeInbound + sanitize)
+  const nb = normalizeInbound({
+    text: "hello",
+    cog: { mode: "Strategic", intent: "clarify", stage: "clarify", layers: ["AI", "Finance"], needsClarify: true, trace: { ak: true } },
+  });
+  assert("cog_ingested", !!nb.cog, JSON.stringify(nb.cog || {}));
+  assert("cog_layers_norm", nb.cog && nb.cog.layers.includes("ai"), JSON.stringify(nb.cog || {}));
+  assert("cog_needsClarify", nb.cog && nb.cog.needsClarify === true, JSON.stringify(nb.cog || {}));
+
+  return { ok: failures.length === 0, failures, ran: 10, v: SPINE_VERSION };
 }
 
 module.exports = {
