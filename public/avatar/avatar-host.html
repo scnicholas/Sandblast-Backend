@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="./avatar.css?v=9117" />
 
 <style>
+
   html,body{height:100%}
   body{margin:0;background:#000;overflow:hidden}
 
@@ -33,11 +34,11 @@
     --nyx-hero-dim:.12;
 
     /* Card sizing */
-    --nyx-card-w: min(448px, calc(100vw - 28px));
+    --nyx-card-w: 100%;
     --nyx-card-radius: 20px;
-    --nyx-card-bottom: 16px;
+    --nyx-card-bottom: 0px;
     --nyx-card-pad: 14px;
-    --nyx-card-max: clamp(320px, 54vh, 440px);
+    --nyx-card-max: calc(100vh - 24px);
 
     /* Typography */
     --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -113,19 +114,40 @@
   }
   html.nyx-thinking #nyxStage{ animation: nyxPulse .55s ease-in-out 1; }
 
-  /* ===== Overlay layout ===== */
-  #nyxOverlay{
-    position:absolute;
-    inset:0;
-    display:flex;
-    flex-direction:column;
-    justify-content:flex-end;
-    align-items:flex-end;
-    padding:16px;
-    pointer-events:none;
-    z-index:10;
+  /* ===== App layout (HERO SACRED + DOCK) ===== */
+  #nyxApp{
+    position:relative;
+    height:100vh;
+    display:grid;
+    grid-template-columns: 1fr 380px;
+    gap:12px;
+    padding:12px;
+    box-sizing:border-box;
   }
+
+  #nyxHeroWrap{
+    position:relative;
+    border-radius: 22px;
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.08);
+    background:#000;
+    min-height: 520px;
+    isolation:isolate;
+  }
+
+  /* Stage remains HARD-LOCKED, but now lives inside hero wrap */
+  #nyxStage{ inset:0; }
+
+  #nyxDockWrap{
+    position:relative;
+    display:flex;
+    align-items:stretch;
+    justify-content:stretch;
+    min-height: 520px;
+  }
+
   #nyxCard, #nyxCard * { pointer-events:auto; }
+
 
   /* ===== Docked Card ===== */
   #nyxCard{
@@ -470,6 +492,16 @@
     border-color: rgba(140,0,35,.55) !important;
   }
 
+  
+  @media (max-width:860px){
+    #nyxApp{ grid-template-columns: 1fr; }
+    #nyxDockWrap{ min-height: 420px; }
+    :root{
+      --nyx-card-max: clamp(360px, 52vh, 520px);
+    }
+  }
+
+
   @media (max-width:520px){
     #nyxOverlay{ align-items:center; padding:12px; }
     :root{
@@ -515,16 +547,33 @@
   .action-pill.smart:hover{
     filter: brightness(1.08);
   }
+
+
+
+  /* ===== Voice gate (autoplay-safe) ===== */
+  .nyx-voice-gate{
+    margin: 0 0 10px 0;
+  }
+  .nyx-voice-cta{
+    width:100%;
+    justify-content:center;
+  }
+
+
 </style>
 </head>
 
 <body>
-  <div id="nyxStage" aria-hidden="true">
-    <video id="nyxHeroVideo" autoplay muted loop playsinline preload="auto"></video>
-  </div>
+  <div id="nyxApp">
+    <div id="nyxHeroWrap" aria-label="Nyx hero" role="img">
+      <div id="nyxStage" aria-hidden="true">
+        <video id="nyxHeroVideo" autoplay muted loop playsinline preload="auto"></video>
+      </div>
+    </div>
 
-  <div id="nyxOverlay">
-    <div id="nyxCard" class="is-clamped" role="region" aria-label="Nyx Assistant">
+    <div id="nyxDockWrap" aria-label="Nyx dock">
+
+<div id="nyxCard" class="is-clamped" role="region" aria-label="Nyx Assistant">
       <div class="nyx-head">
         <div class="nyx-title">
           <span class="nyx-dot" aria-hidden="true"></span>
@@ -540,6 +589,10 @@
       </div>
 
       <div id="nyxCogBadge" aria-live="polite"></div>
+
+      <div id="nyxVoiceGate" class="nyx-voice-gate" style="display:none" aria-label="Enable voice">
+        <button class="nyx-btn nyx-voice-cta" id="nyxEnableVoice" type="button">Tap to enable voice</button>
+      </div>
 
       <div id="nyxScroll">
         <!-- EXPAND-ONLY transcript -->
@@ -579,8 +632,11 @@
         <div id="nyxDiag">HOST v9117m • ready</div>
       </div>
     </div>
+
+    </div>
   </div>
 
+<script src="./chat.js?v=9201"></script>
 <script>
 (function(){
   "use strict";
@@ -662,6 +718,8 @@
   var sendBtn = $("nyxSend");
   var micBtn = $("nyxMic");
   var voiceBtn = $("nyxVoiceToggle");
+  var voiceGateEl = $("nyxVoiceGate");
+  var enableVoiceBtn = $("nyxEnableVoice");
   var cogEl = $("nyxCogBadge");
   var marionEl = $("nyxMarion");
   var linksWrap = $("nyxLinks");
@@ -715,6 +773,7 @@
 
   var CONFIG = {
     version: "9117m",
+    context: "sandblast",
     apiBase: null,
     token: null,
     heroSrc: null,
@@ -759,6 +818,7 @@ function applyConfigPartial(part){
   if(typeof part.token === "string") CONFIG.token = clampToken(part.token, 16);
   if(typeof part.heroSrc === "string" && part.heroSrc.trim()) CONFIG.heroSrc = part.heroSrc.trim();
   if(typeof part.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = part.voiceDefaultOn;
+  if(typeof part.context === "string" && part.context.trim()) CONFIG.context = part.context.trim();
   if(typeof part.publicMode === "boolean") CONFIG.publicMode = part.publicMode;
   if(Array.isArray(part.forbiddenNames)) CONFIG.forbiddenNames = part.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
   if(typeof part.debug === "boolean") CONFIG.debug = part.debug;
@@ -778,6 +838,7 @@ function bootstrapFromQuery(){
   var voiceQ = q.voiceDefaultOn || q.voice || "";
   var publicQ = q.publicMode || q.public || "";
   var debugQ = q.debug || "";
+  var contextQ = q.context || q.ctx || q.mode || "";
 
   var part = {};
   if(apiBaseQ) part.apiBase = apiBaseQ;
@@ -792,6 +853,9 @@ function bootstrapFromQuery(){
   }
   if(debugQ !== ""){
     part.debug = /^(1|true|yes|on)$/i.test(String(debugQ));
+  }
+  if(contextQ){
+    part.context = contextQ;
   }
 
   applyConfigPartial(part);
@@ -1075,7 +1139,8 @@ bootstrapFromQuery();
           voiceDefaultOn: !!c.voiceDefaultOn,
           publicMode: (c.publicMode !== false),
           debug: !!c.debug,
-          nav: c.nav || null
+          nav: c.nav || null,
+          context: safeStr(c.context||"").trim()
         })).slice(0,18);
 
         if(cfgSig && cfgSig === CONFIG_ONCE_HASH){
@@ -1092,6 +1157,7 @@ bootstrapFromQuery();
         if(typeof c.publicMode === "boolean") CONFIG.publicMode = c.publicMode;
         if(Array.isArray(c.forbiddenNames)) CONFIG.forbiddenNames = c.forbiddenNames.slice(0, 12).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
         if(typeof c.debug === "boolean") CONFIG.debug = c.debug;
+        if(typeof c.context === "string" && c.context.trim()) CONFIG.context = safeStr(c.context).trim();
 
         if(c.nav && typeof c.nav === "object"){
           if(typeof c.nav.roku === "string") CONFIG.nav.roku = safeStr(c.nav.roku).trim();
@@ -1586,16 +1652,95 @@ function handleChipClick(chip){
     if(inputEl) inputEl.disabled = UI_STATE.pending;
   }
 
-  // ==========
-  // Voice (intro unlock)
+    // ==========
+  // Voice (INTRO CANON + ONE-TIME SESSION + TOGGLE MEMORY + AUTOPLAY SAFE)
   // ==========
   var AUDIO_UNLOCKED = false;
-  var INTRO_SPOKEN = false;
-  var INTRO_TEXT = "Hi… I’m Nyx. How are you today?";
+
+  // Persisted preference
+  var VOICE_PREF_KEY = "nyx_voice_enabled_v1";
+  var VOICE_PREF_SET_KEY = "nyx_voice_pref_set_v1";
+
+  // Session one-time greeting (text + voice)
+  var INTRO_SHOWN_KEY = "nyx_intro_shown_v1";
+  var INTRO_SPOKEN_KEY = "nyx_intro_spoken_v1";
+
+  function lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(_){ } }
+  function ssGet(k){ try{ return sessionStorage.getItem(k); }catch(_){ return null; } }
+  function ssSet(k,v){ try{ sessionStorage.setItem(k,v); }catch(_){ } }
+
+  function readVoiceEnabled(){
+    var prefSet = lsGet(VOICE_PREF_SET_KEY);
+    if(!prefSet){
+      // Default ON for flagship presence. Autoplay may still require a gesture.
+      return true;
+    }
+    return lsGet(VOICE_PREF_KEY) !== "0";
+  }
+  function writeVoiceEnabled(on){
+    lsSet(VOICE_PREF_SET_KEY, "1");
+    lsSet(VOICE_PREF_KEY, on ? "1" : "0");
+  }
+
+  function normalizeContext(ctx){
+    var s = safeStr(ctx).toLowerCase();
+    if(s.indexOf("roku")>-1) return "roku";
+    if(s.indexOf("radio")>-1) return "radio";
+    if(s.indexOf("news")>-1) return "news";
+    if(s.indexOf("cog")>-1 || s.indexOf("marion")>-1) return "cognitive";
+    return "sandblast";
+  }
+  function dayPart(){
+    var h = 12;
+    try{ h = (new Date()).getHours(); }catch(_){}
+    if(h>=5 && h<=11) return "morning";
+    if(h>=12 && h<=16) return "afternoon";
+    if(h>=17 && h<=21) return "evening";
+    return "late";
+  }
+  function pickGreeting(ctx, part, returning){
+    // Keep it short, premium, and deterministic.
+    var t = {
+      sandblast:{
+        morning: returning ? "Good morning. You're back. Where are we taking Sandblast today?" : "Good morning. I’m Nyx. Welcome to Sandblast. Where shall we begin?",
+        afternoon: returning ? "Welcome back. Pick a lane—radio, video, or strategy." : "Welcome. I’m Nyx. Tell me what you want to build today.",
+        evening: returning ? "Evening. Good. Let’s move with intention." : "Evening. I’m Nyx. Let’s keep this sharp—what’s the target?",
+        late: returning ? "Late hours. I respect that. Tell me what matters most right now." : "Late hours. I’m Nyx. If we’re here now, it’s for a reason—what’s the goal?"
+      },
+      radio:{
+        morning: returning ? "Morning. Want a smooth set or something with bite?" : "Morning. I’m Nyx—ready for radio mode?",
+        afternoon: returning ? "Back for music. Mood today?" : "I’m Nyx. Give me the vibe—then I’ll shape the set.",
+        evening: returning ? "Evening session. Let’s make it memorable." : "Evening. I’m Nyx. Cinematic or clean energy?",
+        late: returning ? "Late-night radio hits different. What are we feeling?" : "Late-night mode. I’m Nyx. Give me the mood."
+      },
+      roku:{
+        morning: returning ? "Good morning. Ready to curate a sharper lineup?" : "Good morning. I’m Nyx. Classics, serials, or a spotlight?",
+        afternoon: returning ? "Welcome back. Let’s tune the Roku experience." : "I’m Nyx. Tell me what row we’re building first.",
+        evening: returning ? "Evening. Let’s make the channel feel premium." : "Evening. I’m Nyx. What should the audience feel?",
+        late: returning ? "Late session. Perfect for precision work." : "Late hours. I’m Nyx. Let’s tighten the platform."
+      },
+      news:{
+        morning: returning ? "Morning. Headlines or the strategy behind them?" : "Good morning. I’m Nyx. News, analysis, or both?",
+        afternoon: returning ? "Back again. What story are we tracking?" : "I’m Nyx. What topic should I prioritize today?",
+        evening: returning ? "Evening. Let’s summarize and sharpen." : "Evening. I’m Nyx. Fast brief or deep dive?",
+        late: returning ? "Late hours. Quiet minds do the best analysis." : "Late hours. I’m Nyx. What are we investigating?"
+      },
+      cognitive:{
+        morning: returning ? "Morning. Marion is ready. Choose a lane." : "Morning. I’m Nyx. We can go deep—pick a lane.",
+        afternoon: returning ? "Welcome back. We can optimize, or we can transform." : "I’m Nyx. Tell me what you’re solving—then we’ll structure it.",
+        evening: returning ? "Evening. Let’s reduce noise and increase leverage." : "Evening. I’m Nyx. Give me the objective—clean and direct.",
+        late: returning ? "Late hours. That’s when real systems get built." : "Late hours. I’m Nyx. Speak the goal. I’ll handle the structure."
+      }
+    };
+    var table = t[ctx] || t.sandblast;
+    return table[part] || table.afternoon;
+  }
 
   function setVoice(on){
     UI_STATE.voiceOn = !!on;
     if(voiceBtn) voiceBtn.classList.toggle("is-on", UI_STATE.voiceOn);
+    if(voiceBtn) voiceBtn.textContent = UI_STATE.voiceOn ? "🔊 Voice" : "🔈 Voice";
   }
 
   function stopAudio(){
@@ -1608,10 +1753,12 @@ function handleChipClick(chip){
   }
 
   async function speak(text){
-    if(!UI_STATE.voiceOn) return;
+    if(!UI_STATE.voiceOn) return { ok:false, reason:"voice_off" };
     var s = safeStr(text).trim();
-    if(!s) return;
-    if(!AUDIO_UNLOCKED) return; // browser gesture policy
+    if(!s) return { ok:false, reason:"empty" };
+
+    // Autoplay policy: we only speak after a gesture unlock.
+    if(!AUDIO_UNLOCKED) return { ok:false, reason:"locked" };
 
     stopAudio();
 
@@ -1636,7 +1783,7 @@ function handleChipClick(chip){
       }).catch(function(){ return null; });
 
       clearTimeout(to);
-      if(!r || !r.ok) return;
+      if(!r || !r.ok) return { ok:false, reason:"tts_http" };
 
       var buf = await r.arrayBuffer();
       var blob = new Blob([buf], { type: "audio/mpeg" });
@@ -1645,40 +1792,112 @@ function handleChipClick(chip){
       var a = new Audio(objUrl);
       window.__NYX_AUDIO = a;
       a.onended = function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } };
-      a.play().catch(function(){});
-    }catch(_){}
-  }
-
-  function unlockAudioAndMaybeIntro(){
-    if(AUDIO_UNLOCKED) return;
-    AUDIO_UNLOCKED = true;
-
-    // If voice is ON, speak the intro once right after first interaction
-    if(UI_STATE.voiceOn && !INTRO_SPOKEN){
-      INTRO_SPOKEN = true;
-      speak(INTRO_TEXT);
+      try{
+        await a.play();
+        return { ok:true };
+      }catch(e){
+        try{ URL.revokeObjectURL(objUrl); }catch(_){}
+        return { ok:false, reason:"autoplay_blocked" };
+      }
+    }catch(_){
+      return { ok:false, reason:"tts_err" };
     }
   }
 
-  // Any interaction in card unlocks audio for later TTS
+  function computeIntroText(){
+    var ctx = normalizeContext(CONFIG.context || UI_STATE.lane || "sandblast");
+    var part = dayPart();
+    // TODO: returning detection can be added later (cookie/user profile). Keep deterministic now.
+    return pickGreeting(ctx, part, false);
+  }
+
+  function ensureIntroShown(){
+    if(ssGet(INTRO_SHOWN_KEY) === "1") return;
+    var text = computeIntroText();
+    INTRO_TEXT = text;
+    // show immediately (premium: voice + text coherence)
+    setText(text);
+    ssSet(INTRO_SHOWN_KEY, "1");
+  }
+
+  function showVoiceGate(show){
+    if(!voiceGateEl) return;
+    voiceGateEl.style.display = show ? "block" : "none";
+  }
+
+  async function maybeSpeakIntro(){
+    if(ssGet(INTRO_SPOKEN_KEY) === "1") return;
+    var text = INTRO_TEXT || computeIntroText();
+    var res = await speak(text);
+    if(res && res.ok){
+      ssSet(INTRO_SPOKEN_KEY, "1");
+      showVoiceGate(false);
+    }else{
+      // If autoplay blocked, we surface the CTA.
+      if(res && res.reason === "autoplay_blocked"){
+        showVoiceGate(true);
+      }
+    }
+  }
+
+  function unlockAudio(){
+    if(AUDIO_UNLOCKED) return;
+    AUDIO_UNLOCKED = true;
+    // If voice is ON, attempt the intro exactly once per session.
+    if(UI_STATE.voiceOn) maybeSpeakIntro();
+  }
+
+  // Initialize voice state from memory (or default)
+  setVoice(readVoiceEnabled());
+
+  // Always show intro text once per session, even if voice is off.
+  var INTRO_TEXT = "";
+  ensureIntroShown();
+
+  // Attempt intro speak after a small delay (if browser allows)
+  // If blocked, CTA will appear after first failed attempt OR user can tap to enable.
+  setTimeout(function(){
+    if(UI_STATE.voiceOn){
+      // This may still be blocked until unlockAudio. We only try after unlockAudio.
+      // Keep gate hidden unless we detect autoplay block on play().
+      // (No-op here intentionally.)
+    }
+  }, 500);
+
+  // Any interaction in the dock/card unlocks audio for later TTS.
   if(cardEl){
-    cardEl.addEventListener("pointerdown", unlockAudioAndMaybeIntro, { passive:true });
-    cardEl.addEventListener("keydown", unlockAudioAndMaybeIntro, { passive:true });
+    cardEl.addEventListener("pointerdown", unlockAudio, { passive:true });
+    cardEl.addEventListener("keydown", unlockAudio, { passive:true });
+  }
+
+  if(enableVoiceBtn){
+    enableVoiceBtn.addEventListener("click", function(){
+      writeVoiceEnabled(true);
+      setVoice(true);
+      unlockAudio();
+      showVoiceGate(false);
+      postToParent({ type:"NYX_VOICE_TOGGLE", v:CONFIG.version, ts:now(), on:true, source:"gate" }, false);
+    });
   }
 
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
-      setVoice(!UI_STATE.voiceOn);
-      if(!UI_STATE.voiceOn) stopAudio();
-      postToParent({ type:"NYX_VOICE_TOGGLE", v:CONFIG.version, ts:now(), on: UI_STATE.voiceOn }, false);
+      var next = !UI_STATE.voiceOn;
+      writeVoiceEnabled(next);
+      setVoice(next);
+      if(!next) stopAudio();
+      postToParent({ type:"NYX_VOICE_TOGGLE", v:CONFIG.version, ts:now(), on: next }, false);
 
-      // If turning ON after interaction, speak intro once (nice touch)
-      if(UI_STATE.voiceOn && AUDIO_UNLOCKED && !INTRO_SPOKEN){
-        INTRO_SPOKEN = true;
-        speak(INTRO_TEXT);
+      if(next){
+        // If already unlocked, speak intro once (otherwise will speak on first gesture)
+        if(AUDIO_UNLOCKED) maybeSpeakIntro();
+        else showVoiceGate(true);
+      }else{
+        showVoiceGate(false);
       }
     });
   }
+
 
   // ==========
   // STT
@@ -1817,7 +2036,6 @@ function handleChipClick(chip){
   }
 
   
-<script src="./chat.js?v=9201"></script>
 async function sendPacket(packet){
     if(UI_STATE.pending) return;
 
