@@ -1322,7 +1322,8 @@
     // Use payload as the actionable packet; action param should agree with payload.action/route.
     var p = (it.payload && typeof it.payload === "object") ? it.payload : {};
     var act = safeStr(p.action || p.route || "followup", 60).trim();
-    sendPacket("", act, p, { textEmpty:true, hasPayload:true, payloadActionable:true });
+    var packet = buildIntentPacket("", act, p, { textEmpty:true, hasPayload:true, payloadActionable:true });
+    sendPacket(packet);
   }
 function handleChipClick(chip){
     chip = safeStr(chip).trim();
@@ -1790,7 +1791,6 @@ function handleChipClick(chip){
       // HARDEN++++: never let UI lock if any downstream render/speech throws
       setPending(false);
     }
-  }
   }
 
   function sendTypedText(){
