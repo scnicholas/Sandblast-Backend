@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.3.0 (PRESENCE DOMINANCE++++ + SHOULDER ANCHOR++++ + CHROME REDUCE++++ + ADAPTIVE CHIPS++++ + MICRO-PAUSE++++)
+ * v1.3.1 (BUBBLE SCROLL CLAMP++++ + SAFEAREA DOCK++++ + ANCHOR TUNE++++)
  *
  * Upgrades:
  * - Top chrome reduced ~30% visual weight
@@ -54,7 +54,9 @@
   --bubble-shadow:0 24px 70px rgba(0,0,0,.75);
 
   --bubble-anchor-x:50%;
-  --bubble-anchor-y:66%;
+  --bubble-anchor-y: 70%;
+  --bubble-max-h: min(46vh, 360px);
+  --bubble-text-max-h: min(32vh, 240px);
 
   --chrome-scale:.86;
   --chrome-idle-opacity:.60;
@@ -153,6 +155,8 @@ body{
 #nyxBubble,
 #nyxInputDock,
 #nyxBubbleActions{
+flex:0 0 auto;
+
   pointer-events:auto;
 }
 
@@ -160,6 +164,11 @@ body{
    SHOULDER-ANCHORED BUBBLE
 ============================================================ */
 #nyxBubble{
+display:flex;
+  flex-direction:column;
+  max-height: var(--bubble-max-h);
+  overflow:hidden;
+
   position:absolute !important;
   left:var(--bubble-anchor-x) !important;
   top:var(--bubble-anchor-y) !important;
@@ -181,6 +190,12 @@ body{
 }
 
 #nyxBubbleText{
+flex:1 1 auto;
+  max-height: var(--bubble-text-max-h);
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+
   padding:16px 20px 12px 20px;
   font-size:15.6px;
   line-height:1.6;
@@ -220,7 +235,7 @@ html.nyx-chips-shown #nyxBubbleActions{
   position:absolute !important;
   left:50% !important;
   transform:translateX(-50%) !important;
-  bottom:16px !important;
+  bottom: calc(16px + var(--safe-b)) !important;
 
   width:min(620px,94%) !important;
   display:flex;
