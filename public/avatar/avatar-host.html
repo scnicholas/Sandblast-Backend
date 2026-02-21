@@ -3,185 +3,117 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Nyx Avatar Host (Phase 1 Clean)</title>
+<title>Nyx Avatar Host — Widget Console (Text + Chips)</title>
 
 <!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=PHASE1_CLEAN_9204d" />
+<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210a" />
 
 <script>
 /* ============================================================
-   NYX PHASE 1 — CLEAN HOST (NO LEGACY UI)
-   - Forces Phase 1 renderer only
-   - Blocks legacy widget injection
-   - Provides a minimal, hardened chat client (configurable endpoint)
+   NYX WIDGET CONSOLE MODE
+   - Text + Chips only (no hero stage)
+   - Adaptive height (content-driven) with max 90vh
+   - Meaningful Focus toggle (max-height 90vh vs compact)
+   - Optional parent resize via postMessage (NYX_RESIZE)
 ============================================================ */
-window.NYX_HOST_PHASE1 = true;
+window.NYX_HOST_WIDGET_CONSOLE = true;
 window.NYX_DISABLE_LEGACY = true;
-window.NYX_HOST_MODE = "phase1_clean";
+window.NYX_HOST_MODE = "widget_console";
 </script>
 
 <style>
-  html,body{height:100%}
-  body{margin:0;background:#000;overflow:hidden}
+  html,body{height:auto}
+  body{
+    margin:0;
+    background:transparent;
+    overflow:visible; /* important for adaptive height inside iframe */
+  }
 
   /* ============================================================
      HARD FENCE: if anything legacy appears, hide it
-     (keeps this host visually clean even if old bundles try to mount)
   ============================================================ */
-  body.nyx-phase1 #wrap,
-  body.nyx-phase1 #avatarRoot,
-  body.nyx-phase1 #panel,
-  body.nyx-phase1 #nyxOverlay,
-  body.nyx-phase1 #nyxInputDock,
-  body.nyx-phase1 #sbnyx-host,
-  body.nyx-phase1 #sbnyx-launcher,
-  body.nyx-phase1 #nyxLauncher,
-  body.nyx-phase1 #nyx-host,
-  body.nyx-phase1 .sbnyx-launcher,
-  body.nyx-phase1 .sbnyx-host,
-  body.nyx-phase1 .nyx-mic-puck,
-  body.nyx-phase1 .mic-puck,
-  body.nyx-phase1 .floating-mic,
-  body.nyx-phase1 .micOrb,
-  body.nyx-phase1 #micOrb,
-  body.nyx-phase1 #nyxMicOrb,
-  body.nyx-phase1 .sbnyx-close,
-  body.nyx-phase1 #sbnyxClose,
-  body.nyx-phase1 .nyx-legacy-close,
-  body.nyx-phase1 #nyxLegacyClose{
+  #wrap,#avatarRoot,#panel,#nyxOverlay,#nyxInputDock,
+  #sbnyx-host,#sbnyx-launcher,#nyxLauncher,#nyx-host,
+  .sbnyx-launcher,.sbnyx-host,.nyx-mic-puck,.mic-puck,.floating-mic,.micOrb,#micOrb,#nyxMicOrb,
+  .sbnyx-close,#sbnyxClose,.nyx-legacy-close,#nyxLegacyClose,
+  #nyxHero,#nyxStage,#nyxHeroVideo,#nyxBubble,#nyxBubbleText,#nyxTopControls{
     display:none !important;
   }
 
   /* ============================================================
-     Host layout (fallback if avatar.css missing)
+     Widget root: adaptive height + max clamp
+     - Height grows with content until max-height
+     - After max, transcript scrolls (not the whole card)
   ============================================================ */
-  #nyxApp{
-    height:100vh;
-    display:grid;
-    grid-template-columns: minmax(0,1fr) 380px;
-    gap:12px;
-    padding:12px;
-    box-sizing:border-box;
+  :root{
+    --nyx-widget-max: 90vh;
+    --nyx-widget-compact: 62vh; /* focus toggle switches this */
+    --nyx-radius: 22px;
+    --nyx-line: rgba(255,255,255,.08);
+    --nyx-soft: rgba(255,255,255,.06);
+    --nyx-glass: rgba(12,12,16,.78);
+    --nyx-glass2: rgba(18,18,22,.62);
+    --nyx-text: rgba(255,255,255,.92);
+    --nyx-muted: rgba(255,255,255,.66);
+    --nyx-accent: rgba(140,0,35,.92);
+    --nyx-ease: cubic-bezier(.2,.8,.2,1);
   }
 
-  #nyxHero{
-    position:relative;
-    border-radius:22px;
+  #nyxWidget{
+    width:100%;
+    max-width: 520px;
+    margin:0;
+    border-radius: var(--nyx-radius);
     overflow:hidden;
-    border:1px solid rgba(255,255,255,.08);
-    background:#000;
-    isolation:isolate;
-    min-height:520px;
-  }
-
-  /* Video-first stage */
-  #nyxStage{ position:absolute; inset:0; background:#000; overflow:hidden; z-index:1; }
-  #nyxHeroVideo{
-    position:absolute; inset:0;
-    width:100%; height:100%;
-    object-fit:cover;
-    object-position: var(--nyx-hero-pos-x,50%) var(--nyx-hero-pos-y,12%);
-    transform: scale(var(--nyx-hero-scale-num,1.22));
-    transform-origin: var(--nyx-hero-pos-x,50%) var(--nyx-hero-pos-y,12%);
-    filter:saturate(1.04) contrast(1.02);
-    pointer-events:none;
-  }
-  #nyxStage.is-image{
-    background-repeat:no-repeat;
-    background-size: 132% auto;
-    background-position: var(--nyx-hero-pos-x,50%) var(--nyx-hero-pos-y,12%);
-  }
-  #nyxStage.is-image #nyxHeroVideo{ display:none; }
-  #nyxStage::after{
-    content:"";
-    position:absolute; inset:0;
-    pointer-events:none;
-    opacity: var(--nyx-hero-dim,.12);
-    background:
-      radial-gradient(120% 100% at 52% 34%, rgba(0,0,0,0) 58%, rgba(0,0,0,.48) 100%),
-      linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.30));
-    z-index:2;
-  }
-
-  /* Sacred shoulder bubble (short + clamped) */
-  #nyxBubble{
-    position:absolute;
-    left:18px; right:18px; bottom:18px;
-    z-index:5;
-    max-width: 92%;
-    max-height: min(32vh, 280px);
-    overflow:hidden;
-    border-radius:20px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(18,18,22,.62);
+    border: 1px solid var(--nyx-line);
+    background: var(--nyx-glass);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 16px 50px rgba(0,0,0,.55);
-  }
-  #nyxBubbleText{
-    padding:14px 16px 12px 16px;
-    color: rgba(255,255,255,.96);
-    font: 500 15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    max-height: min(20vh, 180px);
-    overflow:auto;
-    -webkit-overflow-scrolling: touch;
-  }
+    box-shadow: 0 22px 80px rgba(0,0,0,.72), 0 0 70px rgba(140,0,35,.12);
 
-  /* Top controls in hero */
-  #nyxTopControls{
-    position:absolute;
-    top:12px; right:12px;
-    z-index:6;
-    display:flex; gap:8px;
-    pointer-events:auto;
-  }
-  .nyx-mini{
-    font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    padding:8px 10px;
-    border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(18,18,22,.55);
-    color: rgba(255,255,255,.92);
-    cursor:pointer;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-  .nyx-mini:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
-
-  /* Dock */
-  #nyxDock{
-    position:relative;
-    border-radius:22px;
-    overflow:hidden;
-    border:1px solid rgba(255,255,255,.08);
-    background: rgba(12,12,16,.78);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 22px 80px rgba(0,0,0,.72);
+    /* adaptive height */
+    height: auto;
+    max-height: var(--nyx-widget-compact);
     display:flex;
     flex-direction:column;
-    min-height:520px;
     min-width:0;
   }
-  #nyxDockHeader{
-    padding:12px;
-    border-bottom:1px solid rgba(255,255,255,.08);
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
+
+  body.is-focus #nyxWidget{ max-height: var(--nyx-widget-max); }
+
+  /* ============================================================
+     Header
+  ============================================================ */
+  #nyxHeader{
+    padding:12px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    background:
+      radial-gradient(120% 130% at 0% 0%, rgba(140,0,35,.18) 0%, rgba(0,0,0,0) 52%),
+      linear-gradient(180deg, rgba(0,0,0,.26), rgba(0,0,0,0));
   }
   #nyxTitle{
     display:flex; align-items:center; gap:10px;
     font: 650 14px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    color: rgba(255,255,255,.92);
+    color: var(--nyx-text);
     user-select:none;
+    letter-spacing:.25px;
   }
-  #nyxDot{ width:9px; height:9px; border-radius:999px; background: rgba(140,0,35,.92); box-shadow:0 0 14px rgba(140,0,35,.45); }
+  #nyxDot{
+    width:9px; height:9px; border-radius:999px;
+    background: var(--nyx-accent);
+    box-shadow: 0 0 14px rgba(140,0,35,.45);
+  }
   #nyxMarion{
     display:inline-flex; align-items:center; justify-content:center;
     width:18px; height:18px; border-radius:999px;
     border:1px solid rgba(255,255,255,.14);
     background: rgba(0,0,0,.18);
     color: rgba(255,255,255,.72);
-    font: 700 11px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font: 800 11px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   }
   #nyxMarion.on{
     background: rgba(140,0,35,.16);
@@ -190,7 +122,7 @@ window.NYX_HOST_MODE = "phase1_clean";
     box-shadow: 0 0 16px rgba(140,0,35,.25);
   }
 
-  #nyxDockControls{ display:flex; gap:8px; align-items:center; }
+  #nyxHeaderActions{ display:flex; gap:8px; align-items:center; }
   .nyx-btn{
     font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     padding:8px 10px;
@@ -201,19 +133,23 @@ window.NYX_HOST_MODE = "phase1_clean";
     cursor:pointer;
     user-select:none;
     white-space:nowrap;
+    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
   }
+  .nyx-btn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.05); }
   .nyx-btn:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
-  .nyx-btn.is-on{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); }
 
-  /* Chips rail (fixed row) */
+  /* ============================================================
+     Chips rail (always visible, never blocked)
+  ============================================================ */
   #nyxChips{
     display:flex;
     gap:10px;
     padding:10px 12px;
-    border-bottom:1px solid rgba(255,255,255,.06);
+    border-bottom: 1px solid rgba(255,255,255,.06);
     overflow-x:auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    scrollbar-width:none;
+    background: rgba(0,0,0,.10);
   }
   #nyxChips::-webkit-scrollbar{ display:none; }
   .chip{
@@ -222,41 +158,45 @@ window.NYX_HOST_MODE = "phase1_clean";
     padding:8px 11px;
     border-radius:999px;
     border:1px solid rgba(255,255,255,.14);
-    background: rgba(255,255,255,.06);
+    background: rgba(255,255,255,.055);
     color: rgba(255,255,255,.90);
     cursor:pointer;
     user-select:none;
     white-space:nowrap;
+    transition: background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
   }
   .chip:hover{ background: rgba(140,0,35,.14); border-color: rgba(140,0,35,.55); }
-  .chip.is-active{ background: rgba(140,0,35,.22); border-color: rgba(140,0,35,.60); }
+  .chip.is-active{ background: rgba(140,0,35,.24); border-color: rgba(140,0,35,.62); }
 
-  /* Scroll-contained viewport (CRITICAL: min-height:0 keeps footer visible) */
+  /* ============================================================
+     Transcript: becomes the ONLY scrolling region at max-height
+     CRITICAL: min-height:0 enables proper flex overflow behavior
+  ============================================================ */
   #nyxScroll{
-    flex: 1 1 auto;
-    min-height: 0;
+    flex:1 1 auto;
+    min-height:0;
     overflow:auto;
     padding:12px;
-    padding-bottom: 14px;
+    padding-bottom:14px;
   }
+
   #nyxMsgs{ display:flex; flex-direction:column; gap:10px; }
   .nyx-msg{
-    max-width: 92%;
+    max-width:92%;
     padding:10px 12px;
-    border-radius: 16px;
-    border:1px solid rgba(255,255,255,.08);
-    background: rgba(0,0,0,.26);
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,.09);
+    background: rgba(0,0,0,.24);
     color: rgba(255,255,255,.92);
     font: 13.5px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     white-space: pre-wrap;
   }
   .nyx-msg.me{
     margin-left:auto;
-    background: rgba(140,0,35,.22);
-    border-color: rgba(140,0,35,.34);
+    background: rgba(140,0,35,.20);
+    border-color: rgba(140,0,35,.30);
   }
 
-  /* Empty state */
   #nyxEmpty{
     display:none;
     padding:14px 12px;
@@ -266,28 +206,34 @@ window.NYX_HOST_MODE = "phase1_clean";
     color: rgba(255,255,255,.74);
     font: 13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   }
-  #nyxDock.is-empty #nyxEmpty{ display:block; }
-  #nyxDock.is-empty #nyxMsgs{ display:none; }
+  #nyxWidget.is-empty #nyxEmpty{ display:block; }
+  #nyxWidget.is-empty #nyxMsgs{ display:none; }
 
-  /* Input row (CRITICAL: inside dock, always visible) */
+  /* ============================================================
+     Input row (always visible)
+  ============================================================ */
   #nyxInputRow{
     display:flex;
     gap:8px;
     padding:12px;
     border-top: 1px solid rgba(255,255,255,.08);
-    background: rgba(0,0,0,.20);
+    background: rgba(0,0,0,.16);
     padding-bottom: calc(12px + env(safe-area-inset-bottom,0px));
   }
   #nyxInput{
     flex:1;
     border-radius:14px;
-    border:1px solid rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.12);
     background: rgba(0,0,0,.35);
     color: rgba(255,255,255,.92);
     padding:10px 12px;
     outline:none;
+    min-width:0;
   }
-  #nyxInput:focus{ outline:2px solid rgba(140,0,35,.28); outline-offset:2px; }
+  #nyxInput:focus{
+    border-color: rgba(255,255,255,.18);
+    box-shadow: 0 0 0 3px rgba(140,0,35,.14);
+  }
   #nyxSend{
     border-radius:14px;
     border:1px solid rgba(255,255,255,.12);
@@ -299,117 +245,65 @@ window.NYX_HOST_MODE = "phase1_clean";
   }
   #nyxSend:disabled{ opacity:.65; cursor:not-allowed; }
 
-  /* Compact iframe mode */
-  @media (max-width: 520px){
-    #nyxBubble{ display:none; }
-    #nyxApp{
-      grid-template-columns: 1fr;
-      grid-template-rows: minmax(0,1fr) auto;
-      gap:10px;
-      padding:10px;
-    }
-    #nyxHero{ min-height: 0; height: 100%; }
-    #nyxDock{ min-height: 200px; max-height: 34vh; }
-    #nyxScroll{ padding: 10px; }
-    #nyxDockHeader{ padding: 10px; }
-  }
-
-  @media (prefers-reduced-motion: reduce){
-    #nyxHeroVideo{ display:none !important; }
-    #nyxStage{ background-size: cover !important; }
+  /* Small screens: still console */
+  @media (max-width: 420px){
+    #nyxWidget{ max-height: 78vh; }
+    body.is-focus #nyxWidget{ max-height: 90vh; }
   }
 </style>
 </head>
 
-<body class="nyx-phase1">
-  <div id="nyxApp">
+<body class="nyx-widget-console">
+  <main id="nyxWidget" class="is-empty" aria-label="Nyx Widget Console">
 
-    <!-- HERO (Sacred) -->
-    <section id="nyxHero" aria-label="Nyx hero">
-      <div id="nyxStage" aria-hidden="true">
-        <video id="nyxHeroVideo" autoplay muted loop playsinline preload="auto"></video>
+    <header id="nyxHeader">
+      <div id="nyxTitle">
+        <span id="nyxDot" aria-hidden="true"></span>
+        <span>Nyx</span>
+        <span id="nyxMarion" title="Marion guiding" aria-label="Marion guiding">M</span>
       </div>
 
-      <div id="nyxTopControls">
-        <button class="nyx-mini" id="nyxVoiceToggle" type="button" aria-label="Voice toggle">Voice: ON</button>
+      <div id="nyxHeaderActions">
+        <button class="nyx-btn" id="nyxFocus" type="button" aria-label="Toggle focus">Focus</button>
       </div>
+    </header>
 
-      <div id="nyxBubble" role="status" aria-live="polite">
-        <div id="nyxBubbleText">…</div>
-      </div>
+    <nav id="nyxChips" aria-label="Modes">
+      <button class="chip is-active" type="button" data-chip="general">General</button>
+      <button class="chip" type="button" data-chip="music">Music</button>
+      <button class="chip" type="button" data-chip="roku">Roku</button>
+      <button class="chip" type="button" data-chip="movies">Movies</button>
+      <button class="chip" type="button" data-chip="radio">Radio</button>
+    </nav>
+
+    <section id="nyxScroll" aria-label="Conversation">
+      <div id="nyxEmpty">Pick a mode above, or type below.</div>
+      <div id="nyxMsgs"></div>
     </section>
 
-    <!-- DOCK -->
-    <aside id="nyxDock" aria-label="Nyx dock">
-      <header id="nyxDockHeader">
-        <div id="nyxTitle">
-          <span id="nyxDot" aria-hidden="true"></span>
-          <span>Nyx</span>
-          <span id="nyxMarion" title="Marion guiding" aria-label="Marion guiding">M</span>
-        </div>
-        <div id="nyxDockControls">
-          <button class="nyx-btn" id="nyxExpand" type="button">Expand</button>
-        </div>
-      </header>
+    <footer id="nyxInputRow">
+      <input id="nyxInput" type="text" placeholder="Type to Nyx…" autocomplete="off" />
+      <button id="nyxSend" type="button">Send</button>
+    </footer>
 
-      <div id="nyxChips" aria-label="Modes">
-        <button class="chip is-active" type="button" data-chip="general">General</button>
-        <button class="chip" type="button" data-chip="music">Music</button>
-        <button class="chip" type="button" data-chip="roku">Roku</button>
-        <button class="chip" type="button" data-chip="movies">Movies</button>
-        <button class="chip" type="button" data-chip="radio">Radio</button>
-      </div>
-
-      <div id="nyxScroll">
-        <div id="nyxEmpty">No messages yet. Pick a mode above, or type below.</div>
-        <div id="nyxMsgs" aria-label="Conversation"></div>
-      </div>
-
-      <footer id="nyxInputRow">
-        <input id="nyxInput" type="text" placeholder="Type to Nyx…" autocomplete="off" />
-        <button id="nyxSend" type="button">Send</button>
-      </footer>
-    </aside>
-
-  </div>
+  </main>
 
 <script>
 (function(){
   "use strict";
 
   /* ============================================================
-     0) Legacy purge — if anything tries to mount, delete it.
-     (Fixes stray legacy close/X controls showing in the host.)
+     1) Minimal config + postMessage bridge (kept)
   ============================================================ */
-  function purgeLegacy(){
-    var kill = [
-      "#wrap","#avatarRoot","#panel","#nyxOverlay","#nyxInputDock",
-      "#sbnyx-host","#sbnyx-launcher","#nyxLauncher","#nyx-host",
-      ".sbnyx-launcher",".sbnyx-host",".nyx-mic-puck",".mic-puck",".floating-mic",".micOrb","#micOrb","#nyxMicOrb",
-      ".sbnyx-close","#sbnyxClose",".nyx-legacy-close","#nyxLegacyClose"
-    ];
-    for(var i=0;i<kill.length;i++){
-      var sel = kill[i];
-      try{
-        var nodes = document.querySelectorAll(sel);
-        for(var j=0;j<nodes.length;j++){
-          var el = nodes[j];
-          if(!el.closest || !el.closest("#nyxApp")) el.remove();
-        }
-      }catch(_){}
-    }
-  }
-  purgeLegacy();
-  window.addEventListener("load", purgeLegacy);
-  try{
-    var mo = new MutationObserver(function(){ purgeLegacy(); });
-    mo.observe(document.documentElement, { childList:true, subtree:true });
-  }catch(_){}
+  var CONFIG = {
+    version: "WIDGET_CONSOLE_v9210a",
+    apiBase: null,
+    token: null,
+    chatPath: "/api/chat",
+    context: "sandblast",
+    publicMode: true
+  };
 
-  /* ============================================================
-     1) Helpers
-  ============================================================ */
-  function $(id){ return document.getElementById(id); }
   function safeStr(x, maxLen){
     var s = (x===null || x===undefined) ? "" : String(x);
     if(maxLen && isFinite(maxLen) && maxLen>0 && s.length>maxLen) s = s.slice(0, maxLen);
@@ -417,6 +311,7 @@ window.NYX_HOST_MODE = "phase1_clean";
   }
   function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
   function now(){ return Date.now(); }
+  function $(id){ return document.getElementById(id); }
   function makeId(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
     return (Math.random().toString(16).slice(2) + now().toString(16)).slice(0, 24);
@@ -428,31 +323,6 @@ window.NYX_HOST_MODE = "phase1_clean";
     if(s.length > 256) s = s.slice(0,256);
     return s;
   }
-  function safeCssUrl(raw){
-    var s = safeStr(raw).trim();
-    if(!s) return "";
-    if(!/^https?:\/\//i.test(s)) return "";
-    s = s.replace(/[\r\n\t]/g, "");
-    return s;
-  }
-  function isMp4Url(u){
-    u = safeStr(u).toLowerCase();
-    return (u.indexOf(".mp4") > -1) || (u.indexOf("video/mp4") > -1);
-  }
-
-  /* ============================================================
-     2) Config (query bootstrap + postMessage override)
-  ============================================================ */
-  var CONFIG = {
-    version: "PHASE1_CLEAN_v9204d",
-    context: "sandblast",
-    apiBase: null,
-    token: null,
-    chatPath: "/api/chat",
-    heroSrc: null,
-    voiceDefaultOn: false,
-    publicMode: true
-  };
 
   function parseQuery(){
     var out = {};
@@ -469,15 +339,12 @@ window.NYX_HOST_MODE = "phase1_clean";
     }catch(_){}
     return out;
   }
-
   function applyConfigPartial(part){
     if(!part || typeof part !== "object") return;
     if(typeof part.apiBase === "string" && part.apiBase.trim()) CONFIG.apiBase = part.apiBase.trim().replace(/\/+$/,"");
     if(typeof part.token === "string") CONFIG.token = clampToken(part.token, 16);
     if(typeof part.chatPath === "string" && part.chatPath.trim()) CONFIG.chatPath = part.chatPath.trim();
-    if(typeof part.heroSrc === "string" && part.heroSrc.trim()) CONFIG.heroSrc = part.heroSrc.trim();
     if(typeof part.context === "string" && part.context.trim()) CONFIG.context = part.context.trim();
-    if(typeof part.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = part.voiceDefaultOn;
     if(typeof part.publicMode === "boolean") CONFIG.publicMode = part.publicMode;
   }
 
@@ -486,19 +353,13 @@ window.NYX_HOST_MODE = "phase1_clean";
     applyConfigPartial({
       apiBase: q.apiBase || q.API_BASE || q.base || q.backend,
       token: q.token || q.TOKEN || q.sbToken || q.sbt,
-      heroSrc: q.heroSrc || q.hero || q.hero_url,
       chatPath: q.chatPath || q.chat || q.endpoint,
       context: q.context || q.ctx || q.mode,
-      voiceDefaultOn: (q.voice !== undefined && q.voice !== "") ? /^(1|true|yes|on)$/i.test(String(q.voice)) : undefined,
       publicMode: (q.publicMode !== undefined && q.publicMode !== "") ? !/^(0|false|no|off)$/i.test(String(q.publicMode)) : undefined
     });
   })();
 
-  /* ============================================================
-     3) postMessage bridge (origin-learn + config)
-  ============================================================ */
   var PARENT_ORIGIN = null;
-
   function postToParent(payload, allowWildcard){
     if(!window.parent || window.parent === window) return false;
     try{
@@ -530,298 +391,66 @@ window.NYX_HOST_MODE = "phase1_clean";
 
       if(data.type === "NYX_CONFIG"){
         applyConfigPartial(data.config || {});
-        applyHero(CONFIG.heroSrc);
-        if(lsGet(VOICE_PREF_SET_KEY) !== "1"){
-          setVoice(!!CONFIG.voiceDefaultOn);
-        }
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
-      }
-
-      if(data.type === "NYX_SET_BUBBLE" && typeof data.text === "string"){
-        setHeroBubble(data.text);
       }
     }catch(_){}
   });
 
   /* ============================================================
-     4) Hero stage (video-first with image fallback)
+     2) Adaptive height: ResizeObserver -> NYX_RESIZE
+     (Parent can resize iframe height if it supports it.)
   ============================================================ */
-  var stageEl = $("nyxStage");
-  var heroVid = $("nyxHeroVideo");
-
-  function setStageImage(url){
-    if(!stageEl) return;
-    var u = safeCssUrl(url);
-    if(!u) return;
-    stageEl.style.backgroundImage = 'url("' + u + '")';
+  var widget = $("nyxWidget");
+  function emitResize(){
+    if(!widget) return;
+    var rect = widget.getBoundingClientRect();
+    var h = Math.ceil(rect.height);
+    postToParent({ type:"NYX_RESIZE", h: h, ts: now() }, true);
   }
-  function setStageImageFallback(on){
-    if(!stageEl) return;
-    stageEl.classList.toggle("is-image", !!on);
-  }
-  function setHeroVideoSrc(url){
-    if(!heroVid) return false;
-    var u = safeCssUrl(url);
-    if(!u) return false;
-
+  if(widget && window.ResizeObserver){
     try{
-      heroVid.pause();
-      heroVid.removeAttribute("src");
-      while(heroVid.firstChild) heroVid.removeChild(heroVid.firstChild);
+      var ro = new ResizeObserver(function(){ emitResize(); });
+      ro.observe(widget);
+      setTimeout(emitResize, 250);
     }catch(_){}
-
-    var source = document.createElement("source");
-    source.src = u;
-    source.type = "video/mp4";
-    heroVid.appendChild(source);
-
-    try{ heroVid.load(); }catch(_){}
-    try{
-      var p = heroVid.play();
-      if(p && typeof p.catch === "function"){ p.catch(function(){}); }
-    }catch(_){}
-    return true;
+  }else{
+    setInterval(emitResize, 800);
   }
-
-  function applyHero(heroSrc){
-    var cssVid = "", cssImg = "", cssAbs = "";
-    try{
-      cssVid = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-video").replace(/["']/g,"").trim();
-      cssImg = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-img-url").replace(/["']/g,"").trim();
-      cssAbs = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-abs").replace(/["']/g,"").trim();
-    }catch(_){}
-
-    var src = safeStr(heroSrc).trim() || cssVid || cssImg || cssAbs;
-    src = safeCssUrl(src);
-
-    if(cssImg) setStageImage(cssImg);
-    else if(cssAbs) setStageImage(cssAbs);
-
-    if(!src){
-      setStageImageFallback(true);
-      return;
-    }
-
-    if(isMp4Url(src)){
-      setStageImageFallback(false);
-      var ok = setHeroVideoSrc(src);
-      if(!ok){
-        setStageImage(src);
-        setStageImageFallback(true);
-      }
-    }else{
-      setStageImage(src);
-      setStageImageFallback(true);
-    }
-  }
-
-  if(heroVid){
-    heroVid.muted = true;
-    heroVid.loop = true;
-    heroVid.playsInline = true;
-    heroVid.setAttribute("playsinline","playsinline");
-    heroVid.setAttribute("muted","muted");
-    heroVid.setAttribute("autoplay","autoplay");
-    setTimeout(function(){
-      try{ if(heroVid.readyState < 2){ setStageImageFallback(true); } }catch(_){}
-    }, 900);
-    heroVid.addEventListener("error", function(){ setStageImageFallback(true); });
-    heroVid.addEventListener("loadeddata", function(){ setStageImageFallback(false); });
-  }
-  applyHero(CONFIG.heroSrc);
 
   /* ============================================================
-     5) Phase 1 Voice: toggle memory + autoplay-safe
-     NOTE: Intro is ALWAYS text-only. Voice speaks replies only.
+     3) UI state
   ============================================================ */
-  var voiceBtn = $("nyxVoiceToggle");
   var marionEl = $("nyxMarion");
-  var expandBtn = $("nyxExpand");
-
-  var VOICE_PREF_KEY = "nyx_voice_enabled_v1";
-  var VOICE_PREF_SET_KEY = "nyx_voice_pref_set_v1";
-  var INTRO_SHOWN_KEY = "nyx_intro_shown_v1";
-
-  function lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
-  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(_){ } }
-  function ssGet(k){ try{ return sessionStorage.getItem(k); }catch(_){ return null; } }
-  function ssSet(k,v){ try{ sessionStorage.setItem(k,v); }catch(_){ } }
-
-  var UI = {
-    voiceOn: true,
-    audioUnlocked: false,
-    expanded: false,
-    lane: "general"
-  };
-
-  function readVoiceEnabled(){
-    var prefSet = lsGet(VOICE_PREF_SET_KEY);
-    if(!prefSet) return true; // default ON
-    return lsGet(VOICE_PREF_KEY) !== "0";
-  }
-  function writeVoiceEnabled(on){
-    lsSet(VOICE_PREF_SET_KEY, "1");
-    lsSet(VOICE_PREF_KEY, on ? "1" : "0");
-  }
-  function setVoice(on){
-    UI.voiceOn = !!on;
-    writeVoiceEnabled(UI.voiceOn);
-    if(voiceBtn){
-      voiceBtn.classList.toggle("is-on", UI.voiceOn);
-      voiceBtn.textContent = UI.voiceOn ? "Voice: ON" : "Voice: OFF";
-    }
-    if(!UI.voiceOn){
-      stopAudio();
-    }
-  }
-
-  function normalizeContext(ctx){
-    var s = safeStr(ctx).toLowerCase();
-    if(s.indexOf("roku")>-1) return "roku";
-    if(s.indexOf("radio")>-1) return "radio";
-    if(s.indexOf("news")>-1) return "news";
-    if(s.indexOf("cog")>-1 || s.indexOf("marion")>-1) return "cognitive";
-    return "sandblast";
-  }
-  function dayPart(){
-    var h = 12;
-    try{ h = (new Date()).getHours(); }catch(_){}
-    if(h>=5 && h<=11) return "morning";
-    if(h>=12 && h<=16) return "afternoon";
-    if(h>=17 && h<=21) return "evening";
-    return "late";
-  }
-  function pickGreeting(ctx, part){
-    var t = {
-      sandblast:{
-        morning: "Good morning. I’m Nyx. Welcome to Sandblast. Where shall we begin?",
-        afternoon: "Welcome. I’m Nyx. Tell me what you want to build today.",
-        evening: "Evening. I’m Nyx. Let’s keep this sharp—what’s the target?",
-        late: "Late hours. I’m Nyx. If we’re here now, it’s for a reason—what’s the goal?"
-      },
-      radio:{
-        morning: "Morning. I’m Nyx—ready for radio mode?",
-        afternoon: "I’m Nyx. Give me the vibe—then I’ll shape the set.",
-        evening: "Evening. I’m Nyx. Cinematic or clean energy?",
-        late: "Late-night mode. I’m Nyx. Give me the mood."
-      },
-      roku:{
-        morning: "Good morning. I’m Nyx. Classics, serials, or a spotlight?",
-        afternoon: "I’m Nyx. Tell me what row we’re building first.",
-        evening: "Evening. I’m Nyx. What should the audience feel?",
-        late: "Late hours. I’m Nyx. Let’s tighten the platform."
-      },
-      news:{
-        morning: "Good morning. I’m Nyx. News, analysis, or both?",
-        afternoon: "I’m Nyx. What topic should I prioritize today?",
-        evening: "Evening. I’m Nyx. Fast brief or deep dive?",
-        late: "Late hours. I’m Nyx. What are we investigating?"
-      },
-      cognitive:{
-        morning: "Morning. I’m Nyx. We can go deep—pick a lane.",
-        afternoon: "I’m Nyx. Tell me what you’re solving—then we’ll structure it.",
-        evening: "Evening. I’m Nyx. Give me the objective—clean and direct.",
-        late: "Late hours. I’m Nyx. Speak the goal. I’ll handle the structure."
-      }
-    };
-    var table = t[ctx] || t.sandblast;
-    return table[part] || table.afternoon;
-  }
-
-  function setHeroBubble(text){
-    var el = $("nyxBubbleText");
-    if(el) el.textContent = safeStr(text, 520);
-  }
-
-  // Audio playback (server TTS: /api/tts). Falls back to no-voice if unavailable.
-  function stopAudio(){
-    try{
-      if(window.__NYX_AUDIO && typeof window.__NYX_AUDIO.pause === "function"){
-        window.__NYX_AUDIO.pause();
-        window.__NYX_AUDIO.currentTime = 0;
-      }
-    }catch(_){}
-  }
-
-  async function speak(text){
-    if(!UI.voiceOn) return { ok:false, reason:"voice_off" };
-    if(!UI.audioUnlocked) return { ok:false, reason:"locked" };
-
-    var s = safeStr(text).trim();
-    if(!s) return { ok:false, reason:"empty" };
-
-    stopAudio();
-
-    var base = (CONFIG.apiBase && CONFIG.apiBase.trim()) ? CONFIG.apiBase.trim().replace(/\/+$/,"") : location.origin;
-    var url = base + "/api/tts";
-
-    var headers = { "Content-Type":"application/json" };
-    if(CONFIG.token){
-      headers["x-sb-token"] = CONFIG.token;
-      headers["Authorization"] = "Bearer " + CONFIG.token;
-      headers["X-API-Token"] = CONFIG.token;
-    }
-
-    var ctrl = new AbortController();
-    var to = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, 12000);
-
-    try{
-      var r = await fetch(url, {
-        method:"POST",
-        headers: headers,
-        body: JSON.stringify({ text: s }),
-        signal: ctrl.signal
-      });
-
-      if(!r.ok) return { ok:false, reason:"tts_http_"+r.status };
-
-      var blob = await r.blob();
-      if(!blob || !blob.size) return { ok:false, reason:"tts_empty" };
-
-      var audio = new Audio();
-      audio.src = URL.createObjectURL(blob);
-      audio.preload = "auto";
-      window.__NYX_AUDIO = audio;
-
-      var p = audio.play();
-      if(p && typeof p.catch === "function"){
-        await p.catch(function(){ throw new Error("autoplay_blocked"); });
-      }
-      return { ok:true };
-    } catch(e){
-      return { ok:false, reason:(e && e.message) ? e.message : "tts_fail" };
-    } finally {
-      clearTimeout(to);
-    }
-  }
-
-  // Wire voice toggle
-  if(voiceBtn){
-    voiceBtn.addEventListener("click", function(){
-      UI.audioUnlocked = true;         // explicit user gesture => unlock audio
-      setVoice(!UI.voiceOn);
-    });
-  }
-
-  // Set initial voice state (button text is updated here)
-  setVoice(readVoiceEnabled());
-
-  /* ============================================================
-     6) Chat client (clean)
-  ============================================================ */
-  var dockEl = $("nyxDock");
-  var emptyEl = $("nyxEmpty");
+  var chipsEl = $("nyxChips");
   var msgsEl = $("nyxMsgs");
+  var scrollEl = $("nyxScroll");
   var inputEl = $("nyxInput");
   var sendBtn = $("nyxSend");
-  var chipsEl = $("nyxChips");
+  var focusBtn = $("nyxFocus");
 
+  var UI = { lane:"general", focused:false };
   var THREAD = [];
-  var MAX_TURNS = 20;
+  var MAX_TURNS = 24;
+
+  function setMarionOn(on){
+    if(!marionEl) return;
+    marionEl.classList.toggle("on", !!on);
+  }
+
+  function setActiveChip(chip){
+    UI.lane = safeStr(chip).toLowerCase().trim() || "general";
+    if(chipsEl){
+      var list = chipsEl.querySelectorAll(".chip");
+      for(var i=0;i<list.length;i++){
+        var el = list[i];
+        el.classList.toggle("is-active", el.getAttribute("data-chip") === UI.lane);
+      }
+    }
+  }
 
   function updateEmptyState(){
-    if(!dockEl) return;
-    dockEl.classList.toggle("is-empty", THREAD.length === 0);
+    if(!widget) return;
+    widget.classList.toggle("is-empty", THREAD.length === 0);
   }
 
   function pushMsg(role, text){
@@ -843,27 +472,10 @@ window.NYX_HOST_MODE = "phase1_clean";
       msgsEl.appendChild(div);
     }
     try{
-      var sc = $("nyxScroll");
-      if(sc) sc.scrollTop = sc.scrollHeight;
+      if(scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
     }catch(_){}
+    emitResize();
   }
-
-  function setMarionOn(on){
-    if(!marionEl) return;
-    marionEl.classList.toggle("on", !!on);
-  }
-
-  function setActiveChip(chip){
-    UI.lane = safeStr(chip).toLowerCase().trim() || "general";
-    if(chipsEl){
-      var list = chipsEl.querySelectorAll(".chip");
-      for(var i=0;i<list.length;i++){
-        var el = list[i];
-        el.classList.toggle("is-active", el.getAttribute("data-chip") === UI.lane);
-      }
-    }
-  }
-  setActiveChip("general");
 
   function apiBase(){
     var b = (CONFIG.apiBase && String(CONFIG.apiBase).trim()) ? String(CONFIG.apiBase).trim() : location.origin;
@@ -871,7 +483,7 @@ window.NYX_HOST_MODE = "phase1_clean";
   }
 
   async function postJson(url, payload, timeoutMs){
-    timeoutMs = timeoutMs || 12000;
+    timeoutMs = timeoutMs || 14000;
     var headers = { "Content-Type":"application/json" };
     if(CONFIG.token){
       headers["x-sb-token"] = CONFIG.token;
@@ -918,42 +530,33 @@ window.NYX_HOST_MODE = "phase1_clean";
       text: text,
       lane: UI.lane,
       ctx: {
-        tail: THREAD.slice(-8).map(function(m){ return { r:m.role, t:safeStr(m.text,360) }; }),
-        source: "nyx_host_phase1_clean",
+        tail: THREAD.slice(-10).map(function(m){ return { r:m.role, t:safeStr(m.text,360) }; }),
+        source: "nyx_widget_console",
         context: safeStr(CONFIG.context, 40)
       },
       client: { source:"nyx_host_iframe", lane:UI.lane }
     };
 
-    postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now() }, false);
+    postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now() }, true);
 
-    var res = await postJson(url, packet, 14000);
-
+    var res = await postJson(url, packet, 16000);
     var reply = "";
     if(res){
       reply = safeStr(res.reply || res.text || (res.data && (res.data.reply || res.data.text)) || "");
     }
     if(!reply && res && res.ok === false && res.error){
-      reply = "I hit a connection issue. If you're running a demo, pass apiBase/token in NYX_CONFIG so I can talk to the backend.";
+      reply = "Connection issue. Pass apiBase/token via NYX_CONFIG so I can reach the backend.";
     }
     if(!reply) reply = "…";
 
-    if(res && res.lane && typeof res.lane === "string"){
-      setActiveChip(res.lane.toLowerCase());
-    }
+    if(res && res.lane && typeof res.lane === "string"){ setActiveChip(res.lane.toLowerCase()); }
     if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
     if(res && res.cog && typeof res.cog === "object"){
-      postToParent({ type:"NYX_COG", lane: UI.lane, cog: res.cog, ts: now() }, false);
+      postToParent({ type:"NYX_COG", lane: UI.lane, cog: res.cog, ts: now() }, true);
     }
 
     pushMsg("nyx", reply);
     renderMsgs();
-    setHeroBubble(reply);
-
-    if(UI.voiceOn && UI.audioUnlocked){
-      var short = reply.length > 220 ? (reply.slice(0,220) + "…") : reply;
-      speak(short).catch(function(){});
-    }
 
     if(sendBtn) sendBtn.disabled = false;
     if(inputEl) inputEl.disabled = false;
@@ -989,52 +592,33 @@ window.NYX_HOST_MODE = "phase1_clean";
       if(!chip) return;
       setActiveChip(chip);
 
-      // No empty "send"; we simply reflect lane + inform parent.
-      setHeroBubble("Mode: " + UI.lane.toUpperCase());
-      postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now() }, false);
+      postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now() }, true);
 
-      // Optional: if backend supports a "lane_select" event, it can be handled; safe if ignored.
+      // Optional: backend lane select (safe if ignored)
       try{
         var url = apiBase() + (CONFIG.chatPath || "/api/chat");
-        postJson(url, { requestId: makeId(), type:"lane_select", lane: UI.lane, ctx:{ source:"nyx_host_phase1_clean" } }, 6000).catch(function(){});
+        postJson(url, { requestId: makeId(), type:"lane_select", lane: UI.lane, ctx:{ source:"nyx_widget_console" } }, 6000).catch(function(){});
       }catch(_){}
     });
   }
 
-  // Expand: focus dock transcript; hides hero bubble
-  if(expandBtn){
-    expandBtn.addEventListener("click", function(){
-      UI.expanded = !UI.expanded;
-      expandBtn.textContent = UI.expanded ? "Collapse" : "Expand";
-      var b = $("nyxBubble");
-      if(b) b.style.display = UI.expanded ? "none" : "";
+  if(focusBtn){
+    focusBtn.addEventListener("click", function(){
+      UI.focused = !UI.focused;
+      document.body.classList.toggle("is-focus", UI.focused);
+      focusBtn.textContent = UI.focused ? "Compact" : "Focus";
+      emitResize();
       if(inputEl) inputEl.focus();
     });
   }
 
-  function maybeRunIntro(){
-    var ctx = normalizeContext(CONFIG.context);
-    var part = dayPart();
-    var line = pickGreeting(ctx, part);
-
-    if (ssGet(INTRO_SHOWN_KEY) !== "1"){
-      setHeroBubble(line);
-      pushMsg("nyx", line);
-      renderMsgs();
-      ssSet(INTRO_SHOWN_KEY, "1");
-    }
-  }
-
-  // First paint: intro text only; keep voice conservative
+  // First paint: tiny intro (text-only)
   setTimeout(function(){
-    maybeRunIntro();
-    updateEmptyState();
+    setActiveChip("general");
+    pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+    renderMsgs();
     if(inputEl) inputEl.focus();
-    var bt = $("nyxBubbleText");
-    if(bt && (!bt.textContent || bt.textContent.trim() === "…")){
-      setHeroBubble("Hi. I’m Nyx.");
-    }
-  }, 450);
+  }, 250);
 
 })();
 </script>
