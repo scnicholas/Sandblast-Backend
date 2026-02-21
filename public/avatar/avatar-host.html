@@ -6,7 +6,7 @@
 <title>Nyx Avatar Host (Phase 1 Clean)</title>
 
 <!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=PHASE1_CLEAN_9202a" />
+<link rel="stylesheet" href="./avatar.css?v=PHASE1_CLEAN_9203b" />
 
 <script>
 /* ============================================================
@@ -419,7 +419,7 @@ window.NYX_HOST_MODE = "phase1_clean";
      - context: sandblast|radio|roku|news|cognitive (affects intro greeting)
   ============================================================ */
   var CONFIG = {
-    version: "PHASE1_CLEAN_v9202a",
+    version: "PHASE1_CLEAN_v9203b",
     context: "sandblast",
     apiBase: null,
     token: null,
@@ -564,16 +564,19 @@ window.NYX_HOST_MODE = "phase1_clean";
     // Defaults: read from CSS custom properties if present
     var cssVid = "";
     var cssImg = "";
+    var cssAbs = "";
     try{
       cssVid = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-video").replace(/["']/g,"").trim();
       cssImg = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-img-url").replace(/["']/g,"").trim();
+      cssAbs = getComputedStyle(document.documentElement).getPropertyValue("--nyx-hero-abs").replace(/["']/g,"").trim();
     }catch(_){}
 
-    var src = safeStr(heroSrc).trim() || cssVid || cssImg;
+    var src = safeStr(heroSrc).trim() || cssVid || cssImg || cssAbs;
     src = safeCssUrl(src);
 
     // set poster/bg image fallback
     if(cssImg) setStageImage(cssImg);
+    else if(cssAbs) setStageImage(cssAbs);
 
     if(!src){
       setStageImageFallback(true);
@@ -797,35 +800,35 @@ window.NYX_HOST_MODE = "phase1_clean";
   }
 
   function maybeRunIntro(){
-    // One-time text per session
-    if(ssGet(INTRO_SHOWN_KEY) !== "1"){
-      var ctx = normalizeContext(CONFIG.context);
-      var part = dayPart();
-      var line = pickGreeting(ctx, part, false);
+    var ctx = normalizeContext(CONFIG.context);
+    var part = dayPart();
+    var line = pickGreeting(ctx, part, false);
+
+    // 1) One-time text per session (hero bubble + dock first message)
+    if (ssGet(INTRO_SHOWN_KEY) !== "1"){
       setHeroBubble(line);
+      // also place as first dock message for “introduce from Nyx”
+      try{
+        pushMsg("nyx", line);
+        renderMsgs();
+      }catch(_){}
       ssSet(INTRO_SHOWN_KEY, "1");
     }
 
-    // One-time voice per session
-    if(ssGet(INTRO_SPOKEN_KEY) === "1") return;
+    // 2) One-time voice per session
+    if (ssGet(INTRO_SPOKEN_KEY) === "1") return;
+    if (!UI.voiceOn) return;
 
-    if(!UI.voiceOn) return;
-
-    // If audio isn't unlocked, show gate but do not spam
-    if(!UI.audioUnlocked){
+    // If audio isn't unlocked, show compact gate
+    if (!UI.audioUnlocked){
       showVoiceGate();
       return;
     }
 
-    var ctx2 = normalizeContext(CONFIG.context);
-    var part2 = dayPart();
-    var line2 = pickGreeting(ctx2, part2, false);
-
-    speak(line2).then(function(res){
+    speak(line).then(function(res){
       if(res && res.ok){
         ssSet(INTRO_SPOKEN_KEY, "1");
       }else{
-        // If blocked, show gate
         showVoiceGate();
       }
     });
