@@ -302,10 +302,151 @@ window.NYX_HOST_MODE = "widget_console";
     body.is-focus #nyxWidget{ max-height: 90vh; }
     :root{ --nyx-font-msg: 14px; --nyx-font-input: 14px; }
   }
+
+
+  /* ============================================================
+     LEFT NAV VEIL (FIXED, DOES NOT COVER NYX)
+     - Sits above background, below widget
+     - Clickable, routes to pages
+     - Safe for older audiences: clear hover/focus feedback
+  ============================================================ */
+  :root{
+    --nyx-veil-w: min(220px, 22vw);
+    --nyx-veil-opacity: .72;
+    --nyx-veil-blur: 10px;
+    --nyx-veil-border: rgba(255,255,255,.10);
+  }
+
+  /* Kill switch */
+  html.nyx-veil-off #nyxNavVeil{ display:none !important; }
+
+  #nyxNavVeil{
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--nyx-veil-w);
+
+    /* IMPORTANT: do not cover the widget */
+    z-index: 1;
+
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+
+    padding: 16px 12px;
+    box-sizing:border-box;
+
+    background:
+      linear-gradient(180deg, rgba(8,8,12,.62), rgba(8,8,12,.40)),
+      radial-gradient(700px 520px at 25% 18%, rgba(140,0,35,.18), transparent 60%),
+      radial-gradient(520px 360px at 40% 62%, rgba(255,255,255,.07), transparent 62%);
+    border-right: 1px solid var(--nyx-veil-border);
+
+    -webkit-backdrop-filter: blur(var(--nyx-veil-blur));
+    backdrop-filter: blur(var(--nyx-veil-blur));
+    opacity: var(--nyx-veil-opacity);
+  }
+
+  /* Keep widget above veil */
+  #nyxWidget{ position: relative; z-index: 3; }
+
+  #nyxNavVeil .veil-title{
+    font: 800 12px var(--nyx-font);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.72);
+    margin: 2px 2px 6px;
+    user-select:none;
+  }
+
+  #nyxNavVeil .veil-btn{
+    width: 100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+
+    padding: 11px 12px;
+    border-radius: 14px;
+
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.20);
+    color: rgba(255,255,255,.92);
+
+    font: 700 13px var(--nyx-font);
+    cursor:pointer;
+    user-select:none;
+
+    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), filter .12s var(--nyx-ease);
+  }
+  #nyxNavVeil .veil-btn:hover{
+    transform: translateY(-1px);
+    background: rgba(140,0,35,.14);
+    border-color: rgba(140,0,35,.55);
+    filter: brightness(1.02);
+  }
+  #nyxNavVeil .veil-btn:active{ transform: translateY(0); }
+  #nyxNavVeil .veil-btn:focus{
+    outline: 2px solid rgba(140,0,35,.35);
+    outline-offset: 2px;
+  }
+  #nyxNavVeil .veil-btn .arrow{
+    opacity:.72;
+    font-weight:900;
+  }
+
+  /* Keep widget clear of left veil on desktop */
+  @media (min-width: 821px){
+    body.nyx-widget-console #nyxWidget{
+      margin-left: calc(var(--nyx-veil-w) + 18px);
+    }
+  }
+
+  /* Responsive: shrink rail on small screens; collapse to bottom strip on phones */
+  @media (max-width: 860px){
+    :root{ --nyx-veil-w: min(190px, 26vw); --nyx-veil-opacity: .68; }
+  }
+  @media (max-width: 520px){
+    #nyxNavVeil{
+      left: 10px;
+      right: 10px;
+      top: auto;
+      bottom: calc(10px + env(safe-area-inset-bottom,0px));
+      width: auto;
+      height: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      border-right: none;
+      border: 1px solid var(--nyx-veil-border);
+      border-radius: 18px;
+      padding: 10px;
+      gap:8px;
+    }
+    #nyxNavVeil .veil-title{ display:none; }
+    #nyxNavVeil .veil-btn{ width: auto; padding: 10px 12px; border-radius: 999px; font-size: 12.5px; }
+  }
+
 </style>
 </head>
 
 <body class="nyx-widget-console">
+
+  <!-- ============================================================
+       LEFT NAV VEIL (Channels)
+       - Fixed overlay rail that does NOT cover Nyx/widget
+       - Clicks route parent/top to destination
+  ============================================================ -->
+  <aside id="nyxNavVeil" aria-label="Sandblast channels">
+    <div class="veil-title">Channels</div>
+    <button class="veil-btn" type="button" data-nav="/tv"><span>Sandblast TV</span><span class="arrow">›</span></button>
+    <button class="veil-btn" type="button" data-nav="/radio"><span>Radio</span><span class="arrow">›</span></button>
+    <button class="veil-btn" type="button" data-nav="/news-canada"><span>News Canada</span><span class="arrow">›</span></button>
+    <button class="veil-btn" type="button" data-nav="/news-features"><span>News Features</span><span class="arrow">›</span></button>
+  </aside>
+
+
   <main id="nyxWidget" class="is-empty" aria-label="Nyx Widget Console">
 
     <header id="nyxHeader">
@@ -484,6 +625,43 @@ window.NYX_HOST_MODE = "widget_console";
   var focusBtn = $("nyxFocus");
   var micBtn = $("nyxMic");
   var voiceBtn = $("nyxVoice");
+
+  /* ============================================================
+     NAV VEIL ROUTING (safe)
+     - Prefer parent navigation via postMessage
+     - Fallback to top/window navigation if allowed
+  ============================================================ */
+  (function bindNavVeil(){
+    var veil = $("nyxNavVeil");
+    if(!veil) return;
+
+    veil.addEventListener("click", function(e){
+      var t = e.target;
+      while(t && t !== veil && !(t.getAttribute && t.getAttribute("data-nav"))){
+        t = t.parentNode;
+      }
+      if(!t || t === veil) return;
+
+      var href = t.getAttribute("data-nav");
+      if(!href) return;
+
+      // Notify parent (best for iframes)
+      postToParent({ type:"NYX_NAV", href: href, ts: now() }, true);
+
+      // Attempt to navigate top window (works if allowed)
+      try{
+        if(window.top && window.top.location){
+          window.top.location.href = href;
+          return;
+        }
+      }catch(_){}
+
+      // Fallback: navigate current frame
+      try{ window.location.href = href; }catch(_){}
+    }, true);
+  })();
+
+
 
   var UI = { lane:"general", focused:false };
 
