@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.5.1 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++ + DOCK PARALLAX++++)
+ * v1.4.0 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++)
  *
  * Mission:
  * - Make the hero feel cinematic (face-first, not flat)
@@ -90,48 +90,8 @@
   --chrome-idle-opacity: .62;
   --chrome-hover-opacity: .92;
 
-    --ease: cubic-bezier(.2,.8,.2,1);
-
-  /* ==========================================================
-     PARALLAX (SIDE STAGE / DOCK AMBIENCE)
-     - Used for the panel NEXT to Nyx (dock / right rail)
-     - Safe by default: subtle, non-blocking, reduced-motion aware
-  ========================================================== */
-  --nyx-parallax-on: 1;           /* 1=on, 0=off */
-  --nyx-parallax-x: 0px;
-  --nyx-parallax-y: 0px;
-  --nyx-parallax-tilt: 0deg;
-
-  --nyx-parallax-a: rgba(140,0,35,.18);
-  --nyx-parallax-b: rgba(255,255,255,.07);
-  --nyx-parallax-v: rgba(0,0,0,.34);
-
-  --nyx-parallax-opacity: .92;
-  --nyx-parallax-scale: 1.03;
-  --nyx-parallax-speed: 9.5s;
-
-  /* ==========================================================
-     NAV VEIL (LEFT SIDE / PAGE-LEVEL CHANNEL PORTALS)
-     - Semi-transparent interactive rail that can sit beside Nyx
-     - CSS-only styling; click routing handled by a tiny JS insert
-  ========================================================== */
-  --nyx-veil-w: min(240px, 24vw);
-  --nyx-veil-gap: 10px;
-  --nyx-veil-pad: 14px;
-  --nyx-veil-radius: 18px;
-  --nyx-veil-bg: rgba(10,10,14,.34);
-  --nyx-veil-line: rgba(255,255,255,.10);
-  --nyx-veil-blur: 14px;
-  --nyx-veil-opacity: .92;
-  --nyx-veil-sheen: rgba(255,255,255,.06);
-  --nyx-veil-hover: rgba(140,0,35,.16);
-  --nyx-veil-active: rgba(140,0,35,.26);
-  --nyx-veil-text: rgba(255,255,255,.92);
-  --nyx-veil-muted: rgba(255,255,255,.70);
-  --nyx-veil-shadow: 0 18px 70px rgba(0,0,0,.72);
-  --nyx-veil-breathe: 5.8s;
+  --ease: cubic-bezier(.2,.8,.2,1);
 }
-
 
 *{ box-sizing:border-box; }
 html,body{ height:100%; background:#000 !important; }
@@ -371,325 +331,6 @@ body.nyx-phase1 #nyxDock{
   background: rgba(12,12,16,.78) !important;
   box-shadow: 0 22px 80px rgba(0,0,0,.74), 0 0 70px rgba(140,0,35,.12) !important;
 }
-
-/* ============================================================
-   PHASE 1 — SIDE PARALLAX (NEXT TO AVATAR)
-   - Adds “alive” ambience to the dock/panel beside Nyx
-   - Zero layout changes: uses pseudo-layers behind dock content
-   - Optional JS can drive --nyx-parallax-x/y/tilt; CSS also breathes on its own
-============================================================ */
-
-/* Ensure dock can host pseudo-layers safely */
-body.nyx-phase1 #nyxDock{
-  position: relative !important;
-  isolation: isolate !important;
-  overflow: hidden !important;
-}
-
-/* Ambient parallax layer */
-body.nyx-phase1 #nyxDock::before{
-  content:"";
-  position:absolute;
-  inset:-26px;
-  z-index:0;
-  pointer-events:none;
-
-  background:
-    radial-gradient(900px 520px at 24% 18%, var(--nyx-parallax-a) 0%, rgba(140,0,35,0) 62%),
-    radial-gradient(720px 440px at 84% 28%, var(--nyx-parallax-b) 0%, rgba(255,255,255,0) 64%),
-    radial-gradient(900px 720px at 50% 92%, var(--nyx-parallax-v) 0%, rgba(0,0,0,0) 62%);
-
-  opacity: var(--nyx-parallax-opacity);
-  transform:
-    translate3d(var(--nyx-parallax-x), var(--nyx-parallax-y), 0)
-    rotate(var(--nyx-parallax-tilt))
-    scale(var(--nyx-parallax-scale));
-
-  transition: transform 120ms var(--ease);
-  animation: nyxDockDrift var(--nyx-parallax-speed) var(--ease) infinite;
-}
-
-/* Fine grain + soft sheen (kept subtle) */
-body.nyx-phase1 #nyxDock::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:0;
-  pointer-events:none;
-
-  background:
-    radial-gradient(120% 140% at 50% 0%,
-      rgba(255,255,255,.045) 0%,
-      rgba(255,255,255,0) 46%),
-    linear-gradient(180deg,
-      rgba(255,255,255,.03) 0%,
-      rgba(255,255,255,0) 34%,
-      rgba(0,0,0,.10) 100%);
-
-  opacity:.55;
-  mix-blend-mode: normal;
-}
-
-/* Keep dock content above pseudo-layers */
-body.nyx-phase1 #nyxDock > *{
-  position: relative;
-  z-index: 1;
-}
-
-/* Breath drift (very small) */
-@keyframes nyxDockDrift{
-  0%{
-    transform:
-      translate3d(calc(var(--nyx-parallax-x) + 0px), calc(var(--nyx-parallax-y) + 0px), 0)
-      rotate(calc(var(--nyx-parallax-tilt) + 0deg))
-      scale(var(--nyx-parallax-scale));
-    filter: brightness(1) saturate(1);
-  }
-  50%{
-    transform:
-      translate3d(calc(var(--nyx-parallax-x) + 7px), calc(var(--nyx-parallax-y) - 8px), 0)
-      rotate(calc(var(--nyx-parallax-tilt) + .35deg))
-      scale(var(--nyx-parallax-scale));
-    filter: brightness(1.03) saturate(1.03);
-  }
-  100%{
-    transform:
-      translate3d(calc(var(--nyx-parallax-x) + 0px), calc(var(--nyx-parallax-y) + 0px), 0)
-      rotate(calc(var(--nyx-parallax-tilt) + 0deg))
-      scale(var(--nyx-parallax-scale));
-    filter: brightness(1) saturate(1);
-  }
-}
-
-/* Optional: if the host toggles this off */
-html.nyx-parallax-off body.nyx-phase1 #nyxDock::before{
-  animation: none !important;
-}
-
-/* Reduced motion: no drift animation */
-@media (prefers-reduced-motion: reduce){
-  body.nyx-phase1 #nyxDock::before{ animation:none !important; }
-}
-
-/* ============================================================
-   PHASE 1 — LEFT NAV VEIL (CHANNEL PORTALS)
-   - Sits on the LEFT side of Nyx (over the full-screen hero image)
-   - Interactive (pointer-events ON) but visually subtle
-   - DOES NOT require Webflow changes if you can add the HTML block
-     to avatar-host.html OR inject via backend template.
-   - Routing logic is a tiny JS snippet (provided in comments below)
-============================================================ */
-
-/* Host must allow absolute overlays on stage */
-body.nyx-phase1 #nyxStage{
-  position: relative !important;
-  isolation: isolate !important;
-  overflow: hidden !important;
-}
-
-/* The veil container (recommended id) */
-body.nyx-phase1 #nyxNavVeil,
-body.nyx-phase1 .nyx-nav-veil{
-  position:absolute;
-  left: calc(14px + var(--safe-l));
-  top: 14px;
-  bottom: 14px;
-
-  width: var(--nyx-veil-w);
-  display:flex;
-  flex-direction:column;
-  gap: var(--nyx-veil-gap);
-
-  padding: var(--nyx-veil-pad);
-  border-radius: var(--nyx-veil-radius);
-
-  background: var(--nyx-veil-bg);
-  border: 1px solid var(--nyx-veil-line);
-  box-shadow: var(--nyx-veil-shadow);
-
-  backdrop-filter: blur(var(--nyx-veil-blur));
-  -webkit-backdrop-filter: blur(var(--nyx-veil-blur));
-
-  opacity: var(--nyx-veil-opacity);
-  z-index: 3;
-
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-/* Sheen + depth, stays behind content */
-body.nyx-phase1 #nyxNavVeil::before,
-body.nyx-phase1 .nyx-nav-veil::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  pointer-events:none;
-  z-index:0;
-
-  background:
-    radial-gradient(120% 120% at 30% 10%, rgba(140,0,35,.18), transparent 55%),
-    radial-gradient(120% 120% at 90% 22%, var(--nyx-veil-sheen), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,0) 42%, rgba(0,0,0,.18));
-  opacity:.92;
-}
-
-/* Content above sheen */
-body.nyx-phase1 #nyxNavVeil > *,
-body.nyx-phase1 .nyx-nav-veil > *{
-  position: relative;
-  z-index: 1;
-}
-
-/* Optional title block inside veil */
-body.nyx-phase1 .nyx-veil-title{
-  font-weight: 900;
-  letter-spacing: .3px;
-  color: var(--nyx-veil-text);
-  font-size: 13px;
-  line-height: 1.15;
-}
-body.nyx-phase1 .nyx-veil-sub{
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--nyx-veil-muted);
-  opacity: .92;
-}
-
-/* Buttons/links inside veil */
-body.nyx-phase1 .nyx-veil-btn{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-
-  width: 100%;
-  padding: 11px 12px;
-  border-radius: 14px;
-
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.05);
-  color: var(--nyx-veil-text);
-
-  font-weight: 900;
-  font-size: 13px;
-
-  cursor: pointer;
-  user-select: none;
-
-  transition: filter .14s var(--ease), transform .14s var(--ease), background .14s var(--ease), border-color .14s var(--ease);
-}
-body.nyx-phase1 .nyx-veil-btn:hover{
-  filter: brightness(1.06);
-  transform: translateY(-1px);
-  background: var(--nyx-veil-hover);
-  border-color: rgba(140,0,35,.44);
-}
-body.nyx-phase1 .nyx-veil-btn:active{
-  transform: translateY(0);
-  background: var(--nyx-veil-active);
-  border-color: rgba(140,0,35,.62);
-}
-body.nyx-phase1 .nyx-veil-btn:focus{
-  outline: none;
-}
-body.nyx-phase1 .nyx-veil-btn:focus-visible{
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(140,0,35,.18);
-}
-
-/* Small right-side glyph / arrow */
-body.nyx-phase1 .nyx-veil-glyph{
-  opacity: .78;
-  font-weight: 900;
-}
-
-/* “Breathing” (very subtle) */
-@keyframes nyxVeilBreathe{
-  0%{ filter: brightness(1) saturate(1); }
-  50%{ filter: brightness(1.03) saturate(1.02); }
-  100%{ filter: brightness(1) saturate(1); }
-}
-body.nyx-phase1 #nyxNavVeil,
-body.nyx-phase1 .nyx-nav-veil{
-  animation: nyxVeilBreathe var(--nyx-veil-breathe) var(--ease) infinite;
-}
-
-/* Optional: disable quickly */
-html.nyx-veil-off body.nyx-phase1 #nyxNavVeil,
-html.nyx-veil-off body.nyx-phase1 .nyx-nav-veil{
-  display:none !important;
-}
-
-/* Mobile: collapse veil to a small “pill” row */
-@media (max-width: 720px){
-  body.nyx-phase1 #nyxNavVeil,
-  body.nyx-phase1 .nyx-nav-veil{
-    left: calc(10px + var(--safe-l));
-    right: calc(10px + var(--safe-r));
-    top: calc(10px + var(--safe-b));
-    bottom: auto;
-    width: auto;
-
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-
-    padding: 10px 10px;
-    border-radius: 16px;
-    gap: 8px;
-  }
-  body.nyx-phase1 .nyx-veil-title,
-  body.nyx-phase1 .nyx-veil-sub{
-    display:none;
-  }
-  body.nyx-phase1 .nyx-veil-btn{
-    padding: 10px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-  }
-}
-
-/* Reduced motion: stop breathing */
-@media (prefers-reduced-motion: reduce){
-  body.nyx-phase1 #nyxNavVeil,
-  body.nyx-phase1 .nyx-nav-veil{ animation:none !important; }
-}
-
-/*
-============================================================
-INTERACTION LOGIC (JS INSERT — NOT IN CSS)
-------------------------------------------------------------
-Place this in avatar-host.html AFTER the veil markup:
-
-  const veil = document.getElementById("nyxNavVeil");
-  if(veil){
-    veil.addEventListener("click", (e)=>{
-      const btn = e.target.closest("[data-href]");
-      if(!btn) return;
-      const href = btn.getAttribute("data-href");
-      if(!href) return;
-      window.location.href = href;   // or window.open(href,"_self")
-    });
-  }
-
-Suggested markup (minimal):
-
-<div id="nyxNavVeil" class="nyx-nav-veil">
-  <div>
-    <div class="nyx-veil-title">Sandblast</div>
-    <div class="nyx-veil-sub">Choose a channel</div>
-  </div>
-  <button class="nyx-veil-btn" data-href="/sandblast-tv">Sandblast TV <span class="nyx-veil-glyph">›</span></button>
-  <button class="nyx-veil-btn" data-href="/radio">Radio <span class="nyx-veil-glyph">›</span></button>
-  <button class="nyx-veil-btn" data-href="/news-canada">News Canada <span class="nyx-veil-glyph">›</span></button>
-  <button class="nyx-veil-btn" data-href="/news-features">News Features <span class="nyx-veil-glyph">›</span></button>
-</div>
-
-============================================================
-*/
-
-
 body.nyx-phase1 #nyxDockHeader{
   background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,0)) !important;
 }
@@ -764,4 +405,95 @@ body.nyx-phase1 #sbnyxBottomBanner{
   #nyxShellMount video{
     display:none !important;
   }
+}
+
+
+
+/* ======================================================================
+   v1.4.1 PATCH (NAV VEIL VISUAL + PARALLAX DRIFT)
+   - Goal: produce an immediate visible change WITHOUT requiring new HTML.
+   - Implements a semi-transparent "channel veil" as a pseudo-layer on #nyxStage.
+   - Interactive clicks require a real element + JS (cannot be done purely in CSS).
+====================================================================== */
+
+/* Tunables (safe defaults) */
+:root{
+  --nyx-veil-w: min(240px, 22vw);
+  --nyx-veil-opacity: .78;
+  --nyx-veil-blur: 10px;
+
+  /* optional JS-driven drift hooks (safe at 0) */
+  --nyx-parallax-x: 0px;
+  --nyx-parallax-y: 0px;
+  --nyx-parallax-tilt: 0deg;
+
+  /* motion */
+  --nyx-veil-drift: 1; /* set to 0 to freeze */
+}
+
+/* Allow a quick kill-switch */
+html.nyx-veil-off :is(#nyxStage, #avatarRoot, #wrap) .nyx-nav-veil,
+html.nyx-veil-off body.nyx-phase1 #nyxStage::after{
+  display:none !important;
+}
+
+/* Ensure #nyxStage can host pseudo layers */
+body.nyx-phase1 #nyxStage{ position:relative; isolation:isolate; }
+
+/* Visual veil sits ABOVE hero image, BELOW UI cards */
+body.nyx-phase1 #nyxStage::after{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width: var(--nyx-veil-w);
+  z-index: 2;                 /* stage layer */
+  pointer-events:none;        /* visual-only in CSS-only mode */
+
+  /* "dark glass" with subtle accent bloom */
+  background:
+    linear-gradient(180deg, rgba(8,8,12,.64), rgba(8,8,12,.44)),
+    radial-gradient(700px 520px at 25% 18%, rgba(140,0,35,.20), transparent 60%),
+    radial-gradient(540px 380px at 40% 62%, rgba(255,255,255,.08), transparent 62%);
+
+  border-right: 1px solid rgba(255,255,255,.10);
+
+  /* glass effect */
+  -webkit-backdrop-filter: blur(var(--nyx-veil-blur));
+  backdrop-filter: blur(var(--nyx-veil-blur));
+
+  opacity: var(--nyx-veil-opacity);
+
+  /* mild drift: breathing + optional JS offsets */
+  transform:
+    translate3d(var(--nyx-parallax-x), var(--nyx-parallax-y), 0)
+    rotate(var(--nyx-parallax-tilt))
+    translate3d(0, 0, 0);
+
+  transition: transform 140ms var(--nyx-ease);
+}
+
+/* Soft motion that reads as "alive" but not distracting */
+@keyframes nyxVeilDrift{
+  0%   { transform: translate3d(var(--nyx-parallax-x), calc(var(--nyx-parallax-y) + 0px), 0) rotate(var(--nyx-parallax-tilt)); }
+  50%  { transform: translate3d(var(--nyx-parallax-x), calc(var(--nyx-parallax-y) + 10px), 0) rotate(var(--nyx-parallax-tilt)); }
+  100% { transform: translate3d(var(--nyx-parallax-x), calc(var(--nyx-parallax-y) + 0px), 0) rotate(var(--nyx-parallax-tilt)); }
+}
+
+@media (prefers-reduced-motion: no-preference){
+  body.nyx-phase1 #nyxStage::after{
+    animation: nyxVeilDrift calc(9s + (1s * (1 - var(--nyx-veil-drift)))) var(--nyx-ease) infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  body.nyx-phase1 #nyxStage::after{ animation:none !important; }
+}
+
+/* Mobile: keep it subtle and out of the way */
+@media (max-width: 780px){
+  :root{ --nyx-veil-w: min(210px, 38vw); --nyx-veil-opacity: .68; }
+}
+@media (max-width: 520px){
+  :root{ --nyx-veil-w: min(170px, 46vw); --nyx-veil-opacity: .62; }
 }
