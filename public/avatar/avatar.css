@@ -365,3 +365,36 @@ body.nyx-phase1 #nyxBottomBanner,
 body.nyx-phase1 #sbnyxBottomBanner{
   display:none !important;
 }
+
+
+/* ============================================================
+   PHASE 1 — FIXES FROM SCREENSHOT 846
+   - Remove inner scrollbars on message bubbles
+   - Make chips a fixed rail (host now places it above scroll)
+   - Improve dock spacing + hierarchy
+============================================================ */
+
+/* Never allow message cards to scroll; only #nyxScroll scrolls */
+body.nyx-phase1 .nyx-msg{
+  max-height:none !important;
+  overflow:visible !important;
+}
+
+/* Dock: slightly wider feel via padding + typography */
+body.nyx-phase1 #nyxDockHeader{
+  padding: 12px 12px !important;
+}
+body.nyx-phase1 #nyxScroll{
+  padding: 12px 12px 14px 12px !important;
+}
+
+/* Chip rail polish (works with host-fixed chip row) */
+body.nyx-phase1 #nyxChips{
+  padding: 10px 12px !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+}
+
+/* Compact widget: hide hero bubble (sacred face stays clean) */
+@media (max-width: 520px){
+  body.nyx-phase1 #nyxBubble{ display:none !important; }
+}
