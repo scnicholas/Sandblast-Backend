@@ -17,7 +17,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.7k (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
+ * v0.7l (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
  * ✅ Add++++: top-level try/catch fail-safe returns hardened contract (prevents total API crash)
  * ✅ Add++++: marionVersion wiring (best-effort: MarionSO.MARION_VERSION / SO_VERSION / version)
  * ✅ Fix++++: ALWAYS sessionPatch is object (never undefined)
@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7k (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.7l (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -638,7 +638,7 @@ function buildDiscoveryHint(norm, session, cog, noveltyScore) {
   const forcedChoice = mode === "architect" || mode === "transitional";
 
   let question = "Pick one: what do you want next?";
-  let options = ["Music", "Movies", "Sponsors"];
+  let options = ["Music", "Movies", "News Canada", "Sponsors"];
 
   if (lane === "music" || action) {
     question = "Pick one: Top 10, cinematic, or year-end?";
@@ -778,6 +778,15 @@ function classifyAction(text, payload) {
   // Movies lane shortcut (typed)
   if (/\b(movies?|tv|show|series)\b/.test(t) && /\b(lane|mode|switch|go)\b/.test(t))
     return "movies";
+
+
+  // News Canada lane shortcut (typed)
+  // NOTE: this is a lane/route hint; scraping/feeds are wired elsewhere (fail-open here).
+  if (
+    /\b(news\s*canada|newscanada|canadian\s+news|news\s+in\s+canada)\b/.test(t) ||
+    (/\b(news|headlines?)\b/.test(t) && /\b(canada|canadian)\b/.test(t))
+  )
+    return "news_canada";
 
   // NOTE: music routes still recognized here, but execution is delegated to musicKnowledge.js
   if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
@@ -1404,8 +1413,9 @@ function counselorFollowUps() {
       },
       { id: "fu_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year" } },
       { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+      { id: "fu_news_canada", type: "chip", label: "News Canada", payload: { lane: "news", action: "news_canada", route: "news_canada" } },
     ],
-    followUpsStrings: ["I want a plan", "Just listen", "Music", "Movies"],
+    followUpsStrings: ["I want a plan", "Just listen", "Music", "Movies", "News Canada"],
   };
 }
 
@@ -1813,7 +1823,7 @@ async function handleChat(input) {
       safeStr(norm.payload?.lane || "").trim() ||
       safeStr(session.lane || "").trim() ||
       safeStr(corePrev?.lane || "").trim() ||
-      (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : "music")) : "general");
+      (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : (norm.action === "news_canada" ? "news" : "music"))) : "general");
 
 
 // Session lane identity (deterministic routing key, NOT PII)
@@ -1924,6 +1934,79 @@ if (bridge) cog.bridge = bridge;
         requestId,
         meta: out.meta,
       };
+    }
+
+
+    // -------------------------
+    // SENTIENT HOST INTRO (first load ritual) — speaks + animated text + lane portals
+    // -------------------------
+    const introAlready =
+      truthy(session.__nyxIntroDone) ||
+      truthy(session.__introDone) ||
+      truthy(session.__firstLoadDone);
+
+    const introEligible =
+      !introAlready &&
+      !safeStr(norm.action || "").trim() &&
+      !!norm.turnSignals?.textEmpty &&
+      !norm.turnSignals?.hasPayload;
+
+    if (introEligible) {
+      const introSpeak = "Hello, I’m Nyx. Welcome to Sandblast Channel. How may I help you today?";
+      const introAnimated = [
+        "You’ve entered Sandblast.",
+        "I’m Nyx — your host.",
+        "Choose a lane."
+      ];
+
+      const fu = [
+        { id: "fu_lane_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+        { id: "fu_lane_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+        { id: "fu_lane_news_canada", type: "chip", label: "News Canada", payload: { lane: "news", action: "news_canada", route: "news_canada" } },
+        { id: "fu_lane_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
+      ];
+
+      const reply = finalizeReply(introSpeak, introSpeak);
+
+      const coreNext = finalizeSpineTurn({
+        corePrev,
+        norm,
+        lane: "general",
+        topic: "intro",
+        actionTaken: "intro",
+        followUps: fu,
+        pendingAsk: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
+        decision: corePlan,
+        assistantSummary: "intro",
+        marionCog: cog,
+        updateReason: "intro",
+      });
+
+      const sessionPatch = mergeSessionPatch(baseCogPatch, {
+        lane: "general",
+        __nyxIntroDone: true,
+        __nyxIntroAt: nowMs(),
+        __introDone: true,
+        __firstLoadDone: true,
+        __spineState: coreNext,
+      });
+
+      return buildContract({
+        reply,
+        lane: "general",
+        followUps: fu,
+        followUpsStrings: ["Music", "Movies", "News Canada", "Sponsors"],
+        directives: [
+          { type: "tts", voice: "nyx", text: introSpeak, when: "page_load" },
+          { type: "animated_text", style: "ritual_entry", sequence: introAnimated },
+          { type: "lane_badge", lane: "general", mode: safeStr(cog.mode || ""), intent: safeStr(cog.intent || "") },
+        ],
+        sessionPatch,
+        meta: metaBase({
+          route: "intro",
+          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        }),
+      });
     }
 
     // -------------------------
@@ -2128,10 +2211,10 @@ if (bridge) cog.bridge = bridge;
     }
 
     if (norm.action === "switch_lane") {
-      const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• Sponsors";
+      const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Sponsors";
       const reply0 = finalizeReply(
         discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
-          ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• Sponsors`
+          ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• News Canada\n• Sponsors`
           : baseMenu,
         baseMenu
       );
@@ -2150,6 +2233,7 @@ if (bridge) cog.bridge = bridge;
           payload: { lane: "music", action: "ask_year", route: "ask_year" },
         },
         { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
+        { id: "fu_news_canada", type: "chip", label: "News Canada", payload: { lane: "news", action: "news_canada", route: "news_canada" } },
         {
           id: "fu_sponsors",
           type: "chip",
@@ -2183,7 +2267,7 @@ if (bridge) cog.bridge = bridge;
         reply,
         lane: "general",
         followUps: fu,
-        followUpsStrings: ["Music", "Movies", "Sponsors"],
+        followUpsStrings: ["Music", "Movies", "News Canada", "Sponsors"],
         sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
         meta: metaBase({
           route: "switch_lane",
@@ -2204,6 +2288,73 @@ if (bridge) cog.bridge = bridge;
     // -------------------------
     const routeMaybe = safeStr(norm.payload?.route || "").trim().toLowerCase();
     const actionMaybe = safeStr(norm.action || "").trim().toLowerCase();
+
+    // -------------------------
+    // NEWS CANADA handling (lane stub + bridge contract) — scraping/feed wired elsewhere
+    // -------------------------
+    const wantsNewsCanada =
+      lane === "news" ||
+      routeMaybe === "news_canada" ||
+      actionMaybe === "news_canada" ||
+      (routeMaybe && /news/.test(routeMaybe));
+
+    if (wantsNewsCanada) {
+      const reply0 = finalizeReply(
+        "News Canada is coming online. Pick: Top headlines, Politics, Business, Tech, Sports, or Weather.",
+        "News Canada is coming online."
+      );
+
+      const loop = detectAndPatchLoop(session, "news", reply0);
+      const reply = loop.tripped
+        ? finalizeReply("News Canada is looping. Pick ONE: Top headlines, Politics, Business, Tech, Sports, or Weather.")
+        : reply0;
+
+      const sigLine = detectSignatureLine(reply);
+
+      const fu = [
+        { id: "fu_news_top", type: "chip", label: "Top headlines", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "top" } },
+        { id: "fu_news_politics", type: "chip", label: "Politics", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "politics" } },
+        { id: "fu_news_business", type: "chip", label: "Business", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "business" } },
+        { id: "fu_news_tech", type: "chip", label: "Tech", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "tech" } },
+        { id: "fu_news_sports", type: "chip", label: "Sports", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "sports" } },
+        { id: "fu_news_weather", type: "chip", label: "Weather", payload: { lane: "news", action: "news_canada", route: "news_canada", focus: "weather" } },
+      ].slice(0, 10);
+
+      const coreNext = finalizeSpineTurn({
+        corePrev,
+        norm,
+        lane: "news",
+        topic: "news_canada",
+        actionTaken: loop.tripped ? "news_canada_loop_break" : "news_canada",
+        followUps: fu,
+        pendingAsk: pendingAskObj("need_news_choice", "clarify", "Pick a News Canada category.", true),
+        decision: corePlan,
+        assistantSummary: "news_canada_stub",
+        marionCog: cog,
+        updateReason: "news_canada",
+      });
+
+      const routePatch = {
+        lane: "news",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
+        __spineState: coreNext,
+      };
+
+      return buildContract({
+        reply,
+        lane: "news",
+        followUps: fu,
+        followUpsStrings: ["Top headlines", "Politics", "Business", "Tech", "Sports", "Weather"],
+        sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+        meta: metaBase({
+          route: "news_canada",
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        }),
+      });
+    }
+
 
     const wantsMovies =
       lane === "movies" ||
