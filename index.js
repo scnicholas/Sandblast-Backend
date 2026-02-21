@@ -879,8 +879,66 @@ const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 
 // ElevenLabs TTS env
 const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
-const ELEVEN_VOICE_ID = String(process.env.ELEVENLABS_VOICE_ID || process.env.NYX_VOICE_ID || "").trim();
+
+// Primary/legacy voice id (kept for back-compat)
+const ELEVEN_VOICE_ID_DEFAULT = String(
+  process.env.ELEVENLABS_VOICE_ID ||
+  process.env.ELEVEN_VOICE_ID ||
+  process.env.NYX_VOICE_ID ||
+  ""
+).trim();
+
+// Preferred Nyx voice id (use this if you have a dedicated Nyx voice)
+const ELEVEN_VOICE_ID_NYX = String(
+  process.env.ELEVENLABS_NYX_VOICE_ID ||
+  process.env.NYX_ELEVEN_VOICE_ID ||
+  process.env.NYX_VOICE_ID_ELEVEN ||
+  process.env.NYX_VOICE_ID ||
+  ""
+).trim();
+
+// Optional allowlist of additional voice ids (comma-separated)
+const ELEVEN_VOICE_ALLOWLIST = String(process.env.ELEVEN_VOICE_ALLOWLIST || "").trim();
+
+// Final default voice id used when request does not specify one
+const ELEVEN_VOICE_ID = (ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID_DEFAULT).trim();
+
 const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
+
+function buildElevenVoiceAllowSet() {
+  const set = new Set();
+  const add = (v) => {
+    const s = safeStr(v).trim();
+    if (s) set.add(s);
+  };
+  add(ELEVEN_VOICE_ID_DEFAULT);
+  add(ELEVEN_VOICE_ID_NYX);
+  add(ELEVEN_VOICE_ID);
+  String(ELEVEN_VOICE_ALLOWLIST || "")
+    .split(",")
+    .map((x) => safeStr(x).trim())
+    .filter(Boolean)
+    .forEach(add);
+  return set;
+}
+const ELEVEN_VOICE_ALLOWED = buildElevenVoiceAllowSet();
+
+function pickElevenVoiceId(req, body) {
+  // Supported selectors (all OPTIONAL):
+  //  - body.voiceId: explicit ElevenLabs voice id (must be allowlisted)
+  //  - body.voice: "nyx" | "default" (maps to env-configured ids)
+  //  - query voiceId / voice
+  const q = (req && req.query) ? req.query : {};
+  const want = safeStr((body && (body.voice || body.speaker)) || q.voice || "").trim().toLowerCase();
+  if (want === "nyx") return ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "";
+  if (want === "default") return ELEVEN_VOICE_ID_DEFAULT || ELEVEN_VOICE_ID || "";
+
+  const candidate = safeStr((body && body.voiceId) || q.voiceId || "").trim();
+  if (candidate && ELEVEN_VOICE_ALLOWED.has(candidate)) return candidate;
+
+  // Fall back to Nyx-first default
+  return ELEVEN_VOICE_ID || "";
+}
 
 const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
 const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
@@ -3177,10 +3235,12 @@ async function handleTtsRoute(req, res) {
 
   const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
 
-  if (!ELEVEN_API_KEY || !ELEVEN_VOICE_ID || !fetchFn) {
+  const voiceId = pickElevenVoiceId(req, body);
+
+  if (!ELEVEN_API_KEY || !voiceId || !fetchFn) {
     return res.status(501).json({
       ok: false,
-      error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID or fetch).",
+      error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_*_VOICE_ID or fetch).",
       meta: { index: INDEX_VERSION },
     });
   }
@@ -3208,7 +3268,7 @@ async function handleTtsRoute(req, res) {
       },
     };
 
-    const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_VOICE_ID)}`, {
+    const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
       method: "POST",
       headers: {
         "xi-api-key": ELEVEN_API_KEY,
