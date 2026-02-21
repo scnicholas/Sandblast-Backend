@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Nyx Avatar Host — Widget Console (Text + Chips)</title>
+<title>Nyx Avatar Host — Widget Console (Text + Chips + Voice)</title>
 
 <!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210a" />
+<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210b" />
 
 <script>
 /* ============================================================
    NYX WIDGET CONSOLE MODE
-   - Text + Chips only (no hero stage)
+   - Text + Chips (no hero stage)
    - Adaptive height (content-driven) with max 90vh
-   - Meaningful Focus toggle (max-height 90vh vs compact)
-   - Optional parent resize via postMessage (NYX_RESIZE)
+   - Voice controls: TTS (speech synthesis) + STT (speech recognition)
+   - Speech-to-speech pipeline: mic -> send -> TTS reply (when enabled)
 ============================================================ */
 window.NYX_HOST_WIDGET_CONSOLE = true;
 window.NYX_DISABLE_LEGACY = true;
@@ -40,28 +40,36 @@ window.NYX_HOST_MODE = "widget_console";
     display:none !important;
   }
 
-  /* ============================================================
-     Widget root: adaptive height + max clamp
-     - Height grows with content until max-height
-     - After max, transcript scrolls (not the whole card)
-  ============================================================ */
   :root{
     --nyx-widget-max: 90vh;
-    --nyx-widget-compact: 62vh; /* focus toggle switches this */
+    --nyx-widget-compact: 66vh;
+
     --nyx-radius: 22px;
     --nyx-line: rgba(255,255,255,.08);
     --nyx-soft: rgba(255,255,255,.06);
-    --nyx-glass: rgba(12,12,16,.78);
-    --nyx-glass2: rgba(18,18,22,.62);
+
+    --nyx-glass: rgba(12,12,16,.80);
+    --nyx-glass2: rgba(18,18,22,.64);
+
     --nyx-text: rgba(255,255,255,.92);
-    --nyx-muted: rgba(255,255,255,.66);
+    --nyx-muted: rgba(255,255,255,.68);
     --nyx-accent: rgba(140,0,35,.92);
+
     --nyx-ease: cubic-bezier(.2,.8,.2,1);
+
+    /* legibility */
+    --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    --nyx-font-msg: 14.5px;
+    --nyx-font-ui: 12.8px;
+    --nyx-font-chip: 12.6px;
+    --nyx-font-input: 14px;
+
+    --nyx-pad: 12px;
   }
 
   #nyxWidget{
     width:100%;
-    max-width: 520px;
+    max-width: 540px;
     margin:0;
     border-radius: var(--nyx-radius);
     overflow:hidden;
@@ -71,21 +79,19 @@ window.NYX_HOST_MODE = "widget_console";
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 22px 80px rgba(0,0,0,.72), 0 0 70px rgba(140,0,35,.12);
 
-    /* adaptive height */
     height: auto;
     max-height: var(--nyx-widget-compact);
     display:flex;
     flex-direction:column;
     min-width:0;
   }
-
   body.is-focus #nyxWidget{ max-height: var(--nyx-widget-max); }
 
   /* ============================================================
      Header
   ============================================================ */
   #nyxHeader{
-    padding:12px 12px;
+    padding: 11px var(--nyx-pad);
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -97,7 +103,7 @@ window.NYX_HOST_MODE = "widget_console";
   }
   #nyxTitle{
     display:flex; align-items:center; gap:10px;
-    font: 650 14px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font: 700 14px var(--nyx-font);
     color: var(--nyx-text);
     user-select:none;
     letter-spacing:.25px;
@@ -113,7 +119,7 @@ window.NYX_HOST_MODE = "widget_console";
     border:1px solid rgba(255,255,255,.14);
     background: rgba(0,0,0,.18);
     color: rgba(255,255,255,.72);
-    font: 800 11px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font: 900 11px var(--nyx-font);
   }
   #nyxMarion.on{
     background: rgba(140,0,35,.16);
@@ -123,10 +129,11 @@ window.NYX_HOST_MODE = "widget_console";
   }
 
   #nyxHeaderActions{ display:flex; gap:8px; align-items:center; }
+
   .nyx-btn{
-    font:12px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    padding:8px 10px;
-    border-radius:12px;
+    font: 12.5px var(--nyx-font);
+    padding: 8px 10px;
+    border-radius: 12px;
     border:1px solid rgba(255,255,255,.12);
     background: rgba(0,0,0,.18);
     color: rgba(255,255,255,.88);
@@ -138,57 +145,91 @@ window.NYX_HOST_MODE = "widget_console";
   .nyx-btn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.05); }
   .nyx-btn:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
 
+  .nyx-iconbtn{
+    width:38px; height:38px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.18);
+    color: rgba(255,255,255,.90);
+    cursor:pointer;
+    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), box-shadow .12s var(--nyx-ease);
+  }
+  .nyx-iconbtn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.05); }
+  .nyx-iconbtn:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
+
+  .nyx-iconbtn.on{
+    border-color: rgba(140,0,35,.55);
+    background: rgba(140,0,35,.16);
+    box-shadow: 0 0 18px rgba(140,0,35,.14);
+  }
+  .nyx-iconbtn.hot{
+    border-color: rgba(140,0,35,.65);
+    background: rgba(140,0,35,.22);
+    box-shadow: 0 0 22px rgba(140,0,35,.18);
+  }
+
   /* ============================================================
-     Chips rail (always visible, never blocked)
+     Chips rail — FIXED ALIGNMENT
   ============================================================ */
   #nyxChips{
     display:flex;
     gap:10px;
-    padding:10px 12px;
+    padding:10px var(--nyx-pad);
     border-bottom: 1px solid rgba(255,255,255,.06);
     overflow-x:auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width:none;
     background: rgba(0,0,0,.10);
+    align-items:center;
   }
   #nyxChips::-webkit-scrollbar{ display:none; }
+
   .chip{
     flex:0 0 auto;
-    font: 12.2px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    padding:8px 11px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+
+    font: 600 var(--nyx-font-chip) var(--nyx-font);
+    line-height: 1;
+    padding: 9px 12px;
     border-radius:999px;
+
     border:1px solid rgba(255,255,255,.14);
     background: rgba(255,255,255,.055);
-    color: rgba(255,255,255,.90);
+    color: rgba(255,255,255,.92);
+
     cursor:pointer;
     user-select:none;
     white-space:nowrap;
-    transition: background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
+    transform: translateZ(0);
+    transition: background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), filter .12s var(--nyx-ease);
   }
   .chip:hover{ background: rgba(140,0,35,.14); border-color: rgba(140,0,35,.55); }
   .chip.is-active{ background: rgba(140,0,35,.24); border-color: rgba(140,0,35,.62); }
 
   /* ============================================================
-     Transcript: becomes the ONLY scrolling region at max-height
-     CRITICAL: min-height:0 enables proper flex overflow behavior
+     Transcript
   ============================================================ */
   #nyxScroll{
     flex:1 1 auto;
     min-height:0;
     overflow:auto;
-    padding:12px;
-    padding-bottom:14px;
+    padding: var(--nyx-pad);
+    padding-bottom: 14px;
   }
-
   #nyxMsgs{ display:flex; flex-direction:column; gap:10px; }
+
   .nyx-msg{
     max-width:92%;
-    padding:10px 12px;
+    padding: 11px 13px;
     border-radius:16px;
     border:1px solid rgba(255,255,255,.09);
     background: rgba(0,0,0,.24);
     color: rgba(255,255,255,.92);
-    font: 13.5px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font: var(--nyx-font-msg)/1.55 var(--nyx-font);
     white-space: pre-wrap;
   }
   .nyx-msg.me{
@@ -204,21 +245,22 @@ window.NYX_HOST_MODE = "widget_console";
     border:1px dashed rgba(255,255,255,.16);
     background: rgba(255,255,255,.04);
     color: rgba(255,255,255,.74);
-    font: 13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    font: 13.5px/1.5 var(--nyx-font);
   }
   #nyxWidget.is-empty #nyxEmpty{ display:block; }
   #nyxWidget.is-empty #nyxMsgs{ display:none; }
 
   /* ============================================================
-     Input row (always visible)
+     Input row
   ============================================================ */
   #nyxInputRow{
     display:flex;
     gap:8px;
-    padding:12px;
+    padding: var(--nyx-pad);
     border-top: 1px solid rgba(255,255,255,.08);
     background: rgba(0,0,0,.16);
-    padding-bottom: calc(12px + env(safe-area-inset-bottom,0px));
+    padding-bottom: calc(var(--nyx-pad) + env(safe-area-inset-bottom,0px));
+    align-items:center;
   }
   #nyxInput{
     flex:1;
@@ -226,9 +268,10 @@ window.NYX_HOST_MODE = "widget_console";
     border:1px solid rgba(255,255,255,.12);
     background: rgba(0,0,0,.35);
     color: rgba(255,255,255,.92);
-    padding:10px 12px;
+    padding: 11px 12px;
     outline:none;
     min-width:0;
+    font: 500 var(--nyx-font-input) var(--nyx-font);
   }
   #nyxInput:focus{
     border-color: rgba(255,255,255,.18);
@@ -239,16 +282,25 @@ window.NYX_HOST_MODE = "widget_console";
     border:1px solid rgba(255,255,255,.12);
     background: rgba(140,0,35,.85);
     color: rgba(255,255,255,.95);
-    padding:10px 12px;
+    padding: 11px 14px;
     cursor:pointer;
     white-space:nowrap;
+    font: 700 13px var(--nyx-font);
   }
   #nyxSend:disabled{ opacity:.65; cursor:not-allowed; }
 
-  /* Small screens: still console */
+  #nyxHint{
+    padding: 0 var(--nyx-pad) 10px var(--nyx-pad);
+    color: rgba(255,255,255,.58);
+    font: 12px/1.35 var(--nyx-font);
+    display:none;
+  }
+  body.has-voice #nyxHint{ display:block; }
+
   @media (max-width: 420px){
-    #nyxWidget{ max-height: 78vh; }
+    #nyxWidget{ max-height: 78vh; max-width: 100%; }
     body.is-focus #nyxWidget{ max-height: 90vh; }
+    :root{ --nyx-font-msg: 14px; --nyx-font-input: 14px; }
   }
 </style>
 </head>
@@ -264,6 +316,8 @@ window.NYX_HOST_MODE = "widget_console";
       </div>
 
       <div id="nyxHeaderActions">
+        <button class="nyx-iconbtn" id="nyxMic" type="button" aria-label="Speech to text" title="Speech to text">🎙</button>
+        <button class="nyx-iconbtn" id="nyxVoice" type="button" aria-label="Voice on/off" title="Voice on/off">🔈</button>
         <button class="nyx-btn" id="nyxFocus" type="button" aria-label="Toggle focus">Focus</button>
       </div>
     </header>
@@ -281,6 +335,8 @@ window.NYX_HOST_MODE = "widget_console";
       <div id="nyxMsgs"></div>
     </section>
 
+    <div id="nyxHint">Tip: 🎙 speech-to-text. 🔊 reads Nyx out loud. Focus expands up to 90vh.</div>
+
     <footer id="nyxInputRow">
       <input id="nyxInput" type="text" placeholder="Type to Nyx…" autocomplete="off" />
       <button id="nyxSend" type="button">Send</button>
@@ -292,16 +348,16 @@ window.NYX_HOST_MODE = "widget_console";
 (function(){
   "use strict";
 
-  /* ============================================================
-     1) Minimal config + postMessage bridge (kept)
-  ============================================================ */
   var CONFIG = {
-    version: "WIDGET_CONSOLE_v9210a",
+    version: "WIDGET_CONSOLE_v9210b",
     apiBase: null,
     token: null,
     chatPath: "/api/chat",
     context: "sandblast",
-    publicMode: true
+    publicMode: true,
+    debug: false,
+    voiceDefaultOn: false,
+    sttAutoSend: true
   };
 
   function safeStr(x, maxLen){
@@ -339,6 +395,7 @@ window.NYX_HOST_MODE = "widget_console";
     }catch(_){}
     return out;
   }
+
   function applyConfigPartial(part){
     if(!part || typeof part !== "object") return;
     if(typeof part.apiBase === "string" && part.apiBase.trim()) CONFIG.apiBase = part.apiBase.trim().replace(/\/+$/,"");
@@ -346,6 +403,9 @@ window.NYX_HOST_MODE = "widget_console";
     if(typeof part.chatPath === "string" && part.chatPath.trim()) CONFIG.chatPath = part.chatPath.trim();
     if(typeof part.context === "string" && part.context.trim()) CONFIG.context = part.context.trim();
     if(typeof part.publicMode === "boolean") CONFIG.publicMode = part.publicMode;
+    if(typeof part.debug === "boolean") CONFIG.debug = part.debug;
+    if(typeof part.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = part.voiceDefaultOn;
+    if(typeof part.sttAutoSend === "boolean") CONFIG.sttAutoSend = part.sttAutoSend;
   }
 
   (function bootstrapFromQuery(){
@@ -355,7 +415,8 @@ window.NYX_HOST_MODE = "widget_console";
       token: q.token || q.TOKEN || q.sbToken || q.sbt,
       chatPath: q.chatPath || q.chat || q.endpoint,
       context: q.context || q.ctx || q.mode,
-      publicMode: (q.publicMode !== undefined && q.publicMode !== "") ? !/^(0|false|no|off)$/i.test(String(q.publicMode)) : undefined
+      publicMode: (q.publicMode !== undefined && q.publicMode !== "") ? !/^(0|false|no|off)$/i.test(String(q.publicMode)) : undefined,
+      debug: (q.debug !== undefined && q.debug !== "") ? /^(1|true|yes|on)$/i.test(String(q.debug)) : undefined
     });
   })();
 
@@ -392,14 +453,11 @@ window.NYX_HOST_MODE = "widget_console";
       if(data.type === "NYX_CONFIG"){
         applyConfigPartial(data.config || {});
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
+        setTimeout(function(){ voiceInitMaybe(); }, 0);
       }
     }catch(_){}
   });
 
-  /* ============================================================
-     2) Adaptive height: ResizeObserver -> NYX_RESIZE
-     (Parent can resize iframe height if it supports it.)
-  ============================================================ */
   var widget = $("nyxWidget");
   function emitResize(){
     if(!widget) return;
@@ -417,9 +475,6 @@ window.NYX_HOST_MODE = "widget_console";
     setInterval(emitResize, 800);
   }
 
-  /* ============================================================
-     3) UI state
-  ============================================================ */
   var marionEl = $("nyxMarion");
   var chipsEl = $("nyxChips");
   var msgsEl = $("nyxMsgs");
@@ -427,8 +482,26 @@ window.NYX_HOST_MODE = "widget_console";
   var inputEl = $("nyxInput");
   var sendBtn = $("nyxSend");
   var focusBtn = $("nyxFocus");
+  var micBtn = $("nyxMic");
+  var voiceBtn = $("nyxVoice");
 
   var UI = { lane:"general", focused:false };
+
+  var VOICE = {
+    supportedTTS: !!window.speechSynthesis,
+    supportedSTT: false,
+    voiceOn: false,
+    micOn: false,
+    autoSend: true,
+    pendingIntro: false
+  };
+
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  VOICE.supportedSTT = !!SpeechRec;
+
+  document.body.classList.toggle("has-voice", VOICE.supportedTTS || VOICE.supportedSTT);
+
+  var rec = null;
   var THREAD = [];
   var MAX_TURNS = 24;
 
@@ -453,10 +526,10 @@ window.NYX_HOST_MODE = "widget_console";
     widget.classList.toggle("is-empty", THREAD.length === 0);
   }
 
-  function pushMsg(role, text){
+  function pushMsg(role, text, meta){
     text = safeStr(text).trim();
     if(!text) return;
-    THREAD.push({ role: role, text: text, ts: now() });
+    THREAD.push({ role: role, text: text, ts: now(), meta: meta || null });
     if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS);
     updateEmptyState();
   }
@@ -514,14 +587,153 @@ window.NYX_HOST_MODE = "widget_console";
     }
   }
 
-  async function sendText(text){
+  function updateVoiceUI(){
+    if(voiceBtn){
+      voiceBtn.classList.toggle("on", !!VOICE.voiceOn);
+      voiceBtn.textContent = VOICE.voiceOn ? "🔊" : "🔈";
+      voiceBtn.setAttribute("aria-pressed", VOICE.voiceOn ? "true" : "false");
+      voiceBtn.title = VOICE.voiceOn ? "Voice ON" : "Voice OFF";
+    }
+    if(micBtn){
+      micBtn.classList.toggle("hot", !!VOICE.micOn);
+      micBtn.setAttribute("aria-pressed", VOICE.micOn ? "true" : "false");
+      micBtn.title = VOICE.micOn ? "Listening…" : "Speech to text";
+    }
+  }
+
+  function stopSpeaking(){
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+  }
+
+  function speak(text){
+    text = safeStr(text, 700).trim();
+    if(!text) return;
+    if(!VOICE.voiceOn) return;
+    if(!VOICE.supportedTTS) return;
+    try{
+      stopSpeaking();
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      window.speechSynthesis.speak(u);
+      VOICE.pendingIntro = false;
+    }catch(_){}
+  }
+
+  function ensureRecognizer(){
+    if(!SpeechRec) return null;
+    if(rec) return rec;
+    try{
+      rec = new SpeechRec();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+
+      rec.onresult = function(ev){
+        try{
+          var finalText = "";
+          var interim = "";
+          for(var i=ev.resultIndex; i<ev.results.length; i++){
+            var r = ev.results[i];
+            var t = (r && r[0] && r[0].transcript) ? String(r[0].transcript) : "";
+            if(r.isFinal) finalText += t;
+            else interim += t;
+          }
+          if(inputEl){
+            inputEl.value = (finalText || interim || "").trim();
+          }
+          if(finalText && VOICE.autoSend){
+            toggleMic(false);
+            var v = finalText.trim();
+            if(inputEl) inputEl.value = "";
+            sendText(v, { from:"stt" });
+          }
+        }catch(_){}
+      };
+
+      rec.onerror = function(){ toggleMic(false); };
+      rec.onend = function(){
+        if(VOICE.micOn){
+          try{ rec.start(); }catch(_){ VOICE.micOn = false; updateVoiceUI(); }
+        }
+      };
+
+      return rec;
+    }catch(_){
+      return null;
+    }
+  }
+
+  function toggleMic(force){
+    if(!VOICE.supportedSTT){
+      VOICE.micOn = false;
+      updateVoiceUI();
+      return;
+    }
+    if(typeof force === "boolean") VOICE.micOn = force;
+    else VOICE.micOn = !VOICE.micOn;
+
+    var r = ensureRecognizer();
+    if(!r){
+      VOICE.micOn = false;
+      updateVoiceUI();
+      return;
+    }
+
+    if(VOICE.micOn){
+      try{
+        stopSpeaking();
+        r.start();
+      }catch(_){
+        VOICE.micOn = false;
+      }
+    }else{
+      try{ r.stop(); }catch(_){}
+    }
+    updateVoiceUI();
+  }
+
+  function voiceInitMaybe(){
+    if(VOICE.voiceOn === false && CONFIG.voiceDefaultOn === true){
+      VOICE.voiceOn = true;
+    }
+    VOICE.autoSend = (CONFIG.sttAutoSend !== false);
+    updateVoiceUI();
+
+    if(VOICE.voiceOn){
+      VOICE.pendingIntro = true;
+      setTimeout(function(){
+        speak("Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+      }, 350);
+    }
+  }
+
+  function maybeSpeakLastNyxReply(){
+    if(!VOICE.voiceOn) return;
+    for(var i=THREAD.length-1;i>=0;i--){
+      if(THREAD[i].role === "nyx"){
+        speak(THREAD[i].text);
+        return;
+      }
+    }
+  }
+
+  function gestureUnlock(){
+    if(!VOICE.pendingIntro) return;
+    if(!VOICE.voiceOn) return;
+    VOICE.pendingIntro = false;
+    speak("Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+  }
+  window.addEventListener("pointerdown", gestureUnlock, { passive:true });
+  window.addEventListener("keydown", gestureUnlock);
+
+  async function sendText(text, meta){
     text = safeStr(text).trim();
     if(!text) return;
 
     if(sendBtn) sendBtn.disabled = true;
     if(inputEl) inputEl.disabled = true;
 
-    pushMsg("user", text);
+    pushMsg("user", text, meta);
     renderMsgs();
 
     var url = apiBase() + (CONFIG.chatPath || "/api/chat");
@@ -551,12 +763,18 @@ window.NYX_HOST_MODE = "widget_console";
 
     if(res && res.lane && typeof res.lane === "string"){ setActiveChip(res.lane.toLowerCase()); }
     if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
-    if(res && res.cog && typeof res.cog === "object"){
-      postToParent({ type:"NYX_COG", lane: UI.lane, cog: res.cog, ts: now() }, true);
-    }
 
     pushMsg("nyx", reply);
     renderMsgs();
+
+    if(VOICE.voiceOn){
+      var wasMic = VOICE.micOn;
+      if(wasMic) toggleMic(false);
+      maybeSpeakLastNyxReply();
+      if(wasMic && VOICE.autoSend){
+        setTimeout(function(){ toggleMic(true); }, 900);
+      }
+    }
 
     if(sendBtn) sendBtn.disabled = false;
     if(inputEl) inputEl.disabled = false;
@@ -567,7 +785,7 @@ window.NYX_HOST_MODE = "widget_console";
     sendBtn.addEventListener("click", function(){
       var v = inputEl ? inputEl.value : "";
       if(inputEl) inputEl.value = "";
-      sendText(v);
+      sendText(v, { from:"typed" });
     });
   }
   if(inputEl){
@@ -576,7 +794,7 @@ window.NYX_HOST_MODE = "widget_console";
         e.preventDefault();
         var v = inputEl.value;
         inputEl.value = "";
-        sendText(v);
+        sendText(v, { from:"typed" });
       }
     });
   }
@@ -594,7 +812,6 @@ window.NYX_HOST_MODE = "widget_console";
 
       postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now() }, true);
 
-      // Optional: backend lane select (safe if ignored)
       try{
         var url = apiBase() + (CONFIG.chatPath || "/api/chat");
         postJson(url, { requestId: makeId(), type:"lane_select", lane: UI.lane, ctx:{ source:"nyx_widget_console" } }, 6000).catch(function(){});
@@ -612,13 +829,30 @@ window.NYX_HOST_MODE = "widget_console";
     });
   }
 
-  // First paint: tiny intro (text-only)
-  setTimeout(function(){
-    setActiveChip("general");
-    pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
-    renderMsgs();
-    if(inputEl) inputEl.focus();
-  }, 250);
+  if(voiceBtn){
+    voiceBtn.addEventListener("click", function(){
+      VOICE.voiceOn = !VOICE.voiceOn;
+      if(!VOICE.voiceOn) stopSpeaking();
+      updateVoiceUI();
+      emitResize();
+      if(inputEl) inputEl.focus();
+    });
+  }
+
+  if(micBtn){
+    micBtn.addEventListener("click", function(){
+      toggleMic();
+      emitResize();
+      if(inputEl) inputEl.focus();
+    });
+  }
+
+  setActiveChip("general");
+  pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+  renderMsgs();
+  if(inputEl) inputEl.focus();
+
+  setTimeout(function(){ voiceInitMaybe(); }, 0);
 
 })();
 </script>
