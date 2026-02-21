@@ -1,82 +1,110 @@
 /* avatar.css
  *
- * v1.3.1 (BUBBLE SCROLL CLAMP++++ + SAFEAREA DOCK++++ + ANCHOR TUNE++++)
+ * v1.4.0 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++)
  *
- * Upgrades:
- * - Top chrome reduced ~30% visual weight
- * - Dialogue anchored to shoulder level (no center slab)
- * - Bubble opacity lowered so eyes dominate
- * - Chips adaptive-ready (CSS state classes)
- * - Micro-pause pulse animation support
- * - MP4 hero + PNG fallback preserved
+ * Mission:
+ * - Make the hero feel cinematic (face-first, not flat)
+ * - Prevent “black slab / black wash” (overlays never smother the hero)
+ * - Align styling with Phase 1 Clean host (nyxStage / nyxDock / chips / bubble)
+ * - Keep legacy IDs harmless (no surprises if older mounts exist)
+ *
+ * Notes:
+ * - Phase 1 host uses CSS vars: --nyx-hero-pos-x/y, --nyx-hero-scale-num, --nyx-hero-dim
+ * - Legacy shell uses: --hero-pos / --nyx-hero-url / --nyx-hero-abs
  */
 
 /* ============================================================
    CORE VARIABLES
 ============================================================ */
 :root{
+  /* Base palette */
   --bg:#000000;
   --text:rgba(255,255,255,.96);
-  --muted:rgba(255,255,255,.75);
+  --muted:rgba(255,255,255,.74);
 
-  /* HERO SOURCES */
+  /* Brand accent */
+  --accent:rgba(140,0,35,.92);
+  --accent-soft:rgba(140,0,35,.26);
+
+  /* Safe areas */
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+
+  /* ==========================================================
+     HERO SOURCES
+     - Video first; PNG fallback
+  ========================================================== */
   --nyx-hero-video-src:"https://sandblast-backend.onrender.com/avatar/assets/avatar3.mp4";
   --nyx-hero-src:"https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
   --nyx-hero-abs:url("https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png");
   --nyx-hero-url:var(--nyx-hero-abs);
 
-  --hero-pos:50% 22%;
-  --hero-scale:cover;
-  --hero-opacity:1;
+  /* Phase 1 host compatibility (used by avatar-host_UPDATED.html) */
+  --nyx-hero-video: "https://sandblast-backend.onrender.com/avatar/assets/avatar3.mp4";
+  --nyx-hero-img-url: "https://sandblast-backend.onrender.com/avatar/assets/nyx-hero.png";
 
-  --hero-video-fit:cover;
-  --hero-video-scale:1.00;
-  --hero-video-bright:1.00;
-  --hero-video-contrast:1.06;
-  --hero-video-sat:1.05;
+  /* Face-first framing */
+  --nyx-hero-pos-x: 50%;
+  --nyx-hero-pos-y: 12%;
+  --nyx-hero-scale-num: 1.22;
 
-  --shoulder-shadow:rgba(0,0,0,.92);
-  --face-spot:rgba(255,255,255,.06);
-  --vignette:rgba(0,0,0,.76);
+  /* Legacy framing fallback */
+  --hero-pos: 50% 18%;
+  --hero-scale: cover;
+  --hero-opacity: 1;
+
+  /* Video tuning */
+  --hero-video-fit: cover;
+  --hero-video-scale: 1.00;
+  --hero-video-bright: 1.00;
+  --hero-video-contrast: 1.06;
+  --hero-video-sat: 1.06;
+
+  /* ==========================================================
+     CINEMATIC OVERLAYS (BLACK-WASH KILL)
+     - Keep eyes dominant: dim is subtle, vignette is soft
+  ========================================================== */
+  --nyx-hero-dim: .10;            /* Phase 1 dim (lower = more hero presence) */
+  --shoulder-shadow: rgba(0,0,0,.88);
+  --face-spot: rgba(255,255,255,.07);
+  --vignette: rgba(0,0,0,.62);
 
   /* UI Glass */
-  --ui-glass-1:rgba(24,24,30,.78);   /* lowered opacity */
-  --ui-glass-2:rgba(14,14,20,.88);
-  --ui-line:rgba(255,255,255,.11);
-  --ui-line-soft:rgba(255,255,255,.07);
+  --ui-glass-1: rgba(18,18,22,.62);
+  --ui-glass-2: rgba(10,10,14,.82);
+  --ui-line: rgba(255,255,255,.11);
+  --ui-line-soft: rgba(255,255,255,.07);
 
-  --accent:rgba(140,0,35,.92);
-  --accent-soft:rgba(140,0,35,.28);
-
-  /* Presence Tuning */
-  --bubble-alpha:.60;
-  --bubble-blur:14px;
-  --bubble-shadow:0 24px 70px rgba(0,0,0,.75);
-
-  --bubble-anchor-x:50%;
+  /* Bubble */
+  --bubble-alpha: .58;
+  --bubble-blur: 14px;
+  --bubble-shadow: 0 24px 70px rgba(0,0,0,.72);
+  --bubble-anchor-x: 50%;
   --bubble-anchor-y: 70%;
   --bubble-max-h: min(46vh, 360px);
   --bubble-text-max-h: min(32vh, 240px);
 
-  --chrome-scale:.86;
-  --chrome-idle-opacity:.60;
-  --chrome-hover-opacity:.92;
+  /* Top chrome */
+  --chrome-scale: .86;
+  --chrome-idle-opacity: .62;
+  --chrome-hover-opacity: .92;
 
-  --ease:cubic-bezier(.2,.8,.2,1);
+  --ease: cubic-bezier(.2,.8,.2,1);
 }
 
-*{box-sizing:border-box}
-html,body{height:100%;background:#000 !important}
+*{ box-sizing:border-box; }
+html,body{ height:100%; background:#000 !important; }
 body{
   margin:0;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
   background:#000 !important;
   color:var(--text);
   overflow:hidden;
 }
 
 /* ============================================================
-   HERO STAGE
+   LEGACY HERO STAGE (if present)
 ============================================================ */
 #avatarRoot{
   position:relative;
@@ -101,28 +129,33 @@ body{
   z-index:1;
 }
 
+/* Cinematic overlay (never smother the face) */
 #nyxShellMount::after{
   content:"";
   position:absolute;
   inset:0;
   pointer-events:none;
   background:
+    /* Shoulder floor */
     linear-gradient(to top,
       var(--shoulder-shadow) 0%,
-      rgba(0,0,0,.70) 18%,
+      rgba(0,0,0,.68) 18%,
       rgba(0,0,0,0) 46%
     ),
-    radial-gradient(40% 28% at 50% 22%,
+    /* Face spot */
+    radial-gradient(44% 32% at 50% 22%,
       var(--face-spot) 0%,
-      rgba(255,255,255,0) 68%
+      rgba(255,255,255,0) 70%
     ),
-    radial-gradient(120% 100% at 50% 50%,
-      rgba(0,0,0,0) 52%,
+    /* Soft vignette */
+    radial-gradient(130% 110% at 50% 46%,
+      rgba(0,0,0,0) 56%,
       var(--vignette) 100%
     );
+  opacity: 1;
 }
 
-/* Video support */
+/* Video support (legacy mounts) */
 #nyxStage video,
 #nyxShellMount video{
   position:absolute;
@@ -142,7 +175,7 @@ body{
 }
 
 /* ============================================================
-   OVERLAY AUTHORITY
+   OVERLAY AUTHORITY (legacy ids)
 ============================================================ */
 #nyxOverlay,
 .overlay{
@@ -152,19 +185,18 @@ body{
   pointer-events:none;
 }
 
+/* allow interaction */
 #nyxBubble,
 #nyxInputDock,
 #nyxBubbleActions{
-flex:0 0 auto;
-
   pointer-events:auto;
 }
 
 /* ============================================================
-   SHOULDER-ANCHORED BUBBLE
+   SHOULDER-ANCHORED BUBBLE (legacy ids)
 ============================================================ */
 #nyxBubble{
-display:flex;
+  display:flex;
   flex-direction:column;
   max-height: var(--bubble-max-h);
   overflow:hidden;
@@ -190,20 +222,20 @@ display:flex;
 }
 
 #nyxBubbleText{
-flex:1 1 auto;
+  flex:1 1 auto;
   max-height: var(--bubble-text-max-h);
   overflow:auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 
   padding:16px 20px 12px 20px;
-  font-size:15.6px;
+  font-size:15.4px;
   line-height:1.6;
   color:rgba(255,255,255,.96);
 }
 
 /* ============================================================
-   ADAPTIVE CHIPS
+   ADAPTIVE CHIPS (legacy ids)
 ============================================================ */
 #nyxBubbleActions{
   display:flex;
@@ -215,21 +247,19 @@ flex:1 1 auto;
   padding-top:12px;
   transition:opacity .22s ease, transform .22s ease, filter .22s ease;
 }
-
 html.nyx-chips-hidden #nyxBubbleActions{
   opacity:0;
   transform:translateY(6px);
   pointer-events:none;
   filter:blur(1.5px);
 }
-
 html.nyx-chips-shown #nyxBubbleActions{
   opacity:1;
   transform:translateY(0);
 }
 
 /* ============================================================
-   INPUT DOCK
+   INPUT DOCK (legacy ids)
 ============================================================ */
 #nyxInputDock{
   position:absolute !important;
@@ -244,7 +274,7 @@ html.nyx-chips-shown #nyxBubbleActions{
   padding:10px;
   border-radius:18px;
 
-  background:rgba(14,14,20,.82);
+  background:rgba(12,12,16,.74);
   border:1px solid rgba(255,255,255,.11);
   box-shadow:0 18px 60px rgba(0,0,0,.78);
   backdrop-filter:blur(16px);
@@ -261,7 +291,6 @@ html.nyx-chips-shown #nyxBubbleActions{
   opacity:var(--chrome-idle-opacity);
   transition:opacity .18s ease, transform .18s ease;
 }
-
 .nyx-topbar:hover,
 #nyxTopbar:hover,
 .nyx-controls:hover{
@@ -273,81 +302,74 @@ html.nyx-chips-shown #nyxBubbleActions{
 ============================================================ */
 @keyframes nyxPulse{
   0%{filter:brightness(1) saturate(1);}
-  50%{filter:brightness(1.08) saturate(1.06);}
+  50%{filter:brightness(1.06) saturate(1.05);}
   100%{filter:brightness(1) saturate(1);}
 }
-
 html.nyx-thinking #avatarRoot{
-  animation:nyxPulse .55s ease-in-out 1;
+  animation: nyxPulse .55s ease-in-out 1;
 }
 
 /* ============================================================
-   RESPONSIVE
+   PHASE 1 — CLEAN HOST SKIN (avatar-host_UPDATED.html)
 ============================================================ */
-@media (max-height:620px){
-  :root{ --hero-pos:50% 26%; }
-  #nyxBubble{ top:70% !important; }
-}
 
-
-/* ============================================================
-   PHASE 1 — AESTHETIC POLISH (Widget-first)
-   Fixes:
-   - Hero black slab: ensure hero always has image fallback
-   - Dock readability: spacing + typography + contrast
-   - Voice gate: compact pill (not a giant dead slab)
-============================================================ */
+/* Hero image fallback for Phase 1 host */
 body.nyx-phase1 #nyxStage.is-image{
   background-image: url(var(--nyx-hero-img-url)) !important;
   background-size: 132% auto !important;
   background-position: var(--nyx-hero-pos-x,50%) var(--nyx-hero-pos-y,12%) !important;
 }
 
-/* Dock header feels premium */
+/* Phase 1 hero overlay tuned (subtle dim only) */
+body.nyx-phase1 #nyxStage::after{
+  opacity: var(--nyx-hero-dim, .10) !important;
+}
+
+/* Dock: premium matte, readable hierarchy */
+body.nyx-phase1 #nyxDock{
+  border-color: rgba(255,255,255,.08) !important;
+  background: rgba(12,12,16,.78) !important;
+  box-shadow: 0 22px 80px rgba(0,0,0,.74), 0 0 70px rgba(140,0,35,.12) !important;
+}
 body.nyx-phase1 #nyxDockHeader{
-  background: linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,0));
+  background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,0)) !important;
 }
 body.nyx-phase1 #nyxTitle{
-  letter-spacing: .2px;
-}
-body.nyx-phase1 #nyxDock{
-  box-shadow: 0 22px 80px rgba(0,0,0,.74), 0 0 70px rgba(140,0,35,.12);
+  letter-spacing: .25px !important;
 }
 
-/* Messages: crisper */
+/* Messages: crisp cards; ONLY nyxScroll scrolls */
 body.nyx-phase1 .nyx-msg{
-  border-color: rgba(255,255,255,.09);
-  background: rgba(0,0,0,.24);
+  border-color: rgba(255,255,255,.09) !important;
+  background: rgba(0,0,0,.24) !important;
+  max-height:none !important;
+  overflow:visible !important;
 }
 body.nyx-phase1 .nyx-msg.me{
-  background: rgba(140,0,35,.20);
+  background: rgba(140,0,35,.20) !important;
+  border-color: rgba(140,0,35,.30) !important;
 }
 
-/* Chips: tighter + more premium */
+/* Chips: tighter + richer contrast */
 body.nyx-phase1 #nyxChips{
-  margin-top: 12px;
-  gap: 10px;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+  gap: 10px !important;
 }
 body.nyx-phase1 .chip{
-  background: rgba(255,255,255,.055);
-  border-color: rgba(255,255,255,.13);
+  background: rgba(255,255,255,.055) !important;
+  border-color: rgba(255,255,255,.13) !important;
+}
+body.nyx-phase1 .chip:hover{
+  background: rgba(140,0,35,.14) !important;
+  border-color: rgba(140,0,35,.55) !important;
 }
 body.nyx-phase1 .chip.is-active{
-  background: rgba(140,0,35,.24);
-  border-color: rgba(140,0,35,.62);
+  background: rgba(140,0,35,.24) !important;
+  border-color: rgba(140,0,35,.62) !important;
 }
 
-/* Voice gate: compact */
-body.nyx-phase1 #nyxVoiceGate{
-  padding: 10px 12px 0 12px !important;
-}
-body.nyx-phase1 #nyxEnableVoice{
-  border-radius: 14px !important;
-  padding: 10px 12px !important;
-  background: rgba(18,18,22,.58) !important;
-}
-
-/* Input: slightly brighter edge for UX */
+/* Input: better UX edge + focus ring */
 body.nyx-phase1 #nyxInput{
   border-color: rgba(255,255,255,.12) !important;
 }
@@ -356,45 +378,31 @@ body.nyx-phase1 #nyxInput:focus{
   box-shadow: 0 0 0 3px rgba(140,0,35,.14) !important;
 }
 
-/* ============================================================
-   OPTIONAL: Kill any legacy page-bottom banner IF it is inside iframe.
-   (If it’s on the Webflow page outside iframe, remove old embed.)
-============================================================ */
+/* Optional: hide any legacy page-bottom banners if injected inside iframe */
 body.nyx-phase1 .nyx-bottom-banner,
 body.nyx-phase1 #nyxBottomBanner,
 body.nyx-phase1 #sbnyxBottomBanner{
   display:none !important;
 }
 
-
-/* ============================================================
-   PHASE 1 — FIXES FROM SCREENSHOT 846
-   - Remove inner scrollbars on message bubbles
-   - Make chips a fixed rail (host now places it above scroll)
-   - Improve dock spacing + hierarchy
-============================================================ */
-
-/* Never allow message cards to scroll; only #nyxScroll scrolls */
-body.nyx-phase1 .nyx-msg{
-  max-height:none !important;
-  overflow:visible !important;
-}
-
-/* Dock: slightly wider feel via padding + typography */
-body.nyx-phase1 #nyxDockHeader{
-  padding: 12px 12px !important;
-}
-body.nyx-phase1 #nyxScroll{
-  padding: 12px 12px 14px 12px !important;
-}
-
-/* Chip rail polish (works with host-fixed chip row) */
-body.nyx-phase1 #nyxChips{
-  padding: 10px 12px !important;
-  border-bottom: 1px solid rgba(255,255,255,.06) !important;
-}
-
-/* Compact widget: hide hero bubble (sacred face stays clean) */
+/* Compact widget: keep face clean */
 @media (max-width: 520px){
   body.nyx-phase1 #nyxBubble{ display:none !important; }
+}
+
+/* Low-height tuning */
+@media (max-height: 620px){
+  :root{
+    --hero-pos: 50% 24%;
+    --nyx-hero-pos-y: 16%;
+  }
+  #nyxBubble{ top: 70% !important; }
+}
+
+/* Reduced motion: prefer image stage */
+@media (prefers-reduced-motion: reduce){
+  #nyxStage video,
+  #nyxShellMount video{
+    display:none !important;
+  }
 }
