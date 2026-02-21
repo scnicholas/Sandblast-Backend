@@ -6,7 +6,7 @@
 <title>Nyx Avatar Host (Phase 1 Clean)</title>
 
 <!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=PHASE1_CLEAN_9203b" />
+<link rel="stylesheet" href="./avatar.css?v=PHASE1_CLEAN_9204c" />
 
 <script>
 /* ============================================================
@@ -212,13 +212,19 @@ window.NYX_HOST_MODE = "phase1_clean";
     border-color: rgba(140,0,35,.34);
   }
 
-  /* Chips rail */
+  /* Chips rail (fixed row) */
+
   #nyxChips{
     display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    margin-top: 10px;
+    gap:10px;
+    padding:10px 12px;
+    border-bottom:1px solid rgba(255,255,255,.06);
+    overflow-x:auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  #nyxChips::-webkit-scrollbar{ display:none; }
+
   .chip{
     flex:0 0 auto;
     font: 12.2px system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -235,7 +241,7 @@ window.NYX_HOST_MODE = "phase1_clean";
   .chip.is-active{ background: rgba(140,0,35,.22); border-color: rgba(140,0,35,.60); }
 
   /* Voice gate */
-  #nyxVoiceGate{ display:none; padding: 0 12px 12px 12px; }
+  #nyxVoiceGate{ display:none !important; }
   #nyxEnableVoice{ width:100%; justify-content:center; }
 
   /* Input row */
@@ -269,6 +275,8 @@ window.NYX_HOST_MODE = "phase1_clean";
 
   /* Compact iframe mode */
   @media (max-width: 520px){
+    #nyxBubble{ display:none; }
+
     #nyxApp{
       grid-template-columns: 1fr;
       grid-template-rows: 1fr auto;
@@ -321,20 +329,17 @@ window.NYX_HOST_MODE = "phase1_clean";
           <button class="nyx-btn" id="nyxExpand" type="button">Expand</button>
         </div>
       </header>
-
-      <div id="nyxVoiceGate">
-        <button class="nyx-btn" id="nyxEnableVoice" type="button">Tap to enable voice</button>
-      </div>
-
-      <div id="nyxScroll">
-        <div id="nyxMsgs" aria-label="Conversation"></div>
-        <div id="nyxChips" aria-label="Modes">
+<div id="nyxChips" aria-label="Modes">
           <div class="chip is-active" data-chip="general">General</div>
           <div class="chip" data-chip="music">Music</div>
           <div class="chip" data-chip="roku">Roku</div>
           <div class="chip" data-chip="movies">Movies</div>
           <div class="chip" data-chip="radio">Radio</div>
         </div>
+
+      <div id="nyxScroll">
+        <div id="nyxMsgs" aria-label="Conversation"></div>
+      </div>
       </div>
 
       <footer id="nyxInputRow">
@@ -419,13 +424,13 @@ window.NYX_HOST_MODE = "phase1_clean";
      - context: sandblast|radio|roku|news|cognitive (affects intro greeting)
   ============================================================ */
   var CONFIG = {
-    version: "PHASE1_CLEAN_v9203b",
+    version: "PHASE1_CLEAN_v9204c",
     context: "sandblast",
     apiBase: null,
     token: null,
     chatPath: "/api/chat",
     heroSrc: null,
-    voiceDefaultOn: true,
+    voiceDefaultOn: false,
     publicMode: true
   };
 
@@ -663,12 +668,8 @@ window.NYX_HOST_MODE = "phase1_clean";
     }
   }
 
-  function showVoiceGate(){
-    if(gateWrap) gateWrap.style.display = "block";
-  }
-  function hideVoiceGate(){
-    if(gateWrap) gateWrap.style.display = "none";
-  }
+  function showVoiceGate(){ /* phase1: no gate */ }
+  function hideVoiceGate(){ /* phase1: no gate */ }
 
   function normalizeContext(ctx){
     var s = safeStr(ctx).toLowerCase();
@@ -804,66 +805,30 @@ window.NYX_HOST_MODE = "phase1_clean";
     var part = dayPart();
     var line = pickGreeting(ctx, part, false);
 
-    // 1) One-time text per session (hero bubble + dock first message)
+    // One-time per session: hero bubble + first dock message
     if (ssGet(INTRO_SHOWN_KEY) !== "1"){
       setHeroBubble(line);
-      // also place as first dock message for “introduce from Nyx”
-      try{
-        pushMsg("nyx", line);
-        renderMsgs();
-      }catch(_){}
+      try{ pushMsg("nyx", line); renderMsgs(); }catch(_){}
       ssSet(INTRO_SHOWN_KEY, "1");
     }
 
-    // 2) One-time voice per session
-    if (ssGet(INTRO_SPOKEN_KEY) === "1") return;
-    if (!UI.voiceOn) return;
-
-    // If audio isn't unlocked, show compact gate
-    if (!UI.audioUnlocked){
-      showVoiceGate();
-      return;
-    }
-
-    speak(line).then(function(res){
-      if(res && res.ok){
-        ssSet(INTRO_SPOKEN_KEY, "1");
-      }else{
-        showVoiceGate();
-      }
-    });
+    // Phase 1 requirement: NO voice on intro (ever).
+    // Voice may be used later for replies only if user explicitly toggles ON and audio is unlocked.
   }
 
   // Wire voice toggle + gate
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
+      // explicit user gesture => allow audio
+      UI.audioUnlocked = true;
       setVoice(!UI.voiceOn);
-      if(UI.voiceOn){
-        // If turning on, attempt intro
-        maybeRunIntro();
-      }
+      // still no intro voice; intro is text-only
     });
   }
-  if(enableVoiceBtn){
-    enableVoiceBtn.addEventListener("click", function(){
-      unlockAudio();
-      // If user never explicitly set, ensure ON
-      setVoice(true);
-      // Attempt intro speak
-      maybeRunIntro();
-    });
-  }
-
+  
   // Set initial voice state
   setVoice(readVoiceEnabled());
 
-  // A gesture anywhere unlocks audio (optional; keeps “Tap to enable” as primary UX)
-  window.addEventListener("pointerdown", function(){
-    if(!UI.audioUnlocked){
-      // Don’t auto-enable voice if user turned it off, but allow unlock if voice is on
-      if(UI.voiceOn) unlockAudio();
-    }
-  }, { passive:true });
 
   /* ============================================================
      6) Chat client (clean)
