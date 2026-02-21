@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.5.0 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++ + DOCK PARALLAX++++)
+ * v1.5.1 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++ + DOCK PARALLAX++++)
  *
  * Mission:
  * - Make the hero feel cinematic (face-first, not flat)
@@ -109,6 +109,27 @@
   --nyx-parallax-opacity: .92;
   --nyx-parallax-scale: 1.03;
   --nyx-parallax-speed: 9.5s;
+
+  /* ==========================================================
+     NAV VEIL (LEFT SIDE / PAGE-LEVEL CHANNEL PORTALS)
+     - Semi-transparent interactive rail that can sit beside Nyx
+     - CSS-only styling; click routing handled by a tiny JS insert
+  ========================================================== */
+  --nyx-veil-w: min(240px, 24vw);
+  --nyx-veil-gap: 10px;
+  --nyx-veil-pad: 14px;
+  --nyx-veil-radius: 18px;
+  --nyx-veil-bg: rgba(10,10,14,.34);
+  --nyx-veil-line: rgba(255,255,255,.10);
+  --nyx-veil-blur: 14px;
+  --nyx-veil-opacity: .92;
+  --nyx-veil-sheen: rgba(255,255,255,.06);
+  --nyx-veil-hover: rgba(140,0,35,.16);
+  --nyx-veil-active: rgba(140,0,35,.26);
+  --nyx-veil-text: rgba(255,255,255,.92);
+  --nyx-veil-muted: rgba(255,255,255,.70);
+  --nyx-veil-shadow: 0 18px 70px rgba(0,0,0,.72);
+  --nyx-veil-breathe: 5.8s;
 }
 
 
@@ -449,6 +470,225 @@ html.nyx-parallax-off body.nyx-phase1 #nyxDock::before{
 @media (prefers-reduced-motion: reduce){
   body.nyx-phase1 #nyxDock::before{ animation:none !important; }
 }
+
+/* ============================================================
+   PHASE 1 — LEFT NAV VEIL (CHANNEL PORTALS)
+   - Sits on the LEFT side of Nyx (over the full-screen hero image)
+   - Interactive (pointer-events ON) but visually subtle
+   - DOES NOT require Webflow changes if you can add the HTML block
+     to avatar-host.html OR inject via backend template.
+   - Routing logic is a tiny JS snippet (provided in comments below)
+============================================================ */
+
+/* Host must allow absolute overlays on stage */
+body.nyx-phase1 #nyxStage{
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+/* The veil container (recommended id) */
+body.nyx-phase1 #nyxNavVeil,
+body.nyx-phase1 .nyx-nav-veil{
+  position:absolute;
+  left: calc(14px + var(--safe-l));
+  top: 14px;
+  bottom: 14px;
+
+  width: var(--nyx-veil-w);
+  display:flex;
+  flex-direction:column;
+  gap: var(--nyx-veil-gap);
+
+  padding: var(--nyx-veil-pad);
+  border-radius: var(--nyx-veil-radius);
+
+  background: var(--nyx-veil-bg);
+  border: 1px solid var(--nyx-veil-line);
+  box-shadow: var(--nyx-veil-shadow);
+
+  backdrop-filter: blur(var(--nyx-veil-blur));
+  -webkit-backdrop-filter: blur(var(--nyx-veil-blur));
+
+  opacity: var(--nyx-veil-opacity);
+  z-index: 3;
+
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Sheen + depth, stays behind content */
+body.nyx-phase1 #nyxNavVeil::before,
+body.nyx-phase1 .nyx-nav-veil::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  z-index:0;
+
+  background:
+    radial-gradient(120% 120% at 30% 10%, rgba(140,0,35,.18), transparent 55%),
+    radial-gradient(120% 120% at 90% 22%, var(--nyx-veil-sheen), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,0) 42%, rgba(0,0,0,.18));
+  opacity:.92;
+}
+
+/* Content above sheen */
+body.nyx-phase1 #nyxNavVeil > *,
+body.nyx-phase1 .nyx-nav-veil > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* Optional title block inside veil */
+body.nyx-phase1 .nyx-veil-title{
+  font-weight: 900;
+  letter-spacing: .3px;
+  color: var(--nyx-veil-text);
+  font-size: 13px;
+  line-height: 1.15;
+}
+body.nyx-phase1 .nyx-veil-sub{
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--nyx-veil-muted);
+  opacity: .92;
+}
+
+/* Buttons/links inside veil */
+body.nyx-phase1 .nyx-veil-btn{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 14px;
+
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: var(--nyx-veil-text);
+
+  font-weight: 900;
+  font-size: 13px;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition: filter .14s var(--ease), transform .14s var(--ease), background .14s var(--ease), border-color .14s var(--ease);
+}
+body.nyx-phase1 .nyx-veil-btn:hover{
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  background: var(--nyx-veil-hover);
+  border-color: rgba(140,0,35,.44);
+}
+body.nyx-phase1 .nyx-veil-btn:active{
+  transform: translateY(0);
+  background: var(--nyx-veil-active);
+  border-color: rgba(140,0,35,.62);
+}
+body.nyx-phase1 .nyx-veil-btn:focus{
+  outline: none;
+}
+body.nyx-phase1 .nyx-veil-btn:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140,0,35,.18);
+}
+
+/* Small right-side glyph / arrow */
+body.nyx-phase1 .nyx-veil-glyph{
+  opacity: .78;
+  font-weight: 900;
+}
+
+/* “Breathing” (very subtle) */
+@keyframes nyxVeilBreathe{
+  0%{ filter: brightness(1) saturate(1); }
+  50%{ filter: brightness(1.03) saturate(1.02); }
+  100%{ filter: brightness(1) saturate(1); }
+}
+body.nyx-phase1 #nyxNavVeil,
+body.nyx-phase1 .nyx-nav-veil{
+  animation: nyxVeilBreathe var(--nyx-veil-breathe) var(--ease) infinite;
+}
+
+/* Optional: disable quickly */
+html.nyx-veil-off body.nyx-phase1 #nyxNavVeil,
+html.nyx-veil-off body.nyx-phase1 .nyx-nav-veil{
+  display:none !important;
+}
+
+/* Mobile: collapse veil to a small “pill” row */
+@media (max-width: 720px){
+  body.nyx-phase1 #nyxNavVeil,
+  body.nyx-phase1 .nyx-nav-veil{
+    left: calc(10px + var(--safe-l));
+    right: calc(10px + var(--safe-r));
+    top: calc(10px + var(--safe-b));
+    bottom: auto;
+    width: auto;
+
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 10px 10px;
+    border-radius: 16px;
+    gap: 8px;
+  }
+  body.nyx-phase1 .nyx-veil-title,
+  body.nyx-phase1 .nyx-veil-sub{
+    display:none;
+  }
+  body.nyx-phase1 .nyx-veil-btn{
+    padding: 10px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+  }
+}
+
+/* Reduced motion: stop breathing */
+@media (prefers-reduced-motion: reduce){
+  body.nyx-phase1 #nyxNavVeil,
+  body.nyx-phase1 .nyx-nav-veil{ animation:none !important; }
+}
+
+/*
+============================================================
+INTERACTION LOGIC (JS INSERT — NOT IN CSS)
+------------------------------------------------------------
+Place this in avatar-host.html AFTER the veil markup:
+
+  const veil = document.getElementById("nyxNavVeil");
+  if(veil){
+    veil.addEventListener("click", (e)=>{
+      const btn = e.target.closest("[data-href]");
+      if(!btn) return;
+      const href = btn.getAttribute("data-href");
+      if(!href) return;
+      window.location.href = href;   // or window.open(href,"_self")
+    });
+  }
+
+Suggested markup (minimal):
+
+<div id="nyxNavVeil" class="nyx-nav-veil">
+  <div>
+    <div class="nyx-veil-title">Sandblast</div>
+    <div class="nyx-veil-sub">Choose a channel</div>
+  </div>
+  <button class="nyx-veil-btn" data-href="/sandblast-tv">Sandblast TV <span class="nyx-veil-glyph">›</span></button>
+  <button class="nyx-veil-btn" data-href="/radio">Radio <span class="nyx-veil-glyph">›</span></button>
+  <button class="nyx-veil-btn" data-href="/news-canada">News Canada <span class="nyx-veil-glyph">›</span></button>
+  <button class="nyx-veil-btn" data-href="/news-features">News Features <span class="nyx-veil-glyph">›</span></button>
+</div>
+
+============================================================
+*/
+
 
 body.nyx-phase1 #nyxDockHeader{
   background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,0)) !important;
