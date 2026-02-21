@@ -1,6 +1,6 @@
 /* avatar.css
  *
- * v1.4.0 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++)
+ * v1.5.0 (HERO-CINEMA++++ + PHASE1-SKIN ALIGN++++ + BLACK-WASH KILL++++ + DOCK PARALLAX++++)
  *
  * Mission:
  * - Make the hero feel cinematic (face-first, not flat)
@@ -90,8 +90,27 @@
   --chrome-idle-opacity: .62;
   --chrome-hover-opacity: .92;
 
-  --ease: cubic-bezier(.2,.8,.2,1);
+    --ease: cubic-bezier(.2,.8,.2,1);
+
+  /* ==========================================================
+     PARALLAX (SIDE STAGE / DOCK AMBIENCE)
+     - Used for the panel NEXT to Nyx (dock / right rail)
+     - Safe by default: subtle, non-blocking, reduced-motion aware
+  ========================================================== */
+  --nyx-parallax-on: 1;           /* 1=on, 0=off */
+  --nyx-parallax-x: 0px;
+  --nyx-parallax-y: 0px;
+  --nyx-parallax-tilt: 0deg;
+
+  --nyx-parallax-a: rgba(140,0,35,.18);
+  --nyx-parallax-b: rgba(255,255,255,.07);
+  --nyx-parallax-v: rgba(0,0,0,.34);
+
+  --nyx-parallax-opacity: .92;
+  --nyx-parallax-scale: 1.03;
+  --nyx-parallax-speed: 9.5s;
 }
+
 
 *{ box-sizing:border-box; }
 html,body{ height:100%; background:#000 !important; }
@@ -331,6 +350,106 @@ body.nyx-phase1 #nyxDock{
   background: rgba(12,12,16,.78) !important;
   box-shadow: 0 22px 80px rgba(0,0,0,.74), 0 0 70px rgba(140,0,35,.12) !important;
 }
+
+/* ============================================================
+   PHASE 1 — SIDE PARALLAX (NEXT TO AVATAR)
+   - Adds “alive” ambience to the dock/panel beside Nyx
+   - Zero layout changes: uses pseudo-layers behind dock content
+   - Optional JS can drive --nyx-parallax-x/y/tilt; CSS also breathes on its own
+============================================================ */
+
+/* Ensure dock can host pseudo-layers safely */
+body.nyx-phase1 #nyxDock{
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+/* Ambient parallax layer */
+body.nyx-phase1 #nyxDock::before{
+  content:"";
+  position:absolute;
+  inset:-26px;
+  z-index:0;
+  pointer-events:none;
+
+  background:
+    radial-gradient(900px 520px at 24% 18%, var(--nyx-parallax-a) 0%, rgba(140,0,35,0) 62%),
+    radial-gradient(720px 440px at 84% 28%, var(--nyx-parallax-b) 0%, rgba(255,255,255,0) 64%),
+    radial-gradient(900px 720px at 50% 92%, var(--nyx-parallax-v) 0%, rgba(0,0,0,0) 62%);
+
+  opacity: var(--nyx-parallax-opacity);
+  transform:
+    translate3d(var(--nyx-parallax-x), var(--nyx-parallax-y), 0)
+    rotate(var(--nyx-parallax-tilt))
+    scale(var(--nyx-parallax-scale));
+
+  transition: transform 120ms var(--ease);
+  animation: nyxDockDrift var(--nyx-parallax-speed) var(--ease) infinite;
+}
+
+/* Fine grain + soft sheen (kept subtle) */
+body.nyx-phase1 #nyxDock::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+
+  background:
+    radial-gradient(120% 140% at 50% 0%,
+      rgba(255,255,255,.045) 0%,
+      rgba(255,255,255,0) 46%),
+    linear-gradient(180deg,
+      rgba(255,255,255,.03) 0%,
+      rgba(255,255,255,0) 34%,
+      rgba(0,0,0,.10) 100%);
+
+  opacity:.55;
+  mix-blend-mode: normal;
+}
+
+/* Keep dock content above pseudo-layers */
+body.nyx-phase1 #nyxDock > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* Breath drift (very small) */
+@keyframes nyxDockDrift{
+  0%{
+    transform:
+      translate3d(calc(var(--nyx-parallax-x) + 0px), calc(var(--nyx-parallax-y) + 0px), 0)
+      rotate(calc(var(--nyx-parallax-tilt) + 0deg))
+      scale(var(--nyx-parallax-scale));
+    filter: brightness(1) saturate(1);
+  }
+  50%{
+    transform:
+      translate3d(calc(var(--nyx-parallax-x) + 7px), calc(var(--nyx-parallax-y) - 8px), 0)
+      rotate(calc(var(--nyx-parallax-tilt) + .35deg))
+      scale(var(--nyx-parallax-scale));
+    filter: brightness(1.03) saturate(1.03);
+  }
+  100%{
+    transform:
+      translate3d(calc(var(--nyx-parallax-x) + 0px), calc(var(--nyx-parallax-y) + 0px), 0)
+      rotate(calc(var(--nyx-parallax-tilt) + 0deg))
+      scale(var(--nyx-parallax-scale));
+    filter: brightness(1) saturate(1);
+  }
+}
+
+/* Optional: if the host toggles this off */
+html.nyx-parallax-off body.nyx-phase1 #nyxDock::before{
+  animation: none !important;
+}
+
+/* Reduced motion: no drift animation */
+@media (prefers-reduced-motion: reduce){
+  body.nyx-phase1 #nyxDock::before{ animation:none !important; }
+}
+
 body.nyx-phase1 #nyxDockHeader{
   background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,0)) !important;
 }
