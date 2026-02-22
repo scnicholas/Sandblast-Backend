@@ -17,7 +17,7 @@
  *    sessionPatch, cog, requestId, meta
  *  }
  *
- * v0.8.0 (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
+ * v0.7l (FAIL-SAFE CONTRACT++++ + MARION VERSION WIRE++++ + ALWAYS SESSIONPATCH++++ + EMPTY REPLY GUARD++++)
  * ✅ Add++++: top-level try/catch fail-safe returns hardened contract (prevents total API crash)
  * ✅ Add++++: marionVersion wiring (best-effort: MarionSO.MARION_VERSION / SO_VERSION / version)
  * ✅ Fix++++: ALWAYS sessionPatch is object (never undefined)
@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.8.0 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.7l (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -775,11 +775,13 @@ function classifyAction(text, payload) {
   )
     return "counsel_intro";
 
-  // Depression / low-mood entry (route to counselor-lite so we don't get stuck in CLARIFY loops)
-  // NOTE: non-clinical; this just switches the conversation scaffold.
-  if (/(\b(i\s*(am|'m)\s+)?(depressed|depresssed|depression|down|sad|hopeless)\b)/.test(t)) {
+  // grief / loss / depression signals -> counselor-lite (prevents CLARIFY loops)
+  if (
+    /\b(my\s+dog\s+died|my\s+cat\s+died|my\s+(?:pet|friend|mom|mother|dad|father|sister|brother|wife|husband)\s+died|someone\s+died|lost\s+my\s+(?:dog|cat|pet)|i\s+lost\s+(?:him|her|them)|i\s+am\s+depress(?:ed|ion)|depressed|depression|hopeless|i\s+want\s+to\s+cry|grieving|i\s+miss\s+him|i\s+miss\s+her)\b/.test(
+      t
+    )
+  )
     return "counsel_intro";
-  }
 
 
   // Movies lane shortcut (typed)
@@ -868,7 +870,7 @@ function detectMacModeImplicit(text) {
     u += 3;
     why.push("user:uncertainty/how-to");
   }
-  if (/\b(confused|stuck|frustrated|overwhelmed|worried|depressed|sad|hopeless)\b/.test(s)) {
+  if (/\b(confused|stuck|frustrated|overwhelmed|worried)\b/.test(s)) {
     u += 2;
     why.push("user:emotion");
   }
@@ -906,7 +908,7 @@ function classifyTurnIntent(
   if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why)\b/.test(s))
     return "CLARIFY";
 
-  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious|depressed|depresssed|depression|hopeless|sad)\b/.test(s))
+  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious|depressed|depression|hopeless|grieving|my\s+dog\s+died|my\s+cat\s+died|lost\s+my\s+(?:dog|cat|pet)|someone\s+died)\b/.test(s))
     return "STABILIZE";
 
   return "CLARIFY";
@@ -937,7 +939,7 @@ function inferLatentDesire(norm, session, cog) {
   if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t))
     return LATENT_DESIRE.CURIOSITY;
 
-  if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm|depressed|sad|hopeless)\b/.test(t))
+  if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t))
     return LATENT_DESIRE.COMFORT;
 
   if (a === "counsel_intro") return LATENT_DESIRE.COMFORT;
@@ -1913,19 +1915,6 @@ if (bridge) cog.bridge = bridge;
       const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
       const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridge !== "undefined" ? bridge : undefined);
 
-      // DEDUPE PATCH++++:
-      // Persist last request + last output in sessionPatch so repeated fetch retries
-      // (or double-submit from voice+send) don’t create visible “loops”.
-      const baseSessionPatch = isPlainObject(out.sessionPatch) ? out.sessionPatch : {};
-      const dedupPatch = {
-        __lastRequestId: requestId,
-        __lastRequestAt: nowMs(),
-        __lastReplyText: safeStr(out.reply || "").slice(0, 900),
-        __lastLane: laneResolved,
-        __lastFollowUps: followUps.slice(0, 8),
-      };
-      const sessionPatchFinal = mergeSessionPatch(baseSessionPatch, dedupPatch);
-
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
         reply: ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next."),
@@ -1948,7 +1937,7 @@ if (bridge) cog.bridge = bridge;
         followUpsStrings,
 
         // ALWAYS object (prevents downstream merges from exploding)
-        sessionPatch: sessionPatchFinal,
+        sessionPatch: isPlainObject(out.sessionPatch) ? out.sessionPatch : {},
 
         cog,
         requestId,
@@ -1957,36 +1946,7 @@ if (bridge) cog.bridge = bridge;
     }
 
 
-    
     // -------------------------
-    // DUPLICATE REQUEST SHORT-CIRCUIT++++
-    // If the client double-submits (common with mic + send, or fetch retry),
-    // serve the last reply once and stop the “loop” from appearing in UI.
-    // Requires the host to persist sessionPatch (recommended).
-    // -------------------------
-    const lastReqId = safeStr(session.__lastRequestId || "").trim();
-    const lastReqAt = Number(session.__lastRequestAt || 0) || 0;
-    const lastReplyText = safeStr(session.__lastReplyText || "").trim();
-    const lastLane = safeStr(session.__lastLane || "").trim();
-    const lastFollowUps = Array.isArray(session.__lastFollowUps) ? session.__lastFollowUps : [];
-
-    const isDupReq =
-      !!(lastReqId && requestId && lastReqId === requestId && lastReplyText) &&
-      (nowMs() - lastReqAt) <= 4500;
-
-    if (isDupReq) {
-      return buildContract({
-        ok: true,
-        reply: lastReplyText,
-        lane: lastLane || lane || "general",
-        followUps: lastFollowUps,
-        followUpsStrings: [],
-        sessionPatch: mergeSessionPatch(baseCogPatch, { __lastRequestAt: nowMs() }),
-        meta: metaBase({ dedup: true }),
-      });
-    }
-
-// -------------------------
     // SENTIENT HOST INTRO (first load ritual) — speaks + animated text + lane portals
     // -------------------------
     const introAlready =
