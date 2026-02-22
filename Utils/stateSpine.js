@@ -10,7 +10,7 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.1.9 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
+ * v1.2.0 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
  * ✅ Add++++: normalizeInbound reads inbound.cog / inbound.marion (MarionSO output) and sanitizes it
  * ✅ Add++++: state.marion stores bounded cognition summary (mode/intent/stage/layers/budget/dominance/traceBits)
  * ✅ Add++++: finalizeTurn can persist marionCog (from chatEngine) OR inbound.cog (if provided)
@@ -23,16 +23,25 @@
  * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.1.9";
+const SPINE_VERSION = "stateSpine v1.2.0";
 
 const LANE = Object.freeze({
+  // UI chip lanes (Sandblast)
   MUSIC: "music",
+  ROKU: "roku",
+  RADIO: "radio",
+  SCHEDULE: "schedule",
+  NEWS_CANADA: "news-canada",
+
+  // Legacy/compat lanes (kept so older sessions don’t break)
   MOVIES: "movies",
   NEWS: "news",
   SPONSORS: "sponsors",
   HELP: "help",
+
   GENERAL: "general",
 });
+
 
 const STAGE = Object.freeze({
   OPEN: "open",
@@ -251,6 +260,8 @@ function sanitizeMarionCog(cog) {
     ...(dominance !== undefined ? { dominance } : {}),
     ...(needsClarify !== undefined ? { needsClarify: !!needsClarify } : {}),
     ...(askKind ? { askKind } : {}),
+    ...(safeStr(cog.askId || "", 24).trim() ? { askId: safeStr(cog.askId || "", 24).trim() } : {}),
+    ...(safeStr(cog.clarifyPrompt || "", 260).trim() ? { clarifyPrompt: safeStr(cog.clarifyPrompt || "", 260).trim() } : {}),
     ...(rationale ? { rationale } : {}),
     ...(traceBits ? { traceBits } : {}),
     at: nowMs(),
@@ -613,6 +624,9 @@ function createState(seed = {}) {
     // Diagnostics (bounded)
     diag: {
       lastUpdateReason: safeStr(seed?.diag?.lastUpdateReason || "", 120),
+      // Loop fuse: detect repeated clarify emissions without progress
+      clarifyKey: safeStr(seed?.diag?.clarifyKey || "", 80),
+      clarifyRepeats: Number.isFinite(seed?.diag?.clarifyRepeats) ? Math.max(0, Math.trunc(seed.diag.clarifyRepeats)) : 0,
     },
   };
 }
@@ -971,23 +985,60 @@ function decideNextMove(state, inbound = {}) {
   const payloadActionable = !!n.signals.payloadActionable;
   const hasPayload = !!n.signals.hasPayload;
 
-  // If Marion explicitly thinks we need clarify, respect it.
+  // If Marion explicitly thinks we need clarify, respect it — but never allow clarifier loops.
   const marionHint = n.cog || s.marion;
   if (marionHint && marionHint.needsClarify === true) {
+    const askKind = safeStr(marionHint.askKind || "need_more_detail", 40).trim() || "need_more_detail";
+    const askId = safeStr(marionHint.askId || "", 24).trim();
+    const mhIntent = safeStr(marionHint.intent || "", 40).toLowerCase().trim();
+    const mhStage = safeStr(marionHint.stage || "", 24).toLowerCase().trim();
+
+    const key = [askId || "noid", askKind, mhIntent || "unknown", mhStage || "unknown"].join("|");
+    const prevKey = safeStr(s?.diag?.clarifyKey || "", 80);
+    const prevRepeats = Number.isFinite(s?.diag?.clarifyRepeats) ? s.diag.clarifyRepeats : 0;
+
+    // Fuse conditions: same clarifier emitted repeatedly, and we’re not progressing.
+    const repeating =
+      prevKey === key &&
+      safeStr(s?.lastDecision?.move || "", 20).toLowerCase() === MOVE.CLARIFY;
+
+    const repeats = repeating ? prevRepeats + 1 : 0;
+
+    // Hard loop breaker: after 2 repeats, stop re-asking and advance with safe defaults.
+    if (repeats >= 2) {
+      return {
+        move: MOVE.ADVANCE,
+        stage: STAGE.DELIVER,
+        speak: "Loop detected. I’ll proceed with a safe default — tell me if I’m off.",
+        ask: null,
+        rationale: "clarify_loop_fuse",
+        // diag patch consumed in finalizeTurn
+        _diagClarify: { key, repeats },
+      };
+    }
+
+    // Stabilize intent: use a supportive check-in prompt (prevents the sterile clarifier loop).
+    const isStabilize = mhIntent === "stabilize";
+
+    const prompt =
+      safeStr(marionHint.clarifyPrompt || "", 260).trim() ||
+      (isStabilize
+        ? "Are you safe right now, and do you want emotional support or practical steps?"
+        : "What’s the one missing detail I need to proceed?");
+
     return {
       move: MOVE.CLARIFY,
       stage: STAGE.CLARIFY,
-      speak: "One quick detail, then I’ll execute cleanly.",
-      ask: buildPendingAsk(
-        marionHint.askKind || "need_more_detail",
-        "Give me the missing detail in one line so I can proceed.",
-        []
-      ),
-      rationale: "marion_needs_clarify",
+      speak: isStabilize
+        ? "I hear you. Before we go further, I want to check in."
+        : "One quick detail, then I’ll execute cleanly.",
+      ask: buildPendingAsk(askKind, prompt, []),
+      rationale: isStabilize ? "marion_stabilize_clarify" : "marion_needs_clarify",
+      _diagClarify: { key, repeats },
     };
   }
 
-  // If we already have a pending ask, try to resolve it based on typed/click evidence.
+// If we already have a pending ask, try to resolve it based on typed/click evidence.
   if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
     const pa = normalizePendingAsk(s.pendingAsk);
     const kind = safeStr(pa?.kind || "", 80).toLowerCase();
@@ -1219,6 +1270,11 @@ function finalizeTurn({
         : null,
 
     lastTurnSig: turnSig,
+
+    // Loop fuse bookkeeping (set by decideNextMove via decision._diagClarify)
+    diag: decision && isPlainObject(decision._diagClarify)
+      ? { clarifyKey: safeStr(decision._diagClarify.key || "", 80), clarifyRepeats: Number(decision._diagClarify.repeats || 0) || 0 }
+      : { clarifyKey: "", clarifyRepeats: 0 },
 
     ...(assistantSummary != null
       ? { lastAssistantSummary: safeStr(assistantSummary, 320) }
