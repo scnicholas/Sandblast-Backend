@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.9.0 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.9.3 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -204,6 +204,41 @@ function applyBudgetText(s, budget) {
   if (budget === "short") return takeLines(txt, 6);
   return takeLines(txt, 14);
 }
+
+// -------------------------
+// execution-style artifact scrubber
+// - Removes procedural/meta "I'll execute" fillers that can leak into Nyx copy.
+// - Never throws; returns a safe string.
+// -------------------------
+function scrubExecutionStyleArtifacts(reply) {
+  const raw = safeStr(reply);
+  if (!raw) return "";
+
+  const killLine = (ln) => {
+    const s = safeStr(ln).trim();
+    if (!s) return false;
+    if (/^one quick detail[, ]+then i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^then i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^alright\.?$/i.test(s)) return true; // almost always fluff in this system
+    return false;
+  };
+
+  const lines = raw.split("\n");
+  const kept = [];
+  for (const ln of lines) {
+    if (killLine(ln)) continue;
+    kept.push(ln);
+  }
+
+  let out = kept.join("\n");
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
+
+  // If we scrubbed everything, keep a minimal non-empty value.
+  if (!out) return safeStr(reply).trim() || "Okay.";
+  return out;
+}
+
 
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
@@ -1874,10 +1909,30 @@ async function handleChat(input) {
     // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
     // - Adds light turnSignals so Spine/Marion can react deterministically.
     // -------------------------
-    const emo =
+    let emo =
       Emotion && typeof Emotion.detectEmotionalState === "function"
         ? Emotion.detectEmotionalState(safeStr(norm.text || ""))
         : null;
+
+
+    // Heuristic fallback: if emotionDetect module is missing or returns null,
+    // catch common vulnerability phrases so Nyx doesn't reply with procedural filler.
+    if (!emo) {
+      const t0 = safeStr(norm.text || "").trim();
+      const t = t0.toLowerCase();
+      const looksVulnerable =
+        /\b(i\s*am|i'm|im)\s+(hurting|struggling|overwhelmed|anxious|depressed|lonely|burnt\s*out|stressed)\b/.test(t) ||
+        /\b(i\s*feel|feeling)\s+(sad|down|hopeless|panicky|afraid)\b/.test(t);
+      if (looksVulnerable) {
+        emo = {
+          mode: "VULNERABLE",
+          tags: ["vulnerable"],
+          intensity: 60,
+          bypassClarify: true,
+          disclaimers: { needSoft: true, noTherapy: true },
+        };
+      }
+    }
 
     if (emo && isPlainObject(norm.turnSignals)) {
       norm.turnSignals.emotionMode = safeStr(emo.mode || "NORMAL", 16);
@@ -2112,7 +2167,7 @@ if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonic
 ${base0}`
         : base0;
       const composed = applyTurnConstitutionToReply(base, cog, session);
-      return applyPublicSanitization(composed, norm, session, publicMode);
+      return scrubExecutionStyleArtifacts(applyPublicSanitization(composed, norm, session, publicMode));
     }
 
     // Common session telemetry patch (kept small and safe)
