@@ -240,6 +240,43 @@ function scrubExecutionStyleArtifacts(reply) {
 }
 
 
+// -------------------------
+// Vulnerability / distress guardrails (SUPPORT ROUTE++++)
+// -------------------------
+// Even if Marion intent is CLARIFY, if the user is distressed we MUST NOT respond with
+// lane-selection prompts ("music, movies, sponsors").
+// We keep this lightweight + fail-open (no external deps required).
+function detectDistressQuick(text) {
+  const t = safeStr(text || "").toLowerCase();
+  if (!t) return { distress: false, selfHarm: false, tags: [] };
+
+  const selfHarm =
+    /\b(suicid(e|al)|kill\s*myself|end\s*it|want\s*to\s*die|self\s*harm|hurt\s*myself)\b/.test(t);
+
+  const distress =
+    selfHarm ||
+    /\b(i\s*am|i['’]?m|im)\s+(hurting|struggling|overwhelmed|anxious|depressed|lonely|burnt\s*out|stressed)\b/.test(t) ||
+    /\b(i\s*feel|feeling)\s+(sad|down|hopeless|panicky|afraid|broken|numb)\b/.test(t) ||
+    /\bpanic\s*attack\b/.test(t) ||
+    /\bcan['’]?t\s+cope\b/.test(t);
+
+  const tags = [];
+  if (distress) tags.push("distress");
+  if (selfHarm) tags.push("self_harm");
+  return { distress, selfHarm, tags };
+}
+
+function coerceEmotion(norm, emo) {
+  // Normalize to a minimal contract used by chatEngine routing.
+  const e = isPlainObject(emo) ? emo : {};
+  const mode = safeStr(e.mode || "").toUpperCase() || "NORMAL";
+  const bypassClarify = !!e.bypassClarify || mode === "VULNERABLE" || mode === "DISTRESS";
+  const tags = Array.isArray(e.tags) ? e.tags.slice(0, 12) : [];
+  return { ...e, mode, bypassClarify, tags };
+}
+
+
+
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
   const keys = Object.keys(payload);
@@ -2086,6 +2123,13 @@ const session = isPlainObject(norm.body.session)
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
+    // Emotion guard: never show forced "pick one" prompts when the user is distressed.
+    if (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) {
+      if (discoveryHint && discoveryHint.enabled) {
+        discoveryHint.enabled = false;
+        discoveryHint.reason = "emotion_guard";
+      }
+    }
     cog.noveltyScore = clamp01(noveltyScore);
     cog.discoveryHint = discoveryHint;
 
@@ -2552,11 +2596,15 @@ ${base0}`
     if (norm.action === "switch_lane") {
       const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Sponsors";
       const reply0 = finalizeReply(
-        discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
-          ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• News Canada\n• Sponsors`
-          : baseMenu,
-        baseMenu
-      );
+      emo && emo.bypassClarify
+        ? counselorLiteIntro(norm, session, cog)
+        : discoveryHint && discoveryHint.enabled
+        ? safeStr(discoveryHint.question).trim()
+        : safeStr(norm.text)
+        ? "I can help with Sandblast TV, Radio (music), News Canada, or we can just talk. What would you like?"
+        : "Okay — what would you like to do: TV, Radio, News Canada, or just talk?",
+      "Okay — what would you like to do next?"
+    );
       const loop = detectAndPatchLoop(session, lane || "general", reply0);
       const reply = loop.tripped
         ? finalizeReply("We’re looping. Pick ONE: Music, Movies, or Sponsors.")
