@@ -6,7 +6,7 @@
 <title>Nyx Avatar Host — Widget Console (Text + Chips + Voice)</title>
 
 <!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210b" />
+<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210c" />
 
 <script>
 /* ============================================================
@@ -499,7 +499,7 @@ window.NYX_HOST_MODE = "widget_console";
   window.__NYX_WIDGET_CONSOLE_BOOTED__ = true;
 
   var CONFIG = {
-    version: "WIDGET_CONSOLE_v9210b",
+    version: "WIDGET_CONSOLE_v9210c",
     apiBase: null,
     token: null,
     chatPath: "/api/chat",
@@ -740,6 +740,61 @@ window.NYX_HOST_MODE = "widget_console";
     marionEl.classList.toggle("on", !!on);
   }
 
+  function extractBridge(res){
+    // Accept multiple backend shapes safely
+    if(!res || typeof res !== "object") return null;
+    return res.bridge || (res.cog && res.cog.bridge) || (res.data && (res.data.bridge || (res.data.cog && res.data.cog.bridge))) || null;
+  }
+
+  function bridgeBadge(bridge){
+    if(!bridge || typeof bridge !== "object") return "";
+    var lane = safeStr(bridge.lane || "").trim();
+    var mode = safeStr(bridge.mode || "").trim();
+    var intent = safeStr(bridge.intent || "").trim();
+    var stage = safeStr(bridge.stage || "").trim();
+
+    var firedN = 0;
+    try{ firedN = (bridge.knowledge && bridge.knowledge.fired && bridge.knowledge.fired.length) ? bridge.knowledge.fired.length : 0; }catch(_){}
+
+    var loopFlag = "";
+    try{ if(bridge.loop && bridge.loop.flag) loopFlag = " · LOOP"; }catch(_){}
+
+    var parts = [];
+    if(lane) parts.push(lane);
+    if(mode) parts.push(mode);
+    if(intent) parts.push(intent);
+    if(stage) parts.push(stage);
+    var base = parts.join(" · ");
+    if(firedN) base += " · K:" + firedN;
+    return base + loopFlag;
+  }
+
+  function pickAck(bridge){
+    // Human tempo: show an immediate acknowledgement
+    var ack = "";
+    try{ ack = safeStr(bridge && bridge.tempo && bridge.tempo.ack, 80).trim(); }catch(_){}
+    if(!ack){
+      // fallbacks by lane (light touch)
+      if(UI.lane === "music") ack = "Got it — music mode.";
+      else if(UI.lane === "roku") ack = "Okay — Roku.";
+      else if(UI.lane === "radio") ack = "Alright — Radio.";
+      else ack = "Got it.";
+    }
+    return ack;
+  }
+
+  function replaceMsg(id, newText, newMeta){
+    if(!id) return false;
+    for(var i=0;i<THREAD.length;i++){
+      if(THREAD[i] && THREAD[i].id === id){
+        THREAD[i].text = safeStr(newText).trim() || THREAD[i].text;
+        if(newMeta) THREAD[i].meta = newMeta;
+        return true;
+      }
+    }
+    return false;
+  }
+
   function setActiveChip(chip){
     UI.lane = safeStr(chip).toLowerCase().trim() || "general";
     if(chipsEl){
@@ -758,14 +813,7 @@ window.NYX_HOST_MODE = "widget_console";
 
   function pushMsg(role, text, meta){
     text = safeStr(text).trim();
-    if(!text) return;
-
-    // Prevent send storms (double clicks / STT final + enter / double-init)
-    if(IN_FLIGHT){
-      try{ console.warn("[NYX] send blocked: in-flight"); }catch(_){ }
-      return;
-    }
-    IN_FLIGHT = true;
+    if(!text) return null;
 
     // loop breaker only applies to assistant emissions
     var g = _loopGuard(role, text);
@@ -773,9 +821,11 @@ window.NYX_HOST_MODE = "widget_console";
       text = g.replacement;
     }
 
-    THREAD.push({ role: role, text: text, ts: now(), meta: meta || null });
+    var id = makeId();
+    THREAD.push({ id:id, role: role, text: text, ts: now(), meta: meta || null });
     if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS);
     updateEmptyState();
+    return id;
   }
 
   function renderMsgs(){
@@ -799,8 +849,16 @@ window.NYX_HOST_MODE = "widget_console";
     return b.replace(/\/+$/,"");
   }
 
-  async function postJson(url, payload, timeoutMs){
-    timeoutMs = timeoutMs || 14000;
+  async function postJson(url, payload, opts){
+    // opts can be timeoutMs (number) or { timeoutMs, signal }
+    var timeoutMs = 14000;
+    var signal = null;
+    if(typeof opts === "number") timeoutMs = opts;
+    else if(opts && typeof opts === "object"){
+      if(typeof opts.timeoutMs === "number") timeoutMs = opts.timeoutMs;
+      if(opts.signal) signal = opts.signal;
+    }
+
     var headers = { "Content-Type":"application/json" };
     if(CONFIG.token){
       headers["x-sb-token"] = CONFIG.token;
@@ -808,8 +866,16 @@ window.NYX_HOST_MODE = "widget_console";
       headers["X-API-Token"] = CONFIG.token;
     }
 
-    var ctrl = new AbortController();
-    var to = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, timeoutMs);
+    var ctrl = null;
+    var to = null;
+    if(!signal){
+      ctrl = new AbortController();
+      signal = ctrl.signal;
+      to = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, timeoutMs);
+    } else {
+      // still enforce a timeout value for UI, but don't abort the caller's signal here
+      to = setTimeout(function(){ try{ /* noop */ }catch(_){} }, timeoutMs);
+    }
 
     try{
       var r = await fetch(url, {
@@ -817,17 +883,19 @@ window.NYX_HOST_MODE = "widget_console";
         headers: headers,
         body: JSON.stringify(payload),
         credentials: "include",
-        signal: ctrl.signal
+        signal: signal
       });
+
       var txt = await r.text().catch(function(){ return ""; });
       var json = safeJsonParse(txt);
       if(!json) return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 500) };
       json.__httpStatus = r.status;
+      json.__rawText = txt;
       return json;
     } catch(e){
-      return { ok:false, error:(e && e.name === "AbortError") ? "timeout" : "network", status:0 };
+      return { ok:false, error:(e && e.name === "AbortError") ? "aborted" : "network", status:0 };
     } finally {
-      clearTimeout(to);
+      if(to) clearTimeout(to);
     }
   }
 
@@ -987,29 +1055,43 @@ window.NYX_HOST_MODE = "widget_console";
   window.addEventListener("pointerdown", gestureUnlock, { passive:true });
   window.addEventListener("keydown", gestureUnlock);
 
-  var IN_FLIGHT = false;
+  var SEND = { inFlight:false, activeCtrl:null, activeReqId:"", activeTurn:0 };
 
   async function sendText(text, meta){
     text = safeStr(text).trim();
     if(!text) return;
 
-    // Prevent send storms (double clicks / STT final + enter / double-init)
-    if(IN_FLIGHT){
-      try{ console.warn("[NYX] send blocked: in-flight"); }catch(_){ }
-      return;
-    }
-    IN_FLIGHT = true;
+    // BARGE-IN READY: abort any in-flight request when user sends again
+    try{
+      if(SEND.activeCtrl){
+        SEND.activeCtrl.abort();
+      }
+    }catch(_){}
 
+    SEND.activeTurn = (SEND.activeTurn || 0) + 1;
+    var turn = SEND.activeTurn;
+
+    var requestId = makeId();
+    SEND.activeReqId = requestId;
+
+    SEND.activeCtrl = new AbortController();
+    var signal = SEND.activeCtrl.signal;
+
+    SEND.inFlight = true;
     if(sendBtn) sendBtn.disabled = true;
     if(inputEl) inputEl.disabled = true;
 
-    try{
-      pushMsg("user", text, meta);
+    // Push user msg
+    pushMsg("user", text, meta);
+    renderMsgs();
+
+    // Immediate ACK placeholder (tempo perception)
+    var ackId = pushMsg("nyx", "…", { kind:"ack", requestId: requestId, turn: turn, temp:true });
     renderMsgs();
 
     var url = apiBase() + (CONFIG.chatPath || "/api/chat");
     var packet = {
-      requestId: makeId(),
+      requestId: requestId,
       text: text,
       lane: UI.lane,
       ctx: {
@@ -1020,39 +1102,65 @@ window.NYX_HOST_MODE = "widget_console";
       client: { source:"nyx_host_iframe", lane:UI.lane }
     };
 
-    postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now() }, true);
+    postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now(), requestId: requestId }, true);
 
-    var res = await postJson(url, packet, 16000);
+    var res = await postJson(url, packet, { timeoutMs: 16000, signal: signal });
+
+    // If a newer send happened, discard this response
+    if(turn !== SEND.activeTurn || requestId !== SEND.activeReqId){
+      return;
+    }
+
+    var bridge = extractBridge(res);
+    var ack = pickAck(bridge);
+    if(ackId) replaceMsg(ackId, ack, { kind:"ack", requestId: requestId, turn: turn, temp:false, bridge: bridge || null });
+
+    // Build reply text
     var reply = "";
     if(res){
       reply = safeStr(res.reply || res.text || (res.data && (res.data.reply || res.data.text)) || "");
+      // Some backends return { ok:true, data:{ reply }, cog:{...} }
+      if(!reply && res.ok && res.message) reply = safeStr(res.message);
     }
-    if(!reply && res && res.ok === false && res.error){
-      reply = "Connection issue. Pass apiBase/token via NYX_CONFIG so I can reach the backend.";
+
+    if(!reply && res && res.ok === false){
+      if(res.error === "aborted") reply = "Okay — interrupted. Say that again when you’re ready.";
+      else reply = "Connection issue. Pass apiBase/token via NYX_CONFIG so I can reach the backend.";
     }
     if(!reply) reply = "…";
 
+    // Apply lane + marion indicators
     if(res && res.lane && typeof res.lane === "string"){ setActiveChip(res.lane.toLowerCase()); }
     if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
+    else if(bridge) setMarionOn(true);
 
-    pushMsg("nyx", reply);
+    // Optional: show bridge badge in Marion tooltip
+    try{
+      if(marionEl && bridge){
+        var b = bridgeBadge(bridge);
+        if(b) marionEl.title = b;
+      }
+    }catch(_){}
+
+    // Replace ack line with full reply (or append, depending on your preference)
+    // We keep the ACK as first line and then push the full reply as a second message.
+    pushMsg("nyx", reply, { kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null });
     renderMsgs();
 
+    // Voice: speak reply (not the ack)
     if(VOICE.voiceOn){
       var wasMic = VOICE.micOn;
       if(wasMic) toggleMic(false);
-      maybeSpeakLastNyxReply();
+      speak(reply);
       if(wasMic && VOICE.autoSend){
         setTimeout(function(){ toggleMic(true); }, 900);
       }
     }
 
-    } finally {
-      IN_FLIGHT = false;
-      if(sendBtn) sendBtn.disabled = false;
-      if(inputEl) inputEl.disabled = false;
-      try{ if(inputEl) inputEl.focus(); }catch(_){ }
-    }
+    SEND.inFlight = false;
+    if(sendBtn) sendBtn.disabled = false;
+    if(inputEl) inputEl.disabled = false;
+    try{ if(inputEl) inputEl.focus(); }catch(_){ }
   }
 
   if(sendBtn){
