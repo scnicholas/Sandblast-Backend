@@ -12,14 +12,14 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.1.9 (COG CONTRACT COMPAT++++ + STAGE/LAYERS/TRACE++++ + CLARIFY HINT++++)LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
+ * v1.2.0 (COG CONTRACT COMPAT++++ + STAGE/LAYERS/TRACE++++ + CLARIFY HINT++++)LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
  * ✅ Adds lane expert routing contract: effectiveLane + lanesUsed + crossLaneAllowed + lanesAvailable
  * ✅ General lane becomes true router across ALL knowledge lanes (English always-on as governor)
  * ✅ Hard guards against lane bleed: music/roku/news-canada/schedule default crossLaneAllowed=false
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.1.9";
+const MARION_VERSION = "marionSO v1.2.0";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -2236,16 +2236,29 @@ function finalizeContract(cog, nowMs, extra) {
   // Expose small, stable top-level fields:
   //   mode, intent, stage, layers, needsClarify, askKind, rationale, trace
   // ==========================================================
+  const intentU = safeStr(out.intent || "", 16).toUpperCase();
+  const riskTierL = safeStr(out.riskTier || "", 12).toLowerCase();
+
+  // CLARIFY gate: only true when Marion explicitly decided to clarify.
+  // IMPORTANT: STABILIZE should NOT auto-route into the generic clarifier (this caused looping UX).
   const needsClarify =
-    safeStr(out.intent || "", 16).toUpperCase() === "CLARIFY" ||
+    intentU === "CLARIFY" ||
     safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
     safeStr(out.bridge?.kind || "", 24).toLowerCase() === "clarify";
 
-  const stage = needsClarify
-    ? "clarify"
-    : safeStr(out.intent || "", 16).toUpperCase() === "ADVANCE"
-    ? "deliver"
-    : "triage";
+  // Stage selection:
+  // - STABILIZE always drives a response (deliver) unless an explicit ask is required.
+  // - ADVANCE -> deliver
+  // - otherwise -> triage/clarify
+  const stage =
+    intentU === "STABILIZE"
+      ? "deliver"
+      : needsClarify
+      ? "clarify"
+      : intentU === "ADVANCE"
+      ? "deliver"
+      : "triage";
+
 
   // layers: infer from present hint/tag payloads (bounded)
   const layers = [];
@@ -2292,6 +2305,34 @@ function finalizeContract(cog, nowMs, extra) {
     out.askKind = safeStr(out.bridge?.askKind || "need_more_detail", 40) || "need_more_detail";
     out.rationale = safeStr(out.bridge?.reason || out.bridge?.why || "", 160) || undefined;
   }
+  // Expose stable cog summary fields for stateSpine (sanitized; no raw text)
+  out.needsClarify = !!needsClarify;
+  out.stage = stage;
+  out.layers = Array.isArray(layers) ? layers.slice(0, 8) : [];
+
+  // Ask contract (stable ids, no raw text)
+  // AskId is a deterministic short hash of the current decision context (NOT user text).
+  out.askKind = safeStr(out.askKind || out.bridge?.askKind || (intentU === "STABILIZE" ? "wellbeing_check" : "need_more_detail"), 40) || "need_more_detail";
+  out.askId = sha1Lite(
+    JSON.stringify({
+      i: intentU || "",
+      st: out.stage || "",
+      ln: safeStr(out.lane || "", 24),
+      la: safeStr(out.laneAction || "", 24),
+      bk: safeStr(out.bridge?.kind || "", 24),
+      to: safeStr(out.bridge?.laneTo || "", 24),
+      ak: safeStr(out.askKind || "", 40),
+    })
+  ).slice(0, 12);
+
+  // Optional prompt hint (Nyx may use, chatEngine/stateSpine may ignore)
+  if (!out.clarifyPrompt) {
+    out.clarifyPrompt =
+      intentU === "STABILIZE"
+        ? "Are you safe right now, and do you want emotional support or practical steps?"
+        : "What’s the one missing detail I need to proceed?";
+  }
+
 
   out.trace = trace;
 
