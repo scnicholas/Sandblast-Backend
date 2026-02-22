@@ -489,6 +489,15 @@ window.NYX_HOST_MODE = "widget_console";
 (function(){
   "use strict";
 
+  // ============================================================
+  // SINGLE-INIT GUARD (prevents double-mount / double event binding)
+  // ============================================================
+  if(window.__NYX_WIDGET_CONSOLE_BOOTED__){
+    try{ console.warn("[NYX] avatar-host: boot blocked (already initialized)"); }catch(_){ }
+    return;
+  }
+  window.__NYX_WIDGET_CONSOLE_BOOTED__ = true;
+
   var CONFIG = {
     version: "WIDGET_CONSOLE_v9210b",
     apiBase: null,
@@ -575,9 +584,9 @@ window.NYX_HOST_MODE = "widget_console";
   function sendReady(){ postToParent({ type:"NYX_READY", v: CONFIG.version, ts: now() }, true); }
   sendReady();
   var tries=0, maxTries=14;
-  var tmr = setInterval(function(){
+  var __readyTimer = setInterval(function(){
     tries++;
-    if(tries>maxTries){ clearInterval(tmr); return; }
+    if(tries>maxTries){ clearInterval(__readyTimer); return; }
     sendReady();
   }, 250);
 
@@ -593,6 +602,7 @@ window.NYX_HOST_MODE = "widget_console";
 
       if(data.type === "NYX_CONFIG"){
         applyConfigPartial(data.config || {});
+        try{ if(__readyTimer) clearInterval(__readyTimer); }catch(_){ }
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         setTimeout(function(){ voiceInitMaybe(); }, 0);
       }
@@ -613,7 +623,9 @@ window.NYX_HOST_MODE = "widget_console";
       setTimeout(emitResize, 250);
     }catch(_){}
   }else{
-    setInterval(emitResize, 800);
+    // fallback (older browsers) — keep handle so we don't accidentally stack intervals
+    try{ if(window.__NYX_RESIZE_TMR__) clearInterval(window.__NYX_RESIZE_TMR__); }catch(_){ }
+    window.__NYX_RESIZE_TMR__ = setInterval(emitResize, 800);
   }
 
   var marionEl = $("nyxMarion");
@@ -683,6 +695,46 @@ window.NYX_HOST_MODE = "widget_console";
   var THREAD = [];
   var MAX_TURNS = 24;
 
+
+  // ============================================================
+  // LOOP BREAKER (front-end)
+  // - stops repeated identical assistant messages
+  // - stops send storms (double-init / double-submit)
+  // ============================================================
+  var LOOP = {
+    lastSig: \"\",
+    streak: 0,
+    lastAt: 0,
+    maxStreak: 2,
+    windowMs: 6500
+  };
+
+  function _sig(role, text){
+    return role + \"::\" + safeStr(text, 220).toLowerCase().replace(/\s+/g,\" \").trim();
+  }
+
+  function _loopGuard(role, text){
+    var s = _sig(role, text);
+    var t = now();
+    if(s && s === LOOP.lastSig && (t - LOOP.lastAt) <= LOOP.windowMs){
+      LOOP.streak++;
+    } else {
+      LOOP.lastSig = s;
+      LOOP.streak = 0;
+    }
+    LOOP.lastAt = t;
+
+    if(role === \"nyx\" && LOOP.streak >= LOOP.maxStreak){
+      // Replace with a breaker message and reset streak.
+      LOOP.streak = 0;
+      return {
+        blocked: true,
+        replacement: \"I’m catching a loop on my side. Quick reset: pick a mode chip, or tell me what you want in one sentence. If it keeps happening, hit Reset and I’ll reconnect cleanly.\"
+      };
+    }
+    return { blocked:false };
+  }
+
   function setMarionOn(on){
     if(!marionEl) return;
     marionEl.classList.toggle("on", !!on);
@@ -707,6 +759,20 @@ window.NYX_HOST_MODE = "widget_console";
   function pushMsg(role, text, meta){
     text = safeStr(text).trim();
     if(!text) return;
+
+    // Prevent send storms (double clicks / STT final + enter / double-init)
+    if(IN_FLIGHT){
+      try{ console.warn("[NYX] send blocked: in-flight"); }catch(_){ }
+      return;
+    }
+    IN_FLIGHT = true;
+
+    // loop breaker only applies to assistant emissions
+    var g = _loopGuard(role, text);
+    if(g && g.blocked){
+      text = g.replacement;
+    }
+
     THREAD.push({ role: role, text: text, ts: now(), meta: meta || null });
     if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS);
     updateEmptyState();
@@ -830,8 +896,25 @@ window.NYX_HOST_MODE = "widget_console";
 
       rec.onerror = function(){ toggleMic(false); };
       rec.onend = function(){
+        // Avoid tight restart loops on some browsers
         if(VOICE.micOn){
-          try{ rec.start(); }catch(_){ VOICE.micOn = false; updateVoiceUI(); }
+          VOICE._restartCount = (VOICE._restartCount || 0) + 1;
+          var t = now();
+          VOICE._restartWindowAt = VOICE._restartWindowAt || t;
+          if((t - VOICE._restartWindowAt) > 10000){
+            VOICE._restartWindowAt = t;
+            VOICE._restartCount = 1;
+          }
+          if(VOICE._restartCount > 6){
+            VOICE.micOn = false;
+            updateVoiceUI();
+            pushMsg("nyx", "Mic paused to prevent a browser loop. Tap 🎙 again to resume.");
+            renderMsgs();
+            return;
+          }
+          setTimeout(function(){
+            try{ rec.start(); }catch(_){ VOICE.micOn = false; updateVoiceUI(); }
+          }, 180);
         }
       };
 
@@ -904,14 +987,24 @@ window.NYX_HOST_MODE = "widget_console";
   window.addEventListener("pointerdown", gestureUnlock, { passive:true });
   window.addEventListener("keydown", gestureUnlock);
 
+  var IN_FLIGHT = false;
+
   async function sendText(text, meta){
     text = safeStr(text).trim();
     if(!text) return;
 
+    // Prevent send storms (double clicks / STT final + enter / double-init)
+    if(IN_FLIGHT){
+      try{ console.warn("[NYX] send blocked: in-flight"); }catch(_){ }
+      return;
+    }
+    IN_FLIGHT = true;
+
     if(sendBtn) sendBtn.disabled = true;
     if(inputEl) inputEl.disabled = true;
 
-    pushMsg("user", text, meta);
+    try{
+      pushMsg("user", text, meta);
     renderMsgs();
 
     var url = apiBase() + (CONFIG.chatPath || "/api/chat");
@@ -954,9 +1047,12 @@ window.NYX_HOST_MODE = "widget_console";
       }
     }
 
-    if(sendBtn) sendBtn.disabled = false;
-    if(inputEl) inputEl.disabled = false;
-    if(inputEl) inputEl.focus();
+    } finally {
+      IN_FLIGHT = false;
+      if(sendBtn) sendBtn.disabled = false;
+      if(inputEl) inputEl.disabled = false;
+      try{ if(inputEl) inputEl.focus(); }catch(_){ }
+    }
   }
 
   if(sendBtn){
@@ -1026,7 +1122,9 @@ window.NYX_HOST_MODE = "widget_console";
   }
 
   setActiveChip("general");
-  pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+  if(THREAD.length === 0){
+    pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+  }
   renderMsgs();
   if(inputEl) inputEl.focus();
 
