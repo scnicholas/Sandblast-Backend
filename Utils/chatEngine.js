@@ -285,6 +285,100 @@ function detectAndPatchLoop(session, lane, replyText) {
   };
 
   return { tripped, patch, sig, n };
+
+// -------------------------
+// INBOUND STALL GOVERNOR++++ (more brutal than reply-loop)
+// - Detects repeated inbound "same ask" signatures even if reply text changes slightly.
+// - Provides cached fast-return for duplicates (e.g., double-submit, retries, iframe chatter).
+// - Trips a fuse after repeated identical inbound in a short window and returns a breaker response.
+// -------------------------
+const INBOUND_WINDOW_MS = 12000;
+const INBOUND_DUPLICATE_FAST_MS = 5000;
+const INBOUND_HARD_LIMIT = 2; // after 2 repeats within window => breaker
+
+function inboundLoopSig(norm, session) {
+  const n = norm && typeof norm === "object" ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const text = oneLine((n.text || "")).slice(0, 360).toLowerCase();
+  const action = safeStr(n.action || "").toLowerCase();
+  const lane = safeStr(n.lane || n?.payload?.lane || s.lane || s.lastLane || "").toLowerCase();
+  const route = safeStr(n?.payload?.route || n?.payload?.action || "").toLowerCase();
+  const intent = safeStr(n?.turnIntent || n?.turnSignals?.turnIntent || "").toLowerCase();
+  // include a small stable slice of payload (chips etc.) without exploding size
+  let pmini = "";
+  try {
+    const p = isPlainObject(n.payload) ? n.payload : {};
+    const keep = {};
+    ["lane","route","action","year","chip","choice","id","tag"].forEach((k) => {
+      if (k in p) keep[k] = p[k];
+    });
+    pmini = safeJsonStringify(keep).slice(0, 220);
+  } catch (e) {
+    pmini = "";
+  }
+  return sha1Lite(`${lane}|${action}|${route}|${intent}|${text}|${pmini}`).slice(0, 18);
+}
+
+function detectInboundRepeat(session, inSig) {
+  const s = isPlainObject(session) ? session : {};
+  const now = nowMs();
+  const lastSig = safeStr(s.__inSig || "");
+  const lastAt = Number(s.__inAt || 0) || 0;
+  const lastN = clampInt(s.__inN || 0, 0, 0, 99);
+
+  const same = !!(inSig && lastSig && inSig === lastSig);
+  const inWindow = !!(lastAt && now - lastAt <= INBOUND_WINDOW_MS);
+
+  let n = lastN;
+  if (same && inWindow) n += 1;
+  else n = 0;
+
+  const tripped = same && inWindow && n >= INBOUND_HARD_LIMIT;
+
+  const patch = {
+    __inSig: inSig,
+    __inAt: now,
+    __inN: n,
+  };
+
+  const canFastReturn = same && lastAt && now - lastAt <= INBOUND_DUPLICATE_FAST_MS;
+
+  return { tripped, patch, inSig, n, canFastReturn };
+}
+
+function getCachedReply(session, inSig) {
+  const s = isPlainObject(session) ? session : {};
+  const sig = safeStr(s.__cacheInSig || "");
+  const at = Number(s.__cacheAt || 0) || 0;
+  if (!sig || !inSig || sig !== inSig) return null;
+  if (!at || nowMs() - at > INBOUND_WINDOW_MS) return null;
+
+  const reply = safeStr(s.__cacheReply || "");
+  if (!reply) return null;
+
+  const lane = safeStr(s.__cacheLane || "general") || "general";
+  let followUps = [];
+  try {
+    followUps = Array.isArray(s.__cacheFollowUps) ? s.__cacheFollowUps : [];
+  } catch (e) {
+    followUps = [];
+  }
+  return { reply, lane, followUps };
+}
+
+function makeBreakerReply(norm, emo) {
+  // If it's vulnerability, prefer supportive scaffold rather than "procedural" breaker.
+  if (emo && emo.bypassClarify && Support && typeof Support.buildSupportiveResponse === "function") {
+    return Support.buildSupportiveResponse({ userText: norm?.text || "", emo, seed: norm?.ctx?.sessionId || "" });
+  }
+  // Brutal loop breaker for non-emotional stalls.
+  const chips = "Pick one: (A) Just talk (B) Ideas (C) Step-by-step plan (D) Switch lane";
+  return (
+    "Loop detected — I’m seeing the same request repeating. " +
+    "To break it, rephrase in ONE sentence or tap a lane chip. " +
+    chips
+  );
+}
 }
 
 // -------------------------
@@ -1806,6 +1900,72 @@ const session = isPlainObject(norm.body.session)
       ? input.session
       : {};
 
+    // -------------------------
+    // BRUTAL INBOUND LOOP GOVERNOR++++
+    // - Stops repeat-inbound spirals even when the model output varies slightly.
+    // - Fast-returns cached reply for duplicate submits within a short window.
+    // -------------------------
+    const inboundSig = inboundLoopSig(norm, session);
+    const inGov = detectInboundRepeat(session, inboundSig);
+
+    // Fast-return duplicate requests (double-submit / retry storms)
+    if (inGov && inGov.canFastReturn) {
+      const cached = getCachedReply(session, inboundSig);
+      if (cached && cached.reply) {
+        const sessionPatch = mergeSessionPatch({}, inGov.patch, {
+          __loopSig: "", __loopAt: nowMs(), __loopN: 0, // clear reply-loop to avoid compounding
+        });
+        return {
+          ok: true,
+          reply: cached.reply,
+          lane: cached.lane || "general",
+          laneId: undefined,
+          sessionLane: cached.lane || "general",
+          bridge: { bypassClarify: true, inboundSig, cached: true },
+          ctx: norm.ctx,
+          ui: { chips: [], hints: [] },
+          directives: [],
+          followUps: cached.followUps || [],
+          followUpsStrings: [],
+          sessionPatch,
+          cog: null,
+          requestId: safeStr(input?.requestId || "") || undefined,
+          meta: { fastReturn: true, reason: "duplicate_inbound" },
+        };
+      }
+    }
+
+    // Trip fuse: same inbound repeated multiple times within window
+    if (inGov && inGov.tripped) {
+      const emoNow = (typeof emo !== "undefined") ? emo : null;
+      const reply = makeBreakerReply(norm, emoNow);
+      const sessionPatch = mergeSessionPatch({}, inGov.patch, {
+        lastLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        __safetyHold: false,
+        __loopSig: "", __loopAt: nowMs(), __loopN: 0,
+        __breakerAt: nowMs(),
+      });
+      return {
+        ok: true,
+        reply,
+        lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        laneId: undefined,
+        sessionLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        bridge: { bypassClarify: true, inboundSig, breaker: true, n: inGov.n },
+        ctx: norm.ctx,
+        ui: { chips: [], hints: [] },
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch,
+        cog: null,
+        requestId: safeStr(input?.requestId || "") || undefined,
+        meta: { breaker: true, reason: "inbound_repeat_fuse", n: inGov.n },
+      };
+    }
+
+
     const knowledge = isPlainObject(input?.knowledge)
       ? input.knowledge
       : isPlainObject(norm.body.knowledge)
@@ -2016,9 +2176,22 @@ ${base0}`
       const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
       const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridge !== "undefined" ? bridge : undefined);
 
+
+      const replyText = ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next.");
+      const _baseSessionPatch = isPlainObject(out.sessionPatch) ? out.sessionPatch : {};
+      const _inPatch = (typeof inGov !== "undefined" && inGov && isPlainObject(inGov.patch)) ? inGov.patch : {};
+      const _cachePatch = {
+        __cacheInSig: safeStr(inboundSig || ""),
+        __cacheAt: nowMs(),
+        __cacheReply: replyText,
+        __cacheLane: safeStr(laneResolved || "general") || "general",
+        __cacheFollowUps: Array.isArray(followUps) ? followUps : [],
+      };
+      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch);
+
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
-        reply: ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next."),
+        reply: replyText,
         lane: laneResolved,
 
         // Stabilization fields (safe for legacy clients to ignore)
@@ -2038,7 +2211,7 @@ ${base0}`
         followUpsStrings,
 
         // ALWAYS object (prevents downstream merges from exploding)
-        sessionPatch: isPlainObject(out.sessionPatch) ? out.sessionPatch : {},
+        sessionPatch: mergedSessionPatch,
 
         cog,
         requestId,
