@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.7l (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.9.0 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -54,6 +54,24 @@ try {
 } catch (e) {
   MoviesLane = null;
 }
+
+// Emotional detection + supportive response helpers (FAIL-OPEN).
+// These modules are pure and safe. If missing, chatEngine behaves normally.
+let Emotion = null;
+let Support = null;
+try {
+  // eslint-disable-next-line global-require
+  Emotion = require("./emotionDetect");
+} catch (e) {
+  Emotion = null;
+}
+try {
+  // eslint-disable-next-line global-require
+  Support = require("./supportResponse");
+} catch (e) {
+  Support = null;
+}
+
 
 // Prefer MarionSO enums when present; keep local fallback for backward compatibility/tests.
 const SO_LATENT_DESIRE =
@@ -1756,7 +1774,33 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
-    const session = isPlainObject(norm.body.session)
+    // -------------------------
+    // EMOTION PREPASS++++ (lexicon-based; fail-open)
+    // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
+    // - Adds light turnSignals so Spine/Marion can react deterministically.
+    // -------------------------
+    const emo =
+      Emotion && typeof Emotion.detectEmotionalState === "function"
+        ? Emotion.detectEmotionalState(safeStr(norm.text || ""))
+        : null;
+
+    if (emo && isPlainObject(norm.turnSignals)) {
+      norm.turnSignals.emotionMode = safeStr(emo.mode || "NORMAL", 16);
+      norm.turnSignals.emotionTags = Array.isArray(emo.tags) ? emo.tags.slice(0, 10) : [];
+      norm.turnSignals.emotionIntensity = clampInt(emo.intensity || 0, 0, 0, 100);
+      if (emo.disclaimers && typeof emo.disclaimers === "object") {
+        norm.turnSignals.emotionNeedSoft = !!emo.disclaimers.needSoft;
+        norm.turnSignals.emotionNeedCrisis = !!emo.disclaimers.needCrisis;
+      }
+      // If the detector suggests bypassing clarify (e.g., grief/overwhelm), let planners see it.
+      norm.turnSignals.emotionBypassClarify = !!emo.bypassClarify;
+    }
+
+
+
+
+
+const session = isPlainObject(norm.body.session)
       ? norm.body.session
       : isPlainObject(input?.session)
       ? input.session
@@ -1785,13 +1829,35 @@ async function handleChat(input) {
 
     // ALWAYS normalize to guarantee required fields
     const cog = normalizeCog(norm, session, cogRaw);
+    // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
+    let supportPrefix = "";
+    if (emo && safeStr(emo.mode || "").toUpperCase() === "SUPPORT" && Support && typeof Support.buildSupportiveResponse === "function") {
+      // deterministic seed: inboundKey stabilizes response choice (reduces loop variance)
+      supportPrefix = safeStr(
+        Support.buildSupportiveResponse({ userText: safeStr(norm.text || ""), emo, seed: safeStr(inboundKey || "") })
+      ).trim();
+      if (supportPrefix) {
+        // Mark in cog for downstream planners/telemetry
+        cog.intent = safeStr(cog.intent || "").toUpperCase() === "CLARIFY" ? "SUPPORT" : safeStr(cog.intent || "");
+        cog.supportMode = true;
+      }
+    }
+
 
     // Lock publicMode into cog
     cog.publicMode = !!publicMode;
 
     // Planner must see the full inbound (payload/ctx/turnSignals)
     const spineInbound = buildSpineInbound(norm, cog);
-    const corePlan = Spine.decideNextMove(corePrev, spineInbound);
+    let corePlan = Spine.decideNextMove(corePrev, spineInbound);
+    // If emotion detector recommends bypassing clarify, hard-steer away from CLARIFY/NARROW moves.
+    if (emo && !!emo.bypassClarify && supportPrefix) {
+      const mv = safeStr(corePlan.move || "").toLowerCase();
+      if (mv === "clarify" || mv === "narrow") {
+        corePlan = { ...corePlan, move: "deliver", stage: "deliver", speak: "" };
+      }
+    }
+
 
     cog.nextMove = toUpperMove(corePlan.move);
     cog.nextMoveSpeak = safeStr(corePlan.speak || "");
@@ -1822,6 +1888,36 @@ async function handleChat(input) {
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
+    // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
+    if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
+      const reply = Support.buildCrisisResponse();
+      const sessionPatch = mergeSessionPatch({}, {
+        lastLane: "general",
+        lane: "general",
+        __safetyHold: true,
+        __loopSig: "",
+        __loopAt: nowMs(),
+        __loopN: 0,
+      });
+      return {
+        ok: true,
+        reply,
+        lane: "general",
+        laneId: "general",
+        sessionLane: "general",
+        bridge: { lane: "general", action: "safety_redirect", reason: "crisis" },
+        ctx: isPlainObject(norm.ctx) ? norm.ctx : (isPlainObject(norm.body && norm.body.ctx) ? norm.body.ctx : {}),
+        ui: { followUps: [], followUpsStrings: [] },
+        directives: [{ type: "SAFETY_REDIRECT", severity: "high" }],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch,
+        cog: isPlainObject(norm.cog) ? norm.cog : {},
+        requestId,
+        meta: { engine: CE_VERSION, requestId, elapsedMs: nowMs() - started, turnSignals: norm.turnSignals || {} },
+      };
+    }
+
 
     const yearSticky = normYear(session.lastYear) ?? null;
     const year = norm.year ?? yearSticky ?? null;
@@ -1848,7 +1944,12 @@ if (bridge) cog.bridge = bridge;
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
-      const base = ensureNonEmptyReply(replyRaw, fallback);
+      const base0 = ensureNonEmptyReply(replyRaw, fallback);
+      const base = (supportPrefix && base0 && !safeStr(base0).startsWith(supportPrefix))
+        ? `${supportPrefix}
+
+${base0}`
+        : base0;
       const composed = applyTurnConstitutionToReply(base, cog, session);
       return applyPublicSanitization(composed, norm, session, publicMode);
     }
