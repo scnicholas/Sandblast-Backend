@@ -285,6 +285,8 @@ function detectAndPatchLoop(session, lane, replyText) {
   };
 
   return { tripped, patch, sig, n };
+}
+
 
 // -------------------------
 // INBOUND STALL GOVERNOR++++ (more brutal than reply-loop)
@@ -378,7 +380,6 @@ function makeBreakerReply(norm, emo) {
     "To break it, rephrase in ONE sentence or tap a lane chip. " +
     chips
   );
-}
 }
 
 // -------------------------
