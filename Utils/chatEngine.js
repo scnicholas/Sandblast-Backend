@@ -2101,7 +2101,7 @@ const bridge = computeBridge(sessionLane, requestId);
 // Make stabilization info visible to downstream consumers (UI / index.js)
 cog.laneId = laneIdComputed;
 cog.sessionLane = sessionLane;
-if (bridge) cog.bridge = bridge;
+if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonical bridge contract)
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
