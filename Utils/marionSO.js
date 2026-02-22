@@ -12,14 +12,18 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.2.0 (COG CONTRACT COMPAT++++ + STAGE/LAYERS/TRACE++++ + CLARIFY HINT++++)LANE EXPERT ROUTER++++ + CROSS-LANE GUARD++++ + GENERAL=ALL LANES++++)
+ * v1.2.1 (TEMPO BINDING++++ + BRUTAL LOOP BREAKER++++ + KNOWLEDGE AGGREGATOR++++ + BRIDGE CONTRACT HARDEN++++)
+ * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
+ * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
+ * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
+ * ✅ Preserves lane router + bridge contract + FAIL-OPEN
  * ✅ Adds lane expert routing contract: effectiveLane + lanesUsed + crossLaneAllowed + lanesAvailable
  * ✅ General lane becomes true router across ALL knowledge lanes (English always-on as governor)
  * ✅ Hard guards against lane bleed: music/roku/news-canada/schedule default crossLaneAllowed=false
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.0";
+const MARION_VERSION = "marionSO v1.2.1";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -2435,6 +2439,189 @@ function callPsycheBridge(norm, session, cog) {
   }
 }
 
+
+// -------------------------
+// NEW: Tempo + LoopGuard (PHONE-GATEWAY READY)
+// -------------------------
+function computeTempoProfile(norm, session, cog, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || s.lane || "general") || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase() || "CLARIFY";
+
+  // Human tempo: 1–2s is noticeable on voice. We bias to "fast acknowledge" + "streaming feel".
+  // This profile is a hint for Nyx/host (TTS pacing + micro-pauses + filler policy).
+  const psych = isPlainObject(c.psychology) ? c.psychology : {};
+  const load = safeStr(psych.cognitiveLoad || PSYCH.LOAD.MEDIUM, 12);
+  const reg = safeStr(psych.regulationState || PSYCH.REG.REGULATED, 16);
+
+  // Session-level preference hooks (host can store / tweak without redeploy)
+  const userPref = isPlainObject(s.siteTempo) ? s.siteTempo : {};
+  const preferFast = truthy(userPref.fast) || truthy(ctx.preferFast);
+
+  // Base target latency (ms) for audible acknowledgement
+  let ackMs = preferFast ? 220 : 320; // "uh-huh / got it" moment
+  let maxSilenceMs = preferFast ? 650 : 900; // after this, a tiny filler is allowed (if enabled)
+  let chunkMs = preferFast ? 600 : 800; // how quickly Nyx should emit first useful clause
+
+  // Higher load = shorter sentences + more micro-pauses (but avoid dead air)
+  let sentenceMax = 2;
+  let pauseShortMs = 130;
+  let pauseLongMs = 260;
+
+  if (load === PSYCH.LOAD.HIGH || reg === PSYCH.REG.DYSREGULATED) {
+    sentenceMax = 1;
+    pauseShortMs = 110;
+    pauseLongMs = 210;
+    maxSilenceMs = Math.min(maxSilenceMs, 750);
+  }
+
+  // Lane tuning: "music" and "roku" can be a touch more playful, but still fast.
+  if (lane === "music" || lane === "radio") {
+    ackMs = Math.max(200, ackMs - 40);
+    chunkMs = Math.max(520, chunkMs - 60);
+  }
+  if (intent === "STABILIZE") {
+    // slower but warm; still avoid awkward silence
+    pauseLongMs = Math.min(320, pauseLongMs + 40);
+    maxSilenceMs = Math.max(700, maxSilenceMs);
+  }
+
+  // Bounded output
+  return {
+    enabled: true,
+    lane,
+    intent,
+    // hard constraints for voice UX
+    ackMs: clampInt(ackMs, 160, 600, 320),
+    chunkMs: clampInt(chunkMs, 420, 1200, 800),
+    maxSilenceMs: clampInt(maxSilenceMs, 450, 1600, 900),
+    // micro-pauses (TTS)
+    pauseShortMs: clampInt(pauseShortMs, 80, 220, 130),
+    pauseLongMs: clampInt(pauseLongMs, 160, 420, 260),
+    sentenceMax: clampInt(sentenceMax, 1, 3, 2),
+    // filler policy for phone-gateway readiness
+    filler: {
+      enabled: true,
+      allow: true,
+      // "mm", "okay", "one sec" — used only if maxSilenceMs would be exceeded
+      maxPerMinute: 6,
+      style: intent === "STABILIZE" ? "gentle" : "neutral",
+    },
+  };
+}
+
+function normalizeTextForHash(t) {
+  const s = safeStr(t || "", 900).toLowerCase();
+  return s
+    .replace(/https?:\/\/\S+/g, " url ")
+    .replace(/\b\d{4,}\b/g, " # ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 700);
+}
+
+function computeTurnSignature(norm, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || "general") || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase() || "CLARIFY";
+  const mode = safeStr(c.mode || "", 16).toLowerCase() || "architect";
+  const action = safeStr(c.laneAction || n.action || "", 24).toLowerCase();
+
+  // hashed-only text fingerprint (never stored raw)
+  const text = normalizeTextForHash(n.text || n.raw || n.userText || "");
+  const textHash = text ? sha1Lite(text).slice(0, 10) : "";
+
+  // Include knowledge query keys where present (prevents false loop trips when packs differ)
+  const psycheKey = safeStr(c?.psyche?.queryKey || "", 24);
+  const aiKey = safeStr(c?.aiKnowledgeHints?.queryKey || "", 24);
+  const psychKey = safeStr(c?.psychologyHints?.queryKey || "", 24);
+
+  const sigObj = { lane, intent, mode, action, textHash, psycheKey, aiKey, psychKey };
+  return { sig: sha1Lite(JSON.stringify(sigObj)).slice(0, 14), textHash };
+}
+
+function computeLoopGuard(session, sig, now) {
+  const s = isPlainObject(session) ? session : {};
+  const lg = isPlainObject(s.loopGuard) ? s.loopGuard : {};
+  const lastSig = safeStr(lg.lastSig || "", 18);
+  const lastAt = Number(lg.lastAt) || 0;
+  const count = Number(lg.count) || 0;
+
+  const windowMs = 90_000; // 90s
+  const same = !!sig && lastSig && sig === lastSig && now - lastAt <= windowMs;
+
+  const nextCount = same ? count + 1 : 0;
+  const tripped = same && nextCount >= 2;
+
+  return {
+    tripped,
+    same,
+    next: { lastSig: sig || lastSig, lastAt: now, count: nextCount },
+    meta: { windowMs, prevCount: count, nextCount, lastAt },
+  };
+}
+
+function applyBrutalLoopBreaker(cog, loopMeta) {
+  const c = isPlainObject(cog) ? cog : {};
+  // Force a clean pivot: tighten budget, clarify, and instruct Nyx to ask ONE constraint.
+  c.stalled = true;
+  c.actionable = false;
+  c.intent = "CLARIFY";
+  c.budget = "short";
+  c.marionState = "BREAK_LOOP";
+  c.marionReason = "loop_guard";
+  c.movePolicy = { preferredMove: "CLARIFY", hardOverride: true, reason: "loop_guard" };
+
+  c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
+  c.handoff.marionEndsHard = true;
+  c.handoff.nyxBeginsAfter = true;
+  c.handoff.allowSameTurnSplit = true;
+  c.handoff.marionTagSuggested = MARION_STYLE_CONTRACT.tags.retry;
+  c.handoff.nyxCue = "retry";
+
+  c.loopBreaker = {
+    enabled: true,
+    tripped: true,
+    level: "brutal",
+    reason: "repeat_signature",
+    ...loopMeta,
+  };
+
+  // Add a constraint signal for Nyx without leaking user text
+  c.englishSignals = uniqBounded([...(Array.isArray(c.englishSignals) ? c.englishSignals : []), ENGLISH.SIGNALS.ASK_AUDIENCE], 8);
+  return c;
+}
+
+function aggregateKnowledgeHints(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const out = {
+    enabled: true,
+    // psyche wins if present; otherwise we surface per-lane hints
+    psyche: isPlainObject(c.psyche) ? c.psyche : { enabled: false, reason: "none" },
+    hints: {
+      psychology: isPlainObject(c.psychologyHints) ? c.psychologyHints : { enabled: false, reason: "none" },
+      cyber: isPlainObject(c.cyberKnowledgeHints) ? c.cyberKnowledgeHints : { enabled: false, reason: "none" },
+      english: isPlainObject(c.englishKnowledgeHints) ? c.englishKnowledgeHints : { enabled: false, reason: "none" },
+      finance: isPlainObject(c.financeKnowledgeHints) ? c.financeKnowledgeHints : { enabled: false, reason: "none" },
+      ai: isPlainObject(c.aiKnowledgeHints) ? c.aiKnowledgeHints : { enabled: false, reason: "none" },
+    },
+  };
+
+  const fired = [];
+  if (out.psyche && out.psyche.enabled) fired.push("psyche");
+  for (const k of Object.keys(out.hints)) {
+    if (out.hints[k] && out.hints[k].enabled) fired.push(k);
+  }
+  out.fired = fired.slice(0, 6);
+  out.firedCount = out.fired.length;
+
+  return out;
+}
+
 // -------------------------
 // main: mediate
 // -------------------------
@@ -2767,6 +2954,41 @@ function mediate(norm, session, opts = {}) {
       patch.lastLane = sessionLane || "";
     }
     if (Object.keys(patch).length) cog.sessionPatchSuggestion = patch;
+
+    // ---------
+    // TEMPO (site binding for audio; phone-gateway baseline)
+    // ---------
+    const tempo = computeTempoProfile(n, s, cog, {
+      now,
+      preferFast: truthy(o.preferFastTempo) || truthy(n?.turnSignals?.preferFastTempo),
+    });
+    cog.tempo = tempo;
+
+    // ---------
+    // KNOWLEDGE AGGREGATOR (deterministic summary; "packs firing" visibility)
+    // ---------
+    cog.knowledge = aggregateKnowledgeHints(cog);
+
+    // ---------
+    // BRUTAL LOOP BREAKER (repeat signature within window => force CLARIFY)
+    // ---------
+    const sig = computeTurnSignature(n, cog);
+    const lg = computeLoopGuard(s, sig.sig, now);
+    // session patch: keep only hashed signatures (no raw user text)
+    const patch2 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+    patch2.loopGuard = { ...lg.next, lastTextHash: sig.textHash };
+    // tempo preference persistence (optional)
+    patch2.siteTempo = {
+      ...(isPlainObject(s.siteTempo) ? s.siteTempo : {}),
+      fast: truthy((isPlainObject(s.siteTempo) ? s.siteTempo.fast : false) || o.preferFastTempo || n?.turnSignals?.preferFastTempo),
+      last: { ackMs: tempo.ackMs, chunkMs: tempo.chunkMs, maxSilenceMs: tempo.maxSilenceMs, at: now },
+    };
+    cog.sessionPatchSuggestion = patch2;
+
+    if (lg.tripped) {
+      applyBrutalLoopBreaker(cog, { ...lg.meta, sig: sig.sig });
+    }
+
 
     const trace = buildTrace(n, s, {
       ...cog,
