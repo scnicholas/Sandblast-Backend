@@ -12,7 +12,7 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.2.1 (TEMPO BINDING++++ + BRUTAL LOOP BREAKER++++ + KNOWLEDGE AGGREGATOR++++ + BRIDGE CONTRACT HARDEN++++)
+ * v1.2.2 (PSYCH HARDEN++++ + EMOTION LEXICON++++ + RISK ESCALATION++++ + TEMPO ACK TEXT++++)
  * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
  * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
  * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.1";
+const MARION_VERSION = "marionSO v1.2.2";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -141,6 +141,60 @@ function safeSerialize(x, max = 1200) {
   } catch (e) {
     return safeStr(String(x), max);
   }
+}
+// -------------------------
+// Emotion lexicon (bounded, non-clinical; used for tempo + risk + psych cues)
+// NOTE: This is NOT diagnosis. It's a lightweight affect detector for better UX.
+// -------------------------
+const EMOTION_LEXICON = Object.freeze({
+  distress: [
+    "hurting","hurt","in pain","pain","ache","aching","sore","suffering",
+    "overwhelmed","stressed","stress","anxious","anxiety","worried","panic",
+    "frustrated","stuck","confused","burned out","burnt out","exhausted","tired","drained",
+    "sad","down","depressed","lonely","hopeless","helpless","scared","afraid"
+  ],
+  escalation: [
+    "can’t do this","can't do this","freaking out","spiral","breakdown","meltdown",
+    "i can't breathe","cant breathe"
+  ],
+  selfHarm: [
+    "suicidal","kill myself","end it all","self harm","self-harm","cutting","i don't want to live","i dont want to live"
+  ],
+  anger: ["angry","furious","pissed","rage","mad"],
+  calm: ["okay","alright","fine","calm","steady"],
+});
+
+function countLexHits(text, list) {
+  const t = safeStr(text || "", 1800).toLowerCase();
+  let hits = 0;
+  for (const w of Array.isArray(list) ? list : []) {
+    const needle = String(w).toLowerCase();
+    if (!needle) continue;
+    if (t.includes(needle)) hits++;
+  }
+  return hits;
+}
+
+// Affect proxy: valence [-1..1], arousal [0..1], tension [0..1]
+function computeAffectProxy(text) {
+  const t = safeStr(text || "", 1800);
+  const distressHits = countLexHits(t, EMOTION_LEXICON.distress);
+  const escalationHits = countLexHits(t, EMOTION_LEXICON.escalation);
+  const angerHits = countLexHits(t, EMOTION_LEXICON.anger);
+  const selfHarmHits = countLexHits(t, EMOTION_LEXICON.selfHarm);
+
+  // conservative: distress reduces valence; escalation increases arousal/tension
+  const tension = clamp01(0.15 + distressHits * 0.12 + escalationHits * 0.18 + angerHits * 0.10 + selfHarmHits * 0.25);
+  const arousal = clamp01(0.12 + escalationHits * 0.22 + angerHits * 0.18 + (t.includes("panic") ? 0.25 : 0));
+  const valence = Math.max(-1, Math.min(1, 0.15 - distressHits * 0.18 - selfHarmHits * 0.35 - angerHits * 0.10));
+
+  const tags = [];
+  if (selfHarmHits > 0) tags.push("self_harm_language");
+  if (escalationHits > 0) tags.push("escalation_language");
+  if (distressHits > 0) tags.push("distress_language");
+  if (angerHits > 0) tags.push("anger_language");
+
+  return { valence, arousal, tension, tags: uniqBounded(tags, 6), hits: { distressHits, escalationHits, angerHits, selfHarmHits } };
 }
 
 // -------------------------
@@ -1299,7 +1353,11 @@ function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
   const regulationState = estimateRegulationState(norm);
   const agencyPreference = estimateAgencyPreference(norm, session, mode);
   const socialPressure = estimateSocialPressure(norm);
-  return { cognitiveLoad: load, regulationState, motivation: "", agencyPreference, socialPressure };
+
+  // Affect proxy (non-clinical): helps Nyx pace + respond with empathy without "diagnosing"
+  const affect = computeAffectProxy(safeStr(norm?.text || "", 1800));
+
+  return { cognitiveLoad: load, regulationState, motivation: "", agencyPreference, socialPressure, affect };
 }
 
 // -------------------------
@@ -1324,16 +1382,33 @@ function normalizeBudget(b) {
 function deriveMovePolicy(cog) {
   const intent = safeStr(cog?.intent || "", 20).toUpperCase();
   const actionable = !!cog?.actionable;
-  const reg = safeStr(cog?.psychology?.regulationState || "", 16);
+
+  const psych = isPlainObject(cog?.psychology) ? cog.psychology : {};
+  const reg = safeStr(psych.regulationState || "", 16);
+  const affect = isPlainObject(psych.affect) ? psych.affect : {};
+  const distressTag = Array.isArray(affect.tags) && affect.tags.includes("distress_language");
+  const selfHarmTag = Array.isArray(affect.tags) && affect.tags.includes("self_harm_language");
+
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
 
   let preferredMove = normalizeMove(intent);
   let hardOverride = false;
   let reason = "intent";
 
-  if (reg === PSYCH.REG.DYSREGULATED) {
+  // Highest precedence: self-harm / high risk -> stabilize
+  if (selfHarmTag || riskTier === RISK.TIERS.HIGH) {
+    preferredMove = "STABILIZE";
+    hardOverride = true;
+    reason = "high_risk_stabilize";
+  } else if (reg === PSYCH.REG.DYSREGULATED) {
     preferredMove = actionable ? "ADVANCE" : "STABILIZE";
     hardOverride = !actionable;
     reason = actionable ? "dysregulated_actionable" : "dysregulated_containment";
+  } else if ((reg === PSYCH.REG.STRAINED || distressTag || riskTier === RISK.TIERS.MEDIUM) && !actionable) {
+    // Distress turns should prioritize stabilization posture (support + grounding) before deep problem-solving.
+    preferredMove = "STABILIZE";
+    hardOverride = false;
+    reason = distressTag ? "distress_stabilize" : "strained_stabilize";
   } else if (reg === PSYCH.REG.STRAINED && !actionable) {
     preferredMove = "CLARIFY";
     hardOverride = false;
@@ -1371,6 +1446,16 @@ function computeEthicsLayer(norm, psych, seed) {
   tags.push(ETHICS.TAGS.AGENCY_RESPECT);
   if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
 
+
+// Distress language (non-self-harm): keep tone supportive, non-clinical, and encourage help-seeking when appropriate
+const distress = /\b(i'?m hurting|i am hurting|hurting|in pain|overwhelmed|depressed|hopeless|helpless|panic|anxious|anxiety)\b/.test(text);
+if (distress && !selfHarm) {
+  tags.push(ETHICS.TAGS.HARM_AVOIDANCE);
+  signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
+  // Host/Nyx should include a brief disclaimer: supportive companion, not a licensed therapist/medical professional.
+  signals.push("non_clinical_disclaimer");
+}
+
   return {
     ethicsTags: uniqBounded(tags.map((x) => safeStr(x, 32)), 8),
     ethicsSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
@@ -1404,6 +1489,16 @@ function computeRiskBridge(norm, psych, ethics, lawSeed) {
     tier = RISK.TIERS.HIGH;
     signals.push("containment_required");
   }
+
+
+// Distress / pain language (non-self-harm): elevate to MEDIUM and switch to stabilize/clarify posture
+// Example: "I am hurting" should not get "execute cleanly" style responses.
+const distress = /\b(i'?m hurting|i am hurting|hurting|in pain|i'?m in pain|i am in pain|i feel (?:awful|terrible|broken)|overwhelmed|depressed|hopeless|helpless|panic|anxious|anxiety)\b/.test(text);
+if (distress && tier !== RISK.TIERS.HIGH) {
+  if (!domains.includes(RISK.DOMAINS.MEDICAL)) domains.push(RISK.DOMAINS.MEDICAL);
+  tier = RISK.TIERS.MEDIUM;
+  signals.push("distress_language");
+}
 
   const violence = /\b(kill|murder|shoot|stab|bomb|attack|hurt them|hurt him|hurt her|beat (them|him|her)|make a weapon)\b/.test(text);
   if (violence) {
@@ -2488,11 +2583,35 @@ function computeTempoProfile(norm, session, cog, ctx = {}) {
     maxSilenceMs = Math.max(700, maxSilenceMs);
   }
 
+
+// ACK text (shown immediately by host to create "human tempo" perception)
+const riskTier = safeStr(c.riskTier || "", 10).toLowerCase();
+const affect = isPlainObject(psych.affect) ? psych.affect : {};
+const tension = clamp01(affect.tension);
+const distressTag = Array.isArray(affect.tags) && affect.tags.includes("distress_language");
+const selfHarmTag = Array.isArray(affect.tags) && affect.tags.includes("self_harm_language");
+
+let ackText = "Got it.";
+let suppressOperationalTone = false;
+
+// High-sensitivity turns
+if (intent === "STABILIZE" || riskTier === "high" || selfHarmTag) {
+  ackText = "I’m here with you. Let’s take this one step at a time.";
+  suppressOperationalTone = true;
+} else if (riskTier === "medium" || distressTag || reg === PSYCH.REG.STRAINED || tension > 0.55) {
+  ackText = "Okay — I hear you.";
+  suppressOperationalTone = true;
+} else if (lane === "music" || lane === "radio") {
+  ackText = "Alright — let’s do it.";
+}
+
   // Bounded output
   return {
     enabled: true,
     lane,
     intent,
+    ackText,
+    suppressOperationalTone,
     // hard constraints for voice UX
     ackMs: clampInt(ackMs, 160, 600, 320),
     chunkMs: clampInt(chunkMs, 420, 1200, 800),
