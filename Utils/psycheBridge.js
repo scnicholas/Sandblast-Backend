@@ -55,7 +55,7 @@ function safeRequire(relPath) {
 const PsychologyK = safeRequire("./psychologyKnowledge");
 const CyberK = safeRequire("./cyberKnowledge");
 const EnglishK = safeRequire("./englishKnowledge");
-const FinanceK = safeRequire("./financeKnowledge") || safeRequire("./FinanceKnowledge"); // Linux case-safe
+const FinanceK = safeRequire("./financeKnowledge");
 const LawK = safeRequire("./lawKnowledge");
 const AIK = safeRequire("./aiKnowledge");
 
@@ -63,7 +63,7 @@ const AIK = safeRequire("./aiKnowledge");
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.0.1";
+const BRIDGE_VERSION = "1.0.2";
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -95,6 +95,73 @@ const DEFAULTS = Object.freeze({
   stance: "teach+verify",
 });
 
+
+// =========================
+// FAIL-OPEN BASELINE
+// =========================
+
+function failOpenPsyche(err, input){
+  const queryKey = safeStr(input?.queryKey || "", 32);
+  const sessionKey = safeStr(input?.sessionKey || "", 64);
+  const tokens = safeTokens(input?.tokens || [], 24);
+  const features = isObject(input?.features) ? input.features : {};
+  const msg = safeStr(err && (err.message || err.name || String(err)), 120) || "unknown_error";
+
+  const empty = (name)=>({
+    enabled: true,
+    domain: name,
+    queryKey: "",
+    focus: "",
+    stance: "",
+    confidence: 0,
+    primer: [],
+    frameworks: [],
+    guardrails: [],
+    responseCues: [],
+    snippets: [],
+    examples: [],
+    hits: [],
+    reason: "fail_open",
+    riskTier: "",
+  });
+
+  return {
+    enabled: true,
+    reason: "fail_open",
+    version: BRIDGE_VERSION,
+    queryKey,
+    sessionKey,
+
+    mode: "normal",
+    intent: safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase() || DEFAULTS.intent,
+    regulation: "steady",
+    cognitiveLoad: safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase() || DEFAULTS.cognitiveLoad,
+    stance: DEFAULTS.stance,
+
+    toneCues: ["clear","supportive"],
+    uiCues: [],
+
+    guardrails: ["no_raw_user_text","fail_open_enabled"],
+    responseCues: ["keep_short","ask_1_clarifier"],
+
+    domains: {
+      psychology: empty("psychology"),
+      cyber: empty("cyber"),
+      english: empty("english"),
+      finance: empty("finance"),
+      law: empty("law"),
+      ai: empty("ai"),
+    },
+
+    confidence: 0,
+    diag: {
+      failOpen: true,
+      error: msg,
+      enabledDomains: { psychology:true, cyber:false, english:false, finance:false, law:false, ai:false },
+      tokenCount: Array.isArray(tokens) ? tokens.length : 0,
+    },
+  };
+}
 // =========================
 // HELPERS
 // =========================
@@ -341,11 +408,24 @@ function chooseEnabledDomains(features, tokens, opts) {
 // =========================
 
 function build(input) {
-  const features = isObject(input?.features) ? input.features : {};
+  try {
+  const features0 = isObject(input?.features) ? input.features : {};
   const tokens = safeTokens(input?.tokens || [], 24);
   const queryKey = safeStr(input?.queryKey || "", 32);
   const sessionKey = safeStr(input?.sessionKey || "", 64);
   const opts = isObject(input?.opts) ? input.opts : {};
+
+  // Allow the caller to force psych routing without introducing raw user text.
+  const forcePsychBridge = !!(opts.forcePsychBridge || features0.forcePsychBridge || features0.forcePsych || features0.psychBridge);
+
+  // Never mutate caller-provided features.
+  const features = { ...features0 };
+  if(forcePsychBridge){
+    if(!features.intent) features.intent = "SUPPORT";
+    if(!features.regulationState) features.regulationState = "dysregulated";
+    if(!features.cognitiveLoad) features.cognitiveLoad = "high";
+    features.__forcePsychBridge = true;
+  }
 
   const enabled = chooseEnabledDomains(features, tokens, opts);
 
@@ -383,9 +463,21 @@ function build(input) {
   const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
   const responseCues = mergeByPrecedence(domains, "responseCues", LIMITS.responseCues, 48);
 
+  // Reinforcement hooks: safe, deterministic cues for both positive + negative reinforcement.
+  if((features.__forcePsychBridge) || mode==="stabilize" || mode==="safety"){
+    responseCues.unshift("validate_emotion","ask_feeling_context","offer_options");
+    responseCues.unshift("avoid_shaming","avoid_minimizing");
+  } else {
+    responseCues.unshift("reinforce_progress","gentle_reframe");
+  }
+
   // toneCues + uiCues: derived primarily from regulation + stance + some domain cues
   const toneCues = [];
   const uiCues = [];
+
+  if (features.__forcePsychBridge){
+    uiCues.push("hide_nav_prompts","compact_reply");
+  }
 
   if (mode === "safety") {
     toneCues.push("calm", "direct", "safety_first");
@@ -426,8 +518,6 @@ function build(input) {
   };
 
   return {
-    enabled: true,
-    reason: "ok",
     version: BRIDGE_VERSION,
     queryKey,
     sessionKey,
@@ -442,13 +532,17 @@ function build(input) {
     uiCues: mergedUI,
 
     guardrails,
-    responseCues,
+    responseCues: uniqBounded(responseCues, LIMITS.responseCues, 48),
 
     domains,
 
     confidence,
     diag,
   };
+  }
+  catch(e){
+    return failOpenPsyche(e, input);
+  }
 }
 
 // For MarionSO convenience: a slimmer wrapper name.
