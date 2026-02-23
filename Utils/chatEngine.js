@@ -2695,17 +2695,65 @@ const wantsRoku =
   lane === "roku" ||
   routeMaybe === "roku" ||
   actionMaybe === "roku" ||
-  (routeMaybe && /\b(epg|guide|roku)\b/.test(routeMaybe));
+  (routeMaybe && /(epg|guide|roku)/.test(routeMaybe));
 
 if (wantsRoku) {
-  const reply0 = finalizeReply(
-    `Roku is live. Here’s the EPG (guide) feed you gave me:\n\n${ROKU_EPG_URL}\n\nTell me what you want next: (A) “What’s on now?” (B) “Next up” (C) “Schedule by day” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
-    "Roku is live. EPG is ready."
-  );
+  const focus = safeStr(norm?.payload?.focus || "").trim().toLowerCase();
+  const tzHint = safeStr(norm?.payload?.tz || norm?.payload?.timezone || norm?.ctx?.timezone || "").trim();
+
+  // Always provide a machine-readable directive so the UI can render a clickable link/button
+  // even if plain-text linkification is disabled.
+  const openUrlDirectives = [
+    { type: "OPEN_URL", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" },
+    { type: "open_url", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" },
+  ];
+
+  let reply0 = "";
+  if (focus === "epg") {
+    reply0 = finalizeReply(
+      `Opening the Roku program guide.
+
+EPG (XMLTV):
+${ROKU_EPG_URL}
+
+If you want, tell me your timezone (e.g., America/Toronto) and I’ll map “now” + “next” into your local time.`,
+      "Opening the EPG."
+    );
+  } else if (focus === "now") {
+    reply0 = finalizeReply(
+      `Got it — “What’s on now.”
+
+If your UI supports it, open the EPG and I’ll help you find what’s currently live. ${tzHint ? `Timezone noted: ${tzHint}.` : "If you want local times, tell me your timezone (e.g., America/Toronto)."}
+
+EPG (XMLTV):
+${ROKU_EPG_URL}`,
+      "What’s on now — open the EPG."
+    );
+  } else if (focus === "next") {
+    reply0 = finalizeReply(
+      `Okay — “Next up.”
+
+Open the EPG and I’ll help you locate what’s coming next. ${tzHint ? `Timezone noted: ${tzHint}.` : "If you want local times, tell me your timezone (e.g., America/Toronto)."}
+
+EPG (XMLTV):
+${ROKU_EPG_URL}`,
+      "Next up — open the EPG."
+    );
+  } else {
+    reply0 = finalizeReply(
+      `Roku is live.
+
+EPG (XMLTV):
+${ROKU_EPG_URL}
+
+Pick one: (A) Open EPG (B) “What’s on now?” (C) “Next up” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
+      "Roku is live. EPG is ready."
+    );
+  }
 
   const loop = detectAndPatchLoop(session, "roku", reply0);
   const reply = loop.tripped
-    ? finalizeReply(`We’re looping on Roku. Open the EPG link and tell me what you want: now / next / schedule.`)
+    ? finalizeReply(`We’re looping on Roku. Tap “Open EPG” (or use the link) and pick: now / next.`, "Open the EPG.")
     : reply0;
 
   const sigLine = detectSignatureLine(reply);
@@ -2714,7 +2762,6 @@ if (wantsRoku) {
     { id: "fu_roku_epg", type: "chip", label: "Open EPG", payload: { lane: "roku", action: "roku", route: "roku", focus: "epg" } },
     { id: "fu_roku_now", type: "chip", label: "What's on now?", payload: { lane: "roku", action: "roku", route: "roku", focus: "now" } },
     { id: "fu_roku_next", type: "chip", label: "Next up", payload: { lane: "roku", action: "roku", route: "roku", focus: "next" } },
-    { id: "fu_roku_schedule", type: "chip", label: "Schedule", payload: { lane: "roku", action: "roku", route: "roku", focus: "schedule" } },
   ].slice(0, 10);
 
   const coreNext = finalizeSpineTurn({
@@ -2724,16 +2771,17 @@ if (wantsRoku) {
     topic: "roku",
     actionTaken: loop.tripped ? "roku_loop_break" : "roku",
     followUps: fu,
-    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: now / next / schedule (and add timezone if needed).", true),
-    decision: corePlan,
-    assistantSummary: "roku_epg_stub",
-    marionCog: cog,
-    updateReason: "roku",
+    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: Open EPG / What’s on now / Next up (add timezone if needed).", true),
+    decision:
+      safeStr(corePlan.decision || "") ||
+      safeStr(norm.turnIntent || "") ||
+      safeStr(norm.turnSignals?.turnIntent || ""),
   });
 
   const routePatch = {
     lane: "roku",
-    ...(sigLine ? { lastSigTransition: sigLine } : {}),
+    lastLane: "roku",
+    ...(sigLine ? { signatureTransition: sigLine } : {}),
     ...loop.patch,
     __spineState: coreNext,
   };
@@ -2742,12 +2790,21 @@ if (wantsRoku) {
     reply,
     lane: "roku",
     followUps: fu,
-    followUpsStrings: ["Open EPG", "What's on now?", "Next up", "Schedule"],
+    followUpsStrings: ["Roku", "Open EPG", "What's on now?", "Next up"],
+    directives: openUrlDirectives,
     sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
     meta: metaBase({
       route: "roku",
+      focus,
       loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
-      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+      spine: {
+        v: Spine.SPINE_VERSION,
+        rev: coreNext.rev,
+        lane: coreNext.lane,
+        stage: coreNext.stage,
+        move: safeStr(corePlan.move || ""),
+      },
+      links: [{ rel: "epg", url: ROKU_EPG_URL }],
     }),
   });
 }
@@ -3391,16 +3448,22 @@ if (wantsRoku) {
       });
     }
 
-    const reply0 = finalizeReply(
-      discoveryHint && discoveryHint.enabled
-        ? safeStr(discoveryHint.question).trim()
-        : safeStr(norm.text)
-        ? "Tell me what you want next: music, movies, or sponsors."
-        : "Okay — tell me what you want next.",
-      "Okay — tell me what you want next."
-    );
-
-    const loop = detectAndPatchLoop(session, lane || "general", reply0);
+    // FAIL-OPEN REPLY SELECTION (NO LANE-PROMPT DEFAULT++++)
+// If discovery hint is active, ask it.
+// If user is distressed/vulnerable, prefer supportive response (never lane selection).
+// Otherwise, keep a neutral "open" prompt.
+let reply0 = "";
+if (discoveryHint && discoveryHint.enabled) {
+  reply0 = finalizeReply(safeStr(discoveryHint.question).trim(), "Alright. What's on your mind?");
+} else if (emo && emo.bypassClarify && Support && typeof Support.buildSupportiveResponse === "function") {
+  reply0 = finalizeReply(
+    Support.buildSupportiveResponse({ userText: norm?.text || "", emo, seed: norm?.ctx?.sessionId || "" }),
+    "I'm here. What's going on?"
+  );
+} else {
+  reply0 = finalizeReply("Alright. What's on your mind?", "Alright. What's on your mind?");
+}
+const loop = detectAndPatchLoop(session, lane || "general", reply0);
     const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, Roku, or Sponsors.") : reply0;
 
     const sigLine = detectSignatureLine(reply);
