@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.9.3 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.9.7 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -2094,7 +2094,8 @@ const session = isPlainObject(norm.body.session)
     const cog = normalizeCog(norm, session, cogRaw);
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
-    if (emo && safeStr(emo.mode || "").toUpperCase() === "SUPPORT" && Support && typeof Support.buildSupportiveResponse === "function") {
+    const emoMode = safeStr(emo?.mode || "").toUpperCase();
+    if (emo && (emo.bypassClarify || emoMode === "SUPPORT" || emoMode === "VULNERABLE" || emoMode === "DISTRESS" || emoMode === "CRISIS") && Support && typeof Support.buildSupportiveResponse === "function") {
       // deterministic seed: inboundKey stabilizes response choice (reduces loop variance)
       supportPrefix = safeStr(
         Support.buildSupportiveResponse({ userText: safeStr(norm.text || ""), emo, seed: safeStr(inboundKey || "") })
@@ -2685,8 +2686,94 @@ ${base0}`
     // -------------------------
     // MOVIES handling (via Utils/moviesLane.js) — BEFORE music defaulting
     // -------------------------
+    // JUST TALK → force PSYCH/BRIDGE lane routing (siteBridge)
+    // This is a UI chip text; treat it as an explicit request to enter the cognitive bridge.
+    try {
+      const jt = safeStr(norm.text || "").trim().toLowerCase();
+      if (jt === "just talk") {
+        norm.action = "psych_bridge";
+        norm.payload = isPlainObject(norm.payload) ? { ...norm.payload } : {};
+        norm.payload.route = "psych_bridge";
+        // keep session lane stable; bridge decides internal routing
+      }
+    } catch (_e) {}
+
     const routeMaybe = safeStr(norm.payload?.route || "").trim().toLowerCase();
     const actionMaybe = safeStr(norm.action || "").trim().toLowerCase();
+
+
+// -------------------------
+// PSYCH / SITE BRIDGE handling — forces Marion→PsycheBridge path (no UI breakage)
+// -------------------------
+const wantsPsychBridge =
+  routeMaybe === "psych_bridge" ||
+  actionMaybe === "psych_bridge" ||
+  (routeMaybe && /\b(psych|bridge|support)\b/.test(routeMaybe));
+
+if (wantsPsychBridge) {
+  const baseLine = supportPrefix
+    ? supportPrefix
+    : finalizeReply(
+        "Alright — I’m here. Tell me what’s going on (one or two sentences).",
+        "Alright — I’m here."
+      );
+
+  const reply0 = finalizeReply(
+    baseLine,
+    "Alright — I’m here."
+  );
+
+  const loop = detectAndPatchLoop(session, "psych_bridge", reply0);
+  const reply = loop.tripped
+    ? finalizeReply("We’re looping. Say ONE sentence about what’s going on, or tap ‘Pick a year’ if you meant music.")
+    : reply0;
+
+  const sigLine = detectSignatureLine(reply);
+
+  const fu = [
+    { id: "fu_psych_talk", type: "chip", label: "Just talk", payload: { lane: "general", action: "psych_bridge", route: "psych_bridge" } },
+    { id: "fu_psych_music", type: "chip", label: "Music instead", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+  ].slice(0, 10);
+
+  const coreNext = finalizeSpineTurn({
+    corePrev,
+    norm,
+    lane: "general",
+    topic: "psych_bridge",
+    actionTaken: loop.tripped ? "psych_bridge_loop_break" : "psych_bridge",
+    followUps: fu,
+    pendingAsk: pendingAskObj("psych_bridge_open", "deliver", "Tell me what’s going on. If this is about safety, say so.", true),
+    decision: corePlan,
+    assistantSummary: "psych_bridge_open",
+    marionCog: cog,
+    updateReason: "psych_bridge",
+  });
+
+  const routePatch = {
+    lane: "general",
+    __forcePsychBridge: true,
+    __bridgeLane: "psych",
+    ...(sigLine ? { lastSigTransition: sigLine } : {}),
+    ...loop.patch,
+    __spineState: coreNext,
+  };
+
+  return buildContract({
+    reply,
+    lane: "general",
+    bridge: { kind: "psych_bridge", lane: "psych", force: true },
+    directives: [{ type: "bridge", kind: "psych_bridge", lane: "psych", force: true }],
+    followUps: fu,
+    followUpsStrings: ["Just talk", "Music instead"],
+    sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+    meta: metaBase({
+      route: "psych_bridge",
+      emotion: emo ? { mode: safeStr(emo.mode || ""), tags: Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [] } : null,
+      loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+    }),
+  });
+}
 
 // -------------------------
 // ROKU handling (EPG bridge) — lightweight + fail-open
@@ -2695,73 +2782,26 @@ const wantsRoku =
   lane === "roku" ||
   routeMaybe === "roku" ||
   actionMaybe === "roku" ||
-  (routeMaybe && /(epg|guide|roku)/.test(routeMaybe));
+  (routeMaybe && /\b(epg|guide|roku)\b/.test(routeMaybe));
 
 if (wantsRoku) {
-  const focus = safeStr(norm?.payload?.focus || "").trim().toLowerCase();
-  const tzHint = safeStr(norm?.payload?.tz || norm?.payload?.timezone || norm?.ctx?.timezone || "").trim();
-
-  // Always provide a machine-readable directive so the UI can render a clickable link/button
-  // even if plain-text linkification is disabled.
-  const openUrlDirectives = [
-    { type: "OPEN_URL", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" },
-    { type: "open_url", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" },
-  ];
-
-  let reply0 = "";
-  if (focus === "epg") {
-    reply0 = finalizeReply(
-      `Opening the Roku program guide.
-
-EPG (XMLTV):
-${ROKU_EPG_URL}
-
-If you want, tell me your timezone (e.g., America/Toronto) and I’ll map “now” + “next” into your local time.`,
-      "Opening the EPG."
-    );
-  } else if (focus === "now") {
-    reply0 = finalizeReply(
-      `Got it — “What’s on now.”
-
-If your UI supports it, open the EPG and I’ll help you find what’s currently live. ${tzHint ? `Timezone noted: ${tzHint}.` : "If you want local times, tell me your timezone (e.g., America/Toronto)."}
-
-EPG (XMLTV):
-${ROKU_EPG_URL}`,
-      "What’s on now — open the EPG."
-    );
-  } else if (focus === "next") {
-    reply0 = finalizeReply(
-      `Okay — “Next up.”
-
-Open the EPG and I’ll help you locate what’s coming next. ${tzHint ? `Timezone noted: ${tzHint}.` : "If you want local times, tell me your timezone (e.g., America/Toronto)."}
-
-EPG (XMLTV):
-${ROKU_EPG_URL}`,
-      "Next up — open the EPG."
-    );
-  } else {
-    reply0 = finalizeReply(
-      `Roku is live.
-
-EPG (XMLTV):
-${ROKU_EPG_URL}
-
-Pick one: (A) Open EPG (B) “What’s on now?” (C) “Next up” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
-      "Roku is live. EPG is ready."
-    );
-  }
+  const reply0 = finalizeReply(
+    `Roku is live. Here’s the EPG (guide) feed you gave me:\n\n${ROKU_EPG_URL}\n\nTell me what you want next: (A) “What’s on now?” (B) “Next up” (C) “Schedule by day” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
+    "Roku is live. EPG is ready."
+  );
 
   const loop = detectAndPatchLoop(session, "roku", reply0);
   const reply = loop.tripped
-    ? finalizeReply(`We’re looping on Roku. Tap “Open EPG” (or use the link) and pick: now / next.`, "Open the EPG.")
+    ? finalizeReply(`We’re looping on Roku. Open the EPG link and tell me what you want: now / next / schedule.`)
     : reply0;
 
   const sigLine = detectSignatureLine(reply);
 
   const fu = [
-    { id: "fu_roku_epg", type: "chip", label: "Open EPG", payload: { lane: "roku", action: "roku", route: "roku", focus: "epg" } },
+    { id: "fu_roku_epg", type: "link", label: "Open EPG", payload: { url: ROKU_EPG_URL, target: "_blank", lane: "roku", action: "roku", route: "roku", focus: "epg" } },
     { id: "fu_roku_now", type: "chip", label: "What's on now?", payload: { lane: "roku", action: "roku", route: "roku", focus: "now" } },
     { id: "fu_roku_next", type: "chip", label: "Next up", payload: { lane: "roku", action: "roku", route: "roku", focus: "next" } },
+    { id: "fu_roku_schedule", type: "chip", label: "Schedule", payload: { lane: "roku", action: "roku", route: "roku", focus: "schedule" } },
   ].slice(0, 10);
 
   const coreNext = finalizeSpineTurn({
@@ -2771,17 +2811,16 @@ Pick one: (A) Open EPG (B) “What’s on now?” (C) “Next up” — and your
     topic: "roku",
     actionTaken: loop.tripped ? "roku_loop_break" : "roku",
     followUps: fu,
-    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: Open EPG / What’s on now / Next up (add timezone if needed).", true),
-    decision:
-      safeStr(corePlan.decision || "") ||
-      safeStr(norm.turnIntent || "") ||
-      safeStr(norm.turnSignals?.turnIntent || ""),
+    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: now / next / schedule (and add timezone if needed).", true),
+    decision: corePlan,
+    assistantSummary: "roku_epg_stub",
+    marionCog: cog,
+    updateReason: "roku",
   });
 
   const routePatch = {
     lane: "roku",
-    lastLane: "roku",
-    ...(sigLine ? { signatureTransition: sigLine } : {}),
+    ...(sigLine ? { lastSigTransition: sigLine } : {}),
     ...loop.patch,
     __spineState: coreNext,
   };
@@ -2789,22 +2828,15 @@ Pick one: (A) Open EPG (B) “What’s on now?” (C) “Next up” — and your
   return buildContract({
     reply,
     lane: "roku",
+    bridge: { kind: "open_url", lane: "roku", url: ROKU_EPG_URL, label: "Open EPG" },
+    directives: [{ type: "open_url", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" }],
     followUps: fu,
-    followUpsStrings: ["Roku", "Open EPG", "What's on now?", "Next up"],
-    directives: openUrlDirectives,
+    followUpsStrings: ["Open EPG", "What's on now?", "Next up", "Schedule"],
     sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
     meta: metaBase({
       route: "roku",
-      focus,
       loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
-      spine: {
-        v: Spine.SPINE_VERSION,
-        rev: coreNext.rev,
-        lane: coreNext.lane,
-        stage: coreNext.stage,
-        move: safeStr(corePlan.move || ""),
-      },
-      links: [{ rel: "epg", url: ROKU_EPG_URL }],
+      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
     }),
   });
 }
@@ -3448,22 +3480,19 @@ Pick one: (A) Open EPG (B) “What’s on now?” (C) “Next up” — and your
       });
     }
 
-    // FAIL-OPEN REPLY SELECTION (NO LANE-PROMPT DEFAULT++++)
-// If discovery hint is active, ask it.
-// If user is distressed/vulnerable, prefer supportive response (never lane selection).
-// Otherwise, keep a neutral "open" prompt.
-let reply0 = "";
-if (discoveryHint && discoveryHint.enabled) {
-  reply0 = finalizeReply(safeStr(discoveryHint.question).trim(), "Alright. What's on your mind?");
-} else if (emo && emo.bypassClarify && Support && typeof Support.buildSupportiveResponse === "function") {
-  reply0 = finalizeReply(
-    Support.buildSupportiveResponse({ userText: norm?.text || "", emo, seed: norm?.ctx?.sessionId || "" }),
-    "I'm here. What's going on?"
-  );
-} else {
-  reply0 = finalizeReply("Alright. What's on your mind?", "Alright. What's on your mind?");
-}
-const loop = detectAndPatchLoop(session, lane || "general", reply0);
+    
+const reply0 = finalizeReply(
+  (emo && !!emo.bypassClarify)
+    ? (supportPrefix || "I’m sorry you’re hurting. I’m here with you — what’s going on right now?")
+    : (discoveryHint && discoveryHint.enabled
+        ? safeStr(discoveryHint.question).trim()
+        : safeStr(norm.text)
+          ? "Tell me what you want next: music, movies, or sponsors."
+          : "Okay — tell me what you want next."),
+  "Okay — tell me what you want next."
+);
+
+    const loop = detectAndPatchLoop(session, lane || "general", reply0);
     const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, Roku, or Sponsors.") : reply0;
 
     const sigLine = detectSignatureLine(reply);
