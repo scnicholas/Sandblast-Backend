@@ -304,10 +304,15 @@ function hasActionablePayload(payload) {
 
 // Consistent merge: base FIRST, then route overrides AFTER.
 // (In reset, we still intentionally override base with hard reset flags.)
-function mergeSessionPatch(base, overrides) {
+function mergeSessionPatch(base, ...overridesList) {
   const b = isPlainObject(base) ? base : {};
-  const o = isPlainObject(overrides) ? overrides : {};
-  return { ...b, ...o };
+  const list = Array.isArray(overridesList) ? overridesList : [];
+  let out = { ...b };
+  for (const o0 of list) {
+    const o = isPlainObject(o0) ? o0 : {};
+    out = { ...out, ...o };
+  }
+  return out;
 }
 
 function safeJsonStringify(x) {
@@ -951,6 +956,11 @@ function classifyAction(text, payload) {
   const t = safeStr(text).toLowerCase();
   const pA = safeStr(payload?.action || "").trim();
   if (pA) return pA;
+
+  // Distress shortcut: if the user is expressing pain / overwhelm, route into counselor-lite
+  // instead of procedural lane-pick prompts. (Non-clinical; safe default.)
+  const dq = detectDistressQuick(t);
+  if (dq && dq.distress && !dq.selfHarm) return "counsel_intro";
 
   // counselor-lite / listening entry (non-clinical)
   if (
@@ -1941,6 +1951,10 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
+    // Stable inbound fingerprint (used for loop governors, deterministic seeding)
+    const inboundKey = buildInboundKey(norm);
+    const distressQ = detectDistressQuick(safeStr(norm.text || ""));
+
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
     // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
@@ -1968,6 +1982,19 @@ async function handleChat(input) {
           bypassClarify: true,
           disclaimers: { needSoft: true, noTherapy: true },
         };
+      }
+    }
+
+
+    // Distress override: if Emotion module under-detects, enforce SUPPORT routing.
+    if (distressQ && distressQ.distress) {
+      if (distressQ.selfHarm) {
+        emo = { ...(isPlainObject(emo) ? emo : {}), mode: "CRISIS", tags: Array.from(new Set([...(Array.isArray(emo?.tags) ? emo.tags : []), ...distressQ.tags])), intensity: Math.max(80, Number(emo?.intensity || 0) || 0), bypassClarify: true, disclaimers: { ...(isPlainObject(emo?.disclaimers) ? emo.disclaimers : {}), needCrisis: true, needSoft: true, noTherapy: true } };
+      } else {
+        const mode0 = safeStr(emo?.mode || "").toUpperCase();
+        if (!emo || mode0 === "NORMAL" || mode0 === "" || mode0 === "NEUTRAL") {
+          emo = { ...(isPlainObject(emo) ? emo : {}), mode: "SUPPORT", tags: Array.from(new Set([...(Array.isArray(emo?.tags) ? emo.tags : []), ...distressQ.tags, "vulnerable"])), intensity: Math.max(60, Number(emo?.intensity || 0) || 0), bypassClarify: true, disclaimers: { ...(isPlainObject(emo?.disclaimers) ? emo.disclaimers : {}), needSoft: true, noTherapy: true } };
+        }
       }
     }
 
@@ -2123,8 +2150,8 @@ const session = isPlainObject(norm.body.session)
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
-    // Emotion guard: never show forced "pick one" prompts when the user is distressed.
-    if (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) {
+    // Emotion/distress guard: never show forced "pick one" prompts when the user is distressed.
+    if ((emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) || (distressQ && distressQ.distress)) {
       if (discoveryHint && discoveryHint.enabled) {
         discoveryHint.enabled = false;
         discoveryHint.reason = "emotion_guard";
@@ -2142,14 +2169,12 @@ const session = isPlainObject(norm.body.session)
       noveltyScore,
       discoveryHint
     );
-
-    const inboundKey = buildInboundKey(norm);
     cog.inboundKey = inboundKey;
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
-    if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
+    if (((emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS") || (distressQ && distressQ.selfHarm)) && Support && typeof Support.buildCrisisResponse === "function") {
       const reply = Support.buildCrisisResponse();
       const sessionPatch = mergeSessionPatch({}, {
         lastLane: "general",
