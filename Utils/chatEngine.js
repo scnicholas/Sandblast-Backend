@@ -1861,7 +1861,37 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 // main engine
 // -------------------------
-async function handleChat(input) {
+
+// =========================
+// PAYLOAD COMPAT LAYER++++
+// The Nyx widget expects response.payload.* in some builds.
+// Guarantee payload exists even on fail-safe paths.
+// =========================
+function ensurePayloadContract(out){
+  if(!out || typeof out !== "object") {
+    const r = { ok:false, reply:"Something broke inside the chat engine." };
+    r.payload = { ok:r.ok, reply:r.reply };
+    return r;
+  }
+  if(out.payload && typeof out.payload === "object") return out;
+  out.payload = {
+    ok: out.ok,
+    reply: out.reply,
+    lane: out.lane,
+    ui: out.ui,
+    directives: out.directives,
+    followUps: out.followUps,
+    followUpsStrings: out.followUpsStrings,
+    sessionPatch: out.sessionPatch,
+    cog: out.cog,
+    requestId: out.requestId,
+    meta: out.meta,
+    ctx: out.ctx,
+  };
+  return out;
+}
+
+async function handleChatCore(input) {
   const started = nowMs();
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
@@ -2198,25 +2228,6 @@ ${base0}`
         laneId: laneId || undefined,
         sessionLane: sessionLaneInfo || undefined,
         bridge: bridgeInfo || undefined,
-
-
-        // PAYLOAD COMPAT (some clients expect res.payload.*)
-        payload: {
-          ok: out && typeof out.ok === "boolean" ? out.ok : true,
-          reply: replyText,
-          lane: laneResolved,
-          laneId: laneId || undefined,
-          sessionLane: sessionLaneInfo || undefined,
-          bridge: bridgeInfo || undefined,
-          ui,
-          followUps,
-          followUpsStrings,
-          directives: asArray(out.directives).filter(Boolean),
-          sessionPatch: mergedSessionPatch,
-          cog,
-          requestId,
-          meta: out.meta,
-        },
 
         // ALWAYS present (prevents UI null errors)
         ctx: isPlainObject(norm.ctx) ? norm.ctx : {},
@@ -3308,13 +3319,6 @@ ${base0}`
       ok: false,
       reply,
       lane: "general",
-
-      // PAYLOAD COMPAT (some clients expect res.payload.*)
-      payload: {
-        ok: false,
-        reply,
-        lane: "general",
-      },
       ctx: isPlainObject(normFallback.ctx) ? normFallback.ctx : {},
       ui: { followUps: [], followUpsStrings: [] },
       directives: [],
@@ -3354,6 +3358,13 @@ ${base0}`
       },
     };
   }
+}
+
+
+// Wrapper ensures payload compatibility for ALL return paths (including fail-safe catch paths)
+async function handleChat(input){
+  const out = await handleChatCore(input);
+  return ensurePayloadContract(out);
 }
 
 /**
