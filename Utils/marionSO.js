@@ -12,7 +12,7 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.2.2 (PSYCH HARDEN++++ + EMOTION LEXICON++++ + RISK ESCALATION++++ + TEMPO ACK TEXT++++)
+ * v1.2.3 (PSYCHEBRIDGE ENABLE FIX++++ + DISTRESS→STABILIZE ROUTE++++ + AFFECT TOKENS++++)
  * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
  * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
  * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.2";
+const MARION_VERSION = "marionSO v1.2.3";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -2454,7 +2454,11 @@ function buildPsycheBridgeInput(norm, session, cog) {
       .concat(c.englishTags || [])
       .concat(c.finTags || [])
       .concat(c.aiTags || [])
-      .concat(c.strategyTags || []),
+      .concat(c.strategyTags || [])
+      // affect tags help PsycheBridge pick stabilization stance without raw user text
+      .concat((isPlainObject(c.psychology) && isPlainObject(c.psychology.affect) && Array.isArray(c.psychology.affect.tags)) ? c.psychology.affect.tags : [])
+      // coarse intent/mode/desire tokens (bounded; not raw text)
+      .concat([safeStr(c.intent || "", 16).toLowerCase(), safeStr(c.mode || "", 16).toLowerCase(), safeStr(c.latentDesire || "", 16).toLowerCase()].filter(Boolean)),
     24
   );
 
@@ -2509,7 +2513,9 @@ function callPsycheBridge(norm, session, cog) {
     if (!isPlainObject(out)) return null;
 
     return {
-      enabled: !!out.enabled,
+      // PsycheBridge v1 returns a psyche object without an `enabled` flag.
+      // Treat any object return as enabled unless explicitly disabled.
+      enabled: out.enabled === false ? false : true,
       version: safeStr(out.version || "", 24) || "psycheBridge",
       queryKey: safeStr(out.queryKey || input.queryKey, 24),
       mode: safeStr(out.mode || "", 24),
@@ -2836,6 +2842,20 @@ function mediate(norm, session, opts = {}) {
       { mode, intent, dominance, budget, actionable, textEmpty, stalled },
       now
     );
+
+    // Affect-driven stabilization: if user language signals distress/pain, prioritize STABILIZE
+    // (unless we are in an explicit actionable/bridge advance)
+    const _aff = isPlainObject(psychSeed?.affect) ? psychSeed.affect : {};
+    const _tags = Array.isArray(_aff.tags) ? _aff.tags : [];
+    const _distress = _tags.includes("distress_language") || _tags.includes("escalation_language");
+    const _selfHarm = _tags.includes("self_harm_language");
+    if (!_selfHarm && _distress && !actionable && !(bridge && bridge.enabled) && intent !== "ADVANCE") {
+      intent = "STABILIZE";
+    }
+    if (_selfHarm && intent !== "ADVANCE") {
+      intent = "STABILIZE";
+    }
+
 
     const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
