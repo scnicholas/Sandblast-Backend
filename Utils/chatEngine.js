@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.9.6 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.9.0 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -1878,7 +1878,38 @@ async function handleChat(input) {
         ? Emotion.detectEmotionalState(safeStr(norm.text || ""))
         : null;
 
-    if (emo && isPlainObject(norm.turnSignals)) {
+    
+    // Lightweight distress heuristic ALWAYS runs (even if emotionDetect is missing).
+    // This ensures "I am hurting" never routes to lane-selection prompts.
+    const quickDistress = detectDistressQuick(safeStr(norm.text || ""));
+    if (quickDistress && quickDistress.distress) {
+      if (!emo) {
+        emo = {
+          mode: quickDistress.selfHarm ? "DISTRESS" : "VULNERABLE",
+          tags: quickDistress.tags,
+          intensity: quickDistress.selfHarm ? 92 : 70,
+          bypassClarify: true,
+          disclaimers: {
+            needSoft: true,
+            noTherapy: true,
+            needCrisis: !!quickDistress.selfHarm,
+          },
+        };
+      } else if (typeof emo === "object") {
+        // Merge tags + force bypassClarify.
+        try {
+          const t = Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [];
+          quickDistress.tags.forEach((x) => { if (t.indexOf(x) < 0) t.push(x); });
+          emo.tags = t.slice(0, 12);
+        } catch (e) {}
+        emo.bypassClarify = true;
+      }
+    }
+
+    // Normalize to a stable internal contract (never throws).
+    emo = coerceEmotion(norm, emo);
+
+if (emo && isPlainObject(norm.turnSignals)) {
       norm.turnSignals.emotionMode = safeStr(emo.mode || "NORMAL", 16);
       norm.turnSignals.emotionTags = Array.isArray(emo.tags) ? emo.tags.slice(0, 10) : [];
       norm.turnSignals.emotionIntensity = clampInt(emo.intensity || 0, 0, 0, 100);
@@ -1890,21 +1921,16 @@ async function handleChat(input) {
       norm.turnSignals.emotionBypassClarify = !!emo.bypassClarify;
     }
 
-    // Emotion precedence: never force a lane-selection prompt on vulnerable inputs.
-    if (emo && (emo.bypassClarify || emo?.disclaimers?.needCrisis || emo?.disclaimers?.needSoft)) {
-      if (!safeStr(norm.lane || '').trim()) norm.lane = 'general';
-      if (isPlainObject(norm.turnSignals)) norm.turnSignals.forceLane = 'general';
-    }
 
+    const body = (norm && isPlainObject(norm.body)) ? norm.body : {};
 
-
-
-
-const session = isPlainObject(norm?.body?.session)
-      ? norm.body.session
+    const session = isPlainObject(body.session)
+      ? body.session
       : isPlainObject(input?.session)
       ? input.session
       : {};
+
+    const inboundKey = buildInboundKey(norm);
 
     // -------------------------
     // BRUTAL INBOUND LOOP GOVERNOR++++
@@ -1974,8 +2000,8 @@ const session = isPlainObject(norm?.body?.session)
 
     const knowledge = isPlainObject(input?.knowledge)
       ? input.knowledge
-      : isPlainObject(norm.body.knowledge)
-      ? norm.body.knowledge
+      : isPlainObject(body.knowledge)
+      ? body.knowledge
       : {};
 
     const corePrev = coerceCoreSpine(session);
@@ -1997,14 +2023,7 @@ const session = isPlainObject(norm?.body?.session)
     const cog = normalizeCog(norm, session, cogRaw);
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
-    const emoMode = safeStr(emo?.mode || "").toUpperCase();
-    const emoSupport = !!(emo && (
-      emoMode === "SUPPORT" || emoMode === "CRISIS" || emoMode === "DISTRESS" ||
-      !!emo.bypassClarify || !!emo?.disclaimers?.needCrisis || !!emo?.disclaimers?.needSoft ||
-      (clampInt(emo?.intensity || 0, 0, 0, 100) >= 60 && Array.isArray(emo?.tags) && emo.tags.length)
-    ));
-
-    if (emoSupport && Support && typeof Support.buildSupportiveResponse === "function") {
+    if (emo && safeStr(emo.mode || "").toUpperCase() === "SUPPORT" && Support && typeof Support.buildSupportiveResponse === "function") {
       // deterministic seed: inboundKey stabilizes response choice (reduces loop variance)
       supportPrefix = safeStr(
         Support.buildSupportiveResponse({ userText: safeStr(norm.text || ""), emo, seed: safeStr(inboundKey || "") })
@@ -2056,7 +2075,6 @@ const session = isPlainObject(norm?.body?.session)
       discoveryHint
     );
 
-    const inboundKey = buildInboundKey(norm);
     cog.inboundKey = inboundKey;
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
@@ -2374,13 +2392,83 @@ ${base0}`
     // counselor-lite
     // -------------------------
     if (norm.action === "counsel_intro") {
-      const reply0 = finalizeReply(counselorLiteIntro(norm, session, cog), "Okay. Talk to me.");
-      const loop = detectAndPatchLoop(session, "general", reply0);
-      const reply = loop.tripped
-        ? finalizeReply("I’m repeating myself — pick one concrete next step: Music, Movies, or Sponsors.")
-        : reply0;
+      // If user is vulnerable/distressed, route to supportive response (no lane-selection prompts).
+    if (emo && emo.bypassClarify) {
+      const f = counselorFollowUps();
+      let supportive = "";
+      if (Support && typeof Support.buildSupportiveResponse === "function") {
+        supportive = Support.buildSupportiveResponse({
+          userText: safeStr(norm.text || ""),
+          emo,
+          seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.clientId || ""),
+        });
+      }
+      if (!supportive) {
+        // Hard fallback (keeps "not a therapist" boundary without sounding robotic).
+        supportive =
+          "I’m here with you. I’m not a licensed therapist, but I can support you. " +
+          "What’s the hardest part of this right now — your body, your thoughts, or what happened today?";
+      }
 
+      const reply = finalizeReply(supportive);
+      const loop = detectAndPatchLoop(session, "general", reply);
       const sigLine = detectSignatureLine(reply);
+
+      const routePatch = {
+        lane: "general",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
+      };
+
+      const coreNext = finalizeSpineTurn({
+        corePrev,
+        norm,
+        lane: "general",
+        stage: corePrev.stage || "SEEK",
+        plan: { move: "STABILIZE", reason: "support_route" },
+        assistantSummary: "support_route",
+        marionCog: cog,
+        updateReason: "support_route",
+      });
+
+      routePatch.__spineState = coreNext;
+
+      return buildContract({
+        reply,
+        lane: "general",
+        followUps: f.followUps,
+        followUpsStrings: f.followUpsStrings,
+        sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+        meta: metaBase({
+          route: "support_route",
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+          velvet: !!cog.velvet,
+          desire: cog.latentDesire,
+          confidence: cog.confidence,
+          spine: {
+            v: Spine.SPINE_VERSION,
+            rev: coreNext.rev,
+            lane: coreNext.lane,
+            stage: coreNext.stage,
+            move: "STABILIZE",
+          },
+        }),
+      });
+    }
+
+    const reply0 = finalizeReply(
+      discoveryHint && discoveryHint.enabled
+        ? safeStr(discoveryHint.question).trim()
+        : safeStr(norm.text)
+        ? "Tell me what you want next: music, movies, or sponsors."
+        : "Okay — tell me what you want next.",
+      "Okay — tell me what you want next."
+    );
+
+    const loop = detectAndPatchLoop(session, lane || "general", reply0);
+    const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, or Sponsors.") : reply0;
+
+    const sigLine = detectSignatureLine(reply);
       const f = counselorFollowUps();
 
       const coreNext = finalizeSpineTurn({
@@ -2516,7 +2604,7 @@ ${base0}`
       );
       const loop = detectAndPatchLoop(session, lane || "general", reply0);
       const reply = loop.tripped
-        ? finalizeReply("We’re looping. Pick ONE: Music, Movies, or Sponsors.")
+        ? finalizeReply(emo && emo.bypassClarify ? reply0 : "We’re looping. Pick ONE: Music, Movies, or Sponsors.")
         : reply0;
 
       const sigLine = detectSignatureLine(reply);
@@ -3219,66 +3307,6 @@ ${base0}`
             lane: coreNext.lane,
             stage: coreNext.stage,
             move: safeStr(corePlan.move || ""),
-          },
-        }),
-      });
-    }
-
-
-    // -------------------------
-    // EMOTION OVERRIDE RETURN++++
-    // - If the user signals distress (e.g., "I am hurting"), we must not fall back to lane selection.
-    // - This has precedence over discovery prompts and bridge/lane nudges.
-    // -------------------------
-    if (emo && (emo.bypassClarify || emo?.disclaimers?.needCrisis || emo?.disclaimers?.needSoft) && supportPrefix) {
-      const reply0emo = finalizeReply(
-        supportPrefix,
-        "I’m here with you. What’s the hardest part right now?"
-      );
-
-      // Keep lane stable + avoid any accidental bridge override.
-      const lane0emo = safeStr(norm.lane || "general") || "general";
-
-      const loopE = detectAndPatchLoop(session, lane0emo, reply0emo);
-      const replyE = loopE.tripped ? finalizeReply("I’m here with you. Tell me what’s going on, in one sentence.") : reply0emo;
-
-      const sigLineE = detectSignatureLine(replyE);
-
-      const coreNextE = finalizeSpineTurn({
-        corePrev,
-        norm,
-        lane: lane0emo,
-        topic: safeStr(corePrev?.topic || ""),
-        actionTaken: loopE.tripped ? "emotion_override_loop_break" : "emotion_override",
-        followUps: [],
-        pendingAsk: pendingAskObj("emotion_support", "clarify", "Ask what’s going on, gently.", true),
-        decision: { ...corePlan, move: "deliver", stage: "deliver", speak: "" },
-        assistantSummary: "emotion_override",
-        marionCog: cog,
-        updateReason: "emotion_override",
-      });
-
-      const routePatchE = {
-        lane: lane0emo,
-        ...(sigLineE ? { lastSigTransition: sigLineE } : {}),
-        ...loopE.patch,
-        __spineState: coreNextE,
-        __emotionLast: { mode: safeStr(emo?.mode || ""), intensity: clampInt(emo?.intensity || 0, 0, 0, 100), at: nowMs() },
-      };
-
-      return buildContract({
-        reply: replyE,
-        lane: lane0emo,
-        sessionPatch: mergeSessionPatch(baseCogPatch, routePatchE),
-        meta: metaBase({
-          route: "emotion_override",
-          loop: { tripped: loopE.tripped, sig: loopE.sig, n: loopE.n },
-          spine: {
-            v: Spine.SPINE_VERSION,
-            rev: coreNextE.rev,
-            lane: coreNextE.lane,
-            stage: coreNextE.stage,
-            move: "deliver",
           },
         }),
       });
