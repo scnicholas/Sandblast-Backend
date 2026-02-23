@@ -55,7 +55,7 @@ function safeRequire(relPath) {
 const PsychologyK = safeRequire("./psychologyKnowledge");
 const CyberK = safeRequire("./cyberKnowledge");
 const EnglishK = safeRequire("./englishKnowledge");
-const FinanceK = safeRequire("./financeKnowledge");
+const FinanceK = safeRequire("./financeKnowledge") || safeRequire("./FinanceKnowledge"); // Linux case-safe
 const LawK = safeRequire("./lawKnowledge");
 const AIK = safeRequire("./aiKnowledge");
 
@@ -63,7 +63,7 @@ const AIK = safeRequire("./aiKnowledge");
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.0.0";
+const BRIDGE_VERSION = "1.0.1";
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -426,6 +426,8 @@ function build(input) {
   };
 
   return {
+    enabled: true,
+    reason: "ok",
     version: BRIDGE_VERSION,
     queryKey,
     sessionKey,
