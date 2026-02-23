@@ -10,7 +10,11 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.2.0 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
+ * v1.2.1 (STABILIZE ROUTE++++ + LANE TOKEN EXPAND++++ + DISTRESS SHORT-CIRCUIT++++)
+ * ✅ Fix++++: recognize all Sandblast lanes in isLaneToken (prevents “need_pick” from missing Roku/Radio/Schedule/etc)
+ * ✅ Add++++: distress/stabilize short-circuit so very short inputs like “hurting” don’t fall into generic clarify/lane prompts
+ * ✅ Add++++: planner respects Marion intent=stabilize even when needsClarify flag is absent
+ * Keeps: v1.2.0 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
  * ✅ Add++++: normalizeInbound reads inbound.cog / inbound.marion (MarionSO output) and sanitizes it
  * ✅ Add++++: state.marion stores bounded cognition summary (mode/intent/stage/layers/budget/dominance/traceBits)
  * ✅ Add++++: finalizeTurn can persist marionCog (from chatEngine) OR inbound.cog (if provided)
@@ -23,7 +27,7 @@
  * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.2.0";
+const SPINE_VERSION = "stateSpine v1.2.1";
 
 const LANE = Object.freeze({
   // UI chip lanes (Sandblast)
@@ -159,14 +163,23 @@ function hasActionablePayload(payload) {
 
 function isLaneToken(t) {
   const s = safeStr(t, 64).trim().toLowerCase();
+  // Accept ANY known lane token (new + legacy). This is used to resolve need_pick prompts.
+  return Object.values(LANE).includes(s);
+
+function isDistressText(t) {
+  const s = safeStr(t, 240).toLowerCase();
+  if (!s) return false;
+
+  // Broad distress markers (no diagnosis; just routing).
+  // Includes pain/hurt terms that previously fell through the planner as "too_short".
   return (
-    s === "music" ||
-    s === "movies" ||
-    s === "news" ||
-    s === "sponsors" ||
-    s === "help" ||
-    s === "general"
+    /(hurt|hurting|pain|in pain|suffering|heartbroken|overwhelmed|hopeless)/.test(s) ||
+    /(anxious|anxiety|panic|panicking|scared|terrified)/.test(s) ||
+    /(depressed|depression|sad|crying|lonely)/.test(s) ||
+    /(self[- ]?harm|suicid(al|e)|kill myself|end it|don['’]t want to live)/.test(s)
   );
+}
+
 }
 
 // -------------------------
@@ -987,6 +1000,25 @@ function decideNextMove(state, inbound = {}) {
 
   // If Marion explicitly thinks we need clarify, respect it — but never allow clarifier loops.
   const marionHint = n.cog || s.marion;
+  // Marion stabilize intent should pre-empt generic lane/clarify templates.
+  // This keeps “I’m hurting” from falling into pick-a-lane behavior even when needsClarify is not set.
+  if (marionHint) {
+    const mhIntent = safeStr(marionHint.intent || "", 40).toLowerCase().trim();
+    if (mhIntent === "stabilize") {
+      return {
+        move: MOVE.CLARIFY,
+        stage: STAGE.CLARIFY,
+        speak: "I hear you. Let’s slow down for a second.",
+        ask: buildPendingAsk(
+          "need_stabilize",
+          "Are you safe right now, and do you want emotional support or practical steps?",
+          []
+        ),
+        rationale: "marion_intent_stabilize",
+      };
+    }
+  }
+
   if (marionHint && marionHint.needsClarify === true) {
     const askKind = safeStr(marionHint.askKind || "need_more_detail", 40).trim() || "need_more_detail";
     const askId = safeStr(marionHint.askId || "", 24).trim();
@@ -1125,7 +1157,22 @@ function decideNextMove(state, inbound = {}) {
   }
 
   // Very short typed input -> CLARIFY
+  // HARDEN++++: Distress phrases like "hurting" must not become generic lane/pick prompts.
   if (hasText && text.length < 10) {
+    if (isDistressText(text)) {
+      return {
+        move: MOVE.CLARIFY,
+        stage: STAGE.CLARIFY,
+        speak: "I hear you. Let’s slow down for a second.",
+        ask: buildPendingAsk(
+          "need_stabilize",
+          "Are you safe right now, and do you want emotional support or practical steps?",
+          []
+        ),
+        rationale: "distress_too_short",
+      };
+    }
+
     return {
       move: MOVE.CLARIFY,
       stage: STAGE.CLARIFY,
@@ -1138,6 +1185,7 @@ function decideNextMove(state, inbound = {}) {
       rationale: "too_short",
     };
   }
+
 
   // Default
   return {
