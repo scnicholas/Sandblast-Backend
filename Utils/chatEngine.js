@@ -304,15 +304,10 @@ function hasActionablePayload(payload) {
 
 // Consistent merge: base FIRST, then route overrides AFTER.
 // (In reset, we still intentionally override base with hard reset flags.)
-function mergeSessionPatch(base, ...overridesList) {
+function mergeSessionPatch(base, overrides) {
   const b = isPlainObject(base) ? base : {};
-  const list = Array.isArray(overridesList) ? overridesList : [];
-  let out = { ...b };
-  for (const o0 of list) {
-    const o = isPlainObject(o0) ? o0 : {};
-    out = { ...out, ...o };
-  }
-  return out;
+  const o = isPlainObject(overrides) ? overrides : {};
+  return { ...b, ...o };
 }
 
 function safeJsonStringify(x) {
@@ -643,6 +638,10 @@ const PUBLIC_MIN_YEAR = 1950;
 // Dynamic max year (current year) — keeps UI sane, but spine still accepts up to 2100.
 const PUBLIC_MAX_YEAR = Math.min(2100, new Date().getFullYear());
 
+// Roku (Sandblast Channel) — EPG feed
+const ROKU_EPG_URL = "https://live.ottdash.com/stream-epg/10I7S-5Q8ERK4R/eyJ0eXAiOiJKV1QifQ.eyJleHAiOjAsImFjY291bnRfaWQiOiIzMzM1MSIsInZlcnNpb24iOiIxLjAiLCJ0eXBlIjoieG1sdHYifQ.ZogTopRj4Qwo6zNgC1V7soPcj_lQZfcTvOtZGfQHPEZ_MYgTmF4-trqstrMbLXyGmPgXYYNUx1Zz3QztzzkTGw";
+
+
 // INPUT HARD LIMITS (crash / abuse guards)
 const MAX_TEXT_CHARS = 6500;
 const MAX_PAYLOAD_KEYS = 60;
@@ -957,11 +956,6 @@ function classifyAction(text, payload) {
   const pA = safeStr(payload?.action || "").trim();
   if (pA) return pA;
 
-  // Distress shortcut: if the user is expressing pain / overwhelm, route into counselor-lite
-  // instead of procedural lane-pick prompts. (Non-clinical; safe default.)
-  const dq = detectDistressQuick(t);
-  if (dq && dq.distress && !dq.selfHarm) return "counsel_intro";
-
   // counselor-lite / listening entry (non-clinical)
   if (
     /\b(i need to talk|can we talk|just talk|listen to me|i need someone to listen|vent|i want to vent|what should we talk about|what do you want to talk about)\b/.test(
@@ -991,6 +985,12 @@ function classifyAction(text, payload) {
     (/\b(news|headlines?)\b/.test(t) && /\b(canada|canadian)\b/.test(t))
   )
     return "news_canada";
+
+
+// Roku / EPG lane shortcut (typed)
+// NOTE: This is a lane/route hint; the actual player/guide rendering lives in the host/UI.
+if (/\b(roku|epg|program\s*guide|channel\s*guide|ott\s*dash|sandblast\s*channel\s*guide)\b/.test(t))
+  return "roku";
 
   // NOTE: music routes still recognized here, but execution is delegated to musicKnowledge.js
   if (/\b(top\s*10|top ten)\b/.test(t)) return "top10";
@@ -1951,10 +1951,6 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
-    // Stable inbound fingerprint (used for loop governors, deterministic seeding)
-    const inboundKey = buildInboundKey(norm);
-    const distressQ = detectDistressQuick(safeStr(norm.text || ""));
-
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
     // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
@@ -1982,19 +1978,6 @@ async function handleChat(input) {
           bypassClarify: true,
           disclaimers: { needSoft: true, noTherapy: true },
         };
-      }
-    }
-
-
-    // Distress override: if Emotion module under-detects, enforce SUPPORT routing.
-    if (distressQ && distressQ.distress) {
-      if (distressQ.selfHarm) {
-        emo = { ...(isPlainObject(emo) ? emo : {}), mode: "CRISIS", tags: Array.from(new Set([...(Array.isArray(emo?.tags) ? emo.tags : []), ...distressQ.tags])), intensity: Math.max(80, Number(emo?.intensity || 0) || 0), bypassClarify: true, disclaimers: { ...(isPlainObject(emo?.disclaimers) ? emo.disclaimers : {}), needCrisis: true, needSoft: true, noTherapy: true } };
-      } else {
-        const mode0 = safeStr(emo?.mode || "").toUpperCase();
-        if (!emo || mode0 === "NORMAL" || mode0 === "" || mode0 === "NEUTRAL") {
-          emo = { ...(isPlainObject(emo) ? emo : {}), mode: "SUPPORT", tags: Array.from(new Set([...(Array.isArray(emo?.tags) ? emo.tags : []), ...distressQ.tags, "vulnerable"])), intensity: Math.max(60, Number(emo?.intensity || 0) || 0), bypassClarify: true, disclaimers: { ...(isPlainObject(emo?.disclaimers) ? emo.disclaimers : {}), needSoft: true, noTherapy: true } };
-        }
       }
     }
 
@@ -2150,8 +2133,8 @@ const session = isPlainObject(norm.body.session)
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
-    // Emotion/distress guard: never show forced "pick one" prompts when the user is distressed.
-    if ((emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) || (distressQ && distressQ.distress)) {
+    // Emotion guard: never show forced "pick one" prompts when the user is distressed.
+    if (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) {
       if (discoveryHint && discoveryHint.enabled) {
         discoveryHint.enabled = false;
         discoveryHint.reason = "emotion_guard";
@@ -2169,12 +2152,14 @@ const session = isPlainObject(norm.body.session)
       noveltyScore,
       discoveryHint
     );
+
+    const inboundKey = buildInboundKey(norm);
     cog.inboundKey = inboundKey;
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
-    if (((emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS") || (distressQ && distressQ.selfHarm)) && Support && typeof Support.buildCrisisResponse === "function") {
+    if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
       const reply = Support.buildCrisisResponse();
       const sessionPatch = mergeSessionPatch({}, {
         lastLane: "general",
@@ -2213,7 +2198,7 @@ const session = isPlainObject(norm.body.session)
       safeStr(norm.payload?.lane || "").trim() ||
       safeStr(session.lane || "").trim() ||
       safeStr(corePrev?.lane || "").trim() ||
-      (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : (norm.action === "news_canada" ? "news" : "music"))) : "general");
+      (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : (norm.action === "news_canada" ? "news" : (norm.action === "roku" ? "roku" : "music")))) : "general");
 
 
 // Session lane identity (deterministic routing key, NOT PII)
@@ -2371,6 +2356,7 @@ ${base0}`
         { id: "fu_lane_music", type: "chip", label: "Music", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
         { id: "fu_lane_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
         { id: "fu_lane_news_canada", type: "chip", label: "News Canada", payload: { lane: "news", action: "news_canada", route: "news_canada" } },
+        { id: "fu_lane_roku", type: "chip", label: "Roku", payload: { lane: "roku", action: "roku", route: "roku" } },
         { id: "fu_lane_sponsors", type: "chip", label: "Sponsors", payload: { lane: "sponsors", route: "sponsors" } },
       ];
 
@@ -2619,7 +2605,7 @@ ${base0}`
     }
 
     if (norm.action === "switch_lane") {
-      const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Sponsors";
+      const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Roku\n• Sponsors";
       const reply0 = finalizeReply(
       emo && emo.bypassClarify
         ? counselorLiteIntro(norm, session, cog)
@@ -2632,7 +2618,7 @@ ${base0}`
     );
       const loop = detectAndPatchLoop(session, lane || "general", reply0);
       const reply = loop.tripped
-        ? finalizeReply("We’re looping. Pick ONE: Music, Movies, or Sponsors.")
+        ? finalizeReply("We’re looping. Pick ONE: Music, Movies, Roku, or Sponsors.")
         : reply0;
 
       const sigLine = detectSignatureLine(reply);
@@ -2646,6 +2632,7 @@ ${base0}`
         },
         { id: "fu_movies", type: "chip", label: "Movies", payload: { lane: "movies", route: "movies" } },
         { id: "fu_news_canada", type: "chip", label: "News Canada", payload: { lane: "news", action: "news_canada", route: "news_canada" } },
+        { id: "fu_roku", type: "chip", label: "Roku", payload: { lane: "roku", action: "roku", route: "roku" } },
         {
           id: "fu_sponsors",
           type: "chip",
@@ -2700,6 +2687,70 @@ ${base0}`
     // -------------------------
     const routeMaybe = safeStr(norm.payload?.route || "").trim().toLowerCase();
     const actionMaybe = safeStr(norm.action || "").trim().toLowerCase();
+
+// -------------------------
+// ROKU handling (EPG bridge) — lightweight + fail-open
+// -------------------------
+const wantsRoku =
+  lane === "roku" ||
+  routeMaybe === "roku" ||
+  actionMaybe === "roku" ||
+  (routeMaybe && /\b(epg|guide|roku)\b/.test(routeMaybe));
+
+if (wantsRoku) {
+  const reply0 = finalizeReply(
+    `Roku is live. Here’s the EPG (guide) feed you gave me:\n\n${ROKU_EPG_URL}\n\nTell me what you want next: (A) “What’s on now?” (B) “Next up” (C) “Schedule by day” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
+    "Roku is live. EPG is ready."
+  );
+
+  const loop = detectAndPatchLoop(session, "roku", reply0);
+  const reply = loop.tripped
+    ? finalizeReply(`We’re looping on Roku. Open the EPG link and tell me what you want: now / next / schedule.`)
+    : reply0;
+
+  const sigLine = detectSignatureLine(reply);
+
+  const fu = [
+    { id: "fu_roku_epg", type: "chip", label: "Open EPG", payload: { lane: "roku", action: "roku", route: "roku", focus: "epg" } },
+    { id: "fu_roku_now", type: "chip", label: "What's on now?", payload: { lane: "roku", action: "roku", route: "roku", focus: "now" } },
+    { id: "fu_roku_next", type: "chip", label: "Next up", payload: { lane: "roku", action: "roku", route: "roku", focus: "next" } },
+    { id: "fu_roku_schedule", type: "chip", label: "Schedule", payload: { lane: "roku", action: "roku", route: "roku", focus: "schedule" } },
+  ].slice(0, 10);
+
+  const coreNext = finalizeSpineTurn({
+    corePrev,
+    norm,
+    lane: "roku",
+    topic: "roku",
+    actionTaken: loop.tripped ? "roku_loop_break" : "roku",
+    followUps: fu,
+    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: now / next / schedule (and add timezone if needed).", true),
+    decision: corePlan,
+    assistantSummary: "roku_epg_stub",
+    marionCog: cog,
+    updateReason: "roku",
+  });
+
+  const routePatch = {
+    lane: "roku",
+    ...(sigLine ? { lastSigTransition: sigLine } : {}),
+    ...loop.patch,
+    __spineState: coreNext,
+  };
+
+  return buildContract({
+    reply,
+    lane: "roku",
+    followUps: fu,
+    followUpsStrings: ["Open EPG", "What's on now?", "Next up", "Schedule"],
+    sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+    meta: metaBase({
+      route: "roku",
+      loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+    }),
+  });
+}
 
     // -------------------------
     // NEWS CANADA handling (lane stub + bridge contract) — scraping/feed wired elsewhere
@@ -3350,7 +3401,7 @@ ${base0}`
     );
 
     const loop = detectAndPatchLoop(session, lane || "general", reply0);
-    const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, or Sponsors.") : reply0;
+    const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, Roku, or Sponsors.") : reply0;
 
     const sigLine = detectSignatureLine(reply);
 
