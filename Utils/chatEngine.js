@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.9.0 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.9.3 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -205,6 +205,78 @@ function applyBudgetText(s, budget) {
   return takeLines(txt, 14);
 }
 
+// -------------------------
+// execution-style artifact scrubber
+// - Removes procedural/meta "I'll execute" fillers that can leak into Nyx copy.
+// - Never throws; returns a safe string.
+// -------------------------
+function scrubExecutionStyleArtifacts(reply) {
+  const raw = safeStr(reply);
+  if (!raw) return "";
+
+  const killLine = (ln) => {
+    const s = safeStr(ln).trim();
+    if (!s) return false;
+    if (/^one quick detail[, ]+then i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^then i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^i['’]?ll execute cleanly\.?$/i.test(s)) return true;
+    if (/^alright\.?$/i.test(s)) return true; // almost always fluff in this system
+    return false;
+  };
+
+  const lines = raw.split("\n");
+  const kept = [];
+  for (const ln of lines) {
+    if (killLine(ln)) continue;
+    kept.push(ln);
+  }
+
+  let out = kept.join("\n");
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
+
+  // If we scrubbed everything, keep a minimal non-empty value.
+  if (!out) return safeStr(reply).trim() || "Okay.";
+  return out;
+}
+
+
+// -------------------------
+// Vulnerability / distress guardrails (SUPPORT ROUTE++++)
+// -------------------------
+// Even if Marion intent is CLARIFY, if the user is distressed we MUST NOT respond with
+// lane-selection prompts ("music, movies, sponsors").
+// We keep this lightweight + fail-open (no external deps required).
+function detectDistressQuick(text) {
+  const t = safeStr(text || "").toLowerCase();
+  if (!t) return { distress: false, selfHarm: false, tags: [] };
+
+  const selfHarm =
+    /\b(suicid(e|al)|kill\s*myself|end\s*it|want\s*to\s*die|self\s*harm|hurt\s*myself)\b/.test(t);
+
+  const distress =
+    selfHarm ||
+    /\b(i\s*am|i['’]?m|im)\s+(hurting|struggling|overwhelmed|anxious|depressed|lonely|burnt\s*out|stressed)\b/.test(t) ||
+    /\b(i\s*feel|feeling)\s+(sad|down|hopeless|panicky|afraid|broken|numb)\b/.test(t) ||
+    /\bpanic\s*attack\b/.test(t) ||
+    /\bcan['’]?t\s+cope\b/.test(t);
+
+  const tags = [];
+  if (distress) tags.push("distress");
+  if (selfHarm) tags.push("self_harm");
+  return { distress, selfHarm, tags };
+}
+
+function coerceEmotion(norm, emo) {
+  // Normalize to a minimal contract used by chatEngine routing.
+  const e = isPlainObject(emo) ? emo : {};
+  const mode = safeStr(e.mode || "").toUpperCase() || "NORMAL";
+  const bypassClarify = !!e.bypassClarify || mode === "VULNERABLE" || mode === "DISTRESS";
+  const tags = Array.isArray(e.tags) ? e.tags.slice(0, 12) : [];
+  return { ...e, mode, bypassClarify, tags };
+}
+
+
+
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
   const keys = Object.keys(payload);
@@ -285,6 +357,8 @@ function detectAndPatchLoop(session, lane, replyText) {
   };
 
   return { tripped, patch, sig, n };
+}
+
 
 // -------------------------
 // INBOUND STALL GOVERNOR++++ (more brutal than reply-loop)
@@ -378,7 +452,6 @@ function makeBreakerReply(norm, emo) {
     "To break it, rephrase in ONE sentence or tap a lane chip. " +
     chips
   );
-}
 }
 
 // -------------------------
@@ -1861,37 +1934,7 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 // main engine
 // -------------------------
-
-// =========================
-// PAYLOAD COMPAT LAYER++++
-// The Nyx widget expects response.payload.* in some builds.
-// Guarantee payload exists even on fail-safe paths.
-// =========================
-function ensurePayloadContract(out){
-  if(!out || typeof out !== "object") {
-    const r = { ok:false, reply:"Something broke inside the chat engine." };
-    r.payload = { ok:r.ok, reply:r.reply };
-    return r;
-  }
-  if(out.payload && typeof out.payload === "object") return out;
-  out.payload = {
-    ok: out.ok,
-    reply: out.reply,
-    lane: out.lane,
-    ui: out.ui,
-    directives: out.directives,
-    followUps: out.followUps,
-    followUpsStrings: out.followUpsStrings,
-    sessionPatch: out.sessionPatch,
-    cog: out.cog,
-    requestId: out.requestId,
-    meta: out.meta,
-    ctx: out.ctx,
-  };
-  return out;
-}
-
-async function handleChatCore(input) {
+async function handleChat(input) {
   const started = nowMs();
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
@@ -1903,10 +1946,30 @@ async function handleChatCore(input) {
     // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
     // - Adds light turnSignals so Spine/Marion can react deterministically.
     // -------------------------
-    const emo =
+    let emo =
       Emotion && typeof Emotion.detectEmotionalState === "function"
         ? Emotion.detectEmotionalState(safeStr(norm.text || ""))
         : null;
+
+
+    // Heuristic fallback: if emotionDetect module is missing or returns null,
+    // catch common vulnerability phrases so Nyx doesn't reply with procedural filler.
+    if (!emo) {
+      const t0 = safeStr(norm.text || "").trim();
+      const t = t0.toLowerCase();
+      const looksVulnerable =
+        /\b(i\s*am|i'm|im)\s+(hurting|struggling|overwhelmed|anxious|depressed|lonely|burnt\s*out|stressed)\b/.test(t) ||
+        /\b(i\s*feel|feeling)\s+(sad|down|hopeless|panicky|afraid)\b/.test(t);
+      if (looksVulnerable) {
+        emo = {
+          mode: "VULNERABLE",
+          tags: ["vulnerable"],
+          intensity: 60,
+          bypassClarify: true,
+          disclaimers: { needSoft: true, noTherapy: true },
+        };
+      }
+    }
 
     if (emo && isPlainObject(norm.turnSignals)) {
       norm.turnSignals.emotionMode = safeStr(emo.mode || "NORMAL", 16);
@@ -2060,6 +2123,13 @@ const session = isPlainObject(norm.body.session)
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
+    // Emotion guard: never show forced "pick one" prompts when the user is distressed.
+    if (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) {
+      if (discoveryHint && discoveryHint.enabled) {
+        discoveryHint.enabled = false;
+        discoveryHint.reason = "emotion_guard";
+      }
+    }
     cog.noveltyScore = clamp01(noveltyScore);
     cog.discoveryHint = discoveryHint;
 
@@ -2130,7 +2200,7 @@ const bridge = computeBridge(sessionLane, requestId);
 // Make stabilization info visible to downstream consumers (UI / index.js)
 cog.laneId = laneIdComputed;
 cog.sessionLane = sessionLane;
-if (bridge) cog.bridge = bridge;
+if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonical bridge contract)
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
@@ -2141,7 +2211,7 @@ if (bridge) cog.bridge = bridge;
 ${base0}`
         : base0;
       const composed = applyTurnConstitutionToReply(base, cog, session);
-      return applyPublicSanitization(composed, norm, session, publicMode);
+      return scrubExecutionStyleArtifacts(applyPublicSanitization(composed, norm, session, publicMode));
     }
 
     // Common session telemetry patch (kept small and safe)
@@ -2526,11 +2596,15 @@ ${base0}`
     if (norm.action === "switch_lane") {
       const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Sponsors";
       const reply0 = finalizeReply(
-        discoveryHint && discoveryHint.enabled && discoveryHint.forcedChoice
-          ? `${safeStr(discoveryHint.question).trim()}\n\n• Music\n• Movies\n• News Canada\n• Sponsors`
-          : baseMenu,
-        baseMenu
-      );
+      emo && emo.bypassClarify
+        ? counselorLiteIntro(norm, session, cog)
+        : discoveryHint && discoveryHint.enabled
+        ? safeStr(discoveryHint.question).trim()
+        : safeStr(norm.text)
+        ? "I can help with Sandblast TV, Radio (music), News Canada, or we can just talk. What would you like?"
+        : "Okay — what would you like to do: TV, Radio, News Canada, or just talk?",
+      "Okay — what would you like to do next?"
+    );
       const loop = detectAndPatchLoop(session, lane || "general", reply0);
       const reply = loop.tripped
         ? finalizeReply("We’re looping. Pick ONE: Music, Movies, or Sponsors.")
@@ -3358,13 +3432,6 @@ ${base0}`
       },
     };
   }
-}
-
-
-// Wrapper ensures payload compatibility for ALL return paths (including fail-safe catch paths)
-async function handleChat(input){
-  const out = await handleChatCore(input);
-  return ensurePayloadContract(out);
 }
 
 /**
