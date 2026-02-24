@@ -35,6 +35,10 @@ const CE_VERSION =
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
 
+// Psyche Bridge (psych/support domain aggregator) — FAIL-OPEN require
+let PsycheBridge = null;
+try { PsycheBridge = require("./psycheBridge"); } catch (_e) { PsycheBridge = null; }
+
 // Music module (all music logic lives there now).
 // FAIL-OPEN: if missing or throws, chatEngine stays alive and returns a graceful message.
 let Music = null;
@@ -639,8 +643,37 @@ const PUBLIC_MIN_YEAR = 1950;
 const PUBLIC_MAX_YEAR = Math.min(2100, new Date().getFullYear());
 
 // Roku (Sandblast Channel) — EPG feed
-const ROKU_EPG_URL = "https://live.ottdash.com/stream-epg/10I7S-5Q8ERK4R/eyJ0eXAiOiJKV1QifQ.eyJleHAiOjAsImFjY291bnRfaWQiOiIzMzM1MSIsInZlcnNpb24iOiIxLjAiLCJ0eXBlIjoieG1sdHYifQ.ZogTopRj4Qwo6zNgC1V7soPcj_lQZfcTvOtZGfQHPEZ_MYgTmF4-trqstrMbLXyGmPgXYYNUx1Zz3QztzzkTGw";
+const ROKU_EPG_URL = "https://live.ottdash.com/stream-epg/10I7S-5Q8ERK4R/eyJ0eXAiOiJKV1QifQ.eyJleHAiOjAsImFjY291bnRfaWQiOiIzMzM1MSIsInZlcnNpb24iOiIxLjAiLCJ0eXBlIjoieG1sdHYifQ.ZogTopRj4Qwo6zNgC1V7soPcj_lQZfcTvOtZGfQHPEZ_MYgTmF4-trqstrMbLXyGmPgXYYNUx1Zz3QztzzkTGw"
 
+// -------------------------
+// psyche bridge — safe wrapper (NEVER throws)
+// -------------------------
+async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts }) {
+  if (!PsycheBridge || typeof PsycheBridge.build !== "function") return null;
+  try {
+    const psyche = await PsycheBridge.build({
+      features: isPlainObject(features) ? features : {},
+      tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
+      queryKey: safeStr(queryKey || "").slice(0, 220),
+      sessionKey: safeStr(sessionKey || "").slice(0, 220),
+      opts: isPlainObject(opts) ? opts : {},
+    });
+    return isPlainObject(psyche) ? psyche : null;
+  } catch (_e) {
+    return null;
+  }
+}
+;
+
+
+
+function mergeCogWithPsyche(cog, psyche) {
+  const base = isPlainObject(cog) ? { ...cog } : {};
+  // Keep footprint small; downstream can choose to ignore.
+  base.psyche = psyche || null;
+  base.route = base.route || (psyche ? "psych_bridge" : undefined);
+  return base;
+}
 
 // INPUT HARD LIMITS (crash / abuse guards)
 const MAX_TEXT_CHARS = 6500;
@@ -2194,12 +2227,27 @@ const session = isPlainObject(norm.body.session)
     const year = norm.year ?? yearSticky ?? null;
 
     // Lane resolution: payload+typed+session fallback
-    const lane =
+    let lane =
       safeStr(norm.lane || "").trim() ||
       safeStr(norm.payload?.lane || "").trim() ||
       safeStr(session.lane || "").trim() ||
       safeStr(corePrev?.lane || "").trim() ||
       (norm.action ? (norm.action === "reset" ? "general" : (norm.action === "movies" ? "movies" : (norm.action === "news_canada" ? "news" : (norm.action === "roku" ? "roku" : "music")))) : "general");
+
+    // Text-based lane inference (mirrors Music lane stability: UI often sends only text)
+    const tCanon = safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (lane === "general" || !lane) {
+      if (tCanon === "roku" || tCanon.includes("roku") || tCanon.includes("epg") || tCanon.includes("what's on now") || tCanon.includes("whats on now") || tCanon.includes("next up")) {
+        lane = "roku";
+      } else if (tCanon === "radio" || tCanon.includes("radio")) {
+        lane = "radio";
+      } else if (tCanon.includes("news canada") || tCanon === "news" || tCanon.includes("headlines")) {
+        lane = "news";
+      } else if (tCanon === "just talk" || tCanon.includes("i'm hurting") || tCanon.includes("im hurting") || tCanon.includes("i am hurting") || tCanon.includes("i feel") || tCanon.includes("anxious") || tCanon.includes("depressed")) {
+        // not a full classifier, but good enough to force the psyche path deterministically
+        lane = "general";
+      }
+    }
 
 
 // Session lane identity (deterministic routing key, NOT PII)
@@ -2708,7 +2756,9 @@ ${base0}`
 const wantsPsychBridge =
   routeMaybe === "psych_bridge" ||
   actionMaybe === "psych_bridge" ||
-  (routeMaybe && /\b(psych|bridge|support)\b/.test(routeMaybe));
+  ((routeMaybe && /\b(psych|bridge|support)\b/.test(routeMaybe)) ? true : false) ||
+  (safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ") === "just talk") ||
+  /\b(i[' ]?m hurting|i am hurting|im hurting|anxious|panic|depress|suicid|self harm)\b/i.test(safeStr(norm.text || ""));
 
 if (wantsPsychBridge) {
   const baseLine = supportPrefix
@@ -2717,9 +2767,31 @@ if (wantsPsychBridge) {
         "Alright — I’m here. Tell me what’s going on (one or two sentences).",
         "Alright — I’m here."
       );
+  // Build psyche object (FAIL-OPEN) so Nyx can respond with psych-aware behavior.
+  const sessionKey = safeStr(session.sessionKey || session.id || session.sid || "session").trim() || "session";
+  const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
+
+  const psyche = await buildPsycheSafe({
+    features: isPlainObject(cog) ? { ...cog } : {},
+    tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
+    queryKey,
+    sessionKey,
+    opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine" },
+  });
+
+  // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
+  if (psyche && (psyche.opening || psyche.reply || psyche.prompt)) {
+    const ptxt = safeStr(psyche.opening || psyche.reply || psyche.prompt || "");
+    if (ptxt) {
+      // override baseLine with psyche-driven opener
+    }
+  }
+
+
+  const openerFromPsyche = (psyche && (psyche.opening || psyche.reply || psyche.prompt)) ? safeStr(psyche.opening || psyche.reply || psyche.prompt) : "";
 
   const reply0 = finalizeReply(
-    baseLine,
+    openerFromPsyche ? openerFromPsyche : baseLine,
     "Alright — I’m here."
   );
 
@@ -2761,6 +2833,7 @@ if (wantsPsychBridge) {
   return buildContract({
     reply,
     lane: "general",
+    cog: mergeCogWithPsyche(cog, psyche),
     bridge: { kind: "psych_bridge", lane: "psych", force: true },
     directives: [{ type: "bridge", kind: "psych_bridge", lane: "psych", force: true }],
     followUps: fu,
