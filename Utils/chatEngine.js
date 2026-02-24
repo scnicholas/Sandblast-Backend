@@ -3682,26 +3682,6 @@ const reply0 = finalizeReply(
  * - Others do: const { handleChat } = require(...)
  * This makes ALL of them work.
  */
-/* =========================================================
-   OUTPUT NORMALIZER (PAYLOAD-SAFE CONTRACT) — v0.9.10
-   - Guarantees: every response includes payload:{} (never undefined)
-   - Guarantees: reply is a string (never undefined)
-   - Leaves existing shapes untouched (adds missing fields only)
-========================================================= */
-function __ensurePayloadContract(out){
-  try{
-    if(!out || typeof out !== "object"){
-      return { ok: true, reply: safeStr(out), payload: {}, meta: { note: "coerced_non_object" } };
-    }
-    if(typeof out.reply !== "string") out.reply = safeStr(out.reply);
-    if(!out.payload || typeof out.payload !== "object") out.payload = {};
-    // Convenience: if caller provided cog/sessionPatch inside payload, keep it.
-    return out;
-  }catch(_){
-    return { ok: false, reply: "Internal error.", payload: {} };
-  }
-}
-
 const chatEngine = handleChat;
 
 // Build an export object, then merge onto the callable function (so require() can be invoked directly).
@@ -3730,10 +3710,9 @@ const _exportObj = {
 
 // Make module.exports callable (function) AND also have properties.
 const _callable = function exportedChatEngine() {
-// preserve async semantics
-// eslint-disable-next-line prefer-rest-params
-const p = handleChat.apply(null, arguments);
-return Promise.resolve(p).then(__ensurePayloadContract);
+  // preserve async semantics
+  // eslint-disable-next-line prefer-rest-params
+  return handleChat.apply(null, arguments);
 };
 Object.assign(_callable, _exportObj);
 
