@@ -1,10 +1,5 @@
 "use strict";
 
-// =========================
-// ENV (hardened)
-// =========================
-const IS_PROD = String(process.env.NODE_ENV || "").toLowerCase() === "production";
-
 /**
  * Sandblast Backend — index.js
  *
@@ -175,6 +170,7 @@ function statSafe(p) {
 // =========================
 const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
+const IS_PROD = (NODE_ENV.toLowerCase() === "production");
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
@@ -3026,6 +3022,7 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply,
         lane: cached.lane || rec.data.lane || "general",
+        payload: { reply, lane: cached.lane || rec.data.lane || "general" },
         laneId: rec.data.laneId || undefined,
         sessionLane: rec.data.sessionLane || undefined,
         directives: cached.directives,
@@ -3063,6 +3060,7 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply,
         lane: rec.data.lane || "general",
+        payload: { reply, lane: rec.data.lane || "general" },
         laneId: rec.data.laneId || undefined,
         sessionLane: rec.data.sessionLane || undefined,
         sessionPatch: {},
@@ -3085,6 +3083,7 @@ async function handleChatRoute(req, res) {
         ok: true,
         reply: dedupe.reply,
         lane: dedupe.lane,
+        payload: { reply: dedupe.reply, lane: dedupe.lane },
         directives: dedupe.directives,
         followUps: dedupe.followUps,
         followUpsStrings: dedupe.followUpsStrings,
@@ -3108,6 +3107,7 @@ async function handleChatRoute(req, res) {
       ok: false,
       reply,
       lane: "general",
+      payload: { reply, lane: "general" },
       requestId: serverRequestId,
       meta: {
         index: INDEX_VERSION,
@@ -3164,9 +3164,10 @@ async function handleChatRoute(req, res) {
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
     return res.status(500).json({
-      ok: true,
+      ok: false,
       reply,
       lane: rec.data.lane || "general",
+      payload: { reply, lane: rec.data.lane || "general" },
       requestId: serverRequestId,
       meta: {
         index: INDEX_VERSION,
@@ -3241,10 +3242,10 @@ async function handleChatRoute(req, res) {
     ok: true,
     reply,
     lane,
+    payload: { reply, lane, laneId: out?.laneId || rec.data.laneId || undefined, sessionLane: out?.sessionLane || rec.data.sessionLane || undefined, bridge: out?.bridge || undefined, ctx: out?.ctx, ui: out?.ui, directives, followUps, followUpsStrings, sessionPatch: out?.sessionPatch || {}, cog: out?.cog },
     laneId: out?.laneId || rec.data.laneId || undefined,
     sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
     bridge: out?.bridge || undefined,
-    payload: (out && out.payload) ? out.payload : ((out && out.bridge) ? out.bridge : {}),
     ctx: out?.ctx,
     ui: out?.ui,
     directives,
@@ -3425,6 +3426,30 @@ app.post("/api/debug/knowledge/registry-reload", (req, res) => {
 });
 
 
+
+
+// =========================
+// Global error handler (always JSON, always has payload)
+// =========================
+app.use((err, req, res, next) => {
+  try {
+    if (res.headersSent) return next(err);
+    const status = Number(err?.statusCode || err?.status || 500) || 500;
+    const errorMsg = safeStr(err?.message || err || "Unknown error");
+    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
+    res.status(status).json({
+      ok: false,
+      error: errorMsg,
+      reply,
+      lane: "general",
+      payload: { reply, lane: "general", error: errorMsg }
+    });
+  } catch (e) {
+    try {
+      res.status(500).end();
+    } catch (_) {}
+  }
+});
 // =========================
 // Start + graceful shutdown
 // =========================
