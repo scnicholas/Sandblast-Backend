@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19ce (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.19cd (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -85,14 +85,11 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 const nyxVoiceNaturalizeMod =
   safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
-// Optional Psyche Bridge (domain aggregator)
-const psycheBridgeMod = safeRequire("./Utils/psycheBridge") || safeRequire("./Utils/psycheBridge.js") || null;
-
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.19ce (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
+  "index.js v1.5.19cd (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -173,6 +170,7 @@ function statSafe(p) {
 // =========================
 const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
+const IS_PROD = (NODE_ENV.toLowerCase() === "production");
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
@@ -692,88 +690,6 @@ function normalizeEngineOutput(out) {
   return { ok: true, reply: safeStr(out) };
 }
 
-
-// =========================
-// Psyche Bridge resolver (build OR function export)
-// =========================
-function resolvePsycheBridge(mod) {
-  if (!mod) return { fn: null, from: "missing", version: "" };
-
-  if (typeof mod === "function") {
-    return { fn: mod, from: "module_function", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  if (typeof mod.build === "function") {
-    return { fn: mod.build.bind(mod), from: "module_build", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  if (typeof mod.default === "function") {
-    return { fn: mod.default.bind(mod), from: "module_default", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  return { fn: null, from: "invalid", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-}
-
-const PSYCHE_BRIDGE = resolvePsycheBridge(psycheBridgeMod);
-const PSYCHE_BRIDGE_VERSION = safeStr(PSYCHE_BRIDGE.version || "").trim();
-const PSYCHE_LOG = toBool(process.env.PSYCHE_LOG, false);
-const PSYCHE_FORCE_ON_EVERY_TURN = toBool(process.env.PSYCHE_FORCE, true); // default ON during hardening
-
-function summarizeFeats(feats) {
-  try {
-    if (!feats || typeof feats !== "object") return null;
-    const out = {};
-    for (const k of ["intent", "mood", "affect", "topic", "lane", "mode", "risk", "urgency"]) {
-      if (feats[k] !== undefined) out[k] = feats[k];
-    }
-    return out;
-  } catch (_) {
-    return null;
-  }
-}
-
-async function buildPsycheForTurn({ inboundText, feats, sessionKey, queryKey }) {
-  try {
-    if (!PSYCHE_BRIDGE.fn) return null;
-
-    const text = safeStr(inboundText || "");
-    const tokens = (feats && Array.isArray(feats.tokens) && feats.tokens.length)
-      ? feats.tokens.map((t) => safeStr(t)).filter(Boolean).slice(0, 80)
-      : text.split(/\s+/).filter(Boolean).slice(0, 80);
-
-    const payload = {
-      features: isPlainObject(feats) ? feats : { intent: "unknown", mood: "neutral" },
-      tokens,
-      queryKey: safeStr(queryKey || ""),
-      sessionKey: safeStr(sessionKey || ""),
-      opts: { mode: "live", force: true },
-    };
-
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:IN]", { sessionKey: payload.sessionKey, queryKey: payload.queryKey, feats: summarizeFeats(payload.features) });
-    }
-
-    const psyche = await PSYCHE_BRIDGE.fn(payload);
-
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:OUT]", {
-        sessionKey: payload.sessionKey,
-        queryKey: payload.queryKey,
-        mode: psyche && psyche.mode,
-        intent: psyche && (psyche.intent || psyche.primaryIntent),
-        confidence: psyche && (psyche.confidence || psyche.score),
-      });
-    }
-
-    return psyche || null;
-  } catch (e) {
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:ERR]", e && (e.stack || e.message || e));
-    }
-    return null;
-  }
-}
-
 // =========================
 // Nyx Voice Naturalizer (pre-TTS)
 // =========================
@@ -895,8 +811,7 @@ function apiTokenGate(req, res, next) {
     if (eq && tok && tok.length === EXPECTED_API_TOKEN.length) return next();
   } catch (_) {}
 
-  return res.status(401).json({ ok: false, error: "unauthorized", meta: { index: INDEX_VERSION } });
-}
+  return sendContract(res, 401, { ok: false, error: "unauthorized", meta: { index: INDEX_VERSION } });}
 
 // =========================
 // Simple IP rate guard (pre-session)
@@ -930,13 +845,12 @@ function ipRateGuard(req, res, next) {
   }
 
   if (rec.count > IP_RATE_MAX || rec.burstCount > IP_RATE_BURST_MAX) {
-    return res.status(429).json({
+    return sendContract(res, 429, {
       ok: false,
       error: "rate_limited",
       detail: "Too many requests. Slow down.",
       meta: { index: INDEX_VERSION },
-    });
-  }
+    });}
   return next();
 }
 
@@ -2384,6 +2298,19 @@ function readBootReplay(rec) {
 // =========================
 // App
 // =========================
+
+
+// =========================
+// Response Contract Helper (NYX_WIDGET expects .payload always)
+// =========================
+function sendContract(res, statusCode, body) {
+  const out = (body && typeof body === "object") ? { ...body } : { ok: statusCode < 400, error: String(body) };
+  if (!Object.prototype.hasOwnProperty.call(out, "ok")) out.ok = statusCode < 400;
+  if (!out.payload || typeof out.payload !== "object") out.payload = {};
+  // Never leak stack traces unless explicitly allowed
+  if (out && out.error && typeof out.error === "object") out.error = String(out.error);
+  return res.status(statusCode).json(out);
+}
 const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
@@ -2401,8 +2328,8 @@ if (REQ_TIMEOUT_MS > 0) {
   app.use((req, res, next) => {
     res.setTimeout(REQ_TIMEOUT_MS, () => {
       try {
-        if (!res.headersSent) res.status(504).json({ ok: false, error: "timeout", meta: { index: INDEX_VERSION } });
-      } catch (_) {}
+        if (!res.headersSent) sendContract(res, 504, { ok: false, error: "timeout", meta: { index: INDEX_VERSION } });
+} catch (_) {}
     });
     next();
   });
@@ -2413,13 +2340,12 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return next();
   express.json({ limit: MAX_JSON_BODY })(req, res, (err) => {
     if (err) {
-      return res.status(400).json({
+      return sendContract(res, 400, {
         ok: false,
         error: "invalid_json",
         detail: safeStr(err.message || err).slice(0, 240),
         meta: { index: INDEX_VERSION },
-      });
-    }
+      });}
     return next();
   });
 });
@@ -2501,8 +2427,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
 
   // HARD DENY: if browser sends Origin and it's not allowed, block.
   if (origin && !allow) {
-    return res.status(403).json({ ok: false, error: "cors_denied", meta: { index: INDEX_VERSION } });
-  }
+    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION } });}
 
   return next();
 });
@@ -2537,7 +2462,7 @@ if (fileExists(AVATAR_DIR)) {
 // Health + discovery
 // =========================
 app.get("/", (req, res) => {
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     service: "sandblast-backend",
     version: INDEX_VERSION,
@@ -2550,7 +2475,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
@@ -2565,14 +2490,14 @@ app.get("/health", (req, res) => {
 // Render/uptime keep-alive (public)
 app.get("/_warm", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.status(200).json({ ok: true, ts: Date.now(), v: INDEX_VERSION });
+  sendContract(res, 200, { ok: true, ts: Date.now(), v: INDEX_VERSION });
 });
 
 
 // Health + diagnostics (public)
 app.get("/_health", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     ts: Date.now(),
     uptimeS: Math.round(process.uptime()),
@@ -2582,10 +2507,38 @@ app.get("/_health", (req, res) => {
   });
 });
 
+
+/* =========================================================
+   DEBUG: PSYCHE BRIDGE (standalone proof route)
+   - Does NOT depend on Nyx/widget
+   - Safe: returns minimal object + errors
+   Enable/disable with env DEBUG_PSYCH_ROUTE (default: on in non-prod)
+========================================================= */
+const DEBUG_PSYCH_ROUTE = String(process.env.DEBUG_PSYCH_ROUTE || "").trim().toLowerCase();
+const PSYCH_ROUTE_ENABLED = (DEBUG_PSYCH_ROUTE === "1" || DEBUG_PSYCH_ROUTE === "true" || (!IS_PROD && DEBUG_PSYCH_ROUTE !== "0" && DEBUG_PSYCH_ROUTE !== "false"));
+
+if (PSYCH_ROUTE_ENABLED) {
+  app.get("/debug/psyche", async (req, res) => {
+    try {
+      if (!psycheBridgeMod || typeof psycheBridgeMod.build !== "function") {
+        return sendContract(res, 500, { ok: false, error: "psycheBridge.build not available" });}
+      const psyche = await psycheBridgeMod.build({
+        features: { intent: "test", mood: "neutral", lane: "psych/bridge" },
+        tokens: ["hello", "world"],
+        queryKey: "debug-psyche-test",
+        sessionKey: "debug-session-1",
+        opts: { mode: "debug" }
+      });
+      return res.json({ ok: true, psyche });
+    } catch (err) {
+      return sendContract(res, 500, { ok: false, error: String((err && err.message) || err) });}
+  });
+}
+
 // Alias (some callers prefer /api/health)
 app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     ts: Date.now(),
     uptimeS: Math.round(process.uptime()),
@@ -2604,7 +2557,7 @@ app.get("/_diag", (req, res) => {
   res.set("Cache-Control", "no-store");
   const originRaw = safeStr(req.headers.origin || "");
   const origin = normalizeOrigin(originRaw);
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     ts: Date.now(),
     version: INDEX_VERSION,
@@ -2632,7 +2585,7 @@ app.get("/_diag", (req, res) => {
 // Minimal ping/echo to prove browser->server reachability (public)
 app.post("/api/ping", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     ts: Date.now(),
     version: INDEX_VERSION,
@@ -2652,7 +2605,7 @@ app.get("/api/diag", (req, res) => {
 
 
 app.get("/api/discovery", (req, res) => {
-  res.status(200).json({
+  sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
@@ -2670,7 +2623,6 @@ app.get("/api/discovery", (req, res) => {
       "/api/packsight",
       "/api/debug/knowledge",
       "/api/debug/packsight",
-      "/api/debug/psyche",
       "/api/packs",
       "/api/packs/refresh",
     ],
@@ -2684,14 +2636,13 @@ app.get("/api/discovery", (req, res) => {
 // =========================
 app.get("/api/packs", (req, res) => {
   const idx = getPackIndexSafe(false);
-  return res.status(200).json({
+  return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
     packs: idx,
-  });
-});
+  });});
 
 function doPacksRefresh(req, res) {
   const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
@@ -2703,14 +2654,13 @@ function doPacksRefresh(req, res) {
     }
   }
   const idx = getPackIndexSafe(true);
-  return res.status(200).json({
+  return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
     packs: idx,
-  });
-}
+  });}
 
 app.post("/api/packs/refresh", doPacksRefresh);
 app.get("/api/packs/refresh", apiTokenGate, doPacksRefresh);
@@ -2722,7 +2672,7 @@ app.get("/api/packsight", (req, res) => {
   const pins = pinnedPresence();
   const idx = getPackIndexSafe(false);
 
-  return res.status(200).json({
+  return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
@@ -2767,20 +2717,18 @@ app.get("/api/packsight", (req, res) => {
     },
     packsSummary: idx.summary,
     pinnedKeys: idx.groups?.pinned || [],
-  });
-});
+  });});
 
 // small knowledge status alias
 app.get("/api/knowledge", (req, res) => {
-  return res.status(200).json({
+  return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
     engine: ENGINE_VERSION || null,
     engineFrom: ENGINE.from,
     knowledge: knowledgeStatusForMeta(),
     packs: getPackIndexSafe(false).summary,
-  });
-});
+  });});
 
 // =========================
 // Debug knowledge endpoints (kept)
@@ -2789,13 +2737,12 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
   app.get("/api/debug/knowledge", (req, res) => {
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
-      return res.status(404).json({ ok: false, error: "not_found" });
-    }
+      return sendContract(res, 404, { ok: false, error: "not_found" });}
 
     const jsonKeys = Object.keys(KNOWLEDGE.json);
     const scriptKeys = Object.keys(KNOWLEDGE.scripts);
 
-    return res.status(200).json({
+    return sendContract(res, 200, {
       ok: true,
       version: INDEX_VERSION,
       engine: ENGINE_VERSION || null,
@@ -2848,19 +2795,17 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
         scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
       },
       packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
-    });
-  });
+    });});
 
   app.get("/api/debug/packsight", (req, res) => {
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
-      return res.status(404).json({ ok: false, error: "not_found" });
-    }
+      return sendContract(res, 404, { ok: false, error: "not_found" });}
 
     const pins = pinnedPresence();
     const idx = getPackIndexSafe(false);
 
-    return res.status(200).json({
+    return sendContract(res, 200, {
       ok: true,
       version: INDEX_VERSION,
       engine: ENGINE_VERSION || null,
@@ -2887,22 +2832,19 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
       },
       packsSummary: idx.summary,
       pinnedKeys: idx.groups?.pinned || [],
-    });
-  });
+    });});
 
   app.post("/api/debug/knowledge/reload", (req, res) => {
     const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
     if (NODE_ENV === "production" && !allowInProd) {
-      return res.status(404).json({ ok: false, error: "not_found" });
-    }
+      return sendContract(res, 404, { ok: false, error: "not_found" });}
     const summary = reloadKnowledge();
-    return res.status(200).json({
+    return sendContract(res, 200, {
       ok: true,
       summary,
       knowledge: knowledgeStatusForMeta(),
       packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
-    });
-  });
+    });});
 }
 
 // =========================
@@ -3050,6 +2992,8 @@ async function handleChatRoute(req, res) {
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
+  let psyche = null;
+  let psycheErr = null;
 
   const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
@@ -3071,10 +3015,11 @@ async function handleChatRoute(req, res) {
     if (bf.blocked) {
       const cached = readBootReplay(rec);
       const reply = cached.reply || "";
-      return res.status(200).json({
+      return sendContract(res, 200, {
         ok: true,
         reply,
         lane: cached.lane || rec.data.lane || "general",
+        payload: { reply, lane: cached.lane || rec.data.lane || "general" },
         laneId: rec.data.laneId || undefined,
         sessionLane: rec.data.sessionLane || undefined,
         directives: cached.directives,
@@ -3090,10 +3035,11 @@ async function handleChatRoute(req, res) {
           bootFuse: bf.reason,
           source,
           routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
           elapsedMs: nowMs() - startedAt,
         },
-      });
-    }
+      });}
   }
 
   if (!bootLike && meaningful && !isReset) {
@@ -3106,10 +3052,11 @@ async function handleChatRoute(req, res) {
           : "Give me a breath — then hit me again with a year or a request.";
       writeReplay(rec, reply, rec.data.lane || "general");
 
-      return res.status(200).json({
+      return sendContract(res, 200, {
         ok: true,
         reply,
         lane: rec.data.lane || "general",
+        payload: { reply, lane: rec.data.lane || "general" },
         laneId: rec.data.laneId || undefined,
         sessionLane: rec.data.sessionLane || undefined,
         sessionPatch: {},
@@ -3121,17 +3068,17 @@ async function handleChatRoute(req, res) {
           throttled: burst.blocked ? "burst" : "sustained",
           elapsedMs: nowMs() - startedAt,
         },
-      });
-    }
+      });}
   }
 
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
-      return res.status(200).json({
+      return sendContract(res, 200, {
         ok: true,
         reply: dedupe.reply,
         lane: dedupe.lane,
+        payload: { reply: dedupe.reply, lane: dedupe.lane },
         directives: dedupe.directives,
         followUps: dedupe.followUps,
         followUpsStrings: dedupe.followUpsStrings,
@@ -3144,17 +3091,17 @@ async function handleChatRoute(req, res) {
           replay: true,
           elapsedMs: nowMs() - startedAt,
         },
-      });
-    }
+      });}
   }
 
   if (!ENGINE.fn) {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
-    return res.status(500).json({
+    return sendContract(res, 500, {
       ok: false,
       reply,
       lane: "general",
+      payload: { reply, lane: "general" },
       requestId: serverRequestId,
       meta: {
         index: INDEX_VERSION,
@@ -3163,8 +3110,7 @@ async function handleChatRoute(req, res) {
         engineVersion: ENGINE_VERSION || null,
         knowledge: knowledgeStatusForMeta(),
       },
-    });
-  }
+    });}
 
   if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
     const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
@@ -3189,6 +3135,8 @@ async function handleChatRoute(req, res) {
       ...(isPlainObject(body.client) ? body.client : {}),
       source,
       routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
     },
     session: rec.data,
 
@@ -3208,10 +3156,11 @@ async function handleChatRoute(req, res) {
       ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    return res.status(500).json({
-      ok: true,
+    return sendContract(res, 500, {
+      ok: false,
       reply,
       lane: rec.data.lane || "general",
+      payload: { reply, lane: rec.data.lane || "general" },
       requestId: serverRequestId,
       meta: {
         index: INDEX_VERSION,
@@ -3219,8 +3168,7 @@ async function handleChatRoute(req, res) {
         knowledge: k,
         error: safeStr(msg).slice(0, 200),
       },
-    });
-  }
+    });}
 
   if (out && isPlainObject(out.sessionPatch)) {
     applySessionPatch(rec.data, out.sessionPatch);
@@ -3228,6 +3176,38 @@ async function handleChatRoute(req, res) {
 
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   rec.data.lane = lane;
+
+
+  // =========================================================
+  // PSYCHE BRIDGE (always-run, fail-open)
+  // - Proves bridge is called on every turn
+  // - Never blocks chat (errors are captured in meta)
+  // =========================================================
+  psyche = null;
+  psycheErr = null;
+  try {
+    if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
+      const feats = isPlainObject(out?.cog) ? out.cog : (isPlainObject(out) ? out : {});
+      const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
+      const tokens = tokSrc.slice(0, 32);
+      const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
+      const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
+      const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
+      psyche = await psycheBridgeMod.build({
+        features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge" },
+        tokens,
+        queryKey,
+        sessionKey,
+        opts: { mode: "live", forcedLane }
+      });
+      // attach for downstream + client visibility
+      out.psyche = psyche;
+      if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
+    }
+  } catch (e) {
+    psycheErr = safeStr(e?.message || e).slice(0, 220);
+  }
+
 
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
@@ -3250,10 +3230,11 @@ async function handleChatRoute(req, res) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
 
-  return res.status(200).json({
+  return sendContract(res, 200, {
     ok: true,
     reply,
     lane,
+    payload: { reply, lane, laneId: out?.laneId || rec.data.laneId || undefined, sessionLane: out?.sessionLane || rec.data.sessionLane || undefined, bridge: out?.bridge || undefined, ctx: out?.ctx, ui: out?.ui, directives, followUps, followUpsStrings, sessionPatch: out?.sessionPatch || {}, cog: out?.cog },
     laneId: out?.laneId || rec.data.laneId || undefined,
     sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
     bridge: out?.bridge || undefined,
@@ -3274,6 +3255,8 @@ async function handleChatRoute(req, res) {
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
       bootLike: !!bootLike,
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
@@ -3281,8 +3264,7 @@ async function handleChatRoute(req, res) {
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
     },
-  });
-}
+  });}
 
 // =========================
 // Chat endpoints (guarded)
@@ -3293,14 +3275,13 @@ app.post("/api/chat", ipRateGuard, apiTokenGate, handleChatRoute);
 
 // GET guidance
 function chatGetGuidance(req, res) {
-  return res.status(405).json({
+  return sendContract(res, 405, {
     ok: false,
     error: "method_not_allowed",
     detail:
       'Use POST with JSON body. Example: { "text": "Top 10 for 1973", "payload": { "lane":"music", "action":"top10", "year":1973 } }',
     meta: { index: INDEX_VERSION },
-  });
-}
+  });}
 app.get("/api/chat", chatGetGuidance);
 app.get("/api/nyx/chat", chatGetGuidance);
 app.get("/api/sandblast-gpt", chatGetGuidance);
@@ -3324,16 +3305,14 @@ async function handleTtsRoute(req, res) {
   const voiceId = pickElevenVoiceId(req, body);
 
   if (!ELEVEN_API_KEY || !voiceId || !fetchFn) {
-    return res.status(501).json({
+    return sendContract(res, 501, {
       ok: false,
       error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_*_VOICE_ID or fetch).",
       meta: { index: INDEX_VERSION },
-    });
-  }
+    });}
 
   if (!text && !noText) {
-    return res.status(400).json({ ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });
-  }
+    return sendContract(res, 400, { ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });}
 
   const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
   const t = setTimeout(() => {
@@ -3367,13 +3346,12 @@ async function handleTtsRoute(req, res) {
 
     if (!r.ok) {
       const errTxt = await r.text().catch(() => "");
-      return res.status(502).json({
+      return sendContract(res, 502, {
         ok: false,
         error: "TTS upstream error",
         detail: safeStr(errTxt).slice(0, 800),
         meta: { index: INDEX_VERSION, status: r.status },
-      });
-    }
+      });}
 
     const buf = Buffer.from(await r.arrayBuffer());
 
@@ -3400,41 +3378,72 @@ app.post("/api/tts", ipRateGuard, handleTtsRoute);
 app.post("/api/voice", ipRateGuard, handleTtsRoute);
 
 function ttsGetGuidance(req, res) {
-  return res.status(405).json({
+  return sendContract(res, 405, {
     ok: false,
     error: "method_not_allowed",
     detail: 'Use POST with JSON body: { text: "..." }',
     meta: { index: INDEX_VERSION },
-  });
-}
+  });}
 app.get("/api/tts", ttsGetGuidance);
 app.get("/api/voice", ttsGetGuidance);
 
 // =========================
 // Express error middleware (last)
 // =========================
+
+
+// =========================
+        // NYX 404 (keep contract)
+        // =========================
+        app.use((req, res) => {
+          return sendContract(res, 404, { ok: false, error: "Not found", payload: { path: req.path } });
+        });
+
 app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
   console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
   if (res.headersSent) return next(err);
-  return res.status(500).json({
+  return sendContract(res, 500, {
     ok: false,
     error: "server_error",
     detail: safeStr(err?.message || err).slice(0, 240),
     meta: { index: INDEX_VERSION },
-  });
-});
+  });});
 app.post("/api/debug/knowledge/registry-reload", (req, res) => {
   // Token-gated by global guard; fail-open so ops can see why it failed
   try {
     const out = initKnowledgeRegistryBridge();
     res.json({ ok: !!(out && out.ok), registry: out });
   } catch (e) {
-    res.status(500).json({ ok: false, error: safeStr(e?.message || e) });
-  }
+    sendContract(res, 500, { ok: false, error: safeStr(e?.message || e) });
+}
 });
 
 
+
+
+// =========================
+// Global error handler (always JSON, always has payload)
+// =========================
+app.use((err, req, res, next) => {
+  try {
+    if (res.headersSent) return next(err);
+    const status = Number(err?.statusCode || err?.status || 500) || 500;
+    const errorMsg = safeStr(err?.message || err || "Unknown error");
+    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
+    res.status(status).json({
+      ok: false,
+      error: errorMsg,
+      reply,
+      lane: "general",
+      payload: { reply, lane: "general", error: errorMsg }
+    });
+  } catch (e) {
+    try {
+      res.status(500).end();
+    } catch (_) {}
+  }
+});
 // =========================
 // Start + graceful shutdown
 // =========================
