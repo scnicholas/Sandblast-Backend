@@ -2165,35 +2165,6 @@ const session = isPlainObject(norm.body.session)
       cog.latentDesire = safeStr(cog.latentDesire || "");
     }
 
-
-    // -------------------------
-    // Payload + lane canonicalization (mirror MUSIC determinism)
-    // -------------------------
-    const payload = (norm && norm.payload && typeof norm.payload === "object") ? norm.payload : {};
-    const canonLane = (v)=>{
-      const s = String(v||"").trim().toLowerCase();
-      if(!s) return "";
-      if(s === "psych/bridge" || s === "psyche" || s === "psych" || s === "therapy" || s === "talk" || s === "just talk") return "psych_bridge";
-      if(s === "general" || s === "chat") return "general";
-      if(s === "music" || s === "songs" || s === "top10" || s === "top 10") return "music";
-      if(s === "roku" || s === "ott" || s === "tv") return "roku";
-      if(s === "radio" || s === "stream" || s === "station") return "radio";
-      if(s === "news") return "news";
-      if(s === "movies") return "movies";
-      if(s === "sponsors" || s === "ads") return "sponsors";
-      if(s === "schedule" || s === "calendar") return "schedule";
-      return s;
-    };
-
-    // Lane pin: session > payload > cog > default
-    let lane = canonLane(sessionLane.current) || canonLane(payload.lane) || canonLane(payload.route) || canonLane(cog.lane) || "general";
-    cog.lane = lane;
-    try{ if(norm && typeof norm === "object") norm.lane = lane; }catch(_){ }
-
-    // InboundKey must exist BEFORE supportPrefix / baseCogPatch
-    const inboundKey = buildInboundKey(norm, { lane });
-    cog.inboundKey = inboundKey;
-    cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
     // Emotion guard: never show forced "pick one" prompts when the user is distressed.
@@ -2216,7 +2187,9 @@ const session = isPlainObject(norm.body.session)
       discoveryHint
     );
 
-    // (inboundKey already computed above)
+    const inboundKey = buildInboundKey(norm);
+    cog.inboundKey = inboundKey;
+    cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
@@ -2254,7 +2227,7 @@ const session = isPlainObject(norm.body.session)
     const year = norm.year ?? yearSticky ?? null;
 
     // Lane resolution: payload+typed+session fallback
-    lane =
+    let lane =
       safeStr(norm.lane || "").trim() ||
       safeStr(norm.payload?.lane || "").trim() ||
       safeStr(session.lane || "").trim() ||
