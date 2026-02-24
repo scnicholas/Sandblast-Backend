@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19ce (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.19cd (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -85,14 +85,11 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 const nyxVoiceNaturalizeMod =
   safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
-// Optional Psyche Bridge (domain aggregator)
-const psycheBridgeMod = safeRequire("./Utils/psycheBridge") || safeRequire("./Utils/psycheBridge.js") || null;
-
 // =========================
 // Version
 // =========================
 const INDEX_VERSION =
-  "index.js v1.5.19ce (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
+  "index.js v1.5.19cd (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
 
 // =========================
 // Utils
@@ -690,88 +687,6 @@ function normalizeEngineOutput(out) {
   if (typeof out === "string") return { ok: true, reply: out };
   if (isPlainObject(out)) return out;
   return { ok: true, reply: safeStr(out) };
-}
-
-
-// =========================
-// Psyche Bridge resolver (build OR function export)
-// =========================
-function resolvePsycheBridge(mod) {
-  if (!mod) return { fn: null, from: "missing", version: "" };
-
-  if (typeof mod === "function") {
-    return { fn: mod, from: "module_function", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  if (typeof mod.build === "function") {
-    return { fn: mod.build.bind(mod), from: "module_build", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  if (typeof mod.default === "function") {
-    return { fn: mod.default.bind(mod), from: "module_default", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-  }
-  return { fn: null, from: "invalid", version: safeStr(mod.PB_VERSION || mod.VERSION || "") };
-}
-
-const PSYCHE_BRIDGE = resolvePsycheBridge(psycheBridgeMod);
-const PSYCHE_BRIDGE_VERSION = safeStr(PSYCHE_BRIDGE.version || "").trim();
-const PSYCHE_LOG = toBool(process.env.PSYCHE_LOG, false);
-const PSYCHE_FORCE_ON_EVERY_TURN = toBool(process.env.PSYCHE_FORCE, true); // default ON during hardening
-
-function summarizeFeats(feats) {
-  try {
-    if (!feats || typeof feats !== "object") return null;
-    const out = {};
-    for (const k of ["intent", "mood", "affect", "topic", "lane", "mode", "risk", "urgency"]) {
-      if (feats[k] !== undefined) out[k] = feats[k];
-    }
-    return out;
-  } catch (_) {
-    return null;
-  }
-}
-
-async function buildPsycheForTurn({ inboundText, feats, sessionKey, queryKey }) {
-  try {
-    if (!PSYCHE_BRIDGE.fn) return null;
-
-    const text = safeStr(inboundText || "");
-    const tokens = (feats && Array.isArray(feats.tokens) && feats.tokens.length)
-      ? feats.tokens.map((t) => safeStr(t)).filter(Boolean).slice(0, 80)
-      : text.split(/\s+/).filter(Boolean).slice(0, 80);
-
-    const payload = {
-      features: isPlainObject(feats) ? feats : { intent: "unknown", mood: "neutral" },
-      tokens,
-      queryKey: safeStr(queryKey || ""),
-      sessionKey: safeStr(sessionKey || ""),
-      opts: { mode: "live", force: true },
-    };
-
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:IN]", { sessionKey: payload.sessionKey, queryKey: payload.queryKey, feats: summarizeFeats(payload.features) });
-    }
-
-    const psyche = await PSYCHE_BRIDGE.fn(payload);
-
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:OUT]", {
-        sessionKey: payload.sessionKey,
-        queryKey: payload.queryKey,
-        mode: psyche && psyche.mode,
-        intent: psyche && (psyche.intent || psyche.primaryIntent),
-        confidence: psyche && (psyche.confidence || psyche.score),
-      });
-    }
-
-    return psyche || null;
-  } catch (e) {
-    if (PSYCHE_LOG) {
-      // eslint-disable-next-line no-console
-      console.log("[PSYCHE:ERR]", e && (e.stack || e.message || e));
-    }
-    return null;
-  }
 }
 
 // =========================
@@ -2582,6 +2497,36 @@ app.get("/_health", (req, res) => {
   });
 });
 
+
+/* =========================================================
+   DEBUG: PSYCHE BRIDGE (standalone proof route)
+   - Does NOT depend on Nyx/widget
+   - Safe: returns minimal object + errors
+   Enable/disable with env DEBUG_PSYCH_ROUTE (default: on in non-prod)
+========================================================= */
+const DEBUG_PSYCH_ROUTE = String(process.env.DEBUG_PSYCH_ROUTE || "").trim().toLowerCase();
+const PSYCH_ROUTE_ENABLED = (DEBUG_PSYCH_ROUTE === "1" || DEBUG_PSYCH_ROUTE === "true" || (!IS_PROD && DEBUG_PSYCH_ROUTE !== "0" && DEBUG_PSYCH_ROUTE !== "false"));
+
+if (PSYCH_ROUTE_ENABLED) {
+  app.get("/debug/psyche", async (req, res) => {
+    try {
+      if (!psycheBridgeMod || typeof psycheBridgeMod.build !== "function") {
+        return res.status(500).json({ ok: false, error: "psycheBridge.build not available" });
+      }
+      const psyche = await psycheBridgeMod.build({
+        features: { intent: "test", mood: "neutral", lane: "psych/bridge" },
+        tokens: ["hello", "world"],
+        queryKey: "debug-psyche-test",
+        sessionKey: "debug-session-1",
+        opts: { mode: "debug" }
+      });
+      return res.json({ ok: true, psyche });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: String((err && err.message) || err) });
+    }
+  });
+}
+
 // Alias (some callers prefer /api/health)
 app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
@@ -2670,7 +2615,6 @@ app.get("/api/discovery", (req, res) => {
       "/api/packsight",
       "/api/debug/knowledge",
       "/api/debug/packsight",
-      "/api/debug/psyche",
       "/api/packs",
       "/api/packs/refresh",
     ],
@@ -3050,6 +2994,8 @@ async function handleChatRoute(req, res) {
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
+  let psyche = null;
+  let psycheErr = null;
 
   const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
 
@@ -3090,6 +3036,8 @@ async function handleChatRoute(req, res) {
           bootFuse: bf.reason,
           source,
           routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
           elapsedMs: nowMs() - startedAt,
         },
       });
@@ -3189,6 +3137,8 @@ async function handleChatRoute(req, res) {
       ...(isPlainObject(body.client) ? body.client : {}),
       source,
       routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
     },
     session: rec.data,
 
@@ -3228,6 +3178,38 @@ async function handleChatRoute(req, res) {
 
   const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
   rec.data.lane = lane;
+
+
+  // =========================================================
+  // PSYCHE BRIDGE (always-run, fail-open)
+  // - Proves bridge is called on every turn
+  // - Never blocks chat (errors are captured in meta)
+  // =========================================================
+  psyche = null;
+  psycheErr = null;
+  try {
+    if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
+      const feats = isPlainObject(out?.cog) ? out.cog : (isPlainObject(out) ? out : {});
+      const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
+      const tokens = tokSrc.slice(0, 32);
+      const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
+      const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
+      const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
+      psyche = await psycheBridgeMod.build({
+        features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge" },
+        tokens,
+        queryKey,
+        sessionKey,
+        opts: { mode: "live", forcedLane }
+      });
+      // attach for downstream + client visibility
+      out.psyche = psyche;
+      if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
+    }
+  } catch (e) {
+    psycheErr = safeStr(e?.message || e).slice(0, 220);
+  }
+
 
   const rawReply = safeStr(out?.reply || "").trim();
   const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
@@ -3274,6 +3256,8 @@ async function handleChatRoute(req, res) {
       elapsedMs: nowMs() - startedAt,
       source,
       routeHint,
+      psycheOk: !!psyche,
+      psycheErr: psycheErr || null,
       bootLike: !!bootLike,
       inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
       meaningful: !!meaningful,
