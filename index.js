@@ -1,5 +1,10 @@
 "use strict";
 
+// =========================
+// ENV (hardened)
+// =========================
+const IS_PROD = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+
 /**
  * Sandblast Backend — index.js
  *
@@ -170,7 +175,6 @@ function statSafe(p) {
 // =========================
 const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
-const IS_PROD = NODE_ENV === "production";
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
@@ -3240,6 +3244,7 @@ async function handleChatRoute(req, res) {
     laneId: out?.laneId || rec.data.laneId || undefined,
     sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
     bridge: out?.bridge || undefined,
+    payload: (out && out.payload) ? out.payload : ((out && out.bridge) ? out.bridge : {}),
     ctx: out?.ctx,
     ui: out?.ui,
     directives,
