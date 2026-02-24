@@ -170,6 +170,7 @@ function statSafe(p) {
 // =========================
 const PORT = Number(process.env.PORT || 10000);
 const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
+const IS_PROD = NODE_ENV === "production";
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
 
