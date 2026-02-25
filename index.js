@@ -120,10 +120,32 @@ const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/pa
 const nyxVoiceNaturalizeMod =
   safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
 
+// Optional SiteBridge / PsycheBridge (domain aggregator). Fail-open.
+let siteBridgeMod =
+  safeRequire("./Utils/SiteBridge") ||
+  safeRequire("./Utils/SiteBridge.js") ||
+  safeRequire("./Utils/siteBridge") ||
+  safeRequire("./Utils/siteBridge.js") ||
+  safeRequire("./Utils/sitebridge") ||
+  safeRequire("./Utils/sitebridge.js") ||
+  null;
+
+let psycheBridgeMod =
+  safeRequire("./Utils/psycheBridge") ||
+  safeRequire("./Utils/psycheBridge.js") ||
+  safeRequire("./Utils/PsycheBridge") ||
+  safeRequire("./Utils/PsycheBridge.js") ||
+  null;
+
+// Back-compat: if only one exists, alias the other.
+if (!psycheBridgeMod && siteBridgeMod) psycheBridgeMod = siteBridgeMod;
+if (!siteBridgeMod && psycheBridgeMod) siteBridgeMod = psycheBridgeMod;
+
+
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.22sb (ENGINE RESOLVE FN/DEFAULT++++ + CHAT NEVER-503++++ + QC)";
+const INDEX_VERSION = "index.js v1.5.23sb (SITEBRIDGE/PSYCHEBRIDGE WIRE++++ + UNDEFINED MOD FIX++++ + QC)";
 
 // =========================
 // Utils
@@ -3245,30 +3267,55 @@ async function handleChatRoute(req, res) {
 
 
   // =========================================================
-  // PSYCHE BRIDGE (always-run, fail-open)
-  // - Proves bridge is called on every turn
+  // SITE BRIDGE / PSYCHE BRIDGE (always-run, fail-open)
+  // - Runs after the engine so we can feed it the engine’s extracted features/tokens
   // - Never blocks chat (errors are captured in meta)
+  // - SiteBridge is preferred; PsycheBridge is accepted as a legacy alias
   // =========================================================
   psyche = null;
   psycheErr = null;
   try {
-    if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
+    const bridgeMod = siteBridgeMod || psycheBridgeMod || null;
+    const bridgeFn =
+      bridgeMod &&
+      (typeof bridgeMod.buildAsync === "function"
+        ? bridgeMod.buildAsync.bind(bridgeMod)
+        : typeof bridgeMod.build === "function"
+          ? bridgeMod.build.bind(bridgeMod)
+          : typeof bridgeMod.buildPsyche === "function"
+            ? bridgeMod.buildPsyche.bind(bridgeMod)
+            : null);
+
+    if (bridgeFn) {
       const feats = isPlainObject(out?.cog) ? out.cog : (isPlainObject(out) ? out : {});
-      const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
-      const tokens = tokSrc.slice(0, 32);
+      const tokSrc = Array.isArray(feats?.tokens)
+        ? feats.tokens
+        : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
+      const tokens = tokSrc.slice(0, 48);
+
       const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
-      const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
+      const turn =
+        safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || rec?.data?.turnCount || "0");
+      const queryKey = `${sessionKey}:${turn}:${serverRequestId}`;
+
       const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
-      psyche = await psycheBridgeMod.build({
-        features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge" },
+
+      psyche = await bridgeFn({
+        features: { ...feats, lane: forcedLane || feats?.lane || "site/bridge" },
         tokens,
         queryKey,
         sessionKey,
-        opts: { mode: "live", forcedLane }
+        opts: { mode: "live", forcedLane },
       });
-      // attach for downstream + client visibility
+
+      // Attach for downstream + client visibility (without breaking older consumers)
+      if (!out.bridge) out.bridge = psyche;
       out.psyche = psyche;
-      if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
+
+      if (out.cog && isPlainObject(out.cog)) {
+        out.cog.psyche = psyche;
+        if (!out.cog.bridge) out.cog.bridge = psyche;
+      }
     }
   } catch (e) {
     psycheErr = safeStr(e?.message || e).slice(0, 220);
