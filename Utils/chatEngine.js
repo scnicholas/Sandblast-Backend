@@ -30,15 +30,17 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.9.7 (SPINE COG PASS-THROUGH++++ + PLANNER SEES COG++++ + FINALIZE PERSISTS MARION++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + PUBLIC MODE REDACTION++++ + GREETING PRIVACY++++ + CENTRAL REPLY PIPELINE++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.10.0 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
 
-// Psyche Bridge (psych/support domain aggregator) — FAIL-OPEN require
+// SiteBridge / Psyche Bridge (domain aggregator) — FAIL-OPEN require
+// Compat: prefers ./sitebridge (new), falls back to ./psycheBridge (old).
+let SiteBridge = null;
 let PsycheBridge = null;
+try { SiteBridge = require("./sitebridge"); } catch (_e) { SiteBridge = null; }
 try { PsycheBridge = require("./psycheBridge"); } catch (_e) { PsycheBridge = null; }
-
 // Music module (all music logic lives there now).
 // FAIL-OPEN: if missing or throws, chatEngine stays alive and returns a graceful message.
 let Music = null;
@@ -648,17 +650,137 @@ const ROKU_EPG_URL = "https://live.ottdash.com/stream-epg/10I7S-5Q8ERK4R/eyJ0eXA
 // -------------------------
 // psyche bridge — safe wrapper (NEVER throws)
 // -------------------------
+// -------------------------
+// PSYCHE SANITIZATION++++ (NO CROSS-CONTAMINATION)
+// - Psyche objects can be large and can contain nested slices from domain modules.
+// - We only retain bounded, host-useful fields; we never copy raw user text.
+// - Never throws; returns null or a safe object.
+// -------------------------
+function sanitizePsycheObject(psyche) {
+  if (!isPlainObject(psyche)) return null;
+
+  const safeArr = (a, max, maxLen) => {
+    const out = [];
+    const seen = new Set();
+    for (const it of Array.isArray(a) ? a : []) {
+      const v = safeStr(it).replace(/\\s+/g, " ").trim();
+      if (!v) continue;
+      const vv = v.length > maxLen ? v.slice(0, maxLen) + "…" : v;
+      const k = vv.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(vv);
+      if (out.length >= max) break;
+    }
+    return out;
+  };
+
+  const safeObj = (o, maxJson) => {
+    if (!isPlainObject(o)) return {};
+    // Cap JSON size to avoid accidental bloat/leakage
+    try {
+      const s = JSON.stringify(o);
+      if (s.length <= maxJson) return o;
+    } catch (_e) {}
+    return { trimmed: true };
+  };
+
+  const audio = isPlainObject(psyche.audio) ? psyche.audio : null;
+  const tempo = isPlainObject(psyche.tempo) ? psyche.tempo : null;
+  const intro = isPlainObject(psyche.intro) ? psyche.intro : null;
+
+  // Keep domains only in a shallow/bounded form
+  const domainsIn = isPlainObject(psyche.domains) ? psyche.domains : {};
+  const domainsOut = {};
+  for (const k of Object.keys(domainsIn)) {
+    const d = isPlainObject(domainsIn[k]) ? domainsIn[k] : {};
+    domainsOut[k] = {
+      enabled: d.enabled !== false,
+      domain: safeStr(d.domain || k).slice(0, 24),
+      focus: safeStr(d.focus || "").slice(0, 48),
+      stance: safeStr(d.stance || "").slice(0, 48),
+      confidence: clamp01(d.confidence),
+      primer: safeArr(d.primer || d.principles, 6, 90),
+      frameworks: safeArr(d.frameworks, 6, 60),
+      guardrails: safeArr(d.guardrails, 10, 90),
+      responseCues: safeArr(d.responseCues, 12, 60),
+      hits: safeArr(d.hits, 10, 140),
+      riskTier: safeStr(d.riskTier || "").slice(0, 12),
+      reason: safeStr(d.reason || "").slice(0, 24),
+    };
+  }
+
+  // Top-level psyche fields (bounded)
+  const out = {
+    version: safeStr(psyche.version || psyche.v || "").slice(0, 24),
+    queryKey: safeStr(psyche.queryKey || "").slice(0, 48),
+    sessionKey: safeStr(psyche.sessionKey || "").slice(0, 72),
+    mode: safeStr(psyche.mode || "").slice(0, 16),
+    intent: safeStr(psyche.intent || "").slice(0, 16),
+    regulation: safeStr(psyche.regulation || "").slice(0, 16),
+    cognitiveLoad: safeStr(psyche.cognitiveLoad || "").slice(0, 16),
+    stance: safeStr(psyche.stance || "").slice(0, 40),
+    toneCues: safeArr(psyche.toneCues, 10, 24),
+    uiCues: safeArr(psyche.uiCues, 12, 32),
+    guardrails: safeArr(psyche.guardrails, 12, 90),
+    responseCues: safeArr(psyche.responseCues, 14, 60),
+    tempo: tempo ? safeObj(tempo, 1200) : null,
+    audio: audio ? safeObj(audio, 1800) : null,
+    intro: intro ? safeObj(intro, 800) : null,
+    confidence: clamp01(psyche.confidence),
+    domains: safeObj(domainsOut, 4200),
+    diag: safeObj(psyche.diag, 1800),
+  };
+
+  // Invariant: silent => no speak
+  if (out.audio && out.audio.silent) out.audio.speakEnabled = false;
+
+  return out;
+}
+
+// -------------------------
+// AUDIO INVARIANTS++++ (host-facing hints only; never side effects)
+// -------------------------
+function applyAudioInvariants(audio) {
+  const a = isPlainObject(audio) ? { ...audio } : null;
+  if (!a) return null;
+
+  if (a.silent) a.speakEnabled = false;
+  if (a.speakEnabled === false) {
+    // speaking off doesn't imply listening off; host decides
+  }
+  // clamp a few numeric fields if present
+  if ("maxSpeakChars" in a) a.maxSpeakChars = clampInt(a.maxSpeakChars, 700, 120, 2200);
+  if ("maxSpeakSeconds" in a) a.maxSpeakSeconds = clampInt(a.maxSpeakSeconds, 22, 6, 60);
+  if ("cooldownMs" in a) a.cooldownMs = clampInt(a.cooldownMs, 280, 0, 2000);
+  return a;
+}
+
 async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts }) {
-  if (!PsycheBridge || typeof PsycheBridge.build !== "function") return null;
+  // Prefer SiteBridge (new) then PsycheBridge (legacy). Both are fail-open.
+  const bridge =
+    (SiteBridge && (typeof SiteBridge.build === "function" || typeof SiteBridge.buildPsyche === "function"))
+      ? SiteBridge
+      : (PsycheBridge && (typeof PsycheBridge.build === "function" || typeof PsycheBridge.buildPsyche === "function"))
+      ? PsycheBridge
+      : null;
+
+  if (!bridge) return null;
+
   try {
-    const psyche = await PsycheBridge.build({
+    const payload = {
       features: isPlainObject(features) ? features : {},
       tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
       queryKey: safeStr(queryKey || "").slice(0, 220),
       sessionKey: safeStr(sessionKey || "").slice(0, 220),
       opts: isPlainObject(opts) ? opts : {},
-    });
-    return isPlainObject(psyche) ? psyche : null;
+    };
+
+    const fn = typeof bridge.build === "function" ? bridge.build : bridge.buildPsyche;
+    const psycheRaw = await fn(payload);
+
+    const psycheSafe = sanitizePsycheObject(psycheRaw);
+    return psycheSafe || null;
   } catch (_e) {
     return null;
   }
@@ -669,9 +791,26 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
 
 function mergeCogWithPsyche(cog, psyche) {
   const base = isPlainObject(cog) ? { ...cog } : {};
+  const p = isPlainObject(psyche) ? psyche : null;
+
   // Keep footprint small; downstream can choose to ignore.
-  base.psyche = psyche || null;
-  base.route = base.route || (psyche ? "psych_bridge" : undefined);
+  if (p) base.psyche = p;
+
+  // Route hint only if not already set
+  base.route = base.route || (p ? "psych_bridge" : undefined);
+
+  // Phase 1–5 pass-through (hints only). Prefer MarionSO outputs if present.
+  if (!isPlainObject(base.tempo) && p && isPlainObject(p.tempo)) base.tempo = p.tempo;
+  if (!isPlainObject(base.intro) && p && isPlainObject(p.intro)) base.intro = p.intro;
+
+  if (isPlainObject(base.audio)) {
+    base.audio = applyAudioInvariants(base.audio);
+  } else if (p && isPlainObject(p.audio)) {
+    base.audio = applyAudioInvariants(p.audio);
+  } else {
+    base.audio = null;
+  }
+
   return base;
 }
 
@@ -1770,8 +1909,26 @@ function runToneRegressionTests() {
   );
   assert("marion_trace_bounded", safeStr(tr).length <= MARION_TRACE_MAX, tr);
 
-  const sp0 = Spine.createState({ lane: "general" });
-  const sp1 = Spine.finalizeTurn({
+// Phase 1–5 QC: audio invariants (no side effects; pure)
+const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
+assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
+assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
+
+const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
+assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
+
+const sp
+0 = Spine.createState({ lane: "general" });
+// Phase 1–5 QC: audio invariants (no side effects; pure)
+const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
+assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
+assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
+
+const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
+assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
+
+const sp
+1 = Spine.finalizeTurn({
     prevState: sp0,
     inbound: {
       text: "hi",
@@ -2145,7 +2302,16 @@ const session = isPlainObject(norm.body.session)
     cog.publicMode = !!publicMode;
 
     // Planner must see the full inbound (payload/ctx/turnSignals)
-    const spineInbound = buildSpineInbound(norm, cog);
+  // Phase 1–5 QC: audio invariants (no side effects; pure)
+const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
+assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
+assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
+
+const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
+assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
+
+const sp
+ineInbound = buildSpineInbound(norm, cog);
     let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     // If emotion detector recommends bypassing clarify, hard-steer away from CLARIFY/NARROW moves.
     if (emo && !!emo.bypassClarify && supportPrefix) {
