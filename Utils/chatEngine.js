@@ -30,7 +30,7 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.10.0 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.10.1 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -757,35 +757,55 @@ function applyAudioInvariants(audio) {
 }
 
 async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts }) {
-  // Prefer SiteBridge (new) then PsycheBridge (legacy). Both are fail-open.
-  const bridge =
-    (SiteBridge && (typeof SiteBridge.build === "function" || typeof SiteBridge.buildPsyche === "function"))
-      ? SiteBridge
-      : (PsycheBridge && (typeof PsycheBridge.build === "function" || typeof PsycheBridge.buildPsyche === "function"))
-      ? PsycheBridge
-      : null;
+  // Prefer SiteBridge (new) then PsycheBridge (legacy),
+  // BUT: if SiteBridge loads and throws at runtime, fall back to legacy in the SAME turn.
+  const siteOk =
+    SiteBridge && (typeof SiteBridge.build === "function" || typeof SiteBridge.buildPsyche === "function");
+  const legacyOk =
+    PsycheBridge && (typeof PsycheBridge.build === "function" || typeof PsycheBridge.buildPsyche === "function");
 
-  if (!bridge) return null;
+  if (!siteOk && !legacyOk) return null;
 
-  try {
-    const payload = {
-      features: isPlainObject(features) ? features : {},
-      tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
-      queryKey: safeStr(queryKey || "").slice(0, 220),
-      sessionKey: safeStr(sessionKey || "").slice(0, 220),
-      opts: isPlainObject(opts) ? opts : {},
-    };
+  const payload = {
+    features: isPlainObject(features) ? features : {},
+    tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
+    queryKey: safeStr(queryKey || "").slice(0, 220),
+    sessionKey: safeStr(sessionKey || "").slice(0, 220),
+    opts: isPlainObject(opts) ? opts : {},
+  };
 
+  const callBridge = async (bridge) => {
     const fn = typeof bridge.build === "function" ? bridge.build : bridge.buildPsyche;
     const psycheRaw = await fn(payload);
-
     const psycheSafe = sanitizePsycheObject(psycheRaw);
     return psycheSafe || null;
-  } catch (_e) {
-    return null;
+  };
+
+  // Try SiteBridge first
+  if (siteOk) {
+    try {
+      const out = await callBridge(SiteBridge);
+      if (out) return out;
+      // If SiteBridge returned null, still try legacy (may have richer modules)
+    } catch (_e) {
+      // runtime fail: fall through to legacy
+    }
   }
+
+  // Legacy fallback
+  if (legacyOk) {
+    try {
+      const out = await callBridge(PsycheBridge);
+      return out || null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  return null;
 }
 ;
+
 
 
 
@@ -3851,6 +3871,34 @@ const reply0 = finalizeReply(
 const chatEngine = handleChat;
 
 // Build an export object, then merge onto the callable function (so require() can be invoked directly).
+
+
+// -------------------------
+// HARD FAIL-SAFE (export-level): prevents upstream route wrappers from ever throwing 500
+// - If caller forgets to await or an async rejection escapes, we still return a valid contract.
+// - No raw user text included.
+// -------------------------
+function failSafeContract(err, input) {
+  const requestId = safeStr((isPlainObject(input) ? input.requestId : "") || "").slice(0, 80) || `req_${nowMs()}`;
+  const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
+  return {
+    ok: false,
+    reply: msg,
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    bridge: null,
+    ctx: {},
+    ui: { chips: [], allowMic: true },
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {},
+    cog: { intent: "STABILIZE", mode: "transitional", publicMode: true, diag: { failSafe: true, err: safeStr(err && err.message ? err.message : err).slice(0,180) } },
+    requestId,
+    meta: { v: CE_VERSION, failSafe: true, t: nowMs() },
+  };
+}
 const _exportObj = {
   CE_VERSION,
 
@@ -3876,9 +3924,18 @@ const _exportObj = {
 
 // Make module.exports callable (function) AND also have properties.
 const _callable = function exportedChatEngine() {
-  // preserve async semantics
+  // preserve async semantics BUT NEVER allow throws/rejections to escape (prevents 500s).
   // eslint-disable-next-line prefer-rest-params
-  return handleChat.apply(null, arguments);
+  const input = arguments && arguments.length ? arguments[0] : undefined;
+  try {
+    const out = handleChat.apply(null, arguments);
+    if (out && typeof out.then === "function") {
+      return out.catch((e) => failSafeContract(e, input));
+    }
+    return out;
+  } catch (e) {
+    return Promise.resolve(failSafeContract(e, input));
+  }
 };
 Object.assign(_callable, _exportObj);
 
