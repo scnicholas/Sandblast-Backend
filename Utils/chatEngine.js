@@ -36,11 +36,24 @@ const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
 
 // SiteBridge / Psyche Bridge (domain aggregator) — FAIL-OPEN require
-// Compat: prefers ./sitebridge (new), falls back to ./psycheBridge (old).
+// Compat: prefers ./SiteBridge or ./sitebridge (new), falls back to ./psycheBridge (old).
 let SiteBridge = null;
 let PsycheBridge = null;
-try { SiteBridge = require("./sitebridge"); } catch (_e) { SiteBridge = null; }
-try { PsycheBridge = require("./psycheBridge"); } catch (_e) { PsycheBridge = null; }
+
+function _tryRequireMany(paths) {
+  for (const p of paths) {
+    try {
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_e) {}
+  }
+  return null;
+}
+
+SiteBridge = _tryRequireMany(["./SiteBridge", "./siteBridge", "./sitebridge"]);
+PsycheBridge = _tryRequireMany(["./psycheBridge", "./PsycheBridge"]);
+
 // Music module (all music logic lives there now).
 // FAIL-OPEN: if missing or throws, chatEngine stays alive and returns a graceful message.
 let Music = null;
@@ -635,6 +648,52 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
   if (mode === "architect") return "Alright, Mac.";
   if (mode === "transitional") return "Okay, Mac.";
   return "Hey Mac.";
+
+// -------------------------
+// PHASE 5 INTRO DIRECTIVE++++ (SiteBridge contract)
+// - If SiteBridge/Marion provides an intro cue (cog.psyche.intro), we surface it as a directive.
+// - Gating is done by session flags (__nyxIntroDone / __introDone) to avoid repeated intros.
+// - This is a HINT ONLY: host/UI decides how to render/speak it.
+// -------------------------
+function maybeAddIntroDirective({ directives, session, cog, norm }) {
+  const ds = Array.isArray(directives) ? directives : [];
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const psyche = isPlainObject(c.psyche) ? c.psyche : null;
+  const intro = psyche && isPlainObject(psyche.intro) ? psyche.intro : null;
+
+  // No intro contract => no directive
+  if (!intro || intro.enabled === false) return { directives: ds, patch: {} };
+
+  // Never intro on reset
+  if (safeStr(norm?.action || "") === "reset") return { directives: ds, patch: {} };
+
+  // Gate once-per-session by session flags (fail-safe)
+  const already = truthy(s.__nyxIntroDone) || truthy(s.__introDone);
+  if (already && intro.oncePerSession !== false) return { directives: ds, patch: {} };
+
+  const cueKey = safeStr(intro.cueKey || "").trim();
+  if (!cueKey) return { directives: ds, patch: {} };
+
+  const dir = {
+    type: "intro",
+    cueKey,
+    speakOnOpen: intro.speakOnOpen !== false,
+    oncePerSession: intro.oncePerSession !== false,
+  };
+
+  ds.push(dir);
+
+  return {
+    directives: ds,
+    patch: {
+      __nyxIntroDone: true,
+      __nyxIntroAt: nowMs(),
+      __introDone: true,
+    },
+  };
+}
+
 }
 
 // -------------------------
@@ -656,6 +715,11 @@ const ROKU_EPG_URL = "https://live.ottdash.com/stream-epg/10I7S-5Q8ERK4R/eyJ0eXA
 // - We only retain bounded, host-useful fields; we never copy raw user text.
 // - Never throws; returns null or a safe object.
 // -------------------------
+
+function isThenable(x) {
+  return !!x && (typeof x === "object" || typeof x === "function") && typeof x.then === "function";
+}
+
 function sanitizePsycheObject(psyche) {
   if (!isPlainObject(psyche)) return null;
 
@@ -775,8 +839,14 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
   };
 
   const callBridge = async (bridge) => {
-    const fn = typeof bridge.build === "function" ? bridge.build : bridge.buildPsyche;
-    const psycheRaw = await fn(payload);
+    // Prefer async builder when explicitly requested or when available and the caller opts in.
+    const wantsAsync = !!(payload.opts && (payload.opts.awaitDomains || payload.opts.forceAsync));
+    let fn = null;
+    if (wantsAsync && typeof bridge.buildAsync === "function") fn = bridge.buildAsync;
+    else fn = typeof bridge.build === "function" ? bridge.build : bridge.buildPsyche;
+
+    let psycheRaw = fn(payload);
+    if (isThenable(psycheRaw)) psycheRaw = await psycheRaw;
     const psycheSafe = sanitizePsycheObject(psycheRaw);
     return psycheSafe || null;
   };
@@ -2163,7 +2233,7 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 // main engine
 // -------------------------
-async function handleChat(input) {
+async async function handleChat(input) {
   const started = nowMs();
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
@@ -2532,7 +2602,12 @@ ${base0}`
         __cacheLane: safeStr(laneResolved || "general") || "general",
         __cacheFollowUps: Array.isArray(followUps) ? followUps : [],
       };
-      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch);
+      // PHASE 5 intro cue (SiteBridge contract) — surfaced as a directive + gated via sessionPatch
+      const _dirs0 = asArray(out.directives).filter(Boolean);
+      const _intro = maybeAddIntroDirective({ directives: _dirs0, session, cog, norm });
+      const _introPatch = isPlainObject(_intro.patch) ? _intro.patch : {};
+
+      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch);
 
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
@@ -2549,7 +2624,7 @@ ${base0}`
         ui,
 
         // Always present (empty array default)
-        directives: asArray(out.directives).filter(Boolean),
+        directives: Array.isArray(_intro.directives) ? _intro.directives : _dirs0,
 
         // Compatibility fields
         followUps,
@@ -2962,7 +3037,7 @@ if (wantsPsychBridge) {
     tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
     queryKey,
     sessionKey,
-    opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine" },
+    opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
   });
 
   // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
