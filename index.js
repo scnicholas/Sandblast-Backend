@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.20cf (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.22sb (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -73,6 +73,7 @@ let chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/ch
 // If missing, try common versioned filenames in Utils (fail-open)
 if (!chatEngineMod) {
   const candidates = [
+    "./Utils/chatEngine.v0.10.3.js",
     "./Utils/chatEngine.v0.10.2.js",
     "./Utils/chatEngine.v0.10.1.js",
     "./Utils/chatEngine.v0.10.0.js",
@@ -122,7 +123,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.20cf (QC: /api/chat never-500 + route failsoft + keeps v1.5.19cd knowledge loader)";
+const INDEX_VERSION = "index.js v1.5.22sb (ENGINE RESOLVE FN/DEFAULT++++ + CHAT NEVER-503++++ + QC)";
 
 // =========================
 // Utils
@@ -697,11 +698,25 @@ function makeReqId() {
 function resolveEngine(mod) {
   if (!mod) return { fn: null, from: "missing", version: "" };
 
+  // 1) CommonJS module.exports = function
   if (typeof mod === "function") {
     return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
   }
+
+  // 2) Preferred aliases (new engines)
+  if (typeof mod.fn === "function") {
+    return { fn: mod.fn.bind(mod), from: "module_fn", version: safeStr(mod.CE_VERSION || "") };
+  }
+  if (typeof mod.engine === "function") {
+    return { fn: mod.engine.bind(mod), from: "module_engine", version: safeStr(mod.CE_VERSION || "") };
+  }
+
+  // 3) Back-compat aliases (older engines)
   if (typeof mod.handleChat === "function") {
     return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
+  }
+  if (typeof mod.default === "function") {
+    return { fn: mod.default.bind(mod), from: "module_default", version: safeStr(mod.CE_VERSION || "") };
   }
   if (typeof mod.reply === "function") {
     return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
