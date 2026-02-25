@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.20ce (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.20cf (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -67,7 +67,41 @@ function safeRequire(p) {
 }
 
 // Engine + fetch
-const chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
+// Robust engine resolver (prevents 503 when chatEngine file is versioned and not renamed)
+let chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
+
+// If missing, try common versioned filenames in Utils (fail-open)
+if (!chatEngineMod) {
+  const candidates = [
+    "./Utils/chatEngine.v0.10.2.js",
+    "./Utils/chatEngine.v0.10.1.js",
+    "./Utils/chatEngine.v0.10.0.js",
+    "./Utils/chatEngine.v0.9.8-hotfix.js",
+    "./Utils/chatEngine.v0.9.3.js",
+  ];
+  for (const c of candidates) {
+    const m = safeRequire(c);
+    if (m) { chatEngineMod = m; break; }
+  }
+}
+
+// If still missing, attempt to discover a versioned engine in Utils via fs (safe; no crash if fs unavailable)
+if (!chatEngineMod) {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const utilsDir = path.join(__dirname, "Utils");
+    const files = fs.readdirSync(utilsDir).filter((f) => /^chatengine\..*\.js$/i.test(f) || /^chatengine[-_].*\.js$/i.test(f) || /^chatenginev.*\.js$/i.test(f));
+    // prefer newest-ish by lexical sort descending (works for v0.10.2 style)
+    files.sort().reverse();
+    for (const f of files) {
+      const m = safeRequire("./Utils/" + f);
+      if (m) { chatEngineMod = m; break; }
+    }
+  } catch (_e) {
+    // ignore
+  }
+}
 // Knowledge registry (manifest-driven loader). Optional: fail-open if missing.
 const knowledgeRegistryMod = safeRequire("./Utils/knowledgeRegistry") || safeRequire("./Utils/knowledgeRegistry.js") || null;
 
@@ -88,7 +122,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.20ce (QC: /api/chat never-500 + route failsoft + keeps v1.5.19cd knowledge loader)";
+const INDEX_VERSION = "index.js v1.5.20cf (QC: /api/chat never-500 + route failsoft + keeps v1.5.19cd knowledge loader)";
 
 // =========================
 // Utils
