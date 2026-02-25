@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.19cd (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.20ce (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -88,8 +88,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION =
-  "index.js v1.5.19cd (LANE ID CONTRACT++++ + BRIDGE EVENT SURFACE++++ + SESSIONPATCH KEY FIX++++ + PATCH_KEYS SYNTAX FIX++++ + early-response lane fields++++ + keeps v1.5.19cb hardening + load visibility + manifest resolver + packsight + chip normalizer + nyx voice naturalizer + loop fuse + REAL ElevenLabs TTS)";
+const INDEX_VERSION = "index.js v1.5.20ce (QC: /api/chat never-500 + route failsoft + keeps v1.5.19cd knowledge loader)";
 
 // =========================
 // Utils
@@ -2986,9 +2985,25 @@ function applySessionPatch(session, patch) {
 // =========================
 async function handleChatRoute(req, res) {
   const startedAt = nowMs();
-  const body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  try {
+    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+    // If body came through as a raw string, preserve it as text.
+    if (typeof req.body === "string" && !isPlainObject(body)) {
+      const parsed = safeJsonParseMaybe(req.body);
+      body = parsed && isPlainObject(parsed) ? parsed : { text: req.body };
+    }
 
-  normalizeChipPayload(body);
+    normalizeChipPayload(body);
+
+    if (!ENGINE || typeof ENGINE.fn !== "function") {
+      return sendContract(res, 503, {
+      ok: false,
+      error: "engine_missing",
+      detail: "chatEngine module is missing or does not export a callable handler.",
+      requestId: makeReqId(),
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null },
+    });
+  }
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
@@ -3097,7 +3112,9 @@ async function handleChatRoute(req, res) {
   if (!ENGINE.fn) {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
-    return sendContract(res, 500, {
+    const p = safeStr(req.path || "").toLowerCase();
+  const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
+  return sendContract(res, status, {
       ok: false,
       reply,
       lane: "general",
@@ -3264,7 +3281,22 @@ async function handleChatRoute(req, res) {
       echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
       packs: getPackIndexSafe(false).summary,
     },
-  });}
+  });
+  } catch (e) {
+    // Never let /api/chat bubble a 500 from this handler; return a safe contract.
+    const msg = safeStr(e && (e.message || e.name || String(e))).slice(0, 240);
+    return sendContract(res, 200, {
+      ok: false,
+      error: "server_error",
+      detail: msg || "Unhandled error in chat route.",
+      reply: "",
+      payload: { reply: "", lane: "general" },
+      sessionPatch: {},
+      requestId: makeReqId(),
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.catch" },
+    });
+  }
+}
 
 // =========================
 // Chat endpoints (guarded)
