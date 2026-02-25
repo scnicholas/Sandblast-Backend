@@ -30,34 +30,17 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.10.2 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.10.1 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
 
 // SiteBridge / Psyche Bridge (domain aggregator) — FAIL-OPEN require
 // Compat: prefers ./sitebridge (new), falls back to ./psycheBridge (old).
-// NOTE: Linux deploys are case-sensitive; we try a few casing aliases to avoid hard crashes.
-function safeRequire(relPath) {
-  try {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(relPath);
-  } catch (_e) {
-    return null;
-  }
-}
-function safeRequireAny(primary, aliases = []) {
-  const first = safeRequire(primary);
-  if (first) return first;
-  for (const a of aliases) {
-    const m = safeRequire(a);
-    if (m) return m;
-  }
-  return null;
-}
-
-let SiteBridge = safeRequireAny("./sitebridge", ["./siteBridge", "./SiteBridge", "./Sitebridge"]);
-let PsycheBridge = safeRequireAny("./psycheBridge", ["./PsycheBridge", "./psychebridge"]);
+let SiteBridge = null;
+let PsycheBridge = null;
+try { SiteBridge = require("./sitebridge"); } catch (_e) { SiteBridge = null; }
+try { PsycheBridge = require("./psycheBridge"); } catch (_e) { PsycheBridge = null; }
 // Music module (all music logic lives there now).
 // FAIL-OPEN: if missing or throws, chatEngine stays alive and returns a graceful message.
 let Music = null;
@@ -783,9 +766,7 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
 
   if (!siteOk && !legacyOk) return null;
 
-    let _bridgeUsed = "none";
-  let _sitebridgeErr = "";
-const payload = {
+  const payload = {
     features: isPlainObject(features) ? features : {},
     tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
     queryKey: safeStr(queryKey || "").slice(0, 220),
@@ -804,15 +785,9 @@ const payload = {
   if (siteOk) {
     try {
       const out = await callBridge(SiteBridge);
-      _bridgeUsed = "sitebridge";
-      if (out && typeof out === "object") {
-        out.diag = isPlainObject(out.diag) ? out.diag : {};
-        out.diag.bridgeUsed = _bridgeUsed;
-      }
       if (out) return out;
       // If SiteBridge returned null, still try legacy (may have richer modules)
     } catch (_e) {
-      _sitebridgeErr = safeStr(_e && (_e.message || _e.name || String(_e)), 140);
       // runtime fail: fall through to legacy
     }
   }
@@ -821,12 +796,6 @@ const payload = {
   if (legacyOk) {
     try {
       const out = await callBridge(PsycheBridge);
-      _bridgeUsed = "psycheBridge";
-      if (out && typeof out === "object") {
-        out.diag = isPlainObject(out.diag) ? out.diag : {};
-        out.diag.bridgeUsed = _bridgeUsed;
-        if (_sitebridgeErr) out.diag.sitebridgeErr = _sitebridgeErr;
-      }
       return out || null;
     } catch (_e) {
       return null;
@@ -1961,72 +1930,81 @@ function runToneRegressionTests() {
   assert("marion_trace_bounded", safeStr(tr).length <= MARION_TRACE_MAX, tr);
 
 // Phase 1–5 QC: audio invariants (no side effects; pure)
-const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
+const a1 = applyAudioInvariants({
+  silent: true,
+  speakEnabled: true,
+  maxSpeakChars: 999999,
+  maxSpeakSeconds: 999,
+  cooldownMs: -5,
+});
 assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
-assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
+assert(
+  "audio_invariants_clamps_numbers",
+  a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0,
+  safeJsonStringify(a1)
+);
 
-const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
+const a2 = applyAudioInvariants({
+  silent: false,
+  speakEnabled: true,
+  maxSpeakChars: 50,
+  maxSpeakSeconds: 2,
+  cooldownMs: 99999,
+});
 assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
 
-const sp
-0 = Spine.createState({ lane: "general" });
-// Phase 1–5 QC: audio invariants (no side effects; pure)
-const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
-assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
-assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
+// Phase 1–5 QC: spine invariants (rev monotonic; deterministic)
+const sp0 = Spine.createState({ lane: "general" });
+const sp1 = Spine.finalizeTurn({
+  prevState: sp0,
+  inbound: {
+    text: "hi",
+    payload: {},
+    ctx: {},
+    turnSignals: { textEmpty: false, hasPayload: false, payloadActionable: false },
+  },
+  lane: "general",
+  topicOverride: "help",
+  actionTaken: "test",
+  followUps: [],
+  pendingAsk: null,
+  decision: { move: "clarify", rationale: "test", speak: "Test.", stage: "clarify" },
+  assistantSummary: "test",
+  updateReason: "turn",
+});
+assert("spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
 
-const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
-assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
+const sess = { __greeted: false, __lastInboundKey: "abc" };
+const g = computeOptionAGreetingLine(
+  sess,
+  { action: "", turnSignals: { textEmpty: false, hasPayload: false } },
+  { mode: "user", publicMode: true },
+  "abc"
+);
+assert("optionA_no_greet_on_replay", g === "", g);
 
-const sp
-1 = Spine.finalizeTurn({
-    prevState: sp0,
-    inbound: {
-      text: "hi",
-      payload: {},
-      ctx: {},
-      turnSignals: { textEmpty: false, hasPayload: false, payloadActionable: false },
-    },
-    lane: "general",
-    topicOverride: "help",
-    actionTaken: "test",
-    followUps: [],
-    pendingAsk: null,
-    decision: { move: "clarify", rationale: "test", speak: "Test.", stage: "clarify" },
-    assistantSummary: "test",
-    updateReason: "turn",
-  });
-  assert("spine_rev_increments", sp1.rev === sp0.rev + 1, `${sp0.rev}->${sp1.rev}`);
+const g2 = computeOptionAGreetingLine(
+  { __greeted: false, __lastInboundKey: "" },
+  { action: "reset", turnSignals: { textEmpty: false, hasPayload: false } },
+  { mode: "user", publicMode: true },
+  "zzz"
+);
+assert("optionA_no_greet_on_reset", g2 === "", g2);
 
-  const sess = { __greeted: false, __lastInboundKey: "abc" };
-  const g = computeOptionAGreetingLine(
-    sess,
-    { action: "", turnSignals: { textEmpty: false, hasPayload: false } },
-    { mode: "user", publicMode: true },
-    "abc"
-  );
-  assert("optionA_no_greet_on_replay", g === "", g);
+const n9 = normalizeCog(
+  { text: "hi", turnSignals: { hasPayload: false, payloadActionable: false, textEmpty: false } },
+  {},
+  { mode: "architect", intent: "ADVANCE" }
+);
+assert("normalizeCog_confidence_present", isPlainObject(n9.confidence), safeJsonStringify(n9));
+assert("normalizeCog_trace_hash_present", safeStr(n9.marionTraceHash).length > 0, safeJsonStringify(n9));
 
-  const g2 = computeOptionAGreetingLine(
-    { __greeted: false, __lastInboundKey: "" },
-    { action: "reset", turnSignals: { textEmpty: false, hasPayload: false } },
-    { mode: "user", publicMode: true },
-    "zzz"
-  );
-  assert("optionA_no_greet_on_reset", g2 === "", g2);
+const s10 = sanitizePublicReply("Alright, Mac.\\n\\nDo X.", ["Mac"]);
+assert("sanitize_strips_mac", !/\bMac\b/i.test(s10), s10);
 
-  const n9 = normalizeCog(
-    { text: "hi", turnSignals: { hasPayload: false, payloadActionable: false, textEmpty: false } },
-    {},
-    { mode: "architect", intent: "ADVANCE" }
-  );
-  assert("normalizeCog_confidence_present", isPlainObject(n9.confidence), safeJsonStringify(n9));
-  assert("normalizeCog_trace_hash_present", safeStr(n9.marionTraceHash).length > 0, safeJsonStringify(n9));
 
-  const s10 = sanitizePublicReply("Alright, Mac.\n\nDo X.", ["Mac"]);
-  assert("sanitize_strips_mac", !/\bMac\b/i.test(s10), s10);
+return { ok: failures.length === 0, failures, ran: 10 };
 
-  return { ok: failures.length === 0, failures, ran: 10 };
 }
 
 // -------------------------
@@ -2353,17 +2331,8 @@ const session = isPlainObject(norm.body.session)
     cog.publicMode = !!publicMode;
 
     // Planner must see the full inbound (payload/ctx/turnSignals)
-  // Phase 1–5 QC: audio invariants (no side effects; pure)
-const a1 = applyAudioInvariants({ silent: true, speakEnabled: true, maxSpeakChars: 999999, maxSpeakSeconds: 999, cooldownMs: -5 });
-assert("audio_invariants_silent_disables_speak", a1 && a1.speakEnabled === false, safeJsonStringify(a1));
-assert("audio_invariants_clamps_numbers", a1 && a1.maxSpeakChars <= 2200 && a1.maxSpeakSeconds <= 60 && a1.cooldownMs >= 0, safeJsonStringify(a1));
-
-const a2 = applyAudioInvariants({ silent: false, speakEnabled: true, maxSpeakChars: 50, maxSpeakSeconds: 2, cooldownMs: 99999 });
-assert("audio_invariants_min_clamp", a2 && a2.maxSpeakChars >= 120 && a2.maxSpeakSeconds >= 6, safeJsonStringify(a2));
-
-const sp
-ineInbound = buildSpineInbound(norm, cog);
-    let corePlan = Spine.decideNextMove(corePrev, spineInbound);
+    const spineInbound = buildSpineInbound(norm, cog);
+let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     // If emotion detector recommends bypassing clarify, hard-steer away from CLARIFY/NARROW moves.
     if (emo && !!emo.bypassClarify && supportPrefix) {
       const mv = safeStr(corePlan.move || "").toLowerCase();
