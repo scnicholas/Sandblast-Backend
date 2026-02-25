@@ -30,17 +30,34 @@
  */
 
 const CE_VERSION =
-  "chatEngine v0.10.1 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+  "chatEngine v0.10.2 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
 
 // SiteBridge / Psyche Bridge (domain aggregator) — FAIL-OPEN require
 // Compat: prefers ./sitebridge (new), falls back to ./psycheBridge (old).
-let SiteBridge = null;
-let PsycheBridge = null;
-try { SiteBridge = require("./sitebridge"); } catch (_e) { SiteBridge = null; }
-try { PsycheBridge = require("./psycheBridge"); } catch (_e) { PsycheBridge = null; }
+// NOTE: Linux deploys are case-sensitive; we try a few casing aliases to avoid hard crashes.
+function safeRequire(relPath) {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(relPath);
+  } catch (_e) {
+    return null;
+  }
+}
+function safeRequireAny(primary, aliases = []) {
+  const first = safeRequire(primary);
+  if (first) return first;
+  for (const a of aliases) {
+    const m = safeRequire(a);
+    if (m) return m;
+  }
+  return null;
+}
+
+let SiteBridge = safeRequireAny("./sitebridge", ["./siteBridge", "./SiteBridge", "./Sitebridge"]);
+let PsycheBridge = safeRequireAny("./psycheBridge", ["./PsycheBridge", "./psychebridge"]);
 // Music module (all music logic lives there now).
 // FAIL-OPEN: if missing or throws, chatEngine stays alive and returns a graceful message.
 let Music = null;
@@ -766,7 +783,9 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
 
   if (!siteOk && !legacyOk) return null;
 
-  const payload = {
+    let _bridgeUsed = "none";
+  let _sitebridgeErr = "";
+const payload = {
     features: isPlainObject(features) ? features : {},
     tokens: Array.isArray(tokens) ? tokens.slice(0, 180) : [],
     queryKey: safeStr(queryKey || "").slice(0, 220),
@@ -785,9 +804,15 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
   if (siteOk) {
     try {
       const out = await callBridge(SiteBridge);
+      _bridgeUsed = "sitebridge";
+      if (out && typeof out === "object") {
+        out.diag = isPlainObject(out.diag) ? out.diag : {};
+        out.diag.bridgeUsed = _bridgeUsed;
+      }
       if (out) return out;
       // If SiteBridge returned null, still try legacy (may have richer modules)
     } catch (_e) {
+      _sitebridgeErr = safeStr(_e && (_e.message || _e.name || String(_e)), 140);
       // runtime fail: fall through to legacy
     }
   }
@@ -796,6 +821,12 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
   if (legacyOk) {
     try {
       const out = await callBridge(PsycheBridge);
+      _bridgeUsed = "psycheBridge";
+      if (out && typeof out === "object") {
+        out.diag = isPlainObject(out.diag) ? out.diag : {};
+        out.diag.bridgeUsed = _bridgeUsed;
+        if (_sitebridgeErr) out.diag.sitebridgeErr = _sitebridgeErr;
+      }
       return out || null;
     } catch (_e) {
       return null;
