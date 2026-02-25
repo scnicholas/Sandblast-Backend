@@ -1,29 +1,238 @@
 "use strict";
 
 /**
- * Utils/sitebridge.js
+ * Utils/SiteBridge.js  (formerly psycheBridge.js / sitebridge.js)
  *
- * SiteBridge v1.1.2 (QC HARDEN++++ | FAIL-SOFT LOAD++++ | MULTI-ALIAS REQUIRE++++
- *                   | ASYNC BUILD COMPAT++++ | DEFAULT ENVELOPES++++ | DIAG SAFE++++)
+ * SiteBridge — Domain Aggregator + Control-Signal Resolver for Nyx
  *
- * GOAL: eliminate deploy-time / runtime 500s caused by:
- *  - case-sensitive filename mismatches in prod (Linux)
- *  - missing/optional domain modules
- *  - bridge callers expecting async build()
- *  - unexpected domain return shapes / oversized diags
+ * Purpose:
+ *  - Keep MarionSO slim: Marion computes features/tokens and calls SiteBridge.build()
+ *  - SiteBridge queries enabled domain knowledge modules (Marion-safe APIs)
+ *  - Produces ONE deterministic psyche object to hand to Nyx (atoms + control signals)
+ *  - Adds Phase 1–5 AUDIO/INTRO/TEMPO control envelopes as *pure hints* (no side effects)
  *
- * HARD RULES:
- *  - NO raw user text in outputs.
- *  - No side effects.
- *  - Bounded outputs only.
- *  - Deterministic ordering / dedupe.
+ * Hard Rules:
+ *  - NO RAW USER TEXT enters SiteBridge. Ever.
+ *  - Fail-open: if any domain module fails/missing, bridge still returns a valid psyche object.
+ *  - Deterministic: stable merge ordering, bounded outputs, stable dedupe.
+ *  - No cross-contamination: output is sanitized + bounded; no module output is trusted verbatim.
+ *
+ * Input:
+ *  build({ features, tokens, queryKey, sessionKey, opts })
+ *
+ * Output (high level):
+ *  {
+ *    version,
+ *    queryKey,
+ *    sessionKey,
+ *    mode,
+ *    intent,
+ *    regulation,
+ *    cognitiveLoad,
+ *    stance,
+ *    toneCues[],
+ *    uiCues[],
+ *    guardrails[],
+ *    responseCues[],
+ *
+ *    // PHASE 1–5 additions (host-facing hints)
+ *    tempo: {...},
+ *    audio: {...},
+ *    intro: {...},
+ *
+ *    domains: { psychology, cyber, english, finance, law, ai },
+ *    confidence,
+ *    diag
+ *  }
+ *
+ * Notes:
+ *  - This module is intentionally SIDE-EFFECT FREE.
+ *  - If any domain module returns a Promise (async), build() will not await it (to preserve
+ *    backward compatibility). Use buildAsync() if you want awaited resolution.
  */
 
-const BRIDGE_VERSION = "1.1.2";
+// =========================
+// OPTIONAL DOMAIN MODULES (FAIL-OPEN)
+// =========================
 
-// ===============================
-// SAFE HELPERS
-// ===============================
+function safeRequire(relPath) {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(relPath);
+  } catch (_e1) {
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      return require(relPath + ".js");
+    } catch (_e2) {
+      return null;
+    }
+  }
+}
+
+// Adjust names if your repo uses different filenames.
+const PsychologyK = safeRequire("./psychologyKnowledge");
+const CyberK = safeRequire("./cyberKnowledge");
+const EnglishK = safeRequire("./englishKnowledge");
+const FinanceK = safeRequire("./financeKnowledge");
+const LawK = safeRequire("./lawKnowledge");
+const AIK = safeRequire("./aiKnowledge");
+
+// =========================
+// CONFIG
+// =========================
+
+const BRIDGE_VERSION = "1.2.0";
+
+// deterministic caps
+const LIMITS = Object.freeze({
+  guardrails: 12,
+  responseCues: 14,
+  toneCues: 10,
+  uiCues: 12,
+  primer: 8,
+  domainHits: 12,
+  domainAtoms: 4,
+  diagBytes: 6000,
+});
+
+// domain order matters for determinism + precedence
+const DOMAIN_ORDER = Object.freeze([
+  "psychology",
+  "law",
+  "cyber",
+  "ai",
+  "finance",
+  "english",
+]);
+
+// defaults
+const DEFAULTS = Object.freeze({
+  mode: "normal",
+  intent: "CLARIFY",
+  regulation: "steady", // steady | strained | fragile | crisis
+  cognitiveLoad: "medium",
+  stance: "teach+verify",
+});
+
+// PHASE 1: AUDIO DEFAULTS (hints only)
+const AUDIO_DEFAULTS = Object.freeze({
+  speakEnabled: true,
+  listenEnabled: true,
+  bargeInAllowed: true,
+  userGestureRequired: true, // important for iOS/mobile autoplay constraints
+  silent: false,
+  voiceStyle: "neutral", // neutral | upbeat | broadcast | concise | soothing
+  maxSpeakChars: 700, // host may chunk; this is only a hint
+  maxSpeakSeconds: 22, // hint for "keep it tight"
+  cooldownMs: 280, // hint to avoid oscillation
+});
+
+// PHASE 3: TEMPO DEFAULTS (bounded)
+const TEMPO_DEFAULTS = Object.freeze({
+  thinkingDelayMs: 220,
+  microPauseMs: 110,
+  sentencePauseMs: 190,
+  chunkChars: 320,
+  maxUtterances: 6,
+});
+
+// PHASE 4: LANE / MODE VOICE PRESETS (pure)
+const VOICE_PRESETS = Object.freeze({
+  normal: "neutral",
+  stabilize: "soothing",
+  safety: "soothing",
+});
+
+const LANE_VOICE = Object.freeze({
+  music: "upbeat",
+  radio: "upbeat",
+  "news-canada": "broadcast",
+  news: "broadcast",
+  roku: "concise",
+  schedule: "concise",
+  help: "neutral",
+});
+
+// =========================
+// FAIL-OPEN BASELINE
+// =========================
+
+function failOpenPsyche(err, input) {
+  const queryKey = safeStr(input?.queryKey || "", 32);
+  const sessionKey = safeStr(input?.sessionKey || "", 64);
+  const tokens = safeTokens(input?.tokens || [], 24);
+  const features = isObject(input?.features) ? input.features : {};
+  const msg = safeStr(err && (err.message || err.name || String(err)), 160) || "unknown_error";
+
+  const empty = (name) => ({
+    enabled: true,
+    domain: name,
+    queryKey: "",
+    focus: "",
+    stance: "",
+    confidence: 0,
+    primer: [],
+    frameworks: [],
+    guardrails: [],
+    responseCues: [],
+    snippets: [],
+    examples: [],
+    hits: [],
+    reason: "fail_open",
+    riskTier: "",
+  });
+
+  const regulation = "steady";
+  const mode = "normal";
+
+  // Fail-open must still return a valid full contract.
+  return finalizeContract({
+    enabled: true,
+    reason: "fail_open",
+    version: BRIDGE_VERSION,
+    queryKey,
+    sessionKey,
+
+    mode,
+    intent: safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase() || DEFAULTS.intent,
+    regulation,
+    cognitiveLoad:
+      safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase() || DEFAULTS.cognitiveLoad,
+    stance: DEFAULTS.stance,
+
+    toneCues: ["clear", "supportive"],
+    uiCues: [],
+
+    guardrails: ["no_raw_user_text", "fail_open_enabled"],
+    responseCues: ["keep_short", "ask_1_clarifier"],
+
+    // phase 1–5: safe hints
+    tempo: resolveTempo({ features, mode, regulation }, input?.opts),
+    audio: resolveAudio({ features, mode, regulation }, input?.opts),
+    intro: resolveIntro({ features, mode, regulation }, input?.opts),
+
+    domains: {
+      psychology: empty("psychology"),
+      cyber: empty("cyber"),
+      english: empty("english"),
+      finance: empty("finance"),
+      law: empty("law"),
+      ai: empty("ai"),
+    },
+
+    confidence: 0,
+    diag: {
+      failOpen: true,
+      error: msg,
+      enabledDomains: chooseEnabledDomains(features, tokens, input?.opts),
+      tokenCount: Array.isArray(tokens) ? tokens.length : 0,
+    },
+  });
+}
+
+// =========================
+// HELPERS
+// =========================
 
 function isObject(x) {
   return x && typeof x === "object" && !Array.isArray(x);
@@ -35,21 +244,8 @@ function safeStr(x, max = 80) {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-function clamp01(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  if (x < 0) return 0;
-  if (x > 1) return 1;
-  return x;
-}
-
-// clampInt signature: clampInt(value, fallback, min, max)
-function clampInt(n, fallback, min, max) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return fallback;
-  if (x < min) return min;
-  if (x > max) return max;
-  return Math.round(x);
+function normalizeKey(x) {
+  return safeStr(x, 120).trim().toLowerCase();
 }
 
 function uniqBounded(arr, max = 10, maxLen = 64) {
@@ -67,334 +263,163 @@ function uniqBounded(arr, max = 10, maxLen = 64) {
   return out;
 }
 
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  const xi = Math.round(x);
+  if (xi < min) return min;
+  if (xi > max) return max;
+  return xi;
+}
+
+function pickTop(arr, max) {
+  return (Array.isArray(arr) ? arr : []).slice(0, max);
+}
+
+function safeTokens(tokens, max = 24) {
+  const out = [];
+  const seen = new Set();
+  for (const t of Array.isArray(tokens) ? tokens : []) {
+    const v = String(t || "").toLowerCase().trim().slice(0, 40);
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function safeBool(x, fallback) {
   if (x === true) return true;
   if (x === false) return false;
   return fallback;
 }
 
-// ===============================
-// OPTIONAL DOMAIN MODULES (FAIL-OPEN)
-// ===============================
-
-function safeRequire(relPath) {
-  try {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(relPath);
-  } catch (_e) {
-    return null;
-  }
+function isThenable(x) {
+  return !!x && (typeof x === "object" || typeof x === "function") && typeof x.then === "function";
 }
 
-/**
- * safeRequireAny("./financeKnowledge", ["./FinanceKnowledge","./financeKnowledge","./Financeknowledge"])
- * Helps with case-sensitive deploy environments where the repo may contain mixed casing.
- * NOTE: This does NOT fix a missing file; it only tries known aliases.
- */
-function safeRequireAny(primary, aliases = []) {
-  const first = safeRequire(primary);
-  if (first) return first;
-  for (const a of aliases) {
-    const m = safeRequire(a);
-    if (m) return m;
+function sanitizeAtomList(arr, max = 4, maxLen = 240) {
+  // Keep atoms shallow and string-safe. If modules send objects, we reduce to short strings.
+  const out = [];
+  for (const it of Array.isArray(arr) ? arr : []) {
+    if (out.length >= max) break;
+    if (typeof it === "string") {
+      const s = safeStr(it, maxLen).trim();
+      if (s) out.push(s);
+      continue;
+    }
+    if (isObject(it)) {
+      const s = safeStr(it.text || it.title || it.name || JSON.stringify(it), maxLen).trim();
+      if (s) out.push(s);
+      continue;
+    }
+    const s = safeStr(it, maxLen).trim();
+    if (s) out.push(s);
   }
-  return null;
+  return out;
 }
 
-// Adjust these to your actual filenames if needed.
-// We keep them fail-open so casing differences won’t 500 your server.
-const PsychologyK = safeRequireAny("./psychologyKnowledge", ["./PsychologyKnowledge"]);
-const CyberK = safeRequireAny("./cyberKnowledge", ["./CyberKnowledge"]);
-const EnglishK = safeRequireAny("./englishKnowledge", ["./EnglishKnowledge"]);
-const FinanceK = safeRequireAny("./financeKnowledge", ["./FinanceKnowledge", "./Financeknowledge"]);
-const LawK = safeRequireAny("./lawKnowledge", ["./LawKnowledge"]);
-const AIK = safeRequireAny("./aiKnowledge", ["./AIKnowledge"]);
+// =========================
+// DOMAIN CALL WRAPPERS (FAIL-OPEN)
+// =========================
 
-function callDomain(mod, input) {
+function callNyxProfile(mod, input) {
   try {
     if (!mod) return null;
     if (typeof mod.getNyxPsycheProfile === "function") return mod.getNyxPsycheProfile(input);
     if (typeof mod.getMarionHints === "function") return mod.getMarionHints(input);
-    if (typeof mod.build === "function") return mod.build(input);
     return null;
   } catch (_e) {
     return null;
   }
 }
 
-// ===============================
-// DEFAULTS + LIMITS
-// ===============================
-
-const DEFAULTS = Object.freeze({
-  mode: "normal",
-  intent: "CLARIFY",
-  regulation: "steady", // steady | strained | fragile | crisis
-  cognitiveLoad: "medium",
-  stance: "teach+verify",
-});
-
-const LIMITS = Object.freeze({
-  toneCues: 10,
-  uiCues: 12,
-  guardrails: 12,
-  responseCues: 14,
-  primer: 6,
-  frameworks: 6,
-  domainHits: 10,
-});
-
-const AUDIO_DEFAULTS = Object.freeze({
-  speakEnabled: true,
-  listenEnabled: true,
-  bargeInAllowed: true,
-  userGestureRequired: true,
-  silent: false,
-  voiceStyle: "neutral", // neutral | upbeat | broadcast | concise | soothing
-  maxSpeakChars: 700,
-  maxSpeakSeconds: 22,
-  cooldownMs: 280,
-});
-
-const TEMPO_DEFAULTS = Object.freeze({
-  thinkingDelayMs: 220,
-  microPauseMs: 110,
-  sentencePauseMs: 190,
-  chunkChars: 320,
-  maxUtterances: 6,
-});
-
-const VOICE_PRESETS = Object.freeze({
-  normal: "neutral",
-  stabilize: "soothing",
-  safety: "soothing",
-});
-
-const LANE_VOICE = Object.freeze({
-  music: "upbeat",
-  radio: "upbeat",
-  "news-canada": "broadcast",
-  news: "broadcast",
-  roku: "concise",
-  schedule: "concise",
-  help: "neutral",
-});
-
-// ===============================
-// PHASE 3 – TEMPO (PURE HINTS)
-// ===============================
-
-function resolveTempo(ctx, opts = {}) {
-  const f = isObject(ctx?.features) ? ctx.features : {};
-
-  const t = {
-    thinkingDelayMs: clampInt(
-      opts.thinkingDelayMs ?? f.thinkingDelayMs ?? TEMPO_DEFAULTS.thinkingDelayMs,
-      TEMPO_DEFAULTS.thinkingDelayMs,
-      0,
-      1200
-    ),
-    microPauseMs: clampInt(
-      opts.microPauseMs ?? f.microPauseMs ?? TEMPO_DEFAULTS.microPauseMs,
-      TEMPO_DEFAULTS.microPauseMs,
-      0,
-      600
-    ),
-    sentencePauseMs: clampInt(
-      opts.sentencePauseMs ?? f.sentencePauseMs ?? TEMPO_DEFAULTS.sentencePauseMs,
-      TEMPO_DEFAULTS.sentencePauseMs,
-      0,
-      900
-    ),
-    chunkChars: clampInt(
-      opts.chunkChars ?? f.chunkChars ?? TEMPO_DEFAULTS.chunkChars,
-      TEMPO_DEFAULTS.chunkChars,
-      120,
-      900
-    ),
-    maxUtterances: clampInt(
-      opts.maxUtterances ?? f.maxUtterances ?? TEMPO_DEFAULTS.maxUtterances,
-      TEMPO_DEFAULTS.maxUtterances,
-      1,
-      10
-    ),
-  };
-
-  // tighten on stabilize/safety
-  const mode = safeStr(ctx?.mode || DEFAULTS.mode, 12);
-  const reg = safeStr(ctx?.regulation || DEFAULTS.regulation, 12);
-  if (mode === "safety" || mode === "stabilize" || reg === "crisis" || reg === "fragile") {
-    t.chunkChars = clampInt(t.chunkChars, TEMPO_DEFAULTS.chunkChars, 120, 420);
-    t.maxUtterances = clampInt(t.maxUtterances, TEMPO_DEFAULTS.maxUtterances, 1, 5);
-    t.thinkingDelayMs = clampInt(t.thinkingDelayMs, TEMPO_DEFAULTS.thinkingDelayMs, 0, 600);
+async function callNyxProfileAsync(mod, input) {
+  try {
+    if (!mod) return null;
+    let v = null;
+    if (typeof mod.getNyxPsycheProfile === "function") v = mod.getNyxPsycheProfile(input);
+    else if (typeof mod.getMarionHints === "function") v = mod.getMarionHints(input);
+    if (isThenable(v)) v = await v;
+    return v;
+  } catch (_e) {
+    return null;
   }
-
-  return t;
 }
 
-// ===============================
-// PHASE 1 – AUDIO (PURE HINTS)
-// ===============================
+// =========================
+// NORMALIZE DOMAIN SLICE
+// =========================
 
-function resolveVoiceStyle(features, mode) {
-  const f = isObject(features) ? features : {};
-  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 24).toLowerCase();
-  if (lane && LANE_VOICE[lane]) return LANE_VOICE[lane];
-  return VOICE_PRESETS[mode] || AUDIO_DEFAULTS.voiceStyle;
-}
-
-function resolveAudio(ctx, opts = {}) {
-  const f = isObject(ctx?.features) ? ctx.features : {};
-  const mode = safeStr(ctx?.mode || DEFAULTS.mode, 12);
-  const regulation = safeStr(ctx?.regulation || DEFAULTS.regulation, 12);
-
-  const silent = !!(opts.silentAudio || opts.silent || f.silentAudio || f.silent);
-
-  const audio = {
-    speakEnabled: safeBool(opts.speakEnabled ?? f.speakEnabled, AUDIO_DEFAULTS.speakEnabled),
-    listenEnabled: safeBool(opts.listenEnabled ?? f.listenEnabled, AUDIO_DEFAULTS.listenEnabled),
-    bargeInAllowed: safeBool(opts.bargeInAllowed ?? f.bargeInAllowed, AUDIO_DEFAULTS.bargeInAllowed),
-    userGestureRequired: safeBool(opts.userGestureRequired ?? f.userGestureRequired, AUDIO_DEFAULTS.userGestureRequired),
-    silent,
-    voiceStyle: safeStr(opts.voiceStyle || f.voiceStyle || resolveVoiceStyle(f, mode), 16) || AUDIO_DEFAULTS.voiceStyle,
-    maxSpeakChars: clampInt(
-      opts.maxSpeakChars ?? f.maxSpeakChars ?? AUDIO_DEFAULTS.maxSpeakChars,
-      AUDIO_DEFAULTS.maxSpeakChars,
-      120,
-      2200
-    ),
-    maxSpeakSeconds: clampInt(
-      opts.maxSpeakSeconds ?? f.maxSpeakSeconds ?? AUDIO_DEFAULTS.maxSpeakSeconds,
-      AUDIO_DEFAULTS.maxSpeakSeconds,
-      6,
-      60
-    ),
-    cooldownMs: clampInt(
-      opts.cooldownMs ?? f.cooldownMs ?? AUDIO_DEFAULTS.cooldownMs,
-      AUDIO_DEFAULTS.cooldownMs,
-      0,
-      2000
-    ),
-  };
-
-  // Invariant: silent => no speak
-  if (audio.silent) audio.speakEnabled = false;
-
-  // Stabilize/safety tuning
-  if (mode === "safety" || mode === "stabilize" || regulation === "crisis" || regulation === "fragile") {
-    audio.voiceStyle = "soothing";
-    audio.maxSpeakChars = clampInt(audio.maxSpeakChars, AUDIO_DEFAULTS.maxSpeakChars, 120, 900);
-    audio.maxSpeakSeconds = clampInt(audio.maxSpeakSeconds, AUDIO_DEFAULTS.maxSpeakSeconds, 6, 28);
-    audio.bargeInAllowed = true;
-  }
-
-  // Embed a bounded tempo copy (convenience)
-  audio.tempo = resolveTempo(ctx, opts);
-
-  return audio;
-}
-
-// ===============================
-// PHASE 2 – INTRO (PURE HINTS)
-// ===============================
-
-function resolveIntro(ctx, opts = {}) {
-  const f = isObject(ctx?.features) ? ctx.features : {};
-  const mode = safeStr(ctx?.mode || DEFAULTS.mode, 12);
-  const regulation = safeStr(ctx?.regulation || DEFAULTS.regulation, 12);
-
-  const disableIntro = !!(opts.disableIntro || f.disableIntro);
-
-  let cueKey = safeStr(opts.cueKey || f.cueKey || "nyx_intro_v1", 32);
-  const preferShort = !!(opts.shortIntro || f.shortIntro);
-
-  if (preferShort) cueKey = "nyx_intro_short_v1";
-  if (mode === "safety" || regulation === "crisis") cueKey = "nyx_intro_safety_v1";
-  if (mode === "stabilize" || regulation === "fragile") cueKey = "nyx_intro_stabilize_v1";
-
-  return {
-    enabled: !disableIntro,
-    cueKey,
-    speakOnOpen: safeBool(opts.speakOnOpen ?? f.speakOnOpen, true),
-    oncePerSession: safeBool(opts.oncePerSession ?? f.oncePerSession, true),
-  };
-}
-
-// ===============================
-// DOMAIN NORMALIZATION (BOUNDED)
-// ===============================
-
-function safeArr(a, max, maxLen) {
-  return uniqBounded(a, max, maxLen);
-}
-
-function normalizeDomain(domainName, raw) {
+function normalizeDomainSlice(domainName, raw) {
   const d = isObject(raw) ? raw : {};
   return {
     enabled: d.enabled !== false,
     domain: domainName,
-    focus: safeStr(d.focus || "", 48),
-    stance: safeStr(d.stance || "", 48),
+    queryKey: safeStr(d.queryKey || "", 32),
+    focus: safeStr(d.focus || "", 32),
+    stance: safeStr(d.stance || "", 32),
     confidence: clamp01(d.confidence),
-    primer: safeArr(d.primer || d.principles || [], LIMITS.primer, 90),
-    frameworks: safeArr(d.frameworks || [], LIMITS.frameworks, 60),
-    guardrails: safeArr(d.guardrails || [], LIMITS.guardrails, 90),
-    responseCues: safeArr(d.responseCues || [], LIMITS.responseCues, 60),
-    hits: safeArr(d.hits || [], LIMITS.domainHits, 140),
+
+    // canonical atoms
+    primer: uniqBounded(d.principles || d.primer || [], LIMITS.primer, 80),
+    frameworks: uniqBounded(d.frameworks || [], 6, 48),
+    guardrails: uniqBounded(d.guardrails || [], LIMITS.guardrails, 80),
+    responseCues: uniqBounded(d.responseCues || [], LIMITS.responseCues, 48),
+
+    // atoms only (bounded shallow)
+    snippets: sanitizeAtomList(d.snippets || [], LIMITS.domainAtoms, 240),
+    examples: sanitizeAtomList(d.faceExamples || d.examples || [], LIMITS.domainAtoms, 240),
+
+    hits: uniqBounded(d.hits || [], LIMITS.domainHits, 140),
+    reason: safeStr(d.reason || "", 32),
     riskTier: safeStr(d.riskTier || "", 12).toLowerCase(),
-    reason: safeStr(d.reason || "", 24),
   };
 }
 
-function computeConfidence(domains) {
-  const weights = { psychology: 1.6, law: 1.2, cyber: 1.2, ai: 1.1, finance: 1.0, english: 0.9 };
-  let sum = 0;
-  let wsum = 0;
-  for (const k of Object.keys(domains || {})) {
-    const d = domains[k];
-    if (!d || d.enabled === false) continue;
-    const w = weights[k] || 1.0;
-    sum += clamp01(d.confidence) * w;
-    wsum += w;
-  }
-  if (!wsum) return 0;
-  return clamp01(sum / wsum);
-}
+// =========================
+// GLOBAL PSYCHE RESOLUTION
+// =========================
 
-// ===============================
-// REGULATION / MODE RESOLUTION
-// ===============================
-
-function resolveRegulation(features, psychologySlice, tokens) {
+function resolveRegulation(features, psychSlice, tokens) {
   const f = isObject(features) ? features : {};
   const intent = safeStr(f.intent || DEFAULTS.intent, 16).toUpperCase();
   const reg = safeStr(f.regulationState || "", 18).toLowerCase();
   const load = safeStr(f.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
 
-  const riskTier = safeStr(psychologySlice?.riskTier || "", 12).toLowerCase();
-
-  // Tokens must be canonical/safe tokens, not raw text.
-  const tset = new Set(
-    Array.isArray(tokens)
-      ? tokens.slice(0, 40).map((t) => safeStr(t, 32).toLowerCase().trim())
-      : []
-  );
+  // psychology has precedence if it provides riskTier
+  const riskTier = safeStr(psychSlice?.riskTier || "", 12).toLowerCase();
+  const tset = new Set(safeTokens(tokens, 24));
 
   if (riskTier === "high") return "crisis";
   if (intent === "STABILIZE" || reg === "dysregulated") return "fragile";
   if (load === "high") return "strained";
-  if (tset.has("self_harm") || tset.has("suicide") || tset.has("harm")) return "crisis";
+
+  // if upstream tokenization encoded high-risk canonical tokens (safe-derived), allow escalation
+  if (
+    tset.has("self_harm") ||
+    tset.has("suicide") ||
+    tset.has("harm") ||
+    tset.has("violence") ||
+    tset.has("abuse")
+  ) {
+    return "crisis";
+  }
 
   return "steady";
 }
 
-function resolveMode(regulation) {
-  if (regulation === "crisis") return "safety";
-  if (regulation === "fragile") return "stabilize";
-  return "normal";
-}
-
-function resolveStance(features, regulation, psychologySlice) {
+function resolveStance(features, regulation, psychSlice) {
   const f = isObject(features) ? features : {};
   const intent = safeStr(f.intent || DEFAULTS.intent, 16).toUpperCase();
   const desire = safeStr(f.desire || "", 16).toLowerCase();
@@ -403,49 +428,296 @@ function resolveStance(features, regulation, psychologySlice) {
   if (intent === "ADVANCE" || intent === "EXECUTE") return "confirm+execute";
   if (desire === "mastery") return "teach+structure";
 
-  const ps = safeStr(psychologySlice?.stance || "", 48);
+  const ps = safeStr(psychSlice?.stance || "", 32);
   return ps || DEFAULTS.stance;
 }
 
-// ===============================
-// FINAL SANITIZER (NO CROSS-CONTAMINATION)
-// ===============================
+function resolveMode(regulation) {
+  if (regulation === "crisis") return "safety";
+  if (regulation === "fragile") return "stabilize";
+  return "normal";
+}
 
-function finalize(out) {
+function mergeByPrecedence(domainSlices, field, max, maxLen) {
+  const merged = [];
+  for (const name of DOMAIN_ORDER) {
+    const slice = domainSlices[name];
+    if (!slice || slice.enabled === false) continue;
+    const arr = slice[field];
+    for (const it of Array.isArray(arr) ? arr : []) merged.push(it);
+  }
+  return uniqBounded(merged, max, maxLen);
+}
+
+function computeOverallConfidence(domainSlices) {
+  const weights = {
+    psychology: 1.6,
+    law: 1.2,
+    cyber: 1.2,
+    ai: 1.1,
+    finance: 1.0,
+    english: 0.9,
+  };
+
+  let sum = 0;
+  let wsum = 0;
+  for (const name of Object.keys(domainSlices || {})) {
+    const s = domainSlices[name];
+    if (!s || s.enabled === false) continue;
+    const w = weights[name] || 1.0;
+    sum += clamp01(s.confidence) * w;
+    wsum += w;
+  }
+  if (!wsum) return 0;
+  return clamp01(sum / wsum);
+}
+
+// =========================
+// ROUTING (bridge all knowledge, but avoid noise)
+// =========================
+
+function chooseEnabledDomains(features, tokens, opts) {
+  const o = isObject(opts) ? opts : {};
+  const enableAll = o.enableAll !== false;
+
+  const enabled = {
+    psychology: true,
+    cyber: enableAll,
+    english: enableAll,
+    finance: enableAll,
+    law: enableAll,
+    ai: enableAll,
+  };
+
+  const f = isObject(features) ? features : {};
+  const load = safeStr(f.cognitiveLoad || "", 12).toLowerCase();
+  const intent = safeStr(f.intent || "", 16).toUpperCase();
+  const reg = safeStr(f.regulationState || "", 18).toLowerCase();
+
+  // Lane-based reinforcement: if the host is in a lane, keep the matching domain ON even if enableAll is false.
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 32).toLowerCase();
+  if (!enableAll && lane) {
+    if (lane.includes("law")) enabled.law = true;
+    if (lane.includes("cyber") || lane.includes("security")) enabled.cyber = true;
+    if (lane.includes("ai") || lane.includes("tech")) enabled.ai = true;
+    if (lane.includes("finance") || lane.includes("grant") || lane.includes("budget")) enabled.finance = true;
+    if (lane.includes("english") || lane.includes("writing")) enabled.english = true;
+    if (lane.includes("psych") || lane.includes("support")) enabled.psychology = true;
+  }
+
+  if (o.reduceOnStabilize && (intent === "STABILIZE" || reg === "dysregulated" || load === "high")) {
+    enabled.law = !!o.keepLawOnStabilize;
+    enabled.cyber = !!o.keepCyberOnStabilize;
+    enabled.ai = !!o.keepAIOnStabilize;
+    enabled.finance = false;
+    enabled.english = false;
+  }
+
+  // explicit overrides
+  if (isObject(o.domains)) {
+    for (const k of Object.keys(o.domains)) enabled[k] = !!o.domains[k];
+  }
+
+  return enabled;
+}
+
+// =========================
+// PHASE 1–5: TEMPO/AUDIO/INTRO RESOLUTION (PURE HINTS)
+// =========================
+
+function resolveTempo(ctx, opts) {
+  const o = isObject(opts) ? opts : {};
+  const f = isObject(ctx?.features) ? ctx.features : {};
+  const mode = safeStr(ctx?.mode || "normal", 12);
+  const regulation = safeStr(ctx?.regulation || "steady", 12);
+
+  // allow host override (bounded)
+  const base = {
+    thinkingDelayMs: clampInt(
+      o.thinkingDelayMs ?? f.thinkingDelayMs ?? TEMPO_DEFAULTS.thinkingDelayMs,
+      0,
+      1200,
+      TEMPO_DEFAULTS.thinkingDelayMs
+    ),
+    microPauseMs: clampInt(
+      o.microPauseMs ?? f.microPauseMs ?? TEMPO_DEFAULTS.microPauseMs,
+      0,
+      600,
+      TEMPO_DEFAULTS.microPauseMs
+    ),
+    sentencePauseMs: clampInt(
+      o.sentencePauseMs ?? f.sentencePauseMs ?? TEMPO_DEFAULTS.sentencePauseMs,
+      0,
+      900,
+      TEMPO_DEFAULTS.sentencePauseMs
+    ),
+    chunkChars: clampInt(
+      o.chunkChars ?? f.chunkChars ?? TEMPO_DEFAULTS.chunkChars,
+      120,
+      900,
+      TEMPO_DEFAULTS.chunkChars
+    ),
+    maxUtterances: clampInt(
+      o.maxUtterances ?? f.maxUtterances ?? TEMPO_DEFAULTS.maxUtterances,
+      1,
+      10,
+      TEMPO_DEFAULTS.maxUtterances
+    ),
+  };
+
+  // safety/stabilize tighten delivery
+  if (mode === "safety" || mode === "stabilize" || regulation === "crisis" || regulation === "fragile") {
+    base.thinkingDelayMs = clampInt(base.thinkingDelayMs, 0, 600, base.thinkingDelayMs);
+    base.chunkChars = clampInt(base.chunkChars, 120, 420, base.chunkChars);
+    base.maxUtterances = clampInt(base.maxUtterances, 1, 5, base.maxUtterances);
+  }
+
+  return base;
+}
+
+function resolveVoiceStyle(features, mode) {
+  const f = isObject(features) ? features : {};
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 24).toLowerCase();
+  if (lane && LANE_VOICE[lane]) return LANE_VOICE[lane];
+  return VOICE_PRESETS[mode] || AUDIO_DEFAULTS.voiceStyle;
+}
+
+function resolveAudio(ctx, opts) {
+  const o = isObject(opts) ? opts : {};
+  const f = isObject(ctx?.features) ? ctx.features : {};
+  const mode = safeStr(ctx?.mode || "normal", 12);
+  const regulation = safeStr(ctx?.regulation || "steady", 12);
+
+  const silent = !!(o.silentAudio || o.silent || f.silentAudio || f.silent);
+  const disableSpeak = !!(o.disableSpeak || f.disableSpeak);
+  const disableListen = !!(o.disableListen || f.disableListen);
+
+  const audio = {
+    speakEnabled: safeBool(o.speakEnabled ?? f.speakEnabled, AUDIO_DEFAULTS.speakEnabled) && !disableSpeak,
+    listenEnabled: safeBool(o.listenEnabled ?? f.listenEnabled, AUDIO_DEFAULTS.listenEnabled) && !disableListen,
+    bargeInAllowed: safeBool(o.bargeInAllowed ?? f.bargeInAllowed, AUDIO_DEFAULTS.bargeInAllowed),
+    userGestureRequired: safeBool(o.userGestureRequired ?? f.userGestureRequired, AUDIO_DEFAULTS.userGestureRequired),
+    silent,
+    voiceStyle: safeStr(o.voiceStyle || f.voiceStyle || resolveVoiceStyle(f, mode), 16) || AUDIO_DEFAULTS.voiceStyle,
+    maxSpeakChars: clampInt(
+      o.maxSpeakChars ?? f.maxSpeakChars ?? AUDIO_DEFAULTS.maxSpeakChars,
+      120,
+      2200,
+      AUDIO_DEFAULTS.maxSpeakChars
+    ),
+    maxSpeakSeconds: clampInt(
+      o.maxSpeakSeconds ?? f.maxSpeakSeconds ?? AUDIO_DEFAULTS.maxSpeakSeconds,
+      6,
+      60,
+      AUDIO_DEFAULTS.maxSpeakSeconds
+    ),
+    cooldownMs: clampInt(o.cooldownMs ?? f.cooldownMs ?? AUDIO_DEFAULTS.cooldownMs, 0, 2000, AUDIO_DEFAULTS.cooldownMs),
+
+    // embed a bounded tempo copy for convenience
+    tempo: resolveTempo(ctx, opts),
+  };
+
+  // In safety/stabilize: be conservative
+  if (mode === "safety" || mode === "stabilize" || regulation === "crisis" || regulation === "fragile") {
+    audio.voiceStyle = "soothing";
+    audio.bargeInAllowed = true;
+    audio.maxSpeakChars = clampInt(audio.maxSpeakChars, 120, 900, audio.maxSpeakChars);
+    audio.maxSpeakSeconds = clampInt(audio.maxSpeakSeconds, 6, 28, audio.maxSpeakSeconds);
+  }
+
+  // Silent implies no speak; listening can remain on if you want (host decides)
+  if (audio.silent) {
+    audio.speakEnabled = false;
+  }
+
+  return audio;
+}
+
+function resolveIntro(ctx, opts) {
+  const o = isObject(opts) ? opts : {};
+  const f = isObject(ctx?.features) ? ctx.features : {};
+  const mode = safeStr(ctx?.mode || "normal", 12);
+  const regulation = safeStr(ctx?.regulation || "steady", 12);
+
+  const disableIntro = !!(o.disableIntro || f.disableIntro);
+  const preferShort = !!(o.shortIntro || f.shortIntro);
+
+  // The bridge cannot patch sessions safely; it emits a cue only.
+  // MarionSO should handle "once per session" gating.
+  let cueKey = "nyx_intro_v1";
+  if (preferShort) cueKey = "nyx_intro_short_v1";
+
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 32).toLowerCase();
+  if (lane && (lane === "news" || lane === "news-canada")) cueKey = "nyx_intro_news_v1";
+  if (lane && lane === "roku") cueKey = "nyx_intro_roku_v1";
+
+  if (mode === "safety" || regulation === "crisis") cueKey = "nyx_intro_safety_v1";
+  if (mode === "stabilize" || regulation === "fragile") cueKey = "nyx_intro_stabilize_v1";
+
+  return {
+    enabled: !disableIntro,
+    cueKey,
+    speakOnOpen: safeBool(o.speakOnOpen ?? f.speakOnOpen, true),
+    oncePerSession: safeBool(o.oncePerSession ?? f.oncePerSession, true), // hint only
+  };
+}
+
+// =========================
+// QC / SANITIZATION (NO CROSS-CONTAMINATION)
+// =========================
+
+function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
-    version: BRIDGE_VERSION,
-    queryKey: safeStr(o.queryKey, 48),
-    sessionKey: safeStr(o.sessionKey, 72),
+    version: safeStr(o.version || BRIDGE_VERSION, 16),
+    queryKey: safeStr(o.queryKey || "", 32),
+    sessionKey: safeStr(o.sessionKey || "", 64),
 
-    mode: safeStr(o.mode || DEFAULTS.mode, 16),
+    mode: safeStr(o.mode || DEFAULTS.mode, 12),
     intent: safeStr(o.intent || DEFAULTS.intent, 16).toUpperCase() || DEFAULTS.intent,
-    regulation: safeStr(o.regulation || DEFAULTS.regulation, 16),
-    cognitiveLoad: safeStr(o.cognitiveLoad || DEFAULTS.cognitiveLoad, 16),
-    stance: safeStr(o.stance || DEFAULTS.stance, 48),
+    regulation: safeStr(o.regulation || DEFAULTS.regulation, 12),
+    cognitiveLoad: safeStr(o.cognitiveLoad || DEFAULTS.cognitiveLoad, 12),
+    stance: safeStr(o.stance || DEFAULTS.stance, 32),
 
     toneCues: uniqBounded(o.toneCues || [], LIMITS.toneCues, 24),
     uiCues: uniqBounded(o.uiCues || [], LIMITS.uiCues, 32),
-    guardrails: uniqBounded(o.guardrails || [], LIMITS.guardrails, 90),
-    responseCues: uniqBounded(o.responseCues || [], LIMITS.responseCues, 60),
 
-    // IMPORTANT: Always provide envelopes (never null) to keep callers simple.
-    tempo: isObject(o.tempo) ? o.tempo : { ...TEMPO_DEFAULTS },
-    audio: isObject(o.audio) ? o.audio : { ...AUDIO_DEFAULTS, tempo: { ...TEMPO_DEFAULTS } },
-    intro: isObject(o.intro) ? o.intro : { enabled: true, cueKey: "nyx_intro_v1", speakOnOpen: true, oncePerSession: true },
+    guardrails: uniqBounded(o.guardrails || [], LIMITS.guardrails, 80),
+    responseCues: uniqBounded(o.responseCues || [], LIMITS.responseCues, 48),
+
+    // phases 1–5: objects are bounded by resolvers
+    tempo: isObject(o.tempo)
+      ? o.tempo
+      : resolveTempo(
+          { features: {}, mode: safeStr(o.mode || "normal", 12), regulation: safeStr(o.regulation || "steady", 12) },
+          {}
+        ),
+    audio: isObject(o.audio)
+      ? o.audio
+      : resolveAudio(
+          { features: {}, mode: safeStr(o.mode || "normal", 12), regulation: safeStr(o.regulation || "steady", 12) },
+          {}
+        ),
+    intro: isObject(o.intro)
+      ? o.intro
+      : resolveIntro(
+          { features: {}, mode: safeStr(o.mode || "normal", 12), regulation: safeStr(o.regulation || "steady", 12) },
+          {}
+        ),
 
     domains: isObject(o.domains) ? o.domains : {},
     confidence: clamp01(o.confidence),
     diag: isObject(o.diag) ? o.diag : {},
   };
 
-  // Invariants
+  // absolute invariants (avoid accidental side effects)
   if (safe.audio && safe.audio.silent) safe.audio.speakEnabled = false;
 
-  // Cap diag bloat
+  // never allow huge diag blobs
   try {
-    const s = JSON.stringify(safe.diag);
-    if (s.length > 1800) safe.diag = { trimmed: true };
+    if (safe.diag && JSON.stringify(safe.diag).length > LIMITS.diagBytes) {
+      safe.diag = { trimmed: true };
+    }
   } catch (_e) {
     safe.diag = { trimmed: true };
   }
@@ -453,140 +725,324 @@ function finalize(out) {
   return safe;
 }
 
-// ===============================
-// MAIN BUILD (FAIL-SOFT)
-// ===============================
+// =========================
+// MAIN: BUILD PSYCHE (SYNC, backward compatible)
+// =========================
 
-async function build(input = {}) {
+function build(input) {
   try {
-    const features = isObject(input.features) ? input.features : {};
-    const opts = isObject(input.opts) ? input.opts : {};
-    const tokens = Array.isArray(input.tokens) ? input.tokens.slice(0, 180).map((t) => safeStr(t, 48)) : [];
+    const features0 = isObject(input?.features) ? input.features : {};
+    const tokens = safeTokens(input?.tokens || [], 24);
+    const queryKey = safeStr(input?.queryKey || "", 32);
+    const sessionKey = safeStr(input?.sessionKey || "", 64);
+    const opts = isObject(input?.opts) ? input.opts : {};
 
-    const queryKey = safeStr(input.queryKey || "", 220);
-    const sessionKey = safeStr(input.sessionKey || "", 220);
+    // Allow the caller to force psych routing without introducing raw user text.
+    const forcePsychBridge = !!(
+      opts.forcePsychBridge ||
+      features0.forcePsychBridge ||
+      features0.forcePsych ||
+      features0.psychBridge
+    );
 
-    // Domain gathers are fail-open
+    // Never mutate caller-provided features.
+    const features = { ...features0 };
+    if (forcePsychBridge) {
+      if (!features.intent) features.intent = "SUPPORT";
+      if (!features.regulationState) features.regulationState = "dysregulated";
+      if (!features.cognitiveLoad) features.cognitiveLoad = "high";
+      features.__forcePsychBridge = true;
+    }
+
+    const enabled = chooseEnabledDomains(features, tokens, opts);
     const commonIn = { features, tokens, queryKey };
-    const domainsRaw = {
-      psychology: callDomain(PsychologyK, commonIn),
-      law: callDomain(LawK, commonIn),
-      cyber: callDomain(CyberK, commonIn),
-      ai: callDomain(AIK, commonIn),
-      finance: callDomain(FinanceK, commonIn),
-      english: callDomain(EnglishK, commonIn),
+
+    // gather domain raw outputs (fail-open)
+    const pendingAsync = {};
+    const raw = {
+      psychology: enabled.psychology ? callNyxProfile(PsychologyK, commonIn) : null,
+      cyber: enabled.cyber ? callNyxProfile(CyberK, commonIn) : null,
+      english: enabled.english ? callNyxProfile(EnglishK, commonIn) : null,
+      finance: enabled.finance ? callNyxProfile(FinanceK, commonIn) : null,
+      law: enabled.law ? callNyxProfile(LawK, commonIn) : null,
+      ai: enabled.ai ? callNyxProfile(AIK, commonIn) : null,
     };
 
+    // Detect thenables (async modules) and fail-open them in sync mode.
+    for (const k of Object.keys(raw)) {
+      if (isThenable(raw[k])) {
+        pendingAsync[k] = true;
+        raw[k] = null;
+      }
+    }
+
+    // normalize slices
     const domains = {
-      psychology: normalizeDomain("psychology", domainsRaw.psychology),
-      law: normalizeDomain("law", domainsRaw.law),
-      cyber: normalizeDomain("cyber", domainsRaw.cyber),
-      ai: normalizeDomain("ai", domainsRaw.ai),
-      finance: normalizeDomain("finance", domainsRaw.finance),
-      english: normalizeDomain("english", domainsRaw.english),
+      psychology: normalizeDomainSlice("psychology", raw.psychology),
+      cyber: normalizeDomainSlice("cyber", raw.cyber),
+      english: normalizeDomainSlice("english", raw.english),
+      finance: normalizeDomainSlice("finance", raw.finance),
+      law: normalizeDomainSlice("law", raw.law),
+      ai: normalizeDomainSlice("ai", raw.ai),
     };
 
+    // global resolution (psych precedence)
     const regulation = resolveRegulation(features, domains.psychology, tokens);
     const mode = resolveMode(regulation);
+
     const intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
-    const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 16).toLowerCase();
+    const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
 
-    // Deterministic cues (bounded)
+    // global merges (deterministic, precedence)
+    const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
+    const responseCuesBase = mergeByPrecedence(domains, "responseCues", LIMITS.responseCues, 48);
+
+    // Reinforcement hooks: safe, deterministic cues for both positive + negative reinforcement.
+    const responseCues = Array.isArray(responseCuesBase) ? responseCuesBase.slice() : [];
+    if (features.__forcePsychBridge || mode === "stabilize" || mode === "safety") {
+      responseCues.unshift("validate_emotion", "ask_feeling_context", "offer_options");
+      responseCues.unshift("avoid_shaming", "avoid_minimizing");
+    } else {
+      responseCues.unshift("reinforce_progress", "gentle_reframe");
+    }
+
+    // toneCues + uiCues: derived primarily from regulation + stance
     const toneCues = [];
     const uiCues = [];
-    const guardrails = ["no_raw_user_text"];
-    const responseCues = [];
+
+    if (features.__forcePsychBridge) {
+      uiCues.push("hide_nav_prompts", "compact_reply");
+    }
 
     if (mode === "safety") {
       toneCues.push("calm", "direct", "safety_first");
-      uiCues.push("minimize_choices", "compact_reply");
-      responseCues.push("keep_short", "ask_1_clarifier", "offer_options");
-      guardrails.push("no_moralizing", "avoid_minimizing");
+      uiCues.push("minimize_choices", "show_help_options", "compact_reply");
     } else if (mode === "stabilize") {
       toneCues.push("warm", "grounded", "short_sentences");
-      uiCues.push("minimize_choices", "compact_reply");
-      responseCues.push("keep_short", "ask_1_clarifier", "validate_emotion");
-      guardrails.push("avoid_shaming", "avoid_minimizing");
+      uiCues.push("minimize_choices", "show_grounding_chip", "compact_reply");
     } else {
       toneCues.push("clear", "supportive");
-      responseCues.push("keep_short");
     }
 
-    // Merge in domain-provided guardrails/response cues (bounded)
-    for (const k of Object.keys(domains)) {
-      const d = domains[k];
-      if (!d || d.enabled === false) continue;
-      for (const g of d.guardrails || []) guardrails.push(g);
-      for (const r of d.responseCues || []) responseCues.push(r);
-    }
+    if (stance === "confirm+execute") uiCues.push("confirm_then_run");
+    if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
+    if (responseCues.includes("keep_short")) uiCues.push("compact_reply");
 
+    const mergedTone = uniqBounded(toneCues, LIMITS.toneCues, 24);
+    const mergedUI = uniqBounded(uiCues, LIMITS.uiCues, 32);
+    const confidence = computeOverallConfidence(domains);
+
+    // Phase 1–5: compute pure hint envelopes
     const ctx = { features, mode, regulation };
-    const tempo = resolveTempo(ctx, opts);
-    const audio = resolveAudio(ctx, opts);
-    const intro = resolveIntro(ctx, opts);
-    const confidence = computeConfidence(domains);
 
+    // diagnostics (safe)
     const diag = {
-      ok: true,
-      bridge: "sitebridge",
-      version: BRIDGE_VERSION,
-      enabledDomains: {
-        psychology: !!PsychologyK,
-        law: !!LawK,
-        cyber: !!CyberK,
-        ai: !!AIK,
-        finance: !!FinanceK,
-        english: !!EnglishK,
+      enabledDomains: enabled,
+      pendingAsyncDomains: Object.keys(pendingAsync).length ? pendingAsync : undefined,
+      domainConfidence: {
+        psychology: domains.psychology.confidence,
+        law: domains.law.confidence,
+        cyber: domains.cyber.confidence,
+        ai: domains.ai.confidence,
+        finance: domains.finance.confidence,
+        english: domains.english.confidence,
       },
-      mode,
       regulation,
+      mode,
+      stance,
+      lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
+      audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
     };
 
-    return finalize({
+    return finalizeContract({
+      version: BRIDGE_VERSION,
       queryKey,
       sessionKey,
+
       mode,
       intent,
       regulation,
       cognitiveLoad,
       stance,
-      toneCues,
-      uiCues,
+
+      toneCues: mergedTone,
+      uiCues: mergedUI,
+
       guardrails,
-      responseCues,
-      tempo,
-      audio,
-      intro,
+      responseCues: uniqBounded(responseCues, LIMITS.responseCues, 48),
+
+      tempo: resolveTempo(ctx, opts),
+      audio: resolveAudio(ctx, opts),
+      intro: resolveIntro(ctx, opts),
+
       domains,
+
       confidence,
       diag,
     });
   } catch (e) {
-    return finalize({
-      queryKey: "",
-      sessionKey: "",
-      mode: DEFAULTS.mode,
-      intent: DEFAULTS.intent,
-      regulation: DEFAULTS.regulation,
-      cognitiveLoad: DEFAULTS.cognitiveLoad,
-      stance: DEFAULTS.stance,
-      toneCues: ["clear"],
-      uiCues: ["compact_reply"],
-      guardrails: ["fail_open", "no_raw_user_text"],
-      responseCues: ["keep_short", "ask_1_clarifier"],
-      tempo: { ...TEMPO_DEFAULTS },
-      audio: { ...AUDIO_DEFAULTS, speakEnabled: true, silent: false, tempo: { ...TEMPO_DEFAULTS } },
-      intro: { enabled: true, cueKey: "nyx_intro_v1", speakOnOpen: true, oncePerSession: true },
-      domains: {},
-      confidence: 0,
-      diag: { failOpen: true, err: safeStr(e && (e.message || e.name || String(e)), 160) },
-    });
+    return failOpenPsyche(e, input);
   }
+}
+
+// =========================
+// MAIN: BUILD PSYCHE (ASYNC, awaits domain modules)
+// =========================
+
+async function buildAsync(input) {
+  try {
+    const features0 = isObject(input?.features) ? input.features : {};
+    const tokens = safeTokens(input?.tokens || [], 24);
+    const queryKey = safeStr(input?.queryKey || "", 32);
+    const sessionKey = safeStr(input?.sessionKey || "", 64);
+    const opts = isObject(input?.opts) ? input.opts : {};
+
+    const forcePsychBridge = !!(
+      opts.forcePsychBridge ||
+      features0.forcePsychBridge ||
+      features0.forcePsych ||
+      features0.psychBridge
+    );
+
+    const features = { ...features0 };
+    if (forcePsychBridge) {
+      if (!features.intent) features.intent = "SUPPORT";
+      if (!features.regulationState) features.regulationState = "dysregulated";
+      if (!features.cognitiveLoad) features.cognitiveLoad = "high";
+      features.__forcePsychBridge = true;
+    }
+
+    const enabled = chooseEnabledDomains(features, tokens, opts);
+    const commonIn = { features, tokens, queryKey };
+
+    const raw = {
+      psychology: enabled.psychology ? await callNyxProfileAsync(PsychologyK, commonIn) : null,
+      cyber: enabled.cyber ? await callNyxProfileAsync(CyberK, commonIn) : null,
+      english: enabled.english ? await callNyxProfileAsync(EnglishK, commonIn) : null,
+      finance: enabled.finance ? await callNyxProfileAsync(FinanceK, commonIn) : null,
+      law: enabled.law ? await callNyxProfileAsync(LawK, commonIn) : null,
+      ai: enabled.ai ? await callNyxProfileAsync(AIK, commonIn) : null,
+    };
+
+    const domains = {
+      psychology: normalizeDomainSlice("psychology", raw.psychology),
+      cyber: normalizeDomainSlice("cyber", raw.cyber),
+      english: normalizeDomainSlice("english", raw.english),
+      finance: normalizeDomainSlice("finance", raw.finance),
+      law: normalizeDomainSlice("law", raw.law),
+      ai: normalizeDomainSlice("ai", raw.ai),
+    };
+
+    const regulation = resolveRegulation(features, domains.psychology, tokens);
+    const mode = resolveMode(regulation);
+
+    const intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
+    const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
+    const stance = resolveStance(features, regulation, domains.psychology);
+
+    const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
+    const responseCuesBase = mergeByPrecedence(domains, "responseCues", LIMITS.responseCues, 48);
+
+    const responseCues = Array.isArray(responseCuesBase) ? responseCuesBase.slice() : [];
+    if (features.__forcePsychBridge || mode === "stabilize" || mode === "safety") {
+      responseCues.unshift("validate_emotion", "ask_feeling_context", "offer_options");
+      responseCues.unshift("avoid_shaming", "avoid_minimizing");
+    } else {
+      responseCues.unshift("reinforce_progress", "gentle_reframe");
+    }
+
+    const toneCues = [];
+    const uiCues = [];
+
+    if (features.__forcePsychBridge) uiCues.push("hide_nav_prompts", "compact_reply");
+
+    if (mode === "safety") {
+      toneCues.push("calm", "direct", "safety_first");
+      uiCues.push("minimize_choices", "show_help_options", "compact_reply");
+    } else if (mode === "stabilize") {
+      toneCues.push("warm", "grounded", "short_sentences");
+      uiCues.push("minimize_choices", "show_grounding_chip", "compact_reply");
+    } else {
+      toneCues.push("clear", "supportive");
+    }
+
+    if (stance === "confirm+execute") uiCues.push("confirm_then_run");
+    if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
+    if (responseCues.includes("keep_short")) uiCues.push("compact_reply");
+
+    const confidence = computeOverallConfidence(domains);
+    const ctx = { features, mode, regulation };
+
+    const diag = {
+      enabledDomains: enabled,
+      domainConfidence: {
+        psychology: domains.psychology.confidence,
+        law: domains.law.confidence,
+        cyber: domains.cyber.confidence,
+        ai: domains.ai.confidence,
+        finance: domains.finance.confidence,
+        english: domains.english.confidence,
+      },
+      regulation,
+      mode,
+      stance,
+      lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
+      audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
+      async: true,
+    };
+
+    return finalizeContract({
+      version: BRIDGE_VERSION,
+      queryKey,
+      sessionKey,
+
+      mode,
+      intent,
+      regulation,
+      cognitiveLoad,
+      stance,
+
+      toneCues: uniqBounded(toneCues, LIMITS.toneCues, 24),
+      uiCues: uniqBounded(uiCues, LIMITS.uiCues, 32),
+
+      guardrails,
+      responseCues: uniqBounded(responseCues, LIMITS.responseCues, 48),
+
+      tempo: resolveTempo(ctx, opts),
+      audio: resolveAudio(ctx, opts),
+      intro: resolveIntro(ctx, opts),
+
+      domains,
+
+      confidence,
+      diag,
+    });
+  } catch (e) {
+    return failOpenPsyche(e, input);
+  }
+}
+
+// For MarionSO convenience: a slimmer wrapper name.
+function buildPsyche(input) {
+  return build(input);
 }
 
 module.exports = {
   build,
-  buildPsyche: build, // back-compat with psycheBridge contract
-  BRIDGE_VERSION,
+  buildAsync,
+  buildPsyche,
+
+  // optional exports for testing
+  _internal: {
+    normalizeDomainSlice,
+    resolveRegulation,
+    resolveStance,
+    mergeByPrecedence,
+    chooseEnabledDomains,
+    resolveTempo,
+    resolveAudio,
+    resolveIntro,
+    finalizeContract,
+  },
 };
