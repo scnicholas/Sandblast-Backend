@@ -648,6 +648,7 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
   if (mode === "architect") return "Alright, Mac.";
   if (mode === "transitional") return "Okay, Mac.";
   return "Hey Mac.";
+}
 
 // -------------------------
 // PHASE 5 INTRO DIRECTIVE++++ (SiteBridge contract)
@@ -692,8 +693,6 @@ function maybeAddIntroDirective({ directives, session, cog, norm }) {
       __introDone: true,
     },
   };
-}
-
 }
 
 // -------------------------
@@ -2233,7 +2232,7 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 // main engine
 // -------------------------
-async async function handleChat(input) {
+async function handleChat(input) {
   const started = nowMs();
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
