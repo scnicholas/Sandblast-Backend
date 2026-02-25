@@ -12,7 +12,7 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.2.3 (PSYCHEBRIDGE ENABLE FIX++++ + DISTRESS→STABILIZE ROUTE++++ + AFFECT TOKENS++++)
+ * v1.2.4 (AUDIO PHASES 1–5 CONTRACT++++ + INTRO RITUAL CUES++++ + VOICE STYLE MAP++++ + HARDEN++++)
  * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
  * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
  * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.3";
+const MARION_VERSION = "marionSO v1.2.4";
 
 // -------------------------
 // Optional PsycheBridge (FAIL-OPEN)
@@ -2327,6 +2327,43 @@ function finalizeContract(cog, nowMs, extra) {
   out.marionTrace = safeStr(out.marionTrace || "", MARION_TRACE_MAX + 8);
   out.marionTraceHash = safeStr(out.marionTraceHash || "", 16);
 
+  // ---------
+  // Clamp Audio / Intro hints (PHASES 1–5) to prevent cross-contamination
+  // ---------
+  if (isPlainObject(out.tempo)) out.tempo = clampTempoProfile(out.tempo);
+  else out.tempo = clampTempoProfile({ lane: out.lane, intent: out.intent });
+
+  if (isPlainObject(out.audio)) {
+    // Ensure tempo inside audio is clamped, and all fields bounded.
+    const a = isPlainObject(out.audio) ? out.audio : {};
+    out.audio = {
+      version: safeStr(a.version || "audio_v1", 24),
+      speakEnabled: !!a.speakEnabled,
+      listenEnabled: !!a.listenEnabled,
+      silent: !!a.silent,
+      userGestureRequired: !!a.userGestureRequired,
+      bargeInAllowed: !!a.bargeInAllowed,
+      maxSpeakChars: clampInt(a.maxSpeakChars, 120, 1200, 520),
+      voiceStyle: safeStr(a.voiceStyle || "neutral", 24),
+      speakOnceKey: safeStr(a.speakOnceKey || "", 48),
+      lane: normalizeLaneRaw(a.lane || out.lane) || "general",
+      intent: normalizeMove(a.intent || out.intent),
+      tempo: clampTempoProfile(a.tempo || out.tempo),
+    };
+  } else {
+    out.audio = computeAudioEnvelope({}, {}, out, out.tempo, {});
+  }
+
+  if (isPlainObject(out.intro)) {
+    out.intro = {
+      enabled: !!out.intro.enabled,
+      cueKey: safeStr(out.intro.cueKey || "", 32),
+      reason: safeStr(out.intro.reason || "", 40),
+    };
+  } else {
+    out.intro = { enabled: false, cueKey: "", reason: "none" };
+  }
+
   if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
 
   
@@ -2647,6 +2684,126 @@ function normalizeTextForHash(t) {
     .trim()
     .slice(0, 700);
 }
+
+
+// -------------------------
+// NEW: Audio Envelope (PHASES 1–5) — PURE HINTS ONLY (NO SIDE EFFECTS)
+// -------------------------
+// MarionSO never performs audio. It emits bounded *hints* so Nyx/host can:
+// - Phase 1: wire TTS/STT consistently (speak/listen gating, barge-in)
+// - Phase 2: intro ritual cue (first-open greeting) without loops
+// - Phase 3: tempo + chunking + micro-pauses + thinking delays
+// - Phase 4: lane voice style mapping (general vs chip-locked lanes)
+// - Phase 5: hardening flags (user-gesture requirement, silent embeds)
+//
+// IMPORTANT: These cues are non-binding. Host is final authority.
+
+function clampTempoProfile(t) {
+  const x = isPlainObject(t) ? t : {};
+  return {
+    version: safeStr(x.version || "tempo_v1", 24),
+    lane: normalizeLaneRaw(x.lane) || "general",
+    intent: normalizeMove(x.intent || "CLARIFY"),
+    ackMs: clampInt(x.ackMs, 80, 2200, 320),
+    maxSilenceMs: clampInt(x.maxSilenceMs, 200, 4200, 900),
+    chunkMs: clampInt(x.chunkMs, 120, 9000, 900),
+    microPauseMs: clampInt(x.microPauseMs, 40, 900, 160),
+    thinkingDelayMs: clampInt(x.thinkingDelayMs, 0, 1500, 220),
+    fillerAllowed: !!x.fillerAllowed,
+    fillerMaxChars: clampInt(x.fillerMaxChars, 0, 40, 14),
+    speakRateHint: clamp01(x.speakRateHint || 0.52),
+    speakPitchHint: clamp01(x.speakPitchHint || 0.48),
+    preferShortSentences: !!x.preferShortSentences,
+    reason: safeStr(x.reason || "", 60),
+  };
+}
+
+function computeVoiceStyle(lane, intent, psych) {
+  const ln = normalizeLaneRaw(lane) || "general";
+  const it = normalizeMove(intent || "CLARIFY");
+  const p = isPlainObject(psych) ? psych : {};
+  const reg = safeStr(p.regulationState || PSYCH.REG.REGULATED, 16);
+
+  // Voice style is a named preset the host can map to actual voices/SSML later.
+  // Keep it compact and deterministic.
+  if (it === "STABILIZE" || reg === PSYCH.REG.DYSREGULATED) return "soothing";
+  if (ln === "music" || ln === "radio") return "upbeat";
+  if (ln === "news-canada") return "broadcast";
+  if (ln === "roku" || ln === "schedule") return "concise";
+  if (ln === "general" && it === "ADVANCE") return "confident";
+  return "neutral";
+}
+
+function computeAudioEnvelope(norm, session, cog, tempo, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const t = clampTempoProfile(tempo);
+
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || s.lane) || "general";
+  const intent = normalizeMove(c.intent || "CLARIFY");
+
+  // Phase 5: embed / environment hardening
+  const silent = truthy(ctx.silentAudio) || truthy(ctx.silent) || truthy(s.silentAudio);
+  const userGestureRequired = truthy(ctx.userGestureRequired) || truthy(s.userGestureRequired);
+
+  // Phase 1: default audio behavior flags (host may override)
+  const speakEnabled = !silent;
+  const listenEnabled = !silent;
+
+  // Phase 1: barge-in policy (user interrupts TTS with voice/typing)
+  // Conservative: allow barge-in unless in chip-locked lanes where you want zero surprises.
+  const crossAllowed = laneCrossAllowedByDefault(lane);
+  const bargeInAllowed = crossAllowed && !silent;
+
+  // Phase 3: chunking guard (avoid long monologues)
+  const maxSpeakChars = intent === "STABILIZE" ? 420 : intent === "ADVANCE" ? 560 : 460;
+
+  const voiceStyle = computeVoiceStyle(lane, intent, c.psychology);
+
+  return {
+    version: "audio_v1",
+    speakEnabled,
+    listenEnabled,
+    silent,
+    userGestureRequired,
+    bargeInAllowed,
+    maxSpeakChars,
+    voiceStyle,
+    tempo: t,
+    // Host can use these to prevent repeats without needing raw text
+    speakOnceKey: safeStr(c.turnId || n?.turnSignals?.turnId || "", 40) || "",
+    lane,
+    intent,
+  };
+}
+
+function computeIntroRitualCue(norm, session, cog, nowMs, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const now = Number(nowMs || 0) || 0;
+
+  // Only cue intro on non-actionable turns to avoid hijacking chip clicks / payload actions.
+  const actionable = !!c.actionable || !!n?.turnSignals?.payloadActionable;
+
+  // "Once per session": session stores nyxIntroAt.
+  const already = Number(s.nyxIntroAt || 0) || 0;
+
+  // Phase 2: allow host to disable intros without redeploy
+  const introOff = truthy(ctx.disableIntro) || truthy(s.disableIntro);
+
+  const shouldCue = !introOff && !already && !actionable;
+
+  return {
+    enabled: shouldCue,
+    cueKey: shouldCue ? "nyx_intro_v1" : "",
+    onceKey: shouldCue ? "nyxIntroAt" : "",
+    patch: shouldCue ? { nyxIntroAt: now } : null,
+    reason: introOff ? "disabled" : already ? "already" : actionable ? "actionable" : shouldCue ? "first_open" : "none",
+  };
+}
+
 
 function computeTurnSignature(norm, cog) {
   const n = isPlainObject(norm) ? norm : {};
@@ -3103,6 +3260,32 @@ function mediate(norm, session, opts = {}) {
     });
     cog.tempo = tempo;
 
+
+    // ---------
+    // AUDIO ENVELOPE (PHASES 1–5) — host-facing hints only
+    // ---------
+    const audio = computeAudioEnvelope(n, s, cog, tempo, {
+      silentAudio: truthy(o.silentAudio) || truthy(n?.turnSignals?.silentAudio),
+      userGestureRequired: truthy(o.userGestureRequired) || truthy(n?.turnSignals?.userGestureRequired),
+      disableIntro: truthy(o.disableIntro) || truthy(n?.turnSignals?.disableIntro),
+    });
+    cog.audio = audio;
+
+    // Intro ritual cue (Phase 2): optional first-open greeting, once per session
+    const intro = computeIntroRitualCue(n, s, cog, now, {
+      disableIntro: truthy(o.disableIntro) || truthy(n?.turnSignals?.disableIntro),
+    });
+    if (intro.enabled) {
+      cog.intro = { enabled: true, cueKey: intro.cueKey, reason: intro.reason };
+      // merge session patch
+      const p0 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+      if (isPlainObject(intro.patch)) Object.assign(p0, intro.patch);
+      cog.sessionPatchSuggestion = p0;
+    } else {
+      cog.intro = { enabled: false, cueKey: "", reason: intro.reason };
+    }
+
+
     // ---------
     // KNOWLEDGE AGGREGATOR (deterministic summary; "packs firing" visibility)
     // ---------
@@ -3333,6 +3516,11 @@ module.exports = {
   computeFinanceLayer,
   computeStrategyLayer,
   computeAILayer,
+
+  // audio exports
+  computeTempoProfile,
+  computeAudioEnvelope,
+  computeIntroRitualCue,
 
   // psych exports (unit tests)
   computePsychologyReasoningObject,
