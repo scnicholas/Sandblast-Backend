@@ -3,16 +3,14 @@
 /**
  * Utils/sitebridge.js
  *
- * SiteBridge v1.1.1 (CRITICAL HARDEN++++ | DOMAIN SAFE-REQUIRE++++ | LANE VOICE PRESETS++++
- *                   | REGULATION RESOLVE++++ | FAIL-SOFT BUILD++++ | OUTPUT BOUNDS++++)
+ * SiteBridge v1.1.2 (QC HARDEN++++ | FAIL-SOFT LOAD++++ | MULTI-ALIAS REQUIRE++++
+ *                   | ASYNC BUILD COMPAT++++ | DEFAULT ENVELOPES++++ | DIAG SAFE++++)
  *
- * What this is:
- *  - A deterministic, fail-open “psyche” builder used by chatEngine.
- *  - Returns host-facing hints for PHASE 1–5: audio, tempo, intro (PURE hints; no side effects).
- *
- * What this is NOT:
- *  - It does not execute TTS/STT.
- *  - It does not store or emit raw user text.
+ * GOAL: eliminate deploy-time / runtime 500s caused by:
+ *  - case-sensitive filename mismatches in prod (Linux)
+ *  - missing/optional domain modules
+ *  - bridge callers expecting async build()
+ *  - unexpected domain return shapes / oversized diags
  *
  * HARD RULES:
  *  - NO raw user text in outputs.
@@ -21,7 +19,7 @@
  *  - Deterministic ordering / dedupe.
  */
 
-const BRIDGE_VERSION = "1.1.1";
+const BRIDGE_VERSION = "1.1.2";
 
 // ===============================
 // SAFE HELPERS
@@ -77,7 +75,6 @@ function safeBool(x, fallback) {
 
 // ===============================
 // OPTIONAL DOMAIN MODULES (FAIL-OPEN)
-// NOTE: These are OPTIONAL. If missing, SiteBridge still returns a valid psyche object.
 // ===============================
 
 function safeRequire(relPath) {
@@ -89,14 +86,29 @@ function safeRequire(relPath) {
   }
 }
 
+/**
+ * safeRequireAny("./financeKnowledge", ["./FinanceKnowledge","./financeKnowledge","./Financeknowledge"])
+ * Helps with case-sensitive deploy environments where the repo may contain mixed casing.
+ * NOTE: This does NOT fix a missing file; it only tries known aliases.
+ */
+function safeRequireAny(primary, aliases = []) {
+  const first = safeRequire(primary);
+  if (first) return first;
+  for (const a of aliases) {
+    const m = safeRequire(a);
+    if (m) return m;
+  }
+  return null;
+}
+
 // Adjust these to your actual filenames if needed.
 // We keep them fail-open so casing differences won’t 500 your server.
-const PsychologyK = safeRequire("./psychologyKnowledge");
-const CyberK = safeRequire("./cyberKnowledge");
-const EnglishK = safeRequire("./englishKnowledge");
-const FinanceK = safeRequire("./financeKnowledge");
-const LawK = safeRequire("./lawKnowledge");
-const AIK = safeRequire("./aiKnowledge");
+const PsychologyK = safeRequireAny("./psychologyKnowledge", ["./PsychologyKnowledge"]);
+const CyberK = safeRequireAny("./cyberKnowledge", ["./CyberKnowledge"]);
+const EnglishK = safeRequireAny("./englishKnowledge", ["./EnglishKnowledge"]);
+const FinanceK = safeRequireAny("./financeKnowledge", ["./FinanceKnowledge", "./Financeknowledge"]);
+const LawK = safeRequireAny("./lawKnowledge", ["./LawKnowledge"]);
+const AIK = safeRequireAny("./aiKnowledge", ["./AIKnowledge"]);
 
 function callDomain(mod, input) {
   try {
@@ -362,7 +374,11 @@ function resolveRegulation(features, psychologySlice, tokens) {
   const riskTier = safeStr(psychologySlice?.riskTier || "", 12).toLowerCase();
 
   // Tokens must be canonical/safe tokens, not raw text.
-  const tset = new Set(Array.isArray(tokens) ? tokens.slice(0, 40).map((t) => safeStr(t, 32).toLowerCase().trim()) : []);
+  const tset = new Set(
+    Array.isArray(tokens)
+      ? tokens.slice(0, 40).map((t) => safeStr(t, 32).toLowerCase().trim())
+      : []
+  );
 
   if (riskTier === "high") return "crisis";
   if (intent === "STABILIZE" || reg === "dysregulated") return "fragile";
@@ -413,9 +429,10 @@ function finalize(out) {
     guardrails: uniqBounded(o.guardrails || [], LIMITS.guardrails, 90),
     responseCues: uniqBounded(o.responseCues || [], LIMITS.responseCues, 60),
 
-    tempo: isObject(o.tempo) ? o.tempo : null,
-    audio: isObject(o.audio) ? o.audio : null,
-    intro: isObject(o.intro) ? o.intro : null,
+    // IMPORTANT: Always provide envelopes (never null) to keep callers simple.
+    tempo: isObject(o.tempo) ? o.tempo : { ...TEMPO_DEFAULTS },
+    audio: isObject(o.audio) ? o.audio : { ...AUDIO_DEFAULTS, tempo: { ...TEMPO_DEFAULTS } },
+    intro: isObject(o.intro) ? o.intro : { enabled: true, cueKey: "nyx_intro_v1", speakOnOpen: true, oncePerSession: true },
 
     domains: isObject(o.domains) ? o.domains : {},
     confidence: clamp01(o.confidence),
@@ -428,7 +445,7 @@ function finalize(out) {
   // Cap diag bloat
   try {
     const s = JSON.stringify(safe.diag);
-    if (s.length > 2000) safe.diag = { trimmed: true };
+    if (s.length > 1800) safe.diag = { trimmed: true };
   } catch (_e) {
     safe.diag = { trimmed: true };
   }
@@ -440,11 +457,11 @@ function finalize(out) {
 // MAIN BUILD (FAIL-SOFT)
 // ===============================
 
-function build(input = {}) {
+async function build(input = {}) {
   try {
     const features = isObject(input.features) ? input.features : {};
     const opts = isObject(input.opts) ? input.opts : {};
-    const tokens = Array.isArray(input.tokens) ? input.tokens.slice(0, 180) : [];
+    const tokens = Array.isArray(input.tokens) ? input.tokens.slice(0, 180).map((t) => safeStr(t, 48)) : [];
 
     const queryKey = safeStr(input.queryKey || "", 220);
     const sessionKey = safeStr(input.sessionKey || "", 220);
@@ -475,7 +492,7 @@ function build(input = {}) {
     const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 16).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
 
-    // Deterministic cues (bounded). Favor stability.
+    // Deterministic cues (bounded)
     const toneCues = [];
     const uiCues = [];
     const guardrails = ["no_raw_user_text"];
@@ -505,16 +522,15 @@ function build(input = {}) {
     }
 
     const ctx = { features, mode, regulation };
-
     const tempo = resolveTempo(ctx, opts);
     const audio = resolveAudio(ctx, opts);
     const intro = resolveIntro(ctx, opts);
-
     const confidence = computeConfidence(domains);
 
     const diag = {
       ok: true,
       bridge: "sitebridge",
+      version: BRIDGE_VERSION,
       enabledDomains: {
         psychology: !!PsychologyK,
         law: !!LawK,
@@ -559,9 +575,9 @@ function build(input = {}) {
       uiCues: ["compact_reply"],
       guardrails: ["fail_open", "no_raw_user_text"],
       responseCues: ["keep_short", "ask_1_clarifier"],
-      tempo: TEMPO_DEFAULTS,
-      audio: { ...AUDIO_DEFAULTS, speakEnabled: false, silent: true }, // safest fallback
-      intro: { enabled: false, cueKey: "nyx_intro_v1", speakOnOpen: false, oncePerSession: true },
+      tempo: { ...TEMPO_DEFAULTS },
+      audio: { ...AUDIO_DEFAULTS, speakEnabled: true, silent: false, tempo: { ...TEMPO_DEFAULTS } },
+      intro: { enabled: true, cueKey: "nyx_intro_v1", speakOnOpen: true, oncePerSession: true },
       domains: {},
       confidence: 0,
       diag: { failOpen: true, err: safeStr(e && (e.message || e.name || String(e)), 160) },
