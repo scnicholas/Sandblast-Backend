@@ -12,7 +12,7 @@
  * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
  * - Keep it portable: no express, no fs, no index.js imports
  *
- * v1.2.4 (AUDIO PHASES 1–5 CONTRACT++++ + INTRO RITUAL CUES++++ + VOICE STYLE MAP++++ + HARDEN++++)
+ * v1.2.5 (AUDIO PHASES 1–5 CONTRACT++++ + INTRO RITUAL CUES++++ + VOICE STYLE MAP++++ + HARDEN++++)
  * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
  * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
  * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
@@ -23,16 +23,31 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.4";
+const MARION_VERSION = "marionSO v1.2.5";
 
 // -------------------------
-// Optional PsycheBridge (FAIL-OPEN)
+// Optional SiteBridge (FAIL-OPEN)
 // -------------------------
+let SiteBridge = null;
 let PsycheBridge = null;
+
+try {
+  // eslint-disable-next-line global-require
+  SiteBridge = require("./SiteBridge");
+} catch (_e1) {
+  try {
+    // eslint-disable-next-line global-require
+    SiteBridge = require("./siteBridge");
+  } catch (_e2) {
+    SiteBridge = null;
+  }
+}
+
+// Back-compat: if SiteBridge is not present, fall back to legacy PsycheBridge
 try {
   // eslint-disable-next-line global-require
   PsycheBridge = require("./psycheBridge");
-} catch (e) {
+} catch (_e3) {
   PsycheBridge = null;
 }
 
@@ -2521,50 +2536,99 @@ function buildPsycheBridgeInput(norm, session, cog) {
   return { features, tokens, queryKey };
 }
 
-function callPsycheBridge(norm, session, cog) {
-  if (!PsycheBridge || typeof PsycheBridge !== "object") return null;
+function callPsycheBridge(norm, session, cog, opts) {
+  if ((!SiteBridge || typeof SiteBridge !== "object") && (!PsycheBridge || typeof PsycheBridge !== "object")) return null;
 
   const input = buildPsycheBridgeInput(norm, session, cog);
 
   try {
-    const payload = {
-      features: input.features,
-      tokens: input.tokens,
-      queryKey: input.queryKey,
-      session: isPlainObject(session) ? session : {},
-      cog: isPlainObject(cog) ? cog : {},
-      normMeta: {
-        lane: safeStr(norm?.lane || "", 24),
-        action: safeStr(norm?.action || "", 24),
-        hasPayload: !!norm?.turnSignals?.hasPayload,
-        payloadActionable: !!norm?.turnSignals?.payloadActionable,
-        textEmpty: !!norm?.turnSignals?.textEmpty,
-      },
-    };
+    const s = isPlainObject(session) ? session : {};
+    const bridgeOpts = isPlainObject(opts) ? opts : {};
+    const sessionKey =
+      safeStr(s.sessionKey || s.sid || s.sessionId || s.id || s.turnSessionKey || "", 64) ||
+      safeStr(s.fingerprint || "", 64);
 
+    // Prefer SiteBridge (phases 1–5). Fall back to legacy PsycheBridge when needed.
     let out = null;
-    if (typeof PsycheBridge.build === "function") out = PsycheBridge.build(payload);
-    else if (typeof PsycheBridge.buildPsyche === "function") out = PsycheBridge.buildPsyche(payload);
-    else if (typeof PsycheBridge.query === "function") out = PsycheBridge.query(payload);
+
+    if (SiteBridge && typeof SiteBridge === "object") {
+      if (typeof SiteBridge.build === "function") {
+        out = SiteBridge.build({
+          features: input.features,
+          tokens: input.tokens,
+          queryKey: input.queryKey,
+          sessionKey,
+          opts: bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
+        });
+      } else if (typeof SiteBridge.buildPsyche === "function") {
+        out = SiteBridge.buildPsyche({
+          features: input.features,
+          tokens: input.tokens,
+          queryKey: input.queryKey,
+          sessionKey,
+          opts: bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
+        });
+      }
+    }
+
+    // Legacy path
+    if (!isPlainObject(out) && PsycheBridge && typeof PsycheBridge === "object") {
+      const payload = {
+        features: input.features,
+        tokens: input.tokens,
+        queryKey: input.queryKey,
+        session: s,
+        cog: isPlainObject(cog) ? cog : {},
+        normMeta: {
+          lane: safeStr(norm?.lane || "", 24),
+          action: safeStr(norm?.action || "", 24),
+          hasPayload: !!norm?.turnSignals?.hasPayload,
+          payloadActionable: !!norm?.turnSignals?.payloadActionable,
+          textEmpty: !!norm?.turnSignals?.textEmpty,
+        },
+      };
+
+      if (typeof PsycheBridge.build === "function") out = PsycheBridge.build(payload);
+      else if (typeof PsycheBridge.buildPsyche === "function") out = PsycheBridge.buildPsyche(payload);
+      else if (typeof PsycheBridge.query === "function") out = PsycheBridge.query(payload);
+    }
 
     if (!isPlainObject(out)) return null;
 
+    // Normalize to a single "psyche" envelope for Nyx + chatEngine.
+    // SiteBridge already returns the final contract; legacy PsycheBridge may not.
+    const enabled = out.enabled === false ? false : true;
+
     return {
-      // PsycheBridge v1 returns a psyche object without an `enabled` flag.
-      // Treat any object return as enabled unless explicitly disabled.
-      enabled: out.enabled === false ? false : true,
-      version: safeStr(out.version || "", 24) || "psycheBridge",
-      queryKey: safeStr(out.queryKey || input.queryKey, 24),
-      mode: safeStr(out.mode || "", 24),
-      regulation: safeStr(out.regulation || "", 24),
-      stance: safeStr(out.stance || "", 32),
-      toneCues: uniqBounded(out.toneCues || [], 10),
-      uiCues: uniqBounded(out.uiCues || [], 10),
-      responseCues: uniqBounded(out.responseCues || [], 12),
-      guardrails: uniqBounded(out.guardrails || [], 10),
-      confidence: clamp01(out.confidence),
-      reason: safeStr(out.reason || "psyche_bridge", 60),
+      enabled,
+      source: SiteBridge && isPlainObject(out) && out.version ? "site_bridge" : "psyche_bridge",
+      version: safeStr(out.version || "", 16),
+      queryKey: safeStr(out.queryKey || input.queryKey || "", 32),
+      sessionKey: safeStr(out.sessionKey || sessionKey || "", 64),
+
+      // Phase 1–5 hints (safe, deterministic)
+      tempo: isPlainObject(out.tempo) ? out.tempo : undefined,
+      audio: isPlainObject(out.audio) ? out.audio : undefined,
+      intro: isPlainObject(out.intro) ? out.intro : undefined,
+
+      // Domain payload (SiteBridge canonical)
       domains: isPlainObject(out.domains) ? out.domains : undefined,
+
+      // Global control signals
+      mode: safeStr(out.mode || "", 12),
+      intent: safeStr(out.intent || "", 16),
+      regulation: safeStr(out.regulation || "", 12),
+      cognitiveLoad: safeStr(out.cognitiveLoad || "", 12),
+      stance: safeStr(out.stance || "", 32),
+
+      toneCues: Array.isArray(out.toneCues) ? out.toneCues.slice(0, 10) : [],
+      uiCues: Array.isArray(out.uiCues) ? out.uiCues.slice(0, 12) : [],
+      guardrails: Array.isArray(out.guardrails) ? out.guardrails.slice(0, 12) : [],
+      responseCues: Array.isArray(out.responseCues) ? out.responseCues.slice(0, 14) : [],
+
+      confidence: clamp01(out.confidence),
+      diag: isPlainObject(out.diag) ? out.diag : {},
+      reason: safeStr(out.reason || "", 60),
     };
   } catch (e) {
     return {
@@ -2718,6 +2782,45 @@ function clampTempoProfile(t) {
   };
 }
 
+
+// Clamp SiteBridge/host-provided audio envelope into Marion contract.
+function clampAudioEnvelope(a, cog) {
+  const x = isPlainObject(a) ? a : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(x.lane || c.lane) || "general";
+  const intent = normalizeMove(x.intent || c.intent || "CLARIFY");
+  const tempo = clampTempoProfile(x.tempo || c.tempo || {});
+  return {
+    version: safeStr(x.version || "audio_v1", 24),
+    speakEnabled: !!x.speakEnabled,
+    listenEnabled: !!x.listenEnabled,
+    silent: !!x.silent,
+    userGestureRequired: x.userGestureRequired === false ? false : true,
+    bargeInAllowed: x.bargeInAllowed === false ? false : true,
+    maxSpeakChars: clampInt(x.maxSpeakChars, 120, 2200, 700),
+    maxSpeakSeconds: clampInt(x.maxSpeakSeconds, 6, 60, 22),
+    cooldownMs: clampInt(x.cooldownMs, 0, 2000, 280),
+    voiceStyle: safeStr(x.voiceStyle || "neutral", 16),
+    speakOnceKey: safeStr(x.speakOnceKey || "", 48),
+    lane,
+    intent,
+    tempo,
+  };
+}
+
+// Clamp SiteBridge/host-provided intro envelope into Marion contract.
+function clampIntroEnvelope(i, cog) {
+  const x = isPlainObject(i) ? i : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(x.lane || c.lane) || "general";
+  return {
+    enabled: x.enabled === false ? false : true,
+    cueKey: safeStr(x.cueKey || "", 32),
+    speakOnOpen: x.speakOnOpen === false ? false : true,
+    oncePerSession: x.oncePerSession === false ? false : true,
+    lane,
+  };
+}
 function computeVoiceStyle(lane, intent, psych) {
   const ln = normalizeLaneRaw(lane) || "general";
   const it = normalizeMove(intent || "CLARIFY");
@@ -3192,9 +3295,15 @@ function mediate(norm, session, opts = {}) {
     // =========================
     // KNOWLEDGE: PsycheBridge first (option 2)
     // =========================
-    const psyche = callPsycheBridge(n, s, cog);
+    const psyche = callPsycheBridge(n, s, cog, opts);
     if (psyche && psyche.enabled) {
       cog.psyche = psyche;
+      cog.siteBridge = psyche;
+
+      // Phase 1–5: if SiteBridge provided audio/tempo/intro, prefer those envelopes.
+      if (isPlainObject(psyche.tempo)) cog.tempo = clampTempoProfile(psyche.tempo);
+      if (isPlainObject(psyche.audio)) cog.audio = clampAudioEnvelope(psyche.audio, cog);
+      if (isPlainObject(psyche.intro)) cog.intro = clampIntroEnvelope(psyche.intro, cog);
 
       cog.psychologyHints = { enabled: false, reason: "psyche_bridge" };
       cog.cyberKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
