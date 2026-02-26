@@ -29,10 +29,29 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.5 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate chat-engine-broke bubble + giveFreely payload crash guard)';
+const CE_VERSION = 'chatEngine v0.10.6 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate chat-engine-broke bubble + giveFreely payload crash guard)';
 
-const Spine = require("./stateSpine");
-const MarionSO = require("./marionSO");
+let Spine = null;
+let MarionSO = null;
+
+// FAIL-OPEN requires: prevents boot-time 503 if a dependency crashes on load
+try { Spine = require("./stateSpine"); } catch (e) { Spine = null; }
+try { MarionSO = require("./marionSO"); } catch (e) { MarionSO = null; }
+
+// Spine fallback (minimal no-op): keeps chatEngine callable even if stateSpine fails to load
+if (!Spine) {
+  Spine = {
+    SPINE_VERSION: "missing",
+    createState: (seed) => ({ rev: 0, lane: (seed && seed.lane) || "general", stage: (seed && seed.stage) || "open" }),
+    coerceState: (s) => (s && typeof s === "object" ? s : { rev: 0, lane: "general", stage: "open" }),
+    decideNextMove: () => ({ move: "CLARIFY", stage: "open", rationale: "spine_missing", speak: "" }),
+    finalizeTurn: ({ prevState }) => {
+      const prev = prevState && typeof prevState === "object" ? prevState : { rev: 0, lane: "general", stage: "open" };
+      return { ...prev, rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1 };
+    },
+    assertTurnUpdated: () => true,
+  };
+}
 
 // SiteBridge / Psyche Bridge (domain aggregator) — FAIL-OPEN require
 // Compat: prefers ./SiteBridge or ./sitebridge (new), falls back to ./psycheBridge (old).
