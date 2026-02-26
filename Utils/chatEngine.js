@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = "chatEngine v0.10.4 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate "chat engine broke" bubble + giveFreely payload crash guard)";
+const CE_VERSION = 'chatEngine v0.10.5 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate chat-engine-broke bubble + giveFreely payload crash guard)';
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
