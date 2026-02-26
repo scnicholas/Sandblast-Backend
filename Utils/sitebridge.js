@@ -81,7 +81,7 @@ const AIK = safeRequire("./aiKnowledge");
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.2.0";
+const BRIDGE_VERSION = "1.2.1";
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -92,6 +92,8 @@ const LIMITS = Object.freeze({
   primer: 8,
   domainHits: 12,
   domainAtoms: 4,
+  affectLabels: 8,
+  reinforcementPhrases: 8,
   diagBytes: 6000,
 });
 
@@ -666,6 +668,115 @@ function resolveIntro(ctx, opts) {
 // QC / SANITIZATION (NO CROSS-CONTAMINATION)
 // =========================
 
+// =========================
+// AFFECT + REINFORCEMENT (SAFE, NO RAW USER TEXT)
+// =========================
+
+const AFFECT_LEX = Object.freeze({
+  positive: [
+    "happy","glad","elated","excited","thrilled","great day","great today","amazing","fantastic","awesome","grateful","proud","relieved",
+    "optimistic","motivated","confident","energized","inspired","hopeful","content"
+  ],
+  neutral: [
+    "okay","fine","alright","so-so","normal","neutral","steady","calm","focused","busy","tired","meh","not sure","unsure"
+  ],
+  negative: [
+    "sad","down","upset","angry","frustrated","stressed","anxious","worried","overwhelmed","burned out","burnt out","depressed","lonely",
+    "irritated","annoyed","disappointed","scared","afraid","tension","panic"
+  ],
+});
+
+const REINFORCEMENT_PHRASES = Object.freeze({
+  positive: [
+    "Love that energy — let’s build on it.",
+    "Nice. Keep that momentum; what’s the next step?",
+    "That’s a win. Want to turn it into a repeatable pattern?",
+    "I’m with you — let’s amplify what’s working.",
+    "Beautiful. Give me the goal and I’ll map the path.",
+    "Great day vibes. What do you want to accomplish right now?",
+  ],
+  neutral: [
+    "Got it. What outcome are you aiming for?",
+    "Okay — let’s get specific. What’s the constraint?",
+    "Understood. Do you want fast progress or maximum accuracy?",
+    "Fair. Tell me what ‘better’ looks like here.",
+    "Alright — I’ll stay practical and keep it clean.",
+    "Makes sense. What’s the next smallest step?",
+  ],
+  negative: [
+    "I hear you. Let’s reduce the load and fix one thing at a time.",
+    "Totally fair — we’ll stabilize first, then improve.",
+    "That sounds heavy. Want me to triage the highest-risk piece?",
+    "Okay. We’ll slow down, get clarity, and protect what’s working.",
+    "I’m here. Tell me what’s failing and I’ll isolate the cause.",
+    "We can get through this — start with the exact error / symptom.",
+  ],
+});
+
+function toTokenSet(tokens) {
+  const out = new Set();
+  const arr = Array.isArray(tokens) ? tokens : [];
+  for (const t of arr) {
+    const s = safeStr(t, 80).toLowerCase();
+    if (!s) continue;
+    out.add(s);
+    // allow formats like "mood:happy" or "mood_happy" or "happy"
+    const parts = s.split(/[:_]/g);
+    for (const p of parts) if (p) out.add(p);
+  }
+  return out;
+}
+
+function resolveAffect(ctx) {
+  const c = isObject(ctx) ? ctx : {};
+  const f = isObject(c.features) ? c.features : {};
+  const tokSet = toTokenSet(c.tokens || []);
+
+  // optional upstream hints (still safe)
+  const hint = safeStr(f.mood || f.sentiment || f.userMood || "", 40).toLowerCase();
+  if (hint) {
+    tokSet.add(hint);
+    for (const p of hint.split(/[:_\s]+/g)) if (p) tokSet.add(p);
+  }
+
+  const hit = (list) => list.some((w) => tokSet.has(w));
+
+  let valence = "neutral";
+  if (hit(AFFECT_LEX.negative)) valence = "negative";
+  else if (hit(AFFECT_LEX.positive)) valence = "positive";
+  else if (hit(AFFECT_LEX.neutral)) valence = "neutral";
+
+  const labels = [];
+  if (valence === "positive") labels.push("positive_reinforcement", "amplify_momentum", "celebrate_progress");
+  if (valence === "neutral") labels.push("practical_next_step", "clarify_goal", "keep_tone_steady");
+  if (valence === "negative") labels.push("validate_emotion", "reduce_load", "stabilize_then_improve");
+
+  // allow a small set of explicit emotion tags to pass through (still safe)
+  const passthru = ["happy","elated","excited","calm","focused","stressed","anxious","frustrated","angry","sad","overwhelmed"];
+  for (const k of passthru) {
+    if (tokSet.has(k) && !labels.includes("mood_"+k)) labels.push("mood_"+k);
+  }
+
+  return {
+    valence,
+    labels: uniqBounded(labels, LIMITS.affectLabels, 48),
+  };
+}
+
+function resolveReinforcement(affect) {
+  const a = isObject(affect) ? affect : {};
+  const v = safeStr(a.valence || "neutral", 12);
+  const pick = (k) => uniqBounded(REINFORCEMENT_PHRASES[k] || [], LIMITS.reinforcementPhrases, 120);
+
+  return {
+    valence: v,
+    positive: pick("positive"),
+    neutral: pick("neutral"),
+    negative: pick("negative"),
+  };
+}
+
+
 function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
@@ -684,6 +795,11 @@ function finalizeContract(out) {
 
     guardrails: uniqBounded(o.guardrails || [], LIMITS.guardrails, 80),
     responseCues: uniqBounded(o.responseCues || [], LIMITS.responseCues, 48),
+
+    affect: isObject(o.affect) ? o.affect : resolveAffect({ tokens: [], features: {} }),
+    reinforcement: isObject(o.reinforcement)
+      ? o.reinforcement
+      : resolveReinforcement(isObject(o.affect) ? o.affect : resolveAffect({ tokens: [], features: {} })),
 
     // phases 1–5: objects are bounded by resolvers
     tempo: isObject(o.tempo)
@@ -855,6 +971,14 @@ function build(input) {
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
     };
 
+    const affect = resolveAffect(ctx);
+    const reinforcement = resolveReinforcement(affect);
+    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
+
+    const affect = resolveAffect(ctx);
+    const reinforcement = resolveReinforcement(affect);
+    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
+
     return finalizeContract({
       version: BRIDGE_VERSION,
       queryKey,
@@ -871,6 +995,8 @@ function build(input) {
 
       guardrails,
       responseCues: uniqBounded(responseCues, LIMITS.responseCues, 48),
+      affect,
+      reinforcement,
 
       tempo: resolveTempo(ctx, opts),
       audio: resolveAudio(ctx, opts),
@@ -1008,6 +1134,8 @@ async function buildAsync(input) {
 
       guardrails,
       responseCues: uniqBounded(responseCues, LIMITS.responseCues, 48),
+      affect,
+      reinforcement,
 
       tempo: resolveTempo(ctx, opts),
       audio: resolveAudio(ctx, opts),
