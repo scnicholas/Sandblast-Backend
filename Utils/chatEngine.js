@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.8 (HOTFIX: inboundKey TDZ crash fix + fail-safe payload contract preserved)';
+const CE_VERSION = 'chatEngine v0.10.7 (HOTFIX: inboundKey TDZ crash fix + fail-safe payload contract preserved)';
 
 let Spine = null;
 let MarionSO = null;
@@ -301,51 +301,6 @@ function detectDistressQuick(text) {
   if (distress) tags.push("distress");
   if (selfHarm) tags.push("self_harm");
   return { distress, selfHarm, tags };
-}
-
-// -------------------------
-// Deep-thread continuity (prevents "menu fallback" after vulnerable/deep turns)
-// -------------------------
-const DEEP_THREAD_TTL_MS = 15 * 60 * 1000;
-
-function isDeepThreadActive(session) {
-  const s = isPlainObject(session) ? session : {};
-  const at = numOrNull(s.__deepThreadAt);
-  if (!s.__deepThread) return false;
-  if (!at) return true;
-  return nowMs() - at <= DEEP_THREAD_TTL_MS;
-}
-
-function shouldEnterDeepThread(norm, cog, emo) {
-  const action = safeStr(norm?.action || "").toLowerCase();
-  const intent = safeStr(cog?.intent || "").toUpperCase();
-  const emoMode = safeStr(emo?.mode || "").toUpperCase();
-
-  if (action === "counsel_intro" || action === "counsel_deepen") return true;
-  if (intent === "STABILIZE" || intent === "SUPPORT") return true;
-  if (emo && (emo.bypassClarify || emoMode === "VULNERABLE" || emoMode === "DISTRESS" || emoMode === "CRISIS")) return true;
-
-  // "deep but not keyworded" — keep the thread when user writes reflectively/abstractly
-  const t = safeStr(norm?.text || "").trim();
-  if (t.length >= 28) {
-    const low = t.toLowerCase();
-    const reflective =
-      /\b(feel|feeling|felt|inside|lately|recently|stuck|empty|numb|lost|hopeless|worthless|pointless|tired of|can't do this|cant do this|over it|burnt out|burned out|exhausted|spiral|anxious|panic|afraid|alone|lonely|grief|sad|depressed)\b/.test(low);
-    const personal =
-      /\b(i\s*am|i'm|im|i\s*feel|i\s*keep|i\s*can't|i\s*cant|my\s+life|my\s+mind|my\s+head)\b/.test(low);
-    if (reflective && personal) return true;
-  }
-  return false;
-}
-
-function deepContinuePrompt(norm, emo, supportPrefix) {
-  // If we already built a supportive prefix, use it (it's deterministic + safe).
-  if (emo && emo.bypassClarify && safeStr(supportPrefix).trim()) return safeStr(supportPrefix).trim();
-
-  const t = safeStr(norm?.text || "").trim();
-  // Gentle but forward-moving: ask for anchor (trigger / thought / feeling / need).
-  if (!t) return "Stay with me — what’s the real thing you want help with right now?";
-  return "Okay. Let’s stay with *that*. What’s the sharpest part of it right now — the feeling, the thought, or what triggered it?";
 }
 
 function coerceEmotion(norm, emo) {
@@ -2336,22 +2291,7 @@ async function handleChat(input) {
       }
     }
 
-    
-    // Normalize + quick distress hook (ensures bypassClarify for common deep/vulnerable signals)
-    emo = coerceEmotion(norm, emo);
-
-    const quick = detectDistressQuick(safeStr(norm.text || ""));
-    if (quick && quick.distress && (!emo || !emo.bypassClarify)) {
-      emo = {
-        mode: "VULNERABLE",
-        tags: Array.isArray(quick.tags) ? quick.tags.slice(0, 10) : ["vulnerable"],
-        intensity: clampInt(Math.max(numOrNull(emo?.intensity) || 0, numOrNull(quick.score) || 60), 0, 100),
-        bypassClarify: true,
-        disclaimers: { needSoft: true, noTherapy: true },
-      };
-    }
-
-if (emo && isPlainObject(norm.turnSignals)) {
+    if (emo && isPlainObject(norm.turnSignals)) {
       norm.turnSignals.emotionMode = safeStr(emo.mode || "NORMAL", 16);
       norm.turnSignals.emotionTags = Array.isArray(emo.tags) ? emo.tags.slice(0, 10) : [];
       norm.turnSignals.emotionIntensity = clampInt(emo.intensity || 0, 0, 0, 100);
@@ -2611,18 +2551,11 @@ ${base0}`
       return scrubExecutionStyleArtifacts(applyPublicSanitization(composed, norm, session, publicMode));
     }
 
-    
-    // Deep-thread continuity: if user is in a vulnerable/deep thread, keep continuity for a short TTL.
-    const __deepPrev = isDeepThreadActive(session);
-    const __deepEnter = shouldEnterDeepThread(norm, cog, emo);
-    const __deepActive = __deepEnter || __deepPrev;
-
-// Common session telemetry patch (kept small and safe)
+    // Common session telemetry patch (kept small and safe)
     const baseCogPatch = {
       lastMacMode: safeStr(cog.mode || ""),
       lastTurnIntent: safeStr(cog.intent || ""),
       lastTurnAt: nowMs(),
-      ...(__deepActive ? (__deepEnter ? { __deepThread: true, __deepThreadAt: nowMs() } : { __deepThread: true }) : {}),
       ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
       __lastInboundKey: inboundKey,
@@ -3904,17 +3837,14 @@ if (wantsRoku) {
     }
 
     
-const __deepHold = isDeepThreadActive(session) || shouldEnterDeepThread(norm, cog, emo);
 const reply0 = finalizeReply(
-  __deepHold
-    ? deepContinuePrompt(norm, emo, supportPrefix)
-    : ((emo && !!emo.bypassClarify)
+  (emo && !!emo.bypassClarify)
     ? (supportPrefix || "I’m sorry you’re hurting. I’m here with you — what’s going on right now?")
     : (discoveryHint && discoveryHint.enabled
         ? safeStr(discoveryHint.question).trim()
         : safeStr(norm.text)
           ? "Tell me what you want next: music, movies, or sponsors."
-          : "Okay — tell me what you want next.")),
+          : "Okay — tell me what you want next."),
   "Okay — tell me what you want next."
 );
 
@@ -3924,13 +3854,6 @@ const reply0 = finalizeReply(
     const sigLine = detectSignatureLine(reply);
 
     const fu = [
-      // Deep-thread: keep a "continue" affordance before lane-pivot chips.
-      ...(__deepHold ? [{
-        id: "fu_keepgoing",
-        type: "chip",
-        label: "Keep going",
-        payload: { lane: "general", action: "counsel_intro", route: "general_counsel_intro", deep: true },
-      }] : []),
       {
         id: "fu_music",
         type: "chip",
