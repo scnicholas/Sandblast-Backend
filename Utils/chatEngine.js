@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.6 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate chat-engine-broke bubble + giveFreely payload crash guard)';
+const CE_VERSION = 'chatEngine v0.10.7 (HOTFIX: inboundKey TDZ crash fix + fail-safe payload contract preserved)';
 
 let Spine = null;
 let MarionSO = null;
@@ -2257,6 +2257,10 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
+    // deterministic inbound signature (used for greeting gating + loop stabilization)
+    const inboundKey = buildInboundKey(norm);
+
+
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
     // - Detects support/crisis signals early to avoid CLARIFY-loops on vulnerable inputs.
@@ -2460,7 +2464,7 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
       discoveryHint
     );
 
-    const inboundKey = buildInboundKey(norm);
+    // inbound signature already computed above; use it for greeting gating
     cog.inboundKey = inboundKey;
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
