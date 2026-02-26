@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.24sb (SITEBRIDGE/PYCHBRIDGE HARDEN + PSYCHE TIMEOUT + NO-DOUBLE-BRIDGE + 503 SHIELD++) (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.22sb (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -29,44 +29,6 @@ const express = require("express");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-// =========================
-// Optional Bridge Modules (fail-open, case-safe)
-// =========================
-function safeRequire(relPath) {
-  try {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(relPath);
-  } catch (_e1) {
-    try {
-      // eslint-disable-next-line import/no-dynamic-require, global-require
-      return require(relPath + ".js");
-    } catch (_e2) {
-      return null;
-    }
-  }
-}
-
-// Prefer SiteBridge, but keep PsycheBridge as legacy fallback.
-// IMPORTANT: case-sensitive filesystems (Render/Linux) require we try variants.
-const siteBridgeMod =
-  safeRequire("./Utils/SiteBridge") ||
-  safeRequire("./Utils/siteBridge") ||
-  safeRequire("./Utils/sitebridge") ||
-  safeRequire("./SiteBridge") ||
-  safeRequire("./siteBridge") ||
-  safeRequire("./sitebridge") ||
-  null;
-
-const psycheBridgeMod =
-  safeRequire("./Utils/psycheBridge") ||
-  safeRequire("./Utils/PsycheBridge") ||
-  safeRequire("./psycheBridge") ||
-  safeRequire("./PsycheBridge") ||
-  null;
-
-// Back-compat aliasing: if only one exists, treat it as the bridge for both names.
-const _Bridge = siteBridgeMod || psycheBridgeMod || null;
-
 
 // Optional compression (safe to omit if not installed)
 let compression = null;
@@ -161,7 +123,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.22sb (ENGINE RESOLVE FN/DEFAULT++++ + CHAT NEVER-503++++ + QC)";
+const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -2607,7 +2569,7 @@ if (PSYCH_ROUTE_ENABLED) {
   app.get("/debug/psyche", async (req, res) => {
     try {
       if (!psycheBridgeMod || typeof psycheBridgeMod.build !== "function") {
-        return sendContract(res, 500, { ok: false, error: "psycheBridge.build not available" });}
+        return sendContract(res, 200, { ok: false, error: "psycheBridge.build not available" });}
       const psyche = await psycheBridgeMod.build({
         features: { intent: "test", mood: "neutral", lane: "psych/bridge" },
         tokens: ["hello", "world"],
@@ -3083,7 +3045,7 @@ async function handleChatRoute(req, res) {
     normalizeChipPayload(body);
 
     if (!ENGINE || typeof ENGINE.fn !== "function") {
-      return sendContract(res, 200, {
+      return sendContract(res, 503, {
       ok: false,
       error: "engine_missing",
       detail: "chatEngine module is missing or does not export a callable handler.",
@@ -3283,56 +3245,30 @@ async function handleChatRoute(req, res) {
 
 
   // =========================================================
-  // SITE BRIDGE / PSYCHE BRIDGE (always-run, fail-open)
-  // - Never blocks chat (errors captured)
-  // - Avoids double-work if ChatEngine already attached out.cog.psyche
-  // - Case-safe bridge discovery; supports buildAsync/build/buildPsyche
-  // - Hard timeout to prevent proxy 503s from hangs
+  // PSYCHE BRIDGE (always-run, fail-open)
+  // - Proves bridge is called on every turn
+  // - Never blocks chat (errors are captured in meta)
   // =========================================================
   psyche = null;
   psycheErr = null;
   try {
-    const existingPsyche = out?.cog && isPlainObject(out.cog) ? out.cog.psyche : null;
-
-    if (!existingPsyche && _Bridge) {
+    if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
       const feats = isPlainObject(out?.cog) ? out.cog : (isPlainObject(out) ? out : {});
-      const tokSrc =
-        Array.isArray(feats?.tokens) && feats.tokens.length
-          ? feats.tokens
-          : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
+      const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
       const tokens = tokSrc.slice(0, 32);
       const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
       const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
       const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
-
-      const bridgeInput = {
-        features: { ...feats, lane: forcedLane || feats?.lane || "general" },
+      psyche = await psycheBridgeMod.build({
+        features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge" },
         tokens,
         queryKey,
         sessionKey,
-        opts: { mode: "live", forcedLane },
-      };
-
-      const bridgeFn =
-        (typeof _Bridge.buildAsync === "function" && _Bridge.buildAsync.bind(_Bridge)) ||
-        (typeof _Bridge.build === "function" && _Bridge.build.bind(_Bridge)) ||
-        (typeof _Bridge.buildPsyche === "function" && _Bridge.buildPsyche.bind(_Bridge)) ||
-        null;
-
-      if (bridgeFn) {
-        const ms = 850; // hard cap; bridge must never be the reason /api/chat hangs
-        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("bridge_timeout")), ms));
-        psyche = await Promise.race([Promise.resolve(bridgeFn(bridgeInput)), timeout]);
-
-        // attach for downstream + client visibility (without stomping)
-        out.psyche = psyche;
-        if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
-
-        // optional mirror for clients that read out.bridge
-        if (!out.bridge && psyche) out.bridge = psyche;
-      }
-    } else if (existingPsyche) {
-      psyche = existingPsyche;
+        opts: { mode: "live", forcedLane }
+      });
+      // attach for downstream + client visibility
+      out.psyche = psyche;
+      if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
     }
   } catch (e) {
     psycheErr = safeStr(e?.message || e).slice(0, 220);
@@ -3618,6 +3554,12 @@ const server = app.listen(PORT, () => {
     } avatarDir=${fileExists(AVATAR_DIR) ? AVATAR_DIR : "(missing)"}`
   );
 });
+
+// Keepalive tuning (helps reduce proxy 503/connection resets under burst)
+try{
+  server.keepAliveTimeout = 70_000;
+  server.headersTimeout = 75_000;
+}catch(_){ }
 
 function shutdown(signal) {
   // eslint-disable-next-line no-console
