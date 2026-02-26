@@ -29,8 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION =
-  "chatEngine v0.10.1 (AUDIO PHASES 1-5 PASS-THROUGH++++ + SITEBRIDGE COMPAT++++ + PSYCHE SANITIZE++++ | CONTRACT HARDEN++++ + UI DEFAULTS++++ + REQUESTID++++ + RESET REPLY SAFE++++ | YEAR RANGE DYNAMIC++++ + PUBLIC SAFETY DEFAULT LOCK++++ + SPINE COHERENCE POLISH++++ + STRICT HEADER FIX++++ | LOOP GOVERNOR++++ + INBOUND STALL GOVERNOR++++ | MUSIC delegated -> Utils/musicKnowledge.js | MARION SO WIRED++++ via Utils/marionSO.js)";
+const CE_VERSION = "chatEngine v0.10.4 (FAIL-SAFE PAYLOAD++++ + USER-FACING ERROR COPY CLEAN++++ | eliminate "chat engine broke" bubble + giveFreely payload crash guard)";
 
 const Spine = require("./stateSpine");
 const MarionSO = require("./marionSO");
@@ -2461,7 +2460,8 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
       return {
         ok: true,
         reply,
-        lane: "general",
+      payload: { reply },
+      lane: "general",
         laneId: "general",
         sessionLane: "general",
         bridge: { lane: "general", action: "safety_redirect", reason: "crisis" },
@@ -3888,7 +3888,7 @@ const reply0 = finalizeReply(
     const normFallback = normalizeInbound(isPlainObject(input) ? input : {});
     const inboundKey = buildInboundKey(normFallback);
     const requestId = resolveRequestId(input, normFallback, inboundKey);
-    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
+    const reply = `I hit a snag processing that. Please try again — and if it repeats, send the console error text (Request ID: ${requestId}).`;
 
     return {
       ok: false,
@@ -3958,6 +3958,7 @@ function failSafeContract(err, input) {
   return {
     ok: false,
     reply: msg,
+    payload: { reply: msg },
     lane: "general",
     laneId: "general",
     sessionLane: "general",
