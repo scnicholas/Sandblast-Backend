@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.7 (HOTFIX: inboundKey TDZ crash fix + fail-safe payload contract preserved)';
+const CE_VERSION = 'chatEngine v0.10.8 (DEPTH++: domain kits + cohesion followups; structure preserved)';
 
 let Spine = null;
 let MarionSO = null;
@@ -901,7 +901,7 @@ function mergeCogWithPsyche(cog, psyche) {
   const p = isPlainObject(psyche) ? psyche : null;
 
   // Keep footprint small; downstream can choose to ignore.
-  if (p) base.psyche = p;
+  if (p) base.psyche = enrichPsycheDomains(p);
 
   // Route hint only if not already set
   base.route = base.route || (p ? "psych_bridge" : undefined);
@@ -1198,6 +1198,180 @@ const SIGNATURE_TRANSITIONS = Object.freeze([
   "Here’s the connective tissue.",
   "This isn’t random—watch.",
 ]);
+
+
+// -------------------------
+// DOMAIN DEPTH KITS++++ (knowledge-layer depth without structural changes)
+// - Adds domain-specific reasoning cues + better follow-ups.
+// - Does NOT change routing, spine, or contract shape.
+// -------------------------
+const DOMAIN_KITS = Object.freeze({
+  psychology: {
+    frameworks: ["CBT lens", "Needs vs. strategies", "Values alignment"],
+    guardrails: ["Not a therapist; not a diagnosis", "Encourage support if at risk"],
+    cues: ["Name the feeling", "Identify trigger → thought → reaction", "Offer one small next step"],
+    followUps: [
+      "What emotion is strongest right now?",
+      "What outcome do you want from this conversation?",
+      "What’s the smallest next step you can take today?"
+    ],
+  },
+  law: {
+    frameworks: ["Issue → Rule → Apply → Next step", "Risk-tiering", "Jurisdiction check"],
+    guardrails: ["Info only; not legal advice", "Ask jurisdiction + facts before conclusions"],
+    cues: ["Clarify jurisdiction", "Separate facts from assumptions", "Outline options + risks"],
+    followUps: [
+      "What jurisdiction are you in (province/state/country)?",
+      "What’s the key fact pattern (who/what/when)?",
+      "What outcome are you trying to achieve or avoid?"
+    ],
+  },
+  english: {
+    frameworks: ["Audience + intent", "Tone control", "Clarity ladder"],
+    guardrails: ["Preserve meaning", "Avoid ambiguous pronouns/claims"],
+    cues: ["Rewrite for clarity", "Offer 2 tone variants", "Explain why wording works"],
+    followUps: [
+      "Who is the audience and what’s the desired reaction?",
+      "Do you want it more formal, neutral, or punchy?",
+      "Any phrases you must include or avoid?"
+    ],
+  },
+  finance: {
+    frameworks: ["Cashflow lens", "Unit economics", "Risk-adjusted ROI"],
+    guardrails: ["State assumptions", "Separate one-time vs recurring costs"],
+    cues: ["Quantify ranges", "Identify key drivers", "Suggest conservative baseline"],
+    followUps: [
+      "What’s your target monthly revenue and timeframe?",
+      "What are fixed vs variable costs here?",
+      "What’s the biggest financial risk you want to reduce?"
+    ],
+  },
+  ai: {
+    frameworks: ["Hypothesis → experiment → metric", "Failure modes", "Data/latency constraints"],
+    guardrails: ["No fabricated benchmarks", "Prefer measurable tests"],
+    cues: ["Define success metrics", "Propose A/B tests", "Plan instrumentation"],
+    followUps: [
+      "What metric defines success (latency, retention, accuracy, revenue)?",
+      "What data do we have and what’s missing?",
+      "What’s the minimal experiment we can run this week?"
+    ],
+  },
+  cybersecurity: {
+    frameworks: ["Threat model", "Attack surface review", "Defense-in-depth"],
+    guardrails: ["No exploit instructions", "Prioritize least-privilege + logging"],
+    cues: ["Classify threats", "Recommend mitigations", "Add monitoring/alerting"],
+    followUps: [
+      "What systems are exposed (public endpoints, admin panels, APIs)?",
+      "What’s the highest-value asset to protect?",
+      "Do you have logging + alerts for auth and rate anomalies?"
+    ],
+  },
+});
+
+// Lightweight domain detection (fail-open). Uses text + lane/action hints.
+function detectDomainsQuick(norm, cog) {
+  const t = safeStr(norm?.text || "").toLowerCase();
+  const a = safeStr(norm?.action || "").toLowerCase();
+  const lane = safeStr(norm?.lane || cog?.lane || "").toLowerCase();
+
+  const hits = new Set();
+
+  // Psych
+  if (/\b(therapy|anxiety|depress(ed|ion)|grief|panic|trauma|self\s*esteem|boundaries|overwhelm)\b/.test(t) || a === "counsel_intro") hits.add("psychology");
+  // Law
+  if (/\b(contract|agreement|liability|lawsuit|copyright|trademark|privacy|terms|compliance|cra|tax\s+law|employment\s+law)\b/.test(t)) hits.add("law");
+  // English/writing
+  if (/\b(rewrite|edit|grammar|tone|copy|headline|subject\s+line|wording|clarity|proofread)\b/.test(t)) hits.add("english");
+  // Finance
+  if (/\b(budget|revenue|cash\s*flow|profit|loss|cp(m|p)|pricing|roi|forecast|taxes|cpp|ei|invoice)\b/.test(t)) hits.add("finance");
+  // AI
+  if (/\b(ai|model|prompt|llm|embedding|rag|fine\s*tune|latency|hallucination|eval|benchmark|agent)\b/.test(t)) hits.add("ai");
+  // Cybersecurity
+  if (/\b(security|cyber|breach|xss|csrf|injection|auth|jwt|rate\s*limit|ddos|csp|owasp|vulnerability)\b/.test(t)) hits.add("cybersecurity");
+
+  // If psyche domains already exist, reflect them
+  const psyDomains = cog?.psyche?.domains;
+  if (isPlainObject(psyDomains)) {
+    for (const k of Object.keys(psyDomains)) {
+      const key = safeStr(k).toLowerCase();
+      if (key.includes("psych")) hits.add("psychology");
+      if (key.includes("law")) hits.add("law");
+      if (key.includes("english") || key.includes("writing")) hits.add("english");
+      if (key.includes("fin")) hits.add("finance");
+      if (key === "ai") hits.add("ai");
+      if (key.includes("cyber") || key.includes("security")) hits.add("cybersecurity");
+    }
+  }
+
+  return Array.from(hits).slice(0, 3); // keep it tight
+}
+
+function enrichPsycheDomains(psycheSafe) {
+  const p = isPlainObject(psycheSafe) ? { ...psycheSafe } : null;
+  if (!p || !isPlainObject(p.domains)) return psycheSafe;
+
+  const dIn = p.domains;
+  const dOut = { ...dIn };
+
+  const arr = (x) => (Array.isArray(x) ? x.slice(0) : []);
+  const mergeUnique = (a, b, max) => {
+    const seen = new Set();
+    const out = [];
+    for (const it of [...arr(a), ...arr(b)]) {
+      const s = safeStr(it).trim();
+      if (!s) continue;
+      const k = s.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+      if (out.length >= max) break;
+    }
+    return out;
+  };
+
+  for (const dom of Object.keys(dOut)) {
+    const dk = safeStr(dom).toLowerCase();
+    // map common keys to our kits
+    let kitKey = dk;
+    if (dk.includes("psych")) kitKey = "psychology";
+    if (dk.includes("writing")) kitKey = "english";
+    if (dk.includes("sec")) kitKey = "cybersecurity";
+    const kit = DOMAIN_KITS[kitKey];
+    if (!kit) continue;
+
+    const d = isPlainObject(dOut[dom]) ? { ...dOut[dom] } : {};
+    d.frameworks = mergeUnique(d.frameworks, kit.frameworks, 10);
+    d.guardrails = mergeUnique(d.guardrails, kit.guardrails, 14);
+    d.responseCues = mergeUnique(d.responseCues, kit.cues, 16);
+
+    dOut[dom] = d;
+  }
+
+  p.domains = dOut;
+  return p;
+}
+
+// Domain-driven follow-ups (added only when the current response is under-instrumented).
+function buildDomainFollowUps(domains, laneResolved) {
+  const ds = Array.isArray(domains) ? domains : [];
+  const out = [];
+  for (const d of ds) {
+    const kit = DOMAIN_KITS[d];
+    if (!kit) continue;
+    const qs = Array.isArray(kit.followUps) ? kit.followUps : [];
+    for (let i = 0; i < Math.min(2, qs.length); i++) {
+      const label = safeStr(qs[i]).trim();
+      if (!label) continue;
+      out.push({
+        id: `dom_${d}_${i + 1}`,
+        type: "chip",
+        label,
+        payload: { action: "clarify", lane: laneResolved || "general", focus: d },
+      });
+    }
+  }
+  return out.slice(0, 6);
+}
 
 function pickSignatureTransition(session, cog) {
   if (!cog || safeStr(cog.intent).toUpperCase() !== "ADVANCE") return "";
@@ -2600,21 +2774,44 @@ ${base0}`
     }
 
     function buildContract(out) {
-      const followUps = coerceFollowUps(out.followUps);
+      let followUps = coerceFollowUps(out.followUps);
       const followUpsStrings = asArray(out.followUpsStrings)
         .map((x) => safeStr(x).trim())
         .filter(Boolean)
         .slice(0, 12);
 
+      const laneResolved = safeStr(out.lane || lane || "general");
+
+      // DOMAIN DEPTH follow-ups++++ (adds chips only when under-instrumented)
+      try {
+        const _doms = detectDomainsQuick(norm, out.cog || cog || {});
+        const _domFu = (Array.isArray(followUps) && followUps.length < 3) ? buildDomainFollowUps(_doms, laneResolved) : [];
+        if (Array.isArray(_domFu) && _domFu.length) {
+          followUps = coerceFollowUps([...(Array.isArray(followUps) ? followUps : []), ..._domFu]);
+        }
+      } catch (e) { /* fail-open */ }
+
       const ui = buildUi(followUps, followUpsStrings);
 
-      const laneResolved = safeStr(out.lane || lane || "general");
       const laneId = safeStr(out.laneId || (typeof laneIdComputed !== "undefined" ? laneIdComputed : "") || "");
       const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
       const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridge !== "undefined" ? bridge : undefined);
 
 
-      const replyText = ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next.");
+      let replyText = ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next.");
+
+      // DOMAIN DEPTH cohesion hook++++ (one-liner continuity when multiple domains present)
+      try {
+        const _domsC = detectDomainsQuick(norm, out.cog || cog || {});
+        if (Array.isArray(_domsC) && _domsC.length >= 2) {
+          const a = _domsC[0];
+          const b = _domsC[1];
+          const pref = `I’m tracking two angles here: ${a} + ${b}. `;
+          if (replyText && replyText.length > 60 && !replyText.startsWith(pref) && safeStr(norm?.text || "").trim().length > 12) {
+            replyText = pref + replyText;
+          }
+        }
+      } catch (e) { /* fail-open */ }
       const _baseSessionPatch = isPlainObject(out.sessionPatch) ? out.sessionPatch : {};
       const _inPatch = (typeof inGov !== "undefined" && inGov && isPlainObject(inGov.patch)) ? inGov.patch : {};
       const _cachePatch = {
