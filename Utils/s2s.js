@@ -9,6 +9,7 @@
  *  - Add lightweight telemetry (sttMs, totalMs, bytes, mime, traceId)
  *  - Add safe retry-once for transient 429/5xx STT failures
  *  - Add stricter validation + size guardrails
+ *  - Optional env hardening via Utils/env.js (if present)
  *  - Preserve existing exports + return shape (adds optional meta fields only)
  *
  * Exports:
@@ -28,7 +29,20 @@
  *   - ELEVENLABS_STT_MAX_BYTES (default "8000000" ~ 8MB)
  */
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
+// Optional centralized env config (does not change behavior if missing)
+let _envCfg = null;
+let _envSnapshotFn = null;
+try {
+  // eslint-disable-next-line global-require
+  const envMod = require("./env");
+  if (envMod && envMod.config) _envCfg = envMod.config;
+  if (envMod && typeof envMod.getSafeSnapshot === "function") _envSnapshotFn = envMod.getSafeSnapshot;
+} catch (_) {
+  _envCfg = null;
+  _envSnapshotFn = null;
+}
+
+const ELEVENLABS_API_KEY = (_envCfg && _envCfg.ELEVENLABS_API_KEY) || process.env.ELEVENLABS_API_KEY || "";
 const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
 
 const STT_MODEL_ID = process.env.ELEVENLABS_STT_MODEL_ID || "scribe_v1";
@@ -38,12 +52,29 @@ const STT_TAG_AUDIO_EVENTS = (process.env.ELEVENLABS_STT_TAG_AUDIO_EVENTS || "tr
 
 const STT_TIMEOUT_MS = Math.max(
   2000,
-  Math.min(parseInt(process.env.ELEVENLABS_STT_TIMEOUT_MS || "12000", 10) || 12000, 45000)
+  Math.min(
+    parseInt(
+      (_envCfg && _envCfg.ELEVENLABS_STT_TIMEOUT_MS) || process.env.ELEVENLABS_STT_TIMEOUT_MS || "12000",
+      10
+    ) || 12000,
+    45000
+  )
 );
-const STT_RETRY_ONCE = (process.env.ELEVENLABS_STT_RETRY_ONCE || "true") !== "false";
+
+const STT_RETRY_ONCE =
+  ((_envCfg && _envCfg.ELEVENLABS_STT_RETRY_ONCE) != null
+    ? !!_envCfg.ELEVENLABS_STT_RETRY_ONCE
+    : (process.env.ELEVENLABS_STT_RETRY_ONCE || "true") !== "false");
+
 const STT_MAX_BYTES = Math.max(
   250000,
-  Math.min(parseInt(process.env.ELEVENLABS_STT_MAX_BYTES || "8000000", 10) || 8000000, 25000000)
+  Math.min(
+    parseInt(
+      (_envCfg && _envCfg.ELEVENLABS_STT_MAX_BYTES) || process.env.ELEVENLABS_STT_MAX_BYTES || "8000000",
+      10
+    ) || 8000000,
+    25000000
+  )
 );
 
 function cleanText(s) {
@@ -264,6 +295,15 @@ function runLocalChat(transcript, session) {
 }
 
 module.exports = {
+  // Optional safe config snapshot (no secrets)
+  getSafeSnapshot: () => {
+    try {
+      return _envSnapshotFn ? _envSnapshotFn() : null;
+    } catch (_) {
+      return null;
+    }
+  },
+
   /**
    * Main entry used by /api/s2s
    *
