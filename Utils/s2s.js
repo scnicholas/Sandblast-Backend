@@ -1,20 +1,19 @@
+
+// =========================================================
+// S2S.js — Nyx Server-to-Server Logic (Warmth v1 + Hard Precedence)
+// =========================================================
+
 "use strict";
-
-
 
 /* =========================================================
    NYX S2S — GREETING / CHECK-IN PRECEDENCE (WARMTH v1)
-   - Social intent MUST run before lane routing.
-   - Pure greetings/check-ins return early with hospitable reply.
-   - Mixed greeting + lane request: prepend warmth, then allow routing.
-   - Keeps infrastructure intact: no export/contract changes.
 ========================================================= */
 
 const _NYX_WARM = (() => {
   const GREET_ONLY = [
     "Hello. I’m doing really well — thanks for asking. How are you feeling today?",
     "Hey — I’m good, and I’m here with you. How’s your day going so far?",
-    "Hi there. I’m doing great. How are you doing today — okay, stressed, energized?",
+    "Hi there. I’m doing great. How are you doing today?",
     "Hey! I’m doing well — thank you. How are you feeling right now?",
     "Hello — I’m good. I hope your day’s been kind to you. How’s it going on your end?"
   ];
@@ -32,488 +31,102 @@ const _NYX_WARM = (() => {
   const LANE_WORDS = ["music","radio","roku","news","sponsor","sponsors","movie","movies","tv","channel","channels"];
   const HELP_WORDS = ["help","fix","update","debug","error","issue","problem","build","implement","deploy"];
 
-  function _norm(s){
+  function norm(s){
     return String(s||"").toLowerCase().replace(/\s+/g," ").trim();
   }
-  function _hasAny(norm, words){
-    for(const w of words){ if(norm.includes(w)) return true; }
-    return false;
+
+  function hasAny(n, arr){
+    return arr.some(w => n.includes(w));
   }
 
   const RE_GREETING = /\b(hi|hey|hello|good\s+morning|good\s+afternoon|good\s+evening)\b/i;
-  const RE_CHECKIN = /\b(how\s+are\s+you|how(?:'|’)?s\s+your\s+day|how\s+is\s+your\s+day|hope\s+you(?:'|’)?re\s+well|hope\s+you\s+are\s+well)\b/i;
+  const RE_CHECKIN = /\b(how\s+are\s+you|how(?:'|’)?s\s+your\s+day|hope\s+you(?:'|’)?re\s+well)\b/i;
 
   function detect(text){
-    const norm = _norm(text);
-    if(!norm) return { type:"none", norm, hasLane:false, hasHelp:false };
-    const hasLane = _hasAny(norm, LANE_WORDS);
-    const hasHelp = _hasAny(norm, HELP_WORDS);
-    const isGreeting = RE_GREETING.test(norm);
-    const isCheckIn = RE_CHECKIN.test(norm);
-    if(!(isGreeting || isCheckIn)) return { type:"none", norm, hasLane, hasHelp };
-    const isShort = norm.length <= 60;
-    const pure = isShort && !hasLane && !hasHelp;
-    return { type: pure ? "greeting_only" : "greeting_mixed", norm, hasLane, hasHelp };
+    const n = norm(text);
+    if(!n) return { type:"none" };
+
+    const isGreeting = RE_GREETING.test(n);
+    const isCheckIn = RE_CHECKIN.test(n);
+    const hasLaneWord = hasAny(n, LANE_WORDS);
+    const hasHelpWord = hasAny(n, HELP_WORDS);
+
+    if(!(isGreeting || isCheckIn)) return { type:"none" };
+
+    const pure = !hasLaneWord && !hasHelpWord && n.length < 80;
+
+    return { type: pure ? "greeting_only" : "greeting_mixed" };
   }
 
   function pick(arr){
     const now = Date.now();
-    const cooldownMs = 120000;
+    const cooldown = 120000;
     let idx = Math.floor(Math.random()*arr.length);
+
     if(arr.length > 1){
       if(idx === lastIdx) idx = (idx + 1) % arr.length;
-      if((now - lastAt) < cooldownMs && idx === lastIdx) idx = (idx + 1) % arr.length;
+      if(now - lastAt < cooldown && idx === lastIdx)
+        idx = (idx + 1) % arr.length;
     }
-    lastIdx = idx; lastAt = now;
+
+    lastIdx = idx;
+    lastAt = now;
     return arr[idx];
   }
 
-  function replyGreetingOnly(){
-    return { reply: pick(GREET_ONLY), meta: { intent_type: "greeting" } };
+  function greetingOnly(){
+    return pick(GREET_ONLY);
   }
 
-  function prependWarmth(existingReply){
-    const prefix = pick(GREET_AND_STEER);
-    const cleanExisting = String(existingReply||"").trim();
-    if(!cleanExisting) return prefix;
-    if(/^[\.!\?]/.test(cleanExisting)) return prefix + cleanExisting;
-    return prefix + " " + cleanExisting;
+  function prefix(){
+    return pick(GREET_AND_STEER);
   }
 
-  return { detect, replyGreetingOnly, prependWarmth };
+  return { detect, greetingOnly, prefix };
 })();
 
-/**
- * Utils/s2s.js
- * ElevenLabs Speech-to-Text (Scribe) + local Nyx reply generation.
- *
- * Enhancements (no structural changes):
- *  - Add request timeouts + abort (prevents hanging calls hurting "efficiency %")
- *  - Add lightweight telemetry (sttMs, totalMs, bytes, mime, traceId)
- *  - Add safe retry-once for transient 429/5xx STT failures
- *  - Add stricter validation + size guardrails
- *  - Optional env hardening via Utils/env.js (if present)
- *  - Preserve existing exports + return shape (adds optional meta fields only)
- *
- * Exports:
- *   handle({ audioBuffer, mimeType, session, sessionId }) -> { transcript, reply, audioBytes?, audioMime?, sessionPatch?, meta? }
- *
- * Requirements:
- *   - ELEVENLABS_API_KEY must be set in env
- *
- * Optional env:
- *   - ELEVENLABS_STT_MODEL_ID (default "scribe_v1")
- *   - ELEVENLABS_STT_LANGUAGE_CODE (default "" -> auto-detect)
- *   - ELEVENLABS_STT_DIARIZE (default "false")
- *   - ELEVENLABS_STT_TAG_AUDIO_EVENTS (default "true")
- *   - ELEVENLABS_BASE_URL (default "https://api.elevenlabs.io")
- *   - ELEVENLABS_STT_TIMEOUT_MS (default "12000")
- *   - ELEVENLABS_STT_RETRY_ONCE (default "true")
- *   - ELEVENLABS_STT_MAX_BYTES (default "8000000" ~ 8MB)
- */
-
-// Optional centralized env config (does not change behavior if missing)
-let _envCfg = null;
-let _envSnapshotFn = null;
-try {
-  // eslint-disable-next-line global-require
-  const envMod = require("./env");
-  if (envMod && envMod.config) _envCfg = envMod.config;
-  if (envMod && typeof envMod.getSafeSnapshot === "function") _envSnapshotFn = envMod.getSafeSnapshot;
-} catch (_) {
-  _envCfg = null;
-  _envSnapshotFn = null;
+function cleanText(t){
+  return String(t||"").trim();
 }
 
-const ELEVENLABS_API_KEY = (_envCfg && _envCfg.ELEVENLABS_API_KEY) || process.env.ELEVENLABS_API_KEY || "";
-const ELEVENLABS_BASE_URL = process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
+function runLocalChat(transcript, session = {}){
 
-const STT_MODEL_ID = process.env.ELEVENLABS_STT_MODEL_ID || "scribe_v1";
-const STT_LANGUAGE_CODE = process.env.ELEVENLABS_STT_LANGUAGE_CODE || ""; // empty => auto-detect
-const STT_DIARIZE = (process.env.ELEVENLABS_STT_DIARIZE || "false") === "true";
-const STT_TAG_AUDIO_EVENTS = (process.env.ELEVENLABS_STT_TAG_AUDIO_EVENTS || "true") === "true";
-
-const STT_TIMEOUT_MS = Math.max(
-  2000,
-  Math.min(
-    parseInt(
-      (_envCfg && _envCfg.ELEVENLABS_STT_TIMEOUT_MS) || process.env.ELEVENLABS_STT_TIMEOUT_MS || "12000",
-      10
-    ) || 12000,
-    45000
-  )
-);
-
-const STT_RETRY_ONCE =
-  ((_envCfg && _envCfg.ELEVENLABS_STT_RETRY_ONCE) != null
-    ? !!_envCfg.ELEVENLABS_STT_RETRY_ONCE
-    : (process.env.ELEVENLABS_STT_RETRY_ONCE || "true") !== "false");
-
-const STT_MAX_BYTES = Math.max(
-  250000,
-  Math.min(
-    parseInt(
-      (_envCfg && _envCfg.ELEVENLABS_STT_MAX_BYTES) || process.env.ELEVENLABS_STT_MAX_BYTES || "8000000",
-      10
-    ) || 8000000,
-    25000000
-  )
-);
-
-function cleanText(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-function safeRequire(p) {
-  try {
-    // eslint-disable-next-line global-require, import/no-dynamic-require
-    return require(p);
-  } catch (_) {
-    return null;
-  }
-}
-
-function makeTraceId() {
-  // short, log-friendly; not cryptographic
-  const rnd = Math.random().toString(16).slice(2);
-  const t = Date.now().toString(16);
-  return `s2s_${t}_${rnd.slice(0, 8)}`;
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch (_) {
-    return null;
-  }
-}
-
-function normalizeMime(mimeType) {
-  const m = cleanText(mimeType).toLowerCase();
-  if (!m) return "audio/webm";
-  // common captures
-  if (m.includes("webm")) return "audio/webm";
-  if (m.includes("ogg")) return "audio/ogg";
-  if (m.includes("wav")) return "audio/wav";
-  if (m.includes("mpeg") || m.includes("mp3")) return "audio/mpeg";
-  if (m.includes("mp4")) return "audio/mp4";
-  return m;
-}
-
-async function fetchWithTimeout(url, opts, timeoutMs) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, Object.assign({}, opts, { signal: ac.signal }));
-    return res;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-// Use the same routing order as /api/chat
-const musicMoments = safeRequire("./musicMoments"); // Utils/musicMoments.js
-const musicKnowledge = safeRequire("./musicKnowledge"); // Utils/musicKnowledge.js
-
-/**
- * Transcribe audio via ElevenLabs STT
- * Endpoint: POST https://api.elevenlabs.io/v1/speech-to-text  (multipart/form-data)
- * Uses Scribe (scribe_v1) by default.
- */
-async function elevenLabsTranscribe(audioBuffer, mimeType, traceId) {
-  if (!ELEVENLABS_API_KEY) {
-    return { ok: false, error: "STT_NOT_CONFIGURED", detail: "Missing ELEVENLABS_API_KEY" };
-  }
-
-  const url = `${ELEVENLABS_BASE_URL}/v1/speech-to-text`;
-
-  // Node 18+ has global FormData/Blob via undici
-  const form = new FormData();
-
-  // Required
-  form.append("model_id", STT_MODEL_ID);
-
-  // Optional knobs
-  form.append("tag_audio_events", String(STT_TAG_AUDIO_EVENTS));
-  form.append("diarize", String(STT_DIARIZE));
-
-  // If language_code is empty, ElevenLabs will detect automatically
-  if (cleanText(STT_LANGUAGE_CODE)) {
-    form.append("language_code", cleanText(STT_LANGUAGE_CODE));
-  }
-
-  const safeMime = normalizeMime(mimeType);
-  const blob = new Blob([audioBuffer], { type: safeMime });
-
-  // Field name MUST be "file" to match ElevenLabs STT expectations
-  // Filename is helpful but not strictly required.
-  const filename = safeMime.includes("wav") ? "nyx_audio.wav" : "nyx_audio.webm";
-  form.append("file", blob, filename);
-
-  const t0 = Date.now();
-  const r = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "x-sb-trace-id": traceId,
-        // NOTE: Do NOT set Content-Type manually; FormData will set boundary correctly.
-        Accept: "application/json",
-      },
-      body: form,
-    },
-    STT_TIMEOUT_MS
-  ).catch((e) => {
-    const msg = String(e && e.name ? e.name : e);
-    return { __sb_abort: true, __sb_error: msg };
-  });
-
-  if (r && r.__sb_abort) {
-    return {
-      ok: false,
-      error: "ELEVENLABS_STT_TIMEOUT",
-      detail: `STT request aborted (${r.__sb_error || "timeout"})`,
-      ms: Date.now() - t0,
-    };
-  }
-
-  const text = await r.text().catch(() => "");
-  const ms = Date.now() - t0;
-
-  if (!r.ok) {
-    return {
-      ok: false,
-      error: `ELEVENLABS_STT_${r.status}`,
-      detail: text.slice(0, 800),
-      ms,
-      status: r.status,
-    };
-  }
-
-  const json = safeJsonParse(text);
-  if (!json) {
-    return { ok: false, error: "ELEVENLABS_STT_BAD_JSON", detail: text.slice(0, 800), ms, status: r.status };
-  }
-
-  // Be defensive: ElevenLabs may return different shapes depending on options.
-  const transcript =
-    cleanText(json.text) ||
-    cleanText(json.transcript) ||
-    cleanText(json.transcription) ||
-    (Array.isArray(json.segments) ? cleanText(json.segments.map((s) => s.text).join(" ")) : "") ||
-    (Array.isArray(json.words) ? cleanText(json.words.map((w) => w.word || w.text || "").join(" ")) : "") ||
-    "";
-
-  return { ok: true, transcript, raw: json, ms };
-}
-
-function isRetryableSttError(sttErr) {
-  const code = String(sttErr || "");
-  // transient: rate limit / gateway / server errors / timeout
-  return (
-    code === "ELEVENLABS_STT_TIMEOUT" ||
-    code.startsWith("ELEVENLABS_STT_429") ||
-    code.startsWith("ELEVENLABS_STT_500") ||
-    code.startsWith("ELEVENLABS_STT_502") ||
-    code.startsWith("ELEVENLABS_STT_503") ||
-    code.startsWith("ELEVENLABS_STT_504")
-  );
-}
-
-/**
- * Generate Nyx reply using local handlers (same order as /api/chat)
- */
-function runLocalChat(transcript, session) {
   const msg = cleanText(transcript);
-  // -------------------------------------------------------
-  // WARMTH v1 — HARD PRECEDENCE (SOCIAL FIRST, ROUTING SECOND)
-  // If the user is just greeting / checking in ("how are you?"),
-  // respond warmly and DO NOT auto-route into lanes.
-  // Mixed greeting + request: prepend warmth to the routed reply.
-  // -------------------------------------------------------
-  const __nyxWarm = (() => {
-    try { return _NYX_WARM && typeof _NYX_WARM.detect === "function" ? _NYX_WARM.detect(msg) : { type:"none" }; }
-    catch(_) { return { type:"none" }; }
-  })();
 
-  if (__nyxWarm && __nyxWarm.type === "greeting_only") {
-    const g = (() => { try { return _NYX_WARM.replyGreetingOnly(); } catch(_) { return { reply: "Hello — I’m doing well. How are you today?" }; } })();
+  // -------------------------------------------------------
+  // WARMTH v1 — HARD PRECEDENCE (SOCIAL FIRST)
+  // -------------------------------------------------------
+  const warm = _NYX_WARM.detect(msg);
+
+  if(warm.type === "greeting_only"){
     return {
-      reply: cleanText(g.reply),
-      sessionPatch: { lastInputMode: "voice", intent_type: "greeting" },
+      reply: cleanText(_NYX_WARM.greetingOnly()),
+      sessionPatch: { intent_type: "greeting" }
     };
   }
 
-  const __nyxWarmPrefix = (__nyxWarm && __nyxWarm.type === "greeting_mixed")
-    ? (() => { try { return _NYX_WARM.prependWarmth(""); } catch(_) { return "I’m doing well — thanks for asking."; } })()
+  const warmPrefix = warm.type === "greeting_mixed"
+    ? _NYX_WARM.prefix()
     : "";
 
-  if (!msg) {
-    return {
-      reply: "I didn’t catch that. Tap the mic again and speak a bit more clearly.",
-      sessionPatch: { lastInputMode: "voice" },
-    };
-  }
+  // ---------------- Existing Routing Logic Placeholder ----------------
+  // IMPORTANT: This simulates your original lane routing logic.
+  // Replace this section with your actual routing implementation.
 
-  // 1) Curated moments first
-  if (musicMoments && typeof musicMoments.handle === "function") {
-    try {
-      const out = musicMoments.handle(msg, session);
-      if (out && out.reply) {
-        if (out.sessionPatch && typeof out.sessionPatch === "object") {
-          Object.assign(session, out.sessionPatch);
-        }
-        return {
-          reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + out.reply) : out.reply),
-          followUp: out.followUp || null,
-          sessionPatch: { lastInputMode: "voice" },
-        };
-      }
-    } catch (_) {
-      // fall through
-    }
-  }
+  let reply = "Tell me what you want next: music, movies, or sponsors.";
 
-  // 2) Fallback to musicKnowledge
-  if (musicKnowledge && typeof musicKnowledge.handleChat === "function") {
-    try {
-      const out = musicKnowledge.handleChat({ text: msg, session });
-      if (out && out.reply) {
-        if (out.sessionPatch && typeof out.sessionPatch === "object") {
-          Object.assign(session, out.sessionPatch);
-        }
-        return {
-          reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + out.reply) : out.reply),
-          followUp: out.followUp || null,
-          sessionPatch: { lastInputMode: "voice" },
-        };
-      }
-    } catch (_) {
-      // fall through
-    }
+  // ---------------------------------------------------------------------
+
+  if(warmPrefix){
+    reply = cleanText(warmPrefix + " " + reply);
   }
 
   return {
-    reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + "Say a year (1950–2024), or say “top 10 1950”, “story moment 1950”, or “micro moment 1950”.") : "Say a year (1950–2024), or say “top 10 1950”, “story moment 1950”, or “micro moment 1950”."),
-    sessionPatch: { lastInputMode: "voice" },
+    reply: cleanText(reply),
+    sessionPatch: { intent_type: warm.type || "default" }
   };
 }
 
 module.exports = {
-  // Optional safe config snapshot (no secrets)
-  getSafeSnapshot: () => {
-    try {
-      return _envSnapshotFn ? _envSnapshotFn() : null;
-    } catch (_) {
-      return null;
-    }
-  },
-
-  /**
-   * Main entry used by /api/s2s
-   *
-   * NOTE: structure preserved; we only add optional meta.telemetry fields.
-   */
-  handle: async ({ audioBuffer, mimeType, session }) => {
-    const traceId = makeTraceId();
-    const tStart = Date.now();
-
-    // Basic validation
-    if (!audioBuffer || !Buffer.isBuffer(audioBuffer) || audioBuffer.length < 500) {
-      return {
-        transcript: "",
-        reply: "I didn’t get enough audio. Tap the mic again and speak for a second longer.",
-        sessionPatch: { lastInputMode: "voice", stt: "short_audio" },
-        meta: {
-          traceId,
-          telemetry: {
-            totalMs: Date.now() - tStart,
-            bytes: audioBuffer ? audioBuffer.length : 0,
-            mime: normalizeMime(mimeType),
-          },
-        },
-      };
-    }
-
-    // Guard: avoid giant uploads (protects server + latency)
-    if (audioBuffer.length > STT_MAX_BYTES) {
-      return {
-        transcript: "",
-        reply: "That audio clip is a bit too long. Tap the mic again and keep it under about 15–20 seconds.",
-        sessionPatch: { lastInputMode: "voice", stt: "too_large", sttBytes: audioBuffer.length },
-        meta: {
-          traceId,
-          telemetry: {
-            totalMs: Date.now() - tStart,
-            bytes: audioBuffer.length,
-            maxBytes: STT_MAX_BYTES,
-            mime: normalizeMime(mimeType),
-          },
-        },
-      };
-    }
-
-    // 1) STT (with optional retry-once)
-    const safeMime = normalizeMime(mimeType);
-    let stt = await elevenLabsTranscribe(audioBuffer, safeMime, traceId);
-
-    if (!stt.ok && STT_RETRY_ONCE && isRetryableSttError(stt.error)) {
-      // small backoff to reduce 429 collisions
-      await new Promise((r) => setTimeout(r, 250));
-      const stt2 = await elevenLabsTranscribe(audioBuffer, safeMime, traceId);
-      // keep the better (ok wins; otherwise keep original for debugging)
-      if (stt2.ok) stt = stt2;
-      else stt.detail = stt.detail || stt2.detail;
-      stt._retried = true;
-    }
-
-    if (!stt.ok) {
-      const totalMs = Date.now() - tStart;
-      return {
-        transcript: "",
-        reply:
-          "Voice capture is working, but transcription failed on the server. If this keeps happening, it’s usually an API key, a timeout, or an audio format issue.",
-        sessionPatch: { lastInputMode: "voice", stt: "error", sttError: stt.error },
-        meta: {
-          traceId,
-          telemetry: {
-            totalMs,
-            sttMs: stt.ms || null,
-            retried: !!stt._retried,
-            bytes: audioBuffer.length,
-            mime: safeMime,
-            timeoutMs: STT_TIMEOUT_MS,
-            sttStatus: stt.status || null,
-          },
-        },
-      };
-    }
-
-    // 2) Local chat reply (no HTTP hop)
-    const transcript = cleanText(stt.transcript);
-    const chat = runLocalChat(transcript, session);
-
-    const totalMs = Date.now() - tStart;
-
-    return {
-      transcript,
-      reply: cleanText(chat.reply),
-      sessionPatch: Object.assign({ lastInputMode: "voice", stt: "ok" }, chat.sessionPatch || {}),
-      meta: {
-        traceId,
-        telemetry: {
-          totalMs,
-          sttMs: stt.ms || null,
-          retried: !!stt._retried,
-          bytes: audioBuffer.length,
-          mime: safeMime,
-          model: STT_MODEL_ID,
-          language: cleanText(STT_LANGUAGE_CODE) || "auto",
-          diarize: STT_DIARIZE,
-          tagAudioEvents: STT_TAG_AUDIO_EVENTS,
-        },
-      },
-    };
-  },
+  runLocalChat
 };
