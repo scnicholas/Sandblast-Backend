@@ -35,6 +35,15 @@
 
 const https = require("https");
 
+// Keep sockets warm to reduce cold-start latency and transient 5xx/ECONNRESET patterns.
+// Safe default for small servers; can be tuned via env.
+const KEEPALIVE = true;
+const MAX_SOCKETS = (() => {
+  const n = parseInt(String(process.env.ELEVENLABS_TTS_MAX_SOCKETS || ""), 10);
+  return Number.isFinite(n) ? Math.max(1, Math.min(64, n)) : 16;
+})();
+const keepAliveAgent = new https.Agent({ keepAlive: KEEPALIVE, maxSockets: MAX_SOCKETS });
+
 function num01(x, fallback) {
   const n = Number(x);
   if (!Number.isFinite(n)) return fallback;
@@ -87,6 +96,13 @@ function firstSentence(text) {
   if (m && m[1]) return m[1].trim();
   // Fallback: first 180 chars
   return t.slice(0, 180).trim();
+
+function cleanText(input) {
+  // Strip hard control chars (except \n, \r, \t) that can confuse upstream.
+  const s = String(input || "");
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
+}
+
 }
 
 function configured() {
@@ -95,11 +111,15 @@ function configured() {
   return { ok: !!(key && voiceId), key, voiceId };
 }
 
-function makeTraceId() {
+function makeTraceId(provided) {
   const rnd = Math.random().toString(16).slice(2);
   const t = Date.now().toString(16);
-  return `tts_${t}_${rnd.slice(0, 8)}`;
-}
+  if (provided) {
+    const p = String(provided).trim();
+    // keep short + ascii-ish
+    if (p && p.length <= 64) return p.replace(/[^\w\-:.]/g, "_");
+  }
+  return `tts_${t}_${rnd.slice(0, 8)}`;}
 
 function isRetryableStatus(status) {
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
@@ -127,12 +147,14 @@ function elevenlabsRequest({ apiKey, voiceId, text, traceId, timeoutMs }) {
 
   const options = {
     hostname: host,
+    agent: keepAliveAgent,
     path: `/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
     method: "POST",
     headers: {
       "xi-api-key": apiKey,
       "Content-Type": "application/json",
       Accept: "audio/mpeg",
+      "User-Agent": "Sandblast-Nyx-TTS/1.0",
       "Content-Length": Buffer.byteLength(payload),
       // Trace for your logs / downstream correlation
       "x-sb-trace-id": traceId,
@@ -163,7 +185,8 @@ function elevenlabsRequest({ apiKey, voiceId, text, traceId, timeoutMs }) {
 
 async function handleTts(req, res) {
   const requestId = String(req.get("X-Request-Id") || "").trim() || null;
-  const traceId = makeTraceId();
+  const inboundTrace = String(req.get("X-SB-Trace-Id") || req.get("x-sb-trace-id") || "").trim() || null;
+  const traceId = makeTraceId(inboundTrace);
 
   const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
   const retryOnce = bool(process.env.ELEVENLABS_TTS_RETRY_ONCE, true);
@@ -173,7 +196,7 @@ async function handleTts(req, res) {
 
   try {
     const body = readBody(req);
-    let text = String(body.text || body.message || "").trim();
+    let text = cleanText(body.text || body.message || "");
 
     if (!text) {
       res.set("X-SB-Trace-Id", traceId);
@@ -192,8 +215,11 @@ async function handleTts(req, res) {
     const firstSentenceOnly = !!body.firstSentenceOnly;
 
     if (firstSentenceOnly) {
-      text = firstSentence(text);
+      text = firstSentence(cleanText(text));
     }
+
+    // Guard: ensure cleaned text (controls latency + upstream limits)
+    text = cleanText(text);
 
     // Guard: max chars (controls latency + upstream limits)
     if (text.length > maxChars) {
@@ -240,7 +266,7 @@ async function handleTts(req, res) {
       r.__err = String(e && e.message ? e.message : e);
     }
 
-    if ((r.status === 0 || isRetryableStatus(r.status)) && retryOnce) {
+    if ((r.status === 0 || isRetryableStatus(r.status)) && retryOnce && !req.aborted && !res.writableEnded) {
       retried = true;
       // tiny backoff helps 429 collisions
       await new Promise((rr) => setTimeout(rr, 180));
@@ -277,6 +303,7 @@ async function handleTts(req, res) {
       // Some clients like filename hints
       res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
 
+      if (req.aborted || res.writableEnded) return;
       return res.send(r.body);
     }
 
