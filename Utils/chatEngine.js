@@ -110,6 +110,17 @@ try {
 }
 
 
+// Affect engine (emotional depth + prosody shaping) — FAIL-OPEN.
+// If missing, chatEngine behaves normally.
+let AffectEngine = null;
+try {
+  // eslint-disable-next-line global-require
+  AffectEngine = require("./affectEngine");
+} catch (e) {
+  AffectEngine = null;
+}
+
+
 // Prefer MarionSO enums when present; keep local fallback for backward compatibility/tests.
 const SO_LATENT_DESIRE =
   MarionSO && MarionSO.LATENT_DESIRE ? MarionSO.LATENT_DESIRE : null;
@@ -2866,6 +2877,82 @@ ${base0}`
           }
         }
       } catch (e) { /* fail-open */ }
+
+      // AFFECT ENGINE++++ (emotional depth → spokenText + TTS hints)
+      // - Rewrites replyText into a more human "spokenText" (subtle punctuation beats)
+      // - Attaches vendor-agnostic ttsProfile into cog.audio for downstream TTS layer
+      // - Persists affect memory into sessionPatch (host can store it in session)
+      let _affectPatch = {};
+      try {
+        const fn =
+          AffectEngine && typeof AffectEngine.runAffectEngine === "function"
+            ? AffectEngine.runAffectEngine
+            : null;
+
+        if (fn) {
+          const memIn = isPlainObject(session && session.__affectMemory) ? session.__affectMemory : {};
+          const affOut = fn({
+            userText: safeStr(norm && norm.text ? norm.text : ""),
+            assistantDraft: safeStr(replyText),
+            lane: safeStr(laneResolved || "Default") || "Default",
+            memory: memIn,
+            // vendor is a hint only; your tts.js can ignore it safely
+            opts: { vendor: "elevenlabs" },
+          });
+
+          if (affOut && typeof affOut === "object") {
+            if (safeStr(affOut.spokenText).trim()) replyText = safeStr(affOut.spokenText).trim();
+
+            // Attach hints to cog (bounded; no raw user text)
+            if (cog && typeof cog === "object") {
+              cog.affect = {
+                v: 1,
+                styleKey: safeStr(affOut.styleKey || "").slice(0, 32),
+                // bounded state snapshot (numbers only)
+                state: isPlainObject(affOut.affectState)
+                  ? {
+                      valence: Number.isFinite(Number(affOut.affectState.valence)) ? Number(affOut.affectState.valence) : 0,
+                      arousal: Number.isFinite(Number(affOut.affectState.arousal)) ? Number(affOut.affectState.arousal) : 0,
+                      dominance: Number.isFinite(Number(affOut.affectState.dominance)) ? Number(affOut.affectState.dominance) : 0,
+                      warmth: Number.isFinite(Number(affOut.affectState.warmth)) ? Number(affOut.affectState.warmth) : 0,
+                      confidence: Number.isFinite(Number(affOut.affectState.confidence)) ? Number(affOut.affectState.confidence) : 0,
+                      intent: safeStr(affOut.affectState.intent || "").slice(0, 16),
+                      risk_flag: safeStr(affOut.affectState.risk_flag || "").slice(0, 16),
+                      style: safeStr(affOut.affectState.style || "").slice(0, 16),
+                    }
+                  : undefined,
+              };
+
+              if (!isPlainObject(cog.audio)) cog.audio = {};
+              if (affOut.ttsProfile && typeof affOut.ttsProfile === "object") {
+                cog.audio.ttsProfile = {
+                  stability: clamp01(affOut.ttsProfile.stability),
+                  similarity: clamp01(affOut.ttsProfile.similarity),
+                  style: clamp01(affOut.ttsProfile.style),
+                  speakerBoost: !!affOut.ttsProfile.speakerBoost,
+                };
+              }
+              if (safeStr(affOut.styleKey || "").trim()) cog.audio.styleKey = safeStr(affOut.styleKey).slice(0, 32);
+            }
+
+            // Persist memory snapshot so the host/session can carry it turn-to-turn
+            if (affOut.memory && typeof affOut.memory === "object") {
+              // cap size defensively
+              let mem = affOut.memory;
+              try {
+                const s = JSON.stringify(mem);
+                if (s.length > 6500) mem = { trimmed: true, at: nowMs() };
+              } catch (_e) {
+                mem = { trimmed: true, at: nowMs() };
+              }
+              _affectPatch = { __affectMemory: mem };
+            }
+          }
+        }
+      } catch (e) {
+        _affectPatch = {};
+      }
+
       const _baseSessionPatch = isPlainObject(out.sessionPatch) ? out.sessionPatch : {};
       const _inPatch = (typeof inGov !== "undefined" && inGov && isPlainObject(inGov.patch)) ? inGov.patch : {};
       const _cachePatch = {
@@ -2880,7 +2967,7 @@ ${base0}`
       const _intro = maybeAddIntroDirective({ directives: _dirs0, session, cog, norm });
       const _introPatch = isPlainObject(_intro.patch) ? _intro.patch : {};
 
-      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch);
+      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch, _affectPatch);
 
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
