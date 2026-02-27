@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.8 (DEPTH++: domain kits + cohesion followups; structure preserved)';
+const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended)';
 
 let Spine = null;
 let MarionSO = null;
@@ -302,6 +302,42 @@ function detectDistressQuick(text) {
   if (selfHarm) tags.push("self_harm");
   return { distress, selfHarm, tags };
 }
+
+
+// -------------------------
+// Non-distress affect statements (POS/NEG) — ENGAGE-THEN-STEER++++
+// - Catches short emotion-only inputs like "I am happy" / "I'm excited" that are NOT distress/crisis.
+// - Goal: avoid procedural lane-prompt replies; reflect once and ask a light deepening question.
+// - Never throws; conservative by design.
+// -------------------------
+function detectAffectQuick(text) {
+  const t0 = safeStr(text || "").trim();
+  const t = t0.toLowerCase();
+  if (!t) return { hit: false, valence: "", tag: "" };
+
+  // If the user is asking a question, treat it as content, not a pure affect ping.
+  if (/\?/.test(t)) return { hit: false, valence: "", tag: "" };
+
+  // Keep it to short, "status" style statements.
+  if (t.length > 120) return { hit: false, valence: "", tag: "" };
+
+  // POSITIVE affect (non-distress)
+  if (/\b(i\s*am|i['’]?m|im)\s+(happy|excited|grateful|relieved|proud|good|great|okay|fine)\b/.test(t) ||
+      /\b(feeling|feel)\s+(happy|excited|grateful|relieved|proud|good|great|okay|fine)\b/.test(t)) {
+    const tag = (t.match(/\b(happy|excited|grateful|relieved|proud|good|great|okay|fine)\b/) || [])[1] || "positive";
+    return { hit: true, valence: "positive", tag };
+  }
+
+  // NEGATIVE affect (but not crisis/distress keywords)
+  if (/\b(i\s*am|i['’]?m|im)\s+(annoyed|frustrated|angry|irritated|stuck|tired)\b/.test(t) ||
+      /\b(feeling|feel)\s+(annoyed|frustrated|angry|irritated|stuck|tired)\b/.test(t)) {
+    const tag = (t.match(/\b(annoyed|frustrated|angry|irritated|stuck|tired)\b/) || [])[1] || "negative";
+    return { hit: true, valence: "negative", tag };
+  }
+
+  return { hit: false, valence: "", tag: "" };
+}
+
 
 function coerceEmotion(norm, emo) {
   // Normalize to a minimal contract used by chatEngine routing.
@@ -1211,9 +1247,9 @@ const DOMAIN_KITS = Object.freeze({
     guardrails: ["Not a therapist; not a diagnosis", "Encourage support if at risk"],
     cues: ["Name the feeling", "Identify trigger → thought → reaction", "Offer one small next step"],
     followUps: [
-      "What emotion is strongest right now?",
-      "What outcome do you want from this conversation?",
-      "What’s the smallest next step you can take today?"
+      "Name the strongest emotion you’re feeling right now.",
+      "State the outcome you want from this conversation (one sentence).",
+      "Pick the smallest next step you can take today."
     ],
   },
   law: {
@@ -1221,9 +1257,9 @@ const DOMAIN_KITS = Object.freeze({
     guardrails: ["Info only; not legal advice", "Ask jurisdiction + facts before conclusions"],
     cues: ["Clarify jurisdiction", "Separate facts from assumptions", "Outline options + risks"],
     followUps: [
-      "What jurisdiction are you in (province/state/country)?",
-      "What’s the key fact pattern (who/what/when)?",
-      "What outcome are you trying to achieve or avoid?"
+      "Confirm your jurisdiction (province/state/country).",
+      "Give the key facts (who / what / when) in 1–2 lines.",
+      "Say what you’re trying to achieve (or avoid)."
     ],
   },
   english: {
@@ -1366,7 +1402,7 @@ function buildDomainFollowUps(domains, laneResolved) {
         id: `dom_${d}_${i + 1}`,
         type: "chip",
         label,
-        payload: { action: "clarify", lane: laneResolved || "general", focus: d },
+        payload: { lane: laneResolved || "general", focus: d },
       });
     }
   }
@@ -2477,6 +2513,18 @@ async function handleChat(input) {
       norm.turnSignals.emotionBypassClarify = !!emo.bypassClarify;
     }
 
+    // -------------------------
+    // Affect engage-then-steer (non-distress) — prevents procedural lane prompts on "I am happy" etc.
+    // -------------------------
+    const affect = detectAffectQuick(safeStr(norm.text || ""));
+    if (affect && affect.hit && isPlainObject(norm.turnSignals)) {
+      norm.turnSignals.affectHit = true;
+      norm.turnSignals.affectValence = safeStr(affect.valence || "").slice(0, 12);
+      norm.turnSignals.affectTag = safeStr(affect.tag || "").slice(0, 16);
+    }
+
+
+
 
 
 
@@ -2618,13 +2666,19 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
-    // Emotion guard: never show forced "pick one" prompts when the user is distressed.
-    if (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) {
+    // Emotion/Affect guard: never show forced lane-prompt when the turn is emotional (distress OR simple affect ping).
+    if (
+      (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) ||
+      (affect && affect.hit)
+    ) {
       if (discoveryHint && discoveryHint.enabled) {
         discoveryHint.enabled = false;
-        discoveryHint.reason = "emotion_guard";
+        discoveryHint.reason = (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE"))
+          ? "emotion_guard"
+          : "affect_guard";
       }
     }
+
     cog.noveltyScore = clamp01(noveltyScore);
     cog.discoveryHint = discoveryHint;
 
@@ -2806,7 +2860,7 @@ ${base0}`
         if (Array.isArray(_domsC) && _domsC.length >= 2) {
           const a = _domsC[0];
           const b = _domsC[1];
-          const pref = `I’m tracking two angles here: ${a} + ${b}. `;
+          const pref = `We need to handle two angles: ${a} + ${b}. `;
           if (replyText && replyText.length > 60 && !replyText.startsWith(pref) && safeStr(norm?.text || "").trim().length > 12) {
             replyText = pref + replyText;
           }
@@ -4033,17 +4087,24 @@ if (wantsRoku) {
       });
     }
 
-    
+
 const reply0 = finalizeReply(
   (emo && !!emo.bypassClarify)
     ? (supportPrefix || "I’m sorry you’re hurting. I’m here with you — what’s going on right now?")
-    : (discoveryHint && discoveryHint.enabled
-        ? safeStr(discoveryHint.question).trim()
-        : safeStr(norm.text)
-          ? "Tell me what you want next: music, movies, or sponsors."
-          : "Okay — tell me what you want next."),
+    : (affect && affect.hit)
+      ? (
+          affect.valence === "positive"
+            ? `Good — I’m glad to hear that. What’s making you feel ${safeStr(affect.tag || "good")} right now?`
+            : `Okay — I hear the ${safeStr(affect.tag || "feeling")}. What’s behind it right now?`
+        ) + " If you want direction, tell me the goal or tap a lane chip."
+      : (discoveryHint && discoveryHint.enabled
+          ? safeStr(discoveryHint.question).trim()
+          : safeStr(norm.text)
+            ? "Tell me what you want next: music, movies, or sponsors."
+            : "Okay — tell me what you want next."),
   "Okay — tell me what you want next."
 );
+
 
     const loop = detectAndPatchLoop(session, lane || "general", reply0);
     const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, Roku, or Sponsors.") : reply0;
