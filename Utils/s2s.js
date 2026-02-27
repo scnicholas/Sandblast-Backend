@@ -1,6 +1,7 @@
 "use strict";
 
 
+
 /* =========================================================
    NYX S2S — GREETING / CHECK-IN PRECEDENCE (WARMTH v1)
    - Social intent MUST run before lane routing.
@@ -25,83 +26,57 @@ const _NYX_WARM = (() => {
     "I’m well — and I’m here with you."
   ];
 
-  // tiny in-memory cooldown so Nyx doesn't repeat herself
   let lastIdx = -1;
   let lastAt = 0;
 
-  const LANE_WORDS = [
-    "music","radio","roku","news","sponsor","sponsors","movie","movies","tv","channel","channels"
-  ];
-
-  const HELP_WORDS = [
-    "help","fix","update","debug","error","issue","problem","build","implement","deploy"
-  ];
+  const LANE_WORDS = ["music","radio","roku","news","sponsor","sponsors","movie","movies","tv","channel","channels"];
+  const HELP_WORDS = ["help","fix","update","debug","error","issue","problem","build","implement","deploy"];
 
   function _norm(s){
-    return String(s||"")
-      .toLowerCase()
-      .replace(/\s+/g," ")
-      .trim();
+    return String(s||"").toLowerCase().replace(/\s+/g," ").trim();
   }
-
   function _hasAny(norm, words){
-    for(const w of words){
-      if(norm.includes(w)) return true;
-    }
+    for(const w of words){ if(norm.includes(w)) return true; }
     return false;
   }
 
-  // social intent patterns
   const RE_GREETING = /\b(hi|hey|hello|good\s+morning|good\s+afternoon|good\s+evening)\b/i;
   const RE_CHECKIN = /\b(how\s+are\s+you|how(?:'|’)?s\s+your\s+day|how\s+is\s+your\s+day|hope\s+you(?:'|’)?re\s+well|hope\s+you\s+are\s+well)\b/i;
 
   function detect(text){
     const norm = _norm(text);
     if(!norm) return { type:"none", norm, hasLane:false, hasHelp:false };
-
     const hasLane = _hasAny(norm, LANE_WORDS);
     const hasHelp = _hasAny(norm, HELP_WORDS);
-
     const isGreeting = RE_GREETING.test(norm);
     const isCheckIn = RE_CHECKIN.test(norm);
-
     if(!(isGreeting || isCheckIn)) return { type:"none", norm, hasLane, hasHelp };
-
-    // "pure" greetings/check-ins: short, social, no lane or help words
     const isShort = norm.length <= 60;
     const pure = isShort && !hasLane && !hasHelp;
-
     return { type: pure ? "greeting_only" : "greeting_mixed", norm, hasLane, hasHelp };
   }
 
   function pick(arr){
     const now = Date.now();
-    const cooldownMs = 120000; // 2 minutes
+    const cooldownMs = 120000;
     let idx = Math.floor(Math.random()*arr.length);
     if(arr.length > 1){
-      // avoid repeating immediately
       if(idx === lastIdx) idx = (idx + 1) % arr.length;
-      // if within cooldown, force a different idx (best effort)
       if((now - lastAt) < cooldownMs && idx === lastIdx) idx = (idx + 1) % arr.length;
     }
-    lastIdx = idx;
-    lastAt = now;
+    lastIdx = idx; lastAt = now;
     return arr[idx];
   }
 
   function replyGreetingOnly(){
-    return {
-      reply: pick(GREET_ONLY),
-      meta: { intent_type: "greeting" }
-    };
+    return { reply: pick(GREET_ONLY), meta: { intent_type: "greeting" } };
   }
 
   function prependWarmth(existingReply){
     const prefix = pick(GREET_AND_STEER);
-    // Ensure we don't double-punctuate and we keep it clean.
     const cleanExisting = String(existingReply||"").trim();
     if(!cleanExisting) return prefix;
-    if(/^[\.\!\?]/.test(cleanExisting)) return prefix + cleanExisting;
+    if(/^[\.!\?]/.test(cleanExisting)) return prefix + cleanExisting;
     return prefix + " " + cleanExisting;
   }
 
@@ -351,6 +326,29 @@ function isRetryableSttError(sttErr) {
  */
 function runLocalChat(transcript, session) {
   const msg = cleanText(transcript);
+  // -------------------------------------------------------
+  // WARMTH v1 — HARD PRECEDENCE (SOCIAL FIRST, ROUTING SECOND)
+  // If the user is just greeting / checking in ("how are you?"),
+  // respond warmly and DO NOT auto-route into lanes.
+  // Mixed greeting + request: prepend warmth to the routed reply.
+  // -------------------------------------------------------
+  const __nyxWarm = (() => {
+    try { return _NYX_WARM && typeof _NYX_WARM.detect === "function" ? _NYX_WARM.detect(msg) : { type:"none" }; }
+    catch(_) { return { type:"none" }; }
+  })();
+
+  if (__nyxWarm && __nyxWarm.type === "greeting_only") {
+    const g = (() => { try { return _NYX_WARM.replyGreetingOnly(); } catch(_) { return { reply: "Hello — I’m doing well. How are you today?" }; } })();
+    return {
+      reply: cleanText(g.reply),
+      sessionPatch: { lastInputMode: "voice", intent_type: "greeting" },
+    };
+  }
+
+  const __nyxWarmPrefix = (__nyxWarm && __nyxWarm.type === "greeting_mixed")
+    ? (() => { try { return _NYX_WARM.prependWarmth(""); } catch(_) { return "I’m doing well — thanks for asking."; } })()
+    : "";
+
   if (!msg) {
     return {
       reply: "I didn’t catch that. Tap the mic again and speak a bit more clearly.",
@@ -367,7 +365,7 @@ function runLocalChat(transcript, session) {
           Object.assign(session, out.sessionPatch);
         }
         return {
-          reply: out.reply,
+          reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + out.reply) : out.reply),
           followUp: out.followUp || null,
           sessionPatch: { lastInputMode: "voice" },
         };
@@ -386,7 +384,7 @@ function runLocalChat(transcript, session) {
           Object.assign(session, out.sessionPatch);
         }
         return {
-          reply: out.reply,
+          reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + out.reply) : out.reply),
           followUp: out.followUp || null,
           sessionPatch: { lastInputMode: "voice" },
         };
@@ -397,7 +395,7 @@ function runLocalChat(transcript, session) {
   }
 
   return {
-    reply: "Say a year (1950–2024), or say “top 10 1950”, “story moment 1950”, or “micro moment 1950”.",
+    reply: cleanText(__nyxWarmPrefix ? (__nyxWarmPrefix + " " + "Say a year (1950–2024), or say “top 10 1950”, “story moment 1950”, or “micro moment 1950”.") : "Say a year (1950–2024), or say “top 10 1950”, “story moment 1950”, or “micro moment 1950”."),
     sessionPatch: { lastInputMode: "voice" },
   };
 }
