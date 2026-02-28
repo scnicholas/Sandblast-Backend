@@ -3370,89 +3370,431 @@ app.get("/api/sandblast-gpt", chatGetGuidance);
 // =========================
 // TTS (REAL ElevenLabs) — guarded
 // =========================
+
+// =========================
+// Audio Health Heartbeat Cache (TTS)
+// =========================
+const __SB_AUDIO_HEALTH = {
+  status: "unknown", // ok | degraded | down | unknown
+  lastCheckAt: 0,
+  lastOkAt: 0,
+  failStreak: 0,
+  lastError: null,
+  lastUpstreamStatus: null,
+  lastUpstreamMs: null,
+};
+
+function __sbNowMs(){ return Date.now(); }
+function __sbBool(v, def){
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return !!def;
+  if (["1","true","yes","y","on"].includes(s)) return true;
+  if (["0","false","no","n","off"].includes(s)) return false;
+  return !!def;
+}
+function __sbClamp01(n){
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(0, Math.min(1, x));
+}
+function __sbIsRetryableStatus(st){
+  return st === 429 || st === 500 || st === 502 || st === 503 || st === 504;
+}
+function __sbUpdateAudioHealth(ok, meta){
+  __SB_AUDIO_HEALTH.lastCheckAt = __sbNowMs();
+  if (ok){
+    __SB_AUDIO_HEALTH.status = "ok";
+    __SB_AUDIO_HEALTH.lastOkAt = __SB_AUDIO_HEALTH.lastCheckAt;
+    __SB_AUDIO_HEALTH.failStreak = 0;
+    __SB_AUDIO_HEALTH.lastError = null;
+  } else {
+    __SB_AUDIO_HEALTH.failStreak = (__SB_AUDIO_HEALTH.failStreak || 0) + 1;
+    __SB_AUDIO_HEALTH.status = (__SB_AUDIO_HEALTH.failStreak >= 2) ? "down" : "degraded";
+    __SB_AUDIO_HEALTH.lastError = meta && meta.error ? safeStr(meta.error).slice(0, 220) : "unknown";
+  }
+  if (meta && meta.upstreamStatus != null) __SB_AUDIO_HEALTH.lastUpstreamStatus = meta.upstreamStatus;
+  if (meta && meta.upstreamMs != null) __SB_AUDIO_HEALTH.lastUpstreamMs = meta.upstreamMs;
+}
+function __sbHbIntervalMs(){
+  return clampInt(process.env.SB_TTS_HEARTBEAT_INTERVAL_MS, 120000, 15000, 3600000);
+}
+function __sbHbCooldownMs(){
+  return clampInt(process.env.SB_TTS_HEARTBEAT_COOLDOWN_MS, 30000, 5000, 600000);
+}
+function __sbShouldAutoProbe(){
+  const t = __sbNowMs();
+  return (t - (__SB_AUDIO_HEALTH.lastCheckAt || 0)) >= __sbHbIntervalMs();
+}
+function __sbShouldBypassPrimary(){
+  if (__SB_AUDIO_HEALTH.status !== "down") return false;
+  const t = __sbNowMs();
+  return (t - (__SB_AUDIO_HEALTH.lastCheckAt || 0)) < __sbHbCooldownMs();
+}
+
+
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
+
+  // ---- handshake / correlation ----
+  const inboundTrace =
+    safeStr(req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"] || req.headers["x-sb-trace"] || "").trim();
+  const traceId = inboundTrace || makeReqId();
+  const requestId = safeStr(req.headers["x-request-id"] || "").trim();
 
   let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
   if (typeof req.body === "string") body = { text: req.body };
 
+  const lane = safeStr(body.lane || body.mode || body.contextLane || "").trim() || "";
+  const turnId = safeStr(body.turnId || body.turn || body.tid || "").trim() || "";
+  const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
+  const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
+  const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
+
+  res.setHeader("X-SB-Trace-Id", traceId);
+  if (lane) res.setHeader("X-SB-Lane", lane);
+  if (turnId) res.setHeader("X-SB-Turn-Id", turnId);
+  if (chatMs !== null) res.setHeader("X-SB-Chat-Ms", String(chatMs));
+  if (e2eMs !== null) res.setHeader("X-SB-E2E-Ms", String(e2eMs));
+
+  // ---- health probe mode (Step 5) ----
+  if (body && body.healthCheck === true) {
+    const probe = await (async () => {
+      const voiceId = pickElevenVoiceId(req, body);
+      if (!fetchFn || !ELEVEN_API_KEY || !voiceId) {
+        __sbUpdateAudioHealth(false, { error: "PRIMARY_NOT_CONFIGURED", upstreamStatus: 0, upstreamMs: 0 });
+        return { ok: false, error: "PRIMARY_NOT_CONFIGURED" };
+      }
+
+      const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
+      const probeTimeout = Math.max(2500, Math.min(8000, Math.floor(timeoutMs * 0.6)));
+
+      const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, probeTimeout);
+
+      const payload = {
+        text: "Quick audio check.",
+        model_id: safeStr(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"),
+        voice_settings: {
+          stability: Math.min(1, NYX_VOICE_STABILITY + 0.18),
+          similarity_boost: NYX_VOICE_SIMILARITY,
+          style: Math.max(0, NYX_VOICE_STYLE - 0.08),
+          use_speaker_boost: !!NYX_VOICE_SPEAKER_BOOST,
+        },
+      };
+
+      const t0 = nowMs();
+      try {
+        const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+          method: "POST",
+          headers: {
+            "xi-api-key": ELEVEN_API_KEY,
+            "Content-Type": "application/json",
+            Accept: "audio/mpeg",
+            "x-sb-trace-id": traceId,
+          },
+          body: JSON.stringify(payload),
+          signal: ac ? ac.signal : undefined,
+        });
+
+        const dt = nowMs() - t0;
+        let ok = false;
+        let bytes = 0;
+        try {
+          const buf = Buffer.from(await r.arrayBuffer());
+          bytes = buf.length;
+          ok = r.ok && bytes > 1000;
+        } catch (_) {
+          ok = false;
+        }
+
+        __sbUpdateAudioHealth(ok, { error: ok ? null : `UPSTREAM_${r.status}`, upstreamStatus: r.status, upstreamMs: dt });
+        return { ok, upstreamStatus: r.status, upstreamMs: dt, bytes };
+      } catch (e) {
+        const dt = nowMs() - t0;
+        __sbUpdateAudioHealth(false, { error: safeStr(e?.message || e), upstreamStatus: 0, upstreamMs: dt });
+        return { ok: false, error: safeStr(e?.message || e) };
+      } finally {
+        clearTimeout(t);
+      }
+    })();
+
+    return sendContract(res, probe.ok ? 200 : 503, {
+      ok: probe.ok,
+      provider: "elevenlabs",
+      probe,
+      health: {
+        status: __SB_AUDIO_HEALTH.status,
+        lastCheckAt: __SB_AUDIO_HEALTH.lastCheckAt,
+        lastOkAt: __SB_AUDIO_HEALTH.lastOkAt,
+        failStreak: __SB_AUDIO_HEALTH.failStreak,
+        lastUpstreamStatus: __SB_AUDIO_HEALTH.lastUpstreamStatus,
+        lastUpstreamMs: __SB_AUDIO_HEALTH.lastUpstreamMs,
+        lastError: __SB_AUDIO_HEALTH.lastError,
+      },
+      requestId,
+      traceId,
+      meta: { index: INDEX_VERSION },
+    });
+  }
+
+  // ---- Step 5: auto-probe opportunistically (non-blocking) ----
+  if (__sbShouldAutoProbe()) {
+    // fire-and-forget heartbeat
+    try { handleTtsRoute({ ...req, body: { healthCheck: true, lane, turnId } }, { ...res, status: () => ({ json: () => {} }) }); } catch (_) {}
+  }
+
+  // If we are DOWN recently, bypass primary attempts to reduce user-facing latency.
+  const bypassPrimary = __sbShouldBypassPrimary();
+
   const rawText = safeStr(body.text || body.message || body.prompt || "").trim();
   const noText = toBool(body.NO_TEXT || body.noText, false);
 
-  const disableNaturalize = toBool(body.disableNaturalize, false);
+  const disableNaturalize = toBool(body.disableNaturalize || body.noNaturalize, false);
 
-  const text = disableNaturalize ? rawText : nyxVoiceNaturalize(rawText);
+  let text = rawText;
+  if (!noText && !disableNaturalize) text = nyxVoiceNaturalize(text);
 
-  const voiceId = pickElevenVoiceId(req, body);
-
-  if (!ELEVEN_API_KEY || !voiceId || !fetchFn) {
-    return sendContract(res, 501, {
+  if (!text || !text.trim()) {
+    return sendContract(res, 400, {
       ok: false,
-      error: "TTS not configured (missing ELEVENLABS_API_KEY or ELEVENLABS_*_VOICE_ID or fetch).",
+      error: "bad_request",
+      detail: "Missing text for TTS",
       meta: { index: INDEX_VERSION },
-    });}
+    });
+  }
 
-  if (!text && !noText) {
-    return sendContract(res, 400, { ok: false, error: "Missing text for TTS.", meta: { index: INDEX_VERSION } });}
+  // -------- Step 1: accept affectEngine output knobs --------
+  // - body.ttsProfile: { stability, similarity, style, speakerBoost }
+  // - body.voice_settings: native ElevenLabs voice_settings overrides
+  const presetKey = safeStr(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim();
 
-  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const t = setTimeout(() => {
-    try {
-      if (ac) ac.abort();
-    } catch (_) {}
-  }, ELEVEN_TTS_TIMEOUT_MS);
+  const envDefaults = {
+    stability: NYX_VOICE_STABILITY,
+    similarity_boost: NYX_VOICE_SIMILARITY,
+    style: NYX_VOICE_STYLE,
+    use_speaker_boost: !!NYX_VOICE_SPEAKER_BOOST,
+  };
 
-  try {
+  function presetVoiceSettings(key) {
+    const base = { ...envDefaults };
+    const k = String(key || "").toUpperCase();
+    if (k === "NYX_CALM") return { ...base, stability: __sbClamp01(base.stability + 0.18), style: __sbClamp01(base.style - 0.08) };
+    if (k === "NYX_COACH") return { ...base, stability: __sbClamp01(base.stability + 0.10), style: __sbClamp01(base.style + 0.10) };
+    if (k === "NYX_WARM") return { ...base, stability: __sbClamp01(base.stability + 0.04), style: __sbClamp01(base.style + 0.22) };
+    return base;
+  }
+
+  function mergeVoiceSettings() {
+    const merged = presetVoiceSettings(presetKey);
+
+    const tp = (body && isPlainObject(body.ttsProfile)) ? body.ttsProfile : null;
+    if (tp) {
+      if (tp.stability !== undefined) merged.stability = __sbClamp01(tp.stability);
+      if (tp.similarity !== undefined) merged.similarity_boost = __sbClamp01(tp.similarity);
+      if (tp.style !== undefined) merged.style = __sbClamp01(tp.style);
+      if (tp.speakerBoost !== undefined) merged.use_speaker_boost = !!tp.speakerBoost;
+    }
+
+    const vs = (body && isPlainObject(body.voice_settings)) ? body.voice_settings : null;
+    if (vs) {
+      if (vs.stability !== undefined) merged.stability = __sbClamp01(vs.stability);
+      if (vs.similarity_boost !== undefined) merged.similarity_boost = __sbClamp01(vs.similarity_boost);
+      if (vs.style !== undefined) merged.style = __sbClamp01(vs.style);
+      if (vs.use_speaker_boost !== undefined) merged.use_speaker_boost = !!vs.use_speaker_boost;
+    }
+
+    merged.stability = __sbClamp01(merged.stability);
+    merged.similarity_boost = __sbClamp01(merged.similarity_boost);
+    merged.style = __sbClamp01(merged.style);
+    merged.use_speaker_boost = !!merged.use_speaker_boost;
+
+    return merged;
+  }
+
+  const voice_settings = mergeVoiceSettings();
+
+  // -------- Step 2: latency instrumentation --------
+  const t0 = nowMs();
+  const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, ELEVEN_TTS_TIMEOUT_MS || 20000, 3000, 60000);
+  const retryOnce = __sbBool(process.env.ELEVENLABS_TTS_RETRY_ONCE, true);
+
+  // -------- Step 3: retry + vendor failover --------
+  const primaryHost = safeStr(process.env.ELEVENLABS_HOST || "api.elevenlabs.io").trim() || "api.elevenlabs.io";
+  const secondaryHost = safeStr(process.env.ELEVENLABS_HOST_SECONDARY || "").trim() || primaryHost;
+
+  const primaryKey = ELEVEN_API_KEY;
+  const secondaryKey = safeStr(process.env.ELEVENLABS_API_KEY_SECONDARY || "").trim() || primaryKey;
+
+  const primaryVoiceId = pickElevenVoiceId(req, body);
+  const secondaryVoiceId = safeStr(process.env.NYX_VOICE_ID_SECONDARY || process.env.ELEVENLABS_VOICE_ID_SECONDARY || "").trim();
+
+  const modelId = safeStr(body.model_id || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2").trim() || "eleven_multilingual_v2";
+  const modelIdSecondary = safeStr(process.env.ELEVENLABS_MODEL_ID_SECONDARY || "").trim() || modelId;
+
+  function makeElevenUrl(host, voiceId) {
+    const h = host.replace(/^https?:\/\//i, "");
+    return `https://${h}/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
+  }
+
+  async function attemptEleven({ host, apiKey, voiceId, model_id, label }) {
+    const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, timeoutMs);
+
     const payload = {
       text: text || " ",
-      model_id: "eleven_monolingual_v1",
-      voice_settings: {
-        stability: NYX_VOICE_STABILITY,
-        similarity_boost: NYX_VOICE_SIMILARITY,
-        style: NYX_VOICE_STYLE,
-        use_speaker_boost: NYX_VOICE_SPEAKER_BOOST,
-      },
+      model_id: model_id,
+      voice_settings: voice_settings,
     };
 
-    const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVEN_API_KEY,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify(payload),
-      signal: ac ? ac.signal : undefined,
-    });
+    const tUp = nowMs();
+    try {
+      const r = await fetchFn(makeElevenUrl(host, voiceId), {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+          "x-sb-trace-id": traceId,
+        },
+        body: JSON.stringify(payload),
+        signal: ac ? ac.signal : undefined,
+      });
 
-    if (!r.ok) {
-      const errTxt = await r.text().catch(() => "");
-      return sendContract(res, 502, {
-        ok: false,
-        error: "TTS upstream error",
-        detail: safeStr(errTxt).slice(0, 800),
-        meta: { index: INDEX_VERSION, status: r.status },
-      });}
+      const upstreamMs = nowMs() - tUp;
+      if (!r.ok) {
+        const errTxt = await r.text().catch(() => "");
+        return { ok: false, status: r.status, upstreamMs, errTxt: safeStr(errTxt).slice(0, 900), label };
+      }
 
-    const buf = Buffer.from(await r.arrayBuffer());
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Content-Length", String(buf.length));
-    return res.status(200).send(buf);
-  } catch (e) {
-    const msg = safeStr(e?.message || e).trim();
-    const aborted = /aborted|abort|timeout/i.test(msg);
-    return res.status(aborted ? 504 : 500).json({
-      ok: false,
-      error: aborted ? "TTS timeout" : "TTS failure",
-      detail: safeStr(msg).slice(0, 250),
-      meta: { index: INDEX_VERSION, elapsedMs: nowMs() - startedAt },
-    });
-  } finally {
-    clearTimeout(t);
+      const buf = Buffer.from(await r.arrayBuffer());
+      return { ok: true, status: r.status, upstreamMs, buf, bytes: buf.length, label };
+    } catch (e) {
+      const upstreamMs = nowMs() - tUp;
+      return { ok: false, status: 0, upstreamMs, errTxt: safeStr(e?.message || e).slice(0, 300), label };
+    } finally {
+      clearTimeout(t);
+    }
   }
+
+  if (!fetchFn) {
+    return sendContract(res, 500, { ok: false, error: "fetch_unavailable", meta: { index: INDEX_VERSION } });
+  }
+  if (!primaryKey || !primaryVoiceId) {
+    return sendContract(res, 501, { ok: false, error: "TTS not configured", meta: { index: INDEX_VERSION } });
+  }
+
+  let retried = false;
+  let failoverUsed = false;
+  let providerUsed = "elevenlabs_primary";
+
+  let result = null;
+
+  if (!bypassPrimary) {
+    result = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "primary" });
+    providerUsed = "elevenlabs_primary";
+  }
+
+  if (result && !result.ok && retryOnce && __sbIsRetryableStatus(result.status)) {
+    retried = true;
+    // small jitter
+    await new Promise((r) => setTimeout(r, 180 + Math.floor(Math.random() * 120)));
+    const r2 = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "primary_retry" });
+    if (r2.ok) result = r2;
+  }
+
+  if ((!result || !result.ok) && secondaryVoiceId) {
+    failoverUsed = true;
+    providerUsed = "elevenlabs_secondary";
+    const r3 = await attemptEleven({ host: secondaryHost, apiKey: secondaryKey, voiceId: secondaryVoiceId, model_id: modelIdSecondary, label: "secondary" });
+    if (r3.ok || !result) result = r3;
+  }
+
+  // -------- Step 4: fallback synthetic tier --------
+  const fallbackProvider = safeStr(process.env.SB_TTS_FALLBACK_PROVIDER || "none").trim().toLowerCase();
+  if (!result || !result.ok) {
+    __sbUpdateAudioHealth(false, { error: `ELEVEN_FAIL_${result ? result.status : 0}`, upstreamStatus: result ? result.status : 0, upstreamMs: result ? result.upstreamMs : null });
+
+    res.setHeader("X-SB-TTS-Provider", providerUsed);
+    res.setHeader("X-SB-TTS-Upstream-Status", String(result ? result.status : 0));
+    res.setHeader("X-SB-TTS-Upstream-Ms", String(result ? result.upstreamMs : 0));
+    res.setHeader("X-SB-TTS-Retry", retried ? "1" : "0");
+    res.setHeader("X-SB-TTS-Failover", failoverUsed ? "1" : "0");
+    res.setHeader("X-SB-TTS-Fallback", "0");
+
+    if (fallbackProvider === "openai") {
+      const apiKey = safeStr(process.env.OPENAI_API_KEY || "").trim();
+      if (apiKey) {
+        const openaiUrlRaw = safeStr(process.env.OPENAI_TTS_URL || "https://api.openai.com/v1/audio/speech").trim();
+        const openaiModel = safeStr(process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts").trim();
+        const openaiVoice = safeStr(process.env.OPENAI_TTS_VOICE || "alloy").trim();
+        const openaiFormat = safeStr(process.env.OPENAI_TTS_FORMAT || "mp3").trim();
+        const openaiTimeout = clampInt(process.env.OPENAI_TTS_TIMEOUT_MS, 20000, 3000, 45000);
+
+        const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, openaiTimeout);
+
+        const tUp = nowMs();
+        try {
+          const r = await fetchFn(openaiUrlRaw, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "audio/mpeg",
+              "x-sb-trace-id": traceId,
+            },
+            body: JSON.stringify({ model: openaiModel, voice: openaiVoice, input: text, format: openaiFormat }),
+            signal: ac ? ac.signal : undefined,
+          });
+
+          const upMs = nowMs() - tUp;
+          if (r.ok) {
+            const buf = Buffer.from(await r.arrayBuffer());
+            res.setHeader("X-SB-TTS-Provider", "openai_fallback");
+            res.setHeader("X-SB-TTS-Upstream-Status", String(r.status));
+            res.setHeader("X-SB-TTS-Upstream-Ms", String(upMs));
+            res.setHeader("X-SB-TTS-Fallback", "1");
+            res.setHeader("Content-Type", "audio/mpeg");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            res.setHeader("Content-Length", String(buf.length));
+            return res.status(200).send(buf);
+          }
+        } catch (_) {
+          // fall through
+        } finally {
+          clearTimeout(t);
+        }
+      }
+    }
+
+    // deterministic non-audio contract
+    return sendContract(res, 502, {
+      ok: false,
+      error: "TTS unavailable",
+      detail: safeStr(result?.errTxt || "Upstream failed").slice(0, 800),
+      meta: { index: INDEX_VERSION, status: result ? result.status : 0, elapsedMs: nowMs() - startedAt },
+    });
+  }
+
+  // success
+  __sbUpdateAudioHealth(true, { upstreamStatus: result.status, upstreamMs: result.upstreamMs });
+
+  res.setHeader("X-SB-TTS-Provider", providerUsed);
+  res.setHeader("X-SB-TTS-Upstream-Status", String(result.status));
+  res.setHeader("X-SB-TTS-Upstream-Ms", String(result.upstreamMs));
+  res.setHeader("X-SB-TTS-Retry", retried ? "1" : "0");
+  res.setHeader("X-SB-TTS-Failover", failoverUsed ? "1" : "0");
+  res.setHeader("X-SB-TTS-Fallback", "0");
+
+  const totalMs = nowMs() - t0;
+  res.setHeader("X-SB-TTS-Ms", String(totalMs));
+
+  res.setHeader("Content-Type", "audio/mpeg");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
+  return res.status(200).send(result.buf);
 }
 
 app.post("/api/tts", ipRateGuard, handleTtsRoute);
@@ -3467,6 +3809,34 @@ function ttsGetGuidance(req, res) {
   });}
 app.get("/api/tts", ttsGetGuidance);
 app.get("/api/voice", ttsGetGuidance);
+
+// =========================
+// Audio Health Endpoint (Step 5)
+// =========================
+function audioHealthRoute(req, res) {
+  // lightweight: return cached status; allow force probe with ?probe=1
+  const probe = toBool(req.query && req.query.probe, false);
+  if (probe) {
+    // Call TTS route in healthCheck mode
+    req.body = { healthCheck: true };
+    return handleTtsRoute(req, res);
+  }
+  return sendContract(res, 200, {
+    ok: (__SB_AUDIO_HEALTH.status === "ok"),
+    health: {
+      status: __SB_AUDIO_HEALTH.status,
+      lastCheckAt: __SB_AUDIO_HEALTH.lastCheckAt,
+      lastOkAt: __SB_AUDIO_HEALTH.lastOkAt,
+      failStreak: __SB_AUDIO_HEALTH.failStreak,
+      lastUpstreamStatus: __SB_AUDIO_HEALTH.lastUpstreamStatus,
+      lastUpstreamMs: __SB_AUDIO_HEALTH.lastUpstreamMs,
+      lastError: __SB_AUDIO_HEALTH.lastError,
+    },
+    meta: { index: INDEX_VERSION },
+  });
+}
+app.get("/api/health/audio", ipRateGuard, audioHealthRoute);
+
 
 // =========================
 // Express error middleware (last)
