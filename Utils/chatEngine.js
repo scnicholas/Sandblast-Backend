@@ -512,6 +512,34 @@ function hasActionablePayload(payload) {
   return keys.some((k) => actionable.has(k));
 }
 
+
+// Determines whether a payload is "ambient metadata" only (safe to ignore for intent precedence).
+// Many clients send {lane,year,mode,turnId,...} on every call; that should NOT block social-intent intercept.
+function isAmbientMetaPayload(payload) {
+  if (!isPlainObject(payload)) return true;
+  const keys = Object.keys(payload);
+  if (!keys.length) return true;
+
+  const allowed = new Set([
+    "lane",
+    "laneId",
+    "sessionLane",
+    "year",
+    "mode",
+    "macMode",
+    "vibe",
+    "turnId",
+    "publicMode",
+    "public",
+    "client",
+    "device",
+    "platform",
+  ]);
+
+  return keys.every((k) => allowed.has(k));
+}
+
+
 // Consistent merge: base FIRST, then route overrides AFTER.
 // (In reset, we still intentionally override base with hard reset flags.)
 function mergeSessionPatch(base, overrides) {
@@ -2747,26 +2775,12 @@ const session = isPlainObject(norm.body.session)
     // - Runs AFTER inbound-loop governors, BEFORE expensive bridge/model calls.
     // - Never triggers on explicit actions or actionable payload taps.
     // -------------------------
-    // Social intent must run on the user's actual utterance.
-// Some clients send the text under body.message/body.prompt rather than norm.text.
-// We keep this fail-open and do NOT persist raw text; it's used only for routing precedence.
-const __userText = safeStr(
-  norm.text ||
-    norm?.body?.text ||
-    norm?.body?.message ||
-    norm?.body?.prompt ||
-    norm?.payload?.text ||
-    norm?.payload?.message ||
-    norm?.payload?.prompt ||
-    ""
-);
-
-const social = detectSocialIntentQuick(__userText);
+    const social = detectSocialIntentQuick(norm.text || "");
     if (
       social &&
       social.hit &&
       !safeStr(norm.action || "").trim() &&
-      !(norm.turnSignals && norm.turnSignals.payloadActionable) &&
+      !(norm.turnSignals && norm.turnSignals.payloadActionable && !isAmbientMetaPayload(norm.payload)) &&
       !(emo && emo.bypassClarify) // if vulnerable, let support routing handle tone
     ) {
       const publicMode = computePublicMode(norm, session);
