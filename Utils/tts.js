@@ -340,7 +340,7 @@ function getElevenCfg(which /* "primary" | "secondary" */) {
   return { ok, key: pKey, voiceId: pVoiceId, host: pHost, modelId: pModel, which: "primary" };
 }
 
-function elevenlabsRequest({ cfg, text, traceId, timeoutMs, voiceSettings, modelIdOverride }) {
+function elevenlabsRequest({ cfg, text, traceId, timeoutEff, voiceSettings, modelIdOverride }) {
   const modelId = String(modelIdOverride || cfg.modelId || "eleven_multilingual_v2").trim();
   const host = String(cfg.host || "api.elevenlabs.io").trim() || "api.elevenlabs.io";
 
@@ -553,6 +553,24 @@ async function handleTts(req, res) {
     if (body && body.healthCheck === true) {
       const probe = await runHeartbeatProbe({ traceId });
       res.set("X-SB-Trace-Id", traceId);
+      if (mood) res.set("X-SB-Mood", String(mood).slice(0, 24));
+      if (intent) res.set("X-SB-Intent", String(intent).slice(0, 64));
+      if (mood) res.set("X-SB-Mood", String(mood).slice(0, 24));
+      if (intent) res.set("X-SB-Intent", String(intent).slice(0, 64));
+      if (turnDepthHint != null) res.set("X-SB-Turn-Depth", String(turnDepthHint));
+      if (lastIntentHint) res.set("X-SB-Last-Intent", String(lastIntentHint));
+      if (mood) res.set("X-SB-Mood", String(mood).slice(0, 24));
+      if (intent) res.set("X-SB-Intent", String(intent).slice(0, 64));
+      if (turnDepthHint != null) res.set("X-SB-Turn-Depth", String(turnDepthHint));
+      if (lastIntentHint) res.set("X-SB-Last-Intent", String(lastIntentHint));
+      if (mood) res.set("X-SB-Mood", String(mood).slice(0, 24));
+      if (intent) res.set("X-SB-Intent", String(intent).slice(0, 64));
+      if (turnDepthHint != null) res.set("X-SB-Turn-Depth", String(turnDepthHint));
+      if (lastIntentHint) res.set("X-SB-Last-Intent", String(lastIntentHint));
+      if (mood) res.set("X-SB-Mood", String(mood).slice(0, 24));
+      if (intent) res.set("X-SB-Intent", String(intent).slice(0, 64));
+      if (turnDepthHint != null) res.set("X-SB-Turn-Depth", String(turnDepthHint));
+      if (lastIntentHint) res.set("X-SB-Last-Intent", String(lastIntentHint));
       return safeJson(res, probe.ok ? 200 : 503, {
         ok: probe.ok,
         provider: "elevenlabs",
@@ -572,7 +590,52 @@ async function handleTts(req, res) {
 
     // optional metadata (for telemetry / dashboards)
     const lane = String(body.lane || body.mode || body.contextLane || "").trim() || null;
-    const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+    const turnId = String\(body\.turnId \|\| body\.turn \|\| body\.tid \|\| ""\)\.trim\(\) \|\| null;
+
+// ---- Phase 1/2/3: social + state + resilience hints (fail-open, structure-preserving)
+const mood = String((body.mood || (body.cog && body.cog.mood) || (body.stateHints && body.stateHints.mood) || "")).trim().toLowerCase() || "";
+const intent = String((body.intent || (body.cog && body.cog.lastIntent) || (body.stateHints && body.stateHints.lastIntent) || (body.socialIntent) || "")).trim().toLowerCase() || "";
+const turnDepthHint = (body && body.stateHints && body.stateHints.turnDepth != null) ? clampInt(body.stateHints.turnDepth, 0, 0, 9999) : null;
+const lastIntentHint = (body && body.stateHints && body.stateHints.lastIntent) ? String(body.stateHints.lastIntent).slice(0, 64) : null;
+
+// Resilience hints (can override timeouts/retry once within safe bounds)
+const resilience = (body && typeof body.resilience === "object" && body.resilience) ? body.resilience : null;
+let timeoutEff = timeoutMs;
+if (resilience && resilience.timeout_ms != null) {
+  timeoutEff = clampInt(resilience.timeout_ms, timeoutMs, 3000, 45000);
+}
+let retryOnceEff = retryOnce;
+if (resilience && resilience.retry_cap != null) {
+  // retry_cap: 0 disables retry-once, >=1 enables (bounded)
+  const cap = clampInt(resilience.retry_cap, 1, 0, 3);
+  retryOnceEff = cap >= 1;
+}
+
+// Map mood/intent to a stable TTS preset when none provided (Phase 1: warmth)
+function presetFromMood(m) {
+  switch (String(m || "").toLowerCase()) {
+    case "warm":
+    case "positive":
+    case "happy":
+    case "good":
+    case "up":
+      return "NYX_WARM";
+    case "coach":
+    case "motivated":
+    case "energetic":
+      return "NYX_COACH";
+    case "calm":
+    case "neutral":
+    case "steady":
+    case "down":
+    case "low":
+    case "sad":
+    case "negative":
+      return "NYX_CALM";
+    default:
+      return null;
+  }
+}
 
     // Optional timing stamps from upstream
     const chatMs = body.chatMs != null ? clampInt(body.chatMs, 0, 0, 3600000) : null;
@@ -628,7 +691,12 @@ async function handleTts(req, res) {
       style: num01(process.env.NYX_VOICE_STYLE, 0.15),
       use_speaker_boost: bool(process.env.NYX_VOICE_SPEAKER_BOOST, true),
     };
-    const presetKey = String(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim() || null;
+    let presetKey = String(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim() || null;
+    if (!presetKey) {
+      // Prefer explicit intent hint (greetings -> warm), otherwise mood mapping.
+      const isGreetingish = intent && (intent.includes("greet") || intent.includes("hello") || intent.includes("checkin") || intent.includes("social"));
+      presetKey = isGreetingish ? "NYX_WARM" : (presetFromMood(mood) || null);
+    }
     const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body });
     const modelIdOverride = body.model_id ? String(body.model_id).trim() : null;
 
@@ -695,7 +763,7 @@ async function handleTts(req, res) {
           cfg,
           text,
           traceId,
-          timeoutMs,
+          timeoutEff,
           voiceSettings,
           modelIdOverride
         });
@@ -720,7 +788,7 @@ async function handleTts(req, res) {
     }
 
     // Retry-once if primary failed (retry same provider)
-    if (result && (result.r.status === 0 || isRetryableStatus(result.r.status)) && retryOnce && primaryCfg.ok && !bypassPrimary) {
+    if (result && (result.r.status === 0 || isRetryableStatus(result.r.status)) && retryOnceEff && primaryCfg.ok && !bypassPrimary) {
       retried = true;
       const ra = (result && result.r && result.r.headers) ? result.r.headers["retry-after"] : null;
       let delay = 180;
