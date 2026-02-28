@@ -133,6 +133,59 @@ const SB_S2S_DEBUG = boolEnv("SB_S2S_DEBUG", false);            // safe debug cr
 const SB_S2S_LOG_JSON = boolEnv("SB_S2S_LOG_JSON", false);      // emit structured logs
 const SB_S2S_TIMING = boolEnv("SB_S2S_TIMING", true);           // attach telemetry to sessionPatch
 
+/* =========================================================
+   NYX S2S — STATE SPINE HINTS (Phase 2)
+   - turnDepth increment + lastIntent anchoring
+   - Fail-open: hints only (no hard dependency downstream)
+========================================================= */
+
+function getTurnDepth(session){
+  const v = session && (session.turnDepth ?? session.__turnDepth ?? session.depth);
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+function nextTurnDepth(session){
+  const d = getTurnDepth(session);
+  return Math.min(50, d + 1); // cap to prevent runaway state
+}
+
+function setStateHints(sessionPatch, session, hints = {}){
+  // Keep additive + bounded to avoid bloating payloads
+  const stateHints = {
+    turnDepth: nextTurnDepth(session),
+    lastIntent: hints.lastIntent || undefined,
+    lastLane: hints.lastLane || undefined,
+    turnId: hints.turnId || undefined
+  };
+  // prune undefined
+  Object.keys(stateHints).forEach(k => stateHints[k] === undefined && delete stateHints[k]);
+  if(Object.keys(stateHints).length) sessionPatch.stateHints = stateHints;
+}
+
+/* =========================================================
+   NYX S2S — RESILIENCE HINTS (Phase 3)
+   - Retry cap + timeout budget passed downstream
+   - Actual retries/timeouts are enforced in chatEngine/tts layers
+========================================================= */
+
+function intEnv(name, fallback){
+  const v = process.env[name];
+  if(v === undefined) return fallback;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+const SB_S2S_RETRY_CAP = intEnv("SB_S2S_RETRY_CAP", 1);       // max additional attempts downstream
+const SB_S2S_TIMEOUT_MS = intEnv("SB_S2S_TIMEOUT_MS", 12000); // downstream budget (ms)
+
+function setResilienceHints(sessionPatch){
+  sessionPatch.resilience = {
+    retry_cap: Math.max(0, Math.min(3, SB_S2S_RETRY_CAP)),
+    timeout_ms: Math.max(1000, Math.min(30000, SB_S2S_TIMEOUT_MS))
+  };
+}
+
 function emitJsonLog(obj){
   if(!SB_S2S_LOG_JSON) return;
   try { console.log(JSON.stringify(obj)); } catch(_e) {}
@@ -174,6 +227,10 @@ function runLocalChat(transcript, session = {}, opts = {}){
       turnId
     };
 
+    // Phase 2/3: additive hints (fail-open)
+    setStateHints(sessionPatch, session, { lastIntent: "greeting", lastLane: lane, turnId });
+    setResilienceHints(sessionPatch);
+
     if(SB_S2S_TIMING){
       sessionPatch.telemetry = {
         source: "s2s.local",
@@ -200,6 +257,9 @@ function runLocalChat(transcript, session = {}, opts = {}){
     ? _NYX_WARM.prefix()
     : "";
 
+  // Normalize "none" -> "default" for consistent downstream anchors
+  if(warm && warm.type === "none") warm.type = "default";
+
   // ---------------- Existing Routing Logic Placeholder ----------------
   // IMPORTANT: This simulates your original lane routing logic.
   // Replace this section with your actual routing implementation.
@@ -222,6 +282,10 @@ function runLocalChat(transcript, session = {}, opts = {}){
     lane,
     turnId
   };
+
+  // Phase 2/3: additive hints (fail-open)
+  setStateHints(sessionPatch, session, { lastIntent: sessionPatch.intent_type, lastLane: lane, turnId });
+  setResilienceHints(sessionPatch);
 
   if(SB_S2S_TIMING){
     sessionPatch.telemetry = {
