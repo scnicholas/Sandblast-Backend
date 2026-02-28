@@ -15,6 +15,9 @@
  *  - Add input guardrails (max chars) to prevent runaway latency and upstream rejections
  *  - Add optional first-sentence mode (for "Nick call-agent" fast-start) without changing API shape
  *  - Add upstream error preview hardening
+ *  - NEW: Apply per-turn ElevenLabs voice_settings from body.ttsProfile / body.voice_settings (AffectEngine output)
+ *  - NEW: Optional presetKey support ("NYX_CALM" | "NYX_COACH" | "NYX_WARM") with env defaults + overrides
+ *  - NEW: Structured latency markers (X-SB-Chat-Ms, X-SB-TTS-Upstream-Ms, X-SB-E2E-Ms) when provided
  *
  * Expected env:
  *  - ELEVENLABS_API_KEY
@@ -31,6 +34,8 @@
  *  - ELEVENLABS_TTS_TIMEOUT_MS (default: 15000)
  *  - ELEVENLABS_TTS_RETRY_ONCE ("true"/"false", default: true)
  *  - ELEVENLABS_TTS_MAX_CHARS (default: 1200)
+ *  - ELEVENLABS_TTS_MAX_SOCKETS (default: 16)
+ *  - SB_TTS_LOG_JSON ("true"/"false", default: false)  // logs one JSON line per request
  */
 
 const https = require("https");
@@ -96,13 +101,12 @@ function firstSentence(text) {
   if (m && m[1]) return m[1].trim();
   // Fallback: first 180 chars
   return t.slice(0, 180).trim();
+}
 
 function cleanText(input) {
   // Strip hard control chars (except \n, \r, \t) that can confuse upstream.
   const s = String(input || "");
   return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-}
-
 }
 
 function configured() {
@@ -119,30 +123,102 @@ function makeTraceId(provided) {
     // keep short + ascii-ish
     if (p && p.length <= 64) return p.replace(/[^\w\-:.]/g, "_");
   }
-  return `tts_${t}_${rnd.slice(0, 8)}`;}
+  return `tts_${t}_${rnd.slice(0, 8)}`;
+}
 
 function isRetryableStatus(status) {
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
-function elevenlabsRequest({ apiKey, voiceId, text, traceId, timeoutMs }) {
-  const modelId = String(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2").trim();
-  const host = String(process.env.ELEVENLABS_HOST || "api.elevenlabs.io").trim() || "api.elevenlabs.io";
+/**
+ * Presets are intentionally subtle. They stabilize "Nyx-as-a-person" across turns.
+ * You can tune later without touching other layers.
+ */
+function presetVoiceSettings(presetKey, envDefaults) {
+  const base = {
+    stability: envDefaults.stability,
+    similarity_boost: envDefaults.similarity_boost,
+    style: envDefaults.style,
+    use_speaker_boost: envDefaults.use_speaker_boost,
+  };
 
-  const stability = num01(process.env.NYX_VOICE_STABILITY, 0.45);
-  const similarity = num01(process.env.NYX_VOICE_SIMILARITY, 0.85);
-  const style = num01(process.env.NYX_VOICE_STYLE, 0.15);
-  const speakerBoost = bool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
+  switch (String(presetKey || "").toUpperCase()) {
+    case "NYX_CALM":
+      return { ...base, stability: clamp01(base.stability + 0.18), style: clamp01(base.style - 0.08) };
+    case "NYX_COACH":
+      return { ...base, stability: clamp01(base.stability + 0.10), style: clamp01(base.style + 0.10) };
+    case "NYX_WARM":
+      return { ...base, stability: clamp01(base.stability + 0.04), style: clamp01(base.style + 0.22) };
+    default:
+      return base;
+  }
+}
+
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(0, Math.min(1, x));
+}
+
+/**
+ * Accepts either:
+ *  - body.ttsProfile: { stability, similarity, style, speakerBoost }  (AffectEngine output)
+ *  - body.voice_settings: { stability, similarity_boost, style, use_speaker_boost } (ElevenLabs native)
+ * Returns a merged ElevenLabs voice_settings object.
+ */
+function mergeVoiceSettings({ envDefaults, presetKey, body }) {
+  const fromPreset = presetVoiceSettings(presetKey, envDefaults);
+
+  // 1) AffectEngine shape
+  const tp = (body && typeof body.ttsProfile === "object" && body.ttsProfile) ? body.ttsProfile : null;
+  const affectOverride = tp ? {
+    stability: clamp01(tp.stability),
+    similarity_boost: clamp01(tp.similarity),
+    style: clamp01(tp.style),
+    use_speaker_boost: tp.speakerBoost === undefined ? fromPreset.use_speaker_boost : !!tp.speakerBoost,
+  } : null;
+
+  // 2) ElevenLabs native shape
+  const vs = (body && typeof body.voice_settings === "object" && body.voice_settings) ? body.voice_settings : null;
+  const nativeOverride = vs ? {
+    stability: vs.stability === undefined ? undefined : clamp01(vs.stability),
+    similarity_boost: vs.similarity_boost === undefined ? undefined : clamp01(vs.similarity_boost),
+    style: vs.style === undefined ? undefined : clamp01(vs.style),
+    use_speaker_boost: vs.use_speaker_boost === undefined ? undefined : !!vs.use_speaker_boost,
+  } : null;
+
+  // Merge order: env -> preset -> affectOverride -> nativeOverride
+  const merged = { ...fromPreset };
+  if (affectOverride) {
+    for (const k of Object.keys(affectOverride)) {
+      if (affectOverride[k] !== undefined && affectOverride[k] !== null && Number.isFinite(Number(affectOverride[k])) || typeof affectOverride[k] === "boolean") {
+        merged[k] = affectOverride[k];
+      }
+    }
+  }
+  if (nativeOverride) {
+    for (const k of Object.keys(nativeOverride)) {
+      if (nativeOverride[k] !== undefined && nativeOverride[k] !== null) merged[k] = nativeOverride[k];
+    }
+  }
+
+  // Ensure numeric fields exist
+  merged.stability = clamp01(merged.stability);
+  merged.similarity_boost = clamp01(merged.similarity_boost);
+  merged.style = clamp01(merged.style);
+  merged.use_speaker_boost = !!merged.use_speaker_boost;
+
+  return merged;
+}
+
+function elevenlabsRequest({ apiKey, voiceId, text, traceId, timeoutMs, voiceSettings, modelIdOverride }) {
+  const modelId = String(modelIdOverride || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2").trim();
+  const host = String(process.env.ELEVENLABS_HOST || "api.elevenlabs.io").trim() || "api.elevenlabs.io";
 
   const payload = JSON.stringify({
     text,
     model_id: modelId,
-    voice_settings: {
-      stability,
-      similarity_boost: similarity,
-      style,
-      use_speaker_boost: speakerBoost,
-    },
+    voice_settings: voiceSettings,
   });
 
   const options = {
@@ -154,7 +230,7 @@ function elevenlabsRequest({ apiKey, voiceId, text, traceId, timeoutMs }) {
       "xi-api-key": apiKey,
       "Content-Type": "application/json",
       Accept: "audio/mpeg",
-      "User-Agent": "Sandblast-Nyx-TTS/1.0",
+      "User-Agent": "Sandblast-Nyx-TTS/1.1",
       "Content-Length": Buffer.byteLength(payload),
       // Trace for your logs / downstream correlation
       "x-sb-trace-id": traceId,
@@ -191,15 +267,27 @@ async function handleTts(req, res) {
   const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
   const retryOnce = bool(process.env.ELEVENLABS_TTS_RETRY_ONCE, true);
   const maxChars = clampInt(process.env.ELEVENLABS_TTS_MAX_CHARS, 1200, 200, 6000);
+  const logJson = bool(process.env.SB_TTS_LOG_JSON, false);
 
   const tStart = Date.now();
 
   try {
     const body = readBody(req);
+
+    // optional metadata (for telemetry / dashboards)
+    const lane = String(body.lane || body.mode || body.contextLane || "").trim() || null;
+    const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+
+    // optional timing stamps (from chatEngine): do NOT trust, just pass through
+    const chatMs = body.chatMs != null ? clampInt(body.chatMs, 0, 0, 3600000) : null;
+    const e2eStartMs = body.e2eStartMs != null ? clampInt(body.e2eStartMs, 0, 0, 3600000) : null;
+
     let text = cleanText(body.text || body.message || "");
 
     if (!text) {
       res.set("X-SB-Trace-Id", traceId);
+      if (lane) res.set("X-SB-Lane", lane);
+      if (turnId) res.set("X-SB-Turn-Id", turnId);
       return safeJson(res, 400, {
         ok: false,
         error: "BAD_REQUEST",
@@ -213,7 +301,6 @@ async function handleTts(req, res) {
     // Optional "fast-start" mode without changing the API shape.
     // If client sends { firstSentenceOnly:true }, we synthesize just the first sentence.
     const firstSentenceOnly = !!body.firstSentenceOnly;
-
     if (firstSentenceOnly) {
       text = firstSentence(cleanText(text));
     }
@@ -224,6 +311,8 @@ async function handleTts(req, res) {
     // Guard: max chars (controls latency + upstream limits)
     if (text.length > maxChars) {
       res.set("X-SB-Trace-Id", traceId);
+      if (lane) res.set("X-SB-Lane", lane);
+      if (turnId) res.set("X-SB-Turn-Id", turnId);
       return safeJson(res, 413, {
         ok: false,
         error: "TTS_TEXT_TOO_LONG",
@@ -239,6 +328,8 @@ async function handleTts(req, res) {
     const cfg = configured();
     if (!cfg.ok) {
       res.set("X-SB-Trace-Id", traceId);
+      if (lane) res.set("X-SB-Lane", lane);
+      if (turnId) res.set("X-SB-Turn-Id", turnId);
       return safeJson(res, 501, {
         ok: false,
         error: "TTS_NOT_CONFIGURED",
@@ -248,10 +339,24 @@ async function handleTts(req, res) {
       });
     }
 
+    // Voice settings: env defaults -> presetKey -> affectEngine overrides (ttsProfile) -> native overrides (voice_settings)
+    const envDefaults = {
+      stability: num01(process.env.NYX_VOICE_STABILITY, 0.45),
+      similarity_boost: num01(process.env.NYX_VOICE_SIMILARITY, 0.85),
+      style: num01(process.env.NYX_VOICE_STYLE, 0.15),
+      use_speaker_boost: bool(process.env.NYX_VOICE_SPEAKER_BOOST, true),
+    };
+    const presetKey = String(body.presetKey || body.voicePreset || "").trim() || null;
+    const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body });
+
+    // Optional model override (rare, but useful for A/B)
+    const modelIdOverride = body.model_id ? String(body.model_id).trim() : null;
+
     // Upstream request (retry-once for transient issues)
     let r;
     let retried = false;
 
+    const tUpStart = Date.now();
     try {
       r = await elevenlabsRequest({
         apiKey: cfg.key,
@@ -259,17 +364,21 @@ async function handleTts(req, res) {
         text,
         traceId,
         timeoutMs,
+        voiceSettings,
+        modelIdOverride,
       });
     } catch (e) {
       // Timeout or network error. We'll treat as retryable.
       r = { status: 0, headers: {}, body: Buffer.from(String(e && e.message ? e.message : e || "TTS_ERROR")) };
       r.__err = String(e && e.message ? e.message : e);
     }
+    let tUpMs = Date.now() - tUpStart;
 
     if ((r.status === 0 || isRetryableStatus(r.status)) && retryOnce && !req.aborted && !res.writableEnded) {
       retried = true;
       // tiny backoff helps 429 collisions
       await new Promise((rr) => setTimeout(rr, 180));
+      const tUp2Start = Date.now();
       try {
         const r2 = await elevenlabsRequest({
           apiKey: cfg.key,
@@ -277,9 +386,15 @@ async function handleTts(req, res) {
           text,
           traceId,
           timeoutMs,
+          voiceSettings,
+          modelIdOverride,
         });
+        const tUp2Ms = Date.now() - tUp2Start;
         // prefer successful retry, else keep first response for preview
-        if (r2 && r2.status >= 200 && r2.status < 300) r = r2;
+        if (r2 && r2.status >= 200 && r2.status < 300) {
+          r = r2;
+          tUpMs = tUp2Ms;
+        }
       } catch (e2) {
         // keep original r
       }
@@ -290,7 +405,16 @@ async function handleTts(req, res) {
     // Telemetry headers (safe for binary responses)
     res.set("X-SB-Trace-Id", traceId);
     res.set("X-SB-TTS-Ms", String(tMs));
+    res.set("X-SB-TTS-Upstream-Ms", String(tUpMs));
     res.set("X-SB-TTS-Retry", retried ? "1" : "0");
+    res.set("X-SB-TTS-Upstream-Status", String(r.status || 0));
+    if (lane) res.set("X-SB-Lane", lane);
+    if (turnId) res.set("X-SB-Turn-Id", turnId);
+    if (chatMs != null) res.set("X-SB-Chat-Ms", String(chatMs));
+    if (e2eStartMs != null) res.set("X-SB-E2E-Start-Ms", String(e2eStartMs));
+    // Helpful for debugging in the field (do NOT include secrets)
+    if (presetKey) res.set("X-SB-TTS-Preset", String(presetKey).slice(0, 32));
+    res.set("X-SB-TTS-Voice", String(cfg.voiceId).slice(0, 32));
 
     if (r.status >= 200 && r.status < 300) {
       // Return audio
@@ -303,6 +427,28 @@ async function handleTts(req, res) {
       // Some clients like filename hints
       res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
 
+      if (logJson) {
+        try {
+          console.log(JSON.stringify({
+            t: Date.now(),
+            ok: true,
+            traceId,
+            requestId,
+            lane,
+            turnId,
+            retried,
+            upstreamStatus: r.status,
+            ms_total: tMs,
+            ms_upstream: tUpMs,
+            bytes,
+            voiceId: cfg.voiceId,
+            presetKey: presetKey || null,
+            voice_settings: voiceSettings,
+            chars: text.length,
+          }));
+        } catch (_) {}
+      }
+
       if (req.aborted || res.writableEnded) return;
       return res.send(r.body);
     }
@@ -312,6 +458,28 @@ async function handleTts(req, res) {
     try {
       preview = r.body ? r.body.toString("utf8").slice(0, 1200) : "";
     } catch (_) {}
+
+    if (logJson) {
+      try {
+        console.log(JSON.stringify({
+          t: Date.now(),
+          ok: false,
+          traceId,
+          requestId,
+          lane,
+          turnId,
+          retried,
+          upstreamStatus: r.status,
+          ms_total: tMs,
+          ms_upstream: tUpMs,
+          voiceId: cfg.voiceId,
+          presetKey: presetKey || null,
+          voice_settings: voiceSettings,
+          chars: text.length,
+          preview: preview ? preview.slice(0, 200) : null
+        }));
+      } catch (_) {}
+    }
 
     return safeJson(res, 502, {
       ok: false,
