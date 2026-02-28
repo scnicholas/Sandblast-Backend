@@ -365,22 +365,22 @@ function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
   const keys = Object.keys(payload);
   if (!keys.length) return false;
+
   // Coherent with stateSpine.hasActionablePayload
-  // NOTE: payloads often include ambient metadata (lane/mode/vibe/turnId) on every call.
-  // Those should NOT block social-intent intercepts. We treat ONLY explicit user commands as actionable.
   const actionable = new Set([
     "action",
     "route",
-    "year", // year picker is actionable even without explicit action
+    "year",
     "id",
     "_id",
     "label",
-    "chip",
-    "choice",
-    "tag",
-    "focus",
+    "lane",
+    "vibe",
+    "macMode",
+    "mode",
     "allowDerivedTop10",
     "allowYearendFallback",
+    "focus",
     "publicMode",
   ]);
   return keys.some((k) => actionable.has(k));
@@ -1782,19 +1782,24 @@ function normalizeInbound(input) {
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-    // Input normalization (clean + safe): support multiple client field names.
-  // IMPORTANT: some widgets always include payload metadata; we still treat the user's message as body.text first.
-  let __inputField = "";
-  let __raw = "";
-  if (safeStr(body.text).trim()) { __inputField = "body.text"; __raw = body.text; }
-  else if (safeStr(body.message).trim()) { __inputField = "body.message"; __raw = body.message; }
-  else if (safeStr(body.prompt).trim()) { __inputField = "body.prompt"; __raw = body.prompt; }
-  else if (safeStr(body.query).trim()) { __inputField = "body.query"; __raw = body.query; }
-  else if (safeStr(payload.text).trim()) { __inputField = "payload.text"; __raw = payload.text; }
-  else if (safeStr(payload.message).trim()) { __inputField = "payload.message"; __raw = payload.message; }
-  const textRaw0 = safeStr(__raw).trim();
+  // Normalize user text across widget/backend variants (critical for social-intent routing)
+// NOTE: This is intentionally conservative (no evaluation of arbitrary objects).
+let __textSource = "none";
+let __rawText =
+  (typeof body.text === "string" && body.text.trim() ? (__textSource = "body.text", body.text) : "") ||
+  (typeof body.message === "string" && body.message.trim() ? (__textSource = "body.message", body.message) : "") ||
+  (typeof body.prompt === "string" && body.prompt.trim() ? (__textSource = "body.prompt", body.prompt) : "") ||
+  (typeof body.query === "string" && body.query.trim() ? (__textSource = "body.query", body.query) : "") ||
+  (typeof payload.text === "string" && payload.text.trim() ? (__textSource = "payload.text", payload.text) : "") ||
+  (typeof payload.message === "string" && payload.message.trim() ? (__textSource = "payload.message", payload.message) : "");
 
-  const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
+const textRaw0 = safeStr(__rawText || "").trim();
+
+// TEMP DEBUG: confirm which field is being read live (remove after validation)
+if (textRaw0) {
+  try { console.log("[CE][INPUT]", __textSource, textRaw0.slice(0, 120)); } catch (_) {}
+}
+const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   // action: accept payload.route as an alias (chip payloads commonly set route)
   const payloadAction = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
@@ -1853,7 +1858,6 @@ function normalizeInbound(input) {
     macModeWhy: implicit.why || [],
     turnIntent,
     turnSignals: {
-      inputField: __inputField,
       hasPayload,
       payloadActionable,
       payloadAction: payloadAction || "",
@@ -2487,16 +2491,58 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
-    // DEBUG (temporary): confirm which inbound field provided the user text (remove once verified)
-    try {
-      const _f = norm?.turnSignals?.inputField || "";
-      const _t = safeStr(norm?.text || "").slice(0, 140);
-      console.log("[CE][INPUT]", _f, _t);
-    } catch (_e) {}
-
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
 
+
+
+// -------------------------
+// SOCIAL INTENT OVERRIDE++++ (Phase 1)
+// - MUST run before lane/default routing.
+// - Treats payload with only ambient meta (lane/year/mode/turnId/text) as NON-actionable.
+// - Prevents: "Tell me what you want next: music, movies, or sponsors." on greetings/check-ins.
+// -------------------------
+const tSocial = safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ");
+const p = isPlainObject(norm.payload) ? norm.payload : {};
+const pKeys = Object.keys(p || {});
+const hasNonAmbientPayload = pKeys.some((k) => !["lane", "year", "mode", "turnId", "text", "message", "vibe"].includes(k));
+const hasExplicitAction = !!safeStr(norm.action || "").trim();
+const socialHit =
+  !!tSocial &&
+  !hasExplicitAction &&
+  !hasNonAmbientPayload &&
+  (
+    /^(hi|hello|hey)\b/.test(tSocial) ||
+    /\bgood\s*(morning|afternoon|evening)\b/.test(tSocial) ||
+    /\bhow\s+are\s+you\b/.test(tSocial) ||
+    /\bhow\s+is\s+it\s+going\b/.test(tSocial) ||
+    /\bwhat'?s\s+up\b/.test(tSocial)
+  );
+
+if (socialHit) {
+  try { console.log("[CE][SOCIAL_OVERRIDE] hit", tSocial.slice(0, 120)); } catch (_) {}
+  const reply = "Hey — I’m doing great. 😊 How are you feeling today?";
+  return {
+    ok: true,
+    reply,
+    payload: { reply, intent: "social_greeting" },
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    bridge: { bypassClarify: true, lane: "general", action: "social_greeting", inboundKey },
+    ctx: norm.ctx,
+    ui: { chips: [], hints: ["social"] },
+    directives: [],
+    followUps: [
+      { id: "just_talk", type: "chip", label: "Just talk", payload: { action: "counsel_intro" } },
+      { id: "music", type: "chip", label: "Music", payload: { action: "music" } },
+      { id: "roku", type: "chip", label: "Roku", payload: { action: "roku" } },
+      { id: "sponsors", type: "chip", label: "Sponsors", payload: { action: "sponsors" } },
+    ],
+    followUpsStrings: ["Just talk", "Music", "Roku", "Sponsors"],
+    meta: { ce: CE_VERSION, t: started, ms: nowMs() - started },
+  };
+}
 
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
@@ -2561,63 +2607,6 @@ const session = isPlainObject(norm.body.session)
       : isPlainObject(input?.session)
       ? input.session
       : {};
-
-    // -------------------------
-    // Phase 1 (minimal): Social opener intercept (greeting / how-are-you)
-    // - Prevents procedural lane prompts on basic social openers.
-    // - CLEAN + SAFE: triggers only when no explicit action was inferred and payload is not explicitly actionable.
-    // - DEBUG: we already log inbound field at the top of handleChat.
-    // -------------------------
-    const _socialText = safeStr(norm.text || "").trim();
-    const _t = _socialText.toLowerCase();
-    const _payloadActionable = !!(norm.turnSignals && norm.turnSignals.payloadActionable);
-    const _hasExplicitAction = !!safeStr(norm.action || "").trim();
-    const _isSocial =
-      /^(hi|hey|hello)\b/.test(_t) ||
-      /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(_t) ||
-      /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(_t) ||
-      /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(_t) ||
-      /\b(bye|goodbye|see\s+you|talk\s+soon|later)\b/.test(_t);
-
-    if (_isSocial && !_hasExplicitAction && !_payloadActionable && !(emo && emo.bypassClarify)) {
-      const publicMode = computePublicMode(norm, session || {});
-      let base = "Hey. Good to see you. What do you want to do first?";
-      if (/\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(_t)) {
-        base = "I’m doing great — thanks for asking. How’s your day going?";
-      } else if (/\b(good\s+morning)\b/.test(_t)) {
-        base = "Good morning. How are you feeling today?";
-      } else if (/\b(thanks|thank\s+you|appreciate\s+it)\b/.test(_t)) {
-        base = "You got it. Want to keep going, or switch gears?";
-      } else if (/\b(bye|goodbye|see\s+you|talk\s+soon|later)\b/.test(_t)) {
-        base = "Anytime. Talk soon.";
-      }
-
-      const reply = applyPublicSanitization(base, norm, session || {}, publicMode);
-
-      const sessionPatch = mergeSessionPatch(
-        {},
-        { __greeted: true, __lastInboundKey: inboundKey, __lastSocialAt: nowMs(), lastIntent: "SOCIAL", __lastIntent: "SOCIAL" }
-      );
-
-      return {
-        ok: true,
-        reply,
-        lane: safeStr((session && (session.lastLane || session.lane)) || norm.lane || "general") || "general",
-        laneId: undefined,
-        sessionLane: safeStr((session && (session.lastLane || session.lane)) || norm.lane || "general") || "general",
-        bridge: { bypassClarify: true, social: true },
-        ctx: norm.ctx,
-        ui: { chips: [], hints: [] },
-        directives: [],
-        followUps: [],
-        followUpsStrings: [],
-        sessionPatch,
-        cog: applyResilienceHints({ intent: "ADVANCE", route: "social_intel", publicMode, actionable: true }, session || {}),
-        requestId: pickRequestId(input, inboundKey),
-        meta: { social: true },
-      };
-    }
-
 
     // -------------------------
     // BRUTAL INBOUND LOOP GOVERNOR++++
