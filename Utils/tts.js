@@ -70,6 +70,68 @@ const MAX_SOCKETS = (() => {
 const keepAliveAgent = new https.Agent({ keepAlive: KEEPALIVE, maxSockets: MAX_SOCKETS });
 
 // -----------------------------
+// Tiny in-memory audio cache (best-effort)
+// - Reduces latency for repeated prompts (e.g., common greetings)
+// - Low TTL to avoid stale tone when affect changes
+// Enabled by default; can be disabled with SB_TTS_CACHE=false
+// -----------------------------
+const _cache = {
+  enabled: true,
+  ttlMs: 30000,
+  maxEntries: 64,
+  map: new Map() // key -> { at, buf, meta }
+};
+
+function cacheEnabled() {
+  return bool(process.env.SB_TTS_CACHE, true);
+}
+function cacheTtlMs() {
+  return clampInt(process.env.SB_TTS_CACHE_TTL_MS, 30000, 2000, 300000);
+}
+function cacheMaxEntries() {
+  return clampInt(process.env.SB_TTS_CACHE_MAX, 64, 8, 512);
+}
+function cacheKey({ text, voiceSettings, modelId, providerUsed, voiceId, host }) {
+  // Deterministic key; keep it short-ish
+  const vs = voiceSettings ? JSON.stringify(voiceSettings) : "";
+  const raw = `${providerUsed||""}|${voiceId||""}|${host||""}|${modelId||""}|${vs}|${text}`;
+  // simple hash
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `k_${(h >>> 0).toString(16)}`;
+}
+function cacheGet(key) {
+  try {
+    if (!cacheEnabled()) return null;
+    const ttl = cacheTtlMs();
+    const it = _cache.map.get(key);
+    if (!it) return null;
+    if ((nowMs() - it.at) > ttl) {
+      _cache.map.delete(key);
+      return null;
+    }
+    return it;
+  } catch (_) { return null; }
+}
+function cacheSet(key, buf, meta) {
+  try {
+    if (!cacheEnabled()) return;
+    const max = cacheMaxEntries();
+    // prune oldest if needed
+    while (_cache.map.size >= max) {
+      const firstKey = _cache.map.keys().next().value;
+      if (!firstKey) break;
+      _cache.map.delete(firstKey);
+    }
+    _cache.map.set(key, { at: nowMs(), buf, meta: meta || null });
+  } catch (_) {}
+}
+
+
+// -----------------------------
 // Heartbeat cache (in-memory)
 // -----------------------------
 const hb = {
@@ -79,7 +141,8 @@ const hb = {
   failStreak: 0,
   lastError: null,
   lastUpstreamStatus: null,
-  lastUpstreamMs: null
+  lastUpstreamMs: null,
+  lastFailAt: 0
 };
 
 function nowMs() { return Date.now(); }
@@ -158,6 +221,33 @@ function isRetryableStatus(status) {
 function jitterSleep(msBase) {
   const ms = Math.max(0, Math.floor(msBase + Math.random() * 120));
   return new Promise((r) => setTimeout(r, ms));
+}
+
+
+function wantsBase64(body) {
+  const r = String((body && body.return) || (body && body.response) || "").trim().toLowerCase();
+  return r === "base64" || r === "json";
+}
+
+function sendAudio(res, req, { body, buf, headers }) {
+  // If caller wants JSON, return base64 (useful for clients that can’t accept binary easily)
+  if (wantsBase64(body)) {
+    try {
+      const b64 = buf ? buf.toString("base64") : "";
+      const out = { ok: true, audio_b64: b64, bytes: buf ? buf.length : 0 };
+      // Include select headers for tracing
+      if (headers && typeof headers === "object") out.headers = headers;
+      return safeJson(res, 200, out);
+    } catch (_) {
+      // fall through to binary
+    }
+  }
+  res.status(200);
+  res.set("Content-Type", "audio/mpeg");
+  res.set("Cache-Control", "no-store");
+  res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
+  if (req.aborted || res.writableEnded) return;
+  return res.send(buf);
 }
 
 // -----------------------------
@@ -373,6 +463,7 @@ function updateHealth(ok, meta) {
     hb.failStreak = (hb.failStreak || 0) + 1;
     hb.status = hb.failStreak >= 2 ? "down" : "degraded";
     hb.lastError = meta && meta.error ? String(meta.error).slice(0, 200) : "unknown";
+    hb.lastFailAt = hb.lastCheckAt;
   }
   if (meta && meta.upstreamStatus != null) hb.lastUpstreamStatus = meta.upstreamStatus;
   if (meta && meta.upstreamMs != null) hb.lastUpstreamMs = meta.upstreamMs;
@@ -385,9 +476,17 @@ function shouldAutoProbe() {
 
 function shouldBypassPrimaryLiveAttempt() {
   // If we know we're DOWN very recently, bypass to failover/fallback immediately.
-  if (hb.status !== "down") return false;
   const t = nowMs();
-  return (t - hb.lastCheckAt) < hbCooldownMs();
+  if (hb.status === "down") {
+    const base = hbCooldownMs();
+    const mult = (hb.failStreak && hb.failStreak >= 3) ? 2 : 1;
+    return (t - hb.lastCheckAt) < (base * mult);
+  }
+  // If we are degraded with a streak, be conservative for a short window.
+  if (hb.status === "degraded" && hb.failStreak >= 2) {
+    return (t - hb.lastCheckAt) < Math.max(5000, Math.floor(hbCooldownMs() * 0.5));
+  }
+  return false;
 }
 
 async function runHeartbeatProbe({ traceId }) {
@@ -480,7 +579,7 @@ async function handleTts(req, res) {
     const e2eStartTs = body.e2eStartTs != null ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null; // epoch ms
     const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
 
-    let text = cleanText(body.text || body.message || "");
+    let text = cleanText(body.text || body.spokenText || body.replyText || body.message || "");
 
     if (!text) {
       res.set("X-SB-Trace-Id", traceId);
@@ -533,6 +632,53 @@ async function handleTts(req, res) {
     const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body });
     const modelIdOverride = body.model_id ? String(body.model_id).trim() : null;
 
+    // Best-effort cache (only for successful audio). Key includes voice settings and model.
+    // Note: affect changes voiceSettings; so cache naturally separates per affect posture.
+    const primaryCfgForKey = getElevenCfg("primary");
+    const hostForKey = primaryCfgForKey && primaryCfgForKey.host ? primaryCfgForKey.host : "";
+    const voiceForKey = primaryCfgForKey && primaryCfgForKey.voiceId ? primaryCfgForKey.voiceId : "";
+    const modelForKey = String(modelIdOverride || (primaryCfgForKey && primaryCfgForKey.modelId) || "eleven_multilingual_v2").trim();
+
+    const cKey = cacheKey({ text, voiceSettings, modelId: modelForKey, providerUsed: "elevenlabs", voiceId: voiceForKey, host: hostForKey });
+    const cached = cacheGet(cKey);
+    if (cached && cached.buf && cached.buf.length > 1000) {
+      const tMs = nowMs() - tStart;
+
+      res.set("X-SB-Trace-Id", traceId);
+      res.set("X-SB-TTS-Provider", "cache");
+      res.set("X-SB-TTS-Ms", String(tMs));
+      res.set("X-SB-TTS-Upstream-Ms", "0");
+      res.set("X-SB-TTS-Retry", "0");
+      res.set("X-SB-TTS-Failover", "0");
+      res.set("X-SB-TTS-Fallback", "0");
+      res.set("X-SB-TTS-Upstream-Status", "200");
+      res.set("X-SB-TTS-Bytes", String(cached.buf.length));
+      if (lane) res.set("X-SB-Lane", lane);
+      if (turnId) res.set("X-SB-Turn-Id", turnId);
+      if (chatMs != null) res.set("X-SB-Chat-Ms", String(chatMs));
+      if (e2eMs != null) res.set("X-SB-E2E-Ms", String(e2eMs));
+      if (presetKey) res.set("X-SB-TTS-Preset", String(presetKey).slice(0, 32));
+
+      if (logJson) {
+        try {
+          console.log(JSON.stringify({
+            t: nowMs(),
+            ok: true,
+            provider: "cache",
+            traceId,
+            requestId,
+            lane,
+            turnId,
+            ms_total: tMs,
+            bytes: cached.buf.length,
+            chars: text.length
+          }));
+        } catch (_) {}
+      }
+
+      return sendAudio(res, req, { body, buf: cached.buf, headers: { traceId } });
+    }
+
     // Primary ElevenLabs
     const primaryCfg = getElevenCfg("primary");
     const secondaryCfg = getElevenCfg("secondary");
@@ -576,7 +722,13 @@ async function handleTts(req, res) {
     // Retry-once if primary failed (retry same provider)
     if (result && (result.r.status === 0 || isRetryableStatus(result.r.status)) && retryOnce && primaryCfg.ok && !bypassPrimary) {
       retried = true;
-      await jitterSleep(180);
+      const ra = (result && result.r && result.r.headers) ? result.r.headers["retry-after"] : null;
+      let delay = 180;
+      if (ra) {
+        const s = parseFloat(String(ra));
+        if (Number.isFinite(s) && s > 0) delay = Math.min(1200, Math.max(180, Math.floor(s * 1000)));
+      }
+      await jitterSleep(delay);
       const r2 = await attemptEleven(primaryCfg, "primary_retry");
       // Prefer successful retry
       if (r2.r.status >= 200 && r2.r.status < 300) {
@@ -668,12 +820,9 @@ async function handleTts(req, res) {
             } catch (_) {}
           }
 
-          res.status(200);
-          res.set("Content-Type", "audio/mpeg");
-          res.set("Cache-Control", "no-store");
-          res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
-          if (req.aborted || res.writableEnded) return;
-          return res.send(fr.body);
+          cacheSet(cKey, fr.body, { provider: "openai", voiceSettings, modelId: modelForKey });
+
+          return sendAudio(res, req, { body, buf: fr.body, headers: { traceId } });
         }
 
         // fallback failed too: fall through to deterministic JSON error
@@ -778,13 +927,9 @@ async function handleTts(req, res) {
       } catch (_) {}
     }
 
-    res.status(200);
-    res.set("Content-Type", "audio/mpeg");
-    res.set("Cache-Control", "no-store");
-    res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
+    cacheSet(cKey, result.r.body, { provider: providerUsed || "elevenlabs", voiceSettings, modelId: modelForKey });
 
-    if (req.aborted || res.writableEnded) return;
-    return res.send(result.r.body);
+    return sendAudio(res, req, { body, buf: result.r.body, headers: { traceId } });
 
   } catch (e) {
     try {
