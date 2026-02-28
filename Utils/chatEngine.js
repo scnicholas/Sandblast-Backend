@@ -350,6 +350,132 @@ function detectAffectQuick(text) {
 }
 
 
+
+// -------------------------
+// Social Intelligence Patch (Phase 1) — greeting intent + mood response + follow-up hook
+// - Handles: hello/hi/hey/good morning + "how are you" + quick pleasantries
+// - Goal: prevent default-lane procedural replies on social openers
+// - Conservative: only triggers when no explicit action/payload intent is present.
+// -------------------------
+function detectSocialIntentQuick(text) {
+  const raw = safeStr(text || "");
+  const t = raw.trim().toLowerCase();
+  if (!t) return { hit: false, kind: "" };
+
+  // If user is clearly asking content (question beyond social), don't intercept.
+  // Example: "hello, what's the EPG link?" should continue to normal routing.
+  const hasQuestion = /\?/.test(t);
+
+  const howAreYou =
+    /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how\s+are\s+things|how['’]s\s+it\s+going)\b/.test(t);
+
+  const greetings =
+    /^(hi|hey|hello)\b/.test(t) ||
+    /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(t) ||
+    /\b(what['’]s\s+up|whats\s+up)\b/.test(t);
+
+  const thanks = /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(t);
+  const bye = /\b(bye|goodbye|see\s+you|later)\b/.test(t);
+
+  // If it's basically just social, allow intercept even if it's a question ("how are you?")
+  const isMostlySocial =
+    howAreYou ||
+    (greetings && !/\b(why|how\s+do\s+i|what\s+is|explain|walk\s+me\s+through)\b/.test(t));
+
+  if (bye) return { hit: true, kind: "bye", hasQuestion };
+  if (thanks && !hasQuestion) return { hit: true, kind: "thanks", hasQuestion };
+  if (howAreYou) return { hit: true, kind: "how_are_you", hasQuestion };
+  if (isMostlySocial) return { hit: true, kind: "greeting", hasQuestion };
+
+  return { hit: false, kind: "", hasQuestion };
+}
+
+function pickWarmGreetingVariant(kind, affect, emo) {
+  const emoMode = safeStr(emo?.mode || "").toUpperCase();
+  const isSoft = !!(emo && (emo.bypassClarify || emoMode === "VULNERABLE" || emoMode === "SUPPORT"));
+  const val = safeStr(affect?.valence || "").toLowerCase();
+  const tag = safeStr(affect?.tag || "").toLowerCase();
+
+  // If soft/vulnerable: keep it gentle and not overly chirpy.
+  if (isSoft) {
+    if (kind === "how_are_you") return "I’m here with you. How are you holding up today?";
+    if (kind === "thanks") return "Of course. Want to keep going, or shift to something else?";
+    if (kind === "bye") return "Anytime. Take care of yourself, okay?";
+    return "Hey. I’m here — what’s on your mind?";
+  }
+
+  // Neutral / positive / mild negative
+  if (kind === "how_are_you") {
+    if (val === "negative" || tag === "tired") return "I’m okay — and I’ve got you. How’s your day going?";
+    return "I’m doing great — thanks for asking. How’s your day going?";
+  }
+  if (kind === "thanks") return "You got it. Want a quick next step, or a deeper dive?";
+  if (kind === "bye") return "Okay — talk soon. If you need me, I’m right here.";
+  // greeting
+  if (val === "negative" || tag === "frustrated") return "Hey. You sound a bit done with today — want to unpack it or pivot to a plan?";
+  return "Hey. Good to see you. What do you want to do first?";
+}
+
+function socialFollowUps(laneHint) {
+  const lane = safeStr(laneHint || "general") || "general";
+  return [
+    { id: "si_just_talk", type: "chip", label: "Just talk", payload: { lane, action: "counsel_intro" } },
+    { id: "si_ideas", type: "chip", label: "Ideas", payload: { lane, focus: "ideas" } },
+    { id: "si_steps", type: "chip", label: "Step-by-step plan", payload: { lane, focus: "plan" } },
+    { id: "si_switch", type: "chip", label: "Switch lane", payload: { lane, action: "switch_lane" } },
+  ];
+}
+
+// -------------------------
+// Phase 2: State Spine Reinforcement (lightweight session scaffolding)
+// - Adds depth + last-intent anchors even if host forgets to persist __spineState.
+// - Never conflicts with stateSpine.js; it simply gives it better inputs.
+// -------------------------
+function computeTurnDepth(session) {
+  const s = isPlainObject(session) ? session : {};
+  const d = clampInt(s.__turnDepth || s.turnDepth || 0, 0, 0, 999);
+  return d;
+}
+
+function bumpTurnDepthPatch(session) {
+  const d = computeTurnDepth(session);
+  const next = Math.min(999, d + 1);
+  return { __turnDepth: next, turnDepth: next };
+}
+
+// -------------------------
+// Phase 3: Resilience Layer (hints only; enforcement lives in s2s/tts/host)
+// - Adds bounded retry/timeout hints + vendor health slot to cog/audio/diag.
+// -------------------------
+function applyResilienceHints(cog, session) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const s = isPlainObject(session) ? session : {};
+  const diag = isPlainObject(c.diag) ? { ...c.diag } : {};
+  const audio = isPlainObject(c.audio) ? { ...c.audio } : null;
+
+  // Host-facing defaults (safe if ignored)
+  const retry = isPlainObject(audio?.retry) ? { ...audio.retry } : {};
+  retry.max = clampInt(retry.max ?? s.__audioRetryMax ?? 1, 1, 0, 3);
+  retry.backoffMs = clampInt(retry.backoffMs ?? s.__audioRetryBackoffMs ?? 240, 240, 0, 1200);
+
+  const timeoutMs = clampInt(audio?.timeoutMs ?? s.__audioTimeoutMs ?? 8000, 8000, 1200, 20000);
+
+  const outAudio = audio ? { ...audio } : {};
+  outAudio.retry = retry;
+  outAudio.timeoutMs = timeoutMs;
+
+  // Vendor health placeholder (filled by tts.js / s2s.js if available)
+  const vendor = isPlainObject(diag.vendor) ? { ...diag.vendor } : {};
+  if (!vendor.primary) vendor.primary = safeStr(s.__ttsVendor || s.ttsVendor || "");
+  if (!vendor.health) vendor.health = isPlainObject(s.__vendorHealth) ? s.__vendorHealth : undefined;
+
+  diag.vendor = vendor;
+
+  c.audio = applyAudioInvariants(outAudio);
+  c.diag = diag;
+
+  return c;
+}
 function coerceEmotion(norm, emo) {
   // Normalize to a minimal contract used by chatEngine routing.
   const e = isPlainObject(emo) ? emo : {};
@@ -2611,6 +2737,80 @@ const session = isPlainObject(norm.body.session)
       };
     }
 
+    // -------------------------
+    // Phase 2: turn-depth anchor (always present; helps prevent default collapse)
+    // -------------------------
+    const depthPatch = bumpTurnDepthPatch(session);
+
+    // -------------------------
+    // Phase 1: Social Intelligence quick intercept
+    // - Runs AFTER inbound-loop governors, BEFORE expensive bridge/model calls.
+    // - Never triggers on explicit actions or actionable payload taps.
+    // -------------------------
+    const social = detectSocialIntentQuick(norm.text || "");
+    if (
+      social &&
+      social.hit &&
+      !safeStr(norm.action || "").trim() &&
+      !(norm.turnSignals && norm.turnSignals.payloadActionable) &&
+      !(emo && emo.bypassClarify) // if vulnerable, let support routing handle tone
+    ) {
+      const publicMode = computePublicMode(norm, session);
+      const baseLine = pickWarmGreetingVariant(social.kind, affect, emo);
+      const greetLine = computeOptionAGreetingLine(session, norm, { publicMode, mode: safeStr(norm?.payload?.macMode || "") }, inboundKey);
+      const replyRaw = (greetLine ? greetLine + " " : "") + baseLine;
+
+      const reply = applyPublicSanitization(replyRaw, norm, session, publicMode);
+
+      const sessionPatch = mergeSessionPatch(
+        {},
+        depthPatch,
+        { __greeted: true, __lastInboundKey: inboundKey, __lastSocialAt: nowMs(), lastIntent: "SOCIAL", __lastIntent: "SOCIAL" },
+        inGov ? inGov.patch : {}
+      );
+
+      const followUps = socialFollowUps(safeStr(session.lastLane || session.lane || norm.lane || "general") || "general");
+
+      const cog = applyResilienceHints(
+        {
+          intent: "ADVANCE",
+          mode: safeStr(norm?.payload?.macMode || session?.macMode || "transitional") || "transitional",
+          publicMode,
+          actionable: true,
+          route: "social_intel",
+          diag: { social: true, kind: social.kind, depth: sessionPatch.__turnDepth },
+        },
+        session
+      );
+
+      // Cache for duplicate inbound fast-return
+      sessionPatch.__cacheInSig = inboundSig;
+      sessionPatch.__cacheAt = nowMs();
+      sessionPatch.__cacheReply = reply;
+      sessionPatch.__cacheLane = safeStr(session.lastLane || session.lane || norm.lane || "general") || "general";
+      sessionPatch.__cacheFollowUps = followUps;
+
+      return {
+        ok: true,
+        reply,
+        lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        laneId: undefined,
+        sessionLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+        bridge: { bypassClarify: true, social: true, kind: social.kind, inboundSig },
+        ctx: norm.ctx,
+        ui: { chips: [], hints: [] },
+        directives: [],
+        followUps,
+        followUpsStrings: followUps.map((f) => f.label).slice(0, 6),
+        sessionPatch,
+        cog,
+        requestId: norm.requestId || `req_${nowMs()}`,
+        meta: { v: CE_VERSION, phase1: true, t: nowMs() },
+      };
+    }
+
+
+
 
     const knowledge = isPlainObject(input?.knowledge)
       ? input.knowledge
@@ -2634,7 +2834,8 @@ const session = isPlainObject(norm.body.session)
     }
 
     // ALWAYS normalize to guarantee required fields
-    const cog = normalizeCog(norm, session, cogRaw);
+    let cog = normalizeCog(norm, session, cogRaw);
+    cog = applyResilienceHints(cog, session);
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
     const emoMode = safeStr(emo?.mode || "").toUpperCase();
@@ -2795,6 +2996,9 @@ ${base0}`
       lastMacMode: safeStr(cog.mode || ""),
       lastTurnIntent: safeStr(cog.intent || ""),
       lastTurnAt: nowMs(),
+      ...depthPatch,
+      __lastIntent: safeStr(cog.intent || ""),
+      lastIntent: safeStr(cog.intent || ""),
       ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
       __lastInboundKey: inboundKey,
@@ -3111,6 +3315,9 @@ ${base0}`
 
         __greeted: false,
         __greetedAt: 0,
+
+        __turnDepth: 0,
+        turnDepth: 0,
         __lastInboundKey: "",
 
         __loopSig: "",
