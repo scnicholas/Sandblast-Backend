@@ -814,14 +814,26 @@ function resolveSocialIntent(input) {
   const isThanks = hit(SOCIAL_LEX.thanks);
   const isBye = hit(SOCIAL_LEX.bye);
 
+  // Small safety net: if tokenization misses (e.g., client didn't send tokens),
+  // allow an OPTIONAL, truncated text hint to classify basic social intents.
+  // This hint is used only for routing cues and is not persisted.
+  const __textHintRaw = safeStr(input?.textHint || f.textHint || "", 200);
+  const __textHint = __textHintRaw.trim().toLowerCase();
+
+  const hintHowAreYou = __textHint ? /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(__textHint) : false;
+  const hintGreeting = __textHint ? (/^(hi|hey|hello)\b/.test(__textHint) || /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(__textHint) || /\b(what['’]s\s+up|whats\s+up)\b/.test(__textHint)) : false;
+  const hintThanks = __textHint ? /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(__textHint) : false;
+  const hintBye = __textHint ? /\b(bye|goodbye|see\s+you|later)\b/.test(__textHint) : false;
+
+
   // Intent override only when upstream intent is empty/CLARIFY/default.
   const allowOverride = !upstreamIntent || upstreamIntent === "CLARIFY" || upstreamIntent === "NORMAL";
 
   let intent = "";
   let kind = "";
-  if (allowOverride && (isGreeting || isHowAreYou)) { intent = "GREETING"; kind = isHowAreYou ? "how_are_you" : "greeting"; }
-  else if (allowOverride && isThanks) { intent = "THANKS"; kind = "thanks"; }
-  else if (allowOverride && isBye) { intent = "GOODBYE"; kind = "goodbye"; }
+  if (allowOverride && (isGreeting || isHowAreYou || hintGreeting || hintHowAreYou)) { intent = "GREETING"; kind = (isHowAreYou || hintHowAreYou) ? "how_are_you" : "greeting"; }
+  else if (allowOverride && (isThanks || hintThanks)) { intent = "THANKS"; kind = "thanks"; }
+  else if (allowOverride && (isBye || hintBye)) { intent = "GOODBYE"; kind = "goodbye"; }
 
   return {
     intent,
