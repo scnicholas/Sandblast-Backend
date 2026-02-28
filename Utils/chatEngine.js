@@ -2747,7 +2747,21 @@ const session = isPlainObject(norm.body.session)
     // - Runs AFTER inbound-loop governors, BEFORE expensive bridge/model calls.
     // - Never triggers on explicit actions or actionable payload taps.
     // -------------------------
-    const social = detectSocialIntentQuick(norm.text || "");
+    // Social intent must run on the user's actual utterance.
+// Some clients send the text under body.message/body.prompt rather than norm.text.
+// We keep this fail-open and do NOT persist raw text; it's used only for routing precedence.
+const __userText = safeStr(
+  norm.text ||
+    norm?.body?.text ||
+    norm?.body?.message ||
+    norm?.body?.prompt ||
+    norm?.payload?.text ||
+    norm?.payload?.message ||
+    norm?.payload?.prompt ||
+    ""
+);
+
+const social = detectSocialIntentQuick(__userText);
     if (
       social &&
       social.hit &&
