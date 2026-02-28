@@ -31,12 +31,6 @@
 
 const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended)';
 
-const CE_DEBUG = (() => {
-  const v = String(process.env.CE_DEBUG || process.env.NYX_CE_DEBUG || \"\").trim().toLowerCase();
-  return v === \"1\" || v === \"true\" || v === \"yes\" || v === \"y\" || v === \"on\";
-})();
-
-
 let Spine = null;
 let MarionSO = null;
 
@@ -354,61 +348,6 @@ function detectAffectQuick(text) {
 
   return { hit: false, valence: "", tag: "" };
 }
-
-
-// -------------------------
-// Social greeting detector + reply builder (Phase 1)
-// - Prevents procedural lane prompts on simple greetings/check-ins.
-// - Uses session.lastIntent to avoid repeating the same greeting loop on turn 2.
-// -------------------------
-function isSocialGreetingText(text) {
-  const t = safeStr(text || "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!t) return false;
-  return (
-    /^(hi|hello|hey)\b/.test(t) ||
-    /\bgood\s*(morning|afternoon|evening)\b/.test(t) ||
-    /\bhow\s+are\s+you\b/.test(t) ||
-    /\bhow\s+you\s+doing\b/.test(t) ||
-    /\bhow\s+is\s+it\s+going\b/.test(t) ||
-    /\bwhat'?s\s+up\b/.test(t)
-  );
-}
-
-// Returns: { reply, kind, patch }
-function buildSocialReply(text, session) {
-  const t = safeStr(text || "").trim().toLowerCase().replace(/\s+/g, " ");
-  const s = isPlainObject(session) ? session : {};
-  const lastIntent = safeStr(s.lastIntent || s.lastTurnIntent || "").trim().toUpperCase();
-  const lastSocialAt = Number(s.__lastSocialAt || 0) || 0;
-  const recentlySocial = lastIntent === "SOCIAL_GREETING" || (lastSocialAt && (nowMs() - lastSocialAt) < 120000);
-
-  const howAreYou = /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(t);
-  const greetingOnly =
-    /^(hi|hello|hey)\b/.test(t) ||
-    /\bgood\s*(morning|afternoon|evening)\b/.test(t) ||
-    /\bwhat'?s\s+up\b/.test(t);
-
-  const kind = howAreYou ? "how_are_you" : (greetingOnly ? "greeting" : "social");
-
-  let reply;
-  if (howAreYou && recentlySocial) {
-    reply = "I’m doing well — thanks for asking. 😊 How are you feeling today, and what should we do next: Music, Movies, Roku, or Sponsors?";
-  } else if (howAreYou) {
-    reply = "Hey — I’m glad you’re here. 😊 I’m doing well. How are you feeling today?";
-  } else {
-    reply = "Hey — I’m glad you’re here. 😊 How are you feeling today?";
-  }
-
-  const patch = {
-    lastIntent: "SOCIAL_GREETING",
-    lastIntentAt: nowMs(),
-    __lastSocialAt: nowMs(),
-    __lastSocialKind: kind,
-  };
-
-  return { reply, kind, patch };
-}
-
 
 
 function coerceEmotion(norm, emo) {
@@ -1843,11 +1782,24 @@ function normalizeInbound(input) {
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-  const textRaw0 = safeStr(
-    body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
-  ).trim();
+  // Normalize user text across widget/backend variants (critical for social-intent routing)
+// NOTE: This is intentionally conservative (no evaluation of arbitrary objects).
+let __textSource = "none";
+let __rawText =
+  (typeof body.text === "string" && body.text.trim() ? (__textSource = "body.text", body.text) : "") ||
+  (typeof body.message === "string" && body.message.trim() ? (__textSource = "body.message", body.message) : "") ||
+  (typeof body.prompt === "string" && body.prompt.trim() ? (__textSource = "body.prompt", body.prompt) : "") ||
+  (typeof body.query === "string" && body.query.trim() ? (__textSource = "body.query", body.query) : "") ||
+  (typeof payload.text === "string" && payload.text.trim() ? (__textSource = "payload.text", payload.text) : "") ||
+  (typeof payload.message === "string" && payload.message.trim() ? (__textSource = "payload.message", payload.message) : "");
 
-  const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
+const textRaw0 = safeStr(__rawText || "").trim();
+
+// TEMP DEBUG: confirm which field is being read live (remove after validation)
+if (textRaw0) {
+  try { console.log("[CE][INPUT]", __textSource, textRaw0.slice(0, 120)); } catch (_) {}
+}
+const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   // action: accept payload.route as an alias (chip payloads commonly set route)
   const payloadAction = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
@@ -1925,7 +1877,7 @@ function normalizeInbound(input) {
 // -------------------------
 function mediatorMarion(norm, session) {
   const s = isPlainObject(session) ? session : {};
-  const lastIntent = safeStr(s.lastIntent || s.lastTurnIntent || "").trim().toUpperCase();
+  const lastIntent = safeStr(s.lastTurnIntent || "").trim().toUpperCase();
   const lastAt = Number(s.lastTurnAt || 0) || 0;
   const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
 
@@ -2539,23 +2491,58 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
-    if (CE_DEBUG) {
-      try {
-        console.debug("[chatEngine] inbound", {
-          text: norm.text,
-          lane: norm.lane,
-          route: norm.route,
-          action: norm.action,
-          hasPayload: !!norm.turnSignals?.hasPayload,
-          payloadKeys: Object.keys(isPlainObject(norm.payload) ? norm.payload : {}),
-          inboundKey: norm.inboundKey,
-        });
-      } catch (_e) {}
-    }
-
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
 
+
+
+// -------------------------
+// SOCIAL INTENT OVERRIDE++++ (Phase 1)
+// - MUST run before lane/default routing.
+// - Treats payload with only ambient meta (lane/year/mode/turnId/text) as NON-actionable.
+// - Prevents: "Tell me what you want next: music, movies, or sponsors." on greetings/check-ins.
+// -------------------------
+const tSocial = safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ");
+const p = isPlainObject(norm.payload) ? norm.payload : {};
+const pKeys = Object.keys(p || {});
+const hasNonAmbientPayload = pKeys.some((k) => !["lane", "year", "mode", "turnId", "text", "message", "vibe"].includes(k));
+const hasExplicitAction = !!safeStr(norm.action || "").trim();
+const socialHit =
+  !!tSocial &&
+  !hasExplicitAction &&
+  !hasNonAmbientPayload &&
+  (
+    /^(hi|hello|hey)\b/.test(tSocial) ||
+    /\bgood\s*(morning|afternoon|evening)\b/.test(tSocial) ||
+    /\bhow\s+are\s+you\b/.test(tSocial) ||
+    /\bhow\s+is\s+it\s+going\b/.test(tSocial) ||
+    /\bwhat'?s\s+up\b/.test(tSocial)
+  );
+
+if (socialHit) {
+  try { console.log("[CE][SOCIAL_OVERRIDE] hit", tSocial.slice(0, 120)); } catch (_) {}
+  const reply = "Hey — I’m doing great. 😊 How are you feeling today?";
+  return {
+    ok: true,
+    reply,
+    payload: { reply, intent: "social_greeting" },
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    bridge: { bypassClarify: true, lane: "general", action: "social_greeting", inboundKey },
+    ctx: norm.ctx,
+    ui: { chips: [], hints: ["social"] },
+    directives: [],
+    followUps: [
+      { id: "just_talk", type: "chip", label: "Just talk", payload: { action: "counsel_intro" } },
+      { id: "music", type: "chip", label: "Music", payload: { action: "music" } },
+      { id: "roku", type: "chip", label: "Roku", payload: { action: "roku" } },
+      { id: "sponsors", type: "chip", label: "Sponsors", payload: { action: "sponsors" } },
+    ],
+    followUpsStrings: ["Just talk", "Music", "Roku", "Sponsors"],
+    meta: { ce: CE_VERSION, t: started, ms: nowMs() - started },
+  };
+}
 
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
@@ -2869,9 +2856,6 @@ ${base0}`
     const baseCogPatch = {
       lastMacMode: safeStr(cog.mode || ""),
       lastTurnIntent: safeStr(cog.intent || ""),
-      // Alias (frontend guard): prefer session.lastIntent, keep lastTurnIntent for compatibility
-      lastIntent: safeStr(cog.intent || ""),
-      lastIntentAt: nowMs(),
       lastTurnAt: nowMs(),
       ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
@@ -4262,9 +4246,7 @@ const reply0 = finalizeReply(
             ? `Good — I’m glad to hear that. What’s making you feel ${safeStr(affect.tag || "good")} right now?`
             : `Okay — I hear the ${safeStr(affect.tag || "feeling")}. What’s behind it right now?`
         ) + " If you want direction, tell me the goal or tap a lane chip."
-      : (isSocialGreetingText(norm.text)
-          ? buildSocialReply(norm.text, session).reply
-          : (discoveryHint && discoveryHint.enabled
+      : (discoveryHint && discoveryHint.enabled
           ? safeStr(discoveryHint.question).trim()
           : safeStr(norm.text)
             ? "Tell me what you want next: music, movies, or sponsors."
@@ -4307,7 +4289,6 @@ const reply0 = finalizeReply(
       lane: lane || "general",
       ...(sigLine ? { lastSigTransition: sigLine } : {}),
       ...loop.patch,
-      ...(isSocialGreetingText(norm.text) ? (buildSocialReply(norm.text, session).patch) : {}),
       __spineState: coreNext,
     };
 
