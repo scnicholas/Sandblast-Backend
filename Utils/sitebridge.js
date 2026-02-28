@@ -81,7 +81,7 @@ const AIK = safeRequire("./aiKnowledge");
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.2.1";
+const BRIDGE_VERSION = "1.2.2";
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -777,6 +777,98 @@ function resolveReinforcement(affect) {
 }
 
 
+
+
+// =========================
+// PHASE 1–3: SOCIAL INTENT + STATE HINTS (NO RAW USER TEXT)
+// =========================
+//
+// Phase 1 (Social Intelligence Patch):
+//  - SiteBridge does NOT see raw user text. It can only infer "social intent" from SAFE tokens/features.
+//  - We emit intent/tone/ui/response cues as hints so ChatEngine can choose a greeting/ack response.
+//
+// Phase 2 (State Spine Reinforcement):
+//  - We echo bounded "state hints" derived from features (turn depth, last intent) to help hosts/debugging.
+//
+// Phase 3 (Resilience Layer):
+//  - We expose bounded retry/timeout hints under diag/audio if upstream provides them via features/opts.
+
+const SOCIAL_LEX = Object.freeze({
+  greeting: ["hello","hi","hey","good_morning","goodmorning","good_afternoon","goodafternoon","good_evening","goodevening"],
+  howareyou: ["how_are_you","howareyou","how_you_doing","howru","hru","how_is_it_going","howitsgoing"],
+  thanks: ["thanks","thank_you","thx","appreciate_it","appreciate"],
+  bye: ["bye","goodbye","see_you","cya","talk_later","later","take_care"],
+});
+
+function resolveSocialIntent(input) {
+  const f = isObject(input?.features) ? input.features : {};
+  const tokens = Array.isArray(input?.tokens) ? input.tokens : [];
+  const tset = toTokenSet(tokens);
+
+  // Upstream explicit intent wins if set to something concrete (but we still tag social cues).
+  const upstreamIntent = safeStr(f.intent || "", 24).toUpperCase();
+
+  const hit = (arr) => arr.some((k) => tset.has(k));
+  const isGreeting = hit(SOCIAL_LEX.greeting);
+  const isHowAreYou = hit(SOCIAL_LEX.howareyou);
+  const isThanks = hit(SOCIAL_LEX.thanks);
+  const isBye = hit(SOCIAL_LEX.bye);
+
+  // Intent override only when upstream intent is empty/CLARIFY/default.
+  const allowOverride = !upstreamIntent || upstreamIntent === "CLARIFY" || upstreamIntent === "NORMAL";
+
+  let intent = "";
+  let kind = "";
+  if (allowOverride && (isGreeting || isHowAreYou)) { intent = "GREETING"; kind = isHowAreYou ? "how_are_you" : "greeting"; }
+  else if (allowOverride && isThanks) { intent = "THANKS"; kind = "thanks"; }
+  else if (allowOverride && isBye) { intent = "GOODBYE"; kind = "goodbye"; }
+
+  return {
+    intent,
+    kind,
+    isGreeting,
+    isHowAreYou,
+    isThanks,
+    isBye,
+  };
+}
+
+function resolveStateHints(features) {
+  const f = isObject(features) ? features : {};
+  const turnDepth = clampInt(f.__turnDepth ?? f.turnDepth ?? f.depth ?? 0, 0, 40, 0);
+  const lastIntent = safeStr(f.__lastIntent ?? f.lastIntent ?? "", 24).toUpperCase();
+  const lastLane = safeStr(f.lastLane ?? f.lane ?? f.activeLane ?? "", 32).toLowerCase();
+
+  const hints = {
+    turnDepth,
+    lastIntent,
+    lastLane,
+  };
+
+  // prune empties
+  if (!hints.lastIntent) delete hints.lastIntent;
+  if (!hints.lastLane) delete hints.lastLane;
+
+  return hints;
+}
+
+function resolveResilienceHints(features, opts) {
+  const f = isObject(features) ? features : {};
+  const o = isObject(opts) ? opts : {};
+
+  const retryCap = clampInt(o.retryCap ?? f.retryCap ?? f.__retryCap ?? 0, 0, 5, 0);
+  const timeoutMs = clampInt(o.timeoutMs ?? f.timeoutMs ?? f.__timeoutMs ?? 0, 0, 20000, 0);
+  const vendor = safeStr(o.vendor ?? f.vendor ?? f.__vendor ?? "", 24).toLowerCase();
+  const vendorHealth = safeStr(o.vendorHealth ?? f.vendorHealth ?? f.__vendorHealth ?? "", 24).toLowerCase();
+
+  const out = {};
+  if (retryCap) out.retryCap = retryCap;
+  if (timeoutMs) out.timeoutMs = timeoutMs;
+  if (vendor) out.vendor = vendor;
+  if (vendorHealth) out.vendorHealth = vendorHealth;
+
+  return out;
+}
 function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
@@ -800,6 +892,9 @@ function finalizeContract(out) {
     reinforcement: isObject(o.reinforcement)
       ? o.reinforcement
       : resolveReinforcement(isObject(o.affect) ? o.affect : resolveAffect({ tokens: [], features: {} })),
+
+    stateHints: isObject(o.stateHints) ? resolveStateHints(o.stateHints) : undefined,
+    resilience: isObject(o.resilience) ? o.resilience : undefined,
 
     // phases 1–5: objects are bounded by resolvers
     tempo: isObject(o.tempo)
@@ -906,9 +1001,13 @@ function build(input) {
     const regulation = resolveRegulation(features, domains.psychology, tokens);
     const mode = resolveMode(regulation);
 
-    const intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
+    let intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
     const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
+
+// Phase 1: Social intent inference (SAFE tokens/features only)
+const social = resolveSocialIntent({ features, tokens });
+if (social.intent) intent = social.intent;
 
     // global merges (deterministic, precedence)
     const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
@@ -940,6 +1039,17 @@ function build(input) {
     } else {
       toneCues.push("clear", "supportive");
     }
+
+// Phase 1: If social intent detected, bias toward warmth + follow-up hooks (host may render chips)
+if (social && social.intent) {
+  responseCues.unshift("social_intent", "acknowledge_then_followup");
+  if (social.intent === "GREETING") responseCues.unshift("social_greeting");
+  if (social.intent === "THANKS") responseCues.unshift("social_thanks");
+  if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
+  toneCues.unshift("warm", "friendly");
+  uiCues.unshift("show_social_followup");
+}
+
 
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
@@ -975,11 +1085,7 @@ function build(input) {
     const reinforcement = resolveReinforcement(affect);
     try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
 
-    const affect = resolveAffect(ctx);
-    const reinforcement = resolveReinforcement(affect);
-    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
-
-    return finalizeContract({
+return finalizeContract({
       version: BRIDGE_VERSION,
       queryKey,
       sessionKey,
@@ -1006,6 +1112,8 @@ function build(input) {
 
       confidence,
       diag,
+      stateHints: resolveStateHints(features),
+      resilience: resolveResilienceHints(features, opts),
     });
   } catch (e) {
     return failOpenPsyche(e, input);
@@ -1063,9 +1171,13 @@ async function buildAsync(input) {
     const regulation = resolveRegulation(features, domains.psychology, tokens);
     const mode = resolveMode(regulation);
 
-    const intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
+    let intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
     const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
+
+// Phase 1: Social intent inference (SAFE tokens/features only)
+const social = resolveSocialIntent({ features, tokens });
+if (social.intent) intent = social.intent;
 
     const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
     const responseCuesBase = mergeByPrecedence(domains, "responseCues", LIMITS.responseCues, 48);
@@ -1093,6 +1205,17 @@ async function buildAsync(input) {
       toneCues.push("clear", "supportive");
     }
 
+// Phase 1: If social intent detected, bias toward warmth + follow-up hooks (host may render chips)
+if (social && social.intent) {
+  responseCues.unshift("social_intent", "acknowledge_then_followup");
+  if (social.intent === "GREETING") responseCues.unshift("social_greeting");
+  if (social.intent === "THANKS") responseCues.unshift("social_thanks");
+  if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
+  toneCues.unshift("warm", "friendly");
+  uiCues.unshift("show_social_followup");
+}
+
+
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
     if (responseCues.includes("keep_short")) uiCues.push("compact_reply");
@@ -1117,6 +1240,10 @@ async function buildAsync(input) {
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
       async: true,
     };
+
+    const affect = resolveAffect(ctx);
+    const reinforcement = resolveReinforcement(affect);
+    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
 
     return finalizeContract({
       version: BRIDGE_VERSION,
@@ -1145,6 +1272,8 @@ async function buildAsync(input) {
 
       confidence,
       diag,
+      stateHints: resolveStateHints(features),
+      resilience: resolveResilienceHints(features, opts),
     });
   } catch (e) {
     return failOpenPsyche(e, input);
