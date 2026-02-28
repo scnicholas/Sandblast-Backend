@@ -350,132 +350,6 @@ function detectAffectQuick(text) {
 }
 
 
-
-// -------------------------
-// Social Intelligence Patch (Phase 1) — greeting intent + mood response + follow-up hook
-// - Handles: hello/hi/hey/good morning + "how are you" + quick pleasantries
-// - Goal: prevent default-lane procedural replies on social openers
-// - Conservative: only triggers when no explicit action/payload intent is present.
-// -------------------------
-function detectSocialIntentQuick(text) {
-  const raw = safeStr(text || "");
-  const t = raw.trim().toLowerCase();
-  if (!t) return { hit: false, kind: "" };
-
-  // If user is clearly asking content (question beyond social), don't intercept.
-  // Example: "hello, what's the EPG link?" should continue to normal routing.
-  const hasQuestion = /\?/.test(t);
-
-  const howAreYou =
-    /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how\s+are\s+things|how['’]s\s+it\s+going)\b/.test(t);
-
-  const greetings =
-    /^(hi|hey|hello)\b/.test(t) ||
-    /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(t) ||
-    /\b(what['’]s\s+up|whats\s+up)\b/.test(t);
-
-  const thanks = /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(t);
-  const bye = /\b(bye|goodbye|see\s+you|later)\b/.test(t);
-
-  // If it's basically just social, allow intercept even if it's a question ("how are you?")
-  const isMostlySocial =
-    howAreYou ||
-    (greetings && !/\b(why|how\s+do\s+i|what\s+is|explain|walk\s+me\s+through)\b/.test(t));
-
-  if (bye) return { hit: true, kind: "bye", hasQuestion };
-  if (thanks && !hasQuestion) return { hit: true, kind: "thanks", hasQuestion };
-  if (howAreYou) return { hit: true, kind: "how_are_you", hasQuestion };
-  if (isMostlySocial) return { hit: true, kind: "greeting", hasQuestion };
-
-  return { hit: false, kind: "", hasQuestion };
-}
-
-function pickWarmGreetingVariant(kind, affect, emo) {
-  const emoMode = safeStr(emo?.mode || "").toUpperCase();
-  const isSoft = !!(emo && (emo.bypassClarify || emoMode === "VULNERABLE" || emoMode === "SUPPORT"));
-  const val = safeStr(affect?.valence || "").toLowerCase();
-  const tag = safeStr(affect?.tag || "").toLowerCase();
-
-  // If soft/vulnerable: keep it gentle and not overly chirpy.
-  if (isSoft) {
-    if (kind === "how_are_you") return "I’m here with you. How are you holding up today?";
-    if (kind === "thanks") return "Of course. Want to keep going, or shift to something else?";
-    if (kind === "bye") return "Anytime. Take care of yourself, okay?";
-    return "Hey. I’m here — what’s on your mind?";
-  }
-
-  // Neutral / positive / mild negative
-  if (kind === "how_are_you") {
-    if (val === "negative" || tag === "tired") return "I’m okay — and I’ve got you. How’s your day going?";
-    return "I’m doing great — thanks for asking. How’s your day going?";
-  }
-  if (kind === "thanks") return "You got it. Want a quick next step, or a deeper dive?";
-  if (kind === "bye") return "Okay — talk soon. If you need me, I’m right here.";
-  // greeting
-  if (val === "negative" || tag === "frustrated") return "Hey. You sound a bit done with today — want to unpack it or pivot to a plan?";
-  return "Hey. Good to see you. What do you want to do first?";
-}
-
-function socialFollowUps(laneHint) {
-  const lane = safeStr(laneHint || "general") || "general";
-  return [
-    { id: "si_just_talk", type: "chip", label: "Just talk", payload: { lane, action: "counsel_intro" } },
-    { id: "si_ideas", type: "chip", label: "Ideas", payload: { lane, focus: "ideas" } },
-    { id: "si_steps", type: "chip", label: "Step-by-step plan", payload: { lane, focus: "plan" } },
-    { id: "si_switch", type: "chip", label: "Switch lane", payload: { lane, action: "switch_lane" } },
-  ];
-}
-
-// -------------------------
-// Phase 2: State Spine Reinforcement (lightweight session scaffolding)
-// - Adds depth + last-intent anchors even if host forgets to persist __spineState.
-// - Never conflicts with stateSpine.js; it simply gives it better inputs.
-// -------------------------
-function computeTurnDepth(session) {
-  const s = isPlainObject(session) ? session : {};
-  const d = clampInt(s.__turnDepth || s.turnDepth || 0, 0, 0, 999);
-  return d;
-}
-
-function bumpTurnDepthPatch(session) {
-  const d = computeTurnDepth(session);
-  const next = Math.min(999, d + 1);
-  return { __turnDepth: next, turnDepth: next };
-}
-
-// -------------------------
-// Phase 3: Resilience Layer (hints only; enforcement lives in s2s/tts/host)
-// - Adds bounded retry/timeout hints + vendor health slot to cog/audio/diag.
-// -------------------------
-function applyResilienceHints(cog, session) {
-  const c = isPlainObject(cog) ? { ...cog } : {};
-  const s = isPlainObject(session) ? session : {};
-  const diag = isPlainObject(c.diag) ? { ...c.diag } : {};
-  const audio = isPlainObject(c.audio) ? { ...c.audio } : null;
-
-  // Host-facing defaults (safe if ignored)
-  const retry = isPlainObject(audio?.retry) ? { ...audio.retry } : {};
-  retry.max = clampInt(retry.max ?? s.__audioRetryMax ?? 1, 1, 0, 3);
-  retry.backoffMs = clampInt(retry.backoffMs ?? s.__audioRetryBackoffMs ?? 240, 240, 0, 1200);
-
-  const timeoutMs = clampInt(audio?.timeoutMs ?? s.__audioTimeoutMs ?? 8000, 8000, 1200, 20000);
-
-  const outAudio = audio ? { ...audio } : {};
-  outAudio.retry = retry;
-  outAudio.timeoutMs = timeoutMs;
-
-  // Vendor health placeholder (filled by tts.js / s2s.js if available)
-  const vendor = isPlainObject(diag.vendor) ? { ...diag.vendor } : {};
-  if (!vendor.primary) vendor.primary = safeStr(s.__ttsVendor || s.ttsVendor || "");
-  if (!vendor.health) vendor.health = isPlainObject(s.__vendorHealth) ? s.__vendorHealth : undefined;
-
-  diag.vendor = vendor;
-
-  c.audio = applyAudioInvariants(outAudio);
-  c.diag = diag;
-
-  return c;
-}
 function coerceEmotion(norm, emo) {
   // Normalize to a minimal contract used by chatEngine routing.
   const e = isPlainObject(emo) ? emo : {};
@@ -491,54 +365,26 @@ function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
   const keys = Object.keys(payload);
   if (!keys.length) return false;
-
   // Coherent with stateSpine.hasActionablePayload
+  // NOTE: payloads often include ambient metadata (lane/mode/vibe/turnId) on every call.
+  // Those should NOT block social-intent intercepts. We treat ONLY explicit user commands as actionable.
   const actionable = new Set([
     "action",
     "route",
-    "year",
+    "year", // year picker is actionable even without explicit action
     "id",
     "_id",
     "label",
-    "lane",
-    "vibe",
-    "macMode",
-    "mode",
+    "chip",
+    "choice",
+    "tag",
+    "focus",
     "allowDerivedTop10",
     "allowYearendFallback",
-    "focus",
     "publicMode",
   ]);
   return keys.some((k) => actionable.has(k));
 }
-
-
-// Determines whether a payload is "ambient metadata" only (safe to ignore for intent precedence).
-// Many clients send {lane,year,mode,turnId,...} on every call; that should NOT block social-intent intercept.
-function isAmbientMetaPayload(payload) {
-  if (!isPlainObject(payload)) return true;
-  const keys = Object.keys(payload);
-  if (!keys.length) return true;
-
-  const allowed = new Set([
-    "lane",
-    "laneId",
-    "sessionLane",
-    "year",
-    "mode",
-    "macMode",
-    "vibe",
-    "turnId",
-    "publicMode",
-    "public",
-    "client",
-    "device",
-    "platform",
-  ]);
-
-  return keys.every((k) => allowed.has(k));
-}
-
 
 // Consistent merge: base FIRST, then route overrides AFTER.
 // (In reset, we still intentionally override base with hard reset flags.)
@@ -1936,9 +1782,17 @@ function normalizeInbound(input) {
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-  const textRaw0 = safeStr(
-    body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
-  ).trim();
+    // Input normalization (clean + safe): support multiple client field names.
+  // IMPORTANT: some widgets always include payload metadata; we still treat the user's message as body.text first.
+  let __inputField = "";
+  let __raw = "";
+  if (safeStr(body.text).trim()) { __inputField = "body.text"; __raw = body.text; }
+  else if (safeStr(body.message).trim()) { __inputField = "body.message"; __raw = body.message; }
+  else if (safeStr(body.prompt).trim()) { __inputField = "body.prompt"; __raw = body.prompt; }
+  else if (safeStr(body.query).trim()) { __inputField = "body.query"; __raw = body.query; }
+  else if (safeStr(payload.text).trim()) { __inputField = "payload.text"; __raw = payload.text; }
+  else if (safeStr(payload.message).trim()) { __inputField = "payload.message"; __raw = payload.message; }
+  const textRaw0 = safeStr(__raw).trim();
 
   const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
@@ -1999,6 +1853,7 @@ function normalizeInbound(input) {
     macModeWhy: implicit.why || [],
     turnIntent,
     turnSignals: {
+      inputField: __inputField,
       hasPayload,
       payloadActionable,
       payloadAction: payloadAction || "",
@@ -2632,6 +2487,13 @@ async function handleChat(input) {
   try {
     const norm = normalizeInbound(input);
 
+    // DEBUG (temporary): confirm which inbound field provided the user text (remove once verified)
+    try {
+      const _f = norm?.turnSignals?.inputField || "";
+      const _t = safeStr(norm?.text || "").slice(0, 140);
+      console.log("[CE][INPUT]", _f, _t);
+    } catch (_e) {}
+
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
 
@@ -2701,6 +2563,63 @@ const session = isPlainObject(norm.body.session)
       : {};
 
     // -------------------------
+    // Phase 1 (minimal): Social opener intercept (greeting / how-are-you)
+    // - Prevents procedural lane prompts on basic social openers.
+    // - CLEAN + SAFE: triggers only when no explicit action was inferred and payload is not explicitly actionable.
+    // - DEBUG: we already log inbound field at the top of handleChat.
+    // -------------------------
+    const _socialText = safeStr(norm.text || "").trim();
+    const _t = _socialText.toLowerCase();
+    const _payloadActionable = !!(norm.turnSignals && norm.turnSignals.payloadActionable);
+    const _hasExplicitAction = !!safeStr(norm.action || "").trim();
+    const _isSocial =
+      /^(hi|hey|hello)\b/.test(_t) ||
+      /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(_t) ||
+      /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(_t) ||
+      /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(_t) ||
+      /\b(bye|goodbye|see\s+you|talk\s+soon|later)\b/.test(_t);
+
+    if (_isSocial && !_hasExplicitAction && !_payloadActionable && !(emo && emo.bypassClarify)) {
+      const publicMode = computePublicMode(norm, session || {});
+      let base = "Hey. Good to see you. What do you want to do first?";
+      if (/\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(_t)) {
+        base = "I’m doing great — thanks for asking. How’s your day going?";
+      } else if (/\b(good\s+morning)\b/.test(_t)) {
+        base = "Good morning. How are you feeling today?";
+      } else if (/\b(thanks|thank\s+you|appreciate\s+it)\b/.test(_t)) {
+        base = "You got it. Want to keep going, or switch gears?";
+      } else if (/\b(bye|goodbye|see\s+you|talk\s+soon|later)\b/.test(_t)) {
+        base = "Anytime. Talk soon.";
+      }
+
+      const reply = applyPublicSanitization(base, norm, session || {}, publicMode);
+
+      const sessionPatch = mergeSessionPatch(
+        {},
+        { __greeted: true, __lastInboundKey: inboundKey, __lastSocialAt: nowMs(), lastIntent: "SOCIAL", __lastIntent: "SOCIAL" }
+      );
+
+      return {
+        ok: true,
+        reply,
+        lane: safeStr((session && (session.lastLane || session.lane)) || norm.lane || "general") || "general",
+        laneId: undefined,
+        sessionLane: safeStr((session && (session.lastLane || session.lane)) || norm.lane || "general") || "general",
+        bridge: { bypassClarify: true, social: true },
+        ctx: norm.ctx,
+        ui: { chips: [], hints: [] },
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch,
+        cog: applyResilienceHints({ intent: "ADVANCE", route: "social_intel", publicMode, actionable: true }, session || {}),
+        requestId: pickRequestId(input, inboundKey),
+        meta: { social: true },
+      };
+    }
+
+
+    // -------------------------
     // BRUTAL INBOUND LOOP GOVERNOR++++
     // - Stops repeat-inbound spirals even when the model output varies slightly.
     // - Fast-returns cached reply for duplicate submits within a short window.
@@ -2765,80 +2684,6 @@ const session = isPlainObject(norm.body.session)
       };
     }
 
-    // -------------------------
-    // Phase 2: turn-depth anchor (always present; helps prevent default collapse)
-    // -------------------------
-    const depthPatch = bumpTurnDepthPatch(session);
-
-    // -------------------------
-    // Phase 1: Social Intelligence quick intercept
-    // - Runs AFTER inbound-loop governors, BEFORE expensive bridge/model calls.
-    // - Never triggers on explicit actions or actionable payload taps.
-    // -------------------------
-    const social = detectSocialIntentQuick(norm.text || "");
-    if (
-      social &&
-      social.hit &&
-      !safeStr(norm.action || "").trim() &&
-      !(norm.turnSignals && norm.turnSignals.payloadActionable && !isAmbientMetaPayload(norm.payload)) &&
-      !(emo && emo.bypassClarify) // if vulnerable, let support routing handle tone
-    ) {
-      const publicMode = computePublicMode(norm, session);
-      const baseLine = pickWarmGreetingVariant(social.kind, affect, emo);
-      const greetLine = computeOptionAGreetingLine(session, norm, { publicMode, mode: safeStr(norm?.payload?.macMode || "") }, inboundKey);
-      const replyRaw = (greetLine ? greetLine + " " : "") + baseLine;
-
-      const reply = applyPublicSanitization(replyRaw, norm, session, publicMode);
-
-      const sessionPatch = mergeSessionPatch(
-        {},
-        depthPatch,
-        { __greeted: true, __lastInboundKey: inboundKey, __lastSocialAt: nowMs(), lastIntent: "SOCIAL", __lastIntent: "SOCIAL" },
-        inGov ? inGov.patch : {}
-      );
-
-      const followUps = socialFollowUps(safeStr(session.lastLane || session.lane || norm.lane || "general") || "general");
-
-      const cog = applyResilienceHints(
-        {
-          intent: "ADVANCE",
-          mode: safeStr(norm?.payload?.macMode || session?.macMode || "transitional") || "transitional",
-          publicMode,
-          actionable: true,
-          route: "social_intel",
-          diag: { social: true, kind: social.kind, depth: sessionPatch.__turnDepth },
-        },
-        session
-      );
-
-      // Cache for duplicate inbound fast-return
-      sessionPatch.__cacheInSig = inboundSig;
-      sessionPatch.__cacheAt = nowMs();
-      sessionPatch.__cacheReply = reply;
-      sessionPatch.__cacheLane = safeStr(session.lastLane || session.lane || norm.lane || "general") || "general";
-      sessionPatch.__cacheFollowUps = followUps;
-
-      return {
-        ok: true,
-        reply,
-        lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
-        laneId: undefined,
-        sessionLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
-        bridge: { bypassClarify: true, social: true, kind: social.kind, inboundSig },
-        ctx: norm.ctx,
-        ui: { chips: [], hints: [] },
-        directives: [],
-        followUps,
-        followUpsStrings: followUps.map((f) => f.label).slice(0, 6),
-        sessionPatch,
-        cog,
-        requestId: norm.requestId || `req_${nowMs()}`,
-        meta: { v: CE_VERSION, phase1: true, t: nowMs() },
-      };
-    }
-
-
-
 
     const knowledge = isPlainObject(input?.knowledge)
       ? input.knowledge
@@ -2862,8 +2707,7 @@ const session = isPlainObject(norm.body.session)
     }
 
     // ALWAYS normalize to guarantee required fields
-    let cog = normalizeCog(norm, session, cogRaw);
-    cog = applyResilienceHints(cog, session);
+    const cog = normalizeCog(norm, session, cogRaw);
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
     const emoMode = safeStr(emo?.mode || "").toUpperCase();
@@ -3024,9 +2868,6 @@ ${base0}`
       lastMacMode: safeStr(cog.mode || ""),
       lastTurnIntent: safeStr(cog.intent || ""),
       lastTurnAt: nowMs(),
-      ...depthPatch,
-      __lastIntent: safeStr(cog.intent || ""),
-      lastIntent: safeStr(cog.intent || ""),
       ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
       __lastInboundKey: inboundKey,
@@ -3343,9 +3184,6 @@ ${base0}`
 
         __greeted: false,
         __greetedAt: 0,
-
-        __turnDepth: 0,
-        turnDepth: 0,
         __lastInboundKey: "",
 
         __loopSig: "",
