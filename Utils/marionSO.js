@@ -23,7 +23,21 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.5";
+const MARION_VERSION = "marionSO v1.2.6";
+const PHASE10_PLAN = Object.freeze([
+  // Phase 1–3 already in play: Social Intelligence Patch, State Spine Reinforcement, Resilience Layer
+  "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
+  "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
+  "P6: Deterministic intent stabilizer (anti-loop: STABILIZE/CLARIFY separation + ask-vs-deliver gates)",
+  "P7: Prompt hygiene contract (no raw user text in traces; trace hashes only; bounded tags)",
+  "P8: Session patch hardening (idempotent sessionPatch + safe defaults + schema versioning)",
+  "P9: Vendor health mapping hooks (surface provider + timeout class + retry caps)",
+  "P10: Latency observability hints (marionMetrics: cpuMs, gateBudgetMs, clampedBytes)",
+  "P11: Privacy-min memory scaffolding (opt-in, retention policy hooks, PII minimization)",
+  "P12: Cross-lane governance (chip-lane lock + limited cross-lane exceptions + audit tags)",
+  "P13: Fallback response templates (support/clarify/retry templates when upstream LLM fails)"
+]);
+
 const SO_VERSION = MARION_VERSION;
 const version = MARION_VERSION;
 
@@ -179,6 +193,52 @@ function safeSerialize(x, max = 1200) {
     return safeStr(String(x), max);
   }
 }
+
+// -------------------------
+// Resilience helpers (Phase 3+ and Phase 10 additive guards)
+// -------------------------
+function safeCall(fn, fallbackValue) {
+  try {
+    if (typeof fn !== "function") return fallbackValue;
+    return fn();
+  } catch (_e) {
+    return fallbackValue;
+  }
+}
+function safeObj(x) {
+  return isPlainObject(x) ? x : {};
+}
+function safeArr(x) {
+  return Array.isArray(x) ? x : [];
+}
+function approxBytes(x) {
+  // rough size estimator to prevent oversized bridge envelopes
+  try {
+    if (x === null || x === undefined) return 0;
+    if (typeof x === "string") return x.length;
+    return JSON.stringify(x).length;
+  } catch (_e) {
+    return 0;
+  }
+}
+function clampBytesObject(obj, maxBytes) {
+  const o = safeObj(obj);
+  const cap = Number(maxBytes || 0) || 0;
+  if (!cap) return o;
+  if (approxBytes(o) <= cap) return o;
+  // fail-open: drop heavy subtrees
+  const out = { ...o };
+  if (out.domains) delete out.domains;
+  if (out.packs) delete out.packs;
+  if (out.knowledge) delete out.knowledge;
+  if (approxBytes(out) > cap) {
+    // last resort: keep only a minimal envelope
+    return { enabled: o.enabled !== false, reason: "clamped_bytes" };
+  }
+  return out;
+}
+
+
 // -------------------------
 // Emotion lexicon (bounded, non-clinical; used for tempo + risk + psych cues)
 // NOTE: This is NOT diagnosis. It's a lightweight affect detector for better UX.
@@ -3150,6 +3210,11 @@ function mediate(norm, session, opts = {}) {
       intent = "STABILIZE";
     }
 
+    // Phase 10 guard: when the user is distressed, keep Marion fast and simple.
+    // Default behavior: disable SiteBridge/PsycheBridge enrichment on distress to prevent payload bloat and reduce timeout risk.
+    const distressSignal = !!(_distress || _selfHarm);
+    const disableBridgeOnDistress = distressSignal && (o.disableBridgeOnDistress === undefined ? true : !!o.disableBridgeOnDistress);
+
 
     const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
     const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
@@ -3364,9 +3429,13 @@ try {
     // =========================
     // KNOWLEDGE: PsycheBridge first (option 2)
     // =========================
-    const psyche = gate.ok() && !(o.disablePsycheBridge || o.disableBridge) ? callPsycheBridge(n, s, cog, opts) : null;
+    const psyche = gate.ok() && !(o.disablePsycheBridge || o.disableBridge) && !disableBridgeOnDistress ? callPsycheBridge(n, s, cog, opts) : null;
     if (!psyche && !gate.ok()) {
       cog.psyche = { enabled: false, reason: "cpu_budget" };
+    }
+    if (!psyche && disableBridgeOnDistress) {
+      cog.psyche = { enabled: false, reason: "distress_short_circuit" };
+      cog.siteBridge = { enabled: false, reason: "distress_short_circuit" };
     }
     if (psyche && psyche.enabled) {
       cog.psyche = psyche;
@@ -3643,6 +3712,7 @@ module.exports = {
   MARION_VERSION,
   SO_VERSION,
   version,
+  PHASE10_PLAN,
   LATENT_DESIRE,
   MARION_STYLE_CONTRACT,
   PSYCH,
