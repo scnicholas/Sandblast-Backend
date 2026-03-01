@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.7-opintel";
+const MARION_VERSION = "marionSO v1.2.8-opintel++";
 const PHASE10_PLAN = Object.freeze([
   // Phase 1–3 already in play: Social Intelligence Patch, State Spine Reinforcement, Resilience Layer
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -35,7 +35,12 @@ const PHASE10_PLAN = Object.freeze([
   "P10: Latency observability hints (marionMetrics: cpuMs, gateBudgetMs, clampedBytes)",
   "P11: Privacy-min memory scaffolding (opt-in, retention policy hooks, PII minimization)",
   "P12: Cross-lane governance (chip-lane lock + limited cross-lane exceptions + audit tags)",
-  "P13: Fallback response templates (support/clarify/retry templates when upstream LLM fails)"
+  "P13: Fallback response templates (support/clarify/retry templates when upstream LLM fails)",
+  "P14: Trace-id propagation (requestId/turnId/traceId through bridge envelopes)",
+  "P15: Bridge drift guard (payload lane lock supersedes inferred lane)",
+  "P16: Assumption + contradiction flags (bias toward CLARIFY instead of hallucinating)",
+  "P17: Unresolved thread tagging (carry open threads in opPackage for state spine)",
+  "P18: Contract conformance check (ensure cog fields match engine expectations)"
 ]);
 
 const SO_VERSION = MARION_VERSION;
@@ -413,6 +418,12 @@ function buildOperationalPackage(norm, session, cog, metrics) {
   const recommendedActions = clampStringArray(c.recommendedActions || [], 6, 160);
   const assumptions = clampStringArray(c.assumptions || [], 6, 140);
 
+  // OPINTEL++++ (P16): if we need clarification, record the gap explicitly (audit-safe)
+  if (c.needsClarify) {
+    assumptions.push("missing_key_detail");
+    decisionTags.push("needs:clarify");
+  }
+
   // Minimal "ops summary" for audit without raw text
   const summary = safeStr(c.marionReason || c.laneReason || intent || "", 120);
 
@@ -423,6 +434,7 @@ function buildOperationalPackage(norm, session, cog, metrics) {
     keyFindings,
     recommendedActions,
     assumptions,
+    unresolvedThreads: clampStringArray(c.unresolvedThreads || [], 6, 120),
     risks: clampStringArray(risks, 8, 64),
     confidenceScore,
     operationalWeight: opWeight,
@@ -2812,7 +2824,7 @@ function callPsycheBridge(norm, session, cog, opts) {
           tokens: input.tokens,
           queryKey: input.queryKey,
           sessionKey,
-          opts: bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
+          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts), requestId, turnId, traceId, inputSig },
         });
       } else if (typeof SiteBridge.buildPsyche === "function") {
         out = SiteBridge.buildPsyche({
@@ -2820,7 +2832,7 @@ function callPsycheBridge(norm, session, cog, opts) {
           tokens: input.tokens,
           queryKey: input.queryKey,
           sessionKey,
-          opts: bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
+          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
         });
       }
     }
@@ -3270,6 +3282,17 @@ function mediate(norm, session, opts = {}) {
     const n0 = isPlainObject(norm) ? norm : {};
     const o = isPlainObject(opts) ? opts : {};
 
+    // OPINTEL++++: enterprise trace ids (no raw text stored)
+    const requestId = safeStr(o.requestId || "", 64).trim();
+    const turnId = safeStr(o.turnId || "", 64).trim();
+    const traceId = safeStr(o.traceId || requestId || "", 64).trim();
+    const inputSig =
+      safeStr(o.inputSig || "", 64).trim() ||
+      sha1Lite(`${safeStr(n0.text || "", 420)}|${readPayloadLane(n0)}|${safeSerialize(n0.payload || {}, 240)}`).slice(0, 18);
+
+    // Lane lock from UI payload (prevents bridge drift)
+    const payloadLaneLock = readPayloadLane(n0);
+
     const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
     const now = Number(clockNow()) || nowMsDefault();
 
@@ -3473,6 +3496,10 @@ function mediate(norm, session, opts = {}) {
 
     let cog = {
       marionVersion: MARION_VERSION,
+      requestId,
+      turnId,
+      traceId,
+      inputSig,
 
       mode,
       intent,
@@ -3653,6 +3680,15 @@ try {
     cog.crossLaneAllowed = !!routing.crossLaneAllowed;
     cog.lanesUsed = Array.isArray(routing.lanesUsed) ? routing.lanesUsed : [];
     cog.lanesAvailable = Array.isArray(routing.lanesAvailable) ? routing.lanesAvailable : LANES_AVAILABLE;
+
+    // OPINTEL++++ (P15): payload lane lock supersedes inferred routing to prevent bridge drift
+    if (payloadLaneLock && payloadLaneLock !== cog.effectiveLane) {
+      cog.decisionTags = uniqBounded([...(safeArr(cog.decisionTags)), "bridge:drift_guard", `lane_lock:${payloadLaneLock}`], 10);
+      cog.bridgeDriftGuard = true;
+      cog.effectiveLane = payloadLaneLock;
+      cog.crossLaneAllowed = laneCrossAllowedByDefault(payloadLaneLock);
+      cog.lanesUsed = clampLaneExperts([payloadLaneLock], 3);
+    }
     cog.laneExpertReason = safeStr(routing.reason || "", 24);
 
     // ---------
