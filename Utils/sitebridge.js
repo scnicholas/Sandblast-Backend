@@ -77,11 +77,46 @@ const FinanceK = safeRequire("./financeKnowledge");
 const LawK = safeRequire("./lawKnowledge");
 const AIK = safeRequire("./aiKnowledge");
 
+
+// =========================
+// OPINTEL HELPERS (HASHING + BOUNDED TRACE)
+// =========================
+
+let _crypto = null;
+try {
+  // eslint-disable-next-line global-require
+  _crypto = require("crypto");
+} catch (_e) {
+  _crypto = null;
+}
+
+function hash12(s) {
+  try {
+    const str = String(s || "");
+    if (_crypto && _crypto.createHash) {
+      return _crypto.createHash("sha256").update(str).digest("hex").slice(0, 12);
+    }
+    // fallback (non-crypto): stable but not secure
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return ("000000000000" + (h >>> 0).toString(16)).slice(-12);
+  } catch (_e) {
+    return "000000000000";
+  }
+}
+
+
 // =========================
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.2.2";
+const BRIDGE_VERSION = "1.3.0-opintel";
+
+const OPINTEL_SCHEMA = "oi:1.0";
+const OPINTEL_TRACE_SCHEMA = "trace:1.0";
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -94,6 +129,11 @@ const LIMITS = Object.freeze({
   domainAtoms: 4,
   affectLabels: 8,
   reinforcementPhrases: 8,
+  // OPINTEL caps
+  contextSources: 24,
+  decisionTags: 18,
+  riskFlags: 18,
+  opBytes: 4000,
   diagBytes: 6000,
 });
 
@@ -221,6 +261,15 @@ function failOpenPsyche(err, input) {
       law: empty("law"),
       ai: empty("ai"),
     },
+
+    opIntel: resolveOpIntelEnvelope(input, { intent: safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase() || DEFAULTS.intent, mode, regulation, stance: DEFAULTS.stance, queryKey, sessionKey }, {
+      psychology: empty("psychology"),
+      cyber: empty("cyber"),
+      english: empty("english"),
+      finance: empty("finance"),
+      law: empty("law"),
+      ai: empty("ai"),
+    }, 0, { failOpen: true }, { intent: "", kind: "" }, resolveStateHints(features)),
 
     confidence: 0,
     diag: {
@@ -881,6 +930,178 @@ function resolveResilienceHints(features, opts) {
 
   return out;
 }
+
+
+// =========================
+// PHASE 6–10: OPERATIONAL INTELLIGENCE ENVELOPE (ENTERPRISE SAFE)
+// =========================
+//
+// Phase 6: Provenance signals (contextSourcesUsed, no raw text)
+// Phase 7: Budget clamps (contextBudget, diag/op byte caps)
+// Phase 8: Trust weights (authority/recency heuristics)
+// Phase 9: Audit trace hooks (traceId/turnId/requestId)
+// Phase 10: Governance tags (riskFlags/decisionTags for escalation)
+
+function sanitizeIds(arr, max = 24) {
+  const out = [];
+  const seen = new Set();
+  for (const it of Array.isArray(arr) ? arr : []) {
+    if (out.length >= max) break;
+    const v = safeStr(it, 64).trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
+function resolveProvenance(input, features, opts) {
+  const o = isObject(opts) ? opts : {};
+  const f = isObject(features) ? features : {};
+  const fromOpts = o.contextSourcesUsed || o.contextSources || o.sourcesUsed || [];
+  const fromFeat = f.contextSourcesUsed || f.contextSources || f.sourcesUsed || [];
+  // Keep IDs only; never allow raw snippets here.
+  return sanitizeIds([].concat(fromOpts || [], fromFeat || []), LIMITS.contextSources);
+}
+
+function resolveTrustWeights(features, stateHints, domains, confidence) {
+  const f = isObject(features) ? features : {};
+  const hints = isObject(stateHints) ? stateHints : {};
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 32).toLowerCase();
+  const depth = clampInt(hints.turnDepth ?? 0, 0, 40, 0);
+
+  // Authority weight: more weight when high-stakes domains are engaged and have confidence.
+  const authBase = 0.55;
+  const authBoost =
+    clamp01(domains?.law?.confidence) * 0.18 +
+    clamp01(domains?.cyber?.confidence) * 0.14 +
+    clamp01(domains?.finance?.confidence) * 0.10 +
+    clamp01(domains?.psychology?.confidence) * 0.10;
+
+  // Recency weight: increase as depth grows (need continuity) and in dynamic lanes.
+  const recBase = 0.50;
+  const depthBoost = clamp01(depth / 15) * 0.25;
+  const laneBoost = (lane === "news" || lane === "news-canada" || lane === "roku" || lane === "schedule") ? 0.10 : 0.0;
+
+  const authorityWeight = clamp01(authBase + authBoost);
+  const recencyWeight = clamp01(recBase + depthBoost + laneBoost);
+
+  // Operational weight: combined "how careful should we be" factor.
+  const operationalWeight = clamp01(0.35 + authorityWeight * 0.35 + recencyWeight * 0.20 + clamp01(confidence) * 0.10);
+
+  return { authorityWeight, recencyWeight, operationalWeight };
+}
+
+function resolveRiskFlags(regulation, intent, confidence, features, tokens) {
+  const flags = [];
+  const reg = safeStr(regulation || "", 16).toLowerCase();
+  const it = safeStr(intent || "", 24).toUpperCase();
+  const c = clamp01(confidence);
+
+  if (reg === "crisis") flags.push("regulation:crisis");
+  if (reg === "fragile") flags.push("regulation:fragile");
+  if (c < 0.35) flags.push("confidence:low");
+  if (c < 0.20) flags.push("confidence:very_low");
+
+  const f = isObject(features) ? features : {};
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 32).toLowerCase();
+  if (lane) flags.push("lane:" + lane);
+  if (it) flags.push("intent:" + it);
+
+  const tset = toTokenSet(tokens || []);
+  if (tset.has("legal") || tset.has("law")) flags.push("domain:law");
+  if (tset.has("security") || tset.has("cyber")) flags.push("domain:cyber");
+  if (tset.has("finance") || tset.has("budget") || tset.has("grant")) flags.push("domain:finance");
+
+  return uniqBounded(flags, LIMITS.riskFlags, 48);
+}
+
+function resolveDecisionTags(ctx) {
+  const tags = [];
+  const intent = safeStr(ctx.intent || "", 24).toUpperCase();
+  const mode = safeStr(ctx.mode || "", 16).toLowerCase();
+  const reg = safeStr(ctx.regulation || "", 16).toLowerCase();
+  const stance = safeStr(ctx.stance || "", 32).toLowerCase();
+  const lane = safeStr(ctx.lane || "", 32).toLowerCase();
+
+  if (intent) tags.push("intent:" + intent);
+  if (mode) tags.push("mode:" + mode);
+  if (reg) tags.push("reg:" + reg);
+  if (stance) tags.push("stance:" + stance);
+  if (lane) tags.push("lane:" + lane);
+
+  if (ctx.pendingAsyncDomains && Object.keys(ctx.pendingAsyncDomains).length) tags.push("domains:pending_async");
+  if (ctx.features && ctx.features.__forcePsychBridge) tags.push("psych:forced");
+  if (ctx.social && ctx.social.intent) tags.push("social:" + safeStr(ctx.social.intent, 24).toLowerCase());
+
+  return uniqBounded(tags, LIMITS.decisionTags, 48);
+}
+
+function resolveOpIntelEnvelope(input, out, domains, confidence, diag, social, stateHints) {
+  const features = isObject(input?.features) ? input.features : {};
+  const opts = isObject(input?.opts) ? input.opts : {};
+
+  const requestId = safeStr(opts.requestId || features.requestId || features.__requestId || "", 64);
+  const turnId = safeStr(opts.turnId || features.turnId || features.__turnId || "", 64);
+  const traceId = safeStr(opts.traceId || features.traceId || features.__traceId || "", 64) || ("sb-" + hash12((out.sessionKey || "") + ":" + (out.queryKey || "") + ":" + Date.now()));
+
+  const provenance = resolveProvenance(input, features, opts);
+  const weights = resolveTrustWeights(features, stateHints, domains, confidence);
+  const lane = safeStr(features.lane || features.lastLane || features.activeLane || "", 32).toLowerCase();
+
+  const decisionTags = resolveDecisionTags({
+    intent: out.intent,
+    mode: out.mode,
+    regulation: out.regulation,
+    stance: out.stance,
+    lane,
+    pendingAsyncDomains: diag?.pendingAsyncDomains,
+    features,
+    social,
+  });
+
+  const riskFlags = resolveRiskFlags(out.regulation, out.intent, confidence, features, input?.tokens || []);
+
+  // Budget hints (pure): host may decide how to apply.
+  const contextBudget = {
+    tokensCap: clampInt(opts.tokensCap ?? features.tokensCap ?? 0, 0, 20000, 0) || undefined,
+    bytesCap: clampInt(opts.bytesCap ?? features.bytesCap ?? 0, 0, 200000, 0) || undefined,
+  };
+
+  // Deterministic input signature (no raw text)
+  const sig = hash12(JSON.stringify({
+    q: out.queryKey,
+    s: out.sessionKey,
+    i: out.intent,
+    m: out.mode,
+    r: out.regulation,
+    l: lane,
+    t: safeTokens(input?.tokens || [], 24),
+    d: stateHints?.turnDepth ?? 0,
+  }));
+
+  return {
+    schema: OPINTEL_SCHEMA,
+    traceSchema: OPINTEL_TRACE_SCHEMA,
+    traceId,
+    requestId: requestId || undefined,
+    turnId: turnId || undefined,
+    inputSig: sig,
+
+    contextSourcesUsed: provenance,
+    contextBudget,
+
+    authorityWeight: weights.authorityWeight,
+    recencyWeight: weights.recencyWeight,
+    operationalWeight: weights.operationalWeight,
+
+    riskFlags,
+    decisionTags,
+  };
+}
+
 function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
@@ -931,10 +1152,23 @@ function finalizeContract(out) {
     domains: isObject(o.domains) ? o.domains : {},
     confidence: clamp01(o.confidence),
     diag: isObject(o.diag) ? o.diag : {},
+
+    opIntel: isObject(o.opIntel) ? o.opIntel : undefined,
   };
 
   // absolute invariants (avoid accidental side effects)
   if (safe.audio && safe.audio.silent) safe.audio.speakEnabled = false;
+
+
+// never allow huge opIntel blobs
+try {
+  if (safe.opIntel && JSON.stringify(safe.opIntel).length > LIMITS.opBytes) {
+    safe.opIntel = { schema: OPINTEL_SCHEMA, trimmed: true };
+  }
+} catch (_e) {
+  safe.opIntel = { schema: OPINTEL_SCHEMA, trimmed: true };
+}
+
 
   // never allow huge diag blobs
   try {
@@ -1126,6 +1360,8 @@ return finalizeContract({
       diag,
       stateHints: resolveStateHints(features),
       resilience: resolveResilienceHints(features, opts),
+      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, resolveStateHints(features)),
+      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, resolveStateHints(features)),
     });
   } catch (e) {
     return failOpenPsyche(e, input);
