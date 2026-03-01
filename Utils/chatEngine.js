@@ -1078,6 +1078,8 @@ function buildSpineInbound(norm, cog) {
     year: norm.year,
     action: norm.action,
     turnSignals: norm.turnSignals,
+    // OPINTEL++++: bounded latency for audit/metrics (ms since engine start)
+    latencyMs: Number.isFinite(norm && norm._t0) ? Math.max(0, nowMs() - norm._t0) : 0,
     cog: cog && typeof cog === "object" ? cog : undefined,
   };
 }
@@ -1098,7 +1100,7 @@ function finalizeSpineTurn({
   const prev = corePrev && typeof corePrev === "object" ? corePrev : Spine.createState();
   const inbound = buildSpineInbound(norm, marionCog);
 
-  const next = Spine.finalizeTurn({
+  let next = Spine.finalizeTurn({
     prevState: prev,
     inbound,
     lane,
@@ -1125,6 +1127,27 @@ function finalizeSpineTurn({
   } catch (_e) {
     // fail-open correction (should be rare)
     next.rev = (Number.isFinite(prev.rev) ? prev.rev : 0) + 1;
+  }
+
+  // OPINTEL++++: enterprise audit trail (bounded; no raw text)
+  // - Never breaks the user flow (fail-open)
+  try {
+    if (Spine && typeof Spine.buildTurnAuditLog === "function" && typeof Spine.appendAuditTurn === "function") {
+      const inboundForAudit = buildSpineInbound(norm, marionCog);
+      const log = Spine.buildTurnAuditLog({
+        prev,
+        next,
+        inbound: inboundForAudit,
+        decision: decision ? { move: safeStr(decision.move || ""), rationale: safeStr(decision.rationale || "") } : null,
+        activeContext: next && next.activeContext ? next.activeContext : null,
+      });
+      if (log) {
+        // appendAuditTurn returns a NEW coerced state; keep canonical next reference updated
+        next = Spine.appendAuditTurn(next, log);
+      }
+    }
+  } catch (_e) {
+    // never fail the user flow on audit issues
   }
 
   return next;
@@ -2541,6 +2564,9 @@ async function handleChat(input) {
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
   try {
     const norm = normalizeInbound(input);
+
+    // OPINTEL++++: attach start time for audit/latency (Nyx-safe; internal only)
+    norm._t0 = started;
 
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
@@ -4366,6 +4392,25 @@ const reply0 = finalizeReply(
     const normFallback = normalizeInbound(isPlainObject(input) ? input : {});
     const inboundKey = buildInboundKey(normFallback);
     const requestId = resolveRequestId(input, normFallback, inboundKey);
+
+    // OPINTEL++++: record crash into spine audit (fail-open; no raw text)
+    let _spineErrNext = null;
+    try {
+      const _sess = isPlainObject(normFallback.body && normFallback.body.session)
+        ? normFallback.body.session
+        : isPlainObject(input && input.session)
+        ? input.session
+        : {};
+      const _corePrev = coerceCoreSpine(_sess);
+      if (Spine && typeof Spine.appendAuditError === "function") {
+        _spineErrNext = Spine.appendAuditError(_corePrev, {
+          message: safeStr(err && err.message ? err.message : err, 240),
+          name: safeStr(err && err.name ? err.name : "Error", 40),
+          where: "chatEngine.handleChat.catch",
+          code: safeStr(err && err.code ? err.code : "", 40),
+        });
+      }
+    } catch (_e) { _spineErrNext = null; }
     const reply = `I hit a snag processing that. Please try again — and if it repeats, send the console error text (Request ID: ${requestId}).`;
 
     return {
@@ -4377,7 +4422,7 @@ const reply0 = finalizeReply(
       directives: [],
       followUps: [],
       followUpsStrings: [],
-      sessionPatch: {},
+      sessionPatch: _spineErrNext ? { __spineState: _spineErrNext } : {},
       cog: {
         mode: "architect",
         intent: "CLARIFY",
