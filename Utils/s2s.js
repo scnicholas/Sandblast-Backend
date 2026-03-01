@@ -6,6 +6,20 @@
 "use strict";
 
 /* =========================================================
+   NYX ↔ MARION — 10-PHASE FORWARD ROADMAP (S2S Layer Hooks)
+   Phase 1  Social Intelligence Patch: greeting/check-in precedence (DONE)
+   Phase 2  State Spine Reinforcement: turnDepth/lastIntent hints (DONE)
+   Phase 3  Resilience Layer: retry/timeout budgets + telemetry (DONE)
+   Phase 4  Distress Support Precedence: local empathy for non-crisis distress (DONE)
+   Phase 5  TurnId/RequestId Discipline: request correlation + UI race mitigation (HOOKED)
+   Phase 6  Vendor Health Mapping: attach vendor status crumbs (HOOK PLACEHOLDER)
+   Phase 7  Circuit Breakers: auto-degrade on repeated vendor faults (HOOK PLACEHOLDER)
+   Phase 8  Structured Error Channels: classify failures vs “snag” (HOOK PLACEHOLDER)
+   Phase 9  Observability: JSON logs + latency histograms (HOOKED/EXTENDABLE)
+   Phase 10 Policy Gates: privacy-min + no raw text in logs by default (DONE)
+========================================================= */
+
+/* =========================================================
    NYX S2S — GREETING / CHECK-IN PRECEDENCE (WARMTH v1)
 ========================================================= */
 
@@ -83,6 +97,58 @@ const _NYX_WARM = (() => {
   }
 
   return { detect, greetingOnly, prefix };
+
+/* =========================================================
+   NYX S2S — DISTRESS / SUPPORT PRECEDENCE (Support v1)
+   - Local, deterministic support response for non-crisis distress
+   - Prevents vendor/bridge timeouts from surfacing as “snag” on:
+     lonely / overwhelmed / anxious / depressed / stressed / sad
+   - NOTE: This is NOT a self-harm classifier. Any self-harm handling
+     should remain in ChatEngine / policy layer.
+========================================================= */
+
+const _NYX_SUPPORT = (() => {
+  const DISTRESS = [
+    "I hear you. Being lonely can feel heavy. I’m here with you — want to tell me what’s been making it feel that way lately?",
+    "I’m really sorry you’re feeling lonely. You don’t have to sit with it alone — what’s been going on today?",
+    "That sounds hard. I’m here. Do you want comfort, distraction, or a small plan to make the next hour easier?",
+    "Thanks for saying it out loud — that takes courage. What would feel most supportive right now: talking it out or doing something light together?"
+  ];
+
+  let lastIdx = -1;
+
+  function norm(s){
+    return String(s||"").toLowerCase().replace(/\s+/g," ").trim();
+  }
+
+  // Light distress cues (non-crisis)
+  const RE_DISTRESS = /\b(lonely|alone|overwhelmed|anxious|anxiety|stressed|stress|sad|down|depressed|depression|burnt\s*out|burned\s*out|tired\s*of\s*everything)\b/i;
+
+  // If the message includes lane/help words, don’t short-circuit; let routing proceed.
+  const LANE_OR_HELP = /\b(music|radio|roku|news|sponsor|sponsors|movie|movies|tv|channel|channels|help|fix|update|debug|error|issue|problem|build|implement|deploy)\b/i;
+
+  function detect(text){
+    const n = norm(text);
+    if(!n) return { type:"none" };
+    if(LANE_OR_HELP.test(n)) return { type:"none" };
+    if(RE_DISTRESS.test(n)) return { type:"distress" };
+    return { type:"none" };
+  }
+
+  function pick(arr){
+    let idx = Math.floor(Math.random()*arr.length);
+    if(arr.length > 1 && idx === lastIdx) idx = (idx + 1) % arr.length;
+    lastIdx = idx;
+    return arr[idx];
+  }
+
+  function reply(){
+    return pick(DISTRESS);
+  }
+
+  return { detect, reply };
+})();
+
 })();
 
 function cleanText(t){
@@ -123,6 +189,17 @@ function ensureTurnId(session){
   return `t_${t}_${r}`;
 }
 
+function ensureRequestId(session, opts){
+  const fromOpts = opts && (opts.requestId || opts.reqId || (opts.context && opts.context.requestId));
+  const fromSession = session && (session.requestId || session.reqId);
+  if(fromOpts) return String(fromOpts);
+  if(fromSession) return String(fromSession);
+  const t = Date.now().toString(36);
+  const r = Math.random().toString(36).slice(2,10);
+  return `r_${t}_${r}`;
+}
+
+
 function boolEnv(name, fallback=false){
   const v = process.env[name];
   if(v === undefined) return fallback;
@@ -131,7 +208,9 @@ function boolEnv(name, fallback=false){
 
 const SB_S2S_DEBUG = boolEnv("SB_S2S_DEBUG", false);            // safe debug crumbs
 const SB_S2S_LOG_JSON = boolEnv("SB_S2S_LOG_JSON", false);      // emit structured logs
-const SB_S2S_TIMING = boolEnv("SB_S2S_TIMING", true);           // attach telemetry to sessionPatch
+const SB_S2S_TIMING = boolEnv("SB_S2S_TIMING", true);
+const SB_S2S_SUPPORT_LOCAL = boolEnv("SB_S2S_SUPPORT_LOCAL", true); // local distress support short-circuit
+           // attach telemetry to sessionPatch
 
 /* =========================================================
    NYX S2S — STATE SPINE HINTS (Phase 2)
@@ -202,16 +281,75 @@ function runLocalChat(transcript, session = {}, opts = {}){
 
   const lane = String(opts.lane || pickLane(session));
   const turnId = String(opts.turnId || ensureTurnId(session));
+  const requestId = String(opts.requestId || ensureRequestId(session, opts));
 
   // -------------------------------------------------------
   // WARMTH v1 — HARD PRECEDENCE (SOCIAL FIRST)
   // -------------------------------------------------------
+
+  // -------------------------------------------------------
+  // SUPPORT v1 — LOCAL DISTRESS PRECEDENCE (NON-CRISIS)
+  // -------------------------------------------------------
+  const support = _NYX_SUPPORT.detect(msg);
+  if(SB_S2S_SUPPORT_LOCAL && support.type === "distress"){
+    const reply = cleanText(_NYX_SUPPORT.reply());
+    const t1 = nowMs();
+
+    const sessionPatch = {
+      intent_type: "distress",
+      lane,
+      turnId,
+      requestId,
+      cog: {
+        support: {
+          enabled: true,
+          mode: "DISTRESS",
+          localOk: true
+        }
+      }
+    };
+
+    // Phase 2/3: additive hints (fail-open)
+    setStateHints(sessionPatch, session, { lastIntent: "distress", lastLane: lane, turnId });
+    setResilienceHints(sessionPatch);
+
+    if(SB_S2S_TIMING){
+      sessionPatch.telemetry = {
+        source: "s2s.local",
+        t0_in_ms: t0,
+        t1_reply_ready_ms: t1,
+        dt_local_ms: Math.max(0, t1 - t0)
+      };
+    }
+
+    const debug = SB_S2S_DEBUG ? {
+      lane,
+      turnId,
+      requestId,
+      support_type: support.type,
+      msg_len: msg.length
+    } : undefined;
+    if(debug) sessionPatch.debug = debug;
+
+    emitJsonLog({
+      type: "s2s",
+      lane,
+      turnId,
+      requestId,
+      intent_type: "distress",
+      dt_local_ms: sessionPatch.telemetry ? sessionPatch.telemetry.dt_local_ms : undefined
+    });
+
+    return { reply, sessionPatch };
+  }
+
   const warm = _NYX_WARM.detect(msg);
 
   // Step 1: handshake/trace crumbs (debug-safe; no raw transcript by default)
   const debug = SB_S2S_DEBUG ? {
     lane,
     turnId,
+    requestId,
     warm_type: warm.type,
     msg_len: msg.length
   } : undefined;
@@ -224,7 +362,8 @@ function runLocalChat(transcript, session = {}, opts = {}){
     const sessionPatch = {
       intent_type: "greeting",
       lane,
-      turnId
+      turnId,
+      requestId
     };
 
     // Phase 2/3: additive hints (fail-open)
@@ -246,6 +385,7 @@ function runLocalChat(transcript, session = {}, opts = {}){
       type: "s2s",
       lane,
       turnId,
+      requestId,
       intent_type: "greeting",
       dt_local_ms: sessionPatch.telemetry ? sessionPatch.telemetry.dt_local_ms : undefined
     });
@@ -280,7 +420,8 @@ function runLocalChat(transcript, session = {}, opts = {}){
   const sessionPatch = {
     intent_type: warm.type || "default",
     lane,
-    turnId
+    turnId,
+      requestId
   };
 
   // Phase 2/3: additive hints (fail-open)
@@ -302,6 +443,7 @@ function runLocalChat(transcript, session = {}, opts = {}){
     type: "s2s",
     lane,
     turnId,
+    requestId,
     intent_type: sessionPatch.intent_type,
     dt_local_ms: sessionPatch.telemetry ? sessionPatch.telemetry.dt_local_ms : undefined
   });
