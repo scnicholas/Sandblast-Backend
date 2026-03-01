@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.6";
+const MARION_VERSION = "marionSO v1.2.7-opintel";
 const PHASE10_PLAN = Object.freeze([
   // Phase 1–3 already in play: Social Intelligence Patch, State Spine Reinforcement, Resilience Layer
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -306,6 +306,132 @@ const LATENT_DESIRE = Object.freeze({
 });
 
 const MARION_TRACE_MAX = 160; // hard cap in chars
+
+// -------------------------
+// Operational Intelligence (enterprise-heavy, audit-friendly)
+// -------------------------
+const OPINTEL_SCHEMA = "marionSO.opintel.v1";
+const OP_PACKAGE_SCHEMA = "marionSO.opPackage.v1";
+const OP_PACKAGE_MAX_ITEMS = 8;
+
+function clampStringArray(arr, maxItems = OP_PACKAGE_MAX_ITEMS, maxLen = 120) {
+  const out = [];
+  const seen = new Set();
+  for (const it of Array.isArray(arr) ? arr : []) {
+    const v = safeStr(it, maxLen).trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function computeOperationalWeight(cog) {
+  // heuristic: higher for ADVANCE + actionable, lower for CLARIFY, highest for STABILIZE high-risk
+  const intent = safeStr(cog?.intent || "", 16).toUpperCase();
+  const actionable = !!cog?.actionable;
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
+
+  let w = 0.45;
+  if (intent === "ADVANCE") w = actionable ? 0.72 : 0.58;
+  if (intent === "CLARIFY") w = 0.50;
+  if (intent === "STABILIZE") w = riskTier === RISK.TIERS.HIGH ? 0.85 : 0.66;
+
+  // bump for high pressure situations
+  const pressure = safeStr(cog?.psychology?.socialPressure || "", 12).toLowerCase();
+  if (pressure === PSYCH.PRESSURE.HIGH) w = Math.min(0.95, w + 0.06);
+
+  return clamp01(w);
+}
+
+function computeOIConfidence(cog, metrics) {
+  // Conservative confidence for enterprise: blend user/nyx, penalize risk + budget overruns.
+  const cu = clamp01(cog?.confidence?.user);
+  const cn = clamp01(cog?.confidence?.nyx);
+  let base = Math.max(0.25, (cu * 0.55 + cn * 0.45) || 0.55);
+
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
+  if (riskTier === RISK.TIERS.MEDIUM) base -= 0.08;
+  if (riskTier === RISK.TIERS.HIGH) base -= 0.18;
+
+  const cpuMs = Number(metrics?.cpuMs || 0) || 0;
+  const budgetMs = Number(metrics?.gateBudgetMs || 0) || 0;
+  if (budgetMs && cpuMs > budgetMs) base -= 0.10;
+
+  // stabilize -> lower confidence in "solve", higher confidence in "contain"; still keep conservative score
+  const intent = safeStr(cog?.intent || "", 16).toUpperCase();
+  if (intent === "STABILIZE") base = Math.min(base, 0.72);
+
+  return clamp01(base);
+}
+
+function buildOperationalPackage(norm, session, cog, metrics) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.lane) || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase();
+  const stage = safeStr(c.stage || "", 24);
+
+  // Objective heuristics (safe + enterprise)
+  let objective = safeStr(c.objective || "", 140).trim();
+  if (!objective) {
+    if (intent === "STABILIZE") objective = "Stabilize user context and reduce risk; confirm needs with one soft question.";
+    else if (intent === "CLARIFY") objective = "Resolve the single most important missing detail before proceeding.";
+    else objective = "Advance the user’s goal with the next concrete action, keeping context stable.";
+  }
+
+  const riskDomains = clampStringArray(c.riskDomains || [], 6, 48);
+  const risks = [];
+  if (safeStr(c.riskTier || "", 10).toLowerCase() !== RISK.TIERS.NONE) {
+    risks.push(`risk_tier:${safeStr(c.riskTier || "low", 10)}`);
+  }
+  for (const rd of riskDomains) risks.push(rd);
+
+  const decisionTags = clampStringArray(
+    [
+      `schema:${OP_PACKAGE_SCHEMA}`,
+      `lane:${lane}`,
+      `intent:${intent || "CLARIFY"}`,
+      stage ? `stage:${stage}` : "",
+      c.bridge?.enabled ? `bridge:${safeStr(c.bridge.kind || "route", 24)}` : "bridge:none",
+      c.laneReason ? `route:${safeStr(c.laneReason, 32)}` : "",
+    ].filter(Boolean),
+    10,
+    64
+  );
+
+  const opWeight = computeOperationalWeight(c);
+  const confidenceScore = computeOIConfidence(c, metrics);
+  const escalationFlag = !!c.escalationFlag || safeStr(c.riskTier || "", 10).toLowerCase() === RISK.TIERS.HIGH;
+
+  // Keep these as placeholders for now; chatEngine / LLM layer can fill richer content.
+  const keyFindings = clampStringArray(c.keyFindings || [], 6, 160);
+  const recommendedActions = clampStringArray(c.recommendedActions || [], 6, 160);
+  const assumptions = clampStringArray(c.assumptions || [], 6, 140);
+
+  // Minimal "ops summary" for audit without raw text
+  const summary = safeStr(c.marionReason || c.laneReason || intent || "", 120);
+
+  return {
+    schema: OP_PACKAGE_SCHEMA,
+    objective,
+    summary,
+    keyFindings,
+    recommendedActions,
+    assumptions,
+    risks: clampStringArray(risks, 8, 64),
+    confidenceScore,
+    operationalWeight: opWeight,
+    escalationFlag,
+    decisionTags,
+    depthHint: clampInt(c.depthHint || 0, 0, 20, 0),
+    sessionKeyHint: safeStr(s.sessionId || s.sid || "", 64),
+  };
+}
 
 // PsychologyReasoningObject v1 (always-on, bounded, nonverbal)
 const PSYCH = Object.freeze({
@@ -2567,6 +2693,52 @@ function finalizeContract(cog, nowMs, extra) {
   }
 
 
+  // -------------------------
+  // Operational Intelligence envelope (enterprise-heavy, Nyx-safe)
+  // - Additive only: chatEngine can consume; Nyx can ignore.
+  // - Privacy: no raw user text stored.
+  // -------------------------
+  const met = isPlainObject(out.marionMetrics) ? out.marionMetrics : {};
+  if (!isPlainObject(out.opPackage)) {
+    out.opPackage = buildOperationalPackage(ex.norm || {}, ex.session || {}, out, met);
+  } else {
+    // clamp to keep logs bounded
+    out.opPackage = {
+      ...out.opPackage,
+      schema: safeStr(out.opPackage.schema || OP_PACKAGE_SCHEMA, 40),
+      objective: safeStr(out.opPackage.objective || "", 180),
+      summary: safeStr(out.opPackage.summary || "", 160),
+      keyFindings: clampStringArray(out.opPackage.keyFindings || [], 6, 180),
+      recommendedActions: clampStringArray(out.opPackage.recommendedActions || [], 6, 180),
+      assumptions: clampStringArray(out.opPackage.assumptions || [], 6, 160),
+      risks: clampStringArray(out.opPackage.risks || [], 8, 80),
+      confidenceScore: clamp01(out.opPackage.confidenceScore),
+      operationalWeight: clamp01(out.opPackage.operationalWeight),
+      escalationFlag: !!out.opPackage.escalationFlag,
+      decisionTags: clampStringArray(out.opPackage.decisionTags || [], 12, 72),
+      depthHint: clampInt(out.opPackage.depthHint || 0, 0, 20, 0),
+      sessionKeyHint: safeStr(out.opPackage.sessionKeyHint || "", 64),
+    };
+  }
+
+  // Metrics for enterprise observability (bounded)
+  out.marionMetrics = isPlainObject(out.marionMetrics)
+    ? {
+        schema: safeStr(out.marionMetrics.schema || OPINTEL_SCHEMA, 40),
+        cpuMs: clampInt(out.marionMetrics.cpuMs, 0, 60000, 0),
+        gateBudgetMs: clampInt(out.marionMetrics.gateBudgetMs, 0, 60000, 0),
+        clampedBytes: clampInt(out.marionMetrics.clampedBytes, 0, 10_000_000, 0),
+        tracePolicyIssues: clampStringArray(out.marionMetrics.tracePolicyIssues || out.tracePolicyIssues || [], 8, 80),
+      }
+    : {
+        schema: OPINTEL_SCHEMA,
+        cpuMs: 0,
+        gateBudgetMs: 0,
+        clampedBytes: 0,
+        tracePolicyIssues: clampStringArray(out.tracePolicyIssues || [], 8, 80),
+      };
+
+
   out.trace = trace;
 
   return out;
@@ -3609,7 +3781,12 @@ try {
     }
 
     const issues = tracePolicyCheck(cog, n, o);
-    const final = finalizeContract(cog, now, { tracePolicyIssues: issues });
+    const metrics = { schema: OPINTEL_SCHEMA, cpuMs: gate.elapsed(), gateBudgetMs: gate.budgetMs, clampedBytes: 0, tracePolicyIssues: issues || [] };
+    cog.marionMetrics = metrics;
+    // OI operational package is additive and safe; Nyx may ignore.
+    cog.opPackage = buildOperationalPackage(n, s, cog, metrics);
+
+    const final = finalizeContract(cog, now, { tracePolicyIssues: issues, norm: n, session: s });
 
     if (dbg) {
       // eslint-disable-next-line no-console
