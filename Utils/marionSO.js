@@ -3301,6 +3301,41 @@ function mediate(norm, session, opts = {}) {
     // Apply psych shaping to mediator outputs
     cog = applyPsychologyToMediator(cog, psych0);
 
+
+// Phase 3++++: local support hinting (non-crisis) — lets chatEngine/Nyx avoid clarify spirals
+// and (optionally) short-circuit to deterministic empathy if upstream LLM is unhealthy.
+try {
+  const _aff = isPlainObject(cog?.psychology?.affect) ? cog.psychology.affect : {};
+  const _tags = Array.isArray(_aff.tags) ? _aff.tags : [];
+  const _hasDistress = _tags.includes("distress_language") || _tags.includes("escalation_language");
+  const _hasSelfHarm = _tags.includes("self_harm_language");
+  if (_hasDistress && !_hasSelfHarm) {
+    cog.support = {
+      enabled: true,
+      mode: "DISTRESS",
+      localOk: true,
+      reason: "affect_distress",
+      cues: uniqBounded(
+        [
+          "validate_feeling",
+          "ask_one_soft_question",
+          cog.velvetAllowed ? "warm_tone_ok" : "",
+        ].filter(Boolean),
+        6
+      ),
+    };
+    // Stronger stabilizer intent if we sniff distress (prevents lane prompts)
+    if (safeStr(cog.intent || "").toUpperCase() === "CLARIFY") cog.intent = "STABILIZE";
+    if (isPlainObject(cog.handoff)) {
+      cog.handoff.nyxCue = "hold";
+      if (!cog.handoff.marionTagSuggested) cog.handoff.marionTagSuggested = MARION_STYLE_CONTRACT.tags.hold;
+    }
+  }
+} catch (e) {
+  // fail-open: no support hint
+}
+
+
     // Recompute ethics after psych is attached (single authoritative set)
     const ethics = computeEthicsLayer(n, psych0, cog);
     cog.ethicsTags = ethics.ethicsTags;
