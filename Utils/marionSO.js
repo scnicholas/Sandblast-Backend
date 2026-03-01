@@ -41,7 +41,12 @@ try {
     // eslint-disable-next-line global-require
     SiteBridge = require("./siteBridge");
   } catch (_e2) {
-    SiteBridge = null;
+    try {
+      // eslint-disable-next-line global-require
+      SiteBridge = require("./sitebridge"); // Linux-safe lowercase
+    } catch (_e3) {
+      SiteBridge = null;
+    }
   }
 }
 
@@ -74,6 +79,21 @@ let AIK = safeRequire("./aiKnowledge");
 // -------------------------
 // helpers
 // -------------------------
+// -------------------------
+// Performance hardening (Phase 3 — resilience)
+// -------------------------
+const DEFAULT_CPU_BUDGET_MS = Number(process.env.MARION_CPU_BUDGET_MS || 0) || 40; // keep Marion fast to avoid server timeouts
+const MARION_DEBUG = String(process.env.MARION_DEBUG || "").toLowerCase() === "1" || String(process.env.MARION_DEBUG || "").toLowerCase() === "true";
+
+function budgetGate(startMs, budgetMs) {
+  const b = Number(budgetMs || 0) || DEFAULT_CPU_BUDGET_MS;
+  return {
+    budgetMs: b,
+    ok: () => Date.now() - startMs <= b,
+    elapsed: () => Date.now() - startMs,
+  };
+}
+
 function nowMsDefault() {
   return Date.now();
 }
@@ -3021,6 +3041,18 @@ function mediate(norm, session, opts = {}) {
     const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
     const now = Number(clockNow()) || nowMsDefault();
 
+    // CPU budget gate (prevents long mediator work from cascading into API 503 timeouts)
+    const gate = budgetGate(now, Number(o.cpuBudgetMs || o.cpuBudget || 0) || DEFAULT_CPU_BUDGET_MS);
+
+    // Optional safe debug (no raw user text)
+    const dbg = !!(o.debug || o.marionDebug || MARION_DEBUG);
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.debug("[MarionSO] mediate:start", { v: MARION_VERSION, lane: safeStr(n0.lane || s.lane || "", 24), hasPayload: !!n0?.turnSignals?.hasPayload, t: now });
+    }
+
+
+
     // CANON LANE FIRST (payload lane wins)
     const payloadLane = readPayloadLane(n0);
     const sessionLane = normalizeLaneRaw(s.lane) || "";
@@ -3297,7 +3329,10 @@ function mediate(norm, session, opts = {}) {
     // =========================
     // KNOWLEDGE: PsycheBridge first (option 2)
     // =========================
-    const psyche = callPsycheBridge(n, s, cog, opts);
+    const psyche = gate.ok() && !(o.disablePsycheBridge || o.disableBridge) ? callPsycheBridge(n, s, cog, opts) : null;
+    if (!psyche && !gate.ok()) {
+      cog.psyche = { enabled: false, reason: "cpu_budget" };
+    }
     if (psyche && psyche.enabled) {
       cog.psyche = psyche;
       cog.siteBridge = psyche;
@@ -3313,19 +3348,19 @@ function mediate(norm, session, opts = {}) {
       cog.financeKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
       cog.aiKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
     } else {
-      const psyHints = queryPsychologyKnowledge(n, s, cog);
+      const psyHints = gate.ok() ? queryPsychologyKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
       cog.psychologyHints = clampPsychHints(psyHints);
 
-      const cyHints = queryCyberKnowledge(n, s, cog);
+      const cyHints = gate.ok() ? queryCyberKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
       cog.cyberKnowledgeHints = clampCyberHints(cyHints);
 
-      const enHints = queryEnglishKnowledge(n, s, cog);
+      const enHints = gate.ok() ? queryEnglishKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
       cog.englishKnowledgeHints = clampEnglishHints(enHints);
 
-      const fiHints = queryFinanceKnowledge(n, s, cog);
+      const fiHints = gate.ok() ? queryFinanceKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
       cog.financeKnowledgeHints = clampFinanceHints(fiHints);
 
-      const aiHints = queryAIKnowledge(n, s, cog);
+      const aiHints = gate.ok() ? queryAIKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
       cog.aiKnowledgeHints = clampAIHints(aiHints);
 
       cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
@@ -3464,8 +3499,27 @@ function mediate(norm, session, opts = {}) {
       cog.movePolicy = deriveMovePolicy(cog);
     }
 
+    if (!gate.ok()) {
+      cog.degraded = true;
+      cog.degradeReason = "cpu_budget";
+    }
+
     const issues = tracePolicyCheck(cog, n, o);
     const final = finalizeContract(cog, now, { tracePolicyIssues: issues });
+
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.debug("[MarionSO] mediate:done", {
+        v: MARION_VERSION,
+        lane: safeStr(final?.lane || "", 24),
+        intent: safeStr(final?.intent || "", 16),
+        mode: safeStr(final?.mode || "", 16),
+        budget: safeStr(final?.budget || "", 16),
+        elapsedMs: gate.elapsed(),
+        degraded: !!final?.degraded,
+        degradeReason: safeStr(final?.degradeReason || "", 40),
+      });
+    }
 
     return final;
   } catch (e) {
