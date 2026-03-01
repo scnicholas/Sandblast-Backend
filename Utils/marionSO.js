@@ -52,22 +52,26 @@ const version = MARION_VERSION;
 let SiteBridge = null;
 let PsycheBridge = null;
 
-try {
-  // eslint-disable-next-line global-require
-  SiteBridge = require("./SiteBridge");
-} catch (_e1) {
-  try {
-    // eslint-disable-next-line global-require
-    SiteBridge = require("./siteBridge");
-  } catch (_e2) {
+function _tryRequireMany(paths) {
+  for (const p of paths) {
     try {
-      // eslint-disable-next-line global-require
-      SiteBridge = require("./sitebridge"); // Linux-safe lowercase
-    } catch (_e3) {
-      SiteBridge = null;
-    }
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const mod = require(p);
+      if (mod && typeof mod === "object" && mod.default && !mod.build) return mod.default;
+      if (mod) return mod;
+    } catch (_e) {}
   }
+  return null;
 }
+
+// Prefer OPINTEL SiteBridge builds first to prevent runtime drift.
+SiteBridge = _tryRequireMany([
+  "./sitebridge.OPINTEL.v1_3_2",
+  "./sitebridge.OPINTEL",
+  "./SiteBridge",
+  "./siteBridge",
+  "./sitebridge", // Linux-safe lowercase
+]);
 
 // Back-compat: if SiteBridge is not present, fall back to legacy PsycheBridge
 try {
