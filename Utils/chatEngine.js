@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended) | loopfix:greeting-fallback-guard';
+const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended)';
 
 let Spine = null;
 let MarionSO = null;
@@ -347,39 +347,6 @@ function detectAffectQuick(text) {
   }
 
   return { hit: false, valence: "", tag: "" };
-}
-
-
-
-
-// -------------------------
-// Social greeting detector (local, fail-open)
-// - Used as a secondary guard to prevent procedural lane prompts on simple greetings/check-ins.
-// -------------------------
-function isSocialGreetingText(text) {
-  const t = safeStr(text || "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!t) return false;
-
-  // IMPORTANT:
-  // Avoid treating "I'm good/well/fine... how are you?" as a *fresh* greeting.
-  // That's a conversational reply that should continue the thread, not re-trigger the opener.
-  const looksLikeReply =
-    /^(i\s*(am|'?m)\b|im\b|doing\b|feeling\b|pretty\b|quite\b|not\s+bad\b|good\b|well\b|fine\b)/.test(t) &&
-    /\bhow\s+are\s+you\b/.test(t);
-
-  if (looksLikeReply) return false;
-
-  // Pure greetings / check-ins
-  if (/^(hi|hello|hey)\b/.test(t)) return true;
-  if (/\bgood\s*(morning|afternoon|evening)\b/.test(t)) return true;
-
-  // Direct check-in (only treat as greeting if it's the leading intent)
-  if (/^(how\s+are\s+you\b|how\s+is\s+it\s+going\b|what\s*'?s\s+up\b)/.test(t)) return true;
-
-  // Mid-sentence "how are you" often appears in replies; only treat as greeting when the message is short.
-  if (/\bhow\s+are\s+you\b/.test(t) && t.length <= 32) return true;
-
-  return false;
 }
 
 
@@ -1815,11 +1782,24 @@ function normalizeInbound(input) {
   const ctx = isPlainObject(body.ctx) ? body.ctx : {};
   const client = isPlainObject(body.client) ? body.client : {};
 
-  const textRaw0 = safeStr(
-    body.text || body.message || body.prompt || body.query || payload.text || payload.message || ""
-  ).trim();
+  // Normalize user text across widget/backend variants (critical for social-intent routing)
+// NOTE: This is intentionally conservative (no evaluation of arbitrary objects).
+let __textSource = "none";
+let __rawText =
+  (typeof body.text === "string" && body.text.trim() ? (__textSource = "body.text", body.text) : "") ||
+  (typeof body.message === "string" && body.message.trim() ? (__textSource = "body.message", body.message) : "") ||
+  (typeof body.prompt === "string" && body.prompt.trim() ? (__textSource = "body.prompt", body.prompt) : "") ||
+  (typeof body.query === "string" && body.query.trim() ? (__textSource = "body.query", body.query) : "") ||
+  (typeof payload.text === "string" && payload.text.trim() ? (__textSource = "payload.text", payload.text) : "") ||
+  (typeof payload.message === "string" && payload.message.trim() ? (__textSource = "payload.message", payload.message) : "");
 
-  const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
+const textRaw0 = safeStr(__rawText || "").trim();
+
+// TEMP DEBUG: confirm which field is being read live (remove after validation)
+if (textRaw0) {
+  try { console.log("[CE][INPUT]", __textSource, textRaw0.slice(0, 120)); } catch (_) {}
+}
+const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   // action: accept payload.route as an alias (chip payloads commonly set route)
   const payloadAction = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
@@ -2418,7 +2398,198 @@ function ensureNonEmptyReply(reply, fallback) {
 
 
 // -------------------------
+// DEEP TALK TOPIC SEEDS++++ (Phase 2/3 -> 10-step roadmap starter)
+// - Prevents premature lane-prompt collapse on short inputs like: "Life", "Work", "Purpose".
+// - Provides varied, question-led continuations to keep turns 10–15 deep without repeating.
+// -------------------------
+const TALK_TOPIC_SEEDS = [
+  "life",
+  "work",
+  "career",
+  "relationships",
+  "relationship",
+  "love",
+  "family",
+  "friends",
+  "health",
+  "fitness",
+  "money",
+  "stress",
+  "confidence",
+  "motivation",
+  "habits",
+  "focus",
+  "purpose",
+  "meaning",
+  "future",
+  "mindset",
+  "business",
+  "ai",
+  "technology",
+  "creativity",
+];
+
+function detectTalkTopicSeed(rawText) {
+  const t = safeStr(rawText || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!t) return null;
+  // Single token or very short 2–3 token “topic taps”
+  const toks = t.split(" ").filter(Boolean);
+  if (toks.length > 3) return null;
+  const joined = toks.join(" ");
+  // normalize plurals for matching
+  const norm = joined.replace(/\brelationships\b/g, "relationship");
+  if (TALK_TOPIC_SEEDS.includes(norm)) return norm;
+  // also allow “my life”, “about work”, “on purpose”
+  const last = toks[toks.length - 1];
+  const lastNorm = last === "relationships" ? "relationship" : last;
+  if (TALK_TOPIC_SEEDS.includes(lastNorm) && toks.length <= 2) return lastNorm;
+  return null;
+}
+
+function buildDeepTalkPrompt(topic, inboundKey) {
+  const t = safeStr(topic || "").trim() || "this";
+  // Variants are keyed off inboundKey so we avoid repeating the same sentence (loop-guard friendly).
+  const h = sha1Lite(safeStr(inboundKey || "") + "|talk");
+  const pick = (arr) => arr[Math.abs(parseInt(h.slice(0, 8), 16)) % arr.length];
+
+  const openers = [
+    `Okay — let’s talk about ${t}.`,
+    `Got it. ${t} it is.`,
+    `Alright — ${t}. I’m with you.`,
+    `Mhm. ${t}. Let’s go there.`,
+  ];
+
+  const questionsByTopic = {
+    life: [
+      "What part of life feels loudest for you right now?",
+      "If you could improve one thing in your day-to-day, what would it be?",
+      "What’s been weighing on you lately — or exciting you?",
+    ],
+    work: [
+      "What’s the biggest friction point at work right now?",
+      "Are you trying to grow, stabilize, or escape something in work?",
+      "What’s the one problem at work you’d love to delete?",
+    ],
+    career: [
+      "Where do you want your career to be 12 months from now?",
+      "Are you optimizing for money, meaning, or momentum right now?",
+      "What’s the next role or level you’re reaching for?",
+    ],
+    relationship: [
+      "Is this about connection, conflict, or clarity?",
+      "What’s the pattern you keep noticing?",
+      "What do you want to be true in that relationship right now?",
+    ],
+    love: [
+      "Do you want more closeness — or more certainty?",
+      "What’s the one thing you wish they understood about you?",
+      "What’s your ideal outcome here?",
+    ],
+    family: [
+      "Is this about boundaries, support, or old history resurfacing?",
+      "What’s been the hardest part with family lately?",
+      "What do you need from them that you’re not getting?",
+    ],
+    friends: [
+      "Do you feel under-seen, over-giving, or just out of sync?",
+      "What’s missing right now: time, trust, or shared energy?",
+      "Who do you feel closest to lately — and why?",
+    ],
+    health: [
+      "Is this about energy, sleep, pain, or something you’re worried about?",
+      "What’s one health habit you want to lock in this month?",
+      "What’s the main blocker: consistency, time, or stress?",
+    ],
+    fitness: [
+      "Are you chasing strength, aesthetics, endurance, or recovery?",
+      "What’s been hardest: training, nutrition, or routine?",
+      "What would ‘fit’ mean for you in 90 days?",
+    ],
+    money: [
+      "Is the pressure short-term cashflow or long-term security?",
+      "What’s the biggest money stressor right now?",
+      "Do you want budgeting, earning more, or cleaning up debt?",
+    ],
+    stress: [
+      "What’s the stress coming from — people, uncertainty, or overload?",
+      "When does it spike the most during your day?",
+      "What’s the one thing you wish you could put down?",
+    ],
+    confidence: [
+      "Where do you feel least confident right now — and why there?",
+      "What would ‘confident’ look like in behavior this week?",
+      "Is it self-talk, skills, or social pressure?",
+    ],
+    motivation: [
+      "Do you feel stuck, tired, or just uninspired?",
+      "What’s the goal you care about most, even a little?",
+      "What keeps derailing your momentum?",
+    ],
+    habits: [
+      "What habit are you trying to build — or break?",
+      "What time of day is most vulnerable for you?",
+      "Want a tiny habit plan or a strong reset plan?",
+    ],
+    focus: [
+      "Is focus failing because of distractions or because the goal is fuzzy?",
+      "What task are you avoiding the most?",
+      "Want help structuring a 30-minute sprint?",
+    ],
+    purpose: [
+      "Do you feel directionless — or just overloaded with options?",
+      "What feels meaningful to you, even if it’s messy?",
+      "If you had certainty, what would you choose?",
+    ],
+    meaning: [
+      "What’s been feeling hollow — and what still feels real?",
+      "Where do you feel most ‘you’?",
+      "If your life had a theme right now, what would it be?",
+    ],
+    future: [
+      "What do you want your next season to look like?",
+      "What’s the biggest unknown you’re facing?",
+      "If we make a 90-day plan, what should it optimize for?",
+    ],
+    mindset: [
+      "Is the inner voice harsh, anxious, or just tired?",
+      "What belief about yourself is holding you back?",
+      "What would a kinder, sharper mindset do differently tomorrow?",
+    ],
+    business: [
+      "Are we solving growth, cashflow, or positioning?",
+      "What’s your #1 bottleneck right now?",
+      "What would ‘a good week’ in business look like?",
+    ],
+    ai: [
+      "Are you thinking product, automation, or strategy?",
+      "What’s the AI problem you’re trying to crack right now?",
+      "Do you want architecture help or prompt/UX help?",
+    ],
+    technology: [
+      "Is this about building, debugging, or scaling?",
+      "What stack or system are you working inside?",
+      "What’s breaking — and what’s the symptom?",
+    ],
+    creativity: [
+      "Are you blocked, bored, or just over-edited?",
+      "What are you trying to create?",
+      "Do you want ideas, structure, or accountability?",
+    ],
+  };
+
+  const qs = questionsByTopic[t] || [
+    "What’s the main thing you want to untangle here?",
+    "What outcome would feel like a win?",
+    "Where should we start — what’s the headline?",
+  ];
+
+  return `${pick(openers)} ${pick(qs)}`;
+}
+
+
+// -------------------------
 // lane identity + bridge helpers (MARION↔NYX STABILIZATION++++)
+// -------------------------
 // -------------------------
 function resolveSessionKey(session, norm, requestId) {
   const s = isPlainObject(session) ? session : {};
@@ -2514,6 +2685,112 @@ async function handleChat(input) {
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
 
+
+
+// -------------------------
+// SOCIAL INTENT OVERRIDE++++ (Phase 1)
+// - MUST run before lane/default routing.
+// - Treats payload with only ambient meta (lane/year/mode/turnId/text) as NON-actionable.
+// - Prevents: buildDeepTalkPrompt(detectTalkTopicSeed(norm.text) || safeStr(session.lastTopic || "") || "this", inboundKey) on greetings/check-ins.
+// -------------------------
+const tSocial = safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ");
+const p = isPlainObject(norm.payload) ? norm.payload : {};
+const pKeys = Object.keys(p || {});
+const hasNonAmbientPayload = pKeys.some((k) => !["lane", "year", "mode", "turnId", "text", "message", "vibe"].includes(k));
+const hasExplicitAction = !!safeStr(norm.action || "").trim();
+const socialHit =
+  !!tSocial &&
+  !hasExplicitAction &&
+  !hasNonAmbientPayload &&
+  (
+    /^(hi|hello|hey)\b/.test(tSocial) ||
+    /\bgood\s*(morning|afternoon|evening)\b/.test(tSocial) ||
+    /\bhow\s+are\s+you\b/.test(tSocial) ||
+    /\bhow\s+is\s+it\s+going\b/.test(tSocial) ||
+    /\bwhat'?s\s+up\b/.test(tSocial)
+  );
+
+if (socialHit) {
+  try { console.log("[CE][SOCIAL_OVERRIDE] hit", tSocial.slice(0, 120)); } catch (_) {}
+  const reply = "Hey — I’m doing great. 😊 How are you feeling today?";
+  return {
+    ok: true,
+    reply,
+    payload: { reply, intent: "social_greeting" },
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    bridge: { bypassClarify: true, lane: "general", action: "social_greeting", inboundKey },
+    ctx: norm.ctx,
+    ui: { chips: [], hints: ["social"] },
+    directives: [],
+    followUps: [
+      { id: "just_talk", type: "chip", label: "Just talk", payload: { action: "counsel_intro" } },
+      { id: "music", type: "chip", label: "Music", payload: { action: "music" } },
+      { id: "roku", type: "chip", label: "Roku", payload: { action: "roku" } },
+      { id: "sponsors", type: "chip", label: "Sponsors", payload: { action: "sponsors" } },
+    ],
+    followUpsStrings: ["Just talk", "Music", "Roku", "Sponsors"],
+    meta: { ce: CE_VERSION, t: started, ms: nowMs() - started },
+  };
+}
+
+
+    // -------------------------
+    // TOPIC SEED GUARD++++ (keeps Just Talk depth 10–15 turns)
+    // - If user drops a short “topic tap” (e.g., “Life”, “Work”, “Purpose”),
+    //   we treat it as a valid conversation start rather than routing to lane-prompt.
+    // -------------------------
+    if (!hasExplicitAction && !hasNonAmbientPayload) {
+      const seed = detectTalkTopicSeed(norm.text);
+      if (seed) {
+        const reply = finalizeReply(buildDeepTalkPrompt(seed, inboundKey), "Okay — tell me more.");
+        const sigLine = detectSignatureLine(reply);
+        const f = [
+          { id: "t_life", type: "chip", label: "Life", payload: { text: "Life" } },
+          { id: "t_work", type: "chip", label: "Work", payload: { text: "Work" } },
+          { id: "t_relationships", type: "chip", label: "Relationships", payload: { text: "Relationships" } },
+          { id: "t_purpose", type: "chip", label: "Purpose", payload: { text: "Purpose" } },
+          { id: "t_business", type: "chip", label: "Business", payload: { text: "Business" } },
+          { id: "t_ai", type: "chip", label: "AI", payload: { text: "AI" } },
+        ];
+
+        // Keep it additive: patch only via sessionPatch (no mutation).
+        const coreNext = finalizeSpineTurn({
+          corePrev: coerceCoreSpine(session),
+          norm,
+          lane: "general",
+          topic: seed,
+          actionTaken: "topic_seed_prompt",
+          followUps: f,
+          pendingAsk: "deep_talk",
+          decision: { move: "talk", reason: "topic_seed" },
+          assistantSummary: `topic_seed:${seed}`,
+          marionCog: null,
+          updateReason: "topic_seed_guard",
+        });
+
+        const routePatch = {
+          lane: "general",
+          lastTopic: seed,
+          ...(sigLine ? { lastSigTransition: sigLine } : {}),
+          __spineState: coreNext,
+        };
+
+        return buildContract({
+          reply,
+          lane: "general",
+          followUps: f,
+          followUpsStrings: f.map((x) => x.label),
+          sessionPatch: mergeSessionPatch({ lastTopic: seed }, routePatch),
+          norm,
+          requestId: resolveRequestId(input, norm, inboundKey),
+          bridge: { bypassClarify: true, lane: "general", action: "topic_seed", inboundKey },
+          cog: { mode: "support", intent: "TALK", dominance: "neutral" },
+          meta: { ce: CE_VERSION, t: started, ms: nowMs() - started },
+        });
+      }
+    }
 
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
@@ -2710,6 +2987,12 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
 
     const noveltyScore = computeNoveltyScore(norm, session, cog);
     const discoveryHint = buildDiscoveryHint(norm, session, cog, noveltyScore);
+    // De-aggressive fallback++++: if user *typed something*, keep the conversation going.
+    // Discovery hint is reserved for empty/ambient turns; otherwise it can cause early collapse.
+    if (discoveryHint && discoveryHint.enabled && safeStr(norm.text || "").trim()) {
+      discoveryHint.enabled = false;
+      discoveryHint.reason = "typed_text_keep_talking";
+    }
     // Emotion/Affect guard: never show forced lane-prompt when the turn is emotional (distress OR simple affect ping).
     if (
       (emo && (emo.bypassClarify || safeStr(emo.mode || "").toUpperCase() === "VULNERABLE")) ||
@@ -4217,13 +4500,11 @@ const reply0 = finalizeReply(
             ? `Good — I’m glad to hear that. What’s making you feel ${safeStr(affect.tag || "good")} right now?`
             : `Okay — I hear the ${safeStr(affect.tag || "feeling")}. What’s behind it right now?`
         ) + " If you want direction, tell me the goal or tap a lane chip."
-      : (isSocialGreetingText(norm.text)
-          ? "Hey — I’m glad you’re here. 😊 How are you feeling today?"
-          : (discoveryHint && discoveryHint.enabled
-              ? safeStr(discoveryHint.question).trim()
-              : safeStr(norm.text)
-                ? "Tell me what you want next: music, movies, or sponsors."
-                : "Okay — tell me what you want next.")),
+      : (discoveryHint && discoveryHint.enabled
+          ? safeStr(discoveryHint.question).trim()
+          : safeStr(norm.text)
+            ? "Tell me what you want next: music, movies, or sponsors."
+            : "Okay — tell me what you want next."),
   "Okay — tell me what you want next."
 );
 
