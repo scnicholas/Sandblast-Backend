@@ -167,6 +167,70 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
+
+/**
+ * Priority-0 greeting quick detector.
+ * - Designed to run BEFORE intent/lane/fallback so plain greetings can't collapse into menu prompts.
+ * - Returns { kind } or null.
+ */
+function detectGreetingQuick(text) {
+  const raw0 = safeStr(text || "");
+  const t0 = raw0.trim();
+  if (!t0) return null;
+
+  // Canonicalize (lowercase, collapse spaces, strip trailing punctuation)
+  const canon = t0
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim();
+
+  // Greeting + "how are you" variants
+  const how = /(how are you|how\'s it going|hows it going|how are you doing|how\'re you|whats up|what\'s up)(\s+today)?$/i;
+  const greetHead = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))(\s+nyx)?(\s*[,:-])?\s*/i;
+
+  // Pure "how are you" opener
+  if (/^(how are you|how are you doing|how\'s it going|hows it going|what\'s up|whats up)(\s+today)?$/i.test(canon)) {
+    return { kind: "GREETING_HOW" };
+  }
+
+  // "Hi/Hello ..." forms
+  if (greetHead.test(canon)) {
+    const tail = canon.replace(greetHead, "").trim();
+    if (!tail) return { kind: "GREETING_ONLY" };
+    if (how.test(tail)) return { kind: "GREETING_HOW" };
+    // If the tail is still short and friendly ("there"), treat as greeting.
+    if (/^(there|nyx)$/i.test(tail)) return { kind: "GREETING_ONLY" };
+  }
+
+  return null;
+}
+
+function pickBySeed(arr, seed) {
+  const a = Array.isArray(arr) ? arr : [];
+  if (!a.length) return "";
+  const h = sha1Lite(safeStr(seed || ""));
+  const n = parseInt(h.slice(0, 8), 16);
+  const idx = Number.isFinite(n) ? (n % a.length) : 0;
+  return safeStr(a[idx] || "");
+}
+
+function buildGreetingReply(kind, seed) {
+  const k = safeStr(kind || "").toUpperCase();
+  const poolOnly = [
+    "Hi — I’m Nyx. 😊 How can I help you today?",
+    "Hey — I’m Nyx. What can I do for you?",
+    "Hello — I’m Nyx. How can I help?",
+    "Hi there. I’m Nyx — what would you like to talk about?",
+  ];
+  const poolHow = [
+    "I’m doing well, thank you. 😊 How can I help you today?",
+    "Doing good — thanks for asking. What can I help you with?",
+    "I’m well. 😊 What’s on your mind today?",
+    "I’m doing great — thank you. How can I help?",
+  ];
+  return pickBySeed(k === "GREETING_HOW" ? poolHow : poolOnly, seed);
+}
 function normYear(y) {
   const n = Number(y);
   if (!Number.isFinite(n)) return null;
@@ -2579,6 +2643,52 @@ const session = isPlainObject(norm.body.session)
           meta: { fastReturn: true, reason: "duplicate_inbound" },
         };
       }
+
+// -------------------------
+// PRIORITY 0 — GREETING INTERCEPT++++
+// - Must run BEFORE intent/lane/fallback so greetings never collapse into lane prompts.
+// - Deterministic reply (no model), stable across retries.
+// -------------------------
+const greetQuick = detectGreetingQuick(norm.text);
+if (greetQuick && greetQuick.kind) {
+  const greetReply = buildGreetingReply(greetQuick.kind, safeStr(inboundKey || norm.text || ""));
+  const sessionPatch = mergeSessionPatch({}, {
+    __lastIntent: "GREETING",
+    __lastLane: safeStr(session.__lastLane || "") || "general",
+    __lastTopic: "greeting",
+    __turnDepth: (Number.isFinite(Number(session.__turnDepth)) ? Number(session.__turnDepth) : 0) + 1,
+  });
+
+  // A+ debug line (remove when stable)
+  if (truthy(norm?.ctx?.debug) || truthy(input?.debug) || truthy(process?.env?.NYX_DEBUG_GREET)) {
+    console.debug("[chatEngine:greet]", {
+      v: CE_VERSION,
+      kind: greetQuick.kind,
+      text: safeStr(norm.text || ""),
+      inboundKey,
+      keys: Object.keys(isPlainObject(norm.body) ? norm.body : {}),
+    });
+  }
+
+  return {
+    ok: true,
+    reply: greetReply,
+    lane: "general",
+    laneId: undefined,
+    sessionLane: "general",
+    bridge: { bypassClarify: true, greet: true, inboundKey },
+    ctx: norm.ctx,
+    ui: { chips: [], hints: [] },
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch,
+    cog: null,
+    requestId: safeStr(input?.requestId || "") || undefined,
+    meta: { fastReturn: true, reason: "greeting_intercept" },
+  };
+}
+
     }
 
     // Trip fuse: same inbound repeated multiple times within window
@@ -2742,89 +2852,6 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
 
     const yearSticky = normYear(session.lastYear) ?? null;
     const year = norm.year ?? yearSticky ?? null;
-
-
-// PRIORITY 0: greeting + topic-seed intercept (DEPTH STABILITY++++)
-// - Must run BEFORE intent/lane detection to prevent premature menu fallback.
-// - Pure additive: does not mutate existing routing structure.
-const _text0 = safeStr(norm.text || "").trim();
-const _textL = _text0.toLowerCase();
-const _hasExplicitNav =
-  !!safeStr(norm.lane || "").trim() ||
-  !!safeStr(norm.payload?.lane || "").trim() ||
-  !!safeStr(norm.action || "").trim() ||
-  !!safeStr(norm.payload?.action || "").trim();
-
-const _depth =
-  Number(corePrev?.rev ?? session?.__spineState?.rev ?? session?.turnDepth ?? 0) || 0;
-
-const _isGreeting0 =
-  !!_textL &&
-  /^(hi|hello|hey|yo|sup)\b/.test(_textL) ||
-  /\bgood\s*(morning|afternoon|evening)\b/.test(_textL) ||
-  /^(hi|hello|hey)\s+nyx\b/.test(_textL);
-
-if (_isGreeting0 && !_hasExplicitNav) {
-  // Greeting should never drop into lane navigation. Keep it human, simple, and stable.
-  const _asksHow = /\b(how\s*are\s*you|how\s*ya\s*doin|how'?s\s*(it\s*going|things)|what'?s\s*up)\b/.test(_textL);
-  const _greetPool = _asksHow
-    ? [
-        "Hi — I’m doing well, thank you. 😊 How can I help you today?",
-        "Hey! I’m good — thanks for asking. What can I do for you right now?",
-        "Hello 😊 I’m doing alright. What would you like to talk about?",
-        "Hey there — I’m doing well. What’s on your mind today?",
-      ]
-    : [
-        "Hi — I’m Nyx. 😊 How can I help you today?",
-        "Hey! I’m Nyx. What would you like to do today?",
-        "Hello 😊 What can I help you with right now?",
-        "Hey there — what are we working on today?",
-      ];
-  const greet = pickVariant(_greetPool, _textL, "greet");
-  return buildContract({
-    reply: greet,
-    payload: { reply: greet },
-    lane: "general",
-    laneId: "general",
-    sessionLane: safeStr(session?.lastLane || session?.lane || "general") || "general",
-    bridge: { lane: "general", action: "greeting_intercept" },
-    ctx: norm.ctx,
-    ui: { chips: [], hints: [] },
-    directives: [],
-    followUps: [],
-    followUpsStrings: [],
-    meta: metaBase({ route: "greeting_intercept", depth: _depth }),
-  });
-}
-
-// Topic-seed expansion: one-word/short topic taps should deepen the thread, not trigger menu routing.
-const _topicSeeds = new Set([
-  "life","work","relationship","relationships","ai","business","purpose",
-  "health","fitness","money","stress","confidence","motivation","habits","focus","meaning",
-  "future","mindset","creativity","technology","career","love","family","friends","discipline","growth"
-]);
-const _isShortTopicSeed = !!_textL && _textL.split(/\s+/).length <= 3 && _topicSeeds.has(_textL);
-
-if (_isShortTopicSeed && !_hasExplicitNav) {
-  const label = _text0.length ? _text0 : "that";
-  const q = _depth >= 2
-    ? `When you say “${label},” what’s the pressure point right now — what’s actually bothering you?`
-    : `Okay — “${label}.” What part of that do you want to unpack first?`;
-  return buildContract({
-    reply: q,
-    payload: { reply: q },
-    lane: "general",
-    laneId: "general",
-    sessionLane: safeStr(session?.lastLane || session?.lane || "general") || "general",
-    bridge: { lane: "general", action: "topic_seed_expand", topic: _textL },
-    ctx: norm.ctx,
-    ui: { chips: [], hints: [] },
-    directives: [],
-    followUps: [],
-    followUpsStrings: [],
-    meta: metaBase({ route: "topic_seed_expand", depth: _depth, topic: _textL }),
-  });
-}
 
     // Lane resolution: payload+typed+session fallback
     let lane =
@@ -4270,7 +4297,7 @@ const reply0 = finalizeReply(
       : (discoveryHint && discoveryHint.enabled
           ? safeStr(discoveryHint.question).trim()
           : safeStr(norm.text)
-            ? "Tell me more — what’s the most important part of that for you right now?"
+            ? "Tell me what you want next: music, movies, or sponsors."
             : "Okay — tell me what you want next."),
   "Okay — tell me what you want next."
 );
