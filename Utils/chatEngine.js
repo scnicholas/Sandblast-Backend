@@ -2765,7 +2765,22 @@ const _isGreeting0 =
   /^(hi|hello|hey)\s+nyx\b/.test(_textL);
 
 if (_isGreeting0 && !_hasExplicitNav) {
-  const greet = "Hey — I’m glad you’re here. 😊 How are you feeling today?";
+  // Greeting should never drop into lane navigation. Keep it human, simple, and stable.
+  const _asksHow = /\b(how\s*are\s*you|how\s*ya\s*doin|how'?s\s*(it\s*going|things)|what'?s\s*up)\b/.test(_textL);
+  const _greetPool = _asksHow
+    ? [
+        "Hi — I’m doing well, thank you. 😊 How can I help you today?",
+        "Hey! I’m good — thanks for asking. What can I do for you right now?",
+        "Hello 😊 I’m doing alright. What would you like to talk about?",
+        "Hey there — I’m doing well. What’s on your mind today?",
+      ]
+    : [
+        "Hi — I’m Nyx. 😊 How can I help you today?",
+        "Hey! I’m Nyx. What would you like to do today?",
+        "Hello 😊 What can I help you with right now?",
+        "Hey there — what are we working on today?",
+      ];
+  const greet = pickVariant(_greetPool, _textL, "greet");
   return buildContract({
     reply: greet,
     payload: { reply: greet },
