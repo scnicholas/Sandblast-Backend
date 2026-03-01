@@ -82,6 +82,10 @@ const AIK = safeRequire("./aiKnowledge");
 // OPINTEL HELPERS (HASHING + BOUNDED TRACE)
 // =========================
 
+
+let _path = null;
+try { _path = require("path"); } catch (_e) { _path = null; }
+
 let _crypto = null;
 try {
   // eslint-disable-next-line global-require
@@ -900,18 +904,21 @@ function resolveStateHints(features) {
   const lastIntent = safeStr(f.__lastIntent ?? f.lastIntent ?? "", 24).toUpperCase();
   const lastLane = safeStr(f.lastLane ?? f.lane ?? f.activeLane ?? "", 32).toLowerCase();
 
-  const hints = {
-    turnDepth,
-    lastIntent,
-    lastLane,
-  };
+  // loop-control hints (optional, enterprise-safe)
+  const clarifyStreak = clampInt(f.__clarifyStreak ?? f.clarifyStreak ?? 0, 0, 10, 0);
+  const lowConfStreak = clampInt(f.__oiLowConfStreak ?? f.oiLowConfStreak ?? 0, 0, 10, 0);
+
+  const hints = { turnDepth, lastIntent, lastLane, clarifyStreak, lowConfStreak };
 
   // prune empties
   if (!hints.lastIntent) delete hints.lastIntent;
   if (!hints.lastLane) delete hints.lastLane;
+  if (!hints.clarifyStreak) delete hints.clarifyStreak;
+  if (!hints.lowConfStreak) delete hints.lowConfStreak;
 
   return hints;
 }
+
 
 function resolveResilienceHints(features, opts) {
   const f = isObject(features) ? features : {};
@@ -932,6 +939,23 @@ function resolveResilienceHints(features, opts) {
 }
 
 
+
+
+// =========================
+// PHASE 5.5: LANE LOCK SUPREMACY (ENTERPRISE SAFE)
+// =========================
+// Lane lock is a CONTROL SIGNAL: if the host provides a lane (opts/features), it supersedes
+// inferred routing inside this bridge. This prevents "bridge drift".
+function resolveLaneLock(features, opts) {
+  const f = isObject(features) ? features : {};
+  const o = isObject(opts) ? opts : {};
+  const raw =
+    o.lane || o.activeLane || o.__lane ||
+    f.lane || f.activeLane || f.lastLane || f.__lane || "";
+  const lane = safeStr(raw, 32).trim().toLowerCase();
+  const locked = !!lane;
+  return { locked, lane };
+}
 // =========================
 // PHASE 6–10: OPERATIONAL INTELLIGENCE ENVELOPE (ENTERPRISE SAFE)
 // =========================
@@ -1090,6 +1114,8 @@ function resolveOpIntelEnvelope(input, out, domains, confidence, diag, social, s
     turnId: turnId || undefined,
     inputSig: sig,
 
+    laneLock: { locked: !!lane, lane: lane || undefined },
+
     contextSourcesUsed: provenance,
     contextBudget,
 
@@ -1194,6 +1220,14 @@ function build(input) {
     const sessionKey = safeStr(input?.sessionKey || "", 64);
     const opts = isObject(input?.opts) ? input.opts : {};
 
+
+const laneLock = resolveLaneLock(features, opts);
+if (laneLock.locked) {
+  // CONTROL SIGNAL: lane lock supersedes inferred routing (prevents drift)
+  features.lane = laneLock.lane;
+  features.activeLane = laneLock.lane;
+}
+
     // Allow the caller to force psych routing without introducing raw user text.
     const forcePsychBridge = !!(
       opts.forcePsychBridge ||
@@ -1297,6 +1331,16 @@ if (social && social.intent) {
 }
 
 
+// Phase 10+: Clarify streak breaker (enterprise-safe, Nyx-safe)
+// If upstream is stuck in clarify loops, push structured options instead of repeating questions.
+const __stateHints = resolveStateHints(features);
+if (__stateHints && __stateHints.clarifyStreak >= 2) {
+  responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
+  uiCues.unshift("show_options_chips");
+  guardrails.unshift("clarify_streak_breaker");
+}
+
+
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
     if (responseCues.includes("keep_short")) uiCues.push("compact_reply");
@@ -1325,6 +1369,7 @@ if (social && social.intent) {
       stance,
       lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
+      bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
     };
 
     const affect = resolveAffect(ctx);
@@ -1361,7 +1406,6 @@ return finalizeContract({
       stateHints: resolveStateHints(features),
       resilience: resolveResilienceHints(features, opts),
       opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, resolveStateHints(features)),
-      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, resolveStateHints(features)),
     });
   } catch (e) {
     return failOpenPsyche(e, input);
@@ -1379,6 +1423,14 @@ async function buildAsync(input) {
     const queryKey = safeStr(input?.queryKey || "", 32);
     const sessionKey = safeStr(input?.sessionKey || "", 64);
     const opts = isObject(input?.opts) ? input.opts : {};
+
+
+const laneLock = resolveLaneLock(features, opts);
+if (laneLock.locked) {
+  // CONTROL SIGNAL: lane lock supersedes inferred routing (prevents drift)
+  features.lane = laneLock.lane;
+  features.activeLane = laneLock.lane;
+}
 
     const forcePsychBridge = !!(
       opts.forcePsychBridge ||
@@ -1464,6 +1516,16 @@ if (social && social.intent) {
 }
 
 
+// Phase 10+: Clarify streak breaker (enterprise-safe, Nyx-safe)
+// If upstream is stuck in clarify loops, push structured options instead of repeating questions.
+const __stateHints = resolveStateHints(features);
+if (__stateHints && __stateHints.clarifyStreak >= 2) {
+  responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
+  uiCues.unshift("show_options_chips");
+  guardrails.unshift("clarify_streak_breaker");
+}
+
+
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
     if (responseCues.includes("keep_short")) uiCues.push("compact_reply");
@@ -1486,6 +1548,7 @@ if (social && social.intent) {
       stance,
       lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
+      bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
       async: true,
     };
 
