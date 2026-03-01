@@ -27,7 +27,7 @@
  * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.2.1";
+const SPINE_VERSION = "stateSpine v1.3.0 (OPINTEL++++ + AUDIT LAYER++++ + ENTERPRISE HEAVY+++)";
 
 const LANE = Object.freeze({
   // UI chip lanes (Sandblast)
@@ -165,6 +165,7 @@ function isLaneToken(t) {
   const s = safeStr(t, 64).trim().toLowerCase();
   // Accept ANY known lane token (new + legacy). This is used to resolve need_pick prompts.
   return Object.values(LANE).includes(s);
+}
 
 function isDistressText(t) {
   const s = safeStr(t, 240).toLowerCase();
@@ -180,10 +181,9 @@ function isDistressText(t) {
   );
 }
 
-}
-
 // -------------------------
 // MARION COG (sanitized, bounded)
+// ------------------------- (sanitized, bounded)
 // -------------------------
 function normalizeCogStage(x) {
   const v = safeStr(x, 40).toLowerCase().trim();
@@ -634,15 +634,68 @@ function createState(seed = {}) {
         : 0,
     },
 
-    // Diagnostics (bounded)
+        // Diagnostics (bounded)
     diag: {
       lastUpdateReason: safeStr(seed?.diag?.lastUpdateReason || "", 120),
       // Loop fuse: detect repeated clarify emissions without progress
       clarifyKey: safeStr(seed?.diag?.clarifyKey || "", 80),
-      clarifyRepeats: Number.isFinite(seed?.diag?.clarifyRepeats) ? Math.max(0, Math.trunc(seed.diag.clarifyRepeats)) : 0,
+      clarifyRepeats: Number.isFinite(seed?.diag?.clarifyRepeats)
+        ? Math.max(0, Math.trunc(seed.diag.clarifyRepeats))
+        : 0,
+    },
+
+    // -------------------------
+    // OPERATIONAL INTELLIGENCE (enterprise-heavy; Nyx-safe additive fields)
+    // -------------------------
+    op: {
+      // runtime thread continuity
+      objective: safeStr(seed?.op?.objective || "", 240) || null,
+      depthLevel: Number.isFinite(seed?.op?.depthLevel) ? Math.max(0, Math.trunc(seed.op.depthLevel)) : 0,
+      // confidence gating (internal; delivery remains unchanged unless chatEngine opts-in)
+      confidenceScore: Number.isFinite(seed?.op?.confidenceScore) ? Math.max(0, Math.min(1, Number(seed.op.confidenceScore))) : 0,
+      operationalWeight: Number.isFinite(seed?.op?.operationalWeight) ? Math.max(0, Math.min(1, Number(seed.op.operationalWeight))) : 0,
+      riskFlags: Array.isArray(seed?.op?.riskFlags) ? seed.op.riskFlags.slice(0, 12).map((x)=>safeStr(x,48)).filter(Boolean) : [],
+      escalationFlag: !!seed?.op?.escalationFlag,
+      unresolvedThreads: Array.isArray(seed?.op?.unresolvedThreads)
+        ? seed.op.unresolvedThreads.slice(0, 12).map((x)=>safeStr(x,140)).filter(Boolean)
+        : [],
+      lastGoodRev: Number.isFinite(seed?.op?.lastGoodRev) ? Math.max(0, Math.trunc(seed.op.lastGoodRev)) : 0,
+      lastGoodTurnSig: safeStr(seed?.op?.lastGoodTurnSig || "", 240) || null,
+    },
+
+    governance: {
+      // human accountability hooks; enforced upstream (chatEngine/router)
+      safetyMode: safeStr(seed?.governance?.safetyMode || "", 24) || "standard",
+      requireHumanConfirmation: !!seed?.governance?.requireHumanConfirmation,
+      escalationRules: isPlainObject(seed?.governance?.escalationRules)
+        ? seed.governance.escalationRules
+        : {
+            // defaults: conservative; can be overridden by chatEngine
+            onLowConfidence: 0.45,
+            onHighRisk: true,
+            onRepeatErrors: 2,
+          },
+      blockedTopics: Array.isArray(seed?.governance?.blockedTopics)
+        ? seed.governance.blockedTopics.slice(0, 24).map((x)=>safeStr(x,40)).filter(Boolean)
+        : [],
+    },
+
+    audit: {
+      // enterprise-heavy audit trail (bounded; no raw user text required)
+      enabled: seed?.audit?.enabled === false ? false : true,
+      maxTurns: Number.isFinite(seed?.audit?.maxTurns) ? Math.max(25, Math.min(500, Math.trunc(seed.audit.maxTurns))) : 200,
+      turnLogs: Array.isArray(seed?.audit?.turnLogs) ? seed.audit.turnLogs.slice(-200) : [],
+      errors: Array.isArray(seed?.audit?.errors) ? seed.audit.errors.slice(-200) : [],
+      metrics: isPlainObject(seed?.audit?.metrics) ? seed.audit.metrics : {
+        avgLatencyMs: 0,
+        lastLatencyMs: 0,
+        fallbackRate: 0,
+        clarifyRate: 0,
+      },
     },
   };
 }
+
 
 function coerceState(prev) {
   const d = createState();
@@ -708,6 +761,41 @@ function coerceState(prev) {
   // Privacy default
   out.lastUserText = safeStr(out.lastUserText || "", 0);
 
+// OPERATIONAL INTELLIGENCE (additive; keep defaults if missing)
+if (!out.op || typeof out.op !== "object") out.op = {};
+out.op.objective = safeStr(out.op.objective || "", 240) || null;
+out.op.depthLevel = Number.isFinite(out.op.depthLevel) ? Math.max(0, Math.trunc(out.op.depthLevel)) : 0;
+out.op.confidenceScore = Number.isFinite(out.op.confidenceScore) ? Math.max(0, Math.min(1, Number(out.op.confidenceScore))) : 0;
+out.op.operationalWeight = Number.isFinite(out.op.operationalWeight) ? Math.max(0, Math.min(1, Number(out.op.operationalWeight))) : 0;
+out.op.riskFlags = Array.isArray(out.op.riskFlags)
+  ? out.op.riskFlags.slice(0, 12).map((x) => safeStr(x, 48)).filter(Boolean)
+  : [];
+out.op.escalationFlag = !!out.op.escalationFlag;
+out.op.unresolvedThreads = Array.isArray(out.op.unresolvedThreads)
+  ? out.op.unresolvedThreads.slice(0, 12).map((x) => safeStr(x, 140)).filter(Boolean)
+  : [];
+out.op.lastGoodRev = Number.isFinite(out.op.lastGoodRev) ? Math.max(0, Math.trunc(out.op.lastGoodRev)) : 0;
+out.op.lastGoodTurnSig = safeStr(out.op.lastGoodTurnSig || "", 240) || null;
+
+if (!out.governance || typeof out.governance !== "object") out.governance = {};
+out.governance.safetyMode = safeStr(out.governance.safetyMode || "", 24) || "standard";
+out.governance.requireHumanConfirmation = !!out.governance.requireHumanConfirmation;
+out.governance.escalationRules = isPlainObject(out.governance.escalationRules)
+  ? out.governance.escalationRules
+  : { onLowConfidence: 0.45, onHighRisk: true, onRepeatErrors: 2 };
+out.governance.blockedTopics = Array.isArray(out.governance.blockedTopics)
+  ? out.governance.blockedTopics.slice(0, 24).map((x) => safeStr(x, 40)).filter(Boolean)
+  : [];
+
+if (!out.audit || typeof out.audit !== "object") out.audit = {};
+out.audit.enabled = out.audit.enabled === false ? false : true;
+out.audit.maxTurns = Number.isFinite(out.audit.maxTurns) ? Math.max(25, Math.min(500, Math.trunc(out.audit.maxTurns))) : 200;
+out.audit.turnLogs = Array.isArray(out.audit.turnLogs) ? out.audit.turnLogs.slice(-out.audit.maxTurns) : [];
+out.audit.errors = Array.isArray(out.audit.errors) ? out.audit.errors.slice(-out.audit.maxTurns) : [];
+out.audit.metrics = isPlainObject(out.audit.metrics)
+  ? out.audit.metrics
+  : { avgLatencyMs: 0, lastLatencyMs: 0, fallbackRate: 0, clarifyRate: 0 };
+
   return out;
 }
 
@@ -721,6 +809,134 @@ function stripPoisonKeys(patchObj) {
   return out;
 }
 
+// -------------------------
+// AUDIT (enterprise-heavy; bounded; Nyx-safe)
+// -------------------------
+function capArray(arr, max) {
+  const a = Array.isArray(arr) ? arr : [];
+  const m = Number.isFinite(max) ? Math.max(1, Math.trunc(max)) : 200;
+  return a.length > m ? a.slice(a.length - m) : a;
+}
+
+function safeHashText(t) {
+  // hash only; never persist raw by default
+  const raw = safeStr(t || "", 2000);
+  return raw ? sha1Lite(raw) : "";
+}
+
+function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
+  const n = normalizeInbound(inbound);
+  const d = decision && typeof decision === "object" ? decision : {};
+
+  const lane = normalizeLane(next?.lane || n.lane || prev?.lane || LANE.GENERAL);
+  const intent = safeStr(next?.lastUserIntent || "", 40) || inferUserIntent(n);
+
+  // Capture operational metadata without raw text.
+  const log = {
+    turnId: `${safeStr(next?.createdAt || "", 32) || "t"}:${Number(next?.rev || 0)}`,
+    ts: nowIso(),
+    rev: Number(next?.rev || 0),
+    lane,
+    stage: normalizeStage(next?.stage || STAGE.OPEN),
+    topic: safeStr(next?.topic || "", 80) || "unknown",
+
+    // privacy: do not store raw input; store hash + bounded normalized form
+    rawInputHash: safeHashText(n.text),
+    normalizedInput: {
+      hasText: !!n.text,
+      textLen: safeStr(n.text || "", 2000).length,
+      action: safeStr(n.action || "", 80) || null,
+      year: n.year !== null ? n.year : null,
+      hasPayload: !!n.signals?.hasPayload,
+      payloadActionable: !!n.signals?.payloadActionable,
+    },
+
+    // planning decision trace
+    decision: {
+      move: safeStr(d.move || "", 20) || null,
+      rationale: safeStr(d.rationale || "", 120) || null,
+    },
+
+    // operational spine
+    op: {
+      objective: safeStr(next?.op?.objective || "", 240) || null,
+      depthLevel: Number.isFinite(next?.op?.depthLevel) ? next.op.depthLevel : 0,
+      confidenceScore: Number.isFinite(next?.op?.confidenceScore) ? next.op.confidenceScore : 0,
+      operationalWeight: Number.isFinite(next?.op?.operationalWeight) ? next.op.operationalWeight : 0,
+      escalationFlag: !!next?.op?.escalationFlag,
+      riskFlags: Array.isArray(next?.op?.riskFlags) ? next.op.riskFlags.slice(0, 12) : [],
+      unresolvedThreads: Array.isArray(next?.op?.unresolvedThreads) ? next.op.unresolvedThreads.slice(0, 12) : [],
+    },
+
+    // context sources used (bounded; no large payload)
+    context: activeContext
+      ? {
+          kind: safeStr(activeContext.kind || "", 24) || null,
+          route: safeStr(activeContext.route || "", 80) || null,
+          id: safeStr(activeContext.id || "", 80) || null,
+          year: typeof activeContext.year === "number" ? activeContext.year : null,
+          lane: safeStr(activeContext.lane || "", 24) || null,
+        }
+      : null,
+
+    // cognition hint snapshot (sanitized, bounded)
+    marion: next?.marion || null,
+
+    // reliability signals
+    metrics: {
+      latencyMs:
+        Number.isFinite(inbound?.latencyMs) ? Math.max(0, Math.trunc(inbound.latencyMs)) :
+        Number.isFinite(d.latencyMs) ? Math.max(0, Math.trunc(d.latencyMs)) :
+        0,
+      hadError: false,
+    },
+  };
+
+  return log;
+}
+
+function appendAuditTurn(state, log) {
+  const s = coerceState(state);
+  if (!s.audit || typeof s.audit !== "object") s.audit = {};
+  if (s.audit.enabled === false) return s;
+
+  const max = Number.isFinite(s.audit.maxTurns) ? s.audit.maxTurns : 200;
+  const nextLogs = capArray([...(Array.isArray(s.audit.turnLogs) ? s.audit.turnLogs : []), log], max);
+
+  return {
+    ...s,
+    audit: {
+      ...s.audit,
+      turnLogs: nextLogs,
+    },
+  };
+}
+
+function appendAuditError(state, errObj) {
+  const s = coerceState(state);
+  if (!s.audit || typeof s.audit !== "object") s.audit = {};
+  if (s.audit.enabled === false) return s;
+
+  const max = Number.isFinite(s.audit.maxTurns) ? s.audit.maxTurns : 200;
+  const e = isPlainObject(errObj) ? errObj : { message: safeStr(String(errObj || ""), 240) };
+  const rec = {
+    ts: nowIso(),
+    message: safeStr(e.message || "", 240) || "error",
+    code: safeStr(e.code || "", 40) || undefined,
+    where: safeStr(e.where || "", 80) || undefined,
+    rev: Number.isFinite(s.rev) ? s.rev : undefined,
+  };
+
+  const nextErrs = capArray([...(Array.isArray(s.audit.errors) ? s.audit.errors : []), rec], max);
+
+  return {
+    ...s,
+    audit: {
+      ...s.audit,
+      errors: nextErrs,
+    },
+  };
+}
 /**
  * Must be called ON EVERY TURN.
  * - merges safe fields
@@ -1323,6 +1539,20 @@ function finalizeTurn({
     diag: decision && isPlainObject(decision._diagClarify)
       ? { clarifyKey: safeStr(decision._diagClarify.key || "", 80), clarifyRepeats: Number(decision._diagClarify.repeats || 0) || 0 }
       : { clarifyKey: "", clarifyRepeats: 0 },
+// Operational intelligence spine (enterprise-heavy; Nyx-safe)
+op: {
+  ...prev.op,
+  depthLevel: Number.isFinite(prev?.op?.depthLevel) ? Math.min(50, Math.max(0, Math.trunc(prev.op.depthLevel)) + 1) : 1,
+  // Treat non-clarify moves as "good" progress for rollback anchors
+  lastGoodRev:
+    safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
+      ? (Number.isFinite(prev?.op?.lastGoodRev) ? prev.op.lastGoodRev : 0)
+      : (Number.isFinite(prev.rev) ? prev.rev + 1 : 1),
+  lastGoodTurnSig:
+    safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
+      ? (safeStr(prev?.op?.lastGoodTurnSig || "", 240) || null)
+      : turnSig,
+},
 
     ...(assistantSummary != null
       ? { lastAssistantSummary: safeStr(assistantSummary, 320) }
@@ -1350,7 +1580,16 @@ function finalizeTurn({
       : {}),
   };
 
-  const next = updateState(prev, patch, updateReason);
+  let next = updateState(prev, patch, updateReason);
+
+  // AUDIT++++: append enterprise turn log (bounded; no raw text)
+  try {
+    const log = buildTurnAuditLog({ prev, next, inbound, decision, activeContext });
+    next = appendAuditTurn(next, log);
+  } catch (e) {
+    // never fail the user flow on audit issues
+    next = appendAuditError(next, { message: e && e.message ? e.message : String(e), code: "AUDIT_APPEND_FAIL", where: "finalizeTurn" });
+  }
 
   // ENFORCEMENT++++: must increment exactly once per turn
   const prevRev = Number.isFinite(prev.rev) ? prev.rev : 0;
@@ -1505,6 +1744,11 @@ module.exports = {
   buildPendingAsk,
   buildChipsOffered,
   assertTurnUpdated,
+
+// audit (optional)
+buildTurnAuditLog,
+appendAuditTurn,
+appendAuditError,
 
   // tests
   runSpineSelfTests,
