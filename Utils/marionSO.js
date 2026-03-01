@@ -24,6 +24,8 @@
  */
 
 const MARION_VERSION = "marionSO v1.2.5";
+const SO_VERSION = MARION_VERSION;
+const version = MARION_VERSION;
 
 // -------------------------
 // Optional SiteBridge (FAIL-OPEN)
@@ -210,96 +212,6 @@ function computeAffectProxy(text) {
   if (angerHits > 0) tags.push("anger_language");
 
   return { valence, arousal, tension, tags: uniqBounded(tags, 6), hits: { distressHits, escalationHits, angerHits, selfHarmHits } };
-}
-
-
-// -------------------------
-// Social Intelligence Patch (Phase 1) — greetings + mood hooks (NO SIDE EFFECTS)
-// -------------------------
-// NOTE:
-// - This is a *hint layer* only. chatEngine decides final wording.
-// - We keep it privacy-min: no raw text stored, only bounded tags.
-function detectGreetingExchange(text) {
-  const t = safeStr(text || "", 600).trim().toLowerCase();
-  if (!t) return { isGreeting: false, kind: "", expectsReciprocal: false, moodProbe: false };
-  const hasHello = /^(hi|hello|hey|yo|good\s+(morning|afternoon|evening))\b/.test(t);
-  const hasHowAreYou = /\b(how\s+are\s+you|how('?s|\s+is)\s+your\s+day|hope\s+you('?re|\s+are)\s+well)\b/.test(t);
-  const moodProbe = /\b(how\s+are\s+you\s+feeling|how\s+do\s+you\s+feel|you\s+okay)\b/.test(t);
-  const isGreeting = hasHello || hasHowAreYou;
-  return {
-    isGreeting,
-    kind: hasHello && hasHowAreYou ? "hello_plus_checkin" : hasHowAreYou ? "checkin" : hasHello ? "hello" : "",
-    expectsReciprocal: !!hasHowAreYou,
-    moodProbe: !!moodProbe,
-  };
-}
-
-function buildFollowUpHookFromAffect(aff) {
-  const a = isPlainObject(aff) ? aff : {};
-  const val = Number(a.valence);
-  const ten = Number(a.tension);
-  // Bounded hooks only; chatEngine can ignore.
-  if (Number.isFinite(ten) && ten >= 0.65) return "pressure_release";
-  if (Number.isFinite(val) && val <= -0.35) return "soft_checkin";
-  return "forward_focus";
-}
-
-function buildSocialExchangeHints(norm, session, cog) {
-  const n = isPlainObject(norm) ? norm : {};
-  const s = isPlainObject(session) ? session : {};
-  const c = isPlainObject(cog) ? cog : {};
-
-  const text = safeStr(n.text || n.raw || n.userText || "", 900);
-  const greet = detectGreetingExchange(text);
-  const affect = isPlainObject(c.psychology) && isPlainObject(c.psychology.affect) ? c.psychology.affect : null;
-  const hook = buildFollowUpHookFromAffect(affect);
-
-  // Mild de-loop: if greeting exchange and we already greeted this session, tell engine to skip procedural prompt.
-  const greetedAlready = truthy(s.__greeted) || truthy(s.__introDone) || truthy(s.introDone);
-
-  return {
-    enabled: true,
-    greeting: greet,
-    greetedAlready,
-    followUpHook: hook,
-    // reminder: avoid lane prompts on pure greeting pings
-    steerPolicy: greet.isGreeting ? "engage_then_steer" : "normal",
-  };
-}
-
-// -------------------------
-// MTM-lite thread capsule (two layers) — privacy-min, optional
-// -------------------------
-// Layer 1: session thread ID + bounded topic tokens
-// Layer 2: lastTurn capsule (hashes + lane/intent) for continuation
-function buildThreadCapsule(norm, session, cog) {
-  const n = isPlainObject(norm) ? norm : {};
-  const s = isPlainObject(session) ? session : {};
-  const c = isPlainObject(cog) ? cog : {};
-
-  const sid = safeStr(s.sessionKey || s.sid || s.sessionId || s.id || "", 64);
-  const tid = safeStr(s.threadId || s.threadKey || s.thread || "", 64) || (sid ? `t_${sid}` : "");
-  if (!tid) return { enabled: false, reason: "no_thread" };
-
-  const capsule = {
-    enabled: true,
-    depth: 2,
-    threadId: tid,
-    // NEVER raw text: only hashes + bounded signals
-    lastTurn: {
-      lane: safeStr(c.lane || "", 24),
-      intent: safeStr(c.intent || "", 16),
-      dominance: safeStr(c.dominance || "", 12),
-      budget: safeStr(c.budget || "", 12),
-      textHash: safeStr(c.textHash || "", 16),
-      traceHash: safeStr(c.marionTraceHash || "", 16),
-      t: Number(n.nowMs || 0) || 0,
-    },
-    // bounded tokens only (optional)
-    tokens: safeTokenSet([])
-  };
-
-  return capsule;
 }
 
 // -------------------------
@@ -3552,60 +3464,7 @@ function mediate(norm, session, opts = {}) {
       cog.movePolicy = deriveMovePolicy(cog);
     }
 
-    
-
-    // =========================
-    // Phase 1: Social Intelligence Pack — greeting/mood exchange hints (NO SIDE EFFECTS)
-    // =========================
-    // chatEngine can use this to avoid procedural lane prompts on greeting check-ins.
-    try {
-      const social = buildSocialExchangeHints(n, s, cog);
-      if (social && social.enabled) cog.social = social;
-    } catch (_eSocial) {
-      // ignore
-    }
-
-    // =========================
-    // Phase 2: State Spine Reinforcement — continuation + last-intent suggestion (NO SIDE EFFECTS)
-    // =========================
-    // We DO NOT mutate session here. We only suggest patches.
-    try {
-      const prevIntent = safeStr(s.lastIntent || s.intent || s.prevIntent || "", 16).toUpperCase();
-      const nextIntent = safeStr(cog.intent || "", 16).toUpperCase();
-      const depthHint = clampInt(s.turnDepth || s.turnCount || s.rev || s.depth || 0, 0, 999, 0);
-
-      if (!isPlainObject(cog.sessionPatchSuggestion)) cog.sessionPatchSuggestion = {};
-      const patch2 = cog.sessionPatchSuggestion;
-
-      if (nextIntent) patch2.lastIntent = nextIntent;
-      if (prevIntent && prevIntent !== nextIntent) patch2.lastIntentPrev = prevIntent;
-
-      // Depth-aware continuation hint (engine may ignore)
-      cog.continuation = {
-        enabled: true,
-        depthHint,
-        prevIntent,
-        nextIntent,
-        // if user is in a locked chip lane, avoid deep continuation across lanes
-        safeContinue: laneCrossAllowedByDefault(cog.effectiveLane || cog.lane || "general"),
-      };
-    } catch (_eSpine) {
-      // ignore
-    }
-
-    // =========================
-    // Phase 3: Resilience Layer — thread capsule for MTM (optional, privacy-min)
-    // =========================
-    try {
-      const wantsThread = truthy(o.enableThreadCapsule) || truthy(n?.turnSignals?.enableThreadCapsule);
-      if (wantsThread) {
-        const thread = buildThreadCapsule(n, s, cog);
-        if (thread && thread.enabled) cog.thread = thread;
-      }
-    } catch (_eThread) {
-      // ignore
-    }
-const issues = tracePolicyCheck(cog, n, o);
+    const issues = tracePolicyCheck(cog, n, o);
     const final = finalizeContract(cog, now, { tracePolicyIssues: issues });
 
     return final;
@@ -3693,6 +3552,8 @@ const issues = tracePolicyCheck(cog, n, o);
 
 module.exports = {
   MARION_VERSION,
+  SO_VERSION,
+  version,
   LATENT_DESIRE,
   MARION_STYLE_CONTRACT,
   PSYCH,
