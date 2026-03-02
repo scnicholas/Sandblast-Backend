@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
+const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended)';
 
 let Spine = null;
 let MarionSO = null;
@@ -2801,49 +2801,6 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
       }
     }
 
-    // -------------------------
-    // OPINTEL LOOP / COLLAPSE BREAKER++++
-    // - Enterprise-safe: uses confidence + clarify streak to prevent "clarify spirals".
-    // - Nyx-safe: does NOT change contract shape; only nudges planning move.
-    // - Fail-open: if any field missing, behaves as before.
-    // -------------------------
-    const opConfidence = clamp01(
-      (cog && cog.opPackage && cog.opPackage.confidenceScore !== undefined)
-        ? cog.opPackage.confidenceScore
-        : (cog && cog.confidence ? cog.confidence.nyx : 0)
-    );
-
-    const prevClarifyStreak = clampInt(session && session.__clarifyStreak, 0, 0, 99);
-    const prevLowConfStreak = clampInt(session && session.__oiLowConfStreak, 0, 0, 99);
-
-    const planMove0 = safeStr(corePlan.move || "").toLowerCase();
-    const clarifyStreak = planMove0 === "clarify" ? Math.min(99, prevClarifyStreak + 1) : 0;
-    const lowConfStreak = opConfidence < 0.45 ? Math.min(99, prevLowConfStreak + 1) : 0;
-
-    // If we are stuck clarifying repeatedly with low confidence (or repeated inbound), force a narrow, deterministic ask.
-    // This is intentionally conservative and never triggers on distress/support mode.
-    const inboundRepeatN = clampInt(inGov && inGov.n, 0, 0, 99);
-    const oiBreakerTrip =
-      !supportPrefix &&
-      (planMove0 === "clarify" || planMove0 === "narrow") &&
-      (clarifyStreak >= 2 || lowConfStreak >= 2 || inboundRepeatN >= 2) &&
-      opConfidence < 0.70;
-
-    if (oiBreakerTrip) {
-      corePlan = {
-        ...corePlan,
-        move: "narrow",
-        stage: safeStr(corePlan.stage || "open") || "open",
-        rationale: safeStr(corePlan.rationale || "") ? `${safeStr(corePlan.rationale)}|oi_breaker` : "oi_breaker",
-        speak: "",
-      };
-      cog.oiBreaker = true;
-    }
-
-    // Persist OPINTEL streak counters in sessionPatch downstream.
-    cog.__opConfidence = opConfidence;
-    cog.__clarifyStreak = clarifyStreak;
-    cog.__oiLowConfStreak = lowConfStreak;
 
     cog.nextMove = toUpperMove(corePlan.move);
     cog.nextMoveSpeak = safeStr(corePlan.speak || "");
@@ -2982,13 +2939,6 @@ ${base0}`
       lastLatentDesire: safeStr(cog.latentDesire || ""),
       lastUserConfidence: clamp01(cog?.confidence?.user),
       lastNyxConfidence: clamp01(cog?.confidence?.nyx),
-
-      // OPINTEL++++: loop/collapse streaks (bounded)
-      __clarifyStreak: clampInt(cog && cog.__clarifyStreak, 0, 0, 99),
-      __oiLowConfStreak: clampInt(cog && cog.__oiLowConfStreak, 0, 0, 99),
-      __oiLastOpConfidence: clamp01(cog && cog.__opConfidence),
-      __oiBreakerAt: cog && cog.oiBreaker ? nowMs() : (Number(session && session.__oiBreakerAt) || 0),
-
       velvetMode: !!cog.velvet,
       velvetSince: cog.velvet ? Number(cog.velvetSince || 0) || nowMs() : 0,
       lastAction: safeStr(norm.action || ""),
