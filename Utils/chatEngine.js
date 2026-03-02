@@ -100,64 +100,6 @@ try {
   Music = null;
 }
 
-
-// Music module adapter (backwards compatible):
-// Supports musicKnowledge exports:
-//  - handleMusicTurn({norm,session,knowledge,year,action,opts})
-//  - handleChat(payload)  (legacy)
-//  - handleMusic(payload) / run(payload) / default function
-function _asFn(mod){
-  if(!mod) return null;
-  if(typeof mod === "function") return mod;
-  if(typeof mod.default === "function") return mod.default;
-  return null;
-}
-async function callMusicModule({ norm, session, knowledge, year, action, opts }) {
-  const mod = Music;
-  if(!mod) return null;
-
-  // Preferred new contract
-  if(typeof mod.handleMusicTurn === "function") {
-    return await Promise.resolve(mod.handleMusicTurn({ norm, session, knowledge, year, action, opts }));
-  }
-
-  // Legacy contracts (best-effort)
-  const legacyFn =
-    (typeof mod.handleChat === "function" && mod.handleChat) ||
-    (typeof mod.handleMusic === "function" && mod.handleMusic) ||
-    (typeof mod.run === "function" && mod.run) ||
-    _asFn(mod);
-
-  if(!legacyFn) return null;
-
-  // Build a conservative legacy payload (don't break older modules)
-  const legacyPayload = {
-    text: (norm && (norm.text || norm.raw || norm.input)) || (norm && norm.userText) || "",
-    lane: "music",
-    year: year || null,
-    mode: (norm && norm.mode) || (action || null),
-    action: action || null,
-    norm,
-    session,
-    knowledge,
-    opts
-  };
-
-  const out = await Promise.resolve(legacyFn(legacyPayload));
-
-  // Normalize legacy return shapes into {reply, ...}
-  if(typeof out === "string") return { reply: out };
-  if(Array.isArray(out)) return { reply: out.join("\n") };
-  if(out && typeof out === "object") {
-    if(typeof out.reply === "string") return out;
-    if(typeof out.text === "string") return { ...out, reply: out.text };
-    if(typeof out.message === "string") return { ...out, reply: out.message };
-    if(Array.isArray(out.lines)) return { ...out, reply: out.lines.join("\n") };
-    return out;
-  }
-  return null;
-}
-
 // Movies lane adapter (thin hardened normalizer).
 let MoviesLane = null;
 try {
@@ -4231,18 +4173,22 @@ if (wantsRoku) {
     if (lane === "music" || action) {
       let musicOut = null;
       try {
-        musicOut = await callMusicModule({
-          norm,
-          session,
-          knowledge,
-          year,
-          action,
-          opts: {
-            allowDerivedTop10: !!norm.allowDerivedTop10,
-            publicMinYear: PUBLIC_MIN_YEAR,
-            publicMaxYear: PUBLIC_MAX_YEAR,
-          },
-        });
+        if (Music && typeof Music.handleMusicTurn === "function") {
+          musicOut = await Promise.resolve(
+            Music.handleMusicTurn({
+              norm,
+              session,
+              knowledge,
+              year,
+              action,
+              opts: {
+                allowDerivedTop10: !!norm.allowDerivedTop10,
+                publicMinYear: PUBLIC_MIN_YEAR,
+                publicMaxYear: PUBLIC_MAX_YEAR,
+              },
+            })
+          );
+        }
       } catch (e) {
         musicOut = null;
       }
