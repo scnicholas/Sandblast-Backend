@@ -4254,26 +4254,82 @@ if (wantsRoku) {
 
     if (lane === "music" || action) {
       let musicOut = null;
+
+      // Backward-compatible music adapter:
+      // - New: Utils/musicKnowledge.js exports handleMusicTurn({norm,session,knowledge,year,action,opts})
+      // - Legacy: handleChat({text,year,mode,session,...}) or handleMusic({year,mode,...}) etc.
+      const getMusicHandler = () => {
+        if (!Music) return null;
+        if (typeof Music.handleMusicTurn === "function") return { kind: "handleMusicTurn", fn: Music.handleMusicTurn };
+        if (typeof Music.handleChat === "function") return { kind: "handleChat", fn: Music.handleChat };
+        if (typeof Music.handleMusic === "function") return { kind: "handleMusic", fn: Music.handleMusic };
+        if (typeof Music.run === "function") return { kind: "run", fn: Music.run };
+        return null;
+      };
+
+      const handler = getMusicHandler();
+
       try {
-        if (Music && typeof Music.handleMusicTurn === "function") {
-          musicOut = await Promise.resolve(
-            Music.handleMusicTurn({
-              norm,
-              session,
-              knowledge,
-              year,
-              action,
-              opts: {
-                allowDerivedTop10: !!norm.allowDerivedTop10,
-                publicMinYear: PUBLIC_MIN_YEAR,
-                publicMaxYear: PUBLIC_MAX_YEAR,
-              },
-            })
-          );
+        if (handler) {
+          // Always prefer deterministic inputs.
+          const mode =
+            safeStr(norm.mode || "") ||
+            (action === "top10" ? "top10" : "") ||
+            (year ? "top10" : "") ||
+            "";
+
+          if (handler.kind === "handleMusicTurn") {
+            musicOut = await Promise.resolve(
+              handler.fn({
+                norm,
+                session,
+                knowledge,
+                year,
+                action,
+                opts: {
+                  allowDerivedTop10: !!norm.allowDerivedTop10,
+                  allowYearendFallback: !!norm.allowYearendFallback,
+                  publicMinYear: PUBLIC_MIN_YEAR,
+                  publicMaxYear: PUBLIC_MAX_YEAR,
+                },
+              })
+            );
+          } else if (handler.kind === "handleChat") {
+            // Legacy signature: be generous but bounded.
+            musicOut = await Promise.resolve(
+              handler.fn({
+                text: safeStr(norm.text || norm.raw || ""),
+                year,
+                mode,
+                lane: "music",
+                action,
+                session,
+                knowledge,
+                client: { engine: CE_VERSION },
+              })
+            );
+          } else {
+            // handleMusic / run: pass the essentials.
+            musicOut = await Promise.resolve(
+              handler.fn({
+                text: safeStr(norm.text || norm.raw || ""),
+                year,
+                mode,
+                action,
+                session,
+                knowledge,
+              })
+            );
+          }
         }
       } catch (e) {
         musicOut = null;
       }
+
+      // Normalize musicOut into an object contract.
+      if (typeof musicOut === "string") musicOut = { replyRaw: musicOut };
+      if (Array.isArray(musicOut)) musicOut = { replyRaw: musicOut.join("\\n") };
+
 
       if (!musicOut || !isPlainObject(musicOut)) {
         const reply0 = finalizeReply(
