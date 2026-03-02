@@ -3,7 +3,23 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.31sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.32sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+
+ *
+ * =========================
+ * Operations Intelligence — Next 10 Phases (v1.5.32sb)
+ * =========================
+ * 1) Voice UUID API: stable selector for Vera (uuid → voice mapping) + header support
+ * 2) TTS cache: short TTL audio memoization to cut vendor credits + latency spikes
+ * 3) Trace spine: consistent x-sb-trace-id propagation across chat + tts + warm
+ * 4) Contract hardening: method_not_allowed guidance preserved; never-500 envelope maintained
+ * 5) Input hygiene: stricter voice selector parsing (voice/uuid/voiceId) with allowlist
+ * 6) Observability: x-sb-tts-cache HIT/MISS headers + voice id echo for debugging
+ * 7) Fail-soft audio: keep Audio Health heartbeat + degrade mode when upstream fails
+ * 8) Security: preserve token gate wiring + CORS denylist behavior
+ * 9) Stability: fuse/cooldown logic untouched; minimizes widget-triggered loops
+ * 10) Extensibility: uuid→voice map via env JSON for future multi-voice routing
+ * =========================
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -123,7 +139,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.32sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -970,6 +986,23 @@ const ELEVEN_VOICE_ID_NYX = String(
   ""
 ).trim();
 
+
+// Optional Vera voice id (separate from Nyx) + stable UUID selector
+const ELEVEN_VOICE_ID_VERA = String(
+  process.env.ELEVENLABS_VERA_VOICE_ID ||
+  process.env.VERA_ELEVEN_VOICE_ID ||
+  process.env.VERA_VOICE_ID_ELEVEN ||
+  ""
+).trim();
+
+// Your Vera voice UUID (stable selector passed from widget/backend clients)
+const VERA_VOICE_UUID = String(
+  process.env.VERA_VOICE_UUID ||
+  process.env.VERA_UUID ||
+  "5dc633cb"
+).trim();
+
+
 // Optional allowlist of additional voice ids (comma-separated)
 const ELEVEN_VOICE_ALLOWLIST = String(process.env.ELEVEN_VOICE_ALLOWLIST || "").trim();
 
@@ -986,6 +1019,7 @@ function buildElevenVoiceAllowSet() {
   };
   add(ELEVEN_VOICE_ID_DEFAULT);
   add(ELEVEN_VOICE_ID_NYX);
+  add(ELEVEN_VOICE_ID_VERA);
   add(ELEVEN_VOICE_ID);
   String(ELEVEN_VOICE_ALLOWLIST || "")
     .split(",")
@@ -999,18 +1033,46 @@ const ELEVEN_VOICE_ALLOWED = buildElevenVoiceAllowSet();
 function pickElevenVoiceId(req, body) {
   // Supported selectors (all OPTIONAL):
   //  - body.voiceId: explicit ElevenLabs voice id (must be allowlisted)
-  //  - body.voice: "nyx" | "default" (maps to env-configured ids)
-  //  - query voiceId / voice
+  //  - body.voice: "nyx" | "vera" | "default" (maps to env-configured ids)
+  //  - body.voiceUuid / body.uuid: stable UUID selector (maps to env-configured ids)
+  //  - header: x-sb-voice-uuid (or SB_VOICE_UUID_HEADER)
+  //  - query voiceId / voice / voiceUuid / uuid
   const q = (req && req.query) ? req.query : {};
-  const want = safeStr((body && (body.voice || body.speaker)) || q.voice || "").trim().toLowerCase();
-  if (want === "nyx") return ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "";
-  if (want === "default") return ELEVEN_VOICE_ID_DEFAULT || ELEVEN_VOICE_ID || "";
 
+  const want = safeStr((body && (body.voice || body.speaker)) || q.voice || "").trim().toLowerCase();
+
+  // UUID selector (highest priority after explicit voiceId allowlist)
+  const headerName = (process.env.SB_VOICE_UUID_HEADER || "x-sb-voice-uuid").toString().trim().toLowerCase();
+  const hdrUuidRaw = safeStr(__sbGetHeader(req, headerName) || __sbGetHeader(req, "x-sb-voice-uuid") || "").trim();
+  const uuid = safeStr((body && (body.voiceUuid || body.uuid)) || q.voiceUuid || q.uuid || hdrUuidRaw || "").trim();
+
+  // 1) Explicit voiceId (allowlisted)
   const candidate = safeStr((body && body.voiceId) || q.voiceId || "").trim();
   if (candidate && ELEVEN_VOICE_ALLOWED.has(candidate)) return candidate;
 
+  // 2) UUID → Vera (or other) mapping
+  if (uuid) {
+    // Vera UUID mapping (default to your provided UUID unless overridden in env)
+    if (uuid === VERA_VOICE_UUID) return (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
+    // Optional: allow map via env JSON, e.g. {"5dc633cb":"<eleven_voice_id>","...":"..."}
+    try {
+      const rawMap = safeStr(process.env.SB_VOICE_UUID_MAP_JSON || "").trim();
+      if (rawMap) {
+        const obj = JSON.parse(rawMap);
+        const mapped = obj && obj[uuid];
+        const mappedStr = safeStr(mapped).trim();
+        if (mappedStr && ELEVEN_VOICE_ALLOWED.has(mappedStr)) return mappedStr;
+      }
+    } catch (_) {}
+  }
+
+  // 3) Named voice selector
+  if (want === "vera") return (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
+  if (want === "nyx") return (ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
+  if (want === "default") return (ELEVEN_VOICE_ID_DEFAULT || ELEVEN_VOICE_ID || "");
+
   // Fall back to Nyx-first default
-  return ELEVEN_VOICE_ID || "";
+  return (ELEVEN_VOICE_ID || "");
 }
 
 const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
@@ -3429,6 +3491,60 @@ const __SB_AUDIO_HEALTH = {
   lastUpstreamMs: null,
 };
 
+// =========================
+// TTS Audio Cache (cuts vendor credits + latency)
+// =========================
+const __SB_TTS_CACHE = new Map(); // key -> { buf:Buffer, ct:string, at:number, ttl:number, bytes:number }
+const __SB_TTS_CACHE_MAX = clampInt(process.env.SB_TTS_CACHE_MAX, 60, 0, 500);
+const __SB_TTS_CACHE_TTL_MS = clampInt(process.env.SB_TTS_CACHE_TTL_MS, 60000, 0, 10 * 60 * 1000);
+
+function __sbTtsCacheKey(text, voiceId, modelId, voiceSettings) {
+  try {
+    const crypto = require("crypto");
+    const s = JSON.stringify({
+      t: safeStr(text).slice(0, 4000),
+      v: safeStr(voiceId),
+      m: safeStr(modelId),
+      s: voiceSettings || null,
+    });
+    return crypto.createHash("sha1").update(s).digest("hex");
+  } catch (_) {
+    return "";
+  }
+}
+function __sbTtsCacheGet(key) {
+  if (!key || __SB_TTS_CACHE_TTL_MS <= 0) return null;
+  const hit = __SB_TTS_CACHE.get(key);
+  if (!hit) return null;
+  const now = Date.now();
+  if ((now - hit.at) > hit.ttl) {
+    try { __SB_TTS_CACHE.delete(key); } catch (_) {}
+    return null;
+  }
+  return hit;
+}
+function __sbTtsCacheSet(key, buf, contentType) {
+  if (!key || __SB_TTS_CACHE_TTL_MS <= 0 || __SB_TTS_CACHE_MAX <= 0) return;
+  try {
+    // basic LRU-ish eviction
+    if (__SB_TTS_CACHE.size >= __SB_TTS_CACHE_MAX) {
+      let oldestK = null, oldestT = Infinity;
+      for (const [k, v] of __SB_TTS_CACHE.entries()) {
+        if (v && typeof v.at === "number" && v.at < oldestT) { oldestT = v.at; oldestK = k; }
+      }
+      if (oldestK) __SB_TTS_CACHE.delete(oldestK);
+    }
+    __SB_TTS_CACHE.set(key, {
+      buf,
+      ct: safeStr(contentType || "audio/mpeg") || "audio/mpeg",
+      at: Date.now(),
+      ttl: __SB_TTS_CACHE_TTL_MS,
+      bytes: (buf && buf.length) ? buf.length : 0,
+    });
+  } catch (_) {}
+}
+
+
 function __sbNowMs(){ return Date.now(); }
 function __sbBool(v, def){
   const s = String(v ?? "").trim().toLowerCase();
@@ -3684,6 +3800,21 @@ async function handleTtsRoute(req, res) {
   const modelId = safeStr(body.model_id || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2").trim() || "eleven_multilingual_v2";
   const modelIdSecondary = safeStr(process.env.ELEVENLABS_MODEL_ID_SECONDARY || "").trim() || modelId;
 
+  // -------- Step 3.5: TTS cache (credits + speed) --------
+  const cacheKey = __sbTtsCacheKey(text, primaryVoiceId, modelId, voice_settings);
+  const cacheHit = __sbTtsCacheGet(cacheKey);
+  if (cacheHit && cacheHit.buf && cacheHit.buf.length) {
+    try {
+      res.setHeader("Content-Type", cacheHit.ct || "audio/mpeg");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("x-sb-tts-cache", "HIT");
+      res.setHeader("x-sb-trace-id", traceId);
+      res.setHeader("x-sb-voice-id", safeStr(primaryVoiceId));
+    } catch (_) {}
+    return res.status(200).send(cacheHit.buf);
+  }
+
+
   function makeElevenUrl(host, voiceId) {
     const h = host.replace(/^https?:\/\//i, "");
     return `https://${h}/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
@@ -3847,6 +3978,9 @@ async function handleTtsRoute(req, res) {
   res.setHeader("Cache-Control", "no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
+  // Cache the successful audio to reduce vendor credits on repeats
+  try { __sbTtsCacheSet(cacheKey, result.buf, "audio/mpeg"); } catch (_) {}
+  try { res.setHeader("x-sb-tts-cache", "MISS"); } catch (_) {}
   return res.status(200).send(result.buf);
   } catch (e) {
     const traceId = safeStr(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
