@@ -1894,9 +1894,14 @@ function normalizeInbound(input) {
   const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   // action: accept payload.route as an alias (chip payloads commonly set route)
-  const payloadAction = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
+  const payloadActionRaw = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
+  // OPINTEL++++: robust reset detection (prevents reset endpoint 500s caused by unrecognized reset variants)
+  // Sources: payload.reset, body.reset, ctx.reset, mode/reset route markers.
+  const resetFlag = truthy(payload.reset) || truthy(body.reset) || truthy(ctx.reset);
+  const resetByMode = String(payload.mode || body.mode || ctx.mode || "").toLowerCase() === "reset";
+  const resetByRoute = String(payload.route || payloadActionRaw || "").toLowerCase() === "reset";
   const inferredAction = classifyAction(textRaw, payload);
-  const action = payloadAction || inferredAction || "";
+  const action = (resetFlag || resetByMode || resetByRoute) ? "reset" : (payloadActionRaw || inferredAction || "");
 
   const payloadYear = normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
   const year = payloadYear ?? extractYearFromText(textRaw) ?? null;
