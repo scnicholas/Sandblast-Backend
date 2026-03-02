@@ -3244,6 +3244,12 @@ ${base0}`
         reply: replyText,
         lane: laneResolved,
 
+
+        // Compatibility: always include payload.reply for widget/TTS listeners
+        payload: { reply: replyText, lane: laneResolved },
+
+        // Optional alias some TTS layers use
+        spokenText: replyText,
         // Stabilization fields (safe for legacy clients to ignore)
         laneId: laneId || undefined,
         sessionLane: sessionLaneInfo || undefined,
