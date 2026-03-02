@@ -126,7 +126,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.26opintel (OPINTEL ALIGN++++ + CHAT/RESET NEVER-500++++ + ENGINE EXCEPTION FAILSOFT++++ + ERROR MIDDLEWARE CHAT-SAFE)";
+const INDEX_VERSION = "index.js v1.5.27opintel (OPINTEL ALIGN++++ + CHAT/RESET NEVER-5xx++++ + ENGINE FAILSOFT TUNED++++ + SNAG SPAM FIX++++ + PAYLOAD.REPLY MIRROR++++)";
 
 // =========================
 // Utils
@@ -2357,7 +2357,14 @@ function readBootReplay(rec) {
 function sendContract(res, statusCode, body) {
   const out = (body && typeof body === "object") ? { ...body } : { ok: statusCode < 400, error: String(body) };
   if (!Object.prototype.hasOwnProperty.call(out, "ok")) out.ok = statusCode < 400;
+
+  // NYX_WIDGET expects payload always, and many listeners expect payload.reply.
   if (!out.payload || typeof out.payload !== "object") out.payload = {};
+
+  // Mirror reply <-> payload.reply for maximum compatibility (no UI drift)
+  if (typeof out.reply === "string" && typeof out.payload.reply !== "string") out.payload.reply = out.reply;
+  if (typeof out.payload.reply === "string" && typeof out.reply !== "string") out.reply = out.payload.reply;
+
   // Never leak stack traces unless explicitly allowed
   if (out && out.error && typeof out.error === "object") out.error = String(out.error);
   return res.status(statusCode).json(out);
@@ -3048,14 +3055,21 @@ async function handleChatRoute(req, res) {
     normalizeChipPayload(body);
 
     if (!ENGINE || typeof ENGINE.fn !== "function") {
-      return sendContract(res, 503, {
-      ok: false,
-      error: "engine_missing",
-      detail: "chatEngine module is missing or does not export a callable handler.",
-      requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null },
-    });
-  }
+      // NEVER hard-fail /api/chat with 5xx — Nyx treats that as a backend crash.
+      // Fail-open with a stable contract so the widget remains usable.
+      const requestId = makeReqId();
+      const reply = "I’m here — the backend is still warming up. Try again in a moment.";
+      return sendContract(res, 200, {
+        ok: false,
+        error: "engine_missing",
+        detail: "chatEngine module is missing or does not export a callable handler.",
+        reply,
+        payload: { reply, lane: "general" },
+        sessionPatch: {},
+        requestId,
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.engine_missing" },
+      });
+    }
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
@@ -3221,9 +3235,22 @@ async function handleChatRoute(req, res) {
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
     const k = knowledgeStatusForMeta();
-    const reply = k.ok
-      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
-      : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
+
+    // Fail-soft reply: do NOT spam "snag" loops; tailor to lane/year if relevant.
+    const lane = safeStr(rec?.data?.lane || body?.lane || body?.payload?.lane || routeHint || "general").toLowerCase();
+    const year = safeStr(body?.year || body?.payload?.year || body?.ctx?.year || "").trim();
+    const wantYear = (lane.includes("music") || lane.includes("year")) && !year;
+
+    let reply = "";
+    if (isReset) {
+      reply = ""; // silent reset
+    } else if (wantYear) {
+      reply = "Okay — give me a year (1950–2024) and I’ll jump right in.";
+    } else if (k.ok) {
+      reply = "I had a brief hiccup, but I’m still here. Try that again.";
+    } else {
+      reply = "I’m online, but my knowledge packs are still loading. Try again in a moment.";
+    }
     writeReplay(rec, reply, rec.data.lane || "general");
     const p = safeStr(req.path || "").toLowerCase();
     const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt") ? 200 : 500;
