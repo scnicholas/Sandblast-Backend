@@ -123,7 +123,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.28sb (OPINTEL: REQUEST NORMALIZE + TTS/CHAT NEVER-500 + TRACE GUARD++ + RESET/TTS SKIP++ + LOOP-SAFE CONTRACT)";;
+const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -177,14 +177,6 @@ function safeJsonParseMaybe(x) {
     return null;
   }
 }
-
-function normalizeReq(req) {
-  // Defensive: some internal calls may pass undefined during error handling.
-  if (!req || typeof req !== "object") req = {};
-  if (!req.headers || typeof req.headers !== "object") req.headers = {};
-  return req;
-}
-
 function pickClientIp(req) {
   const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   return xf || req.socket?.remoteAddress || "";
@@ -205,21 +197,6 @@ function statSafe(p) {
   } catch (_) {
     return null;
   }
-}
-
-
-function getHeaderSafe(req, name) {
-  try {
-    const n = String(name || "").toLowerCase();
-    const h = (req && req.headers) ? req.headers : {};
-    const direct = h[n] || h[n.toLowerCase()];
-    if (direct !== undefined && direct !== null) return safeStr(direct);
-    if (req && typeof req.get === "function") {
-      const v = req.get(name);
-      if (v !== undefined && v !== null) return safeStr(v);
-    }
-  } catch (_) {}
-  return "";
 }
 
 // =========================
@@ -2384,13 +2361,6 @@ function sendContract(res, statusCode, body) {
 }
 const app = express();
 
-// OPINTEL: Ensure req/headers always exist to prevent rare 500s from undefined header reads.
-app.use((req, _res, next) => {
-  try { normalizeReq(req); } catch (_) {}
-  return next();
-});
-
-
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // Compression first (safe)
@@ -3063,7 +3033,6 @@ function applySessionPatch(session, patch) {
 // Chat route (kept behavior; now guarded by ipRateGuard + apiTokenGate)
 // =========================
 async function handleChatRoute(req, res) {
-  req = normalizeReq(req);
   const startedAt = nowMs();
   try {
     let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
@@ -3464,53 +3433,51 @@ function __sbShouldBypassPrimary(){
 
 
 async function handleTtsRoute(req, res) {
-  req = normalizeReq(req);
   const startedAt = nowMs();
 
-  // OPINTEL: TTS route must be fail-open and never throw (prevents backend 500 cascades)
+  // OPINTEL: request/headers normalization (never assume req/headers exist)
+  const _req = (req && typeof req === "object") ? req : {};
+  _req.headers = (_req.headers && typeof _req.headers === "object") ? _req.headers : {};
+  const _hdr = _req.headers;
+  const _get = (typeof _req.get === "function")
+    ? (k) => { try { return _req.get(k); } catch (_) { return undefined; } }
+    : () => undefined;
+
   try {
-    // ---- handshake / correlation (guarded) ----
-    const inboundTrace = safeStr(
-      getHeaderSafe(req, 'x-sb-trace-id') ||
-      getHeaderSafe(req, 'x-sb-traceid') ||
-      getHeaderSafe(req, 'x-sb-trace') ||
-      ''
-    ).trim();
-    const traceId = inboundTrace || makeReqId();
-    const requestId = safeStr(getHeaderSafe(req, 'x-request-id') || '').trim();
 
-    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-    if (typeof req.body === 'string') body = { text: req.body };
+  // ---- handshake / correlation ----
+  const inboundTrace =
+    safeStr(_hdr["x-sb-trace-id"] || _hdr["x-sb-traceid"] || _hdr["x-sb-trace"] || _get("x-sb-trace-id") || _get("x-sb-traceid") || _get("x-sb-trace") || "").trim();
+  const traceId = inboundTrace || makeReqId();
+  const requestId = safeStr(_hdr["x-request-id"] || _get("x-request-id") || "").trim();
 
-    // Fast skip: never run TTS on reset commands (prevents accidental TTS path throws)
-    const inboundText = safeStr(body?.text || body?.payload?.text || body?.payload?.message || '').trim();
-    const inboundSource = safeStr(body?.source || body?.client?.source || '').trim();
-    if (isResetCommand(inboundText, inboundSource, body)) {
-      res.setHeader('X-SB-Trace-Id', traceId);
-      res.setHeader('X-SB-TTS', 'skipped_reset');
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Content-Length', '0');
-      return res.status(200).send(Buffer.alloc(0));
-    }
+  let body = isPlainObject(_req.body) ? _req.body : safeJsonParseMaybe(_req.body) || {};
+  if (typeof _req.body === "string") body = { text: _req.body };
 
-    const lane = safeStr(body.lane || body.mode || body.contextLane || '').trim() || '';
-    const turnId = safeStr(body.turnId || body.turn || body.tid || '').trim() || '';
-    const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
-    const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
-    const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
+  // OPINTEL: never run TTS on reset commands (prevents cascade + pointless upstream calls)
+  const __t = safeStr(body.text || body.prompt || "").trim();
+  if (__t === "__cmd:reset__" || /__cmd:reset__/i.test(__t) || (body && body.reset === true)) {
+    try { res.setHeader("X-SB-Trace-Id", makeReqId()); } catch (_) {}
+    return sendContract(res, 200, { ok: true, audio: null, reset: true, reply: "", payload: { reply: "" } });
+  }
 
-    res.setHeader('X-SB-Trace-Id', traceId);
-    if (lane) res.setHeader('X-SB-Lane', lane);
-    if (turnId) res.setHeader('X-SB-Turn-Id', turnId);
-    if (chatMs !== null) res.setHeader('X-SB-Chat-Ms', String(chatMs));
-    if (e2eMs !== null) res.setHeader('X-SB-E2E-Ms', String(e2eMs));
-    if (requestId) res.setHeader('X-Request-Id', requestId);
 
-    // Continue with original logic (body already parsed above)
+  const lane = safeStr(body.lane || body.mode || body.contextLane || "").trim() || "";
+  const turnId = safeStr(body.turnId || body.turn || body.tid || "").trim() || "";
+  const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
+  const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
+  const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
+
+  res.setHeader("X-SB-Trace-Id", traceId);
+  if (lane) res.setHeader("X-SB-Lane", lane);
+  if (turnId) res.setHeader("X-SB-Turn-Id", turnId);
+  if (chatMs !== null) res.setHeader("X-SB-Chat-Ms", String(chatMs));
+  if (e2eMs !== null) res.setHeader("X-SB-E2E-Ms", String(e2eMs));
+
   // ---- health probe mode (Step 5) ----
   if (body && body.healthCheck === true) {
     const probe = await (async () => {
-      const voiceId = pickElevenVoiceId(req, body);
+      const voiceId = pickElevenVoiceId(_req, body);
       if (!fetchFn || !ELEVEN_API_KEY || !voiceId) {
         __sbUpdateAudioHealth(false, { error: "PRIMARY_NOT_CONFIGURED", upstreamStatus: 0, upstreamMs: 0 });
         return { ok: false, error: "PRIMARY_NOT_CONFIGURED" };
@@ -3847,11 +3814,11 @@ async function handleTtsRoute(req, res) {
   res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
   return res.status(200).send(result.buf);
   } catch (e) {
-    const traceId = makeReqId();
-    try { res.setHeader('X-SB-Trace-Id', traceId); } catch (_) {}
-    // Fail-open: never 5xx from TTS route; return safe JSON so callers can recover
-    return res.status(200).json({ ok: false, error: 'tts_fail_open', traceId, meta: { index: INDEX_VERSION } });
+    // OPINTEL: fail-open — never throw from TTS route (prevents backend 500 + snag loops)
+    try { res.setHeader("X-SB-TTS-Error", safeStr(e?.message || e)); } catch (_) {}
+    return sendContract(res, 200, { ok: false, audio: null, error: "TTS_FAILOPEN", reply: "", payload: { reply: "" } });
   }
+
 }
 
 app.post("/api/tts", ipRateGuard, handleTtsRoute);
