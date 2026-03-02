@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.12 OPINTEL++ (TRACE-ID PROP + DRIFT-GUARD + CONFIDENCE LOOP BREAKER v2 + AUDIT TAGS + ROLLBACK READY)';
+const CE_VERSION = 'chatEngine v0.10.13 OPINTEL+++ (CLARIFY-STREAK CAP + LOOP RECOVERY + TRACE CORR + ACTIONABLE GUARDS + ROLLBACK CANDIDATE)';
 
 const CE_PLAN = Object.freeze([
   "S1: Deterministic requestId + inbound signature (anti-double-submit)",
@@ -46,7 +46,12 @@ const CE_PLAN = Object.freeze([
   "S12: Context envelope hygiene (SiteBridge/Psyche sanitization kept)",
   "S13: Idempotent sessionPatch merge (prevents patch thrash)",
   "S14: Vendor/latency hints plumbing (turn-level latencyMs stamped)",
-  "S15: Fail-safe contract hardening (never crash the API; never blank reply)"
+  "S15: Fail-safe contract hardening (never crash the API; never blank reply)",
+  "S16: Clarify-streak cap (session-based) + deterministic forced-choice escape hatch",
+  "S17: Actionable-payload guardian (never CLARIFY when payload is actionable)",
+  "S18: Loop recovery patch (mark rollbackCandidate + soften lane prompt ergonomics)",
+  "S19: Trace-correlation envelope (requestId/turnId propagated into meta + sessionPatch)",
+  "S20: Safe degradation ladder (soft→hard breaker; never blank; never menu spam)"
 ]);
 
 let Spine = null;
@@ -620,6 +625,53 @@ function makeBreakerReply(norm, emo) {
   );
 }
 
+
+
+// -------------------------
+// CLARIFY STREAK CAP++++ (S16/S17)
+// - Tracks consecutive CLARIFY moves (non-emotional) and forces an escape hatch.
+// - Also: if payload is actionable, we should NOT keep asking clarifiers.
+// -------------------------
+const CLARIFY_WINDOW_MS = 45000;
+const CLARIFY_HARD_LIMIT = 3;
+
+function actionablesInPayload(payload){
+  if(!isPlainObject(payload)) return false;
+  // mirror hasActionablePayload() but keep it ultra-light
+  const keys = Object.keys(payload);
+  if(!keys.length) return false;
+  const actionable = new Set(["action","route","year","id","_id","label","lane","vibe","mode","focus","publicMode"]);
+  return keys.some(k => actionable.has(k));
+}
+
+function updateClarifyStreak(session, corePlanMove, opts){
+  const s = isPlainObject(session) ? session : {};
+  const now = nowMs();
+  const mv = safeStr(corePlanMove || "").toLowerCase();
+
+  const win = Number(s.__clarifyAt || 0) || 0;
+  const lastN = clampInt(s.__clarifyN || 0, 0, 0, 99);
+  const inWindow = win && (now - win) <= CLARIFY_WINDOW_MS;
+
+  let n = inWindow ? lastN : 0;
+  if(mv === "clarify") n += 1;
+  else n = 0;
+
+  const patch = { __clarifyAt: now, __clarifyN: n };
+  const tripped = (mv === "clarify") && n >= CLARIFY_HARD_LIMIT;
+
+  const kind = (opts && opts.kind) ? safeStr(opts.kind) : "clarify_streak";
+  return { tripped, patch, n, kind };
+}
+
+function buildEscapeHatchReply(norm, cog){
+  // Keep it deterministic, short, and never "menu spam".
+  const lane = safeStr(cog?.lane || norm?.lane || "general").toLowerCase();
+  if(lane === "music") {
+    return "Quick fork so we don’t loop: do you want (1) Top 10, (2) Year-End Hot 100, or (3) Pick a year?";
+  }
+  return "Quick fork so we don’t loop: do you want (1) a step-by-step plan, (2) ideas/options, or (3) just talk it out?";
+}
 // -------------------------
 // PUBLIC MODE / REPLY SANITIZATION (PRIVACY LOCK++++)
 // -------------------------
@@ -2885,6 +2937,22 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     // If we are stuck clarifying repeatedly with low confidence (or repeated inbound), force a narrow, deterministic ask.
     // This is intentionally conservative and never triggers on distress/support mode.
     const inboundRepeatN = clampInt(inGov && inGov.n, 0, 0, 99);
+    // S17: actionable-payload guardian — if payload already encodes a choice, never spiral into CLARIFY.
+    const payloadActionable = !!(norm && norm.turnSignals && norm.turnSignals.payloadActionable);
+    if (!supportPrefix && payloadActionable && planMove0 === "clarify") {
+      corePlan = { ...corePlan, move: "deliver", stage: "deliver", rationale: "payload_actionable_guard", speak: "" };
+    }
+
+    // S16/S20: hard caps + degradation ladder (soft→hard)
+    const hardClarifyCap = (!supportPrefix && planMove0 === "clarify" && clarifyStreak >= 3);
+    const hardRepeatCap  = (!supportPrefix && inboundRepeatN >= 4);
+    const hardLowConfCap = (!supportPrefix && lowConfStreak >= 4);
+
+    if (hardClarifyCap || hardRepeatCap || hardLowConfCap) {
+      cog.oiHardCap = true;
+      cog.__oiForceReply = buildEscapeHatchReply(norm, cog);
+      corePlan = { ...corePlan, move: "deliver", stage: "deliver", rationale: "oi_hard_cap", speak: "" };
+    }
     const oiBreakerTrip =
       !supportPrefix &&
       (planMove0 === "clarify" || planMove0 === "narrow") &&
@@ -3028,7 +3096,13 @@ if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonic
 ${base0}`
         : base0;
       const composed = applyTurnConstitutionToReply(base, cog, session);
-      return scrubExecutionStyleArtifacts(applyPublicSanitization(composed, norm, session, publicMode));
+      // S16/S20: hard escape hatch (prevents clarify spirals / menu loops)
+      let composed2 = composed;
+      try{
+        const fr = safeStr(cog && cog.__oiForceReply);
+        if(fr && !supportPrefix) composed2 = fr;
+      }catch(_e){}
+      return scrubExecutionStyleArtifacts(applyPublicSanitization(composed2, norm, session, publicMode));
     }
 
     // Common session telemetry patch (kept small and safe)
@@ -3036,6 +3110,12 @@ ${base0}`
       lastMacMode: safeStr(cog.mode || ""),
       lastTurnIntent: safeStr(cog.intent || ""),
       lastTurnAt: nowMs(),
+      // OPINTEL++++ trace + loop safety
+      lastRequestId: safeStr(requestId || ""),
+      lastTurnId: safeStr(turnId || ""),
+      lastInputSig: safeStr(inSig || ""),
+      __opConfidence: clamp01(cog && cog.__opConfidence),
+      __oiHardCap: !!(cog && cog.oiHardCap),
       ...(safeStr(cog.intent || "").toUpperCase() === "ADVANCE" ? { lastAdvanceAt: nowMs() } : {}),
 
       __lastInboundKey: inboundKey,
@@ -3079,6 +3159,8 @@ ${base0}`
       return {
         engine: CE_VERSION,
         requestId,
+        turnId,
+        inputSig: inSig,
         ...extra,
         turnSignals: norm.turnSignals,
         telemetry,
