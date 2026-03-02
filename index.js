@@ -123,7 +123,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES) + TTS HEADER GUARD++++ + TTS RESET SKIP++++";
+const INDEX_VERSION = "index.js v1.5.28sb (OPINTEL: REQUEST NORMALIZE + TTS/CHAT NEVER-500 + TRACE GUARD++ + RESET/TTS SKIP++ + LOOP-SAFE CONTRACT)";;
 
 // =========================
 // Utils
@@ -177,6 +177,14 @@ function safeJsonParseMaybe(x) {
     return null;
   }
 }
+
+function normalizeReq(req) {
+  // Defensive: some internal calls may pass undefined during error handling.
+  if (!req || typeof req !== "object") req = {};
+  if (!req.headers || typeof req.headers !== "object") req.headers = {};
+  return req;
+}
+
 function pickClientIp(req) {
   const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   return xf || req.socket?.remoteAddress || "";
@@ -2376,6 +2384,13 @@ function sendContract(res, statusCode, body) {
 }
 const app = express();
 
+// OPINTEL: Ensure req/headers always exist to prevent rare 500s from undefined header reads.
+app.use((req, _res, next) => {
+  try { normalizeReq(req); } catch (_) {}
+  return next();
+});
+
+
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // Compression first (safe)
@@ -3048,6 +3063,7 @@ function applySessionPatch(session, patch) {
 // Chat route (kept behavior; now guarded by ipRateGuard + apiTokenGate)
 // =========================
 async function handleChatRoute(req, res) {
+  req = normalizeReq(req);
   const startedAt = nowMs();
   try {
     let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
@@ -3448,6 +3464,7 @@ function __sbShouldBypassPrimary(){
 
 
 async function handleTtsRoute(req, res) {
+  req = normalizeReq(req);
   const startedAt = nowMs();
 
   // OPINTEL: TTS route must be fail-open and never throw (prevents backend 500 cascades)
