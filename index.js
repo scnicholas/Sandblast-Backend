@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.22sb (QC ROUTE FAILSOFT++++ + /api/chat NEVER-500++++ + body parse guard++++) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.31sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
  * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
@@ -131,6 +131,32 @@ const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE
 function nowMs() {
   return Date.now();
 }
+
+// =========================================================
+// OPINTEL ROUTE HARDENING — NEVER TRUST REQ/HEADERS
+// =========================================================
+function __sbNormalizeReq(req){
+  const r = req || {};
+  if (!r.headers || typeof r.headers !== "object") r.headers = {};
+  if (!r.body) r.body = {};
+  if (typeof r.get !== "function") {
+    r.get = function(k){
+      try { return r.headers[String(k||"").toLowerCase()] || r.headers[k]; } catch(_){ return undefined; }
+    };
+  }
+  return r;
+}
+function __sbGetHeader(req, key){
+  const r = __sbNormalizeReq(req);
+  const k = String(key||"");
+  const lk = k.toLowerCase();
+  try {
+    return r.headers[k] ?? r.headers[lk] ?? (typeof r.get==="function" ? r.get(k) : undefined);
+  } catch(_){
+    return undefined;
+  }
+}
+
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
@@ -2579,7 +2605,7 @@ if (PSYCH_ROUTE_ENABLED) {
       });
       return res.json({ ok: true, psyche });
     } catch (err) {
-      return sendContract(res, 500, { ok: false, error: String((err && err.message) || err) });}
+      return sendContract(res, 200, { ok: false, error: String((err && err.message) || err) });}
   });
 }
 
@@ -3033,6 +3059,7 @@ function applySessionPatch(session, patch) {
 // Chat route (kept behavior; now guarded by ipRateGuard + apiTokenGate)
 // =========================
 async function handleChatRoute(req, res) {
+  req = __sbNormalizeReq(req);
   const startedAt = nowMs();
   try {
     let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
@@ -3045,12 +3072,13 @@ async function handleChatRoute(req, res) {
     normalizeChipPayload(body);
 
     if (!ENGINE || typeof ENGINE.fn !== "function") {
-      return sendContract(res, 503, {
-      ok: false,
-      error: "engine_missing",
-      detail: "chatEngine module is missing or does not export a callable handler.",
+      return sendContract(res, 200, {
+      ok: true,
+      reply: "I\u2019m warming up. Try again in a moment.",
+      payload: { reply: "I\u2019m warming up. Try again in a moment." },
+      lane: "general",
       requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null },
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, engineReady: false }
     });
   }
 
@@ -3222,19 +3250,36 @@ async function handleChatRoute(req, res) {
       ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    return sendContract(res, 500, {
-      ok: false,
-      reply,
-      lane: rec.data.lane || "general",
-      payload: { reply, lane: rec.data.lane || "general" },
-      requestId: serverRequestId,
-      meta: {
-        index: INDEX_VERSION,
-        engine: ENGINE_VERSION || null,
-        knowledge: k,
-        error: safeStr(msg).slice(0, 200),
-      },
-    });}
+    return sendContract(res, 200, (function(){
+      const lane0 = rec.data.lane || routeHint || "general";
+      // Reset should never surface as an error in the UI
+      if (isReset) {
+        const reply0 = "";
+        writeReplay(rec, reply0, lane0);
+        return {
+          ok: true,
+          reply: reply0,
+          lane: lane0,
+          payload: { reply: reply0, lane: lane0 },
+          requestId: serverRequestId,
+          meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, reset: true, failOpen: true }
+        };
+      }
+      // Lane-aware fail-soft (no “snag” spam)
+      const needsYear = lane0 === "music" && !String(body.year || body.payload?.year || "").trim();
+      const reply0 = needsYear
+        ? "Alright — pick a year (1950–2024) and I’ll jump right in."
+        : "I’m here — something glitched for a second. Try that again.";
+      writeReplay(rec, reply0, lane0);
+      return {
+        ok: true,
+        reply: reply0,
+        lane: lane0,
+        payload: { reply: reply0, lane: lane0 },
+        requestId: serverRequestId,
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true }
+      };
+    })());}
 
   if (out && isPlainObject(out.sessionPatch)) {
     applySessionPatch(rec.data, out.sessionPatch);
@@ -3433,36 +3478,26 @@ function __sbShouldBypassPrimary(){
 
 
 async function handleTtsRoute(req, res) {
+  req = __sbNormalizeReq(req);
   const startedAt = nowMs();
-
-  // OPINTEL: request/headers normalization (never assume req/headers exist)
-  const _req = (req && typeof req === "object") ? req : {};
-  _req.headers = (_req.headers && typeof _req.headers === "object") ? _req.headers : {};
-  const _hdr = _req.headers;
-  const _get = (typeof _req.get === "function")
-    ? (k) => { try { return _req.get(k); } catch (_) { return undefined; } }
-    : () => undefined;
-
   try {
 
   // ---- handshake / correlation ----
   const inboundTrace =
-    safeStr(_hdr["x-sb-trace-id"] || _hdr["x-sb-traceid"] || _hdr["x-sb-trace"] || _get("x-sb-trace-id") || _get("x-sb-traceid") || _get("x-sb-trace") || "").trim();
+    safeStr(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || __sbGetHeader(req,"x-sb-trace") || "").trim();
   const traceId = inboundTrace || makeReqId();
-  const requestId = safeStr(_hdr["x-request-id"] || _get("x-request-id") || "").trim();
+  const requestId = safeStr(__sbGetHeader(req,"x-request-id") || "").trim();
 
-  let body = isPlainObject(_req.body) ? _req.body : safeJsonParseMaybe(_req.body) || {};
-  if (typeof _req.body === "string") body = { text: _req.body };
-
-  // OPINTEL: never run TTS on reset commands (prevents cascade + pointless upstream calls)
-  const __t = safeStr(body.text || body.prompt || "").trim();
-  if (__t === "__cmd:reset__" || /__cmd:reset__/i.test(__t) || (body && body.reset === true)) {
-    try { res.setHeader("X-SB-Trace-Id", makeReqId()); } catch (_) {}
-    return sendContract(res, 200, { ok: true, audio: null, reset: true, reply: "", payload: { reply: "" } });
-  }
-
+  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  if (typeof req.body === "string") body = { text: req.body };
 
   const lane = safeStr(body.lane || body.mode || body.contextLane || "").trim() || "";
+
+  const ttsText = safeStr(body.text || body.prompt || body.message || body.input || "").trim();
+  // OPINTEL: Never run TTS on reset/boot commands
+  if (ttsText === "__cmd:reset__" || ttsText === "__cmd:reset__ " || /^__cmd:reset__/.test(ttsText)) {
+    return sendJson(res, 200, { ok: true, skipped: true, reason: "reset_bypass", traceId, requestId });
+  }
   const turnId = safeStr(body.turnId || body.turn || body.tid || "").trim() || "";
   const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
   const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
@@ -3477,7 +3512,7 @@ async function handleTtsRoute(req, res) {
   // ---- health probe mode (Step 5) ----
   if (body && body.healthCheck === true) {
     const probe = await (async () => {
-      const voiceId = pickElevenVoiceId(_req, body);
+      const voiceId = pickElevenVoiceId(req, body);
       if (!fetchFn || !ELEVEN_API_KEY || !voiceId) {
         __sbUpdateAudioHealth(false, { error: "PRIMARY_NOT_CONFIGURED", upstreamStatus: 0, upstreamMs: 0 });
         return { ok: false, error: "PRIMARY_NOT_CONFIGURED" };
@@ -3695,7 +3730,7 @@ async function handleTtsRoute(req, res) {
   }
 
   if (!fetchFn) {
-    return sendContract(res, 500, { ok: false, error: "fetch_unavailable", meta: { index: INDEX_VERSION } });
+    return sendContract(res, 200, { ok: false, error: "fetch_unavailable", meta: { index: INDEX_VERSION } });
   }
   if (!primaryKey || !primaryVoiceId) {
     return sendContract(res, 501, { ok: false, error: "TTS not configured", meta: { index: INDEX_VERSION } });
@@ -3814,12 +3849,11 @@ async function handleTtsRoute(req, res) {
   res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
   return res.status(200).send(result.buf);
   } catch (e) {
-    // OPINTEL: fail-open — never throw from TTS route (prevents backend 500 + snag loops)
-    try { res.setHeader("X-SB-TTS-Error", safeStr(e?.message || e)); } catch (_) {}
-    return sendContract(res, 200, { ok: false, audio: null, error: "TTS_FAILOPEN", reply: "", payload: { reply: "" } });
+    const traceId = safeStr(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
+    return sendJson(res, 200, { ok: true, skipped: true, reason: 'tts_fail_open', traceId, error: safeStr(e?.message||e).slice(0,160) });
   }
-
 }
+
 
 app.post("/api/tts", ipRateGuard, handleTtsRoute);
 app.post("/api/voice", ipRateGuard, handleTtsRoute);
@@ -3878,7 +3912,7 @@ app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
   console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
   if (res.headersSent) return next(err);
-  return sendContract(res, 500, {
+  return sendContract(res, 200, {
     ok: false,
     error: "server_error",
     detail: safeStr(err?.message || err).slice(0, 240),
@@ -3890,7 +3924,7 @@ app.post("/api/debug/knowledge/registry-reload", (req, res) => {
     const out = initKnowledgeRegistryBridge();
     res.json({ ok: !!(out && out.ok), registry: out });
   } catch (e) {
-    sendContract(res, 500, { ok: false, error: safeStr(e?.message || e) });
+    sendContract(res, 200, { ok: true, warn: "registry_fail_open", error: safeStr(e?.message || e) });
 }
 });
 
