@@ -31,6 +31,12 @@
 
 const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
 
+// Optional boot banner (debug only)
+try {
+  const _ceBoot = process && process.env && (process.env.SB_CHATENGINE_BOOT === "1" || process.env.SB_CE_BOOT === "1");
+  if (_ceBoot) console.log("[CHATENGINE] BOOT", CE_VERSION, new Date().toISOString());
+} catch (_e) {}
+
 let Spine = null;
 let MarionSO = null;
 
@@ -470,6 +476,72 @@ function safeJsonStringify(x) {
   }
 }
 
+
+// -------------------------
+// DEBUG / STAGE BEACONS++++ (opt-in)
+// - Enables high-signal breadcrumbs without changing runtime behavior.
+// - Turn on via env: SB_CHATENGINE_DEBUG=1 (or SB_CE_DEBUG=1)
+// - Or per-request via ctx.debug = true
+// -------------------------
+function isChatEngineDebug(input, norm) {
+  try {
+    const env = process && process.env ? process.env : {};
+    if (env.SB_CHATENGINE_DEBUG === "1" || env.SB_CE_DEBUG === "1") return true;
+  } catch (_e) {}
+  const ctx = norm && isPlainObject(norm.ctx) ? norm.ctx : (input && isPlainObject(input.ctx) ? input.ctx : {});
+  const body = norm && isPlainObject(norm.body) ? norm.body : (input && isPlainObject(input.body) ? input.body : {});
+  const p = norm && isPlainObject(norm.payload) ? norm.payload : (input && isPlainObject(input.payload) ? input.payload : {});
+  return !!(ctx && ctx.debug) || !!(body && body.debug) || !!(p && p.debug);
+}
+
+function makeStageStamp(startedMs, getStage, requestId) {
+  return function stamp(extra) {
+    try {
+      const env = process && process.env ? process.env : {};
+      const stage = typeof getStage === "function" ? getStage() : "";
+      const ms = Math.max(0, nowMs() - (Number(startedMs) || nowMs()));
+      const base = { stage, ms };
+      if (requestId) base.requestId = safeStr(requestId).slice(0, 28);
+      const payload = isPlainObject(extra) ? { ...base, ...extra } : base;
+      // Avoid huge payloads; log bounded JSON
+      console.log("[CHATENGINE]", JSON.stringify(payload).slice(0, 1100));
+    } catch (_e) {}
+  };
+}
+
+function withTimeout(promise, ms, label) {
+  const t = clampInt(ms, 12000, 250, 60000);
+  if (!promise || typeof promise.then !== "function") return Promise.resolve(promise);
+  let to = null;
+  const timeout = new Promise((resolve) => {
+    to = setTimeout(() => resolve({ __timeout: true, __label: safeStr(label || "") }), t);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    try { if (to) clearTimeout(to); } catch (_e) {}
+  });
+}
+
+// Coerce lane/module outputs into a safe, predictable object.
+// Accepts: string | {reply,...} | {payload:{reply}} | {data:{reply}} | any
+function coerceModuleOut(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "string") return { reply: raw };
+  if (!isPlainObject(raw)) return null;
+
+  const reply =
+    raw.reply ??
+    raw.payload?.reply ??
+    raw.data?.reply ??
+    raw.message ??
+    raw.payload?.message ??
+    null;
+
+  // keep original object, but ensure reply is a string
+  const out = { ...raw };
+  if (reply !== null && reply !== undefined) out.reply = safeStr(reply);
+
+  return out;
+}
 // -------------------------
 // LOOP GOVERNOR++++ (stops repeat reply spirals)
 // -------------------------
@@ -2560,10 +2632,16 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 async function handleChat(input) {
   const started = nowMs();
+  let __stage = "start";
+  let __dbg = false;
+  let __stamp = null;
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
   try {
+    __stage = "normalize";
     const norm = normalizeInbound(input);
+    __dbg = isChatEngineDebug(input, norm);
+    // stamp initialized after requestId exists (we'll rebind once requestId is set)
 
     // OPINTEL++++: attach start time for audit/latency (Nyx-safe; internal only)
     norm._t0 = started;
@@ -2761,6 +2839,8 @@ if (greetQuick && greetQuick.kind) {
 
     // Marion mediation (fail-open)
     let cogRaw = null;
+    __stage = "marion_mediate";
+    if (__dbg && __stamp) __stamp();
     try {
       if (MarionSO && typeof MarionSO.mediate === "function") {
         cogRaw = MarionSO.mediate(norm, session, {});
@@ -2887,6 +2967,10 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
+    if (__dbg) {
+      __stamp = makeStageStamp(started, () => __stage, requestId);
+      __stamp({ v: CE_VERSION });
+    }
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
     if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
       const reply = Support.buildCrisisResponse();
@@ -3578,13 +3662,18 @@ if (wantsPsychBridge) {
   const sessionKey = safeStr(session.sessionKey || session.id || session.sid || "session").trim() || "session";
   const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
-  const psyche = await buildPsycheSafe({
+  __stage = "bridge_fetch";
+  if (__dbg && __stamp) __stamp();
+  const psycheRes = await withTimeout(buildPsycheSafe({
     features: isPlainObject(cog) ? { ...cog } : {},
     tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
     queryKey,
     sessionKey,
     opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
-  });
+  }), 12000, "buildPsycheSafe");
+  const psyche = (psycheRes && psycheRes.__timeout) ? null : psycheRes;
+  if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
+
 
   // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
   if (psyche && (psyche.opening || psyche.reply || psyche.prompt)) {
@@ -3812,6 +3901,8 @@ if (wantsRoku) {
       } catch (e) {
         out = null;
       }
+
+      out = coerceModuleOut(out);
 
       if (!out || !isPlainObject(out)) {
         const reply0 = finalizeReply(
@@ -4130,6 +4221,8 @@ if (wantsRoku) {
       } catch (e) {
         musicOut = null;
       }
+
+      musicOut = coerceModuleOut(musicOut);
 
       if (!musicOut || !isPlainObject(musicOut)) {
         const reply0 = finalizeReply(
