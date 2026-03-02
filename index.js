@@ -73,9 +73,6 @@ let chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/ch
 // If missing, try common versioned filenames in Utils (fail-open)
 if (!chatEngineMod) {
   const candidates = [
-    "./Utils/chatEngine.OPINTEL.v0_10_14.js",
-    "./Utils/chatEngine.OPINTEL.v0_10_12.js",
-    "./Utils/chatEngine.OPINTEL.js",
     "./Utils/chatEngine.v0.10.3.js",
     "./Utils/chatEngine.v0.10.2.js",
     "./Utils/chatEngine.v0.10.1.js",
@@ -126,7 +123,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.27opintel (OPINTEL ALIGN++++ + CHAT/RESET NEVER-5xx++++ + ENGINE FAILSOFT TUNED++++ + SNAG SPAM FIX++++ + PAYLOAD.REPLY MIRROR++++)";
+const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES) + TTS HEADER GUARD++++ + TTS RESET SKIP++++";
 
 // =========================
 // Utils
@@ -200,6 +197,21 @@ function statSafe(p) {
   } catch (_) {
     return null;
   }
+}
+
+
+function getHeaderSafe(req, name) {
+  try {
+    const n = String(name || "").toLowerCase();
+    const h = (req && req.headers) ? req.headers : {};
+    const direct = h[n] || h[n.toLowerCase()];
+    if (direct !== undefined && direct !== null) return safeStr(direct);
+    if (req && typeof req.get === "function") {
+      const v = req.get(name);
+      if (v !== undefined && v !== null) return safeStr(v);
+    }
+  } catch (_) {}
+  return "";
 }
 
 // =========================
@@ -2357,14 +2369,7 @@ function readBootReplay(rec) {
 function sendContract(res, statusCode, body) {
   const out = (body && typeof body === "object") ? { ...body } : { ok: statusCode < 400, error: String(body) };
   if (!Object.prototype.hasOwnProperty.call(out, "ok")) out.ok = statusCode < 400;
-
-  // NYX_WIDGET expects payload always, and many listeners expect payload.reply.
   if (!out.payload || typeof out.payload !== "object") out.payload = {};
-
-  // Mirror reply <-> payload.reply for maximum compatibility (no UI drift)
-  if (typeof out.reply === "string" && typeof out.payload.reply !== "string") out.payload.reply = out.reply;
-  if (typeof out.payload.reply === "string" && typeof out.reply !== "string") out.reply = out.payload.reply;
-
   // Never leak stack traces unless explicitly allowed
   if (out && out.error && typeof out.error === "object") out.error = String(out.error);
   return res.status(statusCode).json(out);
@@ -3055,21 +3060,14 @@ async function handleChatRoute(req, res) {
     normalizeChipPayload(body);
 
     if (!ENGINE || typeof ENGINE.fn !== "function") {
-      // NEVER hard-fail /api/chat with 5xx — Nyx treats that as a backend crash.
-      // Fail-open with a stable contract so the widget remains usable.
-      const requestId = makeReqId();
-      const reply = "I’m here — the backend is still warming up. Try again in a moment.";
-      return sendContract(res, 200, {
-        ok: false,
-        error: "engine_missing",
-        detail: "chatEngine module is missing or does not export a callable handler.",
-        reply,
-        payload: { reply, lane: "general" },
-        sessionPatch: {},
-        requestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.engine_missing" },
-      });
-    }
+      return sendContract(res, 503, {
+      ok: false,
+      error: "engine_missing",
+      detail: "chatEngine module is missing or does not export a callable handler.",
+      requestId: makeReqId(),
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null },
+    });
+  }
 
   const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
   const serverRequestId = clientRequestId || makeReqId();
@@ -3235,26 +3233,11 @@ async function handleChatRoute(req, res) {
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
     const k = knowledgeStatusForMeta();
-
-    // Fail-soft reply: do NOT spam "snag" loops; tailor to lane/year if relevant.
-    const lane = safeStr(rec?.data?.lane || body?.lane || body?.payload?.lane || routeHint || "general").toLowerCase();
-    const year = safeStr(body?.year || body?.payload?.year || body?.ctx?.year || "").trim();
-    const wantYear = (lane.includes("music") || lane.includes("year")) && !year;
-
-    let reply = "";
-    if (isReset) {
-      reply = ""; // silent reset
-    } else if (wantYear) {
-      reply = "Okay — give me a year (1950–2024) and I’ll jump right in.";
-    } else if (k.ok) {
-      reply = "I had a brief hiccup, but I’m still here. Try that again.";
-    } else {
-      reply = "I’m online, but my knowledge packs are still loading. Try again in a moment.";
-    }
+    const reply = k.ok
+      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
+      : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    const p = safeStr(req.path || "").toLowerCase();
-    const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt") ? 200 : 500;
-    return sendContract(res, status, {
+    return sendContract(res, 500, {
       ok: false,
       reply,
       lane: rec.data.lane || "general",
@@ -3467,27 +3450,46 @@ function __sbShouldBypassPrimary(){
 async function handleTtsRoute(req, res) {
   const startedAt = nowMs();
 
-  // ---- handshake / correlation ----
-  const inboundTrace =
-    safeStr(req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"] || req.headers["x-sb-trace"] || "").trim();
-  const traceId = inboundTrace || makeReqId();
-  const requestId = safeStr(req.headers["x-request-id"] || "").trim();
+  // OPINTEL: TTS route must be fail-open and never throw (prevents backend 500 cascades)
+  try {
+    // ---- handshake / correlation (guarded) ----
+    const inboundTrace = safeStr(
+      getHeaderSafe(req, 'x-sb-trace-id') ||
+      getHeaderSafe(req, 'x-sb-traceid') ||
+      getHeaderSafe(req, 'x-sb-trace') ||
+      ''
+    ).trim();
+    const traceId = inboundTrace || makeReqId();
+    const requestId = safeStr(getHeaderSafe(req, 'x-request-id') || '').trim();
 
-  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-  if (typeof req.body === "string") body = { text: req.body };
+    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+    if (typeof req.body === 'string') body = { text: req.body };
 
-  const lane = safeStr(body.lane || body.mode || body.contextLane || "").trim() || "";
-  const turnId = safeStr(body.turnId || body.turn || body.tid || "").trim() || "";
-  const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
-  const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
-  const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
+    // Fast skip: never run TTS on reset commands (prevents accidental TTS path throws)
+    const inboundText = safeStr(body?.text || body?.payload?.text || body?.payload?.message || '').trim();
+    const inboundSource = safeStr(body?.source || body?.client?.source || '').trim();
+    if (isResetCommand(inboundText, inboundSource, body)) {
+      res.setHeader('X-SB-Trace-Id', traceId);
+      res.setHeader('X-SB-TTS', 'skipped_reset');
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', '0');
+      return res.status(200).send(Buffer.alloc(0));
+    }
 
-  res.setHeader("X-SB-Trace-Id", traceId);
-  if (lane) res.setHeader("X-SB-Lane", lane);
-  if (turnId) res.setHeader("X-SB-Turn-Id", turnId);
-  if (chatMs !== null) res.setHeader("X-SB-Chat-Ms", String(chatMs));
-  if (e2eMs !== null) res.setHeader("X-SB-E2E-Ms", String(e2eMs));
+    const lane = safeStr(body.lane || body.mode || body.contextLane || '').trim() || '';
+    const turnId = safeStr(body.turnId || body.turn || body.tid || '').trim() || '';
+    const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
+    const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
+    const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
 
+    res.setHeader('X-SB-Trace-Id', traceId);
+    if (lane) res.setHeader('X-SB-Lane', lane);
+    if (turnId) res.setHeader('X-SB-Turn-Id', turnId);
+    if (chatMs !== null) res.setHeader('X-SB-Chat-Ms', String(chatMs));
+    if (e2eMs !== null) res.setHeader('X-SB-E2E-Ms', String(e2eMs));
+    if (requestId) res.setHeader('X-Request-Id', requestId);
+
+    // Continue with original logic (body already parsed above)
   // ---- health probe mode (Step 5) ----
   if (body && body.healthCheck === true) {
     const probe = await (async () => {
@@ -3827,6 +3829,12 @@ async function handleTtsRoute(req, res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
   return res.status(200).send(result.buf);
+  } catch (e) {
+    const traceId = makeReqId();
+    try { res.setHeader('X-SB-Trace-Id', traceId); } catch (_) {}
+    // Fail-open: never 5xx from TTS route; return safe JSON so callers can recover
+    return res.status(200).json({ ok: false, error: 'tts_fail_open', traceId, meta: { index: INDEX_VERSION } });
+  }
 }
 
 app.post("/api/tts", ipRateGuard, handleTtsRoute);
@@ -3886,9 +3894,7 @@ app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
   console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
   if (res.headersSent) return next(err);
-  const p = safeStr(req.path || "").toLowerCase();
-  const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
-  return sendContract(res, status, {
+  return sendContract(res, 500, {
     ok: false,
     error: "server_error",
     detail: safeStr(err?.message || err).slice(0, 240),
@@ -3913,35 +3919,20 @@ app.post("/api/debug/knowledge/registry-reload", (req, res) => {
 app.use((err, req, res, next) => {
   try {
     if (res.headersSent) return next(err);
-
-    const p = safeStr(req.path || "").toLowerCase();
-    const no500 = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice");
-    const rawStatus = Number(err?.statusCode || err?.status || 500) || 500;
-    const status = no500 ? 200 : rawStatus;
-
-    const errorMsg = safeStr(err?.message || err || "Unknown error").slice(0, 240);
-    const reply = no500
-      ? "Backend is stabilizing. Try again in a moment — or tap Reset."
-      : "Server error.";
-
-    return sendContract(res, status, {
+    const status = Number(err?.statusCode || err?.status || 500) || 500;
+    const errorMsg = safeStr(err?.message || err || "Unknown error");
+    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
+    res.status(status).json({
       ok: false,
-      error: "server_error",
-      detail: errorMsg,
+      error: errorMsg,
       reply,
       lane: "general",
-      payload: { reply, lane: "general" },
-      meta: { index: INDEX_VERSION, status, path: p },
+      payload: { reply, lane: "general", error: errorMsg }
     });
-  } catch (_e) {
-    // last resort (never throw from error handler)
-    return sendContract(res, 200, {
-      ok: false,
-      error: "server_error",
-      reply: "Backend is stabilizing. Try again in a moment — or tap Reset.",
-      payload: { reply: "Backend is stabilizing. Try again in a moment — or tap Reset.", lane: "general" },
-      meta: { index: INDEX_VERSION, failSafe: true },
-    });
+  } catch (e) {
+    try {
+      res.status(500).end();
+    } catch (_) {}
   }
 });
 // =========================
