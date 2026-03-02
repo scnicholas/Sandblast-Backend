@@ -29,25 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.12 OPINTEL++ (TRACE-ID PROP + DRIFT-GUARD + CONFIDENCE LOOP BREAKER v2 + AUDIT TAGS + ROLLBACK READY)';
-
-const CE_PLAN = Object.freeze([
-  "S1: Deterministic requestId + inbound signature (anti-double-submit)",
-  "S2: TurnId propagation (state rev anchored) for audit correlation",
-  "S3: Greeting-first override (prevents misroute on hello/how-are-you)",
-  "S4: Distress-first routing (bypass clarify loops; supportive scaffold)",
-  "S5: Inbound stall governor (duplicate inbound fuse + cached fast-return)",
-  "S6: Reply loop governor (repeat reply breaker in short window)",
-  "S7: Confidence-gated clarify breaker (caps clarify streaks deterministically)",
-  "S8: Marion opPackage consumption (confidence + decisionTags + risks)",
-  "S9: Bridge drift guard (payload lane lock supersedes inferred lane)",
-  "S10: Audit tag pass-thru into state spine (bounded, no raw text)",
-  "S11: Last-good rollback readiness (hooks for spine rollback anchors)",
-  "S12: Context envelope hygiene (SiteBridge/Psyche sanitization kept)",
-  "S13: Idempotent sessionPatch merge (prevents patch thrash)",
-  "S14: Vendor/latency hints plumbing (turn-level latencyMs stamped)",
-  "S15: Fail-safe contract hardening (never crash the API; never blank reply)"
-]);
+const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
 
 let Spine = null;
 let MarionSO = null;
@@ -1894,14 +1876,9 @@ function normalizeInbound(input) {
   const textRaw = textRaw0.length > MAX_TEXT_CHARS ? textRaw0.slice(0, MAX_TEXT_CHARS) : textRaw0;
 
   // action: accept payload.route as an alias (chip payloads commonly set route)
-  const payloadActionRaw = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
-  // OPINTEL++++: robust reset detection (prevents reset endpoint 500s caused by unrecognized reset variants)
-  // Sources: payload.reset, body.reset, ctx.reset, mode/reset route markers.
-  const resetFlag = truthy(payload.reset) || truthy(body.reset) || truthy(ctx.reset);
-  const resetByMode = String(payload.mode || body.mode || ctx.mode || "").toLowerCase() === "reset";
-  const resetByRoute = String(payload.route || payloadActionRaw || "").toLowerCase() === "reset";
+  const payloadAction = safeStr(payload.action || payload.route || body.action || ctx.action || "").trim();
   const inferredAction = classifyAction(textRaw, payload);
-  const action = (resetFlag || resetByMode || resetByRoute) ? "reset" : (payloadActionRaw || inferredAction || "");
+  const action = payloadAction || inferredAction || "";
 
   const payloadYear = normYear(payload.year) ?? normYear(body.year) ?? normYear(ctx.year) ?? null;
   const year = payloadYear ?? extractYearFromText(textRaw) ?? null;
@@ -2487,31 +2464,6 @@ function resolveRequestId(input, norm, inboundKey) {
   return `r_${sha1Lite(`${inboundKey}|${nowMs()}`).slice(0, 16)}`;
 }
 
-
-function resolveTurnId(state, requestId) {
-  const rev = Number(state?.rev);
-  const next = Number.isFinite(rev) ? rev + 1 : 1;
-  const rid = safeStr(requestId || "").slice(0, 64);
-  // deterministic-ish per turn, stable across retries for same requestId+rev
-  return `t_${next}_${sha1Lite(`${rid}|${next}`).slice(0, 8)}`;
-}
-
-function safeAuditTags(arr, max=12, maxLen=64) {
-  const out = [];
-  const seen = new Set();
-  for (const it of Array.isArray(arr) ? arr : []) {
-    const v = safeStr(it).trim();
-    if (!v) continue;
-    const vv = v.length > maxLen ? v.slice(0, maxLen) + "…" : v;
-    const k = vv.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(vv);
-    if (out.length >= max) break;
-  }
-  return out;
-}
-
 function ensureNonEmptyReply(reply, fallback) {
   const r = safeStr(reply || "").trim();
   if (r) return r;
@@ -2804,10 +2756,6 @@ if (greetQuick && greetQuick.kind) {
 
     const corePrev = coerceCoreSpine(session);
 
-    // requestId/turnId resolved earlier (OPINTEL)
-    const inSig = inboundLoopSig(norm, session);
-    const turnId = resolveTurnId(corePrev, requestId);
-
     // PUBLIC MODE (SAFE DEFAULT TRUE)
     const publicMode = computePublicMode(norm, session);
 
@@ -2815,7 +2763,7 @@ if (greetQuick && greetQuick.kind) {
     let cogRaw = null;
     try {
       if (MarionSO && typeof MarionSO.mediate === "function") {
-        cogRaw = MarionSO.mediate(norm, session, { requestId, turnId, traceId: requestId, inputSig: inSig });
+        cogRaw = MarionSO.mediate(norm, session, {});
       }
     } catch (e) {
       cogRaw = null;
@@ -2823,16 +2771,6 @@ if (greetQuick && greetQuick.kind) {
 
     // ALWAYS normalize to guarantee required fields
     const cog = normalizeCog(norm, session, cogRaw);
-    // OPINTEL++++: stable trace ids for audit + anti-drift
-    cog.requestId = requestId;
-    cog.turnId = turnId;
-    cog.inputSig = inSig;
-    if (cog && isPlainObject(cog.opPackage)) {
-      cog.opConfidence = clamp01(cog.opPackage.confidenceScore);
-      cog.opDecisionTags = safeAuditTags(cog.opPackage.decisionTags || []);
-      cog.opRisks = safeAuditTags(cog.opPackage.risks || [], 10, 64);
-    }
-
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
     const emoMode = safeStr(emo?.mode || "").toUpperCase();
@@ -4168,23 +4106,9 @@ if (wantsRoku) {
     // -------------------------
     // MUSIC handling (delegated to Utils/musicKnowledge.js)
     // -------------------------
-    // Derive action from text when a year is present even if lane didn't get set to music.
-// This keeps "top 10 1984" working even if payload.lane is "general".
-const textLower = safeStr(norm.text || norm.rawText || "").toLowerCase();
-const hasTop10 = /\btop\s*10\b|\btop10\b/.test(textLower);
-const hasYearEnd = /\byear\s*-?\s*end\b|\bhot\s*100\b|\bbillboard\b/.test(textLower);
+    const action = norm.action || (lane === "music" && year ? "top10" : "");
 
-let action = safeStr(norm.action || "");
-if (!action && year) {
-  if (hasYearEnd) action = "yearend";
-  else if (hasTop10 || lane === "music") action = "top10";
-}
-
-// Treat year+top10/yearend as music even if lane is still general.
-const musicTrigger = (lane === "music") || !!action || (year && (hasTop10 || hasYearEnd));
-const musicLane = "music";
-
-if (musicTrigger) {
+    if (lane === "music" || action) {
       let musicOut = null;
       try {
         if (Music && typeof Music.handleMusicTurn === "function") {
@@ -4570,7 +4494,6 @@ const reply0 = finalizeReply(
         inboundKey,
       },
       requestId,
-      turnId,
       meta: {
         engine: CE_VERSION,
         requestId,
@@ -4621,7 +4544,6 @@ function failSafeContract(err, input) {
     sessionPatch: {},
     cog: { intent: "STABILIZE", mode: "transitional", publicMode: true, diag: { failSafe: true, err: safeStr(err && err.message ? err.message : err).slice(0,180) } },
     requestId,
-    turnId,
     meta: { v: CE_VERSION, failSafe: true, t: nowMs() },
   };
 }
