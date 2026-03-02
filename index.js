@@ -73,6 +73,9 @@ let chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/ch
 // If missing, try common versioned filenames in Utils (fail-open)
 if (!chatEngineMod) {
   const candidates = [
+    "./Utils/chatEngine.OPINTEL.v0_10_14.js",
+    "./Utils/chatEngine.OPINTEL.v0_10_12.js",
+    "./Utils/chatEngine.OPINTEL.js",
     "./Utils/chatEngine.v0.10.3.js",
     "./Utils/chatEngine.v0.10.2.js",
     "./Utils/chatEngine.v0.10.1.js",
@@ -123,7 +126,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.25sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.26opintel (OPINTEL ALIGN++++ + CHAT/RESET NEVER-500++++ + ENGINE EXCEPTION FAILSOFT++++ + ERROR MIDDLEWARE CHAT-SAFE)";
 
 // =========================
 // Utils
@@ -3222,7 +3225,9 @@ async function handleChatRoute(req, res) {
       ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    return sendContract(res, 500, {
+    const p = safeStr(req.path || "").toLowerCase();
+    const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt") ? 200 : 500;
+    return sendContract(res, status, {
       ok: false,
       reply,
       lane: rec.data.lane || "general",
@@ -3854,7 +3859,9 @@ app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
   console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
   if (res.headersSent) return next(err);
-  return sendContract(res, 500, {
+  const p = safeStr(req.path || "").toLowerCase();
+  const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
+  return sendContract(res, status, {
     ok: false,
     error: "server_error",
     detail: safeStr(err?.message || err).slice(0, 240),
@@ -3879,20 +3886,35 @@ app.post("/api/debug/knowledge/registry-reload", (req, res) => {
 app.use((err, req, res, next) => {
   try {
     if (res.headersSent) return next(err);
-    const status = Number(err?.statusCode || err?.status || 500) || 500;
-    const errorMsg = safeStr(err?.message || err || "Unknown error");
-    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
-    res.status(status).json({
+
+    const p = safeStr(req.path || "").toLowerCase();
+    const no500 = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice");
+    const rawStatus = Number(err?.statusCode || err?.status || 500) || 500;
+    const status = no500 ? 200 : rawStatus;
+
+    const errorMsg = safeStr(err?.message || err || "Unknown error").slice(0, 240);
+    const reply = no500
+      ? "Backend is stabilizing. Try again in a moment — or tap Reset."
+      : "Server error.";
+
+    return sendContract(res, status, {
       ok: false,
-      error: errorMsg,
+      error: "server_error",
+      detail: errorMsg,
       reply,
       lane: "general",
-      payload: { reply, lane: "general", error: errorMsg }
+      payload: { reply, lane: "general" },
+      meta: { index: INDEX_VERSION, status, path: p },
     });
-  } catch (e) {
-    try {
-      res.status(500).end();
-    } catch (_) {}
+  } catch (_e) {
+    // last resort (never throw from error handler)
+    return sendContract(res, 200, {
+      ok: false,
+      error: "server_error",
+      reply: "Backend is stabilizing. Try again in a moment — or tap Reset.",
+      payload: { reply: "Backend is stabilizing. Try again in a moment — or tap Reset.", lane: "general" },
+      meta: { index: INDEX_VERSION, failSafe: true },
+    });
   }
 });
 // =========================
