@@ -3,11 +3,11 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.32sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.33sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
 
  *
  * =========================
- * Operations Intelligence — Next 10 Phases (v1.5.32sb)
+ * Operations Intelligence — Next 10 Phases (v1.5.33sb)
  * =========================
  * 1) Voice UUID API: stable selector for Vera (uuid → voice mapping) + header support
  * 2) TTS cache: short TTL audio memoization to cut vendor credits + latency spikes
@@ -19,6 +19,17 @@
  * 8) Security: preserve token gate wiring + CORS denylist behavior
  * 9) Stability: fuse/cooldown logic untouched; minimizes widget-triggered loops
  * 10) Extensibility: uuid→voice map via env JSON for future multi-voice routing
+
+ * 11) TTS ladder: deterministic provider order (Resemble → Eleven) with vendor-specific error codes surfaced
+ * 12) Resemble ID hygiene: reject placeholders ('...') early; echo chosen voiceUid in headers for rapid debug
+ * 13) Timeout discipline: per-provider AbortController + hard cap to prevent hanging (browser shows 'canceled')
+ * 14) Audio response contract: always return either audio/* OR JSON error envelope; never empty body
+ * 15) Warm-start assist: optional /_warm ping can prime vendor + Render instance before first user call
+ * 16) Vendor health map: rolling success/fail counters per provider + last failure reason (no PII)
+ * 17) Cache safety: TTL audio cache keyed by (provider,voice,text hash) with size cap + memory guard
+ * 18) Observability: x-sb-tts-provider, x-sb-voice, x-sb-tts-ms headers for every /api/tts response
+ * 19) Fail-open UX: if audio fails, return a short 'spokenUnavailable' flag so UI can show subtle prompt
+ * 20) Config sanity: startup validation logs for required env (token present? voice id present?) without leaking secrets
  * =========================
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
@@ -42,6 +53,15 @@
 // Imports
 // =========================
 const express = require("express");
+
+// Optional external TTS handler (preferred). Keeps index.js stable while allowing provider ladder in utils/tts.js.
+let __SB_HANDLE_TTS = null;
+try {
+  const ttsMod = require("./utils/tts");
+  if (ttsMod && typeof ttsMod.handleTts === "function") __SB_HANDLE_TTS = ttsMod.handleTts;
+} catch (_) {
+  __SB_HANDLE_TTS = null;
+}
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -129,11 +149,6 @@ const fetchFn =
   (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
   (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
 
-// Resemble AI TTS provider (primary)
-const RESEMBLE = safeRequire("./Utils/providersResemble.js") || safeRequire("./providersResemble.js") || null;
-// Ensure global.fetch exists for provider modules (some providers call fetch directly)
-try { if (!global.fetch && fetchFn) global.fetch = fetchFn; } catch (_) {}
-
 // Optional external packIndex module (nice-to-have, never required)
 const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
 
@@ -144,7 +159,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.32sb (HARDEN: CHAT NO-500 CONTRACT + ENGINE_MISSING GUARD + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.33sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE PRIMARY/11 FALLBACK + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -1072,59 +1087,7 @@ function pickElevenVoiceId(req, body) {
   }
 
   // 3) Named voice selector
-  if (want === "vera") r
-
-/**
- * pickResembleVoiceUuid(req, body)
- * - Mirrors pickElevenVoiceId selectors but resolves to Resemble voice UID/UUID.
- * - Supports env allowlist JSON for multi-voice routing:
- *     RESEMBLE_VOICE_UUID_MAP='{"vera":"<uid>","nyx":"<uid>","default":"<uid>"}'
- * - Falls back to RESEMBLE_VOICE_UUID (or RESEMBLE_VOICE_UID alias) when no selector is provided.
- */
-function pickResembleVoiceUuid(req, body) {
-  const q = (req && req.query) ? req.query : {};
-  const want =
-    safeStr((body && (body.voiceUuid || body.voiceUUID || body.uuid || body.voice_uid || body.voiceUid)) || q.voiceUuid || q.uuid || "").trim() ||
-    safeStr(__sbGetHeader(req, "x-sb-voice-uuid") || __sbGetHeader(req, "x-sb-voice-uid") || __sbGetHeader(req, "x-sb-voice") || "").trim();
-
-  // Optional stable name selector (body.voice = "vera"/"nyx"/"default")
-  const wantName =
-    safeStr((body && (body.voice || body.voiceName)) || q.voice || "").trim().toLowerCase();
-
-  let map = null;
-  try {
-    const raw = safeStr(process.env.RESEMBLE_VOICE_UUID_MAP || process.env.RESEMBLE_VOICE_MAP || "").trim();
-    if (raw) map = JSON.parse(raw);
-  } catch (_) {
-    map = null;
-  }
-
-  function fromMap(key) {
-    if (!map || typeof map !== "object") return "";
-    const v = map[key];
-    return safeStr(v).trim();
-  }
-
-  // Explicit UID/UUID wins if it doesn't look like a placeholder
-  const direct = want;
-  if (direct && direct !== "..." && direct !== "xxxx" && direct !== "YOUR_VOICE_UUID") return direct;
-
-  // Named selector
-  if (wantName) {
-    const v = fromMap(wantName) || fromMap(wantName.toUpperCase()) || fromMap(wantName.toLowerCase());
-    if (v) return v;
-  }
-
-  // Default mapping
-  const def = fromMap("default") || fromMap("DEFAULT");
-  if (def) return def;
-
-  // Env fallback
-  return safeStr(process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UID || "").trim();
-}
-
-
-eturn (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
+  if (want === "vera") return (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
   if (want === "nyx") return (ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
   if (want === "default") return (ELEVEN_VOICE_ID_DEFAULT || ELEVEN_VOICE_ID || "");
 
@@ -2504,6 +2467,22 @@ function sendContract(res, statusCode, body) {
   if (out && out.error && typeof out.error === "object") out.error = String(out.error);
   return res.status(statusCode).json(out);
 }
+
+// Back-compat helper: some routes still call sendJson(). Keep it defined so /api/tts never crashes.
+function sendJson(res, statusCode, body) {
+  try {
+    return sendContract(res, statusCode, body);
+  } catch (e) {
+    // absolute last resort (never throw from a route)
+    try {
+      return res.status(statusCode || 500).type("application/json").send(
+        JSON.stringify({ ok: false, error: "send_failed", detail: String(e && (e.message || e) || "unknown") })
+      );
+    } catch (_e2) {
+      try { return res.end(); } catch (_) { return undefined; }
+    }
+  }
+}
 const app = express();
 
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
@@ -3685,41 +3664,10 @@ async function handleTtsRoute(req, res) {
   // ---- health probe mode (Step 5) ----
   if (body && body.healthCheck === true) {
     const probe = await (async () => {
-      // Primary: Resemble (if configured)
-      const resembleVoice = pickResembleVoiceUuid(req, body);
-      const resembleToken = safeStr(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || "").trim();
-
-      if (RESEMBLE && resembleToken && resembleVoice) {
-        const t0 = nowMs();
-        try {
-          const out = await RESEMBLE.synthesize({
-            text: "Quick audio check.",
-            voiceUuid: resembleVoice,
-            outputFormat: safeStr(process.env.RESEMBLE_OUTPUT_FORMAT || "mp3"),
-            timeoutMs: clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000),
-            title: "sb_health_probe",
-          });
-
-          const dt = nowMs() - t0;
-          const ok = !!(out && out.ok && out.buffer && out.buffer.length > 1000);
-          __sbUpdateAudioHealth(ok, {
-            error: ok ? null : safeStr(out && (out.message || out.reason) || "UPSTREAM_FAIL").slice(0, 120),
-            upstreamStatus: ok ? 200 : 0,
-            upstreamMs: dt,
-          });
-          return { ok, provider: "resemble", upstreamStatus: ok ? 200 : 0, upstreamMs: dt, bytes: out && out.buffer ? out.buffer.length : 0, detail: out && !ok ? out : undefined };
-        } catch (e) {
-          const dt = nowMs() - t0;
-          __sbUpdateAudioHealth(false, { error: safeStr(e?.message || e), upstreamStatus: 0, upstreamMs: dt });
-          return { ok: false, provider: "resemble", error: safeStr(e?.message || e) };
-        }
-      }
-
-      // Fallback probe: ElevenLabs (legacy)
       const voiceId = pickElevenVoiceId(req, body);
       if (!fetchFn || !ELEVEN_API_KEY || !voiceId) {
         __sbUpdateAudioHealth(false, { error: "PRIMARY_NOT_CONFIGURED", upstreamStatus: 0, upstreamMs: 0 });
-        return { ok: false, provider: "elevenlabs", error: "PRIMARY_NOT_CONFIGURED" };
+        return { ok: false, error: "PRIMARY_NOT_CONFIGURED" };
       }
 
       const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
@@ -3739,7 +3687,7 @@ async function handleTtsRoute(req, res) {
         },
       };
 
-      const t1 = nowMs();
+      const t0 = nowMs();
       try {
         const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
           method: "POST",
@@ -3753,7 +3701,7 @@ async function handleTtsRoute(req, res) {
           signal: ac ? ac.signal : undefined,
         });
 
-        const dt = nowMs() - t1;
+        const dt = nowMs() - t0;
         let ok = false;
         let bytes = 0;
         try {
@@ -3765,11 +3713,11 @@ async function handleTtsRoute(req, res) {
         }
 
         __sbUpdateAudioHealth(ok, { error: ok ? null : `UPSTREAM_${r.status}`, upstreamStatus: r.status, upstreamMs: dt });
-        return { ok, provider: "elevenlabs", upstreamStatus: r.status, upstreamMs: dt, bytes };
+        return { ok, upstreamStatus: r.status, upstreamMs: dt, bytes };
       } catch (e) {
-        const dt = nowMs() - t1;
+        const dt = nowMs() - t0;
         __sbUpdateAudioHealth(false, { error: safeStr(e?.message || e), upstreamStatus: 0, upstreamMs: dt });
-        return { ok: false, provider: "elevenlabs", error: safeStr(e?.message || e) };
+        return { ok: false, error: safeStr(e?.message || e) };
       } finally {
         clearTimeout(t);
       }
@@ -3777,7 +3725,7 @@ async function handleTtsRoute(req, res) {
 
     return sendContract(res, probe.ok ? 200 : 503, {
       ok: probe.ok,
-      provider: probe.provider,
+      provider: "elevenlabs",
       probe,
       health: {
         status: __SB_AUDIO_HEALTH.status,
@@ -3882,12 +3830,6 @@ async function handleTtsRoute(req, res) {
   const primaryKey = ELEVEN_API_KEY;
   const secondaryKey = safeStr(process.env.ELEVENLABS_API_KEY_SECONDARY || "").trim() || primaryKey;
 
-  // Resemble (primary) config — support both token env names for safety
-  const resembleToken = safeStr(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || "").trim();
-  const resembleVoiceUuid = pickResembleVoiceUuid(req, body);
-  const resembleConfigured = !!(RESEMBLE && resembleToken && resembleVoiceUuid);
-
-
   const primaryVoiceId = pickElevenVoiceId(req, body);
   const secondaryVoiceId = safeStr(process.env.NYX_VOICE_ID_SECONDARY || process.env.ELEVENLABS_VOICE_ID_SECONDARY || "").trim();
 
@@ -3895,8 +3837,7 @@ async function handleTtsRoute(req, res) {
   const modelIdSecondary = safeStr(process.env.ELEVENLABS_MODEL_ID_SECONDARY || "").trim() || modelId;
 
   // -------- Step 3.5: TTS cache (credits + speed) --------
-  const cacheProviderKey = (resembleConfigured ? (`resemble:${resembleVoiceUuid}`) : safeStr(primaryVoiceId));
-  const cacheKey = __sbTtsCacheKey(text, cacheProviderKey, modelId, voice_settings);
+  const cacheKey = __sbTtsCacheKey(text, primaryVoiceId, modelId, voice_settings);
   const cacheHit = __sbTtsCacheGet(cacheKey);
   if (cacheHit && cacheHit.buf && cacheHit.buf.length) {
     try {
@@ -3907,32 +3848,6 @@ async function handleTtsRoute(req, res) {
       res.setHeader("x-sb-voice-id", safeStr(primaryVoiceId));
     } catch (_) {}
     return res.status(200).send(cacheHit.buf);
-  }
-
-
-  async function attemptResemble({ label }) {
-    const tUp = nowMs();
-    try {
-      const out = await RESEMBLE.synthesize({
-        text,
-        voiceUuid: resembleVoiceUuid,
-        outputFormat: safeStr(process.env.RESEMBLE_OUTPUT_FORMAT || "mp3"),
-        timeoutMs: clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000),
-        title: `sb_${label || "tts"}`,
-      });
-
-      const upstreamMs = nowMs() - tUp;
-
-      if (!out || !out.ok || !out.buffer || !out.buffer.length) {
-        const errTxt = safeStr(out && (out.message || out.reason) || "Upstream failed").slice(0, 900);
-        return { ok: false, status: 0, upstreamMs, errTxt, label, mimeType: out && out.mimeType ? out.mimeType : undefined };
-      }
-
-      return { ok: true, status: 200, upstreamMs, buf: out.buffer, bytes: out.buffer.length, label, mimeType: out.mimeType || "audio/mpeg" };
-    } catch (e) {
-      const upstreamMs = nowMs() - tUp;
-      return { ok: false, status: 0, upstreamMs, errTxt: safeStr(e?.message || e).slice(0, 300), label };
-    }
   }
 
 
@@ -3984,27 +3899,19 @@ async function handleTtsRoute(req, res) {
   if (!fetchFn) {
     return sendContract(res, 200, { ok: false, error: "fetch_unavailable", meta: { index: INDEX_VERSION } });
   }
-  // Config check: we need at least one working provider.
-  const elevenConfigured = !!(primaryKey && primaryVoiceId);
-  if (!resembleConfigured && !elevenConfigured) {
-    return sendContract(res, 501, { ok: false, error: "TTS not configured", detail: "Set RESEMBLE_API_TOKEN + RESEMBLE_VOICE_UUID (primary) or ELEVENLABS_API_KEY + NYX_VOICE_ID (fallback).", meta: { index: INDEX_VERSION } });
+  if (!primaryKey || !primaryVoiceId) {
+    return sendContract(res, 501, { ok: false, error: "TTS not configured", meta: { index: INDEX_VERSION } });
   }
 
   let retried = false;
   let failoverUsed = false;
-  let providerUsed = resembleConfigured ? "resemble_primary" : "elevenlabs_primary";
+  let providerUsed = "elevenlabs_primary";
 
   let result = null;
 
-  if (!bypassPrimary && resembleConfigured) {
-    result = await attemptResemble({ label: "primary" });
-    providerUsed = "resemble_primary";
-  }
-
-  // If Resemble is bypassed or fails, fall back to ElevenLabs (legacy)
-  if ((!result || !result.ok) && !bypassPrimary && elevenConfigured) {
-    result = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "fallback_primary" });
-    providerUsed = "elevenlabs_fallback";
+  if (!bypassPrimary) {
+    result = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "primary" });
+    providerUsed = "elevenlabs_primary";
   }
 
   if (result && !result.ok && retryOnce && __sbIsRetryableStatus(result.status)) {
@@ -4067,7 +3974,7 @@ async function handleTtsRoute(req, res) {
             res.setHeader("X-SB-TTS-Upstream-Status", String(r.status));
             res.setHeader("X-SB-TTS-Upstream-Ms", String(upMs));
             res.setHeader("X-SB-TTS-Fallback", "1");
-            res.setHeader("Content-Type", result && result.mimeType ? result.mimeType : "audio/mpeg");
+            res.setHeader("Content-Type", "audio/mpeg");
             res.setHeader("Cache-Control", "no-store, max-age=0");
             res.setHeader("X-Content-Type-Options", "nosniff");
             res.setHeader("Content-Length", String(buf.length));
@@ -4103,7 +4010,7 @@ async function handleTtsRoute(req, res) {
   const totalMs = nowMs() - t0;
   res.setHeader("X-SB-TTS-Ms", String(totalMs));
 
-  res.setHeader("Content-Type", result && result.mimeType ? result.mimeType : "audio/mpeg");
+  res.setHeader("Content-Type", "audio/mpeg");
   res.setHeader("Cache-Control", "no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
@@ -4118,7 +4025,15 @@ async function handleTtsRoute(req, res) {
 }
 
 
-app.post("/api/tts", ipRateGuard, handleTtsRoute);
+app.post("/api/tts", ipRateGuard, async (req, res) => {
+  try {
+    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
+  } catch (e) {
+    // fall through to legacy route on any module/runtime error
+  }
+  return handleTtsRoute(req, res);
+});
+
 app.post("/api/voice", ipRateGuard, handleTtsRoute);
 
 function ttsGetGuidance(req, res) {
