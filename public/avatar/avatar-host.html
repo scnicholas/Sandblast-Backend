@@ -483,11 +483,170 @@ window.NYX_HOST_MODE = "widget_console";
       <button id="nyxSend" type="button">Send</button>
     </footer>
 
-  </main>
+  
+    <audio id="nyxTtsAudio" preload="auto" crossorigin="anonymous"></audio>
+
+  
+    <div id="nyxAudioUnlock" role="button" tabindex="0" aria-label="Enable audio">
+      <div class="unlockCard">
+        <div class="t">Audio needs a tap</div>
+        <div class="s">Click here (or press any key) to enable Nyx voice.</div>
+        <div class="b">Enable Audio</div>
+      </div>
+    </div>
+
+</main>
 
 <script>
 (function(){
   "use strict";
+  // ============================================================
+  // BACKEND TTS (Resemble-first) — Phase 1–5
+  // - Uses /api/tts (audio/* binary) instead of speechSynthesis
+  // - Deterministic playback with queue + autoplay unlock
+  // - Never calls ElevenLabs from the client
+  // ============================================================
+  var TTS = {
+    armed: false,
+    locked: false,           // autoplay blocked until user gesture
+    inFlight: false,
+    q: [],
+    lastErr: "",
+    audioEl: null
+  };
+
+  function ttsAudioEl(){
+    if(TTS.audioEl) return TTS.audioEl;
+    TTS.audioEl = document.getElementById("nyxTtsAudio") || null;
+    if(TTS.audioEl){
+      TTS.audioEl.preload = "auto";
+      TTS.audioEl.crossOrigin = "anonymous";
+      TTS.audioEl.addEventListener("play", function(){
+        TTS.locked = false;
+        document.body.classList.remove("audio-locked");
+      });
+      TTS.audioEl.addEventListener("ended", function(){ ttsPump(false); });
+      TTS.audioEl.addEventListener("error", function(){
+        TTS.lastErr = "AUDIO_ELEMENT_ERROR";
+        ttsPump(true);
+      });
+    }
+    return TTS.audioEl;
+  }
+
+  function setHint(msg){
+    var h = $("nyxHint");
+    if(!h) return;
+    h.textContent = msg;
+  }
+
+  function armAudio(){
+    var a = ttsAudioEl();
+    if(!a) return false;
+    TTS.armed = true;
+    try{
+      a.muted = true;
+      a.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAA";
+      var p = a.play();
+      if(p && typeof p.then === "function"){
+        p.then(function(){
+          try{ a.pause(); }catch(_){}
+          try{ a.currentTime = 0; }catch(_){}
+          a.muted = false;
+          TTS.locked = false;
+          document.body.classList.remove("audio-locked");
+        }).catch(function(err){
+          TTS.locked = true;
+          document.body.classList.add("audio-locked");
+          TTS.lastErr = (err && err.name) ? err.name : "PLAY_BLOCKED";
+        });
+      }
+    }catch(e){
+      TTS.locked = true;
+      document.body.classList.add("audio-locked");
+      TTS.lastErr = "ARM_FAIL";
+    }
+    return true;
+  }
+
+  try{
+    window.addEventListener("pointerdown", function(){ armAudio(); }, { once:true, passive:true });
+    window.addEventListener("keydown", function(){ armAudio(); }, { once:true, passive:true });
+  }catch(_){}
+
+  function ttsEndpoint(){
+    return apiBase() + "/api/tts";
+  }
+
+  function enqueueSpeak(text){
+    var t = safeStr(text, 2000).trim();
+    if(!t) return;
+    TTS.q.push({ text: t });
+    ttsPump(false);
+  }
+
+  function stopSpeaking(){
+    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
+    var a = ttsAudioEl();
+    if(a){
+      try{ a.pause(); }catch(_){}
+      try{ a.currentTime = 0; }catch(_){}
+    }
+    TTS.q = [];
+    TTS.inFlight = false;
+  }
+
+  function ttsPump(force){
+    if(TTS.inFlight && !force) return;
+    var a = ttsAudioEl();
+    if(!a) return;
+
+    if(!TTS.armed || TTS.locked){
+      document.body.classList.add("audio-locked");
+      return;
+    }
+
+    try{ if(!a.paused && !force) return; }catch(_){}
+
+    var job = TTS.q.shift();
+    if(!job) return;
+
+    TTS.inFlight = true;
+
+    var url = ttsEndpoint();
+    var payload = { text: job.text, format: "mp3" };
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include"
+    }).then(function(r){
+      if(!r || !r.ok) throw new Error("TTS_HTTP_" + (r ? r.status : 0));
+      return r.blob().then(function(b){ return { blob:b }; });
+    }).then(function(out){
+      var b = out.blob;
+      if(!b || !b.size || b.size < 1024) throw new Error("TTS_EMPTY_AUDIO");
+      var objUrl = URL.createObjectURL(b);
+      a.src = objUrl;
+      var p = a.play();
+      if(p && typeof p.catch === "function"){
+        p.catch(function(err){
+          TTS.locked = true;
+          document.body.classList.add("audio-locked");
+          TTS.lastErr = (err && err.name) ? err.name : "PLAY_BLOCKED";
+          setHint("Audio blocked — tap 🔈 then try again.");
+        });
+      }
+      setTimeout(function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } }, 60000);
+    }).catch(function(err){
+      TTS.lastErr = (err && err.message) ? err.message : "TTS_FAIL";
+      setHint("Audio issue — tap 🔈 then try again.");
+    }).finally(function(){
+      setTimeout(function(){ TTS.inFlight = false; }, 150);
+    });
+  }
+
 
   // ============================================================
   // SINGLE-INIT GUARD (prevents double-mount / double event binding)
@@ -605,6 +764,21 @@ window.NYX_HOST_MODE = "widget_console";
         try{ if(__readyTimer) clearInterval(__readyTimer); }catch(_){ }
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         setTimeout(function(){ voiceInitMaybe(); }, 0);
+
+  // Audio unlock veil bindings (Phase 2)
+  (function bindAudioUnlock(){
+    var veil = $("nyxAudioUnlock");
+    if(!veil) return;
+    function go(){
+      armAudio();
+      if(!TTS.locked){
+        document.body.classList.remove("audio-locked");
+      }
+    }
+    veil.addEventListener("click", function(){ go(); }, true);
+    veil.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
+  })();
+
       }
     }catch(_){}
   });
@@ -678,7 +852,7 @@ window.NYX_HOST_MODE = "widget_console";
   var UI = { lane:"general", focused:false };
 
   var VOICE = {
-    supportedTTS: !!window.speechSynthesis,
+    supportedTTS: !!window.fetch,
     supportedSTT: false,
     voiceOn: false,
     micOn: false,
@@ -1151,7 +1325,7 @@ window.NYX_HOST_MODE = "widget_console";
     if(VOICE.voiceOn){
       var wasMic = VOICE.micOn;
       if(wasMic) toggleMic(false);
-      speak(reply);
+      enqueueSpeak(reply);
       if(wasMic && VOICE.autoSend){
         setTimeout(function(){ toggleMic(true); }, 900);
       }
@@ -1214,6 +1388,7 @@ window.NYX_HOST_MODE = "widget_console";
   if(voiceBtn){
     voiceBtn.addEventListener("click", function(){
       VOICE.voiceOn = !VOICE.voiceOn;
+      if(VOICE.voiceOn){ armAudio(); }
       if(!VOICE.voiceOn) stopSpeaking();
       updateVoiceUI();
       emitResize();
@@ -1237,6 +1412,21 @@ window.NYX_HOST_MODE = "widget_console";
   if(inputEl) inputEl.focus();
 
   setTimeout(function(){ voiceInitMaybe(); }, 0);
+
+  // Audio unlock veil bindings (Phase 2)
+  (function bindAudioUnlock(){
+    var veil = $("nyxAudioUnlock");
+    if(!veil) return;
+    function go(){
+      armAudio();
+      if(!TTS.locked){
+        document.body.classList.remove("audio-locked");
+      }
+    }
+    veil.addEventListener("click", function(){ go(); }, true);
+    veil.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
+  })();
+
 
 })();
 </script>
