@@ -3,11 +3,11 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.33sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.34sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
 
  *
  * =========================
- * Operations Intelligence — Next 10 Phases (v1.5.33sb)
+ * Operations Intelligence — Next 10 Phases (v1.5.34sb)
  * =========================
  * 1) Voice UUID API: stable selector for Vera (uuid → voice mapping) + header support
  * 2) TTS cache: short TTL audio memoization to cut vendor credits + latency spikes
@@ -20,7 +20,7 @@
  * 9) Stability: fuse/cooldown logic untouched; minimizes widget-triggered loops
  * 10) Extensibility: uuid→voice map via env JSON for future multi-voice routing
 
- * 11) TTS ladder: deterministic provider order (Resemble → Eleven) with vendor-specific error codes surfaced
+ * 11) TTS ladder: deterministic provider order (Resemble) with vendor-specific error codes surfaced
  * 12) Resemble ID hygiene: reject placeholders ('...') early; echo chosen voiceUid in headers for rapid debug
  * 13) Timeout discipline: per-provider AbortController + hard cap to prevent hanging (browser shows 'canceled')
  * 14) Audio response contract: always return either audio/* OR JSON error envelope; never empty body
@@ -38,7 +38,6 @@
  * - MANIFEST RESOLVER UPGRADE++++ (multi-candidate rels + bounded search) + probes
  * - chip payload normalizer + Nyx voice naturalizer
  * - loop fuse / replay isolation + silent reset + boot dedupe fuse
- * - ElevenLabs TTS
  *
  * And adds critical "production operating system" gaps:
  * ✅ Hard CORS deny (origin present but not allowed => 403, stops stealth browser calls)
@@ -159,7 +158,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.33sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE PRIMARY/11 FALLBACK + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.34sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE-ONLY + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -986,119 +985,22 @@ const SESSION_TTL_MS = clampInt(
 );
 const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 
-// ElevenLabs TTS env
-const ELEVEN_API_KEY = String(process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_API_KEY || "").trim();
+// =========================
+// Resemble TTS env (sovereign default)
+// =========================
+//
+// Required:
+//   - RESEMBLE_API_TOKEN (or RESEMBLE_API_KEY)
+//   - RESEMBLE_VOICE_UUID
+//
+// Optional:
+//   - RESEMBLE_PROJECT_UUID
+//   - RESEMBLE_MODEL
+//   - RESEMBLE_OUTPUT_FORMAT ("mp3"|"wav")
+//   - RESEMBLE_TIMEOUT_MS
+//
+// NOTE: actual TTS synthesis is delegated to ./utils/tts (handleTts). Keep provider logic out of index.js.
 
-// Primary/legacy voice id (kept for back-compat)
-const ELEVEN_VOICE_ID_DEFAULT = String(
-  process.env.ELEVENLABS_VOICE_ID ||
-  process.env.ELEVEN_VOICE_ID ||
-  process.env.NYX_VOICE_ID ||
-  ""
-).trim();
-
-// Preferred Nyx voice id (use this if you have a dedicated Nyx voice)
-const ELEVEN_VOICE_ID_NYX = String(
-  process.env.ELEVENLABS_NYX_VOICE_ID ||
-  process.env.NYX_ELEVEN_VOICE_ID ||
-  process.env.NYX_VOICE_ID_ELEVEN ||
-  process.env.NYX_VOICE_ID ||
-  ""
-).trim();
-
-
-// Optional Vera voice id (separate from Nyx) + stable UUID selector
-const ELEVEN_VOICE_ID_VERA = String(
-  process.env.ELEVENLABS_VERA_VOICE_ID ||
-  process.env.VERA_ELEVEN_VOICE_ID ||
-  process.env.VERA_VOICE_ID_ELEVEN ||
-  ""
-).trim();
-
-// Your Vera voice UUID (stable selector passed from widget/backend clients)
-const VERA_VOICE_UUID = String(
-  process.env.VERA_VOICE_UUID ||
-  process.env.VERA_UUID ||
-  "5dc633cb"
-).trim();
-
-
-// Optional allowlist of additional voice ids (comma-separated)
-const ELEVEN_VOICE_ALLOWLIST = String(process.env.ELEVEN_VOICE_ALLOWLIST || "").trim();
-
-// Final default voice id used when request does not specify one
-const ELEVEN_VOICE_ID = (ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID_DEFAULT).trim();
-
-const ELEVEN_TTS_TIMEOUT_MS = clampInt(process.env.ELEVEN_TTS_TIMEOUT_MS, 20000, 4000, 60000);
-
-function buildElevenVoiceAllowSet() {
-  const set = new Set();
-  const add = (v) => {
-    const s = safeStr(v).trim();
-    if (s) set.add(s);
-  };
-  add(ELEVEN_VOICE_ID_DEFAULT);
-  add(ELEVEN_VOICE_ID_NYX);
-  add(ELEVEN_VOICE_ID_VERA);
-  add(ELEVEN_VOICE_ID);
-  String(ELEVEN_VOICE_ALLOWLIST || "")
-    .split(",")
-    .map((x) => safeStr(x).trim())
-    .filter(Boolean)
-    .forEach(add);
-  return set;
-}
-const ELEVEN_VOICE_ALLOWED = buildElevenVoiceAllowSet();
-
-function pickElevenVoiceId(req, body) {
-  // Supported selectors (all OPTIONAL):
-  //  - body.voiceId: explicit ElevenLabs voice id (must be allowlisted)
-  //  - body.voice: "nyx" | "vera" | "default" (maps to env-configured ids)
-  //  - body.voiceUuid / body.uuid: stable UUID selector (maps to env-configured ids)
-  //  - header: x-sb-voice-uuid (or SB_VOICE_UUID_HEADER)
-  //  - query voiceId / voice / voiceUuid / uuid
-  const q = (req && req.query) ? req.query : {};
-
-  const want = safeStr((body && (body.voice || body.speaker)) || q.voice || "").trim().toLowerCase();
-
-  // UUID selector (highest priority after explicit voiceId allowlist)
-  const headerName = (process.env.SB_VOICE_UUID_HEADER || "x-sb-voice-uuid").toString().trim().toLowerCase();
-  const hdrUuidRaw = safeStr(__sbGetHeader(req, headerName) || __sbGetHeader(req, "x-sb-voice-uuid") || "").trim();
-  const uuid = safeStr((body && (body.voiceUuid || body.uuid)) || q.voiceUuid || q.uuid || hdrUuidRaw || "").trim();
-
-  // 1) Explicit voiceId (allowlisted)
-  const candidate = safeStr((body && body.voiceId) || q.voiceId || "").trim();
-  if (candidate && ELEVEN_VOICE_ALLOWED.has(candidate)) return candidate;
-
-  // 2) UUID → Vera (or other) mapping
-  if (uuid) {
-    // Vera UUID mapping (default to your provided UUID unless overridden in env)
-    if (uuid === VERA_VOICE_UUID) return (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
-    // Optional: allow map via env JSON, e.g. {"5dc633cb":"<eleven_voice_id>","...":"..."}
-    try {
-      const rawMap = safeStr(process.env.SB_VOICE_UUID_MAP_JSON || "").trim();
-      if (rawMap) {
-        const obj = JSON.parse(rawMap);
-        const mapped = obj && obj[uuid];
-        const mappedStr = safeStr(mapped).trim();
-        if (mappedStr && ELEVEN_VOICE_ALLOWED.has(mappedStr)) return mappedStr;
-      }
-    } catch (_) {}
-  }
-
-  // 3) Named voice selector
-  if (want === "vera") return (ELEVEN_VOICE_ID_VERA || ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
-  if (want === "nyx") return (ELEVEN_VOICE_ID_NYX || ELEVEN_VOICE_ID || "");
-  if (want === "default") return (ELEVEN_VOICE_ID_DEFAULT || ELEVEN_VOICE_ID || "");
-
-  // Fall back to Nyx-first default
-  return (ELEVEN_VOICE_ID || "");
-}
-
-const NYX_VOICE_STABILITY = clampFloat(process.env.NYX_VOICE_STABILITY, 0.45, 0, 1);
-const NYX_VOICE_SIMILARITY = clampFloat(process.env.NYX_VOICE_SIMILARITY, 0.72, 0, 1);
-const NYX_VOICE_STYLE = clampFloat(process.env.NYX_VOICE_STYLE, 0.25, 0, 1);
-const NYX_VOICE_SPEAKER_BOOST = toBool(process.env.NYX_VOICE_SPEAKER_BOOST, true);
 
 // =========================
 // Boot-like detection + intent normalization + reset — kept
@@ -3511,7 +3413,7 @@ app.get("/api/nyx/chat", chatGetGuidance);
 app.get("/api/sandblast-gpt", chatGetGuidance);
 
 // =========================
-// TTS (REAL ElevenLabs) — guarded
+// TTS (delegated) — guarded
 // =========================
 
 // =========================
@@ -3630,411 +3532,52 @@ function __sbShouldBypassPrimary(){
 
 
 async function handleTtsRoute(req, res) {
+  // Legacy in-index TTS route removed: provider logic lives in ./utils/tts (Resemble-only policy).
+  // This stub stays only to protect older code paths from crashing if referenced accidentally.
   req = __sbNormalizeReq(req);
-  const startedAt = nowMs();
-  try {
-
-  // ---- handshake / correlation ----
-  const inboundTrace =
-    safeStr(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || __sbGetHeader(req,"x-sb-trace") || "").trim();
-  const traceId = inboundTrace || makeReqId();
-  const requestId = safeStr(__sbGetHeader(req,"x-request-id") || "").trim();
-
-  let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-  if (typeof req.body === "string") body = { text: req.body };
-
-  const lane = safeStr(body.lane || body.mode || body.contextLane || "").trim() || "";
-
-  const ttsText = safeStr(body.text || body.prompt || body.message || body.input || "").trim();
-  // OPINTEL: Never run TTS on reset/boot commands
-  if (ttsText === "__cmd:reset__" || ttsText === "__cmd:reset__ " || /^__cmd:reset__/.test(ttsText)) {
-    return sendJson(res, 200, { ok: true, skipped: true, reason: "reset_bypass", traceId, requestId });
-  }
-  const turnId = safeStr(body.turnId || body.turn || body.tid || "").trim() || "";
-  const chatMs = (body.chatMs !== undefined && body.chatMs !== null) ? clampInt(body.chatMs, 0, 0, 3600000) : null;
-  const e2eStartTs = (body.e2eStartTs !== undefined && body.e2eStartTs !== null) ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null;
-  const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
-
-  res.setHeader("X-SB-Trace-Id", traceId);
-  if (lane) res.setHeader("X-SB-Lane", lane);
-  if (turnId) res.setHeader("X-SB-Turn-Id", turnId);
-  if (chatMs !== null) res.setHeader("X-SB-Chat-Ms", String(chatMs));
-  if (e2eMs !== null) res.setHeader("X-SB-E2E-Ms", String(e2eMs));
-
-  // ---- health probe mode (Step 5) ----
-  if (body && body.healthCheck === true) {
-    const probe = await (async () => {
-      const voiceId = pickElevenVoiceId(req, body);
-      if (!fetchFn || !ELEVEN_API_KEY || !voiceId) {
-        __sbUpdateAudioHealth(false, { error: "PRIMARY_NOT_CONFIGURED", upstreamStatus: 0, upstreamMs: 0 });
-        return { ok: false, error: "PRIMARY_NOT_CONFIGURED" };
-      }
-
-      const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
-      const probeTimeout = Math.max(2500, Math.min(8000, Math.floor(timeoutMs * 0.6)));
-
-      const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-      const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, probeTimeout);
-
-      const payload = {
-        text: "Quick audio check.",
-        model_id: safeStr(process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2"),
-        voice_settings: {
-          stability: Math.min(1, NYX_VOICE_STABILITY + 0.18),
-          similarity_boost: NYX_VOICE_SIMILARITY,
-          style: Math.max(0, NYX_VOICE_STYLE - 0.08),
-          use_speaker_boost: !!NYX_VOICE_SPEAKER_BOOST,
-        },
-      };
-
-      const t0 = nowMs();
-      try {
-        const r = await fetchFn(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
-          method: "POST",
-          headers: {
-            "xi-api-key": ELEVEN_API_KEY,
-            "Content-Type": "application/json",
-            Accept: "audio/mpeg",
-            "x-sb-trace-id": traceId,
-          },
-          body: JSON.stringify(payload),
-          signal: ac ? ac.signal : undefined,
-        });
-
-        const dt = nowMs() - t0;
-        let ok = false;
-        let bytes = 0;
-        try {
-          const buf = Buffer.from(await r.arrayBuffer());
-          bytes = buf.length;
-          ok = r.ok && bytes > 1000;
-        } catch (_) {
-          ok = false;
-        }
-
-        __sbUpdateAudioHealth(ok, { error: ok ? null : `UPSTREAM_${r.status}`, upstreamStatus: r.status, upstreamMs: dt });
-        return { ok, upstreamStatus: r.status, upstreamMs: dt, bytes };
-      } catch (e) {
-        const dt = nowMs() - t0;
-        __sbUpdateAudioHealth(false, { error: safeStr(e?.message || e), upstreamStatus: 0, upstreamMs: dt });
-        return { ok: false, error: safeStr(e?.message || e) };
-      } finally {
-        clearTimeout(t);
-      }
-    })();
-
-    return sendContract(res, probe.ok ? 200 : 503, {
-      ok: probe.ok,
-      provider: "elevenlabs",
-      probe,
-      health: {
-        status: __SB_AUDIO_HEALTH.status,
-        lastCheckAt: __SB_AUDIO_HEALTH.lastCheckAt,
-        lastOkAt: __SB_AUDIO_HEALTH.lastOkAt,
-        failStreak: __SB_AUDIO_HEALTH.failStreak,
-        lastUpstreamStatus: __SB_AUDIO_HEALTH.lastUpstreamStatus,
-        lastUpstreamMs: __SB_AUDIO_HEALTH.lastUpstreamMs,
-        lastError: __SB_AUDIO_HEALTH.lastError,
-      },
-      requestId,
-      traceId,
-      meta: { index: INDEX_VERSION },
-    });
-  }
-
-  // ---- Step 5: auto-probe opportunistically (non-blocking) ----
-  if (__sbShouldAutoProbe()) {
-    // fire-and-forget heartbeat
-    try { handleTtsRoute({ ...req, body: { healthCheck: true, lane, turnId } }, { ...res, status: () => ({ json: () => {} }) }); } catch (_) {}
-  }
-
-  // If we are DOWN recently, bypass primary attempts to reduce user-facing latency.
-  const bypassPrimary = __sbShouldBypassPrimary();
-
-  const rawText = safeStr(body.text || body.message || body.prompt || "").trim();
-  const noText = toBool(body.NO_TEXT || body.noText, false);
-
-  const disableNaturalize = toBool(body.disableNaturalize || body.noNaturalize, false);
-
-  let text = rawText;
-  if (!noText && !disableNaturalize) text = nyxVoiceNaturalize(text);
-
-  if (!text || !text.trim()) {
-    return sendContract(res, 400, {
-      ok: false,
-      error: "bad_request",
-      detail: "Missing text for TTS",
-      meta: { index: INDEX_VERSION },
-    });
-  }
-
-  // -------- Step 1: accept affectEngine output knobs --------
-  // - body.ttsProfile: { stability, similarity, style, speakerBoost }
-  // - body.voice_settings: native ElevenLabs voice_settings overrides
-  const presetKey = safeStr(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim();
-
-  const envDefaults = {
-    stability: NYX_VOICE_STABILITY,
-    similarity_boost: NYX_VOICE_SIMILARITY,
-    style: NYX_VOICE_STYLE,
-    use_speaker_boost: !!NYX_VOICE_SPEAKER_BOOST,
-  };
-
-  function presetVoiceSettings(key) {
-    const base = { ...envDefaults };
-    const k = String(key || "").toUpperCase();
-    if (k === "NYX_CALM") return { ...base, stability: __sbClamp01(base.stability + 0.18), style: __sbClamp01(base.style - 0.08) };
-    if (k === "NYX_COACH") return { ...base, stability: __sbClamp01(base.stability + 0.10), style: __sbClamp01(base.style + 0.10) };
-    if (k === "NYX_WARM") return { ...base, stability: __sbClamp01(base.stability + 0.04), style: __sbClamp01(base.style + 0.22) };
-    return base;
-  }
-
-  function mergeVoiceSettings() {
-    const merged = presetVoiceSettings(presetKey);
-
-    const tp = (body && isPlainObject(body.ttsProfile)) ? body.ttsProfile : null;
-    if (tp) {
-      if (tp.stability !== undefined) merged.stability = __sbClamp01(tp.stability);
-      if (tp.similarity !== undefined) merged.similarity_boost = __sbClamp01(tp.similarity);
-      if (tp.style !== undefined) merged.style = __sbClamp01(tp.style);
-      if (tp.speakerBoost !== undefined) merged.use_speaker_boost = !!tp.speakerBoost;
-    }
-
-    const vs = (body && isPlainObject(body.voice_settings)) ? body.voice_settings : null;
-    if (vs) {
-      if (vs.stability !== undefined) merged.stability = __sbClamp01(vs.stability);
-      if (vs.similarity_boost !== undefined) merged.similarity_boost = __sbClamp01(vs.similarity_boost);
-      if (vs.style !== undefined) merged.style = __sbClamp01(vs.style);
-      if (vs.use_speaker_boost !== undefined) merged.use_speaker_boost = !!vs.use_speaker_boost;
-    }
-
-    merged.stability = __sbClamp01(merged.stability);
-    merged.similarity_boost = __sbClamp01(merged.similarity_boost);
-    merged.style = __sbClamp01(merged.style);
-    merged.use_speaker_boost = !!merged.use_speaker_boost;
-
-    return merged;
-  }
-
-  const voice_settings = mergeVoiceSettings();
-
-  // -------- Step 2: latency instrumentation --------
-  const t0 = nowMs();
-  const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, ELEVEN_TTS_TIMEOUT_MS || 20000, 3000, 60000);
-  const retryOnce = __sbBool(process.env.ELEVENLABS_TTS_RETRY_ONCE, true);
-
-  // -------- Step 3: retry + vendor failover --------
-  const primaryHost = safeStr(process.env.ELEVENLABS_HOST || "api.elevenlabs.io").trim() || "api.elevenlabs.io";
-  const secondaryHost = safeStr(process.env.ELEVENLABS_HOST_SECONDARY || "").trim() || primaryHost;
-
-  const primaryKey = ELEVEN_API_KEY;
-  const secondaryKey = safeStr(process.env.ELEVENLABS_API_KEY_SECONDARY || "").trim() || primaryKey;
-
-  const primaryVoiceId = pickElevenVoiceId(req, body);
-  const secondaryVoiceId = safeStr(process.env.NYX_VOICE_ID_SECONDARY || process.env.ELEVENLABS_VOICE_ID_SECONDARY || "").trim();
-
-  const modelId = safeStr(body.model_id || process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2").trim() || "eleven_multilingual_v2";
-  const modelIdSecondary = safeStr(process.env.ELEVENLABS_MODEL_ID_SECONDARY || "").trim() || modelId;
-
-  // -------- Step 3.5: TTS cache (credits + speed) --------
-  const cacheKey = __sbTtsCacheKey(text, primaryVoiceId, modelId, voice_settings);
-  const cacheHit = __sbTtsCacheGet(cacheKey);
-  if (cacheHit && cacheHit.buf && cacheHit.buf.length) {
-    try {
-      res.setHeader("Content-Type", cacheHit.ct || "audio/mpeg");
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("x-sb-tts-cache", "HIT");
-      res.setHeader("x-sb-trace-id", traceId);
-      res.setHeader("x-sb-voice-id", safeStr(primaryVoiceId));
-    } catch (_) {}
-    return res.status(200).send(cacheHit.buf);
-  }
-
-
-  function makeElevenUrl(host, voiceId) {
-    const h = host.replace(/^https?:\/\//i, "");
-    return `https://${h}/v1/text-to-speech/${encodeURIComponent(voiceId)}`;
-  }
-
-  async function attemptEleven({ host, apiKey, voiceId, model_id, label }) {
-    const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, timeoutMs);
-
-    const payload = {
-      text: text || " ",
-      model_id: model_id,
-      voice_settings: voice_settings,
-    };
-
-    const tUp = nowMs();
-    try {
-      const r = await fetchFn(makeElevenUrl(host, voiceId), {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "audio/mpeg",
-          "x-sb-trace-id": traceId,
-        },
-        body: JSON.stringify(payload),
-        signal: ac ? ac.signal : undefined,
-      });
-
-      const upstreamMs = nowMs() - tUp;
-      if (!r.ok) {
-        const errTxt = await r.text().catch(() => "");
-        return { ok: false, status: r.status, upstreamMs, errTxt: safeStr(errTxt).slice(0, 900), label };
-      }
-
-      const buf = Buffer.from(await r.arrayBuffer());
-      return { ok: true, status: r.status, upstreamMs, buf, bytes: buf.length, label };
-    } catch (e) {
-      const upstreamMs = nowMs() - tUp;
-      return { ok: false, status: 0, upstreamMs, errTxt: safeStr(e?.message || e).slice(0, 300), label };
-    } finally {
-      clearTimeout(t);
-    }
-  }
-
-  if (!fetchFn) {
-    return sendContract(res, 200, { ok: false, error: "fetch_unavailable", meta: { index: INDEX_VERSION } });
-  }
-  if (!primaryKey || !primaryVoiceId) {
-    return sendContract(res, 501, { ok: false, error: "TTS not configured", meta: { index: INDEX_VERSION } });
-  }
-
-  let retried = false;
-  let failoverUsed = false;
-  let providerUsed = "elevenlabs_primary";
-
-  let result = null;
-
-  if (!bypassPrimary) {
-    result = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "primary" });
-    providerUsed = "elevenlabs_primary";
-  }
-
-  if (result && !result.ok && retryOnce && __sbIsRetryableStatus(result.status)) {
-    retried = true;
-    // small jitter
-    await new Promise((r) => setTimeout(r, 180 + Math.floor(Math.random() * 120)));
-    const r2 = await attemptEleven({ host: primaryHost, apiKey: primaryKey, voiceId: primaryVoiceId, model_id: modelId, label: "primary_retry" });
-    if (r2.ok) result = r2;
-  }
-
-  if ((!result || !result.ok) && secondaryVoiceId) {
-    failoverUsed = true;
-    providerUsed = "elevenlabs_secondary";
-    const r3 = await attemptEleven({ host: secondaryHost, apiKey: secondaryKey, voiceId: secondaryVoiceId, model_id: modelIdSecondary, label: "secondary" });
-    if (r3.ok || !result) result = r3;
-  }
-
-  // -------- Step 4: fallback synthetic tier --------
-  const fallbackProvider = safeStr(process.env.SB_TTS_FALLBACK_PROVIDER || "none").trim().toLowerCase();
-  if (!result || !result.ok) {
-    __sbUpdateAudioHealth(false, { error: `ELEVEN_FAIL_${result ? result.status : 0}`, upstreamStatus: result ? result.status : 0, upstreamMs: result ? result.upstreamMs : null });
-
-    res.setHeader("X-SB-TTS-Provider", providerUsed);
-    res.setHeader("X-SB-TTS-Upstream-Status", String(result ? result.status : 0));
-    res.setHeader("X-SB-TTS-Upstream-Ms", String(result ? result.upstreamMs : 0));
-    res.setHeader("X-SB-TTS-Retry", retried ? "1" : "0");
-    res.setHeader("X-SB-TTS-Failover", failoverUsed ? "1" : "0");
-    res.setHeader("X-SB-TTS-Fallback", "0");
-
-    if (fallbackProvider === "openai") {
-      const apiKey = safeStr(process.env.OPENAI_API_KEY || "").trim();
-      if (apiKey) {
-        const openaiUrlRaw = safeStr(process.env.OPENAI_TTS_URL || "https://api.openai.com/v1/audio/speech").trim();
-        const openaiModel = safeStr(process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts").trim();
-        const openaiVoice = safeStr(process.env.OPENAI_TTS_VOICE || "alloy").trim();
-        const openaiFormat = safeStr(process.env.OPENAI_TTS_FORMAT || "mp3").trim();
-        const openaiTimeout = clampInt(process.env.OPENAI_TTS_TIMEOUT_MS, 20000, 3000, 45000);
-
-        const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-        const t = setTimeout(() => { try { if (ac) ac.abort(); } catch (_) {} }, openaiTimeout);
-
-        const tUp = nowMs();
-        try {
-          const r = await fetchFn(openaiUrlRaw, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              Accept: "audio/mpeg",
-              "x-sb-trace-id": traceId,
-            },
-            body: JSON.stringify({ model: openaiModel, voice: openaiVoice, input: text, format: openaiFormat }),
-            signal: ac ? ac.signal : undefined,
-          });
-
-          const upMs = nowMs() - tUp;
-          if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer());
-            res.setHeader("X-SB-TTS-Provider", "openai_fallback");
-            res.setHeader("X-SB-TTS-Upstream-Status", String(r.status));
-            res.setHeader("X-SB-TTS-Upstream-Ms", String(upMs));
-            res.setHeader("X-SB-TTS-Fallback", "1");
-            res.setHeader("Content-Type", "audio/mpeg");
-            res.setHeader("Cache-Control", "no-store, max-age=0");
-            res.setHeader("X-Content-Type-Options", "nosniff");
-            res.setHeader("Content-Length", String(buf.length));
-            return res.status(200).send(buf);
-          }
-        } catch (_) {
-          // fall through
-        } finally {
-          clearTimeout(t);
-        }
-      }
-    }
-
-    // deterministic non-audio contract
-    return sendContract(res, 502, {
-      ok: false,
-      error: "TTS unavailable",
-      detail: safeStr(result?.errTxt || "Upstream failed").slice(0, 800),
-      meta: { index: INDEX_VERSION, status: result ? result.status : 0, elapsedMs: nowMs() - startedAt },
-    });
-  }
-
-  // success
-  __sbUpdateAudioHealth(true, { upstreamStatus: result.status, upstreamMs: result.upstreamMs });
-
-  res.setHeader("X-SB-TTS-Provider", providerUsed);
-  res.setHeader("X-SB-TTS-Upstream-Status", String(result.status));
-  res.setHeader("X-SB-TTS-Upstream-Ms", String(result.upstreamMs));
-  res.setHeader("X-SB-TTS-Retry", retried ? "1" : "0");
-  res.setHeader("X-SB-TTS-Failover", failoverUsed ? "1" : "0");
-  res.setHeader("X-SB-TTS-Fallback", "0");
-
-  const totalMs = nowMs() - t0;
-  res.setHeader("X-SB-TTS-Ms", String(totalMs));
-
-  res.setHeader("Content-Type", "audio/mpeg");
-  res.setHeader("Cache-Control", "no-store, max-age=0");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Content-Length", String(result.bytes || (result.buf ? result.buf.length : 0)));
-  // Cache the successful audio to reduce vendor credits on repeats
-  try { __sbTtsCacheSet(cacheKey, result.buf, "audio/mpeg"); } catch (_) {}
-  try { res.setHeader("x-sb-tts-cache", "MISS"); } catch (_) {}
-  return res.status(200).send(result.buf);
-  } catch (e) {
-    const traceId = safeStr(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
-    return sendJson(res, 200, { ok: true, skipped: true, reason: 'tts_fail_open', traceId, error: safeStr(e?.message||e).slice(0,160) });
-  }
+  const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
+  return sendContract(res, 410, {
+    ok: false,
+    error: "TTS_ROUTE_DEPRECATED",
+    detail: "Use /api/tts (delegated to ./utils/tts).",
+    spokenUnavailable: true,
+    meta: { index: INDEX_VERSION, traceId },
+  });
 }
 
 
+
 app.post("/api/tts", ipRateGuard, async (req, res) => {
+  // Resemble-only: index.js delegates TTS to ./utils/tts to keep provider logic isolated.
+  // If ./utils/tts is missing or mis-exported, fail-open with a deterministic contract so UI can stay stable.
   try {
     if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
   } catch (e) {
-    // fall through to legacy route on any module/runtime error
+    // continue to deterministic failure
   }
-  return handleTtsRoute(req, res);
+  const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
+  return sendContract(res, 503, {
+    ok: false,
+    error: "TTS_HANDLER_MISSING",
+    detail: "TTS handler ./utils/tts.handleTts is unavailable. Resemble is configured as the only provider in this build.",
+    spokenUnavailable: true,
+    meta: { index: INDEX_VERSION, traceId },
+  });
 });
 
-app.post("/api/voice", ipRateGuard, handleTtsRoute);
+app.post("/api/voice", ipRateGuard, async (req, res) => {
+  // Back-compat alias for clients still calling /api/voice
+  return app._router && __SB_HANDLE_TTS ? __SB_HANDLE_TTS(req, res) : (async () => {
+    const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
+    return sendContract(res, 503, {
+      ok: false,
+      error: "TTS_HANDLER_MISSING",
+      detail: "TTS handler ./utils/tts.handleTts is unavailable. Resemble is configured as the only provider in this build.",
+      spokenUnavailable: true,
+      meta: { index: INDEX_VERSION, traceId },
+    });
+  })();
+});
 
 function ttsGetGuidance(req, res) {
   return sendContract(res, 405, {
@@ -4055,7 +3598,13 @@ function audioHealthRoute(req, res) {
   if (probe) {
     // Call TTS route in healthCheck mode
     req.body = { healthCheck: true };
-    return handleTtsRoute(req, res);
+    if (__SB_HANDLE_TTS) return __SB_HANDLE_TTS(req, res);
+    return sendContract(res, 503, {
+      ok: false,
+      error: "TTS_HANDLER_MISSING",
+      detail: "Cannot probe audio health: ./utils/tts.handleTts is unavailable.",
+      meta: { index: INDEX_VERSION },
+    });
   }
   return sendContract(res, 200, {
     ok: (__SB_AUDIO_HEALTH.status === "ok"),
