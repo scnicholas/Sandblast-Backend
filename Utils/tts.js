@@ -7,7 +7,7 @@
  *
  * Provider order (config-driven, resilient):
  *   1) Resemble (PRIMARY)     - if configured
- *   2) ElevenLabs (FALLBACK)  - if configured
+ *   2) ElevenLabs (DISABLED by default) - only if SB_TTS_ENABLE_ELEVENLABS=true
  *   3) OpenAI TTS (OPTIONAL)  - if enabled via SB_TTS_FALLBACK_PROVIDER=openai
  *   4) Deterministic JSON error
  *
@@ -34,7 +34,8 @@
  *   - RESEMBLE_OUTPUT_FORMAT ("mp3"|"wav", default "mp3")
  *   - RESEMBLE_TIMEOUT_MS (default 15000)
  *
- * Env (Eleven fallback):
+ * Env (Eleven (optional) fallback):
+ *   - SB_TTS_ENABLE_ELEVENLABS ("true"/"false", default false)
  *   - ELEVENLABS_API_KEY
  *   - NYX_VOICE_ID (or ELEVENLABS_VOICE_ID)
  *   - ELEVENLABS_MODEL_ID (default: eleven_multilingual_v2)
@@ -58,7 +59,26 @@
  */
 
 const https = require('https');
-const { synthesize: resembleSynthesize } = require('./providersResemble');
+const _resembleProvider = (() => {
+  // Support both historical filenames to avoid silent no-audio regressions.
+  // Priority: explicit provider file first, then legacy names.
+  const candidates = ['./TTSProvidersResemble', './ttsProvidersresemble', './providersResemble', './providersResemble.js', './ttsProvidersresemble.js', './TTSProvidersResemble.js'];
+  for (const p of candidates) {
+    try {
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const mod = require(p);
+      if (mod && typeof mod.synthesize === 'function') return mod;
+    } catch (_) {}
+  }
+  return null;
+})();
+
+const resembleSynthesize = _resembleProvider && typeof _resembleProvider.synthesize === 'function'
+  ? _resembleProvider.synthesize
+  : null;
+const resembleVendorHealth = _resembleProvider && typeof _resembleProvider.getVendorHealth === 'function'
+  ? _resembleProvider.getVendorHealth
+  : null;
 
 // Keep sockets warm (Phase 10)
 const KEEPALIVE = true;
@@ -104,6 +124,8 @@ function num01(x, fallback) {
 function cacheEnabled() { return bool(process.env.SB_TTS_CACHE, true); }
 function cacheTtlMs() { return clampInt(process.env.SB_TTS_CACHE_TTL_MS, 30000, 2000, 300000); }
 function cacheMaxEntries() { return clampInt(process.env.SB_TTS_CACHE_MAX, 64, 8, 512); }
+
+function elevenEnabled() { return bool(process.env.SB_TTS_ENABLE_ELEVENLABS, false); }
 
 function cacheKey({ provider, voiceId, modelId, voiceSettings, text }) {
   const vs = voiceSettings ? JSON.stringify(voiceSettings) : '';
@@ -490,6 +512,11 @@ async function runHeartbeatProbe({ traceId }) {
     }
   }
 
+  if (!elevenEnabled()) {
+    updateHealth(false, { error: 'NO_PROVIDER_CONFIGURED', upstreamStatus: null, upstreamMs: null });
+    return { ok: false, error: 'NO_PROVIDER_CONFIGURED' };
+  }
+
   const cfg = getElevenCfg('primary');
   if (!cfg.ok) {
     updateHealth(false, { error: 'NO_PROVIDER_CONFIGURED', upstreamStatus: null, upstreamMs: null });
@@ -610,8 +637,8 @@ async function handleTts(req, res) {
     const resembleToken = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
     const resembleVoiceUuid = String(process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UUID || '').trim();
 
-    const elevenPrimaryCfg = getElevenCfg('primary');
-    const elevenSecondaryCfg = getElevenCfg('secondary');
+    const elevenPrimaryCfg = elevenEnabled() ? getElevenCfg('primary') : { ok: false };
+    const elevenSecondaryCfg = elevenEnabled() ? getElevenCfg('secondary') : { ok: false };
     const elevenModelForKey = String(modelIdOverride || (elevenPrimaryCfg && elevenPrimaryCfg.modelId) || 'eleven_multilingual_v2').trim();
 
     const resembleKey = cacheKey({ provider: 'resemble', voiceId: resembleVoiceUuid, modelId: String(process.env.RESEMBLE_MODEL || 'resemble').trim(), voiceSettings, text });
@@ -670,7 +697,10 @@ async function handleTts(req, res) {
       }
     }
 
-    // ---- ELEVEN fallback (Phase 4)
+    // ---- ELEVEN optional fallback (Phase 4)
+    if (!elevenEnabled()) {
+      // Explicitly disabled: avoid accidental vendor drift back to Eleven.
+    } else {
     const c2 = cacheGet(elevenKey);
     if (c2 && c2.buf && c2.buf.length > 1000) {
       const tMs = nowMs() - tStart;
@@ -764,6 +794,8 @@ async function handleTts(req, res) {
       }
 
       return sendAudio(res, req, { body, buf: result.r.body, headers: { traceId }, mimeType: 'audio/mpeg' });
+    }
+
     }
 
     // ---- OpenAI optional fallback
