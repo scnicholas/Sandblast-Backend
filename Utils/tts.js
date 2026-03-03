@@ -705,7 +705,7 @@ function presetFromMood(m) {
     // Primary: Resemble (if configured). Fallback: ElevenLabs.
     const resembleToken =
       String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || "").trim();
-    const resembleVoiceUuid = String(process.env.RESEMBLE_VOICE_UUID || "").trim();
+    const resembleVoiceUuid = String(process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UUID || "").trim();
 
     if (resembleToken && resembleVoiceUuid) {
       try {
