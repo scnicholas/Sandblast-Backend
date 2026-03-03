@@ -7,11 +7,11 @@
  * Returns JSON with base64 audio_content (wav/mp3).
  *
  * Env vars expected:
- *   RESEMBLE_API_TOKEN        (required)  // from https://app.resemble.ai/account/api
- *   RESEMBLE_VOICE_UUID       (required)  // e.g. "55592656"
- *   RESEMBLE_PROJECT_UUID     (optional)  // store generated clips in a project
- *   RESEMBLE_MODEL            (optional)  // e.g. "chatterbox-turbo"
- *   RESEMBLE_OUTPUT_FORMAT    (optional)  // "mp3" or "wav" (default: "mp3" here)
+ *   RESEMBLE_API_TOKEN        (required)
+ *   RESEMBLE_VOICE_UUID       (required)  // MUST be a real Resemble voice UUID / UID (not a placeholder)
+ *   RESEMBLE_PROJECT_UUID     (optional)  // MUST be a real project UUID / UID (optional; will be ignored if invalid)
+ *   RESEMBLE_MODEL            (optional)
+ *   RESEMBLE_OUTPUT_FORMAT    (optional)  // "mp3" or "wav" (default: "mp3")
  *   RESEMBLE_USE_HD           (optional)  // "true"/"false"
  *   RESEMBLE_TIMEOUT_MS       (optional)  // default 15000
  *
@@ -41,24 +41,67 @@ function _safeJsonParse(txt) {
   try { return JSON.parse(txt); } catch { return null; }
 }
 
+/**
+ * Resemble “UID” formats vary by surface. We accept:
+ * - UUID-like strings (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx), OR
+ * - digits-only IDs (some accounts/objects)
+ * We ALSO explicitly reject placeholders commonly left in env files.
+ */
+function _looksLikeUid(v) {
+  const s = String(v || "").trim();
+  if (!s) return false;
+
+  const low = s.toLowerCase();
+  if (
+    low === "..." ||
+    low.includes("your_voice") ||
+    low.includes("your_project") ||
+    low.includes("replace") ||
+    low.includes("placeholder")
+  ) return false;
+
+  const isUuidish = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+  const isDigits = /^\d+$/.test(s);
+  return isUuidish || isDigits;
+}
+
+function _extractDetailObj(bodyObjOrText) {
+  if (!bodyObjOrText || typeof bodyObjOrText !== "object") return null;
+  // Many Resemble errors look like: { detail: { ... } }
+  if (bodyObjOrText.detail && typeof bodyObjOrText.detail === "object") return bodyObjOrText.detail;
+  return null;
+}
+
 function _classifyResembleError(status, bodyObjOrText) {
-  // Resemble errors are typically 400/401 etc. We normalize into a stable reason.
-  // We keep this conservative: no overfitting to undocumented fields.
+  // Normalize into a stable reason + retryability.
+  const detailObj = _extractDetailObj(bodyObjOrText);
+  const code = detailObj && typeof detailObj.code === "string" ? detailObj.code : null;
+  const statusStr = detailObj && typeof detailObj.status === "string" ? detailObj.status : null;
+
   const text = typeof bodyObjOrText === "string" ? bodyObjOrText : JSON.stringify(bodyObjOrText || {});
   const lower = text.toLowerCase();
+
+  // Invalid IDs (what you're hitting): invalid_uid
+  if (status === 400 && (statusStr === "invalid_uid" || lower.includes("invalid_uid") || lower.includes("invalid id"))) {
+    return { reason: "invalid_uid", retryable: false };
+  }
 
   if (status === 401 || lower.includes("unauthorized") || lower.includes("invalid token")) {
     return { reason: "auth_failed", retryable: false };
   }
-  if (status === 400) {
-    return { reason: "bad_request", retryable: false };
-  }
+
   if (status === 429 || lower.includes("rate limit")) {
     return { reason: "rate_limited", retryable: true };
   }
+
   if (status >= 500) {
     return { reason: "vendor_5xx", retryable: true };
   }
+
+  if (status === 400) {
+    return { reason: "bad_request", retryable: false };
+  }
+
   return { reason: "vendor_error", retryable: status >= 500 };
 }
 
@@ -81,6 +124,14 @@ async function synthesize(opts = {}) {
       ok: false,
       reason: "config_missing",
       message: "Resemble voice UUID missing (RESEMBLE_VOICE_UUID).",
+      elapsedMs: Date.now() - started,
+    };
+  }
+  if (!_looksLikeUid(voiceUuid)) {
+    return {
+      ok: false,
+      reason: "config_missing",
+      message: "Invalid RESEMBLE_VOICE_UUID (looks like a placeholder or wrong format). Set it to a real Resemble voice UID/UUID from your dashboard.",
       elapsedMs: Date.now() - started,
     };
   }
@@ -110,8 +161,10 @@ async function synthesize(opts = {}) {
 
   const model = (opts.model || process.env.RESEMBLE_MODEL || "").toString().trim() || undefined;
 
-  const projectUuid =
+  // project is optional; if it doesn't look valid, ignore it to avoid invalid_uid failures.
+  const projectUuidRaw =
     (opts.projectUuid || process.env.RESEMBLE_PROJECT_UUID || "").toString().trim() || undefined;
+  const projectUuid = projectUuidRaw && _looksLikeUid(projectUuidRaw) ? projectUuidRaw : undefined;
 
   const title = (opts.title || "").toString().trim() || undefined;
 
@@ -172,18 +225,23 @@ async function synthesize(opts = {}) {
 
   if (!res.ok) {
     const cls = _classifyResembleError(res.status, body);
+    const detailObj = typeof body === "object" ? _extractDetailObj(body) : null;
+
     return {
       ok: false,
       status: res.status,
       reason: cls.reason,
       retryable: cls.retryable,
-      message: "Resemble synthesis failed.",
+      message: cls.reason === "invalid_uid"
+        ? "Resemble rejected an ID (voice_uuid/project_uuid). Double-check RESEMBLE_VOICE_UUID and (if set) RESEMBLE_PROJECT_UUID."
+        : "Resemble synthesis failed.",
       detail: body,
+      requestId: detailObj && typeof detailObj.request_id === "string" ? detailObj.request_id : undefined,
       elapsedMs: Date.now() - started,
     };
   }
 
-  // Successful response shape (per docs): { success:true, audio_content:"base64...", output_format, sample_rate, duration, ... }
+  // Successful response shape: { success:true, audio_content:"base64...", output_format, sample_rate, duration, ... }
   const audioContent = body && typeof body === "object" ? body.audio_content : null;
   const fmt = (body && typeof body === "object" && body.output_format) ? body.output_format : outputFormat;
 
