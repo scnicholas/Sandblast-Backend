@@ -61,7 +61,21 @@
     hostConfigSeen: false
   };
 
-  function safeStr(x) { return x == null ? "" : String(x); }
+  
+
+  // =========================
+  // Parent notifications (Phase 6–10)
+  // =========================
+  function postToParent(type, payload) {
+    try {
+      const tgt = CONFIG.parentOrigin || (SECURITY.allowedOrigins && SECURITY.allowedOrigins[0]) || "*";
+      if (window.parent && window.parent !== window && typeof window.parent.postMessage === "function") {
+        window.parent.postMessage({ type: type, payload: payload || {} }, tgt);
+      }
+    } catch (_) {}
+  }
+
+function safeStr(x) { return x == null ? "" : String(x); }
   const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
 
   function isTokenPlausible(t) {
@@ -409,9 +423,41 @@
     }
   }
 
+
+  // =========================
+  // Audio lifecycle hooks (Phase 1–5 + parity)
+  // =========================
+  function emitAudioLifecycle(evName, extra) {
+    try {
+      emitWindowEvent("nyx:audio", Object.assign({ event: evName, t: Date.now() }, extra || {}));
+      postToParent("NYX_AUDIO_EVENT", Object.assign({ event: evName, t: Date.now() }, extra || {}));
+    } catch (_) {}
+  }
+
+  function showAudioLocked(on) {
+    try {
+      document.documentElement.classList.toggle("audio-locked", !!on);
+      emitWindowEvent("nyx:audio_locked", { locked: !!on, t: Date.now() });
+      postToParent("NYX_AUDIO_LOCKED", { locked: !!on, t: Date.now() });
+    } catch (_) {}
+  }
+
   function armAudio() {
     if (!audioEl) return false;
-    if (state.audioArmed) return true;
+    if (state.audioArmed) {
+      try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{}); } catch(_){}
+      return true;
+    }
+
+    // SILENT_UNLOCK: attempt to unlock autoplay policy on first gesture
+    try {
+      audioEl.muted = true;
+      audioEl.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAA";
+      const p = audioEl.play();
+      if (p && typeof p.then === 'function') {
+        p.then(()=>{ try{ audioEl.pause(); audioEl.currentTime = 0; }catch(_){ } audioEl.muted = false; showAudioLocked(false); }).catch(()=>{ showAudioLocked(true); });
+      }
+    } catch (_) { showAudioLocked(true); }
 
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return false;
@@ -481,12 +527,19 @@
   }
 
   if (audioEl) {
+    // AUDIO_LIFECYCLE_WIRED
+    audioEl.addEventListener("play", () => { showAudioLocked(false); emitAudioLifecycle("start"); });
+    audioEl.addEventListener("playing", () => { showAudioLocked(false); emitAudioLifecycle("playing"); });
+    audioEl.addEventListener("pause", () => { emitAudioLifecycle("pause"); });
     audioEl.addEventListener("ended", () => {
       revokeObjectUrl();
       state.diag.settleHint = true;
       scheduleSettleSoon(0);
+      emitAudioLifecycle("end");
     });
-    audioEl.addEventListener("error", revokeObjectUrl);
+    audioEl.addEventListener("error", () => { revokeObjectUrl(); emitAudioLifecycle("error"); });
+    audioEl.addEventListener("stalled", () => { emitAudioLifecycle("stalled"); });
+    audioEl.addEventListener("waiting", () => { emitAudioLifecycle("waiting"); });
     window.addEventListener("beforeunload", revokeObjectUrl);
   }
 
@@ -708,6 +761,42 @@
       return;
     }
 
+
+    // Parent may explicitly arm audio (recommended for parity with widget voice button)
+    if (d.type === "NYX_ARM_AUDIO") {
+      try { armAudio(); } catch (_) {}
+      return;
+    }
+
+    // Parent may send audio payload for avatar to play (base64) — keeps widget/avatar in sync.
+    // Payload: { mimeType: "audio/mpeg", base64: "...", traceId?: "..." }
+    if (d.type === "NYX_TTS_AUDIO") {
+      try {
+        const pl = d.payload || {};
+        const b64 = safeStr(pl.base64);
+        const mime = safeStr(pl.mimeType) || "audio/mpeg";
+        if (!b64 || !audioEl) return;
+
+        try { armAudio(); } catch (_) {}
+
+        const bin = atob(b64);
+        const len = bin.length;
+        const arr = new Uint8Array(len);
+        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+
+        revokeObjectUrl();
+        const blob = new Blob([arr], { type: mime });
+        lastObjectUrl = URL.createObjectURL(blob);
+        audioEl.src = lastObjectUrl;
+
+        const p = audioEl.play();
+        if (p && typeof p.catch === "function") p.catch(() => { showAudioLocked(true); });
+
+        emitAudioLifecycle("queued", { bytes: len, mimeType: mime, traceId: safeStr(pl.traceId || "") });
+      } catch (_) {}
+      return;
+    }
+
     // New contract packets from parent (optional; if parent emits them)
     if (d.type === "NYX_STATE") {
       try {
@@ -816,7 +905,10 @@
               const blob = await res.clone().blob();
               lastObjectUrl = URL.createObjectURL(blob);
               audioEl.src = lastObjectUrl;
-              if (state.audioArmed) audioEl.play().catch(() => {});
+              // Try to unlock + play. If blocked, surface locked UX.
+              try { armAudio(); } catch (_) {}
+              const p = audioEl.play();
+              if (p && typeof p.catch === "function") p.catch(() => { showAudioLocked(true); });
             } catch (_) {}
           }
         }
