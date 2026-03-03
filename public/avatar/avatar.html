@@ -306,6 +306,35 @@
 
       /* Hidden audio element (bridge uses it) */
       #nyxAudio{ display:none; }
+
+      /* Audio unlock veil (shown when bridge detects play blocked) */
+      html.audio-locked #nyxAudioUnlock{ display:flex; }
+      #nyxAudioUnlock{
+        position:fixed; inset:0; display:none;
+        align-items:center; justify-content:center;
+        background: rgba(0,0,0,.55);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 2147483646;
+        cursor:pointer;
+        padding: 18px;
+        box-sizing:border-box;
+      }
+      #nyxAudioUnlock .unlockCard{
+        width: min(420px, 92vw);
+        border-radius: 18px;
+        background: rgba(15,15,18,.92);
+        border: 1px solid rgba(255,255,255,.12);
+        box-shadow: 0 18px 60px rgba(0,0,0,.55);
+        padding: 16px 16px 14px;
+        color: rgba(255,255,255,.92);
+      }
+      #nyxAudioUnlock .t{ font-weight:800; margin-bottom:6px; font-size:15px; }
+      #nyxAudioUnlock .s{ color: rgba(255,255,255,.72); font-size:12.5px; line-height:1.35; margin-bottom:12px; }
+      #nyxAudioUnlock .b{ width:100%; box-sizing:border-box; padding: 9px 12px; border-radius: 12px;
+        background: rgba(140,0,35,.28); border: 1px solid rgba(140,0,35,.55); font-weight:700; font-size:12.5px;
+        display:inline-flex; align-items:center; justify-content:center; }
+
     </style>
   </head>
 
@@ -366,6 +395,17 @@
       </div>
     </aside>
 
+
+    <!-- Audio unlock veil (autoplay policy) -->
+    <div id="nyxAudioUnlock" role="button" tabindex="0" aria-label="Enable audio">
+      <div class="unlockCard">
+        <div class="t">Audio needs a tap</div>
+        <div class="s">Click “Arm Audio” or tap here to enable Nyx voice.</div>
+        <div class="b">Enable Audio</div>
+      </div>
+    </div>
+
+
     <div id="hint">
       <div style="margin-bottom:6px;">
         <strong>Iframe host ready.</strong> This page is the avatar “body.” Your parent harness should embed it and drive consciousness over <code>postMessage</code>.
@@ -421,7 +461,7 @@
         // show what this iframe thinks the allowed origin/token are (dev visibility)
         try {
           const sec = window.NyxAvatarBridge && window.NyxAvatarBridge.__security;
-          if (elOrigin) elOrigin.textContent = (sec && sec.allowedOrigin) ? sec.allowedOrigin : "—";
+          if (elOrigin) elOrigin.textContent = (sec && sec.allowedOrigins && sec.allowedOrigins.length) ? sec.allowedOrigins[0] : "—";
           if (elToken) elToken.textContent = (sec && sec.expectedToken) ? "set" : "—";
         } catch (_) {}
 
@@ -677,6 +717,24 @@
 
         // Mount after globals present
         mountShell();
+
+
+        // Audio unlock veil bindings (keeps parity with widget voice button)
+        (function bindAudioUnlockVeil(){
+          const veil = document.getElementById("nyxAudioUnlock");
+          if(!veil) return;
+          function go(){
+            try{
+              if(window.NyxAvatarBridge && typeof window.NyxAvatarBridge.armAudio === "function"){
+                window.NyxAvatarBridge.armAudio();
+              }
+              document.documentElement.classList.remove("audio-locked");
+            }catch(_){}
+          }
+          veil.addEventListener("click", go, true);
+          veil.addEventListener("keydown", (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
+        })();
+
 
         // Start blink loop; stillness + rare blink = authority
         scheduleBlink();
