@@ -8,6 +8,7 @@
  *
  * Env vars expected:
  *   RESEMBLE_API_TOKEN        (required)
+ *   RESEMBLE_API_TOKEN       (alias; supported)
  *   RESEMBLE_VOICE_UUID       (required)  // MUST be a real Resemble voice UUID / UID (not a placeholder)
  *   RESEMBLE_PROJECT_UUID     (optional)  // MUST be a real project UUID / UID (optional; will be ignored if invalid)
  *   RESEMBLE_MODEL            (optional)
@@ -108,7 +109,7 @@ function _classifyResembleError(status, bodyObjOrText) {
 async function synthesize(opts = {}) {
   const started = Date.now();
 
-  const token = process.env.RESEMBLE_API_TOKEN;
+  const token = process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_TOKEN;
   const voiceUuid = opts.voiceUuid || process.env.RESEMBLE_VOICE_UUID;
 
   if (!token) {
