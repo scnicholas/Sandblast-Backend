@@ -29,7 +29,13 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.10 (AFFECT ENGAGE-THEN-STEER: prevents procedural lane prompt on short emotion pings; discoveryHint guard extended)';
+const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (PHASE1-20: AUDIO_HINTS + DOMAIN_DEPTH + PARITY_DIRECTIVES + RESILIENCE)';
+
+// Optional boot banner (debug only)
+try {
+  const _ceBoot = process && process.env && (process.env.SB_CHATENGINE_BOOT === "1" || process.env.SB_CE_BOOT === "1");
+  if (_ceBoot) console.log("[CHATENGINE] BOOT", CE_VERSION, new Date().toISOString());
+} catch (_e) {}
 
 let Spine = null;
 let MarionSO = null;
@@ -470,6 +476,72 @@ function safeJsonStringify(x) {
   }
 }
 
+
+// -------------------------
+// DEBUG / STAGE BEACONS++++ (opt-in)
+// - Enables high-signal breadcrumbs without changing runtime behavior.
+// - Turn on via env: SB_CHATENGINE_DEBUG=1 (or SB_CE_DEBUG=1)
+// - Or per-request via ctx.debug = true
+// -------------------------
+function isChatEngineDebug(input, norm) {
+  try {
+    const env = process && process.env ? process.env : {};
+    if (env.SB_CHATENGINE_DEBUG === "1" || env.SB_CE_DEBUG === "1") return true;
+  } catch (_e) {}
+  const ctx = norm && isPlainObject(norm.ctx) ? norm.ctx : (input && isPlainObject(input.ctx) ? input.ctx : {});
+  const body = norm && isPlainObject(norm.body) ? norm.body : (input && isPlainObject(input.body) ? input.body : {});
+  const p = norm && isPlainObject(norm.payload) ? norm.payload : (input && isPlainObject(input.payload) ? input.payload : {});
+  return !!(ctx && ctx.debug) || !!(body && body.debug) || !!(p && p.debug);
+}
+
+function makeStageStamp(startedMs, getStage, requestId) {
+  return function stamp(extra) {
+    try {
+      const env = process && process.env ? process.env : {};
+      const stage = typeof getStage === "function" ? getStage() : "";
+      const ms = Math.max(0, nowMs() - (Number(startedMs) || nowMs()));
+      const base = { stage, ms };
+      if (requestId) base.requestId = safeStr(requestId).slice(0, 28);
+      const payload = isPlainObject(extra) ? { ...base, ...extra } : base;
+      // Avoid huge payloads; log bounded JSON
+      console.log("[CHATENGINE]", JSON.stringify(payload).slice(0, 1100));
+    } catch (_e) {}
+  };
+}
+
+function withTimeout(promise, ms, label) {
+  const t = clampInt(ms, 12000, 250, 60000);
+  if (!promise || typeof promise.then !== "function") return Promise.resolve(promise);
+  let to = null;
+  const timeout = new Promise((resolve) => {
+    to = setTimeout(() => resolve({ __timeout: true, __label: safeStr(label || "") }), t);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    try { if (to) clearTimeout(to); } catch (_e) {}
+  });
+}
+
+// Coerce lane/module outputs into a safe, predictable object.
+// Accepts: string | {reply,...} | {payload:{reply}} | {data:{reply}} | any
+function coerceModuleOut(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "string") return { reply: raw };
+  if (!isPlainObject(raw)) return null;
+
+  const reply =
+    raw.reply ??
+    raw.payload?.reply ??
+    raw.data?.reply ??
+    raw.message ??
+    raw.payload?.message ??
+    null;
+
+  // keep original object, but ensure reply is a string
+  const out = { ...raw };
+  if (reply !== null && reply !== undefined) out.reply = safeStr(reply);
+
+  return out;
+}
 // -------------------------
 // LOOP GOVERNOR++++ (stops repeat reply spirals)
 // -------------------------
@@ -785,6 +857,58 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
 // - Gating is done by session flags (__nyxIntroDone / __introDone) to avoid repeated intros.
 // - This is a HINT ONLY: host/UI decides how to render/speak it.
 // -------------------------
+// -------------------------
+// AUDIO/AVATAR PARITY DIRECTIVES (Phase 11–15)
+// - Host/UI uses these to keep widget + avatar in sync (Option A)
+// - No side effects inside chatEngine.
+// -------------------------
+function maybeAddAudioParityDirectives({ directives, cog }) {
+  const ds = Array.isArray(directives) ? directives : [];
+  const c = isPlainObject(cog) ? cog : {};
+  const audio = isPlainObject(c.audio) ? c.audio : null;
+
+  if (audio && audio.speakEnabled !== false && !audio.silent) {
+    ds.push({
+      type: "NYX_AUDIO_PARITY",
+      mode: "optionA",
+      arm: true,
+      forwardAudio: true,
+      format: safeStr(audio.format || "mp3"),
+    });
+  } else if (audio && audio.silent) {
+    ds.push({ type: "NYX_AUDIO_PARITY", mode: "off", arm: false, forwardAudio: false });
+  }
+
+  return ds;
+}
+
+// -------------------------
+// TTS PROFILE DIRECTIVE (Phase 1–5 + 16–20)
+// - Provides bounded "ttsProfile" guidance derived from cog/psyche.
+// -------------------------
+function buildTtsProfileFromCog(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const audio = isPlainObject(c.audio) ? c.audio : null;
+  if (!audio) return null;
+
+  const preset = safeStr(audio.preset || audio.ttsPreset || "").trim();
+  const mood = safeStr(audio.mood || "").trim();
+  const profile = isPlainObject(audio.ttsProfile) ? audio.ttsProfile : null;
+
+  const out = {};
+  if (preset) out.preset = preset;
+  if (mood) out.mood = mood;
+
+  if (profile) {
+    if (profile.stability !== undefined) out.stability = clamp01(profile.stability);
+    if (profile.similarity !== undefined) out.similarity = clamp01(profile.similarity);
+    if (profile.style !== undefined) out.style = clamp01(profile.style);
+    if (profile.speakerBoost !== undefined) out.speakerBoost = !!profile.speakerBoost;
+  }
+  if (!Object.keys(out).length) return null;
+  return out;
+}
+
 function maybeAddIntroDirective({ directives, session, cog, norm }) {
   const ds = Array.isArray(directives) ? directives : [];
   const s = isPlainObject(session) ? session : {};
@@ -2560,10 +2684,16 @@ function computeBridge(sessionLaneState, requestId) {
 // -------------------------
 async function handleChat(input) {
   const started = nowMs();
+  let __stage = "start";
+  let __dbg = false;
+  let __stamp = null;
 
   // FAIL-SAFE CONTRACT++++: never let an exception drop the whole request
   try {
+    __stage = "normalize";
     const norm = normalizeInbound(input);
+    __dbg = isChatEngineDebug(input, norm);
+    // stamp initialized after requestId exists (we'll rebind once requestId is set)
 
     // OPINTEL++++: attach start time for audit/latency (Nyx-safe; internal only)
     norm._t0 = started;
@@ -2761,6 +2891,8 @@ if (greetQuick && greetQuick.kind) {
 
     // Marion mediation (fail-open)
     let cogRaw = null;
+    __stage = "marion_mediate";
+    if (__dbg && __stamp) __stamp();
     try {
       if (MarionSO && typeof MarionSO.mediate === "function") {
         cogRaw = MarionSO.mediate(norm, session, {});
@@ -2801,6 +2933,49 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
       }
     }
 
+    // -------------------------
+    // OPINTEL LOOP / COLLAPSE BREAKER++++
+    // - Enterprise-safe: uses confidence + clarify streak to prevent "clarify spirals".
+    // - Nyx-safe: does NOT change contract shape; only nudges planning move.
+    // - Fail-open: if any field missing, behaves as before.
+    // -------------------------
+    const opConfidence = clamp01(
+      (cog && cog.opPackage && cog.opPackage.confidenceScore !== undefined)
+        ? cog.opPackage.confidenceScore
+        : (cog && cog.confidence ? cog.confidence.nyx : 0)
+    );
+
+    const prevClarifyStreak = clampInt(session && session.__clarifyStreak, 0, 0, 99);
+    const prevLowConfStreak = clampInt(session && session.__oiLowConfStreak, 0, 0, 99);
+
+    const planMove0 = safeStr(corePlan.move || "").toLowerCase();
+    const clarifyStreak = planMove0 === "clarify" ? Math.min(99, prevClarifyStreak + 1) : 0;
+    const lowConfStreak = opConfidence < 0.45 ? Math.min(99, prevLowConfStreak + 1) : 0;
+
+    // If we are stuck clarifying repeatedly with low confidence (or repeated inbound), force a narrow, deterministic ask.
+    // This is intentionally conservative and never triggers on distress/support mode.
+    const inboundRepeatN = clampInt(inGov && inGov.n, 0, 0, 99);
+    const oiBreakerTrip =
+      !supportPrefix &&
+      (planMove0 === "clarify" || planMove0 === "narrow") &&
+      (clarifyStreak >= 2 || lowConfStreak >= 2 || inboundRepeatN >= 2) &&
+      opConfidence < 0.70;
+
+    if (oiBreakerTrip) {
+      corePlan = {
+        ...corePlan,
+        move: "narrow",
+        stage: safeStr(corePlan.stage || "open") || "open",
+        rationale: safeStr(corePlan.rationale || "") ? `${safeStr(corePlan.rationale)}|oi_breaker` : "oi_breaker",
+        speak: "",
+      };
+      cog.oiBreaker = true;
+    }
+
+    // Persist OPINTEL streak counters in sessionPatch downstream.
+    cog.__opConfidence = opConfidence;
+    cog.__clarifyStreak = clarifyStreak;
+    cog.__oiLowConfStreak = lowConfStreak;
 
     cog.nextMove = toUpperMove(corePlan.move);
     cog.nextMoveSpeak = safeStr(corePlan.speak || "");
@@ -2844,6 +3019,10 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
     const requestId = resolveRequestId(input, norm, inboundKey);
+    if (__dbg) {
+      __stamp = makeStageStamp(started, () => __stage, requestId);
+      __stamp({ v: CE_VERSION });
+    }
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
     if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
       const reply = Support.buildCrisisResponse();
@@ -2939,6 +3118,13 @@ ${base0}`
       lastLatentDesire: safeStr(cog.latentDesire || ""),
       lastUserConfidence: clamp01(cog?.confidence?.user),
       lastNyxConfidence: clamp01(cog?.confidence?.nyx),
+
+      // OPINTEL++++: loop/collapse streaks (bounded)
+      __clarifyStreak: clampInt(cog && cog.__clarifyStreak, 0, 0, 99),
+      __oiLowConfStreak: clampInt(cog && cog.__oiLowConfStreak, 0, 0, 99),
+      __oiLastOpConfidence: clamp01(cog && cog.__opConfidence),
+      __oiBreakerAt: cog && cog.oiBreaker ? nowMs() : (Number(session && session.__oiBreakerAt) || 0),
+
       velvetMode: !!cog.velvet,
       velvetSince: cog.velvet ? Number(cog.velvetSince || 0) || nowMs() : 0,
       lastAction: safeStr(norm.action || ""),
@@ -3033,7 +3219,7 @@ ${base0}`
             lane: safeStr(laneResolved || "Default") || "Default",
             memory: memIn,
             // vendor is a hint only; your tts.js can ignore it safely
-            opts: { vendor: "elevenlabs" },
+            opts: { vendor: "REDACTED_VENDOR" },
           });
 
           if (affOut && typeof affOut === "object") {
@@ -3110,6 +3296,12 @@ ${base0}`
         reply: replyText,
         lane: laneResolved,
 
+
+        // Compatibility: always include payload.reply for widget/TTS listeners
+        payload: { reply: replyText, lane: laneResolved },
+
+        // Optional alias some TTS layers use
+        spokenText: replyText,
         // Stabilization fields (safe for legacy clients to ignore)
         laneId: laneId || undefined,
         sessionLane: sessionLaneInfo || undefined,
@@ -3528,13 +3720,18 @@ if (wantsPsychBridge) {
   const sessionKey = safeStr(session.sessionKey || session.id || session.sid || "session").trim() || "session";
   const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
-  const psyche = await buildPsycheSafe({
+  __stage = "bridge_fetch";
+  if (__dbg && __stamp) __stamp();
+  const psycheRes = await withTimeout(buildPsycheSafe({
     features: isPlainObject(cog) ? { ...cog } : {},
     tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
     queryKey,
     sessionKey,
     opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
-  });
+  }), 12000, "buildPsycheSafe");
+  const psyche = (psycheRes && psycheRes.__timeout) ? null : psycheRes;
+  if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
+
 
   // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
   if (psyche && (psyche.opening || psyche.reply || psyche.prompt)) {
@@ -3762,6 +3959,8 @@ if (wantsRoku) {
       } catch (e) {
         out = null;
       }
+
+      out = coerceModuleOut(out);
 
       if (!out || !isPlainObject(out)) {
         const reply0 = finalizeReply(
@@ -4080,6 +4279,8 @@ if (wantsRoku) {
       } catch (e) {
         musicOut = null;
       }
+
+      musicOut = coerceModuleOut(musicOut);
 
       if (!musicOut || !isPlainObject(musicOut)) {
         const reply0 = finalizeReply(
