@@ -60,6 +60,7 @@
  */
 
 const https = require("https");
+const { synthesize: resembleSynthesize } = require("./providersResemble");
 
 // Keep sockets warm to reduce cold-start latency and transient 5xx/ECONNRESET patterns.
 const KEEPALIVE = true;
@@ -105,16 +106,16 @@ function cacheKey({ text, voiceSettings, modelId, providerUsed, voiceId, host })
 }
 function cacheGet(key) {
   try {
-    if (!cacheEnabled()) return null;
+    if (!cacheEnabled()) returnconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
     const ttl = cacheTtlMs();
     const it = _cache.map.get(key);
-    if (!it) return null;
+    if (!it) returnconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
     if ((nowMs() - it.at) > ttl) {
       _cache.map.delete(key);
-      return null;
+      returnconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
     }
     return it;
-  } catch (_) { return null; }
+  } catch (_) { returnconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null; }
 }
 function cacheSet(key, buf, meta) {
   try {
@@ -194,14 +195,14 @@ function readBody(req) {
 function firstSentence(text) {
   const t = String(text || "").trim();
   if (!t) return "";
-  const m = t.match(/^(.+?[.!?])(\s|$)/);
+  const m = t.match(/^(.+?[.!?])(const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;s|$)/);
   if (m && m[1]) return m[1].trim();
   return t.slice(0, 180).trim();
 }
 
 function cleanText(input) {
   const s = String(input || "");
-  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
+  return s.replace(/[const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u0000-const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u0008const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u000Bconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u000Cconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u000E-const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u001Fconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;u007F]/g, "").trim();
 }
 
 function makeTraceId(provided) {
@@ -209,7 +210,7 @@ function makeTraceId(provided) {
   const t = Date.now().toString(16);
   if (provided) {
     const p = String(provided).trim();
-    if (p && p.length <= 64) return p.replace(/[^\w\-:.]/g, "_");
+    if (p && p.length <= 64) return p.replace(/[^const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;wconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;-:.]/g, "_");
   }
   return `tts_${t}_${rnd.slice(0, 8)}`;
 }
@@ -229,7 +230,7 @@ function wantsBase64(body) {
   return r === "base64" || r === "json";
 }
 
-function sendAudio(res, req, { body, buf, headers }) {
+function sendAudio(res, req, { body, buf, headers, mimeType }) {
   // If caller wants JSON, return base64 (useful for clients that can’t accept binary easily)
   if (wantsBase64(body)) {
     try {
@@ -243,7 +244,7 @@ function sendAudio(res, req, { body, buf, headers }) {
     }
   }
   res.status(200);
-  res.set("Content-Type", "audio/mpeg");
+  res.set("Content-Type", mimeType || "audio/mpeg");
   res.set("Cache-Control", "no-store");
   res.set("Content-Disposition", 'inline; filename="nyx_tts.mp3"');
   if (req.aborted || res.writableEnded) return;
@@ -281,21 +282,21 @@ function presetVoiceSettings(presetKey, envDefaults) {
 function mergeVoiceSettings({ envDefaults, presetKey, body }) {
   const fromPreset = presetVoiceSettings(presetKey, envDefaults);
 
-  const tp = (body && typeof body.ttsProfile === "object" && body.ttsProfile) ? body.ttsProfile : null;
+  const tp = (body && typeof body.ttsProfile === "object" && body.ttsProfile) ? body.ttsProfile :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
   const affectOverride = tp ? {
     stability: tp.stability === undefined ? undefined : clamp01(tp.stability),
     similarity_boost: tp.similarity === undefined ? undefined : clamp01(tp.similarity),
     style: tp.style === undefined ? undefined : clamp01(tp.style),
     use_speaker_boost: tp.speakerBoost === undefined ? undefined : !!tp.speakerBoost,
-  } : null;
+  } :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
-  const vs = (body && typeof body.voice_settings === "object" && body.voice_settings) ? body.voice_settings : null;
+  const vs = (body && typeof body.voice_settings === "object" && body.voice_settings) ? body.voice_settings :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
   const nativeOverride = vs ? {
     stability: vs.stability === undefined ? undefined : clamp01(vs.stability),
     similarity_boost: vs.similarity_boost === undefined ? undefined : clamp01(vs.similarity_boost),
     style: vs.style === undefined ? undefined : clamp01(vs.style),
     use_speaker_boost: vs.use_speaker_boost === undefined ? undefined : !!vs.use_speaker_boost,
-  } : null;
+  } :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
   const merged = { ...fromPreset };
 
@@ -376,7 +377,7 @@ function elevenlabsRequest({ cfg, text, traceId, timeoutEff, voiceSettings, mode
     });
 
     req.on("error", (e) => reject(e));
-    req.setTimeout(timeoutMs, () => {
+    req.setTimeout(timeoutEff, () => {
       try { req.destroy(new Error("TTS_TIMEOUT")); } catch (_) {}
     });
 
@@ -433,7 +434,7 @@ function openaiTtsRequest({ text, traceId, timeoutMs }) {
     });
 
     req.on("error", (e) => reject(e));
-    req.setTimeout(timeoutMs, () => {
+    req.setTimeout(timeoutEff, () => {
       try { req.destroy(new Error("TTS_TIMEOUT")); } catch (_) {}
     });
 
@@ -458,7 +459,7 @@ function updateHealth(ok, meta) {
     hb.status = "ok";
     hb.lastOkAt = hb.lastCheckAt;
     hb.failStreak = 0;
-    hb.lastError = null;
+    hb.lastError =const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
   } else {
     hb.failStreak = (hb.failStreak || 0) + 1;
     hb.status = hb.failStreak >= 2 ? "down" : "degraded";
@@ -532,8 +533,8 @@ async function runHeartbeatProbe({ traceId }) {
 // Main handler
 // -----------------------------
 async function handleTts(req, res) {
-  const requestId = String(req.get("X-Request-Id") || "").trim() || null;
-  const inboundTrace = String(req.get("X-SB-Trace-Id") || req.get("x-sb-trace-id") || "").trim() || null;
+  const requestId = String(req.get("X-Request-Id") || "").trim() ||const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+  const inboundTrace = String(req.get("X-SB-Trace-Id") || req.get("x-sb-trace-id") || "").trim() ||const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
   const traceId = makeTraceId(inboundTrace);
 
   const timeoutMs = clampInt(process.env.ELEVENLABS_TTS_TIMEOUT_MS, 15000, 3000, 45000);
@@ -589,17 +590,17 @@ async function handleTts(req, res) {
     }
 
     // optional metadata (for telemetry / dashboards)
-    const lane = String(body.lane || body.mode || body.contextLane || "").trim() || null;
-    const turnId = String\(body\.turnId \|\| body\.turn \|\| body\.tid \|\| ""\)\.trim\(\) \|\| null;
+    const lane = String(body.lane || body.mode || body.contextLane || "").trim() ||const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+    const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;|const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
 // ---- Phase 1/2/3: social + state + resilience hints (fail-open, structure-preserving)
 const mood = String((body.mood || (body.cog && body.cog.mood) || (body.stateHints && body.stateHints.mood) || "")).trim().toLowerCase() || "";
 const intent = String((body.intent || (body.cog && body.cog.lastIntent) || (body.stateHints && body.stateHints.lastIntent) || (body.socialIntent) || "")).trim().toLowerCase() || "";
-const turnDepthHint = (body && body.stateHints && body.stateHints.turnDepth != null) ? clampInt(body.stateHints.turnDepth, 0, 0, 9999) : null;
-const lastIntentHint = (body && body.stateHints && body.stateHints.lastIntent) ? String(body.stateHints.lastIntent).slice(0, 64) : null;
+const turnDepthHint = (body && body.stateHints && body.stateHints.turnDepth != null) ? clampInt(body.stateHints.turnDepth, 0, 0, 9999) :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+const lastIntentHint = (body && body.stateHints && body.stateHints.lastIntent) ? String(body.stateHints.lastIntent).slice(0, 64) :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
 // Resilience hints (can override timeouts/retry once within safe bounds)
-const resilience = (body && typeof body.resilience === "object" && body.resilience) ? body.resilience : null;
+const resilience = (body && typeof body.resilience === "object" && body.resilience) ? body.resilience :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 let timeoutEff = timeoutMs;
 if (resilience && resilience.timeout_ms != null) {
   timeoutEff = clampInt(resilience.timeout_ms, timeoutMs, 3000, 45000);
@@ -633,14 +634,14 @@ function presetFromMood(m) {
     case "negative":
       return "NYX_CALM";
     default:
-      return null;
+      returnconst turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
   }
 }
 
     // Optional timing stamps from upstream
-    const chatMs = body.chatMs != null ? clampInt(body.chatMs, 0, 0, 3600000) : null;
-    const e2eStartTs = body.e2eStartTs != null ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) : null; // epoch ms
-    const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) : null;
+    const chatMs = body.chatMs != null ? clampInt(body.chatMs, 0, 0, 3600000) :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+    const e2eStartTs = body.e2eStartTs != null ? clampInt(body.e2eStartTs, 0, 0, 9999999999999) :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null; // epoch ms
+    const e2eMs = (e2eStartTs && e2eStartTs > 0) ? Math.max(0, nowMs() - e2eStartTs) :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
     let text = cleanText(body.text || body.spokenText || body.replyText || body.message || "");
 
@@ -691,14 +692,124 @@ function presetFromMood(m) {
       style: num01(process.env.NYX_VOICE_STYLE, 0.15),
       use_speaker_boost: bool(process.env.NYX_VOICE_SPEAKER_BOOST, true),
     };
-    let presetKey = String(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim() || null;
+    let presetKey = String(body.presetKey || body.voicePreset || body.ttsPresetKey || "").trim() ||const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
     if (!presetKey) {
       // Prefer explicit intent hint (greetings -> warm), otherwise mood mapping.
       const isGreetingish = intent && (intent.includes("greet") || intent.includes("hello") || intent.includes("checkin") || intent.includes("social"));
       presetKey = isGreetingish ? "NYX_WARM" : (presetFromMood(mood) || null);
     }
     const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body });
-    const modelIdOverride = body.model_id ? String(body.model_id).trim() : null;
+    const modelIdOverride = body.model_id ? String(body.model_id).trim() :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
+
+
+    // Primary: Resemble (if configured). Fallback: ElevenLabs.
+    const resembleToken =
+      String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || "").trim();
+    const resembleVoiceUuid = String(process.env.RESEMBLE_VOICE_UUID || "").trim();
+
+    if (resembleToken && resembleVoiceUuid) {
+      try {
+        // Cache path for Resemble (separate provider key)
+        const rKey = cacheKey({
+          text,
+          voiceSettings,
+          modelId: String(process.env.RESEMBLE_MODEL || "resemble").trim(),
+          providerUsed: "resemble",
+          voiceId: resembleVoiceUuid,
+          host: "f.cluster.resemble.ai",
+        });
+
+        const rCached = cacheGet(rKey);
+        if (rCached && rCached.buf && rCached.buf.length > 1000) {
+          const tMs = nowMs() - tStart;
+
+          res.set("X-SB-Trace-Id", traceId);
+          res.set("X-SB-TTS-Provider", "cache");
+          res.set("X-SB-TTS-Ms", String(tMs));
+          res.set("X-SB-TTS-Upstream-Ms", "0");
+          res.set("X-SB-TTS-Retry", "0");
+          res.set("X-SB-TTS-Failover", "0");
+          res.set("X-SB-TTS-Fallback", "0");
+          res.set("X-SB-TTS-Upstream-Status", "200");
+          res.set("X-SB-TTS-Bytes", String(rCached.buf.length));
+          if (lane) res.set("X-SB-Lane", lane);
+          if (turnId) res.set("X-SB-Turn-Id", turnId);
+          if (chatMs != null) res.set("X-SB-Chat-Ms", String(chatMs));
+          if (e2eMs != null) res.set("X-SB-E2E-Ms", String(e2eMs));
+          if (presetKey) res.set("X-SB-TTS-Preset", String(presetKey).slice(0, 32));
+
+          return sendAudio(res, req, { body, buf: rCached.buf, headers: { traceId } });
+        }
+
+        const rStart = nowMs();
+        const r = await resembleSynthesize({
+          text,
+          voiceUuid: resembleVoiceUuid,
+          outputFormat: String(process.env.RESEMBLE_OUTPUT_FORMAT || "mp3").trim(),
+          timeoutMs: Number(process.env.RESEMBLE_TIMEOUT_MS || 15000),
+        });
+
+        const rUpMs = nowMs() - rStart;
+
+        if (r && r.ok && r.buffer && r.buffer.length > 1000) {
+          cacheSet(rKey, r.buffer, { provider: "resemble", mimeType: r.mimeType || null });
+
+          const tMs = nowMs() - tStart;
+          res.set("X-SB-Trace-Id", traceId);
+          res.set("X-SB-TTS-Provider", "resemble");
+          res.set("X-SB-TTS-Ms", String(tMs));
+          res.set("X-SB-TTS-Upstream-Ms", String(rUpMs));
+          res.set("X-SB-TTS-Retry", "0");
+          res.set("X-SB-TTS-Failover", "0");
+          res.set("X-SB-TTS-Fallback", "0");
+          res.set("X-SB-TTS-Upstream-Status", "200");
+          res.set("X-SB-TTS-Bytes", String(r.buffer.length));
+          if (lane) res.set("X-SB-Lane", lane);
+          if (turnId) res.set("X-SB-Turn-Id", turnId);
+          if (chatMs != null) res.set("X-SB-Chat-Ms", String(chatMs));
+          if (e2eMs != null) res.set("X-SB-E2E-Ms", String(e2eMs));
+          if (presetKey) res.set("X-SB-TTS-Preset", String(presetKey).slice(0, 32));
+
+          return sendAudio(res, req, { body, buf: r.buffer, headers: { traceId }, mimeType: r.mimeType || "audio/mpeg" });
+        }
+
+        // If Resemble is configured but fails, fall through to ElevenLabs.
+        if (logJson) {
+          try {
+            console.log(JSON.stringify({
+              t: nowMs(),
+              ok: false,
+              provider: "resemble",
+              traceId,
+              requestId,
+              lane,
+              turnId,
+              reason: r && (r.reason || r.message) ? (r.reason || r.message) : "RESEMBLE_FAILED",
+              status: r && r.status ? r.status : 0,
+              ms_up: rUpMs,
+              chars: text.length
+            }));
+          } catch (_) {}
+        }
+      } catch (e) {
+        if (logJson) {
+          try {
+            console.log(JSON.stringify({
+              t: nowMs(),
+              ok: false,
+              provider: "resemble",
+              traceId,
+              requestId,
+              lane,
+              turnId,
+              reason: "RESEMBLE_EXCEPTION",
+              detail: String(e && e.message ? e.message : e),
+            }));
+          } catch (_) {}
+        }
+        // fall through
+      }
+    }
 
     // Best-effort cache (only for successful audio). Key includes voice settings and model.
     // Note: affect changes voiceSettings; so cache naturally separates per affect posture.
@@ -778,9 +889,9 @@ function presetFromMood(m) {
 
     let retried = false;
     let failoverUsed = false;
-    let providerUsed = null;
+    let providerUsed =const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
-    let result = null;
+    let result =const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
     if (!bypassPrimary && primaryCfg.ok) {
       result = await attemptEleven(primaryCfg, "primary");
@@ -790,7 +901,7 @@ function presetFromMood(m) {
     // Retry-once if primary failed (retry same provider)
     if (result && (result.r.status === 0 || isRetryableStatus(result.r.status)) && retryOnceEff && primaryCfg.ok && !bypassPrimary) {
       retried = true;
-      const ra = (result && result.r && result.r.headers) ? result.r.headers["retry-after"] : null;
+      const ra = (result && result.r && result.r.headers) ? result.r.headers["retry-after"] :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
       let delay = 180;
       if (ra) {
         const s = parseFloat(String(ra));
@@ -822,14 +933,14 @@ function presetFromMood(m) {
 
     // If no ElevenLabs config succeeded and fallback is enabled, try fallback provider.
     let fallbackUsed = false;
-    let fallbackMeta = null;
+    let fallbackMeta =const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
 
     const okEleven = result && (result.r.status >= 200 && result.r.status < 300);
 
     if (!okEleven) {
       // Update heartbeat as degraded/down
       const upStatus = result ? result.r.status : 0;
-      const upMs = result ? result.ms : null;
+      const upMs = result ? result.ms :const turnId = String(body.turnId || body.turn || body.tid || "").trim() || null;
       updateHealth(false, { error: `ELEVEN_FAIL_${upStatus}`, upstreamStatus: upStatus, upstreamMs: upMs });
 
       if (fallbackProvider === "openai") {
