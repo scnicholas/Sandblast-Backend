@@ -497,3 +497,58 @@ body.nyx-phase1 #nyxStage::after{
 @media (max-width: 520px){
   :root{ --nyx-veil-w: min(170px, 46vw); --nyx-veil-opacity: .62; }
 }
+
+
+/* ============================================================
+   Audio Unlock Veil (Resemble backend TTS)
+   Shows only when browser blocks autoplay.
+   ============================================================ */
+body.audio-locked #nyxAudioUnlock{ display:flex; }
+#nyxAudioUnlock{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2147483646;
+  cursor:pointer;
+  padding: 18px;
+  box-sizing:border-box;
+}
+#nyxAudioUnlock .unlockCard{
+  width: min(420px, 92vw);
+  border-radius: 18px;
+  background: rgba(15,15,18,.92);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  padding: 16px 16px 14px;
+  color: rgba(255,255,255,.92);
+}
+#nyxAudioUnlock .t{
+  font-weight: 800;
+  letter-spacing:.2px;
+  margin-bottom:6px;
+  font-size: 15px;
+}
+#nyxAudioUnlock .s{
+  color: rgba(255,255,255,.72);
+  font-size: 12.5px;
+  line-height:1.35;
+  margin-bottom: 12px;
+}
+#nyxAudioUnlock .b{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(140,0,35,.28);
+  border: 1px solid rgba(140,0,35,.55);
+  font-weight: 700;
+  font-size: 12.5px;
+  width: 100%;
+  box-sizing:border-box;
+}
