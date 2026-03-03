@@ -8,7 +8,7 @@
  *
  * Env vars expected:
  *   RESEMBLE_API_TOKEN        (required)
- *   RESEMBLE_API_TOKEN        (alias; supported)
+ *   RESEMBLE_API_TOKEN       (alias; supported)
  *   RESEMBLE_API_KEY          (alias; supported)
  *   RESEMBLE_API_TOKEN       (alias; supported)
  *   RESEMBLE_VOICE_UUID       (required)  // MUST be a real Resemble voice UUID / UID (not a placeholder)
