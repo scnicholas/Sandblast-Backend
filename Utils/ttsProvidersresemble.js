@@ -1,39 +1,65 @@
+"use strict";
+
 /**
- * ttsProvidersresemble.js (UPGRADED)
+ * ttsProvidersresemble.js
  * Resemble AI TTS Provider (sync, hardened)
  *
  * Primary goal: keep Nyx/Nexus voice online with a stable contract + resilience layer.
- * Contract: { ok, buffer, mimeType, format, elapsedMs, reason?, retryable?, requestId?, status?, providerMeta? }
+ * - Provider-agnostic contract: { ok, buffer, mimeType, format, elapsedMs, reason?, retryable?, requestId? }
+ * - Retry cap (1) on transient failures
+ * - Cooldown vendor health mapping to prevent hammering when vendor is down/quota/auth fails
+ * - Strict env validation (no placeholders)
+ * - Binary-safe decoding (base64 -> Buffer)
  *
- * Additions in this upgrade:
- * - Export getVendorHealth() for /health reporting.
- * - Export resetVendorHealth() for manual unstick.
- * - More explicit config validation + status propagation.
- * - Optional endpoint override via RESEMBLE_ENDPOINT.
+ * Endpoint:
+ *   POST https://f.cluster.resemble.ai/synthesize
+ * Response (success):
+ *   { success: true, audio_content: "<base64>", output_format: "mp3"|"wav", sample_rate, duration, ... }
+ * Response (error):
+ *   { detail: { type, code, message, status, request_id } }
+ *
+ * Env vars expected (aliases supported):
+ *   RESEMBLE_API_TOKEN        (required)  // Render: may be RESEMBLE_API_TOKEN or RESEMBLE_API_KEY
+ *   RESEMBLE_API_TOKEN       (alias; supported)
+ *   RESEMBLE_API_KEY          (alias; supported)
+ *
+ *   RESEMBLE_VOICE_UUID       (required)  // Resemble voice UUID/UID from dashboard ("Copy UUID")
+ *   RESEMBLE_VOICE_UUID      (alias; supported)
+ *
+ * Optional:
+ *   RESEMBLE_PROJECT_UUID     (optional)  // ignored if invalid
+ *   RESEMBLE_MODEL            (optional)
+ *   RESEMBLE_OUTPUT_FORMAT    (optional)  // "mp3" or "wav" (default: "mp3")
+ *   RESEMBLE_USE_HD           (optional)  // "true"/"false"
+ *   RESEMBLE_TIMEOUT_MS       (optional)  // default 15000
+ *   RESEMBLE_HEALTH_COOLDOWN_MS (optional) // default 30000
+ *
+ * Exports:
+ *   synthesize({ text, voiceUuid, projectUuid, title, outputFormat, model, useHd, sampleRate, timeoutMs, traceId })
  */
 
 'use strict';
 
 const DEFAULT_ENDPOINT = "https://f.cluster.resemble.ai/synthesize";
 
-// --- Fetch polyfill
+// --- Fetch polyfill (Phase: Resilience Layer / runtime hardening)
 let _fetch = globalThis.fetch;
 if (typeof _fetch !== "function") {
   try {
+    // node-fetch v3 is ESM; some stacks still ship v2 CJS. We'll try both patterns safely.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const nf = require("node-fetch");
     _fetch = nf.default || nf;
   } catch (_) {
-    // Leave undefined; handled below.
+    // Leave undefined; we'll return a clean config/runtime error below.
   }
 }
 
-// --- Vendor health mapping
+// --- Vendor health mapping (Phase: Resilience Layer)
 const _vendorHealth = {
   downUntilMs: 0,
   reason: null,
   lastStatus: null,
-  lastRequestId: null,
 };
 
 function _now() { return Date.now(); }
@@ -75,6 +101,7 @@ function _looksLikeUid(v) {
     low.includes("placeholder")
   ) return false;
 
+  // Resemble UI shows short hex IDs in some places (e.g. 5dc633cb) — accept those too.
   const isUuidish = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
   const isDigits = /^\d+$/.test(s);
   const isShortHex = /^[0-9a-f]{8}$/i.test(s);
@@ -121,13 +148,14 @@ function _classifyResembleError(status, bodyObjOrText) {
 function _getToken() {
   return (
     process.env.RESEMBLE_API_TOKEN ||
+    process.env.RESEMBLE_API_TOKEN ||
     process.env.RESEMBLE_API_KEY ||
     ""
   ).toString().trim();
 }
 
 function _getVoiceUuid(opts) {
-  const v = opts.voiceUuid || process.env.RESEMBLE_VOICE_UUID || "";
+  const v = opts.voiceUuid || process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UUID || "";
   return String(v).trim();
 }
 
@@ -135,17 +163,15 @@ function _cooldownMs() {
   return _intEnv(process.env.RESEMBLE_HEALTH_COOLDOWN_MS, 30_000);
 }
 
-function _setVendorDown(reason, status, requestId) {
+function _setVendorDown(reason, status) {
   _vendorHealth.reason = reason || "vendor_down";
   _vendorHealth.lastStatus = status || null;
-  _vendorHealth.lastRequestId = requestId || null;
   _vendorHealth.downUntilMs = _now() + _cooldownMs();
 }
 
 function _clearVendorDown() {
   _vendorHealth.reason = null;
   _vendorHealth.lastStatus = null;
-  _vendorHealth.lastRequestId = null;
   _vendorHealth.downUntilMs = 0;
 }
 
@@ -153,29 +179,11 @@ function _isVendorDown() {
   return _vendorHealth.downUntilMs && _vendorHealth.downUntilMs > _now();
 }
 
-function getVendorHealth() {
-  const t = _now();
-  return {
-    ..._vendorHealth,
-    nowMs: t,
-    down: _isVendorDown(),
-    downForMs: _vendorHealth.downUntilMs ? Math.max(0, _vendorHealth.downUntilMs - t) : 0,
-  };
-}
-
-function resetVendorHealth() {
-  _clearVendorDown();
-  return getVendorHealth();
-}
-
-// Low-noise logger hook (no secrets)
+// Low-noise logger hook; caller can pass traceId
 function _logDebug(_msg, _obj) {
-  if (process.env.DEBUG_TTS === "1") {
-    try {
-      // Never log tokens; only operational crumbs.
-      console.log(_msg, _obj);
-    } catch (_) {}
-  }
+  // Keep default silent to avoid leaking tokens; wire to your structured logger if desired.
+  // Example:
+  // if (process.env.DEBUG_TTS === "1") console.log(_msg, _obj);
 }
 
 async function _postSynthesize({ endpoint, token, payload, timeoutMs, traceId }) {
@@ -230,13 +238,14 @@ async function _postSynthesize({ endpoint, token, payload, timeoutMs, traceId })
 async function synthesize(opts = {}) {
   const started = _now();
 
+  // Phase: Vendor health mapping / cooldown
   if (_isVendorDown()) {
     return {
       ok: false,
       reason: "vendor_down",
       retryable: false,
       message: "Resemble temporarily marked down; skipping call (cooldown active).",
-      vendor: getVendorHealth(),
+      vendor: { ..._vendorHealth },
       elapsedMs: _now() - started,
     };
   }
@@ -261,12 +270,12 @@ async function synthesize(opts = {}) {
     };
   }
   if (!_looksLikeUid(voiceUuid)) {
-    _setVendorDown("invalid_uid", 400, null);
+    _setVendorDown("invalid_uid", 400);
     return {
       ok: false,
       reason: "invalid_uid",
       retryable: false,
-      message: "Invalid RESEMBLE_VOICE_UUID (placeholder/wrong format). Copy the voice UUID from Resemble (Copy UUID).",
+      message: "Invalid RESEMBLE_VOICE_UUID (placeholder/wrong format). Copy the voice UUID from Resemble (“Copy UUID”).",
       elapsedMs: _now() - started,
     };
   }
@@ -281,6 +290,7 @@ async function synthesize(opts = {}) {
     };
   }
 
+  // Guard: Resemble synth endpoint typical limits; keep explicit.
   if (text.length > 3000) {
     return {
       ok: false,
@@ -290,10 +300,11 @@ async function synthesize(opts = {}) {
     };
   }
 
-  const endpoint = (opts.endpoint || process.env.RESEMBLE_ENDPOINT || DEFAULT_ENDPOINT).toString().trim() || DEFAULT_ENDPOINT;
+  const endpoint = opts.endpoint || DEFAULT_ENDPOINT;
   const outputFormat = (opts.outputFormat || process.env.RESEMBLE_OUTPUT_FORMAT || "mp3").toString().toLowerCase();
   const model = (opts.model || process.env.RESEMBLE_MODEL || "").toString().trim() || undefined;
 
+  // Optional project UUID (ignored if invalid, to avoid invalid_uid failures)
   const projectUuidRaw = (opts.projectUuid || process.env.RESEMBLE_PROJECT_UUID || "").toString().trim() || undefined;
   const projectUuid = projectUuidRaw && _looksLikeUid(projectUuidRaw) ? projectUuidRaw : undefined;
 
@@ -313,17 +324,25 @@ async function synthesize(opts = {}) {
     ...(typeof useHd === "boolean" ? { use_hd: useHd } : {}),
   };
 
-  const maxAttempts = 2; // 1 retry
+  // Phase: Retry with cap (1) for transient issues only
+  const maxAttempts = 2;
   let lastErr = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const r = await _postSynthesize({ endpoint, token, payload, timeoutMs, traceId: opts.traceId });
+    const r = await _postSynthesize({
+      endpoint,
+      token,
+      payload,
+      timeoutMs,
+      traceId: opts.traceId,
+    });
 
     if (!r.ok) {
+      // network/timeout
       lastErr = r;
       const retryable = r.reason === "network_error" || r.reason === "timeout";
       if (!retryable || attempt === maxAttempts) {
-        _setVendorDown(r.reason, null, null);
+        _setVendorDown(r.reason, null);
         return {
           ok: false,
           reason: r.reason,
@@ -333,20 +352,21 @@ async function synthesize(opts = {}) {
           elapsedMs: _now() - started,
         };
       }
-      continue;
+      continue; // retry
     }
 
+    // HTTP response
     const body = _safeJsonParse(r.rawText) ?? r.rawText;
 
     if (r.status < 200 || r.status >= 300) {
       const cls = _classifyResembleError(r.status, body);
       const detailObj = typeof body === "object" ? _extractDetailObj(body) : null;
-      const reqId = detailObj && typeof detailObj.request_id === "string" ? detailObj.request_id : null;
 
-      _logDebug("Resemble TTS error", { attempt, status: r.status, cls, traceId: opts.traceId, requestId: reqId });
+      _logDebug("Resemble TTS error", { attempt, status: r.status, cls, traceId: opts.traceId });
 
-      if (cls.cooldown) _setVendorDown(cls.reason, r.status, reqId);
+      if (cls.cooldown) _setVendorDown(cls.reason, r.status);
 
+      // Only retry vendor_5xx once
       if (cls.retryable && attempt < maxAttempts) {
         lastErr = { status: r.status, body, cls };
         continue;
@@ -361,18 +381,19 @@ async function synthesize(opts = {}) {
           ? "Resemble rejected an ID (voice_uuid/project_uuid). Confirm RESEMBLE_VOICE_UUID (and RESEMBLE_PROJECT_UUID if set)."
           : "Resemble synthesis failed.",
         detail: body,
-        requestId: reqId || undefined,
+        requestId: detailObj && typeof detailObj.request_id === "string" ? detailObj.request_id : undefined,
         elapsedMs: _now() - started,
       };
     }
 
+    // Success → decode audio
     const audioContent = body && typeof body === "object" ? body.audio_content : null;
     const fmt = (body && typeof body === "object" && body.output_format) ? body.output_format : outputFormat;
 
     if (!audioContent || typeof audioContent !== "string") {
+      // Not a vendor-down case; likely API shape change or misconfig
       return {
         ok: false,
-        status: r.status,
         reason: "bad_response",
         message: "Resemble returned success but no audio_content.",
         detail: body,
@@ -386,7 +407,6 @@ async function synthesize(opts = {}) {
     } catch (e) {
       return {
         ok: false,
-        status: r.status,
         reason: "bad_response",
         message: "Failed to decode Resemble audio_content base64.",
         detail: e?.message || String(e),
@@ -394,6 +414,7 @@ async function synthesize(opts = {}) {
       };
     }
 
+    // Success clears cooldown state
     _clearVendorDown();
 
     return {
@@ -415,6 +436,7 @@ async function synthesize(opts = {}) {
     };
   }
 
+  // Should never reach here
   return {
     ok: false,
     reason: "unknown_error",
@@ -426,6 +448,14 @@ async function synthesize(opts = {}) {
 
 module.exports = {
   synthesize,
-  getVendorHealth,
-  resetVendorHealth,
 };
+
+/* =========================================================
+   Compatibility exports
+   - Some callers import { synthesize } = require(...)
+   - Others import provider.default or provider.synthesize
+   ========================================================= */
+module.exports = Object.assign(module.exports || {}, {
+  synthesize,
+  default: { synthesize }
+});
