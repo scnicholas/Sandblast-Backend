@@ -4,27 +4,21 @@
  * TTS.js — Runtime TTS handler (Resemble-only)
  *
  * PURPOSE
- * - Canonical backend handler that /utils/tts.js loads (exports { handleTts }).
- * - Produces REAL audio bytes (mp3/wav) OR (optionally) JSON with base64 audio.
+ * - This is the canonical backend handler that /utils/tts.js loads (exports { handleTts }).
+ * - It produces REAL audio bytes (mp3/wav) on success.
  *
  * CONTRACT (accepted request JSON)
  * - text OR data OR message: string
  * - voiceId OR voice_uuid OR voiceUuid: voice UUID (optional; falls back to env)
  * - output_format OR format OR outputFormat: "mp3" | "wav" (optional)
  * - sample_rate (optional)
- * - returnBase64 (optional boolean) -> if true, respond JSON { ok, audio, mimeType, ... }
- * - responseMode (optional string) -> "bytes" | "base64" (alias for returnBase64)
- * - emotion / mood / anxiety (optional) -> passed through to provider as hints (best-effort)
  *
  * ENV (aliases supported)
  * - RESEMBLE_API_TOKEN or RESEMBLE_API_KEY   (required)
  * - RESEMBLE_VOICE_UUID                      (required unless provided in request)
  * - RESEMBLE_PROJECT_UUID                    (optional; passed through if present)
  *
- * NOTES
- * - ElevenLabs: NOT referenced.
- * - "No sound" after provider swaps is commonly caused by returning bytes while the client expects JSON/base64
- *   (or vice versa). This handler supports BOTH safely without breaking the default "bytes" contract.
+ * ElevenLabs: NOT referenced.
  */
 
 function _now(){ return Date.now(); }
@@ -39,7 +33,14 @@ function _pickFirst(...vals){
   return "";
 }
 
-function _lower(s){ return _trim(s).toLowerCase(); }
+function _genTraceId(){
+  // lightweight trace id (no deps)
+  try{
+    return (Math.random().toString(16).slice(2) + Date.now().toString(16)).slice(0, 32);
+  }catch(_){
+    return String(Date.now());
+  }
+}
 
 function _makeTraceId(req){
   const h = (req && req.headers) ? req.headers : {};
@@ -57,13 +58,11 @@ function _safeJson(res, status, obj){
 }
 
 function _requireProvider(){
+  // IMPORTANT: Render/Linux is case-sensitive.
+  // This handler lives in /src/Utils, so the provider should also be in the same folder.
   const tries = [
-    "./utils/ttsProvidersResemble",
-    "./utils/ttsProvidersresemble",
-    "./ttsProvidersResemble",
-    "./ttsProvidersresemble",
-    "./TTSProvidersResemble",
-    "./TTSProvidersresemble",
+    "./ttsProvidersResemble",   // preferred (same directory)
+    "./TTSProvidersResemble",   // optional alternate casing
   ];
   let lastErr = null;
   for (const p of tries){
@@ -81,7 +80,7 @@ function _requireProvider(){
 }
 
 function _mimeFor(fmt){
-  fmt = _lower(fmt);
+  fmt = _trim(fmt).toLowerCase();
   if (fmt === "wav") return "audio/wav";
   return "audio/mpeg"; // mp3 default
 }
@@ -114,68 +113,11 @@ function _hasToken(){
   return !!tok;
 }
 
-function _wantsBase64(req, body){
-  // Explicit body flags win.
-  if (_isObj(body)){
-    if (body.returnBase64 === true) return true;
-    if (_lower(body.responseMode) === "base64") return true;
-    if (_lower(body.mode) === "base64") return true;
-    if (_lower(body.response) === "base64") return true;
-  }
-
-  // Next: Accept header hints (some clients default to JSON).
-  const h = (req && req.headers) ? req.headers : {};
-  const accept = _lower(h.accept);
-  if (accept.includes("application/json")) return true;
-
-  // Default: bytes (most audio players want raw bytes).
-  return false;
-}
-
-function _hintEmotion(body){
-  if (!_isObj(body)) return undefined;
-  // Allow multiple keys: emotion/mood/anxiety
-  const emotion = _pickFirst(body.emotion, body.mood, body.affect, "");
-  const anxiety = body.anxiety === true || _lower(body.anxiety) === "true" ? "anxiety" : "";
-  const hint = _pickFirst(emotion, anxiety, "");
-  return hint ? hint : undefined;
-}
-
-function _maxTextBytes(){
-  // Safety guard; keep it conservative to avoid runaway costs/latency.
-  // Allow override via env if needed.
-  const v = _pickFirst(process.env.SBNYX_TTS_MAX_TEXT_BYTES, "6000");
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) && n > 200 ? n : 6000;
-}
-
-function _truncateUtf8(str, maxBytes){
-  try{
-    const b = Buffer.from(_str(str), "utf8");
-    if (b.length <= maxBytes) return _str(str);
-    return b.slice(0, maxBytes).toString("utf8");
-  }catch(_){
-    const s = _str(str);
-    return s.length > 2000 ? s.slice(0, 2000) : s;
-  }
-}
-
 async function handleTts(req, res){
   const started = _now();
-  const traceId = _makeTraceId(req);
+  const traceId = _makeTraceId(req) || _genTraceId();
 
-  // Handle preflight quickly (defensive; index.js often handles this too).
-  if (req && _lower(req.method) === "options"){
-    try{
-      res.set("Cache-Control", "no-store");
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-SB-Trace-Id, X-Request-Id");
-      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    }catch(_){}
-    return res.status(204).send("");
-  }
-
-  // Basic headers safety (harmless to repeat)
+  // Basic CORS/headers safety (index.js likely handles this too; harmless to repeat)
   try{
     res.set("Cache-Control", "no-store");
     res.set("X-SB-Trace-ID", traceId || "");
@@ -183,7 +125,7 @@ async function handleTts(req, res){
   }catch(_){}
 
   const body = (req && req.body) ? req.body : {};
-  let text = _trim(_detectText(body));
+  const text = _trim(_detectText(body));
 
   if (!text){
     return _safeJson(res, 400, {
@@ -194,10 +136,6 @@ async function handleTts(req, res){
       ms: _now() - started
     });
   }
-
-  // Guard: cap payload size to avoid timeouts/cost blowups.
-  const maxBytes = _maxTextBytes();
-  text = _truncateUtf8(text, maxBytes);
 
   const outputFormat = _detectFormat(body);
   const voiceUuid = _pickFirst(_detectVoice(body), _envVoice());
@@ -230,14 +168,11 @@ async function handleTts(req, res){
     return _safeJson(res, 503, {
       ok: false,
       error: "TTS_PROVIDER_MISSING",
-      detail: _str(e && e.message ? e.message : e).slice(0, 400),
+      detail: _str(e && e.message ? e.message : e).slice(0, 900),
       traceId,
       ms: _now() - started
     });
   }
-
-  const wantBase64 = _wantsBase64(req, body);
-  const emotionHint = _hintEmotion(body);
 
   // Call provider with the *correct* contract keys:
   // - voiceUuid (NOT voiceId)
@@ -249,9 +184,6 @@ async function handleTts(req, res){
       voiceUuid,
       projectUuid: projectUuid || undefined,
       outputFormat,
-      sampleRate: body && body.sample_rate ? body.sample_rate : undefined,
-      // Optional hinting (provider may ignore, but won't break)
-      emotion: emotionHint,
       traceId
     });
   }catch(e){
@@ -266,7 +198,7 @@ async function handleTts(req, res){
 
   if (!out || out.ok !== true || !out.buffer || !Buffer.isBuffer(out.buffer) || out.buffer.length < 16){
     const reason = out && out.reason ? _str(out.reason) : "synthesis_failed";
-    const msg = out && (out.message || out.detail) ? (out.message || out.detail) : "Resemble synthesis failed.";
+    const msg = out && (out.message || out.detail) ? out.message || out.detail : "Resemble synthesis failed.";
     return _safeJson(res, 503, {
       ok: false,
       error: "TTS_SYNTH_FAILED",
@@ -280,31 +212,13 @@ async function handleTts(req, res){
   }
 
   const mime = out.mimeType || _mimeFor(outputFormat);
-  const elapsed = (out.elapsedMs != null ? out.elapsedMs : (_now() - started));
 
-  // --- RESPONSE MODES ---
-  // bytes: raw audio bytes (default)
-  // base64: JSON payload with audio base64 (helps when frontend expects JSON)
-  if (wantBase64){
-    const b64 = out.buffer.toString("base64");
-    return _safeJson(res, 200, {
-      ok: true,
-      provider: "resemble",
-      traceId,
-      mimeType: mime,
-      format: outputFormat,
-      audio: b64,
-      bytes: out.buffer.length,
-      ttsMs: elapsed
-    });
-  }
-
-  // Default: send raw bytes (no JSON)
   try{
     res.status(200);
     res.set("Content-Type", mime);
     res.set("Content-Length", String(out.buffer.length));
-    res.set("X-SB-TTS-MS", String(elapsed));
+    res.set("X-SB-TTS-MS", String(out.elapsedMs != null ? out.elapsedMs : (_now() - started)));
+    // IMPORTANT: send raw bytes (no JSON)
     return res.send(out.buffer);
   }catch(e){
     return _safeJson(res, 500, {
@@ -327,8 +241,7 @@ function diag(){
     env: {
       hasToken: _hasToken(),
       hasVoice: !!_envVoice(),
-      hasProject: !!_envProject(),
-      maxTextBytes: _maxTextBytes()
+      hasProject: !!_envProject()
     }
   };
 }
