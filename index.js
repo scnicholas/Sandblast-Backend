@@ -67,6 +67,7 @@ const express = require("express");
 // HARDEN v1.5.35sb: robust autoload across case variants + export aliases + lazy retry.
 let __SB_HANDLE_TTS = null;
 let __SB_TTS_MODPATH = null;
+let __SB_TTS_MODULE = null;
 
 function __sbResolveTtsHandler(mod) {
   if (!mod) return null;
@@ -90,17 +91,19 @@ function __sbTryRequireTts() {
       const h = __sbResolveTtsHandler(mod);
       if (h) {
         __SB_TTS_MODPATH = mp;
+        __SB_TTS_MODULE = mod;
         __SB_HANDLE_TTS = h;
         return true;
       }
     } catch (_) { /* ignore */ }
   }
   __SB_HANDLE_TTS = null;
+  __SB_TTS_MODULE = null;
   return false;
 }
 
 // First attempt at startup
-try { __sbTryRequireTts(); } catch (_) { __SB_HANDLE_TTS = null; }
+try { __sbTryRequireTts(); } catch (_) { __SB_HANDLE_TTS = null; __SB_TTS_MODULE = null; }
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -198,7 +201,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.35sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE-ONLY + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.36sb (OPINTEL+10: RESEMBLE LINK GUARD + TTS DIAG/PROBE + TRACE HEADERS + SELF-HEAL TTS MODULE)";
 
 // =========================
 // Utils
@@ -1041,6 +1044,22 @@ const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
 //
 // NOTE: actual TTS synthesis is delegated to ./utils/tts (handleTts). Keep provider logic out of index.js.
 
+
+
+// =========================
+// Resemble startup sanity (no secrets)
+// =========================
+(function sbResembleSanity(){
+  try {
+    const hasTok = !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY);
+    const voice = String(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID || "").trim();
+    const proj = String(process.env.RESEMBLE_PROJECT_UUID || "").trim();
+    const bad = (s)=>!s || s==="..." || s.toLowerCase()==="changeme" || s.toLowerCase()==="replace_me";
+    if (!hasTok) console.log("[Sandblast][TTS][Sanity] Missing RESEMBLE_API_TOKEN/RESEMBLE_API_KEY (Resemble-only build).");
+    if (bad(voice)) console.log("[Sandblast][TTS][Sanity] Missing/invalid RESEMBLE_VOICE_UUID (required).");
+    if (proj && bad(proj)) console.log("[Sandblast][TTS][Sanity] RESEMBLE_PROJECT_UUID looks like a placeholder.");
+  } catch (_) {}
+})();
 
 // =========================
 // Boot-like detection + intent normalization + reset — kept
@@ -3588,6 +3607,7 @@ async function handleTtsRoute(req, res) {
 
 
 app.post("/api/tts", ipRateGuard, async (req, res) => {
+  try{ const tid = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId(); res.setHeader("x-sb-trace-id", tid);}catch(_){}
   // Resemble-only: index.js delegates TTS to ./utils/tts to keep provider logic isolated.
   // HARDEN: self-heal by lazy-loading the handler on-demand (covers deploy order + case-sensitive paths on Linux).
   try {
@@ -3615,6 +3635,71 @@ app.post("/api/tts", ipRateGuard, async (req, res) => {
     meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, env },
   });
 });
+
+// =========================
+// TTS Diagnostics / Probe (OPINTEL)
+// =========================
+function __sbMask(s){
+  const v = String(s||"");
+  if (!v) return "";
+  if (v.length <= 8) return v[0] + "***";
+  return v.slice(0,4) + "***" + v.slice(-3);
+}
+function __sbTtsEnvSnapshot(){
+  const voice = String(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID || "").trim();
+  const proj = String(process.env.RESEMBLE_PROJECT_UUID || "").trim();
+  return {
+    resemble: {
+      hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
+      hasVoice: !!voice,
+      hasProject: !!proj,
+      voiceUuid: voice ? __sbMask(voice) : "",
+      projectUuid: proj ? __sbMask(proj) : "",
+      endpointMode: String(process.env.RESEMBLE_ENDPOINT_MODE || "").trim() || "auto",
+    }
+  };
+}
+
+app.get("/api/diag/tts", ipRateGuard, (req, res) => {
+  const traceId = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId();
+  let diag = null;
+  try{
+    if (__SB_TTS_MODULE && typeof __SB_TTS_MODULE.diagTts === "function") diag = __SB_TTS_MODULE.diagTts();
+    else if (__SB_TTS_MODULE && typeof __SB_TTS_MODULE.diag === "function") diag = __SB_TTS_MODULE.diag();
+  }catch(_){}
+  return sendContract(res, 200, {
+    ok: true,
+    index: INDEX_VERSION,
+    traceId,
+    tts: {
+      handlerLoaded: !!__SB_HANDLE_TTS,
+      modulePath: __SB_TTS_MODPATH || null,
+      moduleType: __SB_TTS_MODULE ? (typeof __SB_TTS_MODULE) : null,
+      handlerType: __SB_HANDLE_TTS ? (typeof __SB_HANDLE_TTS) : null,
+    },
+    env: __sbTtsEnvSnapshot(),
+    diag: diag || null,
+    now: new Date().toISOString()
+  });
+});
+
+// Lightweight probe endpoint (no synthesis by default).
+// Call: GET /tts/probe  or GET /api/tts/probe
+function __sbTtsProbe(req, res){
+  const traceId = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId();
+  return sendContract(res, 200, {
+    ok: true,
+    probe: true,
+    index: INDEX_VERSION,
+    traceId,
+    env: __sbTtsEnvSnapshot(),
+    note: "Probe does not synthesize audio. Use POST /api/tts for synthesis.",
+    now: new Date().toISOString()
+  });
+}
+app.get("/api/tts/probe", ipRateGuard, __sbTtsProbe);
+app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
+
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
   // Back-compat alias for clients still calling /api/voice
