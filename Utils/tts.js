@@ -1,204 +1,111 @@
 "use strict";
 
 /**
- * utils/tts.js — Canonical glue for index.js (Resemble-only)
+ * utils/tts.js — Glue module for index.js (external TTS handler)
  *
- * Goals:
- * - Eliminate "TTS_HANDLER_MISSING" by providing a stable, JS-only export surface.
- * - Avoid provider drift (NO ElevenLabs references; Resemble is the only allowed vendor).
- * - Add operational-intelligence diagnostics and safer failure modes (never crash the server).
+ * FIXES (this build):
+ * - Self-heal loader: if TTS.js wasn't present at boot (or deploy lag), we RETRY loading on request.
+ * - Adds diag() so /api/diag/tts can show lastError + lastAttempt + loadedFrom.
  *
- * Exports:
- *   { handleTts, diagTts }
+ * Expected runtime handler:
+ *   project root:  /TTS.js  exporting { handleTts }
+ * Fallbacks:
+ *   /tts.js
  *
- * Expected in index.js:
- *   const { handleTts, diagTts } = require("./utils/tts");
- *   app.post("/api/tts", handleTts);
- *   app.get("/api/diag/tts", requireWidgetToken, diagTts); // recommended
+ * ElevenLabs: intentionally NOT referenced here.
  */
 
-function s(v){ return (v==null) ? "" : String(v); }
-function b(v, def=false){
-  const x = s(v).trim().toLowerCase();
-  if(!x) return def;
-  return (x==="1"||x==="true"||x==="yes"||x==="y"||x==="on");
-}
+function safeStr(v){ return (v==null?"":String(v)); }
 
-function mkTraceId(){
-  try{
-    const crypto = require("crypto");
-    return crypto.randomBytes(12).toString("base64")
-      .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-  }catch(_){
-    return String(Date.now()) + "-" + Math.random().toString(16).slice(2);
-  }
-}
+const TRIES = [
+  "../TTS.js",
+  "../tts.js",
+  "../TTS",
+  "../tts",
+];
 
-function safeJson(res, status, obj){
-  try{
-    res.status(status);
-    res.setHeader("Content-Type","application/json; charset=utf-8");
-    res.setHeader("Cache-Control","no-store");
-    res.end(JSON.stringify(obj));
-  }catch(_){
-    try{ res.end(); }catch(__){}
-  }
-}
+let _handleTts = null;
+let _loadedFrom = "";
+let _lastErr = null;
+let _lastAttempt = 0;
 
-/** Provider policy: hard stop anything except Resemble. */
-function ensureResembleOnly(){
-  const p = (s(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").trim().toLowerCase());
-  if(p && p !== "resemble"){
-    const e = new Error(`Provider '${p}' is forbidden (Resemble-only build). Set TTS_PROVIDER=resemble.`);
-    e.code = "PROVIDER_FORBIDDEN";
-    throw e;
-  }
-}
-
-/**
- * Loader strategy (in priority order):
- *  1) New canonical layout: ./tts/handler exports { handleTts } (recommended)
- *  2) Legacy hardened handler in project root: ../TTS.js exports { handleTts }
- *  3) Legacy fallback in project root: ../tts.js exports { handleTts }
- *
- * Why: Render deploys JS; TS paths are brittle. We only load JS modules.
- */
-function loadRuntime(){
-  ensureResembleOnly();
-
-  const tries = [
-    "./tts/handler.js",
-    "./tts/handler",
-    "../TTS.js",
-    "../TTS",
-    "../tts.js",
-    "../tts",
-  ];
+function tryLoadHandleTts(force){
+  const now = Date.now();
+  // throttle retries (avoid thrash under load)
+  if (!force && (now - _lastAttempt) < 1500) return _handleTts;
+  _lastAttempt = now;
 
   let lastErr = null;
-  for(const p of tries){
+  for (const p of TRIES){
     try{
+      // If we previously failed, allow a fresh attempt after deploy
+      try{
+        const resolved = require.resolve(p);
+        if (resolved && require.cache && require.cache[resolved]) delete require.cache[resolved];
+      }catch(_){}
+
       // eslint-disable-next-line import/no-dynamic-require, global-require
       const mod = require(p);
-      const fn = mod && (mod.handleTts || mod.default);
-      if(typeof fn === "function"){
-        return { ok:true, path:p, handleTts: fn, mod };
+      if (mod && typeof mod.handleTts === "function"){
+        _handleTts = mod.handleTts;
+        _loadedFrom = p;
+        _lastErr = null;
+        return _handleTts;
       }
     }catch(e){
       lastErr = e;
     }
   }
 
-  const detail = lastErr ? s(lastErr.message || lastErr).slice(0, 240) : "unknown";
-  const err = new Error(`TTS handler loader failed. Tried: ${tries.join(", ")}. Last: ${detail}`);
-  err.code = "TTS_HANDLER_MISSING";
-  err.detail = detail;
-  err.tries = tries;
-  throw err;
-}
-
-let RUNTIME = { ok:false, path:"", handleTts:null, mod:null, err:null };
-try{
-  RUNTIME = loadRuntime();
-}catch(e){
-  RUNTIME = { ok:false, path:"", handleTts:null, mod:null, err:e };
-}
-
-function getEnvFlags(){
-  return {
-    TTS_PROVIDER: !!(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER),
-    RESEMBLE_API_KEY: !!(process.env.RESEMBLE_API_KEY || process.env.RESEMBLE_API_TOKEN),
-    RESEMBLE_PROJECT_UUID: !!process.env.RESEMBLE_PROJECT_UUID,
-    RESEMBLE_VOICE_UUID: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID),
-    SOVEREIGN_MODE: b(process.env.TTS_SOVEREIGN_MODE, true),
-  };
-}
-
-function setDiagHeaders(res, traceId){
-  try{
-    res.setHeader("Cache-Control","no-store");
-    res.setHeader("X-SB-TTS-Glue","utils/tts.js");
-    res.setHeader("X-SB-TTS-TraceId", s(traceId));
-    res.setHeader("X-SB-TTS-Loaded", RUNTIME.ok ? "1" : "0");
-    res.setHeader("X-SB-TTS-HandlerPath", s(RUNTIME.path));
-    res.setHeader("X-SB-TTS-Provider","resemble");
-  }catch(_){}
+  _handleTts = null;
+  _loadedFrom = "";
+  _lastErr = lastErr || new Error("unknown");
+  return null;
 }
 
 /**
- * Express handler: POST /api/tts
- * Never throws uncaught. If runtime handler is missing, returns a UX-compatible 503 JSON.
+ * Express handler: (req, res) => Promise<void>
+ * If handler can't be loaded, respond 503 with a clear JSON error (no secrets).
  */
 async function handleTts(req, res){
+  // Ensure we always attempt a load (self-heal)
+  if (!_handleTts) tryLoadHandleTts(false);
+
+  if (_handleTts) return _handleTts(req, res);
+
   const traceId =
-    s(req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"] || req.headers["x-request-id"])) ||
-    mkTraceId();
+    (req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"])) ||
+    (req && req.headers && req.headers["x-request-id"]) ||
+    "";
 
-  // Defensive: do not let the glue layer crash the server.
-  try{
-    // If runtime wasn't loaded at startup, try again (helps after hot deploy or partial boot).
-    if(!RUNTIME.ok || typeof RUNTIME.handleTts !== "function"){
-      try{ RUNTIME = loadRuntime(); }catch(e){ RUNTIME = { ok:false, path:"", handleTts:null, mod:null, err:e }; }
-    }
+  const detail = _lastErr ? safeStr(_lastErr.message || _lastErr).slice(0, 240) : "unknown";
 
-    if(RUNTIME.ok && typeof RUNTIME.handleTts === "function"){
-      setDiagHeaders(res, traceId);
-      // Marion/Operational-Intel hook: correlated tracing
-      req.__sbTraceId = traceId;
-      return await RUNTIME.handleTts(req, res);
-    }
-
-    setDiagHeaders(res, traceId);
-    const err = RUNTIME.err || { code:"TTS_HANDLER_MISSING" };
-    return safeJson(res, 503, {
-      ok:false,
-      error: "TTS_HANDLER_MISSING",
-      detail: "utils/tts.js could not load a runtime JS handler. Ensure canonical handler exists and exports handleTts.",
-      spokenUnavailable: true,
-      traceId,
-      meta: {
-        code: s(err.code || "TTS_HANDLER_MISSING"),
-        last: s(err.detail || err.message || "").slice(0, 240),
-        tried: (err.tries && Array.isArray(err.tries)) ? err.tries.slice(0, 8) : []
-      }
-    });
-  }catch(e){
-    setDiagHeaders(res, traceId);
-    return safeJson(res, 503, {
-      ok:false,
-      error:"TTS_GLUE_FAILED",
-      spokenUnavailable:true,
-      traceId,
-      detail: s(e && e.message || e).slice(0, 240)
-    });
-  }
-}
-
-/**
- * Express handler: GET /api/diag/tts
- * Safe diagnostics (no secrets).
- */
-function diagTts(req, res){
-  const traceId =
-    s(req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"] || req.headers["x-request-id"])) ||
-    mkTraceId();
-
-  setDiagHeaders(res, traceId);
-
-  const err = RUNTIME.err || null;
-  return safeJson(res, 200, {
-    ok:true,
-    providerPolicy: "resemble_only",
-    loaded: !!RUNTIME.ok,
-    handlerPath: s(RUNTIME.path),
-    envFlags: getEnvFlags(),
-    error: err ? { code: s(err.code || "ERR"), detail: s(err.detail || err.message || "").slice(0, 240) } : null,
-    now: new Date().toISOString(),
+  res.status(503).json({
+    ok: false,
+    error: "TTS_HANDLER_MISSING",
+    detail: "utils/tts.js could not load a runtime JS handler. Ensure TTS.js is deployed at project root and exports handleTts.",
+    tried: TRIES,
+    lastError: detail,
+    spokenUnavailable: true,
     meta: {
-      traceId,
-      glue: "utils/tts.js v2.1 (OPINTEL: diag + reload + resemble-only + safe failures)"
+      traceId: safeStr(traceId).slice(0, 80),
+      lastAttempt: _lastAttempt || 0
     }
   });
 }
 
-module.exports = { handleTts, diagTts };
+/**
+ * Diagnostics for index.js /api/diag/tts
+ */
+function diag(){
+  return {
+    ok: true,
+    handlerReady: !!_handleTts,
+    loadedFrom: _loadedFrom || null,
+    tried: TRIES,
+    lastAttempt: _lastAttempt || 0,
+    lastError: _lastErr ? safeStr(_lastErr.message || _lastErr).slice(0, 400) : null
+  };
+}
+
+module.exports = { handleTts, diag };
