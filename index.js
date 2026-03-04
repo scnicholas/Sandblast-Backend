@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.34sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.35sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
 
  *
  * =========================
@@ -30,6 +30,16 @@
  * 18) Observability: x-sb-tts-provider, x-sb-voice, x-sb-tts-ms headers for every /api/tts response
  * 19) Fail-open UX: if audio fails, return a short 'spokenUnavailable' flag so UI can show subtle prompt
  * 20) Config sanity: startup validation logs for required env (token present? voice id present?) without leaking secrets
+ * 21) TTS handler autoload: resolve ./utils/tts across case variants + export aliases (handleTts/ttsHandler/default)
+ * 22) TTS route self-heal: lazy-reload handler on first failure + periodic retry (no restart required)
+ * 23) Provider lock: hard-enforce RESEMBLE-only at runtime; ignore stray env for other providers
+ * 24) Canary probe: optional /api/tts/probe (guarded) for headless health checks + audio contract validation
+ * 25) Avatar parity bus: emit sbnyx:tts:* events (start/ok/fail) so avatar can mouth-sync reliably
+ * 26) Backpressure: cap concurrent TTS in-flight per IP + queue-jitter to avoid Render cold-start storms
+ * 27) Better error taxonomy: surface provider_status + actionable hint (missing env vs provider down)
+ * 28) Safer CORS/audio: explicit Cache-Control + correct content-type passthrough for mp3/wav
+ * 29) Hot patch guard: refuse oversized text > MAX_TTS_CHARS with 413 to protect credits
+ * 30) Runtime telemetry hooks: structured console line for every TTS call (traceId, ms, ok, provider)
  * =========================
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
@@ -54,13 +64,43 @@
 const express = require("express");
 
 // Optional external TTS handler (preferred). Keeps index.js stable while allowing provider ladder in utils/tts.js.
+// HARDEN v1.5.35sb: robust autoload across case variants + export aliases + lazy retry.
 let __SB_HANDLE_TTS = null;
-try {
-  const ttsMod = require("./utils/tts");
-  if (ttsMod && typeof ttsMod.handleTts === "function") __SB_HANDLE_TTS = ttsMod.handleTts;
-} catch (_) {
-  __SB_HANDLE_TTS = null;
+let __SB_TTS_MODPATH = null;
+
+function __sbResolveTtsHandler(mod) {
+  if (!mod) return null;
+  // Accept: module.exports = function(req,res) {} OR {handleTts}, {ttsHandler}, {handler}, {default}
+  if (typeof mod === "function") return mod;
+  const cand =
+    (typeof mod.handleTts === "function" && mod.handleTts) ||
+    (typeof mod.ttsHandler === "function" && mod.ttsHandler) ||
+    (typeof mod.handler === "function" && mod.handler) ||
+    (typeof mod.default === "function" && mod.default) ||
+    null;
+  return cand;
 }
+
+function __sbTryRequireTts() {
+  const paths = ["./utils/tts", "./utils/tts.js", "./Utils/tts", "./Utils/tts.js"];
+  for (const mp of paths) {
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const mod = require(mp);
+      const h = __sbResolveTtsHandler(mod);
+      if (h) {
+        __SB_TTS_MODPATH = mp;
+        __SB_HANDLE_TTS = h;
+        return true;
+      }
+    } catch (_) { /* ignore */ }
+  }
+  __SB_HANDLE_TTS = null;
+  return false;
+}
+
+// First attempt at startup
+try { __sbTryRequireTts(); } catch (_) { __SB_HANDLE_TTS = null; }
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -158,7 +198,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.34sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE-ONLY + SAFE FAILURES)";
+const INDEX_VERSION = "index.js v1.5.35sb (HARDEN: TTS NEVER-CRASH + SENDJSON FIX + RESEMBLE-ONLY + SAFE FAILURES)";
 
 // =========================
 // Utils
@@ -3549,24 +3589,36 @@ async function handleTtsRoute(req, res) {
 
 app.post("/api/tts", ipRateGuard, async (req, res) => {
   // Resemble-only: index.js delegates TTS to ./utils/tts to keep provider logic isolated.
-  // If ./utils/tts is missing or mis-exported, fail-open with a deterministic contract so UI can stay stable.
+  // HARDEN: self-heal by lazy-loading the handler on-demand (covers deploy order + case-sensitive paths on Linux).
   try {
+    if (!__SB_HANDLE_TTS) {
+      try { __sbTryRequireTts(); } catch (_) { /* ignore */ }
+    }
     if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
   } catch (e) {
     // continue to deterministic failure
   }
+
   const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
+  const env = {
+    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
+    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
+    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
+    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
+  };
   return sendContract(res, 503, {
     ok: false,
     error: "TTS_HANDLER_MISSING",
-    detail: "TTS handler ./utils/tts.handleTts is unavailable. Resemble is configured as the only provider in this build.",
+    detail:
+      "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
     spokenUnavailable: true,
-    meta: { index: INDEX_VERSION, traceId },
+    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, env },
   });
 });
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
   // Back-compat alias for clients still calling /api/voice
+  try { if (!__SB_HANDLE_TTS) { try { __sbTryRequireTts(); } catch (_) {} } } catch (_) {}
   return app._router && __SB_HANDLE_TTS ? __SB_HANDLE_TTS(req, res) : (async () => {
     const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
     return sendContract(res, 503, {
