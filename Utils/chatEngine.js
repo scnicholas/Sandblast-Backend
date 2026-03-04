@@ -29,37 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.12 OPINTEL+20 (MEMORY SPINE v3 SYNC + ADAPTIVE BRIDGE FUSE + SOFT VOICE MODE + DEEP LOOP COUNTERS)';
-
-/*
-OPINTEL ROADMAP — phases 21–40 (chat engine)
-(Phase 1–20 are covered by: stability gates, audit tagging, affect hooks, memory spine, bridge fuse, etc.)
-This is an architectural map (non-executing) so changes stay coordinated.
-*/
-const OPINTEL_PHASES_21_40 = [
-  "21. MemorySpine v3 handshake: turnId, loopCounters, bridge telemetry",
-  "22. Adaptive fuse ladder: short fuse -> escalate -> decay (no dead 45s)",
-  "23. Dual-summary: (a) last-5 tactical summary (b) session arc summary",
-  "24. Recency-weighted retrieval prompt builder (avoid stale loops)",
-  "25. Topic graph: entities + intents -> lightweight adjacency (no DB required)",
-  "26. Repetition firewall: semantic-ish hash + paraphrase threshold (fail-open)",
-  "27. Marion-Nyx bridge coordinator: explicit intent routing + cooldown gates",
-  "28. Domain depth budgeter: allocate tokens per domain by novelty/confidence",
-  "29. Confidence-gated clarifier suppression: ask fewer procedural questions",
-  "30. Distress-aware continuity: support scaffold + safe next step injection",
-  "31. Tool router v2: deterministic small-tool calls + timeout + backoff",
-  "32. Output contract hardening: always payload.reply + directives array",
-  "33. Trace headers everywhere: X-SB-Trace-ID propagation end-to-end",
-  "34. Latency telemetry: stage timing map + slow-path flags",
-  "35. Policy guardrail hooks: refusal templates + safe redirect chips",
-  "36. VoiceMode governance: soft/firm presets + no-contraction speak layer",
-  "37. Multi-lane continuity: lane-change reason logging + recovery prompts",
-  "38. Bridge debt ladder: knowledge progression levels tracked per session",
-  "39. Backwards compatibility: old widget listeners keep working unchanged",
-  "40. QC harness expansion: regression tests for loops, voice, bridge, memory",
-];
-
-
+const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
 
 // Optional boot banner (debug only)
 try {
@@ -213,6 +183,65 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
+
+// -------------------------
+// OPINTEL LOOP GOVERNOR + VOICE SOFTENER++++
+// -------------------------
+function softSpeak(text) {
+  let t = safeStr(text || "");
+  t = t.replace(/\bI'm\b/g, "I am")
+       .replace(/\bcan't\b/gi, "cannot")
+       .replace(/\bwon't\b/gi, "will not")
+       .replace(/\bit's\b/gi, "it is")
+       .replace(/\bthat's\b/gi, "that is")
+       .replace(/\bthere's\b/gi, "there is")
+       .replace(/\bwhat's\b/gi, "what is");
+  t = t.replace(/!{2,}/g, "!")
+       .replace(/\?{2,}/g, "?")
+       .replace(/\.{4,}/g, "...");
+  t = t.replace(/[\u{1F300}-\u{1FAFF}]/gu, "");
+  t = t.replace(/\s*—\s*/g, ". ");
+  t = t.replace(/\s*;\s*/g, ". ");
+  return t.trim();
+}
+
+function loopEscapeReply(norm, reason) {
+  const user = safeStr(norm && norm.text ? norm.text : "").trim();
+  const r = safeStr(reason || "loop_guard");
+  const options = [
+    "Do you want to continue where we left off, or shift to a new angle?",
+    "Pick one: (1) diagnose the blocker, (2) plan the next steps, (3) implement a patch.",
+    "Tell me your target outcome in one sentence and I will drive the plan."
+  ];
+  const pick = options[Math.floor(Math.random() * options.length)];
+  return `I am noticing we are starting to repeat ourselves (${r}). ${pick}${user ? `\n\nYou said: ${user}` : ""}`;
+}
+
+function bumpLoopCounters(session, reason) {
+  try {
+    const now = nowMs();
+    session.__loop = session.__loop || { n: 0, lastAt: 0, reason: "" };
+    if (session.__loop.lastAt && (now - session.__loop.lastAt) > 15000) {
+      session.__loop.n = Math.max(0, session.__loop.n - 1);
+    }
+    session.__loop.n += 1;
+    session.__loop.lastAt = now;
+    session.__loop.reason = safeStr(reason || "");
+    return session.__loop.n;
+  } catch (_e) {
+    return 0;
+  }
+}
+
+function shouldHardStopLoop(session) {
+  try {
+    const lp = session.__loop || {};
+    return (lp.n || 0) >= 2;
+  } catch (_e) {
+    return false;
+  }
+}
+
 
 // -------------------------
 // MEMORY SPINE HELPERS++++
@@ -455,111 +484,6 @@ function scrubExecutionStyleArtifacts(reply) {
 // Even if Marion intent is CLARIFY, if the user is distressed we MUST NOT respond with
 // lane-selection prompts ("music, movies, sponsors").
 // We keep this lightweight + fail-open (no external deps required).
-
-// -------------------------
-// Voice Mode (SOFT)++++
-// - Creates a spoken-friendly variant (fewer contractions, calmer punctuation).
-// - Adds vendor-agnostic hints in cog.audio for downstream TTS.
-// - Fail-open: if anything goes wrong, returns original text.
-// -------------------------
-const CONTRACTION_MAP = [
-  [/\bI'm\b/g, "I am"],
-  [/\bI’m\b/g, "I am"],
-  [/\bI've\b/g, "I have"],
-  [/\bI’ve\b/g, "I have"],
-  [/\bI'll\b/g, "I will"],
-  [/\bI’ll\b/g, "I will"],
-  [/\bcan't\b/g, "cannot"],
-  [/\bcan’t\b/g, "cannot"],
-  [/\bwon't\b/g, "will not"],
-  [/\bwon’t\b/g, "will not"],
-  [/\bdon't\b/g, "do not"],
-  [/\bdon’t\b/g, "do not"],
-  [/\bdoesn't\b/g, "does not"],
-  [/\bdoesn’t\b/g, "does not"],
-  [/\bthat's\b/g, "that is"],
-  [/\bthat’s\b/g, "that is"],
-  [/\bthere's\b/g, "there is"],
-  [/\bthere’s\b/g, "there is"],
-  [/\bit's\b/g, "it is"],
-  [/\bit’s\b/g, "it is"],
-  [/\bwe're\b/g, "we are"],
-  [/\bwe’re\b/g, "we are"],
-  [/\bthey're\b/g, "they are"],
-  [/\bthey’re\b/g, "they are"],
-  [/\byou're\b/g, "you are"],
-  [/\byou’re\b/g, "you are"],
-];
-
-function softenForTts(text){
-  let out = safeStr(text || "");
-  if (!out) return out;
-
-  // Calm punctuation + remove excessive hype.
-  out = out.replace(/[!]{2,}/g, "!");
-  out = out.replace(/[?]{3,}/g, "??");
-  out = out.replace(/\s+!/g, "!");
-  out = out.replace(/\s+\?/g, "?");
-
-  // Avoid all-caps shouting (lightweight).
-  out = out.replace(/\b([A-Z]{4,})\b/g, (m)=> m[0] + m.slice(1).toLowerCase());
-
-  // Expand common contractions for clarity (helps some voices / audience comprehension).
-  for (const [re, rep] of CONTRACTION_MAP) out = out.replace(re, rep);
-
-  // Trim emoji/dingbats that can sound odd when read aloud.
-  out = out.replace(/[\u{1F300}-\u{1FAFF}]/gu, "");
-  out = out.replace(/[★☆•◆▶►]/g, "");
-
-  // Re-normalize whitespace.
-  out = out.replace(/\s{2,}/g, " ").trim();
-
-  return out;
-}
-
-function applySoftVoiceHints(cog){
-  // Vendor-agnostic: downstream TTS may ignore safely.
-  if (!cog || typeof cog !== "object") return;
-  if (!isPlainObject(cog.audio)) cog.audio = {};
-  if (!safeStr(cog.audio.voiceMode).trim()) cog.audio.voiceMode = "soft";
-  cog.audio.preferExpandedContractions = true;
-
-  // If affect engine already provided a profile, gently bias it "softer".
-  if (isPlainObject(cog.audio.ttsProfile)) {
-    const p = cog.audio.ttsProfile;
-    // "style" tends to increase expressiveness; for soft voice keep it lower.
-    if (typeof p.style === "number") p.style = clamp01(Math.min(p.style, 0.35));
-    // "stability" can reduce jitter; push modestly up.
-    if (typeof p.stability === "number") p.stability = clamp01(Math.max(p.stability, 0.55));
-    if (typeof p.similarity === "number") p.similarity = clamp01(p.similarity);
-    p.speakerBoost = !!p.speakerBoost; // keep as-is
-  }
-}
-
-function maybeAddTtsDirective(directives, replyText, cog){
-  const ds = Array.isArray(directives) ? directives.filter(Boolean) : [];
-  try{
-    const a = isPlainObject(cog && cog.audio) ? cog.audio : {};
-    const speakEnabled = a && a.speakEnabled !== false; // default true unless explicitly disabled
-    if (!speakEnabled) return ds;
-
-    // Build spoken variant.
-    const spoken = softenForTts(replyText);
-    if (!spoken) return ds;
-
-    const maxChars = clampInt(a.maxSpeakChars, 900, 120, 2200);
-    const spokenCapped = spoken.length > maxChars ? spoken.slice(0, maxChars).trim() : spoken;
-
-    ds.push({
-      type: "TTS_SPEAK",
-      text: spokenCapped,
-      voiceMode: safeStr(a.voiceMode || "soft").slice(0, 16),
-      profile: isPlainObject(a.ttsProfile) ? a.ttsProfile : undefined,
-    });
-  }catch(_e){}
-  return ds;
-}
-
 function detectDistressQuick(text) {
   const t = safeStr(text || "").toLowerCase();
   if (!t) return { distress: false, selfHarm: false, tags: [] };
@@ -854,23 +778,6 @@ function getCachedReply(session, inSig) {
     followUps = [];
   }
   return { reply, lane, followUps };
-}
-
-
-function computeBridgeFuseMs(inGov, session){
-  // Adaptive fuse (replaces hard 45s):
-  // - Start small to keep the system responsive.
-  // - Escalate when repeats persist (storm/echo).
-  // - Cap to avoid dead-feeling UX.
-  const s = isPlainObject(session) ? session : {};
-  const n = clampInt(inGov && typeof inGov.n === "number" ? inGov.n : 0, 0, 0, 99);
-  const prevLevel = clampInt(s.__bridgeFuseLevel || 0, 0, 0, 20);
-  // if we trip repeatedly, level increases; otherwise it decays.
-  const level = clampInt(n >= INBOUND_HARD_LIMIT ? (prevLevel + 1) : Math.max(0, prevLevel - 1), 0, 0, 20);
-  try{ s.__bridgeFuseLevel = level; }catch(_e){}
-  // Base 8s + (level * 3s) + (n * 1.5s), capped 28s.
-  const ms = 8000 + (level * 3000) + (n * 1500);
-  return clampInt(ms, 12000, 4000, 28000);
 }
 
 function makeBreakerReply(norm, emo) {
@@ -2985,7 +2892,7 @@ const session = isPlainObject(norm.body.session)
     // to prevent bridge-driven echo loops. (Fail-open; purely session flags.)
     if (inGov && inGov.tripped) {
       try {
-        session.__bridgeFuseUntil = nowMs() + computeBridgeFuseMs(inGov, session); // adaptive fuse window
+        session.__bridgeFuseUntil = nowMs() + 45000; // 45s fuse window
         session.__bridgeFuseReason = "inbound_repeat";
       } catch (_e) {}
     }
@@ -3014,7 +2921,7 @@ const session = isPlainObject(norm.body.session)
           cog: null,
           requestId: safeStr(input?.requestId || "") || undefined,
           meta: { fastReturn: true, reason: "duplicate_inbound" },
-        });
+        };
       }
 
 // -------------------------
@@ -3059,7 +2966,7 @@ if (greetQuick && greetQuick.kind) {
     cog: null,
     requestId: safeStr(input?.requestId || "") || undefined,
     meta: { fastReturn: true, reason: "greeting_intercept" },
-  });
+  };
 }
 
     }
@@ -3091,7 +2998,7 @@ if (greetQuick && greetQuick.kind) {
         cog: null,
         requestId: safeStr(input?.requestId || "") || undefined,
         meta: { breaker: true, reason: "inbound_repeat_fuse", n: inGov.n },
-      });
+      };
     }
 
 
@@ -3268,7 +3175,7 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
         cog: isPlainObject(norm.cog) ? norm.cog : {},
         requestId,
         meta: { engine: CE_VERSION, requestId, elapsedMs: nowMs() - started, turnSignals: norm.turnSignals || {} },
-      });
+      };
     }
 
 
@@ -3474,8 +3381,6 @@ ${base0}`
               if (safeStr(affOut.styleKey || "").trim()) cog.audio.styleKey = safeStr(affOut.styleKey).slice(0, 32);
             }
 
-            applySoftVoiceHints(cog);
-
             // Persist memory snapshot so the host/session can carry it turn-to-turn
             if (affOut.memory && typeof affOut.memory === "object") {
               // cap size defensively
@@ -3506,8 +3411,6 @@ ${base0}`
       // PHASE 5 intro cue (SiteBridge contract) — surfaced as a directive + gated via sessionPatch
       const _dirs0 = asArray(out.directives).filter(Boolean);
       const _intro = maybeAddIntroDirective({ directives: _dirs0, session, cog, norm });
-       const _dirs1 = maybeAddTtsDirective(_intro.directives || _dirs0, replyText, cog);
-
       const _introPatch = isPlainObject(_intro.patch) ? _intro.patch : {};
 
       const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch, _affectPatch);
@@ -3544,17 +3447,7 @@ ${base0}`
 
         cog,
         requestId,
-        meta: (() => {
-          const m = isPlainObject(out.meta) ? { ...out.meta } : {};
-          // Attach roadmap only when explicitly requested (keeps payload small)
-          const wantsPhases = (norm && isPlainObject(norm.payload) && norm.payload.phases === true) ||
-                              (norm && isPlainObject(norm.ctx) && norm.ctx.phases === true) ||
-                              __dbg === true;
-          if (wantsPhases) {
-            m.opintelPhases_21_40 = OPINTEL_PHASES_21_40.slice(0, 20);
-          }
-          return m;
-        })(),
+        meta: out.meta,
       };
     }
 
@@ -3952,6 +3845,10 @@ if (wantsPsychBridge) {
   const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
   __stage = "bridge_fetch";
+
+  // OPINTEL: MemorySpine bridge fuse (adaptive)
+  const _spineBridgeFused = !!(MemorySpine && typeof MemorySpine.isBridgeFused === "function" && MemorySpine.isBridgeFused(sessionId));
+
   // BRIDGE FUSE++++: skip bridge calls while fuse is active (prevents echo-loops)
   const _bridgeFuseUntil = Number(session.__bridgeFuseUntil || 0) || 0;
   const _bridgeFused = _bridgeFuseUntil && nowMs() < _bridgeFuseUntil;
@@ -3965,6 +3862,11 @@ if (wantsPsychBridge) {
     opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
   }), 12000, "buildPsycheSafe");
   const psyche = (!psycheRes || (psycheRes && psycheRes.__timeout)) ? null : psycheRes;
+  try {
+    if (psyche && MemorySpine && typeof MemorySpine.noteBridgeUse === "function") {
+      MemorySpine.noteBridgeUse(sessionId, { lane: lane, action: "psyche_bridge", trace: safeStr(psyche.requestId || psyche.traceId || "") });
+    }
+  } catch (_e) {}
   if (_bridgeFused && __dbg && __stamp) __stamp({ warn: "bridge_fused", untilMs: _bridgeFuseUntil });
   if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
 
