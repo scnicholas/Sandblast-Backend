@@ -29,7 +29,7 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (PHASE1-20: AUDIO_HINTS + DOMAIN_DEPTH + PARITY_DIRECTIVES + RESILIENCE)';
+const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
 
 // Optional boot banner (debug only)
 try {
@@ -126,6 +126,16 @@ try {
   AffectEngine = null;
 }
 
+// Memory Spine (conversational depth + loop resistance) — FAIL-OPEN.
+// If missing, chatEngine behaves normally.
+let MemorySpine = null;
+try {
+  // eslint-disable-next-line global-require
+  MemorySpine = require("./memorySpine");
+} catch (e) {
+  MemorySpine = null;
+}
+
 
 // Prefer MarionSO enums when present; keep local fallback for backward compatibility/tests.
 const SO_LATENT_DESIRE =
@@ -173,6 +183,57 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
+
+// -------------------------
+// MEMORY SPINE HELPERS++++
+// - sessionId resolution: stable per user/session (never throws)
+// - memory attach: bounded, fail-open
+// -------------------------
+function resolveSessionId(norm, session, inboundKey) {
+  const nctx = isPlainObject(norm && norm.ctx) ? norm.ctx : {};
+  const nb = isPlainObject(norm && norm.body) ? norm.body : {};
+  const s = isPlainObject(session) ? session : {};
+
+  const candidates = [
+    nctx.sessionId,
+    nctx.sid,
+    nb.sessionId,
+    nb.sid,
+    s.sessionId,
+    s.sid,
+    s.id,
+    s.sessionKey,
+    s.key,
+  ];
+
+  for (const v of candidates) {
+    const t = safeStr(v).trim();
+    if (t && t.length <= 180) return t;
+  }
+
+  // fallback: inboundKey is deterministic for this request; keep it short
+  return safeStr(inboundKey || `sess_${nowMs()}`).slice(0, 36);
+}
+
+function safeBuildMemoryContext(sessionId) {
+  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") return null;
+  try {
+    return MemorySpine.buildContext(sessionId);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function safeStoreMemoryTurn(sessionId, turn) {
+  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") return false;
+  try {
+    MemorySpine.storeTurn(sessionId, turn);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 
 /**
  * Priority-0 greeting quick detector.
@@ -857,58 +918,6 @@ function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
 // - Gating is done by session flags (__nyxIntroDone / __introDone) to avoid repeated intros.
 // - This is a HINT ONLY: host/UI decides how to render/speak it.
 // -------------------------
-// -------------------------
-// AUDIO/AVATAR PARITY DIRECTIVES (Phase 11–15)
-// - Host/UI uses these to keep widget + avatar in sync (Option A)
-// - No side effects inside chatEngine.
-// -------------------------
-function maybeAddAudioParityDirectives({ directives, cog }) {
-  const ds = Array.isArray(directives) ? directives : [];
-  const c = isPlainObject(cog) ? cog : {};
-  const audio = isPlainObject(c.audio) ? c.audio : null;
-
-  if (audio && audio.speakEnabled !== false && !audio.silent) {
-    ds.push({
-      type: "NYX_AUDIO_PARITY",
-      mode: "optionA",
-      arm: true,
-      forwardAudio: true,
-      format: safeStr(audio.format || "mp3"),
-    });
-  } else if (audio && audio.silent) {
-    ds.push({ type: "NYX_AUDIO_PARITY", mode: "off", arm: false, forwardAudio: false });
-  }
-
-  return ds;
-}
-
-// -------------------------
-// TTS PROFILE DIRECTIVE (Phase 1–5 + 16–20)
-// - Provides bounded "ttsProfile" guidance derived from cog/psyche.
-// -------------------------
-function buildTtsProfileFromCog(cog) {
-  const c = isPlainObject(cog) ? cog : {};
-  const audio = isPlainObject(c.audio) ? c.audio : null;
-  if (!audio) return null;
-
-  const preset = safeStr(audio.preset || audio.ttsPreset || "").trim();
-  const mood = safeStr(audio.mood || "").trim();
-  const profile = isPlainObject(audio.ttsProfile) ? audio.ttsProfile : null;
-
-  const out = {};
-  if (preset) out.preset = preset;
-  if (mood) out.mood = mood;
-
-  if (profile) {
-    if (profile.stability !== undefined) out.stability = clamp01(profile.stability);
-    if (profile.similarity !== undefined) out.similarity = clamp01(profile.similarity);
-    if (profile.style !== undefined) out.style = clamp01(profile.style);
-    if (profile.speakerBoost !== undefined) out.speakerBoost = !!profile.speakerBoost;
-  }
-  if (!Object.keys(out).length) return null;
-  return out;
-}
-
 function maybeAddIntroDirective({ directives, session, cog, norm }) {
   const ds = Array.isArray(directives) ? directives : [];
   const s = isPlainObject(session) ? session : {};
@@ -2765,6 +2774,51 @@ const session = isPlainObject(norm.body.session)
       : isPlainObject(input?.session)
       ? input.session
       : {};
+    // -------------------------
+    // MEMORY SPINE (context injection)++++
+    // - Adds recent+summary context to norm.ctx so Marion/bridges can stay anchored.
+    // - SessionId is stable; bounded; fail-open.
+    // -------------------------
+    const sessionId = resolveSessionId(norm, session, inboundKey);
+    const memCtx0 = safeBuildMemoryContext(sessionId);
+    if (memCtx0) {
+      if (!isPlainObject(norm.ctx)) norm.ctx = {};
+      norm.ctx.memory = memCtx0;
+      if (isPlainObject(norm.turnSignals)) norm.turnSignals.hasMemory = true;
+    }
+
+    // Helper: wrap returns so every successful reply commits memory (and refreshes ctx.memory)
+    function _finalizeOut(outObj) {
+      const out = isPlainObject(outObj) ? outObj : {};
+      try {
+        const replyText = safeStr(out.reply || out.payload?.reply || "").trim();
+        const intentTag =
+          safeStr(out.cog?.intent || out.cog?.mode || "").trim() ||
+          safeStr(norm.action || "").trim() ||
+          safeStr(out.bridge?.action || "").trim() ||
+          "general";
+        const domains = detectDomainsQuick(norm, out.cog || {});
+        safeStoreMemoryTurn(sessionId, {
+          user: safeStr(norm.text || ""),
+          assistant: replyText,
+          intent: intentTag,
+          topics: domains,
+          entities: [],
+        });
+        // refresh memory after storing
+        const memCtx = safeBuildMemoryContext(sessionId);
+        if (memCtx) {
+          if (!isPlainObject(out.ctx)) out.ctx = isPlainObject(norm.ctx) ? { ...norm.ctx } : {};
+          out.ctx.memory = memCtx;
+        }
+        if (isPlainObject(out.meta)) {
+          out.meta.memory = { enabled: !!MemorySpine, stored: true };
+        }
+      } catch (_e) {}
+      return outObj;
+    }
+
+
 
     // -------------------------
     // BRUTAL INBOUND LOOP GOVERNOR++++
@@ -2774,6 +2828,17 @@ const session = isPlainObject(norm.body.session)
     const inboundSig = inboundLoopSig(norm, session);
     const inGov = detectInboundRepeat(session, inboundSig);
 
+
+    // BRIDGE FUSE++++: if inbound repeats trip, pause Marion/SiteBridge coordination briefly
+    // to prevent bridge-driven echo loops. (Fail-open; purely session flags.)
+    if (inGov && inGov.tripped) {
+      try {
+        session.__bridgeFuseUntil = nowMs() + 45000; // 45s fuse window
+        session.__bridgeFuseReason = "inbound_repeat";
+      } catch (_e) {}
+    }
+
+
     // Fast-return duplicate requests (double-submit / retry storms)
     if (inGov && inGov.canFastReturn) {
       const cached = getCachedReply(session, inboundSig);
@@ -2781,7 +2846,7 @@ const session = isPlainObject(norm.body.session)
         const sessionPatch = mergeSessionPatch({}, inGov.patch, {
           __loopSig: "", __loopAt: nowMs(), __loopN: 0, // clear reply-loop to avoid compounding
         });
-        return {
+        return _finalizeOut({
           ok: true,
           reply: cached.reply,
           lane: cached.lane || "general",
@@ -2826,7 +2891,7 @@ if (greetQuick && greetQuick.kind) {
     });
   }
 
-  return {
+  return _finalizeOut({
     ok: true,
     reply: greetReply,
     lane: "general",
@@ -2858,7 +2923,7 @@ if (greetQuick && greetQuick.kind) {
         __loopSig: "", __loopAt: nowMs(), __loopN: 0,
         __breakerAt: nowMs(),
       });
-      return {
+      return _finalizeOut({
         ok: true,
         reply,
         lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
@@ -3034,7 +3099,7 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
         __loopAt: nowMs(),
         __loopN: 0,
       });
-      return {
+      return _finalizeOut({
         ok: true,
         reply,
       payload: { reply },
@@ -3219,7 +3284,7 @@ ${base0}`
             lane: safeStr(laneResolved || "Default") || "Default",
             memory: memIn,
             // vendor is a hint only; your tts.js can ignore it safely
-            opts: { vendor: "REDACTED_VENDOR" },
+            opts: { vendor: "elevenlabs" },
           });
 
           if (affOut && typeof affOut === "object") {
@@ -3721,15 +3786,20 @@ if (wantsPsychBridge) {
   const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
   __stage = "bridge_fetch";
+  // BRIDGE FUSE++++: skip bridge calls while fuse is active (prevents echo-loops)
+  const _bridgeFuseUntil = Number(session.__bridgeFuseUntil || 0) || 0;
+  const _bridgeFused = _bridgeFuseUntil && nowMs() < _bridgeFuseUntil;
+
   if (__dbg && __stamp) __stamp();
-  const psycheRes = await withTimeout(buildPsycheSafe({
+  const psycheRes = _bridgeFused ? null : await withTimeout(buildPsycheSafe({
     features: isPlainObject(cog) ? { ...cog } : {},
     tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
     queryKey,
     sessionKey,
     opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
   }), 12000, "buildPsycheSafe");
-  const psyche = (psycheRes && psycheRes.__timeout) ? null : psycheRes;
+  const psyche = (!psycheRes || (psycheRes && psycheRes.__timeout)) ? null : psycheRes;
+  if (_bridgeFused && __dbg && __stamp) __stamp({ warn: "bridge_fused", untilMs: _bridgeFuseUntil });
   if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
 
 
