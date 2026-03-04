@@ -61,21 +61,7 @@
     hostConfigSeen: false
   };
 
-  
-
-  // =========================
-  // Parent notifications (Phase 6–10)
-  // =========================
-  function postToParent(type, payload) {
-    try {
-      const tgt = CONFIG.parentOrigin || (SECURITY.allowedOrigins && SECURITY.allowedOrigins[0]) || "*";
-      if (window.parent && window.parent !== window && typeof window.parent.postMessage === "function") {
-        window.parent.postMessage({ type: type, payload: payload || {} }, tgt);
-      }
-    } catch (_) {}
-  }
-
-function safeStr(x) { return x == null ? "" : String(x); }
+  function safeStr(x) { return x == null ? "" : String(x); }
   const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
 
   function isTokenPlausible(t) {
@@ -423,41 +409,26 @@ function safeStr(x) { return x == null ? "" : String(x); }
     }
   }
 
-
-  // =========================
-  // Audio lifecycle hooks (Phase 1–5 + parity)
-  // =========================
-  function emitAudioLifecycle(evName, extra) {
+  function stopAudio(reason) {
     try {
-      emitWindowEvent("nyx:audio", Object.assign({ event: evName, t: Date.now() }, extra || {}));
-      postToParent("NYX_AUDIO_EVENT", Object.assign({ event: evName, t: Date.now() }, extra || {}));
+      if (audioEl) {
+        try { audioEl.pause(); } catch (_) {}
+        try { audioEl.currentTime = 0; } catch (_) {}
+        try { audioEl.removeAttribute("src"); } catch (_) {}
+      }
     } catch (_) {}
+    revokeObjectUrl();
+    try { showAudioLocked(false); } catch (_) {}
+    try { emitAudioLifecycle("stop", { reason: safeStr(reason || "") }); } catch (_) {}
   }
 
-  function showAudioLocked(on) {
-    try {
-      document.documentElement.classList.toggle("audio-locked", !!on);
-      emitWindowEvent("nyx:audio_locked", { locked: !!on, t: Date.now() });
-      postToParent("NYX_AUDIO_LOCKED", { locked: !!on, t: Date.now() });
-    } catch (_) {}
-  }
+  // Hard cap to prevent memory blow-ups on huge base64 payloads
+  const MAX_AUDIO_BYTES = Number(window.NYX_MAX_AUDIO_BYTES || (8 * 1024 * 1024)) || (8 * 1024 * 1024);
+
 
   function armAudio() {
     if (!audioEl) return false;
-    if (state.audioArmed) {
-      try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{}); } catch(_){}
-      return true;
-    }
-
-    // SILENT_UNLOCK: attempt to unlock autoplay policy on first gesture
-    try {
-      audioEl.muted = true;
-      audioEl.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAA";
-      const p = audioEl.play();
-      if (p && typeof p.then === 'function') {
-        p.then(()=>{ try{ audioEl.pause(); audioEl.currentTime = 0; }catch(_){ } audioEl.muted = false; showAudioLocked(false); }).catch(()=>{ showAudioLocked(true); });
-      }
-    } catch (_) { showAudioLocked(true); }
+    if (state.audioArmed) return true;
 
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return false;
@@ -527,19 +498,12 @@ function safeStr(x) { return x == null ? "" : String(x); }
   }
 
   if (audioEl) {
-    // AUDIO_LIFECYCLE_WIRED
-    audioEl.addEventListener("play", () => { showAudioLocked(false); emitAudioLifecycle("start"); });
-    audioEl.addEventListener("playing", () => { showAudioLocked(false); emitAudioLifecycle("playing"); });
-    audioEl.addEventListener("pause", () => { emitAudioLifecycle("pause"); });
     audioEl.addEventListener("ended", () => {
       revokeObjectUrl();
       state.diag.settleHint = true;
       scheduleSettleSoon(0);
-      emitAudioLifecycle("end");
     });
-    audioEl.addEventListener("error", () => { revokeObjectUrl(); emitAudioLifecycle("error"); });
-    audioEl.addEventListener("stalled", () => { emitAudioLifecycle("stalled"); });
-    audioEl.addEventListener("waiting", () => { emitAudioLifecycle("waiting"); });
+    audioEl.addEventListener("error", revokeObjectUrl);
     window.addEventListener("beforeunload", revokeObjectUrl);
   }
 
@@ -761,41 +725,85 @@ function safeStr(x) { return x == null ? "" : String(x); }
       return;
     }
 
+    // =========================
+    // Audio Parity Contract (Widget ↔ Avatar)
+    // =========================
 
-    // Parent may explicitly arm audio (recommended for parity with widget voice button)
+    // Widget (or host) may explicitly arm audio in the avatar iframe
     if (d.type === "NYX_ARM_AUDIO") {
       try { armAudio(); } catch (_) {}
       return;
     }
 
-    // Parent may send audio payload for avatar to play (base64) — keeps widget/avatar in sync.
+    // Widget (or host) may explicitly stop avatar audio (keeps 50/50 parity, no drift)
+    if (d.type === "NYX_STOP_AUDIO") {
+      try { stopAudio("parent_request"); } catch (_) {}
+      return;
+    }
+
+    // Widget (or host) may send audio payload for avatar to play (base64).
     // Payload: { mimeType: "audio/mpeg", base64: "...", traceId?: "..." }
+    // Optional fallback: { audioUrl: "https://..." }
     if (d.type === "NYX_TTS_AUDIO") {
       try {
         const pl = d.payload || {};
-        const b64 = safeStr(pl.base64);
-        const mime = safeStr(pl.mimeType) || "audio/mpeg";
-        if (!b64 || !audioEl) return;
+        if (!audioEl) return;
 
+        // Always arm + stop prior playback first
         try { armAudio(); } catch (_) {}
+        try { stopAudio("new_tts_audio"); } catch (_) {}
 
-        const bin = atob(b64);
-        const len = bin.length;
-        const arr = new Uint8Array(len);
-        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+        const mime = safeStr(pl.mimeType) || "audio/mpeg";
+        const traceId = safeStr(pl.traceId || "");
 
-        revokeObjectUrl();
-        const blob = new Blob([arr], { type: mime });
-        lastObjectUrl = URL.createObjectURL(blob);
-        audioEl.src = lastObjectUrl;
+        const b64 = safeStr(pl.base64);
+        if (b64) {
+          const bin = atob(b64);
+          const len = bin.length;
 
-        const p = audioEl.play();
-        if (p && typeof p.catch === "function") p.catch(() => { showAudioLocked(true); });
+          if (len > MAX_AUDIO_BYTES) {
+            emitAudioLifecycle("error", { reason: "audio_too_large", bytes: len, max: MAX_AUDIO_BYTES, traceId });
+            return;
+          }
 
-        emitAudioLifecycle("queued", { bytes: len, mimeType: mime, traceId: safeStr(pl.traceId || "") });
+          const arr = new Uint8Array(len);
+          for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+
+          const blob = new Blob([arr], { type: mime });
+          lastObjectUrl = URL.createObjectURL(blob);
+          audioEl.src = lastObjectUrl;
+
+          const p = audioEl.play();
+          if (p && typeof p.catch === "function") p.catch(() => { showAudioLocked(true); });
+
+          emitAudioLifecycle("queued", { bytes: len, mimeType: mime, traceId });
+          return;
+        }
+
+        // Fallback path: URL (still Resemble-backed via your backend)
+        const audioUrl = safeStr(pl.audioUrl || pl.url || "");
+        if (audioUrl && audioUrl.startsWith("http")) {
+          emitAudioLifecycle("fetching", { audioUrl, traceId });
+          fetch(audioUrl)
+            .then((r) => r.blob())
+            .then((blob) => {
+              if (!blob || !blob.size) return;
+              if (blob.size > MAX_AUDIO_BYTES) {
+                emitAudioLifecycle("error", { reason: "audio_too_large", bytes: blob.size, max: MAX_AUDIO_BYTES, traceId });
+                return;
+              }
+              lastObjectUrl = URL.createObjectURL(blob);
+              audioEl.src = lastObjectUrl;
+              const p2 = audioEl.play();
+              if (p2 && typeof p2.catch === "function") p2.catch(() => { showAudioLocked(true); });
+              emitAudioLifecycle("queued", { bytes: blob.size, mimeType: blob.type || mime, traceId });
+            })
+            .catch(() => { emitAudioLifecycle("error", { reason: "audio_fetch_failed", traceId }); });
+        }
       } catch (_) {}
       return;
     }
+
 
     // New contract packets from parent (optional; if parent emits them)
     if (d.type === "NYX_STATE") {
@@ -901,14 +909,13 @@ function safeStr(x) { return x == null ? "" : String(x); }
           const ct = (res.headers && res.headers.get) ? (res.headers.get("content-type") || "") : "";
           if (ct.includes("audio")) {
             try {
-              revokeObjectUrl();
+              try { stopAudio("tts_fetch_play"); } catch (_) {}
               const blob = await res.clone().blob();
+              if (blob && blob.size > MAX_AUDIO_BYTES) { try { emitAudioLifecycle("error", { reason: "audio_too_large", bytes: blob.size, max: MAX_AUDIO_BYTES }); } catch (_) {} ; return res; }
+              
               lastObjectUrl = URL.createObjectURL(blob);
               audioEl.src = lastObjectUrl;
-              // Try to unlock + play. If blocked, surface locked UX.
-              try { armAudio(); } catch (_) {}
-              const p = audioEl.play();
-              if (p && typeof p.catch === "function") p.catch(() => { showAudioLocked(true); });
+              if (state.audioArmed) audioEl.play().catch(() => {});
             } catch (_) {}
           }
         }
