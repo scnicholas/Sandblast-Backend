@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.35sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
+ * index.js v1.5.41sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
 
  *
  * =========================
@@ -64,7 +64,7 @@
 const express = require("express");
 
 // Optional external TTS handler (preferred). Keeps index.js stable while allowing provider ladder in utils/tts.js.
-// HARDEN v1.5.35sb: robust autoload across case variants + export aliases + lazy retry.
+// HARDEN v1.5.41sb: robust autoload across case variants + export aliases + lazy retry.
 let __SB_HANDLE_TTS = null;
 let __SB_TTS_MODPATH = null;
 let __SB_TTS_MODULE = null;
@@ -136,10 +136,23 @@ process.on("uncaughtException", (err) => {
 
 // Optional safe require
 function safeRequire(p) {
-  try {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
-    return require(p);
-  } catch (_) {
+  try { return require(p); } catch (e1) {
+    // Case-insensitive fallbacks (Render/Linux is case-sensitive)
+    const alts = [];
+    try {
+      if (typeof p === "string") {
+        if (p.includes("./Utils/")) alts.push(p.replace("./Utils/", "./utils/"));
+        if (p.includes("./utils/")) alts.push(p.replace("./utils/", "./Utils/"));
+        if (p.includes("/Data/")) alts.push(p.replace("/Data/", "/data/"));
+        if (p.includes("/data/")) alts.push(p.replace("/data/", "/Data/"));
+        if (p.includes("/Scripts/")) alts.push(p.replace("/Scripts/", "/scripts/"));
+        if (p.includes("/scripts/")) alts.push(p.replace("/scripts/", "/Scripts/"));
+      }
+    } catch (_) {}
+    for (const a of alts) {
+      if (!a || a === p) continue;
+      try { return require(a); } catch (_) {}
+    }
     return null;
   }
 }
@@ -2459,6 +2472,53 @@ function sendJson(res, statusCode, body) {
 }
 const app = express();
 
+// --- OPINTEL Loop Governor (server-side) ---
+// De-dupe identical /api/chat requests in a short window and collapse concurrent in-flight calls.
+const __CHAT_DEDUPE__ = globalThis.__CHAT_DEDUPE__ || (globalThis.__CHAT_DEDUPE__ = new Map());
+const __CHAT_INFLIGHT__ = globalThis.__CHAT_INFLIGHT__ || (globalThis.__CHAT_INFLIGHT__ = new Map());
+const DEDUPE_MS = Number(process.env.SBNYX_DEDUPE_MS || 3500);
+
+function chatSig(body) {
+  try {
+    const p = (body && (body.payload || body)) || {};
+    const t = String(body && (body.text || body.message || body.prompt) || p.text || "").trim().toLowerCase().replace(/\s+/g, " ");
+    const lane = String(p.lane || body.lane || "").trim().toLowerCase();
+    const year = String(p.year || "").trim();
+    const mode = String(p.mode || "").trim().toLowerCase();
+    return [t, lane, year, mode].join("|");
+  } catch (_) { return ""; }
+}
+
+function dedupeGet(sig) {
+  try {
+    const rec = __CHAT_DEDUPE__.get(sig);
+    if (!rec) return null;
+    if ((Date.now() - rec.ts) > DEDUPE_MS) { __CHAT_DEDUPE__.delete(sig); return null; }
+    return rec.body || null;
+  } catch (_) { return null; }
+}
+
+function dedupeSet(sig, body) {
+  try { __CHAT_DEDUPE__.set(sig, { ts: Date.now(), body }); } catch (_) {}
+}
+
+function inflightGet(sig) {
+  try {
+    const rec = __CHAT_INFLIGHT__.get(sig);
+    if (!rec) return null;
+    if ((Date.now() - rec.ts) > (DEDUPE_MS + 2500)) { __CHAT_INFLIGHT__.delete(sig); return null; }
+    return rec.p || null;
+  } catch (_) { return null; }
+}
+
+function inflightSet(sig, p) {
+  try { __CHAT_INFLIGHT__.set(sig, { ts: Date.now(), p }); } catch (_) {}
+}
+
+function inflightClear(sig) {
+  try { __CHAT_INFLIGHT__.delete(sig); } catch (_) {}
+}
+
 // Dataset autoload (fail-open)
 try {
   if (DATASETS_AUTOLOAD && datasetLoaderMod && typeof datasetLoaderMod.loadAll === "function") {
@@ -3147,6 +3207,39 @@ async function handleChatRoute(req, res) {
   const startedAt = nowMs();
   try {
     let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
+  // Loop governor: short-window de-dupe + in-flight collapse (no async join; keep handler sync)
+  const __sig = chatSig(body);
+  if (__sig) {
+    const cached = dedupeGet(__sig);
+    if (cached) {
+      return res.status(200).json({ ...cached, meta: { ...(cached.meta||{}), deduped: true } });
+    }
+    if (inflightGet(__sig)) {
+      const soft = {
+        ok: true,
+        reply: "One moment — finishing the last reply. Try again.",
+        payload: { reply: "One moment — finishing the last reply. Try again." },
+        lane: (body && body.lane) || ((body && body.payload) ? body.payload.lane : undefined) || "general",
+        requestId: req.id || req.requestId || undefined,
+        meta: { index: INDEX_TAG, engine: ENGINE && ENGINE.name ? ENGINE.name : null, engineReady: !!(ENGINE && typeof ENGINE.fn === "function"), inFlight: true }
+      };
+      return res.status(200).json(soft);
+    }
+  }
+
+  if (__sig) inflightSet(__sig, 1);
+
+  const respond = (status, obj) => {
+    try {
+      if (__sig && obj) {
+        dedupeSet(__sig, obj);
+      }
+    } catch (_) {}
+    try { if (__sig) inflightClear(__sig); } catch (_) {}
+    return respond(status, obj);
+  };
+
+
     // If body came through as a raw string, preserve it as text.
     if (typeof req.body === "string" && !isPlainObject(body)) {
       const parsed = safeJsonParseMaybe(req.body);
@@ -3156,7 +3249,7 @@ async function handleChatRoute(req, res) {
     normalizeChipPayload(body);
 
     if (!ENGINE || typeof ENGINE.fn !== "function") {
-      return sendContract(res, 200, {
+      return respond(200, {
       ok: true,
       reply: "I\u2019m here. Try again \u2014 or tap one of the options below.",
       payload: { reply: "I\u2019m here. Try again \u2014 or tap one of the options below." },
@@ -3191,7 +3284,7 @@ async function handleChatRoute(req, res) {
     if (bf.blocked) {
       const cached = readBootReplay(rec);
       const reply = cached.reply || "";
-      return sendContract(res, 200, {
+      return respond(200, {
         ok: true,
         reply,
         lane: cached.lane || rec.data.lane || "general",
@@ -3228,7 +3321,7 @@ async function handleChatRoute(req, res) {
           : "Give me a breath — then hit me again with a year or a request.";
       writeReplay(rec, reply, rec.data.lane || "general");
 
-      return sendContract(res, 200, {
+      return respond(200, {
         ok: true,
         reply,
         lane: rec.data.lane || "general",
@@ -3250,7 +3343,7 @@ async function handleChatRoute(req, res) {
   if (!bootLike && meaningful && !isReset) {
     const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
     if (dedupe.hit) {
-      return sendContract(res, 200, {
+      return respond(200, {
         ok: true,
         reply: dedupe.reply,
         lane: dedupe.lane,
@@ -3275,7 +3368,7 @@ async function handleChatRoute(req, res) {
     writeReplay(rec, reply, "general");
     const p = safeStr(req.path || "").toLowerCase();
   const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
-  return sendContract(res, status, {
+  return respond(status, {
       ok: false,
       reply,
       lane: "general",
@@ -3334,7 +3427,7 @@ async function handleChatRoute(req, res) {
       ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
       : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
     writeReplay(rec, reply, rec.data.lane || "general");
-    return sendContract(res, 200, (function(){
+    return respond(200, (function(){
       const lane0 = rec.data.lane || routeHint || "general";
       // Reset should never surface as an error in the UI
       if (isReset) {
@@ -3425,7 +3518,7 @@ async function handleChatRoute(req, res) {
     writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
   }
 
-  return sendContract(res, 200, {
+  return respond(200, {
     ok: true,
     reply,
     lane,
@@ -3463,7 +3556,7 @@ async function handleChatRoute(req, res) {
   } catch (e) {
     // Never let /api/chat bubble a 500 from this handler; return a safe contract.
     const msg = safeStr(e && (e.message || e.name || String(e))).slice(0, 240);
-    return sendContract(res, 200, {
+    return respond(200, {
       ok: false,
       error: "server_error",
       detail: msg || "Unhandled error in chat route.",
