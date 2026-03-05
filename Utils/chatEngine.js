@@ -30,7 +30,8 @@
  */
 
 let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (DATASET ORCH + SOURCE GOVERNANCE + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
+const CE_VERSION = 'chatEngine v0.10.15 OPINTEL (MEMORY WINDOWS + INTENT CONFIDENCE + CLARIFY MIN + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
+const CE_GREETING_ENABLED = (() => { try { const env = process && process.env ? process.env : {}; return env.SB_CE_GREETING === '1' || env.SB_CHATENGINE_GREETING === '1'; } catch (_e) { return false; } })();
 
 // Optional boot banner (debug only)
 try {
@@ -184,6 +185,74 @@ function clamp01(n) {
   if (x > 1) return 1;
   return x;
 }
+
+function detectAmbiguityLite(norm, memCtx) {
+  const text = safeStr(norm && norm.text ? norm.text : '').trim();
+  const payload = isPlainObject(norm && norm.payload) ? norm.payload : {};
+  const tokens = text ? text.toLowerCase().split(/\s+/).filter(Boolean) : [];
+  const shortText = tokens.length > 0 && tokens.length <= 4;
+  const pronounHeavy = /(this|that|it|there|here|they|them|those)/i.test(text);
+  const noPayload = !hasActionablePayload(payload);
+  const noYear = normYear(norm && norm.year) === null && normYear(payload.year) === null;
+  const memoryHasOpen = !!(memCtx && Array.isArray(memCtx.unresolvedAsks) && memCtx.unresolvedAsks.length);
+  const score = clamp01((shortText ? 0.34 : 0) + (pronounHeavy ? 0.26 : 0) + (noPayload ? 0.18 : 0) + (noYear ? 0.08 : 0) - (memoryHasOpen ? 0.18 : 0));
+  return { ambiguous: score >= 0.42, score, shortText, pronounHeavy, memoryHasOpen };
+}
+function deriveMemoryRoutingBias(memCtx, norm, session) {
+  const out = { lane: '', mode: '', year: null, reason: '' };
+  try {
+    const prefs = isPlainObject(memCtx && memCtx.preferences) ? memCtx.preferences : (isPlainObject(memCtx && memCtx.lastUserPreference) ? memCtx.lastUserPreference : {});
+    const lane = safeStr(prefs.lane || session && session.lane || '').trim().toLowerCase();
+    const mode = safeStr(prefs.mode || '').trim();
+    const year = normYear(prefs.year || session && session.lastYear || null);
+    if (lane) out.lane = lane;
+    if (mode) out.mode = mode;
+    if (year !== null) out.year = year;
+    if (out.lane || out.mode || out.year !== null) out.reason = 'memory_window';
+  } catch (_e) {}
+  return out;
+}
+function computeIntentConfidence(norm, cog, memCtx, ambiguity) {
+  const payload = isPlainObject(norm && norm.payload) ? norm.payload : {};
+  const text = safeStr(norm && norm.text ? norm.text : '');
+  const hasPayload = hasActionablePayload(payload);
+  const hasAction = !!safeStr(norm && norm.action ? norm.action : '').trim();
+  const hasMemory = !!(memCtx && (Array.isArray(memCtx.recentIntents) ? memCtx.recentIntents.length : 0));
+  const base = clamp01((hasPayload ? 0.34 : 0) + (hasAction ? 0.22 : 0) + (text.length >= 18 ? 0.16 : 0) + (hasMemory ? 0.14 : 0) + (clamp01(cog && cog.confidence && cog.confidence.user) * 0.14) - ((ambiguity && ambiguity.score) || 0) * 0.45);
+  return base;
+}
+function computeRouteConfidence(intentConfidence, cog, inGov, ambiguity) {
+  const repeatPenalty = clamp01(((inGov && inGov.n) || 0) * 0.12);
+  const op = clamp01(cog && cog.opPackage && cog.opPackage.confidenceScore !== undefined ? cog.opPackage.confidenceScore : (cog && cog.confidence ? cog.confidence.nyx : 0));
+  return clamp01(intentConfidence * 0.55 + op * 0.45 - repeatPenalty - clamp01(ambiguity && ambiguity.score) * 0.18);
+}
+function shouldMinimizeClarify(args) {
+  const a = isPlainObject(args) ? args : {};
+  const move = safeStr(a.move || '').toLowerCase();
+  const ambiguous = !!a.ambiguous;
+  const shortText = !!a.shortText;
+  const routeConfidence = clamp01(a.routeConfidence);
+  const clarifyStreak = clampInt(a.clarifyStreak, 0, 0, 99);
+  const hasMemoryOpen = !!a.hasMemoryOpen;
+  const actionable = !!a.actionable;
+  if (actionable) return false;
+  if (move !== 'clarify' && move !== 'narrow') return false;
+  if (clarifyStreak >= 2) return true;
+  if (hasMemoryOpen && routeConfidence >= 0.38) return true;
+  if (!ambiguous && routeConfidence >= 0.44) return true;
+  if (shortText && hasMemoryOpen) return true;
+  return false;
+}
+function buildMinimalClarifier(norm, routingBias, ambiguity) {
+  const lane = safeStr(routingBias && routingBias.lane || '').toLowerCase();
+  const text = safeStr(norm && norm.text ? norm.text : '').trim();
+  if (lane === 'music') return 'Do you want a year, a Top 10 list, or something more cinematic?';
+  if (lane === 'roku') return 'Do you want the live page, what is on now, or the schedule?';
+  if (lane === 'radio') return 'Do you want the radio link, a music vibe, or a programming idea?';
+  if (ambiguity && ambiguity.pronounHeavy) return 'When you say that, do you mean the page, the feature, or the content itself?';
+  if (text.length <= 24) return 'Give me the target in one line, and I will route it cleanly.';
+  return 'What is the exact outcome you want from me right now?';
+}
 function sha1Lite(str) {
   // small stable hash (NOT cryptographic) for loop signatures / traces
   const s = safeStr(str);
@@ -301,21 +370,6 @@ function safeStoreMemoryTurn(sessionId, turn) {
     return true;
   } catch (_e) {
     return false;
-  }
-}
-
-function deriveMemoryPreferences(norm, out) {
-  try {
-    const prefs = {};
-    const lane = safeStr((out && (out.sessionLane || out.lane)) || (norm && (norm.lane || norm.payload && norm.payload.lane)) || "").trim();
-    const mode = safeStr((norm && norm.payload && (norm.payload.mode || norm.payload.macMode)) || "").trim();
-    const year = normYear((norm && (norm.year || norm.payload && norm.payload.year)) || null);
-    if (lane) prefs.lane = lane;
-    if (mode) prefs.mode = mode;
-    if (year !== null) prefs.year = String(year);
-    return prefs;
-  } catch (_e) {
-    return {};
   }
 }
 
@@ -1546,6 +1600,8 @@ function buildBoundedTelemetry(
       velvet: !!cog?.velvet,
       traceHash: safeStr(cog?.marionTraceHash || ""),
       novelty: Math.round(clamp01(noveltyScore) * 100),
+      intentConfidence: Math.round(clamp01(cog?.intentConfidence) * 100),
+      routeConfidence: Math.round(clamp01(cog?.routeConfidence) * 100),
       discovery: discoveryHint?.enabled
         ? {
             enabled: true,
@@ -2939,30 +2995,22 @@ const session = isPlainObject(norm.body.session)
           safeStr(out.bridge?.action || "").trim() ||
           "general";
         const domains = detectDomainsQuick(norm, out.cog || {});
-        const pending = isPlainObject(out.sessionPatch) ? out.sessionPatch.pendingAsk : null;
-        const resolvedIntent = pending ? "" : intentTag;
-        const prefs = deriveMemoryPreferences(norm, out);
         safeStoreMemoryTurn(sessionId, {
           user: safeStr(norm.text || ""),
           assistant: replyText,
           intent: intentTag,
-          resolvedIntent,
           topics: domains,
           entities: [],
-          openLoop: pending && pending.prompt ? safeStr(pending.prompt || "") : "",
-          closeLoop: !pending ? safeStr(norm.text || "").slice(0, 160) : "",
-          preferences: prefs,
         });
-        if (MemorySpine && !pending && typeof MemorySpine.resolveIntent === "function" && resolvedIntent) {
-          try { MemorySpine.resolveIntent(sessionId, resolvedIntent); } catch (_e) {}
-        }
+        // refresh memory after storing
         const memCtx = safeBuildMemoryContext(sessionId);
         if (memCtx) {
           if (!isPlainObject(out.ctx)) out.ctx = isPlainObject(norm.ctx) ? { ...norm.ctx } : {};
           out.ctx.memory = memCtx;
         }
-        if (!isPlainObject(out.meta)) out.meta = {};
-        out.meta.memory = { enabled: !!MemorySpine, stored: true, windowed: true };
+        if (isPlainObject(out.meta)) {
+          out.meta.memory = { enabled: !!MemorySpine, stored: true };
+        }
       } catch (_e) {}
       return outObj;
     }
@@ -3205,6 +3253,40 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     const clarifyStreak = planMove0 === "clarify" ? Math.min(99, prevClarifyStreak + 1) : 0;
     const lowConfStreak = opConfidence < 0.45 ? Math.min(99, prevLowConfStreak + 1) : 0;
 
+    // Intent-confidence routing + clarification minimization++++
+    const ambiguity = detectAmbiguityLite(norm, memCtx0);
+    const routingBias = deriveMemoryRoutingBias(memCtx0, norm, session);
+    const intentConfidence = computeIntentConfidence(norm, cog, memCtx0, ambiguity);
+    const routeConfidence = computeRouteConfidence(intentConfidence, cog, inGov, ambiguity);
+    const memoryOpenCount = memCtx0 && Array.isArray(memCtx0.unresolvedAsks) ? memCtx0.unresolvedAsks.length : 0;
+    const minimizeClarify = shouldMinimizeClarify({
+      move: planMove0,
+      ambiguous: ambiguity.ambiguous,
+      shortText: ambiguity.shortText,
+      routeConfidence,
+      clarifyStreak,
+      hasMemoryOpen: memoryOpenCount > 0,
+      actionable: !!(cog && cog.actionable),
+    });
+
+    if (minimizeClarify && !supportPrefix) {
+      if (routingBias.lane && !safeStr(norm.lane || '').trim()) {
+        norm.lane = routingBias.lane;
+      }
+      if (routingBias.year !== null && (norm.year === null || norm.year === undefined)) {
+        norm.year = routingBias.year;
+      }
+      corePlan = {
+        ...corePlan,
+        move: routeConfidence >= 0.52 ? 'advance' : 'narrow',
+        stage: safeStr(corePlan.stage || 'open') || 'open',
+        rationale: safeStr(corePlan.rationale || '') ? `${safeStr(corePlan.rationale)}|clarify_min` : 'clarify_min',
+        speak: buildMinimalClarifier(norm, routingBias, ambiguity),
+      };
+      cog.clarifyMinimized = true;
+      cog.minClarifier = safeStr(corePlan.speak || '');
+    }
+
     // If we are stuck clarifying repeatedly with low confidence (or repeated inbound), force a narrow, deterministic ask.
     // This is intentionally conservative and never triggers on distress/support mode.
     const inboundRepeatN = clampInt(inGov && inGov.n, 0, 0, 99);
@@ -3229,6 +3311,11 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     cog.__opConfidence = opConfidence;
     cog.__clarifyStreak = clarifyStreak;
     cog.__oiLowConfStreak = lowConfStreak;
+    cog.intentConfidence = intentConfidence;
+    cog.routeConfidence = routeConfidence;
+    cog.routeReason = routingBias.reason || (ambiguity.ambiguous ? 'ambiguity' : 'direct');
+    cog.memoryRoutingBias = routingBias;
+    cog.ambiguity = { score: ambiguity.score, ambiguous: ambiguity.ambiguous, pronounHeavy: ambiguity.pronounHeavy, shortText: ambiguity.shortText };
 
     cog.nextMove = toUpperMove(corePlan.move);
     cog.nextMoveSpeak = safeStr(corePlan.speak || "");
@@ -3375,6 +3462,9 @@ ${base0}`
       // OPINTEL++++: loop/collapse streaks (bounded)
       __clarifyStreak: clampInt(cog && cog.__clarifyStreak, 0, 0, 99),
       __oiLowConfStreak: clampInt(cog && cog.__oiLowConfStreak, 0, 0, 99),
+      __intentConfidence: clamp01(cog && cog.intentConfidence),
+      __routeConfidence: clamp01(cog && cog.routeConfidence),
+      __clarifyMinimized: !!(cog && cog.clarifyMinimized),
       __oiLastOpConfidence: clamp01(cog && cog.__opConfidence),
       __oiBreakerAt: cog && cog.oiBreaker ? nowMs() : (Number(session && session.__oiBreakerAt) || 0),
 
