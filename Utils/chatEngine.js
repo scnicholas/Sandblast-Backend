@@ -29,7 +29,8 @@
  * ✅ Keeps: movies adapter + music delegated module wiring + fail-open behavior
  */
 
-const CE_VERSION = 'chatEngine v0.10.11 OPINTEL (STATE SPINE OCO + CONFIDENCE-GATED LOOP BREAKER + AUDIT TAG PASS-THRU)';
+let __SB_DATASETS_LAZY = { tried: false, ok: false };
+const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (DATASET ORCH + SOURCE GOVERNANCE + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
 
 // Optional boot banner (debug only)
 try {
@@ -134,6 +135,16 @@ try {
   MemorySpine = require("./memorySpine");
 } catch (e) {
   MemorySpine = null;
+}
+
+
+// Dataset loader (curated JSON packs under Utils/datasets) — FAIL-OPEN.
+let Dataset = null;
+try {
+  // eslint-disable-next-line global-require
+  Dataset = require("./datasetLoader");
+} catch (e) {
+  Dataset = null;
 }
 
 
@@ -293,6 +304,20 @@ function safeStoreMemoryTurn(sessionId, turn) {
   }
 }
 
+
+// -------------------------
+// DATASET HELPERS++++
+// -------------------------
+function safeDatasetStats() {
+  try { return Dataset && typeof Dataset.stats === "function" ? Dataset.stats() : null; } catch (_e) { return null; }
+}
+function safeDatasetLoadAll() {
+  try { return Dataset && typeof Dataset.loadAll === "function" ? Dataset.loadAll() : null; } catch (_e) { return null; }
+}
+function safeDatasetSearch(q, opts) {
+  try { return Dataset && typeof Dataset.search === "function" ? Dataset.search(q, opts) : { ok: true, hit: null, hits: [] }; }
+  catch (_e) { return { ok: true, hit: null, hits: [] }; }
+}
 
 /**
  * Priority-0 greeting quick detector.
@@ -597,6 +622,31 @@ function safeJsonStringify(x) {
 }
 
 
+
+// -------------------------
+// DATASET ROUTING++++
+// -------------------------
+function datasetDecision(norm) {
+  const q = safeStr(norm && norm.text ? norm.text : "").trim();
+  if (!q) return { useDirect: false, pack: null };
+  const res = safeDatasetSearch(q, { limit: 3, topic: "" });
+  const hit = res && res.hit ? res.hit : null;
+  if (!hit) return { useDirect: false, pack: null };
+
+  const score = Number(hit.score || 0) || 0;
+  const exactish = safeStr(hit.question || "").trim().toLowerCase() === q.toLowerCase();
+  const confident = exactish || score >= 3;
+
+  const pack = {
+    kind: "dataset",
+    confident,
+    hit,
+    hits: Array.isArray(res.hits) ? res.hits : [],
+    stats: safeDatasetStats(),
+  };
+
+  return { useDirect: !!confident, pack };
+}
 // -------------------------
 // DEBUG / STAGE BEACONS++++ (opt-in)
 // - Enables high-signal breadcrumbs without changing runtime behavior.
@@ -2839,6 +2889,23 @@ const session = isPlainObject(norm.body.session)
     // - SessionId is stable; bounded; fail-open.
     // -------------------------
     const sessionId = resolveSessionId(norm, session, inboundKey);
+
+  // OPINTEL DATASETS: lazy autoload + attach dataset pack (fail-open)
+  try {
+    const env = process && process.env ? process.env : {};
+    const auto = String(env.SB_DATASETS_AUTOLOAD || "1").trim();
+    const enabled = !(auto === "0" || auto.toLowerCase() === "false" || auto.toLowerCase() === "off");
+    if (enabled && Dataset && !__SB_DATASETS_LAZY.tried) {
+      __SB_DATASETS_LAZY.tried = true;
+      const res = safeDatasetLoadAll();
+      __SB_DATASETS_LAZY.ok = !!(res && res.ok);
+    }
+    const ds = datasetDecision(norm);
+    if (ds && ds.pack) {
+      if (!isPlainObject(norm.ctx)) norm.ctx = {};
+      norm.ctx.dataset = ds.pack;
+    }
+  } catch (_e) {}
     const memCtx0 = safeBuildMemoryContext(sessionId);
     if (memCtx0) {
       if (!isPlainObject(norm.ctx)) norm.ctx = {};
@@ -3012,6 +3079,45 @@ if (greetQuick && greetQuick.kind) {
 
     // PUBLIC MODE (SAFE DEFAULT TRUE)
     const publicMode = computePublicMode(norm, session);
+
+  // DATASET_DIRECT_ANSWER++++ (gold answer) — only when confident and not distress
+  try {
+    const dsPack = isPlainObject(norm.ctx) && isPlainObject(norm.ctx.dataset) ? norm.ctx.dataset : null;
+    if (dsPack && dsPack.confident && dsPack.hit) {
+      const emo0 = (typeof detectDistressQuick === "function") ? detectDistressQuick(norm.text || "") : { distress:false };
+      if (!emo0 || !emo0.distress) {
+        const ans = safeStr(dsPack.hit.answer || dsPack.hit.text || "").trim();
+        if (ans) {
+          const reply0 = applyPublicSanitization(ans, norm, session, publicMode);
+          const reply = scrubExecutionStyleArtifacts(reply0);
+          const spoken = softSpeak(reply);
+
+          // memory commit (best-effort)
+          try {
+            safeStoreMemoryTurn(sessionId, { user: safeStr(norm.text||""), assistant: reply, intent: "DATASET", topics: [safeStr(dsPack.hit.topic||"")], entities: [] });
+          } catch (_e) {}
+
+          return {
+            ok: true,
+            reply,
+            lane: safeStr(norm.lane || session.lane || "general") || "general",
+            laneId: safeStr(norm.laneId || "") || "",
+            sessionLane: safeStr(session.lane || "") || "",
+            bridge: { used: false, provider: "dataset", fused: false },
+            ctx: norm.ctx,
+            ui: { chips: [], hint: "" },
+            directives: [{ type: "TTS_SPEAK", voiceMode: "soft", text: spoken.slice(0, 2200), hints: { pace:"slow", warmth:"high", punctuation:"calm" } }],
+            followUps: [],
+            followUpsStrings: [],
+            sessionPatch: isPlainObject(sessionPatch) ? sessionPatch : {},
+            cog: { intent: "DATASET", confidence: 0.92, domains: [safeStr(dsPack.hit.topic||"dataset") || "dataset"] },
+            requestId,
+            meta: { dataset: { source: safeStr(dsPack.hit.source||""), id: safeStr(dsPack.hit.id||""), score: Number(dsPack.hit.score||0)||0 } },
+          };
+        }
+      }
+    }
+  } catch (_e) {}
 
     // Marion mediation (fail-open)
     let cogRaw = null;
