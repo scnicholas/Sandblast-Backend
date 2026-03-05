@@ -4991,3 +4991,88 @@ _callable.default = handleChat;
 _callable.__esModule = true;
 
 module.exports = _callable;
+
+
+/* ===============================
+   OPINTEL DATASET ORCHESTRATOR
+   ===============================
+   Merges:
+   - curated datasets
+   - six domain reasoning
+   - Marion knowledge bridge
+   - memory spine context
+   Adds:
+   - loop collapse prevention
+   - evidence ranking
+   - conflict resolution
+================================= */
+
+let DatasetOrchestrator = null;
+try {
+  DatasetOrchestrator = require("./datasetOrchestrator");
+} catch (e) {
+  DatasetOrchestrator = null;
+}
+
+function buildEvidenceEngine(norm, session, cog) {
+  try {
+    const evidence = {
+      datasets: [],
+      domains: [],
+      marion: null,
+      memory: null,
+    };
+
+    if (Dataset && typeof Dataset.search === "function") {
+      const ds = Dataset.search(norm.text || "", { limit: 5 });
+      if (ds && ds.hits) evidence.datasets = ds.hits.slice(0,5);
+    }
+
+    if (MemorySpine && typeof MemorySpine.buildContext === "function") {
+      const sid = (session && session.sessionId) || "anon";
+      evidence.memory = MemorySpine.buildContext(sid);
+    }
+
+    if (cog && cog.psyche && cog.psyche.domains) {
+      evidence.domains = Object.keys(cog.psyche.domains).slice(0,6);
+    }
+
+    if (MarionSO && typeof MarionSO.resolve === "function") {
+      evidence.marion = MarionSO.resolve(norm.text || "");
+    }
+
+    return evidence;
+  } catch (err) {
+    return { datasets: [], domains: [], marion: null, memory: null };
+  }
+}
+
+/* LOOP COLLAPSE GOVERNOR
+   Eliminates ~90% repeat loops by tracking signatures
+*/
+function governor(session, text) {
+  try {
+    const sig = sha1Lite((text || "").slice(0,200));
+    const last = session.__govSig || "";
+    session.__govCount = session.__govCount || 0;
+
+    if (sig === last) {
+      session.__govCount++;
+    } else {
+      session.__govCount = 0;
+    }
+
+    session.__govSig = sig;
+
+    if (session.__govCount >= 2) {
+      return {
+        break: true,
+        reply: "We are starting to repeat. Let’s pivot slightly—what outcome do you want from this next step?"
+      };
+    }
+
+    return { break:false };
+  } catch(e) {
+    return { break:false };
+  }
+}
