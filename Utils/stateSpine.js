@@ -27,7 +27,7 @@
  * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
  */
 
-const SPINE_VERSION = "stateSpine v1.3.0 (OPINTEL++++ + AUDIT LAYER++++ + ENTERPRISE HEAVY+++)";
+const SPINE_VERSION = "stateSpine v1.3.1 (OPINTEL++++ + MEMORY WINDOWS++++ + AUDIT LAYER++++ + ENTERPRISE HEAVY+++)";
 
 const LANE = Object.freeze({
   // UI chip lanes (Sandblast)
@@ -583,6 +583,28 @@ function createState(seed = {}) {
     lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
     pendingAsk: pendingAsk || null,
 
+    // Conversational memory windows
+    memoryWindows: {
+      recentIntents: Array.isArray(seed?.memoryWindows?.recentIntents)
+        ? seed.memoryWindows.recentIntents.slice(-8).map((x)=>({
+            intent: safeStr(x && x.intent || "", 48) || "unknown",
+            ts: Number(x && x.ts || 0) || 0,
+          }))
+        : [],
+      unresolvedAsks: Array.isArray(seed?.memoryWindows?.unresolvedAsks)
+        ? seed.memoryWindows.unresolvedAsks.slice(-8).map((x)=>safeStr(x,160)).filter(Boolean)
+        : [],
+      lastResolvedIntent: safeStr(seed?.memoryWindows?.lastResolvedIntent || "", 64) || "",
+      lastUserPreference: isPlainObject(seed?.memoryWindows?.lastUserPreference)
+        ? {
+            lane: safeStr(seed.memoryWindows.lastUserPreference.lane || "", 24) || "",
+            year: normYear(seed.memoryWindows.lastUserPreference.year),
+            mode: safeStr(seed.memoryWindows.lastUserPreference.mode || "", 40) || "",
+            updatedAt: Number(seed.memoryWindows.lastUserPreference.updatedAt || 0) || 0,
+          }
+        : { lane: "", year: null, mode: "", updatedAt: 0 },
+    },
+
     // Marion cognition (sanitized; no raw text)
     marion: marion || null,
 
@@ -720,6 +742,28 @@ function coerceState(prev) {
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
 
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
+
+  if (!out.memoryWindows || typeof out.memoryWindows !== "object") {
+    out.memoryWindows = { recentIntents: [], unresolvedAsks: [], lastResolvedIntent: "", lastUserPreference: { lane: "", year: null, mode: "", updatedAt: 0 } };
+  } else {
+    out.memoryWindows.recentIntents = Array.isArray(out.memoryWindows.recentIntents)
+      ? out.memoryWindows.recentIntents.slice(-8).map((x)=>({ intent: safeStr(x && x.intent || "", 48) || "unknown", ts: Number(x && x.ts || 0) || 0 }))
+      : [];
+    out.memoryWindows.unresolvedAsks = Array.isArray(out.memoryWindows.unresolvedAsks)
+      ? out.memoryWindows.unresolvedAsks.slice(-8).map((x)=>safeStr(x,160)).filter(Boolean)
+      : [];
+    out.memoryWindows.lastResolvedIntent = safeStr(out.memoryWindows.lastResolvedIntent || "", 64) || "";
+    if (!out.memoryWindows.lastUserPreference || typeof out.memoryWindows.lastUserPreference !== "object") {
+      out.memoryWindows.lastUserPreference = { lane: "", year: null, mode: "", updatedAt: 0 };
+    } else {
+      out.memoryWindows.lastUserPreference = {
+        lane: safeStr(out.memoryWindows.lastUserPreference.lane || "", 24) || "",
+        year: normYear(out.memoryWindows.lastUserPreference.year),
+        mode: safeStr(out.memoryWindows.lastUserPreference.mode || "", 40) || "",
+        updatedAt: Number(out.memoryWindows.lastUserPreference.updatedAt || 0) || 0,
+      };
+    }
+  }
 
   // Marion (sanitized)
   out.marion = sanitizeMarionCog(out.marion);
@@ -1514,6 +1558,31 @@ function finalizeTurn({
     }
   }
 
+  const prevMw = isPlainObject(prev.memoryWindows) ? prev.memoryWindows : {};
+  const nextRecentIntents = Array.isArray(prevMw.recentIntents) ? prevMw.recentIntents.slice(-7) : [];
+  nextRecentIntents.push({ intent: safeStr(lastUserIntent || "", 48) || "unknown", ts: nowMs() });
+
+  let nextUnresolvedAsks = Array.isArray(prevMw.unresolvedAsks) ? prevMw.unresolvedAsks.slice(-8) : [];
+  const pendingPrompt = safeStr(nextPendingAsk && nextPendingAsk.prompt || "", 160).trim();
+  if (pendingPrompt) {
+    nextUnresolvedAsks = nextUnresolvedAsks.filter((x)=>safeStr(x,160) !== pendingPrompt);
+    nextUnresolvedAsks.push(pendingPrompt);
+  } else if (nextUnresolvedAsks.length) {
+    nextUnresolvedAsks = nextUnresolvedAsks.slice(-4);
+  }
+
+  const nextPreference = {
+    lane: normalizeLane(lane || n.lane || prev.lane || ""),
+    year: n.year !== null ? n.year : (prevMw.lastUserPreference && prevMw.lastUserPreference.year !== undefined ? prevMw.lastUserPreference.year : null),
+    mode: safeStr(n.payload && n.payload.mode || n.payload && n.payload.macMode || prevMw.lastUserPreference && prevMw.lastUserPreference.mode || "", 40),
+    updatedAt: nowMs(),
+  };
+
+  const lastResolvedIntent =
+    nextPendingAsk === null && safeStr(lastUserIntent || "", 48) && safeStr(lastUserIntent || "", 48) !== "unknown"
+      ? safeStr(lastUserIntent || "", 64)
+      : safeStr(prevMw.lastResolvedIntent || "", 64);
+
   const patch = {
     lane: normalizeLane(lane || n.lane || prev.lane),
     stage: nextStage,
@@ -1521,6 +1590,12 @@ function finalizeTurn({
     lastUserIntent,
     activeContext,
     pendingAsk: nextPendingAsk,
+    memoryWindows: {
+      recentIntents: nextRecentIntents,
+      unresolvedAsks: nextUnresolvedAsks,
+      lastResolvedIntent,
+      lastUserPreference: nextPreference,
+    },
 
     // Marion cognition (sanitized)
     marion: nextMarion,
