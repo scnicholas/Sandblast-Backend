@@ -30,20 +30,7 @@
  */
 
 let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = 'chatEngine v0.10.13 OPINTEL (DATASET ORCH + SOURCE GOVERNANCE + LOOP-HARDEN + GREETING REMOVED)';
-
-// Greeting is handled by the Presence layer (page-load). ChatEngine greetings are disabled by default.
-// To re-enable for dev/testing: set SB_CE_GREETING=1 (or SB_CHATENGINE_GREETING=1).
-const CE_GREETING_ENABLED = (() => {
-  try {
-    const env = (process && process.env) ? process.env : {};
-    const v = env.SB_CE_GREETING || env.SB_CHATENGINE_GREETING || env.NYX_CE_GREETING;
-    return v === "1" || String(v || "").toLowerCase() === "true";
-  } catch (_e) {
-    return false;
-  }
-})();
-
+const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (DATASET ORCH + SOURCE GOVERNANCE + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
 
 // Optional boot banner (debug only)
 try {
@@ -314,6 +301,21 @@ function safeStoreMemoryTurn(sessionId, turn) {
     return true;
   } catch (_e) {
     return false;
+  }
+}
+
+function deriveMemoryPreferences(norm, out) {
+  try {
+    const prefs = {};
+    const lane = safeStr((out && (out.sessionLane || out.lane)) || (norm && (norm.lane || norm.payload && norm.payload.lane)) || "").trim();
+    const mode = safeStr((norm && norm.payload && (norm.payload.mode || norm.payload.macMode)) || "").trim();
+    const year = normYear((norm && (norm.year || norm.payload && norm.payload.year)) || null);
+    if (lane) prefs.lane = lane;
+    if (mode) prefs.mode = mode;
+    if (year !== null) prefs.year = String(year);
+    return prefs;
+  } catch (_e) {
+    return {};
   }
 }
 
@@ -1002,9 +1004,6 @@ function buildInboundKey(norm) {
 }
 
 function computeOptionAGreetingLine(session, norm, cog, inboundKey) {
-  // Disabled: greeting now occurs in Presence layer (page-load)
-  if (!CE_GREETING_ENABLED) return "";
-
   const s = isPlainObject(session) ? session : {};
   const already = truthy(s.__greeted);
   if (already) return "";
@@ -2940,22 +2939,30 @@ const session = isPlainObject(norm.body.session)
           safeStr(out.bridge?.action || "").trim() ||
           "general";
         const domains = detectDomainsQuick(norm, out.cog || {});
+        const pending = isPlainObject(out.sessionPatch) ? out.sessionPatch.pendingAsk : null;
+        const resolvedIntent = pending ? "" : intentTag;
+        const prefs = deriveMemoryPreferences(norm, out);
         safeStoreMemoryTurn(sessionId, {
           user: safeStr(norm.text || ""),
           assistant: replyText,
           intent: intentTag,
+          resolvedIntent,
           topics: domains,
           entities: [],
+          openLoop: pending && pending.prompt ? safeStr(pending.prompt || "") : "",
+          closeLoop: !pending ? safeStr(norm.text || "").slice(0, 160) : "",
+          preferences: prefs,
         });
-        // refresh memory after storing
+        if (MemorySpine && !pending && typeof MemorySpine.resolveIntent === "function" && resolvedIntent) {
+          try { MemorySpine.resolveIntent(sessionId, resolvedIntent); } catch (_e) {}
+        }
         const memCtx = safeBuildMemoryContext(sessionId);
         if (memCtx) {
           if (!isPlainObject(out.ctx)) out.ctx = isPlainObject(norm.ctx) ? { ...norm.ctx } : {};
           out.ctx.memory = memCtx;
         }
-        if (isPlainObject(out.meta)) {
-          out.meta.memory = { enabled: !!MemorySpine, stored: true };
-        }
+        if (!isPlainObject(out.meta)) out.meta = {};
+        out.meta.memory = { enabled: !!MemorySpine, stored: true, windowed: true };
       } catch (_e) {}
       return outObj;
     }
@@ -3004,17 +3011,16 @@ const session = isPlainObject(norm.body.session)
           cog: null,
           requestId: safeStr(input?.requestId || "") || undefined,
           meta: { fastReturn: true, reason: "duplicate_inbound" },
-        };
+        });
       }
 
 // -------------------------
 // PRIORITY 0 — GREETING INTERCEPT++++
-// - Previously: ran BEFORE intent/lane/fallback so plain greetings never collapsed into lane prompts.
-// - Now: DISABLED by default. Greeting is handled by the Presence layer (page-load).
-// - To re-enable (dev/testing only), set SB_CE_GREETING=1.
+// - Must run BEFORE intent/lane/fallback so greetings never collapse into lane prompts.
+// - Deterministic reply (no model), stable across retries.
 // -------------------------
-const greetQuick = CE_GREETING_ENABLED ? detectGreetingQuick(norm.text) : null;
-if (CE_GREETING_ENABLED && greetQuick && greetQuick.kind) {
+const greetQuick = detectGreetingQuick(norm.text);
+if (greetQuick && greetQuick.kind) {
   const greetReply = buildGreetingReply(greetQuick.kind, safeStr(inboundKey || norm.text || ""));
   const sessionPatch = mergeSessionPatch({}, {
     __lastIntent: "GREETING",
@@ -3082,7 +3088,7 @@ if (CE_GREETING_ENABLED && greetQuick && greetQuick.kind) {
         cog: null,
         requestId: safeStr(input?.requestId || "") || undefined,
         meta: { breaker: true, reason: "inbound_repeat_fuse", n: inGov.n },
-      };
+      });
     }
 
 
@@ -3298,7 +3304,7 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
         cog: isPlainObject(norm.cog) ? norm.cog : {},
         requestId,
         meta: { engine: CE_VERSION, requestId, elapsedMs: nowMs() - started, turnSignals: norm.turnSignals || {} },
-      };
+      });
     }
 
 
