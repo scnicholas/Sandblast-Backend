@@ -63,7 +63,7 @@
   Phase 40: Operator dashboards (optional)
 */
 
-const SPINE_VERSION = "3.0.0-opintel";
+const SPINE_VERSION = "3.1.0-opintel-memorywindows";
 
 const POLICY = Object.freeze({
   // Turns
@@ -84,6 +84,8 @@ const POLICY = Object.freeze({
   // Open loops
   maxOpenLoops: 12,
   maxOpenLoopChars: 240,
+  maxRecentIntents: 8,
+  maxPreferences: 24,
 
   // Entities
   maxEntities: 80,
@@ -197,6 +199,9 @@ function _createSession(sessionId){
     turns: [],
     summary: "",
     openLoops: [],
+    recentIntents: [],
+    lastResolvedIntent: "",
+    preferences: {},
     entities: {},
     long: [],
 
@@ -344,6 +349,36 @@ function closeLoop(sessionId, question){
   const norm = _lower(q);
   s.openLoops = (s.openLoops || []).filter(x => _lower(x) !== norm);
   _audit(s, "OPEN_LOOP_CLOSE", { q: _cap(q, 90) });
+}
+
+function rememberPreference(sessionId, key, value, score){
+  const s = getSession(sessionId);
+  const k = _cap(_trim(key), 48);
+  const v = _sanitize(value, 180);
+  if (!k || !v) return false;
+  s.preferences = _isObj(s.preferences) ? s.preferences : {};
+  s.preferences[k] = {
+    value: v,
+    ts: _now(),
+    score: _clamp(score ?? 0.5, 0, 1),
+  };
+  const keys = Object.keys(s.preferences);
+  if (keys.length > POLICY.maxPreferences){
+    keys.sort((a,b)=>((s.preferences[a].ts||0)-(s.preferences[b].ts||0)));
+    const drop = keys.length - POLICY.maxPreferences;
+    for (let i=0;i<drop;i++) delete s.preferences[keys[i]];
+  }
+  _audit(s, "PREF_SET", { key: k, score: _clamp(score ?? 0.5, 0, 1) });
+  return true;
+}
+
+function resolveIntent(sessionId, intent){
+  const s = getSession(sessionId);
+  const i = _cap(_trim(intent), 64);
+  if (!i) return false;
+  s.lastResolvedIntent = i;
+  _audit(s, "INTENT_RESOLVE", { intent: i });
+  return true;
 }
 
 /* -------------------------
@@ -497,6 +532,7 @@ function storeTurn(sessionId, turn){
   const assistant = _sanitize(t.assistant, POLICY.maxTurnCharsAssistant);
 
   const intent = _cap(_trim(t.intent || "general"), 48) || "general";
+  const resolvedIntent = _cap(_trim(t.resolvedIntent || ""), 64);
   const topics = _dedupeArray(t.topics || []).slice(0, 10);
   const entities = _dedupeArray(t.entities || []).slice(0, 12);
 
@@ -519,6 +555,22 @@ function storeTurn(sessionId, turn){
 
   s.turns.push(entry);
   if (s.turns.length > POLICY.maxTurns) s.turns.shift();
+
+  // conversational memory windows
+  s.recentIntents = Array.isArray(s.recentIntents) ? s.recentIntents : [];
+  s.recentIntents.push({ intent, ts: entry.ts });
+  if (s.recentIntents.length > POLICY.maxRecentIntents) s.recentIntents.shift();
+  if (resolvedIntent) s.lastResolvedIntent = resolvedIntent;
+
+  if (_trim(t.openLoop)) addOpenLoop(sessionId, t.openLoop);
+  if (_trim(t.closeLoop)) closeLoop(sessionId, t.closeLoop);
+
+  if (_isObj(t.preferences)){
+    for (const k of Object.keys(t.preferences).slice(0, 12)){
+      const v = t.preferences[k];
+      if (_trim(k) && _trim(v)) rememberPreference(sessionId, k, v, 0.8);
+    }
+  }
 
   // aggregates
   s.intentCounts[intent] = (s.intentCounts[intent] || 0) + 1;
@@ -578,6 +630,9 @@ function updateSummary(session){
   const currentGoal = last ? _cap(_trim(last.user), 220) : "";
   const constraints = _extractConstraints(turns);
   const openLoops = (session.openLoops || []).slice(-4).map(q => _cap(q, 110));
+  const recentIntents = (session.recentIntents || []).slice(-POLICY.maxRecentIntents).map(x => _cap(_trim(x.intent), 40));
+  const lastResolved = _cap(_trim(session.lastResolvedIntent || ""), 80);
+  const prefPairs = Object.keys(session.preferences || {}).slice(-4).map(k => `${k}: ${_cap(_trim(session.preferences[k] && session.preferences[k].value || ""), 60)}`);
 
   // "Next action" heuristic: last assistant sentence fragment
   let nextAction = "";
@@ -600,7 +655,10 @@ function updateSummary(session){
     `Topics: ${topTopics || "(none)"}`,
     `Goal: ${currentGoal || "(none)"}`,
     `Constraints: ${constraints.length ? constraints.join(" | ") : "(none)"}`,
+    `Recent Intents: ${recentIntents.length ? recentIntents.join(" → ") : "(none)"}`,
     `Open Loops: ${openLoops.length ? openLoops.join(" | ") : "(none)"}`,
+    `Resolved: ${lastResolved || "(none)"}`,
+    `Preferences: ${prefPairs.length ? prefPairs.join(" | ") : "(none)"}`,
     `Depth: L${session.depth.level || 0} ${depthName}${session.depth.stalled ? ` (stalled:${session.depth.stalled})` : ""}`,
     `Bridge: ${bridgeState} (used:${session.bridge.used || 0})`,
     `Next: ${nextAction || "(none)"}`,
@@ -684,6 +742,9 @@ function buildContext(sessionId){
     },
     summary: s.summary,
     openLoops: (s.openLoops || []).slice(-POLICY.maxOpenLoops),
+    recentIntents: (s.recentIntents || []).slice(-POLICY.maxRecentIntents),
+    lastResolvedIntent: s.lastResolvedIntent || "",
+    preferences: Object.keys(s.preferences || {}).slice(-POLICY.maxPreferences).map(k => ({ key: k, value: s.preferences[k] && s.preferences[k].value || "", score: s.preferences[k] && s.preferences[k].score || 0 })),
     recent: recentTurns.join("\n"),
     long: longFacts,
     entities: entPairs,
@@ -725,6 +786,7 @@ function pruneSession(sessionId){
   const s = getSession(sessionId);
   s.turns = s.turns.slice(-Math.min(8, POLICY.maxTurns));
   s.openLoops = s.openLoops.slice(-Math.min(4, POLICY.maxOpenLoops));
+  s.recentIntents = (s.recentIntents || []).slice(-Math.min(4, POLICY.maxRecentIntents));
   s.audit = s.audit.slice(-Math.min(30, POLICY.maxAudit));
   _audit(s, "PRUNE", { turns: s.turns.length, loops: s.openLoops.length });
   return s;
@@ -784,6 +846,8 @@ module.exports = {
   // v3 additions
   rememberFact,
   rememberEntity,
+  rememberPreference,
+  resolveIntent,
   noteBridgeUse,
   isBridgeFused,
   maybeFuseBridge,
