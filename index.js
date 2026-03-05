@@ -2659,8 +2659,8 @@ app.get("/", (req, res) => {
     ok: true,
     service: "sandblast-backend",
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     env: NODE_ENV,
     knowledge: knowledgeStatusForMeta(),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
@@ -2671,8 +2671,8 @@ app.get("/health", (req, res) => {
   sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     up: true,
     now: new Date().toISOString(),
     knowledge: knowledgeStatusForMeta(),
@@ -2738,8 +2738,8 @@ app.get("/api/health", (req, res) => {
     version: INDEX_VERSION,
     node: process.version,
     env: NODE_ENV,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     knowledge: knowledgeStatusForMeta(),
     packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
   });
@@ -2801,8 +2801,8 @@ app.get("/api/discovery", (req, res) => {
   sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     endpoints: [
       "/api/sandblast-gpt",
       "/api/nyx/chat",
@@ -2832,8 +2832,8 @@ app.get("/api/packs", (req, res) => {
   return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     packs: idx,
   });});
 
@@ -2850,8 +2850,8 @@ function doPacksRefresh(req, res) {
   return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     packs: idx,
   });}
 
@@ -2868,8 +2868,8 @@ app.get("/api/packsight", (req, res) => {
   return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     data: {
       appRoot: APP_ROOT,
       dataDir: DATA_DIR,
@@ -2917,8 +2917,8 @@ app.get("/api/knowledge", (req, res) => {
   return sendContract(res, 200, {
     ok: true,
     version: INDEX_VERSION,
-    engine: (__es__.version || __eng__.version || null),
-    engineFrom: (__es__.from || __eng__.from),
+    engine: (__es__.version || _ENGINE_.version || null),
+    engineFrom: (__es__.from || _ENGINE_.from),
     knowledge: knowledgeStatusForMeta(),
     packs: getPackIndexSafe(false).summary,
   });});
@@ -2938,7 +2938,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     return sendContract(res, 200, {
       ok: true,
       version: INDEX_VERSION,
-      engine: (__es__.version || __eng__.version || null),
+      engine: (__es__.version || _ENGINE_.version || null),
       knowledge: {
         ok: KNOWLEDGE.ok,
         loadedAt: KNOWLEDGE.loadedAt,
@@ -3001,7 +3001,7 @@ if (KNOWLEDGE_DEBUG_ENDPOINT) {
     return sendContract(res, 200, {
       ok: true,
       version: INDEX_VERSION,
-      engine: (__es__.version || __eng__.version || null),
+      engine: (__es__.version || _ENGINE_.version || null),
       data: {
         dataDir: DATA_DIR,
         dataRoots: DATA_ROOT_CANDIDATES,
@@ -3192,9 +3192,9 @@ async function handleChatRoute(req, res) {
 
     // Engine must be present; attempt lazy reload (case-insensitive Utils path)
     const __es__ = getEngineState();
-    const __eng__ = __es__.engine;
+    const _ENGINE_ = __es__.engine;
 
-    if (!__eng__ || typeof __eng__.fn !== "function") {
+    if (!_ENGINE_ || typeof _ENGINE_.fn !== "function") {
       // Fail-open but NEVER emit the old hard-loop string ("boot-loop")
       const reply = "Hello — Welcome to Sandblast. My name is Nyx. How can I help you?";
       return sendContract(res, 200, {
@@ -3245,7 +3245,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
         requestId: serverRequestId,
         meta: {
           index: INDEX_VERSION,
-          engine: (__es__.version || __eng__.version || null),
+          engine: (__es__.version || _ENGINE_.version || null),
           knowledge: knowledgeStatusForMeta(),
           bootLike: true,
           bootFuse: bf.reason,
@@ -3279,7 +3279,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
         requestId: serverRequestId,
         meta: {
           index: INDEX_VERSION,
-          engine: (__es__.version || __eng__.version || null),
+          engine: (__es__.version || _ENGINE_.version || null),
           knowledge: knowledgeStatusForMeta(),
           throttled: burst.blocked ? "burst" : "sustained",
           elapsedMs: nowMs() - startedAt,
@@ -3302,7 +3302,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
         requestId: serverRequestId,
         meta: {
           index: INDEX_VERSION,
-          engine: (__es__.version || __eng__.version || null),
+          engine: (__es__.version || _ENGINE_.version || null),
           knowledge: knowledgeStatusForMeta(),
           replay: true,
           elapsedMs: nowMs() - startedAt,
@@ -3310,7 +3310,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
       });}
   }
 
-  if (!__eng__.fn) {
+  if (!_ENGINE_.fn) {
     const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
     writeReplay(rec, reply, "general");
     const p = safeStr(req.path || "").toLowerCase();
@@ -3324,8 +3324,8 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
       meta: {
         index: INDEX_VERSION,
         engine: "missing_or_invalid",
-        engineFrom: (__es__.from || __eng__.from),
-        engineVersion: (__es__.version || __eng__.version) || null,
+        engineFrom: (__es__.from || _ENGINE_.from),
+        engineVersion: (__es__.version || _ENGINE_.version) || null,
         knowledge: knowledgeStatusForMeta(),
       },
     });}
@@ -3365,7 +3365,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
 
   let out;
   try {
-    out = await __eng__.fn(engineInput);
+    out = await _ENGINE_.fn(engineInput);
     out = normalizeEngineOutput(out);
   } catch (e) {
     const msg = safeStr(e?.message || e).trim();
@@ -3386,7 +3386,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
           lane: lane0,
           payload: { reply: reply0, lane: lane0 },
           requestId: serverRequestId,
-          meta: { index: INDEX_VERSION, engine: (__es__.version || __eng__.version || null), knowledge: k, reset: true, failOpen: true }
+          meta: { index: INDEX_VERSION, engine: (__es__.version || _ENGINE_.version || null), knowledge: k, reset: true, failOpen: true }
         };
       }
       // Lane-aware fail-soft (no “snag” spam)
@@ -3401,7 +3401,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
         lane: lane0,
         payload: { reply: reply0, lane: lane0 },
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: (__es__.version || __eng__.version || null), knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true }
+        meta: { index: INDEX_VERSION, engine: (__es__.version || _ENGINE_.version || null), knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true }
       };
     })());}
 
@@ -3484,8 +3484,8 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
     meta: {
       ...(isPlainObject(out?.meta) ? out.meta : {}),
       index: INDEX_VERSION,
-      engine: (__es__.version || __eng__.version || null),
-      engineFrom: (__es__.from || __eng__.from),
+      engine: (__es__.version || _ENGINE_.version || null),
+      engineFrom: (__es__.from || _ENGINE_.from),
       knowledge: knowledgeStatusForMeta(),
       elapsedMs: nowMs() - startedAt,
       source,
@@ -3511,7 +3511,7 @@ const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.he
       payload: { reply: "", lane: "general" },
       sessionPatch: {},
       requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: (__es__.version || __eng__.version || null), where: "handleChatRoute.catch" },
+      meta: { index: INDEX_VERSION, engine: (__es__.version || _ENGINE_.version || null), where: "handleChatRoute.catch" },
     });
   }
 }
@@ -3921,7 +3921,7 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
   // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!(__eng__ && __eng__.fn)}`);
+  console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!(_ENGINE_ && _ENGINE_.fn)}`);
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
   // eslint-disable-next-line no-console
