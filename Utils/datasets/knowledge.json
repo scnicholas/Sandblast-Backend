@@ -1,12 +1,12 @@
 [
   {
-    "topic": "AI",
-    "question": "What is artificial intelligence?",
-    "answer": "Artificial intelligence is the simulation of human intelligence in machines."
+    "topic": "system",
+    "question": "What is Nyx?",
+    "answer": "Nyx is the Sandblast conversational interface layer, designed to route intent, preserve continuity, and speak with warmth and clarity."
   },
   {
-    "topic": "Sandblast",
-    "question": "What is the Sandblast Channel?",
-    "answer": "Sandblast Channel is a digital broadcast platform combining AI media automation, OTT streaming, and intelligent content distribution."
+    "topic": "system",
+    "question": "What is Marion?",
+    "answer": "Marion is the knowledge and reasoning layer that aggregates domain sources and produces evidence-aware context for Nyx."
   }
 ]
