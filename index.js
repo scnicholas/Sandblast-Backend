@@ -183,6 +183,7 @@ if (!chatEngineMod) {
 }
 // Knowledge registry (manifest-driven loader). Optional: fail-open if missing.
 const knowledgeRegistryMod = safeRequire("./Utils/knowledgeRegistry") || safeRequire("./Utils/knowledgeRegistry.js") || null;
+const datasetLoaderMod = safeRequire("./Utils/datasetLoader") || safeRequire("./Utils/datasetLoader.js") || null;
 
 // fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
 const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
@@ -201,7 +202,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.36sb (OPINTEL+10: RESEMBLE LINK GUARD + TTS DIAG/PROBE + TRACE HEADERS + SELF-HEAL TTS MODULE)";
+const INDEX_VERSION = "index.js v1.5.37sb (OPINTEL+10: DATASETS ORCH + DATASET ENDPOINTS + FAIL-OPEN BOOT LOAD)";
 
 // =========================
 // Utils
@@ -311,6 +312,10 @@ const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
 const IS_PROD = (NODE_ENV.toLowerCase() === "production");
 const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
 const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
+
+// --- Datasets (curated JSON under Utils/datasets) ---
+const DATASETS_AUTOLOAD = toBool(process.env.SB_DATASETS_AUTOLOAD, true);
+const DATASETS_DIR = String(process.env.SB_DATASETS_DIR || "").trim(); // optional override
 
 // --- Optional global request timeout (soft) ---
 const REQ_TIMEOUT_MS = clampInt(process.env.REQ_TIMEOUT_MS, 0, 0, 120000); // 0 = off
@@ -2446,6 +2451,18 @@ function sendJson(res, statusCode, body) {
 }
 const app = express();
 
+// Dataset autoload (fail-open)
+try {
+  if (DATASETS_AUTOLOAD && datasetLoaderMod && typeof datasetLoaderMod.loadAll === "function") {
+    const res = datasetLoaderMod.loadAll(DATASETS_DIR ? { dir: DATASETS_DIR } : {});
+    // eslint-disable-next-line no-console
+    console.log("[DATASETS] loadAll:", JSON.stringify({ ok: !!res?.ok, files: res?.files, items: res?.items }).slice(0, 400));
+  }
+} catch (e) {
+  // eslint-disable-next-line no-console
+  console.log("[DATASETS] loadAll failed:", e && (e.message || e));
+}
+
 if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
 
 // Compression first (safe)
@@ -3820,7 +3837,39 @@ app.use((err, req, res, next) => {
 // =========================
 // Start + graceful shutdown
 // =========================
-const server = app.listen(PORT, () => {
+const server = 
+// =========================
+// Datasets endpoints (safe, fail-open)
+// =========================
+app.get("/api/datasets/stats", (req, res) => {
+  try {
+    if (!datasetLoaderMod || typeof datasetLoaderMod.stats !== "function") {
+      return res.status(200).json({ ok: false, error: "DATASETS_MODULE_MISSING" });
+    }
+    const st = datasetLoaderMod.stats();
+    return res.status(200).json({ ok: true, ...st });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: "DATASETS_STATS_FAILED", detail: String(e && (e.message || e)) });
+  }
+});
+
+// Reload is opt-in: requires either debug query ?debug=1 OR header x-sb-debug=1.
+app.post("/api/datasets/reload", (req, res) => {
+  try {
+    const dbg = toBool(__sbGetHeader(req, "x-sb-debug") || req.query?.debug, false);
+    if (!dbg) return res.status(403).json({ ok: false, error: "FORBIDDEN", detail: "datasets reload requires debug flag" });
+
+    if (!datasetLoaderMod || typeof datasetLoaderMod.loadAll !== "function") {
+      return res.status(200).json({ ok: false, error: "DATASETS_MODULE_MISSING" });
+    }
+    const out = datasetLoaderMod.loadAll(DATASETS_DIR ? { dir: DATASETS_DIR } : {});
+    return res.status(200).json({ ok: true, ...out });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: "DATASETS_RELOAD_FAILED", detail: String(e && (e.message || e)) });
+  }
+});
+
+app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
   // eslint-disable-next-line no-console
