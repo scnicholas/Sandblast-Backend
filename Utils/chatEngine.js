@@ -30,8 +30,7 @@
  */
 
 let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = 'chatEngine v0.10.15 OPINTEL (MEMORY WINDOWS + INTENT CONFIDENCE + CLARIFY MIN + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
-const CE_GREETING_ENABLED = (() => { try { const env = process && process.env ? process.env : {}; return env.SB_CE_GREETING === '1' || env.SB_CHATENGINE_GREETING === '1'; } catch (_e) { return false; } })();
+const CE_VERSION = 'chatEngine v0.10.12 OPINTEL (DATASET ORCH + SOURCE GOVERNANCE + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)';
 
 // Optional boot banner (debug only)
 try {
@@ -184,74 +183,6 @@ function clamp01(n) {
   if (x < 0) return 0;
   if (x > 1) return 1;
   return x;
-}
-
-function detectAmbiguityLite(norm, memCtx) {
-  const text = safeStr(norm && norm.text ? norm.text : '').trim();
-  const payload = isPlainObject(norm && norm.payload) ? norm.payload : {};
-  const tokens = text ? text.toLowerCase().split(/\s+/).filter(Boolean) : [];
-  const shortText = tokens.length > 0 && tokens.length <= 4;
-  const pronounHeavy = /(this|that|it|there|here|they|them|those)/i.test(text);
-  const noPayload = !hasActionablePayload(payload);
-  const noYear = normYear(norm && norm.year) === null && normYear(payload.year) === null;
-  const memoryHasOpen = !!(memCtx && Array.isArray(memCtx.unresolvedAsks) && memCtx.unresolvedAsks.length);
-  const score = clamp01((shortText ? 0.34 : 0) + (pronounHeavy ? 0.26 : 0) + (noPayload ? 0.18 : 0) + (noYear ? 0.08 : 0) - (memoryHasOpen ? 0.18 : 0));
-  return { ambiguous: score >= 0.42, score, shortText, pronounHeavy, memoryHasOpen };
-}
-function deriveMemoryRoutingBias(memCtx, norm, session) {
-  const out = { lane: '', mode: '', year: null, reason: '' };
-  try {
-    const prefs = isPlainObject(memCtx && memCtx.preferences) ? memCtx.preferences : (isPlainObject(memCtx && memCtx.lastUserPreference) ? memCtx.lastUserPreference : {});
-    const lane = safeStr(prefs.lane || session && session.lane || '').trim().toLowerCase();
-    const mode = safeStr(prefs.mode || '').trim();
-    const year = normYear(prefs.year || session && session.lastYear || null);
-    if (lane) out.lane = lane;
-    if (mode) out.mode = mode;
-    if (year !== null) out.year = year;
-    if (out.lane || out.mode || out.year !== null) out.reason = 'memory_window';
-  } catch (_e) {}
-  return out;
-}
-function computeIntentConfidence(norm, cog, memCtx, ambiguity) {
-  const payload = isPlainObject(norm && norm.payload) ? norm.payload : {};
-  const text = safeStr(norm && norm.text ? norm.text : '');
-  const hasPayload = hasActionablePayload(payload);
-  const hasAction = !!safeStr(norm && norm.action ? norm.action : '').trim();
-  const hasMemory = !!(memCtx && (Array.isArray(memCtx.recentIntents) ? memCtx.recentIntents.length : 0));
-  const base = clamp01((hasPayload ? 0.34 : 0) + (hasAction ? 0.22 : 0) + (text.length >= 18 ? 0.16 : 0) + (hasMemory ? 0.14 : 0) + (clamp01(cog && cog.confidence && cog.confidence.user) * 0.14) - ((ambiguity && ambiguity.score) || 0) * 0.45);
-  return base;
-}
-function computeRouteConfidence(intentConfidence, cog, inGov, ambiguity) {
-  const repeatPenalty = clamp01(((inGov && inGov.n) || 0) * 0.12);
-  const op = clamp01(cog && cog.opPackage && cog.opPackage.confidenceScore !== undefined ? cog.opPackage.confidenceScore : (cog && cog.confidence ? cog.confidence.nyx : 0));
-  return clamp01(intentConfidence * 0.55 + op * 0.45 - repeatPenalty - clamp01(ambiguity && ambiguity.score) * 0.18);
-}
-function shouldMinimizeClarify(args) {
-  const a = isPlainObject(args) ? args : {};
-  const move = safeStr(a.move || '').toLowerCase();
-  const ambiguous = !!a.ambiguous;
-  const shortText = !!a.shortText;
-  const routeConfidence = clamp01(a.routeConfidence);
-  const clarifyStreak = clampInt(a.clarifyStreak, 0, 0, 99);
-  const hasMemoryOpen = !!a.hasMemoryOpen;
-  const actionable = !!a.actionable;
-  if (actionable) return false;
-  if (move !== 'clarify' && move !== 'narrow') return false;
-  if (clarifyStreak >= 2) return true;
-  if (hasMemoryOpen && routeConfidence >= 0.38) return true;
-  if (!ambiguous && routeConfidence >= 0.44) return true;
-  if (shortText && hasMemoryOpen) return true;
-  return false;
-}
-function buildMinimalClarifier(norm, routingBias, ambiguity) {
-  const lane = safeStr(routingBias && routingBias.lane || '').toLowerCase();
-  const text = safeStr(norm && norm.text ? norm.text : '').trim();
-  if (lane === 'music') return 'Do you want a year, a Top 10 list, or something more cinematic?';
-  if (lane === 'roku') return 'Do you want the live page, what is on now, or the schedule?';
-  if (lane === 'radio') return 'Do you want the radio link, a music vibe, or a programming idea?';
-  if (ambiguity && ambiguity.pronounHeavy) return 'When you say that, do you mean the page, the feature, or the content itself?';
-  if (text.length <= 24) return 'Give me the target in one line, and I will route it cleanly.';
-  return 'What is the exact outcome you want from me right now?';
 }
 function sha1Lite(str) {
   // small stable hash (NOT cryptographic) for loop signatures / traces
@@ -1600,8 +1531,6 @@ function buildBoundedTelemetry(
       velvet: !!cog?.velvet,
       traceHash: safeStr(cog?.marionTraceHash || ""),
       novelty: Math.round(clamp01(noveltyScore) * 100),
-      intentConfidence: Math.round(clamp01(cog?.intentConfidence) * 100),
-      routeConfidence: Math.round(clamp01(cog?.routeConfidence) * 100),
       discovery: discoveryHint?.enabled
         ? {
             enabled: true,
@@ -3253,40 +3182,6 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     const clarifyStreak = planMove0 === "clarify" ? Math.min(99, prevClarifyStreak + 1) : 0;
     const lowConfStreak = opConfidence < 0.45 ? Math.min(99, prevLowConfStreak + 1) : 0;
 
-    // Intent-confidence routing + clarification minimization++++
-    const ambiguity = detectAmbiguityLite(norm, memCtx0);
-    const routingBias = deriveMemoryRoutingBias(memCtx0, norm, session);
-    const intentConfidence = computeIntentConfidence(norm, cog, memCtx0, ambiguity);
-    const routeConfidence = computeRouteConfidence(intentConfidence, cog, inGov, ambiguity);
-    const memoryOpenCount = memCtx0 && Array.isArray(memCtx0.unresolvedAsks) ? memCtx0.unresolvedAsks.length : 0;
-    const minimizeClarify = shouldMinimizeClarify({
-      move: planMove0,
-      ambiguous: ambiguity.ambiguous,
-      shortText: ambiguity.shortText,
-      routeConfidence,
-      clarifyStreak,
-      hasMemoryOpen: memoryOpenCount > 0,
-      actionable: !!(cog && cog.actionable),
-    });
-
-    if (minimizeClarify && !supportPrefix) {
-      if (routingBias.lane && !safeStr(norm.lane || '').trim()) {
-        norm.lane = routingBias.lane;
-      }
-      if (routingBias.year !== null && (norm.year === null || norm.year === undefined)) {
-        norm.year = routingBias.year;
-      }
-      corePlan = {
-        ...corePlan,
-        move: routeConfidence >= 0.52 ? 'advance' : 'narrow',
-        stage: safeStr(corePlan.stage || 'open') || 'open',
-        rationale: safeStr(corePlan.rationale || '') ? `${safeStr(corePlan.rationale)}|clarify_min` : 'clarify_min',
-        speak: buildMinimalClarifier(norm, routingBias, ambiguity),
-      };
-      cog.clarifyMinimized = true;
-      cog.minClarifier = safeStr(corePlan.speak || '');
-    }
-
     // If we are stuck clarifying repeatedly with low confidence (or repeated inbound), force a narrow, deterministic ask.
     // This is intentionally conservative and never triggers on distress/support mode.
     const inboundRepeatN = clampInt(inGov && inGov.n, 0, 0, 99);
@@ -3311,11 +3206,6 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     cog.__opConfidence = opConfidence;
     cog.__clarifyStreak = clarifyStreak;
     cog.__oiLowConfStreak = lowConfStreak;
-    cog.intentConfidence = intentConfidence;
-    cog.routeConfidence = routeConfidence;
-    cog.routeReason = routingBias.reason || (ambiguity.ambiguous ? 'ambiguity' : 'direct');
-    cog.memoryRoutingBias = routingBias;
-    cog.ambiguity = { score: ambiguity.score, ambiguous: ambiguity.ambiguous, pronounHeavy: ambiguity.pronounHeavy, shortText: ambiguity.shortText };
 
     cog.nextMove = toUpperMove(corePlan.move);
     cog.nextMoveSpeak = safeStr(corePlan.speak || "");
@@ -3462,9 +3352,6 @@ ${base0}`
       // OPINTEL++++: loop/collapse streaks (bounded)
       __clarifyStreak: clampInt(cog && cog.__clarifyStreak, 0, 0, 99),
       __oiLowConfStreak: clampInt(cog && cog.__oiLowConfStreak, 0, 0, 99),
-      __intentConfidence: clamp01(cog && cog.intentConfidence),
-      __routeConfidence: clamp01(cog && cog.routeConfidence),
-      __clarifyMinimized: !!(cog && cog.clarifyMinimized),
       __oiLastOpConfidence: clamp01(cog && cog.__opConfidence),
       __oiBreakerAt: cog && cog.oiBreaker ? nowMs() : (Number(session && session.__oiBreakerAt) || 0),
 
@@ -3521,7 +3408,19 @@ ${base0}`
         }
       } catch (e) { /* fail-open */ }
 
+      // OPINTEL 15-phase fusion++++
+      let _oi = { evidenceModel: null, plan: null, actionHints: [], followUps: [], uiActions: [], sessionPatch: {}, metaPatch: {} };
+      try {
+        _oi = safeOpIntelCompose(norm, session, out.cog || cog || {}, out) || _oi;
+        if (Array.isArray(_oi.followUps) && _oi.followUps.length) {
+          followUps = coerceFollowUps([...(Array.isArray(followUps) ? followUps : []), ..._oi.followUps]);
+        }
+      } catch (e) { /* fail-open */ }
+
       const ui = buildUi(followUps, followUpsStrings);
+      if (Array.isArray(_oi.uiActions) && _oi.uiActions.length) {
+        ui.actions = _oi.uiActions.slice(0, 4);
+      }
 
       const laneId = safeStr(out.laneId || (typeof laneIdComputed !== "undefined" ? laneIdComputed : "") || "");
       const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
@@ -3632,7 +3531,7 @@ ${base0}`
       const _intro = maybeAddIntroDirective({ directives: _dirs0, session, cog, norm });
       const _introPatch = isPlainObject(_intro.patch) ? _intro.patch : {};
 
-      const mergedSessionPatch = mergeSessionPatch({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch, _affectPatch);
+      const mergedSessionPatch = Object.assign({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch, _affectPatch, (isPlainObject(_oi.sessionPatch) ? _oi.sessionPatch : {}));
 
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
@@ -3664,9 +3563,9 @@ ${base0}`
         // ALWAYS object (prevents downstream merges from exploding)
         sessionPatch: mergedSessionPatch,
 
-        cog,
+        cog: Object.assign({}, cog, (isPlainObject(_oi.plan) ? { responsePlan: _oi.plan } : {}), (isPlainObject(_oi.evidenceModel) ? { evidenceModel: { topEvidence: _oi.evidenceModel.topEvidence || null, actionHints: _oi.evidenceModel.actionHints || [], conflictMeta: _oi.evidenceModel.conflictMeta || {} } } : {})),
         requestId,
-        meta: out.meta,
+        meta: Object.assign({}, isPlainObject(out.meta) ? out.meta : {}, isPlainObject(_oi.metaPatch) ? _oi.metaPatch : {}),
       };
     }
 
@@ -5125,6 +5024,156 @@ try {
   DatasetOrchestrator = require("./datasetOrchestrator");
 } catch (e) {
   DatasetOrchestrator = null;
+}
+
+let EvidenceEngine = null;
+let ResponsePlanner = null;
+let ActionBuilder = null;
+try { EvidenceEngine = require("./evidenceEngine"); } catch (e) { EvidenceEngine = null; }
+try { ResponsePlanner = require("./responsePlanner"); } catch (e) { ResponsePlanner = null; }
+try { ActionBuilder = require("./actionBuilder"); } catch (e) { ActionBuilder = null; }
+
+function safeOpIntelCompose(norm, session, cog, out) {
+  try {
+    const sessionId = resolveSessionId(norm, session, buildInboundKey(norm));
+    const memoryWindow =
+      (MemorySpine && typeof MemorySpine.buildContext === "function")
+        ? (MemorySpine.buildContext(sessionId) || {})
+        : (isPlainObject(session && session.__memoryWindow) ? session.__memoryWindow : {});
+    const evidenceInput = {
+      lane: safeStr((out && out.lane) || norm.lane || session && session.lane || "general"),
+      message: safeStr(norm && norm.text ? norm.text : ""),
+      text: safeStr(norm && norm.text ? norm.text : ""),
+      routeConfidence: clamp01(cog && cog.routeConfidence),
+      intentConfidence: clamp01(cog && cog.intentConfidence),
+      ambiguity: clamp01(cog && cog.ambiguity && cog.ambiguity.score),
+      unresolvedAsks: asArray(memoryWindow && memoryWindow.unresolvedAsks),
+      recentIntents: asArray(memoryWindow && memoryWindow.recentIntents),
+      memoryWindow,
+      marionEvidence: [],
+      siteEvidence: [],
+      memoryEvidence: [],
+      domainEvidence: [],
+      evidence: []
+    };
+
+    try {
+      if (typeof buildEvidenceEngine === "function") {
+        const basic = buildEvidenceEngine(norm, session, cog);
+        if (basic && typeof basic === "object") {
+          if (Array.isArray(basic.datasets)) evidenceInput.evidence = basic.datasets;
+          if (Array.isArray(basic.domains)) evidenceInput.domainEvidence = basic.domains.map((d) => ({ source: "domain", title: safeStr(d), text: safeStr(d), score: 0.56, confidence: 0.56 }));
+          if (basic.marion) evidenceInput.marionEvidence = [isPlainObject(basic.marion) ? { source: "marion", title: safeStr(basic.marion.title || "marion"), text: safeStr(basic.marion.summary || basic.marion.reply || basic.marion.text || ""), score: clamp01(basic.marion.score || 0.62), confidence: clamp01(basic.marion.confidence || 0.62) } : { source: "marion", text: safeStr(basic.marion), score: 0.62, confidence: 0.62 }];
+          if (basic.memory) evidenceInput.memoryEvidence = [{ source: "memory", title: "memory", text: safeStr(JSON.stringify(basic.memory)).slice(0, 500), score: 0.52, confidence: 0.52, memoryWindowMatch: true }];
+        }
+      }
+    } catch (_e) {}
+
+    try {
+      if (DatasetOrchestrator && typeof DatasetOrchestrator.buildEvidencePack === "function") {
+        const pack = DatasetOrchestrator.buildEvidencePack({
+          text: safeStr(norm && norm.text ? norm.text : ""),
+          lane: evidenceInput.lane,
+          memoryWindow,
+          marion: cog,
+          session
+        });
+        if (pack && typeof pack === "object") {
+          evidenceInput.pack = pack;
+          if (Array.isArray(pack.evidence) && pack.evidence.length) evidenceInput.evidence = evidenceInput.evidence.concat(pack.evidence);
+          if (Array.isArray(pack.actionHints) && pack.actionHints.length) evidenceInput.actionHints = asArray(pack.actionHints);
+        }
+      }
+    } catch (_e) {}
+
+    let evidenceModel = null;
+    try {
+      if (EvidenceEngine && typeof EvidenceEngine.buildEvidenceModel === "function") {
+        evidenceModel = EvidenceEngine.buildEvidenceModel(evidenceInput);
+      }
+    } catch (_e) { evidenceModel = null; }
+
+    let plan = null;
+    try {
+      if (ResponsePlanner && typeof ResponsePlanner.planResponse === "function") {
+        plan = ResponsePlanner.planResponse({
+          lane: evidenceInput.lane,
+          message: evidenceInput.message,
+          text: evidenceInput.text,
+          intent: { lane: evidenceInput.lane },
+          routeConfidence: evidenceInput.routeConfidence,
+          intentConfidence: evidenceInput.intentConfidence,
+          ambiguity: evidenceInput.ambiguity,
+          memoryWindow,
+          unresolvedAsks: evidenceInput.unresolvedAsks,
+          actionHints: evidenceModel && Array.isArray(evidenceModel.actionHints) ? evidenceModel.actionHints : asArray(evidenceInput.actionHints),
+          clarifyCount: clampInt(session && session.__clarifyStreak, 0, 0, 99),
+          urgency: clamp01(cog && cog.urgency)
+        });
+      }
+    } catch (_e) { plan = null; }
+
+    let actionHints = [];
+    let followUps = [];
+    let uiActions = [];
+    try {
+      if (ActionBuilder) {
+        if (typeof ActionBuilder.buildActionHints === "function") {
+          actionHints = ActionBuilder.buildActionHints({
+            lane: evidenceInput.lane,
+            intent: { lane: evidenceInput.lane },
+            replyShape: safeStr(plan && plan.replyShape || ""),
+            unresolvedAsks: evidenceInput.unresolvedAsks,
+            memoryWindow
+          });
+        }
+        if (typeof ActionBuilder.buildFollowUps === "function") {
+          followUps = ActionBuilder.buildFollowUps({
+            lane: evidenceInput.lane,
+            intent: { lane: evidenceInput.lane },
+            replyShape: safeStr(plan && plan.replyShape || ""),
+            minimalClarifier: safeStr(plan && plan.minimalClarifier || ""),
+            urls: { roku: ROKU_EPG_URL, radio: URLS && URLS.r, newsCanada: URLS && URLS.n }
+          });
+        }
+        if (typeof ActionBuilder.buildUiActions === "function") {
+          uiActions = ActionBuilder.buildUiActions({
+            lane: evidenceInput.lane,
+            intent: { lane: evidenceInput.lane },
+            actionHints,
+            urls: { roku: ROKU_EPG_URL, radio: URLS && URLS.r, newsCanada: URLS && URLS.n }
+          });
+        }
+      }
+    } catch (_e) {}
+
+    return {
+      evidenceModel,
+      plan,
+      actionHints: asArray(actionHints),
+      followUps: asArray(followUps),
+      uiActions: asArray(uiActions),
+      sessionPatch: {
+        __routeConfidence: clamp01(evidenceInput.routeConfidence),
+        __intentConfidence: clamp01(evidenceInput.intentConfidence),
+        __ambiguityScore: clamp01(evidenceInput.ambiguity),
+        __replyShape: safeStr(plan && plan.replyShape || ""),
+        __nextBestAction: safeStr(plan && plan.nextBestAction || "")
+      },
+      metaPatch: {
+        opIntel: {
+          evidenceReady: !!(evidenceModel && evidenceModel.ok),
+          plannerReady: !!(plan && plan.ok),
+          actionHints: asArray(actionHints).slice(0, 6),
+          replyShape: safeStr(plan && plan.replyShape || ""),
+          nextBestAction: safeStr(plan && plan.nextBestAction || ""),
+          conflictMeta: evidenceModel && evidenceModel.conflictMeta ? evidenceModel.conflictMeta : undefined
+        }
+      }
+    };
+  } catch (_e) {
+    return { evidenceModel: null, plan: null, actionHints: [], followUps: [], uiActions: [], sessionPatch: {}, metaPatch: {} };
+  }
 }
 
 function buildEvidenceEngine(norm, session, cog) {
