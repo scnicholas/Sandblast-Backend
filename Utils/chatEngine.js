@@ -5238,3 +5238,235 @@ function governor(session, text) {
     return { break:false };
   }
 }
+
+
+/* ===============================
+   OPINTEL AUDIO / BRIDGE WRAPPER v0.10.13
+   - Post-processes chatEngine output without disturbing core pipeline
+   - Stabilizes text-to-synth
+   - Adds guarded auto-play directives
+   - Prevents repeated speak loops
+   - Strengthens Marion <-> Nyx bridge metadata
+================================= */
+(function attachOperationalIntelAudioWrapper(){
+  const __baseExport = module.exports;
+  if (!__baseExport || __baseExport.__opIntelAudioWrapped) return;
+
+  function _oiSafeStr(v){ return v == null ? "" : String(v); }
+  function _oiIsObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function _oiAsArr(v){ return Array.isArray(v) ? v : []; }
+  function _oiNow(){ return Date.now(); }
+  function _oiClampInt(v, dflt, min, max){
+    const n = Number(v);
+    if (!Number.isFinite(n)) return dflt;
+    const t = Math.trunc(n);
+    return Math.max(min, Math.min(max, t));
+  }
+  function _oiSha1Lite(str){
+    const s = _oiSafeStr(str);
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+  function _oiSoftSpeak(text){
+    let t = _oiSafeStr(text || "");
+    t = t.replace(/\bI'm\b/g, "I am")
+         .replace(/\bcan't\b/gi, "cannot")
+         .replace(/\bwon't\b/gi, "will not")
+         .replace(/\bit's\b/gi, "it is")
+         .replace(/\bthat's\b/gi, "that is")
+         .replace(/\bthere's\b/gi, "there is")
+         .replace(/\bwhat's\b/gi, "what is");
+    t = t.replace(/!{2,}/g, "!")
+         .replace(/\?{2,}/g, "?")
+         .replace(/\.{4,}/g, "...");
+    t = t.replace(/[\u{1F300}-\u{1FAFF}]/gu, "");
+    t = t.replace(/\s*—\s*/g, ". ");
+    t = t.replace(/\s*;\s*/g, ". ");
+    return t.replace(/\s+/g, " ").trim();
+  }
+  function _oiBool(v, dflt){
+    if (v === undefined || v === null || v === "") return !!dflt;
+    const s = _oiSafeStr(v).trim().toLowerCase();
+    if (s === "1" || s === "true" || s === "yes" || s === "on") return true;
+    if (s === "0" || s === "false" || s === "no" || s === "off") return false;
+    return !!dflt;
+  }
+  function _oiGetSession(input){
+    if (_oiIsObj(input) && _oiIsObj(input.session)) return input.session;
+    if (_oiIsObj(input) && _oiIsObj(input.body) && _oiIsObj(input.body.session)) return input.body.session;
+    return {};
+  }
+  function _oiGetCtx(input, out){
+    if (_oiIsObj(out) && _oiIsObj(out.ctx)) return out.ctx;
+    if (_oiIsObj(input) && _oiIsObj(input.ctx)) return input.ctx;
+    if (_oiIsObj(input) && _oiIsObj(input.body) && _oiIsObj(input.body.ctx)) return input.body.ctx;
+    return {};
+  }
+  function _oiHasDirective(out, type){
+    return _oiAsArr(out && out.directives).some((d) => _oiIsObj(d) && _oiSafeStr(d.type).toUpperCase() === _oiSafeStr(type).toUpperCase());
+  }
+  function _oiFindDirective(out, type){
+    return _oiAsArr(out && out.directives).find((d) => _oiIsObj(d) && _oiSafeStr(d.type).toUpperCase() === _oiSafeStr(type).toUpperCase()) || null;
+  }
+  function _oiExtractSpeakText(out){
+    const direct = _oiFindDirective(out, 'TTS_SPEAK');
+    if (direct && _oiSafeStr(direct.text).trim()) return _oiSafeStr(direct.text).trim();
+    const reply = _oiSafeStr(out && (out.reply || (out.payload && out.payload.reply) || "")).trim();
+    return _oiSoftSpeak(reply);
+  }
+  function _oiShouldSpeak(input, out){
+    const ctx = _oiGetCtx(input, out);
+    const session = _oiGetSession(input);
+    if (!out || out.ok === false) return false;
+    if (_oiSafeStr(out.reply || "").trim() === "") return false;
+    if (_oiBool(ctx.noAudio, false) || _oiBool(ctx.mute, false) || _oiBool(ctx.ttsDisabled, false)) return false;
+    if (_oiBool(session.noAudio, false) || _oiBool(session.mute, false)) return false;
+    if (_oiHasDirective(out, 'SAFETY_REDIRECT')) return false;
+    if (_oiHasDirective(out, 'AUDIO_SUPPRESS')) return false;
+    return true;
+  }
+  function _oiShouldAutoPlay(input, out){
+    const ctx = _oiGetCtx(input, out);
+    const session = _oiGetSession(input);
+    if (!_oiShouldSpeak(input, out)) return false;
+    if (_oiBool(ctx.requireClickForAudio, false)) return false;
+    if (_oiBool(session.requireClickForAudio, false)) return false;
+    if (_oiBool(ctx.autoPlayAudio, true) === false) return false;
+    if (_oiBool(session.autoPlayAudio, true) === false) return false;
+    if (_oiHasDirective(out, 'AUDIO_PLAY')) return true;
+    return true;
+  }
+  function _oiApplySpeakGovernor(input, out, text){
+    const session = _oiGetSession(input);
+    const cleaned = _oiSafeStr(text).trim();
+    if (!cleaned) return { allowed: false, text: "", patch: {} };
+    const sig = _oiSha1Lite(cleaned.slice(0, 300));
+    const now = _oiNow();
+    const prevSig = _oiSafeStr(session.__lastSpokenSig || "");
+    const prevAt = Number(session.__lastSpokenAt || 0) || 0;
+    const prevN = _oiClampInt(session.__lastSpokenN || 0, 0, 0, 99);
+    const same = !!(sig && prevSig && sig === prevSig && (now - prevAt) <= 12000);
+    const nextN = same ? prevN + 1 : 0;
+    const allowed = !(same && nextN >= 1);
+    return {
+      allowed,
+      text: cleaned,
+      patch: {
+        __lastSpokenSig: sig,
+        __lastSpokenAt: now,
+        __lastSpokenN: nextN,
+      },
+    };
+  }
+  function _oiEnsureArray(v){ return Array.isArray(v) ? v.slice() : []; }
+  function _oiEnhanceOut(input, rawOut){
+    const out = _oiIsObj(rawOut) ? { ...rawOut } : rawOut;
+    if (!_oiIsObj(out)) return rawOut;
+
+    out.directives = _oiEnsureArray(out.directives);
+    out.followUps = _oiEnsureArray(out.followUps);
+    out.followUpsStrings = _oiEnsureArray(out.followUpsStrings);
+    out.sessionPatch = _oiIsObj(out.sessionPatch) ? { ...out.sessionPatch } : {};
+    out.meta = _oiIsObj(out.meta) ? { ...out.meta } : {};
+    out.bridge = _oiIsObj(out.bridge) ? { ...out.bridge } : {};
+    out.cog = _oiIsObj(out.cog) ? { ...out.cog } : (out.cog == null ? {} : out.cog);
+
+    const reply = _oiSafeStr(out.reply || (out.payload && out.payload.reply) || "").trim();
+    const speakText = _oiExtractSpeakText(out);
+    const shouldSpeak = _oiShouldSpeak(input, out);
+    const gov = _oiApplySpeakGovernor(input, out, speakText);
+    const speakAllowed = shouldSpeak && gov.allowed && !!gov.text;
+    const autoPlay = speakAllowed && _oiShouldAutoPlay(input, out);
+
+    Object.assign(out.sessionPatch, gov.patch);
+
+    if (speakAllowed && !_oiHasDirective(out, 'TTS_SPEAK')) {
+      out.directives.push({
+        type: 'TTS_SPEAK',
+        text: gov.text.slice(0, 2200),
+        textToSynth: gov.text.slice(0, 2200),
+        voiceMode: 'nyx_primary',
+        provider: 'resemble',
+        autoPlay,
+        when: 'post_reply',
+        trigger: 'chat_success',
+        maxChars: 2200,
+        hints: {
+          cadence: 'steady',
+          warmth: 'high',
+          bridge: 'marion_to_nyx',
+        },
+      });
+    }
+
+    if (speakAllowed && autoPlay && !_oiHasDirective(out, 'AUDIO_PLAY')) {
+      out.directives.push({
+        type: 'AUDIO_PLAY',
+        when: 'tts_ready',
+        strategy: 'single_shot',
+        interrupt: false,
+        allowDuplicate: false,
+        autoPlay: true,
+      });
+    }
+
+    if (!speakAllowed) {
+      out.directives = out.directives.filter((d) => {
+        const t = _oiSafeStr(d && d.type).toUpperCase();
+        return t !== 'AUDIO_PLAY';
+      });
+    }
+
+    out.bridge.tts = {
+      shouldSpeak: !!speakAllowed,
+      autoPlay: !!(speakAllowed && autoPlay),
+      textToSynth: speakAllowed ? gov.text.slice(0, 2200) : '',
+      provider: 'resemble',
+      trigger: speakAllowed ? 'post_reply' : 'suppressed',
+    };
+
+    out.meta.audio = {
+      shouldSpeak: !!speakAllowed,
+      autoPlay: !!(speakAllowed && autoPlay),
+      suppressed: !speakAllowed,
+      reason: !shouldSpeak ? 'not_eligible' : (!gov.allowed ? 'speak_governor' : 'ok'),
+      textChars: gov.text ? gov.text.length : 0,
+    };
+
+    if (_oiIsObj(out.cog)) {
+      out.cog.audioReady = !!speakAllowed;
+      out.cog.autoPlayAudio = !!(speakAllowed && autoPlay);
+      out.cog.bridgeState = 'marion_nyx_aligned';
+      out.cog.operationalDepthTarget = 15;
+    }
+
+    if (!out.payload && reply) out.payload = { reply };
+    return out;
+  }
+
+  const wrapped = function wrappedOperationalChatEngine(){
+    const input = arguments && arguments.length ? arguments[0] : undefined;
+    try {
+      const out = __baseExport.apply(null, arguments);
+      if (out && typeof out.then === 'function') {
+        return out.then((v) => _oiEnhanceOut(input, v)).catch((e) => {
+          try { return Promise.resolve(failSafeContract(e, input)); } catch (_) { throw e; }
+        });
+      }
+      return _oiEnhanceOut(input, out);
+    } catch (e) {
+      try { return Promise.resolve(failSafeContract(e, input)); } catch (_) { throw e; }
+    }
+  };
+
+  Object.assign(wrapped, __baseExport, {
+    __opIntelAudioWrapped: true,
+    CE_VERSION: _oiSafeStr(__baseExport.CE_VERSION || CE_VERSION || '') + ' + AUDIO-WRAP v0.10.13',
+  });
+  wrapped.default = wrapped.handleChat = wrapped.chatEngine = wrapped;
+  module.exports = wrapped;
+})();
