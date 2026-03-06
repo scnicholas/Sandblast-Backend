@@ -215,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.42sb (OPINTEL+15: TRACE SPINE + ROUTE ENVELOPE + ACTION/UI PASSTHROUGH + PLANNER FAILSAFE + LOOP-SAFE CHAT ROUTE)";
+const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: CORS TRACE/TOKEN ALIGN + PREFLIGHT HEADER FIX + WIDGET/TTS PARITY + LOOP-SAFE CHAT ROUTE)";
 
 // =========================
 // Utils
@@ -2584,7 +2584,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
   res.setHeader(
     "Access-Control-Allow-Headers",
     req.headers["access-control-request-headers"] ||
-      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
+      "Content-Type, Authorization, X-SB-Token, X-SB-Widget-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source, X-SB-Trace-Id"
   );
   res.setHeader("Access-Control-Max-Age", "600");
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -2598,7 +2598,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
     res.setHeader(
       "Access-Control-Allow-Headers",
       req.headers["access-control-request-headers"] ||
-        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
+        "Content-Type, X-SB-Token, X-SB-Widget-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-SB-Trace-Id"
     );
     res.setHeader("Access-Control-Max-Age", "600");
     if (req.method === "OPTIONS") return res.status(204).send("");
@@ -2621,10 +2621,15 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
         "Authorization",
         "X-Requested-With",
         "X-SB-Session",
+        "x-sb-session",
         "X-Session-Id",
+        "x-session-id",
         "X-Visitor-Id",
+        "x-visitor-id",
         "X-Request-Id",
+        "x-request-id",
         "X-Route-Hint",
+        "x-route-hint",
         "X-Client-Source",
         "x-client-source",
         "X-SBNYX-Client-Build",
@@ -2635,8 +2640,22 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
         "x-contract-version",
         "X-SB-Token",
         "x-sb-token",
+        "X-SB-Widget-Token",
+        "x-sb-widget-token",
+        "X-SB-Trace-Id",
+        "x-sb-trace-id",
+        "X-SB-TraceId",
+        "x-sb-traceid",
       ].join(", ")
     );
+    res.setHeader("Access-Control-Expose-Headers", [
+      "x-sb-trace-id",
+      "x-sb-tts-provider",
+      "x-sb-tts-ms",
+      "x-sb-tts-cache",
+      "x-sb-voice",
+      "x-request-id"
+    ].join(", "));
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
