@@ -215,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.40sb (OPINTEL+10: ENGINE SYMBOL GUARD + WARMUP ELIM + BOOT VERIFY)";
+const INDEX_VERSION = "index.js v1.5.42sb (OPINTEL+15: TRACE SPINE + ROUTE ENVELOPE + ACTION/UI PASSTHROUGH + PLANNER FAILSAFE + LOOP-SAFE CHAT ROUTE)";
 
 // =========================
 // Utils
@@ -3205,42 +3205,33 @@ function applySessionPatch(session, patch) {
 async function handleChatRoute(req, res) {
   req = __sbNormalizeReq(req);
   const startedAt = nowMs();
-  try {
-    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-  // Loop governor: short-window de-dupe + in-flight collapse (no async join; keep handler sync)
-  const __sig = chatSig(body);
-  if (__sig) {
-    const cached = dedupeGet(__sig);
-    if (cached) {
-      return res.status(200).json({ ...cached, meta: { ...(cached.meta||{}), deduped: true } });
-    }
-    if (inflightGet(__sig)) {
-      const soft = {
-        ok: true,
-        reply: "One moment — finishing the last reply. Try again.",
-        payload: { reply: "One moment — finishing the last reply. Try again." },
-        lane: (body && body.lane) || ((body && body.payload) ? body.payload.lane : undefined) || "general",
-        requestId: req.id || req.requestId || undefined,
-        meta: { index: INDEX_TAG, engine: ENGINE && ENGINE.name ? ENGINE.name : null, engineReady: !!(ENGINE && typeof ENGINE.fn === "function"), inFlight: true }
-      };
-      return res.status(200).json(soft);
-    }
-  }
+  const traceId = safeStr(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || req.id || req.requestId || makeReqId()).trim() || makeReqId();
+  try { res.setHeader("x-sb-trace-id", traceId); } catch (_) {}
 
-  if (__sig) inflightSet(__sig, 1);
+  const arrOrUndef = (v) => (Array.isArray(v) && v.length ? v : undefined);
+  const arrOrEmpty = (v) => (Array.isArray(v) ? v : []);
+  const firstArray = (...vals) => {
+    for (const v of vals) if (Array.isArray(v) && v.length) return v;
+    return undefined;
+  };
+  const safeCloneObj = (v) => (isPlainObject(v) ? { ...v } : {});
 
+  let __sig = "";
+  let responded = false;
   const respond = (status, obj) => {
+    if (responded) return res;
+    responded = true;
     try {
-      if (__sig && obj) {
-        dedupeSet(__sig, obj);
-      }
+      if (__sig && obj && obj.ok !== false && !(obj.meta && obj.meta.inFlight)) dedupeSet(__sig, obj);
     } catch (_) {}
     try { if (__sig) inflightClear(__sig); } catch (_) {}
-    return respond(status, obj);
+    if (!res.headersSent) return res.status(status).json(obj);
+    return res;
   };
 
+  try {
+    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
 
-    // If body came through as a raw string, preserve it as text.
     if (typeof req.body === "string" && !isPlainObject(body)) {
       const parsed = safeJsonParseMaybe(req.body);
       body = parsed && isPlainObject(parsed) ? parsed : { text: req.body };
@@ -3248,313 +3239,385 @@ async function handleChatRoute(req, res) {
 
     normalizeChipPayload(body);
 
+    __sig = chatSig(body);
+    if (__sig) {
+      const cached = dedupeGet(__sig);
+      if (cached) {
+        return respond(200, { ...cached, meta: { ...(cached.meta || {}), deduped: true, traceId } });
+      }
+      if (inflightGet(__sig)) {
+        const lane0 = (body && body.lane) || ((body && body.payload) ? body.payload.lane : undefined) || "general";
+        return respond(200, {
+          ok: true,
+          reply: "One moment — finishing the last reply. Try again.",
+          payload: { reply: "One moment — finishing the last reply. Try again.", lane: lane0 },
+          lane: lane0,
+          requestId: req.id || req.requestId || traceId,
+          meta: {
+            index: INDEX_VERSION,
+            engine: ENGINE_VERSION || null,
+            engineReady: !!(ENGINE && typeof ENGINE.fn === "function"),
+            inFlight: true,
+            traceId,
+          },
+        });
+      }
+      inflightSet(__sig, 1);
+    }
+
     if (!ENGINE || typeof ENGINE.fn !== "function") {
       return respond(200, {
-      ok: true,
-      reply: "I\u2019m here. Try again \u2014 or tap one of the options below.",
-      payload: { reply: "I\u2019m here. Try again \u2014 or tap one of the options below." },
-      lane: "general",
-      requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, engineReady: false }
-    });
-  }
-
-  const clientRequestId = safeStr(body.requestId || body.clientRequestId || req.headers["x-request-id"] || "").trim();
-  const serverRequestId = clientRequestId || makeReqId();
-  let psyche = null;
-  let psycheErr = null;
-
-  const source = safeStr(body?.client?.source || body?.source || req.headers["x-client-source"] || "").trim() || "unknown";
-
-  const routeHint =
-    safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || req.headers["x-route-hint"] || "").trim() ||
-    "general";
-
-  const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
-
-  const inboundSig = normalizeInboundSignature(body, inboundText);
-  const meaningful = !!inboundSig || hasIntentSignals(body);
-
-  const { rec } = getSession(req);
-  const bootLike = isBootLike(routeHint, body);
-  const isReset = isResetCommand(inboundText, source, body);
-
-  if (bootLike && !isReset) {
-    const bf = checkBootFuse(rec, startedAt);
-    if (bf.blocked) {
-      const cached = readBootReplay(rec);
-      const reply = cached.reply || "";
-      return respond(200, {
         ok: true,
-        reply,
-        lane: cached.lane || rec.data.lane || "general",
-        payload: { reply, lane: cached.lane || rec.data.lane || "general" },
-        laneId: rec.data.laneId || undefined,
-        sessionLane: rec.data.sessionLane || undefined,
-        directives: cached.directives,
-        followUps: cached.followUps,
-        followUpsStrings: cached.followUpsStrings,
-        sessionPatch: {},
-        requestId: serverRequestId,
-        meta: {
-          index: INDEX_VERSION,
-          engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
-          bootLike: true,
-          bootFuse: bf.reason,
-          source,
-          routeHint,
-      psycheOk: !!psyche,
-      psycheErr: psycheErr || null,
-          elapsedMs: nowMs() - startedAt,
-        },
-      });}
-  }
+        reply: "I’m here. Try again — or tap one of the options below.",
+        payload: { reply: "I’m here. Try again — or tap one of the options below." },
+        lane: "general",
+        requestId: makeReqId(),
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, engineReady: false, traceId }
+      });
+    }
 
-  if (!bootLike && meaningful && !isReset) {
-    const burst = checkBurst(rec, startedAt);
-    const sus = checkSustained(rec, startedAt);
-    if (burst.blocked || sus.blocked) {
-      const reply =
-        burst.reason === "burst"
-          ? "One sec — you’re firing a little fast. Try again in a moment."
-          : "Give me a breath — then hit me again with a year or a request.";
-      writeReplay(rec, reply, rec.data.lane || "general");
+    const clientRequestId = safeStr(body.requestId || body.clientRequestId || __sbGetHeader(req, "x-request-id") || "").trim();
+    const serverRequestId = clientRequestId || makeReqId();
+    let psyche = null;
+    let psycheErr = null;
 
-      return respond(200, {
-        ok: true,
-        reply,
-        lane: rec.data.lane || "general",
-        payload: { reply, lane: rec.data.lane || "general" },
-        laneId: rec.data.laneId || undefined,
-        sessionLane: rec.data.sessionLane || undefined,
-        sessionPatch: {},
-        requestId: serverRequestId,
-        meta: {
-          index: INDEX_VERSION,
-          engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
-          throttled: burst.blocked ? "burst" : "sustained",
-          elapsedMs: nowMs() - startedAt,
-        },
-      });}
-  }
+    const source = safeStr(body?.client?.source || body?.source || __sbGetHeader(req, "x-client-source") || "").trim() || "unknown";
+    const routeHint =
+      safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || __sbGetHeader(req, "x-route-hint") || "").trim() ||
+      "general";
 
-  if (!bootLike && meaningful && !isReset) {
-    const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
-    if (dedupe.hit) {
-      return respond(200, {
-        ok: true,
-        reply: dedupe.reply,
-        lane: dedupe.lane,
-        payload: { reply: dedupe.reply, lane: dedupe.lane },
-        directives: dedupe.directives,
-        followUps: dedupe.followUps,
-        followUpsStrings: dedupe.followUpsStrings,
-        sessionPatch: {},
-        requestId: serverRequestId,
-        meta: {
-          index: INDEX_VERSION,
-          engine: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
-          replay: true,
-          elapsedMs: nowMs() - startedAt,
-        },
-      });}
-  }
+    const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
+    const inboundSig = normalizeInboundSignature(body, inboundText);
+    const meaningful = !!inboundSig || hasIntentSignals(body);
 
-  if (!ENGINE.fn) {
-    const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
-    writeReplay(rec, reply, "general");
-    const p = safeStr(req.path || "").toLowerCase();
-  const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
-  return respond(status, {
-      ok: false,
-      reply,
-      lane: "general",
-      payload: { reply, lane: "general" },
-      requestId: serverRequestId,
-      meta: {
-        index: INDEX_VERSION,
-        engine: "missing_or_invalid",
-        engineFrom: ENGINE.from,
-        engineVersion: ENGINE_VERSION || null,
-        knowledge: knowledgeStatusForMeta(),
-      },
-    });}
+    const { rec } = getSession(req);
+    const bootLike = isBootLike(routeHint, body);
+    const isReset = isResetCommand(inboundText, source, body);
 
-  if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
-    const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
-    if (!tried) {
-      global.__SBNYX_KNOWLEDGE_LAZY_TRIED = true;
-      try {
-        reloadKnowledge();
-      } catch (e) {
-        pushKnowledgeError("lazy_reload", "reloadKnowledge()", e?.message || e);
+    if (bootLike && !isReset) {
+      const bf = checkBootFuse(rec, startedAt);
+      if (bf.blocked) {
+        const cached = readBootReplay(rec);
+        const reply = cached.reply || "";
+        return respond(200, {
+          ok: true,
+          reply,
+          lane: cached.lane || rec.data.lane || "general",
+          payload: { reply, lane: cached.lane || rec.data.lane || "general" },
+          laneId: rec.data.laneId || undefined,
+          sessionLane: rec.data.sessionLane || undefined,
+          directives: cached.directives,
+          followUps: cached.followUps,
+          followUpsStrings: cached.followUpsStrings,
+          sessionPatch: {},
+          requestId: serverRequestId,
+          meta: {
+            index: INDEX_VERSION,
+            engine: ENGINE_VERSION || null,
+            knowledge: knowledgeStatusForMeta(),
+            bootLike: true,
+            bootFuse: bf.reason,
+            source,
+            routeHint,
+            psycheOk: !!psyche,
+            psycheErr: psycheErr || null,
+            elapsedMs: nowMs() - startedAt,
+            traceId,
+          },
+        });
       }
     }
-  }
 
-  const engineInput = {
-    ...body,
-    requestId: serverRequestId,
-    clientRequestId: clientRequestId || undefined,
-    text: inboundText,
-    source,
-    routeHint,
-    client: {
-      ...(isPlainObject(body.client) ? body.client : {}),
+    if (!bootLike && meaningful && !isReset) {
+      const burst = checkBurst(rec, startedAt);
+      const sus = checkSustained(rec, startedAt);
+      if (burst.blocked || sus.blocked) {
+        const reply =
+          burst.reason === "burst"
+            ? "One sec — you’re firing a little fast. Try again in a moment."
+            : "Give me a breath — then hit me again with a year or a request.";
+        writeReplay(rec, reply, rec.data.lane || "general");
+
+        return respond(200, {
+          ok: true,
+          reply,
+          lane: rec.data.lane || "general",
+          payload: { reply, lane: rec.data.lane || "general" },
+          laneId: rec.data.laneId || undefined,
+          sessionLane: rec.data.sessionLane || undefined,
+          sessionPatch: {},
+          requestId: serverRequestId,
+          meta: {
+            index: INDEX_VERSION,
+            engine: ENGINE_VERSION || null,
+            knowledge: knowledgeStatusForMeta(),
+            throttled: burst.blocked ? "burst" : "sustained",
+            elapsedMs: nowMs() - startedAt,
+            traceId,
+          },
+        });
+      }
+    }
+
+    if (!bootLike && meaningful && !isReset) {
+      const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
+      if (dedupe.hit) {
+        return respond(200, {
+          ok: true,
+          reply: dedupe.reply,
+          lane: dedupe.lane,
+          payload: { reply: dedupe.reply, lane: dedupe.lane },
+          directives: dedupe.directives,
+          followUps: dedupe.followUps,
+          followUpsStrings: dedupe.followUpsStrings,
+          sessionPatch: {},
+          requestId: serverRequestId,
+          meta: {
+            index: INDEX_VERSION,
+            engine: ENGINE_VERSION || null,
+            knowledge: knowledgeStatusForMeta(),
+            replay: true,
+            elapsedMs: nowMs() - startedAt,
+            traceId,
+          },
+        });
+      }
+    }
+
+    if (!ENGINE.fn) {
+      const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
+      writeReplay(rec, reply, "general");
+      const p = safeStr(req.path || "").toLowerCase();
+      const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
+      return respond(status, {
+        ok: false,
+        reply,
+        lane: "general",
+        payload: { reply, lane: "general" },
+        requestId: serverRequestId,
+        meta: {
+          index: INDEX_VERSION,
+          engine: "missing_or_invalid",
+          engineFrom: ENGINE.from,
+          engineVersion: ENGINE_VERSION || null,
+          knowledge: knowledgeStatusForMeta(),
+          traceId,
+        },
+      });
+    }
+
+    if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
+      const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
+      if (!tried) {
+        global.__SBNYX_KNOWLEDGE_LAZY_TRIED = true;
+        try { reloadKnowledge(); } catch (e) { pushKnowledgeError("lazy_reload", "reloadKnowledge()", e?.message || e); }
+      }
+    }
+
+    const engineInput = {
+      ...body,
+      requestId: serverRequestId,
+      clientRequestId: clientRequestId || undefined,
+      traceId,
+      text: inboundText,
       source,
       routeHint,
-      psycheOk: !!psyche,
-      psycheErr: psycheErr || null,
-    },
-    session: rec.data,
+      client: {
+        ...(isPlainObject(body.client) ? body.client : {}),
+        source,
+        routeHint,
+        traceId,
+        psycheOk: !!psyche,
+        psycheErr: psycheErr || null,
+      },
+      session: rec.data,
+      knowledge: knowledgeSnapshotForEngine(),
+      __knowledgeStatus: knowledgeStatusForMeta(),
+      packIndex: getPackIndexSafe(false),
+    };
 
-    knowledge: knowledgeSnapshotForEngine(),
-    __knowledgeStatus: knowledgeStatusForMeta(),
-    packIndex: getPackIndexSafe(false),
-  };
-
-  let out;
-  try {
-    out = await ENGINE.fn(engineInput);
-    out = normalizeEngineOutput(out);
-  } catch (e) {
-    const msg = safeStr(e?.message || e).trim();
-    const k = knowledgeStatusForMeta();
-    const reply = k.ok
-      ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
-      : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
-    writeReplay(rec, reply, rec.data.lane || "general");
-    return respond(200, (function(){
-      const lane0 = rec.data.lane || routeHint || "general";
-      // Reset should never surface as an error in the UI
+    let out;
+    try {
+      out = await ENGINE.fn(engineInput);
+      out = normalizeEngineOutput(out);
+    } catch (e) {
+      const msg = safeStr(e?.message || e).trim();
+      const k = knowledgeStatusForMeta();
+      const reply = k.ok
+        ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
+        : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
+      writeReplay(rec, reply, rec.data.lane || "general");
       if (isReset) {
         const reply0 = "";
-        writeReplay(rec, reply0, lane0);
-        return {
+        writeReplay(rec, reply0, rec.data.lane || routeHint || "general");
+        return respond(200, {
           ok: true,
           reply: reply0,
-          lane: lane0,
-          payload: { reply: reply0, lane: lane0 },
+          lane: rec.data.lane || routeHint || "general",
+          payload: { reply: reply0, lane: rec.data.lane || routeHint || "general" },
           requestId: serverRequestId,
-          meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, reset: true, failOpen: true }
-        };
+          meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, reset: true, failOpen: true, traceId }
+        });
       }
-      // Lane-aware fail-soft (no “snag” spam)
+      const lane0 = rec.data.lane || routeHint || "general";
       const needsYear = lane0 === "music" && !String(body.year || body.payload?.year || "").trim();
       const reply0 = needsYear
         ? "Alright — pick a year (1950–2024) and I’ll jump right in."
         : "I’m here — something glitched for a second. Try that again.";
       writeReplay(rec, reply0, lane0);
-      return {
+      return respond(200, {
         ok: true,
         reply: reply0,
         lane: lane0,
         payload: { reply: reply0, lane: lane0 },
         requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true }
-      };
-    })());}
-
-  if (out && isPlainObject(out.sessionPatch)) {
-    applySessionPatch(rec.data, out.sessionPatch);
-  }
-
-  const lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
-  rec.data.lane = lane;
-
-
-  // =========================================================
-  // PSYCHE BRIDGE (always-run, fail-open)
-  // - Proves bridge is called on every turn
-  // - Never blocks chat (errors are captured in meta)
-  // =========================================================
-  psyche = null;
-  psycheErr = null;
-  try {
-    if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
-      const feats = isPlainObject(out?.cog) ? out.cog : (isPlainObject(out) ? out : {});
-      const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
-      const tokens = tokSrc.slice(0, 32);
-      const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
-      const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
-      const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
-      psyche = await psycheBridgeMod.build({
-        features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge" },
-        tokens,
-        queryKey,
-        sessionKey,
-        opts: { mode: "live", forcedLane }
+        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true, traceId }
       });
-      // attach for downstream + client visibility
-      out.psyche = psyche;
-      if (out.cog && isPlainObject(out.cog)) out.cog.psyche = psyche;
     }
+
+    const safeSessionPatch = safeCloneObj(out?.sessionPatch);
+    const outCog = isPlainObject(out?.cog) ? { ...out.cog } : {};
+    const outMeta = safeCloneObj(out?.meta);
+    const evidenceModel = isPlainObject(out?.evidenceModel) ? out.evidenceModel : (isPlainObject(outMeta.evidenceModel) ? outMeta.evidenceModel : null);
+    const responsePlan = isPlainObject(out?.responsePlan) ? out.responsePlan : (isPlainObject(outMeta.responsePlan) ? outMeta.responsePlan : null);
+    const actionHints = arrOrEmpty(out?.actionHints).length ? arrOrEmpty(out?.actionHints) : arrOrEmpty(out?.ui?.actionHints);
+    const uiActions = arrOrEmpty(out?.uiActions).length ? arrOrEmpty(out?.uiActions) : arrOrEmpty(out?.ui?.actions);
+    const routeConfidence = Number.isFinite(Number(out?.routeConfidence)) ? Number(out.routeConfidence) : Number(outCog.routeConfidence);
+    const intentConfidence = Number.isFinite(Number(out?.intentConfidence)) ? Number(out.intentConfidence) : Number(outCog.intentConfidence);
+    const ambiguityScore = Number.isFinite(Number(out?.ambiguity)) ? Number(out.ambiguity) : Number(outCog?.ambiguity?.score);
+    const minimalClarifier = safeStr(out?.minimalClarifier || responsePlan?.minimalClarifier || outCog.minClarifier || "");
+
+    if (!isPlainObject(safeSessionPatch.opintel)) safeSessionPatch.opintel = {};
+    safeSessionPatch.opintel.traceId = traceId;
+    if (Number.isFinite(routeConfidence)) safeSessionPatch.opintel.routeConfidence = routeConfidence;
+    if (Number.isFinite(intentConfidence)) safeSessionPatch.opintel.intentConfidence = intentConfidence;
+    if (Number.isFinite(ambiguityScore)) safeSessionPatch.opintel.ambiguity = ambiguityScore;
+    if (safeStr(responsePlan?.replyShape)) safeSessionPatch.opintel.replyShape = safeStr(responsePlan.replyShape);
+    if (minimalClarifier) safeSessionPatch.opintel.minimalClarifier = minimalClarifier;
+
+    if (Object.keys(safeSessionPatch).length) applySessionPatch(rec.data, safeSessionPatch);
+
+    let lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
+
+    psyche = null;
+    psycheErr = null;
+    try {
+      if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
+        const feats = isPlainObject(outCog) ? outCog : (isPlainObject(out) ? out : {});
+        const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
+        const tokens = tokSrc.slice(0, 32);
+        const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
+        const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
+        const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
+        psyche = await psycheBridgeMod.build({
+          features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge", traceId },
+          tokens,
+          queryKey,
+          sessionKey,
+          opts: { mode: "live", forcedLane, traceId }
+        });
+        out.psyche = psyche;
+        if (isPlainObject(outCog)) outCog.psyche = psyche;
+      }
+    } catch (e) {
+      psycheErr = safeStr(e?.message || e).slice(0, 220);
+    }
+
+    const rawReply = safeStr(out?.reply || "").trim();
+    const plannerFallback = minimalClarifier || safeStr(responsePlan?.nextBestAction || "").trim();
+    const reply = isReset ? silentResetReply() : (rawReply || plannerFallback || "Okay — tell me what you want next.");
+
+    const directives = Array.isArray(out?.directives) ? out.directives : undefined;
+    const followUps = firstArray(out?.followUps, out?.ui?.followUps, responsePlan?.followUps);
+    const followUpsStrings = !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
+
+    const mergedUi = {
+      ...(isPlainObject(out?.ui) ? out.ui : {}),
+      ...(actionHints.length ? { actionHints } : {}),
+      ...(uiActions.length ? { actions: uiActions } : {}),
+      ...(followUps ? { followUps } : {}),
+      ...(minimalClarifier ? { minimalClarifier } : {}),
+    };
+
+    if (!isReset && !bootLike) {
+      writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+    } else if (isReset) {
+      rec.data.__idx_lastOut = "";
+      rec.data.__idx_lastLane = lane;
+    }
+
+    if (bootLike && !isReset) writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+
+    const opintelMeta = {
+      traceId,
+      intentConfidence: Number.isFinite(intentConfidence) ? intentConfidence : null,
+      routeConfidence: Number.isFinite(routeConfidence) ? routeConfidence : null,
+      ambiguity: Number.isFinite(ambiguityScore) ? ambiguityScore : null,
+      minimalClarifier: minimalClarifier || null,
+      replyShape: safeStr(responsePlan?.replyShape || outMeta.replyShape || "") || null,
+      nextBestAction: safeStr(responsePlan?.nextBestAction || "") || null,
+      actionHintsCount: actionHints.length,
+      uiActionsCount: uiActions.length,
+      evidenceCount: Array.isArray(evidenceModel?.rankedEvidence) ? evidenceModel.rankedEvidence.length : 0,
+      clarifyMinimized: !!(outCog.clarifyMinimized || responsePlan?.shouldClarify === false && minimalClarifier),
+      loopGuards: {
+        bootLike: !!bootLike,
+        resetSilenced: !!isReset,
+        replayIsolation: !!(!bootLike && meaningful),
+      },
+    };
+
+    return respond(200, {
+      ok: true,
+      reply,
+      lane,
+      payload: {
+        reply,
+        lane,
+        laneId: out?.laneId || rec.data.laneId || undefined,
+        sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
+        bridge: out?.bridge || undefined,
+        ctx: out?.ctx,
+        ui: mergedUi,
+        directives,
+        followUps,
+        followUpsStrings,
+        sessionPatch: safeSessionPatch,
+        cog: outCog,
+      },
+      laneId: out?.laneId || rec.data.laneId || undefined,
+      sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
+      bridge: out?.bridge || undefined,
+      ctx: out?.ctx,
+      ui: mergedUi,
+      directives,
+      followUps,
+      followUpsStrings,
+      sessionPatch: safeSessionPatch,
+      cog: outCog,
+      requestId: out?.requestId || serverRequestId,
+      meta: {
+        ...outMeta,
+        index: INDEX_VERSION,
+        engine: ENGINE_VERSION || null,
+        engineFrom: ENGINE.from,
+        knowledge: knowledgeStatusForMeta(),
+        elapsedMs: nowMs() - startedAt,
+        source,
+        routeHint,
+        psycheOk: !!psyche,
+        psycheErr: psycheErr || null,
+        bootLike: !!bootLike,
+        inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
+        meaningful: !!meaningful,
+        resetSilenced: !!isReset,
+        echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+        packs: getPackIndexSafe(false).summary,
+        traceId,
+        opintel: opintelMeta,
+      },
+    });
   } catch (e) {
-    psycheErr = safeStr(e?.message || e).slice(0, 220);
-  }
-
-
-  const rawReply = safeStr(out?.reply || "").trim();
-  const reply = isReset ? silentResetReply() : rawReply || "Okay — tell me what you want next.";
-
-  const directives = Array.isArray(out?.directives) ? out.directives : undefined;
-  const followUps = Array.isArray(out?.followUps) ? out.followUps : undefined;
-  const followUpsStrings =
-    !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length
-      ? out.followUpsStrings
-      : undefined;
-
-  if (!isReset && !bootLike) {
-    writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
-  } else if (isReset) {
-    rec.data.__idx_lastOut = "";
-    rec.data.__idx_lastLane = lane;
-  }
-
-  if (bootLike && !isReset) {
-    writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
-  }
-
-  return respond(200, {
-    ok: true,
-    reply,
-    lane,
-    payload: { reply, lane, laneId: out?.laneId || rec.data.laneId || undefined, sessionLane: out?.sessionLane || rec.data.sessionLane || undefined, bridge: out?.bridge || undefined, ctx: out?.ctx, ui: out?.ui, directives, followUps, followUpsStrings, sessionPatch: out?.sessionPatch || {}, cog: out?.cog },
-    laneId: out?.laneId || rec.data.laneId || undefined,
-    sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
-    bridge: out?.bridge || undefined,
-    ctx: out?.ctx,
-    ui: out?.ui,
-    directives,
-    followUps,
-    followUpsStrings,
-    sessionPatch: out?.sessionPatch || {},
-    cog: out?.cog,
-    requestId: out?.requestId || serverRequestId,
-    meta: {
-      ...(isPlainObject(out?.meta) ? out.meta : {}),
-      index: INDEX_VERSION,
-      engine: ENGINE_VERSION || null,
-      engineFrom: ENGINE.from,
-      knowledge: knowledgeStatusForMeta(),
-      elapsedMs: nowMs() - startedAt,
-      source,
-      routeHint,
-      psycheOk: !!psyche,
-      psycheErr: psycheErr || null,
-      bootLike: !!bootLike,
-      inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
-      meaningful: !!meaningful,
-      resetSilenced: !!isReset,
-      echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
-      packs: getPackIndexSafe(false).summary,
-    },
-  });
-  } catch (e) {
-    // Never let /api/chat bubble a 500 from this handler; return a safe contract.
     const msg = safeStr(e && (e.message || e.name || String(e))).slice(0, 240);
     return respond(200, {
       ok: false,
@@ -3564,7 +3627,7 @@ async function handleChatRoute(req, res) {
       payload: { reply: "", lane: "general" },
       sessionPatch: {},
       requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.catch" },
+      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.catch", traceId },
     });
   }
 }
