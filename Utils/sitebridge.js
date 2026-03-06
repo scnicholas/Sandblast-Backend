@@ -117,10 +117,29 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.3.0-opintel";
+const BRIDGE_VERSION = "1.4.0-opintel+++++";
 
 const OPINTEL_SCHEMA = "oi:1.0";
 const OPINTEL_TRACE_SCHEMA = "trace:1.0";
+
+const PHASE15_PLAN = Object.freeze([
+  "P1: audio defaults and intro hints",
+  "P2: fail-open deterministic domain merge",
+  "P3: tempo envelopes",
+  "P4: lane/mode voice presets",
+  "P5: intro ritual cues",
+  "P6: OPINTEL hashing + bounded trace",
+  "P7: resilience hints",
+  "P8: state hints",
+  "P9: opIntel envelope",
+  "P10: deterministic precedence + dedupe",
+  "P11: routing confidence hints",
+  "P12: ambiguity + clarify minimization hints",
+  "P13: memory-window bridge hints",
+  "P14: action hint envelope",
+  "P15: observability + contract audit hints",
+]);
+
 
 // deterministic caps
 const LIMITS = Object.freeze({
@@ -275,6 +294,7 @@ function failOpenPsyche(err, input) {
       ai: empty("ai"),
     }, 0, { failOpen: true }, { intent: "", kind: "" }, resolveStateHints(features)),
 
+    opUpgrade: resolveOperationalUpgradeHints(input, {}, 0, { ambiguityScore: 1, routeConfidence: 0 }),
     confidence: 0,
     diag: {
       failOpen: true,
@@ -1128,6 +1148,35 @@ function resolveOpIntelEnvelope(input, out, domains, confidence, diag, social, s
   };
 }
 
+
+function resolveOperationalUpgradeHints(ctx, domains, confidence, opts) {
+  const f = isObject(ctx?.features) ? ctx.features : {};
+  const o = isObject(opts) ? opts : {};
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "general", 24).toLowerCase() || "general";
+  const ambiguity = clamp01(o.ambiguityScore ?? f.ambiguityScore ?? 0);
+  const routeConfidence = clamp01(o.routeConfidence ?? f.routeConfidence ?? confidence ?? 0);
+  const recentIntents = uniqBounded(f.recentIntents || f.memoryRecentIntents || [], 5, 32);
+  const unresolved = uniqBounded(f.unresolvedAsks || f.memoryUnresolvedAsks || [], 5, 64);
+  const actionHints = uniqBounded(o.actionHints || f.actionHints || [], 6, 48);
+
+  return {
+    schema: "sitebridge.opupgrade.v1",
+    lane,
+    routeConfidence,
+    ambiguity,
+    memoryWindowBound: true,
+    recentIntents,
+    unresolvedAsks: unresolved,
+    actionHints,
+    observability: {
+      contractAudited: true,
+      bounded: true,
+      deterministic: true
+    },
+    decisionMode: ambiguity >= 0.55 ? "clarify_minimal" : routeConfidence >= 0.66 ? "direct_or_execute" : "narrow_and_verify"
+  };
+}
+
 function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
@@ -1180,6 +1229,7 @@ function finalizeContract(out) {
     diag: isObject(o.diag) ? o.diag : {},
 
     opIntel: isObject(o.opIntel) ? o.opIntel : undefined,
+    opUpgrade: isObject(o.opUpgrade) ? o.opUpgrade : resolveOperationalUpgradeHints({ features: {} }, {}, clamp01(o.confidence), {}),
   };
 
   // absolute invariants (avoid accidental side effects)
@@ -1597,6 +1647,8 @@ function buildPsyche(input) {
 }
 
 module.exports = {
+  BRIDGE_VERSION,
+  PHASE15_PLAN,
   build,
   buildAsync,
   buildPsyche,
@@ -1612,5 +1664,7 @@ module.exports = {
     resolveAudio,
     resolveIntro,
     finalizeContract,
+    resolveOperationalUpgradeHints,
   },
+  resolveOperationalUpgradeHints,
 };
