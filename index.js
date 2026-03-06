@@ -215,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: CORS TRACE/TOKEN ALIGN + PREFLIGHT HEADER FIX + WIDGET/TTS PARITY + LOOP-SAFE CHAT ROUTE)";
+const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: TTS PASS-THROUGH GUARD + AUDIO PLAN NORMALIZER + TRACE/AUTOPLAY CONTRACT + ROUTE HARDEN)";
 
 // =========================
 // Utils
@@ -901,6 +901,87 @@ function nyxVoiceNaturalize(text) {
     }
   } catch (_) {}
   return builtinNyxVoiceNaturalize(text);
+}
+
+const SB_AUDIO_PLAN_MAX_CHARS = clampInt(process.env.SB_AUDIO_PLAN_MAX_CHARS, 900, 80, 5000);
+
+function __sbNormalizeSpeakWhen(v) {
+  const s = safeStr(v || "").trim().toLowerCase();
+  if (s === "page_load" || s === "boot" || s === "intro") return "page_load";
+  if (s === "reply" || s === "after_reply" || s === "post_reply") return "after_reply";
+  if (s === "manual" || s === "tap" || s === "on_tap") return "manual";
+  return "after_reply";
+}
+
+function __sbDeriveAudioPlan(reply, directives, body, meta) {
+  const ds = Array.isArray(directives) ? directives : [];
+  const ttsDir = ds.find((d) => isPlainObject(d) && safeStr(d.type || "").toLowerCase() === "tts") || null;
+  const bodyObj = isPlainObject(body) ? body : {};
+  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, false);
+  const requestedAutoPlay = toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, !!ttsDir);
+  const speak = nyxVoiceNaturalize(
+    safeStr(ttsDir?.text || bodyObj.textToSynth || bodyObj.speak || reply || "")
+  ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
+  const when = __sbNormalizeSpeakWhen(ttsDir?.when || bodyObj.audioWhen || bodyObj.whenAudio);
+  const voice = safeStr(ttsDir?.voice || bodyObj.voice || bodyObj.voiceId || "nyx") || "nyx";
+  const reason = ttsDir ? "directive" : (reply ? "reply_fallback" : "none");
+  const shouldSpeak = !!speak && !wantsMute && (requestedAutoPlay || !!ttsDir);
+  return {
+    shouldSpeak,
+    autoPlay: !!shouldSpeak && requestedAutoPlay,
+    when,
+    voice,
+    text: speak,
+    textChars: speak.length,
+    source: reason,
+    muted: !!wantsMute,
+    traceId: safeStr(meta && meta.traceId || "") || undefined,
+  };
+}
+
+function __sbApplyAudioHeaders(res, traceId) {
+  try { res.setHeader("x-sb-trace-id", safeStr(traceId || "") || makeReqId()); } catch (_) {}
+  try { res.setHeader("Cache-Control", "no-store, no-transform, max-age=0"); } catch (_) {}
+  try { res.setHeader("Pragma", "no-cache"); } catch (_) {}
+  try { res.setHeader("Expires", "0"); } catch (_) {}
+  try { res.setHeader("X-Accel-Buffering", "no"); } catch (_) {}
+  try { res.setHeader("Accept-Ranges", "none"); } catch (_) {}
+}
+
+async function __sbDelegateTts(req, res, routeName) {
+  req = __sbNormalizeReq(req);
+  const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
+  __sbApplyAudioHeaders(res, traceId);
+  try {
+    if (!__SB_HANDLE_TTS) {
+      try { __sbTryRequireTts(); } catch (_) {}
+    }
+    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
+  } catch (e) {
+    try {
+      console.log("[Sandblast][TTS][DelegateFail]", JSON.stringify({
+        route: safeStr(routeName || "tts"),
+        traceId,
+        error: safeStr(e && (e.message || e) || "unknown").slice(0, 220),
+        modPath: __SB_TTS_MODPATH || null,
+      }));
+    } catch (_) {}
+  }
+
+  const env = {
+    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
+    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
+    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
+    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
+  };
+  return sendContract(res, 503, {
+    ok: false,
+    error: "TTS_HANDLER_MISSING",
+    detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
+    spokenUnavailable: true,
+    payload: { spokenUnavailable: true },
+    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, route: safeStr(routeName || "tts"), env },
+  });
 }
 
 // =========================
@@ -2584,7 +2665,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
   res.setHeader(
     "Access-Control-Allow-Headers",
     req.headers["access-control-request-headers"] ||
-      "Content-Type, Authorization, X-SB-Token, X-SB-Widget-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source, X-SB-Trace-Id"
+      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
   );
   res.setHeader("Access-Control-Max-Age", "600");
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -2598,7 +2679,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
     res.setHeader(
       "Access-Control-Allow-Headers",
       req.headers["access-control-request-headers"] ||
-        "Content-Type, X-SB-Token, X-SB-Widget-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-SB-Trace-Id"
+        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
     );
     res.setHeader("Access-Control-Max-Age", "600");
     if (req.method === "OPTIONS") return res.status(204).send("");
@@ -2621,15 +2702,10 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
         "Authorization",
         "X-Requested-With",
         "X-SB-Session",
-        "x-sb-session",
         "X-Session-Id",
-        "x-session-id",
         "X-Visitor-Id",
-        "x-visitor-id",
         "X-Request-Id",
-        "x-request-id",
         "X-Route-Hint",
-        "x-route-hint",
         "X-Client-Source",
         "x-client-source",
         "X-SBNYX-Client-Build",
@@ -2640,22 +2716,8 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
         "x-contract-version",
         "X-SB-Token",
         "x-sb-token",
-        "X-SB-Widget-Token",
-        "x-sb-widget-token",
-        "X-SB-Trace-Id",
-        "x-sb-trace-id",
-        "X-SB-TraceId",
-        "x-sb-traceid",
       ].join(", ")
     );
-    res.setHeader("Access-Control-Expose-Headers", [
-      "x-sb-trace-id",
-      "x-sb-tts-provider",
-      "x-sb-tts-ms",
-      "x-sb-tts-cache",
-      "x-sb-voice",
-      "x-request-id"
-    ].join(", "));
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
@@ -3557,6 +3619,7 @@ async function handleChatRoute(req, res) {
       ...(followUps ? { followUps } : {}),
       ...(minimalClarifier ? { minimalClarifier } : {}),
     };
+    const audio = __sbDeriveAudioPlan(reply, directives, body, { traceId });
 
     if (!isReset && !bootLike) {
       writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
@@ -3599,6 +3662,7 @@ async function handleChatRoute(req, res) {
         ctx: out?.ctx,
         ui: mergedUi,
         directives,
+        audio,
         followUps,
         followUpsStrings,
         sessionPatch: safeSessionPatch,
@@ -3610,6 +3674,7 @@ async function handleChatRoute(req, res) {
       ctx: out?.ctx,
       ui: mergedUi,
       directives,
+      audio,
       followUps,
       followUpsStrings,
       sessionPatch: safeSessionPatch,
@@ -3634,6 +3699,13 @@ async function handleChatRoute(req, res) {
         packs: getPackIndexSafe(false).summary,
         traceId,
         opintel: opintelMeta,
+        audio: {
+          shouldSpeak: !!audio.shouldSpeak,
+          autoPlay: !!audio.autoPlay,
+          when: audio.when,
+          textChars: audio.textChars,
+          source: audio.source,
+        },
       },
     });
   } catch (e) {
@@ -3807,33 +3879,7 @@ async function handleTtsRoute(req, res) {
 
 
 app.post("/api/tts", ipRateGuard, async (req, res) => {
-  try{ const tid = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId(); res.setHeader("x-sb-trace-id", tid);}catch(_){}
-  // Resemble-only: index.js delegates TTS to ./utils/tts to keep provider logic isolated.
-  // HARDEN: self-heal by lazy-loading the handler on-demand (covers deploy order + case-sensitive paths on Linux).
-  try {
-    if (!__SB_HANDLE_TTS) {
-      try { __sbTryRequireTts(); } catch (_) { /* ignore */ }
-    }
-    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
-  } catch (e) {
-    // continue to deterministic failure
-  }
-
-  const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
-  const env = {
-    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
-    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
-    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
-    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
-  };
-  return sendContract(res, 503, {
-    ok: false,
-    error: "TTS_HANDLER_MISSING",
-    detail:
-      "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
-    spokenUnavailable: true,
-    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, env },
-  });
+  return __sbDelegateTts(req, res, "/api/tts");
 });
 
 // =========================
@@ -3902,18 +3948,7 @@ app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
 
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
-  // Back-compat alias for clients still calling /api/voice
-  try { if (!__SB_HANDLE_TTS) { try { __sbTryRequireTts(); } catch (_) {} } } catch (_) {}
-  return app._router && __SB_HANDLE_TTS ? __SB_HANDLE_TTS(req, res) : (async () => {
-    const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
-    return sendContract(res, 503, {
-      ok: false,
-      error: "TTS_HANDLER_MISSING",
-      detail: "TTS handler ./utils/tts.handleTts is unavailable. Resemble is configured as the only provider in this build.",
-      spokenUnavailable: true,
-      meta: { index: INDEX_VERSION, traceId },
-    });
-  })();
+  return __sbDelegateTts(req, res, "/api/voice");
 });
 
 function ttsGetGuidance(req, res) {
@@ -3934,7 +3969,9 @@ function audioHealthRoute(req, res) {
   const probe = toBool(req.query && req.query.probe, false);
   if (probe) {
     // Call TTS route in healthCheck mode
+    req = __sbNormalizeReq(req);
     req.body = { healthCheck: true };
+    __sbApplyAudioHeaders(res, String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId());
     if (__SB_HANDLE_TTS) return __SB_HANDLE_TTS(req, res);
     return sendContract(res, 503, {
       ok: false,
