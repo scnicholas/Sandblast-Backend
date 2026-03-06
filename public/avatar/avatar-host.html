@@ -297,6 +297,22 @@ window.NYX_HOST_MODE = "widget_console";
   }
   body.has-voice #nyxHint{ display:block; }
 
+
+  #nyxAudioUnlock{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(4,4,8,.22); z-index:5;
+  }
+  body.audio-locked #nyxAudioUnlock{ display:flex; }
+  #nyxAudioUnlock .unlockCard{
+    max-width:320px; margin:16px; padding:16px 18px; border-radius:18px;
+    border:1px solid rgba(255,255,255,.14); background:rgba(12,12,18,.82);
+    box-shadow:0 12px 36px rgba(0,0,0,.42); color:rgba(255,255,255,.92);
+    text-align:center; font:13px/1.45 var(--nyx-font);
+  }
+  #nyxAudioUnlock .t{ font:800 15px var(--nyx-font); margin-bottom:6px; }
+  #nyxAudioUnlock .s{ color:rgba(255,255,255,.72); margin-bottom:10px; }
+  #nyxAudioUnlock .b{ display:inline-block; padding:9px 12px; border-radius:999px; border:1px solid rgba(140,0,35,.48); background:rgba(140,0,35,.18); font:800 12px var(--nyx-font); }
+
   @media (max-width: 420px){
     #nyxWidget{ max-height: 78vh; max-width: 100%; }
     body.is-focus #nyxWidget{ max-height: 90vh; }
@@ -476,7 +492,7 @@ window.NYX_HOST_MODE = "widget_console";
       <div id="nyxMsgs"></div>
     </section>
 
-    <div id="nyxHint">Tip: 🎙 speech-to-text. 🔊 reads Nyx out loud. Focus expands up to 90vh.</div>
+    <div id="nyxHint">Tip: 🎙 speech-to-text. 🔊 uses backend voice. Focus expands up to 90vh.</div>
 
     <footer id="nyxInputRow">
       <input id="nyxInput" type="text" placeholder="Type to Nyx…" autocomplete="off" />
@@ -665,7 +681,7 @@ window.NYX_HOST_MODE = "widget_console";
     context: "sandblast",
     publicMode: true,
     debug: false,
-    voiceDefaultOn: false,
+    voiceDefaultOn: true,
     sttAutoSend: true
   };
 
@@ -764,21 +780,20 @@ window.NYX_HOST_MODE = "widget_console";
         try{ if(__readyTimer) clearInterval(__readyTimer); }catch(_){ }
         postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now() }, false);
         setTimeout(function(){ voiceInitMaybe(); }, 0);
-
-  // Audio unlock veil bindings (Phase 2)
-  (function bindAudioUnlock(){
-    var veil = $("nyxAudioUnlock");
-    if(!veil) return;
-    function go(){
-      armAudio();
-      if(!TTS.locked){
-        document.body.classList.remove("audio-locked");
       }
-    }
-    veil.addEventListener("click", function(){ go(); }, true);
-    veil.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
-  })();
 
+      if(data.type === "NYX_ARM_AUDIO"){
+        armAudio();
+        VOICE.voiceOn = true;
+        updateVoiceUI();
+      }
+
+      if(data.type === "NYX_STOP_AUDIO"){
+        stopSpeaking();
+      }
+
+      if(data.type === "NYX_TTS_AUDIO"){
+        playPostedAudio(data.payload || {});
       }
     }catch(_){}
   });
@@ -876,7 +891,7 @@ window.NYX_HOST_MODE = "widget_console";
   // - stops send storms (double-init / double-submit)
   // ============================================================
   var LOOP = {
-    lastSig: \"\",
+    lastSig: "",
     streak: 0,
     lastAt: 0,
     maxStreak: 2,
@@ -884,7 +899,7 @@ window.NYX_HOST_MODE = "widget_console";
   };
 
   function _sig(role, text){
-    return role + \"::\" + safeStr(text, 220).toLowerCase().replace(/\s+/g,\" \").trim();
+    return role + "::" + safeStr(text, 220).toLowerCase().replace(/\s+/g," ").trim();
   }
 
   function _loopGuard(role, text){
@@ -898,12 +913,12 @@ window.NYX_HOST_MODE = "widget_console";
     }
     LOOP.lastAt = t;
 
-    if(role === \"nyx\" && LOOP.streak >= LOOP.maxStreak){
+    if(role === "nyx" && LOOP.streak >= LOOP.maxStreak){
       // Replace with a breaker message and reset streak.
       LOOP.streak = 0;
       return {
         blocked: true,
-        replacement: \"I’m catching a loop on my side. Quick reset: pick a mode chip, or tell me what you want in one sentence. If it keeps happening, hit Reset and I’ll reconnect cleanly.\"
+        replacement: "I’m catching a loop on my side. Quick reset: pick a mode chip, or tell me what you want in one sentence. If it keeps happening, hit Reset and I’ll reconnect cleanly."
       };
     }
     return { blocked:false };
@@ -1087,22 +1102,38 @@ window.NYX_HOST_MODE = "widget_console";
     }
   }
 
-  function stopSpeaking(){
-    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
-  }
-
   function speak(text){
     text = safeStr(text, 700).trim();
     if(!text) return;
     if(!VOICE.voiceOn) return;
-    if(!VOICE.supportedTTS) return;
+    enqueueSpeak(text);
+    VOICE.pendingIntro = false;
+  }
+
+  function playPostedAudio(payload){
+    payload = payload && typeof payload === "object" ? payload : {};
+    var a = ttsAudioEl();
+    if(!a) return;
+    armAudio();
+    var b64 = safeStr(payload.base64, 6000000).trim();
+    var mime = safeStr(payload.mimeType, 80).trim() || "audio/mpeg";
+    if(!b64) return;
     try{
       stopSpeaking();
-      var u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
-      window.speechSynthesis.speak(u);
-      VOICE.pendingIntro = false;
-    }catch(_){}
+      a.src = "data:" + mime + ";base64," + b64;
+      var p = a.play();
+      if(p && typeof p.catch === "function"){
+        p.catch(function(err){
+          TTS.locked = true;
+          document.body.classList.add("audio-locked");
+          TTS.lastErr = (err && err.name) ? err.name : "PLAY_BLOCKED";
+          setHint("Audio blocked — tap Enable Audio.");
+        });
+      }
+    }catch(err){
+      TTS.lastErr = (err && err.message) ? err.message : "POSTED_AUDIO_FAIL";
+      setHint("Posted audio failed — tap Enable Audio.");
+    }
   }
 
   function ensureRecognizer(){
@@ -1413,20 +1444,22 @@ window.NYX_HOST_MODE = "widget_console";
 
   setTimeout(function(){ voiceInitMaybe(); }, 0);
 
-  // Audio unlock veil bindings (Phase 2)
   (function bindAudioUnlock(){
     var veil = $("nyxAudioUnlock");
     if(!veil) return;
     function go(){
       armAudio();
+      VOICE.voiceOn = true;
+      updateVoiceUI();
       if(!TTS.locked){
         document.body.classList.remove("audio-locked");
+        setHint("Audio ready.");
+        if(VOICE.pendingIntro){ speak("Hi. I’m Nyx. Pick a mode, or tell me what you need."); }
       }
     }
     veil.addEventListener("click", function(){ go(); }, true);
     veil.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
   })();
-
 
 })();
 </script>
