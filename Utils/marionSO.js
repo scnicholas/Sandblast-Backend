@@ -23,9 +23,8 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.2.8-opintel++";
-const PHASE10_PLAN = Object.freeze([
-  // Phase 1–3 already in play: Social Intelligence Patch, State Spine Reinforcement, Resilience Layer
+const MARION_VERSION = "marionSO v1.3.0-opintel+++++";
+const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
   "P6: Deterministic intent stabilizer (anti-loop: STABILIZE/CLARIFY separation + ask-vs-deliver gates)",
@@ -42,6 +41,7 @@ const PHASE10_PLAN = Object.freeze([
   "P17: Unresolved thread tagging (carry open threads in opPackage for state spine)",
   "P18: Contract conformance check (ensure cog fields match engine expectations)"
 ]);
+const PHASE10_PLAN = PHASE15_PLAN;
 
 const SO_VERSION = MARION_VERSION;
 const version = MARION_VERSION;
@@ -2435,6 +2435,38 @@ function tracePolicyCheck(cog, norm, opts) {
   return out.length ? uniqBounded(out, 6) : null;
 }
 
+
+function computeRoutingUpgradeHints(c) {
+  const x = isPlainObject(c) ? c : {};
+  const routeConfidence = clamp01(x.routeConfidence != null ? x.routeConfidence : (x.confidence && x.confidence.nyx) || 0.62);
+  const intentConfidence = clamp01(x.intentConfidence != null ? x.intentConfidence : routeConfidence);
+  const ambiguityScore = clamp01(x.ambiguityScore != null ? x.ambiguityScore : (x.intent === "CLARIFY" ? 0.6 : 0.24));
+  const unresolvedThreads = clampStringArray(x.unresolvedThreads || [], 6, 120);
+  const assumptions = clampStringArray(x.assumptions || [], 6, 100);
+  const contradictions = clampStringArray(x.contradictions || [], 4, 100);
+  const minimalClarifier = safeStr(
+    x.minimalClarifier ||
+      x.clarifyPrompt ||
+      (ambiguityScore >= 0.55 ? "What’s the one missing detail I need to proceed?" : ""),
+    180
+  );
+  const actionHints = clampStringArray(x.actionHints || [], 6, 72);
+
+  return {
+    schema: "marionSO.routingUpgrade.v1",
+    intentConfidence,
+    routeConfidence,
+    ambiguityScore,
+    minimalClarifier,
+    unresolvedThreads,
+    assumptions,
+    contradictions,
+    actionHints,
+    decisionMode: ambiguityScore >= 0.55 ? "clarify_minimal" : routeConfidence >= 0.66 ? "direct_or_execute" : "narrow_and_verify",
+    contractConformant: true
+  };
+}
+
 function finalizeContract(cog, nowMs, extra) {
   const c = isPlainObject(cog) ? { ...cog } : {};
   const ex = isPlainObject(extra) ? extra : {};
@@ -2561,6 +2593,15 @@ function finalizeContract(cog, nowMs, extra) {
     movePolicy: isPlainObject(c.movePolicy)
       ? { preferredMove: normalizeMove(c.movePolicy.preferredMove), hardOverride: !!c.movePolicy.hardOverride, reason: safeStr(c.movePolicy.reason || "intent", 40) }
       : deriveMovePolicy({ ...c, intent, actionable: !!c.actionable, psychology: c.psychology }),
+
+    intentConfidence: clamp01(c.intentConfidence != null ? c.intentConfidence : (c?.confidence?.nyx || 0.62)),
+    routeConfidence: clamp01(c.routeConfidence != null ? c.routeConfidence : (c?.confidence?.nyx || 0.62)),
+    ambiguityScore: clamp01(c.ambiguityScore != null ? c.ambiguityScore : (intent === "CLARIFY" ? 0.6 : 0.24)),
+    minimalClarifier: safeStr(c.minimalClarifier || c.clarifyPrompt || "", 180),
+    unresolvedThreads: clampStringArray(c.unresolvedThreads || [], 6, 120),
+    assumptions: clampStringArray(c.assumptions || [], 6, 100),
+    contradictions: clampStringArray(c.contradictions || [], 4, 100),
+    actionHints: clampStringArray(c.actionHints || [], 6, 72),
   };
 
   out.marionTrace = safeStr(out.marionTrace || "", MARION_TRACE_MAX + 8);
@@ -2604,6 +2645,7 @@ function finalizeContract(cog, nowMs, extra) {
   }
 
   if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
+  out.routingUpgrade = computeRoutingUpgradeHints(out);
 
   
   // ==========================================================
@@ -2707,6 +2749,7 @@ function finalizeContract(cog, nowMs, extra) {
         ? "Are you safe right now, and do you want emotional support or practical steps?"
         : "What’s the one missing detail I need to proceed?";
   }
+  if (!out.minimalClarifier) out.minimalClarifier = out.clarifyPrompt;
 
 
   // -------------------------
@@ -2836,7 +2879,7 @@ function callPsycheBridge(norm, session, cog, opts) {
           tokens: input.tokens,
           queryKey: input.queryKey,
           sessionKey,
-          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts,
+          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts), requestId, turnId, traceId, inputSig },
         });
       }
     }
@@ -3930,6 +3973,7 @@ module.exports = {
   SO_VERSION,
   version,
   PHASE10_PLAN,
+  PHASE15_PLAN,
   LATENT_DESIRE,
   MARION_STYLE_CONTRACT,
   PSYCH,
@@ -3955,6 +3999,7 @@ module.exports = {
 
   // hardening exports (unit tests / integration)
   finalizeContract,
+  computeRoutingUpgradeHints,
   tracePolicyCheck,
   suggestModeHysteresisPatch,
 
