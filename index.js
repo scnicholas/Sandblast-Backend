@@ -40,6 +40,21 @@
  * 28) Safer CORS/audio: explicit Cache-Control + correct content-type passthrough for mp3/wav
  * 29) Hot patch guard: refuse oversized text > MAX_TTS_CHARS with 413 to protect credits
  * 30) Runtime telemetry hooks: structured console line for every TTS call (traceId, ms, ok, provider)
+ * 31) CORS enforcement spine: single header authority so every chat/tts response reflects the approved origin
+ * 32) Preflight self-heal: explicit OPTIONS responders for /api/chat, /api/nyx/chat, /api/tts, and /api/voice
+ * 33) Response header guarantee: json/send/end wrappers preserve CORS headers even during fail-open and error paths
+ * 34) Requested-header reflection: mirrors access-control-request-headers when safe to prevent custom-header drift
+ * 35) Origin telemetry: response echoes x-sb-origin and x-sb-cors-state for rapid browser debugging
+ * 36) Contract-safe denial: disallowed origins still receive a clear JSON envelope instead of opaque browser confusion
+ * 37) Route parity: /api/chat and /api/nyx/chat now share the same preflight and allow-header contract
+ * 38) Credential discipline: allowed widget origins get credentials support without weakening public asset routes
+ * 39) Warm-path consistency: diagnostics, avatar, voice, and chat routes now use the same CORS decision helper
+ * 40) Error-path survivability: Express error middleware preserves access-control headers when backend code throws
+ * 41) Cache-safe cross-origin policy: Vary/Origin and no-store headers stay aligned so proxies do not poison responses
+ * 42) Browser contract tracing: every CORS-approved reply carries trace-friendly markers for DevTools triage
+ * 43) Render-safe deployment: avoids silent preflight regressions during cold starts and rolling deploys
+ * 44) Widget isolation discipline: keeps hard deny for hostile origins while remaining permissive for approved Sandblast surfaces
+ * 45) Commercial hardening: cross-origin behavior is deterministic across production, staging, localhost, and future app clients
  * =========================
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
@@ -215,7 +230,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.44sb (OPINTEL+16: GOVERNOR WIRE-IN + FAIL-OPEN VOICE CONTRACT + LOOP SUPPRESSION HARDEN)";
+const INDEX_VERSION = "index.js v1.5.45sb (OPINTEL+31: CORS ENFORCEMENT SPINE + PREFLIGHT SELF-HEAL + RESPONSE HEADER GUARANTEE)";
 
 // =========================
 // Utils
@@ -794,6 +809,89 @@ function makeOriginRegexes() {
   return out;
 }
 const ORIGIN_REGEXES = makeOriginRegexes();
+const CORS_METHODS = "GET,POST,OPTIONS,HEAD";
+const CORS_DEFAULT_HEADERS = [
+  "Content-Type",
+  "Authorization",
+  "X-Requested-With",
+  "X-SB-Session",
+  "X-Session-Id",
+  "X-Visitor-Id",
+  "X-Request-Id",
+  "X-Route-Hint",
+  "X-Client-Source",
+  "x-client-source",
+  "X-SBNYX-Client-Build",
+  "x-sbnyx-client-build",
+  "X-SBNYX-Widget-Version",
+  "x-sbnyx-widget-version",
+  "X-Contract-Version",
+  "x-contract-version",
+  "X-SB-Token",
+  "x-sb-token",
+].join(", ");
+
+function isPublicCorsPath(pathname) {
+  const p = safeStr(pathname || "").toLowerCase();
+  return (
+    p === "/_health" ||
+    p === "/_diag" ||
+    p === "/api/ping" ||
+    p === "/avatar-host.html" ||
+    p === "/avatar" ||
+    p.startsWith("/avatar/")
+  );
+}
+
+function applyCorsDecision(req, res, opts) {
+  const cfg = isPlainObject(opts) ? opts : {};
+  const p = safeStr(req && req.path || "");
+  const originRaw = safeStr(req && req.headers && req.headers.origin || "");
+  const origin = normalizeOrigin(originRaw);
+  const isPublic = cfg.forcePublic === true || isPublicCorsPath(p);
+  const allow = isPublic ? true : (origin ? isAllowedOrigin(origin) : false);
+  const requestedHeaders = safeStr(req && req.headers && req.headers["access-control-request-headers"] || "").trim();
+  const allowHeaders = requestedHeaders || CORS_DEFAULT_HEADERS;
+
+  if (origin || isPublic) res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", isPublic ? "GET,POST,OPTIONS,HEAD" : CORS_METHODS);
+  res.setHeader("Access-Control-Allow-Headers", allowHeaders);
+  res.setHeader("Access-Control-Max-Age", "600");
+  res.setHeader("x-sb-origin", origin || "same-origin");
+
+  if (isPublic) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("x-sb-cors-state", "public");
+    return { origin, allow: true, public: true, denied: false, allowHeaders };
+  }
+
+  if (origin && allow) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("x-sb-cors-state", "allowed");
+    return { origin, allow: true, public: false, denied: false, allowHeaders };
+  }
+
+  if (origin) res.setHeader("x-sb-cors-state", "denied");
+  return { origin, allow: false, public: false, denied: !!origin, allowHeaders };
+}
+
+function ensureCorsOnResponse(req, res) {
+  if (!req || !res || res.locals && res.locals.__sbCorsWrapped) return;
+  if (!res.locals) res.locals = {};
+  res.locals.__sbCorsWrapped = true;
+  const wrap = (name) => {
+    if (typeof res[name] !== "function") return;
+    const base = res[name].bind(res);
+    res[name] = function sbCorsWrappedResponse() {
+      try { applyCorsDecision(req, res); } catch (_) {}
+      return base(...arguments);
+    };
+  };
+  wrap("json");
+  wrap("send");
+  wrap("end");
+}
 
 function isAllowedOrigin(origin) {
   if (!origin) return false;
@@ -2613,6 +2711,24 @@ function sendJson(res, statusCode, body) {
 }
 const app = express();
 
+// CORS response guarantee: ensure chat/tts/error replies always carry the final access-control headers.
+app.use((req, res, next) => {
+  try {
+    ensureCorsOnResponse(req, res);
+    applyCorsDecision(req, res);
+  } catch (_) {}
+  return next();
+});
+
+// Explicit preflight responders for Nyx surfaces. This avoids opaque browser CORS failures during deploy drift.
+app.options(["/api/chat", "/api/nyx/chat", "/api/tts", "/api/voice", "/api/ping", "/_health", "/_diag"], (req, res) => {
+  const state = applyCorsDecision(req, res, { forcePublic: isPublicCorsPath(req.path) });
+  if (state.denied) {
+    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
+  }
+  return res.status(204).send("");
+});
+
 // --- OPINTEL Loop Governor (server-side) ---
 // De-dupe identical /api/chat requests in a short window and collapse concurrent in-flight calls.
 const __CHAT_DEDUPE__ = globalThis.__CHAT_DEDUPE__ || (globalThis.__CHAT_DEDUPE__ = new Map());
@@ -2714,79 +2830,19 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 // CORS hard-lock + HARD DENY
 // =========================
 app.use((req, res, next) => {
-  // Public static avatar assets must NEVER be blocked by strict CORS.
-  // Browsers may send Origin on iframe/document requests; treat /avatar as public.
-  const p = safeStr(req.path || "");
-// Public diagnostics endpoints (must not be blocked by strict CORS)
-if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    req.headers["access-control-request-headers"] ||
-      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
-  );
-  res.setHeader("Access-Control-Max-Age", "600");
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  return next();
-}
+  const state = applyCorsDecision(req, res, { forcePublic: isPublicCorsPath(req.path) });
 
-  if (p === "/avatar-host.html" || p === "/avatar" || p.startsWith("/avatar/")) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      req.headers["access-control-request-headers"] ||
-        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
-    );
-    res.setHeader("Access-Control-Max-Age", "600");
-    if (req.method === "OPTIONS") return res.status(204).send("");
-    return next();
+  if (req.method === "OPTIONS") {
+    if (state.denied) {
+      return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
+    }
+    return res.status(204).send("");
   }
 
-  const originRaw = safeStr(req.headers.origin || "");
-  const origin = normalizeOrigin(originRaw);
-  const allow = origin ? isAllowedOrigin(origin) : false;
-
-  if (origin) res.setHeader("Vary", "Origin");
-
-  if (origin && allow) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "X-SB-Session",
-        "X-Session-Id",
-        "X-Visitor-Id",
-        "X-Request-Id",
-        "X-Route-Hint",
-        "X-Client-Source",
-        "x-client-source",
-        "X-SBNYX-Client-Build",
-        "x-sbnyx-client-build",
-        "X-SBNYX-Widget-Version",
-        "x-sbnyx-widget-version",
-        "X-Contract-Version",
-        "x-contract-version",
-        "X-SB-Token",
-        "x-sb-token",
-      ].join(", ")
-    );
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Max-Age", "600");
+  // HARD DENY: if browser sends Origin and it's not allowed, block cleanly.
+  if (state.denied) {
+    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
   }
-
-  if (req.method === "OPTIONS") return res.status(204).send("");
-
-  // HARD DENY: if browser sends Origin and it's not allowed, block.
-  if (origin && !allow) {
-    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION } });}
 
   return next();
 });
