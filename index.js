@@ -215,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: TTS PASS-THROUGH GUARD + AUDIO PLAN NORMALIZER + TRACE/AUTOPLAY CONTRACT + ROUTE HARDEN)";
+const INDEX_VERSION = "index.js v1.5.44sb (OPINTEL+16: GOVERNOR WIRE-IN + FAIL-OPEN VOICE CONTRACT + LOOP SUPPRESSION HARDEN)";
 
 // =========================
 // Utils
@@ -860,6 +860,66 @@ var __ENGINE__ = ENGINE; // legacy
 var eng__ = ENGINE; // legacy
 try { globalThis.ENGINE = ENGINE; globalThis._ENGINE_ = ENGINE; globalThis.__ENGINE__ = ENGINE; globalThis.eng__ = ENGINE; } catch (_) {}
 const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
+
+
+// Optional Conversation Governor (loop suppression / clarify minimizer)
+const governorMod =
+  safeRequire("./utils/governor") || safeRequire("./utils/governor.js") ||
+  safeRequire("./Utils/governor") || safeRequire("./Utils/governor.js") || null;
+
+function resolveGovernor(mod) {
+  if (!mod) return { fn: null, from: "missing" };
+  if (typeof mod === "function") return { fn: mod, from: "module_function" };
+  if (typeof mod.applyGovernor === "function") return { fn: mod.applyGovernor.bind(mod), from: "module_applyGovernor" };
+  if (typeof mod.default === "function") return { fn: mod.default.bind(mod), from: "module_default" };
+  return { fn: null, from: "invalid" };
+}
+
+const GOVERNOR = resolveGovernor(governorMod);
+
+function __sbGovernorMemoryFromSession(session) {
+  return isPlainObject(session?.governor) ? session.governor : {};
+}
+
+function __sbSanitizeGovernorMemory(memoryCtx) {
+  const src = isPlainObject(memoryCtx) ? memoryCtx : {};
+  const out = {};
+
+  if (isPlainObject(src.loop)) out.loop = { ...src.loop };
+  if (isPlainObject(src.bridge)) out.bridge = { ...src.bridge };
+
+  if (isPlainObject(src.memoryWindows)) {
+    out.memoryWindows = {
+      recentIntents: Array.isArray(src.memoryWindows.recentIntents) ? src.memoryWindows.recentIntents.slice(-8) : [],
+      unresolvedAsks: Array.isArray(src.memoryWindows.unresolvedAsks) ? src.memoryWindows.unresolvedAsks.slice(-4) : [],
+      lastResolvedIntent: safeStr(src.memoryWindows.lastResolvedIntent || ""),
+      lastUserPreference: src.memoryWindows.lastUserPreference || null,
+    };
+  }
+
+  return out;
+}
+
+function __sbBuildGovernorInput(engineInput, out, reply, lane, sessionGovernor) {
+  const outCog = isPlainObject(out?.cog) ? out.cog : {};
+  const outIntent = isPlainObject(out?.intent) ? out.intent : (isPlainObject(outCog.intent) ? outCog.intent : {});
+  return {
+    userText: safeStr(engineInput?.text || ""),
+    domain: safeStr(out?.domain || outCog.domain || lane || "general") || "general",
+    intent: outIntent,
+    primary: { text: safeStr(reply || "") },
+    evidencePack: {
+      primary: { text: safeStr(reply || "") },
+      packs: { memory: __sbSanitizeGovernorMemory(sessionGovernor) },
+    },
+    memoryCtx: __sbSanitizeGovernorMemory(sessionGovernor),
+    routeConfidence: Number.isFinite(Number(out?.routeConfidence)) ? Number(out.routeConfidence) : Number(outCog.routeConfidence),
+    intentConfidence: Number.isFinite(Number(out?.intentConfidence)) ? Number(out.intentConfidence) : Number(outCog.intentConfidence),
+    ambiguity: Number.isFinite(Number(out?.ambiguity)) ? Number(out.ambiguity) : Number(outCog?.ambiguity?.score),
+    musicAction: safeStr(out?.action || engineInput?.action || engineInput?.payload?.action || ""),
+    musicYear: safeStr(out?.year || engineInput?.year || engineInput?.payload?.year || ""),
+  };
+}
 
 function normalizeEngineOutput(out) {
   if (out === null || out === undefined) return {};
@@ -3247,7 +3307,8 @@ function applySessionPatch(session, patch) {
     "activeMusicChart",
     "lastMusicChart",
     "musicMomentsLoaded",
-    "musicMomentsLoadedAt"
+    "musicMomentsLoadedAt",
+    "governor"
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
@@ -3382,7 +3443,7 @@ async function handleChatRoute(req, res) {
         const reply = cached.reply || "";
         return respond(200, {
           ok: true,
-          reply,
+          reply: finalReply,
           lane: cached.lane || rec.data.lane || "general",
           payload: { reply, lane: cached.lane || rec.data.lane || "general" },
           laneId: rec.data.laneId || undefined,
@@ -3421,7 +3482,7 @@ async function handleChatRoute(req, res) {
 
         return respond(200, {
           ok: true,
-          reply,
+          reply: finalReply,
           lane: rec.data.lane || "general",
           payload: { reply, lane: rec.data.lane || "general" },
           laneId: rec.data.laneId || undefined,
@@ -3472,7 +3533,7 @@ async function handleChatRoute(req, res) {
       const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
       return respond(status, {
         ok: false,
-        reply,
+        reply: finalReply,
         lane: "general",
         payload: { reply, lane: "general" },
         requestId: serverRequestId,
@@ -3619,16 +3680,60 @@ async function handleChatRoute(req, res) {
       ...(followUps ? { followUps } : {}),
       ...(minimalClarifier ? { minimalClarifier } : {}),
     };
-    const audio = __sbDeriveAudioPlan(reply, directives, body, { traceId });
+
+    let finalReply = reply;
+    let finalDirectives = directives;
+    let finalFollowUps = followUps;
+    let finalFollowUpsStrings = followUpsStrings;
+    let finalUi = mergedUi;
+    let governorMeta = null;
+
+    if (!isReset && GOVERNOR.fn) {
+      try {
+        const governorInput = __sbBuildGovernorInput(engineInput, out, reply, lane, __sbGovernorMemoryFromSession(rec.data));
+        const governorResult = GOVERNOR.fn(governorInput) || null;
+        const governorAction = safeStr(governorResult?.action || "pass").trim().toLowerCase() || "pass";
+        governorMeta = isPlainObject(governorResult?.governor) ? { ...governorResult.governor, action: governorAction } : { action: governorAction };
+
+        const governorMemory = __sbSanitizeGovernorMemory(governorResult?.memory);
+        if (Object.keys(governorMemory).length) {
+          safeSessionPatch.governor = governorMemory;
+          applySessionPatch(rec.data, { governor: governorMemory });
+        }
+
+        if (governorAction === "clarify" || governorAction === "branch") {
+          const governorResponse = isPlainObject(governorResult?.response) ? governorResult.response : {};
+          const governorText = safeStr(governorResponse.text || governorResult?.text || "").trim();
+          const governorOptions = arrOrEmpty(governorResponse.options).map((v) => safeStr(v).trim()).filter(Boolean).slice(0, 3);
+          if (governorText) finalReply = governorText;
+          if (governorOptions.length) finalFollowUps = governorOptions;
+          finalFollowUpsStrings = undefined;
+          finalDirectives = Array.isArray(directives) ? directives.filter((d) => safeStr(d?.type || "").toLowerCase() !== "tts") : directives;
+          finalUi = {
+            ...mergedUi,
+            governorAction,
+            ...(governorOptions.length ? { followUps: governorOptions } : {}),
+            ...(governorAction === "clarify" ? { minimalClarifier: finalReply } : {}),
+          };
+          if (governorAction === "clarify") outCog.clarifyMinimized = true;
+        } else if (safeStr(governorResult?.text || "").trim()) {
+          finalReply = safeStr(governorResult.text).trim();
+        }
+      } catch (e) {
+        governorMeta = { action: "error", error: safeStr(e?.message || e).slice(0, 180) };
+      }
+    }
+
+    const audio = __sbDeriveAudioPlan(finalReply, finalDirectives, body, { traceId });
 
     if (!isReset && !bootLike) {
-      writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+      writeReplay(rec, finalReply, lane, { directives: finalDirectives, followUps: finalFollowUps, followUpsStrings: finalFollowUpsStrings });
     } else if (isReset) {
       rec.data.__idx_lastOut = "";
       rec.data.__idx_lastLane = lane;
     }
 
-    if (bootLike && !isReset) writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
+    if (bootLike && !isReset) writeBootReplay(rec, finalReply, lane, { directives: finalDirectives, followUps: finalFollowUps, followUpsStrings: finalFollowUpsStrings });
 
     const opintelMeta = {
       traceId,
@@ -3651,20 +3756,22 @@ async function handleChatRoute(req, res) {
 
     return respond(200, {
       ok: true,
-      reply,
+      reply: finalReply,
       lane,
       payload: {
-        reply,
+        reply: finalReply,
         lane,
         laneId: out?.laneId || rec.data.laneId || undefined,
         sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
         bridge: out?.bridge || undefined,
         ctx: out?.ctx,
-        ui: mergedUi,
-        directives,
+        ui: finalUi,
+        directives: finalDirectives,
         audio,
-        followUps,
-        followUpsStrings,
+        spokenUnavailable: false,
+        voice: { failOpen: true, endpoint: "/api/tts", traceId },
+        followUps: finalFollowUps,
+        followUpsStrings: finalFollowUpsStrings,
         sessionPatch: safeSessionPatch,
         cog: outCog,
       },
@@ -3672,11 +3779,11 @@ async function handleChatRoute(req, res) {
       sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
       bridge: out?.bridge || undefined,
       ctx: out?.ctx,
-      ui: mergedUi,
-      directives,
+      ui: finalUi,
+      directives: finalDirectives,
       audio,
-      followUps,
-      followUpsStrings,
+      followUps: finalFollowUps,
+      followUpsStrings: finalFollowUpsStrings,
       sessionPatch: safeSessionPatch,
       cog: outCog,
       requestId: out?.requestId || serverRequestId,
@@ -3695,16 +3802,17 @@ async function handleChatRoute(req, res) {
         inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
         meaningful: !!meaningful,
         resetSilenced: !!isReset,
-        echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+        echoSuppressed: !!finalFollowUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
         packs: getPackIndexSafe(false).summary,
         traceId,
-        opintel: opintelMeta,
+        opintel: { ...opintelMeta, governor: governorMeta },
         audio: {
           shouldSpeak: !!audio.shouldSpeak,
           autoPlay: !!audio.autoPlay,
           when: audio.when,
           textChars: audio.textChars,
           source: audio.source,
+          spokenUnavailable: false,
         },
       },
     });
@@ -4044,7 +4152,7 @@ app.use((err, req, res, next) => {
     res.status(status).json({
       ok: false,
       error: errorMsg,
-      reply,
+      reply: finalReply,
       lane: "general",
       payload: { reply, lane: "general", error: errorMsg }
     });
