@@ -12,6 +12,9 @@
  * - supports short voice ids by resolving from env when needed
  * - tolerates multiple provider success/body shapes
  * - returns richer diagnostics to stop blind 503s
+ * - honors speech shaping inputs from tts.js / widget payloads
+ * - prefers SSML-shaped text when enabled, with safe plain-text fallback
+ * - carries segmentation / pause metadata through the provider result
  */
 
 const https = require("https");
@@ -63,6 +66,12 @@ function _defaultModel(){
 function _requestTimeoutMs(){
   return _clampInt(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_TTS_TIMEOUT_MS, 12000, 3000, 60000);
 }
+function _enableSsml(){
+  return _boolish(process.env.RESEMBLE_USE_SSML, true);
+}
+function _enableProsodyShaping(){
+  return _boolish(process.env.RESEMBLE_ENABLE_PROSODY_SHAPING, true);
+}
 function _looksLikeMp3(buf){
   return Buffer.isBuffer(buf) && buf.length >= 3 && (
     (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) ||
@@ -88,6 +97,68 @@ function _resolveVoiceUuid(v){
   if (_looksLikeUuid(requested)) return requested;
   if (requested && envVoice && requested === envVoice.slice(0, requested.length)) return envVoice;
   return envVoice || requested;
+}
+function _escapeXml(s){
+  return _str(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+function _normalizeText(text){
+  return _str(text)
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,.;:!?])([A-Za-z])/g, "$1 $2")
+    .replace(/\.{4,}/g, "...")
+    .trim();
+}
+function _splitSpeechChunks(text){
+  return _normalizeText(text)
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => _trim(s))
+    .filter(Boolean);
+}
+function _sanitizeSsmlText(text){
+  let s = _normalizeText(text);
+  if (!s) return "";
+  s = _escapeXml(s);
+  s = s.replace(/\.\.\./g, '<break time="520ms"/>');
+  s = s.replace(/,/g, ',<break time="150ms"/>');
+  s = s.replace(/;/g, ';<break time="260ms"/>');
+  s = s.replace(/:/g, ':<break time="220ms"/>');
+  s = s.replace(/\./g, '.<break time="320ms"/>');
+  s = s.replace(/\?/g, '?<break time="360ms"/>');
+  s = s.replace(/!/g, '!<break time="340ms"/>');
+  s = s.replace(/(<break[^>]+\/>)\s*(<break[^>]+\/>)*/g, '$1');
+  return `<speak><prosody rate="100%" pitch="0%">${s}</prosody></speak>`;
+}
+function _buildSpeechEnvelope(opts){
+  const speechHints = opts && typeof opts.speechHints === "object" ? opts.speechHints : {};
+  const chunks = Array.isArray(opts && opts.speechChunks) && opts.speechChunks.length
+    ? opts.speechChunks.map((s) => _trim(s)).filter(Boolean)
+    : (Array.isArray(speechHints.chunks) && speechHints.chunks.length
+      ? speechHints.chunks.map((s) => _trim(s)).filter(Boolean)
+      : _splitSpeechChunks(_pickFirst(opts && opts.textSpeak, opts && opts.plainText, opts && opts.textDisplay, opts && opts.text)));
+
+  const textDisplay = _normalizeText(_pickFirst(opts && opts.textDisplay, opts && opts.plainText, opts && opts.text));
+  const textSpeak = _normalizeText(_pickFirst(opts && opts.textSpeak, opts && opts.ssmlSourceText, opts && opts.plainText, opts && opts.textDisplay, opts && opts.text));
+  const plainText = _normalizeText(_pickFirst(opts && opts.plainText, textSpeak, textDisplay));
+
+  let ssmlText = _trim(opts && opts.ssmlText);
+  if (!ssmlText && _enableProsodyShaping()) ssmlText = _sanitizeSsmlText(textSpeak || plainText);
+
+  return {
+    textDisplay,
+    textSpeak,
+    plainText,
+    ssmlText,
+    speechChunks: chunks,
+    segmentCount: chunks.length,
+    speechHints: speechHints,
+    useSsml: _enableSsml() && !!ssmlText
+  };
 }
 
 function _parseJson(text){
@@ -261,7 +332,8 @@ function _extractAudioEnvelope(json){
 async function synthesize(opts){
   const started = Date.now();
 
-  const text = _trim(opts && opts.text);
+  const speech = _buildSpeechEnvelope(opts || {});
+  const text = _trim(speech.useSsml ? speech.ssmlText : speech.plainText);
   const voiceUuid = _resolveVoiceUuid(opts && opts.voiceUuid);
   const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
   const outputFormat = _lower(_pickFirst(opts && opts.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
@@ -296,10 +368,27 @@ async function synthesize(opts){
   if (title) payload.title = title.slice(0, 120);
   if (typeof useHd !== "undefined") payload.use_hd = !!useHd;
 
+  // Safe extra hints: ignored by providers that do not support them.
+  if (speech.useSsml) payload.data_type = _pickFirst(opts && opts.dataType, "ssml");
+  if (speech.segmentCount) payload.segment_count = speech.segmentCount;
+
   let resp;
   let authMode = "bearer";
   try{
     resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
+
+    // Fail-open fallback: if SSML/path shaping is rejected, retry once with plain text.
+    if (speech.useSsml){
+      const ssmlJson = _parseJson(resp && resp.text ? resp.text : "");
+      const looksRejected = (resp && (resp.status === 400 || resp.status === 415 || resp.status === 422)) ||
+        /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(_normalizeProviderMessage(ssmlJson, resp && resp.text));
+      if (looksRejected){
+        const plainPayload = { ...payload, data: speech.plainText };
+        delete plainPayload.data_type;
+        resp = await _callSynthesize(plainPayload, token, traceId, timeoutMs, authMode);
+      }
+    }
+
     if (resp && (resp.status === 401 || resp.status === 403)) {
       authMode = "raw";
       resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
@@ -319,7 +408,12 @@ async function synthesize(opts){
       status: 0,
       elapsedMs: Date.now() - started,
       authMode,
-      providerEndpoint: RESEMBLE_SYNTH_URL
+      providerEndpoint: RESEMBLE_SYNTH_URL,
+      textDisplay: speech.textDisplay,
+      textSpeak: speech.textSpeak,
+      speechChunks: speech.speechChunks,
+      segmentCount: speech.segmentCount,
+      usedSsml: speech.useSsml
     };
   }
 
@@ -339,7 +433,12 @@ async function synthesize(opts){
       requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
-      voiceUuid
+      voiceUuid,
+      textDisplay: speech.textDisplay,
+      textSpeak: speech.textSpeak,
+      speechChunks: speech.speechChunks,
+      segmentCount: speech.segmentCount,
+      usedSsml: speech.useSsml
     };
   }
 
@@ -360,7 +459,12 @@ async function synthesize(opts){
         requestId: env.request_id,
         authMode,
         providerEndpoint: RESEMBLE_SYNTH_URL,
-        voiceUuid
+        voiceUuid,
+        textDisplay: speech.textDisplay,
+        textSpeak: speech.textSpeak,
+        speechChunks: speech.speechChunks,
+        segmentCount: speech.segmentCount,
+        usedSsml: speech.useSsml
       };
     }
   } else if (env.audio_src){
@@ -378,7 +482,12 @@ async function synthesize(opts){
           requestId: env.request_id,
           authMode,
           providerEndpoint: RESEMBLE_SYNTH_URL,
-          voiceUuid
+          voiceUuid,
+          textDisplay: speech.textDisplay,
+          textSpeak: speech.textSpeak,
+          speechChunks: speech.speechChunks,
+          segmentCount: speech.segmentCount,
+          usedSsml: speech.useSsml
         };
       }
       buf = dl.buffer;
@@ -394,7 +503,12 @@ async function synthesize(opts){
         requestId: env.request_id,
         authMode,
         providerEndpoint: RESEMBLE_SYNTH_URL,
-        voiceUuid
+        voiceUuid,
+        textDisplay: speech.textDisplay,
+        textSpeak: speech.textSpeak,
+        speechChunks: speech.speechChunks,
+        segmentCount: speech.segmentCount,
+        usedSsml: speech.useSsml
       };
     }
   } else {
@@ -409,7 +523,12 @@ async function synthesize(opts){
       requestId: env.request_id,
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
-      voiceUuid
+      voiceUuid,
+      textDisplay: speech.textDisplay,
+      textSpeak: speech.textSpeak,
+      speechChunks: speech.speechChunks,
+      segmentCount: speech.segmentCount,
+      usedSsml: speech.useSsml
     };
   }
 
@@ -425,7 +544,12 @@ async function synthesize(opts){
       requestId: env.request_id,
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
-      voiceUuid
+      voiceUuid,
+      textDisplay: speech.textDisplay,
+      textSpeak: speech.textSpeak,
+      speechChunks: speech.speechChunks,
+      segmentCount: speech.segmentCount,
+      usedSsml: speech.useSsml
     };
   }
 
@@ -443,7 +567,15 @@ async function synthesize(opts){
     providerStatus: status,
     authMode,
     providerEndpoint: RESEMBLE_SYNTH_URL,
-    voiceUuid
+    voiceUuid,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    plainText: speech.plainText,
+    ssmlText: speech.ssmlText,
+    speechChunks: speech.speechChunks,
+    segmentCount: speech.segmentCount,
+    speechHints: speech.speechHints,
+    usedSsml: speech.useSsml
   };
 }
 
