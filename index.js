@@ -215,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: TTS PASS-THROUGH GUARD + AUDIO PLAN NORMALIZER + TRACE/AUTOPLAY CONTRACT + ROUTE HARDEN)";
+const INDEX_VERSION = "index.js v1.5.44sb (OPINTEL+16: CORS PREFLIGHT HEADER ALLOWLIST + TRACE/TOKEN HEADER FIX + VOICE CORS PARITY)";
 
 // =========================
 // Utils
@@ -795,6 +795,59 @@ function makeOriginRegexes() {
 }
 const ORIGIN_REGEXES = makeOriginRegexes();
 
+const CORS_ALLOWED_HEADERS = [
+  "Content-Type",
+  "Authorization",
+  "X-Requested-With",
+  "X-SB-Session",
+  "x-sb-session",
+  "X-Session-Id",
+  "x-session-id",
+  "X-Visitor-Id",
+  "x-visitor-id",
+  "X-Request-Id",
+  "x-request-id",
+  "X-Route-Hint",
+  "x-route-hint",
+  "X-Client-Source",
+  "x-client-source",
+  "X-SBNYX-Client-Build",
+  "x-sbnyx-client-build",
+  "X-SBNYX-Widget-Version",
+  "x-sbnyx-widget-version",
+  "X-Contract-Version",
+  "x-contract-version",
+  "X-SB-Token",
+  "x-sb-token",
+  "X-SB-Trace-Id",
+  "x-sb-trace-id",
+  "X-SB-Widget-Token",
+  "x-sb-widget-token",
+];
+
+function buildAllowedHeaders(req, extras) {
+  const seen = new Set();
+  const out = [];
+  const add = (v) => {
+    const s = safeStr(v).trim();
+    if (!s) return;
+    const lk = s.toLowerCase();
+    if (seen.has(lk)) return;
+    seen.add(lk);
+    out.push(s);
+  };
+
+  for (const h of CORS_ALLOWED_HEADERS) add(h);
+  for (const h of (Array.isArray(extras) ? extras : [])) add(h);
+
+  const requested = safeStr(req && req.headers && req.headers["access-control-request-headers"] || "");
+  if (requested) {
+    for (const h of requested.split(",")) add(h);
+  }
+
+  return out.join(", ");
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return false;
   const o = normalizeOrigin(origin);
@@ -961,11 +1014,7 @@ function __sbApplyVoiceCors(req, res) {
       try { res.setHeader("Access-Control-Allow-Origin", origin); } catch (_) {}
       try { res.setHeader("Access-Control-Allow-Credentials", "true"); } catch (_) {}
       try { res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS"); } catch (_) {}
-      try { res.setHeader(
-        "Access-Control-Allow-Headers",
-        safeStr(req && req.headers && req.headers["access-control-request-headers"] || "") ||
-        "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source, X-SB-Token"
-      ); } catch (_) {}
+      try { res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req)); } catch (_) {}
       try { res.setHeader("Access-Control-Max-Age", "600"); } catch (_) {}
     }
     return { origin, allow };
@@ -2770,11 +2819,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    req.headers["access-control-request-headers"] ||
-      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
-  );
+  res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
   res.setHeader("Access-Control-Max-Age", "600");
   if (req.method === "OPTIONS") return res.status(204).send("");
   return next();
@@ -2784,11 +2829,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      req.headers["access-control-request-headers"] ||
-        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
-    );
+    res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
     res.setHeader("Access-Control-Max-Age", "600");
     if (req.method === "OPTIONS") return res.status(204).send("");
     return next();
@@ -2803,29 +2844,7 @@ if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
   if (origin && allow) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "X-SB-Session",
-        "X-Session-Id",
-        "X-Visitor-Id",
-        "X-Request-Id",
-        "X-Route-Hint",
-        "X-Client-Source",
-        "x-client-source",
-        "X-SBNYX-Client-Build",
-        "x-sbnyx-client-build",
-        "X-SBNYX-Widget-Version",
-        "x-sbnyx-widget-version",
-        "X-Contract-Version",
-        "x-contract-version",
-        "X-SB-Token",
-        "x-sb-token",
-      ].join(", ")
-    );
+    res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
