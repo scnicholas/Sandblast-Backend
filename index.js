@@ -230,7 +230,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.45sb (OPINTEL+31: CORS ENFORCEMENT SPINE + PREFLIGHT SELF-HEAL + RESPONSE HEADER GUARANTEE)";
+const INDEX_VERSION = "index.js v1.5.46sb (OPINTEL+41: TTS ROUTE SURVIVABILITY + RENDER 5XX COLLAPSE + AUDIO BACKPRESSURE + FAIL-OPEN TELEMETRY)";
 
 // =========================
 // Utils
@@ -1108,38 +1108,211 @@ function __sbApplyAudioHeaders(res, traceId) {
 
 async function __sbDelegateTts(req, res, routeName) {
   req = __sbNormalizeReq(req);
+  ensureCorsOnResponse(req, res);
+
   const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
+  const ip = pickClientIp(req) || "unknown";
+  const route = safeStr(routeName || "/api/tts") || "/api/tts";
+
   __sbApplyAudioHeaders(res, traceId);
+  try { res.setHeader("x-sb-tts-route", route); } catch (_) {}
+  try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH && __SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+
+  if (__sbShouldBypassPrimary()) {
+    __sbUpdateAudioHealth(false, { error: "cooldown_bypass", upstreamStatus: 503 });
+    return sendContract(res, 200, {
+      ok: false,
+      error: "tts_temporarily_unavailable",
+      detail: "Voice is cooling down after repeated upstream failures. Text remains available.",
+      spokenUnavailable: true,
+      payload: { spokenUnavailable: true },
+      meta: { index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH }, cooldownBypass: true },
+    });
+  }
+
+  const inflight = __sbTtsInflightEnter(ip);
+  if (!inflight.ok) {
+    __sbUpdateAudioHealth(false, { error: "tts_backpressure", upstreamStatus: 429 });
+    return sendContract(res, 200, {
+      ok: false,
+      error: "tts_backpressure",
+      detail: "Voice queue is saturated right now. Text remains available.",
+      spokenUnavailable: true,
+      payload: { spokenUnavailable: true },
+      meta: {
+        index: INDEX_VERSION,
+        traceId,
+        route,
+        audioHealth: { ...__SB_AUDIO_HEALTH },
+        inflight: inflight.meta,
+      },
+    });
+  }
+
+  const original = {
+    status: typeof res.status === "function" ? res.status.bind(res) : null,
+    json: typeof res.json === "function" ? res.json.bind(res) : null,
+    send: typeof res.send === "function" ? res.send.bind(res) : null,
+    end: typeof res.end === "function" ? res.end.bind(res) : null,
+    type: typeof res.type === "function" ? res.type.bind(res) : null,
+  };
+
+  let finalStatus = 200;
+  let routeFinished = false;
+  let observedJson = null;
+
+  if (original.status) {
+    res.status = function sbTtsStatusProxy(code) {
+      const n = Number(code);
+      if (Number.isFinite(n) && n >= 500) {
+        finalStatus = n;
+        try { res.setHeader("x-sb-upstream-status", String(n)); } catch (_) {}
+        return original.status(200);
+      }
+      finalStatus = Number.isFinite(n) ? n : 200;
+      return original.status(code);
+    };
+  }
+
+  if (original.json) {
+    res.json = function sbTtsJsonProxy(body) {
+      routeFinished = true;
+      observedJson = body;
+      const ok = !!(body && typeof body === "object" && body.ok !== false && !body.error && !body.spokenUnavailable);
+      if (ok) __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
+      else __sbUpdateAudioHealth(false, {
+        error: safeStr(body && (body.error || body.reason || body.detail) || "tts_json_fail").slice(0, 220),
+        upstreamStatus: finalStatus
+      });
+
+      const out = (body && typeof body === "object") ? { ...body } : { ok: false, error: "tts_invalid_json" };
+      if (!ok) {
+        out.ok = false;
+        out.spokenUnavailable = true;
+        out.payload = isPlainObject(out.payload) ? out.payload : {};
+        out.payload.spokenUnavailable = true;
+      }
+      if (!isPlainObject(out.meta)) out.meta = {};
+      out.meta.index = INDEX_VERSION;
+      out.meta.traceId = traceId;
+      out.meta.route = route;
+      out.meta.audioHealth = { ...__SB_AUDIO_HEALTH };
+
+      try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+      return original.json(out);
+    };
+  }
+
+  if (original.send) {
+    res.send = function sbTtsSendProxy(body) {
+      routeFinished = true;
+      const ct = safeStr(res.getHeader && res.getHeader("content-type") || "");
+      const isAudio = /^audio\//i.test(ct);
+      if (isAudio) {
+        __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
+        try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+      }
+      return original.send(body);
+    };
+  }
+
+  if (original.end) {
+    res.end = function sbTtsEndProxy() {
+      routeFinished = true;
+      const ct = safeStr(res.getHeader && res.getHeader("content-type") || "");
+      const isAudio = /^audio\//i.test(ct);
+      if (isAudio) {
+        __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
+        try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+      }
+      return original.end(...arguments);
+    };
+  }
+
   try {
     if (!__SB_HANDLE_TTS) {
       try { __sbTryRequireTts(); } catch (_) {}
     }
-    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
+
+    if (!__SB_HANDLE_TTS) {
+      __sbUpdateAudioHealth(false, { error: "tts_handler_missing", upstreamStatus: 503 });
+      return sendContract(res, 200, {
+        ok: false,
+        error: "TTS_HANDLER_MISSING",
+        detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default.",
+        spokenUnavailable: true,
+        payload: { spokenUnavailable: true },
+        meta: {
+          index: INDEX_VERSION,
+          traceId,
+          route,
+          ttsModulePath: __SB_TTS_MODPATH || null,
+          env: {
+            provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
+            hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
+            hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
+            hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
+          },
+          audioHealth: { ...__SB_AUDIO_HEALTH },
+        },
+      });
+    }
+
+    const out = await __SB_HANDLE_TTS(req, res);
+
+    if (!routeFinished && !res.headersSent) {
+      const looksOk = isPlainObject(out) && out.ok !== false && !out.error && !out.spokenUnavailable;
+      __sbUpdateAudioHealth(!!looksOk, {
+        error: looksOk ? null : safeStr(out && (out.error || out.reason || out.detail) || "tts_no_response").slice(0, 220),
+        upstreamStatus: finalStatus
+      });
+
+      return sendContract(res, 200, looksOk ? {
+        ...out,
+        meta: { ...(isPlainObject(out.meta) ? out.meta : {}), index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH } }
+      } : {
+        ok: false,
+        error: safeStr(out && (out.error || out.reason) || "tts_no_response"),
+        detail: safeStr(out && (out.detail || out.message) || "TTS handler returned without an audio body."),
+        spokenUnavailable: true,
+        payload: { spokenUnavailable: true },
+        meta: { index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH } },
+      });
+    }
+
+    return out;
   } catch (e) {
     try {
       console.log("[Sandblast][TTS][DelegateFail]", JSON.stringify({
-        route: safeStr(routeName || "tts"),
+        route,
         traceId,
         error: safeStr(e && (e.message || e) || "unknown").slice(0, 220),
         modPath: __SB_TTS_MODPATH || null,
       }));
     } catch (_) {}
-  }
 
-  const env = {
-    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
-    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
-    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
-    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
-  };
-  return sendContract(res, 503, {
-    ok: false,
-    error: "TTS_HANDLER_MISSING",
-    detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
-    spokenUnavailable: true,
-    payload: { spokenUnavailable: true },
-    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, route: safeStr(routeName || "tts"), env },
-  });
+    try {
+      if (!res.headersSent) {
+        __sbUpdateAudioHealth(false, {
+          error: safeStr(e && (e.message || e) || "tts_delegate_exception").slice(0, 220),
+          upstreamStatus: finalStatus >= 400 ? finalStatus : 503
+        });
+        return sendContract(res, 200, {
+          ok: false,
+          error: "tts_delegate_exception",
+          detail: safeStr(e && (e.message || e) || "Unknown TTS delegate failure").slice(0, 240),
+          spokenUnavailable: true,
+          payload: { spokenUnavailable: true },
+          meta: { index: INDEX_VERSION, traceId, route, ttsModulePath: __SB_TTS_MODPATH || null, audioHealth: { ...__SB_AUDIO_HEALTH } },
+        });
+      }
+    } catch (_) {}
+
+    return undefined;
+  } finally {
+    __sbTtsInflightExit(ip);
+    try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+  }
 }
 
 // =========================
@@ -4026,6 +4199,53 @@ function __sbShouldBypassPrimary(){
 }
 
 
+const __SB_TTS_ROUTE_STATE = globalThis.__SB_TTS_ROUTE_STATE || (globalThis.__SB_TTS_ROUTE_STATE = {
+  inflightByIp: new Map(),
+  globalInflight: 0,
+});
+
+const __SB_TTS_MAX_INFLIGHT_GLOBAL = clampInt(process.env.SB_TTS_MAX_INFLIGHT_GLOBAL, 4, 1, 24);
+const __SB_TTS_MAX_INFLIGHT_PER_IP = clampInt(process.env.SB_TTS_MAX_INFLIGHT_PER_IP, 2, 1, 8);
+
+function __sbTtsInflightEnter(ip) {
+  const key = safeStr(ip || "unknown") || "unknown";
+  const st = __SB_TTS_ROUTE_STATE;
+  const perIp = Number(st.inflightByIp.get(key) || 0);
+  if (st.globalInflight >= __SB_TTS_MAX_INFLIGHT_GLOBAL || perIp >= __SB_TTS_MAX_INFLIGHT_PER_IP) {
+    return {
+      ok: false,
+      meta: {
+        globalInflight: st.globalInflight,
+        perIp,
+        maxGlobal: __SB_TTS_MAX_INFLIGHT_GLOBAL,
+        maxPerIp: __SB_TTS_MAX_INFLIGHT_PER_IP,
+      },
+    };
+  }
+  st.globalInflight += 1;
+  st.inflightByIp.set(key, perIp + 1);
+  return {
+    ok: true,
+    meta: {
+      globalInflight: st.globalInflight,
+      perIp: perIp + 1,
+      maxGlobal: __SB_TTS_MAX_INFLIGHT_GLOBAL,
+      maxPerIp: __SB_TTS_MAX_INFLIGHT_PER_IP,
+    },
+  };
+}
+
+function __sbTtsInflightExit(ip) {
+  const key = safeStr(ip || "unknown") || "unknown";
+  const st = __SB_TTS_ROUTE_STATE;
+  st.globalInflight = Math.max(0, Number(st.globalInflight || 0) - 1);
+  const cur = Math.max(0, Number(st.inflightByIp.get(key) || 0) - 1);
+  if (cur <= 0) st.inflightByIp.delete(key);
+  else st.inflightByIp.set(key, cur);
+}
+
+
+
 async function handleTtsRoute(req, res) {
   // Legacy in-index TTS route removed: provider logic lives in ./utils/tts (Resemble-only policy).
   // This stub stays only to protect older code paths from crashing if referenced accidentally.
@@ -4043,7 +4263,23 @@ async function handleTtsRoute(req, res) {
 
 
 app.post("/api/tts", ipRateGuard, async (req, res) => {
-  return __sbDelegateTts(req, res, "/api/tts");
+  ensureCorsOnResponse(req, res);
+  try {
+    return await __sbDelegateTts(req, res, "/api/tts");
+  } catch (e) {
+    __sbUpdateAudioHealth(false, { error: safeStr(e && (e.message || e) || "tts_route_exception").slice(0, 220), upstreamStatus: 503 });
+    if (!res.headersSent) {
+      return sendContract(res, 200, {
+        ok: false,
+        error: "tts_route_exception",
+        detail: safeStr(e && (e.message || e) || "Unknown /api/tts route failure").slice(0, 240),
+        spokenUnavailable: true,
+        payload: { spokenUnavailable: true },
+        meta: { index: INDEX_VERSION, route: "/api/tts", audioHealth: { ...__SB_AUDIO_HEALTH } },
+      });
+    }
+    return undefined;
+  }
 });
 
 // =========================
@@ -4112,7 +4348,23 @@ app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
 
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
-  return __sbDelegateTts(req, res, "/api/voice");
+  ensureCorsOnResponse(req, res);
+  try {
+    return await __sbDelegateTts(req, res, "/api/voice");
+  } catch (e) {
+    __sbUpdateAudioHealth(false, { error: safeStr(e && (e.message || e) || "voice_route_exception").slice(0, 220), upstreamStatus: 503 });
+    if (!res.headersSent) {
+      return sendContract(res, 200, {
+        ok: false,
+        error: "voice_route_exception",
+        detail: safeStr(e && (e.message || e) || "Unknown /api/voice route failure").slice(0, 240),
+        spokenUnavailable: true,
+        payload: { spokenUnavailable: true },
+        meta: { index: INDEX_VERSION, route: "/api/voice", audioHealth: { ...__SB_AUDIO_HEALTH } },
+      });
+    }
+    return undefined;
+  }
 });
 
 function ttsGetGuidance(req, res) {
@@ -4137,7 +4389,7 @@ function audioHealthRoute(req, res) {
     req.body = { healthCheck: true };
     __sbApplyAudioHeaders(res, String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId());
     if (__SB_HANDLE_TTS) return __SB_HANDLE_TTS(req, res);
-    return sendContract(res, 503, {
+    return sendContract(res, 200, {
       ok: false,
       error: "TTS_HANDLER_MISSING",
       detail: "Cannot probe audio health: ./utils/tts.handleTts is unavailable.",
