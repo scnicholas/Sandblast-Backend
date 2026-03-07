@@ -6,14 +6,21 @@
  *
  * Exports: { synthesize }
  *
- * Dependency-free (uses global fetch if available; falls back to https).
- * Returns a Buffer of audio bytes decoded from Resemble's base64 payload,
- * or downloads audio_src if the provider returns a URL instead.
+ * Improvements in this revision:
+ * - preserves existing structure and function names
+ * - accepts both token env naming patterns
+ * - supports short voice ids by resolving from env when needed
+ * - tolerates multiple provider success/body shapes
+ * - returns richer diagnostics to stop blind 503s
  */
 
 const https = require("https");
 
-const RESEMBLE_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
+const RESEMBLE_SYNTH_URL = _pickFirst(
+  process.env.RESEMBLE_SYNTH_URL,
+  process.env.RESEMBLE_TTS_URL,
+  "https://f.cluster.resemble.ai/synthesize"
+);
 
 function _str(v){ return v == null ? "" : String(v); }
 function _trim(v){ return _str(v).trim(); }
@@ -44,11 +51,17 @@ function _mimeFor(fmt){
 function _getToken(){
   return _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY, "");
 }
+function _getProjectUuid(){
+  return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
+}
+function _getVoiceUuid(){
+  return _pickFirst(process.env.RESEMBLE_VOICE_UUID, process.env.SB_RESEMBLE_VOICE_UUID, process.env.SBNYX_RESEMBLE_VOICE_UUID, "");
+}
 function _defaultModel(){
   return _pickFirst(process.env.RESEMBLE_TTS_MODEL, "chatterbox-turbo");
 }
 function _requestTimeoutMs(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_TIMEOUT_MS, process.env.SB_TTS_TIMEOUT_MS, 3000, 60000);
+  return _clampInt(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_TTS_TIMEOUT_MS, 12000, 3000, 60000);
 }
 function _looksLikeMp3(buf){
   return Buffer.isBuffer(buf) && buf.length >= 3 && (
@@ -66,6 +79,16 @@ function _resolveMime(buffer, fallbackFmt){
   if (_looksLikeMp3(buffer)) return "audio/mpeg";
   return _mimeFor(fallbackFmt);
 }
+function _looksLikeUuid(v){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_trim(v));
+}
+function _resolveVoiceUuid(v){
+  const requested = _trim(v);
+  const envVoice = _getVoiceUuid();
+  if (_looksLikeUuid(requested)) return requested;
+  if (requested && envVoice && requested === envVoice.slice(0, requested.length)) return envVoice;
+  return envVoice || requested;
+}
 
 function _parseJson(text){
   try{ return JSON.parse(text || "{}"); }catch(_){ return null; }
@@ -73,6 +96,7 @@ function _parseJson(text){
 
 function _buildAuthHeaders(token, mode){
   if (mode === "raw") return { Authorization: token };
+  if (mode === "token") return { Authorization: `Token ${token}` };
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -194,7 +218,7 @@ async function _downloadBuffer(url, timeoutMs){
 async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
   const headers = {
     ..._buildAuthHeaders(token, authMode),
-    "User-Agent": "sb-nyx-tts/1.0"
+    "User-Agent": "sb-nyx-tts/1.1"
   };
   if (traceId) headers["X-SB-Trace-ID"] = traceId;
   return _postJson(RESEMBLE_SYNTH_URL, headers, payload, timeoutMs);
@@ -202,19 +226,44 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 
 function _normalizeProviderMessage(json, fallbackText){
   const raw = json && (
-    json.message || json.error || json.detail ||
+    json.message || json.error || json.detail || json.reason ||
+    (json.data && (json.data.message || json.data.error || json.data.detail)) ||
     (Array.isArray(json.errors) ? json.errors.join("; ") : "") ||
     (Array.isArray(json.issues) ? json.issues.join("; ") : "")
   );
   return _trim(raw) || _trim(fallbackText) || "Resemble synthesis failed.";
 }
 
+function _providerSucceeded(status, json){
+  if (!(status >= 200 && status < 300) || !json) return false;
+  if (json.success === true) return true;
+  if (json.ok === true) return true;
+  if (json.audio_content || json.audio_src) return true;
+  if (json.data && (json.data.audio_content || json.data.audio_src)) return true;
+  return false;
+}
+
+function _extractAudioEnvelope(json){
+  if (!json || typeof json !== "object") return {};
+  const base = json.data && typeof json.data === "object" ? json.data : null;
+  return {
+    audio_content: _pickFirst(json.audio_content, base && base.audio_content),
+    audio_src: _pickFirst(json.audio_src, base && base.audio_src),
+    output_format: _pickFirst(json.output_format, base && base.output_format),
+    duration: json.duration || (base && base.duration),
+    synth_duration: json.synth_duration || (base && base.synth_duration),
+    sample_rate: json.sample_rate || (base && base.sample_rate),
+    request_id: _pickFirst(json.request_id, json.id, base && (base.request_id || base.id)),
+    issues: Array.isArray(json.issues) ? json.issues : (base && Array.isArray(base.issues) ? base.issues : undefined)
+  };
+}
+
 async function synthesize(opts){
   const started = Date.now();
 
   const text = _trim(opts && opts.text);
-  const voiceUuid = _trim(opts && opts.voiceUuid);
-  const projectUuid = _trim(opts && opts.projectUuid);
+  const voiceUuid = _resolveVoiceUuid(opts && opts.voiceUuid);
+  const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
   const outputFormat = _lower(_pickFirst(opts && opts.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
   const sampleRate = opts && opts.sampleRate ? opts.sampleRate : undefined;
   const precision = _pickFirst(opts && opts.precision, "").toUpperCase();
@@ -225,13 +274,13 @@ async function synthesize(opts){
   const timeoutMs = _requestTimeoutMs();
 
   if (!token){
-    return { ok: false, retryable: false, reason: "missing_token", message: "Missing RESEMBLE_API_TOKEN", status: 0, elapsedMs: Date.now() - started };
+    return { ok: false, retryable: false, reason: "missing_token", message: "Missing RESEMBLE_API_TOKEN/RESEMBLE_API_KEY", status: 0, elapsedMs: Date.now() - started };
   }
   if (!text){
     return { ok: false, retryable: false, reason: "missing_text", message: "Missing text", status: 0, elapsedMs: Date.now() - started };
   }
   if (!voiceUuid){
-    return { ok: false, retryable: false, reason: "missing_voice", message: "Missing voiceUuid", status: 0, elapsedMs: Date.now() - started };
+    return { ok: false, retryable: false, reason: "missing_voice", message: "Missing voiceUuid / RESEMBLE_VOICE_UUID", status: 0, elapsedMs: Date.now() - started };
   }
 
   const payload = {
@@ -251,11 +300,12 @@ async function synthesize(opts){
   let authMode = "bearer";
   try{
     resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
-
-    // Resemble docs show Authorization examples in both raw-key and Bearer form.
-    // If Bearer is rejected, retry once with the raw key to prevent false no-audio failures.
-    if (resp && (resp.status === 401 || resp.status === 403)){
+    if (resp && (resp.status === 401 || resp.status === 403)) {
       authMode = "raw";
+      resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
+    }
+    if (resp && (resp.status === 401 || resp.status === 403)) {
+      authMode = "token";
       resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
     }
   }catch(e){
@@ -268,14 +318,15 @@ async function synthesize(opts){
       message: msg,
       status: 0,
       elapsedMs: Date.now() - started,
-      authMode
+      authMode,
+      providerEndpoint: RESEMBLE_SYNTH_URL
     };
   }
 
   const status = resp && resp.status ? resp.status : 0;
   const json = _parseJson(resp && resp.text ? resp.text : "");
 
-  if (status !== 200 || !json || json.success !== true){
+  if (!_providerSucceeded(status, json)){
     const retryable = status >= 500 || status === 429 || status === 408 || status === 0;
     return {
       ok: false,
@@ -286,14 +337,17 @@ async function synthesize(opts){
       elapsedMs: Date.now() - started,
       issues: json && Array.isArray(json.issues) ? json.issues : undefined,
       requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-      authMode
+      authMode,
+      providerEndpoint: RESEMBLE_SYNTH_URL,
+      voiceUuid
     };
   }
 
+  const env = _extractAudioEnvelope(json);
   let buf = null;
-  if (json.audio_content){
+  if (env.audio_content){
     try{
-      buf = Buffer.from(String(json.audio_content), "base64");
+      buf = Buffer.from(String(env.audio_content), "base64");
     }catch(e){
       return {
         ok: false,
@@ -302,14 +356,16 @@ async function synthesize(opts){
         message: _str(e && e.message ? e.message : e),
         status,
         elapsedMs: Date.now() - started,
-        issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-        requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-        authMode
+        issues: env.issues,
+        requestId: env.request_id,
+        authMode,
+        providerEndpoint: RESEMBLE_SYNTH_URL,
+        voiceUuid
       };
     }
-  } else if (json.audio_src){
+  } else if (env.audio_src){
     try{
-      const dl = await _downloadBuffer(String(json.audio_src), timeoutMs);
+      const dl = await _downloadBuffer(String(env.audio_src), timeoutMs);
       if (!dl || dl.status < 200 || dl.status >= 300 || !Buffer.isBuffer(dl.buffer) || dl.buffer.length < 16){
         return {
           ok: false,
@@ -318,9 +374,11 @@ async function synthesize(opts){
           message: "Provider returned audio_src but the audio could not be downloaded.",
           status: dl && dl.status ? dl.status : status,
           elapsedMs: Date.now() - started,
-          issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-          requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-          authMode
+          issues: env.issues,
+          requestId: env.request_id,
+          authMode,
+          providerEndpoint: RESEMBLE_SYNTH_URL,
+          voiceUuid
         };
       }
       buf = dl.buffer;
@@ -332,9 +390,11 @@ async function synthesize(opts){
         message: _str(e && e.message ? e.message : e),
         status,
         elapsedMs: Date.now() - started,
-        issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-        requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-        authMode
+        issues: env.issues,
+        requestId: env.request_id,
+        authMode,
+        providerEndpoint: RESEMBLE_SYNTH_URL,
+        voiceUuid
       };
     }
   } else {
@@ -345,9 +405,11 @@ async function synthesize(opts){
       message: "Provider returned success but no audio_content/audio_src payload.",
       status,
       elapsedMs: Date.now() - started,
-      issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-      requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-      authMode
+      issues: env.issues,
+      requestId: env.request_id,
+      authMode,
+      providerEndpoint: RESEMBLE_SYNTH_URL,
+      voiceUuid
     };
   }
 
@@ -359,25 +421,29 @@ async function synthesize(opts){
       message: "Decoded audio buffer is empty.",
       status,
       elapsedMs: Date.now() - started,
-      issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-      requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-      authMode
+      issues: env.issues,
+      requestId: env.request_id,
+      authMode,
+      providerEndpoint: RESEMBLE_SYNTH_URL,
+      voiceUuid
     };
   }
 
   return {
     ok: true,
     buffer: buf,
-    mimeType: _resolveMime(buf, json.output_format || outputFormat),
+    mimeType: _resolveMime(buf, env.output_format || outputFormat),
     elapsedMs: Date.now() - started,
-    duration: json.duration,
-    synthDuration: json.synth_duration,
-    sampleRate: json.sample_rate,
-    outputFormat: json.output_format || outputFormat,
-    issues: Array.isArray(json.issues) ? json.issues : undefined,
-    requestId: json.request_id || json.id,
+    duration: env.duration,
+    synthDuration: env.synth_duration,
+    sampleRate: env.sample_rate,
+    outputFormat: env.output_format || outputFormat,
+    issues: env.issues,
+    requestId: env.request_id,
     providerStatus: status,
-    authMode
+    authMode,
+    providerEndpoint: RESEMBLE_SYNTH_URL,
+    voiceUuid
   };
 }
 
