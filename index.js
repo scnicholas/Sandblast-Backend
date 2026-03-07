@@ -40,21 +40,6 @@
  * 28) Safer CORS/audio: explicit Cache-Control + correct content-type passthrough for mp3/wav
  * 29) Hot patch guard: refuse oversized text > MAX_TTS_CHARS with 413 to protect credits
  * 30) Runtime telemetry hooks: structured console line for every TTS call (traceId, ms, ok, provider)
- * 31) CORS enforcement spine: single header authority so every chat/tts response reflects the approved origin
- * 32) Preflight self-heal: explicit OPTIONS responders for /api/chat, /api/nyx/chat, /api/tts, and /api/voice
- * 33) Response header guarantee: json/send/end wrappers preserve CORS headers even during fail-open and error paths
- * 34) Requested-header reflection: mirrors access-control-request-headers when safe to prevent custom-header drift
- * 35) Origin telemetry: response echoes x-sb-origin and x-sb-cors-state for rapid browser debugging
- * 36) Contract-safe denial: disallowed origins still receive a clear JSON envelope instead of opaque browser confusion
- * 37) Route parity: /api/chat and /api/nyx/chat now share the same preflight and allow-header contract
- * 38) Credential discipline: allowed widget origins get credentials support without weakening public asset routes
- * 39) Warm-path consistency: diagnostics, avatar, voice, and chat routes now use the same CORS decision helper
- * 40) Error-path survivability: Express error middleware preserves access-control headers when backend code throws
- * 41) Cache-safe cross-origin policy: Vary/Origin and no-store headers stay aligned so proxies do not poison responses
- * 42) Browser contract tracing: every CORS-approved reply carries trace-friendly markers for DevTools triage
- * 43) Render-safe deployment: avoids silent preflight regressions during cold starts and rolling deploys
- * 44) Widget isolation discipline: keeps hard deny for hostile origins while remaining permissive for approved Sandblast surfaces
- * 45) Commercial hardening: cross-origin behavior is deterministic across production, staging, localhost, and future app clients
  * =========================
  *
  * This build keeps EVERYTHING you already had in v1.5.18ax:
@@ -230,7 +215,7 @@ const nyxVoiceNaturalizeMod =
 // =========================
 // Version
 // =========================
-const INDEX_VERSION = "index.js v1.5.46sb (OPINTEL+41: TTS ROUTE SURVIVABILITY + RENDER 5XX COLLAPSE + AUDIO BACKPRESSURE + FAIL-OPEN TELEMETRY)";
+const INDEX_VERSION = "index.js v1.5.43sb (OPINTEL+15: TTS PASS-THROUGH GUARD + AUDIO PLAN NORMALIZER + TRACE/AUTOPLAY CONTRACT + ROUTE HARDEN)";
 
 // =========================
 // Utils
@@ -809,89 +794,6 @@ function makeOriginRegexes() {
   return out;
 }
 const ORIGIN_REGEXES = makeOriginRegexes();
-const CORS_METHODS = "GET,POST,OPTIONS,HEAD";
-const CORS_DEFAULT_HEADERS = [
-  "Content-Type",
-  "Authorization",
-  "X-Requested-With",
-  "X-SB-Session",
-  "X-Session-Id",
-  "X-Visitor-Id",
-  "X-Request-Id",
-  "X-Route-Hint",
-  "X-Client-Source",
-  "x-client-source",
-  "X-SBNYX-Client-Build",
-  "x-sbnyx-client-build",
-  "X-SBNYX-Widget-Version",
-  "x-sbnyx-widget-version",
-  "X-Contract-Version",
-  "x-contract-version",
-  "X-SB-Token",
-  "x-sb-token",
-].join(", ");
-
-function isPublicCorsPath(pathname) {
-  const p = safeStr(pathname || "").toLowerCase();
-  return (
-    p === "/_health" ||
-    p === "/_diag" ||
-    p === "/api/ping" ||
-    p === "/avatar-host.html" ||
-    p === "/avatar" ||
-    p.startsWith("/avatar/")
-  );
-}
-
-function applyCorsDecision(req, res, opts) {
-  const cfg = isPlainObject(opts) ? opts : {};
-  const p = safeStr(req && req.path || "");
-  const originRaw = safeStr(req && req.headers && req.headers.origin || "");
-  const origin = normalizeOrigin(originRaw);
-  const isPublic = cfg.forcePublic === true || isPublicCorsPath(p);
-  const allow = isPublic ? true : (origin ? isAllowedOrigin(origin) : false);
-  const requestedHeaders = safeStr(req && req.headers && req.headers["access-control-request-headers"] || "").trim();
-  const allowHeaders = requestedHeaders || CORS_DEFAULT_HEADERS;
-
-  if (origin || isPublic) res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", isPublic ? "GET,POST,OPTIONS,HEAD" : CORS_METHODS);
-  res.setHeader("Access-Control-Allow-Headers", allowHeaders);
-  res.setHeader("Access-Control-Max-Age", "600");
-  res.setHeader("x-sb-origin", origin || "same-origin");
-
-  if (isPublic) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("x-sb-cors-state", "public");
-    return { origin, allow: true, public: true, denied: false, allowHeaders };
-  }
-
-  if (origin && allow) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("x-sb-cors-state", "allowed");
-    return { origin, allow: true, public: false, denied: false, allowHeaders };
-  }
-
-  if (origin) res.setHeader("x-sb-cors-state", "denied");
-  return { origin, allow: false, public: false, denied: !!origin, allowHeaders };
-}
-
-function ensureCorsOnResponse(req, res) {
-  if (!req || !res || res.locals && res.locals.__sbCorsWrapped) return;
-  if (!res.locals) res.locals = {};
-  res.locals.__sbCorsWrapped = true;
-  const wrap = (name) => {
-    if (typeof res[name] !== "function") return;
-    const base = res[name].bind(res);
-    res[name] = function sbCorsWrappedResponse() {
-      try { applyCorsDecision(req, res); } catch (_) {}
-      return base(...arguments);
-    };
-  };
-  wrap("json");
-  wrap("send");
-  wrap("end");
-}
 
 function isAllowedOrigin(origin) {
   if (!origin) return false;
@@ -959,66 +861,6 @@ var eng__ = ENGINE; // legacy
 try { globalThis.ENGINE = ENGINE; globalThis._ENGINE_ = ENGINE; globalThis.__ENGINE__ = ENGINE; globalThis.eng__ = ENGINE; } catch (_) {}
 const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
 
-
-// Optional Conversation Governor (loop suppression / clarify minimizer)
-const governorMod =
-  safeRequire("./utils/governor") || safeRequire("./utils/governor.js") ||
-  safeRequire("./Utils/governor") || safeRequire("./Utils/governor.js") || null;
-
-function resolveGovernor(mod) {
-  if (!mod) return { fn: null, from: "missing" };
-  if (typeof mod === "function") return { fn: mod, from: "module_function" };
-  if (typeof mod.applyGovernor === "function") return { fn: mod.applyGovernor.bind(mod), from: "module_applyGovernor" };
-  if (typeof mod.default === "function") return { fn: mod.default.bind(mod), from: "module_default" };
-  return { fn: null, from: "invalid" };
-}
-
-const GOVERNOR = resolveGovernor(governorMod);
-
-function __sbGovernorMemoryFromSession(session) {
-  return isPlainObject(session?.governor) ? session.governor : {};
-}
-
-function __sbSanitizeGovernorMemory(memoryCtx) {
-  const src = isPlainObject(memoryCtx) ? memoryCtx : {};
-  const out = {};
-
-  if (isPlainObject(src.loop)) out.loop = { ...src.loop };
-  if (isPlainObject(src.bridge)) out.bridge = { ...src.bridge };
-
-  if (isPlainObject(src.memoryWindows)) {
-    out.memoryWindows = {
-      recentIntents: Array.isArray(src.memoryWindows.recentIntents) ? src.memoryWindows.recentIntents.slice(-8) : [],
-      unresolvedAsks: Array.isArray(src.memoryWindows.unresolvedAsks) ? src.memoryWindows.unresolvedAsks.slice(-4) : [],
-      lastResolvedIntent: safeStr(src.memoryWindows.lastResolvedIntent || ""),
-      lastUserPreference: src.memoryWindows.lastUserPreference || null,
-    };
-  }
-
-  return out;
-}
-
-function __sbBuildGovernorInput(engineInput, out, reply, lane, sessionGovernor) {
-  const outCog = isPlainObject(out?.cog) ? out.cog : {};
-  const outIntent = isPlainObject(out?.intent) ? out.intent : (isPlainObject(outCog.intent) ? outCog.intent : {});
-  return {
-    userText: safeStr(engineInput?.text || ""),
-    domain: safeStr(out?.domain || outCog.domain || lane || "general") || "general",
-    intent: outIntent,
-    primary: { text: safeStr(reply || "") },
-    evidencePack: {
-      primary: { text: safeStr(reply || "") },
-      packs: { memory: __sbSanitizeGovernorMemory(sessionGovernor) },
-    },
-    memoryCtx: __sbSanitizeGovernorMemory(sessionGovernor),
-    routeConfidence: Number.isFinite(Number(out?.routeConfidence)) ? Number(out.routeConfidence) : Number(outCog.routeConfidence),
-    intentConfidence: Number.isFinite(Number(out?.intentConfidence)) ? Number(out.intentConfidence) : Number(outCog.intentConfidence),
-    ambiguity: Number.isFinite(Number(out?.ambiguity)) ? Number(out.ambiguity) : Number(outCog?.ambiguity?.score),
-    musicAction: safeStr(out?.action || engineInput?.action || engineInput?.payload?.action || ""),
-    musicYear: safeStr(out?.year || engineInput?.year || engineInput?.payload?.year || ""),
-  };
-}
-
 function normalizeEngineOutput(out) {
   if (out === null || out === undefined) return {};
   if (typeof out === "string") return { ok: true, reply: out };
@@ -1062,6 +904,43 @@ function nyxVoiceNaturalize(text) {
 }
 
 const SB_AUDIO_PLAN_MAX_CHARS = clampInt(process.env.SB_AUDIO_PLAN_MAX_CHARS, 900, 80, 5000);
+const SB_AUDIO_UNLOCK_ENDPOINT = String(process.env.SB_AUDIO_UNLOCK_ENDPOINT || "/api/audio/unlock").trim() || "/api/audio/unlock";
+
+function __sbReadAudioIntentFlag(v) {
+  const s = safeStr(v || "").trim().toLowerCase();
+  if (!s) return null;
+  if (["1","true","yes","y","on","enabled","ready","speak","voice","auto","autoplay"].includes(s)) return true;
+  if (["0","false","no","n","off","disabled","mute","muted","silent"].includes(s)) return false;
+  return null;
+}
+
+function __sbBodyAudioIntent(bodyObj) {
+  const b = isPlainObject(bodyObj) ? bodyObj : {};
+  const client = isPlainObject(b.client) ? b.client : {};
+  const payload = isPlainObject(b.payload) ? b.payload : {};
+  const candidates = [
+    b.autoPlay, b.autoplay, b.playAudio, b.audioEnabled, b.voiceEnabled, b.voiceReady, b.ttsEnabled, b.tts, b.speakReply, b.enableVoice,
+    client.autoPlay, client.autoplay, client.playAudio, client.audioEnabled, client.voiceEnabled, client.voiceReady, client.ttsEnabled, client.enableVoice,
+    payload.autoPlay, payload.autoplay, payload.playAudio, payload.audioEnabled, payload.voiceEnabled, payload.voiceReady, payload.ttsEnabled, payload.enableVoice,
+  ];
+  for (const v of candidates) {
+    if (typeof v === "boolean") return v;
+    const parsed = __sbReadAudioIntentFlag(v);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function __sbBuildUnlockPacket(traceId, voice) {
+  return {
+    endpoint: SB_AUDIO_UNLOCK_ENDPOINT,
+    method: "GET",
+    traceId: safeStr(traceId || "") || undefined,
+    voice: safeStr(voice || "nyx") || "nyx",
+    mime: "audio/wav",
+    strategy: "gesture_unlock_then_tts",
+  };
+}
 
 function __sbNormalizeSpeakWhen(v) {
   const s = safeStr(v || "").trim().toLowerCase();
@@ -1075,8 +954,11 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
   const ds = Array.isArray(directives) ? directives : [];
   const ttsDir = ds.find((d) => isPlainObject(d) && safeStr(d.type || "").toLowerCase() === "tts") || null;
   const bodyObj = isPlainObject(body) ? body : {};
-  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, false);
-  const requestedAutoPlay = toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, !!ttsDir);
+  const bodyIntent = __sbBodyAudioIntent(bodyObj);
+  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, bodyIntent === false);
+  const requestedAutoPlay = (bodyIntent !== null)
+    ? !!bodyIntent
+    : toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, true);
   const speak = nyxVoiceNaturalize(
     safeStr(ttsDir?.text || bodyObj.textToSynth || bodyObj.speak || reply || "")
   ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
@@ -1084,6 +966,7 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
   const voice = safeStr(ttsDir?.voice || bodyObj.voice || bodyObj.voiceId || "nyx") || "nyx";
   const reason = ttsDir ? "directive" : (reply ? "reply_fallback" : "none");
   const shouldSpeak = !!speak && !wantsMute && (requestedAutoPlay || !!ttsDir);
+  const unlockPacket = __sbBuildUnlockPacket(meta && meta.traceId, voice);
   return {
     shouldSpeak,
     autoPlay: !!shouldSpeak && requestedAutoPlay,
@@ -1093,6 +976,11 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
     textChars: speak.length,
     source: reason,
     muted: !!wantsMute,
+    unlockRequired: false,
+    unlockHint: "gesture_packet_ready",
+    unlockPacket,
+    endpoint: "/api/tts",
+    transport: "async_tts",
     traceId: safeStr(meta && meta.traceId || "") || undefined,
   };
 }
@@ -1108,211 +996,38 @@ function __sbApplyAudioHeaders(res, traceId) {
 
 async function __sbDelegateTts(req, res, routeName) {
   req = __sbNormalizeReq(req);
-  ensureCorsOnResponse(req, res);
-
   const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
-  const ip = pickClientIp(req) || "unknown";
-  const route = safeStr(routeName || "/api/tts") || "/api/tts";
-
   __sbApplyAudioHeaders(res, traceId);
-  try { res.setHeader("x-sb-tts-route", route); } catch (_) {}
-  try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH && __SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
-
-  if (__sbShouldBypassPrimary()) {
-    __sbUpdateAudioHealth(false, { error: "cooldown_bypass", upstreamStatus: 503 });
-    return sendContract(res, 200, {
-      ok: false,
-      error: "tts_temporarily_unavailable",
-      detail: "Voice is cooling down after repeated upstream failures. Text remains available.",
-      spokenUnavailable: true,
-      payload: { spokenUnavailable: true },
-      meta: { index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH }, cooldownBypass: true },
-    });
-  }
-
-  const inflight = __sbTtsInflightEnter(ip);
-  if (!inflight.ok) {
-    __sbUpdateAudioHealth(false, { error: "tts_backpressure", upstreamStatus: 429 });
-    return sendContract(res, 200, {
-      ok: false,
-      error: "tts_backpressure",
-      detail: "Voice queue is saturated right now. Text remains available.",
-      spokenUnavailable: true,
-      payload: { spokenUnavailable: true },
-      meta: {
-        index: INDEX_VERSION,
-        traceId,
-        route,
-        audioHealth: { ...__SB_AUDIO_HEALTH },
-        inflight: inflight.meta,
-      },
-    });
-  }
-
-  const original = {
-    status: typeof res.status === "function" ? res.status.bind(res) : null,
-    json: typeof res.json === "function" ? res.json.bind(res) : null,
-    send: typeof res.send === "function" ? res.send.bind(res) : null,
-    end: typeof res.end === "function" ? res.end.bind(res) : null,
-    type: typeof res.type === "function" ? res.type.bind(res) : null,
-  };
-
-  let finalStatus = 200;
-  let routeFinished = false;
-  let observedJson = null;
-
-  if (original.status) {
-    res.status = function sbTtsStatusProxy(code) {
-      const n = Number(code);
-      if (Number.isFinite(n) && n >= 500) {
-        finalStatus = n;
-        try { res.setHeader("x-sb-upstream-status", String(n)); } catch (_) {}
-        return original.status(200);
-      }
-      finalStatus = Number.isFinite(n) ? n : 200;
-      return original.status(code);
-    };
-  }
-
-  if (original.json) {
-    res.json = function sbTtsJsonProxy(body) {
-      routeFinished = true;
-      observedJson = body;
-      const ok = !!(body && typeof body === "object" && body.ok !== false && !body.error && !body.spokenUnavailable);
-      if (ok) __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
-      else __sbUpdateAudioHealth(false, {
-        error: safeStr(body && (body.error || body.reason || body.detail) || "tts_json_fail").slice(0, 220),
-        upstreamStatus: finalStatus
-      });
-
-      const out = (body && typeof body === "object") ? { ...body } : { ok: false, error: "tts_invalid_json" };
-      if (!ok) {
-        out.ok = false;
-        out.spokenUnavailable = true;
-        out.payload = isPlainObject(out.payload) ? out.payload : {};
-        out.payload.spokenUnavailable = true;
-      }
-      if (!isPlainObject(out.meta)) out.meta = {};
-      out.meta.index = INDEX_VERSION;
-      out.meta.traceId = traceId;
-      out.meta.route = route;
-      out.meta.audioHealth = { ...__SB_AUDIO_HEALTH };
-
-      try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
-      return original.json(out);
-    };
-  }
-
-  if (original.send) {
-    res.send = function sbTtsSendProxy(body) {
-      routeFinished = true;
-      const ct = safeStr(res.getHeader && res.getHeader("content-type") || "");
-      const isAudio = /^audio\//i.test(ct);
-      if (isAudio) {
-        __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
-        try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
-      }
-      return original.send(body);
-    };
-  }
-
-  if (original.end) {
-    res.end = function sbTtsEndProxy() {
-      routeFinished = true;
-      const ct = safeStr(res.getHeader && res.getHeader("content-type") || "");
-      const isAudio = /^audio\//i.test(ct);
-      if (isAudio) {
-        __sbUpdateAudioHealth(true, { upstreamStatus: finalStatus });
-        try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
-      }
-      return original.end(...arguments);
-    };
-  }
-
   try {
     if (!__SB_HANDLE_TTS) {
       try { __sbTryRequireTts(); } catch (_) {}
     }
-
-    if (!__SB_HANDLE_TTS) {
-      __sbUpdateAudioHealth(false, { error: "tts_handler_missing", upstreamStatus: 503 });
-      return sendContract(res, 200, {
-        ok: false,
-        error: "TTS_HANDLER_MISSING",
-        detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default.",
-        spokenUnavailable: true,
-        payload: { spokenUnavailable: true },
-        meta: {
-          index: INDEX_VERSION,
-          traceId,
-          route,
-          ttsModulePath: __SB_TTS_MODPATH || null,
-          env: {
-            provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
-            hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
-            hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
-            hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
-          },
-          audioHealth: { ...__SB_AUDIO_HEALTH },
-        },
-      });
-    }
-
-    const out = await __SB_HANDLE_TTS(req, res);
-
-    if (!routeFinished && !res.headersSent) {
-      const looksOk = isPlainObject(out) && out.ok !== false && !out.error && !out.spokenUnavailable;
-      __sbUpdateAudioHealth(!!looksOk, {
-        error: looksOk ? null : safeStr(out && (out.error || out.reason || out.detail) || "tts_no_response").slice(0, 220),
-        upstreamStatus: finalStatus
-      });
-
-      return sendContract(res, 200, looksOk ? {
-        ...out,
-        meta: { ...(isPlainObject(out.meta) ? out.meta : {}), index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH } }
-      } : {
-        ok: false,
-        error: safeStr(out && (out.error || out.reason) || "tts_no_response"),
-        detail: safeStr(out && (out.detail || out.message) || "TTS handler returned without an audio body."),
-        spokenUnavailable: true,
-        payload: { spokenUnavailable: true },
-        meta: { index: INDEX_VERSION, traceId, route, audioHealth: { ...__SB_AUDIO_HEALTH } },
-      });
-    }
-
-    return out;
+    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
   } catch (e) {
     try {
       console.log("[Sandblast][TTS][DelegateFail]", JSON.stringify({
-        route,
+        route: safeStr(routeName || "tts"),
         traceId,
         error: safeStr(e && (e.message || e) || "unknown").slice(0, 220),
         modPath: __SB_TTS_MODPATH || null,
       }));
     } catch (_) {}
-
-    try {
-      if (!res.headersSent) {
-        __sbUpdateAudioHealth(false, {
-          error: safeStr(e && (e.message || e) || "tts_delegate_exception").slice(0, 220),
-          upstreamStatus: finalStatus >= 400 ? finalStatus : 503
-        });
-        return sendContract(res, 200, {
-          ok: false,
-          error: "tts_delegate_exception",
-          detail: safeStr(e && (e.message || e) || "Unknown TTS delegate failure").slice(0, 240),
-          spokenUnavailable: true,
-          payload: { spokenUnavailable: true },
-          meta: { index: INDEX_VERSION, traceId, route, ttsModulePath: __SB_TTS_MODPATH || null, audioHealth: { ...__SB_AUDIO_HEALTH } },
-        });
-      }
-    } catch (_) {}
-
-    return undefined;
-  } finally {
-    __sbTtsInflightExit(ip);
-    try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
   }
+
+  const env = {
+    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
+    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
+    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
+    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
+  };
+  return sendContract(res, 503, {
+    ok: false,
+    error: "TTS_HANDLER_MISSING",
+    detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
+    spokenUnavailable: true,
+    payload: { spokenUnavailable: true },
+    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, route: safeStr(routeName || "tts"), env },
+  });
 }
 
 // =========================
@@ -2884,24 +2599,6 @@ function sendJson(res, statusCode, body) {
 }
 const app = express();
 
-// CORS response guarantee: ensure chat/tts/error replies always carry the final access-control headers.
-app.use((req, res, next) => {
-  try {
-    ensureCorsOnResponse(req, res);
-    applyCorsDecision(req, res);
-  } catch (_) {}
-  return next();
-});
-
-// Explicit preflight responders for Nyx surfaces. This avoids opaque browser CORS failures during deploy drift.
-app.options(["/api/chat", "/api/nyx/chat", "/api/tts", "/api/voice", "/api/ping", "/_health", "/_diag"], (req, res) => {
-  const state = applyCorsDecision(req, res, { forcePublic: isPublicCorsPath(req.path) });
-  if (state.denied) {
-    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
-  }
-  return res.status(204).send("");
-});
-
 // --- OPINTEL Loop Governor (server-side) ---
 // De-dupe identical /api/chat requests in a short window and collapse concurrent in-flight calls.
 const __CHAT_DEDUPE__ = globalThis.__CHAT_DEDUPE__ || (globalThis.__CHAT_DEDUPE__ = new Map());
@@ -3003,19 +2700,79 @@ app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
 // CORS hard-lock + HARD DENY
 // =========================
 app.use((req, res, next) => {
-  const state = applyCorsDecision(req, res, { forcePublic: isPublicCorsPath(req.path) });
+  // Public static avatar assets must NEVER be blocked by strict CORS.
+  // Browsers may send Origin on iframe/document requests; treat /avatar as public.
+  const p = safeStr(req.path || "");
+// Public diagnostics endpoints (must not be blocked by strict CORS)
+if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    req.headers["access-control-request-headers"] ||
+      "Content-Type, Authorization, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source"
+  );
+  res.setHeader("Access-Control-Max-Age", "600");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  return next();
+}
 
-  if (req.method === "OPTIONS") {
-    if (state.denied) {
-      return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
-    }
-    return res.status(204).send("");
+  if (p === "/avatar-host.html" || p === "/avatar" || p.startsWith("/avatar/")) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      req.headers["access-control-request-headers"] ||
+        "Content-Type, X-SB-Token, X-SB-Session, X-Visitor-Id, X-Request-Id"
+    );
+    res.setHeader("Access-Control-Max-Age", "600");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    return next();
   }
 
-  // HARD DENY: if browser sends Origin and it's not allowed, block cleanly.
-  if (state.denied) {
-    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin || null } });
+  const originRaw = safeStr(req.headers.origin || "");
+  const origin = normalizeOrigin(originRaw);
+  const allow = origin ? isAllowedOrigin(origin) : false;
+
+  if (origin) res.setHeader("Vary", "Origin");
+
+  if (origin && allow) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-SB-Session",
+        "X-Session-Id",
+        "X-Visitor-Id",
+        "X-Request-Id",
+        "X-Route-Hint",
+        "X-Client-Source",
+        "x-client-source",
+        "X-SBNYX-Client-Build",
+        "x-sbnyx-client-build",
+        "X-SBNYX-Widget-Version",
+        "x-sbnyx-widget-version",
+        "X-Contract-Version",
+        "x-contract-version",
+        "X-SB-Token",
+        "x-sb-token",
+      ].join(", ")
+    );
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Max-Age", "600");
   }
+
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
+  // HARD DENY: if browser sends Origin and it's not allowed, block.
+  if (origin && !allow) {
+    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION } });}
 
   return next();
 });
@@ -3536,8 +3293,7 @@ function applySessionPatch(session, patch) {
     "activeMusicChart",
     "lastMusicChart",
     "musicMomentsLoaded",
-    "musicMomentsLoadedAt",
-    "governor"
+    "musicMomentsLoadedAt"
   ]);
 
   for (const [k, v] of Object.entries(patch)) {
@@ -3672,7 +3428,7 @@ async function handleChatRoute(req, res) {
         const reply = cached.reply || "";
         return respond(200, {
           ok: true,
-          reply: finalReply,
+          reply,
           lane: cached.lane || rec.data.lane || "general",
           payload: { reply, lane: cached.lane || rec.data.lane || "general" },
           laneId: rec.data.laneId || undefined,
@@ -3711,7 +3467,7 @@ async function handleChatRoute(req, res) {
 
         return respond(200, {
           ok: true,
-          reply: finalReply,
+          reply,
           lane: rec.data.lane || "general",
           payload: { reply, lane: rec.data.lane || "general" },
           laneId: rec.data.laneId || undefined,
@@ -3762,7 +3518,7 @@ async function handleChatRoute(req, res) {
       const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
       return respond(status, {
         ok: false,
-        reply: finalReply,
+        reply,
         lane: "general",
         payload: { reply, lane: "general" },
         requestId: serverRequestId,
@@ -3909,60 +3665,16 @@ async function handleChatRoute(req, res) {
       ...(followUps ? { followUps } : {}),
       ...(minimalClarifier ? { minimalClarifier } : {}),
     };
-
-    let finalReply = reply;
-    let finalDirectives = directives;
-    let finalFollowUps = followUps;
-    let finalFollowUpsStrings = followUpsStrings;
-    let finalUi = mergedUi;
-    let governorMeta = null;
-
-    if (!isReset && GOVERNOR.fn) {
-      try {
-        const governorInput = __sbBuildGovernorInput(engineInput, out, reply, lane, __sbGovernorMemoryFromSession(rec.data));
-        const governorResult = GOVERNOR.fn(governorInput) || null;
-        const governorAction = safeStr(governorResult?.action || "pass").trim().toLowerCase() || "pass";
-        governorMeta = isPlainObject(governorResult?.governor) ? { ...governorResult.governor, action: governorAction } : { action: governorAction };
-
-        const governorMemory = __sbSanitizeGovernorMemory(governorResult?.memory);
-        if (Object.keys(governorMemory).length) {
-          safeSessionPatch.governor = governorMemory;
-          applySessionPatch(rec.data, { governor: governorMemory });
-        }
-
-        if (governorAction === "clarify" || governorAction === "branch") {
-          const governorResponse = isPlainObject(governorResult?.response) ? governorResult.response : {};
-          const governorText = safeStr(governorResponse.text || governorResult?.text || "").trim();
-          const governorOptions = arrOrEmpty(governorResponse.options).map((v) => safeStr(v).trim()).filter(Boolean).slice(0, 3);
-          if (governorText) finalReply = governorText;
-          if (governorOptions.length) finalFollowUps = governorOptions;
-          finalFollowUpsStrings = undefined;
-          finalDirectives = Array.isArray(directives) ? directives.filter((d) => safeStr(d?.type || "").toLowerCase() !== "tts") : directives;
-          finalUi = {
-            ...mergedUi,
-            governorAction,
-            ...(governorOptions.length ? { followUps: governorOptions } : {}),
-            ...(governorAction === "clarify" ? { minimalClarifier: finalReply } : {}),
-          };
-          if (governorAction === "clarify") outCog.clarifyMinimized = true;
-        } else if (safeStr(governorResult?.text || "").trim()) {
-          finalReply = safeStr(governorResult.text).trim();
-        }
-      } catch (e) {
-        governorMeta = { action: "error", error: safeStr(e?.message || e).slice(0, 180) };
-      }
-    }
-
-    const audio = __sbDeriveAudioPlan(finalReply, finalDirectives, body, { traceId });
+    const audio = __sbDeriveAudioPlan(reply, directives, body, { traceId });
 
     if (!isReset && !bootLike) {
-      writeReplay(rec, finalReply, lane, { directives: finalDirectives, followUps: finalFollowUps, followUpsStrings: finalFollowUpsStrings });
+      writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
     } else if (isReset) {
       rec.data.__idx_lastOut = "";
       rec.data.__idx_lastLane = lane;
     }
 
-    if (bootLike && !isReset) writeBootReplay(rec, finalReply, lane, { directives: finalDirectives, followUps: finalFollowUps, followUpsStrings: finalFollowUpsStrings });
+    if (bootLike && !isReset) writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
 
     const opintelMeta = {
       traceId,
@@ -3985,22 +3697,28 @@ async function handleChatRoute(req, res) {
 
     return respond(200, {
       ok: true,
-      reply: finalReply,
+      reply,
       lane,
       payload: {
-        reply: finalReply,
+        reply,
         lane,
         laneId: out?.laneId || rec.data.laneId || undefined,
         sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
         bridge: out?.bridge || undefined,
         ctx: out?.ctx,
-        ui: finalUi,
-        directives: finalDirectives,
+        ui: mergedUi,
+        directives,
         audio,
-        spokenUnavailable: false,
-        voice: { failOpen: true, endpoint: "/api/tts", traceId },
-        followUps: finalFollowUps,
-        followUpsStrings: finalFollowUpsStrings,
+        voice: {
+          failOpen: true,
+          unlockRequired: false,
+          unlockHint: audio.unlockHint,
+          unlockPacket: audio.unlockPacket,
+          endpoint: "/api/tts",
+          traceId,
+        },
+        followUps,
+        followUpsStrings,
         sessionPatch: safeSessionPatch,
         cog: outCog,
       },
@@ -4008,11 +3726,19 @@ async function handleChatRoute(req, res) {
       sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
       bridge: out?.bridge || undefined,
       ctx: out?.ctx,
-      ui: finalUi,
-      directives: finalDirectives,
+      ui: mergedUi,
+      directives,
       audio,
-      followUps: finalFollowUps,
-      followUpsStrings: finalFollowUpsStrings,
+      voice: {
+        failOpen: true,
+        unlockRequired: false,
+        unlockHint: audio.unlockHint,
+        unlockPacket: audio.unlockPacket,
+        endpoint: "/api/tts",
+        traceId,
+      },
+      followUps,
+      followUpsStrings,
       sessionPatch: safeSessionPatch,
       cog: outCog,
       requestId: out?.requestId || serverRequestId,
@@ -4031,17 +3757,19 @@ async function handleChatRoute(req, res) {
         inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
         meaningful: !!meaningful,
         resetSilenced: !!isReset,
-        echoSuppressed: !!finalFollowUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
+        echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
         packs: getPackIndexSafe(false).summary,
         traceId,
-        opintel: { ...opintelMeta, governor: governorMeta },
+        opintel: opintelMeta,
         audio: {
           shouldSpeak: !!audio.shouldSpeak,
           autoPlay: !!audio.autoPlay,
           when: audio.when,
           textChars: audio.textChars,
           source: audio.source,
-          spokenUnavailable: false,
+          unlockRequired: false,
+          unlockPacket: audio.unlockPacket,
+          endpoint: audio.endpoint || "/api/tts",
         },
       },
     });
@@ -4199,53 +3927,6 @@ function __sbShouldBypassPrimary(){
 }
 
 
-const __SB_TTS_ROUTE_STATE = globalThis.__SB_TTS_ROUTE_STATE || (globalThis.__SB_TTS_ROUTE_STATE = {
-  inflightByIp: new Map(),
-  globalInflight: 0,
-});
-
-const __SB_TTS_MAX_INFLIGHT_GLOBAL = clampInt(process.env.SB_TTS_MAX_INFLIGHT_GLOBAL, 4, 1, 24);
-const __SB_TTS_MAX_INFLIGHT_PER_IP = clampInt(process.env.SB_TTS_MAX_INFLIGHT_PER_IP, 2, 1, 8);
-
-function __sbTtsInflightEnter(ip) {
-  const key = safeStr(ip || "unknown") || "unknown";
-  const st = __SB_TTS_ROUTE_STATE;
-  const perIp = Number(st.inflightByIp.get(key) || 0);
-  if (st.globalInflight >= __SB_TTS_MAX_INFLIGHT_GLOBAL || perIp >= __SB_TTS_MAX_INFLIGHT_PER_IP) {
-    return {
-      ok: false,
-      meta: {
-        globalInflight: st.globalInflight,
-        perIp,
-        maxGlobal: __SB_TTS_MAX_INFLIGHT_GLOBAL,
-        maxPerIp: __SB_TTS_MAX_INFLIGHT_PER_IP,
-      },
-    };
-  }
-  st.globalInflight += 1;
-  st.inflightByIp.set(key, perIp + 1);
-  return {
-    ok: true,
-    meta: {
-      globalInflight: st.globalInflight,
-      perIp: perIp + 1,
-      maxGlobal: __SB_TTS_MAX_INFLIGHT_GLOBAL,
-      maxPerIp: __SB_TTS_MAX_INFLIGHT_PER_IP,
-    },
-  };
-}
-
-function __sbTtsInflightExit(ip) {
-  const key = safeStr(ip || "unknown") || "unknown";
-  const st = __SB_TTS_ROUTE_STATE;
-  st.globalInflight = Math.max(0, Number(st.globalInflight || 0) - 1);
-  const cur = Math.max(0, Number(st.inflightByIp.get(key) || 0) - 1);
-  if (cur <= 0) st.inflightByIp.delete(key);
-  else st.inflightByIp.set(key, cur);
-}
-
-
-
 async function handleTtsRoute(req, res) {
   // Legacy in-index TTS route removed: provider logic lives in ./utils/tts (Resemble-only policy).
   // This stub stays only to protect older code paths from crashing if referenced accidentally.
@@ -4263,23 +3944,7 @@ async function handleTtsRoute(req, res) {
 
 
 app.post("/api/tts", ipRateGuard, async (req, res) => {
-  ensureCorsOnResponse(req, res);
-  try {
-    return await __sbDelegateTts(req, res, "/api/tts");
-  } catch (e) {
-    __sbUpdateAudioHealth(false, { error: safeStr(e && (e.message || e) || "tts_route_exception").slice(0, 220), upstreamStatus: 503 });
-    if (!res.headersSent) {
-      return sendContract(res, 200, {
-        ok: false,
-        error: "tts_route_exception",
-        detail: safeStr(e && (e.message || e) || "Unknown /api/tts route failure").slice(0, 240),
-        spokenUnavailable: true,
-        payload: { spokenUnavailable: true },
-        meta: { index: INDEX_VERSION, route: "/api/tts", audioHealth: { ...__SB_AUDIO_HEALTH } },
-      });
-    }
-    return undefined;
-  }
+  return __sbDelegateTts(req, res, "/api/tts");
 });
 
 // =========================
@@ -4346,25 +4011,44 @@ function __sbTtsProbe(req, res){
 app.get("/api/tts/probe", ipRateGuard, __sbTtsProbe);
 app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
 
+function __sbSilentWavBuffer(){
+  const sampleRate = 8000;
+  const seconds = 0.12;
+  const samples = Math.max(1, Math.floor(sampleRate * seconds));
+  const dataBytes = samples * 2;
+  const buf = Buffer.alloc(44 + dataBytes);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + dataBytes, 4);
+  buf.write("WAVE", 8);
+  buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(dataBytes, 40);
+  return buf;
+}
+
+function __sbAudioUnlockRoute(req, res) {
+  req = __sbNormalizeReq(req);
+  ensureCorsOnResponse(req, res);
+  const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
+  __sbApplyAudioHeaders(res, traceId);
+  try { res.setHeader("Content-Type", "audio/wav"); } catch (_) {}
+  try { res.setHeader("Content-Length", String(__sbSilentWavBuffer().length)); } catch (_) {}
+  try { res.setHeader("x-sb-audio-unlock", "1"); } catch (_) {}
+  try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
+  return res.status(200).send(__sbSilentWavBuffer());
+}
+app.get("/api/audio/unlock", ipRateGuard, __sbAudioUnlockRoute);
+app.get("/api/voice/unlock", ipRateGuard, __sbAudioUnlockRoute);
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
-  ensureCorsOnResponse(req, res);
-  try {
-    return await __sbDelegateTts(req, res, "/api/voice");
-  } catch (e) {
-    __sbUpdateAudioHealth(false, { error: safeStr(e && (e.message || e) || "voice_route_exception").slice(0, 220), upstreamStatus: 503 });
-    if (!res.headersSent) {
-      return sendContract(res, 200, {
-        ok: false,
-        error: "voice_route_exception",
-        detail: safeStr(e && (e.message || e) || "Unknown /api/voice route failure").slice(0, 240),
-        spokenUnavailable: true,
-        payload: { spokenUnavailable: true },
-        meta: { index: INDEX_VERSION, route: "/api/voice", audioHealth: { ...__SB_AUDIO_HEALTH } },
-      });
-    }
-    return undefined;
-  }
+  return __sbDelegateTts(req, res, "/api/voice");
 });
 
 function ttsGetGuidance(req, res) {
@@ -4389,7 +4073,7 @@ function audioHealthRoute(req, res) {
     req.body = { healthCheck: true };
     __sbApplyAudioHeaders(res, String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId());
     if (__SB_HANDLE_TTS) return __SB_HANDLE_TTS(req, res);
-    return sendContract(res, 200, {
+    return sendContract(res, 503, {
       ok: false,
       error: "TTS_HANDLER_MISSING",
       detail: "Cannot probe audio health: ./utils/tts.handleTts is unavailable.",
@@ -4460,7 +4144,7 @@ app.use((err, req, res, next) => {
     res.status(status).json({
       ok: false,
       error: errorMsg,
-      reply: finalReply,
+      reply,
       lane: "general",
       payload: { reply, lane: "general", error: errorMsg }
     });
