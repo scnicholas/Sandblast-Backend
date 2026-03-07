@@ -904,43 +904,6 @@ function nyxVoiceNaturalize(text) {
 }
 
 const SB_AUDIO_PLAN_MAX_CHARS = clampInt(process.env.SB_AUDIO_PLAN_MAX_CHARS, 900, 80, 5000);
-const SB_AUDIO_UNLOCK_ENDPOINT = String(process.env.SB_AUDIO_UNLOCK_ENDPOINT || "/api/audio/unlock").trim() || "/api/audio/unlock";
-
-function __sbReadAudioIntentFlag(v) {
-  const s = safeStr(v || "").trim().toLowerCase();
-  if (!s) return null;
-  if (["1","true","yes","y","on","enabled","ready","speak","voice","auto","autoplay"].includes(s)) return true;
-  if (["0","false","no","n","off","disabled","mute","muted","silent"].includes(s)) return false;
-  return null;
-}
-
-function __sbBodyAudioIntent(bodyObj) {
-  const b = isPlainObject(bodyObj) ? bodyObj : {};
-  const client = isPlainObject(b.client) ? b.client : {};
-  const payload = isPlainObject(b.payload) ? b.payload : {};
-  const candidates = [
-    b.autoPlay, b.autoplay, b.playAudio, b.audioEnabled, b.voiceEnabled, b.voiceReady, b.ttsEnabled, b.tts, b.speakReply, b.enableVoice,
-    client.autoPlay, client.autoplay, client.playAudio, client.audioEnabled, client.voiceEnabled, client.voiceReady, client.ttsEnabled, client.enableVoice,
-    payload.autoPlay, payload.autoplay, payload.playAudio, payload.audioEnabled, payload.voiceEnabled, payload.voiceReady, payload.ttsEnabled, payload.enableVoice,
-  ];
-  for (const v of candidates) {
-    if (typeof v === "boolean") return v;
-    const parsed = __sbReadAudioIntentFlag(v);
-    if (parsed !== null) return parsed;
-  }
-  return null;
-}
-
-function __sbBuildUnlockPacket(traceId, voice) {
-  return {
-    endpoint: SB_AUDIO_UNLOCK_ENDPOINT,
-    method: "GET",
-    traceId: safeStr(traceId || "") || undefined,
-    voice: safeStr(voice || "nyx") || "nyx",
-    mime: "audio/wav",
-    strategy: "gesture_unlock_then_tts",
-  };
-}
 
 function __sbNormalizeSpeakWhen(v) {
   const s = safeStr(v || "").trim().toLowerCase();
@@ -954,11 +917,8 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
   const ds = Array.isArray(directives) ? directives : [];
   const ttsDir = ds.find((d) => isPlainObject(d) && safeStr(d.type || "").toLowerCase() === "tts") || null;
   const bodyObj = isPlainObject(body) ? body : {};
-  const bodyIntent = __sbBodyAudioIntent(bodyObj);
-  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, bodyIntent === false);
-  const requestedAutoPlay = (bodyIntent !== null)
-    ? !!bodyIntent
-    : toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, true);
+  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, false);
+  const requestedAutoPlay = toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, !!ttsDir);
   const speak = nyxVoiceNaturalize(
     safeStr(ttsDir?.text || bodyObj.textToSynth || bodyObj.speak || reply || "")
   ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
@@ -966,7 +926,6 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
   const voice = safeStr(ttsDir?.voice || bodyObj.voice || bodyObj.voiceId || "nyx") || "nyx";
   const reason = ttsDir ? "directive" : (reply ? "reply_fallback" : "none");
   const shouldSpeak = !!speak && !wantsMute && (requestedAutoPlay || !!ttsDir);
-  const unlockPacket = __sbBuildUnlockPacket(meta && meta.traceId, voice);
   return {
     shouldSpeak,
     autoPlay: !!shouldSpeak && requestedAutoPlay,
@@ -976,11 +935,6 @@ function __sbDeriveAudioPlan(reply, directives, body, meta) {
     textChars: speak.length,
     source: reason,
     muted: !!wantsMute,
-    unlockRequired: false,
-    unlockHint: "gesture_packet_ready",
-    unlockPacket,
-    endpoint: "/api/tts",
-    transport: "async_tts",
     traceId: safeStr(meta && meta.traceId || "") || undefined,
   };
 }
@@ -992,6 +946,114 @@ function __sbApplyAudioHeaders(res, traceId) {
   try { res.setHeader("Expires", "0"); } catch (_) {}
   try { res.setHeader("X-Accel-Buffering", "no"); } catch (_) {}
   try { res.setHeader("Accept-Ranges", "none"); } catch (_) {}
+}
+
+function __sbApplyVoiceCors(req, res) {
+  try {
+    const origin = normalizeOrigin(safeStr(req && req.headers && req.headers.origin || ""));
+    const allow = !!origin && isAllowedOrigin(origin);
+    if (origin) {
+      try { res.setHeader("Vary", "Origin"); } catch (_) {}
+      try { res.setHeader("x-sb-cors-origin", origin); } catch (_) {}
+      try { res.setHeader("x-sb-cors-state", allow ? "allowed" : "denied"); } catch (_) {}
+    }
+    if (allow) {
+      try { res.setHeader("Access-Control-Allow-Origin", origin); } catch (_) {}
+      try { res.setHeader("Access-Control-Allow-Credentials", "true"); } catch (_) {}
+      try { res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS"); } catch (_) {}
+      try { res.setHeader(
+        "Access-Control-Allow-Headers",
+        safeStr(req && req.headers && req.headers["access-control-request-headers"] || "") ||
+        "Content-Type, Authorization, X-Requested-With, X-SB-Session, X-Session-Id, X-Visitor-Id, X-Request-Id, X-Route-Hint, X-Client-Source, X-SB-Token"
+      ); } catch (_) {}
+      try { res.setHeader("Access-Control-Max-Age", "600"); } catch (_) {}
+    }
+    return { origin, allow };
+  } catch (_) {
+    return { origin: "", allow: false };
+  }
+}
+
+function __sbWrapVoiceResponse(req, res) {
+  const state = __sbApplyVoiceCors(req, res);
+  if (res && res.__sbVoiceWrapped) return state;
+  if (!res) return state;
+  try {
+    const origJson = typeof res.json === "function" ? res.json.bind(res) : null;
+    const origSend = typeof res.send === "function" ? res.send.bind(res) : null;
+    const origEnd = typeof res.end === "function" ? res.end.bind(res) : null;
+    const origStatus = typeof res.status === "function" ? res.status.bind(res) : null;
+    if (origStatus) {
+      res.status = function wrappedStatus(code) {
+        __sbApplyVoiceCors(req, res);
+        return origStatus(code);
+      };
+    }
+    if (origJson) {
+      res.json = function wrappedJson(body) {
+        __sbApplyVoiceCors(req, res);
+        return origJson(body);
+      };
+    }
+    if (origSend) {
+      res.send = function wrappedSend(body) {
+        __sbApplyVoiceCors(req, res);
+        return origSend(body);
+      };
+    }
+    if (origEnd) {
+      res.end = function wrappedEnd() {
+        __sbApplyVoiceCors(req, res);
+        return origEnd.apply(res, arguments);
+      };
+    }
+    res.__sbVoiceWrapped = true;
+  } catch (_) {}
+  return state;
+}
+
+function __sbVoiceOptions(req, res) {
+  const state = __sbWrapVoiceResponse(req, res);
+  if (state && state.origin && !state.allow) {
+    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin } });
+  }
+  return res.status(204).send("");
+}
+
+function __sbResolveIntroText(req) {
+  const b = isPlainObject(req && req.body) ? req.body : {};
+  return nyxVoiceNaturalize(
+    safeStr(
+      b.introText || b.text || b.message || b.prompt ||
+      process.env.SB_NYX_INTRO_TEXT ||
+      "Hi — I am Nyx. Welcome to Sandblast Channel. How can I help you today?"
+    )
+  ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
+}
+
+async function __sbIntroVoiceRoute(req, res) {
+  req = __sbNormalizeReq(req);
+  __sbWrapVoiceResponse(req, res);
+  try {
+    const introText = __sbResolveIntroText(req);
+    req.body = {
+      ...(isPlainObject(req.body) ? req.body : {}),
+      text: introText,
+      speak: introText,
+      autoPlay: true,
+      intro: true,
+      source: safeStr(req.body && req.body.source || "intro_voice") || "intro_voice"
+    };
+    return await __sbDelegateTts(req, res, "/api/voice/intro");
+  } catch (e) {
+    return sendContract(res, 200, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "intro_tts_failed",
+      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
+      meta: { index: INDEX_VERSION }
+    });
+  }
 }
 
 async function __sbDelegateTts(req, res, routeName) {
@@ -3709,14 +3771,6 @@ async function handleChatRoute(req, res) {
         ui: mergedUi,
         directives,
         audio,
-        voice: {
-          failOpen: true,
-          unlockRequired: false,
-          unlockHint: audio.unlockHint,
-          unlockPacket: audio.unlockPacket,
-          endpoint: "/api/tts",
-          traceId,
-        },
         followUps,
         followUpsStrings,
         sessionPatch: safeSessionPatch,
@@ -3729,14 +3783,6 @@ async function handleChatRoute(req, res) {
       ui: mergedUi,
       directives,
       audio,
-      voice: {
-        failOpen: true,
-        unlockRequired: false,
-        unlockHint: audio.unlockHint,
-        unlockPacket: audio.unlockPacket,
-        endpoint: "/api/tts",
-        traceId,
-      },
       followUps,
       followUpsStrings,
       sessionPatch: safeSessionPatch,
@@ -3767,9 +3813,6 @@ async function handleChatRoute(req, res) {
           when: audio.when,
           textChars: audio.textChars,
           source: audio.source,
-          unlockRequired: false,
-          unlockPacket: audio.unlockPacket,
-          endpoint: audio.endpoint || "/api/tts",
         },
       },
     });
@@ -3943,8 +3986,27 @@ async function handleTtsRoute(req, res) {
 
 
 
+app.options("/api/tts", __sbVoiceOptions);
+app.options("/api/voice", __sbVoiceOptions);
+app.options("/api/tts/intro", __sbVoiceOptions);
+app.options("/api/voice/intro", __sbVoiceOptions);
+app.options("/api/audio/unlock", __sbVoiceOptions);
+app.options("/api/voice/unlock", __sbVoiceOptions);
+
 app.post("/api/tts", ipRateGuard, async (req, res) => {
-  return __sbDelegateTts(req, res, "/api/tts");
+  req = __sbNormalizeReq(req);
+  __sbWrapVoiceResponse(req, res);
+  try {
+    return await __sbDelegateTts(req, res, "/api/tts");
+  } catch (e) {
+    return sendContract(res, 200, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_route_exception",
+      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
+      meta: { index: INDEX_VERSION }
+    });
+  }
 });
 
 // =========================
@@ -4011,45 +4073,48 @@ function __sbTtsProbe(req, res){
 app.get("/api/tts/probe", ipRateGuard, __sbTtsProbe);
 app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
 
-function __sbSilentWavBuffer(){
-  const sampleRate = 8000;
-  const seconds = 0.12;
-  const samples = Math.max(1, Math.floor(sampleRate * seconds));
-  const dataBytes = samples * 2;
-  const buf = Buffer.alloc(44 + dataBytes);
-  buf.write("RIFF", 0);
-  buf.writeUInt32LE(36 + dataBytes, 4);
-  buf.write("WAVE", 8);
-  buf.write("fmt ", 12);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(sampleRate, 24);
-  buf.writeUInt32LE(sampleRate * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write("data", 36);
-  buf.writeUInt32LE(dataBytes, 40);
-  return buf;
-}
-
-function __sbAudioUnlockRoute(req, res) {
-  req = __sbNormalizeReq(req);
-  ensureCorsOnResponse(req, res);
-  const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
-  __sbApplyAudioHeaders(res, traceId);
-  try { res.setHeader("Content-Type", "audio/wav"); } catch (_) {}
-  try { res.setHeader("Content-Length", String(__sbSilentWavBuffer().length)); } catch (_) {}
-  try { res.setHeader("x-sb-audio-unlock", "1"); } catch (_) {}
-  try { res.setHeader("x-sb-audio-health", safeStr(__SB_AUDIO_HEALTH.status || "unknown")); } catch (_) {}
-  return res.status(200).send(__sbSilentWavBuffer());
-}
-app.get("/api/audio/unlock", ipRateGuard, __sbAudioUnlockRoute);
-app.get("/api/voice/unlock", ipRateGuard, __sbAudioUnlockRoute);
 
 app.post("/api/voice", ipRateGuard, async (req, res) => {
-  return __sbDelegateTts(req, res, "/api/voice");
+  req = __sbNormalizeReq(req);
+  __sbWrapVoiceResponse(req, res);
+  try {
+    return await __sbDelegateTts(req, res, "/api/voice");
+  } catch (e) {
+    return sendContract(res, 200, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "voice_route_exception",
+      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
+      meta: { index: INDEX_VERSION }
+    });
+  }
 });
+
+app.get("/api/audio/unlock", (req, res) => {
+  __sbWrapVoiceResponse(req, res);
+  const wav = Buffer.from([
+    0x52,0x49,0x46,0x46,0x28,0x00,0x00,0x00,0x57,0x41,0x56,0x45,0x66,0x6d,0x74,0x20,
+    0x10,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x40,0x1f,0x00,0x00,0x80,0x3e,0x00,0x00,
+    0x02,0x00,0x10,0x00,0x64,0x61,0x74,0x61,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+  ]);
+  try {
+    res.status(200);
+    res.setHeader("Content-Type", "audio/wav");
+    res.setHeader("Content-Length", String(wav.length));
+    res.setHeader("Cache-Control", "no-store, no-transform, max-age=0");
+    return res.send(wav);
+  } catch (_) {
+    return res.end(wav);
+  }
+});
+app.get("/api/voice/unlock", (req, res) => {
+  req.url = "/api/audio/unlock";
+  return app._router.handle(req, res, ()=>{});
+});
+app.get("/api/tts/intro", ipRateGuard, __sbIntroVoiceRoute);
+app.post("/api/tts/intro", ipRateGuard, __sbIntroVoiceRoute);
+app.get("/api/voice/intro", ipRateGuard, __sbIntroVoiceRoute);
+app.post("/api/voice/intro", ipRateGuard, __sbIntroVoiceRoute);
 
 function ttsGetGuidance(req, res) {
   return sendContract(res, 405, {
