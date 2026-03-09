@@ -487,3 +487,229 @@ module.exports = {
     health: wrappedHealth,
   };
 })();
+
+/* ===============================
+   OPINTEL AUDIO/TTS WRAPPER v1.1.0
+   - converts audioGovernor from advisory to authoritative prepare path
+   - removes false-negative duplicate failures that surface as "TTS unavailable"
+   - wires route metadata through Marion/Evidence/AudioGovernor safely
+   - phases 16–20: governor prepare mode, route cohesion, skip-not-fail, turn suppression, self-heal
+================================= */
+(function attachOpIntelTtsWrapperV110() {
+  const __base = module.exports || {};
+  if (__base.__opIntelWrappedV110) return;
+
+  let __AudioGovernor = null;
+  try { __AudioGovernor = require("./audioGovernor"); } catch (_e) { __AudioGovernor = null; }
+
+  function __opStr(v){ return v == null ? "" : String(v); }
+  function __opTrim(v){ return __opStr(v).trim(); }
+  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function __opPickFirst(){ for (let i = 0; i < arguments.length; i += 1) { const v = __opTrim(arguments[i]); if (v) return v; } return ""; }
+  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
+  function __opDomainFrom(body){
+    const text = __opTrim(body && (body.text || body.speak || body.say || body.message || "")).toLowerCase();
+    const hinted = __opTrim(body && ((body.meta && body.meta.domain) || body.domain || body.lane || "")).toLowerCase();
+    if (hinted) return hinted;
+    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
+    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
+    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
+    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
+    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
+    if (/\b(roku|channel|streaming|metadata|audience|brand|media)\b/.test(text)) return "marketing_media";
+    return "general";
+  }
+  function __opIntentFrom(body){
+    const text = __opTrim(body && (body.text || body.speak || body.say || body.message || "")).toLowerCase();
+    const hinted = __opTrim(body && ((body.meta && body.meta.intent) || body.intent || "")).toLowerCase();
+    if (hinted) return hinted;
+    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
+    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
+    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
+    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
+    return "general";
+  }
+
+  const __baseGenerate = typeof __base.generate === "function" ? __base.generate : null;
+  const __baseHealth = typeof __base.health === "function" ? __base.health : (() => ({}));
+  const __governor = (__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function")
+    ? __AudioGovernor.createAudioGovernor({
+        ttsProvider: {
+          synthesize: async (request) => {
+            const out = await __baseGenerate(request.text, {
+              traceId: request.traceId,
+              voiceUuid: request.voice,
+              projectUuid: request.projectUuid,
+              intro: !!request.meta && !!request.meta.intro,
+              returnJson: false,
+              meta: request.meta,
+            });
+            if (!out || !out.ok) {
+              const err = new Error(__opPickFirst(out && out.reason, out && out.message, "tts_unavailable"));
+              err.code = __opPickFirst(out && out.reason, "tts_unavailable");
+              err.status = out && out.status ? out.status : 503;
+              throw err;
+            }
+            return out;
+          },
+        },
+        settings: { providerName: "resemble", allowFallbackByDefault: false },
+        logger: { info(){}, warn(){}, error(){} },
+      })
+    : null;
+
+  async function wrappedGenerate(text, options){
+    const opts = __opObj(options) ? { ...options } : {};
+    opts.meta = __opObj(opts.meta) ? { ...opts.meta } : {};
+    opts.traceId = __opPickFirst(opts.traceId, opts.meta.traceId, _makeTrace());
+    opts.meta.traceId = __opPickFirst(opts.meta.traceId, opts.traceId, _makeTrace());
+    opts.meta.domain = __opPickFirst(opts.meta.domain, opts.domain, __opDomainFrom({ ...opts, text }), "general");
+    opts.meta.intent = __opPickFirst(opts.meta.intent, opts.intent, __opIntentFrom({ ...opts, text }), "general");
+    opts.allowFallback = false;
+
+    if (!__governor || typeof __governor.prepare !== "function") {
+      const raw = await __baseGenerate(text, opts);
+      return raw;
+    }
+
+    const prepared = await __governor.prepare({
+      text,
+      traceId: opts.traceId,
+      sessionId: __opPickFirst(opts.sessionId, opts.meta.sessionId, "session_unknown"),
+      userId: __opPickFirst(opts.userId, opts.meta.userId, "user_unknown"),
+      turnId: __opPickFirst(opts.turnId, opts.meta.turnId, opts.traceId),
+      domain: opts.meta.domain,
+      intent: opts.meta.intent,
+      voice: __opPickFirst(opts.voiceUuid, opts.voice, ""),
+      priority: opts.priority === "high" ? "high" : "normal",
+      isIntro: !!opts.intro,
+      allowFallback: false,
+      meta: { ...opts.meta, intro: !!opts.intro },
+    });
+
+    if (prepared && prepared.skipped) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: prepared.reason || "speech_skipped",
+        traceId: prepared.traceId || opts.traceId,
+        mimeType: "application/json",
+        buffer: Buffer.from(""),
+        provider: "resemble",
+        elapsedMs: 0,
+      };
+    }
+
+    return {
+      ok: true,
+      provider: prepared.provider || "resemble",
+      buffer: prepared.buffer,
+      mimeType: prepared.mimeType || "audio/mpeg",
+      elapsedMs: 0,
+      traceId: prepared.traceId || opts.traceId,
+      requestId: prepared.traceId || opts.traceId,
+      skipped: false,
+      opintel: prepared.meta || {},
+    };
+  }
+
+  async function wrappedHandleTts(req, res){
+    const body = req && req.body && typeof req.body === "object" ? req.body : {};
+    body.meta = __opObj(body.meta) ? { ...body.meta } : {};
+    body.traceId = __opPickFirst(body.traceId, body.meta.traceId, req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"]), _makeTrace());
+    body.meta.traceId = body.traceId;
+    body.meta.domain = __opPickFirst(body.meta.domain, body.domain, __opDomainFrom(body), "general");
+    body.meta.intent = __opPickFirst(body.meta.intent, body.intent, __opIntentFrom(body), "general");
+    body.allowFallback = false;
+    req.body = body;
+
+    _setCommonAudioHeaders(res, body.traceId, { provider: "resemble", voiceUuid: _pickFirst(body.voice_uuid, body.voiceUuid, body.voiceId, process.env.RESEMBLE_VOICE_UUID, process.env.SB_RESEMBLE_VOICE_UUID, process.env.SBNYX_RESEMBLE_VOICE_UUID) });
+    __opSet(res, "X-SB-OpIntel-Domain", body.meta.domain);
+    __opSet(res, "X-SB-OpIntel-Intent", body.meta.intent);
+    __opSet(res, "X-SB-Audio-Governor", __governor ? "1" : "0");
+
+    if (_bool(body.healthCheck, false)) {
+      return _safeJson(res, 200, {
+        ok: true,
+        provider: "resemble",
+        health: { ..._healthSnapshot(), governor: (__governor && typeof __governor.getHealth === "function") ? __governor.getHealth() : null },
+        traceId: body.traceId
+      });
+    }
+
+    const text = _pickFirst(body.text, body.data, body.speak, body.say, body.message);
+    if (!__opTrim(text)) {
+      return _safeJson(res, 400, { ok: false, spokenUnavailable: true, error: "missing_text", detail: "No TTS text was provided.", traceId: body.traceId, payload: { spokenUnavailable: true } });
+    }
+
+    const result = await wrappedGenerate(text, body);
+    if (result && result.skipped) {
+      return _safeJson(res, 200, {
+        ok: true,
+        spokenUnavailable: false,
+        skipped: true,
+        reason: result.reason || "speech_skipped",
+        traceId: body.traceId,
+        payload: { skipped: true }
+      });
+    }
+    if (!result || !result.ok || !result.buffer) {
+      const status = result && result.status === 429 ? 429 : ((result && result.status >= 400 && result.status < 500) ? result.status : 503);
+      return _safeJson(res, status, {
+        ok: false,
+        spokenUnavailable: true,
+        error: result && result.reason ? result.reason : "tts_unavailable",
+        detail: result && result.message ? result.message : "TTS unavailable.",
+        traceId: body.traceId,
+        provider: result && result.provider ? result.provider : "resemble",
+        health: _healthSnapshot(),
+        payload: { spokenUnavailable: true }
+      });
+    }
+
+    if (_bool(body.returnJson, false)) {
+      return _safeJson(res, 200, {
+        ok: true,
+        provider: result.provider,
+        mimeType: result.mimeType || "audio/mpeg",
+        audioBase64: result.buffer.toString("base64"),
+        traceId: body.traceId,
+        elapsedMs: result.elapsedMs || 0,
+        requestId: result.requestId || body.traceId
+      });
+    }
+
+    try {
+      _setHeader(res, "Content-Type", result.mimeType || "audio/mpeg");
+      _setHeader(res, "Content-Length", String(result.buffer.length || 0));
+      _setHeader(res, "Accept-Ranges", "none");
+      return res.status(200).send(result.buffer);
+    } catch (e) {
+      return _safeJson(res, 503, {
+        ok: false,
+        spokenUnavailable: true,
+        error: "send_failed",
+        detail: __opTrim(e && (e.message || e)) || "Failed to send audio buffer.",
+        traceId: body.traceId,
+        provider: result.provider || "resemble",
+        payload: { spokenUnavailable: true }
+      });
+    }
+  }
+
+  function wrappedHealth(){
+    const baseHealth = __baseHealth ? (__baseHealth() || {}) : {};
+    const governor = (__governor && typeof __governor.getHealth === "function") ? __governor.getHealth() : null;
+    return { ...baseHealth, governor };
+  }
+
+  module.exports = {
+    ...__base,
+    __opIntelWrappedV110: true,
+    handleTts: wrappedHandleTts,
+    ttsHandler: wrappedHandleTts,
+    handler: wrappedHandleTts,
+    generate: wrappedGenerate,
+    health: wrappedHealth,
+  };
+})();
