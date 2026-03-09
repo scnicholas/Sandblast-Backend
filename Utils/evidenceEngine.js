@@ -1,295 +1,535 @@
 /**
  * evidenceEngine.js
- * OPINTEL v1.0.0
+ * Marion evidence collection + ranking core
  *
  * Purpose:
- * - Normalize evidence from orchestrator, Marion, SiteBridge, memory windows, and domain packs
- * - Score and rank evidence
- * - Resolve conflicts safely
- * - Produce one coherent evidence model for downstream response planning
- *
- * Design goals:
- * - Hardened, fail-open
- * - No external dependencies
- * - Compatible with CommonJS ecosystems
- * - Does not mutate input
+ * - Collect evidence from multiple knowledge lanes
+ * - Normalize, rank, dedupe, and trace evidence
+ * - Lift memory into scoring
+ * - Reduce repeat loops and weak fallback behavior
+ * - Support operational intelligence phases 1–15
  */
 
-"use strict";
+'use strict';
 
-const VERSION = "evidenceEngine.opintel.v1.0.0";
-
-const DEFAULTS = Object.freeze({
-  maxEvidenceItems: 12,
-  memoryWeightBoost: 0.14,
-  routeConfidenceWeight: 0.18,
-  unresolvedAskBoost: 0.16,
-  marionBoost: 0.12,
-  siteBoost: 0.08,
-  domainBoost: 0.1,
-  contradictionPenalty: 0.22,
-  ambiguityPenalty: 0.12,
-  minimumScore: 0.08
+const DEFAULT_PHASE_FLAGS = Object.freeze({
+  phase01_normalization: true,
+  phase02_laneCollection: true,
+  phase03_memoryLift: true,
+  phase04_authoritativeWeighting: true,
+  phase05_relevanceScoring: true,
+  phase06_dedupeControl: true,
+  phase07_loopResistance: true,
+  phase08_fallbackSafety: true,
+  phase09_traceability: true,
+  phase10_domainBias: true,
+  phase11_confidenceShaping: true,
+  phase12_sourceDiversity: true,
+  phase13_thinEvidenceRecovery: true,
+  phase14_payloadHardening: true,
+  phase15_operationalDiagnostics: true,
 });
 
-function isObject(v) {
-  return !!v && typeof v === "object" && !Array.isArray(v);
+const DEFAULT_WEIGHTS = Object.freeze({
+  marion: 24,
+  domain: 18,
+  memory: 14,
+  datasets: 12,
+  official: 8,
+  trusted: 6,
+  traceable: 5,
+  domainTag: 10,
+  intentTag: 7,
+  sentimentTag: 3,
+  memoryHint: 2,
+  repeatedPenalty: -16,
+  longPenalty: -3,
+  emptyPenalty: -50,
+  fallbackPenalty: -10,
+  diversityBonus: 4,
+});
+
+function noopAsync() {
+  return Promise.resolve(null);
 }
 
-function asArray(v) {
-  return Array.isArray(v) ? v.slice() : [];
+function safeNowISO() {
+  try {
+    return new Date().toISOString();
+  } catch {
+    return '';
+  }
 }
 
-function str(v) {
-  return typeof v === "string" ? v.trim() : "";
+function normalizeText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .trim();
 }
 
-function num(v, fallback = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
+function tokenize(text) {
+  return normalizeText(text)
+    .toLowerCase()
+    .split(/[^a-z0-9_!?'"-]+/i)
+    .filter(Boolean);
 }
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function lower(v) {
-  return str(v).toLowerCase();
+function uniqueStrings(arr) {
+  return [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean).map(String))];
 }
 
-function shallowClone(obj) {
-  return isObject(obj) ? { ...obj } : {};
-}
-
-function safeTextHash(input) {
-  const s = lower(input);
-  if (!s) return "";
+function hashLite(input) {
+  const s = String(input || '');
   let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
+  for (let i = 0; i < s.length; i += 1) {
     h ^= s.charCodeAt(i);
-    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    h = Math.imul(h, 16777619);
   }
-  return String(h >>> 0);
+  return (h >>> 0).toString(16);
 }
 
-function normalizeSourceKind(kind) {
-  const k = lower(kind);
-  if (!k) return "unknown";
-  if (k.includes("marion")) return "marion";
-  if (k.includes("site")) return "site";
-  if (k.includes("memory")) return "memory";
-  if (k.includes("domain")) return "domain";
-  if (k.includes("orch")) return "orchestrator";
-  return k;
+function buildTraceId(seed) {
+  return `ev_${hashLite(seed || safeNowISO())}`;
 }
 
-function inferWeightFromKind(kind, cfg) {
-  switch (normalizeSourceKind(kind)) {
-    case "memory":
-      return cfg.memoryWeightBoost;
-    case "marion":
-      return cfg.marionBoost;
-    case "site":
-      return cfg.siteBoost;
-    case "domain":
-      return cfg.domainBoost;
-    default:
-      return 0;
+function safeCall(fn, fallback) {
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (error) {
+      if (typeof fallback === 'function') return fallback(error, ...args);
+      return fallback;
+    }
+  };
+}
+
+class RepeatGuard {
+  constructor(limit = 4) {
+    this.limit = clamp(limit, 1, 20);
+    this.map = new Map();
+  }
+
+  hit(key) {
+    const next = (this.map.get(key) || 0) + 1;
+    this.map.set(key, next);
+    return {
+      count: next,
+      repeated: next >= this.limit,
+    };
+  }
+
+  reset(key) {
+    this.map.delete(key);
   }
 }
 
-function normalizeEvidenceItem(item, sourceMeta = {}, cfg = DEFAULTS) {
-  const obj = isObject(item) ? item : {};
-  const source = normalizeSourceKind(obj.source || sourceMeta.source || sourceMeta.kind || "unknown");
-  const text = str(obj.text || obj.summary || obj.content || obj.snippet || obj.reply || "");
-  const title = str(obj.title || obj.label || "");
-  const score = clamp(num(obj.score, 0), 0, 1);
-  const confidence = clamp(num(obj.confidence, score), 0, 1);
-  const routeConfidence = clamp(num(obj.routeConfidence || sourceMeta.routeConfidence, 0), 0, 1);
-  const ambiguity = clamp(num(obj.ambiguity || sourceMeta.ambiguity, 0), 0, 1);
-  const contradictions = asArray(obj.contradictions);
-  const tags = asArray(obj.tags).map(str).filter(Boolean);
-  const unresolvedMatch = !!obj.unresolvedMatch;
-  const preferenceMatch = !!obj.preferenceMatch;
-  const memoryWindowMatch = !!obj.memoryWindowMatch;
-  const baseWeight = inferWeightFromKind(source, cfg);
+function normalizeItem(raw, lane, traceId) {
+  const title = normalizeText(raw && raw.title) || `${lane}_evidence`;
+  const content = normalizeText(raw && raw.content);
+  const source = normalizeText(raw && raw.source) || lane;
+  const sourceType = normalizeText(raw && raw.sourceType) || lane;
+  const tags = uniqueStrings(raw && raw.tags);
+  const authority = normalizeText(raw && raw.authority) || sourceType;
+  const confidence = clamp(Number(raw && raw.confidence) || 0, 0, 1);
+  const timestamp = normalizeText(raw && raw.timestamp) || '';
+  const citation = normalizeText(raw && raw.citation) || '';
+  const provenance = raw && raw.provenance ? raw.provenance : {};
+  const metadata = raw && raw.metadata ? raw.metadata : {};
 
   return {
-    id: str(obj.id) || safeTextHash([source, title, text].join("|")),
-    source,
+    id: normalizeText(raw && raw.id) || `${lane}_${hashLite(title + content.slice(0, 120))}`,
+    lane,
     title,
-    text,
-    score,
-    confidence,
-    routeConfidence,
-    ambiguity,
-    contradictions,
+    content,
+    source,
+    sourceType,
     tags,
-    unresolvedMatch,
-    preferenceMatch,
-    memoryWindowMatch,
-    metadata: shallowClone(obj.metadata),
-    raw: obj,
-    _baseWeight: baseWeight
+    authority,
+    confidence,
+    timestamp,
+    citation,
+    provenance: {
+      traceId,
+      ...provenance,
+    },
+    metadata,
+    score: 0,
+    diagnostics: {},
   };
 }
 
-function flattenInput(input, cfg = DEFAULTS) {
-  const root = isObject(input) ? input : {};
-  const bundles = [];
+function normalizeLanePayload(payload, lane, traceId) {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .map(item => normalizeItem(item, lane, traceId))
+    .filter(item => item.content);
+}
 
-  const pushBundle = (items, meta) => {
-    asArray(items).forEach((item) => {
-      const ev = normalizeEvidenceItem(item, meta, cfg);
-      if (ev.text || ev.title) bundles.push(ev);
-    });
-  };
+function authoritativeWeight(item, weights) {
+  const sourceType = item.sourceType.toLowerCase();
+  const authority = item.authority.toLowerCase();
+  let score = 0;
 
-  pushBundle(root.evidence, { source: "orchestrator", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
-  pushBundle(root.orchestratorEvidence, { source: "orchestrator", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
-  pushBundle(root.marionEvidence, { source: "marion", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
-  pushBundle(root.siteEvidence, { source: "site", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
-  pushBundle(root.memoryEvidence, { source: "memory", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
-  pushBundle(root.domainEvidence, { source: "domain", routeConfidence: root.routeConfidence, ambiguity: root.ambiguity });
+  if (sourceType.includes('marion')) score += weights.marion;
+  if (sourceType.includes('domain')) score += weights.domain;
+  if (sourceType.includes('memory')) score += weights.memory;
+  if (sourceType.includes('dataset')) score += weights.datasets;
 
-  if (isObject(root.pack)) {
-    pushBundle(root.pack.evidence, { source: root.pack.source || "orchestrator", routeConfidence: root.pack.routeConfidence, ambiguity: root.pack.ambiguity });
+  if (authority.includes('official')) score += weights.official;
+  if (authority.includes('trusted') || authority.includes('primary')) score += weights.trusted;
+  if (item.citation || item.timestamp) score += weights.traceable;
+
+  return score;
+}
+
+function semanticScore(item, context, weights) {
+  const text = `${item.title} ${item.content}`.toLowerCase();
+  let score = 0;
+
+  if (context.domain && item.tags.includes(context.domain)) score += weights.domainTag;
+  if (context.intent && item.tags.includes(context.intent)) score += weights.intentTag;
+  if (context.sentiment && item.tags.includes(context.sentiment)) score += weights.sentimentTag;
+
+  for (const token of context.tokens) {
+    if (token && text.includes(token)) score += 1;
   }
 
-  return bundles;
+  for (const hint of context.memoryHints) {
+    if (hint && text.includes(hint.toLowerCase())) score += weights.memoryHint;
+  }
+
+  if (item.content.length > 900) score += weights.longPenalty;
+  if (item.content.length < 12) score += weights.emptyPenalty;
+  if (item.metadata && item.metadata.isFallback) score += weights.fallbackPenalty;
+  if (/loop|repeat|same answer|duplicate/i.test(item.content)) score += weights.repeatedPenalty;
+
+  score += clamp(item.confidence * 10, 0, 10);
+  return score;
 }
 
-function scoreEvidenceSources(input, options = {}) {
-  const cfg = { ...DEFAULTS, ...(isObject(options) ? options : {}) };
-  const root = isObject(input) ? input : {};
-  const routeConfidence = clamp(num(root.routeConfidence, 0), 0, 1);
-  const ambiguity = clamp(num(root.ambiguity, 0), 0, 1);
+function computeScore(item, context, weights) {
+  const auth = authoritativeWeight(item, weights);
+  const sem = semanticScore(item, context, weights);
+  return {
+    ...item,
+    score: auth + sem,
+    diagnostics: {
+      authoritative: auth,
+      semantic: sem,
+    },
+  };
+}
 
-  return flattenInput(root, cfg).map((item) => {
-    let composite = 0;
-    composite += item.score * 0.34;
-    composite += item.confidence * 0.24;
-    composite += item.routeConfidence * cfg.routeConfidenceWeight;
-    composite += item._baseWeight;
+function dedupeItems(items) {
+  const seen = new Set();
+  const out = [];
 
-    if (item.unresolvedMatch) composite += cfg.unresolvedAskBoost;
-    if (item.preferenceMatch) composite += 0.08;
-    if (item.memoryWindowMatch) composite += 0.06;
+  for (const item of items) {
+    const sig = hashLite([
+      item.title.toLowerCase(),
+      item.content.slice(0, 240).toLowerCase(),
+      item.source.toLowerCase(),
+    ].join('|'));
 
-    if (item.contradictions.length) composite -= cfg.contradictionPenalty;
-    composite -= item.ambiguity * cfg.ambiguityPenalty;
-    composite -= ambiguity * 0.05;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(item);
+  }
 
-    // bias items aligned with strong routing
-    composite += routeConfidence * 0.05;
+  return out;
+}
 
+function promoteDiversity(items, weights) {
+  const usedSources = new Set();
+  return items.map(item => {
+    let bonus = 0;
+    if (!usedSources.has(item.source)) {
+      bonus += weights.diversityBonus;
+      usedSources.add(item.source);
+    }
     return {
       ...item,
-      finalScore: clamp(composite, 0, 1)
+      score: item.score + bonus,
+      diagnostics: {
+        ...item.diagnostics,
+        diversityBonus: bonus,
+      },
     };
-  }).sort((a, b) => b.finalScore - a.finalScore);
+  });
 }
 
-function resolveEvidenceConflicts(input, options = {}) {
-  const cfg = { ...DEFAULTS, ...(isObject(options) ? options : {}) };
-  const scored = scoreEvidenceSources(input, cfg);
-  const kept = [];
-  const dropped = [];
-  const seen = new Set();
+function buildFallbackEvidence(context, traceId) {
+  return [{
+    id: `fallback_${hashLite(context.text || traceId)}`,
+    lane: 'fallback',
+    title: 'Fallback operational synthesis',
+    content: `Evidence was thin for the ${context.domain || 'general'} lane in ${context.intent || 'general'} mode. Respond cautiously, stay explicit about uncertainty, and prefer a grounded next-step rather than speculative detail.`,
+    source: 'fallback_safety',
+    sourceType: 'fallback',
+    tags: uniqueStrings([context.domain, context.intent, 'fallback']),
+    authority: 'trusted_fallback',
+    confidence: 0.42,
+    timestamp: safeNowISO(),
+    citation: '',
+    provenance: { traceId, generated: true },
+    metadata: { isFallback: true },
+    score: 0,
+    diagnostics: {},
+  }];
+}
 
-  for (const item of scored) {
-    if (item.finalScore < cfg.minimumScore) {
-      dropped.push({ reason: "below_minimum_score", item });
-      continue;
+function summarizeDiagnostics(items) {
+  const sourceCounts = {};
+  for (const item of items) {
+    sourceCounts[item.source] = (sourceCounts[item.source] || 0) + 1;
+  }
+  return {
+    count: items.length,
+    bySource: sourceCounts,
+    topScore: items[0] ? items[0].score : 0,
+    thinEvidence: items.length < 2,
+  };
+}
+
+function createEvidenceEngine(config = {}) {
+  const {
+    logger = console,
+    telemetry = { track: noopAsync },
+    datasetsProvider = { search: noopAsync },
+    domainKnowledgeProvider = { search: noopAsync },
+    memoryProvider = { getEvidence: noopAsync },
+    marionKnowledgeProvider = { search: noopAsync },
+    phaseFlags = {},
+    weights = {},
+    laneTimeoutMs = 1800,
+    repeatLimit = 4,
+    maxPerLane = 6,
+    maxOutput = 10,
+  } = config;
+
+  const phases = { ...DEFAULT_PHASE_FLAGS, ...(phaseFlags || {}) };
+  const effectiveWeights = { ...DEFAULT_WEIGHTS, ...(weights || {}) };
+  const repeatGuard = new RepeatGuard(repeatLimit);
+  const track = safeCall(telemetry.track || noopAsync, () => null);
+
+  const datasetSearch = safeCall(datasetsProvider.search || noopAsync, () => []);
+  const domainSearch = safeCall(domainKnowledgeProvider.search || noopAsync, () => []);
+  const memorySearch = safeCall(memoryProvider.getEvidence || noopAsync, () => []);
+  const marionSearch = safeCall(marionKnowledgeProvider.search || noopAsync, () => []);
+
+  function withTimeout(promise, ms, fallback = []) {
+    return new Promise(resolve => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(fallback);
+        }
+      }, ms);
+
+      Promise.resolve(promise)
+        .then(value => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(value);
+          }
+        })
+        .catch(() => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(fallback);
+          }
+        });
+    });
+  }
+
+  async function collect(context = {}) {
+    const text = normalizeText(context.text);
+    const tokens = Array.isArray(context.tokens) ? context.tokens : tokenize(text);
+    const intent = normalizeText(context.intent) || 'general';
+    const domain = normalizeText(context.domain) || 'general';
+    const sentiment = normalizeText(context.sentiment) || 'neutral';
+    const sessionId = normalizeText(context.sessionId) || 'session_unknown';
+    const userId = normalizeText(context.userId) || 'user_unknown';
+    const turnId = normalizeText(context.turnId) || `turn_${Date.now()}`;
+    const traceId = normalizeText(context.traceId) || buildTraceId([sessionId, turnId, text].join('|'));
+    const meta = context.meta || {};
+    const memoryHints = uniqueStrings(context.memoryHints || []).slice(0, 12);
+
+    const requestKey = hashLite(`${sessionId}|${domain}|${intent}|${text.toLowerCase()}`);
+    const repeat = phases.phase07_loopResistance
+      ? repeatGuard.hit(requestKey)
+      : { count: 1, repeated: false };
+
+    const collectionContext = {
+      text, tokens, intent, domain, sentiment,
+      sessionId, userId, turnId, traceId, meta, memoryHints,
+    };
+
+    const laneQueries = {
+      marion: { text, domain, intent, sentiment, traceId, memoryHints, meta },
+      domain: { text, domain, intent, traceId, memoryHints, meta },
+      memory: { text, domain, sessionId, userId, turnId, traceId, memoryHints },
+      datasets: { text, domain, intent, traceId, meta },
+    };
+
+    const [marionRaw, domainRaw, memoryRaw, datasetsRaw] = await Promise.all([
+      phases.phase02_laneCollection ? withTimeout(marionSearch(laneQueries.marion), laneTimeoutMs, []) : [],
+      phases.phase02_laneCollection ? withTimeout(domainSearch(laneQueries.domain), laneTimeoutMs, []) : [],
+      phases.phase03_memoryLift ? withTimeout(memorySearch(laneQueries.memory), laneTimeoutMs, []) : [],
+      phases.phase02_laneCollection ? withTimeout(datasetSearch(laneQueries.datasets), laneTimeoutMs, []) : [],
+    ]);
+
+    let items = [
+      ...normalizeLanePayload(marionRaw, 'marion', traceId).slice(0, maxPerLane),
+      ...normalizeLanePayload(domainRaw, 'domain', traceId).slice(0, maxPerLane),
+      ...normalizeLanePayload(memoryRaw, 'memory', traceId).slice(0, maxPerLane),
+      ...normalizeLanePayload(datasetsRaw, 'datasets', traceId).slice(0, maxPerLane),
+    ];
+
+    if (phases.phase14_payloadHardening) {
+      items = items.filter(item => item && item.content && item.source && item.title && item.provenance && item.provenance.traceId);
     }
 
-    const dedupeKey = safeTextHash([item.source, item.title, item.text].join("|"));
-    if (seen.has(dedupeKey)) {
-      dropped.push({ reason: "duplicate", item });
-      continue;
+    items = items.map(item => computeScore(item, collectionContext, effectiveWeights));
+
+    if (phases.phase10_domainBias && domain !== 'general') {
+      items = items.map(item => {
+        const bias = item.tags.includes(domain) ? 6 : 0;
+        return {
+          ...item,
+          score: item.score + bias,
+          diagnostics: {
+            ...item.diagnostics,
+            domainBias: bias,
+          },
+        };
+      });
     }
 
-    // if contradiction exists and a stronger item already exists from same semantic space, drop weaker one
-    const conflictsWithExisting = kept.find((k) => {
-      if (!k || !item) return false;
-      const sameTitle = k.title && item.title && lower(k.title) === lower(item.title);
-      const sameHash = safeTextHash(k.text) === safeTextHash(item.text);
-      return sameTitle || sameHash;
+    if (repeat.repeated) {
+      items = items.map(item => ({
+        ...item,
+        score: item.score - 8,
+        diagnostics: {
+          ...item.diagnostics,
+          repeatPenalty: 8,
+        },
+      }));
+    }
+
+    items = dedupeItems(items);
+    items.sort((a, b) => b.score - a.score);
+
+    if (phases.phase12_sourceDiversity) {
+      items = promoteDiversity(items, effectiveWeights).sort((a, b) => b.score - a.score);
+    }
+
+    if (phases.phase11_confidenceShaping) {
+      items = items.map(item => {
+        const shapedConfidence = clamp((item.confidence || 0.4) + Math.min(item.score / 100, 0.35), 0.1, 0.97);
+        return {
+          ...item,
+          confidence: shapedConfidence,
+          diagnostics: {
+            ...item.diagnostics,
+            shapedConfidence,
+          },
+        };
+      });
+    }
+
+    if (phases.phase13_thinEvidenceRecovery && items.length < 2) {
+      const fallback = buildFallbackEvidence(collectionContext, traceId);
+      items = [...items, ...fallback.map(item => computeScore(item, collectionContext, effectiveWeights))];
+      items.sort((a, b) => b.score - a.score);
+    }
+
+    items = items.slice(0, maxOutput);
+    const diagnostics = summarizeDiagnostics(items);
+
+    await track({
+      event: 'evidence_engine_collect',
+      traceId, sessionId, userId, turnId, domain, intent,
+      evidenceCount: diagnostics.count,
+      thinEvidence: diagnostics.thinEvidence,
+      repeatCount: repeat.count,
+      topScore: diagnostics.topScore,
+      bySource: diagnostics.bySource,
+      phases,
+      now: safeNowISO(),
     });
 
-    if (conflictsWithExisting && item.finalScore <= conflictsWithExisting.finalScore) {
-      dropped.push({ reason: "weaker_conflict", item, against: conflictsWithExisting.id });
-      continue;
+    try {
+      if (logger && typeof logger.info === 'function' && phases.phase15_operationalDiagnostics) {
+        logger.info('[evidenceEngine.collect]', {
+          traceId, domain, intent,
+          evidenceCount: diagnostics.count,
+          thinEvidence: diagnostics.thinEvidence,
+          repeatCount: repeat.count,
+          topScore: diagnostics.topScore,
+        });
+      }
+    } catch {
+      // ignore logger failure
     }
 
-    seen.add(dedupeKey);
-    kept.push(item);
-    if (kept.length >= cfg.maxEvidenceItems) break;
+    return items;
+  }
+
+  async function explain(context = {}) {
+    const items = await collect(context);
+    return {
+      ok: true,
+      engine: 'evidenceEngine.js',
+      version: '1.0.0-opintel',
+      traceId: context.traceId || '',
+      phases,
+      diagnostics: summarizeDiagnostics(items),
+      top: items.slice(0, 5),
+    };
+  }
+
+  async function healthcheck() {
+    return {
+      ok: true,
+      engine: 'evidenceEngine.js',
+      version: '1.0.0-opintel',
+      phases,
+      weights: effectiveWeights,
+      now: safeNowISO(),
+      lanes: {
+        marionKnowledgeProvider: !!marionKnowledgeProvider,
+        domainKnowledgeProvider: !!domainKnowledgeProvider,
+        memoryProvider: !!memoryProvider,
+        datasetsProvider: !!datasetsProvider,
+      },
+    };
+  }
+
+  function resetRepeatGuard(sessionId = '', domain = '', intent = '', text = '') {
+    const key = hashLite(`${sessionId}|${domain}|${intent}|${String(text).toLowerCase()}`);
+    repeatGuard.reset(key);
+    return { ok: true, key };
   }
 
   return {
-    kept,
-    dropped,
-    conflictCount: dropped.filter((d) => String(d.reason).includes("conflict")).length,
-    duplicateCount: dropped.filter((d) => d.reason === "duplicate").length
+    collect,
+    explain,
+    healthcheck,
+    resetRepeatGuard,
   };
-}
-
-function buildEvidenceModel(input, options = {}) {
-  const cfg = { ...DEFAULTS, ...(isObject(options) ? options : {}) };
-  const root = isObject(input) ? input : {};
-  const resolved = resolveEvidenceConflicts(root, cfg);
-  const top = resolved.kept[0] || null;
-  const memoryWindow = isObject(root.memoryWindow) ? root.memoryWindow : {};
-  const unresolvedAsks = asArray(memoryWindow.unresolvedAsks || root.unresolvedAsks).map(str).filter(Boolean);
-  const recentIntents = asArray(memoryWindow.recentIntents || root.recentIntents).map(str).filter(Boolean);
-
-  return {
-    ok: true,
-    version: VERSION,
-    routeConfidence: clamp(num(root.routeConfidence, 0), 0, 1),
-    ambiguity: clamp(num(root.ambiguity, 0), 0, 1),
-    topEvidence: top,
-    rankedEvidence: resolved.kept,
-    evidenceSummary: resolved.kept.map((e) => ({
-      id: e.id,
-      source: e.source,
-      title: e.title,
-      score: e.finalScore,
-      tags: e.tags
-    })),
-    conflictMeta: {
-      conflictCount: resolved.conflictCount,
-      duplicateCount: resolved.duplicateCount,
-      droppedCount: resolved.dropped.length
-    },
-    memoryAlignment: {
-      unresolvedAsks,
-      recentIntents,
-      hasMemoryAlignment: resolved.kept.some((e) => e.memoryWindowMatch || e.unresolvedMatch || e.preferenceMatch)
-    },
-    actionHints: deriveActionHints(resolved.kept, root),
-    safeMeta: {
-      failOpen: true,
-      maxEvidenceItems: cfg.maxEvidenceItems
-    }
-  };
-}
-
-function deriveActionHints(evidenceList, root) {
-  const lane = lower(root.lane || root.intent?.lane || "");
-  const hints = [];
-  if (lane === "music") hints.push("show_year_actions");
-  if (lane === "roku") hints.push("show_roku_links");
-  if (evidenceList.some((e) => e.source === "site")) hints.push("site_context_ready");
-  if (evidenceList.some((e) => e.source === "marion")) hints.push("marion_reasoning_ready");
-  if (evidenceList.some((e) => e.unresolvedMatch)) hints.push("resume_unresolved_ask");
-  return Array.from(new Set(hints));
 }
 
 module.exports = {
-  VERSION,
-  buildEvidenceModel,
-  scoreEvidenceSources,
-  resolveEvidenceConflicts
+  createEvidenceEngine,
+  DEFAULT_PHASE_FLAGS,
+  DEFAULT_WEIGHTS,
 };
