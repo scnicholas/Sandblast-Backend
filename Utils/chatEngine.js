@@ -5470,3 +5470,498 @@ function governor(session, text) {
   wrapped.default = wrapped.handleChat = wrapped.chatEngine = wrapped;
   module.exports = wrapped;
 })();
+
+/* ===============================
+   OPINTEL BRIDGE / EVIDENCE WRAPPER v0.10.14
+   - Adds Marion Bridge + Evidence Engine integration without disturbing core pipeline
+   - Preserves existing exports / fail-safe behavior
+   - Hardens routing, memory lift, evidence ranking, traceability, safer fallback,
+     and lower repeat-loop probability
+================================= */
+(function attachOperationalIntelBridgeWrapper() {
+  const __baseExport = module.exports;
+  if (!__baseExport || __baseExport.__opIntelBridgeWrapped) return;
+
+  let __BridgeFactory = null;
+  let __EvidenceFactory = null;
+
+  try {
+    const mb = require("./marionBridge");
+    __BridgeFactory = mb && typeof mb.createMarionBridge === "function" ? mb.createMarionBridge : null;
+  } catch (_e) {
+    __BridgeFactory = null;
+  }
+
+  try {
+    const ee = require("./evidenceEngine");
+    __EvidenceFactory = ee && typeof ee.createEvidenceEngine === "function" ? ee.createEvidenceEngine : null;
+  } catch (_e) {
+    __EvidenceFactory = null;
+  }
+
+  function _mbSafeStr(v) { return v == null ? "" : String(v); }
+  function _mbIsObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+  function _mbArr(v) { return Array.isArray(v) ? v : []; }
+  function _mbNow() { return Date.now(); }
+  function _mbClamp01(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return 0;
+    if (x < 0) return 0;
+    if (x > 1) return 1;
+    return x;
+  }
+  function _mbHashLite(str) {
+    const s = _mbSafeStr(str);
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+
+  function _mbNormalizeText(value) {
+    return _mbSafeStr(value).replace(/\s+/g, " ").trim();
+  }
+
+  function _mbTokenize(text) {
+    return _mbNormalizeText(text)
+      .toLowerCase()
+      .split(/[^a-z0-9_!?'"-]+/i)
+      .filter(Boolean);
+  }
+
+  function _mbCoerceModuleOut(raw) {
+    if (raw == null) return null;
+    if (typeof raw === "string") return { reply: raw };
+    if (!_mbIsObj(raw)) return null;
+
+    const reply =
+      raw.reply ??
+      (raw.payload && raw.payload.reply) ??
+      (raw.data && raw.data.reply) ??
+      raw.message ??
+      (raw.payload && raw.payload.message) ??
+      "";
+
+    return { ...raw, reply: _mbSafeStr(reply) };
+  }
+
+  function _mbMakeSession(input) {
+    if (_mbIsObj(input) && _mbIsObj(input.session)) return input.session;
+    return {};
+  }
+
+  function _mbResolveSessionId(input, out) {
+    const session = _mbMakeSession(input);
+    const ctx = _mbIsObj(input && input.ctx) ? input.ctx : {};
+    const body = _mbIsObj(input && input.body) ? input.body : {};
+    const outPatch = _mbIsObj(out && out.sessionPatch) ? out.sessionPatch : {};
+    const candidates = [
+      ctx.sessionId, ctx.sid,
+      body.sessionId, body.sid,
+      input && input.sessionId,
+      session.sessionId, session.sid, session.id, session.key,
+      outPatch.sessionId, outPatch.sid,
+    ];
+    for (const v of candidates) {
+      const t = _mbSafeStr(v).trim();
+      if (t && t.length <= 180) return t;
+    }
+    return "sess_" + _mbHashLite(JSON.stringify({
+      t: _mbSafeStr(input && input.text || ""),
+      a: _mbSafeStr(input && input.action || ""),
+      n: _mbNow(),
+    })).slice(0, 18);
+  }
+
+  function _mbResolveUserId(input, out) {
+    const session = _mbMakeSession(input);
+    const ctx = _mbIsObj(input && input.ctx) ? input.ctx : {};
+    const body = _mbIsObj(input && input.body) ? input.body : {};
+    const outPatch = _mbIsObj(out && out.sessionPatch) ? out.sessionPatch : {};
+    const candidates = [
+      ctx.userId, ctx.uid,
+      body.userId, body.uid,
+      input && input.userId,
+      session.userId, session.uid, session.ownerId,
+      outPatch.userId, outPatch.uid,
+    ];
+    for (const v of candidates) {
+      const t = _mbSafeStr(v).trim();
+      if (t && t.length <= 180) return t;
+    }
+    return "user_anon";
+  }
+
+  function _mbMapIntent(out) {
+    const cog = _mbIsObj(out && out.cog) ? out.cog : {};
+    const intent = _mbSafeStr(cog.intent || "").toUpperCase();
+    if (intent === "CLARIFY") return "guidance";
+    if (intent === "STABILIZE") return "guidance";
+    if (intent === "ACT") return "diagnostic";
+    if (intent === "MOVE") return "planning";
+    return "general";
+  }
+
+  function _mbMapSentiment(input, out) {
+    const text = _mbSafeStr(input && input.text || "").toLowerCase();
+    if (/\b(hurt|sad|stressed|anxious|panic|overwhelmed|frustrated)\b/.test(text)) return "distressed";
+    if (/\b(great|good|amazing|love|excited|confident)\b/.test(text)) return "positive";
+    const cog = _mbIsObj(out && out.cog) ? out.cog : {};
+    return _mbSafeStr(cog.sentiment || "neutral").toLowerCase() || "neutral";
+  }
+
+  function _mbMapDomain(input, out) {
+    const rawLane = _mbSafeStr(
+      (out && (out.laneId || out.lane || out.sessionLane)) ||
+      (input && input.lane) ||
+      ""
+    ).toLowerCase();
+
+    if (/(movie|cinema|film|music|sponsor|news)/.test(rawLane)) return "marketing_media";
+    if (/(legal|law)/.test(rawLane)) return "law";
+    if (/(finance|budget|grant)/.test(rawLane)) return "finance";
+    if (/(psych|support|counsel)/.test(rawLane)) return "psychology";
+    if (/(ai|cyber|security|tech)/.test(rawLane)) return "ai_cyber";
+    if (/(english|writing|copy)/.test(rawLane)) return "language";
+
+    const text = _mbSafeStr(input && input.text || "").toLowerCase();
+    if (/\b(contract|copyright|liability|compliance)\b/.test(text)) return "law";
+    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
+    if (/\b(anxious|stressed|hurt|sad|panic|emotion)\b/.test(text)) return "psychology";
+    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
+    if (/\b(ai|model|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
+    if (/\b(roku|channel|streaming|metadata|audience|brand)\b/.test(text)) return "marketing_media";
+    return "general";
+  }
+
+  function _mbBuildMemoryProvider(session) {
+    const s = _mbIsObj(session) ? session : {};
+    return {
+      async getContext({ domain, intent }) {
+        const memoryWindow = _mbIsObj(s.__memoryWindow) ? s.__memoryWindow : {};
+        const recentTopics = _mbArr(s.__recentTopics || memoryWindow.recentTopics).slice(0, 8).map(_mbSafeStr);
+        const openLoops = _mbArr(s.__openLoops || memoryWindow.openLoops).slice(0, 6).map(_mbSafeStr);
+        const userPreferences = _mbArr(s.__userPreferences || memoryWindow.userPreferences).slice(0, 8).map(_mbSafeStr);
+        return {
+          lastIntent: _mbSafeStr(s.__lastIntent || s.lastIntent || intent || ""),
+          lastDomain: _mbSafeStr(s.__lastDomain || s.lane || domain || ""),
+          openLoops,
+          userPreferences,
+          recentTopics,
+        };
+      },
+      async putContext(nextCtx) {
+        if (!_mbIsObj(nextCtx)) return true;
+        s.__lastIntent = _mbSafeStr(nextCtx.lastIntent || s.__lastIntent || "");
+        s.__lastDomain = _mbSafeStr(nextCtx.lastDomain || s.__lastDomain || "");
+        s.__recentTopics = _mbArr(nextCtx.recentTopics).slice(0, 10);
+        s.__openLoops = _mbArr(nextCtx.openLoops).slice(0, 6);
+        s.__bridgeTraceId = _mbSafeStr(nextCtx.traceId || s.__bridgeTraceId || "");
+        s.__bridgeUpdatedAt = _mbSafeStr(nextCtx.updatedAt || "");
+        return true;
+      },
+    };
+  }
+
+  function _mbBuildEvidenceProviders(session, input, out) {
+    const s = _mbIsObj(session) ? session : {};
+    const ctx = _mbIsObj(input && input.ctx) ? input.ctx : {};
+
+    const datasetsProvider = {
+      async search(query) {
+        try {
+          if (typeof Dataset !== "undefined" && Dataset && typeof Dataset.search === "function") {
+            const ds = Dataset.search(_mbSafeStr(query && query.text || query || ""), { limit: 6, topic: "" });
+            const hits = _mbArr(ds && ds.hits).slice(0, 6);
+            return hits.map((hit, idx) => ({
+              id: hit && hit.id ? hit.id : "dataset_" + idx,
+              title: _mbSafeStr(hit && (hit.question || hit.title || hit.label) || "Dataset hit"),
+              content: _mbSafeStr(hit && (hit.answer || hit.content || hit.summary) || ""),
+              source: "dataset_loader",
+              sourceType: "dataset",
+              authority: "trusted_dataset",
+              tags: _mbArr([query && query.domain, query && query.intent, "dataset"]).filter(Boolean),
+              confidence: Math.max(0.35, Math.min(0.9, Number(hit && hit.score || 0) / 5 || 0.45)),
+              metadata: { rawScore: Number(hit && hit.score || 0) || 0 },
+            })).filter(item => item.content);
+          }
+        } catch (_e) {}
+        return [];
+      },
+    };
+
+    const domainKnowledgeProvider = {
+      async search(query) {
+        const items = [];
+        try {
+          const psycheDomains = out && out.cog && out.cog.psyche && out.cog.psyche.domains;
+          if (_mbIsObj(psycheDomains)) {
+            Object.keys(psycheDomains).slice(0, 6).forEach((key, idx) => {
+              const d = psycheDomains[key] || {};
+              const primer = _mbArr(d.primer || d.principles).slice(0, 4).join(" • ");
+              const cues = _mbArr(d.responseCues).slice(0, 4).join(" • ");
+              const content = _mbNormalizeText([primer, cues].filter(Boolean).join(" "));
+              if (content) {
+                items.push({
+                  id: "domain_" + idx + "_" + _mbHashLite(key),
+                  title: _mbSafeStr(d.domain || key || "Domain lane"),
+                  content,
+                  source: "psyche_domain",
+                  sourceType: "domain",
+                  authority: "trusted_domain",
+                  tags: _mbArr([query && query.domain, query && query.intent, key]).filter(Boolean),
+                  confidence: 0.68,
+                });
+              }
+            });
+          }
+        } catch (_e) {}
+        return items;
+      },
+    };
+
+    const memoryProvider = {
+      async getEvidence(query) {
+        const items = [];
+        try {
+          const memoryWindow = _mbIsObj(s.__memoryWindow) ? s.__memoryWindow : {};
+          const chunks = [
+            _mbArr(memoryWindow.recentTopics).slice(0, 5).join(" • "),
+            _mbArr(memoryWindow.openLoops).slice(0, 4).join(" • "),
+            _mbArr(memoryWindow.userPreferences).slice(0, 5).join(" • "),
+            _mbArr(s.__recentTopics).slice(0, 5).join(" • "),
+          ].filter(Boolean);
+
+          chunks.forEach((content, idx) => {
+            items.push({
+              id: "memory_" + idx,
+              title: idx === 0 ? "Recent topics" : "Memory context",
+              content: _mbNormalizeText(content),
+              source: "memory_spine",
+              sourceType: "memory",
+              authority: "trusted_memory",
+              tags: _mbArr([query && query.domain, query && query.intent, "memory"]).filter(Boolean),
+              confidence: 0.62,
+            });
+          });
+        } catch (_e) {}
+        return items;
+      },
+    };
+
+    const marionKnowledgeProvider = {
+      async search(query) {
+        const items = [];
+        try {
+          if (typeof MarionSO !== "undefined" && MarionSO && typeof MarionSO.resolve === "function") {
+            const resolved = MarionSO.resolve(_mbSafeStr(query && query.text || ""));
+            const candidate = _mbIsObj(resolved) ? resolved : {};
+            const content = _mbNormalizeText(
+              candidate.reply || candidate.answer || candidate.summary || candidate.message || ""
+            );
+            if (content) {
+              items.push({
+                id: "marion_primary",
+                title: "Marion resolution",
+                content,
+                source: "marion_so",
+                sourceType: "marion",
+                authority: "primary_marion",
+                tags: _mbArr([query && query.domain, query && query.intent, "marion"]).filter(Boolean),
+                confidence: 0.78,
+              });
+            }
+          }
+        } catch (_e) {}
+        return items;
+      },
+    };
+
+    return {
+      datasetsProvider,
+      domainKnowledgeProvider,
+      memoryProvider,
+      marionKnowledgeProvider,
+      telemetry: {
+        async track(ev) {
+          try {
+            s.__lastEvidenceTrace = _mbIsObj(ev) ? {
+              event: _mbSafeStr(ev.event || ""),
+              traceId: _mbSafeStr(ev.traceId || ""),
+              evidenceCount: Number(ev.evidenceCount || 0) || 0,
+              thinEvidence: !!ev.thinEvidence,
+              domain: _mbSafeStr(ev.domain || ""),
+              intent: _mbSafeStr(ev.intent || ""),
+              at: _mbNow(),
+            } : null;
+          } catch (_e) {}
+          return true;
+        },
+      },
+      logger: {
+        info() { return true; },
+        warn() { return true; },
+        error() { return true; },
+      },
+    };
+  }
+
+  function _mbBuildBridge(out, input, session) {
+    if (!__BridgeFactory || !__EvidenceFactory) return null;
+
+    const providers = _mbBuildEvidenceProviders(session, input, out);
+    const evidenceEngine = __EvidenceFactory(providers);
+    const memoryProvider = _mbBuildMemoryProvider(session);
+
+    return __BridgeFactory({
+      memoryProvider,
+      evidenceEngine,
+      telemetry: providers.telemetry,
+      logger: providers.logger,
+      loopLimit: 3,
+      maxInputChars: 3000,
+      maxMemoryHints: 8,
+    });
+  }
+
+  function _mbBuildDirective(packet) {
+    if (!_mbIsObj(packet)) return null;
+    return {
+      type: "bridge_meta",
+      traceId: _mbSafeStr(packet.traceId || ""),
+      domain: _mbSafeStr(packet.routing && packet.routing.domain || ""),
+      intent: _mbSafeStr(packet.routing && packet.routing.intent || ""),
+      evidenceCount: Number(packet.evidence && packet.evidence.count || 0) || 0,
+      confidence: _mbClamp01(packet.diagnostics && packet.diagnostics.confidence || 0),
+      usedFallback: !!(packet.diagnostics && packet.diagnostics.usedFallback),
+      bridge: "marionBridge",
+    };
+  }
+
+  function _mbBuildSessionPatch(out, packet) {
+    const base = _mbIsObj(out && out.sessionPatch) ? out.sessionPatch : {};
+    if (!_mbIsObj(packet)) return { ...base };
+    return {
+      ...base,
+      __bridgeTraceId: _mbSafeStr(packet.traceId || ""),
+      __bridgeDomain: _mbSafeStr(packet.routing && packet.routing.domain || ""),
+      __bridgeIntent: _mbSafeStr(packet.routing && packet.routing.intent || ""),
+      __bridgeConfidence: _mbClamp01(packet.diagnostics && packet.diagnostics.confidence || 0),
+      __bridgeFallback: !!(packet.diagnostics && packet.diagnostics.usedFallback),
+      __bridgeEvidenceCount: Number(packet.evidence && packet.evidence.count || 0) || 0,
+      __bridgeAt: _mbNow(),
+    };
+  }
+
+  function _mbEnhanceReply(baseReply, packet) {
+    const existing = _mbNormalizeText(baseReply);
+    if (!_mbIsObj(packet) || !_mbIsObj(packet.synthesis)) return existing;
+
+    const answer = _mbNormalizeText(packet.synthesis.answer || "");
+    const confidence = _mbClamp01(packet.synthesis.confidence || 0);
+    const thin = !!(packet.diagnostics && packet.diagnostics.evidenceThin);
+    const usedFallback = !!(packet.diagnostics && packet.diagnostics.usedFallback);
+
+    if (!existing && answer) return answer;
+    if (!answer) return existing;
+    if (usedFallback && existing) return existing;
+    if (thin && existing) return existing;
+    if (confidence >= 0.72 && answer.length > existing.length * 0.85) return answer;
+    return existing;
+  }
+
+  async function _mbEnhanceOut(input, rawOut) {
+    const out = _mbCoerceModuleOut(rawOut) || { reply: "" };
+    const session = _mbMakeSession(input);
+    const bridge = _mbBuildBridge(out, input, session);
+
+    if (!bridge || typeof bridge.resolve !== "function") {
+      out.sessionPatch = _mbIsObj(out.sessionPatch) ? out.sessionPatch : {};
+      return out;
+    }
+
+    const requestId = _mbSafeStr(out.requestId || (input && input.requestId) || ("req_" + _mbNow()));
+    const text = _mbSafeStr((input && input.text) || (input && input.body && input.body.text) || "");
+    const laneDomain = _mbMapDomain(input, out);
+    const intent = _mbMapIntent(out);
+    const sentiment = _mbMapSentiment(input, out);
+
+    let packet = null;
+    try {
+      packet = await bridge.resolve({
+        userText: text,
+        sessionId: _mbResolveSessionId(input, out),
+        userId: _mbResolveUserId(input, out),
+        turnId: requestId,
+        meta: {
+          lane: _mbSafeStr(out.lane || out.laneId || out.sessionLane || ""),
+          domainHint: laneDomain,
+          intentHint: intent,
+          sentimentHint: sentiment,
+          source: "chatEngine",
+        },
+      });
+    } catch (_e) {
+      out.sessionPatch = _mbIsObj(out.sessionPatch) ? out.sessionPatch : {};
+      return out;
+    }
+
+    if (_mbIsObj(packet)) {
+      out.reply = _mbEnhanceReply(out.reply, packet);
+      out.payload = _mbIsObj(out.payload) ? { ...out.payload, reply: out.reply } : { reply: out.reply };
+      out.sessionPatch = _mbBuildSessionPatch(out, packet);
+
+      const dir = _mbBuildDirective(packet);
+      const directives = _mbArr(out.directives).slice(0);
+      if (dir) directives.push(dir);
+      out.directives = directives.slice(0, 12);
+
+      out.bridge = _mbIsObj(out.bridge) ? { ...out.bridge } : {};
+      out.bridge.operational = {
+        traceId: _mbSafeStr(packet.traceId || ""),
+        domain: _mbSafeStr(packet.routing && packet.routing.domain || laneDomain),
+        intent: _mbSafeStr(packet.routing && packet.routing.intent || intent),
+        evidenceCount: Number(packet.evidence && packet.evidence.count || 0) || 0,
+        confidence: _mbClamp01(packet.diagnostics && packet.diagnostics.confidence || 0),
+        usedFallback: !!(packet.diagnostics && packet.diagnostics.usedFallback),
+      };
+
+      out.cog = _mbIsObj(out.cog) ? { ...out.cog } : {};
+      out.cog.bridgeRoute = _mbSafeStr(packet.routing && packet.routing.domain || laneDomain);
+      out.cog.bridgeIntent = _mbSafeStr(packet.routing && packet.routing.intent || intent);
+      out.cog.bridgeConfidence = _mbClamp01(packet.diagnostics && packet.diagnostics.confidence || 0);
+      out.cog.bridgeTraceId = _mbSafeStr(packet.traceId || "");
+
+      out.meta = _mbIsObj(out.meta) ? { ...out.meta } : {};
+      out.meta.bridgeVersion = "marionBridge.js";
+      out.meta.evidenceVersion = "evidenceEngine.js";
+      out.meta.bridgeIntegrated = true;
+    }
+
+    return out;
+  }
+
+  const wrapped = async function opIntelBridgeWrappedChatEngine() {
+    const input = arguments && arguments.length ? arguments[0] : undefined;
+    try {
+      const out = __baseExport.apply(null, arguments);
+      if (out && typeof out.then === "function") {
+        return out.then((v) => _mbEnhanceOut(input, v)).catch((e) => {
+          try { return Promise.resolve(failSafeContract(e, input)); } catch (_) { throw e; }
+        });
+      }
+      return _mbEnhanceOut(input, out);
+    } catch (e) {
+      try { return Promise.resolve(failSafeContract(e, input)); } catch (_) { throw e; }
+    }
+  };
+
+  Object.assign(wrapped, __baseExport, {
+    __opIntelBridgeWrapped: true,
+    CE_VERSION: _mbSafeStr(__baseExport.CE_VERSION || CE_VERSION || "") + " + BRIDGE-WRAP v0.10.14",
+  });
+  wrapped.default = wrapped.handleChat = wrapped.chatEngine = wrapped;
+  module.exports = wrapped;
+})();
