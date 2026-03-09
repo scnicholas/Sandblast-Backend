@@ -7,8 +7,6 @@
  * - export a route handler compatible with index.js delegation
  * - unify widget + intro page synthesis behavior
  * - keep fail-open health/circuit state to avoid repeated 503 storms
- * - add speech shaping so punctuation, cadence, and sentence breathing
- *   land in actual voice output rather than only front-end preload
  */
 
 const crypto = require("crypto");
@@ -23,32 +21,6 @@ const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
 const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const DEFAULT_VOICE = "nyx";
-
-const DEFAULT_SPEECH_HINTS = Object.freeze({
-  pauses: {
-    commaMs: 150,
-    periodMs: 320,
-    questionMs: 360,
-    exclaimMs: 340,
-    colonMs: 220,
-    semicolonMs: 260,
-    ellipsisMs: 520
-  },
-  pacing: {
-    mode: "natural",
-    preservePunctuation: true,
-    sentenceBreath: true,
-    noRunOns: true
-  }
-});
-
-const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
-  "Nyx": "Nix",
-  "Nix": "Nix",
-  "Sandblast": "Sand-blast",
-  "Roku": "Roh-koo",
-  "Marion": "Marry-in"
-});
 
 /* ===============================
    STATE
@@ -99,8 +71,6 @@ function _setCommonAudioHeaders(res, traceId, meta){
   if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", meta.provider);
   if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", meta.voiceUuid);
   if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(meta.elapsedMs));
-  if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(meta.shapeMs));
-  if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(meta.segmentCount));
 }
 function _circuitOpen(){ return _now() < circuitOpenUntil; }
 function _recordFailure(message, status){
@@ -146,186 +116,9 @@ function _healthSnapshot(){
     }
   };
 }
-
-function _mergePronunciationMap(extra){
-  const merged = Object.assign({}, DEFAULT_PRONUNCIATION_MAP);
-  if (extra && typeof extra === "object") {
-    Object.keys(extra).forEach((k) => {
-      const key = _trim(k);
-      const val = _trim(extra[k]);
-      if (key && val) merged[key] = val;
-    });
-  }
-  return merged;
-}
-
-function _parseSpeechHints(body){
-  const inputHints = body && typeof body.speechHints === "object" ? body.speechHints : {};
-  const inputPauses = inputHints && typeof inputHints.pauses === "object" ? inputHints.pauses : {};
-  const inputPacing = inputHints && typeof inputHints.pacing === "object" ? inputHints.pacing : {};
-
-  return {
-    pauses: {
-      commaMs: Number(inputPauses.commaMs || body.commaMs || DEFAULT_SPEECH_HINTS.pauses.commaMs) || DEFAULT_SPEECH_HINTS.pauses.commaMs,
-      periodMs: Number(inputPauses.periodMs || body.periodMs || DEFAULT_SPEECH_HINTS.pauses.periodMs) || DEFAULT_SPEECH_HINTS.pauses.periodMs,
-      questionMs: Number(inputPauses.questionMs || body.questionMs || DEFAULT_SPEECH_HINTS.pauses.questionMs) || DEFAULT_SPEECH_HINTS.pauses.questionMs,
-      exclaimMs: Number(inputPauses.exclaimMs || body.exclaimMs || DEFAULT_SPEECH_HINTS.pauses.exclaimMs) || DEFAULT_SPEECH_HINTS.pauses.exclaimMs,
-      colonMs: Number(inputPauses.colonMs || body.colonMs || DEFAULT_SPEECH_HINTS.pauses.colonMs) || DEFAULT_SPEECH_HINTS.pauses.colonMs,
-      semicolonMs: Number(inputPauses.semicolonMs || body.semicolonMs || DEFAULT_SPEECH_HINTS.pauses.semicolonMs) || DEFAULT_SPEECH_HINTS.pauses.semicolonMs,
-      ellipsisMs: Number(inputPauses.ellipsisMs || body.ellipsisMs || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs) || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs
-    },
-    pacing: {
-      mode: _pickFirst(inputPacing.mode, body.pacingMode, DEFAULT_SPEECH_HINTS.pacing.mode),
-      preservePunctuation: _bool(inputPacing.preservePunctuation, _bool(body.preservePunctuation, DEFAULT_SPEECH_HINTS.pacing.preservePunctuation)),
-      sentenceBreath: _bool(inputPacing.sentenceBreath, _bool(body.sentenceBreath, DEFAULT_SPEECH_HINTS.pacing.sentenceBreath)),
-      noRunOns: _bool(inputPacing.noRunOns, _bool(body.noRunOns, DEFAULT_SPEECH_HINTS.pacing.noRunOns))
-    }
-  };
-}
-
-function _normalizeWhitespace(text){
-  return _str(text)
-    .replace(/\r\n?/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\u00A0/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,.;:!?])(\S)/g, "$1 $2")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/\. {0,}\.{0,}\.{4,}/g, "...")
-    .replace(/\.\.\.+/g, "...")
-    .trim();
-}
-
-function _applyPronunciationMap(text, pronunciationMap){
-  let out = _str(text);
-  const keys = Object.keys(pronunciationMap || {}).sort((a, b) => b.length - a.length);
-  for (const key of keys) {
-    const replacement = _trim(pronunciationMap[key]);
-    if (!key || !replacement) continue;
-    const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    out = out.replace(new RegExp(`\\b${safeKey}\\b`, "g"), replacement);
-  }
-  return out;
-}
-
-function _collapseJoiners(text){
-  return _str(text)
-    .replace(/\s+,/g, ",")
-    .replace(/\s+;/g, ";")
-    .replace(/\s+:/g, ":")
-    .replace(/\s+\./g, ".")
-    .replace(/\s+\?/g, "?")
-    .replace(/\s+!/g, "!");
-}
-
-function _repairRunOns(text){
-  let out = _str(text);
-
-  out = out.replace(/,\s+(and|but|so)\s+(I|we|you|they|he|she|it)\b/g, ". $1 $2");
-  out = out.replace(/,\s+(however|meanwhile|instead|still|then|also)\b/gi, ". $1");
-  out = out.replace(/\b(also|right|you know)\b\s*,\s*\b(also|right|you know)\b/gi, "$1");
-  out = out.replace(/\s{2,}/g, " ");
-
-  return out;
-}
-
-function _splitLongSentence(sentence){
-  const s = _trim(sentence);
-  if (!s) return [];
-
-  const wordCount = s.split(/\s+/).filter(Boolean).length;
-  if (wordCount <= 22) return [s];
-
-  const splitter = /,\s+(and|but|so|because|while|which|that)\s+/i;
-  const match = splitter.exec(s);
-  if (!match || typeof match.index !== "number") return [s];
-
-  const cut = match.index;
-  const left = _trim(s.slice(0, cut));
-  const right = _trim(s.slice(cut + 2));
-  if (!left || !right) return [s];
-
-  return [left.replace(/[,:;]+$/g, "") + ".", right];
-}
-
-function _segmentSentences(text, speechHints){
-  const normalized = _collapseJoiners(_repairRunOns(_normalizeWhitespace(text)));
-  const rough = normalized
-    .replace(/([.!?])\s+(?=[A-Z"'])/g, "$1\n")
-    .replace(/([:;])\s+(?=[A-Z"'])/g, "$1\n")
-    .split(/\n+/)
-    .map(_trim)
-    .filter(Boolean);
-
-  const segments = [];
-  for (const item of rough) {
-    if (speechHints && speechHints.pacing && speechHints.pacing.noRunOns) {
-      const split = _splitLongSentence(item);
-      split.forEach((part) => { if (_trim(part)) segments.push(_trim(part)); });
-    } else {
-      segments.push(item);
-    }
-  }
-
-  return segments;
-}
-
-function _pauseToken(ms){
-  const n = Math.max(0, Math.min(1500, Number(ms || 0) || 0));
-  if (!n) return "";
-  return `<break time=\"${n}ms\"/>`;
-}
-
-function _decorateSegment(segment, pauses){
-  let s = _trim(segment);
-  if (!s) return "";
-
-  s = s.replace(/\.\.\./g, `... ${_pauseToken(pauses.ellipsisMs)}`);
-  s = s.replace(/,\s*/g, `, ${_pauseToken(pauses.commaMs)}`);
-  s = s.replace(/;\s*/g, `; ${_pauseToken(pauses.semicolonMs)}`);
-  s = s.replace(/:\s*/g, `: ${_pauseToken(pauses.colonMs)}`);
-  s = s.replace(/\.\s*$/g, `. ${_pauseToken(pauses.periodMs)}`);
-  s = s.replace(/\?\s*$/g, `? ${_pauseToken(pauses.questionMs)}`);
-  s = s.replace(/!\s*$/g, `! ${_pauseToken(pauses.exclaimMs)}`);
-  return s.trim();
-}
-
-function _stripMarkup(text){
-  return _str(text).replace(/<break\s+time=\"\d+ms\"\s*\/>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function _shapeSpeechText(rawText, options){
-  const startedAt = _now();
-  const speechHints = options && options.speechHints ? options.speechHints : DEFAULT_SPEECH_HINTS;
-  const pronunciationMap = _mergePronunciationMap(options && options.pronunciationMap);
-
-  const displayText = _normalizeWhitespace(rawText);
-  const pronouncedText = _applyPronunciationMap(displayText, pronunciationMap);
-  const segments = _segmentSentences(pronouncedText, speechHints);
-
-  const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
-  const ssmlText = ssmlSegments.length
-    ? `<speak>${ssmlSegments.join(_pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65))))}</speak>`
-    : `<speak>${_decorateSegment(pronouncedText, speechHints.pauses)}</speak>`;
-
-  return {
-    rawText: _str(rawText),
-    displayText,
-    textSpeak: pronouncedText,
-    text: pronouncedText,
-    ssmlText,
-    plainText: _stripMarkup(ssmlText).replace(/^<speak>|<\/speak>$/g, ""),
-    segments,
-    segmentCount: segments.length,
-    shapeElapsedMs: _now() - startedAt,
-    speechHints,
-    pronunciationMap
-  };
-}
-
 function _resolveInput(req){
   const body = req && req.body && typeof req.body === "object" ? req.body : {};
-  const text = _pickFirst(body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.textDisplay);
+  const text = _pickFirst(body.text, body.data, body.speak, body.say, body.message);
   const voiceUuid = _pickFirst(
     body.voice_uuid,
     body.voiceUuid,
@@ -348,7 +141,6 @@ function _resolveInput(req){
   );
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(body.textDisplay).slice(0, MAX_TEXT),
     voiceUuid,
     projectUuid,
     outputFormat,
@@ -359,13 +151,7 @@ function _resolveInput(req){
     useHd: body.useHd,
     intro: _bool(body.intro, false),
     healthCheck: _bool(body.healthCheck, false),
-    wantJson: _bool(body.returnJson, false),
-    mode: _pickFirst(body.mode, "presence"),
-    source: _pickFirst(body.source, "tts"),
-    sourceId: _pickFirst(body.sourceId, body.requestId, ""),
-    speechHints: _parseSpeechHints(body),
-    pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object" ? body.pronunciationMap : null,
-    speechChunks: Array.isArray(body.speechChunks) ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : []
+    wantJson: _bool(body.returnJson, false)
   };
 }
 
@@ -382,28 +168,9 @@ async function generate(text, options){
   if (activeRequests >= MAX_CONCURRENT) return { ok:false, reason:"concurrency_limit", status:429 };
   if (_circuitOpen()) return { ok:false, reason:"circuit_open", status:503 };
 
-  const shaped = _shapeSpeechText(input.text, {
-    speechHints: input.speechHints,
-    pronunciationMap: input.pronunciationMap
-  });
-
-  const providerInput = {
-    ...input,
-    text: shaped.text,
-    textDisplay: input.textDisplay || shaped.displayText,
-    textSpeak: shaped.textSpeak,
-    plainText: shaped.plainText,
-    ssmlText: shaped.ssmlText,
-    speechChunks: input.speechChunks && input.speechChunks.length ? input.speechChunks : shaped.segments,
-    speechHints: shaped.speechHints,
-    pronunciationMap: shaped.pronunciationMap,
-    segmentCount: shaped.segmentCount,
-    shapeElapsedMs: shaped.shapeElapsedMs
-  };
-
   activeRequests += 1;
   try {
-    const out = await synthesize(providerInput);
+    const out = await synthesize(input);
     if (!out || !out.ok) {
       _recordFailure(out && out.message ? out.message : out && out.reason, out && out.status);
       return {
@@ -412,11 +179,7 @@ async function generate(text, options){
         message: out && out.message ? out.message : "TTS failed",
         status: out && out.retryable === false ? 400 : (out && out.status) || 503,
         retryable: !!(out && out.retryable),
-        provider: "resemble",
-        shapeElapsedMs: shaped.shapeElapsedMs,
-        segmentCount: shaped.segmentCount,
-        textDisplay: providerInput.textDisplay,
-        textSpeak: providerInput.textSpeak
+        provider: "resemble"
       };
     }
     _recordSuccess(out.providerStatus, out.elapsedMs);
@@ -427,29 +190,12 @@ async function generate(text, options){
       mimeType: out.mimeType || "audio/mpeg",
       elapsedMs: out.elapsedMs || 0,
       requestId: out.requestId,
-      providerStatus: out.providerStatus || 200,
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      ssmlText: providerInput.ssmlText,
-      speechChunks: providerInput.speechChunks
+      providerStatus: out.providerStatus || 200
     };
   } catch (err) {
     const msg = _trim(err && (err.message || err)) || "tts_exception";
     _recordFailure(msg, 503);
-    return {
-      ok:false,
-      reason:"exception",
-      message:msg,
-      status:503,
-      retryable:true,
-      provider:"resemble",
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak
-    };
+    return { ok:false, reason:"exception", message:msg, status:503, retryable:true, provider:"resemble" };
   } finally {
     activeRequests -= 1;
   }
@@ -487,9 +233,7 @@ async function handleTts(req, res){
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
     voiceUuid: input.voiceUuid,
-    elapsedMs: result.elapsedMs || 0,
-    shapeMs: result.shapeElapsedMs || 0,
-    segmentCount: result.segmentCount || 0
+    elapsedMs: result.elapsedMs || 0
   });
 
   if (!result.ok) {
@@ -502,10 +246,6 @@ async function handleTts(req, res){
       retryable: !!result.retryable,
       traceId: input.traceId,
       provider: result.provider || "resemble",
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0,
       health: _healthSnapshot(),
       payload: { spokenUnavailable: true }
     });
@@ -519,12 +259,7 @@ async function handleTts(req, res){
       audioBase64: result.buffer.toString("base64"),
       traceId: input.traceId,
       elapsedMs: result.elapsedMs || 0,
-      requestId: result.requestId,
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      speechChunks: result.speechChunks || [],
-      shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0
+      requestId: result.requestId
     });
   }
 
@@ -565,3 +300,190 @@ module.exports = {
   generate,
   health
 };
+
+/* ===============================
+   OPINTEL AUDIO/TTS WRAPPER v1.0.0
+   - preserves existing exports
+   - injects Marion/Evidence/AudioGovernor awareness
+   - adds duplicate suppression + trace-safe route metadata
+   - keeps existing Resemble path authoritative
+================================= */
+(function attachOpIntelTtsWrapper() {
+  const __base = module.exports || {};
+  if (__base.__opIntelWrapped) return;
+
+  let __MarionBridge = null;
+  let __EvidenceEngine = null;
+  let __AudioGovernor = null;
+  try { __MarionBridge = require("./marionBridge"); } catch (_e) { __MarionBridge = null; }
+  try { __EvidenceEngine = require("./evidenceEngine"); } catch (_e) { __EvidenceEngine = null; }
+  try { __AudioGovernor = require("./audioGovernor"); } catch (_e) { __AudioGovernor = null; }
+
+  const __recentSpeak = new Map();
+
+  function __opNow(){ return Date.now(); }
+  function __opStr(v){ return v == null ? "" : String(v); }
+  function __opTrim(v){ return __opStr(v).trim(); }
+  function __opLower(v){ return __opTrim(v).toLowerCase(); }
+  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function __opBool(v, dflt){
+    if (v == null || v === "") return !!dflt;
+    if (typeof v === "boolean") return v;
+    const s = __opLower(v);
+    if (["1","true","yes","on"].includes(s)) return true;
+    if (["0","false","no","off"].includes(s)) return false;
+    return !!dflt;
+  }
+  function __opHashLite(input){
+    const s = __opStr(input || "");
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i += 1) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+  function __opPickFirst(){
+    for (let i = 0; i < arguments.length; i += 1) {
+      const v = __opTrim(arguments[i]);
+      if (v) return v;
+    }
+    return "";
+  }
+  function __opDomainFrom(input){
+    const meta = __opObj(input && input.meta) ? input.meta : {};
+    const body = __opObj(input && input.body) ? input.body : {};
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    const hinted = __opLower(__opPickFirst(body.domain, meta.domain, meta.domainHint, body.lane, meta.lane));
+    if (hinted) return hinted;
+    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
+    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
+    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
+    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
+    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
+    if (/\b(roku|channel|streaming|metadata|audience|brand|media)\b/.test(text)) return "marketing_media";
+    return "general";
+  }
+  function __opIntentFrom(input){
+    const meta = __opObj(input && input.meta) ? input.meta : {};
+    const body = __opObj(input && input.body) ? input.body : {};
+    const hinted = __opLower(__opPickFirst(body.intent, meta.intent, meta.intentHint));
+    if (hinted) return hinted;
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
+    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
+    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
+    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
+    return "general";
+  }
+  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
+  function __opPruneRecent(){
+    const t = __opNow();
+    for (const [k, v] of __recentSpeak.entries()) {
+      if (!v || !v.at || (t - v.at) > 12000) __recentSpeak.delete(k);
+    }
+  }
+  function __opMarkDuplicate(sig, traceId){
+    __recentSpeak.set(sig, { at: __opNow(), traceId: __opStr(traceId || "") });
+  }
+  function __opIsDuplicate(sig){
+    __opPruneRecent();
+    const hit = __recentSpeak.get(sig);
+    return !!(hit && (__opNow() - hit.at) < 12000);
+  }
+  function __opSignature(text, opts){
+    const domain = __opPickFirst(opts && opts.domain, opts && opts.meta && opts.meta.domain, "general");
+    const intent = __opPickFirst(opts && opts.intent, opts && opts.meta && opts.meta.intent, "general");
+    return __opHashLite([domain, intent, __opLower(text)].join("|"));
+  }
+  function __opModules(){
+    return {
+      marionBridge: !!(__MarionBridge && typeof __MarionBridge.createMarionBridge === "function"),
+      evidenceEngine: !!(__EvidenceEngine && typeof __EvidenceEngine.createEvidenceEngine === "function"),
+      audioGovernor: !!(__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function"),
+    };
+  }
+
+  const __baseGenerate = typeof __base.generate === "function" ? __base.generate : (typeof generate === "function" ? generate : null);
+  const __baseHandle = typeof __base.handleTts === "function" ? __base.handleTts : (typeof handleTts === "function" ? handleTts : null);
+  const __baseHealth = typeof __base.health === "function" ? __base.health : (typeof health === "function" ? health : null);
+
+  async function wrappedGenerate(text, options){
+    const opts = __opObj(options) ? { ...options } : {};
+    const t = __opTrim(text);
+    const modules = __opModules();
+    opts.meta = __opObj(opts.meta) ? { ...opts.meta } : {};
+    opts.meta.domain = __opPickFirst(opts.meta.domain, opts.domain, __opDomainFrom({ body: opts, meta: opts.meta }), "general");
+    opts.meta.intent = __opPickFirst(opts.meta.intent, opts.intent, __opIntentFrom({ body: opts, meta: opts.meta }), "general");
+    opts.meta.traceId = __opPickFirst(opts.meta.traceId, opts.traceId, _makeTrace());
+    opts.traceId = __opPickFirst(opts.traceId, opts.meta.traceId, _makeTrace());
+
+    const sig = __opSignature(t, opts);
+    if (t && __opIsDuplicate(sig)) {
+      return {
+        ok: false,
+        reason: "duplicate_tts_blocked",
+        message: "Duplicate speech blocked by operational audio guard.",
+        status: 409,
+        retryable: false,
+        provider: "resemble",
+        traceId: opts.traceId,
+        modules,
+      };
+    }
+
+    const out = await __baseGenerate(t, opts);
+    if (out && out.ok) __opMarkDuplicate(sig, opts.traceId);
+    if (__opObj(out)) {
+      out.traceId = __opPickFirst(out.traceId, opts.traceId);
+      out.modules = modules;
+      out.opintel = {
+        domain: opts.meta.domain,
+        intent: opts.meta.intent,
+        bridgeAware: modules.marionBridge,
+        evidenceAware: modules.evidenceEngine,
+        audioGovernorAware: modules.audioGovernor,
+      };
+    }
+    return out;
+  }
+
+  async function wrappedHandleTts(req, res){
+    const body = req && req.body && typeof req.body === "object" ? req.body : {};
+    body.meta = __opObj(body.meta) ? { ...body.meta } : {};
+    body.meta.domain = __opPickFirst(body.meta.domain, body.domain, __opDomainFrom(req), "general");
+    body.meta.intent = __opPickFirst(body.meta.intent, body.intent, __opIntentFrom(req), "general");
+    body.meta.allowFallback = __opBool(body.meta.allowFallback ?? body.allowFallback, false);
+    body.allowFallback = body.meta.allowFallback;
+    body.traceId = __opPickFirst(body.traceId, body.meta.traceId, req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-sb-traceid"]), _makeTrace());
+    req.body = body;
+
+    const modules = __opModules();
+    __opSet(res, "X-SB-Bridge-Ready", modules.marionBridge ? "1" : "0");
+    __opSet(res, "X-SB-Evidence-Ready", modules.evidenceEngine ? "1" : "0");
+    __opSet(res, "X-SB-Audio-Governor-Ready", modules.audioGovernor ? "1" : "0");
+    __opSet(res, "X-SB-OpIntel-Domain", body.meta.domain);
+    __opSet(res, "X-SB-OpIntel-Intent", body.meta.intent);
+    return __baseHandle(req, res);
+  }
+
+  function wrappedHealth(){
+    const baseHealth = __baseHealth ? (__baseHealth() || {}) : {};
+    return {
+      ...baseHealth,
+      modules: __opModules(),
+      duplicateSpeechWindowMs: 12000,
+      duplicateSpeechEntries: __recentSpeak.size,
+    };
+  }
+
+  module.exports = {
+    ...__base,
+    __opIntelWrapped: true,
+    handleTts: wrappedHandleTts,
+    ttsHandler: wrappedHandleTts,
+    handler: wrappedHandleTts,
+    generate: wrappedGenerate,
+    health: wrappedHealth,
+  };
+})();
