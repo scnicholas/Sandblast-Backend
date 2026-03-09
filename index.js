@@ -4442,3 +4442,95 @@ module.exports = { app, INDEX_VERSION };
     };
   }
 })();
+
+/* ===============================
+   OPINTEL TTS ROUTE WRAPPER v1.1.0
+   - makes delegated /api/tts and /api/voice paths governor-aware
+   - prevents false "TTS unavailable" from missing route metadata
+   - phases 16–20: route cohesion, strict no-fallback loops, audio-governor parity, self-heal, trace continuity
+================================= */
+(function attachOpIntelIndexTtsWrapperV110() {
+  if (global.__SB_OPINTEL_INDEX_TTS_WRAPPED_V110__) return;
+  global.__SB_OPINTEL_INDEX_TTS_WRAPPED_V110__ = true;
+
+  function __opStr(v){ return v == null ? "" : String(v); }
+  function __opTrim(v){ return __opStr(v).trim(); }
+  function __opLower(v){ return __opTrim(v).toLowerCase(); }
+  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
+  function __opPickFirst(){ for (let i = 0; i < arguments.length; i += 1) { const v = __opTrim(arguments[i]); if (v) return v; } return ""; }
+  function __opInferDomain(routeName, req){
+    const body = __opObj(req && req.body) ? req.body : {};
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    const hinted = __opLower(__opPickFirst(body.domain, body.meta && body.meta.domain, body.lane, routeName));
+    if (hinted) {
+      if (hinted.includes("roku") || hinted.includes("media") || hinted.includes("radio")) return "marketing_media";
+      return hinted;
+    }
+    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
+    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
+    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
+    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
+    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
+    if (/\b(brand|audience|channel|streaming|metadata|campaign|roku)\b/.test(text)) return "marketing_media";
+    return "general";
+  }
+  function __opInferIntent(req){
+    const body = __opObj(req && req.body) ? req.body : {};
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    const hinted = __opLower(__opPickFirst(body.intent, body.meta && body.meta.intent));
+    if (hinted) return hinted;
+    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
+    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
+    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
+    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
+    return "general";
+  }
+
+  const __baseDelegate = typeof __sbDelegateTts === "function" ? __sbDelegateTts : null;
+  if (__baseDelegate) {
+    __sbDelegateTts = async function wrappedDelegateTtsV110(req, res, routeName) {
+      req = __sbNormalizeReq(req);
+      req.body = __opObj(req.body) ? req.body : {};
+      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
+      req.body.traceId = __opPickFirst(req.body.traceId, req.body.meta.traceId, __sbGetHeader(req, "x-sb-trace-id"), __sbGetHeader(req, "x-sb-traceid"), makeReqId());
+      req.body.meta.traceId = req.body.traceId;
+      req.body.meta.domain = __opPickFirst(req.body.meta.domain, req.body.domain, __opInferDomain(routeName, req), "general");
+      req.body.meta.intent = __opPickFirst(req.body.meta.intent, req.body.intent, __opInferIntent(req), "general");
+      req.body.meta.routeName = __opPickFirst(routeName, "/api/tts");
+      req.body.meta.phaseBand = "1-20";
+      req.body.meta.bridgeAware = true;
+      req.body.meta.evidenceAware = true;
+      req.body.meta.audioGovernorAware = true;
+      req.body.allowFallback = false;
+      req.body.priority = __opPickFirst(req.body.priority, __opLower(routeName).includes("intro") ? "high" : "normal");
+      req.body.isIntro = !!req.body.isIntro || __opLower(routeName).includes("intro") || !!req.body.intro;
+
+      __opSet(res, "X-SB-Trace-ID", req.body.traceId);
+      __opSet(res, "X-SB-OpIntel-Domain", req.body.meta.domain);
+      __opSet(res, "X-SB-OpIntel-Intent", req.body.meta.intent);
+      __opSet(res, "X-SB-OpIntel-Route", req.body.meta.routeName);
+      __opSet(res, "X-SB-OpIntel-Phase-Band", "1-20");
+
+      if (!__SB_HANDLE_TTS) {
+        try { __sbTryRequireTts(); } catch (_) {}
+      }
+      return __baseDelegate(req, res, routeName);
+    };
+  }
+
+  const __baseIntro = typeof __sbIntroVoiceRoute === "function" ? __sbIntroVoiceRoute : null;
+  if (__baseIntro) {
+    __sbIntroVoiceRoute = async function wrappedIntroVoiceRouteV110(req, res) {
+      req = __sbNormalizeReq(req);
+      req.body = __opObj(req.body) ? req.body : {};
+      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
+      req.body.meta.intent = __opPickFirst(req.body.meta.intent, "intro");
+      req.body.meta.domain = __opPickFirst(req.body.meta.domain, "general");
+      req.body.allowFallback = false;
+      req.body.isIntro = true;
+      req.body.priority = "high";
+      return __baseIntro(req, res);
+    };
+  }
+})();
