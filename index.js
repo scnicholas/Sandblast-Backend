@@ -4329,3 +4329,116 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 module.exports = { app, INDEX_VERSION };
+
+/* ===============================
+   OPINTEL TTS ROUTE WRAPPER v1.0.0
+   - preserves current route structure
+   - injects Marion/Evidence/AudioGovernor metadata into TTS routes
+   - keeps __sbDelegateTts authoritative
+   - adds route-level headers for traceability and ops diagnostics
+================================= */
+(function attachOpIntelIndexTtsWrapper() {
+  if (global.__SB_OPINTEL_INDEX_TTS_WRAPPED__) return;
+  global.__SB_OPINTEL_INDEX_TTS_WRAPPED__ = true;
+
+  let __MarionBridge = null;
+  let __EvidenceEngine = null;
+  let __AudioGovernor = null;
+  try { __MarionBridge = require("./Utils/marionBridge"); } catch (_e1) { try { __MarionBridge = require("./utils/marionBridge"); } catch (_e2) { __MarionBridge = null; } }
+  try { __EvidenceEngine = require("./Utils/evidenceEngine"); } catch (_e1) { try { __EvidenceEngine = require("./utils/evidenceEngine"); } catch (_e2) { __EvidenceEngine = null; } }
+  try { __AudioGovernor = require("./Utils/audioGovernor"); } catch (_e1) { try { __AudioGovernor = require("./utils/audioGovernor"); } catch (_e2) { __AudioGovernor = null; } }
+
+  function __opStr(v){ return v == null ? "" : String(v); }
+  function __opTrim(v){ return __opStr(v).trim(); }
+  function __opLower(v){ return __opTrim(v).toLowerCase(); }
+  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
+  function __opPickFirst(){
+    for (let i = 0; i < arguments.length; i += 1) {
+      const v = __opTrim(arguments[i]);
+      if (v) return v;
+    }
+    return "";
+  }
+  function __opModules(){
+    return {
+      marionBridge: !!(__MarionBridge && typeof __MarionBridge.createMarionBridge === "function"),
+      evidenceEngine: !!(__EvidenceEngine && typeof __EvidenceEngine.createEvidenceEngine === "function"),
+      audioGovernor: !!(__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function"),
+    };
+  }
+  function __opInferDomain(routeName, req){
+    const body = __opObj(req && req.body) ? req.body : {};
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    const hinted = __opLower(__opPickFirst(body.domain, body.meta && body.meta.domain, body.lane, routeName));
+    if (hinted.includes("intro")) return "general";
+    if (hinted.includes("movie") || hinted.includes("stream") || hinted.includes("roku") || hinted.includes("media")) return "marketing_media";
+    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
+    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
+    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
+    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
+    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
+    if (/\b(brand|audience|channel|streaming|metadata|campaign)\b/.test(text)) return "marketing_media";
+    return "general";
+  }
+  function __opInferIntent(req){
+    const body = __opObj(req && req.body) ? req.body : {};
+    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
+    const hinted = __opLower(__opPickFirst(body.intent, body.meta && body.meta.intent));
+    if (hinted) return hinted;
+    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
+    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
+    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
+    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
+    return "general";
+  }
+
+  const __baseDelegate = typeof __sbDelegateTts === "function" ? __sbDelegateTts : null;
+  if (__baseDelegate) {
+    __sbDelegateTts = async function wrappedDelegateTts(req, res, routeName) {
+      req = __sbNormalizeReq(req);
+      const body = __opObj(req.body) ? req.body : {};
+      body.meta = __opObj(body.meta) ? { ...body.meta } : {};
+      body.traceId = __opPickFirst(body.traceId, body.meta.traceId, __sbGetHeader(req, "x-sb-trace-id"), makeReqId());
+      body.meta.traceId = __opPickFirst(body.meta.traceId, body.traceId, makeReqId());
+      body.meta.domain = __opPickFirst(body.meta.domain, body.domain, __opInferDomain(routeName, req), "general");
+      body.meta.intent = __opPickFirst(body.meta.intent, body.intent, __opInferIntent(req), "general");
+      body.meta.routeName = __opPickFirst(routeName, "/api/tts");
+      body.meta.allowFallback = false;
+      body.allowFallback = false;
+      body.priority = __opLower(routeName).includes("intro") ? "high" : __opPickFirst(body.priority, "normal");
+      body.isIntro = __opLower(routeName).includes("intro") || !!body.intro;
+      body.opintel = {
+        marionBridge: !!(__MarionBridge && typeof __MarionBridge.createMarionBridge === "function"),
+        evidenceEngine: !!(__EvidenceEngine && typeof __EvidenceEngine.createEvidenceEngine === "function"),
+        audioGovernor: !!(__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function"),
+      };
+      req.body = body;
+
+      const mods = __opModules();
+      __opSet(res, "X-SB-Bridge-Ready", mods.marionBridge ? "1" : "0");
+      __opSet(res, "X-SB-Evidence-Ready", mods.evidenceEngine ? "1" : "0");
+      __opSet(res, "X-SB-Audio-Governor-Ready", mods.audioGovernor ? "1" : "0");
+      __opSet(res, "X-SB-OpIntel-Domain", body.meta.domain);
+      __opSet(res, "X-SB-OpIntel-Intent", body.meta.intent);
+      __opSet(res, "X-SB-OpIntel-Route", body.meta.routeName);
+
+      return __baseDelegate(req, res, routeName);
+    };
+  }
+
+  const __baseIntro = typeof __sbIntroVoiceRoute === "function" ? __sbIntroVoiceRoute : null;
+  if (__baseIntro) {
+    __sbIntroVoiceRoute = async function wrappedIntroVoiceRoute(req, res) {
+      req = __sbNormalizeReq(req);
+      req.body = __opObj(req.body) ? req.body : {};
+      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
+      req.body.meta.intent = __opPickFirst(req.body.meta.intent, "intro");
+      req.body.meta.domain = __opPickFirst(req.body.meta.domain, "general");
+      req.body.allowFallback = false;
+      req.body.isIntro = true;
+      req.body.priority = "high";
+      return __baseIntro(req, res);
+    };
+  }
+})();
