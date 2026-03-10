@@ -49,6 +49,7 @@ const DEFAULT_CONFIG = Object.freeze({
   providerName: 'resemble',
   providerLockThreshold: 3,
   providerLockMs: 30000,
+  replayCooldownMs: 4000,
 });
 
 function noopAsync() { return Promise.resolve(null); }
@@ -176,11 +177,20 @@ function normalizeJob(raw = {}, config = DEFAULT_CONFIG) {
     voice: String(raw.voice || ''),
     meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : {},
     createdAt: nowMs(),
-    retries: 0,
+    retries: Number(raw.retries || 0) || 0,
   };
 }
 function makeSignature(job) {
   return hashLite([job.sessionId, job.domain, job.intent, job.text.toLowerCase()].join('|'));
+}
+function makeReplayKey(job) {
+  return hashLite([
+    job.sessionId || '',
+    job.turnId || '',
+    job.domain || '',
+    job.intent || '',
+    (job.text || '').toLowerCase()
+  ].join('|'));
 }
 function domainSpeechMode(domain) {
   if (domain === 'psychology') return 'gentle';
@@ -219,12 +229,20 @@ function createAudioGovernor(config = {}) {
   let lastIntroAt = 0;
   const recentBySignature = new Map();
   const turnSuppression = new Map();
+  const replayCooldown = new Map();
 
   function trimQueue() { while (queue.length > settings.maxQueueSize) queue.pop(); }
   function clearExpiredMaps() {
     const t = nowMs();
-    for (const [key, value] of recentBySignature.entries()) if (!value || !value.at || (t - value.at) > settings.duplicateWindowMs) recentBySignature.delete(key);
-    for (const [key, value] of turnSuppression.entries()) if (!value || !value.at || (t - value.at) > settings.duplicateWindowMs) turnSuppression.delete(key);
+    for (const [key, value] of recentBySignature.entries()) {
+      if (!value || !value.at || (t - value.at) > settings.duplicateWindowMs) recentBySignature.delete(key);
+    }
+    for (const [key, value] of turnSuppression.entries()) {
+      if (!value || !value.at || (t - value.at) > settings.duplicateWindowMs) turnSuppression.delete(key);
+    }
+    for (const [key, value] of replayCooldown.entries()) {
+      if (!value || !value.at || (t - value.at) > settings.replayCooldownMs) replayCooldown.delete(key);
+    }
   }
   function isDuplicate(job) {
     clearExpiredMaps();
@@ -232,14 +250,34 @@ function createAudioGovernor(config = {}) {
     const hit = recentBySignature.get(sig);
     return !!hit && (nowMs() - hit.at) < settings.duplicateWindowMs;
   }
-  function markDuplicate(job) { recentBySignature.set(makeSignature(job), { at: nowMs(), traceId: job.traceId }); }
+  function markDuplicate(job) {
+    recentBySignature.set(makeSignature(job), { at: nowMs(), traceId: job.traceId });
+  }
   function isSuppressed(job) {
     clearExpiredMaps();
     const key = `${job.sessionId}|${job.turnId}`;
     const hit = turnSuppression.get(key);
     return !!hit && hit.sig === makeSignature(job);
   }
-  function markSuppressed(job) { turnSuppression.set(`${job.sessionId}|${job.turnId}`, { at: nowMs(), sig: makeSignature(job) }); }
+  function markSuppressed(job) {
+    turnSuppression.set(`${job.sessionId}|${job.turnId}`, { at: nowMs(), sig: makeSignature(job) });
+  }
+  function isReplayCooling(job) {
+    clearExpiredMaps();
+    const key = makeReplayKey(job);
+    const hit = replayCooldown.get(key);
+    return !!hit && (nowMs() - hit.at) < settings.replayCooldownMs;
+  }
+  function markReplayCooling(job) {
+    replayCooldown.set(makeReplayKey(job), { at: nowMs(), traceId: job.traceId });
+  }
+  function hasQueuedMatch(job) {
+    const key = makeReplayKey(job);
+    return queue.some(item => item && makeReplayKey(item) === key);
+  }
+  function isSameAsInFlight(job) {
+    return !!(inFlight && makeReplayKey(inFlight) === makeReplayKey(job));
+  }
   function canPlayIntro(job) { return !job.isIntro || (nowMs() - lastIntroAt) >= settings.introCooldownMs; }
   function isProviderLocked() { return nowMs() < providerLockedUntil; }
   function noteProviderFailure(code) {
@@ -273,6 +311,7 @@ function createAudioGovernor(config = {}) {
     if (phaseFlags.phase07_introGate && !canPlayIntro(job)) return { ok: true, skipped: true, reason: 'intro_cooldown_active', job };
     if (phaseFlags.phase06_dedupeByTrace && isDuplicate(job)) return { ok: true, skipped: true, reason: 'duplicate_speech_blocked', job };
     if (phaseFlags.phase20_turnSuppression && isSuppressed(job)) return { ok: true, skipped: true, reason: 'turn_suppressed', job };
+    if (phaseFlags.phase05_loopResistance && isReplayCooling(job)) return { ok: true, skipped: true, reason: 'replay_cooldown_active', job };
 
     const loopKey = hashLite([job.sessionId, job.domain, job.text.toLowerCase()].join('|'));
     const loop = phaseFlags.phase05_loopResistance ? loopGuard.hit(loopKey) : { count: 1, blocked: false };
@@ -281,6 +320,7 @@ function createAudioGovernor(config = {}) {
     if (phaseFlags.phase18_providerLock && isProviderLocked()) {
       const err = new Error('provider_locked'); err.code = 'provider_locked'; throw err;
     }
+
     let usedFallback = false;
     let payload = null;
     try {
@@ -290,6 +330,7 @@ function createAudioGovernor(config = {}) {
       usedFallback = true;
       payload = await withTimeout(synthesize(job, true), settings.speakTimeoutMs, 'tts_fallback_timeout');
     }
+
     if (phaseFlags.phase14_payloadHardening && !payload) {
       const err = new Error('empty_audio_payload'); err.code = 'empty_audio_payload'; throw err;
     }
@@ -299,6 +340,7 @@ function createAudioGovernor(config = {}) {
     if (phaseFlags.phase14_payloadHardening && !normalizedPayload) {
       const err = new Error('invalid_audio_payload'); err.code = 'invalid_audio_payload'; throw err;
     }
+
     const buffer = normalizedPayload && (normalizedPayload.buffer || normalizedPayload.audio || normalizedPayload.audioBuffer || null);
     return {
       ok: true,
@@ -332,9 +374,12 @@ function createAudioGovernor(config = {}) {
       intent: job.intent,
       isIntro: job.isIntro,
     }), settings.speakTimeoutMs, 'audio_play_timeout');
+
     if (job.isIntro) lastIntroAt = nowMs();
     markDuplicate(job);
     markSuppressed(job);
+    markReplayCooling(job);
+
     return prepared;
   }
 
@@ -353,24 +398,71 @@ function createAudioGovernor(config = {}) {
       try {
         const result = await runJob(job);
         noteProviderSuccess();
-        health.push({ ok: !!result.ok, traceId: job.traceId, reason: result.reason || '', usedFallback: !!result.usedFallback, at: nowMs() });
+        health.push({
+          ok: !!result.ok,
+          traceId: job.traceId,
+          reason: result.reason || '',
+          usedFallback: !!result.usedFallback,
+          at: nowMs()
+        });
         await track('audio_governor_job_result', {
-          traceId: job.traceId, sessionId: job.sessionId, userId: job.userId, turnId: job.turnId,
-          domain: job.domain, intent: job.intent, ok: !!result.ok, skipped: !!result.skipped,
-          reason: result.reason || '', usedFallback: !!result.usedFallback, loopCount: Number(result.loopCount || 0) || 0,
+          traceId: job.traceId,
+          sessionId: job.sessionId,
+          userId: job.userId,
+          turnId: job.turnId,
+          domain: job.domain,
+          intent: job.intent,
+          ok: !!result.ok,
+          skipped: !!result.skipped,
+          reason: result.reason || '',
+          usedFallback: !!result.usedFallback,
+          loopCount: Number(result.loopCount || 0) || 0,
         });
       } catch (error) {
         noteProviderFailure((error && error.code) || (error && error.message) || 'audio_error');
-        const canRetry = phaseFlags.phase03_retryCap && job.retries < settings.maxRetries && (!phaseFlags.phase18_providerLock || !isProviderLocked());
-        health.push({ ok: false, traceId: job.traceId, reason: String((error && error.code) || (error && error.message) || 'audio_error'), usedFallback: false, at: nowMs() });
-        await track('audio_governor_job_error', {
-          traceId: job.traceId, sessionId: job.sessionId, userId: job.userId, turnId: job.turnId,
-          domain: job.domain, intent: job.intent, error: String((error && error.code) || (error && error.message) || 'audio_error'),
-          retries: job.retries, canRetry,
+        const canRetry =
+          phaseFlags.phase03_retryCap &&
+          job.retries < settings.maxRetries &&
+          (!phaseFlags.phase18_providerLock || !isProviderLocked());
+
+        health.push({
+          ok: false,
+          traceId: job.traceId,
+          reason: String((error && error.code) || (error && error.message) || 'audio_error'),
+          usedFallback: false,
+          at: nowMs()
         });
-        try { if (logger && typeof logger.warn === 'function') logger.warn('[audioGovernor.jobError]', { traceId: job.traceId, error: String((error && error.code) || (error && error.message) || 'audio_error'), retries: job.retries, canRetry }); } catch {}
-        if (canRetry) { job.retries += 1; queue.unshift(job); }
-      } finally { inFlight = null; }
+
+        await track('audio_governor_job_error', {
+          traceId: job.traceId,
+          sessionId: job.sessionId,
+          userId: job.userId,
+          turnId: job.turnId,
+          domain: job.domain,
+          intent: job.intent,
+          error: String((error && error.code) || (error && error.message) || 'audio_error'),
+          retries: job.retries,
+          canRetry,
+        });
+
+        try {
+          if (logger && typeof logger.warn === 'function') {
+            logger.warn('[audioGovernor.jobError]', {
+              traceId: job.traceId,
+              error: String((error && error.code) || (error && error.message) || 'audio_error'),
+              retries: job.retries,
+              canRetry
+            });
+          }
+        } catch {}
+
+        if (canRetry) {
+          job.retries += 1;
+          queue.unshift(job);
+        }
+      } finally {
+        inFlight = null;
+      }
     }
     processing = false;
   }
@@ -379,25 +471,118 @@ function createAudioGovernor(config = {}) {
     const job = normalizeJob(rawJob, settings);
     if (!job.text) return { ok: false, queued: false, reason: 'empty_text' };
 
+    clearExpiredMaps();
+
+    if (phaseFlags.phase06_dedupeByTrace && isDuplicate(job)) {
+      await track('audio_governor_enqueue_blocked', {
+        traceId: job.traceId,
+        sessionId: job.sessionId,
+        userId: job.userId,
+        turnId: job.turnId,
+        domain: job.domain,
+        intent: job.intent,
+        reason: 'duplicate_speech_blocked'
+      });
+      return { ok: true, queued: false, reason: 'duplicate_speech_blocked', traceId: job.traceId, queueDepth: queue.length };
+    }
+
+    if (phaseFlags.phase20_turnSuppression && isSuppressed(job)) {
+      await track('audio_governor_enqueue_blocked', {
+        traceId: job.traceId,
+        sessionId: job.sessionId,
+        userId: job.userId,
+        turnId: job.turnId,
+        domain: job.domain,
+        intent: job.intent,
+        reason: 'turn_suppressed'
+      });
+      return { ok: true, queued: false, reason: 'turn_suppressed', traceId: job.traceId, queueDepth: queue.length };
+    }
+
+    if (phaseFlags.phase05_loopResistance && isReplayCooling(job)) {
+      await track('audio_governor_enqueue_blocked', {
+        traceId: job.traceId,
+        sessionId: job.sessionId,
+        userId: job.userId,
+        turnId: job.turnId,
+        domain: job.domain,
+        intent: job.intent,
+        reason: 'replay_cooldown_active'
+      });
+      return { ok: true, queued: false, reason: 'replay_cooldown_active', traceId: job.traceId, queueDepth: queue.length };
+    }
+
+    if (phaseFlags.phase05_loopResistance && isSameAsInFlight(job)) {
+      await track('audio_governor_enqueue_blocked', {
+        traceId: job.traceId,
+        sessionId: job.sessionId,
+        userId: job.userId,
+        turnId: job.turnId,
+        domain: job.domain,
+        intent: job.intent,
+        reason: 'duplicate_inflight_blocked'
+      });
+      return { ok: true, queued: false, reason: 'duplicate_inflight_blocked', traceId: job.traceId, queueDepth: queue.length };
+    }
+
+    if (phaseFlags.phase05_loopResistance && hasQueuedMatch(job)) {
+      await track('audio_governor_enqueue_blocked', {
+        traceId: job.traceId,
+        sessionId: job.sessionId,
+        userId: job.userId,
+        turnId: job.turnId,
+        domain: job.domain,
+        intent: job.intent,
+        reason: 'duplicate_queue_blocked'
+      });
+      return { ok: true, queued: false, reason: 'duplicate_queue_blocked', traceId: job.traceId, queueDepth: queue.length };
+    }
+
     if (phaseFlags.phase12_cancelReplaceRules && job.priority === 'high') {
-      for (let i = queue.length - 1; i >= 0; i -= 1) if (queue[i] && queue[i].sessionId === job.sessionId) queue.splice(i, 1);
+      for (let i = queue.length - 1; i >= 0; i -= 1) {
+        if (queue[i] && queue[i].sessionId === job.sessionId) queue.splice(i, 1);
+      }
     }
+
     if (phaseFlags.phase02_inFlightLock && inFlight && inFlight.sessionId === job.sessionId && job.priority === 'high') {
-      await audioOutput.stop({ traceId: inFlight.traceId, sessionId: inFlight.sessionId, turnId: inFlight.turnId });
+      await audioOutput.stop({
+        traceId: inFlight.traceId,
+        sessionId: inFlight.sessionId,
+        turnId: inFlight.turnId
+      });
     }
-    if (job.priority === 'high') queue.unshift(job); else queue.push(job);
+
+    if (job.priority === 'high') queue.unshift(job);
+    else queue.push(job);
+
     trimQueue();
+
     await track('audio_governor_enqueue', {
-      traceId: job.traceId, sessionId: job.sessionId, userId: job.userId, turnId: job.turnId,
-      domain: job.domain, intent: job.intent, priority: job.priority, isIntro: job.isIntro, queueDepth: queue.length,
+      traceId: job.traceId,
+      sessionId: job.sessionId,
+      userId: job.userId,
+      turnId: job.turnId,
+      domain: job.domain,
+      intent: job.intent,
+      priority: job.priority,
+      isIntro: job.isIntro,
+      queueDepth: queue.length,
     });
+
     processQueue().catch(() => null);
     return { ok: true, queued: true, traceId: job.traceId, queueDepth: queue.length };
   }
 
   async function stopAll(reason = 'manual_stop') {
     queue.length = 0;
-    if (inFlight) await audioOutput.stop({ traceId: inFlight.traceId, sessionId: inFlight.sessionId, turnId: inFlight.turnId, reason });
+    if (inFlight) {
+      await audioOutput.stop({
+        traceId: inFlight.traceId,
+        sessionId: inFlight.sessionId,
+        turnId: inFlight.turnId,
+        reason
+      });
+    }
     await track('audio_governor_stop_all', { reason });
     return { ok: true };
   }
@@ -410,9 +595,15 @@ function createAudioGovernor(config = {}) {
     return {
       ok: true,
       governor: 'audioGovernor.js',
-      version: '1.1.0-opintel',
+      version: '1.1.1-opintel-loopguard',
       phases: phaseFlags,
-      inFlight: inFlight ? { traceId: inFlight.traceId, sessionId: inFlight.sessionId, turnId: inFlight.turnId, domain: inFlight.domain, intent: inFlight.intent } : null,
+      inFlight: inFlight ? {
+        traceId: inFlight.traceId,
+        sessionId: inFlight.sessionId,
+        turnId: inFlight.turnId,
+        domain: inFlight.domain,
+        intent: inFlight.intent
+      } : null,
       queueDepth: queue.length,
       providerHealth: {
         sampleSize: events.length,
@@ -425,8 +616,23 @@ function createAudioGovernor(config = {}) {
       now: safeNowISO(),
     };
   }
+
   async function healthcheck() { return getHealth(); }
-  return { enqueue, prepare, playPrepared, stopAll, getHealth, healthcheck, buildJobFromDirective };
+
+  return {
+    enqueue,
+    prepare,
+    playPrepared,
+    stopAll,
+    getHealth,
+    healthcheck,
+    buildJobFromDirective
+  };
 }
 
-module.exports = { createAudioGovernor, DEFAULT_PHASE_FLAGS, DEFAULT_CONFIG, buildJobFromDirective };
+module.exports = {
+  createAudioGovernor,
+  DEFAULT_PHASE_FLAGS,
+  DEFAULT_CONFIG,
+  buildJobFromDirective
+};
