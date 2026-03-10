@@ -13,10 +13,19 @@ const CIRCUIT_LIMIT=Number(process.env.SB_TTS_CIRCUIT_LIMIT||5);
 const CIRCUIT_RESET_MS=Number(process.env.SB_TTS_CIRCUIT_RESET_MS||30000);
 
 const DEFAULT_SPEECH_HINTS=Object.freeze({
-  pauses:{commaMs:150,periodMs:320,questionMs:360,exclaimMs:340,colonMs:220,semicolonMs:260,ellipsisMs:520},
+  pauses:{commaMs:110,periodMs:300,questionMs:340,exclaimMs:320,colonMs:180,semicolonMs:220,ellipsisMs:480},
   pacing:{mode:"natural",preservePunctuation:true,sentenceBreath:true,noRunOns:true}
 });
-const DEFAULT_PRONUNCIATION_MAP=Object.freeze({Nyx:"Nix",Nix:"Nix",Sandblast:"Sand-blast",Roku:"Roh-koo",Marion:"Marry-in"});
+const DEFAULT_PRONUNCIATION_MAP=Object.freeze({
+  Nyx:"Nix",
+  Nix:"Nix",
+  Sandblast:"Sand-blast",
+  Roku:"Roh-koo",
+  Marion:"Marry-in",
+  AI:"A I",
+  TTS:"T T S",
+  TV:"T V"
+});
 
 let activeRequests=0,failCount=0,circuitOpenUntil=0,lastError="",lastOkAt=0,lastFailAt=0,lastProviderStatus=0,lastElapsedMs=0;
 
@@ -85,32 +94,86 @@ function _normalizeWhitespace(text){
 }
 function _applyPronunciationMap(text,pronunciationMap){
   let out=_str(text),keys=Object.keys(pronunciationMap||{}).sort((a,b)=>b.length-a.length);
-  for(const key of keys){ const replacement=_trim(pronunciationMap[key]); if(!key||!replacement) continue; const safeKey=key.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); out=out.replace(new RegExp(`\\b${safeKey}\\b`,"g"),replacement); }
+  for(const key of keys){
+    const replacement=_trim(pronunciationMap[key]);
+    if(!key||!replacement) continue;
+    const safeKey=key.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    out=out.replace(new RegExp(`\\b${safeKey}\\b`,"g"),replacement);
+  }
+  return out;
+}
+function _applySpeakOptimizations(text){
+  let out=_str(text);
+  out=out
+    .replace(/\bI'll help\b/gi,"I can help")
+    .replace(/\bI’ll help\b/gi,"I can help")
+    .replace(/\bI'll guide you\b/gi,"I can guide you")
+    .replace(/\bI’ll guide you\b/gi,"I can guide you")
+    .replace(/\bI'll walk you through\b/gi,"I can walk you through")
+    .replace(/\bI’ll walk you through\b/gi,"I can walk you through");
   return out;
 }
 const _collapseJoiners=text=>_str(text).replace(/\s+,/g,",").replace(/\s+;/g,";").replace(/\s+:/g,":").replace(/\s+\./g,".").replace(/\s+\?/g,"?").replace(/\s+!/g,"!");
-function _repairRunOns(text){ let out=_str(text); out=out.replace(/,\s+(and|but|so)\s+(I|we|you|they|he|she|it)\b/g,". $1 $2").replace(/,\s+(however|meanwhile|instead|still|then|also)\b/gi,". $1").replace(/\b(also|right|you know)\b\s*,\s*\b(also|right|you know)\b/gi,"$1").replace(/\s{2,}/g," "); return out; }
+function _repairRunOns(text){
+  let out=_str(text);
+  out=out
+    .replace(/,\s+(however|meanwhile|instead|nevertheless|nonetheless)\b/gi,". $1")
+    .replace(/\b(also|right|you know)\b\s*,\s*\b(also|right|you know)\b/gi,"$1")
+    .replace(/\s{2,}/g," ");
+  return out;
+}
 function _splitLongSentence(sentence){
-  const s=_trim(sentence); if(!s) return []; const wordCount=s.split(/\s+/).filter(Boolean).length; if(wordCount<=22) return [s];
-  const match=/,\s+(and|but|so|because|while|which|that)\s+/i.exec(s); if(!match||typeof match.index!=="number") return [s];
-  const left=_trim(s.slice(0,match.index)),right=_trim(s.slice(match.index+2)); if(!left||!right) return [s]; return [left.replace(/[,:;]+$/g,"")+".",right];
+  const s=_trim(sentence); if(!s) return [];
+  const wordCount=s.split(/\s+/).filter(Boolean).length;
+  if(wordCount<=22) return [s];
+  const match=/,\s+(because|while|which|that)\s+/i.exec(s);
+  if(!match||typeof match.index!=="number") return [s];
+  const left=_trim(s.slice(0,match.index)),right=_trim(s.slice(match.index+2));
+  if(!left||!right) return [s];
+  return [left.replace(/[,:;]+$/g,"")+".",right];
 }
 function _segmentSentences(text,speechHints){
   const normalized=_collapseJoiners(_repairRunOns(_normalizeWhitespace(text)));
   const rough=normalized.replace(/([.!?])\s+(?=[A-Z"'])/g,"$1\n").replace(/([:;])\s+(?=[A-Z"'])/g,"$1\n").split(/\n+/).map(_trim).filter(Boolean);
-  const segments=[]; for(const item of rough){ if(speechHints&&speechHints.pacing&&speechHints.pacing.noRunOns){ const split=_splitLongSentence(item); split.forEach(part=>{ if(_trim(part)) segments.push(_trim(part)); }); } else segments.push(item); }
+  const segments=[];
+  for(const item of rough){
+    if(speechHints&&speechHints.pacing&&speechHints.pacing.noRunOns){
+      const split=_splitLongSentence(item);
+      split.forEach(part=>{ if(_trim(part)) segments.push(_trim(part)); });
+    } else segments.push(item);
+  }
   return segments;
 }
 function _pauseToken(ms){ const n=Math.max(0,Math.min(1500,Number(ms||0)||0)); return n?`<break time="${n}ms"/>`:""; }
 function _decorateSegment(segment,pauses){
   let s=_trim(segment); if(!s) return "";
-  s=s.replace(/\.\.\./g,`... ${_pauseToken(pauses.ellipsisMs)}`).replace(/,\s*/g,`, ${_pauseToken(pauses.commaMs)}`).replace(/;\s*/g,`; ${_pauseToken(pauses.semicolonMs)}`).replace(/:\s*/g,`: ${_pauseToken(pauses.colonMs)}`).replace(/\.\s*$/g,`. ${_pauseToken(pauses.periodMs)}`).replace(/\?\s*$/g,`? ${_pauseToken(pauses.questionMs)}`).replace(/!\s*$/g,`! ${_pauseToken(pauses.exclaimMs)}`);
+
+  s=s
+    .replace(/,\s+and\s+I'll\b/gi,", and I'll")
+    .replace(/,\s+and\s+I’ll\b/gi,", and I’ll")
+    .replace(/,\s+and\s+I\s+can\b/gi,", and I can")
+    .replace(/,\s+and\s+we\s+can\b/gi,", and we can")
+    .replace(/,\s+but\s+I\b/gi,", but I")
+    .replace(/,\s+or\s+I\b/gi,", or I");
+
+  s=s
+    .replace(/\.\.\./g,`... ${_pauseToken(pauses.ellipsisMs)}`)
+    .replace(/,\s*/g,`, ${_pauseToken(pauses.commaMs)}`)
+    .replace(/;\s*/g,`; ${_pauseToken(pauses.semicolonMs)}`)
+    .replace(/:\s*/g,`: ${_pauseToken(pauses.colonMs)}`)
+    .replace(/\.\s*$/g,`. ${_pauseToken(pauses.periodMs)}`)
+    .replace(/\?\s*$/g,`? ${_pauseToken(pauses.questionMs)}`)
+    .replace(/!\s*$/g,`! ${_pauseToken(pauses.exclaimMs)}`);
+
   return s.trim();
 }
 const _stripMarkup=text=>_str(text).replace(/<break\s+time="\d+ms"\s*\/>/g," ").replace(/\s+/g," ").trim();
 function _shapeSpeechText(rawText,options){
   const startedAt=_now(),speechHints=options&&options.speechHints?options.speechHints:DEFAULT_SPEECH_HINTS,pronunciationMap=_mergePronunciationMap(options&&options.pronunciationMap);
-  const displayText=_normalizeWhitespace(rawText),pronouncedText=_applyPronunciationMap(displayText,pronunciationMap),segments=_segmentSentences(pronouncedText,speechHints);
+  const displayText=_normalizeWhitespace(rawText);
+  const speakBase=_applySpeakOptimizations(displayText);
+  const pronouncedText=_applyPronunciationMap(speakBase,pronunciationMap);
+  const segments=_segmentSentences(pronouncedText,speechHints);
   const ssmlSegments=segments.map(segment=>_decorateSegment(segment,speechHints.pauses)).filter(Boolean);
   const ssmlText=ssmlSegments.length?`<speak>${ssmlSegments.join(_pauseToken(Math.max(120,Math.floor((speechHints.pauses.periodMs||320)*0.65))))}</speak>`:`<speak>${_decorateSegment(pronouncedText,speechHints.pauses)}</speak>`;
   return {rawText:_str(rawText),displayText,textSpeak:pronouncedText,text:pronouncedText,ssmlText,plainText:_stripMarkup(ssmlText).replace(/^<speak>|<\/speak>$/g,""),segments,segmentCount:segments.length,shapeElapsedMs:_now()-startedAt,speechHints,pronunciationMap};
