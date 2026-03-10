@@ -1,23 +1,24 @@
 "use strict";
 
-/**
- * ttsProvidersResemble.js
- * Resemble AI synchronous TTS provider (hardened).
- *
- * Exports: { synthesize }
- *
- * Improvements in this revision:
- * - preserves existing structure and function names
- * - accepts both token env naming patterns
- * - supports short voice ids by resolving from env when needed
- * - tolerates multiple provider success/body shapes
- * - returns richer diagnostics to stop blind 503s
- * - honors speech shaping inputs from tts.js / widget payloads
- * - prefers SSML-shaped text when enabled, with safe plain-text fallback
- * - carries segmentation / pause metadata through the provider result
- */
-
 const https = require("https");
+
+const PHASES = Object.freeze({
+  p01_contractSafe: true,
+  p02_envResolution: true,
+  p03_voiceResolution: true,
+  p04_authFallback: true,
+  p05_timeoutGuard: true,
+  p06_ssmlFailOpen: true,
+  p07_speechEnvelope: true,
+  p08_payloadNormalization: true,
+  p09_audioSrcDownload: true,
+  p10_base64Coercion: true,
+  p11_mimeDetection: true,
+  p12_retrySignal: true,
+  p13_traceDiagnostics: true,
+  p14_providerTolerance: true,
+  p15_operationalIntegrity: true
+});
 
 const RESEMBLE_SYNTH_URL = _pickFirst(
   process.env.RESEMBLE_SYNTH_URL,
@@ -58,7 +59,12 @@ function _getProjectUuid(){
   return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
 }
 function _getVoiceUuid(){
-  return _pickFirst(process.env.RESEMBLE_VOICE_UUID, process.env.SB_RESEMBLE_VOICE_UUID, process.env.SBNYX_RESEMBLE_VOICE_UUID, "");
+  return _pickFirst(
+    process.env.RESEMBLE_VOICE_UUID,
+    process.env.SB_RESEMBLE_VOICE_UUID,
+    process.env.SBNYX_RESEMBLE_VOICE_UUID,
+    ""
+  );
 }
 function _defaultModel(){
   return _pickFirst(process.env.RESEMBLE_TTS_MODEL, "chatterbox-turbo");
@@ -140,10 +146,21 @@ function _buildSpeechEnvelope(opts){
     ? opts.speechChunks.map((s) => _trim(s)).filter(Boolean)
     : (Array.isArray(speechHints.chunks) && speechHints.chunks.length
       ? speechHints.chunks.map((s) => _trim(s)).filter(Boolean)
-      : _splitSpeechChunks(_pickFirst(opts && opts.textSpeak, opts && opts.plainText, opts && opts.textDisplay, opts && opts.text)));
+      : _splitSpeechChunks(_pickFirst(
+          opts && opts.textSpeak,
+          opts && opts.plainText,
+          opts && opts.textDisplay,
+          opts && opts.text
+        )));
 
   const textDisplay = _normalizeText(_pickFirst(opts && opts.textDisplay, opts && opts.plainText, opts && opts.text));
-  const textSpeak = _normalizeText(_pickFirst(opts && opts.textSpeak, opts && opts.ssmlSourceText, opts && opts.plainText, opts && opts.textDisplay, opts && opts.text));
+  const textSpeak = _normalizeText(_pickFirst(
+    opts && opts.textSpeak,
+    opts && opts.ssmlSourceText,
+    opts && opts.plainText,
+    opts && opts.textDisplay,
+    opts && opts.text
+  ));
   const plainText = _normalizeText(_pickFirst(opts && opts.plainText, textSpeak, textDisplay));
 
   let ssmlText = _trim(opts && opts.ssmlText);
@@ -156,13 +173,13 @@ function _buildSpeechEnvelope(opts){
     ssmlText,
     speechChunks: chunks,
     segmentCount: chunks.length,
-    speechHints: speechHints,
+    speechHints,
     useSsml: _enableSsml() && !!ssmlText
   };
 }
 
 function _parseJson(text){
-  try{ return JSON.parse(text || "{}"); }catch(_){ return null; }
+  try { return JSON.parse(text || "{}"); } catch (_) { return null; }
 }
 
 function _buildAuthHeaders(token, mode){
@@ -198,9 +215,7 @@ function _postJsonViaHttps(url, headers, bodyObj, timeoutMs){
         });
       }
     );
-    req.on("timeout", () => {
-      req.destroy(new Error("provider_request_timeout"));
-    });
+    req.on("timeout", () => req.destroy(new Error("provider_request_timeout")));
     req.on("error", reject);
     req.write(body);
     req.end();
@@ -226,7 +241,7 @@ async function _postJson(url, headers, bodyObj, timeoutMs){
       });
       const text = await res.text();
       return { status: res.status, headers: Object.fromEntries(res.headers.entries()), text };
-    }finally{
+    } finally {
       if (to) clearTimeout(to);
     }
   }
@@ -279,7 +294,7 @@ async function _downloadBuffer(url, timeoutMs){
         headers: Object.fromEntries(res.headers.entries()),
         buffer: Buffer.from(ab)
       };
-    }finally{
+    } finally {
       if (to) clearTimeout(to);
     }
   }
@@ -289,7 +304,7 @@ async function _downloadBuffer(url, timeoutMs){
 async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
   const headers = {
     ..._buildAuthHeaders(token, authMode),
-    "User-Agent": "sb-nyx-tts/1.1"
+    "User-Agent": "sb-nyx-tts/1.2"
   };
   if (traceId) headers["X-SB-Trace-ID"] = traceId;
   return _postJson(RESEMBLE_SYNTH_URL, headers, payload, timeoutMs);
@@ -298,7 +313,8 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 function _normalizeProviderMessage(json, fallbackText){
   const raw = json && (
     json.message || json.error || json.detail || json.reason ||
-    (json.data && (json.data.message || json.data.error || json.data.detail)) ||
+    (json.data && (json.data.message || json.data.error || json.data.detail || json.data.reason)) ||
+    (json.result && (json.result.message || json.result.error || json.result.detail || json.result.reason)) ||
     (Array.isArray(json.errors) ? json.errors.join("; ") : "") ||
     (Array.isArray(json.issues) ? json.issues.join("; ") : "")
   );
@@ -311,22 +327,56 @@ function _providerSucceeded(status, json){
   if (json.ok === true) return true;
   if (json.audio_content || json.audio_src) return true;
   if (json.data && (json.data.audio_content || json.data.audio_src)) return true;
+  if (json.result && (json.result.audio_content || json.result.audio_src)) return true;
   return false;
 }
 
 function _extractAudioEnvelope(json){
   if (!json || typeof json !== "object") return {};
-  const base = json.data && typeof json.data === "object" ? json.data : null;
+  const data = json.data && typeof json.data === "object" ? json.data : null;
+  const result = json.result && typeof json.result === "object" ? json.result : null;
   return {
-    audio_content: _pickFirst(json.audio_content, base && base.audio_content),
-    audio_src: _pickFirst(json.audio_src, base && base.audio_src),
-    output_format: _pickFirst(json.output_format, base && base.output_format),
-    duration: json.duration || (base && base.duration),
-    synth_duration: json.synth_duration || (base && base.synth_duration),
-    sample_rate: json.sample_rate || (base && base.sample_rate),
-    request_id: _pickFirst(json.request_id, json.id, base && (base.request_id || base.id)),
-    issues: Array.isArray(json.issues) ? json.issues : (base && Array.isArray(base.issues) ? base.issues : undefined)
+    audio_content: _pickFirst(
+      json.audio_content,
+      data && data.audio_content,
+      result && result.audio_content
+    ),
+    audio_src: _pickFirst(
+      json.audio_src,
+      data && data.audio_src,
+      result && result.audio_src
+    ),
+    output_format: _pickFirst(
+      json.output_format,
+      data && data.output_format,
+      result && result.output_format
+    ),
+    duration: json.duration || (data && data.duration) || (result && result.duration),
+    synth_duration: json.synth_duration || (data && data.synth_duration) || (result && result.synth_duration),
+    sample_rate: json.sample_rate || (data && data.sample_rate) || (result && result.sample_rate),
+    request_id: _pickFirst(
+      json.request_id,
+      json.id,
+      data && (data.request_id || data.id),
+      result && (result.request_id || result.id)
+    ),
+    issues: Array.isArray(json.issues)
+      ? json.issues
+      : (data && Array.isArray(data.issues)
+        ? data.issues
+        : (result && Array.isArray(result.issues) ? result.issues : undefined))
   };
+}
+
+function _safeBase64ToBuffer(value){
+  const s = _trim(value);
+  if (!s) return null;
+  try{
+    const buf = Buffer.from(s.replace(/\s+/g, ""), "base64");
+    return Buffer.isBuffer(buf) && buf.length ? buf : null;
+  }catch(_){
+    return null;
+  }
 }
 
 async function synthesize(opts){
@@ -346,13 +396,37 @@ async function synthesize(opts){
   const timeoutMs = _requestTimeoutMs();
 
   if (!token){
-    return { ok: false, retryable: false, reason: "missing_token", message: "Missing RESEMBLE_API_TOKEN/RESEMBLE_API_KEY", status: 0, elapsedMs: Date.now() - started };
+    return {
+      ok: false,
+      retryable: false,
+      reason: "missing_token",
+      message: "Missing RESEMBLE_API_TOKEN/RESEMBLE_API_KEY",
+      status: 0,
+      elapsedMs: Date.now() - started,
+      phases: PHASES
+    };
   }
   if (!text){
-    return { ok: false, retryable: false, reason: "missing_text", message: "Missing text", status: 0, elapsedMs: Date.now() - started };
+    return {
+      ok: false,
+      retryable: false,
+      reason: "missing_text",
+      message: "Missing text",
+      status: 0,
+      elapsedMs: Date.now() - started,
+      phases: PHASES
+    };
   }
   if (!voiceUuid){
-    return { ok: false, retryable: false, reason: "missing_voice", message: "Missing voiceUuid / RESEMBLE_VOICE_UUID", status: 0, elapsedMs: Date.now() - started };
+    return {
+      ok: false,
+      retryable: false,
+      reason: "missing_voice",
+      message: "Missing voiceUuid / RESEMBLE_VOICE_UUID",
+      status: 0,
+      elapsedMs: Date.now() - started,
+      phases: PHASES
+    };
   }
 
   const payload = {
@@ -367,21 +441,23 @@ async function synthesize(opts){
   if (precision && ["MULAW", "PCM_16", "PCM_24", "PCM_32"].includes(precision)) payload.precision = precision;
   if (title) payload.title = title.slice(0, 120);
   if (typeof useHd !== "undefined") payload.use_hd = !!useHd;
-
-  // Safe extra hints: ignored by providers that do not support them.
   if (speech.useSsml) payload.data_type = _pickFirst(opts && opts.dataType, "ssml");
   if (speech.segmentCount) payload.segment_count = speech.segmentCount;
 
   let resp;
   let authMode = "bearer";
+
   try{
     resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
 
-    // Fail-open fallback: if SSML/path shaping is rejected, retry once with plain text.
     if (speech.useSsml){
       const ssmlJson = _parseJson(resp && resp.text ? resp.text : "");
-      const looksRejected = (resp && (resp.status === 400 || resp.status === 415 || resp.status === 422)) ||
-        /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(_normalizeProviderMessage(ssmlJson, resp && resp.text));
+      const looksRejected =
+        (resp && (resp.status === 400 || resp.status === 415 || resp.status === 422)) ||
+        /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(
+          _normalizeProviderMessage(ssmlJson, resp && resp.text)
+        );
+
       if (looksRejected){
         const plainPayload = { ...payload, data: speech.plainText };
         delete plainPayload.data_type;
@@ -389,11 +465,11 @@ async function synthesize(opts){
       }
     }
 
-    if (resp && (resp.status === 401 || resp.status === 403)) {
+    if (resp && (resp.status === 401 || resp.status === 403)){
       authMode = "raw";
       resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
     }
-    if (resp && (resp.status === 401 || resp.status === 403)) {
+    if (resp && (resp.status === 401 || resp.status === 403)){
       authMode = "token";
       resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
     }
@@ -409,11 +485,14 @@ async function synthesize(opts){
       elapsedMs: Date.now() - started,
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
+      voiceUuid,
+      traceId,
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml
+      usedSsml: speech.useSsml,
+      phases: PHASES
     };
   }
 
@@ -434,25 +513,27 @@ async function synthesize(opts){
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
       voiceUuid,
+      traceId,
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml
+      usedSsml: speech.useSsml,
+      phases: PHASES
     };
   }
 
   const env = _extractAudioEnvelope(json);
   let buf = null;
+
   if (env.audio_content){
-    try{
-      buf = Buffer.from(String(env.audio_content), "base64");
-    }catch(e){
+    buf = _safeBase64ToBuffer(env.audio_content);
+    if (!buf){
       return {
         ok: false,
         retryable: false,
         reason: "base64_decode_failed",
-        message: _str(e && e.message ? e.message : e),
+        message: "Provider returned audio_content but it could not be decoded.",
         status,
         elapsedMs: Date.now() - started,
         issues: env.issues,
@@ -460,11 +541,13 @@ async function synthesize(opts){
         authMode,
         providerEndpoint: RESEMBLE_SYNTH_URL,
         voiceUuid,
+        traceId,
         textDisplay: speech.textDisplay,
         textSpeak: speech.textSpeak,
         speechChunks: speech.speechChunks,
         segmentCount: speech.segmentCount,
-        usedSsml: speech.useSsml
+        usedSsml: speech.useSsml,
+        phases: PHASES
       };
     }
   } else if (env.audio_src){
@@ -483,11 +566,13 @@ async function synthesize(opts){
           authMode,
           providerEndpoint: RESEMBLE_SYNTH_URL,
           voiceUuid,
+          traceId,
           textDisplay: speech.textDisplay,
           textSpeak: speech.textSpeak,
           speechChunks: speech.speechChunks,
           segmentCount: speech.segmentCount,
-          usedSsml: speech.useSsml
+          usedSsml: speech.useSsml,
+          phases: PHASES
         };
       }
       buf = dl.buffer;
@@ -504,11 +589,13 @@ async function synthesize(opts){
         authMode,
         providerEndpoint: RESEMBLE_SYNTH_URL,
         voiceUuid,
+        traceId,
         textDisplay: speech.textDisplay,
         textSpeak: speech.textSpeak,
         speechChunks: speech.speechChunks,
         segmentCount: speech.segmentCount,
-        usedSsml: speech.useSsml
+        usedSsml: speech.useSsml,
+        phases: PHASES
       };
     }
   } else {
@@ -524,11 +611,13 @@ async function synthesize(opts){
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
       voiceUuid,
+      traceId,
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml
+      usedSsml: speech.useSsml,
+      phases: PHASES
     };
   }
 
@@ -545,11 +634,13 @@ async function synthesize(opts){
       authMode,
       providerEndpoint: RESEMBLE_SYNTH_URL,
       voiceUuid,
+      traceId,
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml
+      usedSsml: speech.useSsml,
+      phases: PHASES
     };
   }
 
@@ -568,6 +659,7 @@ async function synthesize(opts){
     authMode,
     providerEndpoint: RESEMBLE_SYNTH_URL,
     voiceUuid,
+    traceId,
     textDisplay: speech.textDisplay,
     textSpeak: speech.textSpeak,
     plainText: speech.plainText,
@@ -575,7 +667,8 @@ async function synthesize(opts){
     speechChunks: speech.speechChunks,
     segmentCount: speech.segmentCount,
     speechHints: speech.speechHints,
-    usedSsml: speech.useSsml
+    usedSsml: speech.useSsml,
+    phases: PHASES
   };
 }
 
