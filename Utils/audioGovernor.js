@@ -47,6 +47,8 @@ const DEFAULT_CONFIG = Object.freeze({
   healthWindowSize: 20,
   allowFallbackByDefault: false,
   providerName: 'resemble',
+  providerLockThreshold: 3,
+  providerLockMs: 30000,
 });
 
 function noopAsync() { return Promise.resolve(null); }
@@ -111,6 +113,52 @@ function withTimeout(promise, ms, code = 'audio_timeout') {
     });
   });
 }
+
+function hasUsableAudioBuffer(value) {
+  if (!value) return false;
+  if (Buffer.isBuffer(value)) return value.length > 0;
+  if (value instanceof Uint8Array) return value.byteLength > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'object') return hasUsableAudioBuffer(value.buffer || value.audio || value.audioBuffer || value.audioBase64 || value.data);
+  return false;
+}
+function normalizeAudioPayload(payload, mimeType) {
+  if (!payload) return null;
+  const resolvedMimeType = String((payload && payload.mimeType) || (payload && payload.contentType) || mimeType || 'audio/mpeg');
+  const base = (payload && typeof payload === 'object' && !Buffer.isBuffer(payload) && !(payload instanceof Uint8Array)) ? { ...payload } : { audio: payload };
+  const candidate = base.buffer || base.audio || base.audioBuffer || base.audioBase64 || base.data || null;
+  if (!hasUsableAudioBuffer(candidate)) return null;
+  if (!base.buffer && candidate) base.buffer = candidate;
+  if (!base.audio && candidate) base.audio = candidate;
+  base.mimeType = resolvedMimeType;
+  return base;
+}
+function buildJobFromDirective(directive = {}, context = {}) {
+  const payload = directive && typeof directive === 'object' ? directive : {};
+  const ctx = context && typeof context === 'object' ? context : {};
+  const text = normalizeText(payload.text || payload.say || payload.speak || payload.message || ctx.reply || '');
+  return normalizeJob({
+    id: payload.id || payload.jobId || ctx.id,
+    traceId: payload.traceId || ctx.traceId,
+    sessionId: payload.sessionId || ctx.sessionId,
+    userId: payload.userId || ctx.userId,
+    turnId: payload.turnId || ctx.turnId,
+    text,
+    domain: payload.domain || ctx.domain || payload.routeName || 'general',
+    intent: payload.intent || ctx.intent || 'general',
+    priority: payload.priority === 'high' || payload.cancelReplace ? 'high' : 'normal',
+    isIntro: !!(payload.isIntro || payload.intro),
+    allowFallback: payload.allowFallback === true || ctx.allowFallback === true,
+    voice: payload.voice || ctx.voice || '',
+    meta: {
+      ...((ctx.meta && typeof ctx.meta === 'object') ? ctx.meta : {}),
+      ...((payload.meta && typeof payload.meta === 'object') ? payload.meta : {}),
+      routeName: String(payload.routeName || (payload.meta && payload.meta.routeName) || (ctx.meta && ctx.meta.routeName) || ''),
+      source: String(payload.source || 'chatEngine'),
+    },
+  }, DEFAULT_CONFIG);
+}
 function normalizeJob(raw = {}, config = DEFAULT_CONFIG) {
   const text = normalizeText(raw.text).slice(0, config.maxTextLength);
   return {
@@ -163,6 +211,8 @@ function createAudioGovernor(config = {}) {
 
   const queue = [];
   const health = new RingBuffer(settings.healthWindowSize);
+  const providerFailures = new RingBuffer(settings.providerLockThreshold);
+  let providerLockedUntil = 0;
   const loopGuard = new LoopGuard({ threshold: settings.loopThreshold, windowMs: settings.loopWindowMs });
   let inFlight = null;
   let processing = false;
@@ -191,6 +241,13 @@ function createAudioGovernor(config = {}) {
   }
   function markSuppressed(job) { turnSuppression.set(`${job.sessionId}|${job.turnId}`, { at: nowMs(), sig: makeSignature(job) }); }
   function canPlayIntro(job) { return !job.isIntro || (nowMs() - lastIntroAt) >= settings.introCooldownMs; }
+  function isProviderLocked() { return nowMs() < providerLockedUntil; }
+  function noteProviderFailure(code) {
+    providerFailures.push({ at: nowMs(), code: String(code || 'tts_error') });
+    const recent = providerFailures.toArray().filter(x => x && (nowMs() - x.at) < settings.providerLockMs);
+    if (recent.length >= settings.providerLockThreshold) providerLockedUntil = nowMs() + settings.providerLockMs;
+  }
+  function noteProviderSuccess() { providerLockedUntil = 0; }
   async function track(event, payload = {}) { await telemetry.track({ event, now: safeNowISO(), ...payload }); }
 
   async function synthesize(job, useFallback = false) {
@@ -221,6 +278,9 @@ function createAudioGovernor(config = {}) {
     const loop = phaseFlags.phase05_loopResistance ? loopGuard.hit(loopKey) : { count: 1, blocked: false };
     if (loop.blocked) return { ok: true, skipped: true, reason: 'loop_guard_blocked', loopCount: loop.count, job };
 
+    if (phaseFlags.phase18_providerLock && isProviderLocked()) {
+      const err = new Error('provider_locked'); err.code = 'provider_locked'; throw err;
+    }
     let usedFallback = false;
     let payload = null;
     try {
@@ -234,8 +294,12 @@ function createAudioGovernor(config = {}) {
       const err = new Error('empty_audio_payload'); err.code = 'empty_audio_payload'; throw err;
     }
 
-    const buffer = payload && (payload.buffer || payload.audio || payload.audioBuffer || null);
     const mimeType = String((payload && payload.mimeType) || (payload && payload.contentType) || 'audio/mpeg');
+    const normalizedPayload = normalizeAudioPayload(payload, mimeType);
+    if (phaseFlags.phase14_payloadHardening && !normalizedPayload) {
+      const err = new Error('invalid_audio_payload'); err.code = 'invalid_audio_payload'; throw err;
+    }
+    const buffer = normalizedPayload && (normalizedPayload.buffer || normalizedPayload.audio || normalizedPayload.audioBuffer || null);
     return {
       ok: true,
       skipped: false,
@@ -245,7 +309,7 @@ function createAudioGovernor(config = {}) {
       provider: settings.providerName,
       mimeType,
       buffer,
-      audioPayload: payload,
+      audioPayload: normalizedPayload,
       job,
       meta: {
         domain: job.domain,
@@ -288,6 +352,7 @@ function createAudioGovernor(config = {}) {
       inFlight = job;
       try {
         const result = await runJob(job);
+        noteProviderSuccess();
         health.push({ ok: !!result.ok, traceId: job.traceId, reason: result.reason || '', usedFallback: !!result.usedFallback, at: nowMs() });
         await track('audio_governor_job_result', {
           traceId: job.traceId, sessionId: job.sessionId, userId: job.userId, turnId: job.turnId,
@@ -295,7 +360,8 @@ function createAudioGovernor(config = {}) {
           reason: result.reason || '', usedFallback: !!result.usedFallback, loopCount: Number(result.loopCount || 0) || 0,
         });
       } catch (error) {
-        const canRetry = phaseFlags.phase03_retryCap && job.retries < settings.maxRetries;
+        noteProviderFailure((error && error.code) || (error && error.message) || 'audio_error');
+        const canRetry = phaseFlags.phase03_retryCap && job.retries < settings.maxRetries && (!phaseFlags.phase18_providerLock || !isProviderLocked());
         health.push({ ok: false, traceId: job.traceId, reason: String((error && error.code) || (error && error.message) || 'audio_error'), usedFallback: false, at: nowMs() });
         await track('audio_governor_job_error', {
           traceId: job.traceId, sessionId: job.sessionId, userId: job.userId, turnId: job.turnId,
@@ -353,12 +419,14 @@ function createAudioGovernor(config = {}) {
         successRate: Number((okCount / total).toFixed(3)),
         fallbackRate: Number((fallbackCount / total).toFixed(3)),
         failRate: Number((1 - (okCount / total)).toFixed(3)),
+        locked: isProviderLocked(),
+        lockedUntil: providerLockedUntil || 0,
       },
       now: safeNowISO(),
     };
   }
   async function healthcheck() { return getHealth(); }
-  return { enqueue, prepare, playPrepared, stopAll, getHealth, healthcheck };
+  return { enqueue, prepare, playPrepared, stopAll, getHealth, healthcheck, buildJobFromDirective };
 }
 
-module.exports = { createAudioGovernor, DEFAULT_PHASE_FLAGS, DEFAULT_CONFIG };
+module.exports = { createAudioGovernor, DEFAULT_PHASE_FLAGS, DEFAULT_CONFIG, buildJobFromDirective };
