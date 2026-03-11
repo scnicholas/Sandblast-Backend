@@ -99,16 +99,18 @@ try {
   MoviesLane = null;
 }
 
-// Emotional detection + supportive response helpers (FAIL-OPEN).
-// These modules are pure and safe. If missing, chatEngine behaves normally.
-let Emotion = null;
+// Emotional route guard + supportive response helpers (FAIL-OPEN).
+// Centralizes emotional parsing so chatEngine does not duplicate distress/affect logic.
+let EmotionRouteGuard = null;
 let Support = null;
+
 try {
   // eslint-disable-next-line global-require
-  Emotion = require("./emotionDetect");
+  EmotionRouteGuard = require("./emotionRouteGuard");
 } catch (e) {
-  Emotion = null;
+  EmotionRouteGuard = null;
 }
+
 try {
   // eslint-disable-next-line global-require
   Support = require("./supportResponse");
