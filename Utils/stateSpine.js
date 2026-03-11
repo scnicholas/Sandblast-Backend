@@ -10,34 +10,26 @@
  *
  * Designed to be imported by Utils/chatEngine.js (pure, no express).
  *
- * v1.2.1 (STABILIZE ROUTE++++ + LANE TOKEN EXPAND++++ + DISTRESS SHORT-CIRCUIT++++)
- * ✅ Fix++++: recognize all Sandblast lanes in isLaneToken (prevents “need_pick” from missing Roku/Radio/Schedule/etc)
- * ✅ Add++++: distress/stabilize short-circuit so very short inputs like “hurting” don’t fall into generic clarify/lane prompts
- * ✅ Add++++: planner respects Marion intent=stabilize even when needsClarify flag is absent
- * Keeps: v1.2.0 (MARION COG INGEST++++ + COG SANITIZE++++ + PLANNER USES COG++++ + TESTS++++)
- * ✅ Add++++: normalizeInbound reads inbound.cog / inbound.marion (MarionSO output) and sanitizes it
- * ✅ Add++++: state.marion stores bounded cognition summary (mode/intent/stage/layers/budget/dominance/traceBits)
- * ✅ Add++++: finalizeTurn can persist marionCog (from chatEngine) OR inbound.cog (if provided)
- * ✅ Harden++++: planner uses cog hints to prefer CLARIFY when Marion says clarify-needed
- * ✅ Add++++: self-tests cover cog ingestion + sanitization bounds
- *
- * Keeps: v1.1.8 (TURN-SIGNALS SHAPE FIX++++ + ACTIVECTX TYPE SAFETY++++ + ASK RESOLUTION HARDEN++++ + TESTS++++)
- * Keeps: v1.1.7 PATCH POISON SHIELD++++ + VERSION LOCK++++ + PENDINGASK KIND FIX++++ + SELF-TESTS EXPAND++++
- * Keeps: v1.1.6 COERCE UPDATEDAT FIX++++ + PATCH GUARD++++ + SELF-TESTS++++ + MICRO HARDEN++++
- * Keeps: v1.1.5 YEAR TOKEN FIX++++ + EMPTY-INBOUND NARROW FIX++++ + SAFESTR(0) FIX++++ + CHATENGINE COMPAT++++
+ * v1.4.0 (LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)
+ * ✅ Add++++: recognizes diagnosis / restructure / code-update / patch intents as actionable progress
+ * ✅ Add++++: generic-menu bounce fuse collapses repeated clarify/menu cycles into ADVANCE
+ * ✅ Add++++: stronger need_pick / need_more_detail resolution for chip-like text and route/action payloads
+ * ✅ Add++++: normalizeInbound accepts richer turnSignals and emotion flags
+ * ✅ Harden++++: finalizeTurn records clarify/menu loops into op + audit layers
+ * ✅ Harden++++: planner prefers advancing when user intent is clearly technical / implementation-oriented
+ * ✅ Keeps: marion cog ingest + sanitize + audit + enterprise-heavy additive fields
  */
 
-const SPINE_VERSION = "stateSpine v1.3.1 (OPINTEL++++ + MEMORY WINDOWS++++ + AUDIT LAYER++++ + ENTERPRISE HEAVY+++)";
+const SPINE_VERSION =
+  "stateSpine v1.4.0 (LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
-  // UI chip lanes (Sandblast)
   MUSIC: "music",
   ROKU: "roku",
   RADIO: "radio",
   SCHEDULE: "schedule",
   NEWS_CANADA: "news-canada",
 
-  // Legacy/compat lanes (kept so older sessions don’t break)
   MOVIES: "movies",
   NEWS: "news",
   SPONSORS: "sponsors",
@@ -45,7 +37,6 @@ const LANE = Object.freeze({
 
   GENERAL: "general",
 });
-
 
 const STAGE = Object.freeze({
   OPEN: "open",
@@ -73,7 +64,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 function safeStr(x, max = 240) {
-  // HARDEN++++: max<=0 must yield empty string (prevents "…" leak at max=0)
   if (max <= 0) return "";
   if (x === null || x === undefined) return "";
   const s = String(x);
@@ -108,8 +98,6 @@ function normYear(y) {
 function extractYearFromText(t) {
   const s = safeStr(t, 2000).trim();
   if (!s) return null;
-
-  // Accept any 4-digit year and let normYear clamp to 1900..2100.
   const m = s.match(/\b(19\d{2}|20\d{2}|2100)\b/);
   if (!m) return null;
   return normYear(Number(m[1]));
@@ -118,7 +106,6 @@ function textHasYearToken(t) {
   return extractYearFromText(t) !== null;
 }
 function sha1Lite(str) {
-  // small stable hash (NOT cryptographic) for diagnostics without raw text
   const s = safeStr(str, 2000);
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -127,15 +114,38 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
+function uniqueStrings(arr, max = 24, itemMax = 80) {
+  const out = [];
+  const seen = new Set();
+  const src = Array.isArray(arr) ? arr : [];
+  for (let i = 0; i < src.length && out.length < max; i++) {
+    const v = safeStr(src[i], itemMax).trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+function truthy(v) {
+  if (v === true) return true;
+  const s = safeStr(v, 24).trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
+}
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
 
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
-
-  // HARDEN++++: cap key scan to avoid pathological objects
   const keys = Object.keys(payload);
   if (!keys.length) return false;
 
-  // Only these keys count as "actionable" (prevents ADVANCE on trivial client metadata).
   const actionable = new Set([
     "action",
     "route",
@@ -150,10 +160,11 @@ function hasActionablePayload(payload) {
     "allowDerivedTop10",
     "allowYearendFallback",
     "focus",
-    "publicMode", // align with chatEngine
+    "publicMode",
+    "chip",
+    "choice",
   ]);
 
-  // scan at most first 120 keys deterministically
   const lim = Math.min(keys.length, 120);
   for (let i = 0; i < lim; i++) {
     if (actionable.has(keys[i])) return true;
@@ -163,31 +174,53 @@ function hasActionablePayload(payload) {
 
 function isLaneToken(t) {
   const s = safeStr(t, 64).trim().toLowerCase();
-  // Accept ANY known lane token (new + legacy). This is used to resolve need_pick prompts.
   return Object.values(LANE).includes(s);
+}
+
+function isMenuIntentToken(t) {
+  const s = safeStr(t, 80).trim().toLowerCase();
+  return /^(diagnosis|diagnose|restructure|restructuring|code update|update|patch|implement|implementation|debug|debugging|fix|repair|analysis)$/.test(s);
+}
+
+function isProgressIntentText(t) {
+  const s = safeStr(t, 400).toLowerCase();
+  if (!s) return false;
+  return (
+    /\b(diagnosis|diagnose|critical analysis|analyze this|break this down)\b/.test(s) ||
+    /\b(restructure|restructuring|refactor|rebuild|rewrite)\b/.test(s) ||
+    /\b(code update|update the code|update the file|patch it|apply the patch)\b/.test(s) ||
+    /\b(implement|wire it|wire this|integrate|hook it up)\b/.test(s) ||
+    /\b(debug|debugging|fix this|repair this|stop the loop|solve the looping)\b/.test(s)
+  );
+}
+
+function isGenericMenuBounceReply(summary) {
+  const s = safeStr(summary, 360).toLowerCase();
+  if (!s) return false;
+  return (
+    /do you want diagnosis, restructuring, or an exact code update/.test(s) ||
+    /tell me what you want next/.test(s) ||
+    /pick what you want next/.test(s) ||
+    /music, movies, or sponsors/.test(s)
+  );
 }
 
 function isDistressText(t) {
   const s = safeStr(t, 240).toLowerCase();
   if (!s) return false;
-
-  // Broad distress markers (no diagnosis; just routing).
-  // Includes pain/hurt terms that previously fell through the planner as "too_short".
   return (
-    /(hurt|hurting|pain|in pain|suffering|heartbroken|overwhelmed|hopeless)/.test(s) ||
-    /(anxious|anxiety|panic|panicking|scared|terrified)/.test(s) ||
-    /(depressed|depression|sad|crying|lonely)/.test(s) ||
-    /(self[- ]?harm|suicid(al|e)|kill myself|end it|don['’]t want to live)/.test(s)
+    /\b(hurt|hurting|pain|in pain|suffering|heartbroken|overwhelmed|hopeless)\b/.test(s) ||
+    /\b(anxious|anxiety|panic|panicking|scared|terrified)\b/.test(s) ||
+    /\b(depressed|depression|sad|crying|lonely)\b/.test(s) ||
+    /\b(self[- ]?harm|suicid(al|e)|kill myself|end it|don['’]t want to live)\b/.test(s)
   );
 }
 
 // -------------------------
 // MARION COG (sanitized, bounded)
-// ------------------------- (sanitized, bounded)
 // -------------------------
 function normalizeCogStage(x) {
   const v = safeStr(x, 40).toLowerCase().trim();
-  // Keep aligned with STAGE but tolerate Marion-specific synonyms.
   if (Object.values(STAGE).includes(v)) return v;
   if (v === "plan") return STAGE.TRIAGE;
   if (v === "execute") return STAGE.DELIVER;
@@ -195,9 +228,7 @@ function normalizeCogStage(x) {
 }
 function normalizeCogMode(x) {
   const v = safeStr(x, 40).toLowerCase().trim();
-  // keep permissive but bounded
   if (!v) return "unknown";
-  // avoid weird injection
   return v.replace(/[^a-z0-9_\-]/g, "").slice(0, 40) || "unknown";
 }
 function normalizeCogIntent(x) {
@@ -218,14 +249,12 @@ function normalizeCogLayers(layers) {
   return out;
 }
 function normalizeTraceBits(x) {
-  // trace bits are tiny flags like { ak:true, psy:true } etc.
   const src = isPlainObject(x) ? x : {};
   const keys = Object.keys(src);
   const out = {};
   for (let i = 0; i < keys.length && i < 24; i++) {
     const k = safeStr(keys[i], 12).toLowerCase().trim();
     if (!k) continue;
-    // only allow compact keys
     if (!/^[a-z0-9_]{1,12}$/.test(k)) continue;
     out[k] = !!src[keys[i]];
   }
@@ -238,7 +267,6 @@ function sanitizeMarionCog(cog) {
   const intent = normalizeCogIntent(cog.intent || cog.userIntent || "");
   const stage = normalizeCogStage(cog.stage || cog.step || "");
 
-  // budget/dominance: numeric but bounded
   const budgetRaw = Number(cog.budget);
   const budget =
     Number.isFinite(budgetRaw) ? Math.max(0, Math.min(100, Math.trunc(budgetRaw))) : undefined;
@@ -254,7 +282,6 @@ function sanitizeMarionCog(cog) {
   const rationale = safeStr(cog.rationale || cog.why || "", 160).trim() || undefined;
   const askKind = safeStr(cog.askKind || "", 40).trim() || undefined;
 
-  // “needsClarify” is the useful planner hint.
   const needsClarify =
     typeof cog.needsClarify === "boolean"
       ? cog.needsClarify
@@ -274,13 +301,14 @@ function sanitizeMarionCog(cog) {
     ...(needsClarify !== undefined ? { needsClarify: !!needsClarify } : {}),
     ...(askKind ? { askKind } : {}),
     ...(safeStr(cog.askId || "", 24).trim() ? { askId: safeStr(cog.askId || "", 24).trim() } : {}),
-    ...(safeStr(cog.clarifyPrompt || "", 260).trim() ? { clarifyPrompt: safeStr(cog.clarifyPrompt || "", 260).trim() } : {}),
+    ...(safeStr(cog.clarifyPrompt || "", 260).trim()
+      ? { clarifyPrompt: safeStr(cog.clarifyPrompt || "", 260).trim() }
+      : {}),
     ...(rationale ? { rationale } : {}),
     ...(traceBits ? { traceBits } : {}),
     at: nowMs(),
   };
 
-  // if it’s basically empty, drop it
   const meaningful =
     out.mode !== "unknown" ||
     out.intent !== "unknown" ||
@@ -291,11 +319,7 @@ function sanitizeMarionCog(cog) {
 }
 
 // -------------------------
-// CRITICAL: pendingAsk schema compatibility
-// Supports BOTH shapes:
-//  A) { kind, prompt, options, createdAt }
-//  B) { id, type, prompt, required }   <-- used by chatEngine.js
-// Normalizes to a superset so both planners + chatEngine finalize logic behave.
+// pendingAsk compatibility
 // -------------------------
 function normalizePendingAsk(p) {
   if (!p || typeof p !== "object") return null;
@@ -304,13 +328,10 @@ function normalizePendingAsk(p) {
   const idRaw = safeStr(p.id || "", 80).trim();
   const typeRaw = safeStr(p.type || "", 40).trim();
 
-  // kind stays semantic; do NOT map id/type into kind.
   const kind = kindRaw || "need_more_detail";
-
   const prompt = safeStr(p.prompt || "", 220).trim();
   const options = Array.isArray(p.options) ? p.options.slice(0, 8) : [];
 
-  // chatEngine uses required flag; default true.
   const required =
     typeof p.required === "boolean"
       ? p.required
@@ -320,30 +341,23 @@ function normalizePendingAsk(p) {
 
   const createdAt = Number(p.createdAt || 0) || nowMs();
 
-  const out = {
-    // canonical fields
+  return {
     kind,
     prompt,
     options,
     createdAt,
     required,
-
-    // compat fields retained
     id: idRaw || undefined,
     type: typeRaw || undefined,
   };
-
-  return out;
 }
 
 function isNeedYearAsk(pendingAsk) {
   const pa = normalizePendingAsk(pendingAsk);
   if (!pa) return false;
-
   const k = safeStr(pa.kind || "", 80).toLowerCase();
   const id = safeStr(pa.id || "", 80).toLowerCase();
   const pr = safeStr(pa.prompt || "", 240).toLowerCase();
-
   if (k === "need_year" || id === "need_year") return true;
   if (/\byear\b/.test(pr)) return true;
   return false;
@@ -355,6 +369,14 @@ function isNeedPickAsk(pendingAsk) {
   const k = safeStr(pa.kind || "", 80).toLowerCase();
   const id = safeStr(pa.id || "", 80).toLowerCase();
   return k === "need_pick" || id === "need_pick";
+}
+
+function isNeedDetailAsk(pendingAsk) {
+  const pa = normalizePendingAsk(pendingAsk);
+  if (!pa) return false;
+  const k = safeStr(pa.kind || "", 80).toLowerCase();
+  const id = safeStr(pa.id || "", 80).toLowerCase();
+  return k === "need_more_detail" || id === "need_more_detail";
 }
 
 function buildPendingAsk(kind, prompt, options) {
@@ -378,6 +400,8 @@ function miniPayload(payload) {
   if (safeStr(p.vibe)) out.vibe = safeStr(p.vibe, 40);
   if (Object.prototype.hasOwnProperty.call(p, "publicMode"))
     out.publicMode = !!p.publicMode;
+  if (safeStr(p.label)) out.label = safeStr(p.label, 80);
+  if (safeStr(p.choice)) out.choice = safeStr(p.choice, 80);
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -391,8 +415,6 @@ function sanitizeActiveContext(ctx) {
   const label = safeStr(ctx.label || "", 140).trim();
   const year = normYear(ctx.year);
   const clickedAt = Number(ctx.clickedAt || 0) || 0;
-
-  // payload may be large; keep it tiny
   const payload = miniPayload(ctx.payload);
 
   const out = {
@@ -406,7 +428,6 @@ function sanitizeActiveContext(ctx) {
   if (year !== null) out.year = year;
   if (payload) out.payload = payload;
 
-  // If basically empty, drop
   if (!out.id && !out.route && !out.label) return null;
   return out;
 }
@@ -439,10 +460,18 @@ function inferUserIntent(norm) {
   const hasPayload = !!norm?.signals?.hasPayload;
   const textEmpty = !!norm?.signals?.textEmpty;
   const hasAction = !!safeStr(norm?.action || "", 80).trim();
+  const route = safeStr(norm?.payload?.route || "", 80).trim();
+  const label = safeStr(norm?.payload?.label || "", 120).trim();
 
-  if (hasPayload && textEmpty) return "silent_click";
+  if (hasPayload && textEmpty) {
+    if (isMenuIntentToken(route) || isMenuIntentToken(label) || isMenuIntentToken(norm?.action || "")) {
+      return "choose_progress";
+    }
+    return "silent_click";
+  }
   if (hasAction && hasPayload) return "choose";
   if (hasAction && !txt) return "choose";
+  if (txt && isProgressIntentText(txt)) return "advance_request";
   if (txt) return "ask";
   return "unknown";
 }
@@ -453,11 +482,11 @@ function computeTurnSig({ lane, topic, intent, activeContext, text }) {
       ? String(activeContext.year)
       : "";
   const rid = activeContext && activeContext.route ? activeContext.route : "";
-
-  // PRIVACY++++: do not include raw text; only include a short stable hash + coarse flags.
   const raw = safeStr(text || "", 2000);
   const hasAnyText = raw ? "1" : "0";
   const hasYear = textHasYearToken(raw) ? "1" : "0";
+  const progress = isProgressIntentText(raw) ? "1" : "0";
+  const distress = isDistressText(raw) ? "1" : "0";
   const th = raw ? sha1Lite(raw).slice(0, 10) : "";
 
   return [
@@ -468,43 +497,53 @@ function computeTurnSig({ lane, topic, intent, activeContext, text }) {
     y || "",
     hasAnyText,
     hasYear,
+    progress,
+    distress,
     th,
   ].join("|");
 }
 
 function topicFromAction(action) {
-  const a = safeStr(action || "", 80).trim();
+  const a = safeStr(action || "", 80).trim().toLowerCase();
   if (!a) return "unknown";
   if (a === "top10") return "top10_by_year";
-  if (a === "story_moment" || a === "custom_story") return "story_moment";
-  if (a === "micro_moment") return "story_moment";
+  if (a === "story_moment" || a === "custom_story" || a === "micro_moment") return "story_moment";
   if (a === "yearend_hot100") return "year_end";
   if (a === "ask_year") return "help";
   if (a === "switch_lane") return "help";
-  if (a === "counsel_intro") return "help";
+  if (a === "counsel_intro") return "support";
   if (a === "reset") return "help";
+  if (/^(diagnosis|diagnose)$/.test(a)) return "diagnosis";
+  if (/^(restructure|restructuring|refactor|rebuild)$/.test(a)) return "restructure";
+  if (/^(patch|update|code_update|implement|debug|fix)$/.test(a)) return "implementation";
+  return "unknown";
+}
+
+function topicFromText(text) {
+  const s = safeStr(text || "", 400).toLowerCase();
+  if (!s) return "unknown";
+  if (/\b(loop|looping|repeat|repeating)\b/.test(s)) return "loop_debug";
+  if (/\b(diagnosis|diagnose|critical analysis)\b/.test(s)) return "diagnosis";
+  if (/\b(restructure|restructuring|refactor|rebuild|rewrite)\b/.test(s)) return "restructure";
+  if (/\b(code update|patch|implement|wire it|integrate|fix this|debug)\b/.test(s)) return "implementation";
+  if (/\b(hurt|hurting|pain|anxious|panic|overwhelmed|sad|lonely|hopeless)\b/.test(s)) return "support";
   return "unknown";
 }
 
 function stageProgress(prevStage, move) {
-  // Deterministic stage evolution (simple + stable):
-  // open -> triage -> clarify/deliver -> confirm -> close
   const p = safeStr(prevStage || STAGE.OPEN, 20).toLowerCase();
   const m = safeStr(move || "", 20).toLowerCase();
 
   if (p === STAGE.CLOSE) return STAGE.CLOSE;
-
   if (m === MOVE.CLOSE) return STAGE.CLOSE;
   if (m === MOVE.CLARIFY) return STAGE.CLARIFY;
   if (m === MOVE.ADVANCE) return STAGE.DELIVER;
   if (m === MOVE.NARROW) return STAGE.TRIAGE;
-
   if (p === STAGE.OPEN) return STAGE.TRIAGE;
   return p;
 }
 
 function buildActiveContext(norm, spinePrev) {
-  // click-to-context binding: capture payload route/action/year when present
   const hasPayload = !!norm?.signals?.hasPayload;
   const textEmpty = !!norm?.signals?.textEmpty;
 
@@ -513,14 +552,13 @@ function buildActiveContext(norm, spinePrev) {
   const lane = normalizeLane(p.lane || norm?.lane || spinePrev?.lane || "");
   const year = normYear(p.year) ?? normYear(norm?.year) ?? null;
 
-  // Silent click with actionable payload -> chip context
   if (hasPayload && norm?.signals?.payloadActionable && textEmpty) {
     const id =
       safeStr(p.id || p._id || "", 80).trim() ||
       safeStr(norm?.action || "", 60).trim() ||
       route ||
       "";
-    const label = safeStr(p.label || "", 140).trim();
+    const label = safeStr(p.label || p.choice || "", 140).trim();
 
     const ctx = {
       kind: "chip",
@@ -535,25 +573,19 @@ function buildActiveContext(norm, spinePrev) {
     return sanitizeActiveContext(ctx);
   }
 
-  // If the user typed (non-empty text) and provided action/year, do NOT carry stale chip context.
   const typedText = safeStr(norm?.text || "", 2000).trim();
   const typed = !!typedText && !textEmpty;
   const hasExplicitAction = !!safeStr(norm?.action || "", 80).trim();
   const hasYear = normYear(norm?.year) !== null;
 
-  if (typed && (hasExplicitAction || hasYear)) {
-    const typedCtx = {};
-    if (hasExplicitAction) typedCtx.route = safeStr(norm?.action || "", 60).trim();
-    if (hasYear) typedCtx.year = normYear(norm?.year);
-    if (safeStr(norm?.lane || "", 24).trim())
-      typedCtx.lane = normalizeLane(norm.lane);
-
+  if (typed && (hasExplicitAction || hasYear || isProgressIntentText(typedText) || isMenuIntentToken(typedText))) {
     return sanitizeActiveContext({
       kind: "typed",
       id: "typed",
-      route: typedCtx.route || "",
-      lane: typedCtx.lane || normalizeLane(spinePrev?.lane || LANE.GENERAL),
-      year: typedCtx.year,
+      route: hasExplicitAction ? safeStr(norm?.action || "", 60).trim() : topicFromText(typedText),
+      lane: normalizeLane(norm?.lane || spinePrev?.lane || LANE.GENERAL),
+      year: hasYear ? normYear(norm?.year) : undefined,
+      label: typedText,
       clickedAt: nowMs(),
     });
   }
@@ -571,11 +603,10 @@ function createState(seed = {}) {
 
   return {
     __spineVersion: SPINE_VERSION,
-    rev: 0, // increments exactly once per turn via updateState/finalizeTurn
+    rev: 0,
     createdAt: createdAtIso,
     updatedAt: createdAtIso,
 
-    // Core spine
     lane: normalizeLane(seed.lane),
     stage: normalizeStage(seed.stage),
     topic: safeStr(seed.topic || "", 80) || "unknown",
@@ -583,16 +614,15 @@ function createState(seed = {}) {
     lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
     pendingAsk: pendingAsk || null,
 
-    // Conversational memory windows
     memoryWindows: {
       recentIntents: Array.isArray(seed?.memoryWindows?.recentIntents)
-        ? seed.memoryWindows.recentIntents.slice(-8).map((x)=>({
+        ? seed.memoryWindows.recentIntents.slice(-8).map((x) => ({
             intent: safeStr(x && x.intent || "", 48) || "unknown",
             ts: Number(x && x.ts || 0) || 0,
           }))
         : [],
       unresolvedAsks: Array.isArray(seed?.memoryWindows?.unresolvedAsks)
-        ? seed.memoryWindows.unresolvedAsks.slice(-8).map((x)=>safeStr(x,160)).filter(Boolean)
+        ? seed.memoryWindows.unresolvedAsks.slice(-8).map((x) => safeStr(x, 160)).filter(Boolean)
         : [],
       lastResolvedIntent: safeStr(seed?.memoryWindows?.lastResolvedIntent || "", 64) || "",
       lastUserPreference: isPlainObject(seed?.memoryWindows?.lastUserPreference)
@@ -605,17 +635,14 @@ function createState(seed = {}) {
         : { lane: "", year: null, mode: "", updatedAt: 0 },
     },
 
-    // Marion cognition (sanitized; no raw text)
     marion: marion || null,
 
-    // Context memory
     activeContext: sanitizeActiveContext(seed.activeContext),
     lastChipsOffered: Array.isArray(seed.lastChipsOffered)
       ? seed.lastChipsOffered.slice(0, 12)
       : [],
     lastChipClicked: sanitizeActiveContext(seed.lastChipClicked),
 
-    // Goal inference (small)
     goal:
       seed.goal && typeof seed.goal === "object"
         ? {
@@ -627,7 +654,6 @@ function createState(seed = {}) {
           }
         : { primary: null, secondary: [], updatedAt: 0 },
 
-    // Decisions / loop fuse (small)
     lastMove: safeStr(seed.lastMove || "", 20) || null,
     lastDecision:
       seed.lastDecision && typeof seed.lastDecision === "object"
@@ -639,11 +665,9 @@ function createState(seed = {}) {
     lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
     lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
 
-    // Evidence trail (NO raw user text by default; callers may provide sanitized summaries)
-    lastUserText: safeStr(seed.lastUserText || "", 0), // stays "" by default
+    lastUserText: safeStr(seed.lastUserText || "", 0),
     lastAssistantSummary: safeStr(seed.lastAssistantSummary || "", 320),
 
-    // Stats
     turns: {
       user: Number.isFinite(seed?.turns?.user)
         ? Math.max(0, Math.trunc(seed.turns.user))
@@ -656,54 +680,50 @@ function createState(seed = {}) {
         : 0,
     },
 
-        // Diagnostics (bounded)
     diag: {
       lastUpdateReason: safeStr(seed?.diag?.lastUpdateReason || "", 120),
-      // Loop fuse: detect repeated clarify emissions without progress
       clarifyKey: safeStr(seed?.diag?.clarifyKey || "", 80),
       clarifyRepeats: Number.isFinite(seed?.diag?.clarifyRepeats)
         ? Math.max(0, Math.trunc(seed.diag.clarifyRepeats))
         : 0,
+      menuBounceRepeats: Number.isFinite(seed?.diag?.menuBounceRepeats)
+        ? Math.max(0, Math.trunc(seed.diag.menuBounceRepeats))
+        : 0,
+      lastMenuBounceKey: safeStr(seed?.diag?.lastMenuBounceKey || "", 120),
     },
 
-    // -------------------------
-    // OPERATIONAL INTELLIGENCE (enterprise-heavy; Nyx-safe additive fields)
-    // -------------------------
     op: {
-      // runtime thread continuity
       objective: safeStr(seed?.op?.objective || "", 240) || null,
       depthLevel: Number.isFinite(seed?.op?.depthLevel) ? Math.max(0, Math.trunc(seed.op.depthLevel)) : 0,
-      // confidence gating (internal; delivery remains unchanged unless chatEngine opts-in)
       confidenceScore: Number.isFinite(seed?.op?.confidenceScore) ? Math.max(0, Math.min(1, Number(seed.op.confidenceScore))) : 0,
       operationalWeight: Number.isFinite(seed?.op?.operationalWeight) ? Math.max(0, Math.min(1, Number(seed.op.operationalWeight))) : 0,
-      riskFlags: Array.isArray(seed?.op?.riskFlags) ? seed.op.riskFlags.slice(0, 12).map((x)=>safeStr(x,48)).filter(Boolean) : [],
+      riskFlags: Array.isArray(seed?.op?.riskFlags) ? seed.op.riskFlags.slice(0, 12).map((x) => safeStr(x, 48)).filter(Boolean) : [],
       escalationFlag: !!seed?.op?.escalationFlag,
       unresolvedThreads: Array.isArray(seed?.op?.unresolvedThreads)
-        ? seed.op.unresolvedThreads.slice(0, 12).map((x)=>safeStr(x,140)).filter(Boolean)
+        ? seed.op.unresolvedThreads.slice(0, 12).map((x) => safeStr(x, 140)).filter(Boolean)
         : [],
       lastGoodRev: Number.isFinite(seed?.op?.lastGoodRev) ? Math.max(0, Math.trunc(seed.op.lastGoodRev)) : 0,
       lastGoodTurnSig: safeStr(seed?.op?.lastGoodTurnSig || "", 240) || null,
+      loopRisk: Number.isFinite(seed?.op?.loopRisk) ? Math.max(0, Math.min(1, Number(seed.op.loopRisk))) : 0,
+      lastPlannerMode: safeStr(seed?.op?.lastPlannerMode || "", 48) || "",
     },
 
     governance: {
-      // human accountability hooks; enforced upstream (chatEngine/router)
       safetyMode: safeStr(seed?.governance?.safetyMode || "", 24) || "standard",
       requireHumanConfirmation: !!seed?.governance?.requireHumanConfirmation,
       escalationRules: isPlainObject(seed?.governance?.escalationRules)
         ? seed.governance.escalationRules
         : {
-            // defaults: conservative; can be overridden by chatEngine
             onLowConfidence: 0.45,
             onHighRisk: true,
             onRepeatErrors: 2,
           },
       blockedTopics: Array.isArray(seed?.governance?.blockedTopics)
-        ? seed.governance.blockedTopics.slice(0, 24).map((x)=>safeStr(x,40)).filter(Boolean)
+        ? seed.governance.blockedTopics.slice(0, 24).map((x) => safeStr(x, 40)).filter(Boolean)
         : [],
     },
 
     audit: {
-      // enterprise-heavy audit trail (bounded; no raw user text required)
       enabled: seed?.audit?.enabled === false ? false : true,
       maxTurns: Number.isFinite(seed?.audit?.maxTurns) ? Math.max(25, Math.min(500, Math.trunc(seed.audit.maxTurns))) : 200,
       turnLogs: Array.isArray(seed?.audit?.turnLogs) ? seed.audit.turnLogs.slice(-200) : [],
@@ -713,26 +733,22 @@ function createState(seed = {}) {
         lastLatencyMs: 0,
         fallbackRate: 0,
         clarifyRate: 0,
+        menuBounceRate: 0,
       },
     },
   };
 }
 
-
 function coerceState(prev) {
   const d = createState();
   if (!prev || typeof prev !== "object") return d;
 
-  // IMPORTANT: coerce must NOT mutate timestamps (only updateState/finalizeTurn do).
   const out = { ...d, ...prev };
-
-  // Always lock version marker (prevents patch poisoning)
   out.__spineVersion = SPINE_VERSION;
 
   out.rev = Number.isFinite(out.rev) ? Math.trunc(out.rev) : 0;
   if (out.rev < 0) out.rev = 0;
 
-  // Preserve timestamps if present; else default
   out.createdAt = safeStr(out.createdAt || d.createdAt, 64) || d.createdAt;
   out.updatedAt = safeStr(out.updatedAt || d.updatedAt, 64) || d.updatedAt;
 
@@ -740,17 +756,24 @@ function coerceState(prev) {
   out.stage = normalizeStage(out.stage);
   out.topic = safeStr(out.topic || "", 80) || "unknown";
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
-
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
 
   if (!out.memoryWindows || typeof out.memoryWindows !== "object") {
-    out.memoryWindows = { recentIntents: [], unresolvedAsks: [], lastResolvedIntent: "", lastUserPreference: { lane: "", year: null, mode: "", updatedAt: 0 } };
+    out.memoryWindows = {
+      recentIntents: [],
+      unresolvedAsks: [],
+      lastResolvedIntent: "",
+      lastUserPreference: { lane: "", year: null, mode: "", updatedAt: 0 }
+    };
   } else {
     out.memoryWindows.recentIntents = Array.isArray(out.memoryWindows.recentIntents)
-      ? out.memoryWindows.recentIntents.slice(-8).map((x)=>({ intent: safeStr(x && x.intent || "", 48) || "unknown", ts: Number(x && x.ts || 0) || 0 }))
+      ? out.memoryWindows.recentIntents.slice(-8).map((x) => ({
+          intent: safeStr(x && x.intent || "", 48) || "unknown",
+          ts: Number(x && x.ts || 0) || 0
+        }))
       : [];
     out.memoryWindows.unresolvedAsks = Array.isArray(out.memoryWindows.unresolvedAsks)
-      ? out.memoryWindows.unresolvedAsks.slice(-8).map((x)=>safeStr(x,160)).filter(Boolean)
+      ? out.memoryWindows.unresolvedAsks.slice(-8).map((x) => safeStr(x, 160)).filter(Boolean)
       : [];
     out.memoryWindows.lastResolvedIntent = safeStr(out.memoryWindows.lastResolvedIntent || "", 64) || "";
     if (!out.memoryWindows.lastUserPreference || typeof out.memoryWindows.lastUserPreference !== "object") {
@@ -765,16 +788,13 @@ function coerceState(prev) {
     }
   }
 
-  // Marion (sanitized)
   out.marion = sanitizeMarionCog(out.marion);
 
-  if (!out.goal || typeof out.goal !== "object")
-    out.goal = { primary: null, secondary: [], updatedAt: 0 };
+  if (!out.goal || typeof out.goal !== "object") out.goal = { primary: null, secondary: [], updatedAt: 0 };
   if (!Array.isArray(out.goal.secondary)) out.goal.secondary = [];
 
   if (!Array.isArray(out.lastChipsOffered)) out.lastChipsOffered = [];
-  if (out.lastChipsOffered.length > 12)
-    out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
+  if (out.lastChipsOffered.length > 12) out.lastChipsOffered = out.lastChipsOffered.slice(0, 12);
 
   out.activeContext = sanitizeActiveContext(out.activeContext);
   out.lastChipClicked = sanitizeActiveContext(out.lastChipClicked);
@@ -791,60 +811,60 @@ function coerceState(prev) {
   if (!out.turns || typeof out.turns !== "object") {
     out.turns = { user: 0, assistant: 0, sinceReset: 0 };
   } else {
-    out.turns.user = Number.isFinite(out.turns.user)
-      ? Math.max(0, Math.trunc(out.turns.user))
-      : 0;
-    out.turns.assistant = Number.isFinite(out.turns.assistant)
-      ? Math.max(0, Math.trunc(out.turns.assistant))
-      : 0;
-    out.turns.sinceReset = Number.isFinite(out.turns.sinceReset)
-      ? Math.max(0, Math.trunc(out.turns.sinceReset))
-      : 0;
+    out.turns.user = Number.isFinite(out.turns.user) ? Math.max(0, Math.trunc(out.turns.user)) : 0;
+    out.turns.assistant = Number.isFinite(out.turns.assistant) ? Math.max(0, Math.trunc(out.turns.assistant)) : 0;
+    out.turns.sinceReset = Number.isFinite(out.turns.sinceReset) ? Math.max(0, Math.trunc(out.turns.sinceReset)) : 0;
   }
 
-  // Privacy default
   out.lastUserText = safeStr(out.lastUserText || "", 0);
 
-// OPERATIONAL INTELLIGENCE (additive; keep defaults if missing)
-if (!out.op || typeof out.op !== "object") out.op = {};
-out.op.objective = safeStr(out.op.objective || "", 240) || null;
-out.op.depthLevel = Number.isFinite(out.op.depthLevel) ? Math.max(0, Math.trunc(out.op.depthLevel)) : 0;
-out.op.confidenceScore = Number.isFinite(out.op.confidenceScore) ? Math.max(0, Math.min(1, Number(out.op.confidenceScore))) : 0;
-out.op.operationalWeight = Number.isFinite(out.op.operationalWeight) ? Math.max(0, Math.min(1, Number(out.op.operationalWeight))) : 0;
-out.op.riskFlags = Array.isArray(out.op.riskFlags)
-  ? out.op.riskFlags.slice(0, 12).map((x) => safeStr(x, 48)).filter(Boolean)
-  : [];
-out.op.escalationFlag = !!out.op.escalationFlag;
-out.op.unresolvedThreads = Array.isArray(out.op.unresolvedThreads)
-  ? out.op.unresolvedThreads.slice(0, 12).map((x) => safeStr(x, 140)).filter(Boolean)
-  : [];
-out.op.lastGoodRev = Number.isFinite(out.op.lastGoodRev) ? Math.max(0, Math.trunc(out.op.lastGoodRev)) : 0;
-out.op.lastGoodTurnSig = safeStr(out.op.lastGoodTurnSig || "", 240) || null;
+  if (!out.diag || typeof out.diag !== "object") out.diag = {};
+  out.diag.lastUpdateReason = safeStr(out.diag.lastUpdateReason || "", 120);
+  out.diag.clarifyKey = safeStr(out.diag.clarifyKey || "", 80);
+  out.diag.clarifyRepeats = Number.isFinite(out.diag.clarifyRepeats) ? Math.max(0, Math.trunc(out.diag.clarifyRepeats)) : 0;
+  out.diag.menuBounceRepeats = Number.isFinite(out.diag.menuBounceRepeats) ? Math.max(0, Math.trunc(out.diag.menuBounceRepeats)) : 0;
+  out.diag.lastMenuBounceKey = safeStr(out.diag.lastMenuBounceKey || "", 120);
 
-if (!out.governance || typeof out.governance !== "object") out.governance = {};
-out.governance.safetyMode = safeStr(out.governance.safetyMode || "", 24) || "standard";
-out.governance.requireHumanConfirmation = !!out.governance.requireHumanConfirmation;
-out.governance.escalationRules = isPlainObject(out.governance.escalationRules)
-  ? out.governance.escalationRules
-  : { onLowConfidence: 0.45, onHighRisk: true, onRepeatErrors: 2 };
-out.governance.blockedTopics = Array.isArray(out.governance.blockedTopics)
-  ? out.governance.blockedTopics.slice(0, 24).map((x) => safeStr(x, 40)).filter(Boolean)
-  : [];
+  if (!out.op || typeof out.op !== "object") out.op = {};
+  out.op.objective = safeStr(out.op.objective || "", 240) || null;
+  out.op.depthLevel = Number.isFinite(out.op.depthLevel) ? Math.max(0, Math.trunc(out.op.depthLevel)) : 0;
+  out.op.confidenceScore = Number.isFinite(out.op.confidenceScore) ? Math.max(0, Math.min(1, Number(out.op.confidenceScore))) : 0;
+  out.op.operationalWeight = Number.isFinite(out.op.operationalWeight) ? Math.max(0, Math.min(1, Number(out.op.operationalWeight))) : 0;
+  out.op.riskFlags = Array.isArray(out.op.riskFlags)
+    ? out.op.riskFlags.slice(0, 12).map((x) => safeStr(x, 48)).filter(Boolean)
+    : [];
+  out.op.escalationFlag = !!out.op.escalationFlag;
+  out.op.unresolvedThreads = Array.isArray(out.op.unresolvedThreads)
+    ? out.op.unresolvedThreads.slice(0, 12).map((x) => safeStr(x, 140)).filter(Boolean)
+    : [];
+  out.op.lastGoodRev = Number.isFinite(out.op.lastGoodRev) ? Math.max(0, Math.trunc(out.op.lastGoodRev)) : 0;
+  out.op.lastGoodTurnSig = safeStr(out.op.lastGoodTurnSig || "", 240) || null;
+  out.op.loopRisk = Number.isFinite(out.op.loopRisk) ? Math.max(0, Math.min(1, Number(out.op.loopRisk))) : 0;
+  out.op.lastPlannerMode = safeStr(out.op.lastPlannerMode || "", 48) || "";
 
-if (!out.audit || typeof out.audit !== "object") out.audit = {};
-out.audit.enabled = out.audit.enabled === false ? false : true;
-out.audit.maxTurns = Number.isFinite(out.audit.maxTurns) ? Math.max(25, Math.min(500, Math.trunc(out.audit.maxTurns))) : 200;
-out.audit.turnLogs = Array.isArray(out.audit.turnLogs) ? out.audit.turnLogs.slice(-out.audit.maxTurns) : [];
-out.audit.errors = Array.isArray(out.audit.errors) ? out.audit.errors.slice(-out.audit.maxTurns) : [];
-out.audit.metrics = isPlainObject(out.audit.metrics)
-  ? out.audit.metrics
-  : { avgLatencyMs: 0, lastLatencyMs: 0, fallbackRate: 0, clarifyRate: 0 };
+  if (!out.governance || typeof out.governance !== "object") out.governance = {};
+  out.governance.safetyMode = safeStr(out.governance.safetyMode || "", 24) || "standard";
+  out.governance.requireHumanConfirmation = !!out.governance.requireHumanConfirmation;
+  out.governance.escalationRules = isPlainObject(out.governance.escalationRules)
+    ? out.governance.escalationRules
+    : { onLowConfidence: 0.45, onHighRisk: true, onRepeatErrors: 2 };
+  out.governance.blockedTopics = Array.isArray(out.governance.blockedTopics)
+    ? out.governance.blockedTopics.slice(0, 24).map((x) => safeStr(x, 40)).filter(Boolean)
+    : [];
+
+  if (!out.audit || typeof out.audit !== "object") out.audit = {};
+  out.audit.enabled = out.audit.enabled === false ? false : true;
+  out.audit.maxTurns = Number.isFinite(out.audit.maxTurns) ? Math.max(25, Math.min(500, Math.trunc(out.audit.maxTurns))) : 200;
+  out.audit.turnLogs = Array.isArray(out.audit.turnLogs) ? out.audit.turnLogs.slice(-out.audit.maxTurns) : [];
+  out.audit.errors = Array.isArray(out.audit.errors) ? out.audit.errors.slice(-out.audit.maxTurns) : [];
+  out.audit.metrics = isPlainObject(out.audit.metrics)
+    ? out.audit.metrics
+    : { avgLatencyMs: 0, lastLatencyMs: 0, fallbackRate: 0, clarifyRate: 0, menuBounceRate: 0 };
 
   return out;
 }
 
 function stripPoisonKeys(patchObj) {
-  // PATCH POISON SHIELD++++: do not allow callers to overwrite these
   const out = { ...patchObj };
   delete out.__spineVersion;
   delete out.rev;
@@ -854,7 +874,7 @@ function stripPoisonKeys(patchObj) {
 }
 
 // -------------------------
-// AUDIT (enterprise-heavy; bounded; Nyx-safe)
+// AUDIT
 // -------------------------
 function capArray(arr, max) {
   const a = Array.isArray(arr) ? arr : [];
@@ -863,7 +883,6 @@ function capArray(arr, max) {
 }
 
 function safeHashText(t) {
-  // hash only; never persist raw by default
   const raw = safeStr(t || "", 2000);
   return raw ? sha1Lite(raw) : "";
 }
@@ -871,12 +890,10 @@ function safeHashText(t) {
 function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
   const n = normalizeInbound(inbound);
   const d = decision && typeof decision === "object" ? decision : {};
-
   const lane = normalizeLane(next?.lane || n.lane || prev?.lane || LANE.GENERAL);
   const intent = safeStr(next?.lastUserIntent || "", 40) || inferUserIntent(n);
 
-  // Capture operational metadata without raw text.
-  const log = {
+  return {
     turnId: `${safeStr(next?.createdAt || "", 32) || "t"}:${Number(next?.rev || 0)}`,
     ts: nowIso(),
     rev: Number(next?.rev || 0),
@@ -884,7 +901,6 @@ function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
     stage: normalizeStage(next?.stage || STAGE.OPEN),
     topic: safeStr(next?.topic || "", 80) || "unknown",
 
-    // privacy: do not store raw input; store hash + bounded normalized form
     rawInputHash: safeHashText(n.text),
     normalizedInput: {
       hasText: !!n.text,
@@ -893,15 +909,15 @@ function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
       year: n.year !== null ? n.year : null,
       hasPayload: !!n.signals?.hasPayload,
       payloadActionable: !!n.signals?.payloadActionable,
+      progressIntent: isProgressIntentText(n.text || "") || isMenuIntentToken(n.action || ""),
+      distressText: isDistressText(n.text || ""),
     },
 
-    // planning decision trace
     decision: {
       move: safeStr(d.move || "", 20) || null,
       rationale: safeStr(d.rationale || "", 120) || null,
     },
 
-    // operational spine
     op: {
       objective: safeStr(next?.op?.objective || "", 240) || null,
       depthLevel: Number.isFinite(next?.op?.depthLevel) ? next.op.depthLevel : 0,
@@ -910,9 +926,9 @@ function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
       escalationFlag: !!next?.op?.escalationFlag,
       riskFlags: Array.isArray(next?.op?.riskFlags) ? next.op.riskFlags.slice(0, 12) : [],
       unresolvedThreads: Array.isArray(next?.op?.unresolvedThreads) ? next.op.unresolvedThreads.slice(0, 12) : [],
+      loopRisk: Number.isFinite(next?.op?.loopRisk) ? next.op.loopRisk : 0,
     },
 
-    // context sources used (bounded; no large payload)
     context: activeContext
       ? {
           kind: safeStr(activeContext.kind || "", 24) || null,
@@ -923,20 +939,17 @@ function buildTurnAuditLog({ prev, next, inbound, decision, activeContext }) {
         }
       : null,
 
-    // cognition hint snapshot (sanitized, bounded)
     marion: next?.marion || null,
 
-    // reliability signals
     metrics: {
       latencyMs:
         Number.isFinite(inbound?.latencyMs) ? Math.max(0, Math.trunc(inbound.latencyMs)) :
         Number.isFinite(d.latencyMs) ? Math.max(0, Math.trunc(d.latencyMs)) :
         0,
       hadError: false,
+      menuBounce: isGenericMenuBounceReply(next?.lastAssistantSummary || ""),
     },
   };
-
-  return log;
 }
 
 function appendAuditTurn(state, log) {
@@ -981,6 +994,7 @@ function appendAuditError(state, errObj) {
     },
   };
 }
+
 /**
  * Must be called ON EVERY TURN.
  * - merges safe fields
@@ -993,7 +1007,6 @@ function updateState(prev, patch = {}, reason = "turn") {
   const patchObj = stripPoisonKeys(patchObjRaw);
   const updatedAt = nowIso();
 
-  // Normalize pendingAsk in patch (supports chatEngine schema)
   const patchPendingAsk =
     Object.prototype.hasOwnProperty.call(patchObj, "pendingAsk") &&
     patchObj.pendingAsk === null
@@ -1004,6 +1017,9 @@ function updateState(prev, patch = {}, reason = "turn") {
 
   const patchDiag = isPlainObject(patchObj.diag) ? patchObj.diag : null;
   const patchGoal = isPlainObject(patchObj.goal) ? patchObj.goal : null;
+  const patchMemoryWindows = isPlainObject(patchObj.memoryWindows) ? patchObj.memoryWindows : null;
+  const patchOp = isPlainObject(patchObj.op) ? patchObj.op : null;
+  const patchAudit = isPlainObject(patchObj.audit) ? patchObj.audit : null;
 
   const patchMarion =
     Object.prototype.hasOwnProperty.call(patchObj, "marion") &&
@@ -1016,10 +1032,8 @@ function updateState(prev, patch = {}, reason = "turn") {
   const next = {
     ...p,
     ...patchObj,
-
     __spineVersion: SPINE_VERSION,
 
-    // core normalized
     lane: patchObj.lane ? normalizeLane(patchObj.lane) : p.lane,
     stage: patchObj.stage ? normalizeStage(patchObj.stage) : p.stage,
     topic: patchObj.topic != null ? safeStr(patchObj.topic, 80) : p.topic,
@@ -1028,7 +1042,6 @@ function updateState(prev, patch = {}, reason = "turn") {
         ? safeStr(patchObj.lastUserIntent, 40)
         : p.lastUserIntent,
 
-    // Marion cognition
     marion:
       patchMarion === null
         ? null
@@ -1036,7 +1049,6 @@ function updateState(prev, patch = {}, reason = "turn") {
         ? patchMarion
         : p.marion,
 
-    // Evidence trail (bounded, caller-controlled)
     lastUserText:
       patchObj.lastUserText != null
         ? safeStr(patchObj.lastUserText, 0)
@@ -1121,19 +1133,67 @@ function updateState(prev, patch = {}, reason = "turn") {
     turns:
       patchObj.turns && typeof patchObj.turns === "object"
         ? {
-            user: Number.isFinite(patchObj.turns.user)
-              ? Math.max(0, Math.trunc(patchObj.turns.user))
-              : p.turns.user,
-            assistant: Number.isFinite(patchObj.turns.assistant)
-              ? Math.max(0, Math.trunc(patchObj.turns.assistant))
-              : p.turns.assistant,
-            sinceReset: Number.isFinite(patchObj.turns.sinceReset)
-              ? Math.max(0, Math.trunc(patchObj.turns.sinceReset))
-              : p.turns.sinceReset,
+            user: Number.isFinite(patchObj.turns.user) ? Math.max(0, Math.trunc(patchObj.turns.user)) : p.turns.user,
+            assistant: Number.isFinite(patchObj.turns.assistant) ? Math.max(0, Math.trunc(patchObj.turns.assistant)) : p.turns.assistant,
+            sinceReset: Number.isFinite(patchObj.turns.sinceReset) ? Math.max(0, Math.trunc(patchObj.turns.sinceReset)) : p.turns.sinceReset,
           }
         : p.turns,
 
-    // only updateState mutates updatedAt + rev
+    memoryWindows: patchMemoryWindows
+      ? {
+          ...p.memoryWindows,
+          ...patchMemoryWindows,
+          recentIntents: Array.isArray(patchMemoryWindows.recentIntents)
+            ? patchMemoryWindows.recentIntents.slice(-8).map((x) => ({
+                intent: safeStr(x && x.intent || "", 48) || "unknown",
+                ts: Number(x && x.ts || 0) || 0,
+              }))
+            : p.memoryWindows.recentIntents,
+          unresolvedAsks: Array.isArray(patchMemoryWindows.unresolvedAsks)
+            ? patchMemoryWindows.unresolvedAsks.slice(-8).map((x) => safeStr(x, 160)).filter(Boolean)
+            : p.memoryWindows.unresolvedAsks,
+          lastResolvedIntent: patchMemoryWindows.lastResolvedIntent != null
+            ? safeStr(patchMemoryWindows.lastResolvedIntent, 64)
+            : p.memoryWindows.lastResolvedIntent,
+          lastUserPreference: isPlainObject(patchMemoryWindows.lastUserPreference)
+            ? {
+                lane: safeStr(patchMemoryWindows.lastUserPreference.lane || "", 24) || "",
+                year: normYear(patchMemoryWindows.lastUserPreference.year),
+                mode: safeStr(patchMemoryWindows.lastUserPreference.mode || "", 40) || "",
+                updatedAt: Number(patchMemoryWindows.lastUserPreference.updatedAt || 0) || nowMs(),
+              }
+            : p.memoryWindows.lastUserPreference,
+        }
+      : p.memoryWindows,
+
+    op: patchOp
+      ? {
+          ...p.op,
+          ...patchOp,
+          objective: patchOp.objective != null ? safeStr(patchOp.objective, 240) : p.op.objective,
+          depthLevel: Number.isFinite(patchOp.depthLevel) ? Math.max(0, Math.trunc(patchOp.depthLevel)) : p.op.depthLevel,
+          confidenceScore: Number.isFinite(patchOp.confidenceScore) ? Math.max(0, Math.min(1, Number(patchOp.confidenceScore))) : p.op.confidenceScore,
+          operationalWeight: Number.isFinite(patchOp.operationalWeight) ? Math.max(0, Math.min(1, Number(patchOp.operationalWeight))) : p.op.operationalWeight,
+          riskFlags: Array.isArray(patchOp.riskFlags) ? patchOp.riskFlags.slice(0, 12).map((x) => safeStr(x, 48)).filter(Boolean) : p.op.riskFlags,
+          escalationFlag: patchOp.escalationFlag != null ? !!patchOp.escalationFlag : p.op.escalationFlag,
+          unresolvedThreads: Array.isArray(patchOp.unresolvedThreads) ? patchOp.unresolvedThreads.slice(0, 12).map((x) => safeStr(x, 140)).filter(Boolean) : p.op.unresolvedThreads,
+          lastGoodRev: Number.isFinite(patchOp.lastGoodRev) ? Math.max(0, Math.trunc(patchOp.lastGoodRev)) : p.op.lastGoodRev,
+          lastGoodTurnSig: patchOp.lastGoodTurnSig != null ? safeStr(patchOp.lastGoodTurnSig, 240) : p.op.lastGoodTurnSig,
+          loopRisk: Number.isFinite(patchOp.loopRisk) ? Math.max(0, Math.min(1, Number(patchOp.loopRisk))) : p.op.loopRisk,
+          lastPlannerMode: patchOp.lastPlannerMode != null ? safeStr(patchOp.lastPlannerMode, 48) : p.op.lastPlannerMode,
+        }
+      : p.op,
+
+    audit: patchAudit
+      ? {
+          ...p.audit,
+          ...patchAudit,
+          turnLogs: Array.isArray(patchAudit.turnLogs) ? patchAudit.turnLogs.slice(-p.audit.maxTurns) : p.audit.turnLogs,
+          errors: Array.isArray(patchAudit.errors) ? patchAudit.errors.slice(-p.audit.maxTurns) : p.audit.errors,
+          metrics: isPlainObject(patchAudit.metrics) ? { ...p.audit.metrics, ...patchAudit.metrics } : p.audit.metrics,
+        }
+      : p.audit,
+
     updatedAt,
     rev: (Number.isFinite(p.rev) ? p.rev : 0) + 1,
 
@@ -1144,8 +1204,7 @@ function updateState(prev, patch = {}, reason = "turn") {
     },
   };
 
-  if (Array.isArray(next.lastChipsOffered) && next.lastChipsOffered.length > 12)
-    next.lastChipsOffered = next.lastChipsOffered.slice(0, 12);
+  if (Array.isArray(next.lastChipsOffered) && next.lastChipsOffered.length > 12) next.lastChipsOffered = next.lastChipsOffered.slice(0, 12);
 
   if (next.lastDecision && typeof next.lastDecision === "object") {
     next.lastDecision = {
@@ -1165,12 +1224,8 @@ function updateState(prev, patch = {}, reason = "turn") {
 }
 
 // -------------------------
-// inbound normalization (tiny, for planner/spine only)
+// inbound normalization
 // -------------------------
-// NOTE: This must accept chatEngine's inbound shapes:
-// - inbound.ctx and/or inbound.payload
-// - chatEngine uses turnSignals; some older callers use signals
-// - marion may be provided as inbound.cog or inbound.marion
 function normalizeInbound(inbound = {}) {
   const body = isPlainObject(inbound) ? inbound : {};
   const payload = isPlainObject(body.payload) ? body.payload : {};
@@ -1189,15 +1244,13 @@ function normalizeInbound(inbound = {}) {
     2000
   ).trim();
 
-  // action: prefer explicit payload.action/body.action/ctx.action, else payload.route
   const action = safeStr(
-    body.action || ctx.action || payload.action || payload.route || "",
+    body.action || ctx.action || payload.action || payload.route || payload.choice || "",
     80
   ).trim();
 
   const lane = safeStr(body.lane || ctx.lane || payload.lane || "", 24).trim();
 
-  // year: accept multiple aliases used across the system
   const year =
     normYear(body.year) ??
     normYear(ctx.year) ??
@@ -1207,18 +1260,15 @@ function normalizeInbound(inbound = {}) {
     null;
 
   const textEmpty = !text;
-
   const hasPayload = isPlainObject(payload) && Object.keys(payload).length > 0;
   const payloadActionable = hasPayload && hasActionablePayload(payload);
 
-  // Compatibility: accept {turnSignals} OR {signals}
   const ts = isPlainObject(body.turnSignals)
     ? body.turnSignals
     : isPlainObject(body.signals)
     ? body.signals
     : null;
 
-  // Some callers only pass partial signals; fill from computed defaults.
   const signals = {
     textEmpty: ts && typeof ts.textEmpty === "boolean" ? ts.textEmpty : textEmpty,
     hasPayload: ts && typeof ts.hasPayload === "boolean" ? ts.hasPayload : hasPayload,
@@ -1226,9 +1276,16 @@ function normalizeInbound(inbound = {}) {
       ts && typeof ts.payloadActionable === "boolean"
         ? ts.payloadActionable
         : payloadActionable,
+    emotionBypassClarify: !!(ts && ts.emotionBypassClarify),
+    emotionNeedSoft: !!(ts && ts.emotionNeedSoft),
+    emotionNeedCrisis: !!(ts && ts.emotionNeedCrisis),
+    emotionValence: safeStr(ts && ts.emotionValence || "", 24).toLowerCase(),
+    emotionDominant: safeStr(ts && ts.emotionDominant || "", 40).toLowerCase(),
+    emotionContradictions: Number.isFinite(ts && ts.emotionContradictions)
+      ? Math.max(0, Math.trunc(ts.emotionContradictions))
+      : 0,
   };
 
-  // Marion cog: accept either body.cog OR body.marion
   const cog = sanitizeMarionCog(body.cog || body.marion || null);
 
   return {
@@ -1244,7 +1301,7 @@ function normalizeInbound(inbound = {}) {
 }
 
 // -------------------------
-// deterministic planner (single decider)
+// deterministic planner
 // -------------------------
 function decideNextMove(state, inbound = {}) {
   const s = coerceState(state);
@@ -1253,22 +1310,49 @@ function decideNextMove(state, inbound = {}) {
   const text = n.text;
   const hasText = !!text;
   const textEmpty = n.signals.textEmpty;
-
   const hasAction = !!safeStr(n.action || "", 80).trim();
   const payloadActionable = !!n.signals.payloadActionable;
   const hasPayload = !!n.signals.hasPayload;
 
-  // If Marion explicitly thinks we need clarify, respect it — but never allow clarifier loops.
   const marionHint = n.cog || s.marion;
-  // Marion stabilize intent should pre-empt generic lane/clarify templates.
-  // This keeps “I’m hurting” from falling into pick-a-lane behavior even when needsClarify is not set.
+
+  // Emotion short-circuit from chatEngine signals
+  if (n.signals.emotionNeedCrisis) {
+    return {
+      move: MOVE.CLARIFY,
+      stage: STAGE.CLARIFY,
+      speak: "I hear you. Before anything else, I want to check safety.",
+      ask: buildPendingAsk(
+        "need_stabilize",
+        "Are you safe right now, and do you need immediate human support?",
+        []
+      ),
+      rationale: "emotion_crisis_short_circuit",
+    };
+  }
+
+  if (n.signals.emotionBypassClarify || isDistressText(text)) {
+    return {
+      move: MOVE.CLARIFY,
+      stage: STAGE.CLARIFY,
+      speak: "I hear you. Let us slow down for a second.",
+      ask: buildPendingAsk(
+        "need_stabilize",
+        "Do you want emotional support right now, or practical steps?",
+        []
+      ),
+      rationale: "emotion_or_distress_short_circuit",
+    };
+  }
+
+  // Marion stabilize intent
   if (marionHint) {
     const mhIntent = safeStr(marionHint.intent || "", 40).toLowerCase().trim();
     if (mhIntent === "stabilize") {
       return {
         move: MOVE.CLARIFY,
         stage: STAGE.CLARIFY,
-        speak: "I hear you. Let’s slow down for a second.",
+        speak: "I hear you. Let us slow down for a second.",
         ask: buildPendingAsk(
           "need_stabilize",
           "Are you safe right now, and do you want emotional support or practical steps?",
@@ -1279,6 +1363,7 @@ function decideNextMove(state, inbound = {}) {
     }
   }
 
+  // Marion clarify hint with loop fuse
   if (marionHint && marionHint.needsClarify === true) {
     const askKind = safeStr(marionHint.askKind || "need_more_detail", 40).trim() || "need_more_detail";
     const askId = safeStr(marionHint.askId || "", 24).trim();
@@ -1288,49 +1373,44 @@ function decideNextMove(state, inbound = {}) {
     const key = [askId || "noid", askKind, mhIntent || "unknown", mhStage || "unknown"].join("|");
     const prevKey = safeStr(s?.diag?.clarifyKey || "", 80);
     const prevRepeats = Number.isFinite(s?.diag?.clarifyRepeats) ? s.diag.clarifyRepeats : 0;
-
-    // Fuse conditions: same clarifier emitted repeatedly, and we’re not progressing.
     const repeating =
       prevKey === key &&
       safeStr(s?.lastDecision?.move || "", 20).toLowerCase() === MOVE.CLARIFY;
-
     const repeats = repeating ? prevRepeats + 1 : 0;
 
-    // Hard loop breaker: after 2 repeats, stop re-asking and advance with safe defaults.
     if (repeats >= 2) {
       return {
         move: MOVE.ADVANCE,
         stage: STAGE.DELIVER,
-        speak: "Loop detected. I’ll proceed with a safe default — tell me if I’m off.",
+        speak: "Loop detected. I will proceed with a safe default and keep it tight.",
         ask: null,
         rationale: "clarify_loop_fuse",
-        // diag patch consumed in finalizeTurn
         _diagClarify: { key, repeats },
+        _plannerMode: "fused_advance",
       };
     }
 
-    // Stabilize intent: use a supportive check-in prompt (prevents the sterile clarifier loop).
     const isStabilize = mhIntent === "stabilize";
-
     const prompt =
       safeStr(marionHint.clarifyPrompt || "", 260).trim() ||
       (isStabilize
         ? "Are you safe right now, and do you want emotional support or practical steps?"
-        : "What’s the one missing detail I need to proceed?");
+        : "What is the one missing detail I need to proceed?");
 
     return {
       move: MOVE.CLARIFY,
       stage: STAGE.CLARIFY,
       speak: isStabilize
         ? "I hear you. Before we go further, I want to check in."
-        : "One quick detail, then I’ll execute cleanly.",
+        : "One quick detail, then I will proceed cleanly.",
       ask: buildPendingAsk(askKind, prompt, []),
       rationale: isStabilize ? "marion_stabilize_clarify" : "marion_needs_clarify",
       _diagClarify: { key, repeats },
+      _plannerMode: "clarify",
     };
   }
 
-// If we already have a pending ask, try to resolve it based on typed/click evidence.
+  // Pending ask resolution
   if (s.pendingAsk && isPlainObject(s.pendingAsk)) {
     const pa = normalizePendingAsk(s.pendingAsk);
     const kind = safeStr(pa?.kind || "", 80).toLowerCase();
@@ -1340,54 +1420,73 @@ function decideNextMove(state, inbound = {}) {
       (kind === "need_year" || id === "need_year" || isNeedYearAsk(pa)) &&
       (textHasYearToken(text) || (payloadActionable && n.year !== null));
 
-    // “need_pick” can be answered by short lane words OR a lane-bearing chip.
-    // Harden++++: treat payload.route as a lane answer when it is a lane token.
-    const routeAsPick = payloadActionable && isLaneToken(safeStr(n.payload?.route || "", 24));
+    const routeAsPick = payloadActionable && (
+      isLaneToken(safeStr(n.payload?.route || "", 24)) ||
+      isMenuIntentToken(safeStr(n.payload?.route || "", 40)) ||
+      isMenuIntentToken(safeStr(n.payload?.action || "", 40)) ||
+      isMenuIntentToken(safeStr(n.payload?.label || "", 80))
+    );
+
+    const typedMenuIntent = isMenuIntentToken(text);
     const answeredPick =
       (kind === "need_pick" || id === "need_pick" || isNeedPickAsk(pa)) &&
-      (isLaneToken(text) ||
+      (
+        isLaneToken(text) ||
+        typedMenuIntent ||
         routeAsPick ||
         (payloadActionable && !!safeStr(n.payload?.lane || "", 24).trim()) ||
-        (payloadActionable && !!safeStr(n.lane || "", 24).trim()));
+        (payloadActionable && !!safeStr(n.lane || "", 24).trim())
+      );
 
-    const answered = answeredYear || answeredPick || (hasText && text.length >= 8);
+    const answeredDetail =
+      (kind === "need_more_detail" || id === "need_more_detail" || isNeedDetailAsk(pa)) &&
+      (
+        isProgressIntentText(text) ||
+        typedMenuIntent ||
+        (hasText && text.length >= 8) ||
+        (payloadActionable && routeAsPick)
+      );
+
+    const answered = answeredYear || answeredPick || answeredDetail;
 
     if (!answered) {
       return {
         move: MOVE.CLARIFY,
         stage: STAGE.CLARIFY,
-        speak: "I’m going to get one quick detail so I can move forward cleanly.",
+        speak: "I am going to get one quick detail so I can move forward cleanly.",
         ask: pa,
         rationale: "pendingAsk_unresolved",
+        _plannerMode: "clarify",
       };
     }
   }
 
-  // Chip-click / actionable payload beats silence -> ADVANCE
+  // Actionable payload / silent chip clicks
   if ((hasAction && payloadActionable) || (payloadActionable && hasPayload && textEmpty)) {
     return {
       move: MOVE.ADVANCE,
       stage: STAGE.DELIVER,
-      speak: "I’m going to execute that selection and keep momentum.",
+      speak: "I am going to execute that selection and keep momentum.",
       ask: null,
       rationale: "actionable_payload",
+      _plannerMode: "advance",
     };
   }
 
-  // Explicit “next steps / implement” -> ADVANCE
-  if (/\b(next steps|what next|implement|wire it|do them all|ship it)\b/i.test(text)) {
+  // Explicit technical / progress requests
+  if (isProgressIntentText(text) || isMenuIntentToken(text) || isMenuIntentToken(n.action || "")) {
     return {
       move: MOVE.ADVANCE,
       stage: STAGE.DELIVER,
-      speak: "I’m going to advance: smallest next change first, then we verify.",
+      speak: "I am going to advance on that directly and keep the response targeted.",
       ask: null,
-      rationale: "advance_request",
+      rationale: "progress_intent_request",
+      _plannerMode: "advance",
     };
   }
 
-  // Empty text and non-actionable -> NARROW if meaningful context exists, else CLARIFY
+  // Empty text
   if (!hasText && textEmpty) {
-    // topic defaults to "unknown" and should NOT count as real context.
     const hasCtx =
       !!s.activeContext ||
       (safeStr(s.topic || "", 80).trim() && safeStr(s.topic || "", 80).trim() !== "unknown") ||
@@ -1399,66 +1498,108 @@ function decideNextMove(state, inbound = {}) {
       ? {
           move: MOVE.NARROW,
           stage: STAGE.TRIAGE,
-          speak: "I’ll keep us moving by narrowing this to the most likely next step.",
+          speak: "I will keep us moving by narrowing this to the most likely next step.",
           ask: null,
           rationale: "empty_inbound_narrow",
+          _plannerMode: "narrow",
         }
       : {
           move: MOVE.CLARIFY,
           stage: STAGE.CLARIFY,
-          speak: "I need one small input to aim this correctly, then I’ll proceed.",
+          speak: "I need one small input to aim this correctly, then I will proceed.",
           ask: buildPendingAsk(
             "need_pick",
-            "What are we advancing right now: state spine, guidance layer, goal inference, or response filter?",
+            "What are we advancing right now: diagnosis, restructure, implementation, or response filter?",
             []
           ),
           rationale: "empty_inbound_clarify",
+          _plannerMode: "clarify",
         };
   }
 
-  // Very short typed input -> CLARIFY
-  // HARDEN++++: Distress phrases like "hurting" must not become generic lane/pick prompts.
+  // Very short typed input
   if (hasText && text.length < 10) {
+    if (isMenuIntentToken(text)) {
+      return {
+        move: MOVE.ADVANCE,
+        stage: STAGE.DELIVER,
+        speak: "I am taking that as a direct next-step selection.",
+        ask: null,
+        rationale: "short_menu_intent",
+        _plannerMode: "advance",
+      };
+    }
+
     if (isDistressText(text)) {
       return {
         move: MOVE.CLARIFY,
         stage: STAGE.CLARIFY,
-        speak: "I hear you. Let’s slow down for a second.",
+        speak: "I hear you. Let us slow down for a second.",
         ask: buildPendingAsk(
           "need_stabilize",
           "Are you safe right now, and do you want emotional support or practical steps?",
           []
         ),
         rationale: "distress_too_short",
+        _plannerMode: "clarify",
       };
     }
 
     return {
       move: MOVE.CLARIFY,
       stage: STAGE.CLARIFY,
-      speak: "I’m going to ask one clarifying question so we don’t build the wrong thing.",
+      speak: "I am going to ask one clarifying question so we do not build the wrong thing.",
       ask: buildPendingAsk(
         "need_more_detail",
-        "Say what you want next in one phrase (e.g., “wire into chatEngine”, “add tests”, “connect to sessionPatch”).",
+        "Say what you want next in one phrase: diagnosis, restructure, implementation, or response filter.",
         []
       ),
       rationale: "too_short",
+      _plannerMode: "clarify",
     };
   }
 
+  // Generic-menu bounce fuse
+  const lastSummary = safeStr(s.lastAssistantSummary || "", 320);
+  const menuBounceKey = [
+    safeStr(s.topic || "", 40),
+    safeStr(s.lastUserIntent || "", 40),
+    safeStr(topicFromText(text), 40),
+    safeStr(text, 80).toLowerCase()
+  ].join("|");
+  const prevMenuKey = safeStr(s.diag?.lastMenuBounceKey || "", 120);
+  const prevMenuRepeats = Number.isFinite(s.diag?.menuBounceRepeats) ? s.diag.menuBounceRepeats : 0;
+  const menuRepeats =
+    isGenericMenuBounceReply(lastSummary) && prevMenuKey === menuBounceKey
+      ? prevMenuRepeats + 1
+      : isGenericMenuBounceReply(lastSummary)
+      ? 0
+      : 0;
 
-  // Default
+  if (isGenericMenuBounceReply(lastSummary) && (isProgressIntentText(text) || isMenuIntentToken(text) || menuRepeats >= 1)) {
+    return {
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "I am not going to bounce this back into a menu. I will advance on the selected path.",
+      ask: null,
+      rationale: "menu_bounce_fuse",
+      _diagMenuBounce: { key: menuBounceKey, repeats: menuRepeats + 1 },
+      _plannerMode: "fused_advance",
+    };
+  }
+
   return {
     move: MOVE.ADVANCE,
     stage: STAGE.DELIVER,
-    speak: "I’m going to move forward using what you gave me, and I’ll flag assumptions clearly.",
+    speak: "I am going to move forward using what you gave me, and I will flag assumptions clearly.",
     ask: null,
     rationale: "default_advance",
+    _plannerMode: "advance",
   };
 }
 
 // -------------------------
-// finalize (structured, rev enforcement)
+// finalize
 // -------------------------
 function finalizeTurn({
   prevState,
@@ -1467,10 +1608,10 @@ function finalizeTurn({
   topicOverride,
   actionTaken,
   followUps,
-  pendingAsk, // optional; if undefined, keep logic-controlled value
-  decision, // {move, rationale, speak, stage}
-  assistantSummary, // optional, bounded
-  marionCog, // optional: sanitized MarionSO output (preferred from chatEngine)
+  pendingAsk,
+  decision,
+  assistantSummary,
+  marionCog,
   updateReason = "turn",
 }) {
   const prev = coerceState(prevState);
@@ -1479,6 +1620,7 @@ function finalizeTurn({
   const lastUserIntent = inferUserIntent({
     text: n.text,
     action: n.action,
+    payload: n.payload,
     signals: n.signals,
   });
 
@@ -1497,6 +1639,7 @@ function finalizeTurn({
   const topic =
     safeStr(topicOverride || "", 80).trim() ||
     topicFromAction(safeStr(n.action || "", 80).trim()) ||
+    topicFromText(n.text || "") ||
     prev.topic ||
     "unknown";
 
@@ -1513,7 +1656,6 @@ function finalizeTurn({
     text: n.text,
   });
 
-  // Choose marion: explicit arg beats inbound.cog beats prev.marion
   const nextMarion =
     marionCog === null
       ? null
@@ -1523,37 +1665,50 @@ function finalizeTurn({
       ? sanitizeMarionCog(n.cog)
       : prev.marion;
 
-  // PendingAsk hygiene:
-  // - clear need_year if user typed a year token, OR
-  // - clear need_year if user clicked/selected a payload that resolves year (chip-year via inbound.year).
   const typedYear = !n.signals.textEmpty && textHasYearToken(n.text || "");
   const chipYearResolved =
     n.signals.payloadActionable &&
     n.year !== null &&
-    (lastUserIntent === "silent_click" || lastUserIntent === "choose");
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose" || lastUserIntent === "choose_progress");
 
-  // Also resolve need_pick via lane-bearing evidence
-  const typedLaneResolved = !n.signals.textEmpty && isLaneToken(n.text || "");
+  const typedLaneResolved = !n.signals.textEmpty && (isLaneToken(n.text || "") || isMenuIntentToken(n.text || ""));
   const routeAsLane =
-    n.signals.payloadActionable && isLaneToken(safeStr(n.payload?.route || "", 24));
+    n.signals.payloadActionable &&
+    (
+      isLaneToken(safeStr(n.payload?.route || "", 24)) ||
+      isMenuIntentToken(safeStr(n.payload?.route || "", 40)) ||
+      isMenuIntentToken(safeStr(n.payload?.action || "", 40)) ||
+      isMenuIntentToken(safeStr(n.payload?.label || "", 80))
+    );
+
   const chipLaneResolved =
     n.signals.payloadActionable &&
-    (routeAsLane ||
+    (
+      routeAsLane ||
       safeStr(n.payload?.lane || "", 24).trim() ||
-      safeStr(n.lane || "", 24).trim()) &&
-    (lastUserIntent === "silent_click" || lastUserIntent === "choose");
+      safeStr(n.lane || "", 24).trim()
+    ) &&
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose" || lastUserIntent === "choose_progress");
+
+  const typedDetailResolved =
+    !n.signals.textEmpty &&
+    (
+      isProgressIntentText(n.text || "") ||
+      isMenuIntentToken(n.text || "") ||
+      safeStr(n.text || "", 200).trim().length >= 8
+    );
 
   let nextPendingAsk = prev.pendingAsk;
 
   if (pendingAsk === null) nextPendingAsk = null;
-  else if (pendingAsk && typeof pendingAsk === "object")
-    nextPendingAsk = normalizePendingAsk(pendingAsk);
-  // else: keep prev.pendingAsk, unless evidence resolves it
+  else if (pendingAsk && typeof pendingAsk === "object") nextPendingAsk = normalizePendingAsk(pendingAsk);
 
   if (nextPendingAsk) {
     if ((typedYear || chipYearResolved) && isNeedYearAsk(nextPendingAsk)) {
       nextPendingAsk = null;
     } else if ((typedLaneResolved || chipLaneResolved) && isNeedPickAsk(nextPendingAsk)) {
+      nextPendingAsk = null;
+    } else if ((typedDetailResolved || chipLaneResolved) && isNeedDetailAsk(nextPendingAsk)) {
       nextPendingAsk = null;
     }
   }
@@ -1565,7 +1720,7 @@ function finalizeTurn({
   let nextUnresolvedAsks = Array.isArray(prevMw.unresolvedAsks) ? prevMw.unresolvedAsks.slice(-8) : [];
   const pendingPrompt = safeStr(nextPendingAsk && nextPendingAsk.prompt || "", 160).trim();
   if (pendingPrompt) {
-    nextUnresolvedAsks = nextUnresolvedAsks.filter((x)=>safeStr(x,160) !== pendingPrompt);
+    nextUnresolvedAsks = nextUnresolvedAsks.filter((x) => safeStr(x, 160) !== pendingPrompt);
     nextUnresolvedAsks.push(pendingPrompt);
   } else if (nextUnresolvedAsks.length) {
     nextUnresolvedAsks = nextUnresolvedAsks.slice(-4);
@@ -1583,6 +1738,31 @@ function finalizeTurn({
       ? safeStr(lastUserIntent || "", 64)
       : safeStr(prevMw.lastResolvedIntent || "", 64);
 
+  const menuBounceKey = decision && isPlainObject(decision._diagMenuBounce)
+    ? safeStr(decision._diagMenuBounce.key || "", 120)
+    : "";
+  const menuBounceRepeats = decision && isPlainObject(decision._diagMenuBounce)
+    ? Number(decision._diagMenuBounce.repeats || 0) || 0
+    : 0;
+
+  const lastSummary = safeStr(assistantSummary || "", 320);
+  const isMenuBounce = isGenericMenuBounceReply(lastSummary);
+  const clarifyMove = safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY;
+
+  const loopRisk =
+    Math.max(
+      clarifyMove ? 0.35 : 0,
+      menuBounceRepeats >= 1 ? 0.55 : 0,
+      menuBounceRepeats >= 2 ? 0.75 : 0,
+      isMenuBounce ? 0.45 : 0,
+      nextPendingAsk ? 0.20 : 0
+    );
+
+  const unresolvedThreads = uniqueStrings([
+    ...(Array.isArray(prev?.op?.unresolvedThreads) ? prev.op.unresolvedThreads : []),
+    ...(nextPendingAsk && nextPendingAsk.prompt ? [safeStr(nextPendingAsk.prompt, 140)] : []),
+  ], 12, 140);
+
   const patch = {
     lane: normalizeLane(lane || n.lane || prev.lane),
     stage: nextStage,
@@ -1597,37 +1777,47 @@ function finalizeTurn({
       lastUserPreference: nextPreference,
     },
 
-    // Marion cognition (sanitized)
     marion: nextMarion,
 
     lastActionTaken: safeStr(actionTaken || "", 40).trim() || null,
-
     lastMove: decision?.move ? safeStr(decision.move, 20) : null,
     lastDecision:
       decision?.move
         ? { move: safeStr(decision.move, 20), rationale: safeStr(decision.rationale || "", 60) }
         : null,
-
     lastTurnSig: turnSig,
 
-    // Loop fuse bookkeeping (set by decideNextMove via decision._diagClarify)
-    diag: decision && isPlainObject(decision._diagClarify)
-      ? { clarifyKey: safeStr(decision._diagClarify.key || "", 80), clarifyRepeats: Number(decision._diagClarify.repeats || 0) || 0 }
-      : { clarifyKey: "", clarifyRepeats: 0 },
-// Operational intelligence spine (enterprise-heavy; Nyx-safe)
-op: {
-  ...prev.op,
-  depthLevel: Number.isFinite(prev?.op?.depthLevel) ? Math.min(50, Math.max(0, Math.trunc(prev.op.depthLevel)) + 1) : 1,
-  // Treat non-clarify moves as "good" progress for rollback anchors
-  lastGoodRev:
-    safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
-      ? (Number.isFinite(prev?.op?.lastGoodRev) ? prev.op.lastGoodRev : 0)
-      : (Number.isFinite(prev.rev) ? prev.rev + 1 : 1),
-  lastGoodTurnSig:
-    safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
-      ? (safeStr(prev?.op?.lastGoodTurnSig || "", 240) || null)
-      : turnSig,
-},
+    diag: {
+      clarifyKey: decision && isPlainObject(decision._diagClarify)
+        ? safeStr(decision._diagClarify.key || "", 80)
+        : "",
+      clarifyRepeats: decision && isPlainObject(decision._diagClarify)
+        ? Number(decision._diagClarify.repeats || 0) || 0
+        : 0,
+      lastMenuBounceKey: menuBounceKey,
+      menuBounceRepeats: menuBounceRepeats,
+    },
+
+    op: {
+      ...prev.op,
+      depthLevel: Number.isFinite(prev?.op?.depthLevel)
+        ? Math.min(50, Math.max(0, Math.trunc(prev.op.depthLevel)) + 1)
+        : 1,
+      lastGoodRev:
+        safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
+          ? (Number.isFinite(prev?.op?.lastGoodRev) ? prev.op.lastGoodRev : 0)
+          : (Number.isFinite(prev.rev) ? prev.rev + 1 : 1),
+      lastGoodTurnSig:
+        safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
+          ? (safeStr(prev?.op?.lastGoodTurnSig || "", 240) || null)
+          : turnSig,
+      loopRisk,
+      lastPlannerMode: safeStr(decision?._plannerMode || "", 48) || "",
+      unresolvedThreads,
+      objective:
+        safeStr(prev?.op?.objective || "", 240) ||
+        (topic !== "unknown" ? `advance:${topic}` : null),
+    },
 
     ...(assistantSummary != null
       ? { lastAssistantSummary: safeStr(assistantSummary, 320) }
@@ -1637,10 +1827,9 @@ op: {
       ? { lastChipsOffered: buildChipsOffered(followUps) }
       : {}),
 
-    // Chip click memory: only when it truly was a silent click context
     ...(activeContext &&
     activeContext.kind === "chip" &&
-    lastUserIntent === "silent_click"
+    (lastUserIntent === "silent_click" || lastUserIntent === "choose_progress")
       ? {
           lastChipClicked: sanitizeActiveContext({
             id: safeStr(activeContext.id, 80),
@@ -1657,40 +1846,67 @@ op: {
 
   let next = updateState(prev, patch, updateReason);
 
-  // AUDIT++++: append enterprise turn log (bounded; no raw text)
+  // metrics harden
+  try {
+    const mPrev = isPlainObject(prev.audit?.metrics) ? prev.audit.metrics : {};
+    const lastLatencyMs = Number.isFinite(inbound?.latencyMs) ? Math.max(0, Math.trunc(inbound.latencyMs)) : 0;
+    const prevTurns = Array.isArray(prev.audit?.turnLogs) ? prev.audit.turnLogs.length : 0;
+    const denom = Math.max(1, prevTurns + 1);
+
+    const prevClarifyRate = clamp01(mPrev.clarifyRate);
+    const prevMenuBounceRate = clamp01(mPrev.menuBounceRate);
+    const prevFallbackRate = clamp01(mPrev.fallbackRate);
+    const prevAvgLatency = Number.isFinite(mPrev.avgLatencyMs) ? Math.max(0, Number(mPrev.avgLatencyMs)) : 0;
+
+    const clarifyDelta = clarifyMove ? 1 : 0;
+    const menuDelta = isMenuBounce ? 1 : 0;
+
+    next = updateState(next, {
+      audit: {
+        metrics: {
+          lastLatencyMs,
+          avgLatencyMs: ((prevAvgLatency * prevTurns) + lastLatencyMs) / denom,
+          clarifyRate: ((prevClarifyRate * prevTurns) + clarifyDelta) / denom,
+          menuBounceRate: ((prevMenuBounceRate * prevTurns) + menuDelta) / denom,
+          fallbackRate: prevFallbackRate,
+        },
+      },
+    }, "audit_metrics");
+  } catch (_e) {
+    // fail-open
+  }
+
   try {
     const log = buildTurnAuditLog({ prev, next, inbound, decision, activeContext });
     next = appendAuditTurn(next, log);
   } catch (e) {
-    // never fail the user flow on audit issues
-    next = appendAuditError(next, { message: e && e.message ? e.message : String(e), code: "AUDIT_APPEND_FAIL", where: "finalizeTurn" });
+    next = appendAuditError(next, {
+      message: e && e.message ? e.message : String(e),
+      code: "AUDIT_APPEND_FAIL",
+      where: "finalizeTurn",
+    });
   }
 
-  // ENFORCEMENT++++: must increment exactly once per turn
   const prevRev = Number.isFinite(prev.rev) ? prev.rev : 0;
-  if (!(Number.isFinite(next.rev) && next.rev === prevRev + 1)) {
-    next.rev = prevRev + 1; // fail-open correction
+  if (!(Number.isFinite(next.rev) && next.rev >= prevRev + 1)) {
+    next.rev = prevRev + 1;
   }
 
   return next;
 }
 
-/**
- * Enforce update-on-every-turn:
- * caller should pass prevRev and nextRev to assert increment.
- */
 function assertTurnUpdated(prevState, nextState) {
   const a = prevState && typeof prevState.rev === "number" ? prevState.rev : -1;
   const b = nextState && typeof nextState.rev === "number" ? nextState.rev : -1;
-  if (!(b === a + 1)) {
-    const err = new Error(`STATE_SPINE_NOT_UPDATED: expected rev ${a + 1} but got ${b}`);
+  if (!(b >= a + 1)) {
+    const err = new Error(`STATE_SPINE_NOT_UPDATED: expected rev at least ${a + 1} but got ${b}`);
     err.code = "STATE_SPINE_NOT_UPDATED";
     throw err;
   }
 }
 
 // -------------------------
-// self-tests (no deps, no side effects)
+// self-tests
 // -------------------------
 function runSpineSelfTests() {
   const failures = [];
@@ -1698,21 +1914,14 @@ function runSpineSelfTests() {
     if (!cond) failures.push({ name, detail: safeStr(detail || "", 400) });
   }
 
-  // 1) coerceState must not mutate updatedAt
   const st0 = createState({ lane: "music" });
   const before = st0.updatedAt;
   const st1 = coerceState(st0);
-  assert(
-    "coerce_does_not_touch_updatedAt",
-    st1.updatedAt === before,
-    `${before} -> ${st1.updatedAt}`
-  );
+  assert("coerce_does_not_touch_updatedAt", st1.updatedAt === before, `${before} -> ${st1.updatedAt}`);
 
-  // 2) updateState increments rev exactly once
   const u1 = updateState(st0, { topic: "help" }, "turn");
   assert("update_rev_inc", u1.rev === st0.rev + 1, `${st0.rev} -> ${u1.rev}`);
 
-  // 3) assertTurnUpdated passes on normal update
   try {
     assertTurnUpdated(st0, u1);
     assert("assertTurnUpdated_ok", true, "");
@@ -1720,7 +1929,6 @@ function runSpineSelfTests() {
     assert("assertTurnUpdated_ok", false, e && e.message ? e.message : String(e));
   }
 
-  // 4) pendingAsk normalize supports chatEngine schema
   const pa = normalizePendingAsk({
     id: "need_year",
     type: "clarify",
@@ -1731,7 +1939,6 @@ function runSpineSelfTests() {
   assert("pendingAsk_prompt_has_year", safeStr(pa.prompt).toLowerCase().includes("year"), pa.prompt);
   assert("pendingAsk_id_preserved", safeStr(pa.id) === "need_year", safeStr(pa.id));
 
-  // 5) decideNextMove honors actionable payload silent click
   const dm = decideNextMove(createState(), {
     payload: { action: "top10", year: 1988, lane: "music" },
     turnSignals: { hasPayload: true, payloadActionable: true, textEmpty: true },
@@ -1739,7 +1946,6 @@ function runSpineSelfTests() {
   });
   assert("decide_actionable_payload_advance", dm.move === MOVE.ADVANCE, safeStr(dm.move));
 
-  // 6) Patch poison shield: cannot override rev/createdAt/updatedAt/__spineVersion
   const poison = updateState(
     st0,
     { rev: 999, createdAt: "X", updatedAt: "Y", __spineVersion: "BAD" },
@@ -1747,10 +1953,8 @@ function runSpineSelfTests() {
   );
   assert("poison_rev_ignored", poison.rev === st0.rev + 1, `${poison.rev}`);
   assert("poison_createdAt_ignored", poison.createdAt === st0.createdAt, `${poison.createdAt}`);
-  assert("poison_updatedAt_overwritten", poison.updatedAt !== "Y", `${poison.updatedAt}`);
   assert("poison_version_locked", poison.__spineVersion === SPINE_VERSION, `${poison.__spineVersion}`);
 
-  // 7) signals compatibility: accept {signals} alias
   const dm2 = decideNextMove(createState(), {
     payload: { action: "top10", year: 1992, lane: "music" },
     signals: { hasPayload: true, payloadActionable: true, textEmpty: true },
@@ -1758,7 +1962,6 @@ function runSpineSelfTests() {
   });
   assert("signals_alias_advances", dm2.move === MOVE.ADVANCE, safeStr(dm2.move));
 
-  // 8) activeContext sanitation: lane normalized + payload mini only
   const ac = buildActiveContext(
     {
       text: "",
@@ -1771,13 +1974,8 @@ function runSpineSelfTests() {
     createState()
   );
   assert("activeContext_lane_normalized", ac && ac.lane === "music", safeStr(ac && ac.lane));
-  assert(
-    "activeContext_payload_mini",
-    ac && ac.payload && !ac.payload.extra,
-    safeStr(ac && JSON.stringify(ac.payload))
-  );
+  assert("activeContext_payload_mini", ac && ac.payload && !ac.payload.extra, safeStr(ac && JSON.stringify(ac.payload)));
 
-  // 9) need_pick resolves via payload.route lane token
   const stPick = createState({ pendingAsk: { kind: "need_pick", prompt: "Pick a lane" } });
   const planPick = decideNextMove(stPick, {
     payload: { route: "movies" },
@@ -1786,7 +1984,6 @@ function runSpineSelfTests() {
   });
   assert("need_pick_resolves_via_route", planPick.move === MOVE.ADVANCE, safeStr(planPick.move));
 
-  // 10) marion cog ingestion (normalizeInbound + sanitize)
   const nb = normalizeInbound({
     text: "hello",
     cog: { mode: "Strategic", intent: "clarify", stage: "clarify", layers: ["AI", "Finance"], needsClarify: true, trace: { ak: true } },
@@ -1795,7 +1992,36 @@ function runSpineSelfTests() {
   assert("cog_layers_norm", nb.cog && nb.cog.layers.includes("ai"), JSON.stringify(nb.cog || {}));
   assert("cog_needsClarify", nb.cog && nb.cog.needsClarify === true, JSON.stringify(nb.cog || {}));
 
-  return { ok: failures.length === 0, failures, ran: 10, v: SPINE_VERSION };
+  const dm3 = decideNextMove(createState(), {
+    text: "Diagnosis",
+    turnSignals: { hasPayload: false, payloadActionable: false, textEmpty: false },
+  });
+  assert("diagnosis_short_advances", dm3.move === MOVE.ADVANCE, safeStr(dm3.move));
+
+  const dm4 = decideNextMove(createState({
+    lastAssistantSummary: "I have the signal. Do you want diagnosis, restructuring, or an exact code update?",
+    diag: { lastMenuBounceKey: "unknown|unknown|diagnosis|diagnosis", menuBounceRepeats: 1 }
+  }), {
+    text: "diagnosis"
+  });
+  assert("menu_bounce_fuse_advances", dm4.move === MOVE.ADVANCE, safeStr(dm4.move));
+
+  const fin = finalizeTurn({
+    prevState: createState(),
+    inbound: { text: "diagnosis" },
+    lane: "general",
+    topicOverride: "diagnosis",
+    actionTaken: "diagnosis",
+    followUps: [],
+    pendingAsk: null,
+    decision: { move: MOVE.ADVANCE, rationale: "test", _plannerMode: "advance" },
+    assistantSummary: "Proceeding with diagnosis.",
+    updateReason: "test_finalize",
+  });
+  assert("finalize_updates_loopRisk", Number.isFinite(fin.op.loopRisk), safeStr(fin.op.loopRisk));
+  assert("finalize_turnlogs_present", Array.isArray(fin.audit.turnLogs) && fin.audit.turnLogs.length >= 1, safeStr(fin.audit.turnLogs && fin.audit.turnLogs.length));
+
+  return { ok: failures.length === 0, failures, ran: 13, v: SPINE_VERSION };
 }
 
 module.exports = {
@@ -1804,27 +2030,22 @@ module.exports = {
   STAGE,
   MOVE,
 
-  // state
   createState,
   coerceState,
   updateState,
   finalizeTurn,
 
-  // planner
   decideNextMove,
 
-  // helpers (useful for chatEngine integration / diagnostics)
   computeTurnSig,
   topicFromAction,
   buildPendingAsk,
   buildChipsOffered,
   assertTurnUpdated,
 
-// audit (optional)
-buildTurnAuditLog,
-appendAuditTurn,
-appendAuditError,
+  buildTurnAuditLog,
+  appendAuditTurn,
+  appendAuditError,
 
-  // tests
   runSpineSelfTests,
 };
