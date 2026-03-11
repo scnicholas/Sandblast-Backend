@@ -3,101 +3,729 @@
 /**
  * Utils/supportResponse.js
  *
- * Therapist-adjacent response generator (NON-CLINICAL)
- * v1.0.0 (REFLECT+VALIDATE+NORMALIZE+MICROSTEP+GENTLE QUESTION)
+ * NON-CLINICAL supportive response generator for Nyx / Marion / SiteBridge.
  *
- * Important:
- * - Always include "not a therapist/clinician" disclaimer occasionally (cadence-controlled by caller)
- * - Never diagnose. Never claim licensure. Never provide emergency/medical directives beyond crisis routing.
+ * PURPOSE
+ * - Consume richer emotionRouteGuard payloads cleanly.
+ * - Generate calm, structured, emotionally coherent replies.
+ * - Support distress, recovery, positive reinforcement, and mixed states.
+ * - Remain fail-open safe and lightweight.
+ *
+ * DESIGN GOALS
+ * - Non-clinical / therapist-adjacent only
+ * - No diagnosis / no licensure claims
+ * - Crisis-safe short-form escalation language
+ * - Structured enough for operational intelligence layering
+ * - Deterministic-ish phrasing by seed to reduce jitter / looping
+ *
+ * PHASE ALIGNMENT
+ * ------------------------------------------------------------
+ * Phase 01: Emotional payload intake
+ * Phase 02: Crisis / high-risk gating
+ * Phase 03: Dominant emotion interpretation
+ * Phase 04: Valence-aware reflection
+ * Phase 05: Intensity-aware pacing
+ * Phase 06: Positive reinforcement shaping
+ * Phase 07: Distress reinforcement shaping
+ * Phase 08: Recovery signal acknowledgment
+ * Phase 09: Contradiction / mixed-state handling
+ * Phase 10: Continuity-safe wording
+ * Phase 11: Tone recommendation execution
+ * Phase 12: Support disclaimer cadence
+ * Phase 13: Actionable micro-step generation
+ * Phase 14: Gentle next-question generation
+ * Phase 15: Fail-open integrity
  */
 
-function pick(arr, seed) {
-  if (!Array.isArray(arr) || arr.length === 0) return "";
-  // deterministic-ish pick from seed (string) so responses feel stable per session/turn
-  let h = 0;
-  const s = String(seed || "nyx");
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return arr[h % arr.length];
+const VERSION = "supportResponse v1.1.0";
+
+const DEFAULT_CONFIG = {
+  includeDisclaimerOnSoft: true,
+  includeDisclaimerOnCrisis: false,
+  includeDisclaimerOnEveryTurn: false,
+  maxQuestionCount: 1,
+  maxMicroSteps: 1,
+  keepCrisisShort: true,
+  debug: false
+};
+
+function safeStr(x) {
+  return x === null || x === undefined ? "" : String(x);
 }
 
-function buildSupportiveResponse({ userText, emo, seed }) {
-  const tags = new Set((emo && emo.tags) || []);
-  const s = seed || userText || "nyx";
+function isPlainObject(x) {
+  return !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype ||
+      Object.getPrototypeOf(x) === null);
+}
 
-  const disclaimers = [
-    "I’m not a licensed therapist, but I can offer support and psychological perspectives.",
-    "Just a quick note: I’m not a clinician—still, I can help you think through this and find a steady next step.",
-    "I’m not a therapist, but I’m here with you, and we can work through this together."
+function clampInt(v, def, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  const t = Math.trunc(n);
+  if (t < min) return min;
+  if (t > max) return max;
+  return t;
+}
+
+function oneLine(s) {
+  return safeStr(s).replace(/\s+/g, " ").trim();
+}
+
+function uniq(arr) {
+  return [...new Set((Array.isArray(arr) ? arr : []).map((x) => safeStr(x).trim()).filter(Boolean))];
+}
+
+function hashSeed(seed) {
+  let h = 0;
+  const s = safeStr(seed || "nyx");
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function pick(arr, seed) {
+  if (!Array.isArray(arr) || !arr.length) return "";
+  const h = hashSeed(seed);
+  return safeStr(arr[h % arr.length] || "");
+}
+
+function pickN(arr, seed, maxCount) {
+  const a = Array.isArray(arr) ? arr.slice() : [];
+  const out = [];
+  if (!a.length || maxCount <= 0) return out;
+
+  let h = hashSeed(seed);
+  const seen = new Set();
+
+  for (let i = 0; i < a.length && out.length < maxCount; i++) {
+    const idx = (h + i) % a.length;
+    const val = safeStr(a[idx] || "").trim();
+    if (!val) continue;
+    if (seen.has(val)) continue;
+    seen.add(val);
+    out.push(val);
+  }
+
+  return out;
+}
+
+function joinSentences(parts) {
+  return (Array.isArray(parts) ? parts : [])
+    .map((p) => oneLine(p))
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeEmotionPayload(emo) {
+  const e = isPlainObject(emo) ? emo : {};
+  const supportFlags = isPlainObject(e.supportFlags) ? e.supportFlags : {};
+  const disclaimers = isPlainObject(e.disclaimers) ? e.disclaimers : {};
+  const contradictions = isPlainObject(e.contradictions) ? e.contradictions : { count: 0, contradictions: [] };
+  const summary = isPlainObject(e.summary) ? e.summary : {};
+  const tags = uniq(e.tags);
+  const routeHints = uniq(e.routeHints);
+  const responseHints = uniq(e.responseHints);
+  const distressReinforcements = uniq(e.distressReinforcements);
+  const positiveReinforcements = uniq(e.positiveReinforcements);
+  const recoverySignals = uniq(e.recoverySignals);
+
+  return {
+    source: safeStr(e.source || ""),
+    mode: safeStr(e.mode || "NORMAL").toUpperCase(),
+    valence: safeStr(e.valence || "neutral").toLowerCase(),
+    intensityLabel: safeStr(e.intensityLabel || e.intensity || "flat").toLowerCase(),
+    intensity: clampInt(
+      e.intensityLabel === "very_high" ? 95 :
+      e.intensityLabel === "high" ? 78 :
+      e.intensityLabel === "moderate" ? 55 :
+      e.intensityLabel === "low" ? 28 :
+      e.intensity,
+      0,
+      0,
+      100
+    ),
+    dominantEmotion: safeStr(e.dominantEmotion || "neutral").toLowerCase(),
+    dominantSource: safeStr(e.dominantSource || "none").toLowerCase(),
+    tone: safeStr(e.tone || "steady_neutral").toLowerCase(),
+    bypassClarify: !!e.bypassClarify,
+    supportFlags: {
+      crisis: !!supportFlags.crisis,
+      highDistress: !!supportFlags.highDistress,
+      needsGentlePacing: !!supportFlags.needsGentlePacing,
+      avoidCelebratoryTone: !!supportFlags.avoidCelebratoryTone,
+      recoveryPresent: !!supportFlags.recoveryPresent,
+      positivePresent: !!supportFlags.positivePresent
+    },
+    disclaimers: {
+      needSoft: !!disclaimers.needSoft,
+      needCrisis: !!disclaimers.needCrisis
+    },
+    contradictions: {
+      count: clampInt(contradictions.count, 0, 0, 99),
+      contradictions: Array.isArray(contradictions.contradictions) ? contradictions.contradictions.slice(0, 8) : []
+    },
+    summary: {
+      concise: safeStr(summary.concise || ""),
+      narrative: safeStr(summary.narrative || "")
+    },
+    tags,
+    routeHints,
+    responseHints,
+    distressReinforcements,
+    positiveReinforcements,
+    recoverySignals,
+    cached: !!e.cached
+  };
+}
+
+function shouldUseDisclaimer(emo, cfg) {
+  if (cfg.includeDisclaimerOnEveryTurn) return true;
+  if (emo.supportFlags.crisis && cfg.includeDisclaimerOnCrisis) return true;
+  if ((emo.disclaimers.needSoft || emo.supportFlags.needsGentlePacing) && cfg.includeDisclaimerOnSoft) return true;
+  return false;
+}
+
+function buildDisclaimer(seed) {
+  return pick([
+    "I am not a licensed therapist or clinician, but I can stay with you and help you think through this carefully.",
+    "Just a quick note: I am not a clinician, though I can still offer steady support and help you find the next clear step.",
+    "I am not a therapist, but I can be present with you and help make this feel a little more manageable."
+  ], `${seed}|disclaimer`);
+}
+
+function buildReflectiveLead(emo, seed) {
+  const dom = emo.dominantEmotion;
+  const val = emo.valence;
+  const intense = emo.intensity >= 75;
+
+  if (emo.supportFlags.crisis) {
+    return pick([
+      "I am really glad you said this out loud.",
+      "Thank you for telling me directly.",
+      "I am glad you reached out instead of sitting with this alone."
+    ], `${seed}|lead|crisis`);
+  }
+
+  if (dom === "anxiety") {
+    return pick(intense ? [
+      "That sounds like your system is under a lot of pressure right now.",
+      "That kind of anxiety can feel relentless when your body will not settle.",
+      "I can hear how activated this feels for you right now."
+    ] : [
+      "That anxious edge can wear you down fast.",
+      "I can hear the tension in this.",
+      "That sounds mentally and physically tiring."
+    ], `${seed}|lead|anxiety`);
+  }
+
+  if (dom === "sadness") {
+    return pick([
+      "That sounds heavy, and I am here with you in it.",
+      "There is a lot of weight in what you just said.",
+      "I can feel the heaviness in that."
+    ], `${seed}|lead|sadness`);
+  }
+
+  if (dom === "grief") {
+    return pick([
+      "That is a painful kind of loss to be carrying.",
+      "Loss like that can hit in waves and take a lot out of you.",
+      "That sounds deeply painful."
+    ], `${seed}|lead|grief`);
+  }
+
+  if (dom === "loneliness") {
+    return pick([
+      "Loneliness can make everything feel louder and heavier.",
+      "That kind of alone feeling cuts deep.",
+      "Feeling that disconnected can be exhausting in its own way."
+    ], `${seed}|lead|loneliness`);
+  }
+
+  if (dom === "shame") {
+    return pick([
+      "Shame can be brutally convincing when you are already hurting.",
+      "That sounds like one of those moments where pain starts turning against you.",
+      "I can hear how harsh this has become inside your own head."
+    ], `${seed}|lead|shame`);
+  }
+
+  if (dom === "anger") {
+    return pick([
+      "I can hear the frustration in this clearly.",
+      "That sounds like you have been pushed past your limit.",
+      "There is a lot of heat in this, and it makes sense."
+    ], `${seed}|lead|anger`);
+  }
+
+  if (dom === "confusion") {
+    return pick([
+      "It sounds like too many things are hitting at once.",
+      "That kind of mental overload can make everything feel scrambled.",
+      "I can hear how hard it is to get a clean grip on this."
+    ], `${seed}|lead|confusion`);
+  }
+
+  if (dom === "despair") {
+    return pick([
+      "That sounds painfully bleak right now.",
+      "I can hear how close to empty this feels.",
+      "That is a very hard place to be sitting in."
+    ], `${seed}|lead|despair`);
+  }
+
+  if (val === "positive") {
+    return pick([
+      "That carries a strong signal in a good direction.",
+      "There is real lift in what you just said.",
+      "That sounds steady and meaningful."
+    ], `${seed}|lead|positive`);
+  }
+
+  if (val === "mixed") {
+    return pick([
+      "It sounds like more than one truth is present at the same time.",
+      "I can hear that this is not simple or one-note.",
+      "There is a mix here, and that matters."
+    ], `${seed}|lead|mixed`);
+  }
+
+  return pick([
+    "I hear you.",
+    "What you are describing makes sense.",
+    "I am with you."
+  ], `${seed}|lead|default`);
+}
+
+function buildValidation(emo, seed) {
+  if (emo.supportFlags.crisis) {
+    return pick([
+      "You do not need to carry this alone right now.",
+      "This is serious, and your safety matters more than trying to power through it.",
+      "What you are feeling deserves immediate care and support."
+    ], `${seed}|validate|crisis`);
+  }
+
+  if (emo.supportFlags.highDistress) {
+    return pick([
+      "You are not weak for feeling this strongly.",
+      "This does not read like failure to me — it reads like strain.",
+      "A lot of people would feel shaken under this kind of weight."
+    ], `${seed}|validate|high`);
+  }
+
+  if (emo.valence === "positive" && !emo.supportFlags.avoidCelebratoryTone) {
+    return pick([
+      "It is worth noticing that this is movement, not nothing.",
+      "That deserves to be recognized, not brushed past.",
+      "There is something solid in that."
+    ], `${seed}|validate|positive`);
+  }
+
+  if (emo.valence === "mixed") {
+    return pick([
+      "Two things can be true here: part of you can be hurting while another part is still trying to move forward.",
+      "You do not have to flatten this into one emotion for it to be real.",
+      "Mixed feelings do not mean you are confused — sometimes they mean you are being honest."
+    ], `${seed}|validate|mixed`);
+  }
+
+  return pick([
+    "This is a human response, not a character flaw.",
+    "It makes sense that this would affect you.",
+    "You are not overreacting just because it hurts."
+  ], `${seed}|validate|default`);
+}
+
+function buildRecoveryAcknowledgment(emo, seed) {
+  if (!emo.supportFlags.recoveryPresent && !emo.recoverySignals.length) return "";
+
+  if (emo.recoverySignals.includes("active_recovery_present")) {
+    return pick([
+      "I also want to note that there are recovery signals here, and that matters.",
+      "There is already some regulation effort showing up in what you said.",
+      "I can see signs that part of you is already trying to stabilize."
+    ], `${seed}|recovery|active`);
+  }
+
+  if (emo.recoverySignals.includes("resilience_present")) {
+    return pick([
+      "There is resilience here too, even if it does not feel loud yet.",
+      "I do not want to miss the fact that you are still showing up inside this.",
+      "There is effort and survival energy in this too."
+    ], `${seed}|recovery|resilience`);
+  }
+
+  if (emo.recoverySignals.includes("upward_shift_detected")) {
+    return pick([
+      "There are signs of movement in a better direction.",
+      "I can hear a slight upward shift in this.",
+      "Something in you is already trying to move toward steadier ground."
+    ], `${seed}|recovery|up`);
+  }
+
+  return "";
+}
+
+function mapDistressMicroSteps(emo) {
+  const dom = emo.dominantEmotion;
+
+  if (emo.supportFlags.crisis) {
+    return [
+      "Please reach a real person now — call or text 9-8-8 in Canada, or your local emergency number if you are in immediate danger."
+    ];
+  }
+
+  if (dom === "anxiety") {
+    return [
+      "Try one slower exhale than inhale — not to fix everything, just to lower the alarm a notch."
+    ];
+  }
+
+  if (dom === "confusion" || emo.distressReinforcements.includes("reduce_complexity")) {
+    return [
+      "Let us reduce the load: name the one thing that is most urgent and ignore the rest for this minute."
+    ];
+  }
+
+  if (dom === "shame") {
+    return [
+      "Try separating the feeling from the verdict: this hurts, but that does not automatically make the story about you true."
+    ];
+  }
+
+  if (dom === "loneliness") {
+    return [
+      "A very small connection can count here — one message to one safe person is enough."
+    ];
+  }
+
+  if (dom === "anger") {
+    return [
+      "Before acting on the heat, pin down the real target: what exactly crossed the line?"
+    ];
+  }
+
+  if (dom === "sadness" || dom === "despair") {
+    return [
+      "Keep the horizon very small for now: what would make the next hour 5% gentler?"
+    ];
+  }
+
+  return [
+    "Let us keep the next step very small: what is one move that makes this feel even slightly more manageable?"
+  ];
+}
+
+function mapPositiveMicroSteps(emo) {
+  const dom = emo.dominantEmotion;
+
+  if (dom === "confidence" || dom === "momentum") {
+    return [
+      "Use the energy while it is clean: what is the next concrete move you can lock in today?"
+    ];
+  }
+
+  if (dom === "pride") {
+    return [
+      "Name exactly what worked so you can repeat it on purpose."
+    ];
+  }
+
+  if (dom === "gratitude" || dom === "connection") {
+    return [
+      "Hold onto what is helping here and make it repeatable."
+    ];
+  }
+
+  if (dom === "calm") {
+    return [
+      "Protect this steadier state before the noise rushes back in."
+    ];
+  }
+
+  return [
+    "Turn this signal into one deliberate next action while it is still alive."
+  ];
+}
+
+function buildMicroStep(emo, cfg, seed) {
+  const maxSteps = clampInt(cfg.maxMicroSteps, 1, 0, 2);
+  if (maxSteps <= 0) return "";
+
+  const pool = emo.supportFlags.crisis || emo.valence === "negative" || emo.valence === "critical_negative"
+    ? mapDistressMicroSteps(emo)
+    : emo.valence === "positive"
+      ? mapPositiveMicroSteps(emo)
+      : [
+          "What is the smallest clean next step you can take from here?"
+        ];
+
+  return pickN(pool, `${seed}|micro`, maxSteps).join(" ");
+}
+
+function buildQuestion(emo, cfg, seed) {
+  const maxQuestions = clampInt(cfg.maxQuestionCount, 1, 0, 1);
+  if (maxQuestions <= 0) return "";
+
+  if (emo.supportFlags.crisis) {
+    return pick([
+      "Can you get to a real person right now and stay with them?",
+      "Are you alone right now, or is someone with you?",
+      "Can you call or text 9-8-8 right now while we keep this simple?"
+    ], `${seed}|q|crisis`);
+  }
+
+  if (emo.dominantEmotion === "anxiety") {
+    return pick([
+      "Is this hitting more in your thoughts, or more in your body?",
+      "What feels most activated right now — your chest, your thoughts, or your sense of pressure?",
+      "Is this more fear, more overload, or more uncertainty?"
+    ], `${seed}|q|anxiety`);
+  }
+
+  if (emo.dominantEmotion === "sadness" || emo.dominantEmotion === "grief") {
+    return pick([
+      "What has felt heaviest about it today?",
+      "What part of this hurts the most right now?",
+      "What has this been like for you in the quiet moments?"
+    ], `${seed}|q|sadness`);
+  }
+
+  if (emo.dominantEmotion === "shame") {
+    return pick([
+      "What is the harshest thing your mind is saying about you right now?",
+      "What story is the shame trying to force on you?",
+      "What are you blaming yourself for most?"
+    ], `${seed}|q|shame`);
+  }
+
+  if (emo.dominantEmotion === "anger") {
+    return pick([
+      "What exactly crossed the line for you?",
+      "What part of this feels most unfair?",
+      "What is the real injury underneath the anger?"
+    ], `${seed}|q|anger`);
+  }
+
+  if (emo.valence === "positive") {
+    return pick([
+      "What do you want to build on next?",
+      "How do you want to use this momentum?",
+      "What is the next move that fits this energy?"
+    ], `${seed}|q|positive`);
+  }
+
+  if (emo.valence === "mixed" || emo.contradictions.count > 0) {
+    return pick([
+      "Which side of this feels loudest right now?",
+      "What part needs the most attention first — the pain, the pressure, or the next step?",
+      "If you had to name the central tension in one sentence, what would it be?"
+    ], `${seed}|q|mixed`);
+  }
+
+  return pick([
+    "What has been building up around this?",
+    "What feels most important about this right now?",
+    "Where do you want to start with it?"
+  ], `${seed}|q|default`);
+}
+
+function buildPositiveReinforcementLine(emo, seed) {
+  if (!Array.isArray(emo.positiveReinforcements) || !emo.positiveReinforcements.length) return "";
+
+  if (emo.supportFlags.avoidCelebratoryTone) return "";
+
+  if (emo.positiveReinforcements.includes("reinforce_self_trust")) {
+    return pick([
+      "There is a self-trust signal in this, and that is worth protecting.",
+      "I would not rush past the confidence showing up here.",
+      "That sounds like you are finding your footing, not just feeling better for a second."
+    ], `${seed}|pos|trust`);
+  }
+
+  if (emo.positiveReinforcements.includes("reflect_resilience")) {
+    return pick([
+      "I also want to give credit to the resilience in this.",
+      "There is strength in the fact that you are still moving inside it.",
+      "Part of what stands out here is your resilience."
+    ], `${seed}|pos|resilience`);
+  }
+
+  if (emo.positiveReinforcements.includes("highlight_momentum") || emo.positiveReinforcements.includes("support_upward_trajectory")) {
+    return pick([
+      "There is real forward motion here.",
+      "This feels like momentum, not just relief.",
+      "That sounds like movement in the right direction."
+    ], `${seed}|pos|momentum`);
+  }
+
+  return pick([
+    "There is something genuinely constructive in this.",
+    "I would not minimize the positive signal here.",
+    "That deserves to be noticed."
+  ], `${seed}|pos|default`);
+}
+
+function buildDistressReinforcementLine(emo, seed) {
+  if (!Array.isArray(emo.distressReinforcements) || !emo.distressReinforcements.length) return "";
+
+  if (emo.supportFlags.crisis) {
+    return pick([
+      "Right now the priority is safety, not perfect wording or perfect control.",
+      "We do not need to solve everything this second — safety comes first.",
+      "The goal right now is immediate support and safety."
+    ], `${seed}|dist|crisis`);
+  }
+
+  if (emo.distressReinforcements.includes("slow_the_pacing") || emo.supportFlags.needsGentlePacing) {
+    return pick([
+      "We can slow this right down.",
+      "There is no need to force clarity too fast here.",
+      "We can keep this simple and steady."
+    ], `${seed}|dist|pace`);
+  }
+
+  if (emo.distressReinforcements.includes("offer_one_clear_option")) {
+    return pick([
+      "Let us reduce this to one clear step instead of ten.",
+      "You do not need a full map right now — just one foothold.",
+      "We only need one clean next move from here."
+    ], `${seed}|dist|clear`);
+  }
+
+  return pick([
+    "I want to keep this grounded and manageable with you.",
+    "Let us not add pressure to an already heavy moment.",
+    "We can work with this without overwhelming you more."
+  ], `${seed}|dist|default`);
+}
+
+function buildMixedStateLine(emo, seed) {
+  if (emo.valence !== "mixed" && emo.contradictions.count <= 0) return "";
+
+  return pick([
+    "It sounds like part of you is trying to hold together while another part is hurting.",
+    "I do not think this is one-note — it feels layered.",
+    "There is a push-pull in this, and that is important to respect."
+  ], `${seed}|mixed`);
+}
+
+function buildCrisisResponse(options = {}) {
+  const seed = safeStr(options.seed || "nyx|crisis");
+  const shortLead = pick([
+    "I am really sorry you are feeling this way.",
+    "I am glad you said this out loud.",
+    "Thank you for telling me directly."
+  ], `${seed}|lead`);
+
+  const body = [
+    shortLead,
+    "I cannot help with anything that involves harming yourself or someone else.",
+    "If you are in immediate danger or think you might act on these thoughts, call your local emergency number right now.",
+    "If you are in Canada, call or text 9-8-8 for immediate support."
   ];
 
-  const reflect = (() => {
-    if (tags.has("grief")) return "That’s a really painful loss. I’m so sorry you’re going through that.";
-    if (tags.has("loneliness")) return "Feeling lonely can hit deep—like you’re carrying it by yourself.";
-    if (tags.has("anxiety")) return "That anxious, on-edge feeling can be exhausting—like your body won’t let you rest.";
-    if (tags.has("shame")) return "Shame is brutal—it convinces you you’re the problem, even when you’re hurting.";
-    if (tags.has("overwhelm") || tags.has("burnout")) return "That sounds like a lot to hold—more than anyone should have to carry alone.";
-    if (tags.has("anger")) return "I hear the frustration in this—like something’s been pushing you past your limit.";
-    if (tags.has("sadness")) return "That sounds heavy. I’m here with you.";
-    return "I hear you. What you’re feeling makes sense given what you’ve shared.";
-  })();
+  if (options.country && !/canada/i.test(safeStr(options.country))) {
+    body.push("If you tell me your country, I can help point you to the right crisis line.");
+  } else {
+    body.push("If you are elsewhere, tell me your country and I will point you to the right crisis line.");
+  }
 
-  const normalize = pick([
-    "You’re not weak for feeling this.",
-    "A lot of people feel this way when life gets heavy.",
-    "This is a human response, not a personal failure.",
-    "It makes sense that this would affect you."
-  ], s + "|norm");
-
-  const microStep = (() => {
-    if (tags.has("anxiety")) {
-      return "If you’re open to it: try one slow exhale that’s longer than your inhale—just to cue safety in your nervous system.";
-    }
-    if (tags.has("grief")) {
-      return "Right now, let’s keep it simple: what’s one small thing that would make the next hour gentler?";
-    }
-    if (tags.has("loneliness")) {
-      return "Would you be open to one low-pressure connection—texting someone safe, or even just sitting somewhere with people nearby for a bit?";
-    }
-    if (tags.has("overwhelm")) {
-      return "Let’s pick the smallest next move: what’s one task you can finish in 5 minutes to get a little traction?";
-    }
-    if (tags.has("shame")) {
-      return "Try this: name the harsh thought, then ask, “Is this a fact—or a feeling wearing a mask?”";
-    }
-    return "Let’s take one small step together: what would feel even 5% better right now?";
-  })();
-
-  const question = (() => {
-    if (tags.has("grief")) return "Do you want to tell me a little about who/what you lost?";
-    if (tags.has("loneliness")) return "When does the loneliness feel strongest—at night, in the mornings, or after certain moments?";
-    if (tags.has("anxiety")) return "Is it more thoughts racing, or more body symptoms (tight chest, restlessness, nausea)?";
-    if (tags.has("shame")) return "What’s the harshest thought your mind keeps repeating about you?";
-    if (tags.has("overwhelm")) return "What’s the one thing that’s feeling most urgent right now?";
-    return "What’s been going on leading up to this feeling?";
-  })();
-
-  const includeDisclaimer = !!(emo && emo.disclaimers && emo.disclaimers.needSoft);
-
-  return [
-    reflect,
-    includeDisclaimer ? pick(disclaimers, s + "|disc") : null,
-    normalize,
-    microStep,
-    question
-  ].filter(Boolean).join(" ");
+  return joinSentences(body);
 }
 
-function buildCrisisResponse() {
-  // Keep this short and safe; localize resources in higher layer if you have region info.
-  return [
-    "I’m really sorry you’re feeling this way. I can’t help with anything that involves harming yourself or someone else.",
-    "If you’re in immediate danger or feel like you might act on these thoughts, please call your local emergency number right now.",
-    "If you’re in Canada, you can call or text 9-8-8 for immediate support.",
-    "If you’re elsewhere, tell me your country and I’ll point you to the right crisis line."
-  ].join(" ");
+function buildSupportiveResponse(input = {}, config = {}) {
+  const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
+
+  try {
+    const userText = safeStr(input.userText || "");
+    const emo = normalizeEmotionPayload(input.emo);
+    const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.dominantEmotion}|nyx`);
+
+    if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
+      return buildCrisisResponse({ seed, country: input.country || "" });
+    }
+
+    const parts = [];
+
+    // Phase 04 / 05
+    parts.push(buildReflectiveLead(emo, seed));
+    parts.push(buildValidation(emo, seed));
+
+    // Phase 07 / 08 / 09
+    parts.push(buildDistressReinforcementLine(emo, seed));
+    parts.push(buildPositiveReinforcementLine(emo, seed));
+    parts.push(buildRecoveryAcknowledgment(emo, seed));
+    parts.push(buildMixedStateLine(emo, seed));
+
+    // Phase 12
+    if (shouldUseDisclaimer(emo, cfg)) {
+      parts.push(buildDisclaimer(seed));
+    }
+
+    // Phase 13
+    parts.push(buildMicroStep(emo, cfg, seed));
+
+    // Phase 14
+    parts.push(buildQuestion(emo, cfg, seed));
+
+    const out = joinSentences(parts);
+
+    if (out) return out;
+
+    return "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
+  } catch (_err) {
+    return "I hear you. We can keep this simple and steady. What feels most important right now?";
+  }
+}
+
+function buildSupportPacket(input = {}, config = {}) {
+  const emo = normalizeEmotionPayload(input.emo);
+  const seed = safeStr(input.seed || input.userText || "nyx");
+  const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
+
+  if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
+    return {
+      ok: true,
+      version: VERSION,
+      mode: "crisis",
+      reply: buildCrisisResponse({ seed, country: input.country || "" }),
+      meta: {
+        crisis: true,
+        dominantEmotion: emo.dominantEmotion,
+        valence: emo.valence
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    version: VERSION,
+    mode: "supportive",
+    reply: buildSupportiveResponse(input, cfg),
+    meta: {
+      crisis: false,
+      dominantEmotion: emo.dominantEmotion,
+      valence: emo.valence,
+      tone: emo.tone,
+      needsGentlePacing: !!emo.supportFlags.needsGentlePacing,
+      positivePresent: !!emo.supportFlags.positivePresent,
+      recoveryPresent: !!emo.supportFlags.recoveryPresent
+    }
+  };
 }
 
 module.exports = {
+  VERSION,
+  DEFAULT_CONFIG,
   buildSupportiveResponse,
   buildCrisisResponse,
+  buildSupportPacket,
+  normalizeEmotionPayload
 };
