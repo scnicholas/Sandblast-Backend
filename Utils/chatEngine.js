@@ -258,7 +258,7 @@ function shouldHardStopLoop(session) {
 // MEMORY SPINE HELPERS++++
 // - sessionId resolution: stable per user/session (never throws)
 // - memory attach: bounded, fail-open
-// -------------------------
+
 function resolveSessionId(norm, session, inboundKey) {
   const nctx = isPlainObject(norm && norm.ctx) ? norm.ctx : {};
   const nb = isPlainObject(norm && norm.body) ? norm.body : {};
@@ -607,6 +607,15 @@ function mergeSessionPatch(base, overrides) {
   const b = isPlainObject(base) ? base : {};
   const o = isPlainObject(overrides) ? overrides : {};
   return { ...b, ...o };
+}
+
+function mergeSessionPatches() {
+  const merged = {};
+  for (let i = 0; i < arguments.length; i++) {
+    const part = arguments[i];
+    if (isPlainObject(part)) Object.assign(merged, part);
+  }
+  return merged;
 }
 
 function safeJsonStringify(x) {
@@ -1097,7 +1106,7 @@ function sanitizePsycheObject(psyche) {
     const out = [];
     const seen = new Set();
     for (const it of Array.isArray(a) ? a : []) {
-      const v = safeStr(it).replace(/\\s+/g, " ").trim();
+      const v = safeStr(it).replace(/\s+/g, " ").trim();
       if (!v) continue;
       const vv = v.length > maxLen ? v.slice(0, maxLen) + "…" : v;
       const k = vv.toLowerCase();
@@ -1245,10 +1254,6 @@ async function buildPsycheSafe({ features, tokens, queryKey, sessionKey, opts })
   return null;
 }
 ;
-
-
-
-
 function mergeCogWithPsyche(cog, psyche) {
   const base = isPlainObject(cog) ? { ...cog } : {};
   const p = isPlainObject(psyche) ? psyche : null;
@@ -2023,7 +2028,6 @@ function inferConfidence(norm, session, cog) {
 
   return { user: clamp01(user), nyx: clamp01(nyx) };
 }
-
 // -------------------------
 // velvet mode (music-first binding)
 // -------------------------
@@ -2796,7 +2800,6 @@ function computeBridge(sessionLaneState, requestId) {
     at: nowMs(),
   };
 }
-
 // -------------------------
 // main engine
 // -------------------------
@@ -2819,6 +2822,8 @@ async function handleChat(input) {
     // deterministic inbound signature (used for greeting gating + loop stabilization)
     const inboundKey = buildInboundKey(norm);
 
+    // Precompute requestId early so all early-return branches can use it safely
+    const requestId = resolveRequestId(input, norm, inboundKey);
 
     // -------------------------
     // EMOTION PREPASS++++ (lexicon-based; fail-open)
@@ -2829,7 +2834,6 @@ async function handleChat(input) {
       Emotion && typeof Emotion.detectEmotionalState === "function"
         ? Emotion.detectEmotionalState(safeStr(norm.text || ""))
         : null;
-
 
     // Heuristic fallback: if emotionDetect module is missing or returns null,
     // catch common vulnerability phrases so Nyx doesn't reply with procedural filler.
@@ -2872,17 +2876,12 @@ async function handleChat(input) {
       norm.turnSignals.affectTag = safeStr(affect.tag || "").slice(0, 16);
     }
 
-
-
-
-
-
-
-const session = isPlainObject(norm.body.session)
+    const session = isPlainObject(norm.body.session)
       ? norm.body.session
       : isPlainObject(input?.session)
       ? input.session
       : {};
+
     // -------------------------
     // MEMORY SPINE (context injection)++++
     // - Adds recent+summary context to norm.ctx so Marion/bridges can stay anchored.
@@ -2890,22 +2889,23 @@ const session = isPlainObject(norm.body.session)
     // -------------------------
     const sessionId = resolveSessionId(norm, session, inboundKey);
 
-  // OPINTEL DATASETS: lazy autoload + attach dataset pack (fail-open)
-  try {
-    const env = process && process.env ? process.env : {};
-    const auto = String(env.SB_DATASETS_AUTOLOAD || "1").trim();
-    const enabled = !(auto === "0" || auto.toLowerCase() === "false" || auto.toLowerCase() === "off");
-    if (enabled && Dataset && !__SB_DATASETS_LAZY.tried) {
-      __SB_DATASETS_LAZY.tried = true;
-      const res = safeDatasetLoadAll();
-      __SB_DATASETS_LAZY.ok = !!(res && res.ok);
-    }
-    const ds = datasetDecision(norm);
-    if (ds && ds.pack) {
-      if (!isPlainObject(norm.ctx)) norm.ctx = {};
-      norm.ctx.dataset = ds.pack;
-    }
-  } catch (_e) {}
+    // OPINTEL DATASETS: lazy autoload + attach dataset pack (fail-open)
+    try {
+      const env = process && process.env ? process.env : {};
+      const auto = String(env.SB_DATASETS_AUTOLOAD || "1").trim();
+      const enabled = !(auto === "0" || auto.toLowerCase() === "false" || auto.toLowerCase() === "off");
+      if (enabled && Dataset && !__SB_DATASETS_LAZY.tried) {
+        __SB_DATASETS_LAZY.tried = true;
+        const res = safeDatasetLoadAll();
+        __SB_DATASETS_LAZY.ok = !!(res && res.ok);
+      }
+      const ds = datasetDecision(norm);
+      if (ds && ds.pack) {
+        if (!isPlainObject(norm.ctx)) norm.ctx = {};
+        norm.ctx.dataset = ds.pack;
+      }
+    } catch (_e) {}
+
     const memCtx0 = safeBuildMemoryContext(sessionId);
     if (memCtx0) {
       if (!isPlainObject(norm.ctx)) norm.ctx = {};
@@ -2944,16 +2944,19 @@ const session = isPlainObject(norm.body.session)
       return outObj;
     }
 
-
-
     // -------------------------
     // BRUTAL INBOUND LOOP GOVERNOR++++
     // - Stops repeat-inbound spirals even when the model output varies slightly.
     // - Fast-returns cached reply for duplicate submits within a short window.
     // -------------------------
     const inboundSig = inboundLoopSig(norm, session);
-    const inGov = detectInboundRepeat(session, inboundSig);
-
+    const actionablePayloadOnlyTurn =
+      !!(norm?.turnSignals?.hasPayload &&
+         norm?.turnSignals?.payloadActionable &&
+         norm?.turnSignals?.textEmpty);
+    const inGov = actionablePayloadOnlyTurn
+      ? { tripped: false, patch: {}, inSig: inboundSig, n: 0, canFastReturn: false }
+      : detectInboundRepeat(session, inboundSig);
 
     // BRIDGE FUSE++++: if inbound repeats trip, pause Marion/SiteBridge coordination briefly
     // to prevent bridge-driven echo loops. (Fail-open; purely session flags.)
@@ -2964,14 +2967,71 @@ const session = isPlainObject(norm.body.session)
       } catch (_e) {}
     }
 
+    // -------------------------
+    // PRIORITY 0 — GREETING INTERCEPT++++
+    // - Must run BEFORE duplicate fast-return so greetings always route cleanly.
+    // -------------------------
+    const greetQuick = detectGreetingQuick(norm.text);
+    if (greetQuick && greetQuick.kind) {
+      const greetReply = buildGreetingReply(greetQuick.kind, safeStr(inboundKey || norm.text || ""));
+      const sessionPatch = mergeSessionPatches(
+        {},
+        inGov && isPlainObject(inGov.patch) ? inGov.patch : {},
+        {
+          __lastIntent: "GREETING",
+          __lastLane: safeStr(session.__lastLane || "") || "general",
+          __lastTopic: "greeting",
+          __turnDepth: (Number.isFinite(Number(session.__turnDepth)) ? Number(session.__turnDepth) : 0) + 1,
+          __cacheInSig: safeStr(inboundSig || ""),
+          __cacheAt: nowMs(),
+          __cacheReply: greetReply,
+          __cacheLane: "general",
+          __cacheFollowUps: [],
+        }
+      );
+
+      if (truthy(norm?.ctx?.debug) || truthy(input?.debug) || truthy(process?.env?.NYX_DEBUG_GREET)) {
+        console.debug("[chatEngine:greet]", {
+          v: CE_VERSION,
+          kind: greetQuick.kind,
+          text: safeStr(norm.text || ""),
+          inboundKey,
+          keys: Object.keys(isPlainObject(norm.body) ? norm.body : {}),
+        });
+      }
+
+      return _finalizeOut({
+        ok: true,
+        reply: greetReply,
+        lane: "general",
+        laneId: undefined,
+        sessionLane: "general",
+        bridge: { bypassClarify: true, greet: true, inboundKey },
+        ctx: norm.ctx,
+        ui: { chips: [], hints: [] },
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch,
+        cog: null,
+        requestId,
+        meta: { fastReturn: true, reason: "greeting_intercept" },
+      });
+    }
 
     // Fast-return duplicate requests (double-submit / retry storms)
     if (inGov && inGov.canFastReturn) {
       const cached = getCachedReply(session, inboundSig);
       if (cached && cached.reply) {
-        const sessionPatch = mergeSessionPatch({}, inGov.patch, {
-          __loopSig: "", __loopAt: nowMs(), __loopN: 0, // clear reply-loop to avoid compounding
-        });
+        const sessionPatch = mergeSessionPatches(
+          {},
+          inGov.patch,
+          {
+            __loopSig: "",
+            __loopAt: nowMs(),
+            __loopN: 0, // clear reply-loop to avoid compounding
+          }
+        );
         return _finalizeOut({
           ok: true,
           reply: cached.reply,
@@ -2986,69 +3046,29 @@ const session = isPlainObject(norm.body.session)
           followUpsStrings: [],
           sessionPatch,
           cog: null,
-          requestId: safeStr(input?.requestId || "") || undefined,
+          requestId,
           meta: { fastReturn: true, reason: "duplicate_inbound" },
         });
       }
-
-// -------------------------
-// PRIORITY 0 — GREETING INTERCEPT++++
-// - Must run BEFORE intent/lane/fallback so greetings never collapse into lane prompts.
-// - Deterministic reply (no model), stable across retries.
-// -------------------------
-const greetQuick = detectGreetingQuick(norm.text);
-if (greetQuick && greetQuick.kind) {
-  const greetReply = buildGreetingReply(greetQuick.kind, safeStr(inboundKey || norm.text || ""));
-  const sessionPatch = mergeSessionPatch({}, {
-    __lastIntent: "GREETING",
-    __lastLane: safeStr(session.__lastLane || "") || "general",
-    __lastTopic: "greeting",
-    __turnDepth: (Number.isFinite(Number(session.__turnDepth)) ? Number(session.__turnDepth) : 0) + 1,
-  });
-
-  // A+ debug line (remove when stable)
-  if (truthy(norm?.ctx?.debug) || truthy(input?.debug) || truthy(process?.env?.NYX_DEBUG_GREET)) {
-    console.debug("[chatEngine:greet]", {
-      v: CE_VERSION,
-      kind: greetQuick.kind,
-      text: safeStr(norm.text || ""),
-      inboundKey,
-      keys: Object.keys(isPlainObject(norm.body) ? norm.body : {}),
-    });
-  }
-
-  return _finalizeOut({
-    ok: true,
-    reply: greetReply,
-    lane: "general",
-    laneId: undefined,
-    sessionLane: "general",
-    bridge: { bypassClarify: true, greet: true, inboundKey },
-    ctx: norm.ctx,
-    ui: { chips: [], hints: [] },
-    directives: [],
-    followUps: [],
-    followUpsStrings: [],
-    sessionPatch,
-    cog: null,
-    requestId: safeStr(input?.requestId || "") || undefined,
-    meta: { fastReturn: true, reason: "greeting_intercept" },
-  });
-}
-
     }
 
     // Trip fuse: same inbound repeated multiple times within window
     if (inGov && inGov.tripped) {
       const emoNow = (typeof emo !== "undefined") ? emo : null;
       const reply = makeBreakerReply(norm, emoNow);
-      const sessionPatch = mergeSessionPatch({}, inGov.patch, {
-        lastLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
-        lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
-        __safetyHold: false,
-        __loopSig: "", __loopAt: nowMs(), __loopN: 0,
-        __breakerAt: nowMs(),
-      });
+      const sessionPatch = mergeSessionPatches(
+        {},
+        inGov.patch,
+        {
+          lastLane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+          lane: safeStr(session.lastLane || session.lane || norm.lane || "general") || "general",
+          __safetyHold: false,
+          __loopSig: "",
+          __loopAt: nowMs(),
+          __loopN: 0,
+          __breakerAt: nowMs(),
+        }
+      );
       return _finalizeOut({
         ok: true,
         reply,
@@ -3063,11 +3083,10 @@ if (greetQuick && greetQuick.kind) {
         followUpsStrings: [],
         sessionPatch,
         cog: null,
-        requestId: safeStr(input?.requestId || "") || undefined,
+        requestId,
         meta: { breaker: true, reason: "inbound_repeat_fuse", n: inGov.n },
       });
     }
-
 
     const knowledge = isPlainObject(input?.knowledge)
       ? input.knowledge
@@ -3080,44 +3099,62 @@ if (greetQuick && greetQuick.kind) {
     // PUBLIC MODE (SAFE DEFAULT TRUE)
     const publicMode = computePublicMode(norm, session);
 
-  // DATASET_DIRECT_ANSWER++++ (gold answer) — only when confident and not distress
-  try {
-    const dsPack = isPlainObject(norm.ctx) && isPlainObject(norm.ctx.dataset) ? norm.ctx.dataset : null;
-    if (dsPack && dsPack.confident && dsPack.hit) {
-      const emo0 = (typeof detectDistressQuick === "function") ? detectDistressQuick(norm.text || "") : { distress:false };
-      if (!emo0 || !emo0.distress) {
-        const ans = safeStr(dsPack.hit.answer || dsPack.hit.text || "").trim();
-        if (ans) {
-          const reply0 = applyPublicSanitization(ans, norm, session, publicMode);
-          const reply = scrubExecutionStyleArtifacts(reply0);
-          const spoken = softSpeak(reply);
+    // DATASET_DIRECT_ANSWER++++ (gold answer) — only when confident and not distress
+    try {
+      const dsPack = isPlainObject(norm.ctx) && isPlainObject(norm.ctx.dataset) ? norm.ctx.dataset : null;
+      if (dsPack && dsPack.confident && dsPack.hit) {
+        const emo0 = (typeof detectDistressQuick === "function") ? detectDistressQuick(norm.text || "") : { distress: false };
+        if (!emo0 || !emo0.distress) {
+          const ans = safeStr(dsPack.hit.answer || dsPack.hit.text || "").trim();
+          if (ans) {
+            const reply0 = applyPublicSanitization(ans, norm, session, publicMode);
+            const reply = scrubExecutionStyleArtifacts(reply0);
+            const spoken = softSpeak(reply);
 
-          // memory commit (best-effort)
-          try {
-            safeStoreMemoryTurn(sessionId, { user: safeStr(norm.text||""), assistant: reply, intent: "DATASET", topics: [safeStr(dsPack.hit.topic||"")], entities: [] });
-          } catch (_e) {}
+            const dsSessionPatch = mergeSessionPatches(
+              {},
+              inGov && isPlainObject(inGov.patch) ? inGov.patch : {},
+              {
+                __cacheInSig: safeStr(inboundSig || ""),
+                __cacheAt: nowMs(),
+                __cacheReply: reply,
+                __cacheLane: safeStr(norm.lane || session.lane || "general") || "general",
+                __cacheFollowUps: [],
+              }
+            );
 
-          return {
-            ok: true,
-            reply,
-            lane: safeStr(norm.lane || session.lane || "general") || "general",
-            laneId: safeStr(norm.laneId || "") || "",
-            sessionLane: safeStr(session.lane || "") || "",
-            bridge: { used: false, provider: "dataset", fused: false },
-            ctx: norm.ctx,
-            ui: { chips: [], hint: "" },
-            directives: [{ type: "TTS_SPEAK", voiceMode: "soft", text: spoken.slice(0, 2200), hints: { pace:"slow", warmth:"high", punctuation:"calm" } }],
-            followUps: [],
-            followUpsStrings: [],
-            sessionPatch: isPlainObject(sessionPatch) ? sessionPatch : {},
-            cog: { intent: "DATASET", confidence: 0.92, domains: [safeStr(dsPack.hit.topic||"dataset") || "dataset"] },
-            requestId,
-            meta: { dataset: { source: safeStr(dsPack.hit.source||""), id: safeStr(dsPack.hit.id||""), score: Number(dsPack.hit.score||0)||0 } },
-          };
+            return _finalizeOut({
+              ok: true,
+              reply,
+              lane: safeStr(norm.lane || session.lane || "general") || "general",
+              laneId: safeStr(norm.laneId || "") || "",
+              sessionLane: safeStr(session.lane || "") || "",
+              bridge: { used: false, provider: "dataset", fused: false },
+              ctx: norm.ctx,
+              ui: { chips: [], hint: "" },
+              directives: [{
+                type: "TTS_SPEAK",
+                voiceMode: "soft",
+                text: spoken.slice(0, 2200),
+                hints: { pace: "slow", warmth: "high", punctuation: "calm" }
+              }],
+              followUps: [],
+              followUpsStrings: [],
+              sessionPatch: dsSessionPatch,
+              cog: { intent: "DATASET", confidence: 0.92, domains: [safeStr(dsPack.hit.topic || "dataset") || "dataset"] },
+              requestId,
+              meta: {
+                dataset: {
+                  source: safeStr(dsPack.hit.source || ""),
+                  id: safeStr(dsPack.hit.id || ""),
+                  score: Number(dsPack.hit.score || 0) || 0
+                }
+              },
+            });
+          }
         }
       }
-    }
-  } catch (_e) {}
+    } catch (_e) {}
 
     // Marion mediation (fail-open)
     let cogRaw = null;
@@ -3133,6 +3170,7 @@ if (greetQuick && greetQuick.kind) {
 
     // ALWAYS normalize to guarantee required fields
     const cog = normalizeCog(norm, session, cogRaw);
+
     // SUPPORT PREFIX++++ (emotion-aware; avoids clarify spirals on grief/loneliness/anxiety signals)
     let supportPrefix = "";
     const emoMode = safeStr(emo?.mode || "").toUpperCase();
@@ -3148,13 +3186,13 @@ if (greetQuick && greetQuick.kind) {
       }
     }
 
-
     // Lock publicMode into cog
     cog.publicMode = !!publicMode;
 
     // Planner must see the full inbound (payload/ctx/turnSignals)
     const spineInbound = buildSpineInbound(norm, cog);
-let corePlan = Spine.decideNextMove(corePrev, spineInbound);
+    let corePlan = Spine.decideNextMove(corePrev, spineInbound);
+
     // If emotion detector recommends bypassing clarify, hard-steer away from CLARIFY/NARROW moves.
     if (emo && !!emo.bypassClarify && supportPrefix) {
       const mv = safeStr(corePlan.move || "").toLowerCase();
@@ -3248,27 +3286,30 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
     cog.inboundKey = inboundKey;
     cog.greetLine = computeOptionAGreetingLine(session, norm, cog, inboundKey);
 
-    const requestId = resolveRequestId(input, norm, inboundKey);
     if (__dbg) {
       __stamp = makeStageStamp(started, () => __stage, requestId);
       __stamp({ v: CE_VERSION });
     }
+
     // CRISIS SHORT-CIRCUIT++++ (do not clarify-loop)
     if (emo && safeStr(emo.mode || "").toUpperCase() === "CRISIS" && Support && typeof Support.buildCrisisResponse === "function") {
       const reply = Support.buildCrisisResponse();
-      const sessionPatch = mergeSessionPatch({}, {
-        lastLane: "general",
-        lane: "general",
-        __safetyHold: true,
-        __loopSig: "",
-        __loopAt: nowMs(),
-        __loopN: 0,
-      });
+      const sessionPatch = mergeSessionPatches(
+        {},
+        {
+          lastLane: "general",
+          lane: "general",
+          __safetyHold: true,
+          __loopSig: "",
+          __loopAt: nowMs(),
+          __loopN: 0,
+        }
+      );
       return _finalizeOut({
         ok: true,
         reply,
-      payload: { reply },
-      lane: "general",
+        payload: { reply },
+        lane: "general",
         laneId: "general",
         sessionLane: "general",
         bridge: { lane: "general", action: "safety_redirect", reason: "crisis" },
@@ -3283,7 +3324,6 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
         meta: { engine: CE_VERSION, requestId, elapsedMs: nowMs() - started, turnSignals: norm.turnSignals || {} },
       });
     }
-
 
     const yearSticky = normYear(session.lastYear) ?? null;
     const year = norm.year ?? yearSticky ?? null;
@@ -3311,25 +3351,22 @@ let corePlan = Spine.decideNextMove(corePrev, spineInbound);
       }
     }
 
+    // Session lane identity (deterministic routing key, NOT PII)
+    const sessionKey = resolveSessionKey(session, norm, requestId);
+    const laneIdComputed = computeLaneId(sessionKey, lane);
+    const sessionLane = computeSessionLaneState(session, corePrev, lane, norm);
+    const bridge = computeBridge(sessionLane, requestId);
 
-// Session lane identity (deterministic routing key, NOT PII)
-const sessionKey = resolveSessionKey(session, norm, requestId);
-const laneIdComputed = computeLaneId(sessionKey, lane);
-const sessionLane = computeSessionLaneState(session, corePrev, lane, norm);
-const bridge = computeBridge(sessionLane, requestId);
-
-// Make stabilization info visible to downstream consumers (UI / index.js)
-cog.laneId = laneIdComputed;
-cog.sessionLane = sessionLane;
-if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonical bridge contract)
+    // Make stabilization info visible to downstream consumers (UI / index.js)
+    cog.laneId = laneIdComputed;
+    cog.sessionLane = sessionLane;
+    if (bridge) cog.laneBridge = bridge; // keep MarionSO.cog.bridge intact (canonical bridge contract)
 
     // Central reply pipeline (constitution -> public sanitize -> trim)
     function finalizeReply(replyRaw, fallback) {
       const base0 = ensureNonEmptyReply(replyRaw, fallback);
       const base = (supportPrefix && base0 && !safeStr(base0).startsWith(supportPrefix))
-        ? `${supportPrefix}
-
-${base0}`
+        ? `${supportPrefix}\n\n${base0}`
         : base0;
       const composed = applyTurnConstitutionToReply(base, cog, session);
       return scrubExecutionStyleArtifacts(applyPublicSanitization(composed, norm, session, publicMode));
@@ -3389,8 +3426,7 @@ ${base0}`
         elapsedMs: nowMs() - started,
       };
     }
-
-    function buildContract(out) {
+        function buildContract(out) {
       let followUps = coerceFollowUps(out.followUps);
       const followUpsStrings = asArray(out.followUpsStrings)
         .map((x) => safeStr(x).trim())
@@ -3425,7 +3461,6 @@ ${base0}`
       const laneId = safeStr(out.laneId || (typeof laneIdComputed !== "undefined" ? laneIdComputed : "") || "");
       const sessionLaneInfo = isPlainObject(out.sessionLane) ? out.sessionLane : (typeof sessionLane !== "undefined" ? sessionLane : undefined);
       const bridgeInfo = isPlainObject(out.bridge) ? out.bridge : (typeof bridge !== "undefined" ? bridge : undefined);
-
 
       let replyText = ensureNonEmptyReply(out.reply, "Okay. Tell me what you want next.");
 
@@ -3531,13 +3566,19 @@ ${base0}`
       const _intro = maybeAddIntroDirective({ directives: _dirs0, session, cog, norm });
       const _introPatch = isPlainObject(_intro.patch) ? _intro.patch : {};
 
-      const mergedSessionPatch = Object.assign({}, _baseSessionPatch, _inPatch, _cachePatch, _introPatch, _affectPatch, (isPlainObject(_oi.sessionPatch) ? _oi.sessionPatch : {}));
+      const mergedSessionPatch = mergeSessionPatches(
+        _baseSessionPatch,
+        _inPatch,
+        _cachePatch,
+        _introPatch,
+        _affectPatch,
+        (isPlainObject(_oi.sessionPatch) ? _oi.sessionPatch : {})
+      );
 
       return {
         ok: out && typeof out.ok === "boolean" ? out.ok : true,
         reply: replyText,
         lane: laneResolved,
-
 
         // Compatibility: always include payload.reply for widget/TTS listeners
         payload: { reply: replyText, lane: laneResolved },
@@ -3568,7 +3609,6 @@ ${base0}`
         meta: Object.assign({}, isPlainObject(out.meta) ? out.meta : {}, isPlainObject(_oi.metaPatch) ? _oi.metaPatch : {}),
       };
     }
-
 
     // -------------------------
     // SENTIENT HOST INTRO (first load ritual) — speaks + animated text + lane portals
@@ -3657,7 +3697,7 @@ ${base0}`
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "reset",
       });
 
@@ -3731,7 +3771,7 @@ ${base0}`
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "counsel_intro",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "counsel_intro",
       });
 
@@ -3761,8 +3801,7 @@ ${base0}`
         }),
       });
     }
-
-    // -------------------------
+        // -------------------------
     // ask_year + switch_lane (engine-owned UI, not knowledge)
     // -------------------------
     if (norm.action === "ask_year") {
@@ -3813,7 +3852,7 @@ ${base0}`
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "ask_year",
       });
 
@@ -3845,17 +3884,16 @@ ${base0}`
     }
 
     if (norm.action === "switch_lane") {
-      const baseMenu = "Pick a lane:\n\n• Music\n• Movies\n• News Canada\n• Roku\n• Sponsors";
       const reply0 = finalizeReply(
-      emo && emo.bypassClarify
-        ? counselorLiteIntro(norm, session, cog)
-        : discoveryHint && discoveryHint.enabled
-        ? safeStr(discoveryHint.question).trim()
-        : safeStr(norm.text)
-        ? "I can help with Sandblast TV, Radio (music), News Canada, or we can just talk. What would you like?"
-        : "Okay — what would you like to do: TV, Radio, News Canada, or just talk?",
-      "Okay — what would you like to do next?"
-    );
+        emo && emo.bypassClarify
+          ? counselorLiteIntro(norm, session, cog)
+          : discoveryHint && discoveryHint.enabled
+          ? safeStr(discoveryHint.question).trim()
+          : safeStr(norm.text)
+          ? "I can help with Sandblast TV, Radio (music), News Canada, or we can just talk. What would you like?"
+          : "Okay — what would you like to do: TV, Radio, News Canada, or just talk?",
+        "Okay — what would you like to do next?"
+      );
       const loop = detectAndPatchLoop(session, lane || "general", reply0);
       const reply = loop.tripped
         ? finalizeReply("We’re looping. Pick ONE: Music, Movies, Roku, or Sponsors.")
@@ -3891,7 +3929,7 @@ ${base0}`
         pendingAsk: pendingAskObj("need_pick", "clarify", "Pick a lane.", true),
         decision: corePlan,
         assistantSummary: "asked_lane",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "switch_lane",
       });
 
@@ -3940,191 +3978,187 @@ ${base0}`
     const routeMaybe = safeStr(norm.payload?.route || "").trim().toLowerCase();
     const actionMaybe = safeStr(norm.action || "").trim().toLowerCase();
 
+    // -------------------------
+    // PSYCH / SITE BRIDGE handling — forces Marion→PsycheBridge path (no UI breakage)
+    // -------------------------
+    const wantsPsychBridge =
+      routeMaybe === "psych_bridge" ||
+      actionMaybe === "psych_bridge" ||
+      ((routeMaybe && /\b(psych|bridge|support)\b/.test(routeMaybe)) ? true : false) ||
+      (safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ") === "just talk") ||
+      /\b(i[' ]?m hurting|i am hurting|im hurting|anxious|panic|depress|suicid|self harm)\b/i.test(safeStr(norm.text || ""));
 
-// -------------------------
-// PSYCH / SITE BRIDGE handling — forces Marion→PsycheBridge path (no UI breakage)
-// -------------------------
-const wantsPsychBridge =
-  routeMaybe === "psych_bridge" ||
-  actionMaybe === "psych_bridge" ||
-  ((routeMaybe && /\b(psych|bridge|support)\b/.test(routeMaybe)) ? true : false) ||
-  (safeStr(norm.text || "").trim().toLowerCase().replace(/\s+/g, " ") === "just talk") ||
-  /\b(i[' ]?m hurting|i am hurting|im hurting|anxious|panic|depress|suicid|self harm)\b/i.test(safeStr(norm.text || ""));
+    if (wantsPsychBridge) {
+      const baseLine = supportPrefix
+        ? supportPrefix
+        : finalizeReply(
+            "Alright — I’m here. Tell me what’s going on (one or two sentences).",
+            "Alright — I’m here."
+          );
+      // Build psyche object (FAIL-OPEN) so Nyx can respond with psych-aware behavior.
+      const sessionKey = safeStr(session.sessionKey || session.id || session.sid || "session").trim() || "session";
+      const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
-if (wantsPsychBridge) {
-  const baseLine = supportPrefix
-    ? supportPrefix
-    : finalizeReply(
-        "Alright — I’m here. Tell me what’s going on (one or two sentences).",
+      __stage = "bridge_fetch";
+
+      // OPINTEL: MemorySpine bridge fuse (adaptive)
+      const _spineBridgeFused = !!(MemorySpine && typeof MemorySpine.isBridgeFused === "function" && MemorySpine.isBridgeFused(sessionId));
+
+      // BRIDGE FUSE++++: skip bridge calls while fuse is active (prevents echo-loops)
+      const _bridgeFuseUntil = Number(session.__bridgeFuseUntil || 0) || 0;
+      const _bridgeFused = _bridgeFuseUntil && nowMs() < _bridgeFuseUntil;
+
+      if (__dbg && __stamp) __stamp();
+      const psycheRes = _bridgeFused ? null : await withTimeout(buildPsycheSafe({
+        features: isPlainObject(cog) ? { ...cog } : {},
+        tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
+        queryKey,
+        sessionKey,
+        opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
+      }), 12000, "buildPsycheSafe");
+      const psyche = (!psycheRes || (psycheRes && psycheRes.__timeout)) ? null : psycheRes;
+      try {
+        if (psyche && MemorySpine && typeof MemorySpine.noteBridgeUse === "function") {
+          MemorySpine.noteBridgeUse(sessionId, { lane: lane, action: "psyche_bridge", trace: safeStr(psyche.requestId || psyche.traceId || "") });
+        }
+      } catch (_e) {}
+      if (_bridgeFused && __dbg && __stamp) __stamp({ warn: "bridge_fused", untilMs: _bridgeFuseUntil });
+      if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
+
+      // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
+      if (psyche && (psyche.opening || psyche.reply || psyche.prompt)) {
+        const ptxt = safeStr(psyche.opening || psyche.reply || psyche.prompt || "");
+        if (ptxt) {
+          // override baseLine with psyche-driven opener
+        }
+      }
+
+      const openerFromPsyche = (psyche && (psyche.opening || psyche.reply || psyche.prompt)) ? safeStr(psyche.opening || psyche.reply || psyche.prompt) : "";
+
+      const reply0 = finalizeReply(
+        openerFromPsyche ? openerFromPsyche : baseLine,
         "Alright — I’m here."
       );
-  // Build psyche object (FAIL-OPEN) so Nyx can respond with psych-aware behavior.
-  const sessionKey = safeStr(session.sessionKey || session.id || session.sid || "session").trim() || "session";
-  const queryKey = safeStr(`${requestId || "req"}:${(session.turnIndex ?? session.turn ?? corePrev?.rev ?? 0)}`).slice(0,220);
 
-  __stage = "bridge_fetch";
+      const loop = detectAndPatchLoop(session, "psych_bridge", reply0);
+      const reply = loop.tripped
+        ? finalizeReply("We’re looping. Say ONE sentence about what’s going on, or tap ‘Pick a year’ if you meant music.")
+        : reply0;
 
-  // OPINTEL: MemorySpine bridge fuse (adaptive)
-  const _spineBridgeFused = !!(MemorySpine && typeof MemorySpine.isBridgeFused === "function" && MemorySpine.isBridgeFused(sessionId));
+      const sigLine = detectSignatureLine(reply);
 
-  // BRIDGE FUSE++++: skip bridge calls while fuse is active (prevents echo-loops)
-  const _bridgeFuseUntil = Number(session.__bridgeFuseUntil || 0) || 0;
-  const _bridgeFused = _bridgeFuseUntil && nowMs() < _bridgeFuseUntil;
+      const fu = [
+        { id: "fu_psych_talk", type: "chip", label: "Just talk", payload: { lane: "general", action: "psych_bridge", route: "psych_bridge" } },
+        { id: "fu_psych_music", type: "chip", label: "Music instead", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
+      ].slice(0, 10);
 
-  if (__dbg && __stamp) __stamp();
-  const psycheRes = _bridgeFused ? null : await withTimeout(buildPsycheSafe({
-    features: isPlainObject(cog) ? { ...cog } : {},
-    tokens: safeStr(norm.text || "").trim().split(/\s+/).filter(Boolean),
-    queryKey,
-    sessionKey,
-    opts: { mode: "psych_bridge", lane: "psych", source: "chatEngine", awaitDomains: true },
-  }), 12000, "buildPsycheSafe");
-  const psyche = (!psycheRes || (psycheRes && psycheRes.__timeout)) ? null : psycheRes;
-  try {
-    if (psyche && MemorySpine && typeof MemorySpine.noteBridgeUse === "function") {
-      MemorySpine.noteBridgeUse(sessionId, { lane: lane, action: "psyche_bridge", trace: safeStr(psyche.requestId || psyche.traceId || "") });
+      const coreNext = finalizeSpineTurn({
+        corePrev,
+        norm,
+        lane: "general",
+        topic: "psych_bridge",
+        actionTaken: loop.tripped ? "psych_bridge_loop_break" : "psych_bridge",
+        followUps: fu,
+        pendingAsk: pendingAskObj("psych_bridge_open", "deliver", "Tell me what’s going on. If this is about safety, say so.", true),
+        decision: corePlan,
+        assistantSummary: "psych_bridge_open",
+        marionCog: cog,
+        updateReason: "psych_bridge",
+      });
+
+      const routePatch = {
+        lane: "general",
+        __forcePsychBridge: true,
+        __bridgeLane: "psych",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
+        __spineState: coreNext,
+      };
+
+      return buildContract({
+        reply,
+        lane: "general",
+        cog: mergeCogWithPsyche(cog, psyche),
+        bridge: { kind: "psych_bridge", lane: "psych", force: true },
+        directives: [{ type: "bridge", kind: "psych_bridge", lane: "psych", force: true }],
+        followUps: fu,
+        followUpsStrings: ["Just talk", "Music instead"],
+        sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+        meta: metaBase({
+          route: "psych_bridge",
+          emotion: emo ? { mode: safeStr(emo.mode || ""), tags: Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [] } : null,
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        }),
+      });
     }
-  } catch (_e) {}
-  if (_bridgeFused && __dbg && __stamp) __stamp({ warn: "bridge_fused", untilMs: _bridgeFuseUntil });
-  if (__dbg && __stamp && psycheRes && psycheRes.__timeout) __stamp({ warn: "bridge_timeout", label: psycheRes.__label || "" });
-
-
-  // If psyche bridge returns concrete guidance, surface a safe, supportive first response immediately.
-  if (psyche && (psyche.opening || psyche.reply || psyche.prompt)) {
-    const ptxt = safeStr(psyche.opening || psyche.reply || psyche.prompt || "");
-    if (ptxt) {
-      // override baseLine with psyche-driven opener
-    }
-  }
-
-
-  const openerFromPsyche = (psyche && (psyche.opening || psyche.reply || psyche.prompt)) ? safeStr(psyche.opening || psyche.reply || psyche.prompt) : "";
-
-  const reply0 = finalizeReply(
-    openerFromPsyche ? openerFromPsyche : baseLine,
-    "Alright — I’m here."
-  );
-
-  const loop = detectAndPatchLoop(session, "psych_bridge", reply0);
-  const reply = loop.tripped
-    ? finalizeReply("We’re looping. Say ONE sentence about what’s going on, or tap ‘Pick a year’ if you meant music.")
-    : reply0;
-
-  const sigLine = detectSignatureLine(reply);
-
-  const fu = [
-    { id: "fu_psych_talk", type: "chip", label: "Just talk", payload: { lane: "general", action: "psych_bridge", route: "psych_bridge" } },
-    { id: "fu_psych_music", type: "chip", label: "Music instead", payload: { lane: "music", action: "ask_year", route: "ask_year" } },
-  ].slice(0, 10);
-
-  const coreNext = finalizeSpineTurn({
-    corePrev,
-    norm,
-    lane: "general",
-    topic: "psych_bridge",
-    actionTaken: loop.tripped ? "psych_bridge_loop_break" : "psych_bridge",
-    followUps: fu,
-    pendingAsk: pendingAskObj("psych_bridge_open", "deliver", "Tell me what’s going on. If this is about safety, say so.", true),
-    decision: corePlan,
-    assistantSummary: "psych_bridge_open",
-    marionCog: cog,
-    updateReason: "psych_bridge",
-  });
-
-  const routePatch = {
-    lane: "general",
-    __forcePsychBridge: true,
-    __bridgeLane: "psych",
-    ...(sigLine ? { lastSigTransition: sigLine } : {}),
-    ...loop.patch,
-    __spineState: coreNext,
-  };
-
-  return buildContract({
-    reply,
-    lane: "general",
-    cog: mergeCogWithPsyche(cog, psyche),
-    bridge: { kind: "psych_bridge", lane: "psych", force: true },
-    directives: [{ type: "bridge", kind: "psych_bridge", lane: "psych", force: true }],
-    followUps: fu,
-    followUpsStrings: ["Just talk", "Music instead"],
-    sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-    meta: metaBase({
-      route: "psych_bridge",
-      emotion: emo ? { mode: safeStr(emo.mode || ""), tags: Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [] } : null,
-      loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
-      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
-    }),
-  });
-}
-
-// -------------------------
-// ROKU handling (EPG bridge) — lightweight + fail-open
-// -------------------------
-const wantsRoku =
-  lane === "roku" ||
-  routeMaybe === "roku" ||
-  actionMaybe === "roku" ||
-  (routeMaybe && /\b(epg|guide|roku)\b/.test(routeMaybe));
-
-if (wantsRoku) {
-  const reply0 = finalizeReply(
-    `Roku is live. Here’s the EPG (guide) feed you gave me:\n\n${ROKU_EPG_URL}\n\nTell me what you want next: (A) “What’s on now?” (B) “Next up” (C) “Schedule by day” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
-    "Roku is live. EPG is ready."
-  );
-
-  const loop = detectAndPatchLoop(session, "roku", reply0);
-  const reply = loop.tripped
-    ? finalizeReply(`We’re looping on Roku. Open the EPG link and tell me what you want: now / next / schedule.`)
-    : reply0;
-
-  const sigLine = detectSignatureLine(reply);
-
-  const fu = [
-    { id: "fu_roku_epg", type: "link", label: "Open EPG", payload: { url: ROKU_EPG_URL, target: "_blank", lane: "roku", action: "roku", route: "roku", focus: "epg" } },
-    { id: "fu_roku_now", type: "chip", label: "What's on now?", payload: { lane: "roku", action: "roku", route: "roku", focus: "now" } },
-    { id: "fu_roku_next", type: "chip", label: "Next up", payload: { lane: "roku", action: "roku", route: "roku", focus: "next" } },
-    { id: "fu_roku_schedule", type: "chip", label: "Schedule", payload: { lane: "roku", action: "roku", route: "roku", focus: "schedule" } },
-  ].slice(0, 10);
-
-  const coreNext = finalizeSpineTurn({
-    corePrev,
-    norm,
-    lane: "roku",
-    topic: "roku",
-    actionTaken: loop.tripped ? "roku_loop_break" : "roku",
-    followUps: fu,
-    pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: now / next / schedule (and add timezone if needed).", true),
-    decision: corePlan,
-    assistantSummary: "roku_epg_stub",
-    marionCog: cog,
-    updateReason: "roku",
-  });
-
-  const routePatch = {
-    lane: "roku",
-    ...(sigLine ? { lastSigTransition: sigLine } : {}),
-    ...loop.patch,
-    __spineState: coreNext,
-  };
-
-  return buildContract({
-    reply,
-    lane: "roku",
-    bridge: { kind: "open_url", lane: "roku", url: ROKU_EPG_URL, label: "Open EPG" },
-    directives: [{ type: "open_url", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" }],
-    followUps: fu,
-    followUpsStrings: ["Open EPG", "What's on now?", "Next up", "Schedule"],
-    sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
-    meta: metaBase({
-      route: "roku",
-      loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
-      spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
-    }),
-  });
-}
 
     // -------------------------
+    // ROKU handling (EPG bridge) — lightweight + fail-open
+    // -------------------------
+    const wantsRoku =
+      lane === "roku" ||
+      routeMaybe === "roku" ||
+      actionMaybe === "roku" ||
+      (routeMaybe && /\b(epg|guide|roku)\b/.test(routeMaybe));
+
+    if (wantsRoku) {
+      const reply0 = finalizeReply(
+        `Roku is live. Here’s the EPG (guide) feed you gave me:\n\n${ROKU_EPG_URL}\n\nTell me what you want next: (A) “What’s on now?” (B) “Next up” (C) “Schedule by day” — and your timezone (e.g., America/Toronto) if you want it mapped.`,
+        "Roku is live. EPG is ready."
+      );
+
+      const loop = detectAndPatchLoop(session, "roku", reply0);
+      const reply = loop.tripped
+        ? finalizeReply(`We’re looping on Roku. Open the EPG link and tell me what you want: now / next / schedule.`)
+        : reply0;
+
+      const sigLine = detectSignatureLine(reply);
+
+      const fu = [
+        { id: "fu_roku_epg", type: "link", label: "Open EPG", payload: { url: ROKU_EPG_URL, target: "_blank", lane: "roku", action: "roku", route: "roku", focus: "epg" } },
+        { id: "fu_roku_now", type: "chip", label: "What's on now?", payload: { lane: "roku", action: "roku", route: "roku", focus: "now" } },
+        { id: "fu_roku_next", type: "chip", label: "Next up", payload: { lane: "roku", action: "roku", route: "roku", focus: "next" } },
+        { id: "fu_roku_schedule", type: "chip", label: "Schedule", payload: { lane: "roku", action: "roku", route: "roku", focus: "schedule" } },
+      ].slice(0, 10);
+
+      const coreNext = finalizeSpineTurn({
+        corePrev,
+        norm,
+        lane: "roku",
+        topic: "roku",
+        actionTaken: loop.tripped ? "roku_loop_break" : "roku",
+        followUps: fu,
+        pendingAsk: pendingAskObj("need_roku_choice", "clarify", "Pick: now / next / schedule (and add timezone if needed).", true),
+        decision: corePlan,
+        assistantSummary: "roku_epg_stub",
+        marionCog: cog,
+        updateReason: "roku",
+      });
+
+      const routePatch = {
+        lane: "roku",
+        ...(sigLine ? { lastSigTransition: sigLine } : {}),
+        ...loop.patch,
+        __spineState: coreNext,
+      };
+
+      return buildContract({
+        reply,
+        lane: "roku",
+        bridge: { kind: "open_url", lane: "roku", url: ROKU_EPG_URL, label: "Open EPG" },
+        directives: [{ type: "open_url", url: ROKU_EPG_URL, label: "Open EPG", target: "_blank" }],
+        followUps: fu,
+        followUpsStrings: ["Open EPG", "What's on now?", "Next up", "Schedule"],
+        sessionPatch: mergeSessionPatch(baseCogPatch, routePatch),
+        meta: metaBase({
+          route: "roku",
+          loop: { tripped: loop.tripped, sig: loop.sig, n: loop.n },
+          spine: { v: Spine.SPINE_VERSION, rev: coreNext.rev, lane: coreNext.lane, stage: coreNext.stage, move: safeStr(corePlan.move || "") },
+        }),
+      });
+    }
+        // -------------------------
     // NEWS CANADA handling (lane stub + bridge contract) — scraping/feed wired elsewhere
     // -------------------------
     const wantsNewsCanada =
@@ -4189,7 +4223,6 @@ if (wantsRoku) {
         }),
       });
     }
-
 
     const wantsMovies =
       lane === "movies" ||
@@ -4257,7 +4290,7 @@ if (wantsRoku) {
           pendingAsk: null,
           decision: corePlan,
           assistantSummary: "movies_lane_missing",
-  marionCog: cog,
+          marionCog: cog,
           updateReason: "movies",
         });
 
@@ -4319,7 +4352,7 @@ if (wantsRoku) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "served_movies",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "movies",
       });
 
@@ -4420,7 +4453,7 @@ if (wantsRoku) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "need_year",
       });
 
@@ -4478,7 +4511,7 @@ if (wantsRoku) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year_range",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "year_range",
       });
 
@@ -4507,8 +4540,7 @@ if (wantsRoku) {
         }),
       });
     }
-
-    // -------------------------
+        // -------------------------
     // MUSIC handling (delegated to Utils/musicKnowledge.js)
     // -------------------------
     const action = norm.action || (lane === "music" && year ? "top10" : "");
@@ -4565,7 +4597,7 @@ if (wantsRoku) {
           ),
           decision: corePlan,
           assistantSummary: "music_module_missing",
-  marionCog: cog,
+          marionCog: cog,
           updateReason: "music_missing",
         });
 
@@ -4615,7 +4647,7 @@ if (wantsRoku) {
         pendingAsk: musicOut.pendingAsk || null,
         decision: corePlan,
         assistantSummary: safeStr(musicOut.lastAssistantSummary || "served_music"),
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "music",
       });
 
@@ -4680,7 +4712,7 @@ if (wantsRoku) {
         ),
         decision: corePlan,
         assistantSummary: "asked_year",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "general_default_music",
       });
 
@@ -4736,7 +4768,7 @@ if (wantsRoku) {
         pendingAsk: null,
         decision: corePlan,
         assistantSummary: "counsel_intro",
-  marionCog: cog,
+        marionCog: cog,
         updateReason: "general_counsel_intro",
       });
 
@@ -4767,24 +4799,22 @@ if (wantsRoku) {
       });
     }
 
-
-const reply0 = finalizeReply(
-  (emo && !!emo.bypassClarify)
-    ? (supportPrefix || "I’m sorry you’re hurting. I’m here with you — what’s going on right now?")
-    : (affect && affect.hit)
-      ? (
-          affect.valence === "positive"
-            ? `Good — I’m glad to hear that. What’s making you feel ${safeStr(affect.tag || "good")} right now?`
-            : `Okay — I hear the ${safeStr(affect.tag || "feeling")}. What’s behind it right now?`
-        ) + " If you want direction, tell me the goal or tap a lane chip."
-      : (discoveryHint && discoveryHint.enabled
-          ? safeStr(discoveryHint.question).trim()
-          : safeStr(norm.text)
-            ? "Tell me what you want next: music, movies, or sponsors."
-            : "Okay — tell me what you want next."),
-  "Okay — tell me what you want next."
-);
-
+    const reply0 = finalizeReply(
+      (emo && !!emo.bypassClarify)
+        ? (supportPrefix || "I’m sorry you’re hurting. I’m here with you — what’s going on right now?")
+        : (affect && affect.hit)
+          ? (
+              affect.valence === "positive"
+                ? `Good — I’m glad to hear that. What’s making you feel ${safeStr(affect.tag || "good")} right now?`
+                : `Okay — I hear the ${safeStr(affect.tag || "feeling")}. What’s behind it right now?`
+            ) + " If you want direction, tell me the goal or tap a lane chip."
+          : (discoveryHint && discoveryHint.enabled
+              ? safeStr(discoveryHint.question).trim()
+              : safeStr(norm.text)
+                ? "Tell me what you want next: music, movies, or sponsors."
+                : "Okay — tell me what you want next."),
+      "Okay — tell me what you want next."
+    );
 
     const loop = detectAndPatchLoop(session, lane || "general", reply0);
     const reply = loop.tripped ? finalizeReply("Loop detected. Pick ONE: Music, Movies, Roku, or Sponsors.") : reply0;
@@ -4812,7 +4842,7 @@ const reply0 = finalizeReply(
       pendingAsk: pendingAskObj("need_pick", "clarify", "Pick what you want next.", true),
       decision: corePlan,
       assistantSummary: "served_menu",
-  marionCog: cog,
+      marionCog: cog,
       updateReason: "general_menu",
     });
 
@@ -4926,7 +4956,6 @@ const chatEngine = handleChat;
 
 // Build an export object, then merge onto the callable function (so require() can be invoked directly).
 
-
 // -------------------------
 // HARD FAIL-SAFE (export-level): prevents upstream route wrappers from ever throwing 500
 // - If caller forgets to await or an async rejection escapes, we still return a valid contract.
@@ -5003,8 +5032,6 @@ _callable.default = handleChat;
 _callable.__esModule = true;
 
 module.exports = _callable;
-
-
 /* ===============================
    OPINTEL DATASET ORCHESTRATOR
    ===============================
@@ -5470,7 +5497,6 @@ function governor(session, text) {
   wrapped.default = wrapped.handleChat = wrapped.chatEngine = wrapped;
   module.exports = wrapped;
 })();
-
 /* ===============================
    OPINTEL BRIDGE / EVIDENCE WRAPPER v0.10.14
    - Adds Marion Bridge + Evidence Engine integration without disturbing core pipeline
