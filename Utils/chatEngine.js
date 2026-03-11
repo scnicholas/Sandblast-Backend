@@ -3,17 +3,37 @@
 /**
  * Utils/chatEngine.js
  *
- * Rebuilt core version with:
- * - emotionRouteGuard as single emotional parsing source
- * - supportResponse retained for supportive rendering
- * - loop hardening + inbound duplicate breaker
- * - public-mode sanitization
- * - fail-open semantics
- * - NyxReplyContract-compatible return shape
+ * chatEngine v0.10.14 OPINTEL
+ * ------------------------------------------------------------
+ * HARDENED REBUILD GOALS
+ * - emotionRouteGuard is the single emotional parsing source
+ * - supportResponse consumes richer emotional payloads
+ * - loop control is enforced on inbound + outbound sides
+ * - public-mode sanitization remains default-safe
+ * - state spine + memory spine remain fail-open
+ * - contract remains NyxReplyContract-compatible
+ *
+ * 15 PHASE COVERAGE
+ * ------------------------------------------------------------
+ * Phase 01: Inbound normalization
+ * Phase 02: Emotional route-guard intake
+ * Phase 03: Crisis / vulnerable gating
+ * Phase 04: Positive reinforcement routing
+ * Phase 05: Intensity-aware pacing
+ * Phase 06: Contradiction / mixed-state handling
+ * Phase 07: Recovery signal handling
+ * Phase 08: Inbound duplicate breaker
+ * Phase 09: Outbound reply loop breaker
+ * Phase 10: Public-mode sanitization
+ * Phase 11: Lane / domain routing
+ * Phase 12: Spine update + turn semantics
+ * Phase 13: Memory write-through
+ * Phase 14: Telemetry / directives / bridge metadata
+ * Phase 15: Fail-open integrity / export hardening
  */
 
 let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = "chatEngine v0.10.13 OPINTEL (EMOTION ROUTE GUARD + LOOP-HARDEN + SOFT-VOICE DIRECTIVES)";
+const CE_VERSION = "chatEngine v0.10.14 OPINTEL (ROUTE GUARD + SUPPORT PACKET + LOOP HARDEN + 15 PHASE)";
 
 try {
   const _ceBoot =
@@ -96,7 +116,8 @@ function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
 function isPlainObject(x) {
-  return !!x && typeof x === "object" &&
+  return !!x &&
+    typeof x === "object" &&
     (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
 }
 function clampInt(v, def, min, max) {
@@ -113,15 +134,6 @@ function clamp01(n) {
   if (x < 0) return 0;
   if (x > 1) return 1;
   return x;
-}
-function sha1Lite(str) {
-  const s = safeStr(str);
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
 }
 function truthy(v) {
   if (v === true) return true;
@@ -152,6 +164,15 @@ function safeJsonStringify(x) {
       return '{"_fail":true}';
     }
   }
+}
+function sha1Lite(str) {
+  const s = safeStr(str);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
 }
 function normYear(y) {
   const n = Number(y);
@@ -195,6 +216,63 @@ function safeDatasetSearch(q, opts) {
     return { ok: true, hit: null, hits: [] };
   }
 }
+function safeBuildMemoryContext(sessionId) {
+  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") return null;
+  try { return MemorySpine.buildContext(sessionId); } catch (_e) { return null; }
+}
+function safeStoreMemoryTurn(sessionId, turn) {
+  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") return false;
+  try {
+    MemorySpine.storeTurn(sessionId, turn);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+function buildInboundKey(norm) {
+  const p = isPlainObject(norm?.payload) ? norm.payload : {};
+  const keyObj = {
+    t: safeStr(norm?.text || ""),
+    a: safeStr(norm?.action || ""),
+    y: normYear(norm?.year),
+    l: safeStr(norm?.lane || ""),
+    v: safeStr(norm?.vibe || ""),
+    pa: safeStr(p.action || ""),
+    py: normYear(p.year),
+    pl: safeStr(p.lane || ""),
+    pr: safeStr(p.route || ""),
+    pv: safeStr(p.vibe || ""),
+  };
+  return sha1Lite(safeJsonStringify(keyObj)).slice(0, 18);
+}
+function resolveSessionId(norm, session, inboundKey) {
+  const nctx = isPlainObject(norm && norm.ctx) ? norm.ctx : {};
+  const nb = isPlainObject(norm && norm.body) ? norm.body : {};
+  const s = isPlainObject(session) ? session : {};
+  const candidates = [
+    nctx.sessionId, nctx.sid, nb.sessionId, nb.sid,
+    s.sessionId, s.sid, s.id, s.sessionKey, s.key,
+  ];
+  for (const v of candidates) {
+    const t = safeStr(v).trim();
+    if (t && t.length <= 180) return t;
+  }
+  return safeStr(inboundKey || `sess_${nowMs()}`).slice(0, 36);
+}
+function resolveRequestId(input, norm, inboundKey) {
+  const src = isPlainObject(input) ? input : {};
+  const candidates = [
+    src.requestId,
+    norm?.ctx?.requestId,
+    norm?.body?.requestId,
+    norm?.payload?.requestId
+  ];
+  for (const c of candidates) {
+    const s = safeStr(c).trim();
+    if (s) return s.slice(0, 80);
+  }
+  return `req_${safeStr(inboundKey || sha1Lite(nowMs())).slice(0, 18)}`;
+}
 function applyBudgetText(s, budget) {
   const txt = safeStr(s).trim();
   if (!txt) return "";
@@ -234,49 +312,6 @@ function scrubExecutionStyleArtifacts(reply) {
   let out = kept.join("\n");
   out = out.replace(/\n{3,}/g, "\n\n").trim();
   return out || safeStr(reply).trim() || "Okay.";
-}
-function buildInboundKey(norm) {
-  const p = isPlainObject(norm?.payload) ? norm.payload : {};
-  const keyObj = {
-    t: safeStr(norm?.text || ""),
-    a: safeStr(norm?.action || ""),
-    y: normYear(norm?.year),
-    l: safeStr(norm?.lane || ""),
-    v: safeStr(norm?.vibe || ""),
-    pa: safeStr(p.action || ""),
-    py: normYear(p.year),
-    pl: safeStr(p.lane || ""),
-    pr: safeStr(p.route || ""),
-    pv: safeStr(p.vibe || ""),
-  };
-  return sha1Lite(safeJsonStringify(keyObj)).slice(0, 18);
-}
-function resolveSessionId(norm, session, inboundKey) {
-  const nctx = isPlainObject(norm && norm.ctx) ? norm.ctx : {};
-  const nb = isPlainObject(norm && norm.body) ? norm.body : {};
-  const s = isPlainObject(session) ? session : {};
-  const candidates = [
-    nctx.sessionId, nctx.sid, nb.sessionId, nb.sid,
-    s.sessionId, s.sid, s.id, s.sessionKey, s.key,
-  ];
-  for (const v of candidates) {
-    const t = safeStr(v).trim();
-    if (t && t.length <= 180) return t;
-  }
-  return safeStr(inboundKey || `sess_${nowMs()}`).slice(0, 36);
-}
-function safeBuildMemoryContext(sessionId) {
-  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") return null;
-  try { return MemorySpine.buildContext(sessionId); } catch (_e) { return null; }
-}
-function safeStoreMemoryTurn(sessionId, turn) {
-  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") return false;
-  try {
-    MemorySpine.storeTurn(sessionId, turn);
-    return true;
-  } catch (_e) {
-    return false;
-  }
 }
 const LOOP_WINDOW_MS = 9000;
 const LOOP_HARD_LIMIT = 2;
@@ -361,7 +396,8 @@ function getCachedReply(session, inSig) {
   return {
     reply,
     lane: safeStr(s.__cacheLane || "general") || "general",
-    followUps: Array.isArray(s.__cacheFollowUps) ? s.__cacheFollowUps : []
+    followUps: Array.isArray(s.__cacheFollowUps) ? s.__cacheFollowUps : [],
+    directives: Array.isArray(s.__cacheDirectives) ? s.__cacheDirectives : []
   };
 }
 function computePublicMode(norm, session) {
@@ -478,6 +514,7 @@ function normalizeEmotionGuardResult(raw) {
   if (safeStr(state.valence)) tags.push(safeStr(state.valence));
   if (safeStr(state.momentum) && safeStr(state.momentum) !== "flat") tags.push(`momentum_${safeStr(state.momentum)}`);
   for (const h of routeHints) tags.push(safeStr(h));
+
   return {
     ok: !!r.ok,
     source: "emotionRouteGuard",
@@ -519,6 +556,7 @@ function runEmotionGuard(text) {
   if (!t) return null;
   try {
     if (!EmotionRouteGuard) return null;
+
     if (typeof EmotionRouteGuard.analyzeEmotion === "function") {
       return normalizeEmotionGuardResult(
         EmotionRouteGuard.analyzeEmotion(t, {
@@ -531,6 +569,7 @@ function runEmotionGuard(text) {
         })
       );
     }
+
     if (EmotionRouteGuard.emotionRootGod && typeof EmotionRouteGuard.emotionRootGod.analyze === "function") {
       return normalizeEmotionGuardResult(
         EmotionRouteGuard.emotionRootGod.analyze(t, {
@@ -560,14 +599,49 @@ function applyEmotionSignalsToNorm(norm, emo) {
   norm.turnSignals.emotionDominant = safeStr(emo.dominantEmotion || "neutral");
   norm.turnSignals.emotionTone = safeStr(emo.tone || "steady_neutral");
   norm.turnSignals.emotionCached = !!emo.cached;
+  norm.turnSignals.emotionRecoveryPresent = !!emo.supportFlags?.recoveryPresent;
+  norm.turnSignals.emotionPositivePresent = !!emo.supportFlags?.positivePresent;
+  norm.turnSignals.emotionContradictions = clampInt(emo.contradictions?.count || 0, 0, 0, 99);
+}
+function buildSupportPacketSafe(norm, emo) {
+  if (!emo || !Support) return null;
+
+  try {
+    if (typeof Support.buildSupportPacket === "function") {
+      return Support.buildSupportPacket({
+        userText: safeStr(norm?.text || ""),
+        emo,
+        seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
+      });
+    }
+
+    if (typeof Support.buildSupportiveResponse === "function") {
+      return {
+        ok: true,
+        mode: emo.supportFlags?.crisis ? "crisis" : "supportive",
+        reply: Support.buildSupportiveResponse({
+          userText: safeStr(norm?.text || ""),
+          emo,
+          seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
+        }),
+        meta: {
+          crisis: !!emo.supportFlags?.crisis,
+          dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
+          valence: safeStr(emo.valence || "neutral"),
+          tone: safeStr(emo.tone || "steady_neutral")
+        }
+      };
+    }
+  } catch (_e) {
+    return null;
+  }
+
+  return null;
 }
 function makeBreakerReply(norm, emo) {
-  if (emo && emo.bypassClarify && Support && typeof Support.buildSupportiveResponse === "function") {
-    return Support.buildSupportiveResponse({
-      userText: norm?.text || "",
-      emo,
-      seed: norm?.ctx?.sessionId || ""
-    });
+  const packet = buildSupportPacketSafe(norm, emo);
+  if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
+    return safeStr(packet.reply);
   }
   return "Loop detected — I am seeing the same request repeating. To break it, rephrase in one sentence or tap a lane chip. Pick one: (A) Just talk (B) Ideas (C) Step-by-step plan (D) Switch lane";
 }
@@ -575,35 +649,72 @@ function maybeBuildEmotionFirstReply(norm, emo) {
   if (!emo) return null;
   const text = safeStr(norm?.text || "").trim();
   if (!text) return null;
-  if (emo.bypassClarify && Support && typeof Support.buildSupportiveResponse === "function") {
-    try {
-      return Support.buildSupportiveResponse({
-        userText: text,
-        emo: {
-          mode: emo.mode,
-          tags: emo.tags,
-          intensity: emo.intensity,
-          bypassClarify: emo.bypassClarify,
-          disclaimers: {
-            needSoft: !!emo.supportFlags?.needsGentlePacing,
-            needCrisis: !!emo.supportFlags?.crisis
-          }
-        },
-        seed: norm?.ctx?.sessionId || ""
-      });
-    } catch (_e) {}
+
+  const packet = buildSupportPacketSafe(norm, emo);
+
+  if (emo.bypassClarify && packet && safeStr(packet.reply)) {
+    return {
+      reply: safeStr(packet.reply),
+      mode: safeStr(packet.mode || "supportive"),
+      directives: buildEmotionDirectives(emo, packet)
+    };
   }
+
   if (emo.valence === "positive" && Array.isArray(emo.positiveReinforcements) && emo.positiveReinforcements.length) {
     const dom = safeStr(emo.dominantEmotion || "positive");
-    if (dom === "confidence" || dom === "pride" || dom === "momentum") {
-      return "That has strong forward motion in it. What do you want to build on next?";
+    let reply = "That is a good signal. What do you want to do with that energy next?";
+
+    if (packet && safeStr(packet.reply)) {
+      reply = safeStr(packet.reply);
+    } else if (dom === "confidence" || dom === "pride" || dom === "momentum") {
+      reply = "That has strong forward motion in it. What do you want to build on next?";
+    } else if (dom === "gratitude" || dom === "connection" || dom === "calm") {
+      reply = "That sounds steady in a good way. Do you want to stay with it for a second or turn it into a next step?";
     }
-    if (dom === "gratitude" || dom === "connection" || dom === "calm") {
-      return "That sounds steady in a good way. Do you want to stay with it for a second or turn it into a next step?";
-    }
-    return "That is a good signal. What do you want to do with that energy next?";
+
+    return {
+      reply,
+      mode: "positive",
+      directives: buildEmotionDirectives(emo, packet)
+    };
   }
+
+  if (emo.valence === "mixed" && packet && safeStr(packet.reply) && (emo.contradictions?.count || 0) > 0) {
+    return {
+      reply: safeStr(packet.reply),
+      mode: "mixed",
+      directives: buildEmotionDirectives(emo, packet)
+    };
+  }
+
   return null;
+}
+function buildEmotionDirectives(emo, packet) {
+  const out = [];
+
+  if (!emo) return out;
+
+  if (emo.supportFlags?.crisis) {
+    out.push({ type: "safety", level: "critical", route: "human_support" });
+  } else if (emo.supportFlags?.highDistress) {
+    out.push({ type: "pacing", level: "soft", reason: "high_distress" });
+  } else if (emo.valence === "positive") {
+    out.push({ type: "reinforcement", level: "positive", dominantEmotion: safeStr(emo.dominantEmotion || "positive") });
+  }
+
+  if (emo.supportFlags?.recoveryPresent) {
+    out.push({ type: "recovery", level: "detected" });
+  }
+
+  if ((emo.contradictions?.count || 0) > 0) {
+    out.push({ type: "mixed_state", count: clampInt(emo.contradictions.count, 0, 0, 99) });
+  }
+
+  if (packet && isPlainObject(packet.meta) && packet.meta.crisis) {
+    out.push({ type: "support_packet", mode: safeStr(packet.mode || "supportive") });
+  }
+
+  return out.slice(0, 8);
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -653,20 +764,6 @@ function normalizeInbound(input) {
       payloadActionable: hasActionablePayload(payload)
     }
   };
-}
-function resolveRequestId(input, norm, inboundKey) {
-  const src = isPlainObject(input) ? input : {};
-  const candidates = [
-    src.requestId,
-    norm?.ctx?.requestId,
-    norm?.body?.requestId,
-    norm?.payload?.requestId
-  ];
-  for (const c of candidates) {
-    const s = safeStr(c).trim();
-    if (s) return s.slice(0, 80);
-  }
-  return `req_${safeStr(inboundKey || sha1Lite(nowMs())).slice(0, 18)}`;
 }
 function computeLaneState(session, corePrev, lane, norm) {
   const s = isPlainObject(session) ? session : {};
@@ -733,21 +830,30 @@ function buildFollowUpsForLane(lane) {
     { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
   ];
 }
-function simpleGeneralReply(norm) {
+function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
   if (!text) return "I am here. Tell me what you want to work on, and I will keep it structured.";
+
   const greeting = detectGreetingQuick(text);
   if (greeting) return buildGreetingReply(greeting.kind, text);
+
   if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
     return "Understood. We are going after the loop directly. Give me the file or the exact layer, and I will keep the response locked to that target.";
   }
+
+  if (emo && emo.valence === "mixed" && (emo.contradictions?.count || 0) > 0) {
+    return "I am seeing mixed signals in this. We can slow it down and isolate the main pressure point first.";
+  }
+
   if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)\b/i.test(text)) {
     return "Got it. We can work this as an architecture problem: isolate the heavy logic, stop duplicated emotional parsing, and keep the response path deterministic.";
   }
+
   return "I have the signal. Do you want diagnosis, restructuring, or an exact code update?";
 }
-function laneReply(norm, session) {
+function laneReply(norm, session, emo) {
   const lane = safeStr(norm?.lane || session?.lane || "general");
+
   if (lane === "movies" && MoviesLane && typeof MoviesLane.handleChat === "function") {
     try {
       const out = MoviesLane.handleChat(norm);
@@ -755,6 +861,7 @@ function laneReply(norm, session) {
       if (isPlainObject(out) && safeStr(out.reply)) return { ...out, lane: safeStr(out.lane || "movies") };
     } catch (_e) {}
   }
+
   if (lane === "music" && Music) {
     try {
       if (typeof Music.handleChat === "function") {
@@ -764,9 +871,28 @@ function laneReply(norm, session) {
       }
     } catch (_e) {}
   }
+
   return {
-    reply: simpleGeneralReply(norm),
+    reply: simpleGeneralReply(norm, emo),
     lane
+  };
+}
+function buildTelemetry(norm, lane, emo, requestId, publicMode, phase) {
+  return {
+    phase: safeStr(phase || "turn"),
+    requestId: safeStr(requestId || ""),
+    lane: safeStr(lane || norm?.lane || "general"),
+    publicMode: !!publicMode,
+    emotion: emo ? {
+      mode: safeStr(emo.mode || "NORMAL"),
+      valence: safeStr(emo.valence || "neutral"),
+      dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
+      cached: !!emo.cached,
+      contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99),
+      recoveryPresent: !!emo.supportFlags?.recoveryPresent,
+      positivePresent: !!emo.supportFlags?.positivePresent
+    } : null,
+    dataset: safeDatasetStats()
   };
 }
 function failSafeContract(err, input) {
@@ -793,7 +919,7 @@ function failSafeContract(err, input) {
       diag: { failSafe: true, err: safeStr(err && err.message ? err.message : err).slice(0, 180) }
     },
     requestId,
-    meta: { v: CE_VERSION, failSafe: true, t: nowMs() }
+    meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
   };
 }
 async function handleChat(input) {
@@ -809,6 +935,7 @@ async function handleChat(input) {
     const publicMode = computePublicMode(norm, session);
     const sessionId = resolveSessionId(norm, session, inboundKey);
 
+    // Phase 08: inbound duplicate breaker
     const inSig = inboundLoopSig(norm, session);
     const inboundRepeat = detectInboundRepeat(session, inSig);
 
@@ -818,39 +945,43 @@ async function handleChat(input) {
         return {
           ok: true,
           reply: cached.reply,
+          payload: { reply: cached.reply },
           lane: cached.lane,
           laneId: cached.lane,
           sessionLane: cached.lane,
           bridge: null,
           ctx: {},
           ui: buildUiForLane(cached.lane),
-          directives: [],
+          directives: cached.directives || [],
           followUps: cached.followUps || [],
-          followUpsStrings: [],
+          followUpsStrings: (cached.followUps || []).map((x) => x.label),
           sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
             __lastInboundKey: inboundKey,
             __cacheAt: nowMs()
           }),
           cog: { publicMode, mode: "transitional", intent: "REPLAY" },
           requestId,
-          meta: { v: CE_VERSION, replay: true, t: nowMs() }
+          meta: { v: CE_VERSION, replay: true, t: nowMs(), phase: 8 }
         };
       }
     }
 
+    // Phase 02–07: emotion route guard intake + enriched support shaping
     let emo = runEmotionGuard(norm.text || "");
     applyEmotionSignalsToNorm(norm, emo);
 
-    const emotionFirstReply = maybeBuildEmotionFirstReply(norm, emo);
-    if (emotionFirstReply) {
+    const emotionFirst = maybeBuildEmotionFirstReply(norm, emo);
+    if (emotionFirst && safeStr(emotionFirst.reply)) {
       const lane = safeStr(norm.lane || "general") || "general";
       const safeReply = applyPublicSanitization(
-        scrubExecutionStyleArtifacts(softSpeak(emotionFirstReply)),
+        scrubExecutionStyleArtifacts(softSpeak(emotionFirst.reply)),
         norm,
         session,
         publicMode
       );
       const followUps = buildFollowUpsForLane(lane);
+      const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
+
       return {
         ok: true,
         reply: safeReply,
@@ -861,7 +992,7 @@ async function handleChat(input) {
         bridge: null,
         ctx: {},
         ui: buildUiForLane(lane),
-        directives: [],
+        directives,
         followUps,
         followUpsStrings: followUps.map((x) => x.label),
         sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
@@ -876,6 +1007,7 @@ async function handleChat(input) {
           __cacheReply: safeReply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
+          __cacheDirectives: directives,
           __cacheAt: nowMs()
         }),
         cog: {
@@ -883,24 +1015,29 @@ async function handleChat(input) {
           publicMode,
           mode: "transitional",
           intent: emo?.bypassClarify ? "STABILIZE" : "ENGAGE",
-          emotion: {
-            mode: emo?.mode,
-            valence: emo?.valence,
-            dominantEmotion: emo?.dominantEmotion,
-            tone: emo?.tone,
-            bypassClarify: !!emo?.bypassClarify
-          }
+          emotion: emo ? {
+            mode: emo.mode,
+            valence: emo.valence,
+            dominantEmotion: emo.dominantEmotion,
+            tone: emo.tone,
+            bypassClarify: !!emo.bypassClarify,
+            recoveryPresent: !!emo.supportFlags?.recoveryPresent,
+            contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
+          } : null
         },
         requestId,
         meta: {
           v: CE_VERSION,
           earlyReturn: "emotion_first",
           emotionCached: !!emo?.cached,
-          t: nowMs()
+          telemetry: buildTelemetry(norm, lane, emo, requestId, publicMode, "emotion_first"),
+          t: nowMs(),
+          phase: 7
         }
       };
     }
 
+    // Phase 08 breaker hard stop
     if (inboundRepeat.tripped) {
       const breaker = makeBreakerReply(norm, emo);
       const safeReply = applyPublicSanitization(
@@ -928,6 +1065,7 @@ async function handleChat(input) {
           __cacheReply: safeReply,
           __cacheLane: "general",
           __cacheFollowUps: [],
+          __cacheDirectives: [],
           __cacheAt: nowMs()
         }),
         cog: {
@@ -941,10 +1079,11 @@ async function handleChat(input) {
           } : null
         },
         requestId,
-        meta: { v: CE_VERSION, breaker: true, t: nowMs() }
+        meta: { v: CE_VERSION, breaker: true, t: nowMs(), phase: 8 }
       };
     }
 
+    // Greeting handling
     const greeting = detectGreetingQuick(norm.text || "");
     if (greeting) {
       const reply = applyPublicSanitization(
@@ -955,6 +1094,7 @@ async function handleChat(input) {
       );
       const lane = safeStr(norm.lane || "general") || "general";
       const followUps = buildFollowUpsForLane(lane);
+
       return {
         ok: true,
         reply,
@@ -977,19 +1117,22 @@ async function handleChat(input) {
           __cacheReply: reply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
+          __cacheDirectives: [],
           __cacheAt: nowMs()
         }),
         cog: { publicMode, mode: "transitional", intent: "GREETING" },
         requestId,
-        meta: { v: CE_VERSION, greeting: true, t: nowMs() }
+        meta: { v: CE_VERSION, greeting: true, t: nowMs(), phase: 1 }
       };
     }
 
+    // Phase 12: canonical spine seed
     const corePrev = isPlainObject(session.__spineState)
       ? session.__spineState
       : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
 
-    const routeOut = laneReply(norm, session);
+    // Phase 11: lane / domain routing
+    const routeOut = laneReply(norm, session, emo);
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
 
@@ -997,13 +1140,14 @@ async function handleChat(input) {
       reply = "I have the signal. Give me the exact target and I will keep this tight.";
     }
 
+    // Phase 09: outbound loop breaker
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
       reply = makeBreakerReply(norm, emo);
       lane = "general";
     }
 
-    let safeReply = applyPublicSanitization(
+    const safeReply = applyPublicSanitization(
       scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(reply, "medium"))),
       norm,
       session,
@@ -1015,6 +1159,7 @@ async function handleChat(input) {
     const followUps = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
 
+    // Phase 12: finalize turn
     let nextSpine = null;
     try {
       nextSpine = Spine.finalizeTurn({
@@ -1056,6 +1201,7 @@ async function handleChat(input) {
       nextSpine = { ...corePrev, rev: (Number.isFinite(corePrev.rev) ? corePrev.rev : 0) + 1, lane };
     }
 
+    // Phase 13: memory write-through
     safeStoreMemoryTurn(sessionId, {
       at: nowMs(),
       lane,
@@ -1064,7 +1210,9 @@ async function handleChat(input) {
       emotion: emo ? {
         mode: emo.mode,
         valence: emo.valence,
-        dominantEmotion: emo.dominantEmotion
+        dominantEmotion: emo.dominantEmotion,
+        recoveryPresent: !!emo.supportFlags?.recoveryPresent,
+        contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
       } : null
     });
 
@@ -1094,6 +1242,7 @@ async function handleChat(input) {
           __cacheReply: safeReply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
+          __cacheDirectives: directives,
           __cacheAt: nowMs(),
           __emotionMode: safeStr(emo?.mode || "NORMAL"),
           __emotionValence: safeStr(emo?.valence || "neutral"),
@@ -1102,8 +1251,7 @@ async function handleChat(input) {
         }
       ),
       cog: {
-        marionVersion:
-          safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
+        marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
         route: emo ? "emotion_route_guard" : "general",
         intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
         mode: "transitional",
@@ -1113,7 +1261,10 @@ async function handleChat(input) {
           valence: emo.valence,
           dominantEmotion: emo.dominantEmotion,
           tone: emo.tone,
-          bypassClarify: !!emo.bypassClarify
+          bypassClarify: !!emo.bypassClarify,
+          recoveryPresent: !!emo.supportFlags?.recoveryPresent,
+          positivePresent: !!emo.supportFlags?.positivePresent,
+          contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
         } : null,
         dataset: safeDatasetStats()
       },
@@ -1121,7 +1272,9 @@ async function handleChat(input) {
       meta: {
         v: CE_VERSION,
         t: nowMs(),
-        emotionCached: !!emo?.cached
+        phase: 14,
+        emotionCached: !!emo?.cached,
+        telemetry: buildTelemetry(norm, lane, emo, requestId, publicMode, "final")
       }
     };
   } catch (err) {
