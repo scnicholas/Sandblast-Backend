@@ -41,10 +41,19 @@
  * Phase 13: Routing hints for Nyx / Marion / domain bridge
  * Phase 14: User-state summary object generation
  * Phase 15: Safe fallback / fail-open integrity
+ *
+ * v1.1.0
+ * ------------------------------------------------------------
+ * ADDITIONS:
+ * - In-memory cache layer (TTL + bounded size) to reduce repeated analysis load
+ * - Expanded positive reinforcement detection
+ * - Expanded distress / stabilizing reinforcement detection
+ * - Added explicit reinforcement outputs for both positive and distress pathways
+ * - Cache-safe fail-open behavior
  */
 
 const DEFAULT_CONFIG = {
-  version: '1.0.0',
+  version: '1.1.0',
   maxTextLength: 12000,
   contradictionWindow: 2,
   intensityCap: 1,
@@ -53,6 +62,9 @@ const DEFAULT_CONFIG = {
   enableRiskSignals: true,
   enablePositiveReinforcement: true,
   enableRecoverySignals: true,
+  enableCache: true,
+  cacheTTLms: 45000,
+  cacheMaxEntries: 250,
   debug: false
 };
 
@@ -82,7 +94,10 @@ const LEXICON = {
         'hurt inside',
         'i feel nothing',
         'can\\'?t feel anything',
-        'i am exhausted emotionally'
+        'i am exhausted emotionally',
+        'i feel dead inside',
+        'i feel low',
+        'i feel crushed'
       ]
     },
     anxiety: {
@@ -104,7 +119,9 @@ const LEXICON = {
         'shaking',
         'uneasy',
         'terrified',
-        'fearful'
+        'fearful',
+        'spiraling with anxiety',
+        'my chest feels tight'
       ]
     },
     anger: {
@@ -123,7 +140,9 @@ const LEXICON = {
         'i hate them',
         'annoyed',
         'resentful',
-        'bitter'
+        'bitter',
+        'seeing red',
+        'boiling inside'
       ]
     },
     shame: {
@@ -140,7 +159,9 @@ const LEXICON = {
         'i messed everything up',
         'i ruin everything',
         'i hate myself',
-        'not good enough'
+        'not good enough',
+        'i am not enough',
+        'i let everyone down'
       ]
     },
     loneliness: {
@@ -156,7 +177,9 @@ const LEXICON = {
         'nobody understands',
         'no one understands',
         'forgotten',
-        'invisible'
+        'invisible',
+        'i feel abandoned',
+        'i feel unseen'
       ]
     },
     exhaustion: {
@@ -172,7 +195,9 @@ const LEXICON = {
         'running on empty',
         'can\\'?t keep going',
         'i am done',
-        'spent'
+        'spent',
+        'i have nothing left',
+        'mentally exhausted'
       ]
     },
     confusion: {
@@ -186,7 +211,8 @@ const LEXICON = {
         'stuck',
         'spiraling',
         'all over the place',
-        'nothing makes sense'
+        'nothing makes sense',
+        'my thoughts are scrambled'
       ]
     },
     despair: {
@@ -199,7 +225,9 @@ const LEXICON = {
         'nothing will get better',
         'i give up',
         'done living like this',
-        'i am done trying'
+        'i am done trying',
+        'there is no way out',
+        'i see no future'
       ]
     }
   },
@@ -242,7 +270,10 @@ const LEXICON = {
         'can\\'?t take this',
         'can\\'?t keep myself safe',
         'completely losing control',
-        'i might do something bad'
+        'i might do something bad',
+        'i am not safe',
+        'i am in crisis',
+        'i need help right now'
       ]
     }
   },
@@ -259,7 +290,9 @@ const LEXICON = {
         'getting better',
         'moving forward',
         'i see a path',
-        'optimistic'
+        'optimistic',
+        'there is still a chance',
+        'i am not done yet'
       ]
     },
     gratitude: {
@@ -273,7 +306,9 @@ const LEXICON = {
         'that means a lot',
         'glad',
         'relieved',
-        'blessed'
+        'blessed',
+        'thank you',
+        'i feel thankful'
       ]
     },
     confidence: {
@@ -289,7 +324,9 @@ const LEXICON = {
         'capable',
         'focused',
         'determined',
-        'dialed in'
+        'dialed in',
+        'i trust myself',
+        'i am built for this'
       ]
     },
     pride: {
@@ -302,7 +339,9 @@ const LEXICON = {
         'i made progress',
         'i am improving',
         'i earned that',
-        'that went well'
+        'that went well',
+        'i showed up',
+        'i kept my word'
       ]
     },
     joy: {
@@ -319,7 +358,8 @@ const LEXICON = {
         'this is awesome',
         'this feels good',
         'light',
-        'peaceful'
+        'peaceful',
+        'i feel alive'
       ]
     },
     connection: {
@@ -332,7 +372,9 @@ const LEXICON = {
         'not alone',
         'someone cares',
         'that made me feel seen',
-        'i feel supported'
+        'i feel supported',
+        'i feel safe with this',
+        'i feel understood'
       ]
     },
     resilience: {
@@ -348,7 +390,9 @@ const LEXICON = {
         'staying consistent',
         'holding on',
         'i survived it',
-        'i made it through'
+        'i made it through',
+        'i am still here',
+        'i kept going'
       ]
     },
     momentum: {
@@ -363,7 +407,31 @@ const LEXICON = {
         'advancing',
         'upgrading',
         'on the right track',
-        'moving again'
+        'moving again',
+        'i am gaining traction'
+      ]
+    },
+    selfWorth: {
+      weight: 0.84,
+      patterns: [
+        'i matter',
+        'i am worthy',
+        'i have value',
+        'i deserve better',
+        'i am enough',
+        'i belong here'
+      ]
+    },
+    calm: {
+      weight: 0.73,
+      patterns: [
+        'calm',
+        'steady',
+        'centered',
+        'grounded',
+        'collected',
+        'settled',
+        'at peace'
       ]
     }
   },
@@ -380,7 +448,8 @@ const LEXICON = {
         'it passed',
         'i got through it',
         'recovering',
-        'regulating'
+        'regulating',
+        'i am coming back down'
       ]
     },
     coping: {
@@ -397,7 +466,8 @@ const LEXICON = {
         'i prayed',
         'i trained',
         'i worked out',
-        'i took a break'
+        'i took a break',
+        'i slowed down'
       ]
     }
   },
@@ -449,7 +519,9 @@ const LEXICON = {
     'coming back',
     'stabilizing',
     'less anxious',
-    'less sad'
+    'less sad',
+    'lighter',
+    'clearer'
   ],
 
   directionalDown: [
@@ -465,6 +537,84 @@ const LEXICON = {
     'drowning'
   ]
 };
+
+const POSITIVE_REINFORCEMENT_LIBRARY = Object.freeze({
+  reinforce_strength: [
+    'acknowledge_progress',
+    'reinforce_identity_strength',
+    'name_capability',
+    'support_confident_next_step'
+  ],
+  amplify_progress: [
+    'highlight_momentum',
+    'anchor_small_wins',
+    'invite_next_step',
+    'reflect_upward_shift'
+  ],
+  affirm_recovery: [
+    'affirm_regulation',
+    'name_the_recovery_shift',
+    'protect_fragile_progress',
+    'support_continuity'
+  ],
+  validate_then_anchor: [
+    'reflect_both_sides',
+    'stabilize_before_push',
+    'anchor_into_one_clear_next_step'
+  ],
+  neutral_presence: [
+    'steady_presence',
+    'light_check_in'
+  ]
+});
+
+const DISTRESS_REINFORCEMENT_LIBRARY = Object.freeze({
+  crisis: [
+    'lead_with_calm_and_direct_support',
+    'encourage_immediate_human_support',
+    'avoid_cheerful_language',
+    'keep_response_grounded_and_clear',
+    'minimize_cognitive_load'
+  ],
+  highDistress: [
+    'validate_feelings_first',
+    'slow_the_pacing',
+    'reduce_cognitive_load',
+    'offer_one_safe_step',
+    'avoid_pressure_language'
+  ],
+  anxiety: [
+    'use_shorter_sentences',
+    'suggest_grounding_or_breathing',
+    'reduce_choice_overload',
+    'speak_steadily'
+  ],
+  sadness: [
+    'signal_presence_and_nonjudgment',
+    'validate_pain_without_overreaching',
+    'gently_support_connection'
+  ],
+  anger: [
+    'do_not_match_heat',
+    'stay_steady_and_structured',
+    'channel_energy_into_clarity'
+  ],
+  shame: [
+    'avoid_language_that_implies_failure',
+    'use_nonjudgmental_validation',
+    'separate_identity_from_moment'
+  ],
+  loneliness: [
+    'signal_presence_and_nonjudgment',
+    'reduce_isolation_tone',
+    'encourage_safe_reaching_out'
+  ],
+  despair: [
+    'stabilize_first',
+    'keep_language_simple',
+    'orient_toward_safety_and_support'
+  ]
+});
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -744,7 +894,9 @@ function deriveRouteHints({ riskScore, dominantEmotion, valence, positiveScore, 
   if (positiveScore > 1.0) hints.push('positive_reinforcement_engine');
   if (negativeScore > 1.0 && valence !== 'critical_negative') hints.push('validation_then_guidance');
   if (valence === 'positive') hints.push('momentum_building');
-  if (dominantEmotion.category === 'confidence' || dominantEmotion.category === 'momentum') hints.push('achievement_scaling');
+  if (dominantEmotion.category === 'confidence' || dominantEmotion.category === 'momentum' || dominantEmotion.category === 'selfWorth') {
+    hints.push('achievement_scaling');
+  }
 
   return hints;
 }
@@ -756,27 +908,141 @@ function deriveRecoverySignals(positive, recovery, momentum) {
   if (positive.categories.some(c => c.category === 'resilience')) signals.push('resilience_present');
   if (positive.categories.some(c => c.category === 'confidence')) signals.push('confidence_present');
   if (positive.categories.some(c => c.category === 'hope')) signals.push('hope_present');
+  if (positive.categories.some(c => c.category === 'selfWorth')) signals.push('self_worth_present');
+  if (positive.categories.some(c => c.category === 'calm')) signals.push('calm_present');
   if (momentum.direction === 'up') signals.push('upward_shift_detected');
 
   return signals;
 }
 
-function deriveSupportFlags(risk, negative, recovery) {
+function deriveSupportFlags(risk, negative, recovery, positive) {
   return {
     crisis: risk.score >= 0.95,
     highDistress: negative.score >= 1.7,
     needsGentlePacing: negative.score >= 0.9 || risk.score >= 0.65,
-    avoidCelebratoryTone: negative.score > positiveScoreProxy(negative.score, recovery.score),
-    recoveryPresent: recovery.score > 0
+    avoidCelebratoryTone: (negative.score + risk.score) > (positive.score + (recovery.score * 0.5)),
+    recoveryPresent: recovery.score > 0,
+    positivePresent: positive.score > 0.6
   };
-}
-
-function positiveScoreProxy(negativeScore, recoveryScore) {
-  return negativeScore - (recoveryScore * 0.4);
 }
 
 function uniqueStrings(arr) {
   return [...new Set((arr || []).filter(Boolean))];
+}
+
+function stableStringify(value) {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
+}
+
+function buildCacheKey(text, options) {
+  return `${text}::${stableStringify({
+    enableMomentum: !!options.enableMomentum,
+    enableContradictions: !!options.enableContradictions,
+    enableRiskSignals: !!options.enableRiskSignals,
+    enablePositiveReinforcement: !!options.enablePositiveReinforcement,
+    enableRecoverySignals: !!options.enableRecoverySignals
+  })}`;
+}
+
+function cloneResult(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function derivePositiveReinforcements({ reinforcementMode, positive, recoverySignals, momentum, supportFlags }) {
+  const out = [];
+
+  if (POSITIVE_REINFORCEMENT_LIBRARY[reinforcementMode]) {
+    out.push(...POSITIVE_REINFORCEMENT_LIBRARY[reinforcementMode]);
+  }
+
+  if (positive.categories.some(c => c.category === 'confidence')) {
+    out.push('use_competence_mirroring', 'reinforce_self_trust');
+  }
+
+  if (positive.categories.some(c => c.category === 'pride')) {
+    out.push('name_the_win', 'reinforce_effort_to_outcome');
+  }
+
+  if (positive.categories.some(c => c.category === 'gratitude')) {
+    out.push('mirror_relief_without_overinflating', 'strengthen_supportive_connection');
+  }
+
+  if (positive.categories.some(c => c.category === 'selfWorth')) {
+    out.push('reinforce_inherent_value', 'stabilize_self_respect');
+  }
+
+  if (recoverySignals.includes('resilience_present')) {
+    out.push('reflect_resilience', 'protect_consistency');
+  }
+
+  if (recoverySignals.includes('active_recovery_present')) {
+    out.push('affirm_recovery_behavior');
+  }
+
+  if (momentum.direction === 'up') {
+    out.push('support_upward_trajectory', 'convert_momentum_into_next_step');
+  }
+
+  if (supportFlags.avoidCelebratoryTone) {
+    return uniqueStrings(out.filter(x => x !== 'highlight_momentum'));
+  }
+
+  return uniqueStrings(out);
+}
+
+function deriveDistressReinforcements({ supportFlags, dominantEmotion, negative, risk, momentum }) {
+  const out = [];
+
+  if (supportFlags.crisis) {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.crisis);
+    return uniqueStrings(out);
+  }
+
+  if (supportFlags.highDistress) {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.highDistress);
+  }
+
+  if (dominantEmotion.category === 'anxiety') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.anxiety);
+  }
+
+  if (dominantEmotion.category === 'sadness') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.sadness);
+  }
+
+  if (dominantEmotion.category === 'anger') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.anger);
+  }
+
+  if (dominantEmotion.category === 'shame') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.shame);
+  }
+
+  if (dominantEmotion.category === 'loneliness') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.loneliness);
+  }
+
+  if (dominantEmotion.category === 'despair') {
+    out.push(...DISTRESS_REINFORCEMENT_LIBRARY.despair);
+  }
+
+  if (risk.score >= 0.65) {
+    out.push('tighten_response_scope', 'prioritize_safety_and_presence');
+  }
+
+  if (negative.categories.some(c => c.category === 'confusion')) {
+    out.push('reduce_complexity', 'offer_one_clear_option');
+  }
+
+  if (momentum.direction === 'down') {
+    out.push('slow_down_and_stabilize', 'interrupt_downward_slide');
+  }
+
+  return uniqueStrings(out);
 }
 
 class EmotionRootGod {
@@ -790,6 +1056,7 @@ class EmotionRootGod {
       lastDominantEmotion: 'neutral',
       lastTimestamp: 0
     };
+    this.cache = new Map();
   }
 
   analyze(input, options = {}) {
@@ -798,6 +1065,12 @@ class EmotionRootGod {
 
     if (!rawText) {
       return this._emptyResult('empty_input');
+    }
+
+    const cacheKey = buildCacheKey(rawText, cfg);
+    if (cfg.enableCache) {
+      const cached = this._getCached(cacheKey, cfg);
+      if (cached) return cached;
     }
 
     try {
@@ -843,10 +1116,11 @@ class EmotionRootGod {
       });
 
       // Phase 10
+      const dominantEmotion = deriveDominantEmotion(negative, positive, recovery, risk);
       const continuity = this._deriveContinuity({
         valence,
         intensity,
-        dominantEmotion: deriveDominantEmotion(negative, positive, recovery, risk).category
+        dominantEmotion: dominantEmotion.category
       });
 
       // Phase 11
@@ -865,7 +1139,6 @@ class EmotionRootGod {
       });
 
       // Phase 12 / 13
-      const dominantEmotion = deriveDominantEmotion(negative, positive, recovery, risk);
       const routeHints = deriveRouteHints({
         riskScore,
         dominantEmotion,
@@ -874,7 +1147,23 @@ class EmotionRootGod {
         negativeScore
       });
 
-      const supportFlags = deriveSupportFlags(risk, negative, recovery);
+      const supportFlags = deriveSupportFlags(risk, negative, recovery, positive);
+
+      const positiveReinforcements = derivePositiveReinforcements({
+        reinforcementMode,
+        positive,
+        recoverySignals,
+        momentum,
+        supportFlags
+      });
+
+      const distressReinforcements = deriveDistressReinforcements({
+        supportFlags,
+        dominantEmotion,
+        negative,
+        risk,
+        momentum
+      });
 
       // Phase 14
       const result = {
@@ -882,6 +1171,7 @@ class EmotionRootGod {
         module: 'EmotionRootGod',
         version: this.version,
         timestamp: Date.now(),
+        cached: false,
 
         input: {
           textLength: rawText.length,
@@ -921,6 +1211,11 @@ class EmotionRootGod {
         supportFlags,
         contradictions,
 
+        reinforcements: {
+          positive: positiveReinforcements,
+          distress: distressReinforcements
+        },
+
         summary: this._buildSummary({
           valence,
           intensity,
@@ -946,11 +1241,18 @@ class EmotionRootGod {
           risk,
           supportFlags,
           reinforcementMode,
-          momentum
+          momentum,
+          positiveReinforcements,
+          distressReinforcements
         })
       };
 
       this._remember(result);
+
+      if (cfg.enableCache) {
+        this._setCached(cacheKey, result, cfg);
+      }
+
       return result;
     } catch (err) {
       return this._emptyResult('analysis_failure', err);
@@ -990,7 +1292,9 @@ class EmotionRootGod {
       positiveCategories: result.buckets.positive.categories,
       recoveryCategories: result.buckets.recovery.categories,
       reinforcementMode: result.state.reinforcementMode,
-      recoverySignals: result.recoverySignals
+      recoverySignals: result.recoverySignals,
+      positiveReinforcements: result.reinforcements.positive,
+      distressReinforcements: result.reinforcements.distress
     };
   }
 
@@ -1000,7 +1304,8 @@ class EmotionRootGod {
       negativeCategories: result.buckets.negative.categories,
       riskCategories: result.buckets.risk.categories,
       priority: result.state.priority,
-      tone: result.state.tone
+      tone: result.state.tone,
+      distressReinforcements: result.reinforcements.distress
     };
   }
 
@@ -1012,6 +1317,79 @@ class EmotionRootGod {
       recovery: result.buckets.recovery.matches,
       risk: result.buckets.risk.matches
     };
+  }
+
+  clearCache() {
+    this.cache.clear();
+    return true;
+  }
+
+  getCacheStats() {
+    let active = 0;
+    const now = Date.now();
+
+    for (const entry of this.cache.values()) {
+      if (entry && entry.expiresAt > now) active += 1;
+    }
+
+    return {
+      enabled: !!this.config.enableCache,
+      size: this.cache.size,
+      active,
+      ttlMs: this.config.cacheTTLms,
+      maxEntries: this.config.cacheMaxEntries
+    };
+  }
+
+  _getCached(cacheKey, cfg) {
+    try {
+      const entry = this.cache.get(cacheKey);
+      if (!entry) return null;
+
+      if (entry.expiresAt <= Date.now()) {
+        this.cache.delete(cacheKey);
+        return null;
+      }
+
+      const result = cloneResult(entry.value);
+      result.cached = true;
+      return result;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  _setCached(cacheKey, value, cfg) {
+    try {
+      this._pruneCache(cfg);
+      this.cache.set(cacheKey, {
+        createdAt: Date.now(),
+        expiresAt: Date.now() + cfg.cacheTTLms,
+        value: cloneResult(value)
+      });
+    } catch (_err) {
+      // fail open
+    }
+  }
+
+  _pruneCache(cfg) {
+    try {
+      const now = Date.now();
+
+      for (const [key, entry] of this.cache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+          this.cache.delete(key);
+        }
+      }
+
+      while (this.cache.size >= cfg.cacheMaxEntries) {
+        const oldestKey = this.cache.keys().next().value;
+        if (!oldestKey) break;
+        this.cache.delete(oldestKey);
+      }
+    } catch (_err) {
+      // fail open
+    }
   }
 
   _deriveContinuity(nextState) {
@@ -1067,7 +1445,7 @@ class EmotionRootGod {
     }
 
     if (ctx.valence === 'mixed') {
-      return `Mixed emotional state detected with competing positive and negative markers. Balanced validation and anchoring are appropriate.`;
+      return 'Mixed emotional state detected with competing positive and negative markers. Balanced validation and anchoring are appropriate.';
     }
 
     return 'No strong emotional dominance detected. Neutral supportive presence is appropriate.';
@@ -1081,7 +1459,7 @@ class EmotionRootGod {
       hints.push('encourage_immediate_human_support');
       hints.push('avoid_cheerful_language');
       hints.push('keep_response_grounded_and_clear');
-      return uniqueStrings(hints);
+      return uniqueStrings([...hints, ...(ctx.distressReinforcements || [])]);
     }
 
     if (ctx.dominantEmotion.category === 'anxiety') {
@@ -1138,7 +1516,11 @@ class EmotionRootGod {
       hints.push('use_nonjudgmental_validation');
     }
 
-    return uniqueStrings(hints);
+    return uniqueStrings([
+      ...hints,
+      ...(ctx.positiveReinforcements || []),
+      ...(ctx.distressReinforcements || [])
+    ]);
   }
 
   _remember(result) {
@@ -1156,6 +1538,7 @@ class EmotionRootGod {
       version: this.version,
       reason,
       error: err ? String(err.message || err) : null,
+      cached: false,
       scores: {
         negative: 0,
         positive: 0,
@@ -1192,9 +1575,14 @@ class EmotionRootGod {
         highDistress: false,
         needsGentlePacing: false,
         avoidCelebratoryTone: false,
-        recoveryPresent: false
+        recoveryPresent: false,
+        positivePresent: false
       },
       contradictions: { count: 0, contradictions: [] },
+      reinforcements: {
+        positive: [],
+        distress: ['fail_open_safe']
+      },
       summary: {
         concise: 'neutral:flat:neutral',
         narrative: 'No emotional signal available.'
@@ -1236,5 +1624,7 @@ module.exports = {
   shouldEscalateEmotion,
   extractEmotionMarkers,
   LEXICON,
-  DEFAULT_CONFIG
+  DEFAULT_CONFIG,
+  POSITIVE_REINFORCEMENT_LIBRARY,
+  DISTRESS_REINFORCEMENT_LIBRARY
 };
