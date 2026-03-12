@@ -3,7 +3,7 @@
 /**
  * Utils/chatEngine.js
  *
- * chatEngine v0.10.14 OPINTEL
+ * chatEngine v0.10.15 OPINTEL
  * ------------------------------------------------------------
  * HARDENED REBUILD GOALS
  * - emotionRouteGuard is the single emotional parsing source
@@ -12,6 +12,15 @@
  * - public-mode sanitization remains default-safe
  * - state spine + memory spine remain fail-open
  * - contract remains NyxReplyContract-compatible
+ *
+ * SIX LOOP FIXES LOCKED HERE
+ * ------------------------------------------------------------
+ * 01. Turn replay guard
+ * 02. In-flight single-turn lock
+ * 03. Inbound duplicate breaker
+ * 04. Outbound reply replay breaker
+ * 05. Terminal completion ledger
+ * 06. Fail-to-terminal behavior
  *
  * 15 PHASE COVERAGE
  * ------------------------------------------------------------
@@ -33,7 +42,7 @@
  */
 
 let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = "chatEngine v0.10.14 OPINTEL (ROUTE GUARD + SUPPORT PACKET + LOOP HARDEN + 15 PHASE)";
+const CE_VERSION = "chatEngine v0.10.15 OPINTEL (TURN LIFECYCLE LOCK + LOOP CUT + 15 PHASE)";
 
 try {
   const _ceBoot =
@@ -273,6 +282,26 @@ function resolveRequestId(input, norm, inboundKey) {
   }
   return `req_${safeStr(inboundKey || sha1Lite(nowMs())).slice(0, 18)}`;
 }
+function buildTurnId(input, norm, inboundKey, requestId) {
+  const src = isPlainObject(input) ? input : {};
+  const candidates = [
+    src.turnId,
+    src.messageId,
+    src.id,
+    norm?.ctx?.turnId,
+    norm?.ctx?.messageId,
+    norm?.body?.turnId,
+    norm?.body?.messageId,
+    norm?.payload?.turnId,
+    norm?.payload?.messageId,
+    requestId
+  ];
+  for (const c of candidates) {
+    const s = safeStr(c).trim();
+    if (s) return `turn_${sha1Lite(s).slice(0, 20)}`;
+  }
+  return `turn_${sha1Lite(`${safeStr(inboundKey)}|${safeStr(requestId)}`).slice(0, 20)}`;
+}
 function applyBudgetText(s, budget) {
   const txt = safeStr(s).trim();
   if (!txt) return "";
@@ -313,11 +342,16 @@ function scrubExecutionStyleArtifacts(reply) {
   out = out.replace(/\n{3,}/g, "\n\n").trim();
   return out || safeStr(reply).trim() || "Okay.";
 }
+
 const LOOP_WINDOW_MS = 9000;
 const LOOP_HARD_LIMIT = 2;
 const INBOUND_WINDOW_MS = 12000;
 const INBOUND_DUPLICATE_FAST_MS = 5000;
 const INBOUND_HARD_LIMIT = 2;
+
+const TURN_INFLIGHT_STALE_MS = 20000;
+const TURN_TERMINAL_WINDOW_MS = 30000;
+const TURN_LEDGER_LIMIT = 24;
 
 function replyLoopSig(lane, replyText) {
   const l = safeStr(lane || "").trim().toLowerCase();
@@ -398,6 +432,259 @@ function getCachedReply(session, inSig) {
     lane: safeStr(s.__cacheLane || "general") || "general",
     followUps: Array.isArray(s.__cacheFollowUps) ? s.__cacheFollowUps : [],
     directives: Array.isArray(s.__cacheDirectives) ? s.__cacheDirectives : []
+  };
+}
+
+function normalizeTurnLedger(session) {
+  const s = isPlainObject(session) ? session : {};
+  const raw = Array.isArray(s.__turnLedger) ? s.__turnLedger : [];
+  return raw
+    .filter((x) => isPlainObject(x))
+    .map((x) => ({
+      turnId: safeStr(x.turnId || "").slice(0, 64),
+      requestId: safeStr(x.requestId || "").slice(0, 80),
+      inboundSig: safeStr(x.inboundSig || "").slice(0, 24),
+      inboundKey: safeStr(x.inboundKey || "").slice(0, 24),
+      phase: safeStr(x.phase || "unknown").slice(0, 24),
+      lane: safeStr(x.lane || "general").slice(0, 24),
+      replySig: safeStr(x.replySig || "").slice(0, 24),
+      at: Number(x.at || 0) || 0,
+      status: safeStr(x.status || "unknown").slice(0, 24),
+      completed: !!x.completed,
+      failed: !!x.failed
+    }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0))
+    .slice(-TURN_LEDGER_LIMIT);
+}
+function upsertTurnLedger(ledger, entry) {
+  const list = Array.isArray(ledger) ? ledger.slice() : [];
+  const e = isPlainObject(entry) ? entry : {};
+  const turnId = safeStr(e.turnId || "");
+  if (!turnId) return list.slice(-TURN_LEDGER_LIMIT);
+  const idx = list.findIndex((x) => safeStr(x.turnId || "") === turnId);
+  if (idx >= 0) list[idx] = { ...list[idx], ...e, turnId };
+  else list.push({ ...e, turnId });
+  return list
+    .filter((x) => isPlainObject(x))
+    .sort((a, b) => (a.at || 0) - (b.at || 0))
+    .slice(-TURN_LEDGER_LIMIT);
+}
+function findTurnEntry(ledger, turnId) {
+  const list = Array.isArray(ledger) ? ledger : [];
+  const id = safeStr(turnId || "");
+  if (!id) return null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (safeStr(list[i]?.turnId || "") === id) return list[i];
+  }
+  return null;
+}
+function findReusableCompletedEntry(ledger, inSig) {
+  const list = Array.isArray(ledger) ? ledger : [];
+  const sig = safeStr(inSig || "");
+  const now = nowMs();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const x = list[i];
+    if (!x || !x.completed) continue;
+    if (safeStr(x.inboundSig || "") !== sig) continue;
+    if (!x.at || now - x.at > TURN_TERMINAL_WINDOW_MS) continue;
+    return x;
+  }
+  return null;
+}
+function buildTerminalContractSnapshot(contract) {
+  const c = isPlainObject(contract) ? contract : {};
+  return {
+    ok: !!c.ok,
+    reply: safeStr(c.reply || ""),
+    payload: isPlainObject(c.payload) ? { ...c.payload } : { reply: safeStr(c.reply || "") },
+    lane: safeStr(c.lane || "general") || "general",
+    laneId: safeStr(c.laneId || c.lane || "general") || "general",
+    sessionLane: safeStr(c.sessionLane || c.lane || "general") || "general",
+    bridge: c.bridge || null,
+    ctx: isPlainObject(c.ctx) ? { ...c.ctx } : {},
+    ui: isPlainObject(c.ui) ? { ...c.ui } : { chips: [], allowMic: true },
+    directives: Array.isArray(c.directives) ? c.directives.slice(0, 12) : [],
+    followUps: Array.isArray(c.followUps) ? c.followUps.slice(0, 12) : [],
+    followUpsStrings: Array.isArray(c.followUpsStrings) ? c.followUpsStrings.slice(0, 12) : [],
+    cog: isPlainObject(c.cog) ? { ...c.cog } : {},
+    requestId: safeStr(c.requestId || "").slice(0, 80),
+    meta: isPlainObject(c.meta) ? { ...c.meta } : {}
+  };
+}
+function getLastTerminalContractForInbound(session, inSig) {
+  const s = isPlainObject(session) ? session : {};
+  const sig = safeStr(inSig || "");
+  const snap = isPlainObject(s.__lastTerminalContract) ? s.__lastTerminalContract : null;
+  if (!snap) return null;
+  if (safeStr(s.__lastTerminalInboundSig || "") !== sig) return null;
+  const at = Number(s.__lastTerminalAt || 0) || 0;
+  if (!at || nowMs() - at > TURN_TERMINAL_WINDOW_MS) return null;
+  return buildTerminalContractSnapshot(snap);
+}
+function beginTurnLifecycle(session, args) {
+  const s = isPlainObject(session) ? session : {};
+  const turnId = safeStr(args?.turnId || "");
+  const requestId = safeStr(args?.requestId || "");
+  const inboundSig = safeStr(args?.inSig || "");
+  const inboundKey = safeStr(args?.inboundKey || "");
+  const laneHint = safeStr(args?.laneHint || "general") || "general";
+  const ledger = normalizeTurnLedger(s);
+  const now = nowMs();
+
+  const existing = findTurnEntry(ledger, turnId);
+  if (existing) {
+    if (existing.completed && now - (existing.at || 0) <= TURN_TERMINAL_WINDOW_MS) {
+      const snap = getLastTerminalContractForInbound(s, inboundSig);
+      if (snap) {
+        snap.meta = { ...(snap.meta || {}), replay: true, replaySource: "turn_completed", phase: 15, v: CE_VERSION, t: now };
+        snap.sessionPatch = {
+          __turnLedger: ledger,
+          __turnLastSeenAt: now,
+          __turnLastReplayId: turnId
+        };
+        return { blocked: true, reason: "completed_turn_replay", patch: snap.sessionPatch, replay: snap };
+      }
+    }
+    if (existing.phase === "in_flight" && now - (existing.at || 0) <= TURN_INFLIGHT_STALE_MS) {
+      const snap = getLastTerminalContractForInbound(s, inboundSig);
+      if (snap) {
+        snap.meta = { ...(snap.meta || {}), replay: true, replaySource: "inflight_terminal_cache", phase: 15, v: CE_VERSION, t: now };
+        snap.sessionPatch = {
+          __turnLedger: ledger,
+          __turnLastSeenAt: now,
+          __turnLastReplayId: turnId
+        };
+        return { blocked: true, reason: "turn_already_inflight", patch: snap.sessionPatch, replay: snap };
+      }
+      return {
+        blocked: true,
+        reason: "turn_already_inflight",
+        patch: {
+          __turnLedger: ledger,
+          __turnLastSeenAt: now,
+          __turnLastBlockedId: turnId
+        },
+        replay: null
+      };
+    }
+  }
+
+  const reusable = findReusableCompletedEntry(ledger, inboundSig);
+  if (reusable) {
+    const snap = getLastTerminalContractForInbound(s, inboundSig);
+    if (snap) {
+      snap.meta = { ...(snap.meta || {}), replay: true, replaySource: "inbound_sig_completed", phase: 15, v: CE_VERSION, t: now };
+      snap.sessionPatch = {
+        __turnLedger: ledger,
+        __turnLastSeenAt: now,
+        __turnLastReplayId: safeStr(reusable.turnId || turnId)
+      };
+      return { blocked: true, reason: "inbound_sig_completed", patch: snap.sessionPatch, replay: snap };
+    }
+  }
+
+  const nextLedger = upsertTurnLedger(ledger, {
+    turnId,
+    requestId,
+    inboundSig,
+    inboundKey,
+    phase: "in_flight",
+    lane: laneHint,
+    at: now,
+    status: "active",
+    completed: false,
+    failed: false
+  });
+
+  return {
+    blocked: false,
+    reason: "",
+    patch: {
+      __turnLedger: nextLedger,
+      __turnLastSeenAt: now,
+      __turnActiveId: turnId,
+      __turnActiveRequestId: requestId,
+      __turnActiveInboundSig: inboundSig,
+      __turnActiveInboundKey: inboundKey
+    }
+  };
+}
+function completeTurnLifecycle(session, args) {
+  const s = isPlainObject(session) ? session : {};
+  const turnId = safeStr(args?.turnId || "");
+  const requestId = safeStr(args?.requestId || "");
+  const inboundSig = safeStr(args?.inSig || "");
+  const inboundKey = safeStr(args?.inboundKey || "");
+  const lane = safeStr(args?.lane || "general") || "general";
+  const reply = safeStr(args?.reply || "");
+  const contract = isPlainObject(args?.contract) ? args.contract : null;
+  const now = nowMs();
+
+  const ledger = normalizeTurnLedger(s);
+  const nextLedger = upsertTurnLedger(ledger, {
+    turnId,
+    requestId,
+    inboundSig,
+    inboundKey,
+    phase: "complete",
+    lane,
+    replySig: replyLoopSig(lane, reply),
+    at: now,
+    status: "complete",
+    completed: true,
+    failed: false
+  });
+
+  return {
+    __turnLedger: nextLedger,
+    __turnActiveId: "",
+    __turnActiveRequestId: "",
+    __turnActiveInboundSig: "",
+    __turnActiveInboundKey: "",
+    __turnLastCompleteId: turnId,
+    __turnLastCompleteAt: now,
+    __lastTerminalInboundSig: inboundSig,
+    __lastTerminalAt: now,
+    __lastTerminalContract: contract ? buildTerminalContractSnapshot(contract) : null
+  };
+}
+function failTurnLifecycle(session, args) {
+  const s = isPlainObject(session) ? session : {};
+  const turnId = safeStr(args?.turnId || "");
+  const requestId = safeStr(args?.requestId || "");
+  const inboundSig = safeStr(args?.inSig || "");
+  const inboundKey = safeStr(args?.inboundKey || "");
+  const lane = safeStr(args?.lane || "general") || "general";
+  const reply = safeStr(args?.reply || "");
+  const contract = isPlainObject(args?.contract) ? args.contract : null;
+  const now = nowMs();
+
+  const ledger = normalizeTurnLedger(s);
+  const nextLedger = upsertTurnLedger(ledger, {
+    turnId,
+    requestId,
+    inboundSig,
+    inboundKey,
+    phase: "failed_terminal",
+    lane,
+    replySig: replyLoopSig(lane, reply),
+    at: now,
+    status: "failed_terminal",
+    completed: true,
+    failed: true
+  });
+
+  return {
+    __turnLedger: nextLedger,
+    __turnActiveId: "",
+    __turnActiveRequestId: "",
+    __turnActiveInboundSig: "",
+    __turnActiveInboundKey: "",
+    __turnLastFailedId: turnId,
+    __turnLastFailedAt: now,
+    __lastTerminalInboundSig: inboundSig,
+    __lastTerminalAt: now,
+    __lastTerminalContract: contract ? buildTerminalContractSnapshot(contract) : null
   };
 }
 function computePublicMode(norm, session) {
@@ -643,7 +930,14 @@ function makeBreakerReply(norm, emo) {
   if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
     return safeStr(packet.reply);
   }
-  return "Loop detected — I am seeing the same request repeating. To break it, rephrase in one sentence or tap a lane chip. Pick one: (A) Just talk (B) Ideas (C) Step-by-step plan (D) Switch lane";
+  return "Loop detected — I am seeing the same request repeating. To break it, send one fresh input only or pick a single lane. Options: just talk, ideas, step-by-step plan, or switch lane.";
+}
+function makeInFlightReply(norm, emo) {
+  const packet = buildSupportPacketSafe(norm, emo);
+  if (packet && packet.reply && safeStr(packet.reply)) {
+    return safeStr(packet.reply);
+  }
+  return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
 }
 function maybeBuildEmotionFirstReply(norm, emo) {
   if (!emo) return null;
@@ -895,8 +1189,9 @@ function buildTelemetry(norm, lane, emo, requestId, publicMode, phase) {
     dataset: safeDatasetStats()
   };
 }
-function failSafeContract(err, input) {
-  const requestId = safeStr((isPlainObject(input) ? input.requestId : "") || "").slice(0, 80) || `req_${nowMs()}`;
+function failSafeContract(err, input, extra) {
+  const src = isPlainObject(input) ? input : {};
+  const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
   const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
   return {
     ok: false,
@@ -911,7 +1206,7 @@ function failSafeContract(err, input) {
     directives: [],
     followUps: [],
     followUpsStrings: [],
-    sessionPatch: {},
+    sessionPatch: isPlainObject(extra?.sessionPatch) ? extra.sessionPatch : {},
     cog: {
       intent: "STABILIZE",
       mode: "transitional",
@@ -924,25 +1219,83 @@ function failSafeContract(err, input) {
 }
 async function handleChat(input) {
   const started = nowMs();
+  const rawInput = isPlainObject(input) ? input : {};
+  const session = isPlainObject(rawInput.session) ? rawInput.session : {};
+
+  let inboundKey = "";
+  let requestId = "";
+  let turnId = "";
+  let inSig = "";
+  let publicMode = true;
+  let norm = null;
+  let lifecycle = { blocked: false, reason: "", patch: {} };
 
   try {
-    const norm = normalizeInbound(input);
-    const session = isPlainObject(input?.session) ? input.session : {};
+    norm = normalizeInbound(rawInput);
     norm._t0 = started;
 
-    const inboundKey = buildInboundKey(norm);
-    const requestId = resolveRequestId(input, norm, inboundKey);
-    const publicMode = computePublicMode(norm, session);
-    const sessionId = resolveSessionId(norm, session, inboundKey);
+    inboundKey = buildInboundKey(norm);
+    requestId = resolveRequestId(rawInput, norm, inboundKey);
+    turnId = buildTurnId(rawInput, norm, inboundKey, requestId);
+    publicMode = computePublicMode(norm, session);
 
-    // Phase 08: inbound duplicate breaker
-    const inSig = inboundLoopSig(norm, session);
+    inSig = inboundLoopSig(norm, session);
+    lifecycle = beginTurnLifecycle(session, {
+      turnId,
+      requestId,
+      inSig,
+      inboundKey,
+      publicMode,
+      laneHint: safeStr(norm.lane || "general") || "general"
+    });
+
+    if (lifecycle.blocked && lifecycle.replay) {
+      return {
+        ...lifecycle.replay,
+        requestId,
+        sessionPatch: mergeSessionPatches(lifecycle.replay.sessionPatch, lifecycle.patch, {
+          __turnLifecycleReason: lifecycle.reason
+        })
+      };
+    }
+
+    if (lifecycle.blocked) {
+      const emoBlocked = runEmotionGuard(norm.text || "");
+      const blockedReply = applyPublicSanitization(
+        scrubExecutionStyleArtifacts(softSpeak(makeInFlightReply(norm, emoBlocked))),
+        norm,
+        session,
+        publicMode
+      );
+      const blockedContract = {
+        ok: true,
+        reply: blockedReply,
+        payload: { reply: blockedReply },
+        lane: safeStr(norm.lane || "general") || "general",
+        laneId: safeStr(norm.lane || "general") || "general",
+        sessionLane: safeStr(norm.lane || "general") || "general",
+        bridge: null,
+        ctx: {},
+        ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch: mergeSessionPatches(lifecycle.patch, {
+          __turnLifecycleReason: lifecycle.reason
+        }),
+        cog: { publicMode, mode: "transitional", intent: "STABILIZE" },
+        requestId,
+        meta: { v: CE_VERSION, blocked: true, reason: lifecycle.reason, t: nowMs(), phase: 15 }
+      };
+      return blockedContract;
+    }
+
     const inboundRepeat = detectInboundRepeat(session, inSig);
 
     if (inboundRepeat.canFastReturn) {
       const cached = getCachedReply(session, inSig);
       if (cached) {
-        return {
+        const replayContract = {
           ok: true,
           reply: cached.reply,
           payload: { reply: cached.reply },
@@ -955,18 +1308,34 @@ async function handleChat(input) {
           directives: cached.directives || [],
           followUps: cached.followUps || [],
           followUpsStrings: (cached.followUps || []).map((x) => x.label),
-          sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
-            __lastInboundKey: inboundKey,
-            __cacheAt: nowMs()
-          }),
+          sessionPatch: {},
           cog: { publicMode, mode: "transitional", intent: "REPLAY" },
           requestId,
           meta: { v: CE_VERSION, replay: true, t: nowMs(), phase: 8 }
         };
+
+        replayContract.sessionPatch = mergeSessionPatches(
+          lifecycle.patch,
+          inboundRepeat.patch,
+          completeTurnLifecycle(session, {
+            turnId,
+            requestId,
+            inSig,
+            inboundKey,
+            lane: cached.lane,
+            reply: cached.reply,
+            contract: replayContract
+          }),
+          {
+            __lastInboundKey: inboundKey,
+            __cacheAt: nowMs(),
+            __turnLifecycleReason: "cached_fast_return"
+          }
+        );
+        return replayContract;
       }
     }
 
-    // Phase 02–07: emotion route guard intake + enriched support shaping
     let emo = runEmotionGuard(norm.text || "");
     applyEmotionSignalsToNorm(norm, emo);
 
@@ -982,7 +1351,7 @@ async function handleChat(input) {
       const followUps = buildFollowUpsForLane(lane);
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
 
-      return {
+      const emotionContract = {
         ok: true,
         reply: safeReply,
         payload: { reply: safeReply },
@@ -995,21 +1364,7 @@ async function handleChat(input) {
         directives,
         followUps,
         followUpsStrings: followUps.map((x) => x.label),
-        sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
-          lane,
-          publicMode,
-          __lastInboundKey: inboundKey,
-          __emotionMode: safeStr(emo?.mode || "NORMAL"),
-          __emotionValence: safeStr(emo?.valence || "neutral"),
-          __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
-          __emotionAt: nowMs(),
-          __cacheInSig: inSig,
-          __cacheReply: safeReply,
-          __cacheLane: lane,
-          __cacheFollowUps: followUps,
-          __cacheDirectives: directives,
-          __cacheAt: nowMs()
-        }),
+        sessionPatch: {},
         cog: {
           route: "emotion_route_guard",
           publicMode,
@@ -1035,9 +1390,39 @@ async function handleChat(input) {
           phase: 7
         }
       };
+
+      emotionContract.sessionPatch = mergeSessionPatches(
+        lifecycle.patch,
+        inboundRepeat.patch,
+        {
+          lane,
+          publicMode,
+          __lastInboundKey: inboundKey,
+          __emotionMode: safeStr(emo?.mode || "NORMAL"),
+          __emotionValence: safeStr(emo?.valence || "neutral"),
+          __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
+          __emotionAt: nowMs(),
+          __cacheInSig: inSig,
+          __cacheReply: safeReply,
+          __cacheLane: lane,
+          __cacheFollowUps: followUps,
+          __cacheDirectives: directives,
+          __cacheAt: nowMs()
+        },
+        completeTurnLifecycle(session, {
+          turnId,
+          requestId,
+          inSig,
+          inboundKey,
+          lane,
+          reply: safeReply,
+          contract: emotionContract
+        })
+      );
+
+      return emotionContract;
     }
 
-    // Phase 08 breaker hard stop
     if (inboundRepeat.tripped) {
       const breaker = makeBreakerReply(norm, emo);
       const safeReply = applyPublicSanitization(
@@ -1046,7 +1431,8 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      return {
+
+      const breakerContract = {
         ok: true,
         reply: safeReply,
         payload: { reply: safeReply },
@@ -1059,15 +1445,7 @@ async function handleChat(input) {
         directives: [],
         followUps: [],
         followUpsStrings: [],
-        sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
-          __lastInboundKey: inboundKey,
-          __cacheInSig: inSig,
-          __cacheReply: safeReply,
-          __cacheLane: "general",
-          __cacheFollowUps: [],
-          __cacheDirectives: [],
-          __cacheAt: nowMs()
-        }),
+        sessionPatch: {},
         cog: {
           publicMode,
           mode: "transitional",
@@ -1081,9 +1459,33 @@ async function handleChat(input) {
         requestId,
         meta: { v: CE_VERSION, breaker: true, t: nowMs(), phase: 8 }
       };
+
+      breakerContract.sessionPatch = mergeSessionPatches(
+        lifecycle.patch,
+        inboundRepeat.patch,
+        {
+          __lastInboundKey: inboundKey,
+          __cacheInSig: inSig,
+          __cacheReply: safeReply,
+          __cacheLane: "general",
+          __cacheFollowUps: [],
+          __cacheDirectives: [],
+          __cacheAt: nowMs()
+        },
+        completeTurnLifecycle(session, {
+          turnId,
+          requestId,
+          inSig,
+          inboundKey,
+          lane: "general",
+          reply: safeReply,
+          contract: breakerContract
+        })
+      );
+
+      return breakerContract;
     }
 
-    // Greeting handling
     const greeting = detectGreetingQuick(norm.text || "");
     if (greeting) {
       const reply = applyPublicSanitization(
@@ -1095,7 +1497,7 @@ async function handleChat(input) {
       const lane = safeStr(norm.lane || "general") || "general";
       const followUps = buildFollowUpsForLane(lane);
 
-      return {
+      const greetingContract = {
         ok: true,
         reply,
         payload: { reply },
@@ -1108,7 +1510,16 @@ async function handleChat(input) {
         directives: [],
         followUps,
         followUpsStrings: followUps.map((x) => x.label),
-        sessionPatch: mergeSessionPatches(inboundRepeat.patch, {
+        sessionPatch: {},
+        cog: { publicMode, mode: "transitional", intent: "GREETING" },
+        requestId,
+        meta: { v: CE_VERSION, greeting: true, t: nowMs(), phase: 1 }
+      };
+
+      greetingContract.sessionPatch = mergeSessionPatches(
+        lifecycle.patch,
+        inboundRepeat.patch,
+        {
           lane,
           publicMode,
           __greeted: true,
@@ -1119,19 +1530,25 @@ async function handleChat(input) {
           __cacheFollowUps: followUps,
           __cacheDirectives: [],
           __cacheAt: nowMs()
-        }),
-        cog: { publicMode, mode: "transitional", intent: "GREETING" },
-        requestId,
-        meta: { v: CE_VERSION, greeting: true, t: nowMs(), phase: 1 }
-      };
+        },
+        completeTurnLifecycle(session, {
+          turnId,
+          requestId,
+          inSig,
+          inboundKey,
+          lane,
+          reply,
+          contract: greetingContract
+        })
+      );
+
+      return greetingContract;
     }
 
-    // Phase 12: canonical spine seed
     const corePrev = isPlainObject(session.__spineState)
       ? session.__spineState
       : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
 
-    // Phase 11: lane / domain routing
     const routeOut = laneReply(norm, session, emo);
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
@@ -1140,7 +1557,6 @@ async function handleChat(input) {
       reply = "I have the signal. Give me the exact target and I will keep this tight.";
     }
 
-    // Phase 09: outbound loop breaker
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
       reply = makeBreakerReply(norm, emo);
@@ -1159,7 +1575,6 @@ async function handleChat(input) {
     const followUps = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
 
-    // Phase 12: finalize turn
     let nextSpine = null;
     try {
       nextSpine = Spine.finalizeTurn({
@@ -1201,8 +1616,7 @@ async function handleChat(input) {
       nextSpine = { ...corePrev, rev: (Number.isFinite(corePrev.rev) ? corePrev.rev : 0) + 1, lane };
     }
 
-    // Phase 13: memory write-through
-    safeStoreMemoryTurn(sessionId, {
+    safeStoreMemoryTurn(resolveSessionId(norm, session, inboundKey), {
       at: nowMs(),
       lane,
       user: safeStr(norm.text || "").slice(0, 400),
@@ -1216,7 +1630,7 @@ async function handleChat(input) {
       } : null
     });
 
-    return {
+    const finalContract = {
       ok: true,
       reply: safeReply,
       payload: { reply: safeReply },
@@ -1229,27 +1643,7 @@ async function handleChat(input) {
       directives,
       followUps,
       followUpsStrings: followUps.map((x) => x.label),
-      sessionPatch: mergeSessionPatches(
-        inboundRepeat.patch,
-        loopPatch.patch,
-        {
-          lane,
-          publicMode,
-          __lastInboundKey: inboundKey,
-          __memoryWindow: safeBuildMemoryContext(sessionId) || {},
-          __spineState: nextSpine,
-          __cacheInSig: inSig,
-          __cacheReply: safeReply,
-          __cacheLane: lane,
-          __cacheFollowUps: followUps,
-          __cacheDirectives: directives,
-          __cacheAt: nowMs(),
-          __emotionMode: safeStr(emo?.mode || "NORMAL"),
-          __emotionValence: safeStr(emo?.valence || "neutral"),
-          __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
-          __emotionAt: nowMs()
-        }
-      ),
+      sessionPatch: {},
       cog: {
         marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
         route: emo ? "emotion_route_guard" : "general",
@@ -1277,11 +1671,70 @@ async function handleChat(input) {
         telemetry: buildTelemetry(norm, lane, emo, requestId, publicMode, "final")
       }
     };
+
+    finalContract.sessionPatch = mergeSessionPatches(
+      lifecycle.patch,
+      inboundRepeat.patch,
+      loopPatch.patch,
+      {
+        lane,
+        publicMode,
+        __lastInboundKey: inboundKey,
+        __memoryWindow: safeBuildMemoryContext(resolveSessionId(norm, session, inboundKey)) || {},
+        __spineState: nextSpine,
+        __cacheInSig: inSig,
+        __cacheReply: safeReply,
+        __cacheLane: lane,
+        __cacheFollowUps: followUps,
+        __cacheDirectives: directives,
+        __cacheAt: nowMs(),
+        __emotionMode: safeStr(emo?.mode || "NORMAL"),
+        __emotionValence: safeStr(emo?.valence || "neutral"),
+        __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
+        __emotionAt: nowMs()
+      },
+      completeTurnLifecycle(session, {
+        turnId,
+        requestId,
+        inSig,
+        inboundKey,
+        lane,
+        reply: safeReply,
+        contract: finalContract
+      })
+    );
+
+    return finalContract;
   } catch (err) {
-    return failSafeContract(err, input);
+    const failContract = failSafeContract(err, rawInput, {
+      sessionPatch: mergeSessionPatches(
+        lifecycle.patch,
+        failTurnLifecycle(session, {
+          turnId,
+          requestId,
+          inSig,
+          inboundKey,
+          lane: safeStr(norm?.lane || "general") || "general",
+          reply: "Backend is stabilizing. Try again in a moment — or tap Reset."
+        })
+      )
+    });
+
+    failContract.sessionPatch = mergeSessionPatches(
+      lifecycle.patch,
+      failTurnLifecycle(session, {
+        turnId,
+        requestId,
+        inSig,
+        inboundKey,
+        lane: safeStr(norm?.lane || "general") || "general",
+        reply: failContract.reply,
+        contract: failContract
+      })
+    );
+    return failContract;
   }
 }
-
 /**
  * EXPORT HARDENING++++
  */
