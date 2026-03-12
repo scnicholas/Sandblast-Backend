@@ -3,59 +3,50 @@
 /**
  * Utils/chatEngine.js
  *
- * chatEngine v0.10.15 OPINTEL
+ * chatEngine v0.11.0 OPINTEL
  * ------------------------------------------------------------
- * HARDENED REBUILD GOALS
- * - emotionRouteGuard is the single emotional parsing source
- * - supportResponse consumes richer emotional payloads
- * - loop control is enforced on inbound + outbound sides
- * - public-mode sanitization remains default-safe
- * - state spine + memory spine remain fail-open
- * - contract remains NyxReplyContract-compatible
- *
- * SIX LOOP FIXES LOCKED HERE
- * ------------------------------------------------------------
- * 01. Turn replay guard
- * 02. In-flight single-turn lock
- * 03. Inbound duplicate breaker
- * 04. Outbound reply replay breaker
- * 05. Terminal completion ledger
- * 06. Fail-to-terminal behavior
+ * PURPOSE
+ * - Keep Chat Engine as the single semantic turn authority
+ * - Preserve structural integrity and fail-open behavior
+ * - Remove lane/memory/telemetry/persona bulk from the hot path
+ * - Centralize turn lifecycle, duplicate suppression, and clean contract return
  *
  * 15 PHASE COVERAGE
  * ------------------------------------------------------------
  * Phase 01: Inbound normalization
- * Phase 02: Emotional route-guard intake
- * Phase 03: Crisis / vulnerable gating
- * Phase 04: Positive reinforcement routing
- * Phase 05: Intensity-aware pacing
- * Phase 06: Contradiction / mixed-state handling
- * Phase 07: Recovery signal handling
+ * Phase 02: Session / request identity
+ * Phase 03: Emotional route-guard intake
+ * Phase 04: Support packet routing
+ * Phase 05: Distress / recovery / positive handling
+ * Phase 06: Public-mode sanitization
+ * Phase 07: Greeting handling
  * Phase 08: Inbound duplicate breaker
- * Phase 09: Outbound reply loop breaker
- * Phase 10: Public-mode sanitization
- * Phase 11: Lane / domain routing
- * Phase 12: Spine update + turn semantics
- * Phase 13: Memory write-through
- * Phase 14: Telemetry / directives / bridge metadata
- * Phase 15: Fail-open integrity / export hardening
+ * Phase 09: Turn lifecycle lock
+ * Phase 10: Lane routing delegation
+ * Phase 11: Spine finalization
+ * Phase 12: Memory write-through
+ * Phase 13: Telemetry shaping
+ * Phase 14: Stable contract assembly
+ * Phase 15: Fail-open terminal safety
  */
-
-let __SB_DATASETS_LAZY = { tried: false, ok: false };
-const CE_VERSION = "chatEngine v0.10.15 OPINTEL (TURN LIFECYCLE LOCK + LOOP CUT + 15 PHASE)";
-
-try {
-  const _ceBoot =
-    process &&
-    process.env &&
-    (process.env.SB_CHATENGINE_BOOT === "1" || process.env.SB_CE_BOOT === "1");
-  if (_ceBoot) console.log("[CHATENGINE] BOOT", CE_VERSION, new Date().toISOString());
-} catch (_e) {}
 
 let Spine = null;
 let MarionSO = null;
-try { Spine = require("./stateSpine"); } catch (e) { Spine = null; }
-try { MarionSO = require("./marionSO"); } catch (e) { MarionSO = null; }
+let EmotionRouteGuard = null;
+let Support = null;
+
+try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
+try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
+try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
+try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
+
+let laneRouter = null;
+let memoryAdapter = null;
+let telemetryAdapter = null;
+
+try { laneRouter = require("./laneRouter"); } catch (_e) { laneRouter = null; }
+try { memoryAdapter = require("./chatMemoryAdapter"); } catch (_e) { memoryAdapter = null; }
+try { telemetryAdapter = require("./chatTelemetryAdapter"); } catch (_e) { telemetryAdapter = null; }
 
 if (!Spine) {
   Spine = {
@@ -73,50 +64,67 @@ if (!Spine) {
         : { rev: 0, lane: "general", stage: "open" };
       return { ...prev, rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1 };
     },
-    assertTurnUpdated: () => true,
+    assertTurnUpdated: () => true
   };
 }
 
-let SiteBridge = null;
-let PsycheBridge = null;
-function _tryRequireMany(paths) {
-  for (const p of paths) {
-    try {
-      const mod = require(p);
-      if (mod) return mod;
-    } catch (_e) {}
-  }
-  return null;
-}
-SiteBridge = _tryRequireMany(["./SiteBridge", "./siteBridge", "./sitebridge"]);
-PsycheBridge = _tryRequireMany(["./psycheBridge", "./PsycheBridge"]);
+const routeLane = typeof laneRouter?.routeLane === "function"
+  ? laneRouter.routeLane
+  : null;
 
-let Music = null;
-try { Music = require("./musicKnowledge"); } catch (e) { Music = null; }
+const buildUiForLane = typeof laneRouter?.buildUiForLane === "function"
+  ? laneRouter.buildUiForLane
+  : function fallbackBuildUiForLane() {
+      return {
+        chips: [
+          { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
+          { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
+          { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
+          { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
+        ],
+        allowMic: true
+      };
+    };
 
-let MoviesLane = null;
-try {
-  MoviesLane = require("./moviesLane");
-  if (!MoviesLane || typeof MoviesLane.handleChat !== "function") MoviesLane = null;
-} catch (e) {
-  MoviesLane = null;
-}
+const buildFollowUpsForLane = typeof laneRouter?.buildFollowUpsForLane === "function"
+  ? laneRouter.buildFollowUpsForLane
+  : function fallbackBuildFollowUpsForLane(lane) {
+      const l = safeStr(lane || "general");
+      if (l === "music") {
+        return [
+          { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
+          { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
+        ];
+      }
+      return [
+        { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
+        { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
+      ];
+    };
 
-let EmotionRouteGuard = null;
-let Support = null;
-try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (e) { EmotionRouteGuard = null; }
-try { Support = require("./supportResponse"); } catch (e) { Support = null; }
+const buildMemoryContext = typeof memoryAdapter?.buildMemoryContext === "function"
+  ? memoryAdapter.buildMemoryContext
+  : function fallbackBuildMemoryContext() { return null; };
 
-let AffectEngine = null;
-try { AffectEngine = require("./affectEngine"); } catch (e) { AffectEngine = null; }
+const storeMemoryTurn = typeof memoryAdapter?.storeMemoryTurn === "function"
+  ? memoryAdapter.storeMemoryTurn
+  : function fallbackStoreMemoryTurn() { return false; };
 
-let MemorySpine = null;
-try { MemorySpine = require("./memorySpine"); } catch (e) { MemorySpine = null; }
+const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
+  ? telemetryAdapter.buildTelemetry
+  : function fallbackBuildTelemetry(params) {
+      const src = isPlainObject(params) ? params : {};
+      return {
+        phase: safeStr(src.phase || "turn"),
+        requestId: safeStr(src.requestId || ""),
+        lane: safeStr(src.lane || src?.norm?.lane || "general"),
+        publicMode: !!src.publicMode,
+        emotion: null,
+        dataset: null
+      };
+    };
 
-let Dataset = null;
-try { Dataset = require("./datasetLoader"); } catch (e) { Dataset = null; }
-
-const SO_LATENT_DESIRE = MarionSO && MarionSO.LATENT_DESIRE ? MarionSO.LATENT_DESIRE : null;
+const CE_VERSION = "chatEngine v0.11.0 OPINTEL";
 
 function nowMs() {
   return Date.now();
@@ -136,13 +144,6 @@ function clampInt(v, def, min, max) {
   if (t < min) return min;
   if (t > max) return max;
   return t;
-}
-function clamp01(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  if (x < 0) return 0;
-  if (x > 1) return 1;
-  return x;
 }
 function truthy(v) {
   if (v === true) return true;
@@ -166,12 +167,8 @@ function takeLines(s, maxLines) {
 function safeJsonStringify(x) {
   try {
     return JSON.stringify(x);
-  } catch (e) {
-    try {
-      return JSON.stringify({ _fail: true, t: safeStr(x) });
-    } catch (_e) {
-      return '{"_fail":true}';
-    }
+  } catch (_e) {
+    return "{\"_fail\":true}";
   }
 }
 function sha1Lite(str) {
@@ -190,6 +187,14 @@ function normYear(y) {
   if (t < 1900 || t > 2100) return null;
   return t;
 }
+function mergeSessionPatches() {
+  const merged = {};
+  for (let i = 0; i < arguments.length; i++) {
+    const part = arguments[i];
+    if (isPlainObject(part)) Object.assign(merged, part);
+  }
+  return merged;
+}
 function hasActionablePayload(payload) {
   if (!isPlainObject(payload)) return false;
   const keys = Object.keys(payload);
@@ -199,44 +204,6 @@ function hasActionablePayload(payload) {
     "macMode", "mode", "allowDerivedTop10", "allowYearendFallback", "focus", "publicMode"
   ]);
   return keys.some((k) => actionable.has(k));
-}
-function mergeSessionPatch(base, overrides) {
-  const b = isPlainObject(base) ? base : {};
-  const o = isPlainObject(overrides) ? overrides : {};
-  return { ...b, ...o };
-}
-function mergeSessionPatches() {
-  const merged = {};
-  for (let i = 0; i < arguments.length; i++) {
-    const part = arguments[i];
-    if (isPlainObject(part)) Object.assign(merged, part);
-  }
-  return merged;
-}
-function safeDatasetStats() {
-  try { return Dataset && typeof Dataset.stats === "function" ? Dataset.stats() : null; } catch (_e) { return null; }
-}
-function safeDatasetSearch(q, opts) {
-  try {
-    return Dataset && typeof Dataset.search === "function"
-      ? Dataset.search(q, opts)
-      : { ok: true, hit: null, hits: [] };
-  } catch (_e) {
-    return { ok: true, hit: null, hits: [] };
-  }
-}
-function safeBuildMemoryContext(sessionId) {
-  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") return null;
-  try { return MemorySpine.buildContext(sessionId); } catch (_e) { return null; }
-}
-function safeStoreMemoryTurn(sessionId, turn) {
-  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") return false;
-  try {
-    MemorySpine.storeTurn(sessionId, turn);
-    return true;
-  } catch (_e) {
-    return false;
-  }
 }
 function buildInboundKey(norm) {
   const p = isPlainObject(norm?.payload) ? norm.payload : {};
@@ -250,23 +217,9 @@ function buildInboundKey(norm) {
     py: normYear(p.year),
     pl: safeStr(p.lane || ""),
     pr: safeStr(p.route || ""),
-    pv: safeStr(p.vibe || ""),
+    pv: safeStr(p.vibe || "")
   };
   return sha1Lite(safeJsonStringify(keyObj)).slice(0, 18);
-}
-function resolveSessionId(norm, session, inboundKey) {
-  const nctx = isPlainObject(norm && norm.ctx) ? norm.ctx : {};
-  const nb = isPlainObject(norm && norm.body) ? norm.body : {};
-  const s = isPlainObject(session) ? session : {};
-  const candidates = [
-    nctx.sessionId, nctx.sid, nb.sessionId, nb.sid,
-    s.sessionId, s.sid, s.id, s.sessionKey, s.key,
-  ];
-  for (const v of candidates) {
-    const t = safeStr(v).trim();
-    if (t && t.length <= 180) return t;
-  }
-  return safeStr(inboundKey || `sess_${nowMs()}`).slice(0, 36);
 }
 function resolveRequestId(input, norm, inboundKey) {
   const src = isPlainObject(input) ? input : {};
@@ -301,6 +254,20 @@ function buildTurnId(input, norm, inboundKey, requestId) {
     if (s) return `turn_${sha1Lite(s).slice(0, 20)}`;
   }
   return `turn_${sha1Lite(`${safeStr(inboundKey)}|${safeStr(requestId)}`).slice(0, 20)}`;
+}
+function resolveSessionId(norm, session, inboundKey) {
+  const nctx = isPlainObject(norm?.ctx) ? norm.ctx : {};
+  const nb = isPlainObject(norm?.body) ? norm.body : {};
+  const s = isPlainObject(session) ? session : {};
+  const candidates = [
+    nctx.sessionId, nctx.sid, nb.sessionId, nb.sid,
+    s.sessionId, s.sid, s.id, s.sessionKey, s.key
+  ];
+  for (const v of candidates) {
+    const t = safeStr(v).trim();
+    if (t && t.length <= 180) return t;
+  }
+  return safeStr(inboundKey || `sess_${nowMs()}`).slice(0, 36);
 }
 function applyBudgetText(s, budget) {
   const txt = safeStr(s).trim();
@@ -348,7 +315,6 @@ const LOOP_HARD_LIMIT = 2;
 const INBOUND_WINDOW_MS = 12000;
 const INBOUND_DUPLICATE_FAST_MS = 5000;
 const INBOUND_HARD_LIMIT = 2;
-
 const TURN_INFLIGHT_STALE_MS = 20000;
 const TURN_TERMINAL_WINDOW_MS = 30000;
 const TURN_LEDGER_LIMIT = 24;
@@ -434,7 +400,6 @@ function getCachedReply(session, inSig) {
     directives: Array.isArray(s.__cacheDirectives) ? s.__cacheDirectives : []
   };
 }
-
 function normalizeTurnLedger(session) {
   const s = isPlainObject(session) ? session : {};
   const raw = Array.isArray(s.__turnLedger) ? s.__turnLedger : [];
@@ -710,7 +675,7 @@ function collectForbiddenNames(norm, session) {
     s.ownerName, s.userName, s.displayName, s.name, s.macName,
     c.ownerName, c.userName, c.displayName, c.name,
     b.ownerName, b.userName, b.displayName, b.name,
-    p.ownerName, p.userName, p.displayName, p.name,
+    p.ownerName, p.userName, p.displayName, p.name
   ];
   for (const v of candidates) {
     const name = oneLine(safeStr(v)).trim();
@@ -784,6 +749,7 @@ function buildGreetingReply(kind, seed) {
   ];
   return pickBySeed(k === "GREETING_HOW" ? poolHow : poolOnly, seed);
 }
+
 function normalizeEmotionGuardResult(raw) {
   const r = isPlainObject(raw) ? raw : {};
   const state = isPlainObject(r.state) ? r.state : {};
@@ -892,7 +858,6 @@ function applyEmotionSignalsToNorm(norm, emo) {
 }
 function buildSupportPacketSafe(norm, emo) {
   if (!emo || !Support) return null;
-
   try {
     if (typeof Support.buildSupportPacket === "function") {
       return Support.buildSupportPacket({
@@ -901,7 +866,6 @@ function buildSupportPacketSafe(norm, emo) {
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
       });
     }
-
     if (typeof Support.buildSupportiveResponse === "function") {
       return {
         ok: true,
@@ -922,22 +886,25 @@ function buildSupportPacketSafe(norm, emo) {
   } catch (_e) {
     return null;
   }
-
   return null;
 }
-function makeBreakerReply(norm, emo) {
-  const packet = buildSupportPacketSafe(norm, emo);
-  if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
-    return safeStr(packet.reply);
+function buildEmotionDirectives(emo, packet) {
+  const out = [];
+  if (!emo) return out;
+
+  if (emo.supportFlags?.crisis) {
+    out.push({ type: "safety", level: "critical", route: "human_support" });
+  } else if (emo.supportFlags?.highDistress) {
+    out.push({ type: "pacing", level: "soft", reason: "high_distress" });
+  } else if (emo.valence === "positive") {
+    out.push({ type: "reinforcement", level: "positive", dominantEmotion: safeStr(emo.dominantEmotion || "positive") });
   }
-  return "Loop detected — I am seeing the same request repeating. To break it, send one fresh input only or pick a single lane. Options: just talk, ideas, step-by-step plan, or switch lane.";
-}
-function makeInFlightReply(norm, emo) {
-  const packet = buildSupportPacketSafe(norm, emo);
-  if (packet && packet.reply && safeStr(packet.reply)) {
-    return safeStr(packet.reply);
-  }
-  return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
+
+  if (emo.supportFlags?.recoveryPresent) out.push({ type: "recovery", level: "detected" });
+  if ((emo.contradictions?.count || 0) > 0) out.push({ type: "mixed_state", count: clampInt(emo.contradictions.count, 0, 0, 99) });
+  if (packet && isPlainObject(packet.meta) && packet.meta.crisis) out.push({ type: "support_packet", mode: safeStr(packet.mode || "supportive") });
+
+  return out.slice(0, 8);
 }
 function maybeBuildEmotionFirstReply(norm, emo) {
   if (!emo) return null;
@@ -983,32 +950,17 @@ function maybeBuildEmotionFirstReply(norm, emo) {
 
   return null;
 }
-function buildEmotionDirectives(emo, packet) {
-  const out = [];
-
-  if (!emo) return out;
-
-  if (emo.supportFlags?.crisis) {
-    out.push({ type: "safety", level: "critical", route: "human_support" });
-  } else if (emo.supportFlags?.highDistress) {
-    out.push({ type: "pacing", level: "soft", reason: "high_distress" });
-  } else if (emo.valence === "positive") {
-    out.push({ type: "reinforcement", level: "positive", dominantEmotion: safeStr(emo.dominantEmotion || "positive") });
+function makeBreakerReply(norm, emo) {
+  const packet = buildSupportPacketSafe(norm, emo);
+  if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
+    return safeStr(packet.reply);
   }
-
-  if (emo.supportFlags?.recoveryPresent) {
-    out.push({ type: "recovery", level: "detected" });
-  }
-
-  if ((emo.contradictions?.count || 0) > 0) {
-    out.push({ type: "mixed_state", count: clampInt(emo.contradictions.count, 0, 0, 99) });
-  }
-
-  if (packet && isPlainObject(packet.meta) && packet.meta.crisis) {
-    out.push({ type: "support_packet", mode: safeStr(packet.mode || "supportive") });
-  }
-
-  return out.slice(0, 8);
+  return "Loop detected — I am seeing the same request repeating. To break it, send one fresh input only or pick a single lane. Options: just talk, ideas, step-by-step plan, or switch lane.";
+}
+function makeInFlightReply(norm, emo) {
+  const packet = buildSupportPacketSafe(norm, emo);
+  if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
+  return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1089,106 +1041,6 @@ function computeBridge(sessionLaneState, requestId) {
     at: nowMs()
   };
 }
-function buildUiForLane(lane) {
-  const l = safeStr(lane || "general");
-  if (l === "music") {
-    return {
-      chips: [
-        { id: "top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" } },
-        { id: "cinematic", type: "action", label: "Cinematic", payload: { lane: "music", action: "cinematic" } },
-        { id: "yearend", type: "action", label: "Year-End", payload: { lane: "music", action: "yearend" } }
-      ],
-      allowMic: true
-    };
-  }
-  return {
-    chips: [
-      { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
-      { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
-      { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
-      { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
-    ],
-    allowMic: true
-  };
-}
-function buildFollowUpsForLane(lane) {
-  const l = safeStr(lane || "general");
-  if (l === "music") {
-    return [
-      { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
-      { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
-    ];
-  }
-  return [
-    { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
-    { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
-  ];
-}
-function simpleGeneralReply(norm, emo) {
-  const text = safeStr(norm?.text || "").trim();
-  if (!text) return "I am here. Tell me what you want to work on, and I will keep it structured.";
-
-  const greeting = detectGreetingQuick(text);
-  if (greeting) return buildGreetingReply(greeting.kind, text);
-
-  if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
-    return "Understood. We are going after the loop directly. Give me the file or the exact layer, and I will keep the response locked to that target.";
-  }
-
-  if (emo && emo.valence === "mixed" && (emo.contradictions?.count || 0) > 0) {
-    return "I am seeing mixed signals in this. We can slow it down and isolate the main pressure point first.";
-  }
-
-  if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)\b/i.test(text)) {
-    return "Got it. We can work this as an architecture problem: isolate the heavy logic, stop duplicated emotional parsing, and keep the response path deterministic.";
-  }
-
-  return "I have the signal. Do you want diagnosis, restructuring, or an exact code update?";
-}
-function laneReply(norm, session, emo) {
-  const lane = safeStr(norm?.lane || session?.lane || "general");
-
-  if (lane === "movies" && MoviesLane && typeof MoviesLane.handleChat === "function") {
-    try {
-      const out = MoviesLane.handleChat(norm);
-      if (typeof out === "string") return { reply: out, lane: "movies" };
-      if (isPlainObject(out) && safeStr(out.reply)) return { ...out, lane: safeStr(out.lane || "movies") };
-    } catch (_e) {}
-  }
-
-  if (lane === "music" && Music) {
-    try {
-      if (typeof Music.handleChat === "function") {
-        const out = Music.handleChat(norm);
-        if (typeof out === "string") return { reply: out, lane: "music" };
-        if (isPlainObject(out) && safeStr(out.reply)) return { ...out, lane: safeStr(out.lane || "music") };
-      }
-    } catch (_e) {}
-  }
-
-  return {
-    reply: simpleGeneralReply(norm, emo),
-    lane
-  };
-}
-function buildTelemetry(norm, lane, emo, requestId, publicMode, phase) {
-  return {
-    phase: safeStr(phase || "turn"),
-    requestId: safeStr(requestId || ""),
-    lane: safeStr(lane || norm?.lane || "general"),
-    publicMode: !!publicMode,
-    emotion: emo ? {
-      mode: safeStr(emo.mode || "NORMAL"),
-      valence: safeStr(emo.valence || "neutral"),
-      dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
-      cached: !!emo.cached,
-      contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99),
-      recoveryPresent: !!emo.supportFlags?.recoveryPresent,
-      positivePresent: !!emo.supportFlags?.positivePresent
-    } : null,
-    dataset: safeDatasetStats()
-  };
-}
 function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
@@ -1217,6 +1069,7 @@ function failSafeContract(err, input, extra) {
     meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
   };
 }
+
 async function handleChat(input) {
   const started = nowMs();
   const rawInput = isPlainObject(input) ? input : {};
@@ -1267,7 +1120,7 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      const blockedContract = {
+      return {
         ok: true,
         reply: blockedReply,
         payload: { reply: blockedReply },
@@ -1287,7 +1140,6 @@ async function handleChat(input) {
         requestId,
         meta: { v: CE_VERSION, blocked: true, reason: lifecycle.reason, t: nowMs(), phase: 15 }
       };
-      return blockedContract;
     }
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
@@ -1336,7 +1188,7 @@ async function handleChat(input) {
       }
     }
 
-    let emo = runEmotionGuard(norm.text || "");
+    const emo = runEmotionGuard(norm.text || "");
     applyEmotionSignalsToNorm(norm, emo);
 
     const emotionFirst = maybeBuildEmotionFirstReply(norm, emo);
@@ -1385,7 +1237,7 @@ async function handleChat(input) {
           v: CE_VERSION,
           earlyReturn: "emotion_first",
           emotionCached: !!emo?.cached,
-          telemetry: buildTelemetry(norm, lane, emo, requestId, publicMode, "emotion_first"),
+          telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "emotion_first" }),
           t: nowMs(),
           phase: 7
         }
@@ -1513,7 +1365,7 @@ async function handleChat(input) {
         sessionPatch: {},
         cog: { publicMode, mode: "transitional", intent: "GREETING" },
         requestId,
-        meta: { v: CE_VERSION, greeting: true, t: nowMs(), phase: 1 }
+        meta: { v: CE_VERSION, greeting: true, t: nowMs(), phase: 7 }
       };
 
       greetingContract.sessionPatch = mergeSessionPatches(
@@ -1549,13 +1401,21 @@ async function handleChat(input) {
       ? session.__spineState
       : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
 
-    const routeOut = laneReply(norm, session, emo);
+    const routeOut = routeLane
+      ? routeLane(norm, session, emo)
+      : {
+          reply: "I have the signal. Do you want diagnosis, restructuring, or an exact code update?",
+          lane: safeStr(norm.lane || "general") || "general",
+          directives: [],
+          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
+          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+          meta: { failOpen: true, routeLaneMissing: true }
+        };
+
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
 
-    if (!reply) {
-      reply = "I have the signal. Give me the exact target and I will keep this tight.";
-    }
+    if (!reply) reply = "I have the signal. Give me the exact target and I will keep this tight.";
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
@@ -1574,6 +1434,7 @@ async function handleChat(input) {
     const bridge = computeBridge(sessionLaneState, requestId);
     const followUps = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
+    const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane);
 
     let nextSpine = null;
     try {
@@ -1616,7 +1477,7 @@ async function handleChat(input) {
       nextSpine = { ...corePrev, rev: (Number.isFinite(corePrev.rev) ? corePrev.rev : 0) + 1, lane };
     }
 
-    safeStoreMemoryTurn(resolveSessionId(norm, session, inboundKey), {
+    storeMemoryTurn(resolveSessionId(norm, session, inboundKey), {
       at: nowMs(),
       lane,
       user: safeStr(norm.text || "").slice(0, 400),
@@ -1625,9 +1486,12 @@ async function handleChat(input) {
         mode: emo.mode,
         valence: emo.valence,
         dominantEmotion: emo.dominantEmotion,
+        tone: emo.tone,
         recoveryPresent: !!emo.supportFlags?.recoveryPresent,
+        positivePresent: !!emo.supportFlags?.positivePresent,
         contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
-      } : null
+      } : null,
+      requestId
     });
 
     const finalContract = {
@@ -1639,7 +1503,7 @@ async function handleChat(input) {
       sessionLane: lane,
       bridge,
       ctx: {},
-      ui: buildUiForLane(lane),
+      ui,
       directives,
       followUps,
       followUpsStrings: followUps.map((x) => x.label),
@@ -1659,8 +1523,7 @@ async function handleChat(input) {
           recoveryPresent: !!emo.supportFlags?.recoveryPresent,
           positivePresent: !!emo.supportFlags?.positivePresent,
           contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
-        } : null,
-        dataset: safeDatasetStats()
+        } : null
       },
       requestId,
       meta: {
@@ -1668,7 +1531,7 @@ async function handleChat(input) {
         t: nowMs(),
         phase: 14,
         emotionCached: !!emo?.cached,
-        telemetry: buildTelemetry(norm, lane, emo, requestId, publicMode, "final")
+        telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "final" })
       }
     };
 
@@ -1680,7 +1543,7 @@ async function handleChat(input) {
         lane,
         publicMode,
         __lastInboundKey: inboundKey,
-        __memoryWindow: safeBuildMemoryContext(resolveSessionId(norm, session, inboundKey)) || {},
+        __memoryWindow: buildMemoryContext(resolveSessionId(norm, session, inboundKey)) || {},
         __spineState: nextSpine,
         __cacheInSig: inSig,
         __cacheReply: safeReply,
@@ -1735,66 +1598,13 @@ async function handleChat(input) {
     return failContract;
   }
 }
-/**
- * EXPORT HARDENING++++
- */
-const chatEngine = handleChat;
 
-const LATENT_DESIRE = Object.freeze({
-  AUTHORITY: "authority",
-  COMFORT: "comfort",
-  CURIOSITY: "curiosity",
-  VALIDATION: "validation",
-  MASTERY: "mastery",
-});
-
-const SIGNATURE_TRANSITIONS = Object.freeze([
-  "Now we widen the lens.",
-  "This is where it starts to mean something.",
-  "Let us slow this down for a second.",
-  "Here is the connective tissue.",
-  "This is not random—watch."
-]);
-
-function validateNyxTone() {
-  return { ok: true, version: CE_VERSION };
-}
-function runToneRegressionTests() {
-  return { ok: true, tests: [], version: CE_VERSION };
-}
-
-const _exportObj = {
-  CE_VERSION,
-  handleChat,
-  chatEngine,
-  default: handleChat,
-  LATENT_DESIRE,
-  SIGNATURE_TRANSITIONS,
-  validateNyxTone,
-  runToneRegressionTests,
-  computePublicMode,
-  sanitizePublicReply,
-  STATE_SPINE_VERSION: Spine.SPINE_VERSION,
-  STATE_SPINE: Spine,
-};
-
-const _callable = function exportedChatEngine() {
-  const input = arguments && arguments.length ? arguments[0] : undefined;
-  try {
-    const out = handleChat.apply(null, arguments);
-    if (out && typeof out.then === "function") {
-      return out.catch((e) => failSafeContract(e, input));
-    }
-    return out;
-  } catch (e) {
-    return Promise.resolve(failSafeContract(e, input));
-  }
-};
-
-Object.assign(_callable, _exportObj);
-_callable.chatEngine = handleChat;
-_callable.handleChat = handleChat;
-_callable.default = handleChat;
-_callable.__esModule = true;
-
-module.exports = _callable;
+module.exports = handleChat;
+module.exports.CE_VERSION = CE_VERSION;
+module.exports.handleChat = handleChat;
+module.exports.chatEngine = handleChat;
+module.exports.default = handleChat;
+module.exports.computePublicMode = computePublicMode;
+module.exports.sanitizePublicReply = sanitizePublicReply;
+module.exports.STATE_SPINE_VERSION = Spine.SPINE_VERSION;
+module.exports.STATE_SPINE = Spine;
