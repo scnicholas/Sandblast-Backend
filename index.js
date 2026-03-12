@@ -3,112 +3,40 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v1.5.41sb (OPINTEL++ NEVER-500 CHAT/RESET + TTS HEADER GUARD + FAIL-OPEN ROUTES + TRACE SAFE) (AVATAR CORS BYPASS++++ + TOKEN GATE WIRED++++ + SESSIONPATCH KEYS ALIGN++++ + /_warm++++)
-
+ * index.js v2.0.0sb
+ * ------------------------------------------------------------
+ * PURPOSE
+ * - Tightened backend shell
+ * - Removes duplicate replay authority from index layer
+ * - Keeps Chat Engine as the semantic turn authority
+ * - Delegates voice/TTS routing to utils/voiceRoute.js
+ * - Preserves Mixer voice path
+ * - Keeps fail-open rendering contract
  *
- * =========================
- * Operations Intelligence — Next 10 Phases (v1.5.34sb)
- * =========================
- * 1) Voice UUID API: stable selector for Vera (uuid → voice mapping) + header support
- * 2) TTS cache: short TTL audio memoization to cut vendor credits + latency spikes
- * 3) Trace spine: consistent x-sb-trace-id propagation across chat + tts + warm
- * 4) Contract hardening: method_not_allowed guidance preserved; never-500 envelope maintained
- * 5) Input hygiene: stricter voice selector parsing (voice/uuid/voiceId) with allowlist
- * 6) Observability: x-sb-tts-cache HIT/MISS headers + voice id echo for debugging
- * 7) Fail-soft audio: keep Audio Health heartbeat + degrade mode when upstream fails
- * 8) Security: preserve token gate wiring + CORS denylist behavior
- * 9) Stability: fuse/cooldown logic untouched; minimizes widget-triggered loops
- * 10) Extensibility: uuid→voice map via env JSON for future multi-voice routing
-
- * 11) TTS ladder: deterministic provider order (Resemble) with vendor-specific error codes surfaced
- * 12) Resemble ID hygiene: reject placeholders ('...') early; echo chosen voiceUid in headers for rapid debug
- * 13) Timeout discipline: per-provider AbortController + hard cap to prevent hanging (browser shows 'canceled')
- * 14) Audio response contract: always return either audio/* OR JSON error envelope; never empty body
- * 15) Warm-start assist: optional /_warm ping can prime vendor + Render instance before first user call
- * 16) Vendor health map: rolling success/fail counters per provider + last failure reason (no PII)
- * 17) Cache safety: TTL audio cache keyed by (provider,voice,text hash) with size cap + memory guard
- * 18) Observability: x-sb-tts-provider, x-sb-voice, x-sb-tts-ms headers for every /api/tts response
- * 19) Fail-open UX: if audio fails, return a short 'spokenUnavailable' flag so UI can show subtle prompt
- * 20) Config sanity: startup validation logs for required env (token present? voice id present?) without leaking secrets
- * 21) TTS handler autoload: resolve ./utils/tts across case variants + export aliases (handleTts/ttsHandler/default)
- * 22) TTS route self-heal: lazy-reload handler on first failure + periodic retry (no restart required)
- * 23) Provider lock: hard-enforce RESEMBLE-only at runtime; ignore stray env for other providers
- * 24) Canary probe: optional /api/tts/probe (guarded) for headless health checks + audio contract validation
- * 25) Avatar parity bus: emit sbnyx:tts:* events (start/ok/fail) so avatar can mouth-sync reliably
- * 26) Backpressure: cap concurrent TTS in-flight per IP + queue-jitter to avoid Render cold-start storms
- * 27) Better error taxonomy: surface provider_status + actionable hint (missing env vs provider down)
- * 28) Safer CORS/audio: explicit Cache-Control + correct content-type passthrough for mp3/wav
- * 29) Hot patch guard: refuse oversized text > MAX_TTS_CHARS with 413 to protect credits
- * 30) Runtime telemetry hooks: structured console line for every TTS call (traceId, ms, ok, provider)
- * =========================
- *
- * This build keeps EVERYTHING you already had in v1.5.18ax:
- * - LOAD VISIBILITY++++ (key collisions + skip reasons + fileMap + packsight proof)
- * - DATA ROOT AUTODISCOVERY++++ + pinned resolve diagnostics + rebuild roots on reloadKnowledge
- * - MANIFEST RESOLVER UPGRADE++++ (multi-candidate rels + bounded search) + probes
- * - chip payload normalizer + Nyx voice naturalizer
- * - loop fuse / replay isolation + silent reset + boot dedupe fuse
- *
- * And adds critical "production operating system" gaps:
- * ✅ Hard CORS deny (origin present but not allowed => 403, stops stealth browser calls)
- * ✅ Optional API token gate (env EXPECTED_API_TOKEN) available (not required for public /api/chat,/api/tts,/api/voice)
- * ✅ Security headers middleware (CSP frame-ancestors allowlist, CORP/COEP sensible defaults)
- * ✅ Static avatar host + assets at /avatar (cache + immutable for hashed assets)
- * ✅ Simple IP rate guard (pre-session) to prevent abuse/DoS spikes
- * ✅ Graceful shutdown hooks (Render/containers)
+ * 15 PHASE COVERAGE
+ * ------------------------------------------------------------
+ * Phase 01: Env + config normalization
+ * Phase 02: Safe module resolution
+ * Phase 03: Engine resolver hardening
+ * Phase 04: Knowledge runtime isolation
+ * Phase 05: Security headers
+ * Phase 06: CORS + preflight discipline
+ * Phase 07: Optional token gate
+ * Phase 08: IP rate limiting / abuse control
+ * Phase 09: Request context normalization
+ * Phase 10: Session shaping / patch merge
+ * Phase 11: Single-authority chat execution
+ * Phase 12: Stable contract normalization
+ * Phase 13: Voice route extraction / Mixer preservation
+ * Phase 14: Health / diagnostics / warm routes
+ * Phase 15: Graceful shutdown + fail-open safety
  */
 
-// =========================
-// Imports
-// =========================
 const express = require("express");
-
-// Optional external TTS handler (preferred). Keeps index.js stable while allowing provider ladder in utils/tts.js.
-// HARDEN v1.5.41sb: robust autoload across case variants + export aliases + lazy retry.
-let __SB_HANDLE_TTS = null;
-let __SB_TTS_MODPATH = null;
-let __SB_TTS_MODULE = null;
-
-function __sbResolveTtsHandler(mod) {
-  if (!mod) return null;
-  // Accept: module.exports = function(req,res) {} OR {handleTts}, {ttsHandler}, {handler}, {default}
-  if (typeof mod === "function") return mod;
-  const cand =
-    (typeof mod.handleTts === "function" && mod.handleTts) ||
-    (typeof mod.ttsHandler === "function" && mod.ttsHandler) ||
-    (typeof mod.handler === "function" && mod.handler) ||
-    (typeof mod.default === "function" && mod.default) ||
-    null;
-  return cand;
-}
-
-function __sbTryRequireTts() {
-  const paths = ["./utils/tts", "./utils/tts.js", "./Utils/tts", "./Utils/tts.js"];
-  for (const mp of paths) {
-    try {
-      // eslint-disable-next-line import/no-dynamic-require, global-require
-      const mod = require(mp);
-      const h = __sbResolveTtsHandler(mod);
-      if (h) {
-        __SB_TTS_MODPATH = mp;
-        __SB_TTS_MODULE = mod;
-        __SB_HANDLE_TTS = h;
-        return true;
-      }
-    } catch (_) { /* ignore */ }
-  }
-  __SB_HANDLE_TTS = null;
-  __SB_TTS_MODULE = null;
-  return false;
-}
-
-// First attempt at startup
-try { __sbTryRequireTts(); } catch (_) { __SB_HANDLE_TTS = null; __SB_TTS_MODULE = null; }
-const crypto = require("crypto");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 
-// Optional compression (safe to omit if not installed)
 let compression = null;
 try {
   // eslint-disable-next-line import/no-extraneous-dependencies, global-require
@@ -117,16 +45,20 @@ try {
   compression = null;
 }
 
-// =========================
-// Crash-proof logging (Render-friendly)
-// =========================
+const INDEX_VERSION = "index.js v2.0.0sb";
+const SERVER_BOOT_AT = Date.now();
+
+// ============================================================
+// Crash-safe process handlers
+// ============================================================
 process.on("unhandledRejection", (reason) => {
   // eslint-disable-next-line no-console
-  console.log("[Sandblast][FATAL] unhandledRejection:", reason);
+  console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
 });
+
 process.on("uncaughtException", (err) => {
   // eslint-disable-next-line no-console
-  console.log("[Sandblast][FATAL] uncaughtException:", err && (err.stack || err.message || err));
+  console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
   try {
     setTimeout(() => process.exit(1), 250).unref?.();
   } catch (_) {
@@ -134,126 +66,19 @@ process.on("uncaughtException", (err) => {
   }
 });
 
-// Optional safe require
-function safeRequire(p) {
-  try { return require(p); } catch (e1) {
-    // Case-insensitive fallbacks (Render/Linux is case-sensitive)
-    const alts = [];
-    try {
-      if (typeof p === "string") {
-        if (p.includes("./Utils/")) alts.push(p.replace("./Utils/", "./utils/"));
-        if (p.includes("./utils/")) alts.push(p.replace("./utils/", "./Utils/"));
-        if (p.includes("/Data/")) alts.push(p.replace("/Data/", "/data/"));
-        if (p.includes("/data/")) alts.push(p.replace("/data/", "/Data/"));
-        if (p.includes("/Scripts/")) alts.push(p.replace("/Scripts/", "/scripts/"));
-        if (p.includes("/scripts/")) alts.push(p.replace("/scripts/", "/Scripts/"));
-      }
-    } catch (_) {}
-    for (const a of alts) {
-      if (!a || a === p) continue;
-      try { return require(a); } catch (_) {}
-    }
-    return null;
-  }
-}
-
-// Engine + fetch
-// Robust engine resolver (prevents 503 when chatEngine file is versioned and not renamed)
-let chatEngineMod = safeRequire("./Utils/chatEngine") || safeRequire("./Utils/chatEngine.js") || null;
-
-// If missing, try common versioned filenames in Utils (fail-open)
-if (!chatEngineMod) {
-  const candidates = [
-    "./Utils/chatEngine.v0.10.3.js",
-    "./Utils/chatEngine.v0.10.2.js",
-    "./Utils/chatEngine.v0.10.1.js",
-    "./Utils/chatEngine.v0.10.0.js",
-    "./Utils/chatEngine.v0.9.8-hotfix.js",
-    "./Utils/chatEngine.v0.9.3.js",
-  ];
-  for (const c of candidates) {
-    const m = safeRequire(c);
-    if (m) { chatEngineMod = m; break; }
-  }
-}
-
-// If still missing, attempt to discover a versioned engine in Utils via fs (safe; no crash if fs unavailable)
-if (!chatEngineMod) {
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const utilsDir = path.join(__dirname, "Utils");
-    const files = fs.readdirSync(utilsDir).filter((f) => /^chatengine\..*\.js$/i.test(f) || /^chatengine[-_].*\.js$/i.test(f) || /^chatenginev.*\.js$/i.test(f));
-    // prefer newest-ish by lexical sort descending (works for v0.10.2 style)
-    files.sort().reverse();
-    for (const f of files) {
-      const m = safeRequire("./Utils/" + f);
-      if (m) { chatEngineMod = m; break; }
-    }
-  } catch (_e) {
-    // ignore
-  }
-}
-// Knowledge registry (manifest-driven loader). Optional: fail-open if missing.
-const knowledgeRegistryMod = safeRequire("./Utils/knowledgeRegistry") || safeRequire("./Utils/knowledgeRegistry.js") || null;
-const datasetLoaderMod = safeRequire("./Utils/datasetLoader") || safeRequire("./Utils/datasetLoader.js") || null;
-
-// fetch resolver (Node 18+ has global.fetch; node-fetch may be CJS fn OR {default: fn})
-const nodeFetchMod = global.fetch ? null : safeRequire("node-fetch");
-const fetchFn =
-  global.fetch ||
-  (typeof nodeFetchMod === "function" ? nodeFetchMod : null) ||
-  (nodeFetchMod && typeof nodeFetchMod.default === "function" ? nodeFetchMod.default : null);
-
-// Optional external packIndex module (nice-to-have, never required)
-const packIndexMod = safeRequire("./Utils/packIndex") || safeRequire("./Utils/packIndex.js") || null;
-
-// Optional external Nyx Voice Naturalizer (nice-to-have)
-const nyxVoiceNaturalizeMod =
-  safeRequire("./Utils/nyxVoiceNaturalize") || safeRequire("./Utils/nyxVoiceNaturalize.js") || null;
-
-// =========================
-// Version
-// =========================
-const INDEX_VERSION = "index.js v1.5.44sb (OPINTEL+16: CORS PREFLIGHT HEADER ALLOWLIST + TRACE/TOKEN HEADER FIX + VOICE CORS PARITY)";
-
-// =========================
-// Utils
-// =========================
-function nowMs() {
-  return Date.now();
-}
-
-// =========================================================
-// OPINTEL ROUTE HARDENING — NEVER TRUST REQ/HEADERS
-// =========================================================
-function __sbNormalizeReq(req){
-  const r = req || {};
-  if (!r.headers || typeof r.headers !== "object") r.headers = {};
-  if (!r.body) r.body = {};
-  if (typeof r.get !== "function") {
-    r.get = function(k){
-      try { return r.headers[String(k||"").toLowerCase()] || r.headers[k]; } catch(_){ return undefined; }
-    };
-  }
-  return r;
-}
-function __sbGetHeader(req, key){
-  const r = __sbNormalizeReq(req);
-  const k = String(key||"");
-  const lk = k.toLowerCase();
-  try {
-    return r.headers[k] ?? r.headers[lk] ?? (typeof r.get==="function" ? r.get(k) : undefined);
-  } catch(_){
-    return undefined;
-  }
-}
-
+// ============================================================
+// Basic utils
+// ============================================================
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
-function sha1(s) {
-  return crypto.createHash("sha1").update(String(s)).digest("hex");
+function isPlainObject(x) {
+  return !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
+}
+function oneLine(s) {
+  return safeStr(s).replace(/\s+/g, " ").trim();
 }
 function clampInt(v, def, min, max) {
   const n = Number(v);
@@ -263,4274 +88,762 @@ function clampInt(v, def, min, max) {
   if (t > max) return max;
   return t;
 }
-function clampFloat(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  if (n < min) return min;
-  if (n > max) return max;
-  return n;
+function truthy(v) {
+  if (v === true) return true;
+  const s = safeStr(v).trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
 }
-function toBool(v, def) {
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return !!def;
-  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
-  if (["0", "false", "no", "n", "off"].includes(s)) return false;
-  return !!def;
+function sha1Lite(str) {
+  const s = safeStr(str);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
 }
-function isPlainObject(x) {
-  return (
-    !!x &&
-    typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
-  );
+function nowMs() {
+  return Date.now();
 }
-function safeJsonParseMaybe(x) {
-  if (x === null || x === undefined) return null;
-  if (typeof x === "object") return x;
-  const s = String(x).trim();
-  if (!s) return null;
+function safeJson(obj, fallback) {
   try {
-    return JSON.parse(s);
+    return JSON.stringify(obj);
+  } catch (_) {
+    return fallback || "{}";
+  }
+}
+function safeRequire(modPath) {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(modPath);
   } catch (_) {
     return null;
   }
 }
-function pickClientIp(req) {
-  const xf = safeStr(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return xf || req.socket?.remoteAddress || "";
-}
-function normalizeOrigin(o) {
-  return safeStr(o).trim().replace(/\/$/, "");
-}
-function fileExists(p) {
-  try {
-    return fs.existsSync(p);
-  } catch (_) {
-    return false;
+function tryRequireMany(paths) {
+  for (const p of paths) {
+    const mod = safeRequire(p);
+    if (mod) return mod;
   }
-}
-function statSafe(p) {
-  try {
-    return fs.statSync(p);
-  } catch (_) {
-    return null;
-  }
-}
-
-// =========================
-// Env / knobs
-// =========================
-const PORT = Number(process.env.PORT || 10000);
-const NODE_ENV = String(process.env.NODE_ENV || "production").trim();
-const IS_PROD = (NODE_ENV.toLowerCase() === "production");
-const TRUST_PROXY = String(process.env.TRUST_PROXY || "").trim();
-const MAX_JSON_BODY = String(process.env.MAX_JSON_BODY || "512kb");
-
-// --- Datasets (curated JSON under Utils/datasets) ---
-const DATASETS_AUTOLOAD = toBool(process.env.SB_DATASETS_AUTOLOAD, true);
-const DATASETS_DIR = String(process.env.SB_DATASETS_DIR || "").trim(); // optional override
-
-// --- Optional global request timeout (soft) ---
-const REQ_TIMEOUT_MS = clampInt(process.env.REQ_TIMEOUT_MS, 0, 0, 120000); // 0 = off
-
-// --- Compression ---
-const ENABLE_COMPRESSION = toBool(process.env.ENABLE_COMPRESSION, true);
-
-// --- API token gate (optional; OFF unless EXPECTED_API_TOKEN set) ---
-const EXPECTED_API_TOKEN = String(process.env.EXPECTED_API_TOKEN || "").trim();
-const API_TOKEN_HEADER = String(process.env.API_TOKEN_HEADER || "x-sb-token").trim().toLowerCase();
-
-// --- IP rate guard (simple; pre-session) ---
-const IP_RATE_ENABLED = toBool(process.env.IP_RATE_ENABLED, true);
-const IP_RATE_WINDOW_MS = clampInt(process.env.IP_RATE_WINDOW_MS, 4000, 200, 60000);
-const IP_RATE_MAX = clampInt(process.env.IP_RATE_MAX, 40, 5, 500);
-const IP_RATE_BURST_MAX = clampInt(process.env.IP_RATE_BURST_MAX, 12, 3, 120);
-
-// --- Avatar static hosting ---
-const AVATAR_DIR = path.resolve(process.env.AVATAR_DIR || path.join(__dirname, "public", "avatar"));
-const AVATAR_STATIC_CACHE_S = clampInt(process.env.AVATAR_STATIC_CACHE_S, 86400, 60, 31536000);
-const AVATAR_STATIC_IMMUTABLE = toBool(process.env.AVATAR_STATIC_IMMUTABLE, true);
-
-// --- Knowledge Bridge knobs ---
-const KNOWLEDGE_AUTOLOAD = toBool(process.env.KNOWLEDGE_AUTOLOAD, true);
-
-// SAFER DEFAULT: scripts OFF unless explicitly enabled
-const KNOWLEDGE_ENABLE_SCRIPTS = toBool(process.env.KNOWLEDGE_ENABLE_SCRIPTS, false);
-
-const KNOWLEDGE_DEBUG_ENDPOINT = toBool(process.env.KNOWLEDGE_DEBUG_ENDPOINT, true);
-const KNOWLEDGE_DEBUG_INCLUDE_DATA = toBool(process.env.KNOWLEDGE_DEBUG_INCLUDE_DATA, false);
-
-const KNOWLEDGE_RELOAD_INTERVAL_MS = clampInt(
-  process.env.KNOWLEDGE_RELOAD_INTERVAL_MS,
-  0,
-  0,
-  24 * 60 * 60 * 1000
-); // 0 = off
-
-const KNOWLEDGE_MAX_FILES = clampInt(process.env.KNOWLEDGE_MAX_FILES, 2500, 200, 20000);
-
-// IMPORTANT: bumped defaults again; wikipedia merged packs are often > 8MB.
-const KNOWLEDGE_MAX_FILE_BYTES = clampInt(process.env.KNOWLEDGE_MAX_FILE_BYTES, 25_000_000, 50_000, 250_000_000);
-const KNOWLEDGE_MAX_TOTAL_BYTES = clampInt(process.env.KNOWLEDGE_MAX_TOTAL_BYTES, 250_000_000, 1_000_000, 1_500_000_000);
-
-// Root resolution: in Render, __dirname is safest
-const APP_ROOT = path.resolve(__dirname);
-
-// If your Data lives on a mounted disk (Render persistent disk), it may be outside APP_ROOT.
-const KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT, true);
-
-// Scripts are riskier; keep default OFF unless you explicitly need it.
-const KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT = toBool(process.env.KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT, false);
-
-// --- Manifest fallback search knobs ---
-const MANIFEST_SEARCH_FALLBACK = toBool(process.env.MANIFEST_SEARCH_FALLBACK, true);
-const MANIFEST_SEARCH_MAX_VISITS = clampInt(process.env.MANIFEST_SEARCH_MAX_VISITS, 8000, 500, 50000);
-const MANIFEST_SEARCH_MAX_DEPTH = clampInt(process.env.MANIFEST_SEARCH_MAX_DEPTH, 6, 2, 20);
-
-// --- Data root autodiscovery knobs ---
-const DATA_ROOT_AUTODISCOVER = toBool(process.env.DATA_ROOT_AUTODISCOVER, true);
-const DATA_ROOT_HINTS = String(process.env.DATA_ROOT_HINTS || "").trim(); // comma-separated abs/rel paths
-const DATA_ROOT_DISCOVERY_MAX_DEPTH = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_DEPTH, 4, 1, 10);
-const DATA_ROOT_DISCOVERY_MAX_VISITS = clampInt(process.env.DATA_ROOT_DISCOVERY_MAX_VISITS, 2500, 200, 20000);
-
-// Nyx Voice Naturalizer knobs
-const NYX_VOICE_NATURALIZE = toBool(process.env.NYX_VOICE_NATURALIZE, true);
-const NYX_VOICE_NATURALIZE_MAXLEN = clampInt(process.env.NYX_VOICE_NATURALIZE_MAXLEN, 2200, 200, 20000);
-
-// =========================
-// Case-insensitive dir/path resolution (Linux-safe)
-// =========================
-function resolveDirCaseInsensitive(parentAbs, name) {
-  try {
-    const direct = path.resolve(parentAbs, name);
-    const st = statSafe(direct);
-    if (st && st.isDirectory()) return direct;
-
-    const want = String(name || "").trim().toLowerCase();
-    if (!want) return direct;
-
-    const entries = fs.readdirSync(parentAbs, { withFileTypes: true });
-    const hit = entries.find((e) => e && e.isDirectory() && String(e.name).toLowerCase() === want);
-    if (hit) return path.resolve(parentAbs, hit.name);
-  } catch (_) {}
-  return path.resolve(parentAbs, name);
-}
-function resolveRelPathCaseInsensitive(rootAbs, relPath) {
-  try {
-    const rel = String(relPath || "").replace(/\\/g, "/").replace(/^\/+/, "");
-    if (!rel) return rootAbs;
-
-    const parts = rel.split("/").filter(Boolean);
-    let cur = rootAbs;
-
-    for (const part of parts) {
-      const direct = path.join(cur, part);
-      const st = statSafe(direct);
-      if (st) {
-        cur = direct;
-        continue;
-      }
-
-      const want = String(part).toLowerCase();
-      let entries = [];
-      try {
-        entries = fs.readdirSync(cur, { withFileTypes: true });
-      } catch (_) {
-        cur = direct;
-        continue;
-      }
-      const hit = entries.find((e) => e && String(e.name).toLowerCase() === want);
-      if (hit) {
-        cur = path.join(cur, hit.name);
-      } else {
-        cur = direct;
-      }
-    }
-
-    return cur;
-  } catch (_) {
-    return path.join(rootAbs, relPath || "");
-  }
-}
-
-function resolveDataDirFromEnv() {
-  const envName = String(process.env.DATA_DIR || "Data").trim();
-  try {
-    if (path.isAbsolute(envName)) return path.resolve(envName);
-  } catch (_) {}
-
-  const absDirect = path.resolve(APP_ROOT, envName);
-  const st = statSafe(absDirect);
-  if (st && st.isDirectory()) return absDirect;
-  if (!envName.includes("/") && !envName.includes("\\")) {
-    return resolveDirCaseInsensitive(APP_ROOT, envName);
-  }
-  const rel = path.relative(APP_ROOT, absDirect);
-  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
-}
-function resolveScriptsDirFromEnv() {
-  const envName = String(process.env.SCRIPTS_DIR || "Scripts").trim();
-  try {
-    if (path.isAbsolute(envName)) return path.resolve(envName);
-  } catch (_) {}
-
-  const absDirect = path.resolve(APP_ROOT, envName);
-  const st = statSafe(absDirect);
-  if (st && st.isDirectory()) return absDirect;
-  if (!envName.includes("/") && !envName.includes("\\")) {
-    return resolveDirCaseInsensitive(APP_ROOT, envName);
-  }
-  const rel = path.relative(APP_ROOT, absDirect);
-  return resolveRelPathCaseInsensitive(APP_ROOT, rel);
-}
-
-let DATA_DIR = resolveDataDirFromEnv();
-let SCRIPTS_DIR = resolveScriptsDirFromEnv();
-
-/**
- * bounded BFS: find directories named "data" under a starting path
- */
-function discoverNamedDirs(startAbs, wantNameLower, maxDepth, maxVisits) {
-  const out = [];
-  const seen = new Set();
-  const q = [{ dir: path.resolve(startAbs), depth: 0 }];
-  let visits = 0;
-
-  while (q.length) {
-    const cur = q.shift();
-    const dir = cur.dir;
-    const depth = cur.depth;
-
-    if (!dir || seen.has(dir)) continue;
-    seen.add(dir);
-
-    const st = statSafe(dir);
-    if (!st || !st.isDirectory()) continue;
-
-    if (visits++ > maxVisits) break;
-
-    let entries = [];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (_) {
-      continue;
-    }
-
-    for (const ent of entries) {
-      if (visits++ > maxVisits) break;
-      if (!ent || !ent.isDirectory()) continue;
-      const name = safeStr(ent.name);
-      if (!name) continue;
-
-      if (name.toLowerCase() === wantNameLower) {
-        const hit = path.join(dir, name);
-        if (!out.includes(hit)) out.push(hit);
-      }
-
-      if (depth + 1 <= maxDepth) {
-        if (name === "node_modules" || name === ".git") continue;
-        q.push({ dir: path.join(dir, name), depth: depth + 1 });
-      }
-    }
-  }
-
-  return out;
-}
-
-function rebuildDataRootCandidates() {
-  const out = [];
-  const pushUnique = (p) => {
-    if (!p) return;
-    try {
-      const rp = path.resolve(p);
-      if (!out.includes(rp)) out.push(rp);
-    } catch (_) {}
-  };
-
-  // canonical
-  pushUnique(DATA_DIR);
-  pushUnique(path.resolve(APP_ROOT, "Data"));
-  pushUnique(path.resolve(APP_ROOT, "data"));
-  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "Data"));
-  pushUnique(resolveDirCaseInsensitive(APP_ROOT, "data"));
-
-  // env hints
-  if (DATA_ROOT_HINTS) {
-    const parts = DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean);
-    for (const p of parts) {
-      try {
-        if (path.isAbsolute(p)) pushUnique(p);
-        else pushUnique(path.resolve(APP_ROOT, p));
-      } catch (_) {}
-    }
-  }
-
-  // common mounts
-  pushUnique("/data");
-  pushUnique("/var/data");
-  pushUnique("/mnt/data");
-  pushUnique("/opt/render/project/src/Data");
-  pushUnique("/opt/render/project/src/data");
-  pushUnique("/opt/render/project/Data");
-  pushUnique("/opt/render/project/data");
-  pushUnique("/srv/data");
-  pushUnique("/srv/Data");
-
-  if (DATA_ROOT_AUTODISCOVER) {
-    const starts = [];
-    const addStart = (p) => {
-      if (!p) return;
-      try {
-        const rp = path.resolve(p);
-        if (!starts.includes(rp)) starts.push(rp);
-      } catch (_) {}
-    };
-    addStart(APP_ROOT);
-    addStart(process.cwd());
-    addStart(path.resolve(APP_ROOT, ".."));
-    addStart(path.resolve(APP_ROOT, "../.."));
-
-    for (const s of starts) {
-      try {
-        const found = discoverNamedDirs(s, "data", DATA_ROOT_DISCOVERY_MAX_DEPTH, DATA_ROOT_DISCOVERY_MAX_VISITS);
-        for (const d of found) pushUnique(d);
-      } catch (_) {}
-    }
-  }
-
-  const existing = out.filter((p) => {
-    const st = statSafe(p);
-    return st && st.isDirectory();
-  });
-
-  return existing.length ? existing : out.slice(0, 1);
-}
-
-let DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
-
-// =========================
-// Manifest fallback search helpers
-// =========================
-function safeReaddir(dirAbs) {
-  try {
-    return fs.readdirSync(dirAbs, { withFileTypes: true });
-  } catch (_) {
-    return [];
-  }
-}
-function findByNameAcrossDataRoots(targetName, wantDir) {
-  const name = safeStr(targetName).trim();
-  if (!name) return null;
-  if (!MANIFEST_SEARCH_FALLBACK) return null;
-
-  const roots = Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [];
-  const maxVisits = MANIFEST_SEARCH_MAX_VISITS;
-  const maxDepth = MANIFEST_SEARCH_MAX_DEPTH;
-
-  let visits = 0;
-
-  for (const root of roots) {
-    const st = statSafe(root);
-    if (!st || !st.isDirectory()) continue;
-
-    const q = [{ dir: root, depth: 0 }];
-
-    while (q.length) {
-      const { dir, depth } = q.shift();
-      if (depth > maxDepth) continue;
-      if (visits++ > maxVisits) return null;
-
-      const entries = safeReaddir(dir);
-      for (const ent of entries) {
-        if (visits++ > maxVisits) return null;
-
-        const entName = safeStr(ent.name);
-        const fp = path.join(dir, entName);
-
-        if (entName === name) {
-          if (wantDir && ent.isDirectory()) return fp;
-          if (!wantDir && ent.isFile()) return fp;
-        }
-
-        if (ent.isDirectory()) {
-          if (entName === "node_modules" || entName === ".git") continue;
-          q.push({ dir: fp, depth: depth + 1 });
-        }
-      }
-    }
-  }
-
   return null;
 }
-
-// =========================
-// Knowledge: Pinned packs
-// =========================
-const PINNED_PACKS = [
-  {
-    key: "music/top10_by_year",
-    rels: [
-      "top10_by_year_v1.json",
-      "Nyx/top10_by_year_v1.json",
-      "Packs/top10_by_year_v1.json",
-      "music_top10_by_year.json",
-      "Nyx/music_top10_by_year.json",
-      "Packs/music_top10_by_year.json",
-    ],
-  },
-  {
-    key: "music/number1_by_year",
-    rels: [
-      "music_number1_by_year_v1.json",
-      "music_number1_by_year.json",
-      "Nyx/music_number1_by_year.json",
-      "Packs/music_number1_by_year.json",
-      "Nyx/music_number1.json",
-      "music_number1.json",
-    ],
-  },
-  {
-    key: "music/story_moments_by_year",
-    rels: [
-      "music_story_moments_v1.json",
-      "music_story_moments_1950_1989.generated.json",
-      "music/story_moments_by_year.json",
-      "Nyx/music_story_moments_by_year.json",
-      "Packs/music_story_moments_by_year.json",
-      "Nyx/music_story_moments_v1.json",
-      "music_story_moments_by_year.json",
-    ],
-  },
-  {
-    key: "music/micro_moments_by_year",
-    rels: [
-      "music_moments_v1.json",
-      "music_moments_v2.json",
-      "music_moments_v2_layer2.json",
-      "music_moments_v2_layer2_enriched.json",
-      "music_moments_v2_layer2_filled.json",
-      "music_moments_v2_layer3.json",
-      "music_micro_moments_by_year.json",
-      "Nyx/music_micro_moments_by_year.json",
-      "Packs/music_micro_moments_by_year.json",
-      "Nyx/music_micro_moments.json",
-      "music_micro_moments.json",
-    ],
-  },
-];
-
-// =========================
-// PACK MANIFEST LOADER
-// =========================
-const PACK_MANIFEST = [
-  {
-    key: "music/wiki/yearend_hot100_raw",
-    type: "json_file_rel",
-    rels: [
-      "wikipedia/billboard_yearend_hot100_1950_2024.json",
-      "wiki/billboard_yearend_hot100_1950_2024.json",
-      "music/wiki/billboard_yearend_hot100_1950_2024.json",
-      "music/wikipedia/billboard_yearend_hot100_1950_2024.json",
-      "packs/wikipedia/billboard_yearend_hot100_1950_2024.json",
-    ],
-    transform: (payload) => manifestBuildYearMapFromRows(payload, "yearend_hot100"),
-    outKey: "music/wiki/yearend_hot100_by_year",
-  },
-  {
-    key: "music/top40_weekly_raw",
-    type: "json_dir_rel",
-    rels: [
-      "charts/top40_weekly",
-      "chart/top40_weekly",
-      "music/charts/top40_weekly",
-      "packs/charts/top40_weekly",
-      "top40_weekly",
-    ],
-    postTransform: (allJson) => manifestBuildTop40WeeklyIndex(allJson, "music/top40_weekly_raw"),
-    outKey: "music/top40_weekly_by_year_week",
-  },
-  {
-    key: "movies/roku_catalog",
-    type: "json_file_or_dir_rel",
-    rels: ["movies", "Movies"],
-  },
-  {
-    key: "sponsors/packs",
-    type: "json_file_or_dir_rel",
-    rels: ["sponsors", "Sponsors"],
-  },
-  {
-    key: "legacy/scripts_json",
-    type: "json_dir_abs",
-    abs: path.resolve(SCRIPTS_DIR, "packs_json"),
-  },
-];
-
-// =========================
-// CORS allowlist
-// =========================
-const ORIGINS_ALLOWLIST = String(
-  process.env.CORS_ALLOW_ORIGINS ||
-    process.env.ALLOW_ORIGINS ||
-    "https://sandblast.channel,https://www.sandblast.channel,https://sandblast-backend.onrender.com,https://sandblastchannel.com,https://www.sandblastchannel.com,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-const ORIGINS_REGEX_ALLOWLIST = String(process.env.CORS_ALLOW_ORIGINS_REGEX || "").trim();
-
-function makeOriginRegexes() {
-  const raw = ORIGINS_REGEX_ALLOWLIST
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const out = [];
-  for (const r of raw) {
-    try {
-      out.push(new RegExp(r));
-    } catch (_) {}
+function deepMerge(base, patch) {
+  const b = isPlainObject(base) ? base : {};
+  const p = isPlainObject(patch) ? patch : {};
+  const out = { ...b };
+  for (const k of Object.keys(p)) {
+    const bv = out[k];
+    const pv = p[k];
+    if (isPlainObject(bv) && isPlainObject(pv)) out[k] = deepMerge(bv, pv);
+    else out[k] = pv;
   }
   return out;
 }
-const ORIGIN_REGEXES = makeOriginRegexes();
-
-const CORS_ALLOWED_HEADERS = [
-  "Content-Type",
-  "Authorization",
-  "X-Requested-With",
-  "X-SB-Session",
-  "x-sb-session",
-  "X-Session-Id",
-  "x-session-id",
-  "X-Visitor-Id",
-  "x-visitor-id",
-  "X-Request-Id",
-  "x-request-id",
-  "X-Route-Hint",
-  "x-route-hint",
-  "X-Client-Source",
-  "x-client-source",
-  "X-SBNYX-Client-Build",
-  "x-sbnyx-client-build",
-  "X-SBNYX-Widget-Version",
-  "x-sbnyx-widget-version",
-  "X-Contract-Version",
-  "x-contract-version",
-  "X-SB-Token",
-  "x-sb-token",
-  "X-SB-Trace-Id",
-  "x-sb-trace-id",
-  "X-SB-Widget-Token",
-  "x-sb-widget-token",
-];
-
-function buildAllowedHeaders(req, extras) {
-  const seen = new Set();
-  const out = [];
-  const add = (v) => {
-    const s = safeStr(v).trim();
-    if (!s) return;
-    const lk = s.toLowerCase();
-    if (seen.has(lk)) return;
-    seen.add(lk);
-    out.push(s);
-  };
-
-  for (const h of CORS_ALLOWED_HEADERS) add(h);
-  for (const h of (Array.isArray(extras) ? extras : [])) add(h);
-
-  const requested = safeStr(req && req.headers && req.headers["access-control-request-headers"] || "");
-  if (requested) {
-    for (const h of requested.split(",")) add(h);
-  }
-
-  return out.join(", ");
+function log() {
+  // eslint-disable-next-line no-console
+  console.log("[Sandblast]", ...arguments);
 }
 
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  const o = normalizeOrigin(origin);
-  if (ORIGINS_ALLOWLIST.includes(o)) return true;
-  for (const rx of ORIGIN_REGEXES) {
-    try {
-      if (rx.test(o)) return true;
-    } catch (_) {}
-  }
-  return false;
-}
+// ============================================================
+// Config
+// ============================================================
+const PORT = clampInt(process.env.PORT, 3000, 1, 65535);
+const NODE_ENV = safeStr(process.env.NODE_ENV || "development").toLowerCase();
 
-function makeReqId() {
-  try {
-    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  } catch (_) {}
-  return sha1(`${nowMs()}|${Math.random()}|${process.pid}`).slice(0, 20);
-}
+const MAX_BODY_KB = clampInt(process.env.MAX_BODY_KB, 512, 16, 4096);
+const MAX_CHAT_TEXT = clampInt(process.env.MAX_CHAT_TEXT, 12000, 128, 50000);
+const EXPECTED_API_TOKEN = safeStr(process.env.EXPECTED_API_TOKEN || "");
+const REQUIRE_API_TOKEN = truthy(process.env.REQUIRE_API_TOKEN || "");
+const DEBUG_MODE = truthy(process.env.SB_DEBUG || process.env.DEBUG || "");
+const TRUST_PROXY = truthy(process.env.TRUST_PROXY || "1");
 
-// =========================
-// Engine resolver (handleChat OR function export)
-// =========================
-function resolveEngine(mod) {
-  if (!mod) return { fn: null, from: "missing", version: "" };
-
-  // 1) CommonJS module.exports = function
-  if (typeof mod === "function") {
-    return { fn: mod, from: "module_function", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  // 2) Preferred aliases (new engines)
-  if (typeof mod.fn === "function") {
-    return { fn: mod.fn.bind(mod), from: "module_fn", version: safeStr(mod.CE_VERSION || "") };
-  }
-  if (typeof mod.engine === "function") {
-    return { fn: mod.engine.bind(mod), from: "module_engine", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  // 3) Back-compat aliases (older engines)
-  if (typeof mod.handleChat === "function") {
-    return { fn: mod.handleChat.bind(mod), from: "module_handleChat", version: safeStr(mod.CE_VERSION || "") };
-  }
-  if (typeof mod.default === "function") {
-    return { fn: mod.default.bind(mod), from: "module_default", version: safeStr(mod.CE_VERSION || "") };
-  }
-  if (typeof mod.reply === "function") {
-    return { fn: mod.reply.bind(mod), from: "module_reply", version: safeStr(mod.CE_VERSION || "") };
-  }
-  if (typeof mod.chatEngine === "function") {
-    return { fn: mod.chatEngine.bind(mod), from: "module_chatEngine", version: safeStr(mod.CE_VERSION || "") };
-  }
-
-  return { fn: null, from: "invalid", version: safeStr(mod.CE_VERSION || "") };
-}
-
-const ENGINE = resolveEngine(chatEngineMod);
-// ENGINE symbol guards (prevents stray identifier refs from older patches)
-// eslint-disable-next-line no-var
-var _ENGINE_ = ENGINE; // legacy
-// eslint-disable-next-line no-var
-var __ENGINE__ = ENGINE; // legacy
-// eslint-disable-next-line no-var
-var eng__ = ENGINE; // legacy
-try { globalThis.ENGINE = ENGINE; globalThis._ENGINE_ = ENGINE; globalThis.__ENGINE__ = ENGINE; globalThis.eng__ = ENGINE; } catch (_) {}
-const ENGINE_VERSION = safeStr(ENGINE.version || chatEngineMod?.CE_VERSION || "").trim();
-
-function normalizeEngineOutput(out) {
-  if (out === null || out === undefined) return {};
-  if (typeof out === "string") return { ok: true, reply: out };
-  if (isPlainObject(out)) return out;
-  return { ok: true, reply: safeStr(out) };
-}
-
-// =========================
-// Nyx Voice Naturalizer (pre-TTS)
-// =========================
-function builtinNyxVoiceNaturalize(input) {
-  let s = safeStr(input || "");
-  if (!s) return "";
-
-  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
-  s = s.replace(/\r\n/g, "\n");
-  s = s.replace(/[ \t]+\n/g, "\n");
-  s = s.replace(/\n{3,}/g, "\n\n");
-  s = s.replace(/[ \t]{2,}/g, " ");
-  s = s.trim();
-
-  s = s.replace(/([!?.,])\1{2,}/g, "$1$1");
-  s = s.replace(/…{2,}/g, "…");
-
-  if (s.length > NYX_VOICE_NATURALIZE_MAXLEN) s = s.slice(0, NYX_VOICE_NATURALIZE_MAXLEN).trim();
-
-  return s;
-}
-
-function nyxVoiceNaturalize(text) {
-  if (!NYX_VOICE_NATURALIZE) return safeStr(text || "");
-  try {
-    if (nyxVoiceNaturalizeMod) {
-      if (typeof nyxVoiceNaturalizeMod === "function") return safeStr(nyxVoiceNaturalizeMod(text) || "");
-      if (typeof nyxVoiceNaturalizeMod.nyxVoiceNaturalize === "function")
-        return safeStr(nyxVoiceNaturalizeMod.nyxVoiceNaturalize(text) || "");
-      if (typeof nyxVoiceNaturalizeMod.default === "function") return safeStr(nyxVoiceNaturalizeMod.default(text) || "");
-    }
-  } catch (_) {}
-  return builtinNyxVoiceNaturalize(text);
-}
-
-const SB_AUDIO_PLAN_MAX_CHARS = clampInt(process.env.SB_AUDIO_PLAN_MAX_CHARS, 900, 80, 5000);
-
-function __sbNormalizeSpeakWhen(v) {
-  const s = safeStr(v || "").trim().toLowerCase();
-  if (s === "page_load" || s === "boot" || s === "intro") return "page_load";
-  if (s === "reply" || s === "after_reply" || s === "post_reply") return "after_reply";
-  if (s === "manual" || s === "tap" || s === "on_tap") return "manual";
-  return "after_reply";
-}
-
-function __sbDeriveAudioPlan(reply, directives, body, meta) {
-  const ds = Array.isArray(directives) ? directives : [];
-  const ttsDir = ds.find((d) => isPlainObject(d) && safeStr(d.type || "").toLowerCase() === "tts") || null;
-  const bodyObj = isPlainObject(body) ? body : {};
-  const wantsMute = toBool(bodyObj.muted ?? bodyObj.silent ?? bodyObj.noAudio, false);
-  const requestedAutoPlay = toBool(bodyObj.autoPlay ?? bodyObj.autoplay ?? bodyObj.playAudio, !!ttsDir);
-  const speak = nyxVoiceNaturalize(
-    safeStr(ttsDir?.text || bodyObj.textToSynth || bodyObj.speak || reply || "")
-  ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
-  const when = __sbNormalizeSpeakWhen(ttsDir?.when || bodyObj.audioWhen || bodyObj.whenAudio);
-  const voice = safeStr(ttsDir?.voice || bodyObj.voice || bodyObj.voiceId || "nyx") || "nyx";
-  const reason = ttsDir ? "directive" : (reply ? "reply_fallback" : "none");
-  const shouldSpeak = !!speak && !wantsMute && (requestedAutoPlay || !!ttsDir);
-  return {
-    shouldSpeak,
-    autoPlay: !!shouldSpeak && requestedAutoPlay,
-    when,
-    voice,
-    text: speak,
-    textChars: speak.length,
-    source: reason,
-    muted: !!wantsMute,
-    traceId: safeStr(meta && meta.traceId || "") || undefined,
-  };
-}
-
-function __sbApplyAudioHeaders(res, traceId) {
-  try { res.setHeader("x-sb-trace-id", safeStr(traceId || "") || makeReqId()); } catch (_) {}
-  try { res.setHeader("Cache-Control", "no-store, no-transform, max-age=0"); } catch (_) {}
-  try { res.setHeader("Pragma", "no-cache"); } catch (_) {}
-  try { res.setHeader("Expires", "0"); } catch (_) {}
-  try { res.setHeader("X-Accel-Buffering", "no"); } catch (_) {}
-  try { res.setHeader("Accept-Ranges", "none"); } catch (_) {}
-}
-
-function __sbApplyVoiceCors(req, res) {
-  try {
-    const origin = normalizeOrigin(safeStr(req && req.headers && req.headers.origin || ""));
-    const allow = !!origin && isAllowedOrigin(origin);
-    if (origin) {
-      try { res.setHeader("Vary", "Origin"); } catch (_) {}
-      try { res.setHeader("x-sb-cors-origin", origin); } catch (_) {}
-      try { res.setHeader("x-sb-cors-state", allow ? "allowed" : "denied"); } catch (_) {}
-    }
-    if (allow) {
-      try { res.setHeader("Access-Control-Allow-Origin", origin); } catch (_) {}
-      try { res.setHeader("Access-Control-Allow-Credentials", "true"); } catch (_) {}
-      try { res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS"); } catch (_) {}
-      try { res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req)); } catch (_) {}
-      try { res.setHeader("Access-Control-Max-Age", "600"); } catch (_) {}
-    }
-    return { origin, allow };
-  } catch (_) {
-    return { origin: "", allow: false };
-  }
-}
-
-function __sbWrapVoiceResponse(req, res) {
-  const state = __sbApplyVoiceCors(req, res);
-  if (res && res.__sbVoiceWrapped) return state;
-  if (!res) return state;
-  try {
-    const origJson = typeof res.json === "function" ? res.json.bind(res) : null;
-    const origSend = typeof res.send === "function" ? res.send.bind(res) : null;
-    const origEnd = typeof res.end === "function" ? res.end.bind(res) : null;
-    const origStatus = typeof res.status === "function" ? res.status.bind(res) : null;
-    if (origStatus) {
-      res.status = function wrappedStatus(code) {
-        __sbApplyVoiceCors(req, res);
-        return origStatus(code);
-      };
-    }
-    if (origJson) {
-      res.json = function wrappedJson(body) {
-        __sbApplyVoiceCors(req, res);
-        return origJson(body);
-      };
-    }
-    if (origSend) {
-      res.send = function wrappedSend(body) {
-        __sbApplyVoiceCors(req, res);
-        return origSend(body);
-      };
-    }
-    if (origEnd) {
-      res.end = function wrappedEnd() {
-        __sbApplyVoiceCors(req, res);
-        return origEnd.apply(res, arguments);
-      };
-    }
-    res.__sbVoiceWrapped = true;
-  } catch (_) {}
-  return state;
-}
-
-function __sbVoiceOptions(req, res) {
-  const state = __sbWrapVoiceResponse(req, res);
-  if (state && state.origin && !state.allow) {
-    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION, origin: state.origin } });
-  }
-  return res.status(204).send("");
-}
-
-function __sbResolveIntroText(req) {
-  const b = isPlainObject(req && req.body) ? req.body : {};
-  return nyxVoiceNaturalize(
-    safeStr(
-      b.introText || b.text || b.message || b.prompt ||
-      process.env.SB_NYX_INTRO_TEXT ||
-      "Hi — I am Nyx. Welcome to Sandblast Channel. How can I help you today?"
-    )
-  ).slice(0, SB_AUDIO_PLAN_MAX_CHARS).trim();
-}
-
-async function __sbIntroVoiceRoute(req, res) {
-  req = __sbNormalizeReq(req);
-  __sbWrapVoiceResponse(req, res);
-  try {
-    const introText = __sbResolveIntroText(req);
-    req.body = {
-      ...(isPlainObject(req.body) ? req.body : {}),
-      text: introText,
-      speak: introText,
-      autoPlay: true,
-      intro: true,
-      source: safeStr(req.body && req.body.source || "intro_voice") || "intro_voice"
-    };
-    return await __sbDelegateTts(req, res, "/api/voice/intro");
-  } catch (e) {
-    return sendContract(res, 200, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "intro_tts_failed",
-      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
-      meta: { index: INDEX_VERSION }
-    });
-  }
-}
-
-async function __sbDelegateTts(req, res, routeName) {
-  req = __sbNormalizeReq(req);
-  const traceId = String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId();
-  __sbApplyAudioHeaders(res, traceId);
-  try {
-    if (!__SB_HANDLE_TTS) {
-      try { __sbTryRequireTts(); } catch (_) {}
-    }
-    if (__SB_HANDLE_TTS) return await __SB_HANDLE_TTS(req, res);
-  } catch (e) {
-    try {
-      console.log("[Sandblast][TTS][DelegateFail]", JSON.stringify({
-        route: safeStr(routeName || "tts"),
-        traceId,
-        error: safeStr(e && (e.message || e) || "unknown").slice(0, 220),
-        modPath: __SB_TTS_MODPATH || null,
-      }));
-    } catch (_) {}
-  }
-
-  const env = {
-    provider: String(process.env.TTS_PROVIDER || process.env.SB_TTS_PROVIDER || "resemble").toLowerCase(),
-    hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
-    hasProject: !!process.env.RESEMBLE_PROJECT_UUID,
-    hasVoice: !!(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID),
-  };
-  return sendContract(res, 503, {
-    ok: false,
-    error: "TTS_HANDLER_MISSING",
-    detail: "TTS handler module is unavailable or not exporting a handler function. Expected ./utils/tts (or ./Utils/tts) exporting handleTts/ttsHandler/default. This build is Resemble-only.",
-    spokenUnavailable: true,
-    payload: { spokenUnavailable: true },
-    meta: { index: INDEX_VERSION, traceId, ttsModulePath: __SB_TTS_MODPATH || null, route: safeStr(routeName || "tts"), env },
-  });
-}
-
-// =========================
-// Security headers middleware
-// =========================
-function buildFrameAncestorsCsp() {
-  // allow self + explicit allowlist
-  const origins = ORIGINS_ALLOWLIST.map((o) => o.replace(/\/$/, ""));
-  const uniq = Array.from(new Set(["'self'", ...origins]));
-  return `frame-ancestors ${uniq.join(" ")};`;
-}
-
-function securityHeaders(req, res, next) {
-  // Basic hardening (safe defaults)
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
-  res.setHeader("X-DNS-Prefetch-Control", "off");
-  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
-
-  // Avoid over-tight COOP that can break embeds; keep this permissive
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-  // Allow assets to be embedded cross-site (your widget/iframe scenario)
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-
-  // Permissions Policy: keep minimal (no sensors)
-  res.setHeader(
-    "Permissions-Policy",
-    "accelerometer=(), autoplay=*, camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
-  );
-
-  // CSP: keep it narrow but not destructive for API + iframe hosting
-  // NOTE: if you serve additional HTML with inline scripts, adjust accordingly.
-  res.setHeader(
-    "Content-Security-Policy",
-    [
-      "default-src 'none';",
-      "base-uri 'none';",
-      "form-action 'none';",
-      "img-src 'self' data: blob: https:;",
-      "media-src 'self' blob: https:;",
-      "style-src 'self' 'unsafe-inline' https:;",
-      "script-src 'self' 'unsafe-inline' https:;",
-      "connect-src 'self' https:;",
-      buildFrameAncestorsCsp(),
-    ].join(" ")
-  );
-
-  return next();
-}
-
-// =========================
-// API token gate (optional)
-// =========================
-function readBearerToken(req) {
-  const auth = safeStr(req.headers.authorization || "");
-  const m = auth.match(/^\s*Bearer\s+(.+)\s*$/i);
-  return m ? safeStr(m[1]).trim() : "";
-}
-function readApiToken(req) {
-  const h = req.headers || {};
-  const viaHeader = safeStr(h[API_TOKEN_HEADER] || h[API_TOKEN_HEADER.toLowerCase()] || "").trim();
-  const viaBearer = readBearerToken(req);
-  return viaHeader || viaBearer || "";
-}
-function apiTokenGate(req, res, next) {
-  // PUBLIC endpoints must remain reachable by the Nyx widget even when a token is configured.
-  const p = safeStr(req.path || "").toLowerCase();
-  if (p === "/api/chat" || p === "/api/tts" || p === "/api/voice" || p.startsWith("/api/diag")) {
-    return next();
-  }
-  if (!EXPECTED_API_TOKEN) return next(); // gate off by default
-  const tok = readApiToken(req);
-
-  // timingSafeEqual throws if buffer lengths differ.
-  // We pad both buffers to the same length to keep timing closer to constant,
-  // but still require exact string equality for success.
-  try {
-    const a = Buffer.from(tok || "");
-    const b = Buffer.from(EXPECTED_API_TOKEN);
-    const max = Math.max(a.length, b.length);
-    const ap = Buffer.alloc(max);
-    const bp = Buffer.alloc(max);
-    a.copy(ap);
-    b.copy(bp);
-    const eq = crypto.timingSafeEqual(ap, bp);
-    if (eq && tok && tok.length === EXPECTED_API_TOKEN.length) return next();
-  } catch (_) {}
-
-  return sendContract(res, 401, { ok: false, error: "unauthorized", meta: { index: INDEX_VERSION } });}
-
-// =========================
-// Simple IP rate guard (pre-session)
-// =========================
-const IP_RATE = new Map(); // ip -> {wStart, count, burstStart, burstCount}
-function ipRateGuard(req, res, next) {
-  if (!IP_RATE_ENABLED) return next();
-  const ip = pickClientIp(req) || "unknown";
-  const now = nowMs();
-
-  const rec = IP_RATE.get(ip) || { wStart: now, count: 0, burstStart: now, burstCount: 0 };
-  if (now - rec.wStart > IP_RATE_WINDOW_MS) {
-    rec.wStart = now;
-    rec.count = 0;
-  }
-  if (now - rec.burstStart > 800) {
-    rec.burstStart = now;
-    rec.burstCount = 0;
-  }
-
-  rec.count += 1;
-  rec.burstCount += 1;
-  IP_RATE.set(ip, rec);
-
-  // prune map occasionally
-  if (IP_RATE.size > 10000) {
-    const cutoff = now - Math.max(IP_RATE_WINDOW_MS * 10, 60000);
-    for (const [k, v] of IP_RATE.entries()) {
-      if (!v || (v.wStart || 0) < cutoff) IP_RATE.delete(k);
-    }
-  }
-
-  if (rec.count > IP_RATE_MAX || rec.burstCount > IP_RATE_BURST_MAX) {
-    return sendContract(res, 429, {
-      ok: false,
-      error: "rate_limited",
-      detail: "Too many requests. Slow down.",
-      meta: { index: INDEX_VERSION },
-    });}
-  return next();
-}
-
-// =========================
-// Loop/guards (session-level) — kept
-// =========================
-const LOOP_REPLAY_WINDOW_MS = clampInt(process.env.LOOP_REPLAY_WINDOW_MS, 4000, 500, 15000);
-const BURST_WINDOW_MS = clampInt(process.env.BURST_WINDOW_MS, 1200, 200, 5000);
-const BURST_MAX = clampInt(process.env.BURST_MAX, 6, 2, 30);
-const SUSTAINED_WINDOW_MS = clampInt(process.env.SUSTAINED_WINDOW_MS, 12000, 2000, 60000);
-const SUSTAINED_MAX = clampInt(process.env.SUSTAINED_MAX, 18, 6, 120);
-
-// Boot-intro dedupe fuse
-const BOOT_DEDUPE_MS = clampInt(process.env.BOOT_DEDUPE_MS, 1200, 200, 6000);
-const BOOT_MAX_WINDOW_MS = clampInt(process.env.BOOT_MAX_WINDOW_MS, 6000, 1000, 30000);
-const BOOT_MAX = clampInt(process.env.BOOT_MAX, 6, 2, 40);
-
-const SESSION_TTL_MS = clampInt(
-  process.env.SESSION_TTL_MS,
-  45 * 60 * 1000,
-  10 * 60 * 1000,
-  12 * 60 * 60 * 1000
+const CORS_ALLOW_ORIGIN = safeStr(process.env.CORS_ALLOW_ORIGIN || "*");
+const CORS_ALLOWED_HEADERS = oneLine(
+  process.env.CORS_ALLOWED_HEADERS ||
+  "Content-Type, Authorization, X-Requested-With, X-Session-Id, X-Request-Id, X-SB-Trace-Id"
 );
-const SESSION_MAX = clampInt(process.env.SESSION_MAX, 50000, 5000, 250000);
-
-// =========================
-// Resemble TTS env (sovereign default)
-// =========================
-//
-// Required:
-//   - RESEMBLE_API_TOKEN (or RESEMBLE_API_KEY)
-//   - RESEMBLE_VOICE_UUID
-//
-// Optional:
-//   - RESEMBLE_PROJECT_UUID
-//   - RESEMBLE_MODEL
-//   - RESEMBLE_OUTPUT_FORMAT ("mp3"|"wav")
-//   - RESEMBLE_TIMEOUT_MS
-//
-// NOTE: actual TTS synthesis is delegated to ./utils/tts (handleTts). Keep provider logic out of index.js.
-
-
-
-// =========================
-// Resemble startup sanity (no secrets)
-// =========================
-(function sbResembleSanity(){
-  try {
-    const hasTok = !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY);
-    const voice = String(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID || "").trim();
-    const proj = String(process.env.RESEMBLE_PROJECT_UUID || "").trim();
-    const bad = (s)=>!s || s==="..." || s.toLowerCase()==="changeme" || s.toLowerCase()==="replace_me";
-    if (!hasTok) console.log("[Sandblast][TTS][Sanity] Missing RESEMBLE_API_TOKEN/RESEMBLE_API_KEY (Resemble-only build).");
-    if (bad(voice)) console.log("[Sandblast][TTS][Sanity] Missing/invalid RESEMBLE_VOICE_UUID (required).");
-    if (proj && bad(proj)) console.log("[Sandblast][TTS][Sanity] RESEMBLE_PROJECT_UUID looks like a placeholder.");
-  } catch (_) {}
-})();
-
-// =========================
-// Boot-like detection + intent normalization + reset — kept
-// =========================
-function isBootLike(routeHint, body) {
-  const rh = safeStr(routeHint).toLowerCase();
-  const mode = safeStr(body?.mode || body?.intent || body?.client?.mode || body?.client?.intent).toLowerCase();
-  const src = safeStr(body?.source || body?.client?.source).toLowerCase();
-
-  if (rh === "boot_intro" || rh === "panel_open_intro") return true;
-  if (mode === "boot_intro" || mode === "panel_open_intro") return true;
-
-  if (rh.includes("panel_open_intro") || rh.includes("boot_intro")) return true;
-  if (mode.includes("panel_open_intro") || mode.includes("boot_intro")) return true;
-
-  if (src.includes("panel_open_intro") || src.includes("boot_intro")) return true;
-  if (src.includes("panel-open-intro") || src.includes("boot-intro")) return true;
-
-  if (rh === "boot" && (mode.includes("intro") || src.includes("widget"))) return true;
-  if (mode === "boot" && rh.includes("intro")) return true;
-
-  return false;
-}
-
-function hasIntentSignals(body) {
-  const b = isPlainObject(body) ? body : {};
-  const payload = isPlainObject(b.payload) ? b.payload : {};
-  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
-  const client = isPlainObject(b.client) ? b.client : {};
-
-  const sig =
-    safeStr(payload.text || payload.message).trim() ||
-    safeStr(b.text || b.message || b.prompt || b.query).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
-    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent || b.route).trim() ||
-    safeStr(b.year || payload.year || ctx.year).trim() ||
-    safeStr(client.routeHint || client.source).trim();
-
-  return !!sig;
-}
-
-function normalizeInboundSignature(body, inboundText) {
-  const b = isPlainObject(body) ? body : {};
-  const payload = isPlainObject(b.payload) ? b.payload : {};
-  const ctx = isPlainObject(b.ctx) ? b.ctx : {};
-
-  const t = safeStr(inboundText).trim();
-  if (t) return t.slice(0, 240);
-
-  const tok =
-    safeStr(payload.text || payload.message).trim() ||
-    safeStr(payload.mode || payload.action || payload.intent || payload.route || payload.label).trim() ||
-    safeStr(ctx.mode || ctx.action || ctx.intent || ctx.route).trim() ||
-    safeStr(b.mode || b.action || b.intent || b.route || b.label).trim() ||
-    "";
-
-  const year = safeStr(b.year || payload.year || ctx.year).trim();
-  const sig = [tok, year].filter(Boolean).join(" ").trim();
-
-  return sig.slice(0, 240);
-}
-
-function isResetCommand(inboundText, source, body) {
-  const t = safeStr(inboundText).trim();
-  if (t === "__cmd:reset__") return true;
-
-  const s = safeStr(source).toLowerCase();
-  if (s === "reset_btn" || s.includes("reset")) return true;
-
-  const b = isPlainObject(body) ? body : {};
-  const client = isPlainObject(b.client) ? b.client : {};
-  const cs = safeStr(client.source).toLowerCase();
-  if (cs === "reset_btn" || cs.includes("reset")) return true;
-
-  const rh = safeStr(b.routeHint || client.routeHint || "").toLowerCase();
-  const it = safeStr(b.intent || client.intent || b.mode || client.mode || "").toLowerCase();
-  if (rh.includes("reset") || it === "reset") return true;
-
-  return false;
-}
-
-function silentResetReply() {
-  return "";
-}
-
-// =========================
-// Knowledge Bridge (retained from v1.5.18ax)
-// =========================
-const KNOWLEDGE = {
-  ok: false,
-  loadedAt: 0,
-  filesScanned: 0,
-  filesLoaded: 0,
-  totalBytes: 0,
-  json: {},
-  scripts: {},
-  errors: [],
-  __manifest: [],
-  __packsight: {
-    dataRoots: [],
-    pinnedResolved: [],
-    pinnedMissing: [],
-    manifestResolved: [],
-    probes: [],
-    skips: {},
-    collisions: [],
-    fileMapPreview: [],
-  },
-  __fileMap: Object.create(null), // key -> fp that "won"
-  __collisions: [], // array of {key, keptFp, collidedFp}
-  __skips: {
-    too_large: 0,
-    budget_stop: 0,
-    parse_fail: 0,
-    read_fail: 0,
-    duplicate_fp: 0,
-    key_collision: 0,
-  },
-};
-
-function resetVisibilityDiagnostics() {
-  KNOWLEDGE.__fileMap = Object.create(null);
-  KNOWLEDGE.__collisions = [];
-  KNOWLEDGE.__skips = {
-    too_large: 0,
-    budget_stop: 0,
-    parse_fail: 0,
-    read_fail: 0,
-    duplicate_fp: 0,
-    key_collision: 0,
-  };
-}
-
-function pushKnowledgeError(type, file, msg) {
-  const e = { type: safeStr(type), file: safeStr(file), msg: safeStr(msg).slice(0, 300) };
-  KNOWLEDGE.errors.push(e);
-  if (KNOWLEDGE.errors.length > 120) KNOWLEDGE.errors.shift();
-}
-
-function isWithinRoot(p, root) {
-  try {
-    const rp = path.resolve(p);
-    const rr = path.resolve(root);
-    return rp === rr || rp.startsWith(rr + path.sep);
-  } catch (_) {
-    return false;
-  }
-}
-
-function safeReadFileBytes(fp) {
-  try {
-    const st = fs.statSync(fp);
-    const size = Number(st.size || 0);
-    if (!Number.isFinite(size) || size <= 0) return { ok: false, size: 0, buf: null, reason: "empty_or_unknown" };
-    if (size > KNOWLEDGE_MAX_FILE_BYTES) return { ok: false, size, buf: null, reason: "file_too_large" };
-    return { ok: true, size, buf: fs.readFileSync(fp) };
-  } catch (e) {
-    return { ok: false, size: 0, buf: null, reason: safeStr(e?.message || e) };
-  }
-}
-
-function walkFiles(dirAbs, exts, outArr, limit) {
-  if (!dirAbs || !fileExists(dirAbs)) return;
-  let stack = [dirAbs];
-  while (stack.length) {
-    const d = stack.pop();
-    let entries = [];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch (e) {
-      pushKnowledgeError("readdir", d, e?.message || e);
-      continue;
-    }
-    for (const ent of entries) {
-      if (outArr.length >= limit) return;
-      const fp = path.join(d, ent.name);
-      if (ent.isDirectory()) {
-        if (ent.name === "node_modules" || ent.name === ".git") continue;
-        stack.push(fp);
-      } else if (ent.isFile()) {
-        const ext = path.extname(ent.name).toLowerCase();
-        if (exts.includes(ext)) outArr.push(fp);
-      }
-    }
-  }
-}
-
-function fileKeyFromPath(rootAbs, fp) {
-  const rel = path.relative(rootAbs, fp).replace(/\\/g, "/");
-  const noExt = rel.replace(/\.[^/.]+$/, "");
-  return noExt.replace(/[^a-zA-Z0-9/_\-\.]/g, "_");
-}
-
-function bestKeyForFile(fp, roots) {
-  const abs = path.resolve(fp);
-  const candidates = Array.isArray(roots) ? roots : [];
-  let best = null;
-
-  for (const r of candidates) {
-    if (!r) continue;
-    const rr = path.resolve(r);
-    if (!isWithinRoot(abs, rr)) continue;
-    const rel = path.relative(rr, abs).replace(/\\/g, "/");
-    if (!rel || rel.startsWith("..")) continue;
-
-    const score = rel.length;
-    if (!best || score < best.score) best = { root: rr, rel, score };
-  }
-
-  if (best) return fileKeyFromPath(best.root, abs);
-  if (DATA_DIR && isWithinRoot(abs, DATA_DIR)) return fileKeyFromPath(DATA_DIR, abs);
-  return fileKeyFromPath(APP_ROOT, abs);
-}
-
-function sanitizeScriptExport(x) {
-  if (x === null || x === undefined) return null;
-  if (typeof x === "function") return { __type: "function", name: safeStr(x.name || "anonymous") };
-  if (typeof x === "string") return x.slice(0, 4000);
-  if (typeof x === "number" || typeof x === "boolean") return x;
-  if (Array.isArray(x)) return x.slice(0, 200).map((v) => sanitizeScriptExport(v));
-  if (isPlainObject(x)) {
-    const out = {};
-    const keys = Object.keys(x).slice(0, 200);
-    for (const k of keys) {
-      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-      out[k] = sanitizeScriptExport(x[k]);
-    }
-    return out;
-  }
-  return { __type: typeof x };
-}
-
-function pinnedPresence() {
-  const out = {};
-  for (const p of PINNED_PACKS) {
-    out[p.key] = Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, p.key);
-  }
-  return out;
-}
-
-function resolvePinnedFileAbs(rels) {
-  const arr = Array.isArray(rels) ? rels : [rels];
-  for (const rel of arr) {
-    const relNorm = String(rel).replace(/\\/g, "/").replace(/^\/+/, "");
-    for (const base of DATA_ROOT_CANDIDATES) {
-      const fpDirect = path.resolve(base, relNorm);
-      if (fileExists(fpDirect)) return fpDirect;
-
-      const fpCI = resolveRelPathCaseInsensitive(base, relNorm);
-      if (fileExists(fpCI)) return fpCI;
-    }
-  }
-  return null;
-}
-
-// Top10 shape normalizer (pinned)
-function normalizePinnedTop10Payload(payload) {
-  try {
-    let p = payload;
-
-    if (isPlainObject(p) && isPlainObject(p.byYear)) p = p.byYear;
-
-    if (isPlainObject(p)) {
-      const keys = Object.keys(p);
-      const yearKeys = keys.filter((k) => /^\d{4}$/.test(String(k)));
-      if (yearKeys.length) {
-        let looksRight = true;
-        for (const y of yearKeys) {
-          if (!Array.isArray(p[y])) {
-            looksRight = false;
-            break;
-          }
-        }
-        if (looksRight) {
-          for (const y of yearKeys) {
-            try {
-              p[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
-            } catch (_) {}
-          }
-          return { payload: p, normalized: false, kind: "year_keyed" };
-        }
-      }
-    }
-
-    const rows = Array.isArray(p)
-      ? p
-      : isPlainObject(p) && Array.isArray(p.rows)
-        ? p.rows
-        : isPlainObject(p) && Array.isArray(p.data)
-          ? p.data
-          : isPlainObject(p) && Array.isArray(p.items)
-            ? p.items
-            : null;
-
-    if (!rows) return { payload, normalized: false, kind: "unknown" };
-
-    const byYear = Object.create(null);
-    for (const r of rows) {
-      const y = Number(r && r.year);
-      if (!Number.isFinite(y)) continue;
-      if (!byYear[y]) byYear[y] = [];
-      byYear[y].push(r);
-    }
-    for (const y of Object.keys(byYear)) {
-      byYear[y].sort((a, b) => Number(a?.rank || 9999) - Number(b?.rank || 9999));
-    }
-
-    const any = Object.keys(byYear).length > 0;
-    if (!any) return { payload, normalized: false, kind: "no_years" };
-
-    return { payload: byYear, normalized: true, kind: Array.isArray(p) ? "rows_array" : "rows_wrapped" };
-  } catch (_) {
-    return { payload, normalized: false, kind: "exception" };
-  }
-}
-
-// resolve a manifest REL across all data roots
-function resolveDataRelAcrossRoots(relOrRels, kind /* "file" | "dir" | "either" */) {
-  const rels = Array.isArray(relOrRels) ? relOrRels : [relOrRels];
-  const wantKind = kind || "either";
-
-  for (const rel of rels) {
-    const relNorm = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
-    if (!relNorm) continue;
-
-    for (const base of DATA_ROOT_CANDIDATES) {
-      const direct = path.resolve(base, relNorm);
-      const stD = statSafe(direct);
-      if (stD) {
-        if (wantKind === "file" && stD.isFile()) return direct;
-        if (wantKind === "dir" && stD.isDirectory()) return direct;
-        if (wantKind === "either") return direct;
-      }
-
-      const ci = resolveRelPathCaseInsensitive(base, relNorm);
-      const stC = statSafe(ci);
-      if (stC) {
-        if (wantKind === "file" && stC.isFile()) return ci;
-        if (wantKind === "dir" && stC.isDirectory()) return ci;
-        if (wantKind === "either") return ci;
-      }
-    }
-
-    const baseName = path.posix.basename(relNorm);
-    if (baseName) {
-      if (wantKind === "file") {
-        const hit = findByNameAcrossDataRoots(baseName, false);
-        if (hit) return hit;
-      } else if (wantKind === "dir") {
-        const hit = findByNameAcrossDataRoots(baseName, true);
-        if (hit) return hit;
-      } else {
-        const hitF = findByNameAcrossDataRoots(baseName, false);
-        if (hitF) return hitF;
-        const hitD = findByNameAcrossDataRoots(baseName, true);
-        if (hitD) return hitD;
-      }
-    }
-  }
-
-  return null;
-}
-
-// record a key->fp "winner" and detect collisions
-function recordKeyWinner(key, fp) {
-  const k = String(key);
-  const f = String(fp);
-  const prev = KNOWLEDGE.__fileMap[k];
-  if (!prev) {
-    KNOWLEDGE.__fileMap[k] = f;
-    return { ok: true, collision: false };
-  }
-  if (prev === f) return { ok: true, collision: false };
-
-  // collision
-  KNOWLEDGE.__skips.key_collision += 1;
-  const entry = { key: k, keptFp: prev, collidedFp: f };
-  KNOWLEDGE.__collisions.push(entry);
-  if (KNOWLEDGE.__collisions.length > 200) KNOWLEDGE.__collisions.shift();
-  return { ok: true, collision: true, keptFp: prev, collidedFp: f };
-}
-
-function loadPinnedPack(rels, forcedKey, loadedFiles, totalBytesRef) {
-  const fp = resolvePinnedFileAbs(rels);
-
-  if (!fp) {
-    const diag = {
-      key: String(forcedKey),
-      triedRels: Array.isArray(rels) ? rels.slice(0, 32) : [rels],
-      roots: Array.isArray(DATA_ROOT_CANDIDATES) ? DATA_ROOT_CANDIDATES.slice(0, 12) : [],
-    };
-    pushKnowledgeError("pinned_missing", `${forcedKey}`, `Pinned pack missing (tried rels).`);
-    if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedMissing)) {
-      KNOWLEDGE.__packsight.pinnedMissing.push(diag);
-    }
-    return { ok: false, skipped: false, reason: "missing" };
-  }
-
-  if (loadedFiles && loadedFiles.has(fp)) {
-    KNOWLEDGE.__skips.duplicate_fp += 1;
-    return { ok: true, skipped: true, reason: "already_loaded" };
-  }
-
-  const r = safeReadFileBytes(fp);
-  if (!r.ok) {
-    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
-    else KNOWLEDGE.__skips.read_fail += 1;
-    pushKnowledgeError("pinned_read", fp, r.reason || "read_failed");
-    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
-  }
-
-  const nextTotal = (totalBytesRef.value || 0) + r.size;
-  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
-    KNOWLEDGE.__skips.budget_stop += 1;
-    pushKnowledgeError("pinned_budget", fp, "total bytes budget exceeded (pinned pack skipped)");
-    return { ok: false, skipped: true, reason: "budget" };
-  }
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(r.buf.toString("utf8"));
-  } catch (e) {
-    KNOWLEDGE.__skips.parse_fail += 1;
-    pushKnowledgeError("pinned_parse", fp, e?.message || e);
-    return { ok: false, skipped: false, reason: "parse_failed" };
-  }
-
-  let top10Note = null;
-  if (String(forcedKey) === "music/top10_by_year") {
-    const norm = normalizePinnedTop10Payload(parsed);
-    parsed = norm.payload;
-    top10Note = { normalized: !!norm.normalized, kind: norm.kind };
-    // eslint-disable-next-line no-console
-    console.log(
-      `[Sandblast][PinnedNormalize] key=${forcedKey} normalized=${top10Note.normalized ? "true" : "false"} kind=${safeStr(
-        top10Note.kind
-      )} fp=${fp}`
-    );
-  }
-
-  recordKeyWinner(String(forcedKey), fp);
-
-  KNOWLEDGE.json[String(forcedKey)] = parsed;
-  KNOWLEDGE.filesLoaded += 1;
-  totalBytesRef.value = nextTotal;
-  KNOWLEDGE.totalBytes = totalBytesRef.value;
-
-  if (loadedFiles) loadedFiles.add(fp);
-
-  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.pinnedResolved)) {
-    KNOWLEDGE.__packsight.pinnedResolved.push({ key: String(forcedKey), fp, note: top10Note || undefined });
-  }
-
-  return { ok: true, skipped: false, fp };
-}
-
-// =========================
-// Manifest helpers
-// =========================
-function manifestExtractRows(payload) {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload.rows)) return payload.rows;
-  if (payload && Array.isArray(payload.data)) return payload.data;
-  if (payload && Array.isArray(payload.items)) return payload.items;
-  return [];
-}
-
-function manifestBuildYearMapFromRows(payload, label) {
-  const out = Object.create(null);
-  const rows = manifestExtractRows(payload);
-  for (const r of rows) {
-    const y = Number(r && r.year);
-    if (!Number.isFinite(y)) continue;
-    if (!out[y]) out[y] = [];
-    out[y].push(r);
-  }
-  for (const y of Object.keys(out)) {
-    out[y].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
-  }
-  return { ok: true, label: safeStr(label), byYear: out, builtAt: new Date().toISOString() };
-}
-
-function manifestBuildTop40WeeklyIndex(allJson, prefixKey) {
-  const byYearWeek = Object.create(null);
-  const root = allJson && typeof allJson === "object" ? allJson : {};
-
-  const keys = Object.keys(root).filter((k) => String(k).startsWith(prefixKey + "/"));
-  for (const k of keys) {
-    const pack = root[k];
-    if (!pack) continue;
-
-    if (pack.byYearWeek && typeof pack.byYearWeek === "object") {
-      for (const y of Object.keys(pack.byYearWeek)) {
-        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
-        const weeks = pack.byYearWeek[y] || {};
-        for (const w of Object.keys(weeks)) {
-          byYearWeek[y][w] = weeks[w];
-        }
-      }
-      continue;
-    }
-
-    const rows = manifestExtractRows(pack);
-    if (rows.length) {
-      for (const r of rows) {
-        const y = String(Number(r.year));
-        const w = String(Number(r.week));
-        if (!y || y === "NaN" || !w || w === "NaN") continue;
-        if (!byYearWeek[y]) byYearWeek[y] = Object.create(null);
-        if (!byYearWeek[y][w]) byYearWeek[y][w] = [];
-        byYearWeek[y][w].push(r);
-      }
-    }
-  }
-
-  for (const y of Object.keys(byYearWeek)) {
-    for (const w of Object.keys(byYearWeek[y])) {
-      byYearWeek[y][w].sort((a, b) => Number(a.rank || 9999) - Number(b.rank || 9999));
-    }
-  }
-
-  return { ok: true, label: "top40_weekly", byYearWeek, builtAt: new Date().toISOString() };
-}
-
-function resolveManifestAbsFallback(absPath) {
-  const p = path.resolve(absPath);
-  if (fileExists(p)) return p;
-
-  for (const base of DATA_ROOT_CANDIDATES) {
-    try {
-      const rel = path.relative(base, p);
-      if (rel && !rel.startsWith("..")) {
-        const alt = resolveRelPathCaseInsensitive(base, rel);
-        if (fileExists(alt)) return alt;
-      }
-    } catch (_) {}
-  }
-
-  try {
-    const relS = path.relative(SCRIPTS_DIR, p);
-    if (relS && !relS.startsWith("..")) {
-      const altS = resolveRelPathCaseInsensitive(SCRIPTS_DIR, relS);
-      if (fileExists(altS)) return altS;
-    }
-  } catch (_) {}
-
-  try {
-    const relA = path.relative(APP_ROOT, p);
-    if (relA && !relA.startsWith("..")) {
-      const altA = resolveRelPathCaseInsensitive(APP_ROOT, relA);
-      if (fileExists(altA)) return altA;
-    }
-  } catch (_) {}
-
-  return p;
-}
-
-function manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef) {
-  const realFp = resolveManifestAbsFallback(fp);
-
-  if (loadedFiles && loadedFiles.has(realFp)) {
-    KNOWLEDGE.__skips.duplicate_fp += 1;
-    return { ok: true, skipped: true, reason: "already_loaded" };
-  }
-  if (!fileExists(realFp)) return { ok: false, skipped: false, reason: "missing" };
-
-  const r = safeReadFileBytes(realFp);
-  if (!r.ok) {
-    if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
-    else KNOWLEDGE.__skips.read_fail += 1;
-    pushKnowledgeError("manifest_read", realFp, r.reason || "read_failed");
-    return { ok: false, skipped: false, reason: r.reason || "read_failed" };
-  }
-
-  const nextTotal = (totalBytesRef.value || 0) + r.size;
-  if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
-    KNOWLEDGE.__skips.budget_stop += 1;
-    pushKnowledgeError("manifest_budget", realFp, "total bytes budget exceeded (manifest file skipped)");
-    return { ok: false, skipped: true, reason: "budget" };
-  }
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(r.buf.toString("utf8"));
-  } catch (e) {
-    KNOWLEDGE.__skips.parse_fail += 1;
-    pushKnowledgeError("manifest_parse", realFp, e?.message || e);
-    return { ok: false, skipped: false, reason: "parse_failed" };
-  }
-
-  const col = recordKeyWinner(key, realFp);
-  if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
-    KNOWLEDGE.json[key] = parsed;
-  } else if (col.collision) {
-    // keep first-wins to preserve stability
-  }
-
-  KNOWLEDGE.filesLoaded += 1;
-  totalBytesRef.value = nextTotal;
-  KNOWLEDGE.totalBytes = totalBytesRef.value;
-  if (loadedFiles) loadedFiles.add(realFp);
-
-  if (KNOWLEDGE.__packsight && Array.isArray(KNOWLEDGE.__packsight.manifestResolved)) {
-    KNOWLEDGE.__packsight.manifestResolved.push({ key: String(key), fp: realFp });
-  }
-
-  return { ok: true, skipped: false, fp: realFp };
-}
-
-function manifestLoadJsonDirIntoPrefix(dirAbs, prefixKey, loadedFiles, totalBytesRef, maxFiles = 5000) {
-  const realDir = resolveManifestAbsFallback(dirAbs);
-  const st = statSafe(realDir);
-  if (!st || !st.isDirectory()) return { ok: false, reason: "missing_dir", loaded: 0 };
-
-  const files = [];
-  walkFiles(realDir, [".json"], files, maxFiles);
-
-  let loaded = 0;
-  for (const fp of files) {
-    const rel = path.relative(realDir, fp).replace(/\\/g, "/");
-    const noExt = rel.replace(/\.[^/.]+$/, "");
-    const key = `${prefixKey}/${noExt}`;
-    const res = manifestLoadJsonFileIntoKey(fp, key, loadedFiles, totalBytesRef);
-    if (res.ok && !res.skipped) loaded++;
-    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
-    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
-  }
-  return { ok: true, loaded, dir: realDir };
-}
-
-function manifestLoadFileOrDir(absPath, baseKey, loadedFiles, totalBytesRef) {
-  try {
-    const resolved = resolveManifestAbsFallback(absPath);
-    if (fileExists(resolved)) {
-      const st = fs.statSync(resolved);
-      if (st.isDirectory()) {
-        return manifestLoadJsonDirIntoPrefix(resolved, baseKey, loadedFiles, totalBytesRef);
-      }
-      if (st.isFile() && path.extname(resolved).toLowerCase() === ".json") {
-        return manifestLoadJsonFileIntoKey(resolved, baseKey, loadedFiles, totalBytesRef);
-      }
-    }
-
-    const tryJson = resolved.endsWith(".json") ? resolved : resolved + ".json";
-    if (fileExists(tryJson)) return manifestLoadJsonFileIntoKey(tryJson, baseKey, loadedFiles, totalBytesRef);
-  } catch (e) {
-    pushKnowledgeError("manifest_stat", absPath, e?.message || e);
-  }
-
-  return { ok: false, reason: "missing_file_or_dir" };
-}
-
-function manifestLoadPacks(loadedFiles, totalBytesRef) {
-  const loadedSummary = [];
-
-  for (const item of PACK_MANIFEST) {
-    try {
-      if (item.type === "json_file_rel") {
-        const fp = resolveDataRelAcrossRoots(item.rels || item.rel, "file");
-        const res = fp
-          ? manifestLoadJsonFileIntoKey(fp, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing" };
-
-        if (res.ok && !res.skipped && typeof item.transform === "function" && item.outKey) {
-          const derived = item.transform(KNOWLEDGE.json[item.key]);
-          recordKeyWinner(item.outKey, `__derived:${item.key}`);
-          KNOWLEDGE.json[item.outKey] = derived;
-        }
-
-        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
-        continue;
-      }
-
-      if (item.type === "json_dir_rel") {
-        const dir = resolveDataRelAcrossRoots(item.rels || item.rel, "dir");
-        const res = dir
-          ? manifestLoadJsonDirIntoPrefix(dir, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_dir" };
-
-        if (res.ok && typeof item.postTransform === "function" && item.outKey) {
-          const derived = item.postTransform(KNOWLEDGE.json, item.key);
-          recordKeyWinner(item.outKey, `__derived:${item.key}`);
-          KNOWLEDGE.json[item.outKey] = derived;
-        }
-
-        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
-        continue;
-      }
-
-      if (item.type === "json_file_or_dir_rel") {
-        const p = resolveDataRelAcrossRoots(item.rels || item.rel, "either");
-        const res = p
-          ? manifestLoadFileOrDir(p, item.key, loadedFiles, totalBytesRef)
-          : { ok: false, reason: "missing_file_or_dir" };
-        loadedSummary.push({ key: item.key, ok: res.ok, reason: res.reason || "" });
-        continue;
-      }
-
-      if (item.type === "json_dir_abs") {
-        const res = manifestLoadJsonDirIntoPrefix(item.abs, item.key, loadedFiles, totalBytesRef);
-        loadedSummary.push({ key: item.key, ok: res.ok, loaded: res.loaded || 0, reason: res.reason || "" });
-        continue;
-      }
-
-      if (item.type === "json_file_abs") {
-        const res = manifestLoadJsonFileIntoKey(item.abs, item.key, loadedFiles, totalBytesRef);
-        loadedSummary.push({ key: item.key, ok: res.ok, skipped: !!res.skipped, reason: res.reason || "" });
-        continue;
-      }
-    } catch (e) {
-      pushKnowledgeError("manifest_exception", item.key, e?.message || e);
-      loadedSummary.push({ key: item.key, ok: false, reason: "exception" });
-    }
-  }
-
-  return loadedSummary;
-}
-
-// Probes
-function buildManifestProbes() {
-  const targets = [
-    {
-      id: "wiki_yearend_hot100",
-      rels: ["wikipedia/billboard_yearend_hot100_1950_2024.json", "wiki/billboard_yearend_hot100_1950_2024.json"],
-      kind: "file",
-    },
-    { id: "top40_weekly_dir", rels: ["charts/top40_weekly", "top40_weekly"], kind: "dir" },
-    { id: "movies_root", rels: ["movies", "Movies"], kind: "dir_or_file" },
-    { id: "sponsors_root", rels: ["sponsors", "Sponsors"], kind: "dir_or_file" },
-  ];
-
-  const probes = [];
-  for (const t of targets) {
-    const kind = t.kind === "file" ? "file" : t.kind === "dir" ? "dir" : "either";
-    const bestFound = resolveDataRelAcrossRoots(t.rels, kind);
-    probes.push({ id: t.id, rels: t.rels, kind: t.kind, bestFound: bestFound || null, any: !!bestFound });
-  }
-  return probes;
-}
-
-function reloadKnowledge() {
-  const started = nowMs();
-
-  DATA_DIR = resolveDataDirFromEnv();
-  SCRIPTS_DIR = resolveScriptsDirFromEnv();
-  DATA_ROOT_CANDIDATES = rebuildDataRootCandidates();
-
-  KNOWLEDGE.ok = false;
-  KNOWLEDGE.loadedAt = started;
-  KNOWLEDGE.filesScanned = 0;
-  KNOWLEDGE.filesLoaded = 0;
-  KNOWLEDGE.totalBytes = 0;
-  KNOWLEDGE.json = {};
-  KNOWLEDGE.scripts = {};
-  KNOWLEDGE.errors = [];
-  KNOWLEDGE.__manifest = [];
-
-  resetVisibilityDiagnostics();
-
-  KNOWLEDGE.__packsight = {
-    dataRoots: DATA_ROOT_CANDIDATES.slice(0, 16),
-    pinnedResolved: [],
-    pinnedMissing: [],
-    manifestResolved: [],
-    probes: [],
-    skips: {},
-    collisions: [],
-    fileMapPreview: [],
-  };
-
-  try {
-    KNOWLEDGE.__packsight.probes = buildManifestProbes();
-  } catch (_) {
-    KNOWLEDGE.__packsight.probes = [];
-  }
-
-  const dataOk = DATA_ROOT_CANDIDATES.some((d) => {
-    if (!fileExists(d)) return false;
-    if (KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT) return true;
-    return isWithinRoot(d, APP_ROOT);
-  });
-
-  const scriptsOk = (() => {
-    if (!fileExists(SCRIPTS_DIR)) return false;
-    if (KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT) return true;
-    return isWithinRoot(SCRIPTS_DIR, APP_ROOT);
-  })();
-
-  if (!dataOk) {
-    pushKnowledgeError(
-      "dir",
-      DATA_DIR,
-      `DATA roots not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT}`
-    );
-  }
-  if (!scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
-    pushKnowledgeError(
-      "dir",
-      SCRIPTS_DIR,
-      `SCRIPTS_DIR not readable (missing OR blocked by APP_ROOT). allowOutside=${KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT}`
-    );
-  }
-
-  const loadedFiles = new Set();
-  const totalBytesRef = { value: 0 };
-
-  if (dataOk) {
-    for (const p of PINNED_PACKS) {
-      try {
-        loadPinnedPack(p.rels, p.key, loadedFiles, totalBytesRef);
-      } catch (e) {
-        pushKnowledgeError("pinned_exception", p.key, e?.message || e);
-      }
-      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
-      if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
-    }
-  }
-
-  if (dataOk || (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS)) {
-    try {
-      const manifestSummary = manifestLoadPacks(loadedFiles, totalBytesRef);
-      KNOWLEDGE.__manifest = Array.isArray(manifestSummary) ? manifestSummary : [];
-    } catch (e) {
-      pushKnowledgeError("manifest_load", "PACK_MANIFEST", e?.message || e);
-    }
-  }
-
-  // Walk ALL json under roots (bounded)
-  const jsonFiles = [];
-  const seen = new Set();
-
-  const rootsToWalk = DATA_ROOT_CANDIDATES.filter((d) => {
-    const st = statSafe(d);
-    return st && st.isDirectory();
-  });
-
-  for (const root of rootsToWalk) {
-    if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
-    const tmp = [];
-    walkFiles(root, [".json"], tmp, Math.max(0, KNOWLEDGE_MAX_FILES - jsonFiles.length));
-    for (const fp of tmp) {
-      const abs = path.resolve(fp);
-      if (seen.has(abs)) continue;
-      seen.add(abs);
-      jsonFiles.push(abs);
-      if (jsonFiles.length >= KNOWLEDGE_MAX_FILES) break;
-    }
-  }
-
-  const jsFiles = [];
-  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
-    walkFiles(SCRIPTS_DIR, [".js", ".cjs"], jsFiles, Math.min(KNOWLEDGE_MAX_FILES, 1000));
-  }
-
-  KNOWLEDGE.filesScanned = jsonFiles.length + jsFiles.length;
-
-  for (const fp of jsonFiles) {
-    if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
-    if (loadedFiles.has(fp)) {
-      KNOWLEDGE.__skips.duplicate_fp += 1;
-      continue;
-    }
-
-    const r = safeReadFileBytes(fp);
-    if (!r.ok) {
-      if (r.reason === "file_too_large") KNOWLEDGE.__skips.too_large += 1;
-      else KNOWLEDGE.__skips.read_fail += 1;
-      pushKnowledgeError("json_read", fp, r.reason || "read_failed");
-      continue;
-    }
-
-    const nextTotal = totalBytesRef.value + r.size;
-    if (nextTotal > KNOWLEDGE_MAX_TOTAL_BYTES) {
-      KNOWLEDGE.__skips.budget_stop += 1;
-      pushKnowledgeError("budget", fp, "total bytes budget exceeded; stopping load");
-      break;
-    }
-
-    let parsed = null;
-    try {
-      parsed = JSON.parse(r.buf.toString("utf8"));
-    } catch (e) {
-      KNOWLEDGE.__skips.parse_fail += 1;
-      pushKnowledgeError("json_parse", fp, e?.message || e);
-      continue;
-    }
-
-    const key = bestKeyForFile(fp, rootsToWalk.length ? rootsToWalk : DATA_ROOT_CANDIDATES);
-    const col = recordKeyWinner(key, fp);
-
-    if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE.json, key)) {
-      KNOWLEDGE.json[key] = parsed;
-    } else if (col.collision) {
-      // keep first-wins for stability (but now we see it)
-    }
-
-    KNOWLEDGE.filesLoaded += 1;
-    totalBytesRef.value = nextTotal;
-    KNOWLEDGE.totalBytes = totalBytesRef.value;
-    loadedFiles.add(fp);
-
-    if (totalBytesRef.value > KNOWLEDGE_MAX_TOTAL_BYTES) break;
-  }
-
-  if (scriptsOk && KNOWLEDGE_ENABLE_SCRIPTS) {
-    for (const fp of jsFiles) {
-      if (KNOWLEDGE.filesLoaded >= KNOWLEDGE_MAX_FILES) break;
-
-      const base = path.basename(fp).toLowerCase();
-      const allowBuildScripts = toBool(process.env.KNOWLEDGE_ALLOW_BUILD_SCRIPTS, false);
-      if (!allowBuildScripts && (base.startsWith("build_") || base.includes("migrate") || base.includes("seed_"))) {
-        continue;
-      }
-
-      let mod = null;
-      try {
-        // eslint-disable-next-line import/no-dynamic-require, global-require
-        mod = require(fp);
-      } catch (e) {
-        pushKnowledgeError("script_require", fp, e?.message || e);
-        continue;
-      }
-
-      const key = fileKeyFromPath(SCRIPTS_DIR, fp);
-      recordKeyWinner(key, fp);
-      KNOWLEDGE.scripts[key] = sanitizeScriptExport(mod);
-      KNOWLEDGE.filesLoaded += 1;
-    }
-  }
-
-  const jsonKeys = Object.keys(KNOWLEDGE.json).length;
-  const scriptKeys = Object.keys(KNOWLEDGE.scripts).length;
-  KNOWLEDGE.ok = jsonKeys + scriptKeys > 0;
-
-  // finalize packsight visibility
-  KNOWLEDGE.__packsight.skips = { ...KNOWLEDGE.__skips };
-  KNOWLEDGE.__packsight.collisions = KNOWLEDGE.__collisions.slice(0, 200);
-  const fmKeys = Object.keys(KNOWLEDGE.__fileMap).slice(0, 120);
-  KNOWLEDGE.__packsight.fileMapPreview = fmKeys.map((k) => ({ key: k, fp: KNOWLEDGE.__fileMap[k] }));
-
-  const pins = pinnedPresence();
-  const pinnedOk = Object.values(pins).some(Boolean);
-
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast][Knowledge] loaded=${KNOWLEDGE.ok} pinnedAny=${pinnedOk} jsonKeys=${jsonKeys} scriptKeys=${scriptKeys} filesLoaded=${KNOWLEDGE.filesLoaded} totalBytes=${KNOWLEDGE.totalBytes} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
-      KNOWLEDGE.__skips
-    )} collisions=${KNOWLEDGE.__collisions.length} in ${nowMs() - started}ms (APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} dataRoots=${JSON.stringify(
-      DATA_ROOT_CANDIDATES.slice(0, 10)
-    )} autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS})`
-  );
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast][Knowledge] pinnedPresence=${JSON.stringify(pins)}`);
-
-  return { ok: KNOWLEDGE.ok, loadedAt: KNOWLEDGE.loadedAt, jsonKeys, scriptKeys, filesLoaded: KNOWLEDGE.filesLoaded };
-}
-
-function knowledgeStatusForMeta() {
-  return {
-    ok: KNOWLEDGE.ok,
-    loadedAt: KNOWLEDGE.loadedAt,
-    errorCount: KNOWLEDGE.errors.length,
-    errorsPreview: KNOWLEDGE.errors.slice(0, 3),
-    jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
-    scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
-    pinned: pinnedPresence(),
-    skips: { ...KNOWLEDGE.__skips },
-    collisions: KNOWLEDGE.__collisions.length,
-    manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest.slice(0, 12) : [],
-    registry: {
-      ok: !!(KNOWREG_BOOT && KNOWREG_BOOT.ok),
-      domains: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.domains) ? KNOWREG_BOOT.domains.slice(0, 24) : [],
-      loadedAt: (KNOWREG_BOOT && KNOWREG_BOOT.loadedAt) || 0,
-      errorCount: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.errors) ? KNOWREG_BOOT.errors.length : 0,
-      errorsPreview: Array.isArray(KNOWREG_BOOT && KNOWREG_BOOT.errors) ? KNOWREG_BOOT.errors.slice(0, 3) : [],
-    },
-  };
-}
-
-function knowledgeSnapshotForEngine() {
-  return {
-    json: KNOWLEDGE.json,
-    scripts: KNOWLEDGE.scripts,
-    meta: {
-      ok: KNOWLEDGE.ok,
-      loadedAt: KNOWLEDGE.loadedAt,
-      jsonKeyCount: Object.keys(KNOWLEDGE.json).length,
-      scriptKeyCount: Object.keys(KNOWLEDGE.scripts).length,
-      filesScanned: KNOWLEDGE.filesScanned,
-      filesLoaded: KNOWLEDGE.filesLoaded,
-      totalBytes: KNOWLEDGE.totalBytes,
-      errorCount: KNOWLEDGE.errors.length,
-      errorsPreview: KNOWLEDGE.errors.slice(0, 5),
-      pinned: pinnedPresence(),
-      skips: { ...KNOWLEDGE.__skips },
-      collisions: KNOWLEDGE.__collisions.slice(0, 50),
-      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
-      manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
-      packsight: KNOWLEDGE.__packsight,
-    },
-  };
-}
-
-if (KNOWLEDGE_AUTOLOAD) {
-  try {
-    reloadKnowledge();
-  } catch (e) {
-    pushKnowledgeError("boot_load", "reloadKnowledge()", e?.message || e);
-    // eslint-disable-next-line no-console
-    console.log(`[Sandblast][Knowledge] boot load failed: ${safeStr(e?.message || e).slice(0, 200)}`);
-  }
-}
-
-if (KNOWLEDGE_AUTOLOAD && KNOWLEDGE_RELOAD_INTERVAL_MS > 0) {
-  setInterval(() => {
-    try {
-      reloadKnowledge();
-    } catch (e) {
-      pushKnowledgeError("interval_load", "reloadKnowledge()", e?.message || e);
-    }
-  }, KNOWLEDGE_RELOAD_INTERVAL_MS).unref?.();
-}
-
-// =========================
-// KnowledgeRegistry (manifest-driven) — optional (fail-open)
-// =========================
-let KNOWREG = null;
-let KNOWREG_BOOT = { ok: false, domains: [], loadedAt: 0, errors: [] };
-
-function initKnowledgeRegistryBridge() {
-  if (!knowledgeRegistryMod || typeof knowledgeRegistryMod.initKnowledgeRegistry !== "function") {
-    KNOWREG_BOOT = { ok: false, domains: [], loadedAt: 0, errors: ["module_missing"] };
-    return KNOWREG_BOOT;
-  }
-  try {
-    const rootDir = process.env.KNOWLEDGE_ROOT || undefined;
-    KNOWREG_BOOT = knowledgeRegistryMod.initKnowledgeRegistry({ rootDir });
-    if (typeof knowledgeRegistryMod.getRegistry === "function") {
-      KNOWREG = knowledgeRegistryMod.getRegistry(rootDir);
-    }
-    return KNOWREG_BOOT;
-  } catch (e) {
-    KNOWREG_BOOT = { ok: false, domains: [], loadedAt: Date.now(), errors: [safeStr(e?.message || e)] };
-    return KNOWREG_BOOT;
-  }
-}
-
-// Boot-load registry (same cadence as knowledge packs; can be disabled)
-const KNOWLEDGE_REGISTRY_AUTOLOAD = toBool(process.env.KNOWLEDGE_REGISTRY_AUTOLOAD, true);
-if (KNOWLEDGE_REGISTRY_AUTOLOAD) {
-  initKnowledgeRegistryBridge();
-}
-
-// Domain hint mapping for Nyx lanes (best-effort; registry is free to ignore unknown domains)
-function registryDomainFromLane(lane) {
-  const l = safeStr(lane).toLowerCase().trim();
-  if (!l) return "";
-  if (l === "music") return "music";
-  if (l === "roku") return "roku";
-  if (l === "radio") return "radio";
-  if (l === "cyber") return "cyber";
-  if (l === "law") return "law";
-  if (l === "english") return "english";
-  if (l === "ai") return "ai";
-  return ""; // all
-}
-
-function registryBundleFor(text, lane) {
-  if (!KNOWREG || typeof KNOWREG.query !== "function") return null;
-  const qText = safeStr(text).trim();
-  const l = safeStr(lane).toLowerCase().trim();
-  const domain = registryDomainFromLane(l);
-
-  // Bounded bundle; Marion/chatEngine can choose to use or ignore
-  try {
-    const bundle = KNOWREG.query({
-      text: qText,
-      lane: l || undefined,
-      domain: domain || undefined,
-      limit: 7,
-      charMax: 1800,
-      factsMax: 10,
-      hintsMax: 10,
-    });
-    return bundle && bundle.ok ? bundle : null;
-  } catch (_) {
-    return null;
-  }
-}
-// =========================
-// Built-in Pack Index (no dependency) — kept
-// =========================
-function buildBuiltinPackIndex() {
-  const jsonKeys = Object.keys(KNOWLEDGE.json || {});
-  const pins = pinnedPresence();
-
-  const groups = {
-    pinned: [],
-    music: [],
-    movies: [],
-    sponsors: [],
-    top10: [],
-    generic: [],
-  };
-
-  const packs = {};
-
-  for (const k of jsonKeys) {
-    const kl = String(k).toLowerCase();
-
-    const domain =
-      kl.includes("sponsor") || kl.startsWith("sponsors/") || kl.includes("/sponsors/")
-        ? "sponsors"
-        : kl.includes("movie") || kl.startsWith("movies/") || kl.includes("/movies/")
-          ? "movies"
-          : kl.includes("music") || kl.startsWith("music/") || kl.includes("/music/")
-            ? "music"
-            : "generic";
-
-    const kind =
-      kl.includes("top10") || kl.includes("top_10") || kl.includes("top-ten") || kl.includes("topten") ? "top10" : "pack";
-
-    packs[k] = {
-      id: k,
-      available: true,
-      domain,
-      kind,
-      file: KNOWLEDGE.__fileMap && KNOWLEDGE.__fileMap[k] ? KNOWLEDGE.__fileMap[k] : undefined,
-    };
-
-    if (domain === "music") groups.music.push(k);
-    if (domain === "movies") groups.movies.push(k);
-    if (domain === "sponsors") groups.sponsors.push(k);
-    if (kind === "top10") groups.top10.push(k);
-    if (domain === "generic") groups.generic.push(k);
-  }
-
-  for (const [pk, ok] of Object.entries(pins || {})) {
-    if (ok) groups.pinned.push(pk);
-  }
-
-  for (const g of Object.keys(groups)) groups[g].sort();
-
-  const groupCounts = {};
-  for (const [gk, arr] of Object.entries(groups)) groupCounts[gk] = Array.isArray(arr) ? arr.length : 0;
-
-  return {
-    ok: true,
-    builtAt: new Date().toISOString(),
-    pinned: pins,
-    summary: {
-      jsonKeyCount: jsonKeys.length,
-      pinnedAny: Object.values(pins || {}).some(Boolean),
-      groups: groupCounts,
-      skips: { ...KNOWLEDGE.__skips },
-      collisionCount: KNOWLEDGE.__collisions.length,
-    },
-    groups,
-    packs,
-  };
-}
-
-function packIndexAvailable() {
-  return !!(
-    packIndexMod &&
-    (typeof packIndexMod.getPackIndex === "function" || typeof packIndexMod.refreshPackIndex === "function")
-  );
-}
-
-function getPackIndexSafe(forceRefresh) {
-  try {
-    if (packIndexMod) {
-      if (forceRefresh && typeof packIndexMod.refreshPackIndex === "function") return packIndexMod.refreshPackIndex();
-      if (typeof packIndexMod.getPackIndex === "function") return packIndexMod.getPackIndex({ forceRefresh: false });
-    }
-  } catch (e) {
-    pushKnowledgeError("packIndex_exception", "Utils/packIndex.js", e?.message || e);
-  }
-  return buildBuiltinPackIndex();
-}
-
-// =========================
-// Session store — kept
-// =========================
-const SESSIONS = new Map();
-
-function sessionKeyFromReq(req) {
-  const b = isPlainObject(req.body) ? req.body : {};
-  const h = req.headers || {};
-  const sid =
-    safeStr(b.sessionId || b.visitorId || b.deviceId).trim() ||
-    safeStr(h["x-sb-session"] || h["x-session-id"] || h["x-visitor-id"]).trim();
-
-  if (sid) return sid.slice(0, 120);
-
-  const fp = sha1(`${pickClientIp(req)}|${safeStr(req.headers["user-agent"] || "")}`).slice(0, 24);
-  return `fp_${fp}`;
-}
-
-function pruneSessions(now) {
-  for (const [k, v] of SESSIONS.entries()) {
-    if (!v || !v.lastSeenAt) {
-      SESSIONS.delete(k);
-      continue;
-    }
-    if (now - v.lastSeenAt > SESSION_TTL_MS) SESSIONS.delete(k);
-  }
-  if (SESSIONS.size > SESSION_MAX) {
-    const arr = Array.from(SESSIONS.entries()).sort((a, b) => (a[1].lastSeenAt || 0) - (b[1].lastSeenAt || 0));
-    const cut = SESSIONS.size - SESSION_MAX;
-    for (let i = 0; i < cut; i++) SESSIONS.delete(arr[i][0]);
-  }
-}
-
-function getSession(req) {
-  const now = nowMs();
-  pruneSessions(now);
-
-  const key = sessionKeyFromReq(req);
-  let rec = SESSIONS.get(key);
-  if (!rec) {
-    rec = {
-      data: { sessionId: key, visitorId: key, lane: "general", cog: {} },
-      lastSeenAt: now,
-      burst: [],
-      sustained: [],
-      boot: [],
-    };
-    SESSIONS.set(key, rec);
-  }
-  rec.lastSeenAt = now;
-  if (!Array.isArray(rec.boot)) rec.boot = [];
-  return { key, rec };
-}
-
-// =========================
-// Loop / guards — kept
-// =========================
-function pushWindow(arr, now, windowMs) {
-  const a = Array.isArray(arr) ? arr : [];
-  a.push(now);
-  const cutoff = now - windowMs;
-  while (a.length && a[0] < cutoff) a.shift();
-  return a;
-}
-
-function checkBurst(rec, now) {
-  rec.burst = pushWindow(rec.burst, now, BURST_WINDOW_MS);
-  if (rec.burst.length > BURST_MAX) return { blocked: true, reason: "burst" };
-  return { blocked: false };
-}
-
-function checkSustained(rec, now) {
-  rec.sustained = pushWindow(rec.sustained, now, SUSTAINED_WINDOW_MS);
-  if (rec.sustained.length > SUSTAINED_MAX) return { blocked: true, reason: "sustained" };
-  return { blocked: false };
-}
-
-function checkBootFuse(rec, now) {
-  rec.boot = pushWindow(rec.boot, now, BOOT_MAX_WINDOW_MS);
-  if (rec.boot.length > BOOT_MAX) return { blocked: true, reason: "boot_rate" };
-
-  const lastBootAt = Number(rec.data.__idx_lastBootAt || 0);
-  if (lastBootAt && now - lastBootAt < BOOT_DEDUPE_MS) return { blocked: true, reason: "boot_dedupe" };
-
-  rec.data.__idx_lastBootAt = now;
-  return { blocked: false };
-}
-
-function replayDedupe(rec, inboundSig, source, clientRequestId) {
-  const now = nowMs();
-  const rid = safeStr(clientRequestId).trim();
-
-  const sigHash = sha1(`${safeStr(rec.data.sessionId)}|${safeStr(source)}|${safeStr(inboundSig)}`).slice(0, 12);
-  const key = rid ? `rid:${rid}|sig:${sigHash}` : `sig:${sigHash}`;
-
-  const lastKey = safeStr(rec.data.__idx_lastReqKey || "");
-  const lastAt = Number(rec.data.__idx_lastReqAt || 0);
-  if (lastKey && key === lastKey && lastAt && now - lastAt <= LOOP_REPLAY_WINDOW_MS) {
-    const lastOut = safeStr(rec.data.__idx_lastOut || "");
-    const lastLane = safeStr(rec.data.__idx_lastLane || "general") || "general";
-    const lastFU = Array.isArray(rec.data.__idx_lastFollowUps) ? rec.data.__idx_lastFollowUps : undefined;
-    const lastFUS = Array.isArray(rec.data.__idx_lastFollowUpsStrings)
-      ? rec.data.__idx_lastFollowUpsStrings
-      : undefined;
-    const lastDir = Array.isArray(rec.data.__idx_lastDirectives) ? rec.data.__idx_lastDirectives : undefined;
-
-    if (lastOut) {
-      return {
-        hit: true,
-        reply: lastOut,
-        lane: lastLane,
-        followUps: lastFU,
-        followUpsStrings: lastFU ? undefined : lastFUS,
-        directives: lastDir,
-      };
-    }
-  }
-
-  rec.data.__idx_lastReqKey = key;
-  rec.data.__idx_lastReqAt = now;
-  return { hit: false };
-}
-
-function writeReplay(rec, reply, lane, extras) {
-  rec.data.__idx_lastOut = safeStr(reply);
-  rec.data.__idx_lastLane = safeStr(lane || "general") || "general";
-  if (extras && typeof extras === "object") {
-    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
-    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
-
-    if (fu) {
-      rec.data.__idx_lastFollowUps = fu;
-      rec.data.__idx_lastFollowUpsStrings = [];
-    }
-    if (!fu && fus) rec.data.__idx_lastFollowUpsStrings = fus;
-
-    if (Array.isArray(extras.directives)) rec.data.__idx_lastDirectives = extras.directives.slice(0, 10);
-  }
-}
-
-function writeBootReplay(rec, reply, lane, extras) {
-  rec.data.__idx_lastBootOut = safeStr(reply);
-  rec.data.__idx_lastBootLane = safeStr(lane || "general") || "general";
-  if (extras && typeof extras === "object") {
-    const fu = Array.isArray(extras.followUps) ? extras.followUps.slice(0, 10) : undefined;
-    const fus = Array.isArray(extras.followUpsStrings) ? extras.followUpsStrings.slice(0, 10) : undefined;
-
-    if (fu) {
-      rec.data.__idx_lastBootFollowUps = fu;
-      rec.data.__idx_lastBootFollowUpsStrings = [];
-    }
-    if (!fu && fus) rec.data.__idx_lastBootFollowUpsStrings = fus;
-
-    if (Array.isArray(extras.directives)) rec.data.__idx_lastBootDirectives = extras.directives.slice(0, 10);
-  }
-}
-
-function readBootReplay(rec) {
-  const reply = safeStr(rec.data.__idx_lastBootOut || "");
-  const lane = safeStr(rec.data.__idx_lastBootLane || rec.data.lane || "general") || "general";
-  const followUps = Array.isArray(rec.data.__idx_lastBootFollowUps) ? rec.data.__idx_lastBootFollowUps : undefined;
-  const followUpsStrings = Array.isArray(rec.data.__idx_lastBootFollowUpsStrings)
-    ? rec.data.__idx_lastBootFollowUpsStrings
-    : undefined;
-  const directives = Array.isArray(rec.data.__idx_lastBootDirectives) ? rec.data.__idx_lastBootDirectives : undefined;
-
-  return { reply, lane, followUps, followUpsStrings: followUps ? undefined : followUpsStrings, directives };
-}
-
-// =========================
-// App
-// =========================
-
-
-// =========================
-// Response Contract Helper (NYX_WIDGET expects .payload always)
-// =========================
-function sendContract(res, statusCode, body) {
-  const out = (body && typeof body === "object") ? { ...body } : { ok: statusCode < 400, error: String(body) };
-  if (!Object.prototype.hasOwnProperty.call(out, "ok")) out.ok = statusCode < 400;
-  if (!out.payload || typeof out.payload !== "object") out.payload = {};
-  // Never leak stack traces unless explicitly allowed
-  if (out && out.error && typeof out.error === "object") out.error = String(out.error);
-  return res.status(statusCode).json(out);
-}
-
-// Back-compat helper: some routes still call sendJson(). Keep it defined so /api/tts never crashes.
-function sendJson(res, statusCode, body) {
-  try {
-    return sendContract(res, statusCode, body);
-  } catch (e) {
-    // absolute last resort (never throw from a route)
-    try {
-      return res.status(statusCode || 500).type("application/json").send(
-        JSON.stringify({ ok: false, error: "send_failed", detail: String(e && (e.message || e) || "unknown") })
-      );
-    } catch (_e2) {
-      try { return res.end(); } catch (_) { return undefined; }
-    }
-  }
-}
+const CORS_ALLOWED_METHODS = oneLine(
+  process.env.CORS_ALLOWED_METHODS ||
+  "GET,POST,OPTIONS"
+);
+
+const CHAT_PUBLIC_ROUTES = new Set([
+  "/api/chat",
+  "/api/chat/reset",
+  "/api/chat/health",
+  "/api/health",
+  "/healthz",
+  "/readyz",
+  "/_warm"
+]);
+
+const VOICE_PUBLIC_ROUTE_PREFIXES = [
+  "/api/tts",
+  "/api/voice"
+];
+
+const RATE_WINDOW_MS = clampInt(process.env.RATE_WINDOW_MS, 60_000, 5_000, 300_000);
+const RATE_MAX_PER_IP = clampInt(process.env.RATE_MAX_PER_IP, 90, 10, 5000);
+const VOICE_RATE_MAX_PER_IP = clampInt(process.env.VOICE_RATE_MAX_PER_IP, 40, 5, 5000);
+const RATE_BAN_MS = clampInt(process.env.RATE_BAN_MS, 30_000, 0, 600_000);
+
+const AVATAR_DIR = path.join(process.cwd(), "avatar");
+
+// ============================================================
+// App bootstrap
+// ============================================================
 const app = express();
+if (TRUST_PROXY) app.set("trust proxy", 1);
 
-// --- OPINTEL Loop Governor (server-side) ---
-// De-dupe identical /api/chat requests in a short window and collapse concurrent in-flight calls.
-const __CHAT_DEDUPE__ = globalThis.__CHAT_DEDUPE__ || (globalThis.__CHAT_DEDUPE__ = new Map());
-const __CHAT_INFLIGHT__ = globalThis.__CHAT_INFLIGHT__ || (globalThis.__CHAT_INFLIGHT__ = new Map());
-const DEDUPE_MS = Number(process.env.SBNYX_DEDUPE_MS || 3500);
-
-function chatSig(body) {
-  try {
-    const p = (body && (body.payload || body)) || {};
-    const t = String(body && (body.text || body.message || body.prompt) || p.text || "").trim().toLowerCase().replace(/\s+/g, " ");
-    const lane = String(p.lane || body.lane || "").trim().toLowerCase();
-    const year = String(p.year || "").trim();
-    const mode = String(p.mode || "").trim().toLowerCase();
-    return [t, lane, year, mode].join("|");
-  } catch (_) { return ""; }
-}
-
-function dedupeGet(sig) {
-  try {
-    const rec = __CHAT_DEDUPE__.get(sig);
-    if (!rec) return null;
-    if ((Date.now() - rec.ts) > DEDUPE_MS) { __CHAT_DEDUPE__.delete(sig); return null; }
-    return rec.body || null;
-  } catch (_) { return null; }
-}
-
-function dedupeSet(sig, body) {
-  try { __CHAT_DEDUPE__.set(sig, { ts: Date.now(), body }); } catch (_) {}
-}
-
-function inflightGet(sig) {
-  try {
-    const rec = __CHAT_INFLIGHT__.get(sig);
-    if (!rec) return null;
-    if ((Date.now() - rec.ts) > (DEDUPE_MS + 2500)) { __CHAT_INFLIGHT__.delete(sig); return null; }
-    return rec.p || null;
-  } catch (_) { return null; }
-}
-
-function inflightSet(sig, p) {
-  try { __CHAT_INFLIGHT__.set(sig, { ts: Date.now(), p }); } catch (_) {}
-}
-
-function inflightClear(sig) {
-  try { __CHAT_INFLIGHT__.delete(sig); } catch (_) {}
-}
-
-// Dataset autoload (fail-open)
-try {
-  if (DATASETS_AUTOLOAD && datasetLoaderMod && typeof datasetLoaderMod.loadAll === "function") {
-    const res = datasetLoaderMod.loadAll(DATASETS_DIR ? { dir: DATASETS_DIR } : {});
-    // eslint-disable-next-line no-console
-    console.log("[DATASETS] loadAll:", JSON.stringify({ ok: !!res?.ok, files: res?.files, items: res?.items }).slice(0, 400));
-  }
-} catch (e) {
-  // eslint-disable-next-line no-console
-  console.log("[DATASETS] loadAll failed:", e && (e.message || e));
-}
-
-if (toBool(TRUST_PROXY, false)) app.set("trust proxy", 1);
-
-// Compression first (safe)
-if (compression && ENABLE_COMPRESSION) {
+if (compression) {
   app.use(compression());
 }
 
-// Global security headers
-app.use(securityHeaders);
+app.disable("x-powered-by");
+app.use(express.json({ limit: `${MAX_BODY_KB}kb` }));
+app.use(express.urlencoded({ extended: false, limit: `${MAX_BODY_KB}kb` }));
 
-// Optional soft request timeout
-if (REQ_TIMEOUT_MS > 0) {
-  app.use((req, res, next) => {
-    res.setTimeout(REQ_TIMEOUT_MS, () => {
-      try {
-        if (!res.headersSent) sendContract(res, 504, { ok: false, error: "timeout", meta: { index: INDEX_VERSION } });
-} catch (_) {}
-    });
-    next();
-  });
-}
-
-// ---- SAFE JSON PARSE: never crash on invalid JSON ----
-app.use((req, res, next) => {
-  if (req.method === "OPTIONS") return next();
-  express.json({ limit: MAX_JSON_BODY })(req, res, (err) => {
-    if (err) {
-      return sendContract(res, 400, {
-        ok: false,
-        error: "invalid_json",
-        detail: safeStr(err.message || err).slice(0, 240),
-        meta: { index: INDEX_VERSION },
-      });}
-    return next();
-  });
-});
-app.use(express.text({ type: ["text/*"], limit: MAX_JSON_BODY }));
-
-// =========================
-// CORS hard-lock + HARD DENY
-// =========================
-app.use((req, res, next) => {
-  // Public static avatar assets must NEVER be blocked by strict CORS.
-  // Browsers may send Origin on iframe/document requests; treat /avatar as public.
-  const p = safeStr(req.path || "");
-// Public diagnostics endpoints (must not be blocked by strict CORS)
-if (p === "/_health" || p === "/_diag" || p === "/api/ping") {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
-  res.setHeader("Access-Control-Max-Age", "600");
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  return next();
-}
-
-  if (p === "/avatar-host.html" || p === "/avatar" || p.startsWith("/avatar/")) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
-    res.setHeader("Access-Control-Max-Age", "600");
-    if (req.method === "OPTIONS") return res.status(204).send("");
-    return next();
-  }
-
-  const originRaw = safeStr(req.headers.origin || "");
-  const origin = normalizeOrigin(originRaw);
-  const allow = origin ? isAllowedOrigin(origin) : false;
-
-  if (origin) res.setHeader("Vary", "Origin");
-
-  if (origin && allow) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Headers", buildAllowedHeaders(req));
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Max-Age", "600");
-  }
-
-  if (req.method === "OPTIONS") return res.status(204).send("");
-
-  // HARD DENY: if browser sends Origin and it's not allowed, block.
-  if (origin && !allow) {
-    return sendContract(res, 403, { ok: false, error: "cors_denied", meta: { index: INDEX_VERSION } });}
-
-  return next();
-});
-
-// =========================
-// Static Avatar Hosting (/avatar)
-// =========================
-if (fileExists(AVATAR_DIR)) {
-  app.use(
-    "/avatar",
-    express.static(AVATAR_DIR, {
-      etag: true,
-      lastModified: true,
-      maxAge: AVATAR_STATIC_CACHE_S * 1000,
-      immutable: AVATAR_STATIC_IMMUTABLE,
-      setHeaders: (res, fp) => {
-        // Keep assets embeddable
-        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-        // If you hash filenames (nyx-hero.abc123.png), immutable is great.
-        // For non-hashed, you can flip AVATAR_STATIC_IMMUTABLE=false.
-        if (/\.[a-f0-9]{8,}\./i.test(path.basename(fp))) {
-          res.setHeader("Cache-Control", `public, max-age=${AVATAR_STATIC_CACHE_S}, immutable`);
-        } else {
-          res.setHeader("Cache-Control", `public, max-age=${Math.min(AVATAR_STATIC_CACHE_S, 3600)}`);
-        }
-      },
-    })
-  );
-}
-
-// =========================
-// Health + discovery
-// =========================
-app.get("/", (req, res) => {
-  sendContract(res, 200, {
-    ok: true,
-    service: "sandblast-backend",
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    env: NODE_ENV,
-    knowledge: knowledgeStatusForMeta(),
-    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
-  });
-});
-
-app.get("/health", (req, res) => {
-  sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    up: true,
-    now: new Date().toISOString(),
-    knowledge: knowledgeStatusForMeta(),
-    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
-  });
-});
-
-// Render/uptime keep-alive (public)
-app.get("/_warm", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  sendContract(res, 200, { ok: true, ts: Date.now(), v: INDEX_VERSION });
-});
-
-
-// Health + diagnostics (public)
-app.get("/_health", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  sendContract(res, 200, {
-    ok: true,
-    ts: Date.now(),
-    uptimeS: Math.round(process.uptime()),
-    version: INDEX_VERSION,
-    node: process.version,
-    env: NODE_ENV,
-  });
-});
-
-
-/* =========================================================
-   DEBUG: PSYCHE BRIDGE (standalone proof route)
-   - Does NOT depend on Nyx/widget
-   - Safe: returns minimal object + errors
-   Enable/disable with env DEBUG_PSYCH_ROUTE (default: on in non-prod)
-========================================================= */
-const DEBUG_PSYCH_ROUTE = String(process.env.DEBUG_PSYCH_ROUTE || "").trim().toLowerCase();
-const PSYCH_ROUTE_ENABLED = (DEBUG_PSYCH_ROUTE === "1" || DEBUG_PSYCH_ROUTE === "true" || (!IS_PROD && DEBUG_PSYCH_ROUTE !== "0" && DEBUG_PSYCH_ROUTE !== "false"));
-
-if (PSYCH_ROUTE_ENABLED) {
-  app.get("/debug/psyche", async (req, res) => {
-    try {
-      if (!psycheBridgeMod || typeof psycheBridgeMod.build !== "function") {
-        return sendContract(res, 200, { ok: false, error: "psycheBridge.build not available" });}
-      const psyche = await psycheBridgeMod.build({
-        features: { intent: "test", mood: "neutral", lane: "psych/bridge" },
-        tokens: ["hello", "world"],
-        queryKey: "debug-psyche-test",
-        sessionKey: "debug-session-1",
-        opts: { mode: "debug" }
-      });
-      return res.json({ ok: true, psyche });
-    } catch (err) {
-      return sendContract(res, 200, { ok: false, error: String((err && err.message) || err) });}
-  });
-}
-
-// Alias (some callers prefer /api/health)
-app.get("/api/health", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  sendContract(res, 200, {
-    ok: true,
-    ts: Date.now(),
-    uptimeS: Math.round(process.uptime()),
-    version: INDEX_VERSION,
-    node: process.version,
-    env: NODE_ENV,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    knowledge: knowledgeStatusForMeta(),
-    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
-  });
-});
-
-// Diagnostics (redacted; safe to expose publicly)
-app.get("/_diag", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  const originRaw = safeStr(req.headers.origin || "");
-  const origin = normalizeOrigin(originRaw);
-  sendContract(res, 200, {
-    ok: true,
-    ts: Date.now(),
-    version: INDEX_VERSION,
-    origin: origin || null,
-    originAllowed: origin ? isAllowedOrigin(origin) : null,
-    tokenGate: {
-      enabled: !!EXPECTED_API_TOKEN,
-      header: API_TOKEN_HEADER,
-      bearerAllowed: true,
-      // never expose the token itself
-      tokenConfigured: !!EXPECTED_API_TOKEN,
-    },
-    avatar: {
-      dir: AVATAR_DIR,
-      exists: fileExists(AVATAR_DIR),
-    },
-    limits: {
-      maxJsonBody: MAX_JSON_BODY,
-      reqTimeoutMs: REQ_TIMEOUT_MS,
-      ipRateEnabled: IP_RATE_ENABLED,
-    },
-  });
-});
-
-// Minimal ping/echo to prove browser->server reachability (public)
-app.post("/api/ping", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  sendContract(res, 200, {
-    ok: true,
-    ts: Date.now(),
-    version: INDEX_VERSION,
-    method: req.method,
-    path: req.path,
-    origin: safeStr(req.headers.origin || "") || null,
-    ua: safeStr(req.headers["user-agent"] || "")?.slice(0, 160) || null,
-    ip: pickClientIp(req) || null,
-    bodyKeys: isPlainObject(req.body) ? Object.keys(req.body).slice(0, 40) : [],
-  });
-});
-
-// Back-compat: /api/diag/*
-app.get("/api/diag", (req, res) => {
-  res.redirect(302, "/_diag");
-});
-
-
-app.get("/api/discovery", (req, res) => {
-  sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    endpoints: [
-      "/api/sandblast-gpt",
-      "/api/nyx/chat",
-      "/api/chat",
-      "/api/tts",
-      "/api/voice",
-      "/avatar/avatar-host.html",
-      "/health",
-      "/api/health",
-      "/api/knowledge",
-      "/api/packsight",
-      "/api/debug/knowledge",
-      "/api/debug/packsight",
-      "/api/packs",
-      "/api/packs/refresh",
-    ],
-    knowledge: knowledgeStatusForMeta(),
-    packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin" },
-  });
-});
-
-// =========================
-// Pack Index endpoints (ALWAYS available)
-// =========================
-app.get("/api/packs", (req, res) => {
-  const idx = getPackIndexSafe(false);
-  return sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    packs: idx,
-  });});
-
-function doPacksRefresh(req, res) {
-  const doReloadKnowledge = toBool(req.query.reloadKnowledge, false);
-  if (doReloadKnowledge) {
-    try {
-      reloadKnowledge();
-    } catch (e) {
-      pushKnowledgeError("packs_reloadKnowledge", "reloadKnowledge()", e?.message || e);
-    }
-  }
-  const idx = getPackIndexSafe(true);
-  return sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    packs: idx,
-  });}
-
-app.post("/api/packs/refresh", doPacksRefresh);
-app.get("/api/packs/refresh", apiTokenGate, doPacksRefresh);
-
-// =========================
-// PUBLIC Packsight (SAFE)
-// =========================
-app.get("/api/packsight", (req, res) => {
-  const pins = pinnedPresence();
-  const idx = getPackIndexSafe(false);
-
-  return sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    data: {
-      appRoot: APP_ROOT,
-      dataDir: DATA_DIR,
-      dataRoots: DATA_ROOT_CANDIDATES,
-      scriptsDir: SCRIPTS_DIR,
-      scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
-      allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
-      allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
-      dataRootDiscovery: {
-        enabled: DATA_ROOT_AUTODISCOVER,
-        hintsProvided: !!DATA_ROOT_HINTS,
-        hints: DATA_ROOT_HINTS ? DATA_ROOT_HINTS.split(",").map((s) => s.trim()).filter(Boolean) : [],
-        maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
-        maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
-      },
-      budgets: {
-        maxFiles: KNOWLEDGE_MAX_FILES,
-        maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
-        maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
-      },
-      manifestSearch: {
-        fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
-        maxVisits: MANIFEST_SEARCH_MAX_VISITS,
-        maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
-      },
-      pinnedPresence: pins,
-      pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
-      pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
-      manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
-      manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
-      probes: KNOWLEDGE.__packsight?.probes || [],
-      skips: KNOWLEDGE.__packsight?.skips || { ...KNOWLEDGE.__skips },
-      collisionCount: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).length,
-      collisionsPreview: (KNOWLEDGE.__packsight?.collisions || KNOWLEDGE.__collisions || []).slice(0, 50),
-      fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
-      errorCount: KNOWLEDGE.errors.length,
-      errorsPreview: KNOWLEDGE.errors.slice(0, 12),
-    },
-    packsSummary: idx.summary,
-    pinnedKeys: idx.groups?.pinned || [],
-  });});
-
-// small knowledge status alias
-app.get("/api/knowledge", (req, res) => {
-  return sendContract(res, 200, {
-    ok: true,
-    version: INDEX_VERSION,
-    engine: ENGINE_VERSION || null,
-    engineFrom: ENGINE.from,
-    knowledge: knowledgeStatusForMeta(),
-    packs: getPackIndexSafe(false).summary,
-  });});
-
-// =========================
-// Debug knowledge endpoints (kept)
-// =========================
-if (KNOWLEDGE_DEBUG_ENDPOINT) {
-  app.get("/api/debug/knowledge", (req, res) => {
-    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
-    if (NODE_ENV === "production" && !allowInProd) {
-      return sendContract(res, 404, { ok: false, error: "not_found" });}
-
-    const jsonKeys = Object.keys(KNOWLEDGE.json);
-    const scriptKeys = Object.keys(KNOWLEDGE.scripts);
-
-    return sendContract(res, 200, {
-      ok: true,
-      version: INDEX_VERSION,
-      engine: ENGINE_VERSION || null,
-      knowledge: {
-        ok: KNOWLEDGE.ok,
-        loadedAt: KNOWLEDGE.loadedAt,
-        appRoot: APP_ROOT,
-        dataDir: DATA_DIR,
-        dataRoots: DATA_ROOT_CANDIDATES,
-        scriptsDir: SCRIPTS_DIR,
-        scriptsEnabled: KNOWLEDGE_ENABLE_SCRIPTS,
-        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
-        allowScriptsOutsideAppRoot: KNOWLEDGE_ALLOW_SCRIPTS_OUTSIDE_APP_ROOT,
-        dataRootDiscovery: {
-          enabled: DATA_ROOT_AUTODISCOVER,
-          hintsProvided: !!DATA_ROOT_HINTS,
-          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
-          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
-        },
-        manifestSearch: {
-          fallbackEnabled: MANIFEST_SEARCH_FALLBACK,
-          maxVisits: MANIFEST_SEARCH_MAX_VISITS,
-          maxDepth: MANIFEST_SEARCH_MAX_DEPTH,
-        },
-        jsonKeyCount: jsonKeys.length,
-        scriptKeyCount: scriptKeys.length,
-        filesScanned: KNOWLEDGE.filesScanned,
-        filesLoaded: KNOWLEDGE.filesLoaded,
-        totalBytes: KNOWLEDGE.totalBytes,
-        budgets: {
-          maxFiles: KNOWLEDGE_MAX_FILES,
-          maxFileBytes: KNOWLEDGE_MAX_FILE_BYTES,
-          maxTotalBytes: KNOWLEDGE_MAX_TOTAL_BYTES,
-        },
-        pinned: pinnedPresence(),
-        skips: { ...KNOWLEDGE.__skips },
-        collisions: KNOWLEDGE.__collisions.slice(0, 80),
-        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 120),
-        pinnedConfig: PINNED_PACKS.map((p) => ({ key: p.key, rels: p.rels })),
-        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
-        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
-        manifest: Array.isArray(KNOWLEDGE.__manifest) ? KNOWLEDGE.__manifest : [],
-        packsight: KNOWLEDGE.__packsight,
-        errorCount: KNOWLEDGE.errors.length,
-        errorsPreview: KNOWLEDGE.errors.slice(0, 12),
-        jsonKeysPreview: jsonKeys.slice(0, 160),
-        scriptKeysPreview: scriptKeys.slice(0, 80),
-        includeData: KNOWLEDGE_DEBUG_INCLUDE_DATA,
-        json: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.json : undefined,
-        scripts: KNOWLEDGE_DEBUG_INCLUDE_DATA ? KNOWLEDGE.scripts : undefined,
-      },
-      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
-    });});
-
-  app.get("/api/debug/packsight", (req, res) => {
-    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
-    if (NODE_ENV === "production" && !allowInProd) {
-      return sendContract(res, 404, { ok: false, error: "not_found" });}
-
-    const pins = pinnedPresence();
-    const idx = getPackIndexSafe(false);
-
-    return sendContract(res, 200, {
-      ok: true,
-      version: INDEX_VERSION,
-      engine: ENGINE_VERSION || null,
-      data: {
-        dataDir: DATA_DIR,
-        dataRoots: DATA_ROOT_CANDIDATES,
-        allowDataOutsideAppRoot: KNOWLEDGE_ALLOW_DATA_OUTSIDE_APP_ROOT,
-        dataRootDiscovery: {
-          enabled: DATA_ROOT_AUTODISCOVER,
-          hintsProvided: !!DATA_ROOT_HINTS,
-          maxDepth: DATA_ROOT_DISCOVERY_MAX_DEPTH,
-          maxVisits: DATA_ROOT_DISCOVERY_MAX_VISITS,
-        },
-        pinnedPresence: pins,
-        pinnedResolved: KNOWLEDGE.__packsight?.pinnedResolved || [],
-        pinnedMissing: KNOWLEDGE.__packsight?.pinnedMissing || [],
-        manifestPreview: (KNOWLEDGE.__manifest || []).slice(0, 20),
-        manifestResolved: KNOWLEDGE.__packsight?.manifestResolved || [],
-        probes: KNOWLEDGE.__packsight?.probes || [],
-        skips: { ...KNOWLEDGE.__skips },
-        collisionCount: KNOWLEDGE.__collisions.length,
-        collisionsPreview: KNOWLEDGE.__collisions.slice(0, 50),
-        fileMapPreview: (KNOWLEDGE.__packsight?.fileMapPreview || []).slice(0, 80),
-      },
-      packsSummary: idx.summary,
-      pinnedKeys: idx.groups?.pinned || [],
-    });});
-
-  app.post("/api/debug/knowledge/reload", (req, res) => {
-    const allowInProd = toBool(process.env.KNOWLEDGE_DEBUG_ALLOW_PROD, false);
-    if (NODE_ENV === "production" && !allowInProd) {
-      return sendContract(res, 404, { ok: false, error: "not_found" });}
-    const summary = reloadKnowledge();
-    return sendContract(res, 200, {
-      ok: true,
-      summary,
-      knowledge: knowledgeStatusForMeta(),
-      packs: { ok: true, using: packIndexAvailable() ? "external" : "builtin", preview: getPackIndexSafe(false).summary },
-    });});
-}
-
-// =========================
-// CHIP PAYLOAD NORMALIZER (kept)
-// =========================
-function normalizeChipPayload(b) {
-  if (!b || typeof b !== "object") return b;
-
-  const rootHas = b.lane || b.action || b.year || b.mode || b.intent || b.route || b.label;
-
-  if (!isPlainObject(b.payload)) b.payload = {};
-
-  if (rootHas) {
-    if (b.lane && !b.payload.lane) b.payload.lane = b.lane;
-    if (b.action && !b.payload.action) b.payload.action = b.action;
-    if (b.year && !b.payload.year) b.payload.year = b.year;
-    if (b.mode && !b.payload.mode) b.payload.mode = b.mode;
-    if (b.intent && !b.payload.intent) b.payload.intent = b.intent;
-    if (b.route && !b.payload.route) b.payload.route = b.route;
-    if (b.label && !b.payload.label) b.payload.label = b.label;
-  }
-
-  if (isPlainObject(b.payload)) {
-    if (b.payload.lane && !b.lane) b.lane = b.payload.lane;
-    if (b.payload.action && !b.action) b.action = b.payload.action;
-    if (b.payload.year && !b.year) b.year = b.payload.year;
-    if (b.payload.mode && !b.mode) b.mode = b.payload.mode;
-
-    if (b.payload.intent && !b.intent) b.intent = b.payload.intent;
-    if (b.payload.route && !b.route) b.route = b.payload.route;
-    if (b.payload.label && !b.label) b.label = b.payload.label;
-  }
-
-  return b;
-}
-
-// =========================
-// Session patch apply (kept)
-// =========================
-function applySessionPatch(session, patch) {
-  if (!isPlainObject(session) || !isPlainObject(patch)) return;
-
-  const PATCH_KEYS = new Set([
-    "introDone",
-    "introAt",
-    "introVariantId",
-    "introBucket",
-    "lastInText",
-    "lastInAt",
-    "lastOut",
-    "lastOutAt",
-    "turns",
-    "startedAt",
-    "lastTurnAt",
-    "lane",
-    "lastLane",
-    "laneId",
-    "laneAt",
-    "lastBridgeAt",
-    "lastBridgeReason",
-    "lastBridgeFrom",
-    "lastBridgeTo",
-    "lastYear",
-    "lastMode",
-    "activeMusicMode",
-    "lastMusicYear",
-    "pendingYear",
-    "pendingMode",
-    "pendingLane",
-    "turnCount",
-    "__hasRealUserTurn",
-    "__introDone",
-    "__cs1",
-    "cog",
-    "allowPackets",
-    "__nyxIntro",
-    "__nyxVelvet",
-    "lastMacMode",
-    "lastTurnIntent",
-    "lastAdvanceAt",
-    "lastLatentDesire",
-    "lastUserConfidence",
-    "lastNyxConfidence",
-    "velvetMode",
-    "velvetSince",
-    "marionState",
-    "marionReason",
-    "marionTrace",
-    "marionTraceHash",
-    "sessionLane",
-    "lastNoveltyScore",
-    "lastDiscoveryHintOn",
-    "lastDiscoveryHintReason",
-    "__greeted",
-    "__greetedAt",
-    "__lastInboundKey",
-    "__spineState",
-    "lastAction",
-    "lastSigTransition",
-    "__musicLastSig",
-    "activeMusicChart",
-    "lastMusicChart",
-    "musicMomentsLoaded",
-    "musicMomentsLoadedAt"
+// ============================================================
+// Module resolution
+// ============================================================
+function resolveEngine() {
+  const mod = tryRequireMany([
+    "./Utils/chatEngine",
+    "./Utils/chatEngine.js",
+    "./utils/chatEngine",
+    "./utils/chatEngine.js"
   ]);
 
-  for (const [k, v] of Object.entries(patch)) {
-    if (!PATCH_KEYS.has(k)) continue;
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-
-    if (k === "cog") {
-      if (!isPlainObject(session.cog)) session.cog = {};
-      if (isPlainObject(v)) {
-        for (const [ck, cv] of Object.entries(v)) {
-          if (ck === "__proto__" || ck === "constructor" || ck === "prototype") continue;
-          session.cog[ck] = cv;
-        }
-      }
-      continue;
-    }
-
-    if (k === "__nyxIntro") {
-      if (!isPlainObject(session.__nyxIntro)) session.__nyxIntro = {};
-      if (isPlainObject(v)) {
-        for (const [ik, iv] of Object.entries(v)) {
-          if (ik === "__proto__" || ik === "constructor" || ik === "prototype") continue;
-          session.__nyxIntro[ik] = iv;
-        }
-      }
-      continue;
-    }
-
-    session[k] = v;
-  }
-}
-
-// =========================
-// Chat route (kept behavior; now guarded by ipRateGuard + apiTokenGate)
-// =========================
-async function handleChatRoute(req, res) {
-  req = __sbNormalizeReq(req);
-  const startedAt = nowMs();
-  const traceId = safeStr(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || req.id || req.requestId || makeReqId()).trim() || makeReqId();
-  try { res.setHeader("x-sb-trace-id", traceId); } catch (_) {}
-
-  const arrOrUndef = (v) => (Array.isArray(v) && v.length ? v : undefined);
-  const arrOrEmpty = (v) => (Array.isArray(v) ? v : []);
-  const firstArray = (...vals) => {
-    for (const v of vals) if (Array.isArray(v) && v.length) return v;
-    return undefined;
-  };
-  const safeCloneObj = (v) => (isPlainObject(v) ? { ...v } : {});
-
-  let __sig = "";
-  let responded = false;
-  const respond = (status, obj) => {
-    if (responded) return res;
-    responded = true;
-    try {
-      if (__sig && obj && obj.ok !== false && !(obj.meta && obj.meta.inFlight)) dedupeSet(__sig, obj);
-    } catch (_) {}
-    try { if (__sig) inflightClear(__sig); } catch (_) {}
-    if (!res.headersSent) return res.status(status).json(obj);
-    return res;
-  };
-
-  try {
-    let body = isPlainObject(req.body) ? req.body : safeJsonParseMaybe(req.body) || {};
-
-    if (typeof req.body === "string" && !isPlainObject(body)) {
-      const parsed = safeJsonParseMaybe(req.body);
-      body = parsed && isPlainObject(parsed) ? parsed : { text: req.body };
-    }
-
-    normalizeChipPayload(body);
-
-    __sig = chatSig(body);
-    if (__sig) {
-      const cached = dedupeGet(__sig);
-      if (cached) {
-        return respond(200, { ...cached, meta: { ...(cached.meta || {}), deduped: true, traceId } });
-      }
-      if (inflightGet(__sig)) {
-        const lane0 = (body && body.lane) || ((body && body.payload) ? body.payload.lane : undefined) || "general";
-        return respond(200, {
-          ok: true,
-          reply: "One moment — finishing the last reply. Try again.",
-          payload: { reply: "One moment — finishing the last reply. Try again.", lane: lane0 },
-          lane: lane0,
-          requestId: req.id || req.requestId || traceId,
-          meta: {
-            index: INDEX_VERSION,
-            engine: ENGINE_VERSION || null,
-            engineReady: !!(ENGINE && typeof ENGINE.fn === "function"),
-            inFlight: true,
-            traceId,
-          },
-        });
-      }
-      inflightSet(__sig, 1);
-    }
-
-    if (!ENGINE || typeof ENGINE.fn !== "function") {
-      return respond(200, {
-        ok: true,
-        reply: "I’m here. Try again — or tap one of the options below.",
-        payload: { reply: "I’m here. Try again — or tap one of the options below." },
-        lane: "general",
-        requestId: makeReqId(),
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, engineReady: false, traceId }
-      });
-    }
-
-    const clientRequestId = safeStr(body.requestId || body.clientRequestId || __sbGetHeader(req, "x-request-id") || "").trim();
-    const serverRequestId = clientRequestId || makeReqId();
-    let psyche = null;
-    let psycheErr = null;
-
-    const source = safeStr(body?.client?.source || body?.source || __sbGetHeader(req, "x-client-source") || "").trim() || "unknown";
-    const routeHint =
-      safeStr(body?.client?.routeHint || body?.routeHint || body?.lane || __sbGetHeader(req, "x-route-hint") || "").trim() ||
-      "general";
-
-    const inboundText = safeStr(body.text || body.message || body.prompt || body.query || body?.payload?.text || "").trim();
-    const inboundSig = normalizeInboundSignature(body, inboundText);
-    const meaningful = !!inboundSig || hasIntentSignals(body);
-
-    const { rec } = getSession(req);
-    const bootLike = isBootLike(routeHint, body);
-    const isReset = isResetCommand(inboundText, source, body);
-
-    if (bootLike && !isReset) {
-      const bf = checkBootFuse(rec, startedAt);
-      if (bf.blocked) {
-        const cached = readBootReplay(rec);
-        const reply = cached.reply || "";
-        return respond(200, {
-          ok: true,
-          reply,
-          lane: cached.lane || rec.data.lane || "general",
-          payload: { reply, lane: cached.lane || rec.data.lane || "general" },
-          laneId: rec.data.laneId || undefined,
-          sessionLane: rec.data.sessionLane || undefined,
-          directives: cached.directives,
-          followUps: cached.followUps,
-          followUpsStrings: cached.followUpsStrings,
-          sessionPatch: {},
-          requestId: serverRequestId,
-          meta: {
-            index: INDEX_VERSION,
-            engine: ENGINE_VERSION || null,
-            knowledge: knowledgeStatusForMeta(),
-            bootLike: true,
-            bootFuse: bf.reason,
-            source,
-            routeHint,
-            psycheOk: !!psyche,
-            psycheErr: psycheErr || null,
-            elapsedMs: nowMs() - startedAt,
-            traceId,
-          },
-        });
-      }
-    }
-
-    if (!bootLike && meaningful && !isReset) {
-      const burst = checkBurst(rec, startedAt);
-      const sus = checkSustained(rec, startedAt);
-      if (burst.blocked || sus.blocked) {
-        const reply =
-          burst.reason === "burst"
-            ? "One sec — you’re firing a little fast. Try again in a moment."
-            : "Give me a breath — then hit me again with a year or a request.";
-        writeReplay(rec, reply, rec.data.lane || "general");
-
-        return respond(200, {
-          ok: true,
-          reply,
-          lane: rec.data.lane || "general",
-          payload: { reply, lane: rec.data.lane || "general" },
-          laneId: rec.data.laneId || undefined,
-          sessionLane: rec.data.sessionLane || undefined,
-          sessionPatch: {},
-          requestId: serverRequestId,
-          meta: {
-            index: INDEX_VERSION,
-            engine: ENGINE_VERSION || null,
-            knowledge: knowledgeStatusForMeta(),
-            throttled: burst.blocked ? "burst" : "sustained",
-            elapsedMs: nowMs() - startedAt,
-            traceId,
-          },
-        });
-      }
-    }
-
-    if (!bootLike && meaningful && !isReset) {
-      const dedupe = replayDedupe(rec, inboundSig, source, clientRequestId);
-      if (dedupe.hit) {
-        return respond(200, {
-          ok: true,
-          reply: dedupe.reply,
-          lane: dedupe.lane,
-          payload: { reply: dedupe.reply, lane: dedupe.lane },
-          directives: dedupe.directives,
-          followUps: dedupe.followUps,
-          followUpsStrings: dedupe.followUpsStrings,
-          sessionPatch: {},
-          requestId: serverRequestId,
-          meta: {
-            index: INDEX_VERSION,
-            engine: ENGINE_VERSION || null,
-            knowledge: knowledgeStatusForMeta(),
-            replay: true,
-            elapsedMs: nowMs() - startedAt,
-            traceId,
-          },
-        });
-      }
-    }
-
-    if (!ENGINE.fn) {
-      const reply = "Backend engine not loaded. Check deploy: Utils/chatEngine.js is missing or exports are wrong.";
-      writeReplay(rec, reply, "general");
-      const p = safeStr(req.path || "").toLowerCase();
-      const status = (p === "/api/chat" || p === "/api/nyx/chat" || p === "/api/sandblast-gpt" || p === "/api/tts" || p === "/api/voice") ? 200 : 500;
-      return respond(status, {
+  if (!mod) {
+    return {
+      version: "missing",
+      fn: async () => ({
         ok: false,
-        reply,
+        reply: "Chat Engine is unavailable right now.",
+        payload: { reply: "Chat Engine is unavailable right now." },
         lane: "general",
-        payload: { reply, lane: "general" },
-        requestId: serverRequestId,
-        meta: {
-          index: INDEX_VERSION,
-          engine: "missing_or_invalid",
-          engineFrom: ENGINE.from,
-          engineVersion: ENGINE_VERSION || null,
-          knowledge: knowledgeStatusForMeta(),
-          traceId,
-        },
-      });
-    }
-
-    if (KNOWLEDGE_AUTOLOAD && !KNOWLEDGE.ok) {
-      const tried = toBool(global.__SBNYX_KNOWLEDGE_LAZY_TRIED, false);
-      if (!tried) {
-        global.__SBNYX_KNOWLEDGE_LAZY_TRIED = true;
-        try { reloadKnowledge(); } catch (e) { pushKnowledgeError("lazy_reload", "reloadKnowledge()", e?.message || e); }
-      }
-    }
-
-    const engineInput = {
-      ...body,
-      requestId: serverRequestId,
-      clientRequestId: clientRequestId || undefined,
-      traceId,
-      text: inboundText,
-      source,
-      routeHint,
-      client: {
-        ...(isPlainObject(body.client) ? body.client : {}),
-        source,
-        routeHint,
-        traceId,
-        psycheOk: !!psyche,
-        psycheErr: psycheErr || null,
-      },
-      session: rec.data,
-      knowledge: knowledgeSnapshotForEngine(),
-      __knowledgeStatus: knowledgeStatusForMeta(),
-      packIndex: getPackIndexSafe(false),
+        laneId: "general",
+        sessionLane: "general",
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        ui: { chips: [], allowMic: true },
+        sessionPatch: {},
+        cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+        meta: { failSafe: true, v: INDEX_VERSION, t: nowMs() }
+      })
     };
-
-    let out;
-    try {
-      out = await ENGINE.fn(engineInput);
-      out = normalizeEngineOutput(out);
-    } catch (e) {
-      const msg = safeStr(e?.message || e).trim();
-      const k = knowledgeStatusForMeta();
-      const reply = k.ok
-        ? "I hit a snag, but I’m still here. Give me a year (1950–2024) and I’ll jump right in."
-        : "I’m online, but my knowledge packs didn’t load yet. Try again in a moment — or hit refresh — and I’ll reconnect.";
-      writeReplay(rec, reply, rec.data.lane || "general");
-      if (isReset) {
-        const reply0 = "";
-        writeReplay(rec, reply0, rec.data.lane || routeHint || "general");
-        return respond(200, {
-          ok: true,
-          reply: reply0,
-          lane: rec.data.lane || routeHint || "general",
-          payload: { reply: reply0, lane: rec.data.lane || routeHint || "general" },
-          requestId: serverRequestId,
-          meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, reset: true, failOpen: true, traceId }
-        });
-      }
-      const lane0 = rec.data.lane || routeHint || "general";
-      const needsYear = lane0 === "music" && !String(body.year || body.payload?.year || "").trim();
-      const reply0 = needsYear
-        ? "Alright — pick a year (1950–2024) and I’ll jump right in."
-        : "I’m here — something glitched for a second. Try that again.";
-      writeReplay(rec, reply0, lane0);
-      return respond(200, {
-        ok: true,
-        reply: reply0,
-        lane: lane0,
-        payload: { reply: reply0, lane: lane0 },
-        requestId: serverRequestId,
-        meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, knowledge: k, error: safeStr(msg).slice(0, 200), failOpen: true, traceId }
-      });
-    }
-
-    const safeSessionPatch = safeCloneObj(out?.sessionPatch);
-    const outCog = isPlainObject(out?.cog) ? { ...out.cog } : {};
-    const outMeta = safeCloneObj(out?.meta);
-    const evidenceModel = isPlainObject(out?.evidenceModel) ? out.evidenceModel : (isPlainObject(outMeta.evidenceModel) ? outMeta.evidenceModel : null);
-    const responsePlan = isPlainObject(out?.responsePlan) ? out.responsePlan : (isPlainObject(outMeta.responsePlan) ? outMeta.responsePlan : null);
-    const actionHints = arrOrEmpty(out?.actionHints).length ? arrOrEmpty(out?.actionHints) : arrOrEmpty(out?.ui?.actionHints);
-    const uiActions = arrOrEmpty(out?.uiActions).length ? arrOrEmpty(out?.uiActions) : arrOrEmpty(out?.ui?.actions);
-    const routeConfidence = Number.isFinite(Number(out?.routeConfidence)) ? Number(out.routeConfidence) : Number(outCog.routeConfidence);
-    const intentConfidence = Number.isFinite(Number(out?.intentConfidence)) ? Number(out.intentConfidence) : Number(outCog.intentConfidence);
-    const ambiguityScore = Number.isFinite(Number(out?.ambiguity)) ? Number(out.ambiguity) : Number(outCog?.ambiguity?.score);
-    const minimalClarifier = safeStr(out?.minimalClarifier || responsePlan?.minimalClarifier || outCog.minClarifier || "");
-
-    if (!isPlainObject(safeSessionPatch.opintel)) safeSessionPatch.opintel = {};
-    safeSessionPatch.opintel.traceId = traceId;
-    if (Number.isFinite(routeConfidence)) safeSessionPatch.opintel.routeConfidence = routeConfidence;
-    if (Number.isFinite(intentConfidence)) safeSessionPatch.opintel.intentConfidence = intentConfidence;
-    if (Number.isFinite(ambiguityScore)) safeSessionPatch.opintel.ambiguity = ambiguityScore;
-    if (safeStr(responsePlan?.replyShape)) safeSessionPatch.opintel.replyShape = safeStr(responsePlan.replyShape);
-    if (minimalClarifier) safeSessionPatch.opintel.minimalClarifier = minimalClarifier;
-
-    if (Object.keys(safeSessionPatch).length) applySessionPatch(rec.data, safeSessionPatch);
-
-    let lane = safeStr(out?.lane || rec.data.lane || "general") || "general";
-
-    psyche = null;
-    psycheErr = null;
-    try {
-      if (psycheBridgeMod && typeof psycheBridgeMod.build === "function") {
-        const feats = isPlainObject(outCog) ? outCog : (isPlainObject(out) ? out : {});
-        const tokSrc = Array.isArray(feats?.tokens) ? feats.tokens : safeStr(inboundText || "").split(/\s+/).filter(Boolean);
-        const tokens = tokSrc.slice(0, 32);
-        const sessionKey = safeStr(rec?.data?.sessionId || rec?.data?.id || rec?.key || "session");
-        const queryKey = `${sessionKey}:${safeStr(rec?.data?.turn || rec?.data?.turnIndex || rec?.data?.turns || "0")}:${serverRequestId}`;
-        const forcedLane = safeStr(routeHint || lane || "").toLowerCase();
-        psyche = await psycheBridgeMod.build({
-          features: { ...feats, lane: forcedLane || feats?.lane || "psych/bridge", traceId },
-          tokens,
-          queryKey,
-          sessionKey,
-          opts: { mode: "live", forcedLane, traceId }
-        });
-        out.psyche = psyche;
-        if (isPlainObject(outCog)) outCog.psyche = psyche;
-      }
-    } catch (e) {
-      psycheErr = safeStr(e?.message || e).slice(0, 220);
-    }
-
-    const rawReply = safeStr(out?.reply || "").trim();
-    const plannerFallback = minimalClarifier || safeStr(responsePlan?.nextBestAction || "").trim();
-    const reply = isReset ? silentResetReply() : (rawReply || plannerFallback || "Okay — tell me what you want next.");
-
-    const directives = Array.isArray(out?.directives) ? out.directives : undefined;
-    const followUps = firstArray(out?.followUps, out?.ui?.followUps, responsePlan?.followUps);
-    const followUpsStrings = !followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? out.followUpsStrings : undefined;
-
-    const mergedUi = {
-      ...(isPlainObject(out?.ui) ? out.ui : {}),
-      ...(actionHints.length ? { actionHints } : {}),
-      ...(uiActions.length ? { actions: uiActions } : {}),
-      ...(followUps ? { followUps } : {}),
-      ...(minimalClarifier ? { minimalClarifier } : {}),
-    };
-    const audio = __sbDeriveAudioPlan(reply, directives, body, { traceId });
-
-    if (!isReset && !bootLike) {
-      writeReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
-    } else if (isReset) {
-      rec.data.__idx_lastOut = "";
-      rec.data.__idx_lastLane = lane;
-    }
-
-    if (bootLike && !isReset) writeBootReplay(rec, reply, lane, { directives, followUps, followUpsStrings });
-
-    const opintelMeta = {
-      traceId,
-      intentConfidence: Number.isFinite(intentConfidence) ? intentConfidence : null,
-      routeConfidence: Number.isFinite(routeConfidence) ? routeConfidence : null,
-      ambiguity: Number.isFinite(ambiguityScore) ? ambiguityScore : null,
-      minimalClarifier: minimalClarifier || null,
-      replyShape: safeStr(responsePlan?.replyShape || outMeta.replyShape || "") || null,
-      nextBestAction: safeStr(responsePlan?.nextBestAction || "") || null,
-      actionHintsCount: actionHints.length,
-      uiActionsCount: uiActions.length,
-      evidenceCount: Array.isArray(evidenceModel?.rankedEvidence) ? evidenceModel.rankedEvidence.length : 0,
-      clarifyMinimized: !!(outCog.clarifyMinimized || responsePlan?.shouldClarify === false && minimalClarifier),
-      loopGuards: {
-        bootLike: !!bootLike,
-        resetSilenced: !!isReset,
-        replayIsolation: !!(!bootLike && meaningful),
-      },
-    };
-
-    return respond(200, {
-      ok: true,
-      reply,
-      lane,
-      payload: {
-        reply,
-        lane,
-        laneId: out?.laneId || rec.data.laneId || undefined,
-        sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
-        bridge: out?.bridge || undefined,
-        ctx: out?.ctx,
-        ui: mergedUi,
-        directives,
-        audio,
-        followUps,
-        followUpsStrings,
-        sessionPatch: safeSessionPatch,
-        cog: outCog,
-      },
-      laneId: out?.laneId || rec.data.laneId || undefined,
-      sessionLane: out?.sessionLane || rec.data.sessionLane || undefined,
-      bridge: out?.bridge || undefined,
-      ctx: out?.ctx,
-      ui: mergedUi,
-      directives,
-      audio,
-      followUps,
-      followUpsStrings,
-      sessionPatch: safeSessionPatch,
-      cog: outCog,
-      requestId: out?.requestId || serverRequestId,
-      meta: {
-        ...outMeta,
-        index: INDEX_VERSION,
-        engine: ENGINE_VERSION || null,
-        engineFrom: ENGINE.from,
-        knowledge: knowledgeStatusForMeta(),
-        elapsedMs: nowMs() - startedAt,
-        source,
-        routeHint,
-        psycheOk: !!psyche,
-        psycheErr: psycheErr || null,
-        bootLike: !!bootLike,
-        inboundSig: inboundSig ? String(inboundSig).slice(0, 160) : null,
-        meaningful: !!meaningful,
-        resetSilenced: !!isReset,
-        echoSuppressed: !!followUps && Array.isArray(out?.followUpsStrings) && out?.followUpsStrings.length ? true : false,
-        packs: getPackIndexSafe(false).summary,
-        traceId,
-        opintel: opintelMeta,
-        audio: {
-          shouldSpeak: !!audio.shouldSpeak,
-          autoPlay: !!audio.autoPlay,
-          when: audio.when,
-          textChars: audio.textChars,
-          source: audio.source,
-        },
-      },
-    });
-  } catch (e) {
-    const msg = safeStr(e && (e.message || e.name || String(e))).slice(0, 240);
-    return respond(200, {
-      ok: false,
-      error: "server_error",
-      detail: msg || "Unhandled error in chat route.",
-      reply: "",
-      payload: { reply: "", lane: "general" },
-      sessionPatch: {},
-      requestId: makeReqId(),
-      meta: { index: INDEX_VERSION, engine: ENGINE_VERSION || null, where: "handleChatRoute.catch", traceId },
-    });
   }
+
+  const fn =
+    (typeof mod === "function" && mod) ||
+    (typeof mod.handleChat === "function" && mod.handleChat) ||
+    (typeof mod.chatEngine === "function" && mod.chatEngine) ||
+    (typeof mod.default === "function" && mod.default) ||
+    null;
+
+  if (!fn) {
+    return {
+      version: safeStr(mod.CE_VERSION || "invalid"),
+      fn: async () => ({
+        ok: false,
+        reply: "Chat Engine export is invalid.",
+        payload: { reply: "Chat Engine export is invalid." },
+        lane: "general",
+        laneId: "general",
+        sessionLane: "general",
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        ui: { chips: [], allowMic: true },
+        sessionPatch: {},
+        cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+        meta: { failSafe: true, invalidEngineExport: true, v: INDEX_VERSION, t: nowMs() }
+      })
+    };
+  }
+
+  return {
+    version: safeStr(mod.CE_VERSION || mod.version || "present"),
+    fn
+  };
 }
 
-// =========================
-// Chat endpoints (guarded)
-// =========================
-app.post("/api/sandblast-gpt", ipRateGuard, handleChatRoute);
-app.post("/api/nyx/chat", ipRateGuard, handleChatRoute);
-app.post("/api/chat", ipRateGuard, apiTokenGate, handleChatRoute);
+const ENGINE = resolveEngine();
 
-// GET guidance
-function chatGetGuidance(req, res) {
-  return sendContract(res, 405, {
-    ok: false,
-    error: "method_not_allowed",
-    detail:
-      'Use POST with JSON body. Example: { "text": "Top 10 for 1973", "payload": { "lane":"music", "action":"top10", "year":1973 } }',
-    meta: { index: INDEX_VERSION },
-  });}
-app.get("/api/chat", chatGetGuidance);
-app.get("/api/nyx/chat", chatGetGuidance);
-app.get("/api/sandblast-gpt", chatGetGuidance);
+// Optional knowledge runtime — extracted from hot path bulk.
+// This file can exist later; until then, the shell remains fail-open.
+const knowledgeRuntimeMod = tryRequireMany([
+  "./Utils/knowledgeRuntime",
+  "./Utils/knowledgeRuntime.js",
+  "./utils/knowledgeRuntime",
+  "./utils/knowledgeRuntime.js"
+]);
 
-// =========================
-// TTS (delegated) — guarded
-// =========================
-
-// =========================
-// Audio Health Heartbeat Cache (TTS)
-// =========================
-const __SB_AUDIO_HEALTH = {
-  status: "unknown", // ok | degraded | down | unknown
-  lastCheckAt: 0,
-  lastOkAt: 0,
-  failStreak: 0,
-  lastError: null,
-  lastUpstreamStatus: null,
-  lastUpstreamMs: null,
+const knowledgeRuntime = {
+  reloadKnowledge: typeof knowledgeRuntimeMod?.reloadKnowledge === "function"
+    ? knowledgeRuntimeMod.reloadKnowledge
+    : async () => ({ ok: true, skipped: true }),
+  knowledgeSnapshotForEngine: typeof knowledgeRuntimeMod?.knowledgeSnapshotForEngine === "function"
+    ? knowledgeRuntimeMod.knowledgeSnapshotForEngine
+    : () => ({}),
+  knowledgeStatusForMeta: typeof knowledgeRuntimeMod?.knowledgeStatusForMeta === "function"
+    ? knowledgeRuntimeMod.knowledgeStatusForMeta
+    : () => ({
+      ok: false,
+      loaded: false,
+      source: "index_fallback",
+      extracted: true
+    }),
+  getPackIndexSafe: typeof knowledgeRuntimeMod?.getPackIndexSafe === "function"
+    ? knowledgeRuntimeMod.getPackIndexSafe
+    : () => null
 };
 
-// =========================
-// TTS Audio Cache (cuts vendor credits + latency)
-// =========================
-const __SB_TTS_CACHE = new Map(); // key -> { buf:Buffer, ct:string, at:number, ttl:number, bytes:number }
-const __SB_TTS_CACHE_MAX = clampInt(process.env.SB_TTS_CACHE_MAX, 60, 0, 500);
-const __SB_TTS_CACHE_TTL_MS = clampInt(process.env.SB_TTS_CACHE_TTL_MS, 60000, 0, 10 * 60 * 1000);
+const voiceRouteMod = tryRequireMany([
+  "./Utils/voiceRoute",
+  "./Utils/voiceRoute.js",
+  "./utils/voiceRoute",
+  "./utils/voiceRoute.js"
+]);
 
-function __sbTtsCacheKey(text, voiceId, modelId, voiceSettings) {
-  try {
-    const crypto = require("crypto");
-    const s = JSON.stringify({
-      t: safeStr(text).slice(0, 4000),
-      v: safeStr(voiceId),
-      m: safeStr(modelId),
-      s: voiceSettings || null,
-    });
-    return crypto.createHash("sha1").update(s).digest("hex");
-  } catch (_) {
-    return "";
-  }
-}
-function __sbTtsCacheGet(key) {
-  if (!key || __SB_TTS_CACHE_TTL_MS <= 0) return null;
-  const hit = __SB_TTS_CACHE.get(key);
-  if (!hit) return null;
-  const now = Date.now();
-  if ((now - hit.at) > hit.ttl) {
-    try { __SB_TTS_CACHE.delete(key); } catch (_) {}
-    return null;
-  }
-  return hit;
-}
-function __sbTtsCacheSet(key, buf, contentType) {
-  if (!key || __SB_TTS_CACHE_TTL_MS <= 0 || __SB_TTS_CACHE_MAX <= 0) return;
-  try {
-    // basic LRU-ish eviction
-    if (__SB_TTS_CACHE.size >= __SB_TTS_CACHE_MAX) {
-      let oldestK = null, oldestT = Infinity;
-      for (const [k, v] of __SB_TTS_CACHE.entries()) {
-        if (v && typeof v.at === "number" && v.at < oldestT) { oldestT = v.at; oldestK = k; }
-      }
-      if (oldestK) __SB_TTS_CACHE.delete(oldestK);
-    }
-    __SB_TTS_CACHE.set(key, {
-      buf,
-      ct: safeStr(contentType || "audio/mpeg") || "audio/mpeg",
-      at: Date.now(),
-      ttl: __SB_TTS_CACHE_TTL_MS,
-      bytes: (buf && buf.length) ? buf.length : 0,
-    });
-  } catch (_) {}
-}
+const registerVoiceRoutes =
+  (typeof voiceRouteMod?.registerVoiceRoutes === "function" && voiceRouteMod.registerVoiceRoutes) ||
+  null;
 
-
-function __sbNowMs(){ return Date.now(); }
-function __sbBool(v, def){
-  const s = String(v ?? "").trim().toLowerCase();
-  if (!s) return !!def;
-  if (["1","true","yes","y","on"].includes(s)) return true;
-  if (["0","false","no","n","off"].includes(s)) return false;
-  return !!def;
-}
-function __sbClamp01(n){
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  return Math.max(0, Math.min(1, x));
-}
-function __sbIsRetryableStatus(st){
-  return st === 429 || st === 500 || st === 502 || st === 503 || st === 504;
-}
-function __sbUpdateAudioHealth(ok, meta){
-  __SB_AUDIO_HEALTH.lastCheckAt = __sbNowMs();
-  if (ok){
-    __SB_AUDIO_HEALTH.status = "ok";
-    __SB_AUDIO_HEALTH.lastOkAt = __SB_AUDIO_HEALTH.lastCheckAt;
-    __SB_AUDIO_HEALTH.failStreak = 0;
-    __SB_AUDIO_HEALTH.lastError = null;
-  } else {
-    __SB_AUDIO_HEALTH.failStreak = (__SB_AUDIO_HEALTH.failStreak || 0) + 1;
-    __SB_AUDIO_HEALTH.status = (__SB_AUDIO_HEALTH.failStreak >= 2) ? "down" : "degraded";
-    __SB_AUDIO_HEALTH.lastError = meta && meta.error ? safeStr(meta.error).slice(0, 220) : "unknown";
-  }
-  if (meta && meta.upstreamStatus != null) __SB_AUDIO_HEALTH.lastUpstreamStatus = meta.upstreamStatus;
-  if (meta && meta.upstreamMs != null) __SB_AUDIO_HEALTH.lastUpstreamMs = meta.upstreamMs;
-}
-function __sbHbIntervalMs(){
-  return clampInt(process.env.SB_TTS_HEARTBEAT_INTERVAL_MS, 120000, 15000, 3600000);
-}
-function __sbHbCooldownMs(){
-  return clampInt(process.env.SB_TTS_HEARTBEAT_COOLDOWN_MS, 30000, 5000, 600000);
-}
-function __sbShouldAutoProbe(){
-  const t = __sbNowMs();
-  return (t - (__SB_AUDIO_HEALTH.lastCheckAt || 0)) >= __sbHbIntervalMs();
-}
-function __sbShouldBypassPrimary(){
-  if (__SB_AUDIO_HEALTH.status !== "down") return false;
-  const t = __sbNowMs();
-  return (t - (__SB_AUDIO_HEALTH.lastCheckAt || 0)) < __sbHbCooldownMs();
-}
-
-
-async function handleTtsRoute(req, res) {
-  // Legacy in-index TTS route removed: provider logic lives in ./utils/tts (Resemble-only policy).
-  // This stub stays only to protect older code paths from crashing if referenced accidentally.
-  req = __sbNormalizeReq(req);
-  const traceId = String(__sbGetHeader(req,'x-sb-trace-id') || __sbGetHeader(req,'x-sb-traceid') || '').trim() || makeReqId();
-  return sendContract(res, 410, {
-    ok: false,
-    error: "TTS_ROUTE_DEPRECATED",
-    detail: "Use /api/tts (delegated to ./utils/tts).",
-    spokenUnavailable: true,
-    meta: { index: INDEX_VERSION, traceId },
-  });
-}
-
-
-
-app.options("/api/tts", __sbVoiceOptions);
-app.options("/api/voice", __sbVoiceOptions);
-app.options("/api/tts/intro", __sbVoiceOptions);
-app.options("/api/voice/intro", __sbVoiceOptions);
-app.options("/api/audio/unlock", __sbVoiceOptions);
-app.options("/api/voice/unlock", __sbVoiceOptions);
-
-app.post("/api/tts", ipRateGuard, async (req, res) => {
-  req = __sbNormalizeReq(req);
-  __sbWrapVoiceResponse(req, res);
-  try {
-    return await __sbDelegateTts(req, res, "/api/tts");
-  } catch (e) {
-    return sendContract(res, 200, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "tts_route_exception",
-      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
-      meta: { index: INDEX_VERSION }
-    });
-  }
+// ============================================================
+// Security headers
+// ============================================================
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "microphone=(), camera=(), geolocation=()");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self' data: blob: https:;",
+      "img-src 'self' data: blob: https:;",
+      "media-src 'self' data: blob: https:;",
+      "style-src 'self' 'unsafe-inline' https:;",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+      "connect-src 'self' https: wss:;",
+      "frame-ancestors 'self';"
+    ].join(" ")
+  );
+  next();
 });
 
-// =========================
-// TTS Diagnostics / Probe (OPINTEL)
-// =========================
-function __sbMask(s){
-  const v = String(s||"");
-  if (!v) return "";
-  if (v.length <= 8) return v[0] + "***";
-  return v.slice(0,4) + "***" + v.slice(-3);
+// ============================================================
+// CORS
+// ============================================================
+const allowedOrigins = CORS_ALLOW_ORIGIN.split(",").map((x) => oneLine(x)).filter(Boolean);
+const allowedOriginSet = new Set(allowedOrigins);
+
+function resolveAllowOrigin(req) {
+  const origin = safeStr(req.headers.origin || "");
+  if (!origin) return allowedOrigins[0] || "*";
+  if (allowedOriginSet.has("*")) return "*";
+  if (allowedOriginSet.has(origin)) return origin;
+  return "";
 }
-function __sbTtsEnvSnapshot(){
-  const voice = String(process.env.RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SBNYX_RESEMBLE_VOICE_UUID || "").trim();
-  const proj = String(process.env.RESEMBLE_PROJECT_UUID || "").trim();
+
+function applyCors(req, res) {
+  const allowOrigin = resolveAllowOrigin(req);
+  if (req.headers.origin && !allowOrigin) {
+    return false;
+  }
+  res.setHeader("Access-Control-Allow-Origin", allowOrigin || "*");
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+  res.setHeader("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+  res.setHeader("Access-Control-Expose-Headers", "Content-Type, X-Request-Id, X-SB-Trace-Id, X-Index-Version");
+  return true;
+}
+
+app.use((req, res, next) => {
+  const ok = applyCors(req, res);
+  if (!ok) {
+    return res.status(403).json({
+      ok: false,
+      error: "origin_not_allowed",
+      version: INDEX_VERSION
+    });
+  }
+  if (req.method === "OPTIONS") return res.status(204).end();
+  return next();
+});
+
+// ============================================================
+// Optional token gate
+// ============================================================
+function isPublicRoute(req) {
+  const p = safeStr(req.path || "");
+  if (CHAT_PUBLIC_ROUTES.has(p)) return true;
+  return VOICE_PUBLIC_ROUTE_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+app.use((req, res, next) => {
+  if (!REQUIRE_API_TOKEN || !EXPECTED_API_TOKEN) return next();
+  if (isPublicRoute(req)) return next();
+
+  const rawAuth = safeStr(req.headers.authorization || "");
+  const token =
+    rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() :
+    safeStr(req.headers["x-api-token"] || "").trim();
+
+  if (token && token === EXPECTED_API_TOKEN) return next();
+
+  return res.status(401).json({
+    ok: false,
+    error: "unauthorized",
+    version: INDEX_VERSION
+  });
+});
+
+// ============================================================
+// IP rate guard
+// ============================================================
+const ipLedger = new Map();
+
+function getIp(req) {
+  return oneLine(
+    req.ip ||
+    req.headers["x-forwarded-for"] ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  ).split(",")[0].trim();
+}
+
+function touchIp(ip, kind) {
+  const now = nowMs();
+  const cur = ipLedger.get(ip) || {
+    chatHits: [],
+    voiceHits: [],
+    blockedUntil: 0
+  };
+
+  cur.chatHits = (cur.chatHits || []).filter((t) => now - t <= RATE_WINDOW_MS);
+  cur.voiceHits = (cur.voiceHits || []).filter((t) => now - t <= RATE_WINDOW_MS);
+
+  if (kind === "voice") cur.voiceHits.push(now);
+  else cur.chatHits.push(now);
+
+  const max = kind === "voice" ? VOICE_RATE_MAX_PER_IP : RATE_MAX_PER_IP;
+  const arr = kind === "voice" ? cur.voiceHits : cur.chatHits;
+  if (arr.length > max) {
+    cur.blockedUntil = now + RATE_BAN_MS;
+  }
+
+  ipLedger.set(ip, cur);
+  return cur;
+}
+
+app.use((req, res, next) => {
+  const ip = getIp(req);
+  const now = nowMs();
+  const cur = ipLedger.get(ip);
+
+  if (cur && cur.blockedUntil && now < cur.blockedUntil) {
+    return res.status(429).json({
+      ok: false,
+      error: "rate_limited",
+      retryAfterMs: cur.blockedUntil - now,
+      version: INDEX_VERSION
+    });
+  }
+
+  const isVoice = safeStr(req.path || "").startsWith("/api/tts") || safeStr(req.path || "").startsWith("/api/voice");
+  touchIp(ip, isVoice ? "voice" : "chat");
+  return next();
+});
+
+// ============================================================
+// Request context
+// ============================================================
+function getHeader(req, key) {
+  return safeStr(req.headers[key.toLowerCase()] || "");
+}
+
+function buildRequestContext(req) {
+  const traceId =
+    oneLine(getHeader(req, "x-sb-trace-id")) ||
+    oneLine(getHeader(req, "x-request-id")) ||
+    `trace_${sha1Lite(`${nowMs()}|${Math.random()}|${req.path}`)}`;
+
+  const requestId =
+    oneLine(req.body?.requestId) ||
+    oneLine(req.query?.requestId) ||
+    oneLine(getHeader(req, "x-request-id")) ||
+    `req_${sha1Lite(`${traceId}|${req.method}|${req.path}`)}`;
+
+  const sessionId =
+    oneLine(req.body?.sessionId) ||
+    oneLine(req.body?.sid) ||
+    oneLine(getHeader(req, "x-session-id")) ||
+    `sess_${sha1Lite(`${requestId}|${getIp(req)}`)}`;
+
   return {
-    resemble: {
-      hasToken: !!(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY),
-      hasVoice: !!voice,
-      hasProject: !!proj,
-      voiceUuid: voice ? __sbMask(voice) : "",
-      projectUuid: proj ? __sbMask(proj) : "",
-      endpointMode: String(process.env.RESEMBLE_ENDPOINT_MODE || "").trim() || "auto",
+    traceId,
+    requestId,
+    sessionId,
+    ip: getIp(req),
+    source: oneLine(req.body?.source || req.query?.source || "http"),
+    routeHint: oneLine(req.body?.routeHint || req.query?.routeHint || req.path)
+  };
+}
+
+function sendJson(res, status, payload) {
+  if (res.headersSent) return;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("X-Index-Version", INDEX_VERSION);
+  if (payload && payload.requestId) res.setHeader("X-Request-Id", safeStr(payload.requestId));
+  if (payload && payload.traceId) res.setHeader("X-SB-Trace-Id", safeStr(payload.traceId));
+  res.status(status).send(safeJson(payload, '{"ok":false,"error":"json_serialize_failed"}'));
+}
+
+function normalizeContract(raw, ctx) {
+  const src = isPlainObject(raw) ? raw : {};
+  const reply = safeStr(src.reply || src.payload?.reply || "").trim() || "Okay.";
+  const lane = safeStr(src.lane || src.laneId || src.sessionLane || "general") || "general";
+  const ui = isPlainObject(src.ui) ? src.ui : { chips: [], allowMic: true };
+  const followUps = Array.isArray(src.followUps) ? src.followUps : [];
+  const directives = Array.isArray(src.directives) ? src.directives : [];
+  const sessionPatch = isPlainObject(src.sessionPatch) ? src.sessionPatch : {};
+
+  return {
+    ok: src.ok !== false,
+    reply,
+    payload: isPlainObject(src.payload) ? src.payload : { reply },
+    lane,
+    laneId: safeStr(src.laneId || lane) || lane,
+    sessionLane: safeStr(src.sessionLane || lane) || lane,
+    bridge: src.bridge || null,
+    ctx: isPlainObject(src.ctx) ? src.ctx : {},
+    ui,
+    directives,
+    followUps,
+    followUpsStrings: Array.isArray(src.followUpsStrings)
+      ? src.followUpsStrings
+      : followUps.map((x) => safeStr(x?.label || x).trim()).filter(Boolean),
+    sessionPatch,
+    cog: isPlainObject(src.cog) ? src.cog : {
+      intent: "ADVANCE",
+      mode: "transitional",
+      publicMode: true
+    },
+    requestId: safeStr(src.requestId || ctx.requestId),
+    traceId: safeStr(src.traceId || ctx.traceId),
+    meta: {
+      v: safeStr(src.meta?.v || INDEX_VERSION),
+      t: src.meta?.t || nowMs(),
+      engineVersion: ENGINE.version,
+      knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
+      ...(isPlainObject(src.meta) ? src.meta : {})
     }
   };
 }
 
-app.get("/api/diag/tts", ipRateGuard, (req, res) => {
-  const traceId = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId();
-  let diag = null;
-  try{
-    if (__SB_TTS_MODULE && typeof __SB_TTS_MODULE.diagTts === "function") diag = __SB_TTS_MODULE.diagTts();
-    else if (__SB_TTS_MODULE && typeof __SB_TTS_MODULE.diag === "function") diag = __SB_TTS_MODULE.diag();
-  }catch(_){}
-  return sendContract(res, 200, {
-    ok: true,
-    index: INDEX_VERSION,
-    traceId,
-    tts: {
-      handlerLoaded: !!__SB_HANDLE_TTS,
-      modulePath: __SB_TTS_MODPATH || null,
-      moduleType: __SB_TTS_MODULE ? (typeof __SB_TTS_MODULE) : null,
-      handlerType: __SB_HANDLE_TTS ? (typeof __SB_HANDLE_TTS) : null,
-    },
-    env: __sbTtsEnvSnapshot(),
-    diag: diag || null,
-    now: new Date().toISOString()
-  });
-});
-
-// Lightweight probe endpoint (no synthesis by default).
-// Call: GET /tts/probe  or GET /api/tts/probe
-function __sbTtsProbe(req, res){
-  const traceId = String(__sbGetHeader(req,"x-sb-trace-id") || __sbGetHeader(req,"x-sb-traceid") || "").trim() || makeReqId();
-  return sendContract(res, 200, {
-    ok: true,
-    probe: true,
-    index: INDEX_VERSION,
-    traceId,
-    env: __sbTtsEnvSnapshot(),
-    note: "Probe does not synthesize audio. Use POST /api/tts for synthesis.",
-    now: new Date().toISOString()
-  });
-}
-app.get("/api/tts/probe", ipRateGuard, __sbTtsProbe);
-app.get("/tts/probe", ipRateGuard, __sbTtsProbe);
-
-
-app.post("/api/voice", ipRateGuard, async (req, res) => {
-  req = __sbNormalizeReq(req);
-  __sbWrapVoiceResponse(req, res);
-  try {
-    return await __sbDelegateTts(req, res, "/api/voice");
-  } catch (e) {
-    return sendContract(res, 200, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "voice_route_exception",
-      detail: safeStr(e && (e.message || e) || "unknown").slice(0, 240),
-      meta: { index: INDEX_VERSION }
-    });
-  }
-});
-
-app.get("/api/audio/unlock", (req, res) => {
-  __sbWrapVoiceResponse(req, res);
-  const wav = Buffer.from([
-    0x52,0x49,0x46,0x46,0x28,0x00,0x00,0x00,0x57,0x41,0x56,0x45,0x66,0x6d,0x74,0x20,
-    0x10,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x40,0x1f,0x00,0x00,0x80,0x3e,0x00,0x00,
-    0x02,0x00,0x10,0x00,0x64,0x61,0x74,0x61,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-  ]);
-  try {
-    res.status(200);
-    res.setHeader("Content-Type", "audio/wav");
-    res.setHeader("Content-Length", String(wav.length));
-    res.setHeader("Cache-Control", "no-store, no-transform, max-age=0");
-    return res.send(wav);
-  } catch (_) {
-    return res.end(wav);
-  }
-});
-app.get("/api/voice/unlock", (req, res) => {
-  req.url = "/api/audio/unlock";
-  return app._router.handle(req, res, ()=>{});
-});
-app.get("/api/tts/intro", ipRateGuard, __sbIntroVoiceRoute);
-app.post("/api/tts/intro", ipRateGuard, __sbIntroVoiceRoute);
-app.get("/api/voice/intro", ipRateGuard, __sbIntroVoiceRoute);
-app.post("/api/voice/intro", ipRateGuard, __sbIntroVoiceRoute);
-
-function ttsGetGuidance(req, res) {
-  return sendContract(res, 405, {
+function buildFailOpenReply(message, ctx, extra) {
+  return normalizeContract({
     ok: false,
-    error: "method_not_allowed",
-    detail: 'Use POST with JSON body: { text: "..." }',
-    meta: { index: INDEX_VERSION },
-  });}
-app.get("/api/tts", ttsGetGuidance);
-app.get("/api/voice", ttsGetGuidance);
+    reply: safeStr(message || "Backend is stabilizing. Try again."),
+    payload: { reply: safeStr(message || "Backend is stabilizing. Try again.") },
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    ui: { chips: [], allowMic: true },
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {},
+    cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+    requestId: ctx.requestId,
+    traceId: ctx.traceId,
+    meta: { failSafe: true, ...(isPlainObject(extra) ? extra : {}) }
+  }, ctx);
+}
 
-// =========================
-// Audio Health Endpoint (Step 5)
-// =========================
-function audioHealthRoute(req, res) {
-  // lightweight: return cached status; allow force probe with ?probe=1
-  const probe = toBool(req.query && req.query.probe, false);
-  if (probe) {
-    // Call TTS route in healthCheck mode
-    req = __sbNormalizeReq(req);
-    req.body = { healthCheck: true };
-    __sbApplyAudioHeaders(res, String(__sbGetHeader(req, "x-sb-trace-id") || __sbGetHeader(req, "x-sb-traceid") || "").trim() || makeReqId());
-    if (__SB_HANDLE_TTS) return __SB_HANDLE_TTS(req, res);
-    return sendContract(res, 503, {
-      ok: false,
-      error: "TTS_HANDLER_MISSING",
-      detail: "Cannot probe audio health: ./utils/tts.handleTts is unavailable.",
-      meta: { index: INDEX_VERSION },
-    });
+// ============================================================
+// In-memory session store
+// ============================================================
+const sessionStore = new Map();
+const SESSION_TTL_MS = clampInt(process.env.SESSION_TTL_MS, 1000 * 60 * 60 * 6, 60_000, 1000 * 60 * 60 * 48);
+
+function sweepSessions() {
+  const now = nowMs();
+  for (const [id, rec] of sessionStore.entries()) {
+    if (!rec || !rec.at || now - rec.at > SESSION_TTL_MS) sessionStore.delete(id);
   }
-  return sendContract(res, 200, {
-    ok: (__SB_AUDIO_HEALTH.status === "ok"),
-    health: {
-      status: __SB_AUDIO_HEALTH.status,
-      lastCheckAt: __SB_AUDIO_HEALTH.lastCheckAt,
-      lastOkAt: __SB_AUDIO_HEALTH.lastOkAt,
-      failStreak: __SB_AUDIO_HEALTH.failStreak,
-      lastUpstreamStatus: __SB_AUDIO_HEALTH.lastUpstreamStatus,
-      lastUpstreamMs: __SB_AUDIO_HEALTH.lastUpstreamMs,
-      lastError: __SB_AUDIO_HEALTH.lastError,
-    },
-    meta: { index: INDEX_VERSION },
+}
+
+function readSession(sessionId) {
+  sweepSessions();
+  const rec = sessionStore.get(sessionId);
+  return rec && isPlainObject(rec.data) ? rec.data : {};
+}
+
+function writeSession(sessionId, current, patch) {
+  const merged = deepMerge(isPlainObject(current) ? current : {}, isPlainObject(patch) ? patch : {});
+  sessionStore.set(sessionId, { at: nowMs(), data: merged });
+  return merged;
+}
+
+// ============================================================
+// Thin chat route
+// IMPORTANT:
+// - index.js does not do semantic replay suppression anymore
+// - Chat Engine owns duplicate-turn semantics
+// ============================================================
+app.post("/api/chat", async (req, res) => {
+  const ctx = buildRequestContext(req);
+
+  try {
+    const text = safeStr(req.body?.text || req.body?.message || "").slice(0, MAX_CHAT_TEXT);
+    const sessionRecord = readSession(ctx.sessionId);
+
+    const engineInput = {
+      ...req.body,
+      text,
+      requestId: ctx.requestId,
+      traceId: ctx.traceId,
+      source: ctx.source,
+      routeHint: ctx.routeHint,
+      session: sessionRecord,
+      knowledge: knowledgeRuntime.knowledgeSnapshotForEngine(),
+      __knowledgeStatus: knowledgeRuntime.knowledgeStatusForMeta(),
+      packIndex: knowledgeRuntime.getPackIndexSafe(false)
+    };
+
+    const engineOut = await ENGINE.fn(engineInput);
+    const out = normalizeContract(engineOut, ctx);
+
+    writeSession(ctx.sessionId, sessionRecord, out.sessionPatch);
+
+    return sendJson(res, 200, out);
+  } catch (err) {
+    const fail = buildFailOpenReply(
+      "Backend is stabilizing. Try again in a moment.",
+      ctx,
+      { error: safeStr(err && err.message ? err.message : err).slice(0, 220) }
+    );
+    return sendJson(res, 200, fail);
+  }
+});
+
+app.post("/api/chat/reset", (req, res) => {
+  const ctx = buildRequestContext(req);
+  sessionStore.delete(ctx.sessionId);
+
+  return sendJson(res, 200, normalizeContract({
+    ok: true,
+    reply: "Session reset complete.",
+    payload: { reply: "Session reset complete." },
+    lane: "general",
+    laneId: "general",
+    sessionLane: "general",
+    ui: { chips: [], allowMic: true },
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {},
+    cog: { intent: "RESET", mode: "transitional", publicMode: true },
+    requestId: ctx.requestId,
+    traceId: ctx.traceId,
+    meta: { reset: true, v: INDEX_VERSION, t: nowMs() }
+  }, ctx));
+});
+
+app.get("/api/chat/health", (_req, res) => {
+  return sendJson(res, 200, {
+    ok: true,
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version,
+    upMs: nowMs() - SERVER_BOOT_AT,
+    sessions: sessionStore.size,
+    knowledge: knowledgeRuntime.knowledgeStatusForMeta()
+  });
+});
+
+// ============================================================
+// Voice routes (extracted)
+// Keeps Mixer voice path functioning and isolated.
+// ============================================================
+if (registerVoiceRoutes) {
+  registerVoiceRoutes(app, {
+    mixerVoiceId:
+      safeStr(process.env.MIXER_VOICE_ID || "") ||
+      safeStr(process.env.RESEMBLE_VOICE_ID || "") ||
+      safeStr(process.env.NYX_VOICE_ID || ""),
+    mixerVoiceName: safeStr(process.env.MIXER_VOICE_NAME || ""),
+    defaultProvider: safeStr(process.env.TTS_PROVIDER || ""),
+    defaultFormat: safeStr(process.env.TTS_FORMAT || "mp3"),
+    defaultIntroText: safeStr(process.env.NYX_INTRO_TEXT || ""),
+    allowedOrigins,
+    debug: DEBUG_MODE
+  });
+} else {
+  app.post("/api/tts", (_req, res) => {
+    return sendJson(res, 503, {
+      ok: false,
+      error: "voice_route_missing",
+      version: INDEX_VERSION
+    });
+  });
+
+  app.post("/api/tts/intro", (_req, res) => {
+    return sendJson(res, 503, {
+      ok: false,
+      error: "voice_route_missing",
+      version: INDEX_VERSION
+    });
   });
 }
-app.get("/api/health/audio", ipRateGuard, audioHealthRoute);
 
-
-// =========================
-// Express error middleware (last)
-// =========================
-
-
-// =========================
-        // NYX 404 (keep contract)
-        // =========================
-        app.use((req, res) => {
-          return sendContract(res, 404, { ok: false, error: "Not found", payload: { path: req.path } });
-        });
-
-app.use((err, req, res, next) => {
-  // eslint-disable-next-line no-console
-  console.log("[Sandblast][ExpressError]", err && (err.stack || err.message || err));
-  if (res.headersSent) return next(err);
-  return sendContract(res, 200, {
-    ok: false,
-    error: "server_error",
-    detail: safeStr(err?.message || err).slice(0, 240),
-    meta: { index: INDEX_VERSION },
-  });});
-app.post("/api/debug/knowledge/registry-reload", (req, res) => {
-  // Token-gated by global guard; fail-open so ops can see why it failed
+// ============================================================
+// Warm / health / diagnostics
+// ============================================================
+app.get("/_warm", async (_req, res) => {
   try {
-    const out = initKnowledgeRegistryBridge();
-    res.json({ ok: !!(out && out.ok), registry: out });
-  } catch (e) {
-    sendContract(res, 200, { ok: true, warn: "registry_fail_open", error: safeStr(e?.message || e) });
-}
-});
-
-
-
-
-// =========================
-// Global error handler (always JSON, always has payload)
-// =========================
-app.use((err, req, res, next) => {
-  try {
-    if (res.headersSent) return next(err);
-    const status = Number(err?.statusCode || err?.status || 500) || 500;
-    const errorMsg = safeStr(err?.message || err || "Unknown error");
-    const reply = "Something broke inside the chat engine. Retry the last step, and if it repeats, send the console error text.";
-    res.status(status).json({
+    const out = await knowledgeRuntime.reloadKnowledge();
+    return sendJson(res, 200, {
+      ok: true,
+      warmed: true,
+      version: INDEX_VERSION,
+      engineVersion: ENGINE.version,
+      knowledgeReload: out || { ok: true, skipped: true },
+      upMs: nowMs() - SERVER_BOOT_AT
+    });
+  } catch (err) {
+    return sendJson(res, 200, {
       ok: false,
-      error: errorMsg,
-      reply,
-      lane: "general",
-      payload: { reply, lane: "general", error: errorMsg }
+      warmed: false,
+      version: INDEX_VERSION,
+      error: safeStr(err && err.message ? err.message : err).slice(0, 220)
     });
-  } catch (e) {
-    try {
-      res.status(500).end();
-    } catch (_) {}
   }
 });
-// =========================
-// Start + graceful shutdown
-// =========================
-const server = 
-// =========================
-// Datasets endpoints (safe, fail-open)
-// =========================
-app.get("/api/datasets/stats", (req, res) => {
-  try {
-    if (!datasetLoaderMod || typeof datasetLoaderMod.stats !== "function") {
-      return res.status(200).json({ ok: false, error: "DATASETS_MODULE_MISSING" });
+
+app.get("/healthz", (_req, res) => {
+  res.status(200).send("ok");
+});
+
+app.get("/readyz", (_req, res) => {
+  return sendJson(res, 200, {
+    ok: true,
+    ready: true,
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version
+  });
+});
+
+app.get("/api/health", (_req, res) => {
+  return sendJson(res, 200, {
+    ok: true,
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version,
+    nodeEnv: NODE_ENV,
+    upMs: nowMs() - SERVER_BOOT_AT,
+    sessions: sessionStore.size,
+    knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
+    voiceRouteLoaded: !!registerVoiceRoutes
+  });
+});
+
+app.get("/api/diag", (_req, res) => {
+  return sendJson(res, 200, {
+    ok: true,
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version,
+    nodeEnv: NODE_ENV,
+    debug: DEBUG_MODE,
+    trustProxy: TRUST_PROXY,
+    port: PORT,
+    sessions: sessionStore.size,
+    rate: {
+      windowMs: RATE_WINDOW_MS,
+      chatMaxPerIp: RATE_MAX_PER_IP,
+      voiceMaxPerIp: VOICE_RATE_MAX_PER_IP,
+      banMs: RATE_BAN_MS
+    },
+    knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
+    voiceRouteLoaded: !!registerVoiceRoutes
+  });
+});
+
+// ============================================================
+// Static avatar hosting
+// ============================================================
+if (fs.existsSync(AVATAR_DIR)) {
+  app.use("/avatar", express.static(AVATAR_DIR, {
+    index: false,
+    immutable: true,
+    maxAge: "7d",
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
     }
-    const st = datasetLoaderMod.stats();
-    return res.status(200).json({ ok: true, ...st });
-  } catch (e) {
-    return res.status(200).json({ ok: false, error: "DATASETS_STATS_FAILED", detail: String(e && (e.message || e)) });
-  }
+  }));
+}
+
+// ============================================================
+// Root route
+// ============================================================
+app.get("/", (_req, res) => {
+  return sendJson(res, 200, {
+    ok: true,
+    service: "Sandblast Backend",
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version,
+    upMs: nowMs() - SERVER_BOOT_AT
+  });
 });
 
-// Reload is opt-in: requires either debug query ?debug=1 OR header x-sb-debug=1.
-app.post("/api/datasets/reload", (req, res) => {
+// ============================================================
+// 404 / method safety
+// ============================================================
+app.use((req, res) => {
+  return sendJson(res, 404, {
+    ok: false,
+    error: "not_found",
+    path: safeStr(req.path || ""),
+    method: safeStr(req.method || ""),
+    version: INDEX_VERSION
+  });
+});
+
+// ============================================================
+// Server boot
+// ============================================================
+const server = app.listen(PORT, () => {
+  log("BOOT", {
+    version: INDEX_VERSION,
+    engineVersion: ENGINE.version,
+    port: PORT,
+    voiceRouteLoaded: !!registerVoiceRoutes,
+    knowledgeLoaded: knowledgeRuntime.knowledgeStatusForMeta()
+  });
+});
+
+// ============================================================
+// Graceful shutdown
+// ============================================================
+function shutdown(sig) {
+  log("SHUTDOWN", sig);
   try {
-    const dbg = toBool(__sbGetHeader(req, "x-sb-debug") || req.query?.debug, false);
-    if (!dbg) return res.status(403).json({ ok: false, error: "FORBIDDEN", detail: "datasets reload requires debug flag" });
-
-    if (!datasetLoaderMod || typeof datasetLoaderMod.loadAll !== "function") {
-      return res.status(200).json({ ok: false, error: "DATASETS_MODULE_MISSING" });
-    }
-    const out = datasetLoaderMod.loadAll(DATASETS_DIR ? { dir: DATASETS_DIR } : {});
-    return res.status(200).json({ ok: true, ...out });
-  } catch (e) {
-    return res.status(200).json({ ok: false, error: "DATASETS_RELOAD_FAILED", detail: String(e && (e.message || e)) });
-  }
-});
-
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] ${INDEX_VERSION} listening on ${PORT}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Engine: from=${ENGINE.from} version=${ENGINE_VERSION || "(unknown)"} loaded=${!!ENGINE.fn}`);
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Fetch: ${fetchFn ? "OK" : "MISSING"} (global.fetch=${!!global.fetch})`);
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] DataRoots: ${JSON.stringify(DATA_ROOT_CANDIDATES.slice(0, 16))} (autodiscover=${DATA_ROOT_AUTODISCOVER} hints=${DATA_ROOT_HINTS ? "yes" : "no"})`
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Knowledge: autoload=${KNOWLEDGE_AUTOLOAD} ok=${KNOWLEDGE.ok} jsonKeys=${
-      Object.keys(KNOWLEDGE.json).length
-    } scriptKeys=${Object.keys(KNOWLEDGE.scripts).length} errors=${KNOWLEDGE.errors.length} skips=${JSON.stringify(
-      KNOWLEDGE.__skips
-    )} collisions=${KNOWLEDGE.__collisions.length} APP_ROOT=${APP_ROOT} DATA_DIR=${DATA_DIR} SCRIPTS_DIR=${SCRIPTS_DIR} scriptsEnabled=${KNOWLEDGE_ENABLE_SCRIPTS} reloadEveryMs=${KNOWLEDGE_RELOAD_INTERVAL_MS} debugIncludeData=${KNOWLEDGE_DEBUG_INCLUDE_DATA}`
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    `[Sandblast] Security: hardCorsDeny=ON expectedApiToken=${EXPECTED_API_TOKEN ? "SET" : "OFF"} ipRate=${
-      IP_RATE_ENABLED ? "ON" : "OFF"
-    } avatarDir=${fileExists(AVATAR_DIR) ? AVATAR_DIR : "(missing)"}`
-  );
-});
-
-// Keepalive tuning (helps reduce proxy 503/connection resets under burst)
-try{
-  server.keepAliveTimeout = 70_000;
-  server.headersTimeout = 75_000;
-}catch(_){ }
-
-function shutdown(signal) {
-  // eslint-disable-next-line no-console
-  console.log(`[Sandblast] Shutdown requested: ${signal || "unknown"}`);
-  try {
-    server.close(() => {
-      // eslint-disable-next-line no-console
-      console.log("[Sandblast] HTTP server closed.");
-      process.exit(0);
-    });
-    // Force exit if hanging
-    setTimeout(() => {
-      // eslint-disable-next-line no-console
-      console.log("[Sandblast] Forced shutdown.");
-      process.exit(1);
-    }, 8000).unref?.();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref?.();
   } catch (_) {
-    process.exit(1);
+    process.exit(0);
   }
 }
+
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-module.exports = { app, INDEX_VERSION };
-
-/* ===============================
-   OPINTEL TTS ROUTE WRAPPER v1.0.0
-   - preserves current route structure
-   - injects Marion/Evidence/AudioGovernor metadata into TTS routes
-   - keeps __sbDelegateTts authoritative
-   - adds route-level headers for traceability and ops diagnostics
-================================= */
-(function attachOpIntelIndexTtsWrapper() {
-  if (global.__SB_OPINTEL_INDEX_TTS_WRAPPED__) return;
-  global.__SB_OPINTEL_INDEX_TTS_WRAPPED__ = true;
-
-  let __MarionBridge = null;
-  let __EvidenceEngine = null;
-  let __AudioGovernor = null;
-  try { __MarionBridge = require("./Utils/marionBridge"); } catch (_e1) { try { __MarionBridge = require("./utils/marionBridge"); } catch (_e2) { __MarionBridge = null; } }
-  try { __EvidenceEngine = require("./Utils/evidenceEngine"); } catch (_e1) { try { __EvidenceEngine = require("./utils/evidenceEngine"); } catch (_e2) { __EvidenceEngine = null; } }
-  try { __AudioGovernor = require("./Utils/audioGovernor"); } catch (_e1) { try { __AudioGovernor = require("./utils/audioGovernor"); } catch (_e2) { __AudioGovernor = null; } }
-
-  function __opStr(v){ return v == null ? "" : String(v); }
-  function __opTrim(v){ return __opStr(v).trim(); }
-  function __opLower(v){ return __opTrim(v).toLowerCase(); }
-  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
-  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
-  function __opPickFirst(){
-    for (let i = 0; i < arguments.length; i += 1) {
-      const v = __opTrim(arguments[i]);
-      if (v) return v;
-    }
-    return "";
-  }
-  function __opModules(){
-    return {
-      marionBridge: !!(__MarionBridge && typeof __MarionBridge.createMarionBridge === "function"),
-      evidenceEngine: !!(__EvidenceEngine && typeof __EvidenceEngine.createEvidenceEngine === "function"),
-      audioGovernor: !!(__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function"),
-    };
-  }
-  function __opInferDomain(routeName, req){
-    const body = __opObj(req && req.body) ? req.body : {};
-    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
-    const hinted = __opLower(__opPickFirst(body.domain, body.meta && body.meta.domain, body.lane, routeName));
-    if (hinted.includes("intro")) return "general";
-    if (hinted.includes("movie") || hinted.includes("stream") || hinted.includes("roku") || hinted.includes("media")) return "marketing_media";
-    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
-    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
-    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
-    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
-    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
-    if (/\b(brand|audience|channel|streaming|metadata|campaign)\b/.test(text)) return "marketing_media";
-    return "general";
-  }
-  function __opInferIntent(req){
-    const body = __opObj(req && req.body) ? req.body : {};
-    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
-    const hinted = __opLower(__opPickFirst(body.intent, body.meta && body.meta.intent));
-    if (hinted) return hinted;
-    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
-    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
-    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
-    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
-    return "general";
-  }
-
-  const __baseDelegate = typeof __sbDelegateTts === "function" ? __sbDelegateTts : null;
-  if (__baseDelegate) {
-    __sbDelegateTts = async function wrappedDelegateTts(req, res, routeName) {
-      req = __sbNormalizeReq(req);
-      const body = __opObj(req.body) ? req.body : {};
-      body.meta = __opObj(body.meta) ? { ...body.meta } : {};
-      body.traceId = __opPickFirst(body.traceId, body.meta.traceId, __sbGetHeader(req, "x-sb-trace-id"), makeReqId());
-      body.meta.traceId = __opPickFirst(body.meta.traceId, body.traceId, makeReqId());
-      body.meta.domain = __opPickFirst(body.meta.domain, body.domain, __opInferDomain(routeName, req), "general");
-      body.meta.intent = __opPickFirst(body.meta.intent, body.intent, __opInferIntent(req), "general");
-      body.meta.routeName = __opPickFirst(routeName, "/api/tts");
-      body.meta.allowFallback = false;
-      body.allowFallback = false;
-      body.priority = __opLower(routeName).includes("intro") ? "high" : __opPickFirst(body.priority, "normal");
-      body.isIntro = __opLower(routeName).includes("intro") || !!body.intro;
-      body.opintel = {
-        marionBridge: !!(__MarionBridge && typeof __MarionBridge.createMarionBridge === "function"),
-        evidenceEngine: !!(__EvidenceEngine && typeof __EvidenceEngine.createEvidenceEngine === "function"),
-        audioGovernor: !!(__AudioGovernor && typeof __AudioGovernor.createAudioGovernor === "function"),
-      };
-      req.body = body;
-
-      const mods = __opModules();
-      __opSet(res, "X-SB-Bridge-Ready", mods.marionBridge ? "1" : "0");
-      __opSet(res, "X-SB-Evidence-Ready", mods.evidenceEngine ? "1" : "0");
-      __opSet(res, "X-SB-Audio-Governor-Ready", mods.audioGovernor ? "1" : "0");
-      __opSet(res, "X-SB-OpIntel-Domain", body.meta.domain);
-      __opSet(res, "X-SB-OpIntel-Intent", body.meta.intent);
-      __opSet(res, "X-SB-OpIntel-Route", body.meta.routeName);
-
-      return __baseDelegate(req, res, routeName);
-    };
-  }
-
-  const __baseIntro = typeof __sbIntroVoiceRoute === "function" ? __sbIntroVoiceRoute : null;
-  if (__baseIntro) {
-    __sbIntroVoiceRoute = async function wrappedIntroVoiceRoute(req, res) {
-      req = __sbNormalizeReq(req);
-      req.body = __opObj(req.body) ? req.body : {};
-      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
-      req.body.meta.intent = __opPickFirst(req.body.meta.intent, "intro");
-      req.body.meta.domain = __opPickFirst(req.body.meta.domain, "general");
-      req.body.allowFallback = false;
-      req.body.isIntro = true;
-      req.body.priority = "high";
-      return __baseIntro(req, res);
-    };
-  }
-})();
-
-/* ===============================
-   OPINTEL TTS ROUTE WRAPPER v1.1.0
-   - makes delegated /api/tts and /api/voice paths governor-aware
-   - prevents false "TTS unavailable" from missing route metadata
-   - phases 16–20: route cohesion, strict no-fallback loops, audio-governor parity, self-heal, trace continuity
-================================= */
-(function attachOpIntelIndexTtsWrapperV110() {
-  if (global.__SB_OPINTEL_INDEX_TTS_WRAPPED_V110__) return;
-  global.__SB_OPINTEL_INDEX_TTS_WRAPPED_V110__ = true;
-
-  function __opStr(v){ return v == null ? "" : String(v); }
-  function __opTrim(v){ return __opStr(v).trim(); }
-  function __opLower(v){ return __opTrim(v).toLowerCase(); }
-  function __opObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
-  function __opSet(res, k, v){ try { if (res && !res.headersSent) res.setHeader(k, v); } catch (_) {} }
-  function __opPickFirst(){ for (let i = 0; i < arguments.length; i += 1) { const v = __opTrim(arguments[i]); if (v) return v; } return ""; }
-  function __opInferDomain(routeName, req){
-    const body = __opObj(req && req.body) ? req.body : {};
-    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
-    const hinted = __opLower(__opPickFirst(body.domain, body.meta && body.meta.domain, body.lane, routeName));
-    if (hinted) {
-      if (hinted.includes("roku") || hinted.includes("media") || hinted.includes("radio")) return "marketing_media";
-      return hinted;
-    }
-    if (/\b(contract|copyright|liability|compliance|legal)\b/.test(text)) return "law";
-    if (/\b(budget|revenue|pricing|funding|grant|roi)\b/.test(text)) return "finance";
-    if (/\b(rewrite|grammar|copy|tone|headline)\b/.test(text)) return "language";
-    if (/\b(anxious|hurt|sad|panic|stress|emotion)\b/.test(text)) return "psychology";
-    if (/\b(ai|agent|bridge|pipeline|security|token|dataset)\b/.test(text)) return "ai_cyber";
-    if (/\b(brand|audience|channel|streaming|metadata|campaign|roku)\b/.test(text)) return "marketing_media";
-    return "general";
-  }
-  function __opInferIntent(req){
-    const body = __opObj(req && req.body) ? req.body : {};
-    const text = __opLower(__opPickFirst(body.text, body.speak, body.say, body.message));
-    const hinted = __opLower(__opPickFirst(body.intent, body.meta && body.meta.intent));
-    if (hinted) return hinted;
-    if (/\b(fix|debug|broken|issue|error|not working)\b/.test(text)) return "diagnostic";
-    if (/\b(plan|roadmap|phase|sequence|priority|steps)\b/.test(text)) return "planning";
-    if (/\b(write|rewrite|draft|improve|summarize|pitch)\b/.test(text)) return "composition";
-    if (/\b(help|how do i|what should|recommend)\b/.test(text)) return "guidance";
-    return "general";
-  }
-
-  const __baseDelegate = typeof __sbDelegateTts === "function" ? __sbDelegateTts : null;
-  if (__baseDelegate) {
-    __sbDelegateTts = async function wrappedDelegateTtsV110(req, res, routeName) {
-      req = __sbNormalizeReq(req);
-      req.body = __opObj(req.body) ? req.body : {};
-      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
-      req.body.traceId = __opPickFirst(req.body.traceId, req.body.meta.traceId, __sbGetHeader(req, "x-sb-trace-id"), __sbGetHeader(req, "x-sb-traceid"), makeReqId());
-      req.body.meta.traceId = req.body.traceId;
-      req.body.meta.domain = __opPickFirst(req.body.meta.domain, req.body.domain, __opInferDomain(routeName, req), "general");
-      req.body.meta.intent = __opPickFirst(req.body.meta.intent, req.body.intent, __opInferIntent(req), "general");
-      req.body.meta.routeName = __opPickFirst(routeName, "/api/tts");
-      req.body.meta.phaseBand = "1-20";
-      req.body.meta.bridgeAware = true;
-      req.body.meta.evidenceAware = true;
-      req.body.meta.audioGovernorAware = true;
-      req.body.allowFallback = false;
-      req.body.priority = __opPickFirst(req.body.priority, __opLower(routeName).includes("intro") ? "high" : "normal");
-      req.body.isIntro = !!req.body.isIntro || __opLower(routeName).includes("intro") || !!req.body.intro;
-
-      __opSet(res, "X-SB-Trace-ID", req.body.traceId);
-      __opSet(res, "X-SB-OpIntel-Domain", req.body.meta.domain);
-      __opSet(res, "X-SB-OpIntel-Intent", req.body.meta.intent);
-      __opSet(res, "X-SB-OpIntel-Route", req.body.meta.routeName);
-      __opSet(res, "X-SB-OpIntel-Phase-Band", "1-20");
-
-      if (!__SB_HANDLE_TTS) {
-        try { __sbTryRequireTts(); } catch (_) {}
-      }
-      return __baseDelegate(req, res, routeName);
-    };
-  }
-
-  const __baseIntro = typeof __sbIntroVoiceRoute === "function" ? __sbIntroVoiceRoute : null;
-  if (__baseIntro) {
-    __sbIntroVoiceRoute = async function wrappedIntroVoiceRouteV110(req, res) {
-      req = __sbNormalizeReq(req);
-      req.body = __opObj(req.body) ? req.body : {};
-      req.body.meta = __opObj(req.body.meta) ? { ...req.body.meta } : {};
-      req.body.meta.intent = __opPickFirst(req.body.meta.intent, "intro");
-      req.body.meta.domain = __opPickFirst(req.body.meta.domain, "general");
-      req.body.allowFallback = false;
-      req.body.isIntro = true;
-      req.body.priority = "high";
-      return __baseIntro(req, res);
-    };
-  }
-})();
+module.exports = {
+  app,
+  server,
+  INDEX_VERSION
+};
