@@ -3,7 +3,7 @@
 /**
  * utils/voiceRoute.js
  *
- * voiceRoute v1.0.0
+ * voiceRoute v1.1.0
  * ------------------------------------------------------------
  * PURPOSE
  * - Extract voice/TTS route logic out of index.js
@@ -32,7 +32,7 @@
 
 const path = require("path");
 
-const VR_VERSION = "voiceRoute v1.0.0";
+const VR_VERSION = "voiceRoute v1.1.0";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -70,17 +70,9 @@ function sha1Lite(str) {
   }
   return (h >>> 0).toString(16);
 }
-function safeJson(v, fallback) {
-  try {
-    return JSON.stringify(v);
-  } catch (_e) {
-    return fallback || "{}";
-  }
-}
 
 function createVoiceRoute(userOptions) {
   const opts = normalizeOptions(userOptions);
-
   const requestLedger = new Map();
 
   function log() {
@@ -101,7 +93,14 @@ function createVoiceRoute(userOptions) {
   function buildRequestKey(req, payload, introMode) {
     const body = isPlainObject(payload) ? payload : {};
     const text = oneLine(body.text || body.message || body.prompt || body.introText || "").slice(0, 280);
-    const voice = oneLine(body.voice || body.voiceId || body.voiceName || "").slice(0, 80);
+    const voice = oneLine(
+      body.voice ||
+      body.voiceId ||
+      body.voiceName ||
+      body.mixerVoiceId ||
+      body.mixerVoiceName ||
+      ""
+    ).slice(0, 80);
     const sid = oneLine(body.sessionId || body.sid || req?.headers?.["x-session-id"] || "").slice(0, 80);
     const rid = oneLine(body.requestId || req?.headers?.["x-request-id"] || "").slice(0, 80);
     const kind = introMode ? "intro" : "tts";
@@ -128,15 +127,28 @@ function createVoiceRoute(userOptions) {
         safeStr(body.text || "") ||
         safeStr(body.message || "") ||
         safeStr(body.prompt || "") ||
+        safeStr(body.say || "") ||
+        safeStr(body.data || "") ||
         safeStr(query.text || "") ||
         safeStr(query.message || "") ||
         "",
       voice:
         safeStr(body.voice || "") ||
         safeStr(body.voiceId || "") ||
+        safeStr(body.voice_uuid || "") ||
         safeStr(body.voiceName || "") ||
         safeStr(query.voice || "") ||
         safeStr(query.voiceId || "") ||
+        "",
+      voiceId:
+        safeStr(body.voiceId || "") ||
+        safeStr(body.voice_uuid || "") ||
+        safeStr(query.voiceId || "") ||
+        "",
+      voiceName:
+        safeStr(body.voiceName || "") ||
+        safeStr(body.mixerVoiceName || "") ||
+        safeStr(query.voiceName || "") ||
         "",
       sessionId:
         safeStr(body.sessionId || "") ||
@@ -156,6 +168,7 @@ function createVoiceRoute(userOptions) {
         "",
       format:
         safeStr(body.format || "") ||
+        safeStr(body.output_format || "") ||
         safeStr(query.format || "") ||
         "",
       provider:
@@ -174,6 +187,10 @@ function createVoiceRoute(userOptions) {
         safeStr(body.mode || "") ||
         safeStr(query.mode || "") ||
         "",
+      routeKind:
+        safeStr(body.routeKind || "") ||
+        safeStr(query.routeKind || "") ||
+        "",
       rawBody: body,
       rawQuery: query
     };
@@ -185,14 +202,15 @@ function createVoiceRoute(userOptions) {
   }
 
   function resolveMixerVoice(payload) {
-    const requested = oneLine(payload?.voice || "");
+    const requested = oneLine(payload?.voiceId || payload?.voice || "");
     if (requested) return requested;
 
     const preferred = [
       opts.mixerVoiceId,
-      opts.mixerVoiceName,
       process.env.MIXER_VOICE_ID,
-      process.env.MIXER_VOICE_NAME,
+      process.env.RESEMBLE_VOICE_UUID,
+      process.env.SB_RESEMBLE_VOICE_UUID,
+      process.env.SBNYX_RESEMBLE_VOICE_UUID,
       process.env.RESEMBLE_VOICE_ID,
       process.env.NYX_VOICE_ID,
       process.env.TTS_VOICE_ID
@@ -200,11 +218,27 @@ function createVoiceRoute(userOptions) {
       .map((x) => oneLine(x))
       .find(Boolean);
 
-    return preferred || "mixer";
+    return preferred || "";
+  }
+
+  function resolveMixerVoiceName(payload) {
+    const requested = oneLine(payload?.voiceName || payload?.voice || "");
+    if (requested) return requested;
+
+    const preferred = [
+      opts.mixerVoiceName,
+      process.env.MIXER_VOICE_NAME,
+      process.env.NYX_VOICE_NAME,
+      process.env.TTS_VOICE_NAME
+    ]
+      .map((x) => oneLine(x))
+      .find(Boolean);
+
+    return preferred || "Nyx";
   }
 
   function resolveIntroText(payload) {
-    const direct = oneLine(payload?.introText || "");
+    const direct = oneLine(payload?.introText || payload?.text || "");
     if (direct) return direct;
 
     const configured = oneLine(opts.defaultIntroText || "");
@@ -238,8 +272,8 @@ function createVoiceRoute(userOptions) {
 
     res.setHeader("Access-Control-Allow-Origin", allowOrigin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Id, X-Request-Id");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Session-Id, X-Request-Id, X-SB-Trace-ID");
     res.setHeader("Access-Control-Expose-Headers", "Content-Type, X-Voice-Route-Version");
   }
 
@@ -258,7 +292,7 @@ function createVoiceRoute(userOptions) {
     };
   }
 
-  function wrapHandlerResult(result, fallbackText, voiceId, introMode) {
+  function wrapHandlerResult(result, fallbackText, voiceId, voiceName, introMode) {
     if (Buffer.isBuffer(result)) {
       return { kind: "audio_buffer", buffer: result, mime: "audio/mpeg" };
     }
@@ -286,9 +320,26 @@ function createVoiceRoute(userOptions) {
           json: buildJsonEnvelope(true, {
             routeMode: introMode ? "intro" : "tts",
             voice: voiceId,
+            voiceName,
             audioUrl: safeStr(result.url || result.audioUrl),
             mime: safeStr(result.mime || result.contentType || "audio/mpeg"),
             provider: safeStr(result.provider || ""),
+            text: safeStr(result.text || fallbackText || "")
+          })
+        };
+      }
+
+      if (result.ok === false) {
+        return {
+          kind: "json",
+          json: buildJsonEnvelope(false, {
+            routeMode: introMode ? "intro" : "tts",
+            voice: voiceId,
+            voiceName,
+            error: safeStr(result.reason || "tts_failed"),
+            detail: safeStr(result.message || result.error || "").slice(0, 220),
+            provider: safeStr(result.provider || ""),
+            retryable: !!result.retryable,
             text: safeStr(result.text || fallbackText || "")
           })
         };
@@ -300,6 +351,7 @@ function createVoiceRoute(userOptions) {
           json: buildJsonEnvelope(true, {
             routeMode: introMode ? "intro" : "tts",
             voice: voiceId,
+            voiceName,
             text: safeStr(result.text),
             mime: safeStr(result.mime || result.contentType || "audio/mpeg"),
             provider: safeStr(result.provider || "")
@@ -313,6 +365,7 @@ function createVoiceRoute(userOptions) {
       json: buildJsonEnvelope(false, {
         routeMode: introMode ? "intro" : "tts",
         voice: voiceId,
+        voiceName,
         text: fallbackText || "",
         error: "invalid_tts_response_shape"
       })
@@ -332,10 +385,11 @@ function createVoiceRoute(userOptions) {
       try {
         // eslint-disable-next-line import/no-dynamic-require, global-require
         const mod = require(candidate);
-        if (typeof mod === "function") return mod;
-        if (mod && typeof mod.handleTts === "function") return mod.handleTts;
         if (mod && typeof mod.delegateTts === "function") return mod.delegateTts;
+        if (mod && typeof mod.ttsHandler === "function") return mod.ttsHandler;
+        if (typeof mod === "function") return mod;
         if (mod && typeof mod.default === "function") return mod.default;
+        if (mod && typeof mod.handleTts === "function") return mod.handleTts;
       } catch (_e) {}
     }
 
@@ -344,6 +398,7 @@ function createVoiceRoute(userOptions) {
 
   async function delegateToTts(ttsHandler, req, payload, introMode) {
     const voiceId = resolveMixerVoice(payload);
+    const voiceName = resolveMixerVoiceName(payload);
     const text = introMode ? resolveIntroText(payload) : oneLine(payload.text || "");
     const provider = oneLine(payload.provider || opts.defaultProvider || "");
     const format = oneLine(payload.format || opts.defaultFormat || "");
@@ -353,15 +408,19 @@ function createVoiceRoute(userOptions) {
       text,
       message: text,
       prompt: text,
-      voice: voiceId,
+      voice: voiceId || "nyx",
       voiceId,
+      voice_uuid: voiceId,
+      voiceName,
       provider,
       format,
+      output_format: format || "mp3",
       mime,
       sessionId: payload.sessionId || "",
       requestId: payload.requestId || "",
       lane: payload.lane || "",
       mode: introMode ? "intro" : (payload.mode || "tts"),
+      routeKind: introMode ? "intro" : "main",
       intro: !!introMode,
       preserveMixerVoice: true,
       raw: payload.rawBody || {}
@@ -380,6 +439,7 @@ function createVoiceRoute(userOptions) {
 
     const payload = normalizePayload(req);
     const voiceId = resolveMixerVoice(payload);
+    const voiceName = resolveMixerVoiceName(payload);
     const text = introMode ? resolveIntroText(payload) : oneLine(payload.text || "");
 
     if (!text) {
@@ -389,7 +449,8 @@ function createVoiceRoute(userOptions) {
         buildJsonEnvelope(false, {
           routeMode: introMode ? "intro" : "tts",
           error: "missing_text",
-          voice: voiceId
+          voice: voiceId,
+          voiceName
         })
       );
       return;
@@ -403,6 +464,7 @@ function createVoiceRoute(userOptions) {
         buildJsonEnvelope(true, {
           routeMode: introMode ? "intro" : "tts",
           voice: voiceId,
+          voiceName,
           duplicateSuppressed: true,
           requestKey: dupe.key,
           text
@@ -420,6 +482,7 @@ function createVoiceRoute(userOptions) {
           routeMode: introMode ? "intro" : "tts",
           error: "tts_handler_unavailable",
           voice: voiceId,
+          voiceName,
           preserveMixerVoice: true,
           text
         })
@@ -433,6 +496,7 @@ function createVoiceRoute(userOptions) {
         result,
         text,
         voiceId,
+        voiceName,
         introMode
       );
 
@@ -449,7 +513,11 @@ function createVoiceRoute(userOptions) {
         return;
       }
 
-      safeSendJson(res, 200, wrapped.json);
+      safeSendJson(
+        res,
+        wrapped.json && wrapped.json.ok === false && wrapped.json.error ? 503 : 200,
+        wrapped.json
+      );
     } catch (err) {
       safeSendJson(
         res,
@@ -459,11 +527,23 @@ function createVoiceRoute(userOptions) {
           error: "tts_delegate_failed",
           detail: safeStr(err && err.message ? err.message : err).slice(0, 220),
           voice: voiceId,
+          voiceName,
           preserveMixerVoice: true,
           text
         })
       );
     }
+  }
+
+  function voiceRouteHealth(_req, res) {
+    safeSendJson(res, 200, buildJsonEnvelope(true, {
+      mixerVoiceId: opts.mixerVoiceId || "",
+      mixerVoiceName: opts.mixerVoiceName || "",
+      preserveMixerVoice: true,
+      ttsRoutePath: opts.ttsRoutePath,
+      introRoutePath: opts.introRoutePath,
+      voiceRoutePath: opts.voiceRoutePath
+    }));
   }
 
   function register(app) {
@@ -484,6 +564,13 @@ function createVoiceRoute(userOptions) {
       res.status(204).end();
     });
 
+    if (opts.voiceRoutePath) {
+      app.options(opts.voiceRoutePath, (req, res) => {
+        applyVoiceCors(req, res);
+        res.status(204).end();
+      });
+    }
+
     app.post(opts.ttsRoutePath, async (req, res) => {
       await handleVoice(req, res, false);
     });
@@ -492,21 +579,24 @@ function createVoiceRoute(userOptions) {
       await handleVoice(req, res, true);
     });
 
+    if (opts.voiceRoutePath) {
+      app.get(opts.voiceRoutePath, (req, res) => {
+        applyVoiceCors(req, res);
+        voiceRouteHealth(req, res);
+      });
+    }
+
     if (opts.healthRoutePath) {
-      app.get(opts.healthRoutePath, (_req, res) => {
-        res.status(200).json(buildJsonEnvelope(true, {
-          mixerVoiceId: opts.mixerVoiceId || "",
-          mixerVoiceName: opts.mixerVoiceName || "",
-          preserveMixerVoice: true,
-          ttsRoutePath: opts.ttsRoutePath,
-          introRoutePath: opts.introRoutePath
-        }));
+      app.get(opts.healthRoutePath, (req, res) => {
+        applyVoiceCors(req, res);
+        voiceRouteHealth(req, res);
       });
     }
 
     log("registered", {
       ttsRoutePath: opts.ttsRoutePath,
       introRoutePath: opts.introRoutePath,
+      voiceRoutePath: opts.voiceRoutePath,
       preserveMixerVoice: true
     });
 
@@ -553,17 +643,23 @@ function normalizeOptions(userOptions) {
     mixerVoiceId:
       safeStr(input.mixerVoiceId || "") ||
       safeStr(process.env.MIXER_VOICE_ID || "") ||
+      safeStr(process.env.RESEMBLE_VOICE_UUID || "") ||
+      safeStr(process.env.SB_RESEMBLE_VOICE_UUID || "") ||
       safeStr(process.env.RESEMBLE_VOICE_ID || "") ||
       safeStr(process.env.NYX_VOICE_ID || ""),
     mixerVoiceName:
       safeStr(input.mixerVoiceName || "") ||
-      safeStr(process.env.MIXER_VOICE_NAME || ""),
+      safeStr(process.env.MIXER_VOICE_NAME || "") ||
+      safeStr(process.env.NYX_VOICE_NAME || ""),
     ttsRoutePath:
       safeStr(input.ttsRoutePath || "") ||
       "/api/tts",
     introRoutePath:
       safeStr(input.introRoutePath || "") ||
       "/api/tts/intro",
+    voiceRoutePath:
+      safeStr(input.voiceRoutePath || "") ||
+      "/api/voice-route",
     healthRoutePath:
       safeStr(input.healthRoutePath || "") ||
       "/api/tts/health",
