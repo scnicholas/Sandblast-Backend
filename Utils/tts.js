@@ -950,7 +950,7 @@ const health = () => _healthSnapshot();
 module.exports = {
   handleTts,
   delegateTts,
-  ttsHandler: delegateTts,
+  ttsHandler: handleTts,
   handler: handleTts,
   generate,
   health,
