@@ -21,7 +21,7 @@ const PHASES = Object.freeze({
   p15_operationalDiagnostics: true
 });
 
-const TTS_VERSION = "tts.js v2.0.0";
+const TTS_VERSION = "tts.js v2.1.0";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -154,8 +154,9 @@ function _resolvePreferredVoice(inputVoice) {
   );
 }
 
-function _resolvePreferredVoiceName() {
+function _resolvePreferredVoiceName(inputName) {
   return _pickFirst(
+    inputName,
     process.env.MIXER_VOICE_NAME,
     process.env.NYX_VOICE_NAME,
     process.env.TTS_VOICE_NAME
@@ -164,7 +165,7 @@ function _resolvePreferredVoiceName() {
 
 function _healthSnapshot() {
   const voiceUuid = _resolvePreferredVoice("");
-  const voiceName = _resolvePreferredVoiceName();
+  const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
   const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
   return {
@@ -500,8 +501,6 @@ function _normalizeProviderAudio(out) {
 
 function _normalizePayloadLikeInput(payload, req) {
   const body = payload && typeof payload === "object" ? payload : {};
-  const query = {};
-  const params = {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
   const text = _pickFirst(
@@ -552,7 +551,7 @@ function _normalizePayloadLikeInput(payload, req) {
     text: _trim(text).slice(0, MAX_TEXT),
     textDisplay: _trim(_pickFirst(body.textDisplay)).slice(0, MAX_TEXT),
     voiceUuid,
-    voiceName: _resolvePreferredVoiceName(),
+    voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, body.mixerVoiceName)),
     projectUuid,
     outputFormat,
     traceId,
@@ -560,7 +559,7 @@ function _normalizePayloadLikeInput(payload, req) {
     sampleRate: body.sampleRate || body.sample_rate,
     precision: body.precision,
     useHd: body.useHd,
-    intro: _bool(body.intro, false),
+    intro: _bool(body.intro, false) || _lower(body.routeKind) === "intro" || _lower(body.mode) === "intro",
     healthCheck: _bool(body.healthCheck, false),
     wantJson: _bool(body.returnJson, false),
     mode: _pickFirst(body.mode, "presence"),
@@ -569,9 +568,10 @@ function _normalizePayloadLikeInput(payload, req) {
     speechHints: _parseSpeechHints(body),
     pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object" ? body.pronunciationMap : null,
     speechChunks: Array.isArray(body.speechChunks) ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [],
-    rawBody: body,
-    rawQuery: query,
-    rawParams: params
+    preserveMixerVoice: _bool(body.preserveMixerVoice, true),
+    provider: _pickFirst(body.provider, "resemble"),
+    routeKind: _pickFirst(body.routeKind, body.mode, body.intro ? "intro" : "main"),
+    rawBody: body
   };
 }
 
@@ -644,7 +644,7 @@ function _resolveInput(req) {
     text: _trim(text).slice(0, MAX_TEXT),
     textDisplay: _trim(_pickFirst(body.textDisplay, query.textDisplay)).slice(0, MAX_TEXT),
     voiceUuid,
-    voiceName: _resolvePreferredVoiceName(),
+    voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, query.voiceName)),
     projectUuid,
     outputFormat,
     traceId,
@@ -652,7 +652,7 @@ function _resolveInput(req) {
     sampleRate: body.sampleRate || body.sample_rate || query.sampleRate || query.sample_rate,
     precision: body.precision || query.precision,
     useHd: body.useHd != null ? body.useHd : query.useHd,
-    intro: _bool(body.intro != null ? body.intro : query.intro, false),
+    intro: _bool(body.intro != null ? body.intro : query.intro, false) || _lower(body.routeKind || query.routeKind) === "intro" || _lower(body.mode || query.mode) === "intro",
     healthCheck: _bool(body.healthCheck != null ? body.healthCheck : query.healthCheck, false),
     wantJson: _bool(body.returnJson != null ? body.returnJson : query.returnJson, false),
     mode: _pickFirst(body.mode, query.mode, "presence"),
@@ -664,7 +664,10 @@ function _resolveInput(req) {
       : (query.pronunciationMap && typeof query.pronunciationMap === "object" ? query.pronunciationMap : null),
     speechChunks: Array.isArray(body.speechChunks)
       ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24)
-      : (Array.isArray(query.speechChunks) ? query.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [])
+      : (Array.isArray(query.speechChunks) ? query.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : []),
+    preserveMixerVoice: _bool(body.preserveMixerVoice != null ? body.preserveMixerVoice : query.preserveMixerVoice, true),
+    provider: _pickFirst(body.provider, query.provider, "resemble"),
+    routeKind: _pickFirst(body.routeKind, query.routeKind, body.intro || query.intro ? "intro" : "main")
   };
 }
 
@@ -672,10 +675,18 @@ async function generate(text, options) {
   const opts = options && typeof options === "object" ? options : {};
   const input = _normalizePayloadLikeInput({ text, ...opts }, { headers: { "x-sb-trace-id": opts.traceId || _makeTrace() } });
 
-  if (!input.text) return { ok: false, reason: "empty_text", status: 400 };
-  if (!input.voiceUuid) return { ok: false, reason: "missing_voice", message: "No Mixer or provider voice is configured.", status: 503, retryable: false };
-  if (activeRequests >= MAX_CONCURRENT) return { ok: false, reason: "concurrency_limit", status: 429 };
-  if (_circuitOpen()) return { ok: false, reason: "circuit_open", status: 503 };
+  if (!input.text) return { ok: false, reason: "empty_text", status: 400, retryable: false };
+  if (!input.voiceUuid) {
+    return {
+      ok: false,
+      reason: "missing_voice",
+      message: "No Mixer or provider voice is configured.",
+      status: 503,
+      retryable: false
+    };
+  }
+  if (activeRequests >= MAX_CONCURRENT) return { ok: false, reason: "concurrency_limit", status: 429, retryable: true };
+  if (_circuitOpen()) return { ok: false, reason: "circuit_open", status: 503, retryable: true };
 
   const shaped = _shapeSpeechText(input.text, {
     speechHints: input.speechHints,
@@ -758,6 +769,21 @@ async function generate(text, options) {
 
 async function delegateTts(payload, req) {
   const input = _normalizePayloadLikeInput(payload, req);
+
+  if (!input.text) {
+    return {
+      ok: false,
+      provider: input.provider || "resemble",
+      reason: "missing_text",
+      message: "No TTS text was provided.",
+      retryable: false,
+      providerStatus: 400,
+      mime: "audio/mpeg",
+      text: input.textDisplay || input.text || "",
+      voiceUuid: input.voiceUuid || ""
+    };
+  }
+
   const result = await generate(input.text, input);
 
   if (!result.ok) {
@@ -770,6 +796,7 @@ async function delegateTts(payload, req) {
       providerStatus: result.status || 503,
       mime: "audio/mpeg",
       text: result.textDisplay || input.textDisplay || input.text,
+      textSpeak: result.textSpeak || input.text,
       voiceUuid: input.voiceUuid
     };
   }
@@ -783,7 +810,8 @@ async function delegateTts(payload, req) {
     requestId: result.requestId || input.sourceId || "",
     text: result.textDisplay || input.textDisplay || input.text,
     textSpeak: result.textSpeak || input.text,
-    voiceUuid: input.voiceUuid
+    voiceUuid: input.voiceUuid,
+    routeKind: input.routeKind || "main"
   };
 }
 
