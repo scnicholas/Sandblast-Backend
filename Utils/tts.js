@@ -18,10 +18,12 @@ const PHASES = Object.freeze({
   p12_jsonAudioMode: true,
   p13_introParity: true,
   p14_retrySignal: true,
-  p15_operationalDiagnostics: true
+  p15_operationalDiagnostics: true,
+  p16_projectUuidGuard: true,
+  p17_providerErrorPassThrough: true
 });
 
-const TTS_VERSION = "tts.js v2.1.0";
+const TTS_VERSION = "tts.js v2.1.1";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -114,6 +116,8 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(meta.elapsedMs));
   if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(meta.shapeMs));
   if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(meta.segmentCount));
+  if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(meta.providerStatus));
+  if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", String(meta.reason).slice(0, 80));
 }
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
@@ -126,7 +130,6 @@ function _recordFailure(message, status) {
   if (failCount >= CIRCUIT_LIMIT) {
     circuitOpenUntil = _now() + CIRCUIT_RESET_MS;
     try {
-      // eslint-disable-next-line no-console
       console.warn("[TTS] Circuit breaker OPEN", { failCount, resetInMs: CIRCUIT_RESET_MS });
     } catch (_) {}
   }
@@ -163,10 +166,23 @@ function _resolvePreferredVoiceName(inputName) {
   );
 }
 
+function _useProjectUuidByDefault() {
+  return _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false);
+}
+
+function _resolveProjectUuid(explicitValue) {
+  const explicit = _trim(explicitValue);
+  if (explicit) return explicit;
+  if (_useProjectUuidByDefault()) {
+    return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
+  }
+  return "";
+}
+
 function _healthSnapshot() {
   const voiceUuid = _resolvePreferredVoice("");
   const voiceName = _resolvePreferredVoiceName("");
-  const projectUuid = _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
+  const projectUuid = _resolveProjectUuid("");
   const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
   return {
     ok: !!(token && voiceUuid),
@@ -186,6 +202,7 @@ function _healthSnapshot() {
       hasToken: !!token,
       hasProject: !!projectUuid,
       hasVoice: !!voiceUuid,
+      useProjectUuidByDefault: _useProjectUuidByDefault(),
       voiceUuidPreview: voiceUuid ? `${voiceUuid.slice(0, 4)}***${voiceUuid.slice(-3)}` : "",
       voiceName: voiceName || "",
       projectUuidPreview: projectUuid ? `${projectUuid.slice(0, 4)}***${projectUuid.slice(-3)}` : ""
@@ -495,7 +512,10 @@ function _normalizeProviderAudio(out) {
     providerStatus: Number(out && (out.providerStatus || out.status || 200)) || 200,
     message: _pickFirst(out && out.message, out && out.reason, out && out.error),
     reason: _pickFirst(out && out.reason, out && out.error, out && out.message),
-    retryable: out && typeof out.retryable === "boolean" ? out.retryable : true
+    retryable: out && typeof out.retryable === "boolean" ? out.retryable : true,
+    authMode: _pickFirst(out && out.authMode),
+    providerEndpoint: _pickFirst(out && out.providerEndpoint),
+    voiceUuid: _pickFirst(out && out.voiceUuid)
   };
 }
 
@@ -523,14 +543,14 @@ function _normalizePayloadLikeInput(payload, req) {
     headers["x-voice-uuid"]
   ));
 
-  const projectUuid = _pickFirst(
+  const explicitProjectUuid = _pickFirst(
     body.project_uuid,
     body.projectUuid,
     headers["x-sb-project"],
-    headers["x-project-uuid"],
-    process.env.RESEMBLE_PROJECT_UUID,
-    process.env.SB_RESEMBLE_PROJECT_UUID
+    headers["x-project-uuid"]
   );
+
+  const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
   const outputFormat = _lower(_pickFirst(
     body.output_format,
@@ -610,16 +630,16 @@ function _resolveInput(req) {
     headers["x-voice-uuid"]
   ));
 
-  const projectUuid = _pickFirst(
+  const explicitProjectUuid = _pickFirst(
     body.project_uuid,
     body.projectUuid,
     query.project_uuid,
     query.projectUuid,
     headers["x-sb-project"],
-    headers["x-project-uuid"],
-    process.env.RESEMBLE_PROJECT_UUID,
-    process.env.SB_RESEMBLE_PROJECT_UUID
+    headers["x-project-uuid"]
   );
+
+  const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
   const outputFormat = _lower(_pickFirst(
     body.output_format,
@@ -721,11 +741,14 @@ async function generate(text, options) {
         status: normalizedOut.retryable === false ? 400 : (normalizedOut.providerStatus || 503),
         retryable: !!normalizedOut.retryable,
         provider: "resemble",
+        providerStatus: normalizedOut.providerStatus || 503,
+        providerEndpoint: normalizedOut.providerEndpoint || "",
+        authMode: normalizedOut.authMode || "",
         shapeElapsedMs: shaped.shapeElapsedMs,
         segmentCount: shaped.segmentCount,
         textDisplay: providerInput.textDisplay,
         textSpeak: providerInput.textSpeak,
-        voiceUuid: input.voiceUuid
+        voiceUuid: normalizedOut.voiceUuid || input.voiceUuid
       };
     }
 
@@ -738,13 +761,15 @@ async function generate(text, options) {
       elapsedMs: normalizedOut.elapsedMs || 0,
       requestId: normalizedOut.requestId,
       providerStatus: normalizedOut.providerStatus || 200,
+      providerEndpoint: normalizedOut.providerEndpoint || "",
+      authMode: normalizedOut.authMode || "",
       shapeElapsedMs: shaped.shapeElapsedMs,
       segmentCount: shaped.segmentCount,
       textDisplay: providerInput.textDisplay,
       textSpeak: providerInput.textSpeak,
       ssmlText: providerInput.ssmlText,
       speechChunks: providerInput.speechChunks,
-      voiceUuid: input.voiceUuid
+      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid
     };
   } catch (err) {
     const msg = _trim(err && (err.message || err)) || "tts_exception";
@@ -756,6 +781,7 @@ async function generate(text, options) {
       status: 503,
       retryable: true,
       provider: "resemble",
+      providerStatus: 503,
       shapeElapsedMs: shaped.shapeElapsedMs,
       segmentCount: shaped.segmentCount,
       textDisplay: providerInput.textDisplay,
@@ -793,11 +819,13 @@ async function delegateTts(payload, req) {
       reason: result.reason || "tts_unavailable",
       message: result.message || "TTS unavailable.",
       retryable: !!result.retryable,
-      providerStatus: result.status || 503,
+      providerStatus: result.status || result.providerStatus || 503,
+      providerEndpoint: result.providerEndpoint || "",
+      authMode: result.authMode || "",
       mime: "audio/mpeg",
       text: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
-      voiceUuid: input.voiceUuid
+      voiceUuid: result.voiceUuid || input.voiceUuid
     };
   }
 
@@ -808,9 +836,12 @@ async function delegateTts(payload, req) {
     mime: result.mimeType || "audio/mpeg",
     elapsedMs: result.elapsedMs || 0,
     requestId: result.requestId || input.sourceId || "",
+    providerStatus: result.providerStatus || 200,
+    providerEndpoint: result.providerEndpoint || "",
+    authMode: result.authMode || "",
     text: result.textDisplay || input.textDisplay || input.text,
     textSpeak: result.textSpeak || input.text,
-    voiceUuid: input.voiceUuid,
+    voiceUuid: result.voiceUuid || input.voiceUuid,
     routeKind: input.routeKind || "main"
   };
 }
@@ -842,14 +873,18 @@ async function handleTts(req, res) {
   const result = await generate(input.text, input);
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
-    voiceUuid: input.voiceUuid,
+    voiceUuid: result.voiceUuid || input.voiceUuid,
     elapsedMs: result.elapsedMs || 0,
     shapeMs: result.shapeElapsedMs || 0,
-    segmentCount: result.segmentCount || 0
+    segmentCount: result.segmentCount || 0,
+    providerStatus: result.providerStatus || result.status || 0,
+    reason: result.reason || ""
   });
 
   if (!result.ok) {
+    const upstreamStatus = Number(result.providerStatus || result.status || 503) || 503;
     const status = result.status === 429 ? 429 : (result.status >= 400 && result.status < 500 ? result.status : 503);
+
     return _safeJson(res, status, {
       ok: false,
       spokenUnavailable: true,
@@ -858,7 +893,10 @@ async function handleTts(req, res) {
       retryable: !!result.retryable,
       traceId: input.traceId,
       provider: result.provider || "resemble",
-      voiceUuid: input.voiceUuid || "",
+      providerStatus: upstreamStatus,
+      providerEndpoint: result.providerEndpoint || "",
+      authMode: result.authMode || "",
+      voiceUuid: result.voiceUuid || input.voiceUuid || "",
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
       shapeElapsedMs: result.shapeElapsedMs || 0,
@@ -877,12 +915,15 @@ async function handleTts(req, res) {
       traceId: input.traceId,
       elapsedMs: result.elapsedMs || 0,
       requestId: result.requestId,
+      providerStatus: result.providerStatus || 200,
+      providerEndpoint: result.providerEndpoint || "",
+      authMode: result.authMode || "",
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
       speechChunks: result.speechChunks || [],
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0,
-      voiceUuid: input.voiceUuid || ""
+      voiceUuid: result.voiceUuid || input.voiceUuid || ""
     });
   }
 
