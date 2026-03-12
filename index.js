@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.0.0sb
+ * index.js v2.1.0sb
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -35,7 +35,6 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
 
 let compression = null;
 try {
@@ -45,7 +44,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.0.0sb";
+const INDEX_VERSION = "index.js v2.1.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 // ============================================================
@@ -311,6 +310,13 @@ const registerVoiceRoutes =
   (typeof voiceRouteMod?.registerVoiceRoutes === "function" && voiceRouteMod.registerVoiceRoutes) ||
   null;
 
+const ttsMod = tryRequireMany([
+  "./Utils/tts",
+  "./Utils/tts.js",
+  "./utils/tts",
+  "./utils/tts.js"
+]);
+
 // ============================================================
 // Security headers
 // ============================================================
@@ -501,7 +507,7 @@ function sendJson(res, status, payload) {
   res.setHeader("X-Index-Version", INDEX_VERSION);
   if (payload && payload.requestId) res.setHeader("X-Request-Id", safeStr(payload.requestId));
   if (payload && payload.traceId) res.setHeader("X-SB-Trace-Id", safeStr(payload.traceId));
-  res.status(status).send(safeJson(payload, '{"ok":false,"error":"json_serialize_failed"}'));
+  res.status(status).send(safeJson(payload, "{\"ok\":false,\"error\":\"json_serialize_failed\"}"));
 }
 
 function normalizeContract(raw, ctx) {
@@ -673,14 +679,25 @@ app.get("/api/chat/health", (_req, res) => {
 // ============================================================
 if (registerVoiceRoutes) {
   registerVoiceRoutes(app, {
+    ttsHandler:
+      (typeof ttsMod?.delegateTts === "function" && ttsMod.delegateTts) ||
+      (typeof ttsMod?.ttsHandler === "function" && ttsMod.ttsHandler) ||
+      null,
+
     mixerVoiceId:
       safeStr(process.env.MIXER_VOICE_ID || "") ||
       safeStr(process.env.RESEMBLE_VOICE_ID || "") ||
+      safeStr(process.env.RESEMBLE_VOICE_UUID || "") ||
       safeStr(process.env.NYX_VOICE_ID || ""),
-    mixerVoiceName: safeStr(process.env.MIXER_VOICE_NAME || ""),
-    defaultProvider: safeStr(process.env.TTS_PROVIDER || ""),
-    defaultFormat: safeStr(process.env.TTS_FORMAT || "mp3"),
-    defaultIntroText: safeStr(process.env.NYX_INTRO_TEXT || ""),
+
+    mixerVoiceName:
+      safeStr(process.env.MIXER_VOICE_NAME || "") ||
+      safeStr(process.env.NYX_VOICE_NAME || "") ||
+      "Nyx",
+
+    ttsRoutePath: "/api/tts",
+    introRoutePath: "/api/tts/intro",
+    voiceRoutePath: "/api/voice-route",
     allowedOrigins,
     debug: DEBUG_MODE
   });
@@ -694,6 +711,14 @@ if (registerVoiceRoutes) {
   });
 
   app.post("/api/tts/intro", (_req, res) => {
+    return sendJson(res, 503, {
+      ok: false,
+      error: "voice_route_missing",
+      version: INDEX_VERSION
+    });
+  });
+
+  app.get("/api/voice-route", (_req, res) => {
     return sendJson(res, 503, {
       ok: false,
       error: "voice_route_missing",
@@ -748,7 +773,8 @@ app.get("/api/health", (_req, res) => {
     upMs: nowMs() - SERVER_BOOT_AT,
     sessions: sessionStore.size,
     knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
-    voiceRouteLoaded: !!registerVoiceRoutes
+    voiceRouteLoaded: !!registerVoiceRoutes,
+    ttsLoaded: !!ttsMod
   });
 });
 
@@ -769,7 +795,10 @@ app.get("/api/diag", (_req, res) => {
       banMs: RATE_BAN_MS
     },
     knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
-    voiceRouteLoaded: !!registerVoiceRoutes
+    voiceRouteLoaded: !!registerVoiceRoutes,
+    ttsLoaded: !!ttsMod,
+    ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"),
+    ttsHandlerLoaded: !!(ttsMod && typeof ttsMod.ttsHandler === "function")
   });
 });
 
@@ -822,6 +851,8 @@ const server = app.listen(PORT, () => {
     engineVersion: ENGINE.version,
     port: PORT,
     voiceRouteLoaded: !!registerVoiceRoutes,
+    ttsLoaded: !!ttsMod,
+    ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"),
     knowledgeLoaded: knowledgeRuntime.knowledgeStatusForMeta()
   });
 });
