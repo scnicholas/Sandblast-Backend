@@ -186,7 +186,7 @@ const RATE_MAX_PER_IP = clampInt(process.env.RATE_MAX_PER_IP, 90, 10, 5000);
 const VOICE_RATE_MAX_PER_IP = clampInt(process.env.VOICE_RATE_MAX_PER_IP, 40, 5, 5000);
 const RATE_BAN_MS = clampInt(process.env.RATE_BAN_MS, 30_000, 0, 600_000);
 
-const AVATAR_DIR = path.join(process.cwd(), "avatar");
+const AVATAR_DIR = path.join(process.cwd(), "public", "avatar");
 
 // ============================================================
 // App bootstrap
