@@ -44,7 +44,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.1.0sb";
+const INDEX_VERSION = "index.js v2.1.1sb";
 const SERVER_BOOT_AT = Date.now();
 
 // ============================================================
@@ -188,6 +188,13 @@ const RATE_BAN_MS = clampInt(process.env.RATE_BAN_MS, 30_000, 0, 600_000);
 
 const AVATAR_DIR = path.join(process.cwd(), "public", "avatar");
 
+const DEDUPE_WINDOW_MS = clampInt(process.env.DEDUPE_WINDOW_MS, 8000, 500, 60000);
+const RESPONSE_CACHE_TTL_MS = clampInt(process.env.RESPONSE_CACHE_TTL_MS, 12000, 1000, 120000);
+const MAX_REPLY_CHARS = clampInt(process.env.MAX_REPLY_CHARS, 2400, 64, 12000);
+const MAX_FOLLOWUPS = clampInt(process.env.MAX_FOLLOWUPS, 4, 0, 10);
+const MAX_DIRECTIVES = clampInt(process.env.MAX_DIRECTIVES, 8, 0, 24);
+const MAX_CHIPS = clampInt(process.env.MAX_CHIPS, 4, 0, 8);
+
 // ============================================================
 // App bootstrap
 // ============================================================
@@ -201,6 +208,27 @@ if (compression) {
 app.disable("x-powered-by");
 app.use(express.json({ limit: `${MAX_BODY_KB}kb` }));
 app.use(express.urlencoded({ extended: false, limit: `${MAX_BODY_KB}kb` }));
+app.use((err, _req, res, next) => {
+  if (!err) return next();
+  const msg = safeStr(err && err.message ? err.message : err);
+  const code = safeStr(err && err.type ? err.type : "");
+  if (code === "entity.too.large") {
+    return sendJson(res, 413, {
+      ok: false,
+      error: "payload_too_large",
+      version: INDEX_VERSION,
+      maxBodyKb: MAX_BODY_KB
+    });
+  }
+  if (msg) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "invalid_json",
+      version: INDEX_VERSION
+    });
+  }
+  return next(err);
+});
 
 // ============================================================
 // Module resolution
@@ -448,6 +476,15 @@ function touchIp(ip, kind) {
 }
 
 app.use((req, res, next) => {
+  const reqPath = safeStr(req.path || "");
+  const isApiLike =
+    reqPath.startsWith("/api/chat") ||
+    reqPath.startsWith("/api/tts") ||
+    reqPath.startsWith("/api/voice") ||
+    reqPath === "/api/health" ||
+    reqPath === "/api/diag";
+  if (!isApiLike) return next();
+
   const ip = getIp(req);
   const now = nowMs();
   const cur = ipLedger.get(ip);
@@ -461,7 +498,7 @@ app.use((req, res, next) => {
     });
   }
 
-  const isVoice = safeStr(req.path || "").startsWith("/api/tts") || safeStr(req.path || "").startsWith("/api/voice");
+  const isVoice = reqPath.startsWith("/api/tts") || reqPath.startsWith("/api/voice");
   touchIp(ip, isVoice ? "voice" : "chat");
   return next();
 });
@@ -504,6 +541,9 @@ function buildRequestContext(req) {
 function sendJson(res, status, payload) {
   if (res.headersSent) return;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.setHeader("X-Index-Version", INDEX_VERSION);
   if (payload && payload.requestId) res.setHeader("X-Request-Id", safeStr(payload.requestId));
   if (payload && payload.traceId) res.setHeader("X-SB-Trace-Id", safeStr(payload.traceId));
@@ -512,27 +552,63 @@ function sendJson(res, status, payload) {
 
 function normalizeContract(raw, ctx) {
   const src = isPlainObject(raw) ? raw : {};
-  const reply = safeStr(src.reply || src.payload?.reply || "").trim() || "Okay.";
+  const rawReply = safeStr(src.reply || src.payload?.reply || "").trim() || "Okay.";
+  const reply = rawReply.slice(0, MAX_REPLY_CHARS);
   const lane = safeStr(src.lane || src.laneId || src.sessionLane || "general") || "general";
-  const ui = isPlainObject(src.ui) ? src.ui : { chips: [], allowMic: true };
-  const followUps = Array.isArray(src.followUps) ? src.followUps : [];
-  const directives = Array.isArray(src.directives) ? src.directives : [];
+  const srcUi = isPlainObject(src.ui) ? src.ui : {};
+  const srcChips = Array.isArray(srcUi.chips) ? srcUi.chips : [];
+  const chips = srcChips
+    .map((x) => {
+      if (isPlainObject(x)) {
+        const label = safeStr(x.label || x.text || "").trim();
+        if (!label) return null;
+        return { ...x, label: label.slice(0, 80) };
+      }
+      const label = safeStr(x).trim();
+      if (!label) return null;
+      return { label: label.slice(0, 80) };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_CHIPS);
+
+  const followUps = (Array.isArray(src.followUps) ? src.followUps : [])
+    .map((x) => {
+      if (isPlainObject(x)) {
+        const label = safeStr(x.label || x.text || "").trim();
+        if (!label) return null;
+        return { ...x, label: label.slice(0, 120) };
+      }
+      const label = safeStr(x).trim();
+      if (!label) return null;
+      return { label: label.slice(0, 120) };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_FOLLOWUPS);
+
+  const directives = (Array.isArray(src.directives) ? src.directives : [])
+    .filter((x) => isPlainObject(x) || typeof x === "string")
+    .slice(0, MAX_DIRECTIVES);
+
   const sessionPatch = isPlainObject(src.sessionPatch) ? src.sessionPatch : {};
 
   return {
     ok: src.ok !== false,
     reply,
-    payload: isPlainObject(src.payload) ? src.payload : { reply },
+    payload: isPlainObject(src.payload) ? { ...src.payload, reply } : { reply },
     lane,
     laneId: safeStr(src.laneId || lane) || lane,
     sessionLane: safeStr(src.sessionLane || lane) || lane,
     bridge: src.bridge || null,
     ctx: isPlainObject(src.ctx) ? src.ctx : {},
-    ui,
+    ui: {
+      ...srcUi,
+      chips,
+      allowMic: srcUi.allowMic !== false
+    },
     directives,
     followUps,
     followUpsStrings: Array.isArray(src.followUpsStrings)
-      ? src.followUpsStrings
+      ? src.followUpsStrings.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, MAX_FOLLOWUPS)
       : followUps.map((x) => safeStr(x?.label || x).trim()).filter(Boolean),
     sessionPatch,
     cog: isPlainObject(src.cog) ? src.cog : {
@@ -597,6 +673,41 @@ function writeSession(sessionId, current, patch) {
   return merged;
 }
 
+const chatInflight = new Map();
+const recentResponses = new Map();
+
+function sweepTransientMaps() {
+  const now = nowMs();
+  for (const [key, rec] of recentResponses.entries()) {
+    if (!rec || !rec.at || now - rec.at > RESPONSE_CACHE_TTL_MS) recentResponses.delete(key);
+  }
+  for (const [key, rec] of chatInflight.entries()) {
+    if (!rec || !rec.at || now - rec.at > Math.max(DEDUPE_WINDOW_MS, 30000)) chatInflight.delete(key);
+  }
+}
+
+function buildTransportKey(ctx, text, req) {
+  const msg = safeStr(text).trim().toLowerCase();
+  const keySeed = [
+    ctx.sessionId,
+    ctx.ip,
+    msg,
+    oneLine(req.body?.routeHint || ""),
+    oneLine(req.body?.source || ""),
+    oneLine(req.body?.clientTurnId || ""),
+    oneLine(req.body?.turnId || "")
+  ].join("|");
+  return `chat_${sha1Lite(keySeed)}`;
+}
+
+function clonePayload(x) {
+  try {
+    return JSON.parse(JSON.stringify(x));
+  } catch (_) {
+    return x;
+  }
+}
+
 // ============================================================
 // Thin chat route
 // IMPORTANT:
@@ -607,27 +718,53 @@ app.post("/api/chat", async (req, res) => {
   const ctx = buildRequestContext(req);
 
   try {
+    sweepTransientMaps();
+
     const text = safeStr(req.body?.text || req.body?.message || "").slice(0, MAX_CHAT_TEXT);
+    const transportKey = buildTransportKey(ctx, text, req);
+    const now = nowMs();
+
+    const cached = recentResponses.get(transportKey);
+    if (cached && cached.payload && now - cached.at <= DEDUPE_WINDOW_MS) {
+      const replay = clonePayload(cached.payload);
+      if (replay && isPlainObject(replay.meta)) replay.meta.transportReplay = true;
+      return sendJson(res, 200, replay);
+    }
+
+    const inflight = chatInflight.get(transportKey);
+    if (inflight && inflight.promise && now - inflight.at <= DEDUPE_WINDOW_MS) {
+      const joined = await inflight.promise;
+      const replay = clonePayload(joined);
+      if (replay && isPlainObject(replay.meta)) replay.meta.transportJoin = true;
+      return sendJson(res, 200, replay);
+    }
+
     const sessionRecord = readSession(ctx.sessionId);
 
-    const engineInput = {
-      ...req.body,
-      text,
-      requestId: ctx.requestId,
-      traceId: ctx.traceId,
-      source: ctx.source,
-      routeHint: ctx.routeHint,
-      session: sessionRecord,
-      knowledge: knowledgeRuntime.knowledgeSnapshotForEngine(),
-      __knowledgeStatus: knowledgeRuntime.knowledgeStatusForMeta(),
-      packIndex: knowledgeRuntime.getPackIndexSafe(false)
-    };
+    const enginePromise = (async () => {
+      const engineInput = {
+        ...req.body,
+        text,
+        requestId: ctx.requestId,
+        traceId: ctx.traceId,
+        source: ctx.source,
+        routeHint: ctx.routeHint,
+        session: sessionRecord,
+        knowledge: knowledgeRuntime.knowledgeSnapshotForEngine(),
+        __knowledgeStatus: knowledgeRuntime.knowledgeStatusForMeta(),
+        packIndex: knowledgeRuntime.getPackIndexSafe(false)
+      };
 
-    const engineOut = await ENGINE.fn(engineInput);
-    const out = normalizeContract(engineOut, ctx);
+      const engineOut = await ENGINE.fn(engineInput);
+      const out = normalizeContract(engineOut, ctx);
+      writeSession(ctx.sessionId, sessionRecord, out.sessionPatch);
+      recentResponses.set(transportKey, { at: nowMs(), payload: clonePayload(out) });
+      return out;
+    })();
 
-    writeSession(ctx.sessionId, sessionRecord, out.sessionPatch);
+    chatInflight.set(transportKey, { at: now, promise: enginePromise });
 
+    const out = await enginePromise;
     return sendJson(res, 200, out);
   } catch (err) {
     const fail = buildFailOpenReply(
@@ -636,6 +773,11 @@ app.post("/api/chat", async (req, res) => {
       { error: safeStr(err && err.message ? err.message : err).slice(0, 220) }
     );
     return sendJson(res, 200, fail);
+  } finally {
+    const text = safeStr(req.body?.text || req.body?.message || "").slice(0, MAX_CHAT_TEXT);
+    const transportKey = buildTransportKey(ctx, text, req);
+    const cur = chatInflight.get(transportKey);
+    if (cur) chatInflight.delete(transportKey);
   }
 });
 
@@ -669,6 +811,8 @@ app.get("/api/chat/health", (_req, res) => {
     engineVersion: ENGINE.version,
     upMs: nowMs() - SERVER_BOOT_AT,
     sessions: sessionStore.size,
+    inflight: chatInflight.size,
+    dedupeCache: recentResponses.size,
     knowledge: knowledgeRuntime.knowledgeStatusForMeta()
   });
 });
@@ -772,6 +916,12 @@ app.get("/api/health", (_req, res) => {
     nodeEnv: NODE_ENV,
     upMs: nowMs() - SERVER_BOOT_AT,
     sessions: sessionStore.size,
+    inflight: chatInflight.size,
+    dedupeCache: recentResponses.size,
+    dedupe: {
+      windowMs: DEDUPE_WINDOW_MS,
+      responseCacheTtlMs: RESPONSE_CACHE_TTL_MS
+    },
     knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
     voiceRouteLoaded: !!registerVoiceRoutes,
     ttsLoaded: !!ttsMod
