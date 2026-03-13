@@ -76,6 +76,7 @@ const EnglishK = safeRequire("./englishKnowledge");
 const FinanceK = safeRequire("./financeKnowledge");
 const LawK = safeRequire("./lawKnowledge");
 const AIK = safeRequire("./aiKnowledge");
+const EmotionRouteGuard = safeRequire("./emotionRouteGuard");
 
 
 // =========================
@@ -117,7 +118,7 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.4.1-opintel+++++supportfix";
+const BRIDGE_VERSION = "1.5.0-opintel-emotion-sync";
 
 const OPINTEL_SCHEMA = "oi:1.0";
 const OPINTEL_TRACE_SCHEMA = "trace:1.0";
@@ -1158,6 +1159,8 @@ function resolveOperationalUpgradeHints(ctx, domains, confidence, opts) {
   const recentIntents = uniqBounded(f.recentIntents || f.memoryRecentIntents || [], 5, 32);
   const unresolved = uniqBounded(f.unresolvedAsks || f.memoryUnresolvedAsks || [], 5, 64);
   const actionHints = uniqBounded(o.actionHints || f.actionHints || [], 6, 48);
+  const emotionCluster = safeStr(f.emotionCluster || o.emotionCluster || "", 32).toLowerCase();
+  const primaryEmotion = safeStr(f.primaryEmotion || o.primaryEmotion || "", 32).toLowerCase();
 
   return {
     schema: "sitebridge.opupgrade.v1",
@@ -1168,6 +1171,11 @@ function resolveOperationalUpgradeHints(ctx, domains, confidence, opts) {
     recentIntents,
     unresolvedAsks: unresolved,
     actionHints,
+    emotionalRouting: {
+      primaryEmotion: primaryEmotion || undefined,
+      emotionCluster: emotionCluster || undefined,
+      loopPressure: emotionCluster ? (emotionCluster === "distress" || emotionCluster === "threat" || ambiguity >= 0.55) : undefined,
+    },
     observability: {
       contractAudited: true,
       bounded: true,
@@ -1230,6 +1238,7 @@ function finalizeContract(out) {
 
     opIntel: isObject(o.opIntel) ? o.opIntel : undefined,
     opUpgrade: isObject(o.opUpgrade) ? o.opUpgrade : resolveOperationalUpgradeHints({ features: {} }, {}, clamp01(o.confidence), {}),
+    emotion: sanitizeEmotionForContract(o.emotion),
   };
 
   // absolute invariants (avoid accidental side effects)
@@ -1258,9 +1267,242 @@ try {
   return safe;
 }
 
+
+// =========================
+// EMOTION ENVELOPE INTAKE (NO RAW USER TEXT ANALYSIS HERE)
+// =========================
+//
+// SiteBridge consumes STRUCTURED emotion payloads produced upstream by emotionRouteGuard/chatEngine/stateSpine.
+// It does not run raw-text emotional inference itself, preserving the no-raw-user-text boundary.
+
+function safeNum(x, fallback = 0) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function coerceBool(x, fallback = false) {
+  if (x === true) return true;
+  if (x === false) return false;
+  return fallback;
+}
+
+function pickEmotionSource(input, features, opts) {
+  const candidates = [
+    opts && opts.emotionAnalysis,
+    opts && opts.emotionPayload,
+    features && features.emotionAnalysis,
+    features && features.emotionPayload,
+    features && features.__emotion,
+    input && input.emotionAnalysis,
+    input && input.emotionPayload,
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (isObject(c)) return c;
+  }
+  return null;
+}
+
+function normalizeEmotionPayload(raw) {
+  const r = isObject(raw) ? raw : {};
+  const continuity = isObject(r.continuity) ? r.continuity : {};
+  const downstream = isObject(r.downstream) ? r.downstream : {};
+  const supportFlags = isObject(r.supportFlags) ? r.supportFlags : {};
+
+  const primaryEmotion =
+    safeStr(r.primaryEmotion || r.dominantEmotion || r.emotion || "", 32).trim() || undefined;
+  const secondaryEmotion =
+    safeStr(r.secondaryEmotion || r.altEmotion || "", 32).trim() || undefined;
+  const emotionCluster =
+    safeStr(r.emotionCluster || r.cluster || "", 32).trim().toLowerCase() || undefined;
+  const valence =
+    safeStr(r.valence || r.sentiment || "", 16).trim().toLowerCase() || undefined;
+  const routeBias =
+    safeStr(r.routeBias || downstream?.chatEngine?.routeBias || "", 48).trim().toLowerCase() || undefined;
+  const supportModeCandidate =
+    safeStr(r.supportModeCandidate || downstream?.supportResponse?.supportModeCandidate || "", 48).trim().toLowerCase() || undefined;
+
+  const normalized = {
+    source: safeStr(r.source || "upstream_emotion", 32),
+    primaryEmotion,
+    secondaryEmotion,
+    emotionCluster,
+    valence,
+    intensity: clamp01(r.intensity),
+    confidence: clamp01(r.confidence),
+    emotionalVolatility: safeStr(r.emotionalVolatility || r.volatility || "stable", 16).toLowerCase(),
+    routeBias,
+    supportModeCandidate,
+
+    fallbackSuppression: coerceBool(
+      r.fallbackSuppression ?? continuity.fallbackSuppression ?? downstream?.chatEngine?.fallbackSuppression,
+      false
+    ),
+    needsNovelMove: coerceBool(
+      r.needsNovelMove ?? continuity.needsNovelMove ?? downstream?.chatEngine?.needsNovelMove,
+      false
+    ),
+    routeExhaustion: coerceBool(
+      r.routeExhaustion ?? continuity.routeExhaustion,
+      false
+    ),
+
+    sameEmotionCount: clampInt(continuity.sameEmotionCount ?? r.sameEmotionCount ?? 0, 0, 20, 0),
+    sameSupportModeCount: clampInt(continuity.sameSupportModeCount ?? r.sameSupportModeCount ?? 0, 0, 20, 0),
+    noProgressTurnCount: clampInt(continuity.noProgressTurnCount ?? r.noProgressTurnCount ?? 0, 0, 20, 0),
+    repeatedFallbackCount: clampInt(continuity.repeatedFallbackCount ?? r.repeatedFallbackCount ?? 0, 0, 20, 0),
+
+    routeHints: uniqBounded(r.routeHints || downstream?.chatEngine?.routeHints || [], 12, 48),
+    supportFlags: {
+      needsStabilization: coerceBool(supportFlags.needsStabilization, false),
+      needsClarification: coerceBool(supportFlags.needsClarification, false),
+      needsContainment: coerceBool(supportFlags.needsContainment, false),
+      needsConnection: coerceBool(supportFlags.needsConnection, false),
+      needsForwardMotion: coerceBool(supportFlags.needsForwardMotion, false),
+      mentionsLooping: coerceBool(supportFlags.mentionsLooping, false),
+    },
+  };
+
+  if (!normalized.primaryEmotion && !normalized.emotionCluster && !normalized.routeBias) return null;
+  return normalized;
+}
+
+function resolveEmotionEnvelope(input, features, opts) {
+  const raw = pickEmotionSource(input, features, opts);
+  return normalizeEmotionPayload(raw);
+}
+
+function applyEmotionCoordination(emotion, stateHints, toneCues, uiCues, responseCues, guardrails) {
+  const e = isObject(emotion) ? emotion : null;
+  const s = isObject(stateHints) ? stateHints : {};
+  if (!e) {
+    return {
+      regulationOverride: null,
+      modeOverride: null,
+      bridgeHints: [],
+    };
+  }
+
+  const bridgeHints = [];
+  const cluster = safeStr(e.emotionCluster || "", 32);
+  const routeBias = safeStr(e.routeBias || "", 48);
+  const primary = safeStr(e.primaryEmotion || "", 32);
+  const volatility = safeStr(e.emotionalVolatility || "stable", 16);
+  const intensity = clamp01(e.intensity);
+  const confidence = clamp01(e.confidence);
+
+  if (primary) responseCues.unshift("emotion:" + primary);
+  if (cluster) responseCues.unshift("emotion_cluster:" + cluster);
+  if (routeBias) responseCues.unshift("route_bias:" + routeBias);
+  if (confidence >= 0.7) responseCues.unshift("emotion_confident");
+  if (e.fallbackSuppression) guardrails.unshift("emotion_fallback_suppressed");
+  if (e.needsNovelMove) responseCues.unshift("novel_move_required", "avoid_repeat_validation");
+  if (e.routeExhaustion) {
+    guardrails.unshift("route_exhaustion_detected");
+    responseCues.unshift("advance_without_repeating", "no_menu_bounce");
+    uiCues.unshift("compact_reply");
+    bridgeHints.push("route_exhaustion_bridge");
+  }
+  if (e.supportFlags && e.supportFlags.mentionsLooping) {
+    guardrails.unshift("loop_pressure_detected");
+    responseCues.unshift("stop_repeating_questions");
+    bridgeHints.push("loop_pressure_bridge");
+  }
+
+  if (cluster === "threat" || cluster === "distress" || cluster === "self_evaluative") {
+    toneCues.unshift("warm", "grounded");
+    uiCues.unshift("minimize_choices", "compact_reply");
+    responseCues.unshift("support_first", "validate_emotion");
+    bridgeHints.push("psych_support_bridge");
+    return {
+      regulationOverride: intensity >= 0.8 ? "fragile" : null,
+      modeOverride: intensity >= 0.8 ? "stabilize" : null,
+      bridgeHints,
+    };
+  }
+
+  if (cluster === "uncertain" || routeBias.includes("clarify")) {
+    toneCues.unshift("clear", "steady");
+    responseCues.unshift("clarify_minimally", "sequence_steps");
+    bridgeHints.push("clarity_structuring_bridge");
+  }
+
+  if (cluster === "resistance") {
+    toneCues.unshift("calm", "respectful");
+    responseCues.unshift("gentle_challenge", "reduce_friction");
+    bridgeHints.push("gentle_challenge_bridge");
+  }
+
+  if (cluster === "curious" || cluster === "reflective" || routeBias.includes("deepen")) {
+    toneCues.unshift("curious", "attuned");
+    responseCues.unshift("deepen_selectively");
+    bridgeHints.push("reflective_depth_bridge");
+  }
+
+  if (cluster === "affiliative" || cluster === "relational") {
+    toneCues.unshift("warm", "friendly");
+    responseCues.unshift("connection_preserve");
+    bridgeHints.push("connection_preserve");
+  }
+
+  if (cluster === "uplift" || cluster === "drive" || routeBias.includes("channel")) {
+    responseCues.unshift("channel_forward", "reinforce_progress");
+    bridgeHints.push("momentum_building");
+  }
+
+  if (cluster === "aversion" || routeBias.includes("boundary")) {
+    responseCues.unshift("boundary_then_redirect");
+    bridgeHints.push("boundary_mode");
+  }
+
+  if (volatility === "high" || intensity >= 0.75) {
+    uiCues.unshift("compact_reply");
+    guardrails.unshift("high_volatility_emotion");
+  }
+
+  if ((s.clarifyStreak || 0) >= 2 && (e.needsNovelMove || e.routeExhaustion)) {
+    responseCues.unshift("clarify_breaker", "offer_3_options");
+    bridgeHints.push("clarify_breaker_bridge");
+  }
+
+  return {
+    regulationOverride: null,
+    modeOverride: null,
+    bridgeHints,
+  };
+}
+
+function sanitizeEmotionForContract(emotion) {
+  const e = isObject(emotion) ? emotion : null;
+  if (!e) return undefined;
+  return {
+    source: safeStr(e.source || "upstream_emotion", 32),
+    primaryEmotion: safeStr(e.primaryEmotion || "", 32) || undefined,
+    secondaryEmotion: safeStr(e.secondaryEmotion || "", 32) || undefined,
+    emotionCluster: safeStr(e.emotionCluster || "", 32) || undefined,
+    valence: safeStr(e.valence || "", 16) || undefined,
+    intensity: clamp01(e.intensity),
+    confidence: clamp01(e.confidence),
+    emotionalVolatility: safeStr(e.emotionalVolatility || "stable", 16),
+    routeBias: safeStr(e.routeBias || "", 48) || undefined,
+    supportModeCandidate: safeStr(e.supportModeCandidate || "", 48) || undefined,
+    fallbackSuppression: !!e.fallbackSuppression,
+    needsNovelMove: !!e.needsNovelMove,
+    routeExhaustion: !!e.routeExhaustion,
+    continuity: {
+      sameEmotionCount: clampInt(e.sameEmotionCount, 0, 20, 0),
+      sameSupportModeCount: clampInt(e.sameSupportModeCount, 0, 20, 0),
+      noProgressTurnCount: clampInt(e.noProgressTurnCount, 0, 20, 0),
+      repeatedFallbackCount: clampInt(e.repeatedFallbackCount, 0, 20, 0),
+    },
+    routeHints: uniqBounded(e.routeHints || [], 12, 48),
+  };
+}
+
 // =========================
 // MAIN: BUILD PSYCHE (SYNC, backward compatible)
 // =========================
+
 
 function build(input) {
   try {
@@ -1270,13 +1512,15 @@ function build(input) {
     const sessionKey = safeStr(input?.sessionKey || "", 64);
     const opts = isObject(input?.opts) ? input.opts : {};
 
+    // Never mutate caller-provided features.
+    const features = { ...features0 };
 
-const laneLock = resolveLaneLock(features, opts);
-if (laneLock.locked) {
-  // CONTROL SIGNAL: lane lock supersedes inferred routing (prevents drift)
-  features.lane = laneLock.lane;
-  features.activeLane = laneLock.lane;
-}
+    const laneLock = resolveLaneLock(features, opts);
+    if (laneLock.locked) {
+      // CONTROL SIGNAL: lane lock supersedes inferred routing (prevents drift)
+      features.lane = laneLock.lane;
+      features.activeLane = laneLock.lane;
+    }
 
     // Allow the caller to force psych routing without introducing raw user text.
     const forcePsychBridge = !!(
@@ -1286,8 +1530,6 @@ if (laneLock.locked) {
       features0.psychBridge
     );
 
-    // Never mutate caller-provided features.
-    const features = { ...features0 };
     if (forcePsychBridge) {
       if (!features.intent) features.intent = "SUPPORT";
       if (!features.regulationState) features.regulationState = "dysregulated";
@@ -1328,16 +1570,16 @@ if (laneLock.locked) {
     };
 
     // global resolution (psych precedence)
-    const regulation = resolveRegulation(features, domains.psychology, tokens);
-    const mode = resolveMode(regulation);
+    let regulation = resolveRegulation(features, domains.psychology, tokens);
+    let mode = resolveMode(regulation);
 
     let intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
     const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
 
-// Phase 1: Social intent inference (SAFE tokens/features only)
-const social = resolveSocialIntent({ features, tokens });
-if (social.intent) intent = social.intent;
+    // Phase 1: Social intent inference (SAFE tokens/features only)
+    const social = resolveSocialIntent({ features, tokens });
+    if (social.intent) intent = social.intent;
 
     // global merges (deterministic, precedence)
     const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
@@ -1370,32 +1612,50 @@ if (social.intent) intent = social.intent;
       toneCues.push("clear", "supportive");
     }
 
-// Phase 1: If social intent detected, bias toward warmth + follow-up hooks (host may render chips)
-if (social && social.intent) {
-  responseCues.unshift("social_intent", "acknowledge_then_followup");
-  if (social.intent === "GREETING") responseCues.unshift("social_greeting");
-  if (social.intent === "THANKS") responseCues.unshift("social_thanks");
-  if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
-  toneCues.unshift("warm", "friendly");
-  uiCues.unshift("show_social_followup");
-}
+    // Phase 1: If social intent detected, bias toward warmth + follow-up hooks (host may render chips)
+    if (social && social.intent) {
+      responseCues.unshift("social_intent", "acknowledge_then_followup");
+      if (social.intent === "GREETING") responseCues.unshift("social_greeting");
+      if (social.intent === "THANKS") responseCues.unshift("social_thanks");
+      if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
+      toneCues.unshift("warm", "friendly");
+      uiCues.unshift("show_social_followup");
+    }
 
+    // Emotion coordination: SiteBridge CONSUMES structured emotion payload, never raw text.
+    const emotion = resolveEmotionEnvelope(input, features, opts);
 
-// Phase 10+: Clarify streak breaker (enterprise-safe, Nyx-safe)
-// If upstream is stuck in clarify loops, push structured options instead of repeating questions.
-const __stateHints = resolveStateHints(features);
-if (__stateHints && __stateHints.clarifyStreak >= 2) {
-  if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
-  responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
-  uiCues.unshift("compact_reply");
-  guardrails.unshift("clarify_streak_breaker", "support_first");
-} else {
-  responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
-  uiCues.unshift("show_options_chips");
-  guardrails.unshift("clarify_streak_breaker");
-}
-}
+    // Phase 10+: Clarify streak breaker (enterprise-safe, Nyx-safe)
+    const __stateHints = resolveStateHints(features);
+    if (__stateHints && __stateHints.clarifyStreak >= 2) {
+      if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
+        responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
+        uiCues.unshift("compact_reply");
+        guardrails.unshift("clarify_streak_breaker", "support_first");
+      } else {
+        responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
+        uiCues.unshift("show_options_chips");
+        guardrails.unshift("clarify_streak_breaker");
+      }
+    }
 
+    const emotionCoord = applyEmotionCoordination(
+      emotion,
+      __stateHints,
+      toneCues,
+      uiCues,
+      responseCues,
+      guardrails
+    );
+
+    if (emotionCoord.regulationOverride) {
+      regulation = emotionCoord.regulationOverride;
+      mode = resolveMode(regulation);
+    }
+    if (emotionCoord.modeOverride) {
+      mode = emotionCoord.modeOverride;
+    }
+    for (const h of emotionCoord.bridgeHints || []) responseCues.unshift(h);
 
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
@@ -1426,13 +1686,31 @@ if (__stateHints && __stateHints.clarifyStreak >= 2) {
       lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
       bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
+      emotion: emotion ? {
+        primaryEmotion: emotion.primaryEmotion,
+        emotionCluster: emotion.emotionCluster,
+        routeBias: emotion.routeBias,
+        fallbackSuppression: !!emotion.fallbackSuppression,
+        needsNovelMove: !!emotion.needsNovelMove,
+      } : undefined,
     };
 
     const affect = resolveAffect(ctx);
     const reinforcement = resolveReinforcement(affect);
-    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
+    try { for (const lab of (affect.labels || [])) responseCues.push(lab); } catch (_) { }
 
-return finalizeContract({
+    const opUpgrade = resolveOperationalUpgradeHints(
+      { features: { ...features, emotionCluster: emotion?.emotionCluster, primaryEmotion: emotion?.primaryEmotion } },
+      domains,
+      confidence,
+      {
+        ambiguityScore: clamp01(opts.ambiguityScore ?? features.ambiguityScore ?? 0),
+        routeConfidence: clamp01(opts.routeConfidence ?? features.routeConfidence ?? confidence),
+        actionHints: uniqBounded([].concat(emotion?.routeHints || [], opts.actionHints || [], features.actionHints || []), 6, 48),
+      }
+    );
+
+    return finalizeContract({
       version: BRIDGE_VERSION,
       queryKey,
       sessionKey,
@@ -1459,18 +1737,22 @@ return finalizeContract({
 
       confidence,
       diag,
-      stateHints: resolveStateHints(features),
+      stateHints: __stateHints,
       resilience: resolveResilienceHints(features, opts),
-      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, resolveStateHints(features)),
+      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, __stateHints),
+      opUpgrade,
+      emotion,
     });
   } catch (e) {
     return failOpenPsyche(e, input);
   }
 }
 
+
 // =========================
 // MAIN: BUILD PSYCHE (ASYNC, awaits domain modules)
 // =========================
+
 
 async function buildAsync(input) {
   try {
@@ -1480,13 +1762,13 @@ async function buildAsync(input) {
     const sessionKey = safeStr(input?.sessionKey || "", 64);
     const opts = isObject(input?.opts) ? input.opts : {};
 
+    const features = { ...features0 };
 
-const laneLock = resolveLaneLock(features, opts);
-if (laneLock.locked) {
-  // CONTROL SIGNAL: lane lock supersedes inferred routing (prevents drift)
-  features.lane = laneLock.lane;
-  features.activeLane = laneLock.lane;
-}
+    const laneLock = resolveLaneLock(features, opts);
+    if (laneLock.locked) {
+      features.lane = laneLock.lane;
+      features.activeLane = laneLock.lane;
+    }
 
     const forcePsychBridge = !!(
       opts.forcePsychBridge ||
@@ -1495,7 +1777,6 @@ if (laneLock.locked) {
       features0.psychBridge
     );
 
-    const features = { ...features0 };
     if (forcePsychBridge) {
       if (!features.intent) features.intent = "SUPPORT";
       if (!features.regulationState) features.regulationState = "dysregulated";
@@ -1524,16 +1805,15 @@ if (laneLock.locked) {
       ai: normalizeDomainSlice("ai", raw.ai),
     };
 
-    const regulation = resolveRegulation(features, domains.psychology, tokens);
-    const mode = resolveMode(regulation);
+    let regulation = resolveRegulation(features, domains.psychology, tokens);
+    let mode = resolveMode(regulation);
 
     let intent = safeStr(features.intent || DEFAULTS.intent, 16).toUpperCase();
     const cognitiveLoad = safeStr(features.cognitiveLoad || DEFAULTS.cognitiveLoad, 12).toLowerCase();
     const stance = resolveStance(features, regulation, domains.psychology);
 
-// Phase 1: Social intent inference (SAFE tokens/features only)
-const social = resolveSocialIntent({ features, tokens });
-if (social.intent) intent = social.intent;
+    const social = resolveSocialIntent({ features, tokens });
+    if (social.intent) intent = social.intent;
 
     const guardrails = mergeByPrecedence(domains, "guardrails", LIMITS.guardrails, 80);
     const responseCuesBase = mergeByPrecedence(domains, "responseCues", LIMITS.responseCues, 48);
@@ -1561,32 +1841,44 @@ if (social.intent) intent = social.intent;
       toneCues.push("clear", "supportive");
     }
 
-// Phase 1: If social intent detected, bias toward warmth + follow-up hooks (host may render chips)
-if (social && social.intent) {
-  responseCues.unshift("social_intent", "acknowledge_then_followup");
-  if (social.intent === "GREETING") responseCues.unshift("social_greeting");
-  if (social.intent === "THANKS") responseCues.unshift("social_thanks");
-  if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
-  toneCues.unshift("warm", "friendly");
-  uiCues.unshift("show_social_followup");
-}
+    if (social && social.intent) {
+      responseCues.unshift("social_intent", "acknowledge_then_followup");
+      if (social.intent === "GREETING") responseCues.unshift("social_greeting");
+      if (social.intent === "THANKS") responseCues.unshift("social_thanks");
+      if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
+      toneCues.unshift("warm", "friendly");
+      uiCues.unshift("show_social_followup");
+    }
 
+    const emotion = resolveEmotionEnvelope(input, features, opts);
+    const __stateHints = resolveStateHints(features);
+    if (__stateHints && __stateHints.clarifyStreak >= 2) {
+      if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
+        responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
+        uiCues.unshift("compact_reply");
+        guardrails.unshift("clarify_streak_breaker", "support_first");
+      } else {
+        responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
+        uiCues.unshift("show_options_chips");
+        guardrails.unshift("clarify_streak_breaker");
+      }
+    }
 
-// Phase 10+: Clarify streak breaker (enterprise-safe, Nyx-safe)
-// If upstream is stuck in clarify loops, push structured options instead of repeating questions.
-const __stateHints = resolveStateHints(features);
-if (__stateHints && __stateHints.clarifyStreak >= 2) {
-  if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
-  responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
-  uiCues.unshift("compact_reply");
-  guardrails.unshift("clarify_streak_breaker", "support_first");
-} else {
-  responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
-  uiCues.unshift("show_options_chips");
-  guardrails.unshift("clarify_streak_breaker");
-}
-}
+    const emotionCoord = applyEmotionCoordination(
+      emotion,
+      __stateHints,
+      toneCues,
+      uiCues,
+      responseCues,
+      guardrails
+    );
 
+    if (emotionCoord.regulationOverride) {
+      regulation = emotionCoord.regulationOverride;
+      mode = resolveMode(regulation);
+    }
+    if (emotionCoord.modeOverride) mode = emotionCoord.modeOverride;
+    for (const h of emotionCoord.bridgeHints || []) responseCues.unshift(h);
 
     if (stance === "confirm+execute") uiCues.push("confirm_then_run");
     if (responseCues.includes("ask_1_clarifier")) uiCues.push("single_clarifier_prompt");
@@ -1612,11 +1904,29 @@ if (__stateHints && __stateHints.clarifyStreak >= 2) {
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
       bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
       async: true,
+      emotion: emotion ? {
+        primaryEmotion: emotion.primaryEmotion,
+        emotionCluster: emotion.emotionCluster,
+        routeBias: emotion.routeBias,
+        fallbackSuppression: !!emotion.fallbackSuppression,
+        needsNovelMove: !!emotion.needsNovelMove,
+      } : undefined,
     };
 
     const affect = resolveAffect(ctx);
     const reinforcement = resolveReinforcement(affect);
-    try{ for(const lab of (affect.labels||[])) responseCues.push(lab); }catch(_){ }
+    try { for (const lab of (affect.labels || [])) responseCues.push(lab); } catch (_) { }
+
+    const opUpgrade = resolveOperationalUpgradeHints(
+      { features: { ...features, emotionCluster: emotion?.emotionCluster, primaryEmotion: emotion?.primaryEmotion } },
+      domains,
+      confidence,
+      {
+        ambiguityScore: clamp01(opts.ambiguityScore ?? features.ambiguityScore ?? 0),
+        routeConfidence: clamp01(opts.routeConfidence ?? features.routeConfidence ?? confidence),
+        actionHints: uniqBounded([].concat(emotion?.routeHints || [], opts.actionHints || [], features.actionHints || []), 6, 48),
+      }
+    );
 
     return finalizeContract({
       version: BRIDGE_VERSION,
@@ -1645,13 +1955,17 @@ if (__stateHints && __stateHints.clarifyStreak >= 2) {
 
       confidence,
       diag,
-      stateHints: resolveStateHints(features),
+      stateHints: __stateHints,
       resilience: resolveResilienceHints(features, opts),
+      opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, __stateHints),
+      opUpgrade,
+      emotion,
     });
   } catch (e) {
     return failOpenPsyche(e, input);
   }
 }
+
 
 // For MarionSO convenience: a slimmer wrapper name.
 function buildPsyche(input) {
