@@ -898,13 +898,45 @@ function buildEmotionDirectives(emo, packet) {
     out.push({ type: "pacing", level: "soft", reason: "high_distress" });
   } else if (emo.valence === "positive") {
     out.push({ type: "reinforcement", level: "positive", dominantEmotion: safeStr(emo.dominantEmotion || "positive") });
+  } else if (emo.mode === "VULNERABLE" || emo.valence === "negative") {
+    out.push({ type: "pacing", level: "soft", reason: "vulnerable_support" });
   }
 
+  if (emo.supportFlags?.needsGentlePacing) out.push({ type: "tone", level: "gentle", reason: "needs_gentle_pacing" });
   if (emo.supportFlags?.recoveryPresent) out.push({ type: "recovery", level: "detected" });
   if ((emo.contradictions?.count || 0) > 0) out.push({ type: "mixed_state", count: clampInt(emo.contradictions.count, 0, 0, 99) });
   if (packet && isPlainObject(packet.meta) && packet.meta.crisis) out.push({ type: "support_packet", mode: safeStr(packet.mode || "supportive") });
 
   return out.slice(0, 8);
+}
+function buildSupportiveEmotionFollowUps(emo) {
+  const dom = safeStr(emo?.dominantEmotion || "").trim().toLowerCase();
+
+  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress) {
+    return [
+      { id: "fu_ground", type: "action", label: "Stay with me", payload: { action: "support_ground", mode: "supportive" } },
+      { id: "fu_breathe", type: "action", label: "One breath", payload: { action: "support_breathe", mode: "supportive" } }
+    ];
+  }
+
+  if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
+    return [
+      { id: "fu_talk_lonely", type: "action", label: "Talk about it", payload: { action: "support_talk", mode: "supportive", emotion: "loneliness" } },
+      { id: "fu_stay_lonely", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive", emotion: "loneliness" } }
+    ];
+  }
+
+  return [
+    { id: "fu_talk_support", type: "action", label: "Talk to me", payload: { action: "support_talk", mode: "supportive" } },
+    { id: "fu_slow_support", type: "action", label: "Slow it down", payload: { action: "support_slow", mode: "supportive" } }
+  ];
+}
+function buildSupportiveEmotionUi(emo) {
+  return {
+    chips: buildSupportiveEmotionFollowUps(emo),
+    allowMic: true,
+    mode: "supportive"
+  };
 }
 function maybeBuildEmotionFirstReply(norm, emo) {
   if (!emo) return null;
@@ -917,6 +949,32 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: safeStr(packet.mode || "supportive"),
+      directives: buildEmotionDirectives(emo, packet)
+    };
+  }
+
+  const vulnerableSupport =
+    emo.mode === "VULNERABLE" ||
+    emo.valence === "negative" ||
+    !!emo.supportFlags?.needsGentlePacing;
+
+  if (vulnerableSupport) {
+    let reply = "";
+    const dom = safeStr(emo.dominantEmotion || "").trim().toLowerCase();
+
+    if (packet && safeStr(packet.reply)) {
+      reply = safeStr(packet.reply);
+    } else if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
+      reply = "I am here with you. You do not have to sit in that feeling alone. Do you want to tell me what is making today feel heavy?";
+    } else if (dom === "sadness" || dom === "grief" || dom === "hurt") {
+      reply = "I am here, and I am listening. Tell me what is weighing on you most right now.";
+    } else {
+      reply = "I am here with you. Talk to me. What feels hardest right now?";
+    }
+
+    return {
+      reply,
+      mode: "supportive",
       directives: buildEmotionDirectives(emo, packet)
     };
   }
@@ -1200,8 +1258,10 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      const followUps = buildFollowUpsForLane(lane);
+      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
+      const followUps = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
+      const ui = isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane);
 
       const emotionContract = {
         ok: true,
@@ -1212,7 +1272,7 @@ async function handleChat(input) {
         sessionLane: lane,
         bridge: null,
         ctx: {},
-        ui: buildUiForLane(lane),
+        ui,
         directives,
         followUps,
         followUpsStrings: followUps.map((x) => x.label),
