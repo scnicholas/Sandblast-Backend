@@ -1202,7 +1202,19 @@ async function handleChat(input) {
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
 
-    if (inboundRepeat.canFastReturn) {
+    const emo = runEmotionGuard(norm.text || "");
+    applyEmotionSignalsToNorm(norm, emo);
+
+    const bypassFastReplay = !!(
+      emo && (
+        emo.bypassClarify ||
+        emo.mode === "VULNERABLE" ||
+        emo.valence === "negative" ||
+        !!emo.supportFlags?.needsGentlePacing
+      )
+    );
+
+    if (inboundRepeat.canFastReturn && !bypassFastReplay) {
       const cached = getCachedReply(session, inSig);
       if (cached) {
         const replayContract = {
@@ -1245,9 +1257,6 @@ async function handleChat(input) {
         return replayContract;
       }
     }
-
-    const emo = runEmotionGuard(norm.text || "");
-    applyEmotionSignalsToNorm(norm, emo);
 
     const emotionFirst = maybeBuildEmotionFirstReply(norm, emo);
     if (emotionFirst && safeStr(emotionFirst.reply)) {
@@ -1464,7 +1473,7 @@ async function handleChat(input) {
     const routeOut = routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: "I have the signal. Do you want diagnosis, restructuring, or an exact code update?",
+          reply: "I am here. Tell me what you need, and I will stay with that exact target.",
           lane: safeStr(norm.lane || "general") || "general",
           directives: [],
           followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
@@ -1475,7 +1484,7 @@ async function handleChat(input) {
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
 
-    if (!reply) reply = "I have the signal. Give me the exact target and I will keep this tight.";
+    if (!reply) reply = "I am here. Give me the exact target and I will keep this steady.";
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
