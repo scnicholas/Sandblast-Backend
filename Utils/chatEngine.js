@@ -124,7 +124,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.12.1 OPINTEL RUNTIME-FIX";
+const CE_VERSION = "chatEngine v0.12.2 OPINTEL LOOP-FIX";
 
 function nowMs() {
   return Date.now();
@@ -1234,6 +1234,59 @@ function computeLaneState(session, corePrev, lane, norm) {
   else if (safeStr(norm?.action || "").trim()) reason = "typed_action";
   return { current: cur, previous: prev, changed, reason };
 }
+
+function normalizeDirectiveArray(arr) {
+  const src = Array.isArray(arr) ? arr : [];
+  const out = [];
+  const seen = new Set();
+  for (const item of src) {
+    if (!isPlainObject(item)) continue;
+    const type = safeStr(item.type || '').trim().toUpperCase();
+    if (!type) continue;
+    let key = type;
+    if (type === 'TTS_SPEAK') key = `${type}|${oneLine(item.textToSynth || item.text || '').slice(0, 240)}`;
+    else if (type === 'AUDIO_PLAY') key = `${type}|${safeStr(item.when || 'post_reply')}|${safeStr(item.strategy || 'single_shot')}`;
+    else key = `${type}|${safeJsonStringify(item).slice(0, 240)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...item, type });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+function normalizeFollowUpsArray(arr) {
+  const src = Array.isArray(arr) ? arr : [];
+  const out = [];
+  const seen = new Set();
+  for (const item of src) {
+    if (!isPlainObject(item)) continue;
+    const label = oneLine(item.label || item.id || '');
+    const payload = isPlainObject(item.payload) ? item.payload : {};
+    const key = `${safeStr(item.type || 'action')}|${label.toLowerCase()}|${safeStr(payload.action || payload.route || payload.lane || '')}`;
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...item, label });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+function finalizeContractShape(contract) {
+  const c = isPlainObject(contract) ? { ...contract } : {};
+  c.reply = safeStr(c.reply || '').trim() || 'I am here.';
+  c.payload = isPlainObject(c.payload) ? { ...c.payload, reply: safeStr(c.payload.reply || c.reply).trim() || c.reply } : { reply: c.reply };
+  c.lane = safeStr(c.lane || c.laneId || c.sessionLane || 'general') || 'general';
+  c.laneId = safeStr(c.laneId || c.lane || 'general') || 'general';
+  c.sessionLane = safeStr(c.sessionLane || c.lane || 'general') || 'general';
+  c.ctx = isPlainObject(c.ctx) ? c.ctx : {};
+  c.ui = isPlainObject(c.ui) ? c.ui : buildUiForLane(c.lane);
+  c.directives = normalizeDirectiveArray(c.directives);
+  c.followUps = normalizeFollowUpsArray(c.followUps);
+  c.followUpsStrings = c.followUps.map((x) => safeStr(x.label || '').trim()).filter(Boolean).slice(0, 8);
+  c.sessionPatch = isPlainObject(c.sessionPatch) ? c.sessionPatch : {};
+  c.meta = isPlainObject(c.meta) ? c.meta : {};
+  return c;
+}
+
 function computeBridge(sessionLaneState, requestId) {
   const st = isPlainObject(sessionLaneState) ? sessionLaneState : null;
   if (!st || !st.changed) return null;
@@ -1250,7 +1303,7 @@ function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
   const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
-  return {
+  return finalizeContractShape({
     ok: false,
     reply: msg,
     payload: { reply: msg },
@@ -1277,7 +1330,7 @@ function failSafeContract(err, input, extra) {
     },
     requestId,
     meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
-  };
+  });
 }
 
 async function handleChat(input) {
@@ -1301,6 +1354,10 @@ async function handleChat(input) {
     requestId = resolveRequestId(rawInput, norm, inboundKey);
     turnId = buildTurnId(rawInput, norm, inboundKey, requestId);
     publicMode = computePublicMode(norm, session);
+
+    const corePrev = typeof Spine?.coerceState === "function"
+      ? Spine.coerceState(session.__spineState || Spine.createState?.({ lane: safeStr(norm.lane || session.lane || "general") || "general" }))
+      : (isPlainObject(session.__spineState) ? session.__spineState : { rev: 0, lane: safeStr(norm.lane || session.lane || "general") || "general", stage: "open" });
 
     inSig = inboundLoopSig(norm, session);
     lifecycle = beginTurnLifecycle(session, {
@@ -1330,7 +1387,7 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      return {
+      return finalizeContractShape({
         ok: true,
         reply: blockedReply,
         payload: { reply: blockedReply },
@@ -1349,7 +1406,7 @@ async function handleChat(input) {
         cog: { publicMode, mode: "transitional", intent: "STABILIZE" },
         requestId,
         meta: { v: CE_VERSION, blocked: true, reason: lifecycle.reason, t: nowMs(), phase: 15 }
-      };
+      });
     }
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
@@ -1406,7 +1463,7 @@ async function handleChat(input) {
             __turnLifecycleReason: "cached_fast_return"
           }
         );
-        return replayContract;
+        return finalizeContractShape(replayContract);
       }
     }
 
@@ -1512,7 +1569,7 @@ async function handleChat(input) {
         })
       );
 
-      return emotionContract;
+      return finalizeContractShape(emotionContract);
     }
 
     if (inboundRepeat.tripped) {
@@ -1575,7 +1632,7 @@ async function handleChat(input) {
         })
       );
 
-      return breakerContract;
+      return finalizeContractShape(breakerContract);
     }
 
     const greeting = detectGreetingQuick(norm.text || "");
@@ -1634,7 +1691,7 @@ async function handleChat(input) {
         })
       );
 
-      return greetingContract;
+      return finalizeContractShape(greetingContract);
     }
 
     const routeOut = routeLane
@@ -1669,8 +1726,8 @@ async function handleChat(input) {
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
     const bridge = computeBridge(sessionLaneState, requestId);
     const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
-    const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
-    const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
+    const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
+    const directives = normalizeDirectiveArray(Array.isArray(routeOut?.directives) ? routeOut.directives : []);
     const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane);
 
     let nextSpine = null;
@@ -1814,7 +1871,7 @@ async function handleChat(input) {
       })
     );
 
-    return finalContract;
+    return finalizeContractShape(finalContract);
   } catch (err) {
     const failContract = failSafeContract(err, rawInput, {
       sessionPatch: mergeSessionPatches(
@@ -1851,7 +1908,7 @@ async function handleChat(input) {
         contract: failContract
       })
     );
-    return failContract;
+    return finalizeContractShape(failContract);
   }
 }
 
