@@ -124,7 +124,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.11.0 OPINTEL";
+const CE_VERSION = "chatEngine v0.12.0 OPINTEL EMOTION-SPINE-XOVER";
 
 function nowMs() {
   return Date.now();
@@ -755,60 +755,155 @@ function normalizeEmotionGuardResult(raw) {
   const state = isPlainObject(r.state) ? r.state : {};
   const supportFlags = isPlainObject(r.supportFlags) ? r.supportFlags : {};
   const reinforcements = isPlainObject(r.reinforcements) ? r.reinforcements : {};
+  const continuity = isPlainObject(r.continuity) ? r.continuity : {};
+  const downstream = isPlainObject(r.downstream) ? r.downstream : {};
   const routeHints = Array.isArray(r.routeHints) ? r.routeHints.slice(0, 12) : [];
   const responseHints = Array.isArray(r.responseHints) ? r.responseHints.slice(0, 20) : [];
+
+  const primaryEmotion = safeStr(
+    r.primaryEmotion ||
+    state.dominantEmotion ||
+    state.primaryEmotion ||
+    downstream?.supportResponse?.primaryEmotion ||
+    "neutral"
+  );
+
+  const secondaryEmotion = safeStr(
+    r.secondaryEmotion ||
+    state.secondaryEmotion ||
+    downstream?.supportResponse?.secondaryEmotion ||
+    ""
+  );
+
+  const emotionCluster = safeStr(
+    r.emotionCluster ||
+    downstream?.stateSpine?.emotionCluster ||
+    ""
+  );
+
+  const valence = safeStr(
+    r.valence ||
+    state.valence ||
+    "neutral"
+  ).toLowerCase();
+
+  const rawIntensity = r.intensity;
+  const intensity = clampInt(
+    typeof rawIntensity === "number"
+      ? Math.round(rawIntensity <= 1 ? rawIntensity * 100 : rawIntensity)
+      : state.intensity === "very_high" ? 95 :
+        state.intensity === "high" ? 78 :
+        state.intensity === "moderate" ? 55 :
+        state.intensity === "low" ? 28 : 0,
+    0, 0, 100
+  );
+
+  const confidence = Math.max(0, Math.min(100, Math.round(Number(
+    r.confidence ??
+    downstream?.supportResponse?.confidence ??
+    0
+  ) * 100)));
+
   const mode =
     supportFlags.crisis ? "DISTRESS" :
-    (supportFlags.highDistress || state.valence === "negative" || state.valence === "critical_negative") ? "VULNERABLE" :
-    state.valence === "positive" ? "POSITIVE" :
+    (supportFlags.highDistress || valence === "negative" || valence === "critical_negative" || intensity >= 70) ? "VULNERABLE" :
+    valence === "positive" ? "POSITIVE" :
     "NORMAL";
+
   const tags = [];
-  if (safeStr(state.dominantEmotion)) tags.push(safeStr(state.dominantEmotion));
-  if (safeStr(state.valence)) tags.push(safeStr(state.valence));
-  if (safeStr(state.momentum) && safeStr(state.momentum) !== "flat") tags.push(`momentum_${safeStr(state.momentum)}`);
+  for (const part of [primaryEmotion, secondaryEmotion, valence, emotionCluster]) {
+    if (safeStr(part)) tags.push(safeStr(part));
+  }
   for (const h of routeHints) tags.push(safeStr(h));
 
   return {
     ok: !!r.ok,
-    source: "emotionRouteGuard",
+    source: safeStr(r.source || "emotionRouteGuard"),
     mode,
-    valence: safeStr(state.valence || "neutral"),
-    intensityLabel: safeStr(state.intensity || "flat"),
-    intensity: clampInt(
-      state.intensity === "very_high" ? 95 :
-      state.intensity === "high" ? 78 :
-      state.intensity === "moderate" ? 55 :
-      state.intensity === "low" ? 28 : 0,
-      0, 0, 100
+    valence,
+    intensityLabel: safeStr(r.intensityLabel || state.intensity || ""),
+    intensity,
+    confidence,
+    dominantEmotion: primaryEmotion,
+    primaryEmotion,
+    secondaryEmotion,
+    dominantSource: safeStr(state.dominantSource || "emotion_route_guard"),
+    emotionCluster,
+    tone: safeStr(
+      downstream?.affectEngine?.tone ||
+      r.tone ||
+      state.tone ||
+      "steady_neutral"
     ),
-    dominantEmotion: safeStr(state.dominantEmotion || "neutral"),
-    dominantSource: safeStr(state.dominantSource || "none"),
-    tone: safeStr(state.tone || "steady_neutral"),
-    bypassClarify: !!(supportFlags.crisis || supportFlags.highDistress),
+    routeBias: safeStr(
+      r.routeBias ||
+      downstream?.chatEngine?.routeBias ||
+      ""
+    ),
+    supportModeCandidate: safeStr(
+      r.supportModeCandidate ||
+      downstream?.supportResponse?.supportModeCandidate ||
+      ""
+    ),
+    bypassClarify: !!(supportFlags.crisis || supportFlags.highDistress || r.fallbackSuppression || continuity.fallbackSuppression),
+    fallbackSuppression: !!(r.fallbackSuppression || continuity.fallbackSuppression || routeHints.includes("fallback_suppression")),
+    needsNovelMove: !!(r.needsNovelMove || continuity.needsNovelMove),
+    routeExhaustion: !!(r.routeExhaustion || continuity.routeExhaustion),
+    emotionalVolatility: safeStr(r.emotionalVolatility || downstream?.stateSpine?.volatility || "stable"),
     supportFlags: {
       crisis: !!supportFlags.crisis,
-      highDistress: !!supportFlags.highDistress,
-      needsGentlePacing: !!supportFlags.needsGentlePacing,
+      highDistress: !!(supportFlags.highDistress || (valence === "negative" && intensity >= 70)),
+      needsGentlePacing: !!(supportFlags.needsGentlePacing || intensity >= 65),
       avoidCelebratoryTone: !!supportFlags.avoidCelebratoryTone,
       recoveryPresent: !!supportFlags.recoveryPresent,
-      positivePresent: !!supportFlags.positivePresent
+      positivePresent: !!supportFlags.positivePresent,
+      needsStabilization: !!supportFlags.needsStabilization,
+      needsClarification: !!supportFlags.needsClarification,
+      needsContainment: !!supportFlags.needsContainment,
+      needsConnection: !!supportFlags.needsConnection,
+      needsForwardMotion: !!supportFlags.needsForwardMotion,
+      mentionsLooping: !!supportFlags.mentionsLooping
     },
     routeHints,
     responseHints,
     distressReinforcements: Array.isArray(reinforcements.distress) ? reinforcements.distress.slice(0, 12) : [],
     positiveReinforcements: Array.isArray(reinforcements.positive) ? reinforcements.positive.slice(0, 12) : [],
     recoverySignals: Array.isArray(r.recoverySignals) ? r.recoverySignals.slice(0, 12) : [],
-    contradictions: isPlainObject(r.contradictions) ? r.contradictions : { count: 0, contradictions: [] },
+    contradictions: isPlainObject(r.contradictions)
+      ? {
+          count: clampInt(r.contradictions.count || 0, 0, 0, 99),
+          contradictions: Array.isArray(r.contradictions.contradictions) ? r.contradictions.contradictions.slice(0, 8) : Array.isArray(r.contradictions) ? r.contradictions.slice(0, 8) : []
+        }
+      : { count: 0, contradictions: [] },
+    continuity: {
+      sameEmotionCount: clampInt(continuity.sameEmotionCount || 0, 0, 0, 99),
+      sameSupportModeCount: clampInt(continuity.sameSupportModeCount || 0, 0, 0, 99),
+      noProgressTurnCount: clampInt(continuity.noProgressTurnCount || 0, 0, 0, 99),
+      repeatedFallbackCount: clampInt(continuity.repeatedFallbackCount || 0, 0, 0, 99),
+      stateShift: safeStr(continuity.stateShift || "stable_or_unknown"),
+      fallbackSuppression: !!continuity.fallbackSuppression,
+      needsNovelMove: !!continuity.needsNovelMove,
+      routeExhaustion: !!continuity.routeExhaustion
+    },
     summary: isPlainObject(r.summary) ? r.summary : { concise: "", narrative: "" },
-    tags: [...new Set(tags.filter(Boolean))].slice(0, 16),
+    tags: [...new Set(tags.filter(Boolean))].slice(0, 20),
     cached: !!r.cached
   };
 }
-function runEmotionGuard(text) {
+function runEmotionGuard(text, priorState) {
   const t = safeStr(text || "").trim();
   if (!t) return null;
   try {
     if (!EmotionRouteGuard) return null;
+
+    if (typeof EmotionRouteGuard.analyzeEmotionRoute === "function") {
+      return normalizeEmotionGuardResult(
+        EmotionRouteGuard.analyzeEmotionRoute(
+          { text: t },
+          isPlainObject(priorState) ? priorState : {}
+        )
+      );
+    }
 
     if (typeof EmotionRouteGuard.analyzeEmotion === "function") {
       return normalizeEmotionGuardResult(
@@ -846,15 +941,27 @@ function applyEmotionSignalsToNorm(norm, emo) {
   norm.turnSignals.emotionTags = Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [];
   norm.turnSignals.emotionIntensity = clampInt(emo.intensity || 0, 0, 0, 100);
   norm.turnSignals.emotionBypassClarify = !!emo.bypassClarify;
-  norm.turnSignals.emotionNeedSoft = !!emo.supportFlags?.needsGentlePacing;
+  norm.turnSignals.emotionNeedSoft = !!(emo.supportFlags?.needsGentlePacing || emo.supportFlags?.needsStabilization);
   norm.turnSignals.emotionNeedCrisis = !!emo.supportFlags?.crisis;
   norm.turnSignals.emotionValence = safeStr(emo.valence || "neutral");
-  norm.turnSignals.emotionDominant = safeStr(emo.dominantEmotion || "neutral");
+  norm.turnSignals.emotionDominant = safeStr(emo.primaryEmotion || emo.dominantEmotion || "neutral");
+  norm.turnSignals.emotionPrimary = safeStr(emo.primaryEmotion || emo.dominantEmotion || "neutral");
+  norm.turnSignals.emotionSecondary = safeStr(emo.secondaryEmotion || "");
+  norm.turnSignals.emotionCluster = safeStr(emo.emotionCluster || "");
   norm.turnSignals.emotionTone = safeStr(emo.tone || "steady_neutral");
+  norm.turnSignals.emotionRouteBias = safeStr(emo.routeBias || "");
+  norm.turnSignals.emotionSupportMode = safeStr(emo.supportModeCandidate || "");
+  norm.turnSignals.emotionConfidence = clampInt(emo.confidence || 0, 0, 0, 100);
   norm.turnSignals.emotionCached = !!emo.cached;
   norm.turnSignals.emotionRecoveryPresent = !!emo.supportFlags?.recoveryPresent;
   norm.turnSignals.emotionPositivePresent = !!emo.supportFlags?.positivePresent;
   norm.turnSignals.emotionContradictions = clampInt(emo.contradictions?.count || 0, 0, 0, 99);
+  norm.turnSignals.emotionFallbackSuppression = !!emo.fallbackSuppression;
+  norm.turnSignals.emotionNeedsNovelMove = !!emo.needsNovelMove;
+  norm.turnSignals.emotionRouteExhaustion = !!emo.routeExhaustion;
+  norm.turnSignals.emotionSameEmotionCount = clampInt(emo.continuity?.sameEmotionCount || 0, 0, 0, 99);
+  norm.turnSignals.emotionSameSupportModeCount = clampInt(emo.continuity?.sameSupportModeCount || 0, 0, 0, 99);
+  norm.turnSignals.emotionNoProgressTurnCount = clampInt(emo.continuity?.noProgressTurnCount || 0, 0, 0, 99);
 }
 function isTechnicalExecutionInbound(norm) {
   const text = safeStr(norm?.text || "", 400).toLowerCase();
@@ -1211,7 +1318,7 @@ async function handleChat(input) {
     }
 
     if (lifecycle.blocked) {
-      const emoBlocked = runEmotionGuard(norm.text || "");
+      const emoBlocked = runEmotionGuard(norm.text || "", session.__spineState || {});
       const blockedReply = applyPublicSanitization(
         scrubExecutionStyleArtifacts(softSpeak(makeInFlightReply(norm, emoBlocked))),
         norm,
@@ -1242,7 +1349,7 @@ async function handleChat(input) {
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
 
-    const emo = runEmotionGuard(norm.text || "");
+    const emo = runEmotionGuard(norm.text || "", corePrev);
     applyEmotionSignalsToNorm(norm, emo);
 
     const bypassFastReplay = !!(
