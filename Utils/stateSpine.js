@@ -21,7 +21,7 @@
  */
 
 const SPINE_VERSION =
-  "stateSpine v1.4.0 (LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
+  "stateSpine v1.5.0 (PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -53,6 +53,35 @@ const MOVE = Object.freeze({
   CLARIFY: "clarify",
   CLOSE: "close",
 });
+
+
+const PHASE = Object.freeze({
+  BOOT: "boot",
+  ACTIVE: "active",
+  EXECUTION: "execution",
+  RECOVERY: "recovery",
+  CLOSE: "close",
+});
+
+function normalizePhase(x) {
+  const v = safeStr(x, 24).toLowerCase().trim();
+  return Object.values(PHASE).includes(v) ? v : PHASE.BOOT;
+}
+
+function inferConversationPhase(state, inbound = {}, decision = null) {
+  const s = coerceState(state);
+  const n = normalizeInbound(inbound);
+  const move = safeStr(decision && decision.move || "", 20).toLowerCase();
+  const text = safeStr(n.text || "", 400).toLowerCase();
+  const stage = normalizeStage((decision && decision.stage) || s.stage || STAGE.OPEN);
+
+  if (stage === STAGE.CLOSE || move === MOVE.CLOSE) return PHASE.CLOSE;
+  if (n.signals.emotionNeedCrisis || n.signals.emotionBypassClarify || isDistressText(text)) return PHASE.RECOVERY;
+  if (isProgressIntentText(text) || isMenuIntentToken(text) || /\b(update|patch|debug|fix|rebuild|restructure|implement|wire|integrate|loop)\b/.test(text)) return PHASE.EXECUTION;
+  if (Number.isFinite(s.turns && s.turns.user) && s.turns.user <= 0 && !text) return PHASE.BOOT;
+  if (stage === STAGE.OPEN && (!text || /^(hi|hello|hey|yo|good morning|good evening)$/i.test(safeStr(n.text || "").trim()))) return PHASE.BOOT;
+  return PHASE.ACTIVE;
+}
 
 // -------------------------
 // small helpers (pure)
@@ -611,6 +640,7 @@ function createState(seed = {}) {
 
     lane: normalizeLane(seed.lane),
     stage: normalizeStage(seed.stage),
+    phase: normalizePhase(seed.phase),
     topic: safeStr(seed.topic || "", 80) || "unknown",
 
     lastUserIntent: safeStr(seed.lastUserIntent || "", 40) || "unknown",
@@ -756,6 +786,7 @@ function coerceState(prev) {
 
   out.lane = normalizeLane(out.lane);
   out.stage = normalizeStage(out.stage);
+  out.phase = normalizePhase(out.phase);
   out.topic = safeStr(out.topic || "", 80) || "unknown";
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
@@ -1639,6 +1670,7 @@ function finalizeTurn({
   const nextStage = decision?.stage
     ? normalizeStage(decision.stage)
     : stageProgress(prev.stage, move);
+  const nextPhase = inferConversationPhase(prev, inbound, { ...(decision || {}), stage: nextStage });
 
   const turnSig = computeTurnSig({
     lane: normalizeLane(lane || n.lane || prev.lane),
@@ -1758,6 +1790,7 @@ function finalizeTurn({
   const patch = {
     lane: normalizeLane(lane || n.lane || prev.lane),
     stage: nextStage,
+    phase: nextPhase,
     topic,
     lastUserIntent,
     activeContext,
@@ -2021,6 +2054,7 @@ module.exports = {
   LANE,
   STAGE,
   MOVE,
+  PHASE,
 
   createState,
   coerceState,
@@ -2028,6 +2062,7 @@ module.exports = {
   finalizeTurn,
 
   decideNextMove,
+  inferConversationPhase,
 
   computeTurnSig,
   topicFromAction,
