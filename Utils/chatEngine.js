@@ -31,18 +31,18 @@
  */
 
 let Spine = null;
-let MarionSO = null;
 let EmotionRouteGuard = null;
 let Support = null;
 let ChatPolicies = null;
 let musicResolver = null;
+let marionBridgeMod = null;
 
 try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
-try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
 try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
 try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
 try { ChatPolicies = require("./ChatPolicies"); } catch (_e) { ChatPolicies = null; }
 try { musicResolver = require("./musicResolver"); } catch (_e) { musicResolver = null; }
+try { marionBridgeMod = require("./marionBridge"); } catch (_e) { marionBridgeMod = null; }
 
 let laneRouter = null;
 let memoryAdapter = null;
@@ -128,15 +128,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const buildPolicyEnvelope = typeof ChatPolicies?.buildPolicyEnvelope === "function"
-  ? ChatPolicies.buildPolicyEnvelope
-  : null;
-
-const resolveMusicIntent = typeof musicResolver?.resolveMusicIntent === "function"
-  ? musicResolver.resolveMusicIntent
-  : null;
-
-const CE_VERSION = "chatEngine v0.12.3 POLICY-ROUTED";
+const CE_VERSION = "chatEngine v0.12.1 OPINTEL RUNTIME-FIX";
 
 function nowMs() {
   return Date.now();
@@ -1246,59 +1238,6 @@ function computeLaneState(session, corePrev, lane, norm) {
   else if (safeStr(norm?.action || "").trim()) reason = "typed_action";
   return { current: cur, previous: prev, changed, reason };
 }
-
-function normalizeDirectiveArray(arr) {
-  const src = Array.isArray(arr) ? arr : [];
-  const out = [];
-  const seen = new Set();
-  for (const item of src) {
-    if (!isPlainObject(item)) continue;
-    const type = safeStr(item.type || '').trim().toUpperCase();
-    if (!type) continue;
-    let key = type;
-    if (type === 'TTS_SPEAK') key = `${type}|${oneLine(item.textToSynth || item.text || '').slice(0, 240)}`;
-    else if (type === 'AUDIO_PLAY') key = `${type}|${safeStr(item.when || 'post_reply')}|${safeStr(item.strategy || 'single_shot')}`;
-    else key = `${type}|${safeJsonStringify(item).slice(0, 240)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ ...item, type });
-    if (out.length >= 12) break;
-  }
-  return out;
-}
-function normalizeFollowUpsArray(arr) {
-  const src = Array.isArray(arr) ? arr : [];
-  const out = [];
-  const seen = new Set();
-  for (const item of src) {
-    if (!isPlainObject(item)) continue;
-    const label = oneLine(item.label || item.id || '');
-    const payload = isPlainObject(item.payload) ? item.payload : {};
-    const key = `${safeStr(item.type || 'action')}|${label.toLowerCase()}|${safeStr(payload.action || payload.route || payload.lane || '')}`;
-    if (!label || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ ...item, label });
-    if (out.length >= 8) break;
-  }
-  return out;
-}
-function finalizeContractShape(contract) {
-  const c = isPlainObject(contract) ? { ...contract } : {};
-  c.reply = safeStr(c.reply || '').trim() || 'I am here.';
-  c.payload = isPlainObject(c.payload) ? { ...c.payload, reply: safeStr(c.payload.reply || c.reply).trim() || c.reply } : { reply: c.reply };
-  c.lane = safeStr(c.lane || c.laneId || c.sessionLane || 'general') || 'general';
-  c.laneId = safeStr(c.laneId || c.lane || 'general') || 'general';
-  c.sessionLane = safeStr(c.sessionLane || c.lane || 'general') || 'general';
-  c.ctx = isPlainObject(c.ctx) ? c.ctx : {};
-  c.ui = isPlainObject(c.ui) ? c.ui : buildUiForLane(c.lane);
-  c.directives = normalizeDirectiveArray(c.directives);
-  c.followUps = normalizeFollowUpsArray(c.followUps);
-  c.followUpsStrings = c.followUps.map((x) => safeStr(x.label || '').trim()).filter(Boolean).slice(0, 8);
-  c.sessionPatch = isPlainObject(c.sessionPatch) ? c.sessionPatch : {};
-  c.meta = isPlainObject(c.meta) ? c.meta : {};
-  return c;
-}
-
 function computeBridge(sessionLaneState, requestId) {
   const st = isPlainObject(sessionLaneState) ? sessionLaneState : null;
   if (!st || !st.changed) return null;
@@ -1315,7 +1254,7 @@ function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
   const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
-  return finalizeContractShape({
+  return {
     ok: false,
     reply: msg,
     payload: { reply: msg },
@@ -1342,7 +1281,7 @@ function failSafeContract(err, input, extra) {
     },
     requestId,
     meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
-  });
+  };
 }
 
 function inferYearFromText(text) {
@@ -1358,52 +1297,34 @@ function buildPolicyEnvelopeSafe(params) {
     } catch (_e) {}
   }
   const text = safeStr(src.text || src?.norm?.text || "").trim();
-  const lowerText = text.toLowerCase();
   const activeLane = safeStr(src.activeLane || src?.session?.activeLane || src?.session?.lane || src?.norm?.lane || "general") || "general";
   const inferredYear = inferYearFromText(text) || normYear(src?.session?.lockedYear) || null;
   const musicSignal = /(\btop\s*10\b|\btop\s*ten\b|\b#1\b|\bnumber one\b|story moment|micro moment|billboard|song|songs|music)/i.test(text);
   const lane = activeLane === "music" || musicSignal ? "music" : activeLane;
   const out = {
-    ok: true,
-    lane,
-    action: null,
-    resolver: null,
-    inferredSlots: {},
-    clarificationNeeded: false,
-    clarificationPrompt: "",
-    stop: false,
-    flags: { shouldBlockDuplicate: false }
+    ok: true, lane, action: null, resolver: null, inferredSlots: {}, clarificationNeeded: false, clarificationPrompt: "",
+    shouldUseBridge: false, bridgeMode: null, stop: false, flags: { shouldBlockDuplicate: false }
   };
   if (lane === "music") {
     if (/(\btop\s*10\b|\btop\s*ten\b)/i.test(text) && inferredYear) {
-      out.action = "music_top10_by_year";
-      out.resolver = "musicResolver";
-      out.inferredSlots.year = inferredYear;
-      return out;
+      out.action = "music_top10_by_year"; out.resolver = "musicResolver"; out.inferredSlots.year = inferredYear; return out;
     }
     if (/(\b#1\b|\bnumber one\b)/i.test(text) && inferredYear) {
-      out.action = "music_number_one_by_year";
-      out.resolver = "musicResolver";
-      out.inferredSlots.year = inferredYear;
-      return out;
+      out.action = "music_number_one_by_year"; out.resolver = "musicResolver"; out.inferredSlots.year = inferredYear; return out;
     }
     if (/story moment/i.test(text) && inferredYear) {
-      out.action = "music_story_moment_by_year";
-      out.resolver = "musicResolver";
-      out.inferredSlots.year = inferredYear;
-      return out;
+      out.action = "music_story_moment_by_year"; out.resolver = "musicResolver"; out.inferredSlots.year = inferredYear; return out;
     }
     if (/micro moment/i.test(text) && inferredYear) {
-      out.action = "music_micro_moment_by_year";
-      out.resolver = "musicResolver";
-      out.inferredSlots.year = inferredYear;
-      return out;
+      out.action = "music_micro_moment_by_year"; out.resolver = "musicResolver"; out.inferredSlots.year = inferredYear; return out;
     }
     if (/(\btop\s*10\b|\btop\s*ten\b|\b#1\b|\bnumber one\b|story moment|micro moment)/i.test(text) && !inferredYear) {
-      out.clarificationNeeded = true;
-      out.clarificationPrompt = "Give me the year and I will run it.";
-      return out;
+      out.clarificationNeeded = true; out.clarificationPrompt = "Give me the year and I will run it."; return out;
     }
+  }
+  if (/(explain|compare|analyze|help me understand|walk me through)/i.test(text)) {
+    out.shouldUseBridge = true;
+    out.bridgeMode = /overwhelmed|hurt|sad|panic|anxious/i.test(text) ? "support" : "knowledge";
   }
   return out;
 }
@@ -1429,10 +1350,6 @@ async function handleChat(input) {
     requestId = resolveRequestId(rawInput, norm, inboundKey);
     turnId = buildTurnId(rawInput, norm, inboundKey, requestId);
     publicMode = computePublicMode(norm, session);
-
-    const corePrev = typeof Spine?.coerceState === "function"
-      ? Spine.coerceState(session.__spineState || Spine.createState?.({ lane: safeStr(norm.lane || session.lane || "general") || "general" }))
-      : (isPlainObject(session.__spineState) ? session.__spineState : { rev: 0, lane: safeStr(norm.lane || session.lane || "general") || "general", stage: "open" });
 
     inSig = inboundLoopSig(norm, session);
     lifecycle = beginTurnLifecycle(session, {
@@ -1462,7 +1379,7 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      return finalizeContractShape({
+      return {
         ok: true,
         reply: blockedReply,
         payload: { reply: blockedReply },
@@ -1481,7 +1398,7 @@ async function handleChat(input) {
         cog: { publicMode, mode: "transitional", intent: "STABILIZE" },
         requestId,
         meta: { v: CE_VERSION, blocked: true, reason: lifecycle.reason, t: nowMs(), phase: 15 }
-      });
+      };
     }
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
@@ -1538,7 +1455,7 @@ async function handleChat(input) {
             __turnLifecycleReason: "cached_fast_return"
           }
         );
-        return finalizeContractShape(replayContract);
+        return replayContract;
       }
     }
 
@@ -1644,7 +1561,7 @@ async function handleChat(input) {
         })
       );
 
-      return finalizeContractShape(emotionContract);
+      return emotionContract;
     }
 
     if (inboundRepeat.tripped) {
@@ -1707,7 +1624,7 @@ async function handleChat(input) {
         })
       );
 
-      return finalizeContractShape(breakerContract);
+      return breakerContract;
     }
 
     const greeting = detectGreetingQuick(norm.text || "");
@@ -1766,7 +1683,7 @@ async function handleChat(input) {
         })
       );
 
-      return finalizeContractShape(greetingContract);
+      return greetingContract;
     }
 
     const priorFollowUps = Array.isArray(session.__cacheFollowUps) ? session.__cacheFollowUps : buildFollowUpsForLane(safeStr(session.lane || norm.lane || "general") || "general");
@@ -1780,28 +1697,18 @@ async function handleChat(input) {
       directives: priorDirectives,
       publicMode,
       activeLane: safeStr(session.activeLane || session.lane || norm.lane || "general") || "general",
-      recentReplies: Array.isArray(session.recentReplies) ? session.recentReplies : [],
-      emotionSignals: emo ? {
-        distress: !!(emo.supportFlags?.highDistress || emo.valence === "negative"),
-        crisis: !!emo.supportFlags?.crisis
-      } : {},
-      supportSignals: emo?.supportFlags || {},
-      requestMeta: { retry: !!rawInput.retry }
+      recentReplies: Array.isArray(session.recentReplies) ? session.recentReplies : []
     });
 
-    if (safeStr(policy?.lane || "") && safeStr(norm.lane || "general") === "general") {
-      norm.lane = safeStr(policy.lane || norm.lane || "general") || "general";
-    }
-
-    if (policy?.clarificationNeeded && !(policy?.action && policy?.resolver)) {
+    if (policy?.clarificationNeeded) {
       const lane = safeStr(policy?.lane || norm.lane || session.lane || "general") || "general";
       const reply = applyPublicSanitization(
-        scrubExecutionStyleArtifacts(softSpeak(safeStr(policy.clarificationPrompt || "Give me the year and I will run it."))),
+        scrubExecutionStyleArtifacts(softSpeak(safeStr(policy?.clarificationPrompt || "Give me the year and I will run it."))),
         norm,
         session,
         publicMode
       );
-      const followUps = normalizeFollowUpsArray(buildFollowUpsForLane(lane));
+      const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(buildFollowUpsForLane(lane), norm, emo));
       const clarifyContract = {
         ok: true,
         reply,
@@ -1816,27 +1723,15 @@ async function handleChat(input) {
         followUps,
         followUpsStrings: followUps.map((x) => x.label),
         sessionPatch: {},
-        cog: { publicMode, mode: "transitional", intent: "CLARIFY", policy: true },
+        cog: { route: "policy_clarify", intent: safeStr(policy?.action || "CLARIFY").toUpperCase(), mode: "transitional", publicMode },
         requestId,
         meta: { v: CE_VERSION, policyClarify: true, t: nowMs(), phase: 10 }
       };
       clarifyContract.sessionPatch = mergeSessionPatches(
         lifecycle.patch,
         inboundRepeat.patch,
-        {
-          lane,
-          publicMode,
-          __lastInboundKey: inboundKey,
-          __cacheInSig: inSig,
-          __cacheReply: reply,
-          __cacheLane: lane,
-          __cacheFollowUps: followUps,
-          __cacheDirectives: [],
-          __cacheAt: nowMs()
-        },
-        completeTurnLifecycle(session, {
-          turnId, requestId, inSig, inboundKey, lane, reply, contract: clarifyContract
-        })
+        { lane, publicMode, __lastInboundKey: inboundKey, __cacheInSig: inSig, __cacheReply: reply, __cacheLane: lane, __cacheFollowUps: followUps, __cacheDirectives: [], __cacheAt: nowMs() },
+        completeTurnLifecycle(session, { turnId, requestId, inSig, inboundKey, lane, reply, contract: clarifyContract })
       );
       return finalizeContractShape(clarifyContract);
     }
@@ -1852,41 +1747,18 @@ async function handleChat(input) {
           policy: { action: policy?.action || null, inferredSlots: isPlainObject(policy?.inferredSlots) ? policy.inferredSlots : {} },
           inferredSlots: isPlainObject(policy?.inferredSlots) ? policy.inferredSlots : {}
         });
-      } catch (_e) {
-        musicOut = null;
-      }
+      } catch (_e) { musicOut = null; }
       if (isPlainObject(musicOut) && safeStr(musicOut.reply || "").trim()) {
         const lane = safeStr(musicOut.lane || policy?.lane || "music") || "music";
-        const reply = applyPublicSanitization(
-          scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(safeStr(musicOut.reply || ""), "medium"))),
-          norm,
-          session,
-          publicMode
-        );
+        const reply = applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(safeStr(musicOut.reply || ""), "medium"))), norm, session, publicMode);
         const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(Array.isArray(musicOut.followUps) ? musicOut.followUps : buildFollowUpsForLane(lane), norm, emo));
         const directives = normalizeDirectiveArray(Array.isArray(musicOut.directives) ? musicOut.directives : []);
         const ui = buildUiForLane(lane);
         const musicContract = {
-          ok: true,
-          reply,
-          payload: { reply },
-          lane,
-          laneId: lane,
-          sessionLane: lane,
+          ok: true, reply, payload: { reply }, lane, laneId: lane, sessionLane: lane,
           bridge: computeBridge(computeLaneState(session, corePrev, lane, norm), requestId),
-          ctx: {},
-          ui,
-          directives,
-          followUps,
-          followUpsStrings: followUps.map((x) => x.label),
-          sessionPatch: {},
-          cog: {
-            route: "policy_resolver",
-            resolver: "musicResolver",
-            intent: safeStr(policy?.action || musicOut.action || "ADVANCE").toUpperCase(),
-            mode: "transitional",
-            publicMode
-          },
+          ctx: {}, ui, directives, followUps, followUpsStrings: followUps.map((x) => x.label), sessionPatch: {},
+          cog: { route: "policy_resolver", resolver: "musicResolver", intent: safeStr(policy?.action || musicOut.action || "ADVANCE").toUpperCase(), mode: "transitional", publicMode },
           requestId,
           meta: { v: CE_VERSION, policyResolved: true, resolver: "musicResolver", t: nowMs(), phase: 10 }
         };
@@ -1894,22 +1766,46 @@ async function handleChat(input) {
           lifecycle.patch,
           inboundRepeat.patch,
           isPlainObject(musicOut.sessionPatch) ? musicOut.sessionPatch : {},
-          {
-            lane,
-            publicMode,
-            __lastInboundKey: inboundKey,
-            __cacheInSig: inSig,
-            __cacheReply: reply,
-            __cacheLane: lane,
-            __cacheFollowUps: followUps,
-            __cacheDirectives: directives,
-            __cacheAt: nowMs()
-          },
-          completeTurnLifecycle(session, {
-            turnId, requestId, inSig, inboundKey, lane, reply, contract: musicContract
-          })
+          { lane, activeLane: lane, publicMode, __lastInboundKey: inboundKey, __cacheInSig: inSig, __cacheReply: reply, __cacheLane: lane, __cacheFollowUps: followUps, __cacheDirectives: directives, __cacheAt: nowMs() },
+          completeTurnLifecycle(session, { turnId, requestId, inSig, inboundKey, lane, reply, contract: musicContract })
         );
         return finalizeContractShape(musicContract);
+      }
+    }
+
+    if (policy?.shouldUseBridge) {
+      const bridgeApi = getMarionBridge();
+      if (bridgeApi && typeof bridgeApi.maybeResolve === "function") {
+        try {
+          const bridgeOut = await bridgeApi.maybeResolve({
+            userText: norm.text,
+            sessionId: resolveSessionId(norm, session, inboundKey),
+            turnId,
+            userId: safeStr(session.userId || session.uid || norm?.ctx?.userId || "")
+          });
+          const packet = bridgeOut && bridgeOut.usedBridge && isPlainObject(bridgeOut.packet) ? bridgeOut.packet : null;
+          const answer = safeStr(packet?.synthesis?.answer || "").trim();
+          if (answer) {
+            const lane = safeStr(policy?.bridgeMode || packet?.routing?.domain || norm.lane || "knowledge") || "knowledge";
+            const reply = applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(answer, "medium"))), norm, session, publicMode);
+            const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(buildFollowUpsForLane(lane), norm, emo));
+            const bridgeContract = {
+              ok: true, reply, payload: { reply }, lane, laneId: lane, sessionLane: lane,
+              bridge: { v: "marion.bridge.v1", mode: safeStr(policy?.bridgeMode || packet?.routing?.intent || "knowledge"), traceId: safeStr(packet?.traceId || "") },
+              ctx: {}, ui: buildUiForLane(lane), directives: [], followUps, followUpsStrings: followUps.map((x) => x.label), sessionPatch: {},
+              cog: { route: "marion_bridge", intent: "KNOWLEDGE", mode: "transitional", publicMode, marion: { used: true, confidence: Number(packet?.synthesis?.confidence || 0) } },
+              requestId,
+              meta: { v: CE_VERSION, bridgeResolved: true, bridgeMode: safeStr(policy?.bridgeMode || "knowledge"), t: nowMs(), phase: 10 }
+            };
+            bridgeContract.sessionPatch = mergeSessionPatches(
+              lifecycle.patch,
+              inboundRepeat.patch,
+              { lane, activeLane: lane, publicMode, __lastInboundKey: inboundKey, __cacheInSig: inSig, __cacheReply: reply, __cacheLane: lane, __cacheFollowUps: followUps, __cacheDirectives: [], __cacheAt: nowMs() },
+              completeTurnLifecycle(session, { turnId, requestId, inSig, inboundKey, lane, reply, contract: bridgeContract })
+            );
+            return finalizeContractShape(bridgeContract);
+          }
+        } catch (_e) {}
       }
     }
 
@@ -1925,7 +1821,7 @@ async function handleChat(input) {
         };
 
     let reply = safeStr(routeOut?.reply || "").trim();
-    let lane = safeStr(routeOut?.lane || policy?.lane || norm.lane || session.lane || "general") || "general";
+    let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
 
     if (!reply) reply = lane === "music" ? "Give me the year and I will run it." : "Tell me where you want to go and I will take it straight there.";
 
@@ -1945,8 +1841,8 @@ async function handleChat(input) {
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
     const bridge = computeBridge(sessionLaneState, requestId);
     const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
-    const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
-    const directives = normalizeDirectiveArray(Array.isArray(routeOut?.directives) ? routeOut.directives : []);
+    const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+    const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
     const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane);
 
     let nextSpine = null;
@@ -2023,7 +1919,6 @@ async function handleChat(input) {
       followUpsStrings: followUps.map((x) => x.label),
       sessionPatch: {},
       cog: {
-        marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
         route: emo ? "emotion_route_guard" : "general",
         intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
         mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
@@ -2090,7 +1985,7 @@ async function handleChat(input) {
       })
     );
 
-    return finalizeContractShape(finalContract);
+    return finalContract;
   } catch (err) {
     const failContract = failSafeContract(err, rawInput, {
       sessionPatch: mergeSessionPatches(
@@ -2127,7 +2022,7 @@ async function handleChat(input) {
         contract: failContract
       })
     );
-    return finalizeContractShape(failContract);
+    return failContract;
   }
 }
 
