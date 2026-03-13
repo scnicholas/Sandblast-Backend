@@ -124,9 +124,44 @@ function buildFollowUpsForLane(lane) {
   ];
 }
 
+
+function buildSupportUi() {
+  return {
+    chips: [
+      { id: "support_talk", type: "action", label: "Talk to me", payload: { action: "support_talk", mode: "supportive" } },
+      { id: "support_stay", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive" } }
+    ],
+    allowMic: true,
+    mode: "supportive"
+  };
+}
+
+function buildSupportFollowUps() {
+  return [
+    { id: "fu_support_talk", type: "action", label: "Talk to me", payload: { action: "support_talk", mode: "supportive" } },
+    { id: "fu_support_stay", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive" } }
+  ];
+}
+
+function isSupportiveEmotion(emo) {
+  return !!(
+    emo &&
+    (
+      emo.bypassClarify ||
+      safeStr(emo.mode || "").toLowerCase() === "vulnerable" ||
+      safeStr(emo.valence || "").toLowerCase() === "negative" ||
+      !!emo?.supportFlags?.needsGentlePacing
+    )
+  );
+}
+
 function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
   if (!text) return "I am here. Tell me what you want to work on, and I will keep it structured.";
+
+  if (isSupportiveEmotion(emo) || /\b(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)\b/i.test(text)) {
+    return "I am here with you. You do not have to sit in that feeling alone. Tell me what feels hardest right now.";
+  }
 
   if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
     return "Understood. We are going after the loop directly. Give me the file or the exact layer, and I will keep the response locked to that target.";
@@ -140,7 +175,7 @@ function simpleGeneralReply(norm, emo) {
     return "Got it. We can work this as an architecture problem: isolate the heavy logic, stop duplicated emotional parsing, and keep the response path deterministic.";
   }
 
-  return "I have the signal. Do you want diagnosis, restructuring, or an exact code update?";
+  return "Give me the exact target and I will stay with that path without bouncing you into a menu.";
 }
 
 function normalizeLaneOutput(out, fallbackLane) {
@@ -224,6 +259,16 @@ function resolveLane(norm, session) {
 function routeLane(norm, session, emo) {
   const n = normalizeNorm(norm);
   const lane = resolveLane(n, session);
+
+  if (isSupportiveEmotion(emo)) {
+    return normalizeLaneOutput({
+      reply: simpleGeneralReply(n, emo),
+      lane: "general",
+      followUps: buildSupportFollowUps(),
+      ui: buildSupportUi(),
+      meta: { supportiveRoute: true }
+    }, "general");
+  }
 
   if (lane === "music") {
     const musicOut = tryMusicLane(n);
