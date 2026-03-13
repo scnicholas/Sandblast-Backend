@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.3.0-opintel+++++";
+const MARION_VERSION = "marionSO v1.3.1-opintel+++++supportfix";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
@@ -2440,16 +2440,29 @@ function computeRoutingUpgradeHints(c) {
   const x = isPlainObject(c) ? c : {};
   const routeConfidence = clamp01(x.routeConfidence != null ? x.routeConfidence : (x.confidence && x.confidence.nyx) || 0.62);
   const intentConfidence = clamp01(x.intentConfidence != null ? x.intentConfidence : routeConfidence);
-  const ambiguityScore = clamp01(x.ambiguityScore != null ? x.ambiguityScore : (x.intent === "CLARIFY" ? 0.6 : 0.24));
+  const intentU = safeStr(x.intent || "", 16).toUpperCase();
+  const riskTierL = safeStr(x.riskTier || "", 12).toLowerCase();
+  const supportFirst = intentU === "STABILIZE" || riskTierL === RISK.TIERS.HIGH || riskTierL === RISK.TIERS.MEDIUM;
+  const ambiguityScore = clamp01(
+    x.ambiguityScore != null
+      ? x.ambiguityScore
+      : supportFirst
+      ? 0.12
+      : intentU === "CLARIFY"
+      ? 0.6
+      : 0.24
+  );
   const unresolvedThreads = clampStringArray(x.unresolvedThreads || [], 6, 120);
   const assumptions = clampStringArray(x.assumptions || [], 6, 100);
   const contradictions = clampStringArray(x.contradictions || [], 4, 100);
-  const minimalClarifier = safeStr(
-    x.minimalClarifier ||
-      x.clarifyPrompt ||
-      (ambiguityScore >= 0.55 ? "What’s the one missing detail I need to proceed?" : ""),
-    180
-  );
+  const minimalClarifier = supportFirst
+    ? ""
+    : safeStr(
+        x.minimalClarifier ||
+          x.clarifyPrompt ||
+          (ambiguityScore >= 0.55 ? "What’s the one missing detail I need to proceed?" : ""),
+        180
+      );
   const actionHints = clampStringArray(x.actionHints || [], 6, 72);
 
   return {
@@ -2462,7 +2475,9 @@ function computeRoutingUpgradeHints(c) {
     assumptions,
     contradictions,
     actionHints,
-    decisionMode: ambiguityScore >= 0.55 ? "clarify_minimal" : routeConfidence >= 0.66 ? "direct_or_execute" : "narrow_and_verify",
+    supportFirst,
+    metaControlSuppressed: supportFirst,
+    decisionMode: supportFirst ? "support_first" : ambiguityScore >= 0.55 ? "clarify_minimal" : routeConfidence >= 0.66 ? "direct_or_execute" : "narrow_and_verify",
     contractConformant: true
   };
 }
@@ -2655,20 +2670,24 @@ function finalizeContract(cog, nowMs, extra) {
   // ==========================================================
   const intentU = safeStr(out.intent || "", 16).toUpperCase();
   const riskTierL = safeStr(out.riskTier || "", 12).toLowerCase();
+  const supportFirst = intentU === "STABILIZE" || riskTierL === RISK.TIERS.HIGH || riskTierL === RISK.TIERS.MEDIUM;
 
   // CLARIFY gate: only true when Marion explicitly decided to clarify.
   // IMPORTANT: STABILIZE should NOT auto-route into the generic clarifier (this caused looping UX).
   const needsClarify =
-    intentU === "CLARIFY" ||
-    safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
-    safeStr(out.bridge?.kind || "", 24).toLowerCase() === "clarify";
+    !supportFirst &&
+    (
+      intentU === "CLARIFY" ||
+      safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
+      safeStr(out.bridge?.kind || "", 24).toLowerCase() === "clarify"
+    );
 
   // Stage selection:
-  // - STABILIZE always drives a response (deliver) unless an explicit ask is required.
+  // - support-first / STABILIZE always drives a response (deliver)
   // - ADVANCE -> deliver
   // - otherwise -> triage/clarify
   const stage =
-    intentU === "STABILIZE"
+    supportFirst || intentU === "STABILIZE"
       ? "deliver"
       : needsClarify
       ? "clarify"
@@ -2716,6 +2735,8 @@ function finalizeContract(cog, nowMs, extra) {
   out.needsClarify = needsClarify;
   out.stage = stage;
   out.layers = layers;
+  out.supportFirst = !!supportFirst;
+  out.metaControlSuppressed = !!supportFirst;
 
   // optional hints for clarifying flows
   if (needsClarify) {
