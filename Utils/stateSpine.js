@@ -21,7 +21,7 @@
  */
 
 const SPINE_VERSION =
-  "stateSpine v1.5.0 (PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
+  "stateSpine v1.6.0 (EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -722,6 +722,22 @@ function createState(seed = {}) {
         ? Math.max(0, Math.trunc(seed.diag.menuBounceRepeats))
         : 0,
       lastMenuBounceKey: safeStr(seed?.diag?.lastMenuBounceKey || "", 120),
+      lastEmotionPrimary: safeStr(seed?.diag?.lastEmotionPrimary || "", 40),
+      lastEmotionSecondary: safeStr(seed?.diag?.lastEmotionSecondary || "", 40),
+      lastEmotionCluster: safeStr(seed?.diag?.lastEmotionCluster || "", 40),
+      lastEmotionRouteBias: safeStr(seed?.diag?.lastEmotionRouteBias || "", 64),
+      emotionSameEmotionCount: Number.isFinite(seed?.diag?.emotionSameEmotionCount)
+        ? Math.max(0, Math.trunc(seed.diag.emotionSameEmotionCount))
+        : 0,
+      emotionSameSupportModeCount: Number.isFinite(seed?.diag?.emotionSameSupportModeCount)
+        ? Math.max(0, Math.trunc(seed.diag.emotionSameSupportModeCount))
+        : 0,
+      emotionNoProgressTurnCount: Number.isFinite(seed?.diag?.emotionNoProgressTurnCount)
+        ? Math.max(0, Math.trunc(seed.diag.emotionNoProgressTurnCount))
+        : 0,
+      emotionRepeatedFallbackCount: Number.isFinite(seed?.diag?.emotionRepeatedFallbackCount)
+        ? Math.max(0, Math.trunc(seed.diag.emotionRepeatedFallbackCount))
+        : 0,
     },
 
     op: {
@@ -738,6 +754,15 @@ function createState(seed = {}) {
       lastGoodTurnSig: safeStr(seed?.op?.lastGoodTurnSig || "", 240) || null,
       loopRisk: Number.isFinite(seed?.op?.loopRisk) ? Math.max(0, Math.min(1, Number(seed.op.loopRisk))) : 0,
       lastPlannerMode: safeStr(seed?.op?.lastPlannerMode || "", 48) || "",
+      emotionPrimary: safeStr(seed?.op?.emotionPrimary || "", 40) || "",
+      emotionSecondary: safeStr(seed?.op?.emotionSecondary || "", 40) || "",
+      emotionCluster: safeStr(seed?.op?.emotionCluster || "", 40) || "",
+      emotionRouteBias: safeStr(seed?.op?.emotionRouteBias || "", 64) || "",
+      emotionSupportMode: safeStr(seed?.op?.emotionSupportMode || "", 64) || "",
+      emotionConfidence: Number.isFinite(seed?.op?.emotionConfidence) ? Math.max(0, Math.min(1, Number(seed.op.emotionConfidence))) : 0,
+      emotionFallbackSuppression: !!seed?.op?.emotionFallbackSuppression,
+      emotionNeedsNovelMove: !!seed?.op?.emotionNeedsNovelMove,
+      emotionRouteExhaustion: !!seed?.op?.emotionRouteExhaustion,
     },
 
     governance: {
@@ -1313,9 +1338,30 @@ function normalizeInbound(inbound = {}) {
     emotionNeedSoft: !!(ts && ts.emotionNeedSoft),
     emotionNeedCrisis: !!(ts && ts.emotionNeedCrisis),
     emotionValence: safeStr(ts && ts.emotionValence || "", 24).toLowerCase(),
-    emotionDominant: safeStr(ts && ts.emotionDominant || "", 40).toLowerCase(),
+    emotionDominant: safeStr(ts && (ts.emotionPrimary || ts.emotionDominant) || "", 40).toLowerCase(),
+    emotionPrimary: safeStr(ts && (ts.emotionPrimary || ts.emotionDominant) || "", 40).toLowerCase(),
+    emotionSecondary: safeStr(ts && ts.emotionSecondary || "", 40).toLowerCase(),
+    emotionCluster: safeStr(ts && ts.emotionCluster || "", 40).toLowerCase(),
+    emotionTone: safeStr(ts && ts.emotionTone || "", 40).toLowerCase(),
+    emotionRouteBias: safeStr(ts && ts.emotionRouteBias || "", 64).toLowerCase(),
+    emotionSupportMode: safeStr(ts && ts.emotionSupportMode || "", 64).toLowerCase(),
+    emotionConfidence: Number.isFinite(ts && ts.emotionConfidence)
+      ? Math.max(0, Math.min(100, Math.trunc(ts.emotionConfidence)))
+      : 0,
     emotionContradictions: Number.isFinite(ts && ts.emotionContradictions)
       ? Math.max(0, Math.trunc(ts.emotionContradictions))
+      : 0,
+    emotionFallbackSuppression: !!(ts && ts.emotionFallbackSuppression),
+    emotionNeedsNovelMove: !!(ts && ts.emotionNeedsNovelMove),
+    emotionRouteExhaustion: !!(ts && ts.emotionRouteExhaustion),
+    emotionSameEmotionCount: Number.isFinite(ts && ts.emotionSameEmotionCount)
+      ? Math.max(0, Math.trunc(ts.emotionSameEmotionCount))
+      : 0,
+    emotionSameSupportModeCount: Number.isFinite(ts && ts.emotionSameSupportModeCount)
+      ? Math.max(0, Math.trunc(ts.emotionSameSupportModeCount))
+      : 0,
+    emotionNoProgressTurnCount: Number.isFinite(ts && ts.emotionNoProgressTurnCount)
+      ? Math.max(0, Math.trunc(ts.emotionNoProgressTurnCount))
       : 0,
   };
 
@@ -1348,6 +1394,24 @@ function decideNextMove(state, inbound = {}) {
   const hasPayload = !!n.signals.hasPayload;
 
   const marionHint = n.cog || s.marion;
+  const emotionLoopPressure = !!(
+    n.signals.emotionRouteExhaustion ||
+    n.signals.emotionNeedsNovelMove ||
+    (n.signals.emotionFallbackSuppression && n.signals.emotionNoProgressTurnCount >= 1) ||
+    n.signals.emotionSameEmotionCount >= 2 ||
+    n.signals.emotionSameSupportModeCount >= 2
+  );
+
+  if (emotionLoopPressure && !n.signals.emotionNeedCrisis) {
+    return {
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "Emotion-route pressure detected. I will advance with a novel move instead of recycling the same support pattern.",
+      ask: null,
+      rationale: "emotion_loop_pressure_advance",
+      _plannerMode: "emotion_novel_advance",
+    };
+  }
 
   // Emotion short-circuit from chatEngine signals
   if (n.signals.emotionNeedCrisis) {
@@ -1821,6 +1885,22 @@ function finalizeTurn({
         : 0,
       lastMenuBounceKey: menuBounceKey,
       menuBounceRepeats: menuBounceRepeats,
+      lastEmotionPrimary: safeStr(n.signals.emotionPrimary || n.signals.emotionDominant || "", 40),
+      lastEmotionSecondary: safeStr(n.signals.emotionSecondary || "", 40),
+      lastEmotionCluster: safeStr(n.signals.emotionCluster || "", 40),
+      lastEmotionRouteBias: safeStr(n.signals.emotionRouteBias || "", 64),
+      emotionSameEmotionCount: Number.isFinite(n.signals.emotionSameEmotionCount)
+        ? Math.max(0, Math.trunc(n.signals.emotionSameEmotionCount))
+        : 0,
+      emotionSameSupportModeCount: Number.isFinite(n.signals.emotionSameSupportModeCount)
+        ? Math.max(0, Math.trunc(n.signals.emotionSameSupportModeCount))
+        : 0,
+      emotionNoProgressTurnCount: Number.isFinite(n.signals.emotionNoProgressTurnCount)
+        ? Math.max(0, Math.trunc(n.signals.emotionNoProgressTurnCount))
+        : 0,
+      emotionRepeatedFallbackCount: Number.isFinite(prev?.diag?.emotionRepeatedFallbackCount)
+        ? Math.max(0, Math.trunc(prev.diag.emotionRepeatedFallbackCount))
+        : 0,
     },
 
     op: {
@@ -1836,12 +1916,28 @@ function finalizeTurn({
         safeStr(decision?.move || "", 20).toLowerCase() === MOVE.CLARIFY
           ? (safeStr(prev?.op?.lastGoodTurnSig || "", 240) || null)
           : turnSig,
-      loopRisk,
+      loopRisk: Math.max(
+        loopRisk,
+        n.signals.emotionRouteExhaustion ? 0.92 : 0,
+        n.signals.emotionNeedsNovelMove ? 0.78 : 0,
+        n.signals.emotionFallbackSuppression ? 0.65 : 0
+      ),
       lastPlannerMode: safeStr(decision?._plannerMode || "", 48) || "",
       unresolvedThreads,
       objective:
         safeStr(prev?.op?.objective || "", 240) ||
         (topic !== "unknown" ? `advance:${topic}` : null),
+      emotionPrimary: safeStr(n.signals.emotionPrimary || n.signals.emotionDominant || "", 40),
+      emotionSecondary: safeStr(n.signals.emotionSecondary || "", 40),
+      emotionCluster: safeStr(n.signals.emotionCluster || "", 40),
+      emotionRouteBias: safeStr(n.signals.emotionRouteBias || "", 64),
+      emotionSupportMode: safeStr(n.signals.emotionSupportMode || "", 64),
+      emotionConfidence: Number.isFinite(n.signals.emotionConfidence)
+        ? Math.max(0, Math.min(1, Number(n.signals.emotionConfidence) / 100))
+        : 0,
+      emotionFallbackSuppression: !!n.signals.emotionFallbackSuppression,
+      emotionNeedsNovelMove: !!n.signals.emotionNeedsNovelMove,
+      emotionRouteExhaustion: !!n.signals.emotionRouteExhaustion,
     },
 
     ...(assistantSummary != null
