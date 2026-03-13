@@ -1,6 +1,6 @@
 /**
  * responsePlanner.js
- * OPINTEL v1.0.0
+ * OPINTEL v1.1.0
  *
  * Purpose:
  * - Decide the best response shape
@@ -11,11 +11,12 @@
  * - Hardened and fail-open
  * - Simple API
  * - No infrastructure-breaking assumptions
+ * - Distress-first support routing
  */
 
 "use strict";
 
-const VERSION = "responsePlanner.opintel.v1.0.0";
+const VERSION = "responsePlanner.opintel.v1.1.0";
 
 function isObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -48,10 +49,33 @@ const SHAPES = Object.freeze({
   GUIDED: "guided_steps",
   ACTION: "action_first",
   COMPARE: "option_compare",
-  RESUME: "resume_thread"
+  RESUME: "resume_thread",
+  SUPPORT: "support_first"
 });
 
+function isSupportDistress(input = {}) {
+  const lane = lower(input.lane || input.intent?.lane || "");
+  const intent = lower(input.intent?.intent || input.intent || "");
+  const mode = lower(input.mode || input.intent?.mode || "");
+  const regulation = lower(input.regulation || input.intent?.regulation || "");
+  const message = lower(input.message || input.text || "");
+  const supportFirst = !!input.supportFirst;
+
+  if (supportFirst) return true;
+  if (lane === "support" || lane === "wellbeing") return true;
+  if (intent === "stabilize" || mode === "safety" || mode === "stabilize") return true;
+  if (regulation === "fragile" || regulation === "crisis") return true;
+
+  return (
+    /\b(i am|i'm|im|feel|feeling)\s+(depressed|sad|lonely|hopeless|overwhelmed|anxious|scared)\b/.test(message) ||
+    /\b(depressed|depression|lonely|sad|hopeless|heartbroken|overwhelmed|panic|panicking|anxious|crying)\b/.test(message) ||
+    /\b(don['’]t want to live|do not want to live|kill myself|suicid(al|e)|self[- ]?harm)\b/.test(message)
+  );
+}
+
 function shouldClarify(input = {}) {
+  if (isSupportDistress(input)) return false;
+
   const ambiguity = clamp(num(input.ambiguity, 0), 0, 1);
   const intentConfidence = clamp(num(input.intentConfidence, 0), 0, 1);
   const routeConfidence = clamp(num(input.routeConfidence, 0), 0, 1);
@@ -67,6 +91,8 @@ function shouldClarify(input = {}) {
 }
 
 function pickReplyShape(input = {}) {
+  if (isSupportDistress(input)) return SHAPES.SUPPORT;
+
   const lane = lower(input.lane || input.intent?.lane || "");
   const unresolvedAsks = asArray(input.memoryWindow?.unresolvedAsks || input.unresolvedAsks);
   const actionHints = asArray(input.actionHints);
@@ -81,15 +107,19 @@ function pickReplyShape(input = {}) {
 }
 
 function buildMinimalClarifier(input = {}) {
+  if (isSupportDistress(input)) return "";
+
   const lane = lower(input.lane || input.intent?.lane || "");
   const message = lower(input.message || input.text || "");
   if (lane === "roku") return "Do you want the Roku page, live TV lane, or News Canada?";
   if (lane === "music") return "Do you want a year chart, a story moment, or a top 10 list?";
   if (message.includes("news")) return "Do you want the headline summary, the source link, or the full story path?";
-  return "Do you want a direct answer, a short guide, or the next action to take?";
+  return "What is the one missing detail I need to proceed cleanly?";
 }
 
 function deriveReplyDepth(input = {}) {
+  if (isSupportDistress(input)) return "tight";
+
   const routeConfidence = clamp(num(input.routeConfidence, 0), 0, 1);
   const ambiguity = clamp(num(input.ambiguity, 0), 0, 1);
   const urgency = clamp(num(input.urgency, 0), 0, 1);
@@ -100,27 +130,9 @@ function deriveReplyDepth(input = {}) {
   return "medium";
 }
 
-function planResponse(input = {}) {
-  const safe = isObject(input) ? input : {};
-  const replyShape = pickReplyShape(safe);
-  const clarifier = replyShape === SHAPES.CLARIFY ? buildMinimalClarifier(safe) : "";
-  const nextBestAction = pickNextBestAction(safe, replyShape);
-
-  return {
-    ok: true,
-    version: VERSION,
-    replyShape,
-    shouldClarify: replyShape === SHAPES.CLARIFY,
-    minimalClarifier: clarifier,
-    replyDepth: deriveReplyDepth(safe),
-    nextBestAction,
-    guidanceMode: replyShape === SHAPES.GUIDED || replyShape === SHAPES.RESUME,
-    actionFirst: replyShape === SHAPES.ACTION,
-    failOpen: true
-  };
-}
-
 function pickNextBestAction(input = {}, shape = "") {
+  if (shape === SHAPES.SUPPORT) return "deliver_support";
+
   const lane = lower(input.lane || input.intent?.lane || "");
   const actionHints = asArray(input.actionHints);
   const unresolvedAsks = asArray(input.memoryWindow?.unresolvedAsks || input.unresolvedAsks);
@@ -132,10 +144,34 @@ function pickNextBestAction(input = {}, shape = "") {
   return "offer_followups";
 }
 
+function planResponse(input = {}) {
+  const safe = isObject(input) ? input : {};
+  const replyShape = pickReplyShape(safe);
+  const clarifier = replyShape === SHAPES.CLARIFY ? buildMinimalClarifier(safe) : "";
+  const nextBestAction = pickNextBestAction(safe, replyShape);
+  const supportFirst = replyShape === SHAPES.SUPPORT;
+
+  return {
+    ok: true,
+    version: VERSION,
+    replyShape,
+    shouldClarify: replyShape === SHAPES.CLARIFY,
+    minimalClarifier: clarifier,
+    replyDepth: deriveReplyDepth(safe),
+    nextBestAction,
+    guidanceMode: replyShape === SHAPES.GUIDED || replyShape === SHAPES.RESUME,
+    actionFirst: replyShape === SHAPES.ACTION,
+    supportFirst,
+    metaControlSuppressed: supportFirst,
+    failOpen: true
+  };
+}
+
 module.exports = {
   VERSION,
   SHAPES,
   planResponse,
   pickReplyShape,
-  shouldClarify
+  shouldClarify,
+  isSupportDistress
 };
