@@ -201,7 +201,9 @@ function isGenericMenuBounceReply(summary) {
     /do you want diagnosis, restructuring, or an exact code update/.test(s) ||
     /tell me what you want next/.test(s) ||
     /pick what you want next/.test(s) ||
-    /music, movies, or sponsors/.test(s)
+    /music, movies, or sponsors/.test(s) ||
+    /give me the exact target and i will keep this tight/.test(s) ||
+    /give me the exact target and i will stay with that path/.test(s)
   );
 }
 
@@ -1333,15 +1335,12 @@ function decideNextMove(state, inbound = {}) {
 
   if (n.signals.emotionBypassClarify || isDistressText(text)) {
     return {
-      move: MOVE.CLARIFY,
-      stage: STAGE.CLARIFY,
-      speak: "I hear you. Let us slow down for a second.",
-      ask: buildPendingAsk(
-        "need_stabilize",
-        "Do you want emotional support right now, or practical steps?",
-        []
-      ),
-      rationale: "emotion_or_distress_short_circuit",
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "I hear you. I am going to stay with the feeling first and keep the response grounded.",
+      ask: null,
+      rationale: "emotion_or_distress_support_advance",
+      _plannerMode: "support_advance",
     };
   }
 
@@ -1350,15 +1349,12 @@ function decideNextMove(state, inbound = {}) {
     const mhIntent = safeStr(marionHint.intent || "", 40).toLowerCase().trim();
     if (mhIntent === "stabilize") {
       return {
-        move: MOVE.CLARIFY,
-        stage: STAGE.CLARIFY,
-        speak: "I hear you. Let us slow down for a second.",
-        ask: buildPendingAsk(
-          "need_stabilize",
-          "Are you safe right now, and do you want emotional support or practical steps?",
-          []
-        ),
-        rationale: "marion_intent_stabilize",
+        move: MOVE.ADVANCE,
+        stage: STAGE.DELIVER,
+        speak: "I hear you. I am going to stay grounded and respond with support first.",
+        ask: null,
+        rationale: "marion_intent_stabilize_support_advance",
+        _plannerMode: "support_advance",
       };
     }
   }
@@ -1532,16 +1528,12 @@ function decideNextMove(state, inbound = {}) {
 
     if (isDistressText(text)) {
       return {
-        move: MOVE.CLARIFY,
-        stage: STAGE.CLARIFY,
-        speak: "I hear you. Let us slow down for a second.",
-        ask: buildPendingAsk(
-          "need_stabilize",
-          "Are you safe right now, and do you want emotional support or practical steps?",
-          []
-        ),
-        rationale: "distress_too_short",
-        _plannerMode: "clarify",
+        move: MOVE.ADVANCE,
+        stage: STAGE.DELIVER,
+        speak: "I hear you. I am going to respond with support first and keep it simple.",
+        ask: null,
+        rationale: "distress_too_short_support_advance",
+        _plannerMode: "support_advance",
       };
     }
 
