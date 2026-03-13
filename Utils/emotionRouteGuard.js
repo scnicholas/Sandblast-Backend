@@ -93,7 +93,7 @@ const LEXICON = {
         'heartbroken',
         'hurt inside',
         'i feel nothing',
-        'can\\'?t feel anything',
+        "can\\'?t feel anything",
         'i am exhausted emotionally',
         'i feel dead inside',
         'i feel low',
@@ -110,10 +110,10 @@ const LEXICON = {
         'overwhelmed',
         'stressed',
         'pressure',
-        'can\\'?t calm down',
+        "can\\'?t calm down",
         'racing thoughts',
-        'my mind won\\'?t stop',
-        'i can\\'?t breathe',
+        "my mind won\\'?t stop",
+        "i can\\'?t breathe",
         'worried sick',
         'on edge',
         'shaking',
@@ -193,7 +193,7 @@ const LEXICON = {
         'fatigued',
         'worn out',
         'running on empty',
-        'can\\'?t keep going',
+        "can\\'?t keep going",
         'i am done',
         'spent',
         'i have nothing left',
@@ -206,8 +206,8 @@ const LEXICON = {
         'confused',
         'lost',
         'disoriented',
-        'don\\'?t know what to do',
-        'don\\'?t know anymore',
+        "don\\'?t know what to do",
+        "don\\'?t know anymore",
         'stuck',
         'spiraling',
         'all over the place',
@@ -220,8 +220,8 @@ const LEXICON = {
       patterns: [
         'hopeless',
         'there is no point',
-        'what\\'?s the point',
-        'i can\\'?t do this anymore',
+        "what\\'?s the point",
+        "i can\\'?t do this anymore",
         'nothing will get better',
         'i give up',
         'done living like this',
@@ -241,12 +241,12 @@ const LEXICON = {
         'suicide',
         'i want to die',
         'i should die',
-        'i don\\'?t want to live',
+        "i don\\'?t want to live",
         'hurt myself',
         'self harm',
         'cut myself',
         'i am going to end it',
-        'i won\\'?t be here tomorrow'
+        "i won\\'?t be here tomorrow"
       ]
     },
     selfHarmPassive: {
@@ -256,9 +256,9 @@ const LEXICON = {
         'wish i was gone',
         'better off without me',
         'people would be better off without me',
-        'i don\\'?t want to exist',
+        "i don\\'?t want to exist",
         'i want everything to stop',
-        'i wish i wouldn\\'?t wake up'
+        "i wish i wouldn\\'?t wake up"
       ]
     },
     crisisDistress: {
@@ -267,8 +267,8 @@ const LEXICON = {
         'breaking down',
         'falling apart',
         'losing my mind',
-        'can\\'?t take this',
-        'can\\'?t keep myself safe',
+        "can\\'?t take this",
+        "can\\'?t keep myself safe",
         'completely losing control',
         'i might do something bad',
         'i am not safe',
@@ -500,13 +500,13 @@ const LEXICON = {
     'no',
     'hardly',
     'rarely',
-    'isn\\'?t',
-    'aren\\'?t',
-    'wasn\\'?t',
-    'don\\'?t',
-    'doesn\\'?t',
-    'didn\\'?t',
-    'can\\'?t'
+    "isn\\'?t",
+    "aren\\'?t",
+    "wasn\\'?t",
+    "don\\'?t",
+    "doesn\\'?t",
+    "didn\\'?t",
+    "can\\'?t"
   ],
 
   directionalUp: [
@@ -916,10 +916,13 @@ function deriveRecoverySignals(positive, recovery, momentum) {
 }
 
 function deriveSupportFlags(risk, negative, recovery, positive) {
+  const negativeCategories = Array.isArray(negative?.categories) ? negative.categories : [];
+  const hasLoneliness = negativeCategories.some((c) => safeStr(c?.category || '') === 'loneliness');
+  const hasSadness = negativeCategories.some((c) => safeStr(c?.category || '') === 'sadness');
   return {
     crisis: risk.score >= 0.95,
-    highDistress: negative.score >= 1.7,
-    needsGentlePacing: negative.score >= 0.9 || risk.score >= 0.65,
+    highDistress: negative.score >= 1.7 || risk.score >= 0.92,
+    needsGentlePacing: negative.score >= 0.75 || risk.score >= 0.65 || hasLoneliness || hasSadness,
     avoidCelebratoryTone: (negative.score + risk.score) > (positive.score + (recovery.score * 0.5)),
     recoveryPresent: recovery.score > 0,
     positivePresent: positive.score > 0.6
