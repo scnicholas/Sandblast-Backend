@@ -117,7 +117,7 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.4.0-opintel+++++";
+const BRIDGE_VERSION = "1.4.1-opintel+++++supportfix";
 
 const OPINTEL_SCHEMA = "oi:1.0";
 const OPINTEL_TRACE_SCHEMA = "trace:1.0";
@@ -1346,8 +1346,8 @@ if (social.intent) intent = social.intent;
     // Reinforcement hooks: safe, deterministic cues for both positive + negative reinforcement.
     const responseCues = Array.isArray(responseCuesBase) ? responseCuesBase.slice() : [];
     if (features.__forcePsychBridge || mode === "stabilize" || mode === "safety") {
-      responseCues.unshift("validate_emotion", "ask_feeling_context", "offer_options");
-      responseCues.unshift("avoid_shaming", "avoid_minimizing");
+      responseCues.unshift("validate_emotion", "stay_present", "one_gentle_question");
+      responseCues.unshift("avoid_shaming", "avoid_minimizing", "no_menu_bounce");
     } else {
       responseCues.unshift("reinforce_progress", "gentle_reframe");
     }
@@ -1385,9 +1385,15 @@ if (social && social.intent) {
 // If upstream is stuck in clarify loops, push structured options instead of repeating questions.
 const __stateHints = resolveStateHints(features);
 if (__stateHints && __stateHints.clarifyStreak >= 2) {
+  if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
+  responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
+  uiCues.unshift("compact_reply");
+  guardrails.unshift("clarify_streak_breaker", "support_first");
+} else {
   responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
   uiCues.unshift("show_options_chips");
   guardrails.unshift("clarify_streak_breaker");
+}
 }
 
 
@@ -1534,8 +1540,8 @@ if (social.intent) intent = social.intent;
 
     const responseCues = Array.isArray(responseCuesBase) ? responseCuesBase.slice() : [];
     if (features.__forcePsychBridge || mode === "stabilize" || mode === "safety") {
-      responseCues.unshift("validate_emotion", "ask_feeling_context", "offer_options");
-      responseCues.unshift("avoid_shaming", "avoid_minimizing");
+      responseCues.unshift("validate_emotion", "stay_present", "one_gentle_question");
+      responseCues.unshift("avoid_shaming", "avoid_minimizing", "no_menu_bounce");
     } else {
       responseCues.unshift("reinforce_progress", "gentle_reframe");
     }
@@ -1570,9 +1576,15 @@ if (social && social.intent) {
 // If upstream is stuck in clarify loops, push structured options instead of repeating questions.
 const __stateHints = resolveStateHints(features);
 if (__stateHints && __stateHints.clarifyStreak >= 2) {
+  if (mode === "stabilize" || mode === "safety" || regulation === "fragile" || regulation === "crisis") {
+  responseCues.unshift("clarify_breaker", "support_first", "stop_repeating_questions", "no_menu_bounce");
+  uiCues.unshift("compact_reply");
+  guardrails.unshift("clarify_streak_breaker", "support_first");
+} else {
   responseCues.unshift("clarify_breaker", "offer_3_options", "stop_repeating_questions");
   uiCues.unshift("show_options_chips");
   guardrails.unshift("clarify_streak_breaker");
+}
 }
 
 
