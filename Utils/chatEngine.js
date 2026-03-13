@@ -34,11 +34,15 @@ let Spine = null;
 let MarionSO = null;
 let EmotionRouteGuard = null;
 let Support = null;
+let ChatPolicies = null;
+let musicResolver = null;
 
 try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
 try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
 try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
 try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
+try { ChatPolicies = require("./ChatPolicies"); } catch (_e) { ChatPolicies = null; }
+try { musicResolver = require("./musicResolver"); } catch (_e) { musicResolver = null; }
 
 let laneRouter = null;
 let memoryAdapter = null;
@@ -124,7 +128,15 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.12.2 OPINTEL LOOP-FIX";
+const buildPolicyEnvelope = typeof ChatPolicies?.buildPolicyEnvelope === "function"
+  ? ChatPolicies.buildPolicyEnvelope
+  : null;
+
+const resolveMusicIntent = typeof musicResolver?.resolveMusicIntent === "function"
+  ? musicResolver.resolveMusicIntent
+  : null;
+
+const CE_VERSION = "chatEngine v0.12.3 POLICY-ROUTED";
 
 function nowMs() {
   return Date.now();
@@ -1333,6 +1345,69 @@ function failSafeContract(err, input, extra) {
   });
 }
 
+function inferYearFromText(text) {
+  const m = safeStr(text || "").match(/\b(19[4-9]\d|20[0-2]\d)\b/);
+  return m ? normYear(m[1]) : null;
+}
+function buildPolicyEnvelopeSafe(params) {
+  const src = isPlainObject(params) ? params : {};
+  if (buildPolicyEnvelope) {
+    try {
+      const policy = buildPolicyEnvelope(src);
+      if (isPlainObject(policy)) return policy;
+    } catch (_e) {}
+  }
+  const text = safeStr(src.text || src?.norm?.text || "").trim();
+  const lowerText = text.toLowerCase();
+  const activeLane = safeStr(src.activeLane || src?.session?.activeLane || src?.session?.lane || src?.norm?.lane || "general") || "general";
+  const inferredYear = inferYearFromText(text) || normYear(src?.session?.lockedYear) || null;
+  const musicSignal = /(\btop\s*10\b|\btop\s*ten\b|\b#1\b|\bnumber one\b|story moment|micro moment|billboard|song|songs|music)/i.test(text);
+  const lane = activeLane === "music" || musicSignal ? "music" : activeLane;
+  const out = {
+    ok: true,
+    lane,
+    action: null,
+    resolver: null,
+    inferredSlots: {},
+    clarificationNeeded: false,
+    clarificationPrompt: "",
+    stop: false,
+    flags: { shouldBlockDuplicate: false }
+  };
+  if (lane === "music") {
+    if (/(\btop\s*10\b|\btop\s*ten\b)/i.test(text) && inferredYear) {
+      out.action = "music_top10_by_year";
+      out.resolver = "musicResolver";
+      out.inferredSlots.year = inferredYear;
+      return out;
+    }
+    if (/(\b#1\b|\bnumber one\b)/i.test(text) && inferredYear) {
+      out.action = "music_number_one_by_year";
+      out.resolver = "musicResolver";
+      out.inferredSlots.year = inferredYear;
+      return out;
+    }
+    if (/story moment/i.test(text) && inferredYear) {
+      out.action = "music_story_moment_by_year";
+      out.resolver = "musicResolver";
+      out.inferredSlots.year = inferredYear;
+      return out;
+    }
+    if (/micro moment/i.test(text) && inferredYear) {
+      out.action = "music_micro_moment_by_year";
+      out.resolver = "musicResolver";
+      out.inferredSlots.year = inferredYear;
+      return out;
+    }
+    if (/(\btop\s*10\b|\btop\s*ten\b|\b#1\b|\bnumber one\b|story moment|micro moment)/i.test(text) && !inferredYear) {
+      out.clarificationNeeded = true;
+      out.clarificationPrompt = "Give me the year and I will run it.";
+      return out;
+    }
+  }
+  return out;
+}
+
 async function handleChat(input) {
   const started = nowMs();
   const rawInput = isPlainObject(input) ? input : {};
@@ -1694,21 +1769,165 @@ async function handleChat(input) {
       return finalizeContractShape(greetingContract);
     }
 
+    const priorFollowUps = Array.isArray(session.__cacheFollowUps) ? session.__cacheFollowUps : buildFollowUpsForLane(safeStr(session.lane || norm.lane || "general") || "general");
+    const priorDirectives = Array.isArray(session.__cacheDirectives) ? session.__cacheDirectives : [];
+    const policy = buildPolicyEnvelopeSafe({
+      text: norm.text,
+      session,
+      inbound: norm,
+      norm,
+      chips: priorFollowUps,
+      directives: priorDirectives,
+      publicMode,
+      activeLane: safeStr(session.activeLane || session.lane || norm.lane || "general") || "general",
+      recentReplies: Array.isArray(session.recentReplies) ? session.recentReplies : [],
+      emotionSignals: emo ? {
+        distress: !!(emo.supportFlags?.highDistress || emo.valence === "negative"),
+        crisis: !!emo.supportFlags?.crisis
+      } : {},
+      supportSignals: emo?.supportFlags || {},
+      requestMeta: { retry: !!rawInput.retry }
+    });
+
+    if (safeStr(policy?.lane || "") && safeStr(norm.lane || "general") === "general") {
+      norm.lane = safeStr(policy.lane || norm.lane || "general") || "general";
+    }
+
+    if (policy?.clarificationNeeded && !(policy?.action && policy?.resolver)) {
+      const lane = safeStr(policy?.lane || norm.lane || session.lane || "general") || "general";
+      const reply = applyPublicSanitization(
+        scrubExecutionStyleArtifacts(softSpeak(safeStr(policy.clarificationPrompt || "Give me the year and I will run it."))),
+        norm,
+        session,
+        publicMode
+      );
+      const followUps = normalizeFollowUpsArray(buildFollowUpsForLane(lane));
+      const clarifyContract = {
+        ok: true,
+        reply,
+        payload: { reply },
+        lane,
+        laneId: lane,
+        sessionLane: lane,
+        bridge: null,
+        ctx: {},
+        ui: buildUiForLane(lane),
+        directives: [],
+        followUps,
+        followUpsStrings: followUps.map((x) => x.label),
+        sessionPatch: {},
+        cog: { publicMode, mode: "transitional", intent: "CLARIFY", policy: true },
+        requestId,
+        meta: { v: CE_VERSION, policyClarify: true, t: nowMs(), phase: 10 }
+      };
+      clarifyContract.sessionPatch = mergeSessionPatches(
+        lifecycle.patch,
+        inboundRepeat.patch,
+        {
+          lane,
+          publicMode,
+          __lastInboundKey: inboundKey,
+          __cacheInSig: inSig,
+          __cacheReply: reply,
+          __cacheLane: lane,
+          __cacheFollowUps: followUps,
+          __cacheDirectives: [],
+          __cacheAt: nowMs()
+        },
+        completeTurnLifecycle(session, {
+          turnId, requestId, inSig, inboundKey, lane, reply, contract: clarifyContract
+        })
+      );
+      return finalizeContractShape(clarifyContract);
+    }
+
+    if ((policy?.resolver === "musicResolver" || /^music_/i.test(safeStr(policy?.action || ""))) && resolveMusicIntent) {
+      let musicOut = null;
+      try {
+        musicOut = await resolveMusicIntent({
+          text: norm.text,
+          message: norm.text,
+          session,
+          activeLane: safeStr(policy?.lane || norm.lane || session.lane || "music") || "music",
+          policy: { action: policy?.action || null, inferredSlots: isPlainObject(policy?.inferredSlots) ? policy.inferredSlots : {} },
+          inferredSlots: isPlainObject(policy?.inferredSlots) ? policy.inferredSlots : {}
+        });
+      } catch (_e) {
+        musicOut = null;
+      }
+      if (isPlainObject(musicOut) && safeStr(musicOut.reply || "").trim()) {
+        const lane = safeStr(musicOut.lane || policy?.lane || "music") || "music";
+        const reply = applyPublicSanitization(
+          scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(safeStr(musicOut.reply || ""), "medium"))),
+          norm,
+          session,
+          publicMode
+        );
+        const followUps = normalizeFollowUpsArray(dedupeFollowUpsForExecution(Array.isArray(musicOut.followUps) ? musicOut.followUps : buildFollowUpsForLane(lane), norm, emo));
+        const directives = normalizeDirectiveArray(Array.isArray(musicOut.directives) ? musicOut.directives : []);
+        const ui = buildUiForLane(lane);
+        const musicContract = {
+          ok: true,
+          reply,
+          payload: { reply },
+          lane,
+          laneId: lane,
+          sessionLane: lane,
+          bridge: computeBridge(computeLaneState(session, corePrev, lane, norm), requestId),
+          ctx: {},
+          ui,
+          directives,
+          followUps,
+          followUpsStrings: followUps.map((x) => x.label),
+          sessionPatch: {},
+          cog: {
+            route: "policy_resolver",
+            resolver: "musicResolver",
+            intent: safeStr(policy?.action || musicOut.action || "ADVANCE").toUpperCase(),
+            mode: "transitional",
+            publicMode
+          },
+          requestId,
+          meta: { v: CE_VERSION, policyResolved: true, resolver: "musicResolver", t: nowMs(), phase: 10 }
+        };
+        musicContract.sessionPatch = mergeSessionPatches(
+          lifecycle.patch,
+          inboundRepeat.patch,
+          isPlainObject(musicOut.sessionPatch) ? musicOut.sessionPatch : {},
+          {
+            lane,
+            publicMode,
+            __lastInboundKey: inboundKey,
+            __cacheInSig: inSig,
+            __cacheReply: reply,
+            __cacheLane: lane,
+            __cacheFollowUps: followUps,
+            __cacheDirectives: directives,
+            __cacheAt: nowMs()
+          },
+          completeTurnLifecycle(session, {
+            turnId, requestId, inSig, inboundKey, lane, reply, contract: musicContract
+          })
+        );
+        return finalizeContractShape(musicContract);
+      }
+    }
+
     const routeOut = routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: "I am here. Tell me what you need, and I will stay with that exact target.",
-          lane: safeStr(norm.lane || "general") || "general",
+          reply: policy?.lane === "music" ? "Give me the year and I will run it." : "Pick a lane or ask directly and I will take it straight there.",
+          lane: safeStr(policy?.lane || norm.lane || "general") || "general",
           directives: [],
-          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
-          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
-          meta: { failOpen: true, routeLaneMissing: true }
+          followUps: buildFollowUpsForLane(safeStr(policy?.lane || norm.lane || "general") || "general"),
+          ui: buildUiForLane(safeStr(policy?.lane || norm.lane || "general") || "general"),
+          meta: { failOpen: true, routeLaneMissing: true, policyLane: safeStr(policy?.lane || "") }
         };
 
     let reply = safeStr(routeOut?.reply || "").trim();
-    let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
+    let lane = safeStr(routeOut?.lane || policy?.lane || norm.lane || session.lane || "general") || "general";
 
-    if (!reply) reply = "I am here. Give me the exact target and I will keep this steady.";
+    if (!reply) reply = lane === "music" ? "Give me the year and I will run it." : "Tell me where you want to go and I will take it straight there.";
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
