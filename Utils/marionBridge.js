@@ -1,27 +1,24 @@
 /**
  * marionBridge.js
- * Nyx ↔ Marion operational bridge
+ * Nyx ↔ Marion controlled bridge
  *
  * Purpose:
+ * - Keep Marion out of direct chatEngine hot-path orchestration
  * - Normalize inbound conversational requests
- * - Detect intent/domain
+ * - Decide when Marion should be invoked
  * - Pull memory/state context
  * - Query evidence engine(s)
+ * - Query MarionSO only through this bridge
  * - Return a hardened intelligence packet
  * - Reduce repeat loops and weak domain drift
  *
- * Designed for:
- * - Operational intelligence progression (phases 10–15 forward)
- * - Fail-open behavior
- * - Low-friction integration with chatEngine.js / index.js
- *
- * Expected integration:
- *   const { createMarionBridge } = require('./utils/marionBridge');
- *   const bridge = createMarionBridge({ ...deps });
- *   const packet = await bridge.resolve({ userText, sessionId, userId, turnId, meta });
+ * IMPORTANT:
+ * - chatEngine.js should import THIS bridge, not MarionSO directly.
+ * - MarionSO remains available, but only behind bridge control.
  */
-
 'use strict';
+
+const BRIDGE_VERSION = '1.1.0-opintel';
 
 const DEFAULT_PHASE_FLAGS = Object.freeze({
   phase10_domainRouting: true,
@@ -30,15 +27,18 @@ const DEFAULT_PHASE_FLAGS = Object.freeze({
   phase13_loopResistance: true,
   phase14_failOpenSynthesis: true,
   phase15_traceability: true,
+  phase16_bridgeGating: true,
+  phase17_marionIsolation: true,
 });
 
 const DEFAULT_DOMAIN_KEYWORDS = Object.freeze({
-  psychology: ['anxious', 'hurt', 'stress', 'sad', 'lonely', 'relationship', 'emotion', 'grief', 'panic'],
+  psychology: ['anxious', 'hurt', 'stress', 'sad', 'lonely', 'relationship', 'emotion', 'grief', 'panic', 'overwhelmed'],
   law: ['contract', 'legal', 'liability', 'lawsuit', 'court', 'policy', 'compliance', 'copyright'],
   finance: ['budget', 'revenue', 'profit', 'forecast', 'pricing', 'cost', 'grant', 'funding', 'roi'],
   language: ['rewrite', 'grammar', 'tone', 'summary', 'copy', 'pitch', 'headline', 'narrative'],
   ai_cyber: ['model', 'ai', 'agent', 'bridge', 'pipeline', 'security', 'auth', 'token', 'dataset', 'vector'],
   marketing_media: ['brand', 'audience', 'channel', 'roku', 'streaming', 'discovery', 'metadata', 'campaign'],
+  support: ['help me understand', 'stay with me', 'i am overwhelmed', 'i feel off', 'walk me through'],
 });
 
 function noopAsync() {
@@ -46,11 +46,7 @@ function noopAsync() {
 }
 
 function safeNowISO() {
-  try {
-    return new Date().toISOString();
-  } catch {
-    return '';
-  }
+  try { return new Date().toISOString(); } catch { return ''; }
 }
 
 function clamp(n, min, max) {
@@ -62,17 +58,11 @@ function uniqueStrings(arr) {
 }
 
 function normalizeText(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .replace(/[^\S\r\n]+/g, ' ')
-    .trim();
+  return String(value || '').replace(/\s+/g, ' ').replace(/[^\S\r\n]+/g, ' ').trim();
 }
 
 function tokenize(text) {
-  return normalizeText(text)
-    .toLowerCase()
-    .split(/[^a-z0-9_!?'"-]+/i)
-    .filter(Boolean);
+  return normalizeText(text).toLowerCase().split(/[^a-z0-9_!?'"-]+/i).filter(Boolean);
 }
 
 function hashLite(input) {
@@ -105,52 +95,44 @@ class SimpleLoopGuard {
     this.limit = clamp(limit, 1, 12);
     this.map = new Map();
   }
-
   check(key) {
     const next = (this.map.get(key) || 0) + 1;
     this.map.set(key, next);
-    return {
-      count: next,
-      tripped: next >= this.limit,
-    };
+    return { count: next, tripped: next >= this.limit };
   }
-
   reset(key) {
     this.map.delete(key);
   }
 }
 
 function scoreDomain(tokens, text, keywordsByDomain) {
-  const lower = text.toLowerCase();
+  const lower = String(text || '').toLowerCase();
   const scored = Object.entries(keywordsByDomain).map(([domain, keywords]) => {
     let score = 0;
-    for (const word of keywords) {
-      if (tokens.includes(word)) score += 2;
-      if (lower.includes(word)) score += 1;
+    for (const word of Array.isArray(keywords) ? keywords : []) {
+      const w = String(word).toLowerCase();
+      if (tokens.includes(w)) score += 2;
+      if (lower.includes(w)) score += 1;
     }
     return { domain, score };
   }).sort((a, b) => b.score - a.score);
-
   const top = scored[0] || { domain: 'general', score: 0 };
-  return {
-    primary: top.score > 0 ? top.domain : 'general',
-    candidates: scored.filter(x => x.score > 0).slice(0, 3),
-  };
+  return { primary: top.score > 0 ? top.domain : 'general', candidates: scored.filter(x => x.score > 0).slice(0, 3) };
 }
 
 function inferIntent(text) {
-  const t = text.toLowerCase();
+  const t = String(text || '').toLowerCase();
   if (!t) return 'empty';
   if (/(help|how do i|what should|recommend|advise)/.test(t)) return 'guidance';
   if (/(fix|debug|error|broken|issue|bug|doesn't work|not working)/.test(t)) return 'diagnostic';
   if (/(write|rewrite|draft|summarize|improve|pitch)/.test(t)) return 'composition';
   if (/(plan|roadmap|steps|phase|sequence|priority)/.test(t)) return 'planning';
-  if (/(who|what|when|where|why)/.test(t)) return 'qa';
+  if (/(who|what|when|where|why|explain|compare|analyze)/.test(t)) return 'qa';
   return 'general';
 }
 
 function sentimentHint(text) {
-  const t = text.toLowerCase();
+  const t = String(text || '').toLowerCase();
   if (/(overwhelmed|upset|hurt|stressed|panic|frustrated|angry|sad)/.test(t)) return 'distressed';
   if (/(great|good|amazing|love|excited|confident)/.test(t)) return 'positive';
   return 'neutral';
@@ -160,7 +142,7 @@ function packetSkeleton() {
   return {
     ok: true,
     bridge: 'marionBridge.js',
-    version: '1.0.0-opintel',
+    version: BRIDGE_VERSION,
     traceId: '',
     now: safeNowISO(),
     phases: { ...DEFAULT_PHASE_FLAGS },
@@ -168,6 +150,7 @@ function packetSkeleton() {
     routing: {},
     memory: {},
     evidence: {},
+    marion: {},
     synthesis: {},
     guardrails: {},
     diagnostics: {},
@@ -178,11 +161,10 @@ function packetSkeleton() {
 function buildResponseMode({ intent, sentiment, domain }) {
   const concise = intent === 'diagnostic' || intent === 'planning';
   const warmth = sentiment === 'distressed' ? 'high' : 'moderate';
-  const style =
-    domain === 'finance' ? 'analytical' :
-    domain === 'law' ? 'careful' :
-    domain === 'psychology' ? 'supportive' :
-    'clear';
+  const style = domain === 'finance' ? 'analytical'
+    : domain === 'law' ? 'careful'
+    : domain === 'psychology' || domain === 'support' ? 'supportive'
+    : 'clear';
   return { concise, warmth, style };
 }
 
@@ -202,15 +184,11 @@ function rankEvidence({ items, domain, intent, memoryHints }) {
   const ranked = normalizeEvidenceItems(items).map(item => {
     let score = item.score || 0;
     const itemText = `${item.title} ${item.content}`.toLowerCase();
-
     if (domain !== 'general' && item.tags.includes(domain)) score += 15;
     if (intent && item.tags.includes(intent)) score += 8;
-    for (const hint of hints) {
-      if (hint && itemText.includes(hint)) score += 2;
-    }
+    for (const hint of hints) if (hint && itemText.includes(hint)) score += 2;
     if (/official|primary|trusted|memory|domain/i.test(item.source)) score += 5;
-    if (item.content.length > 600) score -= 2; // discourage overlong blocks
-
+    if (item.content.length > 600) score -= 2;
     return { ...item, score };
   }).sort((a, b) => b.score - a.score);
 
@@ -226,21 +204,31 @@ function rankEvidence({ items, domain, intent, memoryHints }) {
   return deduped;
 }
 
-function buildFallbackAnswer({ text, domain, intent }) {
+function buildFallbackAnswer({ domain, intent }) {
   return {
     mode: 'fail-open',
-    answer: `I can help with this. I’m routing it through the ${domain} lane in ${intent} mode, but the knowledge path returned thin evidence, so this response should be treated as provisional until the evidence layer fills in.`,
+    answer: `I can help with this. I am routing it through the ${domain} lane in ${intent} mode, but the Marion knowledge path returned thin evidence, so this answer should be treated as provisional until the evidence layer fills in.`,
     confidence: 0.42,
     nextAction: 'fallback_synthesis',
+    cites: [],
   };
 }
 
-function defaultSynthesize({ text, domain, intent, evidence, responseMode }) {
+function defaultSynthesize({ domain, intent, evidence, responseMode, marionResult }) {
+  const marionAnswer = marionResult && typeof marionResult.answer === 'string' ? normalizeText(marionResult.answer) : '';
+  if (marionAnswer) {
+    return {
+      mode: responseMode,
+      answer: marionAnswer,
+      confidence: clamp(Number(marionResult.confidence || 0.74), 0.35, 0.95),
+      cites: Array.isArray(marionResult.cites) ? marionResult.cites.slice(0, 4) : [],
+      nextAction: marionResult.nextAction || 'respond',
+    };
+  }
   const bullets = evidence.slice(0, 3).map(item => item.content);
   const stitched = bullets.join(' ').trim();
-  const answer = stitched || buildFallbackAnswer({ text, domain, intent }).answer;
-  const confidence = evidence.length ? clamp(0.55 + (evidence.length * 0.08), 0.55, 0.92) : 0.42;
-
+  const answer = stitched || buildFallbackAnswer({ domain, intent }).answer;
+  const confidence = evidence.length ? clamp(0.55 + evidence.length * 0.08, 0.55, 0.92) : 0.42;
   return {
     mode: responseMode,
     answer,
@@ -250,83 +238,123 @@ function defaultSynthesize({ text, domain, intent, evidence, responseMode }) {
   };
 }
 
+function shouldInvokeMarion({ text, intent, domain, sentiment }) {
+  const t = String(text || '').toLowerCase();
+  if (!t) return false;
+  if (domain === 'general' && intent === 'general') return false;
+  if (domain === 'support' || domain === 'psychology') return true;
+  if (['law', 'finance', 'ai_cyber', 'language', 'marketing_media'].includes(domain)) return true;
+  if (['planning', 'qa', 'guidance', 'composition', 'diagnostic'].includes(intent)) return true;
+  if (sentiment === 'distressed') return true;
+  if (/(explain|compare|analyze|walk me through|help me understand)/.test(t)) return true;
+  return false;
+}
+
+function extractMarionAnswer(result) {
+  if (!result || typeof result !== 'object') return null;
+  if (typeof result.answer === 'string' && result.answer.trim()) {
+    return { answer: normalizeText(result.answer), confidence: Number(result.confidence || 0.74), cites: Array.isArray(result.cites) ? result.cites : [], nextAction: result.nextAction || 'respond', raw: result };
+  }
+  if (typeof result.reply === 'string' && result.reply.trim()) {
+    return { answer: normalizeText(result.reply), confidence: Number(result.confidence || 0.72), cites: [], nextAction: 'respond', raw: result };
+  }
+  if (typeof result.text === 'string' && result.text.trim()) {
+    return { answer: normalizeText(result.text), confidence: Number(result.confidence || 0.7), cites: [], nextAction: 'respond', raw: result };
+  }
+  return null;
+}
+
+function pickMarionMethod(marionSO) {
+  if (!marionSO || typeof marionSO !== 'object') return null;
+  for (const name of ['resolve', 'query', 'run', 'synthesize', 'respond', 'handle']) {
+    if (typeof marionSO[name] === 'function') return name;
+  }
+  return null;
+}
+
 function createMarionBridge(config = {}) {
   const {
     logger = console,
     phaseFlags = {},
     domainKeywords = DEFAULT_DOMAIN_KEYWORDS,
     loopLimit = 3,
-
-    // Dependencies
+    marionSO = null,
     memoryProvider = { getContext: noopAsync, putContext: noopAsync },
     evidenceEngine = { collect: noopAsync },
     domainRouter = null,
     synthesize = null,
     telemetry = { track: noopAsync },
-
-    // Behavior
     maxInputChars = 3000,
     maxMemoryHints = 8,
   } = config;
 
   const phases = { ...DEFAULT_PHASE_FLAGS, ...(phaseFlags || {}) };
   const loopGuard = new SimpleLoopGuard(loopLimit);
-
+  const marionMethod = pickMarionMethod(marionSO);
   const getMemory = safeCall(memoryProvider.getContext || noopAsync, () => null);
   const putMemory = safeCall(memoryProvider.putContext || noopAsync, () => null);
   const collectEvidence = safeCall(evidenceEngine.collect || noopAsync, () => []);
   const track = safeCall(telemetry.track || noopAsync, () => null);
+  const invokeMarion = safeCall(async (payload) => {
+    if (!marionSO || !marionMethod) return null;
+    const result = await marionSO[marionMethod](payload);
+    return extractMarionAnswer(result);
+  }, () => null);
+
+  function classify(request = {}) {
+    const rawText = normalizeText(request.userText).slice(0, maxInputChars);
+    const tokens = tokenize(rawText);
+    const intent = inferIntent(rawText);
+    const sentiment = sentimentHint(rawText);
+    const domainResult = scoreDomain(tokens, rawText, domainKeywords);
+    const responseMode = buildResponseMode({ intent, sentiment, domain: domainResult.primary });
+    return {
+      text: rawText,
+      tokens,
+      intent,
+      sentiment,
+      domain: domainResult.primary,
+      candidates: domainResult.candidates,
+      responseMode,
+      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent, domain: domainResult.primary, sentiment }),
+    };
+  }
 
   async function resolve(request = {}) {
     const packet = packetSkeleton();
-    const rawText = normalizeText(request.userText).slice(0, maxInputChars);
     const sessionId = String(request.sessionId || 'session_unknown');
     const userId = String(request.userId || 'user_unknown');
     const turnId = String(request.turnId || `turn_${Date.now()}`);
     const meta = request.meta || {};
+    const classification = classify(request);
+    const rawText = classification.text;
     const traceId = buildTraceId({ sessionId, turnId, text: rawText });
 
     packet.traceId = traceId;
-    packet.input = {
-      text: rawText,
-      sessionId,
-      userId,
-      turnId,
-      meta,
-    };
+    packet.input = { text: rawText, sessionId, userId, turnId, meta };
 
     if (!rawText) {
       packet.ok = false;
       packet.errors.push('empty_input');
-      packet.synthesis = buildFallbackAnswer({ text: rawText, domain: 'general', intent: 'empty' });
+      packet.synthesis = buildFallbackAnswer({ domain: 'general', intent: 'empty' });
       return packet;
     }
 
     const loopSignature = hashLite(`${sessionId}|${rawText.toLowerCase()}`);
     const loop = phases.phase13_loopResistance ? loopGuard.check(loopSignature) : { count: 1, tripped: false };
 
-    const tokens = tokenize(rawText);
-    const intent = inferIntent(rawText);
-    const sentiment = sentimentHint(rawText);
-
-    let domainResult = scoreDomain(tokens, rawText, domainKeywords);
-
-    if (domainRouter && typeof domainRouter.route === 'function') {
+    let domainResult = { primary: classification.domain, candidates: classification.candidates };
+    if (domainRouter && typeof domainRouter.route === 'function' && phases.phase10_domainRouting) {
       try {
         const override = await domainRouter.route({
           text: rawText,
-          tokens,
-          intent,
-          sentiment,
-          sessionId,
-          userId,
-          meta,
+          tokens: classification.tokens,
+          intent: classification.intent,
+          sentiment: classification.sentiment,
+          sessionId, userId, meta,
         });
         if (override && override.primary) {
-          domainResult = {
-            primary: String(override.primary),
-            candidates: Array.isArray(override.candidates) ? override.candidates : domainResult.candidates,
-          };
+          domainResult = { primary: String(override.primary), candidates: Array.isArray(override.candidates) ? override.candidates : domainResult.candidates };
         }
       } catch (error) {
         packet.errors.push(`domain_router_failed:${error.message}`);
@@ -334,27 +362,20 @@ function createMarionBridge(config = {}) {
     }
 
     const primaryDomain = domainResult.primary;
-    const responseMode = buildResponseMode({ intent, sentiment, domain: primaryDomain });
+    const responseMode = buildResponseMode({ intent: classification.intent, sentiment: classification.sentiment, domain: primaryDomain });
 
     packet.routing = {
-      intent,
-      sentiment,
+      intent: classification.intent,
+      sentiment: classification.sentiment,
       domain: primaryDomain,
       candidates: domainResult.candidates,
       responseMode,
+      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent: classification.intent, domain: primaryDomain, sentiment: classification.sentiment }),
     };
 
-    const memoryContext = phases.phase11_memoryLift
-      ? await getMemory({
-          sessionId,
-          userId,
-          turnId,
-          domain: primaryDomain,
-          intent,
-          text: rawText,
-          meta,
-        })
-      : null;
+    const memoryContext = phases.phase11_memoryLift ? await getMemory({
+      sessionId, userId, turnId, domain: primaryDomain, intent: classification.intent, text: rawText, meta,
+    }) : null;
 
     const memoryHints = uniqueStrings([
       memoryContext && memoryContext.lastIntent,
@@ -368,9 +389,9 @@ function createMarionBridge(config = {}) {
       found: !!memoryContext,
       hints: memoryHints,
       continuity: {
-        lastIntent: memoryContext && memoryContext.lastIntent || null,
-        lastDomain: memoryContext && memoryContext.lastDomain || null,
-        unresolved: memoryContext && memoryContext.openLoops || [],
+        lastIntent: (memoryContext && memoryContext.lastIntent) || null,
+        lastDomain: (memoryContext && memoryContext.lastDomain) || null,
+        unresolved: (memoryContext && memoryContext.openLoops) || [],
       },
     };
 
@@ -378,83 +399,68 @@ function createMarionBridge(config = {}) {
     if (phases.phase12_evidenceRanking) {
       evidenceRaw = await collectEvidence({
         text: rawText,
-        tokens,
-        intent,
+        tokens: classification.tokens,
+        intent: classification.intent,
         domain: primaryDomain,
-        sentiment,
-        sessionId,
-        userId,
-        turnId,
-        meta,
-        memoryHints,
-        traceId,
+        sentiment: classification.sentiment,
+        sessionId, userId, turnId, meta, memoryHints, traceId,
       });
     }
 
-    const rankedEvidence = rankEvidence({
-      items: evidenceRaw,
-      domain: primaryDomain,
-      intent,
-      memoryHints,
-    });
-
+    const rankedEvidence = rankEvidence({ items: evidenceRaw, domain: primaryDomain, intent: classification.intent, memoryHints });
     packet.evidence = {
       count: rankedEvidence.length,
       top: rankedEvidence.slice(0, 5),
       sources: uniqueStrings(rankedEvidence.map(x => x.source)),
     };
 
-    if (loop.tripped) {
-      packet.guardrails.loopGuard = {
-        active: true,
-        count: loop.count,
-        action: 'deepen_or_redirect',
-      };
-      packet.routing.responseMode.concise = true;
-    } else {
-      packet.guardrails.loopGuard = {
-        active: false,
-        count: loop.count,
-        action: 'none',
-      };
+    packet.guardrails.loopGuard = loop.tripped ? { active: true, count: loop.count, action: 'deepen_or_redirect' } : { active: false, count: loop.count, action: 'none' };
+    if (loop.tripped) packet.routing.responseMode.concise = true;
+
+    let marionResult = null;
+    if (packet.routing.shouldUseMarion && phases.phase16_bridgeGating && phases.phase17_marionIsolation) {
+      marionResult = await invokeMarion({
+        text: rawText,
+        userText: rawText,
+        sessionId, userId, turnId, traceId, meta,
+        routing: packet.routing,
+        memory: packet.memory,
+        evidence: rankedEvidence,
+        loopGuard: packet.guardrails.loopGuard,
+      });
+      if (!marionResult && marionSO && !marionMethod) packet.errors.push('marion_method_unresolved');
     }
 
-    let synthesis;
+    packet.marion = {
+      invoked: !!packet.routing.shouldUseMarion,
+      available: !!marionSO,
+      method: marionMethod || null,
+      answered: !!(marionResult && marionResult.answer),
+    };
+
+    let synthesis = null;
     try {
       if (synthesize && typeof synthesize === 'function') {
         synthesis = await synthesize({
           text: rawText,
-          intent,
+          intent: classification.intent,
           domain: primaryDomain,
-          sentiment,
+          sentiment: classification.sentiment,
           memory: packet.memory,
           evidence: rankedEvidence,
           responseMode,
           loopGuard: packet.guardrails.loopGuard,
           traceId,
+          marion: marionResult,
         });
       } else {
-        synthesis = defaultSynthesize({
-          text: rawText,
-          domain: primaryDomain,
-          intent,
-          evidence: rankedEvidence,
-          responseMode,
-        });
+        synthesis = defaultSynthesize({ domain: primaryDomain, intent: classification.intent, evidence: rankedEvidence, responseMode, marionResult });
       }
     } catch (error) {
       packet.errors.push(`synthesis_failed:${error.message}`);
-      synthesis = null;
     }
 
-    if (!synthesis || !synthesis.answer) {
-      synthesis = buildFallbackAnswer({
-        text: rawText,
-        domain: primaryDomain,
-        intent,
-      });
-    }
-
+    if (!synthesis || !synthesis.answer) synthesis = buildFallbackAnswer({ domain: primaryDomain, intent: classification.intent });
     packet.synthesis = synthesis;
     packet.diagnostics = {
       confidence: Number(synthesis.confidence || 0),
@@ -464,66 +470,68 @@ function createMarionBridge(config = {}) {
     };
 
     const memoryWrite = {
-      sessionId,
-      userId,
-      turnId,
-      traceId,
-      lastIntent: intent,
+      sessionId, userId, turnId, traceId,
+      lastIntent: classification.intent,
       lastDomain: primaryDomain,
-      recentTopics: uniqueStrings([primaryDomain, intent, ...tokens.slice(0, 6)]).slice(0, 10),
+      recentTopics: uniqueStrings([primaryDomain, classification.intent, ...classification.tokens.slice(0, 6)]).slice(0, 10),
       openLoops: synthesis.nextAction === 'clarify_or_expand' ? [rawText.slice(0, 120)] : [],
       lastConfidence: Number(synthesis.confidence || 0),
       updatedAt: safeNowISO(),
     };
 
     await putMemory(memoryWrite);
-
     await track({
       event: 'marion_bridge_resolve',
-      traceId,
-      sessionId,
-      userId,
-      turnId,
-      intent,
+      traceId, sessionId, userId, turnId,
+      intent: classification.intent,
       domain: primaryDomain,
       evidenceCount: rankedEvidence.length,
       confidence: memoryWrite.lastConfidence,
       fallback: packet.diagnostics.usedFallback,
       loopCount: loop.count,
+      usedMarion: packet.marion.answered,
     });
 
     try {
       if (logger && typeof logger.info === 'function') {
         logger.info('[marionBridge.resolve]', {
           traceId,
-          intent,
+          intent: classification.intent,
           domain: primaryDomain,
           evidenceCount: rankedEvidence.length,
           confidence: memoryWrite.lastConfidence,
           fallback: packet.diagnostics.usedFallback,
+          usedMarion: packet.marion.answered,
         });
       }
-    } catch {
-      // no-op logging failure
-    }
+    } catch {}
 
     return packet;
   }
 
+  async function maybeResolve(request = {}) {
+    const classification = classify(request);
+    if (!classification.shouldUseMarion) {
+      return { ok: true, usedBridge: false, reason: 'bridge_not_needed', classification, packet: null };
+    }
+    const packet = await resolve(request);
+    return { ok: true, usedBridge: true, reason: 'bridge_resolved', classification, packet };
+  }
+
   async function healthcheck() {
-    const now = safeNowISO();
-    const checks = {
-      memoryProvider: !!memoryProvider,
-      evidenceEngine: !!evidenceEngine,
-      telemetry: !!telemetry,
-      phases,
-      now,
-    };
     return {
       ok: true,
       bridge: 'marionBridge.js',
-      version: '1.0.0-opintel',
-      checks,
+      version: BRIDGE_VERSION,
+      checks: {
+        marionSO: !!marionSO,
+        marionMethod: marionMethod || null,
+        memoryProvider: !!memoryProvider,
+        evidenceEngine: !!evidenceEngine,
+        telemetry: !!telemetry,
+        phases,
+        now: safeNowISO(),
+      },
     };
   }
 
@@ -533,15 +541,12 @@ function createMarionBridge(config = {}) {
     return { ok: true, key };
   }
 
-  return {
-    resolve,
-    healthcheck,
-    resetLoop,
-  };
+  return { classify, resolve, maybeResolve, healthcheck, resetLoop };
 }
 
 module.exports = {
   createMarionBridge,
   DEFAULT_PHASE_FLAGS,
   DEFAULT_DOMAIN_KEYWORDS,
+  BRIDGE_VERSION,
 };
