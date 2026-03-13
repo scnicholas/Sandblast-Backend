@@ -37,10 +37,10 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.1.0";
+const VERSION = "supportResponse v1.2.0";
 
 const DEFAULT_CONFIG = {
-  includeDisclaimerOnSoft: true,
+  includeDisclaimerOnSoft: false,
   includeDisclaimerOnCrisis: false,
   includeDisclaimerOnEveryTurn: false,
   maxQuestionCount: 1,
@@ -239,11 +239,11 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|grief`);
   }
 
-  if (dom === "loneliness") {
+  if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
     return pick([
-      "Loneliness can make everything feel louder and heavier.",
-      "That kind of alone feeling cuts deep.",
-      "Feeling that disconnected can be exhausting in its own way."
+      "I am here with you right now.",
+      "That alone feeling can hit deep.",
+      "Feeling cut off like that can get very heavy."
     ], `${seed}|lead|loneliness`);
   }
 
@@ -335,6 +335,14 @@ function buildValidation(emo, seed) {
     ], `${seed}|validate|mixed`);
   }
 
+  if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+    return pick([
+      "You are not asking for too much by wanting connection.",
+      "Feeling alone does not make you a problem.",
+      "This is a human ache, not a weakness."
+    ], `${seed}|validate|loneliness`);
+  }
+
   return pick([
     "This is a human response, not a character flaw.",
     "It makes sense that this would affect you.",
@@ -399,9 +407,9 @@ function mapDistressMicroSteps(emo) {
     ];
   }
 
-  if (dom === "loneliness") {
+  if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
     return [
-      "A very small connection can count here — one message to one safe person is enough."
+      "You do not need a huge solution right now — even one honest message to one safe person can count."
     ];
   }
 
@@ -479,6 +487,14 @@ function buildQuestion(emo, cfg, seed) {
       "Are you alone right now, or is someone with you?",
       "Can you call or text 9-8-8 right now while we keep this simple?"
     ], `${seed}|q|crisis`);
+  }
+
+  if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+    return pick([
+      "Do you want to tell me what is making today feel especially lonely?",
+      "What feels heaviest about the alone feeling right now?",
+      "Do you want to talk about what is sitting under this feeling?"
+    ], `${seed}|q|loneliness`);
   }
 
   if (emo.dominantEmotion === "anxiety") {
@@ -573,7 +589,16 @@ function buildPositiveReinforcementLine(emo, seed) {
 }
 
 function buildDistressReinforcementLine(emo, seed) {
-  if (!Array.isArray(emo.distressReinforcements) || !emo.distressReinforcements.length) return "";
+  if (!Array.isArray(emo.distressReinforcements) || !emo.distressReinforcements.length) {
+    if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+      return pick([
+        "You do not have to solve your whole life from this moment.",
+        "We can keep this gentle and honest.",
+        "You do not need to force a big answer right this second."
+      ], `${seed}|dist|loneliness`);
+    }
+    return "";
+  }
 
   if (emo.supportFlags.crisis) {
     return pick([
@@ -640,6 +665,38 @@ function buildCrisisResponse(options = {}) {
   return joinSentences(body);
 }
 
+function buildLonelinessResponse(emo, cfg, seed) {
+  const parts = [];
+
+  parts.push(pick([
+    "I am here with you right now.",
+    "You do not have to sit in that feeling alone for this moment.",
+    "I am with you, and I am listening."
+  ], `${seed}|lonely|lead`));
+
+  parts.push(pick([
+    "Feeling lonely can make everything feel heavier than it already is.",
+    "That kind of disconnection can ache in a very real way.",
+    "That alone feeling can get loud fast."
+  ], `${seed}|lonely|reflect`));
+
+  if (emo.supportFlags.needsGentlePacing || emo.valence === "negative") {
+    parts.push(pick([
+      "We can keep this gentle.",
+      "We do not need to force a perfect explanation right away.",
+      "You do not have to perform strength with me."
+    ], `${seed}|lonely|pace`));
+  }
+
+  const micro = buildMicroStep(emo, cfg, seed);
+  if (micro) parts.push(micro);
+
+  const q = buildQuestion(emo, cfg, seed);
+  if (q) parts.push(q);
+
+  return joinSentences(parts);
+}
+
 function buildSupportiveResponse(input = {}, config = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
 
@@ -652,27 +709,25 @@ function buildSupportiveResponse(input = {}, config = {}) {
       return buildCrisisResponse({ seed, country: input.country || "" });
     }
 
+    if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+      const lonelyOut = buildLonelinessResponse(emo, cfg, seed);
+      if (lonelyOut) return lonelyOut;
+    }
+
     const parts = [];
 
-    // Phase 04 / 05
     parts.push(buildReflectiveLead(emo, seed));
     parts.push(buildValidation(emo, seed));
-
-    // Phase 07 / 08 / 09
     parts.push(buildDistressReinforcementLine(emo, seed));
     parts.push(buildPositiveReinforcementLine(emo, seed));
     parts.push(buildRecoveryAcknowledgment(emo, seed));
     parts.push(buildMixedStateLine(emo, seed));
 
-    // Phase 12
     if (shouldUseDisclaimer(emo, cfg)) {
       parts.push(buildDisclaimer(seed));
     }
 
-    // Phase 13
     parts.push(buildMicroStep(emo, cfg, seed));
-
-    // Phase 14
     parts.push(buildQuestion(emo, cfg, seed));
 
     const out = joinSentences(parts);
