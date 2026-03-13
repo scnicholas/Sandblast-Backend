@@ -128,7 +128,28 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.12.1 OPINTEL RUNTIME-FIX";
+const CE_VERSION = "chatEngine v0.12.2 OPINTEL BRIDGE-ISOLATION";
+
+
+let __marionBridgeSingleton = null;
+function getMarionBridge() {
+  if (__marionBridgeSingleton) return __marionBridgeSingleton;
+  const mod = marionBridgeMod;
+  if (!mod) return null;
+  if (typeof mod.maybeResolve === "function" || typeof mod.resolve === "function") {
+    __marionBridgeSingleton = mod;
+    return __marionBridgeSingleton;
+  }
+  if (typeof mod.createMarionBridge === "function") {
+    try {
+      __marionBridgeSingleton = mod.createMarionBridge({});
+      return __marionBridgeSingleton;
+    } catch (_e) {
+      return null;
+    }
+  }
+  return null;
+}
 
 function nowMs() {
   return Date.now();
@@ -1775,15 +1796,20 @@ async function handleChat(input) {
 
     if (policy?.shouldUseBridge) {
       const bridgeApi = getMarionBridge();
-      if (bridgeApi && typeof bridgeApi.maybeResolve === "function") {
+      if (bridgeApi && (typeof bridgeApi.maybeResolve === "function" || typeof bridgeApi.resolve === "function")) {
         try {
-          const bridgeOut = await bridgeApi.maybeResolve({
+          const bridgeReq = {
             userText: norm.text,
             sessionId: resolveSessionId(norm, session, inboundKey),
             turnId,
             userId: safeStr(session.userId || session.uid || norm?.ctx?.userId || "")
-          });
-          const packet = bridgeOut && bridgeOut.usedBridge && isPlainObject(bridgeOut.packet) ? bridgeOut.packet : null;
+          };
+          const bridgeOut = typeof bridgeApi.maybeResolve === "function"
+            ? await bridgeApi.maybeResolve(bridgeReq)
+            : await bridgeApi.resolve(bridgeReq);
+          const packet = bridgeOut && bridgeOut.usedBridge && isPlainObject(bridgeOut.packet)
+            ? bridgeOut.packet
+            : (isPlainObject(bridgeOut) ? bridgeOut : null);
           const answer = safeStr(packet?.synthesis?.answer || "").trim();
           if (answer) {
             const lane = safeStr(policy?.bridgeMode || packet?.routing?.domain || norm.lane || "knowledge") || "knowledge";
