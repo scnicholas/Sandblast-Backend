@@ -3,7 +3,7 @@
 /**
  * Utils/chatEngine.js
  *
- * chatEngine v0.11.0 OPINTEL
+ * chatEngine v0.11.1 OPINTEL LOOP-HARDEN
  * ------------------------------------------------------------
  * PURPOSE
  * - Keep Chat Engine as the single semantic turn authority
@@ -749,33 +749,6 @@ function buildGreetingReply(kind, seed) {
   ];
   return pickBySeed(k === "GREETING_HOW" ? poolHow : poolOnly, seed);
 }
-function detectSupportClarifyFollowUp(norm, session) {
-  const text = oneLine(norm?.text || "").toLowerCase();
-  if (!text) return false;
-  const prevMode = safeStr(session?.__emotionMode || "").toUpperCase();
-  const prevValence = safeStr(session?.__emotionValence || "").toLowerCase();
-  const prevDom = safeStr(session?.__emotionDominant || "").toLowerCase();
-  const prevReply = oneLine(session?.__cacheReply || "").toLowerCase();
-  const recentlyEmotional = !!(session?.__emotionAt && (nowMs() - Number(session.__emotionAt) <= 90000));
-  const supportActive = recentlyEmotional && (prevMode === "DISTRESS" || prevMode === "VULNERABLE" || prevValence === "negative");
-  if (!supportActive) return false;
-
-  if (/^(what do you mean|what does that mean|what are you talking about|clarify|explain|say that again|i do not understand|i don't understand)\??$/i.test(text)) return true;
-  if (/^(why|how so|meaning)\??$/i.test(text)) return true;
-  if (prevReply && /sit in that feeling alone|weighing on you|what feels hardest|talk to me|stay with you/.test(prevReply) && /\b(what|mean|clarify|explain|understand)\b/.test(text)) return true;
-  if ((prevDom === "loneliness" || prevDom === "lonely" || prevDom === "isolation" || prevDom === "sadness" || prevDom === "grief" || prevDom === "hurt") && /\b(what|mean|clarify|explain|understand)\b/.test(text)) return true;
-  return false;
-}
-function buildSupportClarifyReply(session) {
-  const prevDom = safeStr(session?.__emotionDominant || "").toLowerCase();
-  if (prevDom === "loneliness" || prevDom === "lonely" || prevDom === "isolation") {
-    return "I mean I do not want to push you into options right now. I want to stay with the fact that you are feeling alone and hear what today has been like for you.";
-  }
-  if (prevDom === "sadness" || prevDom === "grief" || prevDom === "hurt" || prevDom === "depression" || prevDom === "depressed") {
-    return "I mean I am not trying to turn this into a menu or a workflow. I want to stay with what you are feeling and hear what has been weighing on you.";
-  }
-  return "I mean I want to stay with what you are feeling, not push you into options. Tell me what feels heaviest right now, and I will stay with that.";
-}
 
 function normalizeEmotionGuardResult(raw) {
   const r = isPlainObject(raw) ? raw : {};
@@ -883,6 +856,46 @@ function applyEmotionSignalsToNorm(norm, emo) {
   norm.turnSignals.emotionPositivePresent = !!emo.supportFlags?.positivePresent;
   norm.turnSignals.emotionContradictions = clampInt(emo.contradictions?.count || 0, 0, 0, 99);
 }
+function isTechnicalExecutionInbound(norm) {
+  const text = safeStr(norm?.text || "", 400).toLowerCase();
+  const action = safeStr(norm?.action || norm?.payload?.action || norm?.payload?.route || "", 80).toLowerCase();
+  if (!text && !action) return false;
+  return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend|fix)/.test(text) ||
+    /(diagnosis|restructure|patch|implement|debug|fix|repair|analysis)/.test(action);
+}
+
+function shouldAllowEmotionFirst(norm, emo, spineState, plannerDecision) {
+  if (!emo) return false;
+  if (emo.supportFlags?.crisis) return true;
+  const technical = isTechnicalExecutionInbound(norm);
+  const phase = typeof Spine?.inferConversationPhase === "function"
+    ? Spine.inferConversationPhase(spineState, {
+        text: norm?.text,
+        payload: norm?.payload,
+        action: norm?.action,
+        lane: norm?.lane,
+        turnSignals: norm?.turnSignals
+      }, plannerDecision || null)
+    : "active";
+  if (technical && phase !== "recovery") return false;
+  if (phase === "execution" && !emo.supportFlags?.highDistress && !emo.bypassClarify) return false;
+  if (phase === "active" && technical) return false;
+  return !!(emo.bypassClarify || emo.mode === "VULNERABLE" || emo.valence === "negative" || emo.supportFlags?.needsGentlePacing || emo.valence === "mixed");
+}
+
+function shouldSuppressGreeting(norm, spineState) {
+  const technical = isTechnicalExecutionInbound(norm);
+  const turns = Number(spineState?.turns?.user || 0);
+  return technical || turns > 0;
+}
+
+function dedupeFollowUpsForExecution(followUps, norm, emo) {
+  const list = Array.isArray(followUps) ? followUps : [];
+  if (emo?.supportFlags?.crisis) return list.slice(0, 2);
+  if (isTechnicalExecutionInbound(norm)) return [];
+  return list;
+}
+
 function buildSupportPacketSafe(norm, emo) {
   if (!emo || !Support) return null;
   try {
@@ -891,7 +904,7 @@ function buildSupportPacketSafe(norm, emo) {
         userText: safeStr(norm?.text || ""),
         emo,
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
-      });
+      }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true });
     }
     if (typeof Support.buildSupportiveResponse === "function") {
       return {
@@ -901,7 +914,7 @@ function buildSupportPacketSafe(norm, emo) {
           userText: safeStr(norm?.text || ""),
           emo,
           seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
-        }),
+        }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true }),
         meta: {
           crisis: !!emo.supportFlags?.crisis,
           dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
@@ -1040,12 +1053,12 @@ function makeBreakerReply(norm, emo) {
   if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
     return safeStr(packet.reply);
   }
-  return "I am seeing the same turn repeat. Let us slow it down and take one step at a time. Tell me the one thing you want me to stay with right now.";
+  return "Loop detected — I am seeing the same request repeating. To break it, send one fresh input only or pick a single lane. Options: just talk, ideas, step-by-step plan, or switch lane.";
 }
 function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
-  return "I am still on that last turn. Give me one moment, then send one fresh message and I will stay with it.";
+  return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1285,7 +1298,30 @@ async function handleChat(input) {
       }
     }
 
-    const emotionFirst = maybeBuildEmotionFirstReply(norm, emo);
+    const corePrev = isPlainObject(session.__spineState)
+      ? session.__spineState
+      : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
+
+    const plannerDecision = typeof Spine?.decideNextMove === "function"
+      ? Spine.decideNextMove(corePrev, {
+          text: norm.text,
+          payload: norm.payload,
+          ctx: norm.ctx,
+          lane: norm.lane,
+          year: norm.year,
+          action: norm.action,
+          turnSignals: norm.turnSignals,
+          cog: {
+            intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
+            mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+            publicMode
+          }
+        })
+      : { move: "ADVANCE", stage: "deliver", rationale: "planner_missing" };
+
+    const emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
+      ? maybeBuildEmotionFirstReply(norm, emo)
+      : null;
     if (emotionFirst && safeStr(emotionFirst.reply)) {
       const lane = safeStr(norm.lane || "general") || "general";
       const safeReply = applyPublicSanitization(
@@ -1435,7 +1471,7 @@ async function handleChat(input) {
     }
 
     const greeting = detectGreetingQuick(norm.text || "");
-    if (greeting) {
+    if (greeting && !shouldSuppressGreeting(norm, corePrev)) {
       const reply = applyPublicSanitization(
         scrubExecutionStyleArtifacts(softSpeak(buildGreetingReply(greeting.kind, inboundKey))),
         norm,
@@ -1493,95 +1529,10 @@ async function handleChat(input) {
       return greetingContract;
     }
 
-    if (detectSupportClarifyFollowUp(norm, session)) {
-      const lane = safeStr(norm.lane || session.lane || "general") || "general";
-      const reply = applyPublicSanitization(
-        scrubExecutionStyleArtifacts(softSpeak(buildSupportClarifyReply(session))),
-        norm,
-        session,
-        publicMode
-      );
-      const followUps = buildSupportiveEmotionFollowUps({
-        dominantEmotion: safeStr(session.__emotionDominant || ""),
-        supportFlags: {
-          crisis: false,
-          highDistress: safeStr(session.__emotionMode || "").toUpperCase() === "DISTRESS"
-        }
-      });
-      const directives = [{ type: "tone", level: "gentle", reason: "support_clarify_followup" }];
-      const ui = buildSupportiveEmotionUi({
-        dominantEmotion: safeStr(session.__emotionDominant || ""),
-        supportFlags: {
-          crisis: false,
-          highDistress: safeStr(session.__emotionMode || "").toUpperCase() === "DISTRESS"
-        }
-      });
-
-      const supportClarifyContract = {
-        ok: true,
-        reply,
-        payload: { reply },
-        lane,
-        laneId: lane,
-        sessionLane: lane,
-        bridge: null,
-        ctx: {},
-        ui,
-        directives,
-        followUps,
-        followUpsStrings: followUps.map((x) => x.label),
-        sessionPatch: {},
-        cog: {
-          route: "support_clarify_followup",
-          publicMode,
-          mode: "transitional",
-          intent: "STABILIZE"
-        },
-        requestId,
-        meta: {
-          v: CE_VERSION,
-          earlyReturn: "support_clarify_followup",
-          t: nowMs(),
-          phase: 7
-        }
-      };
-
-      supportClarifyContract.sessionPatch = mergeSessionPatches(
-        lifecycle.patch,
-        inboundRepeat.patch,
-        {
-          lane,
-          publicMode,
-          __lastInboundKey: inboundKey,
-          __cacheInSig: inSig,
-          __cacheReply: reply,
-          __cacheLane: lane,
-          __cacheFollowUps: followUps,
-          __cacheDirectives: directives,
-          __cacheAt: nowMs()
-        },
-        completeTurnLifecycle(session, {
-          turnId,
-          requestId,
-          inSig,
-          inboundKey,
-          lane,
-          reply,
-          contract: supportClarifyContract
-        })
-      );
-
-      return supportClarifyContract;
-    }
-
-    const corePrev = isPlainObject(session.__spineState)
-      ? session.__spineState
-      : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
-
     const routeOut = routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: "I am here with you. Tell me what is going on, and I will stay with it.",
+          reply: "I am here. Tell me what you need, and I will stay with that exact target.",
           lane: safeStr(norm.lane || "general") || "general",
           directives: [],
           followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
@@ -1592,7 +1543,7 @@ async function handleChat(input) {
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
 
-    if (!reply) reply = "I am here with you. Tell me what feels most important right now, and I will stay with it.";
+    if (!reply) reply = "I am here. Give me the exact target and I will keep this steady.";
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
@@ -1609,7 +1560,8 @@ async function handleChat(input) {
 
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
     const bridge = computeBridge(sessionLaneState, requestId);
-    const followUps = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
+    const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
+    const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
     const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane);
 
@@ -1627,7 +1579,7 @@ async function handleChat(input) {
           turnSignals: norm.turnSignals,
           latencyMs: Math.max(0, nowMs() - started),
           cog: {
-            intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
+            intent: emo?.bypassClarify ? "STABILIZE" : "CLARIFY",
             mode: "transitional",
             publicMode
           }
@@ -1638,10 +1590,11 @@ async function handleChat(input) {
         followUps,
         pendingAsk: null,
         decision: {
-          move: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
-          rationale: emo?.bypassClarify ? "emotion_stabilize" : "normal_turn",
+          move: safeStr(plannerDecision?.move || (emo?.bypassClarify ? "ADVANCE" : "ADVANCE"), 20).toUpperCase(),
+          rationale: safeStr(plannerDecision?.rationale || (emo?.bypassClarify ? "emotion_bypass" : "normal_turn"), 80),
           speak: safeReply,
-          stage: "open"
+          stage: safeStr(plannerDecision?.stage || "deliver", 20).toLowerCase(),
+          _plannerMode: safeStr(plannerDecision?._plannerMode || (isTechnicalExecutionInbound(norm) ? "execution" : "advance"), 48)
         },
         marionCog: {
           route: emo ? "emotion_route_guard" : "general",
@@ -1688,8 +1641,8 @@ async function handleChat(input) {
       cog: {
         marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
         route: emo ? "emotion_route_guard" : "general",
-        intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
-        mode: "transitional",
+        intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
+        mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
         publicMode,
         emotion: emo ? {
           mode: emo.mode,
@@ -1722,6 +1675,7 @@ async function handleChat(input) {
         __lastInboundKey: inboundKey,
         __memoryWindow: buildMemoryContext(resolveSessionId(norm, session, inboundKey)) || {},
         __spineState: nextSpine,
+        __conversationPhase: safeStr(nextSpine?.phase || "active"),
         __cacheInSig: inSig,
         __cacheReply: safeReply,
         __cacheLane: lane,
