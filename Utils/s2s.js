@@ -144,7 +144,7 @@ function applyBridgeRefinements(out, input){
   base.followUps = _asArr(base.followUps).slice();
   base.followUpsStrings = _asArr(base.followUpsStrings).slice();
 
-  const audioPlan = extractAudioPlan(base, input);
+  const audioPlan = audioReplayGuard(extractAudioPlan(base, input), input);
   const reply = _trim(base.reply || (base.payload && base.payload.reply) || "");
   const routeHash = _sha1Lite(_safeJson({ lane: base.lane || "general", intent: base.cog && base.cog.intent, reply: reply.slice(0, 220) })).slice(0, 12);
 
@@ -164,7 +164,7 @@ function applyBridgeRefinements(out, input){
   };
 
   base.meta.s2s = {
-    v: "s2s v1.0.0 OPINTEL",
+    v: "s2s v1.0.1 OPINTEL LOOP-FIX",
     routeHash,
     audio: {
       enabled: audioPlan.enabled,
@@ -185,7 +185,10 @@ function applyBridgeRefinements(out, input){
     autoPlay: audioPlan.autoPlay,
     chars: audioPlan.chars,
     provider: audioPlan.provider,
+    textToSynth: audioPlan.textToSynth,
+    suppressedDuplicate: !!audioPlan.suppressedDuplicate,
   };
+  base.sessionPatch.__lastAudioPlanAt = Date.now();
 
   if (audioPlan.enabled && !directivesHas(base.directives, "TTS_SPEAK")) {
     base.directives.push({
@@ -208,13 +211,75 @@ function applyBridgeRefinements(out, input){
     });
   }
 
-  if (!base.audio) base.audio = audioPlan;
+  base.audio = _isObj(base.audio) ? { ...base.audio, ...audioPlan } : audioPlan;
   if (!base.payload && reply) base.payload = { reply };
-  return base;
+  return finalizeBridgeContract(base);
 }
+
 
 function directivesHas(arr, type){
   return _asArr(arr).some((d) => _isObj(d) && _trim(d.type).toUpperCase() === _trim(type).toUpperCase());
+}
+function dedupeDirectives(arr){
+  const src = _asArr(arr);
+  const out = [];
+  const seen = new Set();
+  for (const d of src) {
+    if (!_isObj(d)) continue;
+    const type = _trim(d.type).toUpperCase();
+    if (!type) continue;
+    let key = type;
+    if (type === 'TTS_SPEAK') key = `${type}|${_trim(d.textToSynth || d.text).slice(0, 240)}`;
+    else if (type === 'AUDIO_PLAY') key = `${type}|${_trim(d.when || 'post_reply')}|${_trim(d.strategy || 'single_shot')}`;
+    else key = `${type}|${_safeJson(d).slice(0, 240)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...d, type });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+function dedupeFollowUps(arr){
+  const src = _asArr(arr);
+  const out = [];
+  const seen = new Set();
+  for (const x of src) {
+    if (!_isObj(x)) continue;
+    const label = _trim(x.label || x.id || '');
+    const payload = _isObj(x.payload) ? x.payload : {};
+    const key = `${_trim(x.type || 'action')}|${label.toLowerCase()}|${_trim(payload.action || payload.route || payload.lane || '')}`;
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...x, label });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+function audioReplayGuard(audioPlan, input){
+  const session = _isObj(input && input.session) ? input.session : {};
+  const last = _isObj(session.__lastAudioPlan) ? session.__lastAudioPlan : {};
+  const lastText = _trim(last.textToSynth || '');
+  const nextText = _trim(audioPlan && audioPlan.textToSynth || '');
+  const lastAt = Number(session.__bridgeAlignedAt || session.__lastAudioPlanAt || 0) || 0;
+  const recent = !!(lastAt && Date.now() - lastAt <= 8000);
+  if (recent && last.enabled && audioPlan.enabled && lastText && nextText && lastText === nextText) {
+    return { ...audioPlan, autoPlay: false, suppressedDuplicate: true };
+  }
+  return audioPlan;
+}
+function finalizeBridgeContract(base){
+  const out = _isObj(base) ? { ...base } : {};
+  out.reply = _trim(out.reply || (out.payload && out.payload.reply) || '') || 'I am here.';
+  out.payload = _isObj(out.payload) ? { ...out.payload, reply: _trim(out.payload.reply || out.reply) || out.reply } : { reply: out.reply };
+  out.lane = _trim(out.lane || out.laneId || out.sessionLane || 'general') || 'general';
+  out.laneId = _trim(out.laneId || out.lane || 'general') || 'general';
+  out.sessionLane = _trim(out.sessionLane || out.lane || 'general') || 'general';
+  out.directives = dedupeDirectives(out.directives);
+  out.followUps = dedupeFollowUps(out.followUps);
+  out.followUpsStrings = out.followUps.map((x) => _trim(x.label || '')).filter(Boolean).slice(0, 8);
+  out.sessionPatch = _isObj(out.sessionPatch) ? out.sessionPatch : {};
+  out.meta = _isObj(out.meta) ? out.meta : {};
+  return out;
 }
 
 async function runLocalChat(promptOrInput, context){
@@ -231,7 +296,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_MISSING" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.0 OPINTEL", error: "CHATENGINE_MISSING" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "CHATENGINE_MISSING" } },
       requestId: input.requestId,
     };
   }
@@ -250,14 +315,14 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_INVALID" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.0 OPINTEL", error: "CHATENGINE_INVALID" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "CHATENGINE_INVALID" } },
       requestId: input.requestId,
     };
   }
 
   try {
     const out = await fn(input);
-    const refined = applyBridgeRefinements(out, input);
+    const refined = finalizeBridgeContract(applyBridgeRefinements(out, input));
     refined.requestId = _trim(refined.requestId) || input.requestId;
     refined.meta.elapsedMs = _clampInt(Date.now() - started, 0, 0, 600000);
     return refined;
@@ -272,7 +337,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: { __s2sErrorAt: Date.now() },
       bridge: { opIntel: false, error: "S2S_RUN_FAILED" },
-      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: "s2s v1.0.0 OPINTEL", error: "S2S_RUN_FAILED" } },
+      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "S2S_RUN_FAILED" } },
       requestId: input.requestId,
     };
   }
