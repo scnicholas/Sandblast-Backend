@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.3.0";
+const VERSION = "supportResponse v1.4.0 EMOTION-XOVER";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -77,6 +77,25 @@ function oneLine(s) {
 
 function uniq(arr) {
   return [...new Set((Array.isArray(arr) ? arr : []).map((x) => safeStr(x).trim()).filter(Boolean))];
+}
+
+function lower(v) {
+  return safeStr(v).toLowerCase();
+}
+
+function emotionAny(emo, list) {
+  const set = new Set((Array.isArray(list) ? list : []).map((x) => lower(x)));
+  const vals = [
+    emo?.primaryEmotion,
+    emo?.secondaryEmotion,
+    emo?.dominantEmotion
+  ].map((x) => lower(x)).filter(Boolean);
+  return vals.some((v) => set.has(v));
+}
+
+function emotionClusterIs(emo, list) {
+  const set = new Set((Array.isArray(list) ? list : []).map((x) => lower(x)));
+  return set.has(lower(emo?.emotionCluster));
 }
 
 function hashSeed(seed) {
@@ -150,6 +169,7 @@ function normalizeEmotionPayload(emo) {
   const disclaimers = isPlainObject(e.disclaimers) ? e.disclaimers : {};
   const contradictions = isPlainObject(e.contradictions) ? e.contradictions : { count: 0, contradictions: [] };
   const summary = isPlainObject(e.summary) ? e.summary : {};
+  const continuity = isPlainObject(e.continuity) ? e.continuity : {};
   const tags = uniq(e.tags);
   const routeHints = uniq(e.routeHints);
   const responseHints = uniq(e.responseHints);
@@ -157,32 +177,61 @@ function normalizeEmotionPayload(emo) {
   const positiveReinforcements = uniq(e.positiveReinforcements);
   const recoverySignals = uniq(e.recoverySignals);
 
+  const primaryEmotion = safeStr(e.primaryEmotion || e.dominantEmotion || "neutral").toLowerCase();
+  const secondaryEmotion = safeStr(e.secondaryEmotion || "").toLowerCase();
+  const rawIntensity = e.intensity;
+
   return {
     source: safeStr(e.source || ""),
     mode: safeStr(e.mode || "NORMAL").toUpperCase(),
     valence: safeStr(e.valence || "neutral").toLowerCase(),
     intensityLabel: safeStr(e.intensityLabel || e.intensity || "flat").toLowerCase(),
     intensity: clampInt(
-      e.intensityLabel === "very_high" ? 95 :
-      e.intensityLabel === "high" ? 78 :
-      e.intensityLabel === "moderate" ? 55 :
-      e.intensityLabel === "low" ? 28 :
-      e.intensity,
+      typeof rawIntensity === "number"
+        ? (rawIntensity <= 1 ? Math.round(rawIntensity * 100) : rawIntensity)
+        : e.intensityLabel === "very_high" ? 95 :
+          e.intensityLabel === "high" ? 78 :
+          e.intensityLabel === "moderate" ? 55 :
+          e.intensityLabel === "low" ? 28 :
+          e.intensity,
       0,
       0,
       100
     ),
-    dominantEmotion: safeStr(e.dominantEmotion || "neutral").toLowerCase(),
+    confidence: clampInt(
+      typeof e.confidence === "number"
+        ? (e.confidence <= 1 ? Math.round(e.confidence * 100) : e.confidence)
+        : 0,
+      0,
+      0,
+      100
+    ),
+    dominantEmotion: primaryEmotion,
+    primaryEmotion,
+    secondaryEmotion,
     dominantSource: safeStr(e.dominantSource || "none").toLowerCase(),
+    emotionCluster: safeStr(e.emotionCluster || "").toLowerCase(),
     tone: safeStr(e.tone || "steady_neutral").toLowerCase(),
+    routeBias: safeStr(e.routeBias || "").toLowerCase(),
+    supportModeCandidate: safeStr(e.supportModeCandidate || "").toLowerCase(),
     bypassClarify: !!e.bypassClarify,
+    fallbackSuppression: !!e.fallbackSuppression,
+    needsNovelMove: !!e.needsNovelMove,
+    routeExhaustion: !!e.routeExhaustion,
+    emotionalVolatility: safeStr(e.emotionalVolatility || "stable").toLowerCase(),
     supportFlags: {
       crisis: !!supportFlags.crisis,
       highDistress: !!supportFlags.highDistress,
-      needsGentlePacing: !!supportFlags.needsGentlePacing,
+      needsGentlePacing: !!(supportFlags.needsGentlePacing || supportFlags.needsStabilization),
       avoidCelebratoryTone: !!supportFlags.avoidCelebratoryTone,
       recoveryPresent: !!supportFlags.recoveryPresent,
-      positivePresent: !!supportFlags.positivePresent
+      positivePresent: !!supportFlags.positivePresent,
+      needsStabilization: !!supportFlags.needsStabilization,
+      needsClarification: !!supportFlags.needsClarification,
+      needsContainment: !!supportFlags.needsContainment,
+      needsConnection: !!supportFlags.needsConnection,
+      needsForwardMotion: !!supportFlags.needsForwardMotion,
+      mentionsLooping: !!supportFlags.mentionsLooping
     },
     disclaimers: {
       needSoft: !!disclaimers.needSoft,
@@ -191,6 +240,13 @@ function normalizeEmotionPayload(emo) {
     contradictions: {
       count: clampInt(contradictions.count, 0, 0, 99),
       contradictions: Array.isArray(contradictions.contradictions) ? contradictions.contradictions.slice(0, 8) : []
+    },
+    continuity: {
+      sameEmotionCount: clampInt(continuity.sameEmotionCount || 0, 0, 0, 99),
+      sameSupportModeCount: clampInt(continuity.sameSupportModeCount || 0, 0, 0, 99),
+      noProgressTurnCount: clampInt(continuity.noProgressTurnCount || 0, 0, 0, 99),
+      repeatedFallbackCount: clampInt(continuity.repeatedFallbackCount || 0, 0, 0, 99),
+      stateShift: safeStr(continuity.stateShift || ""),
     },
     summary: {
       concise: safeStr(summary.concise || ""),
@@ -222,7 +278,7 @@ function buildDisclaimer(seed) {
 }
 
 function buildReflectiveLead(emo, seed) {
-  const dom = emo.dominantEmotion;
+  const dom = emo.primaryEmotion || emo.dominantEmotion;
   const val = emo.valence;
   const intense = emo.intensity >= 75;
 
@@ -234,7 +290,7 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|crisis`);
   }
 
-  if (dom === "anxiety") {
+  if (dom === "anxiety" || dom === "fear") {
     return pick(intense ? [
       "That sounds like your system is under a lot of pressure right now.",
       "That kind of anxiety can feel relentless when your body will not settle.",
@@ -246,7 +302,7 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|anxiety`);
   }
 
-  if (dom === "sadness") {
+  if (dom === "sadness" || dom === "disappointment") {
     return pick([
       "That sounds heavy, and I am here with you in it.",
       "There is a lot of weight in what you just said.",
@@ -278,7 +334,7 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|shame`);
   }
 
-  if (dom === "anger") {
+  if (dom === "anger" || dom === "frustration" || dom === "resentment") {
     return pick([
       "I can hear the frustration in this clearly.",
       "That sounds like you have been pushed past your limit.",
@@ -286,7 +342,7 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|anger`);
   }
 
-  if (dom === "confusion") {
+  if (dom === "confusion" || dom === "surprise" || dom === "awkwardness") {
     return pick([
       "It sounds like too many things are hitting at once.",
       "That kind of mental overload can make everything feel scrambled.",
@@ -294,12 +350,36 @@ function buildReflectiveLead(emo, seed) {
     ], `${seed}|lead|confusion`);
   }
 
-  if (dom === "despair") {
+  if (dom === "despair" || dom === "helplessness") {
     return pick([
       "That sounds painfully bleak right now.",
       "I can hear how close to empty this feels.",
       "That is a very hard place to be sitting in."
     ], `${seed}|lead|despair`);
+  }
+
+  if (dom === "disgust" || dom === "horror") {
+    return pick([
+      "That reaction sounds deeply aversive for you.",
+      "I can hear how strongly this pushed you back.",
+      "That lands like something your system wants distance from immediately."
+    ], `${seed}|lead|aversion`);
+  }
+
+  if (dom === "nostalgia" || dom === "aestheticappreciation" || dom === "awe") {
+    return pick([
+      "There is a reflective depth in that.",
+      "That sounds like it is carrying meaning beyond the surface.",
+      "I can hear the memory and feeling layered together there."
+    ], `${seed}|lead|reflective`);
+  }
+
+  if (dom === "interest" || dom === "curiosity" || dom === "surprise") {
+    return pick([
+      "There is real curiosity in that.",
+      "That sounds like your mind is trying to orient and understand.",
+      "I can hear the pull to explore this a bit further."
+    ], `${seed}|lead|curious`);
   }
 
   if (val === "positive") {
@@ -358,7 +438,7 @@ function buildValidation(emo, seed) {
     ], `${seed}|validate|mixed`);
   }
 
-  if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+  if (emotionAny(emo, ["loneliness", "lonely", "isolation"])) {
     return pick([
       "You are not asking for too much by wanting connection.",
       "Feeling alone does not make you a problem.",
@@ -404,7 +484,7 @@ function buildRecoveryAcknowledgment(emo, seed) {
 }
 
 function mapDistressMicroSteps(emo) {
-  const dom = emo.dominantEmotion;
+  const dom = emo.primaryEmotion || emo.dominantEmotion;
 
   if (emo.supportFlags.crisis) {
     return [
@@ -412,13 +492,13 @@ function mapDistressMicroSteps(emo) {
     ];
   }
 
-  if (dom === "anxiety") {
+  if (dom === "anxiety" || dom === "fear") {
     return [
       "Try one slower exhale than inhale — not to fix everything, just to lower the alarm a notch."
     ];
   }
 
-  if (dom === "confusion" || emo.distressReinforcements.includes("reduce_complexity")) {
+  if (dom === "confusion" || dom === "surprise" || dom === "awkwardness" || emo.distressReinforcements.includes("reduce_complexity")) {
     return [
       "Let us reduce the load: name the one thing that is most urgent and ignore the rest for this minute."
     ];
@@ -436,13 +516,13 @@ function mapDistressMicroSteps(emo) {
     ];
   }
 
-  if (dom === "anger") {
+  if (dom === "anger" || dom === "frustration" || dom === "resentment") {
     return [
       "Before acting on the heat, pin down the real target: what exactly crossed the line?"
     ];
   }
 
-  if (dom === "sadness" || dom === "despair") {
+  if (dom === "sadness" || dom === "despair" || dom === "helplessness" || dom === "disappointment") {
     return [
       "Keep the horizon very small for now: what would make the next hour 5% gentler?"
     ];
@@ -454,9 +534,9 @@ function mapDistressMicroSteps(emo) {
 }
 
 function mapPositiveMicroSteps(emo) {
-  const dom = emo.dominantEmotion;
+  const dom = emo.primaryEmotion || emo.dominantEmotion;
 
-  if (dom === "confidence" || dom === "momentum") {
+  if (dom === "confidence" || dom === "momentum" || dom === "determination" || dom === "anticipation" || dom === "excitement") {
     return [
       "Use the energy while it is clean: what is the next concrete move you can lock in today?"
     ];
@@ -468,13 +548,13 @@ function mapPositiveMicroSteps(emo) {
     ];
   }
 
-  if (dom === "gratitude" || dom === "connection") {
+  if (dom === "gratitude" || dom === "connection" || dom === "admiration" || dom === "adoration" || dom === "trust" || dom === "empathy") {
     return [
       "Hold onto what is helping here and make it repeatable."
     ];
   }
 
-  if (dom === "calm") {
+  if (dom === "calm" || dom === "calmness" || dom === "relief" || dom === "satisfaction") {
     return [
       "Protect this steadier state before the noise rushes back in."
     ];
@@ -512,7 +592,7 @@ function buildQuestion(emo, cfg, seed) {
     ], `${seed}|q|crisis`);
   }
 
-  if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+  if (emotionAny(emo, ["loneliness", "lonely", "isolation"])) {
     return pick([
       "Do you want to tell me what is making today feel especially lonely?",
       "What feels heaviest about the alone feeling right now?",
@@ -520,7 +600,7 @@ function buildQuestion(emo, cfg, seed) {
     ], `${seed}|q|loneliness`);
   }
 
-  if (emo.dominantEmotion === "anxiety") {
+  if (emotionAny(emo, ["anxiety", "fear"])) {
     return pick([
       "Is this hitting more in your thoughts, or more in your body?",
       "What feels most activated right now — your chest, your thoughts, or your sense of pressure?",
@@ -528,7 +608,7 @@ function buildQuestion(emo, cfg, seed) {
     ], `${seed}|q|anxiety`);
   }
 
-  if (emo.dominantEmotion === "sadness" || emo.dominantEmotion === "grief") {
+  if (emotionAny(emo, ["sadness", "grief", "disappointment", "helplessness"])) {
     return pick([
       "What has felt heaviest about it today?",
       "What part of this hurts the most right now?",
@@ -536,7 +616,7 @@ function buildQuestion(emo, cfg, seed) {
     ], `${seed}|q|sadness`);
   }
 
-  if (emo.dominantEmotion === "shame") {
+  if (emotionAny(emo, ["shame", "guilt", "embarrassment"])) {
     return pick([
       "What is the harshest thing your mind is saying about you right now?",
       "What story is the shame trying to force on you?",
@@ -544,7 +624,7 @@ function buildQuestion(emo, cfg, seed) {
     ], `${seed}|q|shame`);
   }
 
-  if (emo.dominantEmotion === "anger") {
+  if (emotionAny(emo, ["anger", "frustration", "resentment", "disgust"])) {
     return pick([
       "What exactly crossed the line for you?",
       "What part of this feels most unfair?",
@@ -613,7 +693,7 @@ function buildPositiveReinforcementLine(emo, seed) {
 
 function buildDistressReinforcementLine(emo, seed) {
   if (!Array.isArray(emo.distressReinforcements) || !emo.distressReinforcements.length) {
-    if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+    if (emotionAny(emo, ["loneliness", "lonely", "isolation"])) {
       return pick([
         "You do not have to solve your whole life from this moment.",
         "We can keep this gentle and honest.",
@@ -726,7 +806,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
   try {
     const userText = safeStr(input.userText || "");
     const emo = normalizeEmotionPayload(input.emo);
-    const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.dominantEmotion}|nyx`);
+    const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.primaryEmotion || emo.dominantEmotion}|nyx`);
     const technical = looksTechnicalRequest(userText);
 
     if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
@@ -739,11 +819,13 @@ function buildSupportiveResponse(input = {}, config = {}) {
         buildValidation(emo, seed) || "We can keep this tight and practical.",
         buildRecoveryAcknowledgment(emo, seed),
         buildDistressReinforcementLine(emo, seed),
-        "We will stay on the exact technical target and not bounce this into a generic support loop."
+        emo.needsNovelMove || emo.routeExhaustion
+          ? "We will break the repetition here and move with one cleaner emotional strategy, not the same loop again."
+          : "We will stay on the exact technical target and not bounce this into a generic support loop."
       ]);
     }
 
-    if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
+    if (emotionAny(emo, ["loneliness", "lonely", "isolation"])) {
       const lonelyOut = buildLonelinessResponse(emo, cfg, seed);
       if (lonelyOut) return enforceSingleQuestion(lonelyOut);
     }
@@ -795,7 +877,7 @@ function buildSupportPacket(input = {}, config = {}) {
       reply: buildCrisisResponse({ seed, country: input.country || "" }),
       meta: {
         crisis: true,
-        dominantEmotion: emo.dominantEmotion,
+        dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
         valence: emo.valence
       }
     };
@@ -808,12 +890,18 @@ function buildSupportPacket(input = {}, config = {}) {
     reply: buildSupportiveResponse(input, cfg),
     meta: {
       crisis: false,
-      dominantEmotion: emo.dominantEmotion,
+      dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
       valence: emo.valence,
       tone: emo.tone,
       needsGentlePacing: !!emo.supportFlags.needsGentlePacing,
       positivePresent: !!emo.supportFlags.positivePresent,
-      recoveryPresent: !!emo.supportFlags.recoveryPresent
+      recoveryPresent: !!emo.supportFlags.recoveryPresent,
+      emotionCluster: emo.emotionCluster,
+      routeBias: emo.routeBias,
+      supportModeCandidate: emo.supportModeCandidate,
+      fallbackSuppression: !!emo.fallbackSuppression,
+      needsNovelMove: !!emo.needsNovelMove,
+      routeExhaustion: !!emo.routeExhaustion
     }
   };
 }
