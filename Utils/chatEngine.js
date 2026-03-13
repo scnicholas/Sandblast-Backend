@@ -124,7 +124,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.12.0 OPINTEL EMOTION-SPINE-XOVER";
+const CE_VERSION = "chatEngine v0.12.1 OPINTEL RUNTIME-FIX";
 
 function nowMs() {
   return Date.now();
@@ -1268,7 +1268,12 @@ function failSafeContract(err, input, extra) {
       intent: "STABILIZE",
       mode: "transitional",
       publicMode: true,
-      diag: { failSafe: true, err: safeStr(err && err.message ? err.message : err).slice(0, 180) }
+      diag: {
+        failSafe: true,
+        err: safeStr(err && err.message ? err.message : err).slice(0, 180),
+        source: "chatEngine",
+        version: CE_VERSION
+      }
     },
     requestId,
     meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
@@ -1404,10 +1409,6 @@ async function handleChat(input) {
         return replayContract;
       }
     }
-
-    const corePrev = isPlainObject(session.__spineState)
-      ? session.__spineState
-      : Spine.createState({ lane: safeStr(session.lane || "general") || "general", stage: "open" });
 
     const plannerDecision = typeof Spine?.decideNextMove === "function"
       ? Spine.decideNextMove(corePrev, {
@@ -1792,6 +1793,14 @@ async function handleChat(input) {
         __emotionMode: safeStr(emo?.mode || "NORMAL"),
         __emotionValence: safeStr(emo?.valence || "neutral"),
         __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
+        __emotionPrimary: safeStr(emo?.primaryEmotion || emo?.dominantEmotion || "neutral"),
+        __emotionSecondary: safeStr(emo?.secondaryEmotion || ""),
+        __emotionCluster: safeStr(emo?.emotionCluster || ""),
+        __emotionRouteBias: safeStr(emo?.routeBias || ""),
+        __emotionSupportMode: safeStr(emo?.supportModeCandidate || ""),
+        __emotionFallbackSuppression: !!emo?.fallbackSuppression,
+        __emotionNeedsNovelMove: !!emo?.needsNovelMove,
+        __emotionRouteExhaustion: !!emo?.routeExhaustion,
         __emotionAt: nowMs()
       },
       completeTurnLifecycle(session, {
@@ -1820,6 +1829,15 @@ async function handleChat(input) {
         })
       )
     });
+
+    failContract.meta = {
+      ...(isPlainObject(failContract.meta) ? failContract.meta : {}),
+      caughtError: safeStr(err && err.message ? err.message : err).slice(0, 180),
+      requestId,
+      phase: 15,
+      v: CE_VERSION,
+      t: nowMs()
+    };
 
     failContract.sessionPatch = mergeSessionPatches(
       lifecycle.patch,
