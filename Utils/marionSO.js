@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.3.1-opintel+++++supportfix";
+const MARION_VERSION = "marionSO v1.3.2-opintel+++++bridgeapi";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
@@ -45,6 +45,7 @@ const PHASE10_PLAN = PHASE15_PLAN;
 
 const SO_VERSION = MARION_VERSION;
 const version = MARION_VERSION;
+const BRIDGE_API_VERSION = "marionSO.bridge.v1.0.0";
 
 // -------------------------
 // Optional SiteBridge (FAIL-OPEN)
@@ -3987,6 +3988,79 @@ try {
     };
     return finalizeContract(fail, now, {});
   }
+}
+
+
+
+function buildBridgeAnswerFromCog(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const op = isPlainObject(c.opPackage) ? c.opPackage : {};
+  const lane = safeStr(c.effectiveLane || c.lane || "general", 24) || "general";
+  const intent = safeStr(c.intent || "CLARIFY", 16).toUpperCase();
+  const objective = safeStr(op.objective || "", 220).trim();
+  const summary = safeStr(op.summary || c.marionReason || c.laneReason || "", 180).trim();
+  const actions = Array.isArray(op.recommendedActions) ? op.recommendedActions.slice(0, 2).map((x) => safeStr(x, 120)).filter(Boolean) : [];
+
+  if (intent === "STABILIZE") {
+    return objective || "Let us steady this first. Name the single pressure point you want to handle right now, and we will keep it contained.";
+  }
+  if (intent === "ADVANCE") {
+    const head = objective || (summary ? `Routing through ${lane}: ${summary}.` : `Routing through ${lane} with the next concrete step.`);
+    if (actions.length) return `${head} Next: ${actions.join(' Then: ')}.`;
+    return head;
+  }
+  return objective || (summary ? `Before I advance, I need one missing detail: ${summary}.` : "Before I advance, I need the single missing detail that decides the path.");
+}
+
+function buildBridgeEnvelopeFromCog(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const op = isPlainObject(c.opPackage) ? c.opPackage : {};
+  return {
+    ok: true,
+    source: "marionSO",
+    version: BRIDGE_API_VERSION,
+    answer: buildBridgeAnswerFromCog(c),
+    confidence: clamp01(op.confidenceScore || c?.confidence?.nyx || 0.62),
+    nextAction: safeStr(c.intent || "respond", 16).toLowerCase() === "clarify" ? "clarify_or_expand" : "respond",
+    cites: [],
+    cog: c,
+    meta: {
+      lane: safeStr(c.effectiveLane || c.lane || "general", 24),
+      intent: safeStr(c.intent || "CLARIFY", 16).toUpperCase(),
+      riskTier: safeStr(c.riskTier || RISK.TIERS.NONE, 10),
+      bridgeApiVersion: BRIDGE_API_VERSION,
+    }
+  };
+}
+
+async function resolve(payload = {}) {
+  const p = isPlainObject(payload) ? payload : {};
+  const norm = isPlainObject(p.norm) ? p.norm : {
+    text: safeStr(p.text || p.userText || "", 1600),
+    lane: safeStr(p?.routing?.domain || p?.meta?.lane || "general", 24) || "general",
+    payload: {},
+    turnSignals: {}
+  };
+  const session = isPlainObject(p.session) ? p.session : { sessionId: safeStr(p.sessionId || "", 80), userId: safeStr(p.userId || "", 80) };
+  const cog = mediate(norm, session, {
+    requestId: safeStr(p.requestId || p.traceId || "", 64),
+    turnId: safeStr(p.turnId || "", 64),
+    traceId: safeStr(p.traceId || p.requestId || "", 64),
+  });
+  return buildBridgeEnvelopeFromCog(cog);
+}
+
+async function query(payload = {}) { return resolve(payload); }
+async function respond(payload = {}) { return resolve(payload); }
+async function handle(payload = {}) { return resolve(payload); }
+function healthcheck() {
+  return {
+    ok: true,
+    source: "marionSO",
+    version: MARION_VERSION,
+    bridgeApiVersion: BRIDGE_API_VERSION,
+    exports: ["mediate", "resolve", "query", "respond", "handle"],
+  };
 }
 
 module.exports = {
