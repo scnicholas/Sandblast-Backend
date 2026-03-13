@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.2.0";
+const VERSION = "supportResponse v1.3.0";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -46,6 +46,8 @@ const DEFAULT_CONFIG = {
   maxQuestionCount: 1,
   maxMicroSteps: 1,
   keepCrisisShort: true,
+  suppressQuestionOnTechnical: true,
+  suppressQuestionOnRecovery: true,
   debug: false
 };
 
@@ -119,6 +121,27 @@ function joinSentences(parts) {
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function looksTechnicalRequest(text) {
+  const s = safeStr(text).toLowerCase();
+  if (!s) return false;
+  return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend)/.test(s);
+}
+
+function stripTerminalQuestion(text) {
+  const s = oneLine(text);
+  if (!s) return "";
+  return s.replace(/\s+[A-Z][^?!.]{0,180}\?$/,'').trim();
+}
+
+function enforceSingleQuestion(text) {
+  const s = oneLine(text);
+  if (!s) return "";
+  const matches = s.match(/\?/g) || [];
+  if (matches.length <= 1) return s;
+  const firstQ = s.indexOf('?');
+  return s.slice(0, firstQ + 1).trim();
 }
 
 function normalizeEmotionPayload(emo) {
@@ -704,14 +727,25 @@ function buildSupportiveResponse(input = {}, config = {}) {
     const userText = safeStr(input.userText || "");
     const emo = normalizeEmotionPayload(input.emo);
     const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.dominantEmotion}|nyx`);
+    const technical = looksTechnicalRequest(userText);
 
     if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
       return buildCrisisResponse({ seed, country: input.country || "" });
     }
 
+    if (technical) {
+      return joinSentences([
+        buildReflectiveLead(emo, seed) || "I hear the pressure in this.",
+        buildValidation(emo, seed) || "We can keep this tight and practical.",
+        buildRecoveryAcknowledgment(emo, seed),
+        buildDistressReinforcementLine(emo, seed),
+        "We will stay on the exact technical target and not bounce this into a generic support loop."
+      ]);
+    }
+
     if (emo.dominantEmotion === "loneliness" || emo.dominantEmotion === "lonely" || emo.dominantEmotion === "isolation") {
       const lonelyOut = buildLonelinessResponse(emo, cfg, seed);
-      if (lonelyOut) return lonelyOut;
+      if (lonelyOut) return enforceSingleQuestion(lonelyOut);
     }
 
     const parts = [];
@@ -728,13 +762,21 @@ function buildSupportiveResponse(input = {}, config = {}) {
     }
 
     parts.push(buildMicroStep(emo, cfg, seed));
-    parts.push(buildQuestion(emo, cfg, seed));
 
-    const out = joinSentences(parts);
+    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical;
+    if (shouldAsk) {
+      parts.push(buildQuestion(emo, cfg, seed));
+    }
+
+    let out = joinSentences(parts);
+    if (!shouldAsk) out = stripTerminalQuestion(out);
+    out = enforceSingleQuestion(out);
 
     if (out) return out;
 
-    return "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
+    return technical
+      ? "I hear the strain in this. We will keep it technical, direct, and free of extra support layering."
+      : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
   } catch (_err) {
     return "I hear you. We can keep this simple and steady. What feels most important right now?";
   }
