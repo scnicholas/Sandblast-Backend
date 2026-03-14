@@ -31,20 +31,21 @@
  */
 
 let Spine = null;
-let MarionBridge = null;
 let MarionSO = null;
+let MarionBridgeModule = null;
 let EmotionRouteGuard = null;
 let Support = null;
 
 try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
-try { MarionBridge = require("./marionBridge"); } catch (_e) { MarionBridge = null; }
 try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
+try { MarionBridgeModule = require("./marionBridge"); } catch (_e) { MarionBridgeModule = null; }
 try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
 try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
 
 let laneRouter = null;
 let memoryAdapter = null;
 let telemetryAdapter = null;
+let MarionBridgeRuntime = null;
 
 try { laneRouter = require("./laneRouter"); } catch (_e) { laneRouter = null; }
 try { memoryAdapter = require("./chatMemoryAdapter"); } catch (_e) { memoryAdapter = null; }
@@ -127,6 +128,205 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
     };
 
 const CE_VERSION = "chatEngine v0.13.0 OPINTEL LOOP-FINAL";
+
+function normalizeKnowledgeEvidenceItems(sectionValue, domain, sourceLabel) {
+  const out = [];
+  const source = safeStr(sourceLabel || `knowledge:${domain || "general"}`) || "knowledge:general";
+  const pushItem = (title, content, score = 0, tags = []) => {
+    const body = oneLine(content);
+    if (!body) return;
+    out.push({
+      title: safeStr(title || `${domain || "general"}_knowledge`, 120) || `${domain || "general"}_knowledge`,
+      content: body,
+      source,
+      score: Number.isFinite(Number(score)) ? Number(score) : 0,
+      tags: [...new Set([domain, ...((Array.isArray(tags) ? tags : [])).map((x) => safeStr(x).trim()).filter(Boolean)])].filter(Boolean)
+    });
+  };
+
+  if (Array.isArray(sectionValue)) {
+    for (let i = 0; i < sectionValue.length; i += 1) {
+      const item = sectionValue[i];
+      if (typeof item === "string") {
+        pushItem(`${domain || "general"}_knowledge_${i + 1}`, item);
+      } else if (isPlainObject(item)) {
+        pushItem(item.title || `${domain || "general"}_knowledge_${i + 1}`, item.content || item.text || item.summary || item.body || "", item.score || 0, item.tags || []);
+      }
+    }
+    return out;
+  }
+
+  if (isPlainObject(sectionValue)) {
+    if (typeof sectionValue.content === "string" || typeof sectionValue.text === "string" || typeof sectionValue.summary === "string") {
+      pushItem(sectionValue.title || `${domain || "general"}_knowledge`, sectionValue.content || sectionValue.text || sectionValue.summary || sectionValue.body || "", sectionValue.score || 0, sectionValue.tags || []);
+      return out;
+    }
+    for (const [key, value] of Object.entries(sectionValue)) {
+      if (typeof value === "string") pushItem(key, value);
+      else if (isPlainObject(value)) pushItem(value.title || key, value.content || value.text || value.summary || value.body || "", value.score || 0, value.tags || []);
+    }
+    return out;
+  }
+
+  if (typeof sectionValue === "string") pushItem(`${domain || "general"}_knowledge`, sectionValue);
+  return out;
+}
+
+function extractKnowledgeSections(meta) {
+  const m = isPlainObject(meta) ? meta : {};
+  const containers = [
+    m.knowledgeSections,
+    m.knowledge,
+    m.domainKnowledge,
+    m.knowledgeByDomain,
+    m.sections
+  ].filter((x) => isPlainObject(x));
+  const merged = {};
+  for (const domain of KNOWLEDGE_DOMAINS) {
+    for (const c of containers) {
+      if (c && c[domain] !== undefined && merged[domain] === undefined) merged[domain] = c[domain];
+    }
+  }
+  return merged;
+}
+
+function buildKnowledgeDomainPriority(norm, emo) {
+  const ranked = [];
+  if (emo && (emo.mode === "VULNERABLE" || emo.supportFlags?.highDistress || emo.supportFlags?.needsContainment || emo.supportFlags?.needsConnection)) ranked.push("psychology");
+  if (/rewrite|tone|grammar|summary|headline|narrative/i.test(safeStr(norm?.text || ""))) ranked.push("language");
+  if (/budget|revenue|pricing|roi|funding|profit/i.test(safeStr(norm?.text || ""))) ranked.push("finance");
+  if (/contract|legal|policy|liability|copyright/i.test(safeStr(norm?.text || ""))) ranked.push("law");
+  if (/model|ai|agent|security|auth|dataset|vector|pipeline/i.test(safeStr(norm?.text || ""))) ranked.push("ai_cyber");
+  if (/brand|audience|channel|roku|streaming|metadata|campaign/i.test(safeStr(norm?.text || ""))) ranked.push("marketing_media");
+  for (const d of KNOWLEDGE_DOMAINS) if (!ranked.includes(d)) ranked.push(d);
+  return ranked;
+}
+
+function buildMarionBridgeRuntime() {
+  if (!MarionBridgeModule || typeof MarionBridgeModule.createMarionBridge !== "function") return null;
+  try {
+    return MarionBridgeModule.createMarionBridge({
+      marionSO: MarionSO,
+      domainKeywords: MARION_DOMAIN_KEYWORDS,
+      memoryProvider: {
+        getContext: async ({ sessionId }) => {
+          const ctx = buildMemoryContext(sessionId || "") || {};
+          return isPlainObject(ctx) ? ctx : {};
+        },
+        putContext: async () => null
+      },
+      evidenceEngine: {
+        collect: async ({ domain, meta }) => {
+          const sections = extractKnowledgeSections(meta);
+          const priority = buildKnowledgeDomainPriority({ text: meta?.userText || "" }, meta?.emo || null);
+          const domains = [domain, ...priority].filter(Boolean);
+          const out = [];
+          for (const d of domains) {
+            if (!d || !sections[d]) continue;
+            out.push(...normalizeKnowledgeEvidenceItems(sections[d], d, `knowledge:${d}`));
+          }
+          return out.slice(0, 24);
+        }
+      },
+      telemetry: { track: async () => null }
+    });
+  } catch (_e) {
+    return null;
+  }
+}
+
+MarionBridgeRuntime = buildMarionBridgeRuntime();
+
+function buildMarionBridgeRequest(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode) {
+  const sessionObj = isPlainObject(session) ? session : {};
+  const meta = {
+    publicMode,
+    emo,
+    plannerDecision: isPlainObject(plannerDecision) ? plannerDecision : {},
+    userText: safeStr(norm?.text || ""),
+    knowledgeDomains: KNOWLEDGE_DOMAINS.slice(),
+    knowledgePriority: buildKnowledgeDomainPriority(norm, emo),
+    knowledgeSections: extractKnowledgeSections({
+      knowledgeSections: sessionObj.knowledgeSections,
+      knowledge: sessionObj.knowledge,
+      domainKnowledge: sessionObj.domainKnowledge,
+      knowledgeByDomain: sessionObj.knowledgeByDomain,
+      sections: sessionObj.sections
+    })
+  };
+
+  return {
+    userText: safeStr(norm?.text || ""),
+    text: safeStr(norm?.text || ""),
+    sessionId: safeStr(sessionId || sessionObj.sessionId || sessionObj.sid || "session_unknown"),
+    userId: safeStr(sessionObj.userId || sessionObj.uid || "user_unknown"),
+    turnId: safeStr(turnId || requestId || "turn_unknown"),
+    meta
+  };
+}
+
+async function maybeResolveMarionBridgeSafe(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode) {
+  const runtime = MarionBridgeRuntime || buildMarionBridgeRuntime();
+  if (!runtime || typeof runtime.maybeResolve !== "function") return null;
+  try {
+    return await runtime.maybeResolve(buildMarionBridgeRequest(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode));
+  } catch (_e) {
+    return null;
+  }
+}
+
+function shouldUseBridgeSynthesis(norm, mode, bridgeResult, routeOut, emo) {
+  const packet = bridgeResult?.packet;
+  const answer = safeStr(packet?.synthesis?.answer || "").trim();
+  if (!bridgeResult?.usedBridge || !answer) return false;
+  const confidence = Number(packet?.synthesis?.confidence || 0);
+  if (mode?.supportLock) return false;
+  if (mode?.technical) return true;
+  if (!routeOut) return confidence >= 0.45;
+  const routeReply = safeStr(routeOut?.reply || "");
+  if (!routeReply) return true;
+  if (isGenericMenuBounceReply(routeReply)) return true;
+  if (emo?.supportFlags?.mentionsLooping && confidence >= 0.45) return true;
+  return false;
+}
+
+function buildRouteOutFromSupport(norm, emo, supportPacket) {
+  const reply = safeStr(supportPacket?.reply || "").trim() || safeStr(maybeBuildEmotionFirstReply(norm, emo)?.reply || "").trim() || "I am here with you. Tell me what you need from me right now.";
+  return {
+    reply,
+    lane: safeStr(norm?.lane || "general") || "general",
+    directives: buildEmotionDirectives(emo, supportPacket),
+    followUps: buildSupportiveEmotionFollowUps(emo),
+    ui: buildSupportiveEmotionUi(emo),
+    meta: { supportLock: true, suppressChips: true, suppressLaneRouting: true }
+  };
+}
+
+function buildRouteOutFromBridge(norm, bridgeResult) {
+  const packet = bridgeResult?.packet;
+  const answer = safeStr(packet?.synthesis?.answer || "").trim();
+  const domain = safeStr(packet?.routing?.domain || "general") || "general";
+  return {
+    reply: answer || "Tell me the exact target and I will handle it directly.",
+    lane: safeStr(norm?.lane || "general") || "general",
+    directives: [],
+    followUps: [],
+    ui: { chips: [], allowMic: true, mode: domain },
+    meta: { marionBridge: true, marionDomain: domain, marionConfidence: Number(packet?.synthesis?.confidence || 0) }
+  };
+}
+
+function buildDirectTechnicalRoute(norm, bridgeResult) {
+  if (bridgeResult?.usedBridge && safeStr(bridgeResult?.packet?.synthesis?.answer || "")) return buildRouteOutFromBridge(norm, bridgeResult);
+  return {
+    reply: "I am staying in direct technical mode. Give me the exact file, function, or behavior you want changed and I will work that path without dropping into lane menus.",
+    lane: safeStr(norm?.lane || "general") || "general",
+    directives: [],
+    followUps: [],
+    ui: { chips: [], allowMic: true, mode: "technical" },
+    meta: { technicalDirect: true }
+  };
+}
 
 function nowMs() {
   return Date.now();
@@ -224,72 +424,6 @@ function safeJsonStringify(x) {
   } catch (_e) {
     return "{\"_fail\":true}";
   }
-}
-function normalizeNuanceProfileLite(nuance) {
-  const n = isPlainObject(nuance) ? nuance : {};
-  return {
-    arousal: safeStr(n.arousal || "medium").toLowerCase() || "medium",
-    socialDirection: safeStr(n.socialDirection || "mixed").toLowerCase() || "mixed",
-    timeOrientation: safeStr(n.timeOrientation || "present").toLowerCase() || "present",
-    controlState: safeStr(n.controlState || "uncertain").toLowerCase() || "uncertain",
-    conversationNeed: safeStr(n.conversationNeed || "clarify").toLowerCase() || "clarify",
-    followupStyle: safeStr(n.followupStyle || "reflective").toLowerCase() || "reflective",
-    transitionReadiness: safeStr(n.transitionReadiness || "medium").toLowerCase() || "medium",
-    loopRisk: safeStr(n.loopRisk || "medium").toLowerCase() || "medium",
-    questionPressure: safeStr(n.questionPressure || "medium").toLowerCase() || "medium",
-    archetype: safeStr(n.archetype || "clarify").toLowerCase() || "clarify",
-    fallbackArchetype: safeStr(n.fallbackArchetype || "").toLowerCase(),
-    antiLoopShift: safeStr(n.antiLoopShift || ""),
-    mirrorDepth: safeStr(n.mirrorDepth || "medium").toLowerCase() || "medium"
-  };
-}
-function normalizeConversationPlanLite(plan) {
-  const p = isPlainObject(plan) ? plan : {};
-  return {
-    recommendedDepth: safeStr(p.recommendedDepth || p.conversationDepth || "standard").toLowerCase() || "standard",
-    followupStyle: safeStr(p.followupStyle || "reflective").toLowerCase() || "reflective",
-    askAllowed: p.askAllowed === false ? false : true,
-    shouldSuppressMenus: !!p.shouldSuppressMenus,
-    shouldSuppressLaneRouting: !!p.shouldSuppressLaneRouting,
-    shouldUseSupportLock: !!p.shouldUseSupportLock,
-    supportLockTurns: clampInt(p.supportLockTurns || 0, 0, 0, 4),
-    primaryArchetype: safeStr(p.primaryArchetype || p.archetype || "clarify").toLowerCase() || "clarify",
-    fallbackArchetype: safeStr(p.fallbackArchetype || "").toLowerCase(),
-    conversationNeed: safeStr(p.conversationNeed || "clarify").toLowerCase() || "clarify",
-    questionPressure: safeStr(p.questionPressure || "medium").toLowerCase() || "medium",
-    transitionReadiness: safeStr(p.transitionReadiness || "medium").toLowerCase() || "medium",
-    loopRisk: safeStr(p.loopRisk || "medium").toLowerCase() || "medium",
-    antiLoopShift: safeStr(p.antiLoopShift || ""),
-    transitionTargets: Array.isArray(p.transitionTargets) ? p.transitionTargets.slice(0, 6) : []
-  };
-}
-function emotionSuppressesMenus(emo, packetMeta) {
-  const plan = normalizeConversationPlanLite(emo?.conversationPlan);
-  const meta = isPlainObject(packetMeta) ? packetMeta : {};
-  return !!(
-    emo?.supportFlags?.crisis ||
-    emo?.supportFlags?.highDistress ||
-    emo?.fallbackSuppression ||
-    plan.shouldSuppressMenus ||
-    plan.shouldSuppressLaneRouting ||
-    meta.supportLock ||
-    meta.suppressChips ||
-    meta.suppressLaneRouting
-  );
-}
-function emotionAskAllowed(emo, packetMeta) {
-  const plan = normalizeConversationPlanLite(emo?.conversationPlan);
-  const meta = isPlainObject(packetMeta) ? packetMeta : {};
-  if (meta.askAllowed === false) return false;
-  return plan.askAllowed !== false;
-}
-function supportUiForEmotion(emo, packetMeta) {
-  return {
-    chips: buildSupportiveEmotionFollowUps(emo, packetMeta),
-    allowMic: true,
-    mode: "supportive",
-    suppressMenus: emotionSuppressesMenus(emo, packetMeta)
-  };
 }
 function sha1Lite(str) {
   const s = safeStr(str);
@@ -1005,16 +1139,6 @@ function normalizeEmotionGuardResult(raw) {
       needsNovelMove: !!continuity.needsNovelMove,
       routeExhaustion: !!continuity.routeExhaustion
     },
-    nuanceProfile: normalizeNuanceProfileLite(
-      r.nuanceProfile ||
-      downstream?.supportResponse?.nuanceProfile ||
-      {}
-    ),
-    conversationPlan: normalizeConversationPlanLite(
-      r.conversationPlan ||
-      downstream?.supportResponse?.conversationPlan ||
-      {}
-    ),
     summary: isPlainObject(r.summary) ? r.summary : { concise: "", narrative: "" },
     tags: [...new Set(tags.filter(Boolean))].slice(0, 20),
     cached: !!r.cached
@@ -1092,15 +1216,6 @@ function applyEmotionSignalsToNorm(norm, emo) {
   norm.turnSignals.emotionSameEmotionCount = clampInt(emo.continuity?.sameEmotionCount || 0, 0, 0, 99);
   norm.turnSignals.emotionSameSupportModeCount = clampInt(emo.continuity?.sameSupportModeCount || 0, 0, 0, 99);
   norm.turnSignals.emotionNoProgressTurnCount = clampInt(emo.continuity?.noProgressTurnCount || 0, 0, 0, 99);
-  norm.turnSignals.emotionArchetype = safeStr(emo.nuanceProfile?.archetype || emo.conversationPlan?.primaryArchetype || "");
-  norm.turnSignals.emotionConversationNeed = safeStr(emo.nuanceProfile?.conversationNeed || emo.conversationPlan?.conversationNeed || "");
-  norm.turnSignals.emotionTransitionReadiness = safeStr(emo.nuanceProfile?.transitionReadiness || emo.conversationPlan?.transitionReadiness || "");
-  norm.turnSignals.emotionLoopRisk = safeStr(emo.nuanceProfile?.loopRisk || emo.conversationPlan?.loopRisk || "");
-  norm.turnSignals.emotionQuestionPressure = safeStr(emo.nuanceProfile?.questionPressure || emo.conversationPlan?.questionPressure || "");
-  norm.turnSignals.emotionSupportLock = !!(emo.conversationPlan?.shouldUseSupportLock);
-  norm.turnSignals.emotionSuppressMenus = !!(emo.conversationPlan?.shouldSuppressMenus);
-  norm.turnSignals.emotionAskAllowed = emo.conversationPlan?.askAllowed === false ? false : true;
-  norm.turnSignals.emotionAntiLoopShift = safeStr(emo.nuanceProfile?.antiLoopShift || emo.conversationPlan?.antiLoopShift || "");
 }
 function isTechnicalExecutionInbound(norm) {
   const text = safeStr(norm?.text || "", 400).toLowerCase();
@@ -1195,33 +1310,20 @@ function buildEmotionDirectives(emo, packet) {
 
   return out.slice(0, 8);
 }
-function buildSupportiveEmotionFollowUps(emo, packetMeta) {
+function buildSupportiveEmotionFollowUps(emo) {
   const dom = safeStr(emo?.dominantEmotion || "").trim().toLowerCase();
-  const nuance = normalizeNuanceProfileLite(emo?.nuanceProfile);
-  const plan = normalizeConversationPlanLite(emo?.conversationPlan);
-  const meta = isPlainObject(packetMeta) ? packetMeta : {};
 
-  if (emotionSuppressesMenus(emo, meta)) return [];
-  if (!emotionAskAllowed(emo, meta)) return [];
-
-  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || nuance.questionPressure === "none" || nuance.questionPressure === "low") {
+  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress) {
     return [
       { id: "fu_ground", type: "action", label: "Stay with me", payload: { action: "support_ground", mode: "supportive" } },
       { id: "fu_breathe", type: "action", label: "One breath", payload: { action: "support_breathe", mode: "supportive" } }
     ];
   }
 
-  if (dom === "loneliness" || dom === "lonely" || dom === "isolation" || nuance.conversationNeed === "reconnect") {
+  if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
     return [
-      { id: "fu_talk_lonely", type: "action", label: "Talk about it", payload: { action: "support_talk", mode: "supportive", emotion: dom || "loneliness" } },
-      { id: "fu_stay_lonely", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive", emotion: dom || "loneliness" } }
-    ];
-  }
-
-  if (plan.followupStyle === "action_step" || nuance.followupStyle === "action_step" || nuance.conversationNeed === "channel") {
-    return [
-      { id: "fu_next_step", type: "action", label: "Next step", payload: { action: "support_next_step", mode: "supportive", emotion: dom || "support" } },
-      { id: "fu_keep_focus", type: "action", label: "Keep focus", payload: { action: "support_focus", mode: "supportive", emotion: dom || "support" } }
+      { id: "fu_talk_lonely", type: "action", label: "Talk about it", payload: { action: "support_talk", mode: "supportive", emotion: "loneliness" } },
+      { id: "fu_stay_lonely", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive", emotion: "loneliness" } }
     ];
   }
 
@@ -1230,8 +1332,12 @@ function buildSupportiveEmotionFollowUps(emo, packetMeta) {
     { id: "fu_slow_support", type: "action", label: "Slow it down", payload: { action: "support_slow", mode: "supportive" } }
   ];
 }
-function buildSupportiveEmotionUi(emo, packetMeta) {
-  return supportUiForEmotion(emo, packetMeta);
+function buildSupportiveEmotionUi(emo) {
+  return {
+    chips: buildSupportiveEmotionFollowUps(emo),
+    allowMic: true,
+    mode: "supportive"
+  };
 }
 function finalizeSpineSafe(params) {
   try {
@@ -1284,8 +1390,7 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply,
       mode: "supportive",
-      directives: buildEmotionDirectives(emo, packet),
-      packetMeta: isPlainObject(packet?.meta) ? packet.meta : {}
+      directives: buildEmotionDirectives(emo, packet)
     };
   }
 
@@ -1304,8 +1409,7 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply,
       mode: "positive",
-      directives: buildEmotionDirectives(emo, packet),
-      packetMeta: isPlainObject(packet?.meta) ? packet.meta : {}
+      directives: buildEmotionDirectives(emo, packet)
     };
   }
 
@@ -1313,8 +1417,7 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: "mixed",
-      directives: buildEmotionDirectives(emo, packet),
-      packetMeta: isPlainObject(packet?.meta) ? packet.meta : {}
+      directives: buildEmotionDirectives(emo, packet)
     };
   }
 
@@ -1331,67 +1434,6 @@ function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
   return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
-}
-async function resolveMarionBridgeSafe(norm, session, emo, context) {
-  try {
-    const bridge = getMarionBridgeRuntime();
-    if (!bridge || typeof bridge.maybeResolve !== "function") return null;
-    const req = {
-      userText: safeStr(norm?.text || ""),
-      sessionId: safeStr(context?.sessionId || ""),
-      userId: safeStr(norm?.ctx?.userId || norm?.ctx?.uid || "user_unknown"),
-      turnId: safeStr(context?.turnId || ""),
-      meta: {
-        requestId: safeStr(context?.requestId || ""),
-        lane: safeStr(norm?.lane || session?.lane || "general"),
-        emotion: emo ? {
-          mode: emo.mode,
-          primaryEmotion: emo.primaryEmotion || emo.dominantEmotion,
-          emotionCluster: emo.emotionCluster,
-          routeBias: emo.routeBias,
-          supportModeCandidate: emo.supportModeCandidate,
-          nuanceProfile: emo.nuanceProfile,
-          conversationPlan: emo.conversationPlan,
-          supportFlags: emo.supportFlags,
-          fallbackSuppression: !!emo.fallbackSuppression,
-          needsNovelMove: !!emo.needsNovelMove,
-          routeExhaustion: !!emo.routeExhaustion
-        } : null,
-        priorState: isPlainObject(session?.__spineState) ? session.__spineState : {},
-        publicMode: !!context?.publicMode
-      }
-    };
-    const out = await bridge.maybeResolve(req);
-    if (!isPlainObject(out) || !out.usedBridge || !isPlainObject(out.packet)) return null;
-    return out;
-  } catch (_e) {
-    return null;
-  }
-}
-function bridgePacketToRouteOut(bridgePacket, norm, emo) {
-  const packet = isPlainObject(bridgePacket?.packet) ? bridgePacket.packet : null;
-  if (!packet || !isPlainObject(packet.synthesis)) return null;
-  const synthesis = packet.synthesis;
-  const answer = safeStr(synthesis.answer || "").trim();
-  if (!answer) return null;
-  const lane = emo && (emo.supportFlags?.highDistress || emo.conversationPlan?.shouldUseSupportLock) ? "general" : safeStr(norm?.lane || packet.routing?.domain || "general") || "general";
-  return {
-    reply: answer,
-    lane,
-    directives: [{ type: "marion_bridge", confidence: Number(synthesis.confidence || 0), nextAction: safeStr(synthesis.nextAction || "respond") }],
-    followUps: emotionSuppressesMenus(emo) ? [] : buildFollowUpsForLane(lane),
-    ui: emotionSuppressesMenus(emo) ? supportUiForEmotion(emo, { suppressChips: true }) : buildUiForLane(lane),
-    meta: {
-      marionBridgeUsed: true,
-      marionTraceId: safeStr(packet.traceId || ""),
-      marionConfidence: Number(synthesis.confidence || 0),
-      marionNextAction: safeStr(synthesis.nextAction || "respond"),
-      marionDomain: safeStr(packet.routing?.domain || "general"),
-      marionIntent: safeStr(packet.routing?.intent || "general"),
-      marionLoopGuard: !!packet.guardrails?.loopGuard?.active
-    },
-    bridgePacket: packet
-  };
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1674,7 +1716,7 @@ async function handleChat(input) {
         })
       : { move: "ADVANCE", stage: "deliver", rationale: "planner_missing" };
 
-    const emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
+    let emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
       ? maybeBuildEmotionFirstReply(norm, emo)
       : null;
     if (emotionFirst && safeStr(emotionFirst.reply)) {
@@ -1699,12 +1741,18 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
-      const emotionPacketMeta = isPlainObject(emotionFirst.packetMeta) ? emotionFirst.packetMeta : {};
-      const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo, emotionPacketMeta) : buildFollowUpsForLane(lane);
-      const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+      const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, { meta: isPlainObject(emotionFirst.meta) ? emotionFirst.meta : {} });
+      if (shouldForceSupportReply(interactionMode, safeReply)) {
+        const repairedPacket = buildSupportPacketSafe(norm, emo);
+        if (repairedPacket && safeStr(repairedPacket.reply)) {
+          emotionFirst = { ...emotionFirst, reply: safeStr(repairedPacket.reply), mode: safeStr(repairedPacket.mode || "supportive"), meta: { ...(isPlainObject(emotionFirst.meta) ? emotionFirst.meta : {}), ...(isPlainObject(repairedPacket.meta) ? repairedPacket.meta : {}) } };
+        }
+      }
+      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive" || interactionMode.supportLock;
+      const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
+      const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
-      const ui = isSupportiveEmotion ? buildSupportiveEmotionUi(emo, emotionPacketMeta) : buildUiForLane(lane);
+      const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane));
       const nextSpine = finalizeSpineSafe({
         prevState: corePrev,
         inbound: {
@@ -1761,7 +1809,7 @@ async function handleChat(input) {
         cog: {
           route: "emotion_route_guard",
           publicMode,
-          mode: "transitional",
+          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : "transitional"),
           intent: emo?.bypassClarify ? "STABILIZE" : "ENGAGE",
           emotion: emo ? {
             mode: emo.mode,
@@ -1806,18 +1854,16 @@ async function handleChat(input) {
           __emotionFallbackSuppression: !!emo?.fallbackSuppression,
           __emotionNeedsNovelMove: !!emo?.needsNovelMove,
           __emotionRouteExhaustion: !!emo?.routeExhaustion,
-          __emotionArchetype: safeStr(emo?.nuanceProfile?.archetype || emo?.conversationPlan?.primaryArchetype || ""),
-          __emotionConversationNeed: safeStr(emo?.nuanceProfile?.conversationNeed || emo?.conversationPlan?.conversationNeed || ""),
-          __emotionTransitionReadiness: safeStr(emo?.nuanceProfile?.transitionReadiness || emo?.conversationPlan?.transitionReadiness || ""),
-          __emotionLoopRisk: safeStr(emo?.nuanceProfile?.loopRisk || emo?.conversationPlan?.loopRisk || ""),
-          __emotionQuestionPressure: safeStr(emo?.nuanceProfile?.questionPressure || emo?.conversationPlan?.questionPressure || ""),
           __emotionAt: nowMs(),
           __cacheInSig: inSig,
           __cacheReply: safeReply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
           __cacheDirectives: directives,
-          __cacheAt: nowMs()
+          __cacheAt: nowMs(),
+          __supportLock: !!interactionMode.supportLock,
+          __supportLockTurns: interactionMode.supportLock ? 2 : 0,
+          __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard")
         },
         completeTurnLifecycle(session, {
           turnId,
@@ -1957,18 +2003,30 @@ async function handleChat(input) {
       return greetingContract;
     }
 
-    const bridgeResolved = await resolveMarionBridgeSafe(norm, session, emo, { sessionId, turnId, requestId, publicMode });
-    const bridgeRouteOut = bridgePacketToRouteOut(bridgeResolved, norm, emo);
-    const routeOut = bridgeRouteOut || (routeLane
-      ? routeLane(norm, session, emo)
-      : {
-          reply: "Pick a lane or ask directly and I will take it there.",
-          lane: safeStr(norm.lane || "general") || "general",
-          directives: [],
-          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
-          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
-          meta: { failOpen: true, routeLaneMissing: true }
-        });
+    const interactionPacket = buildSupportPacketSafe(norm, emo);
+    const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, interactionPacket);
+    const marionBridgeResult = await maybeResolveMarionBridgeSafe(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode);
+
+    let routeOut = null;
+    if (interactionMode.supportLock) {
+      routeOut = buildRouteOutFromSupport(norm, emo, interactionPacket);
+    } else if (interactionMode.technical) {
+      routeOut = buildDirectTechnicalRoute(norm, marionBridgeResult);
+    } else {
+      const laneRouteOut = routeLane
+        ? routeLane(norm, session, emo)
+        : {
+            reply: "Pick a lane or ask directly and I will take it there.",
+            lane: safeStr(norm.lane || "general") || "general",
+            directives: [],
+            followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
+            ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+            meta: { failOpen: true, routeLaneMissing: true }
+          };
+      routeOut = shouldUseBridgeSynthesis(norm, interactionMode, marionBridgeResult, laneRouteOut, emo)
+        ? buildRouteOutFromBridge(norm, marionBridgeResult)
+        : laneRouteOut;
+    }
 
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
@@ -1990,22 +2048,19 @@ async function handleChat(input) {
       publicMode
     );
 
+    if (interactionMode.supportLock && shouldForceSupportReply(interactionMode, safeReply)) {
+      const repairedSupport = buildSupportPacketSafe(norm, emo);
+      if (repairedSupport && safeStr(repairedSupport.reply)) {
+        reply = safeStr(repairedSupport.reply);
+      }
+    }
+
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
-    const bridge = bridgeRouteOut && isPlainObject(bridgeRouteOut.bridgePacket)
-      ? {
-          v: "bridge.v2",
-          requestId: safeStr(requestId || ""),
-          traceId: safeStr(bridgeRouteOut.bridgePacket.traceId || ""),
-          fromLane: safeStr(sessionLaneState?.previous || ""),
-          toLane: safeStr(lane || "general"),
-          reason: "marion_bridge",
-          at: nowMs()
-        }
-      : computeBridge(sessionLaneState, requestId);
-    const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : (emotionSuppressesMenus(emo) ? [] : buildFollowUpsForLane(lane));
-    const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+    const bridge = interactionMode.supportLock ? null : computeBridge(sessionLaneState, requestId);
+    const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
+    const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
-    const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : (emotionSuppressesMenus(emo) ? supportUiForEmotion(emo, { suppressChips: true }) : buildUiForLane(lane));
+    const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane));
 
     let nextSpine = null;
     try {
@@ -2041,8 +2096,11 @@ async function handleChat(input) {
         marionCog: {
           route: emo ? "emotion_route_guard" : "general",
           intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
-          publicMode
+          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
+          publicMode,
+          bridgeUsed: !!marionBridgeResult?.usedBridge,
+          bridgeDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
+          knowledgeDomains: KNOWLEDGE_DOMAINS.slice()
         },
         assistantSummary: safeReply,
         updateReason: "turn"
@@ -2083,11 +2141,20 @@ async function handleChat(input) {
       followUpsStrings: followUps.map((x) => x.label),
       sessionPatch: {},
       cog: {
-        marionVersion: safeStr(MarionBridge?.BRIDGE_VERSION || MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
+        marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
+        marionBridgeVersion: safeStr(MarionBridgeModule?.BRIDGE_VERSION || ""),
         route: emo ? "emotion_route_guard" : "general",
         intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-        mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+        mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : "transitional"),
         publicMode,
+        knowledgeDomains: KNOWLEDGE_DOMAINS.slice(),
+        marionBridge: marionBridgeResult?.usedBridge ? {
+          used: true,
+          domain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
+          candidates: Array.isArray(marionBridgeResult?.packet?.routing?.candidates) ? marionBridgeResult.packet.routing.candidates.slice(0, 6) : [],
+          confidence: Number(marionBridgeResult?.packet?.synthesis?.confidence || 0),
+          evidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0)
+        } : { used: false },
         emotion: emo ? {
           mode: emo.mode,
           valence: emo.valence,
@@ -2096,16 +2163,7 @@ async function handleChat(input) {
           bypassClarify: !!emo.bypassClarify,
           recoveryPresent: !!emo.supportFlags?.recoveryPresent,
           positivePresent: !!emo.supportFlags?.positivePresent,
-          contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99),
-          nuanceProfile: emo.nuanceProfile,
-          conversationPlan: emo.conversationPlan
-        } : null,
-        marion: bridgeRouteOut && isPlainObject(bridgeRouteOut.bridgePacket) ? {
-          usedBridge: true,
-          traceId: safeStr(bridgeRouteOut.bridgePacket.traceId || ""),
-          domain: safeStr(bridgeRouteOut.bridgePacket.routing?.domain || "general"),
-          intent: safeStr(bridgeRouteOut.bridgePacket.routing?.intent || "general"),
-          confidence: Number(bridgeRouteOut.bridgePacket.synthesis?.confidence || 0)
+          contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
         } : null
       },
       requestId,
@@ -2115,10 +2173,11 @@ async function handleChat(input) {
         phase: 14,
         emotionCached: !!emo?.cached,
         telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "final" }),
-        marionBridgeUsed: !!bridgeRouteOut,
-        marionTraceId: safeStr(bridgeRouteOut?.bridgePacket?.traceId || ""),
         sessionId: shortId(sessionId),
-        turnId: shortId(turnId)
+        turnId: shortId(turnId),
+        marionDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
+        marionEvidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0),
+        interactionMode
       }
     };
 
@@ -2152,16 +2211,14 @@ async function handleChat(input) {
         __emotionFallbackSuppression: !!emo?.fallbackSuppression,
         __emotionNeedsNovelMove: !!emo?.needsNovelMove,
         __emotionRouteExhaustion: !!emo?.routeExhaustion,
-        __emotionArchetype: safeStr(emo?.nuanceProfile?.archetype || emo?.conversationPlan?.primaryArchetype || ""),
-        __emotionConversationNeed: safeStr(emo?.nuanceProfile?.conversationNeed || emo?.conversationPlan?.conversationNeed || ""),
-        __emotionTransitionReadiness: safeStr(emo?.nuanceProfile?.transitionReadiness || emo?.conversationPlan?.transitionReadiness || ""),
-        __emotionLoopRisk: safeStr(emo?.nuanceProfile?.loopRisk || emo?.conversationPlan?.loopRisk || ""),
-        __emotionQuestionPressure: safeStr(emo?.nuanceProfile?.questionPressure || emo?.conversationPlan?.questionPressure || ""),
         __emotionAt: nowMs(),
-        __marionBridgeUsed: !!bridgeRouteOut,
-        __marionTraceId: safeStr(bridgeRouteOut?.bridgePacket?.traceId || ""),
-        __marionDomain: safeStr(bridgeRouteOut?.bridgePacket?.routing?.domain || ""),
-        __marionIntent: safeStr(bridgeRouteOut?.bridgePacket?.routing?.intent || "")
+        __supportLock: !!interactionMode.supportLock,
+        __supportLockTurns: interactionMode.supportLock ? 2 : 0,
+        __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard"),
+        __marionBridgeUsed: !!marionBridgeResult?.usedBridge,
+        __marionBridgeDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
+        __marionBridgeEvidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0),
+        __knowledgeDomains: KNOWLEDGE_DOMAINS.slice()
       },
       completeTurnLifecycle(session, {
         turnId,
