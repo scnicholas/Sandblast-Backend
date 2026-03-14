@@ -31,21 +31,21 @@
  */
 
 let Spine = null;
+let MarionBridgeMod = null;
+let MarionBridge = null;
 let MarionSO = null;
-let MarionBridgeModule = null;
 let EmotionRouteGuard = null;
 let Support = null;
 
 try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
+try { MarionBridgeMod = require("./marionBridge"); } catch (_e) { MarionBridgeMod = null; }
 try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
-try { MarionBridgeModule = require("./marionBridge"); } catch (_e) { MarionBridgeModule = null; }
 try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
 try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
 
 let laneRouter = null;
 let memoryAdapter = null;
 let telemetryAdapter = null;
-let MarionBridgeRuntime = null;
 
 try { laneRouter = require("./laneRouter"); } catch (_e) { laneRouter = null; }
 try { memoryAdapter = require("./chatMemoryAdapter"); } catch (_e) { memoryAdapter = null; }
@@ -129,203 +129,151 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
 
 const CE_VERSION = "chatEngine v0.13.0 OPINTEL LOOP-FINAL";
 
-function normalizeKnowledgeEvidenceItems(sectionValue, domain, sourceLabel) {
-  const out = [];
-  const source = safeStr(sourceLabel || `knowledge:${domain || "general"}`) || "knowledge:general";
-  const pushItem = (title, content, score = 0, tags = []) => {
-    const body = oneLine(content);
-    if (!body) return;
-    out.push({
-      title: safeStr(title || `${domain || "general"}_knowledge`, 120) || `${domain || "general"}_knowledge`,
-      content: body,
-      source,
-      score: Number.isFinite(Number(score)) ? Number(score) : 0,
-      tags: [...new Set([domain, ...((Array.isArray(tags) ? tags : [])).map((x) => safeStr(x).trim()).filter(Boolean)])].filter(Boolean)
-    });
-  };
+const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
-  if (Array.isArray(sectionValue)) {
-    for (let i = 0; i < sectionValue.length; i += 1) {
-      const item = sectionValue[i];
-      if (typeof item === "string") {
-        pushItem(`${domain || "general"}_knowledge_${i + 1}`, item);
-      } else if (isPlainObject(item)) {
-        pushItem(item.title || `${domain || "general"}_knowledge_${i + 1}`, item.content || item.text || item.summary || item.body || "", item.score || 0, item.tags || []);
+function getMarionBridge() {
+  if (MarionBridge) return MarionBridge;
+  const factory = MarionBridgeMod && typeof MarionBridgeMod.createMarionBridge === "function"
+    ? MarionBridgeMod.createMarionBridge
+    : null;
+  if (!factory) return null;
+  MarionBridge = factory({
+    marionSO: MarionSO,
+    memoryProvider: {
+      async getContext(req) {
+        const meta = isPlainObject(req?.meta) ? req.meta : {};
+        const session = isPlainObject(meta.session) ? meta.session : {};
+        return {
+          lastIntent: safeStr(session.__lastIntent || session.lastIntent || ""),
+          lastDomain: safeStr(session.__lastDomain || session.lastDomain || ""),
+          openLoops: Array.isArray(session.__openLoops) ? session.__openLoops : [],
+          userPreferences: Array.isArray(session.__userPreferences) ? session.__userPreferences : [],
+          recentTopics: Array.isArray(session.__recentTopics) ? session.__recentTopics : []
+        };
+      },
+      async putContext() { return true; }
+    },
+    evidenceEngine: {
+      async collect(req) {
+        const meta = isPlainObject(req?.meta) ? req.meta : {};
+        return collectKnowledgeEvidence(meta, req?.domain);
       }
     }
-    return out;
-  }
+  });
+  return MarionBridge;
+}
 
-  if (isPlainObject(sectionValue)) {
-    if (typeof sectionValue.content === "string" || typeof sectionValue.text === "string" || typeof sectionValue.summary === "string") {
-      pushItem(sectionValue.title || `${domain || "general"}_knowledge`, sectionValue.content || sectionValue.text || sectionValue.summary || sectionValue.body || "", sectionValue.score || 0, sectionValue.tags || []);
-      return out;
+function normalizeKnowledgeItems(value, domain) {
+  const list = Array.isArray(value) ? value : (value ? [value] : []);
+  const out = [];
+  for (const item of list) {
+    if (!item) continue;
+    if (typeof item === "string") {
+      const content = oneLine(item).trim();
+      if (content) out.push({ title: `${domain}_knowledge`, content, source: `knowledge.${domain}`, score: 0.78, tags: [domain, "knowledge"] });
+      continue;
     }
-    for (const [key, value] of Object.entries(sectionValue)) {
-      if (typeof value === "string") pushItem(key, value);
-      else if (isPlainObject(value)) pushItem(value.title || key, value.content || value.text || value.summary || value.body || "", value.score || 0, value.tags || []);
+    if (isPlainObject(item)) {
+      const content = oneLine(item.content || item.text || item.body || item.summary || item.note || "").trim();
+      if (!content) continue;
+      out.push({
+        title: safeStr(item.title || item.label || `${domain}_knowledge`),
+        content,
+        source: safeStr(item.source || `knowledge.${domain}`),
+        score: Number(item.score || 0.8) || 0.8,
+        tags: Array.isArray(item.tags) ? item.tags.slice(0, 8) : [domain, "knowledge"]
+      });
     }
-    return out;
   }
-
-  if (typeof sectionValue === "string") pushItem(`${domain || "general"}_knowledge`, sectionValue);
   return out;
 }
 
-function extractKnowledgeSections(meta) {
-  const m = isPlainObject(meta) ? meta : {};
-  const containers = [
-    m.knowledgeSections,
-    m.knowledge,
-    m.domainKnowledge,
-    m.knowledgeByDomain,
-    m.sections
-  ].filter((x) => isPlainObject(x));
-  const merged = {};
-  for (const domain of KNOWLEDGE_DOMAINS) {
-    for (const c of containers) {
-      if (c && c[domain] !== undefined && merged[domain] === undefined) merged[domain] = c[domain];
+function extractKnowledgeSections(rawInput, norm, session) {
+  const domains = {};
+  for (const d of KNOWLEDGE_DOMAINS) domains[d] = [];
+  const raw = isPlainObject(rawInput) ? rawInput : {};
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const bags = [
+    raw.knowledgeSections, raw.knowledge, raw.meta?.knowledgeSections, raw.meta?.knowledge,
+    n.ctx?.knowledgeSections, n.ctx?.knowledge, n.body?.knowledgeSections, n.body?.knowledge,
+    n.payload?.knowledgeSections, n.payload?.knowledge,
+    s.__knowledgeSections, s.knowledgeSections, s.meta?.knowledgeSections, s.meta?.knowledge
+  ].filter(isPlainObject);
+  for (const bag of bags) {
+    for (const d of KNOWLEDGE_DOMAINS) {
+      domains[d].push(...normalizeKnowledgeItems(bag[d], d));
     }
   }
-  return merged;
+  return domains;
 }
 
-function buildKnowledgeDomainPriority(norm, emo) {
-  const ranked = [];
-  if (emo && (emo.mode === "VULNERABLE" || emo.supportFlags?.highDistress || emo.supportFlags?.needsContainment || emo.supportFlags?.needsConnection)) ranked.push("psychology");
-  if (/rewrite|tone|grammar|summary|headline|narrative/i.test(safeStr(norm?.text || ""))) ranked.push("language");
-  if (/budget|revenue|pricing|roi|funding|profit/i.test(safeStr(norm?.text || ""))) ranked.push("finance");
-  if (/contract|legal|policy|liability|copyright/i.test(safeStr(norm?.text || ""))) ranked.push("law");
-  if (/model|ai|agent|security|auth|dataset|vector|pipeline/i.test(safeStr(norm?.text || ""))) ranked.push("ai_cyber");
-  if (/brand|audience|channel|roku|streaming|metadata|campaign/i.test(safeStr(norm?.text || ""))) ranked.push("marketing_media");
-  for (const d of KNOWLEDGE_DOMAINS) if (!ranked.includes(d)) ranked.push(d);
-  return ranked;
-}
-
-function buildMarionBridgeRuntime() {
-  if (!MarionBridgeModule || typeof MarionBridgeModule.createMarionBridge !== "function") return null;
-  try {
-    return MarionBridgeModule.createMarionBridge({
-      marionSO: MarionSO,
-      domainKeywords: MARION_DOMAIN_KEYWORDS,
-      memoryProvider: {
-        getContext: async ({ sessionId }) => {
-          const ctx = buildMemoryContext(sessionId || "") || {};
-          return isPlainObject(ctx) ? ctx : {};
-        },
-        putContext: async () => null
-      },
-      evidenceEngine: {
-        collect: async ({ domain, meta }) => {
-          const sections = extractKnowledgeSections(meta);
-          const priority = buildKnowledgeDomainPriority({ text: meta?.userText || "" }, meta?.emo || null);
-          const domains = [domain, ...priority].filter(Boolean);
-          const out = [];
-          for (const d of domains) {
-            if (!d || !sections[d]) continue;
-            out.push(...normalizeKnowledgeEvidenceItems(sections[d], d, `knowledge:${d}`));
-          }
-          return out.slice(0, 24);
-        }
-      },
-      telemetry: { track: async () => null }
-    });
-  } catch (_e) {
-    return null;
+function collectKnowledgeEvidence(meta, preferredDomain) {
+  const sections = isPlainObject(meta?.knowledgeSections) ? meta.knowledgeSections : {};
+  const out = [];
+  if (preferredDomain && Array.isArray(sections[preferredDomain])) out.push(...sections[preferredDomain]);
+  for (const d of KNOWLEDGE_DOMAINS) {
+    if (d === preferredDomain) continue;
+    if (Array.isArray(sections[d])) out.push(...sections[d]);
   }
+  return out.slice(0, 24);
 }
 
-MarionBridgeRuntime = buildMarionBridgeRuntime();
-
-function buildMarionBridgeRequest(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode) {
-  const sessionObj = isPlainObject(session) ? session : {};
-  const meta = {
-    publicMode,
-    emo,
-    plannerDecision: isPlainObject(plannerDecision) ? plannerDecision : {},
-    userText: safeStr(norm?.text || ""),
-    knowledgeDomains: KNOWLEDGE_DOMAINS.slice(),
-    knowledgePriority: buildKnowledgeDomainPriority(norm, emo),
-    knowledgeSections: extractKnowledgeSections({
-      knowledgeSections: sessionObj.knowledgeSections,
-      knowledge: sessionObj.knowledge,
-      domainKnowledge: sessionObj.domainKnowledge,
-      knowledgeByDomain: sessionObj.knowledgeByDomain,
-      sections: sessionObj.sections
-    })
-  };
-
-  return {
-    userText: safeStr(norm?.text || ""),
-    text: safeStr(norm?.text || ""),
-    sessionId: safeStr(sessionId || sessionObj.sessionId || sessionObj.sid || "session_unknown"),
-    userId: safeStr(sessionObj.userId || sessionObj.uid || "user_unknown"),
-    turnId: safeStr(turnId || requestId || "turn_unknown"),
-    meta
-  };
-}
-
-async function maybeResolveMarionBridgeSafe(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode) {
-  const runtime = MarionBridgeRuntime || buildMarionBridgeRuntime();
-  if (!runtime || typeof runtime.maybeResolve !== "function") return null;
-  try {
-    return await runtime.maybeResolve(buildMarionBridgeRequest(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode));
-  } catch (_e) {
-    return null;
-  }
-}
-
-function shouldUseBridgeSynthesis(norm, mode, bridgeResult, routeOut, emo) {
-  const packet = bridgeResult?.packet;
-  const answer = safeStr(packet?.synthesis?.answer || "").trim();
-  if (!bridgeResult?.usedBridge || !answer) return false;
-  const confidence = Number(packet?.synthesis?.confidence || 0);
-  if (mode?.supportLock) return false;
-  if (mode?.technical) return true;
-  if (!routeOut) return confidence >= 0.45;
+function shouldSuppressLaneArtifacts(norm, emo, routeOut) {
+  if (isTechnicalExecutionInbound(norm)) return true;
+  if (emo?.bypassClarify || emo?.fallbackSuppression || emo?.routeExhaustion || emo?.supportFlags?.mentionsLooping) return true;
+  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization) return true;
   const routeReply = safeStr(routeOut?.reply || "");
-  if (!routeReply) return true;
-  if (isGenericMenuBounceReply(routeReply)) return true;
-  if (emo?.supportFlags?.mentionsLooping && confidence >= 0.45) return true;
+  if (/pick a lane|take it there|exact target|go to music|go to movies|menu/i.test(routeReply)) return true;
   return false;
 }
 
-function buildRouteOutFromSupport(norm, emo, supportPacket) {
-  const reply = safeStr(supportPacket?.reply || "").trim() || safeStr(maybeBuildEmotionFirstReply(norm, emo)?.reply || "").trim() || "I am here with you. Tell me what you need from me right now.";
-  return {
-    reply,
-    lane: safeStr(norm?.lane || "general") || "general",
-    directives: buildEmotionDirectives(emo, supportPacket),
-    followUps: buildSupportiveEmotionFollowUps(emo),
-    ui: buildSupportiveEmotionUi(emo),
-    meta: { supportLock: true, suppressChips: true, suppressLaneRouting: true }
-  };
+function quietUi(mode) {
+  return { chips: [], allowMic: true, mode: safeStr(mode || "quiet") || "quiet" };
 }
 
-function buildRouteOutFromBridge(norm, bridgeResult) {
-  const packet = bridgeResult?.packet;
-  const answer = safeStr(packet?.synthesis?.answer || "").trim();
-  const domain = safeStr(packet?.routing?.domain || "general") || "general";
-  return {
-    reply: answer || "Tell me the exact target and I will handle it directly.",
-    lane: safeStr(norm?.lane || "general") || "general",
-    directives: [],
-    followUps: [],
-    ui: { chips: [], allowMic: true, mode: domain },
-    meta: { marionBridge: true, marionDomain: domain, marionConfidence: Number(packet?.synthesis?.confidence || 0) }
-  };
+function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
+  const suppress = shouldSuppressLaneArtifacts(norm, emo, routeOut);
+  if (suppress) return { followUps: [], followUpsStrings: [], ui: quietUi(emo ? "supportive" : "direct"), menusSuppressed: true };
+  const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+  const ui = isPlainObject(uiRaw) ? uiRaw : buildUiForLane(lane);
+  return { followUps, followUpsStrings: artifacts.followUpsStrings, ui, menusSuppressed: false };
 }
 
-function buildDirectTechnicalRoute(norm, bridgeResult) {
-  if (bridgeResult?.usedBridge && safeStr(bridgeResult?.packet?.synthesis?.answer || "")) return buildRouteOutFromBridge(norm, bridgeResult);
-  return {
-    reply: "I am staying in direct technical mode. Give me the exact file, function, or behavior you want changed and I will work that path without dropping into lane menus.",
-    lane: safeStr(norm?.lane || "general") || "general",
-    directives: [],
-    followUps: [],
-    ui: { chips: [], allowMic: true, mode: "technical" },
-    meta: { technicalDirect: true }
+async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId, turnId, publicMode) {
+  const bridge = getMarionBridge();
+  if (!bridge || typeof bridge.maybeResolve !== "function") return { usedBridge: false, packet: null, sections: extractKnowledgeSections(rawInput, norm, session) };
+  const knowledgeSections = extractKnowledgeSections(rawInput, norm, session);
+  const domainHint = (emo && (emo.supportFlags?.needsConnection || emo.supportFlags?.needsStabilization || emo.mode === "VULNERABLE")) ? "psychology" : safeStr(rawInput?.preferredDomain || "");
+  const req = {
+    text: safeStr(norm?.text || ""),
+    sessionId: safeStr(session?.id || rawInput?.sessionId || norm?.ctx?.sessionId || ""),
+    userId: safeStr(rawInput?.userId || session?.userId || ""),
+    turnId: safeStr(turnId || ""),
+    meta: {
+      requestId,
+      publicMode: !!publicMode,
+      session: isPlainObject(session) ? session : {},
+      norm,
+      knowledgeSections,
+      preferredDomain: domainHint || undefined,
+      emotion: emo ? {
+        mode: emo.mode,
+        primaryEmotion: emo.primaryEmotion,
+        secondaryEmotion: emo.secondaryEmotion,
+        emotionCluster: emo.emotionCluster,
+        supportModeCandidate: emo.supportModeCandidate,
+        fallbackSuppression: !!emo.fallbackSuppression,
+        routeExhaustion: !!emo.routeExhaustion
+      } : null
+    }
   };
+  try {
+    const out = await bridge.maybeResolve(req);
+    return { ...(isPlainObject(out) ? out : {}), sections: knowledgeSections };
+  } catch (_e) {
+    return { usedBridge: false, packet: null, sections: knowledgeSections };
+  }
 }
 
 function nowMs() {
@@ -1716,7 +1664,7 @@ async function handleChat(input) {
         })
       : { move: "ADVANCE", stage: "deliver", rationale: "planner_missing" };
 
-    let emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
+    const emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
       ? maybeBuildEmotionFirstReply(norm, emo)
       : null;
     if (emotionFirst && safeStr(emotionFirst.reply)) {
@@ -1741,18 +1689,12 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, { meta: isPlainObject(emotionFirst.meta) ? emotionFirst.meta : {} });
-      if (shouldForceSupportReply(interactionMode, safeReply)) {
-        const repairedPacket = buildSupportPacketSafe(norm, emo);
-        if (repairedPacket && safeStr(repairedPacket.reply)) {
-          emotionFirst = { ...emotionFirst, reply: safeStr(repairedPacket.reply), mode: safeStr(repairedPacket.mode || "supportive"), meta: { ...(isPlainObject(emotionFirst.meta) ? emotionFirst.meta : {}), ...(isPlainObject(repairedPacket.meta) ? repairedPacket.meta : {}) } };
-        }
-      }
-      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive" || interactionMode.supportLock;
+      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
       const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
-      const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
-      const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane));
+      const artifacts = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane), { reply: safeReply, lane, mode: emotionFirst.mode });
+      const followUps = artifacts.followUps;
+      const ui = artifacts.ui;
       const nextSpine = finalizeSpineSafe({
         prevState: corePrev,
         inbound: {
@@ -1804,12 +1746,12 @@ async function handleChat(input) {
         ui,
         directives,
         followUps,
-        followUpsStrings: followUps.map((x) => x.label),
+        followUpsStrings: artifacts.followUpsStrings,
         sessionPatch: {},
         cog: {
           route: "emotion_route_guard",
           publicMode,
-          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : "transitional"),
+          mode: "transitional",
           intent: emo?.bypassClarify ? "STABILIZE" : "ENGAGE",
           emotion: emo ? {
             mode: emo.mode,
@@ -1855,15 +1797,18 @@ async function handleChat(input) {
           __emotionNeedsNovelMove: !!emo?.needsNovelMove,
           __emotionRouteExhaustion: !!emo?.routeExhaustion,
           __emotionAt: nowMs(),
+        __lastIntent: safeStr(bridgeRouting?.intent || plannerDecision?.move || ""),
+        __lastDomain: safeStr(bridgeRouting?.domain || ""),
+        __knowledgeSections: marionBridgeOut?.sections || {},
+        __marionBridgeUsed: !!bridgeShouldAnswer,
+        __marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
+        __marionBridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
           __cacheInSig: inSig,
           __cacheReply: safeReply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
           __cacheDirectives: directives,
-          __cacheAt: nowMs(),
-          __supportLock: !!interactionMode.supportLock,
-          __supportLockTurns: interactionMode.supportLock ? 2 : 0,
-          __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard")
+          __cacheAt: nowMs()
         },
         completeTurnLifecycle(session, {
           turnId,
@@ -1898,7 +1843,7 @@ async function handleChat(input) {
         sessionLane: "general",
         bridge: null,
         ctx: {},
-        ui: buildUiForLane("general"),
+        ui: quietUi("supportive"),
         directives: [],
         followUps: [],
         followUpsStrings: [],
@@ -1953,7 +1898,8 @@ async function handleChat(input) {
         publicMode
       );
       const lane = safeStr(norm.lane || "general") || "general";
-      const followUps = buildFollowUpsForLane(lane);
+      const artifacts = laneArtifactsForTurn(norm, emo, lane, buildFollowUpsForLane(lane), buildUiForLane(lane), { reply, lane, mode: "greeting" });
+      const followUps = artifacts.followUps;
 
       const greetingContract = {
         ok: true,
@@ -1967,7 +1913,7 @@ async function handleChat(input) {
         ui: buildUiForLane(lane),
         directives: [],
         followUps,
-        followUpsStrings: followUps.map((x) => x.label),
+        followUpsStrings: artifacts.followUpsStrings,
         sessionPatch: {},
         cog: { publicMode, mode: "transitional", intent: "GREETING" },
         requestId,
@@ -2003,30 +1949,35 @@ async function handleChat(input) {
       return greetingContract;
     }
 
-    const interactionPacket = buildSupportPacketSafe(norm, emo);
-    const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, interactionPacket);
-    const marionBridgeResult = await maybeResolveMarionBridgeSafe(norm, session, emo, plannerDecision, requestId, turnId, sessionId, publicMode);
+    const marionBridgeOut = await maybeResolveMarionBridge(rawInput, norm, session, emo, requestId, turnId, publicMode);
+    const bridgePacket = isPlainObject(marionBridgeOut?.packet) ? marionBridgeOut.packet : null;
+    const bridgeSynthesis = isPlainObject(bridgePacket?.synthesis) ? bridgePacket.synthesis : null;
+    const bridgeRouting = isPlainObject(bridgePacket?.routing) ? bridgePacket.routing : null;
+    const bridgeShouldAnswer = !!(marionBridgeOut?.usedBridge && safeStr(bridgeSynthesis?.answer || ""));
 
-    let routeOut = null;
-    if (interactionMode.supportLock) {
-      routeOut = buildRouteOutFromSupport(norm, emo, interactionPacket);
-    } else if (interactionMode.technical) {
-      routeOut = buildDirectTechnicalRoute(norm, marionBridgeResult);
-    } else {
-      const laneRouteOut = routeLane
-        ? routeLane(norm, session, emo)
-        : {
-            reply: "Pick a lane or ask directly and I will take it there.",
-            lane: safeStr(norm.lane || "general") || "general",
-            directives: [],
-            followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
-            ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
-            meta: { failOpen: true, routeLaneMissing: true }
-          };
-      routeOut = shouldUseBridgeSynthesis(norm, interactionMode, marionBridgeResult, laneRouteOut, emo)
-        ? buildRouteOutFromBridge(norm, marionBridgeResult)
-        : laneRouteOut;
-    }
+    const routeOut = bridgeShouldAnswer
+      ? {
+          reply: safeStr(bridgeSynthesis.answer),
+          lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || (emo ? "general" : "general")) || "general",
+          directives: [],
+          followUps: [],
+          ui: quietUi(bridgeRouting?.domain === "psychology" ? "supportive" : "direct"),
+          meta: {
+            bridgeResolved: true,
+            bridgeDomain: safeStr(bridgeRouting?.domain || "general"),
+            bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99)
+          }
+        }
+      : routeLane
+      ? routeLane(norm, session, emo)
+      : {
+          reply: "Tell me the exact thing you need help with and I will stay on that without bouncing you into a menu.",
+          lane: safeStr(norm.lane || "general") || "general",
+          directives: [],
+          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
+          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+          meta: { failOpen: true, routeLaneMissing: true }
+        };
 
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
@@ -2048,19 +1999,25 @@ async function handleChat(input) {
       publicMode
     );
 
-    if (interactionMode.supportLock && shouldForceSupportReply(interactionMode, safeReply)) {
-      const repairedSupport = buildSupportPacketSafe(norm, emo);
-      if (repairedSupport && safeStr(repairedSupport.reply)) {
-        reply = safeStr(repairedSupport.reply);
-      }
-    }
-
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
-    const bridge = interactionMode.supportLock ? null : computeBridge(sessionLaneState, requestId);
+    const bridge = bridgeShouldAnswer
+      ? {
+          v: safeStr(bridgePacket?.version || "bridge.v2"),
+          requestId: safeStr(requestId || ""),
+          domain: safeStr(bridgeRouting?.domain || "general"),
+          candidates: Array.isArray(bridgeRouting?.candidates) ? bridgeRouting.candidates : [],
+          evidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
+          confidence: Number(bridgePacket?.synthesis?.confidence || 0) || 0,
+          knowledgeDomains: Object.keys(marionBridgeOut?.sections || {}).filter((k) => Array.isArray(marionBridgeOut.sections[k]) && marionBridgeOut.sections[k].length),
+          supportLockBias: !!shouldSuppressLaneArtifacts(norm, emo, routeOut),
+          at: nowMs()
+        }
+      : computeBridge(sessionLaneState, requestId);
     const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
-    const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
-    const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane));
+    const artifacts = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane), routeOut);
+    const followUps = artifacts.followUps;
+    const ui = artifacts.ui;
 
     let nextSpine = null;
     try {
@@ -2094,13 +2051,10 @@ async function handleChat(input) {
           _plannerMode: safeStr(plannerDecision?._plannerMode || (isTechnicalExecutionInbound(norm) ? "execution" : "advance"), 48)
         },
         marionCog: {
-          route: emo ? "emotion_route_guard" : "general",
+          route: bridgeShouldAnswer ? "marion_bridge" : (emo ? "emotion_route_guard" : "general"),
           intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
-          publicMode,
-          bridgeUsed: !!marionBridgeResult?.usedBridge,
-          bridgeDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
-          knowledgeDomains: KNOWLEDGE_DOMAINS.slice()
+          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+          publicMode
         },
         assistantSummary: safeReply,
         updateReason: "turn"
@@ -2138,23 +2092,14 @@ async function handleChat(input) {
       ui,
       directives,
       followUps,
-      followUpsStrings: followUps.map((x) => x.label),
+      followUpsStrings: artifacts.followUpsStrings,
       sessionPatch: {},
       cog: {
-        marionVersion: safeStr(MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
-        marionBridgeVersion: safeStr(MarionBridgeModule?.BRIDGE_VERSION || ""),
-        route: emo ? "emotion_route_guard" : "general",
+        marionVersion: safeStr(bridgePacket?.version || MarionBridgeMod?.BRIDGE_VERSION || MarionSO?.MARION_VERSION || MarionSO?.SO_VERSION || MarionSO?.version || ""),
+        route: bridgeShouldAnswer ? "marion_bridge" : (emo ? "emotion_route_guard" : "general"),
         intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-        mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : "transitional"),
+        mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
         publicMode,
-        knowledgeDomains: KNOWLEDGE_DOMAINS.slice(),
-        marionBridge: marionBridgeResult?.usedBridge ? {
-          used: true,
-          domain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
-          candidates: Array.isArray(marionBridgeResult?.packet?.routing?.candidates) ? marionBridgeResult.packet.routing.candidates.slice(0, 6) : [],
-          confidence: Number(marionBridgeResult?.packet?.synthesis?.confidence || 0),
-          evidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0)
-        } : { used: false },
         emotion: emo ? {
           mode: emo.mode,
           valence: emo.valence,
@@ -2171,13 +2116,12 @@ async function handleChat(input) {
         v: CE_VERSION,
         t: nowMs(),
         phase: 14,
+        marionBridgeUsed: !!bridgeShouldAnswer,
+        marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
         emotionCached: !!emo?.cached,
         telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "final" }),
         sessionId: shortId(sessionId),
-        turnId: shortId(turnId),
-        marionDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
-        marionEvidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0),
-        interactionMode
+        turnId: shortId(turnId)
       }
     };
 
@@ -2212,13 +2156,12 @@ async function handleChat(input) {
         __emotionNeedsNovelMove: !!emo?.needsNovelMove,
         __emotionRouteExhaustion: !!emo?.routeExhaustion,
         __emotionAt: nowMs(),
-        __supportLock: !!interactionMode.supportLock,
-        __supportLockTurns: interactionMode.supportLock ? 2 : 0,
-        __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard"),
-        __marionBridgeUsed: !!marionBridgeResult?.usedBridge,
-        __marionBridgeDomain: safeStr(marionBridgeResult?.packet?.routing?.domain || ""),
-        __marionBridgeEvidenceCount: Number(marionBridgeResult?.packet?.evidence?.count || 0),
-        __knowledgeDomains: KNOWLEDGE_DOMAINS.slice()
+        __lastIntent: safeStr(bridgeRouting?.intent || plannerDecision?.move || ""),
+        __lastDomain: safeStr(bridgeRouting?.domain || ""),
+        __knowledgeSections: marionBridgeOut?.sections || {},
+        __marionBridgeUsed: !!bridgeShouldAnswer,
+        __marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
+        __marionBridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99)
       },
       completeTurnLifecycle(session, {
         turnId,
