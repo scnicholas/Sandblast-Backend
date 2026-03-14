@@ -44,7 +44,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.1.1sb";
+const INDEX_VERSION = "index.js v2.2.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 // ============================================================
@@ -238,7 +238,9 @@ function resolveEngine() {
     "./Utils/chatEngine",
     "./Utils/chatEngine.js",
     "./utils/chatEngine",
-    "./utils/chatEngine.js"
+    "./utils/chatEngine.js",
+    "./chatEngine",
+    "./chatEngine.js"
   ]);
 
   if (!mod) {
@@ -246,8 +248,8 @@ function resolveEngine() {
       version: "missing",
       fn: async () => ({
         ok: false,
-        reply: "Chat Engine is unavailable right now.",
-        payload: { reply: "Chat Engine is unavailable right now." },
+        reply: "I am here, and I can keep this steady while the engine reconnects.",
+        payload: { reply: "I am here, and I can keep this steady while the engine reconnects." },
         lane: "general",
         laneId: "general",
         sessionLane: "general",
@@ -274,8 +276,8 @@ function resolveEngine() {
       version: safeStr(mod.CE_VERSION || "invalid"),
       fn: async () => ({
         ok: false,
-        reply: "Chat Engine export is invalid.",
-        payload: { reply: "Chat Engine export is invalid." },
+        reply: "I am keeping this stable while the response engine resets its contract.",
+        payload: { reply: "I am keeping this stable while the response engine resets its contract." },
         lane: "general",
         laneId: "general",
         sessionLane: "general",
@@ -538,6 +540,18 @@ function buildRequestContext(req) {
   };
 }
 
+function inferFailOpenMessage(req) {
+  const body = isPlainObject(req?.body) ? req.body : {};
+  const rawText = oneLine(body.text || body.message || body.userText || "").toLowerCase();
+  const distress = /(depress|sad|lonely|alone|hurt|grief|anxious|panic|afraid|overwhelm|hopeless|helpless)/.test(rawText);
+  const positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
+  const technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix)/.test(rawText);
+  if (technical) return "I am keeping the backend stable while this request recovers. No menu bounce, no lane shift.";
+  if (distress) return "I am here with you. The backend hit a rough patch, but I can keep this steady without dropping you into a menu.";
+  if (positive) return "I caught the positive signal. The backend is recovering, and I can keep the tone steady without flattening it into a fallback.";
+  return "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.";
+}
+
 function sendJson(res, status, payload) {
   if (res.headersSent) return;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -629,10 +643,12 @@ function normalizeContract(raw, ctx) {
 }
 
 function buildFailOpenReply(message, ctx, extra) {
+  const fallback = oneLine(message || "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.") ||
+    "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.";
   return normalizeContract({
     ok: false,
-    reply: safeStr(message || "Backend is stabilizing. Try again."),
-    payload: { reply: safeStr(message || "Backend is stabilizing. Try again.") },
+    reply: fallback,
+    payload: { reply: fallback },
     lane: "general",
     laneId: "general",
     sessionLane: "general",
