@@ -1,680 +1,4225 @@
+"use strict";
+
 /**
- * marionBridge.js
- * Nyx ↔ Marion controlled bridge
+ * Utils/marionSO.js
  *
- * Purpose:
- * - Keep Marion out of direct chatEngine hot-path orchestration
- * - Normalize inbound conversational requests
- * - Decide when Marion should be invoked
- * - Pull memory/state context
- * - Query evidence engine(s)
- * - Query MarionSO only through this bridge
- * - Return a hardened intelligence packet
- * - Reduce repeat loops and weak domain drift
+ * MarionSO — Separate Object (SO) mediator module for Nyx.
+ * Pure, side-effect-free cognition mediator:
+ *   mediate(norm, session, opts) -> cog object
  *
- * IMPORTANT:
- * - chatEngine.js should import THIS bridge, not MarionSO directly.
- * - MarionSO remains available, but only behind bridge control.
+ * Goals:
+ * - Keep chatEngine deterministic: Marion only classifies/mediates (mode/intent/budget/dominance)
+ * - Keep it safe: no raw user text in traces; bounded outputs; fail-open behavior
+ * - Keep it portable: no express, no fs, no index.js imports
+ *
+ * v1.2.5 (AUDIO PHASES 1–5 CONTRACT++++ + INTRO RITUAL CUES++++ + VOICE STYLE MAP++++ + HARDEN++++)
+ * ✅ Adds site tempo profile hints for human-like audio (phone-gateway ready)
+ * ✅ Adds brutal loop breaker (repeat-signature detection; forces clarify)
+ * ✅ Adds deterministic knowledge aggregation summary (packs firing visibility)
+ * ✅ Preserves lane router + bridge contract + FAIL-OPEN
+ * ✅ Adds lane expert routing contract: effectiveLane + lanesUsed + crossLaneAllowed + lanesAvailable
+ * ✅ General lane becomes true router across ALL knowledge lanes (English always-on as governor)
+ * ✅ Hard guards against lane bleed: music/roku/news-canada/schedule default crossLaneAllowed=false
+ * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
-'use strict';
 
-let EmotionRouteGuard = null;
-try { EmotionRouteGuard = require('./emotionRouteGuard'); } catch (_e) { EmotionRouteGuard = null; }
+const MARION_VERSION = "marionSO v1.3.2-opintel+++++supportfix+++++bridge-role-guard";
+const PHASE15_PLAN = Object.freeze([
+  "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
+  "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
+  "P6: Deterministic intent stabilizer (anti-loop: STABILIZE/CLARIFY separation + ask-vs-deliver gates)",
+  "P7: Prompt hygiene contract (no raw user text in traces; trace hashes only; bounded tags)",
+  "P8: Session patch hardening (idempotent sessionPatch + safe defaults + schema versioning)",
+  "P9: Vendor health mapping hooks (surface provider + timeout class + retry caps)",
+  "P10: Latency observability hints (marionMetrics: cpuMs, gateBudgetMs, clampedBytes)",
+  "P11: Privacy-min memory scaffolding (opt-in, retention policy hooks, PII minimization)",
+  "P12: Cross-lane governance (chip-lane lock + limited cross-lane exceptions + audit tags)",
+  "P13: Fallback response templates (support/clarify/retry templates when upstream LLM fails)",
+  "P14: Trace-id propagation (requestId/turnId/traceId through bridge envelopes)",
+  "P15: Bridge drift guard (payload lane lock supersedes inferred lane)",
+  "P16: Assumption + contradiction flags (bias toward CLARIFY instead of hallucinating)",
+  "P17: Unresolved thread tagging (carry open threads in opPackage for state spine)",
+  "P18: Contract conformance check (ensure cog fields match engine expectations)"
+]);
+const PHASE10_PLAN = PHASE15_PLAN;
 
-const BRIDGE_VERSION = '1.3.0-opintel-emotion-coupled-loop-hardened';
+const SO_VERSION = MARION_VERSION;
+const version = MARION_VERSION;
 
-const DEFAULT_PHASE_FLAGS = Object.freeze({
-  phase10_domainRouting: true,
-  phase11_memoryLift: true,
-  phase12_evidenceRanking: true,
-  phase13_loopResistance: true,
-  phase14_failOpenSynthesis: true,
-  phase15_traceability: true,
-  phase16_bridgeGating: true,
-  phase17_marionIsolation: true,
-});
+// -------------------------
+// Optional SiteBridge (FAIL-OPEN)
+// -------------------------
+let SiteBridge = null;
+let PsycheBridge = null;
 
-const DEFAULT_DOMAIN_KEYWORDS = Object.freeze({
-  psychology: ['anxious', 'hurt', 'stress', 'sad', 'lonely', 'relationship', 'emotion', 'grief', 'panic', 'overwhelmed'],
-  law: ['contract', 'legal', 'liability', 'lawsuit', 'court', 'policy', 'compliance', 'copyright'],
-  finance: ['budget', 'revenue', 'profit', 'forecast', 'pricing', 'cost', 'grant', 'funding', 'roi'],
-  language: ['rewrite', 'grammar', 'tone', 'summary', 'copy', 'pitch', 'headline', 'narrative'],
-  ai_cyber: ['model', 'ai', 'agent', 'bridge', 'pipeline', 'security', 'auth', 'token', 'dataset', 'vector'],
-  marketing_media: ['brand', 'audience', 'channel', 'roku', 'streaming', 'discovery', 'metadata', 'campaign'],
-  support: ['help me understand', 'stay with me', 'i am overwhelmed', 'i feel off', 'walk me through'],
-});
-
-function noopAsync() {
-  return Promise.resolve(null);
+function _tryRequireMany(paths) {
+  for (const p of paths) {
+    try {
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const mod = require(p);
+      if (mod && typeof mod === "object" && mod.default && !mod.build) return mod.default;
+      if (mod) return mod;
+    } catch (_e) {}
+  }
+  return null;
 }
 
-function safeNowISO() {
-  try { return new Date().toISOString(); } catch { return ''; }
+// Prefer OPINTEL SiteBridge builds first to prevent runtime drift.
+SiteBridge = _tryRequireMany([
+  "./sitebridge.OPINTEL.v1_3_2",
+  "./sitebridge.OPINTEL",
+  "./SiteBridge",
+  "./siteBridge",
+  "./sitebridge", // Linux-safe lowercase
+]);
+
+// Back-compat: if SiteBridge is not present, fall back to legacy PsycheBridge
+try {
+  // eslint-disable-next-line global-require
+  PsycheBridge = require("./psycheBridge");
+} catch (_e3) {
+  PsycheBridge = null;
 }
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
+// -------------------------
+// Optional Knowledge modules (legacy fallback; FAIL-OPEN)
+// -------------------------
+function safeRequire(relPath) {
+  try {
+    // eslint-disable-next-line global-require
+    return require(relPath);
+  } catch (_e) {
+    return null;
+  }
 }
 
-function uniqueStrings(arr) {
-  return [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean).map(String))];
-}
+let PsychologyK = safeRequire("./psychologyKnowledge");
+let CyberK = safeRequire("./cyberKnowledge");
+let EnglishK = safeRequire("./englishKnowledge");
+let FinanceK = safeRequire("./FinanceKnowledge"); // FIX++++ (capital F) for Linux/Render
+let AIK = safeRequire("./aiKnowledge");
 
-function normalizeText(value) {
-  return String(value || '').replace(/\s+/g, ' ').replace(/[^\S\r\n]+/g, ' ').trim();
-}
+// -------------------------
+// helpers
+// -------------------------
+// -------------------------
+// Performance hardening (Phase 3 — resilience)
+// -------------------------
+const DEFAULT_CPU_BUDGET_MS = Number(process.env.MARION_CPU_BUDGET_MS || 0) || 40; // keep Marion fast to avoid server timeouts
+const MARION_DEBUG = String(process.env.MARION_DEBUG || "").toLowerCase() === "1" || String(process.env.MARION_DEBUG || "").toLowerCase() === "true";
 
-function normalizeEmotionMeta(emotion) {
-  const e = emotion && typeof emotion === 'object' ? emotion : {};
-  const nuance = e.nuanceProfile && typeof e.nuanceProfile === 'object' ? e.nuanceProfile : {};
-  const plan = e.conversationPlan && typeof e.conversationPlan === 'object' ? e.conversationPlan : {};
+function budgetGate(startMs, budgetMs) {
+  const b = Number(budgetMs || 0) || DEFAULT_CPU_BUDGET_MS;
   return {
-    mode: String(e.mode || 'NORMAL'),
-    primaryEmotion: String(e.primaryEmotion || e.dominantEmotion || ''),
-    emotionCluster: String(e.emotionCluster || ''),
-    routeBias: String(e.routeBias || ''),
-    supportModeCandidate: String(e.supportModeCandidate || ''),
-    fallbackSuppression: !!e.fallbackSuppression,
-    needsNovelMove: !!e.needsNovelMove,
-    routeExhaustion: !!e.routeExhaustion,
-    supportFlags: e.supportFlags && typeof e.supportFlags === 'object' ? e.supportFlags : {},
-    nuanceProfile: {
-      archetype: String(nuance.archetype || 'clarify'),
-      conversationNeed: String(nuance.conversationNeed || 'clarify'),
-      transitionReadiness: String(nuance.transitionReadiness || 'medium'),
-      loopRisk: String(nuance.loopRisk || 'medium'),
-      questionPressure: String(nuance.questionPressure || 'medium'),
-      mirrorDepth: String(nuance.mirrorDepth || 'medium')
-    },
-    conversationPlan: {
-      shouldUseSupportLock: !!plan.shouldUseSupportLock,
-      shouldSuppressMenus: !!plan.shouldSuppressMenus,
-      shouldSuppressLaneRouting: !!plan.shouldSuppressLaneRouting,
-      askAllowed: plan.askAllowed === false ? false : true,
-      followupStyle: String(plan.followupStyle || 'reflective'),
-      recommendedDepth: String(plan.recommendedDepth || 'standard'),
-      primaryArchetype: String(plan.primaryArchetype || nuance.archetype || 'clarify'),
-      conversationNeed: String(plan.conversationNeed || nuance.conversationNeed || 'clarify'),
-      loopRisk: String(plan.loopRisk || nuance.loopRisk || 'medium'),
-      transitionReadiness: String(plan.transitionReadiness || nuance.transitionReadiness || 'medium'),
-      antiLoopShift: String(plan.antiLoopShift || nuance.antiLoopShift || '')
-    }
+    budgetMs: b,
+    ok: () => Date.now() - startMs <= b,
+    elapsed: () => Date.now() - startMs,
   };
 }
 
-function analyzeEmotionFallback(text, priorState) {
-  try {
-    if (EmotionRouteGuard && typeof EmotionRouteGuard.analyzeEmotionRoute === 'function') {
-      return normalizeEmotionMeta(EmotionRouteGuard.analyzeEmotionRoute({ text }, priorState || {}));
-    }
-  } catch {}
-  return normalizeEmotionMeta(null);
+function nowMsDefault() {
+  return Date.now();
 }
-
-function tokenize(text) {
-  return normalizeText(text).toLowerCase().split(/[^a-z0-9_!?'"-]+/i).filter(Boolean);
+function safeStr(x, max = 200) {
+  if (x === null || x === undefined) return "";
+  const s = String(x);
+  return s.length > max ? s.slice(0, max) + "…" : s;
 }
-
-function hashLite(input) {
-  const s = String(input || '');
+function isPlainObject(x) {
+  return (
+    !!x &&
+    typeof x === "object" &&
+    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
+  );
+}
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+function truthy(v) {
+  if (v === true) return true;
+  const s = safeStr(v, 40).trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
+}
+function sha1Lite(str) {
+  // small stable hash (NOT cryptographic) for traces
+  const s = safeStr(str, 2000);
   let h = 2166136261;
-  for (let i = 0; i < s.length; i += 1) {
+  for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
   return (h >>> 0).toString(16);
 }
-
-function buildTraceId({ sessionId, turnId, text }) {
-  return `mb_${hashLite([sessionId, turnId, text].join('|'))}`;
+function normYear(y) {
+  const n = Number(y);
+  if (!Number.isFinite(n)) return null;
+  const t = Math.trunc(n);
+  if (t < 1900 || t > 2100) return null;
+  return t;
 }
-
-function safeCall(fn, fallback) {
-  return async (...args) => {
-    try {
-      return await fn(...args);
-    } catch (error) {
-      if (typeof fallback === 'function') return fallback(error, ...args);
-      return fallback;
-    }
-  };
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  const t = Math.trunc(x);
+  if (t < min) return min;
+  if (t > max) return max;
+  return t;
 }
-
-class SimpleLoopGuard {
-  constructor(limit = 3) {
-    this.limit = clamp(limit, 1, 12);
-    this.map = new Map();
-  }
-  check(key) {
-    const next = (this.map.get(key) || 0) + 1;
-    this.map.set(key, next);
-    return { count: next, tripped: next >= this.limit };
-  }
-  reset(key) {
-    this.map.delete(key);
-  }
-}
-
-function scoreDomain(tokens, text, keywordsByDomain) {
-  const lower = String(text || '').toLowerCase();
-  const scored = Object.entries(keywordsByDomain).map(([domain, keywords]) => {
-    let score = 0;
-    for (const word of Array.isArray(keywords) ? keywords : []) {
-      const w = String(word).toLowerCase();
-      if (tokens.includes(w)) score += 2;
-      if (lower.includes(w)) score += 1;
-    }
-    return { domain, score };
-  }).sort((a, b) => b.score - a.score);
-  const top = scored[0] || { domain: 'general', score: 0 };
-  return { primary: top.score > 0 ? top.domain : 'general', candidates: scored.filter(x => x.score > 0).slice(0, 3) };
-}
-
-function choosePreferredDomain(domainResult, emotion, requestMeta) {
-  const result = domainResult && typeof domainResult === 'object' ? domainResult : { primary: 'general', candidates: [] };
-  const emo = normalizeEmotionMeta(emotion);
-  const knowledgeSections = requestMeta && requestMeta.knowledgeSections && typeof requestMeta.knowledgeSections === 'object'
-    ? requestMeta.knowledgeSections
-    : {};
-  const hasPsych = Array.isArray(knowledgeSections.psychology) && knowledgeSections.psychology.length > 0;
-  const distressed = emo.mode === 'VULNERABLE' || emo.supportFlags.highDistress || emo.supportFlags.needsConnection || emo.conversationPlan.shouldUseSupportLock;
-  if (distressed && (hasPsych || result.primary === 'general' || result.primary === 'support')) {
-    const candidates = uniqueStrings(['psychology', ...(Array.isArray(result.candidates) ? result.candidates.map((x) => x.domain || x) : [])])
-      .slice(0, 3)
-      .map((x) => typeof x === 'string' ? { domain: x, score: x === 'psychology' ? 999 : 1 } : x);
-    return { primary: 'psychology', candidates };
-  }
-  return result;
-}
-
-function inferIntent(text) {
-  const t = String(text || '').toLowerCase();
-  if (!t) return 'empty';
-  if (/(help|how do i|what should|recommend|advise)/.test(t)) return 'guidance';
-  if (/(fix|debug|error|broken|issue|bug|doesn't work|not working)/.test(t)) return 'diagnostic';
-  if (/(write|rewrite|draft|summarize|improve|pitch)/.test(t)) return 'composition';
-  if (/(plan|roadmap|steps|phase|sequence|priority)/.test(t)) return 'planning';
-  if (/(who|what|when|where|why|explain|compare|analyze)/.test(t)) return 'qa';
-  return 'general';
-}
-
-function sentimentHint(text) {
-  const t = String(text || '').toLowerCase();
-  if (/(overwhelmed|upset|hurt|stressed|panic|frustrated|angry|sad)/.test(t)) return 'distressed';
-  if (/(great|good|amazing|love|excited|confident)/.test(t)) return 'positive';
-  return 'neutral';
-}
-
-function packetSkeleton() {
-  return {
-    ok: true,
-    bridge: 'marionBridge.js',
-    version: BRIDGE_VERSION,
-    traceId: '',
-    now: safeNowISO(),
-    phases: { ...DEFAULT_PHASE_FLAGS },
-    input: {},
-    routing: {},
-    memory: {},
-    evidence: {},
-    marion: {},
-    synthesis: {},
-    guardrails: {},
-    diagnostics: {},
-    errors: [],
-  };
-}
-
-function buildResponseMode({ intent, sentiment, domain, emotion }) {
-  const emo = normalizeEmotionMeta(emotion);
-  const concise = intent === 'diagnostic' || intent === 'planning' || emo.conversationPlan.shouldSuppressMenus;
-  const warmth = sentiment === 'distressed' || emo.supportFlags.needsConnection ? 'high' : 'moderate';
-  const style = domain === 'finance' ? 'analytical'
-    : domain === 'law' ? 'careful'
-    : domain === 'psychology' || domain === 'support' ? 'supportive'
-    : 'clear';
-  return {
-    concise,
-    warmth,
-    style,
-    questionPressure: emo.nuanceProfile.questionPressure || 'medium',
-    followupStyle: emo.conversationPlan.followupStyle || 'reflective',
-    supportLock: !!emo.conversationPlan.shouldUseSupportLock
-  };
-}
-
-function normalizeEvidenceItems(items) {
-  return (Array.isArray(items) ? items : []).map((item, index) => {
-    const title = item && item.title ? String(item.title) : `evidence_${index + 1}`;
-    const content = normalizeText(item && item.content);
-    const source = item && item.source ? String(item.source) : 'unknown';
-    const score = Number(item && item.score) || 0;
-    const tags = uniqueStrings(item && item.tags);
-    return { title, content, source, score, tags };
-  }).filter(x => x.content);
-}
-
-function rankEvidence({ items, domain, intent, memoryHints }) {
-  const hints = tokenize((memoryHints || []).join(' '));
-  const ranked = normalizeEvidenceItems(items).map(item => {
-    let score = item.score || 0;
-    const itemText = `${item.title} ${item.content}`.toLowerCase();
-    if (domain !== 'general' && item.tags.includes(domain)) score += 15;
-    if (intent && item.tags.includes(intent)) score += 8;
-    for (const hint of hints) if (hint && itemText.includes(hint)) score += 2;
-    if (/official|primary|trusted|memory|domain/i.test(item.source)) score += 5;
-    if (item.content.length > 600) score -= 2;
-    return { ...item, score };
-  }).sort((a, b) => b.score - a.score);
-
-  const deduped = [];
+function uniqBounded(arr, max = 8) {
+  const out = [];
   const seen = new Set();
-  for (const item of ranked) {
-    const sig = hashLite(`${item.title}|${item.content.slice(0, 180)}`);
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    deduped.push(item);
-    if (deduped.length >= 8) break;
+  for (const it of Array.isArray(arr) ? arr : []) {
+    const v = safeStr(it, 80);
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
   }
-  return deduped;
+  return out;
+}
+function toUpperToken(x, max = 24) {
+  return safeStr(x, max).trim().toUpperCase();
+}
+function toLowerToken(x, max = 24) {
+  return safeStr(x, max).trim().toLowerCase();
+}
+function safeSerialize(x, max = 1200) {
+  try {
+    if (x === null || x === undefined) return "";
+    if (typeof x === "string") return safeStr(x, max);
+    if (typeof x === "number" || typeof x === "boolean") return safeStr(String(x), max);
+    if (Array.isArray(x) || typeof x === "object") {
+      const s = JSON.stringify(x);
+      return safeStr(s, max);
+    }
+    return safeStr(String(x), max);
+  } catch (e) {
+    return safeStr(String(x), max);
+  }
 }
 
-function buildFallbackAnswer({ domain, intent, emotion, evidenceThin = true }) {
-  const emo = normalizeEmotionMeta(emotion);
-  const supportive = emo.conversationPlan.shouldUseSupportLock || emo.supportFlags.highDistress || emo.supportFlags.needsConnection || domain === 'psychology';
-  const answer = supportive
-    ? 'I am here with you. I do not need to reopen menus or push you into another lane. Stay on this thread and give me the next line you want me to work with.'
-    : `I can keep working on this directly. The Marion knowledge path is thin right now, so I will stay with the clearest available line instead of reopening menus or bouncing lanes.`;
+// -------------------------
+// Resilience helpers (Phase 3+ and Phase 10 additive guards)
+// -------------------------
+function safeCall(fn, fallbackValue) {
+  try {
+    if (typeof fn !== "function") return fallbackValue;
+    return fn();
+  } catch (_e) {
+    return fallbackValue;
+  }
+}
+function safeObj(x) {
+  return isPlainObject(x) ? x : {};
+}
+function safeArr(x) {
+  return Array.isArray(x) ? x : [];
+}
+function approxBytes(x) {
+  // rough size estimator to prevent oversized bridge envelopes
+  try {
+    if (x === null || x === undefined) return 0;
+    if (typeof x === "string") return x.length;
+    return JSON.stringify(x).length;
+  } catch (_e) {
+    return 0;
+  }
+}
+function clampBytesObject(obj, maxBytes) {
+  const o = safeObj(obj);
+  const cap = Number(maxBytes || 0) || 0;
+  if (!cap) return o;
+  if (approxBytes(o) <= cap) return o;
+  // fail-open: drop heavy subtrees
+  const out = { ...o };
+  if (out.domains) delete out.domains;
+  if (out.packs) delete out.packs;
+  if (out.knowledge) delete out.knowledge;
+  if (approxBytes(out) > cap) {
+    // last resort: keep only a minimal envelope
+    return { enabled: o.enabled !== false, reason: "clamped_bytes" };
+  }
+  return out;
+}
+
+
+// -------------------------
+// Emotion lexicon (bounded, non-clinical; used for tempo + risk + psych cues)
+// NOTE: This is NOT diagnosis. It's a lightweight affect detector for better UX.
+// -------------------------
+const EMOTION_LEXICON = Object.freeze({
+  distress: [
+    "hurting","hurt","in pain","pain","ache","aching","sore","suffering",
+    "overwhelmed","stressed","stress","anxious","anxiety","worried","panic",
+    "frustrated","stuck","confused","burned out","burnt out","exhausted","tired","drained",
+    "sad","down","depressed","lonely","hopeless","helpless","scared","afraid"
+  ],
+  escalation: [
+    "can’t do this","can't do this","freaking out","spiral","breakdown","meltdown",
+    "i can't breathe","cant breathe"
+  ],
+  selfHarm: [
+    "suicidal","kill myself","end it all","self harm","self-harm","cutting","i don't want to live","i dont want to live"
+  ],
+  anger: ["angry","furious","pissed","rage","mad"],
+  calm: ["okay","alright","fine","calm","steady"],
+});
+
+function countLexHits(text, list) {
+  const t = safeStr(text || "", 1800).toLowerCase();
+  let hits = 0;
+  for (const w of Array.isArray(list) ? list : []) {
+    const needle = String(w).toLowerCase();
+    if (!needle) continue;
+    if (t.includes(needle)) hits++;
+  }
+  return hits;
+}
+
+// Affect proxy: valence [-1..1], arousal [0..1], tension [0..1]
+function computeAffectProxy(text) {
+  const t = safeStr(text || "", 1800);
+  const distressHits = countLexHits(t, EMOTION_LEXICON.distress);
+  const escalationHits = countLexHits(t, EMOTION_LEXICON.escalation);
+  const angerHits = countLexHits(t, EMOTION_LEXICON.anger);
+  const selfHarmHits = countLexHits(t, EMOTION_LEXICON.selfHarm);
+
+  // conservative: distress reduces valence; escalation increases arousal/tension
+  const tension = clamp01(0.15 + distressHits * 0.12 + escalationHits * 0.18 + angerHits * 0.10 + selfHarmHits * 0.25);
+  const arousal = clamp01(0.12 + escalationHits * 0.22 + angerHits * 0.18 + (t.includes("panic") ? 0.25 : 0));
+  const valence = Math.max(-1, Math.min(1, 0.15 - distressHits * 0.18 - selfHarmHits * 0.35 - angerHits * 0.10));
+
+  const tags = [];
+  if (selfHarmHits > 0) tags.push("self_harm_language");
+  if (escalationHits > 0) tags.push("escalation_language");
+  if (distressHits > 0) tags.push("distress_language");
+  if (angerHits > 0) tags.push("anger_language");
+
+  return { valence, arousal, tension, tags: uniqBounded(tags, 6), hits: { distressHits, escalationHits, angerHits, selfHarmHits } };
+}
+
+// -------------------------
+// enums + contracts
+// -------------------------
+const LATENT_DESIRE = Object.freeze({
+  AUTHORITY: "authority",
+  COMFORT: "comfort",
+  CURIOSITY: "curiosity",
+  VALIDATION: "validation",
+  MASTERY: "mastery",
+});
+
+const MARION_TRACE_MAX = 160; // hard cap in chars
+
+// -------------------------
+// Operational Intelligence (enterprise-heavy, audit-friendly)
+// -------------------------
+const OPINTEL_SCHEMA = "marionSO.opintel.v1";
+const OP_PACKAGE_SCHEMA = "marionSO.opPackage.v1";
+const OP_PACKAGE_MAX_ITEMS = 8;
+
+function clampStringArray(arr, maxItems = OP_PACKAGE_MAX_ITEMS, maxLen = 120) {
+  const out = [];
+  const seen = new Set();
+  for (const it of Array.isArray(arr) ? arr : []) {
+    const v = safeStr(it, maxLen).trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function computeOperationalWeight(cog) {
+  // heuristic: higher for ADVANCE + actionable, lower for CLARIFY, highest for STABILIZE high-risk
+  const intent = safeStr(cog?.intent || "", 16).toUpperCase();
+  const actionable = !!cog?.actionable;
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
+
+  let w = 0.45;
+  if (intent === "ADVANCE") w = actionable ? 0.72 : 0.58;
+  if (intent === "CLARIFY") w = 0.50;
+  if (intent === "STABILIZE") w = riskTier === RISK.TIERS.HIGH ? 0.85 : 0.66;
+
+  // bump for high pressure situations
+  const pressure = safeStr(cog?.psychology?.socialPressure || "", 12).toLowerCase();
+  if (pressure === PSYCH.PRESSURE.HIGH) w = Math.min(0.95, w + 0.06);
+
+  return clamp01(w);
+}
+
+function computeOIConfidence(cog, metrics) {
+  // Conservative confidence for enterprise: blend user/nyx, penalize risk + budget overruns.
+  const cu = clamp01(cog?.confidence?.user);
+  const cn = clamp01(cog?.confidence?.nyx);
+  let base = Math.max(0.25, (cu * 0.55 + cn * 0.45) || 0.55);
+
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
+  if (riskTier === RISK.TIERS.MEDIUM) base -= 0.08;
+  if (riskTier === RISK.TIERS.HIGH) base -= 0.18;
+
+  const cpuMs = Number(metrics?.cpuMs || 0) || 0;
+  const budgetMs = Number(metrics?.gateBudgetMs || 0) || 0;
+  if (budgetMs && cpuMs > budgetMs) base -= 0.10;
+
+  // stabilize -> lower confidence in "solve", higher confidence in "contain"; still keep conservative score
+  const intent = safeStr(cog?.intent || "", 16).toUpperCase();
+  if (intent === "STABILIZE") base = Math.min(base, 0.72);
+
+  return clamp01(base);
+}
+
+function buildOperationalPackage(norm, session, cog, metrics) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.lane) || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase();
+  const stage = safeStr(c.stage || "", 24);
+
+  // Objective heuristics (safe + enterprise)
+  let objective = safeStr(c.objective || "", 140).trim();
+  if (!objective) {
+    if (intent === "STABILIZE") objective = "Stabilize user context and reduce risk; confirm needs with one soft question.";
+    else if (intent === "CLARIFY") objective = "Resolve the single most important missing detail before proceeding.";
+    else objective = "Advance the user’s goal with the next concrete action, keeping context stable.";
+  }
+
+  const riskDomains = clampStringArray(c.riskDomains || [], 6, 48);
+  const risks = [];
+  if (safeStr(c.riskTier || "", 10).toLowerCase() !== RISK.TIERS.NONE) {
+    risks.push(`risk_tier:${safeStr(c.riskTier || "low", 10)}`);
+  }
+  for (const rd of riskDomains) risks.push(rd);
+
+  const decisionTags = clampStringArray(
+    [
+      `schema:${OP_PACKAGE_SCHEMA}`,
+      `lane:${lane}`,
+      `intent:${intent || "CLARIFY"}`,
+      stage ? `stage:${stage}` : "",
+      c.bridge?.enabled ? `bridge:${safeStr(c.bridge.kind || "route", 24)}` : "bridge:none",
+      c.laneReason ? `route:${safeStr(c.laneReason, 32)}` : "",
+    ].filter(Boolean),
+    10,
+    64
+  );
+
+  const opWeight = computeOperationalWeight(c);
+  const confidenceScore = computeOIConfidence(c, metrics);
+  const escalationFlag = !!c.escalationFlag || safeStr(c.riskTier || "", 10).toLowerCase() === RISK.TIERS.HIGH;
+
+  // Keep these as placeholders for now; chatEngine / LLM layer can fill richer content.
+  const keyFindings = clampStringArray(c.keyFindings || [], 6, 160);
+  const recommendedActions = clampStringArray(c.recommendedActions || [], 6, 160);
+  const assumptions = clampStringArray(c.assumptions || [], 6, 140);
+
+  // OPINTEL++++ (P16): if we need clarification, record the gap explicitly (audit-safe)
+  if (c.needsClarify) {
+    assumptions.push("missing_key_detail");
+    decisionTags.push("needs:clarify");
+  }
+
+  // Minimal "ops summary" for audit without raw text
+  const summary = safeStr(c.marionReason || c.laneReason || intent || "", 120);
+
   return {
-    mode: 'fail-open',
-    answer,
-    confidence: evidenceThin ? 0.42 : 0.5,
-    nextAction: 'respond',
-    cites: [],
-    supportCompatible: supportive,
-    questionSuppression: supportive || emo.conversationPlan.askAllowed === false,
-    avoidLaneRebuild: true,
-    allowMenuRegeneration: false,
+    schema: OP_PACKAGE_SCHEMA,
+    objective,
+    summary,
+    keyFindings,
+    recommendedActions,
+    assumptions,
+    unresolvedThreads: clampStringArray(c.unresolvedThreads || [], 6, 120),
+    risks: clampStringArray(risks, 8, 64),
+    confidenceScore,
+    operationalWeight: opWeight,
+    escalationFlag,
+    decisionTags,
+    depthHint: clampInt(c.depthHint || 0, 0, 20, 0),
+    sessionKeyHint: safeStr(s.sessionId || s.sid || "", 64),
   };
 }
 
-function defaultSynthesize({ domain, intent, evidence, responseMode, marionResult, emotion }) {
-  const emo = normalizeEmotionMeta(emotion);
-  const marionAnswer = marionResult && typeof marionResult.answer === 'string' ? normalizeText(marionResult.answer) : '';
-  if (marionAnswer) {
-    return {
-      mode: responseMode,
-      answer: marionAnswer,
-      confidence: clamp(Number(marionResult.confidence || 0.74), 0.35, 0.95),
-      cites: Array.isArray(marionResult.cites) ? marionResult.cites.slice(0, 4) : [],
-      nextAction: 'respond',
-      supportCompatible: !!(marionResult.supportCompatible || emo.conversationPlan.shouldUseSupportLock),
-      questionSuppression: !!(marionResult.questionSuppression || emo.conversationPlan.askAllowed === false),
-      avoidLaneRebuild: marionResult.avoidLaneRebuild !== false,
-      allowMenuRegeneration: false,
-    };
-  }
-  const bullets = evidence.slice(0, 3).map(item => item.content);
-  const stitched = bullets.join(' ').trim();
-  if (!stitched) return buildFallbackAnswer({ domain, intent, emotion, evidenceThin: true });
-  const confidence = clamp(0.55 + evidence.length * 0.08, 0.55, 0.92);
-  return {
-    mode: responseMode,
-    answer: stitched,
-    confidence,
-    cites: evidence.map(item => ({ title: item.title, source: item.source })).slice(0, 4),
-    nextAction: 'respond',
-    supportCompatible: !!emo.conversationPlan.shouldUseSupportLock,
-    questionSuppression: !!(emo.conversationPlan.askAllowed === false || emo.nuanceProfile.questionPressure === 'low' || emo.nuanceProfile.questionPressure === 'none'),
-    avoidLaneRebuild: true,
-    allowMenuRegeneration: false,
-  };
+// PsychologyReasoningObject v1 (always-on, bounded, nonverbal)
+const PSYCH = Object.freeze({
+  LOAD: Object.freeze({
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high",
+  }),
+  REG: Object.freeze({
+    REGULATED: "regulated",
+    STRAINED: "strained",
+    DYSREGULATED: "dysregulated",
+  }),
+  AGENCY: Object.freeze({
+    GUIDED: "guided",
+    AUTONOMOUS: "autonomous",
+  }),
+  PRESSURE: Object.freeze({
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high",
+  }),
+});
+
+// Law Layer v1 (constitutional, ordered precedence)
+const LAW = Object.freeze({
+  TAGS: Object.freeze({
+    CONTAINMENT: "law:containment",
+    ACTION_SUPREMACY: "law:action_supremacy",
+    NO_SPIN: "law:no_spin",
+    BUDGET_CLAMP: "law:budget_clamp",
+    COHERENCE: "law:coherence",
+    VELVET_GUARD: "law:velvet_guard",
+  }),
+});
+
+// Ethics Layer v1 (bounded, non-clinical, non-legal)
+const ETHICS = Object.freeze({
+  TAGS: Object.freeze({
+    NON_DECEPTIVE: "ethics:non_deceptive",
+    AGENCY_RESPECT: "ethics:agency_respect",
+    HARM_AVOIDANCE: "ethics:harm_avoidance",
+    PRIVACY_MIN: "ethics:privacy_min",
+    SAFETY_REDIRECT: "ethics:safety_redirect",
+  }),
+  SIGNALS: Object.freeze({
+    MINIMIZE_RISKY_DETAIL: "minimize_risky_detail",
+    USE_NEUTRAL_TONE: "use_neutral_tone",
+    OFFER_OPTIONS_NOT_ORDERS: "offer_options_not_orders",
+    ENCOURAGE_HELP_SEEKING: "encourage_help_seeking",
+  }),
+});
+
+// RiskBridge v1 (cross-layer aggregation; Law is final)
+const RISK = Object.freeze({
+  TIERS: Object.freeze({
+    NONE: "none",
+    LOW: "low",
+    MEDIUM: "medium",
+    HIGH: "high",
+  }),
+  DOMAINS: Object.freeze({
+    SELF_HARM: "risk:self_harm",
+    VIOLENCE: "risk:violence",
+    ILLEGAL: "risk:illegal",
+    PRIVACY: "risk:privacy",
+    SEXUAL: "risk:sexual",
+    HATE: "risk:hate",
+    MEDICAL: "risk:medical",
+    LEGAL: "risk:legal",
+    FINANCIAL: "risk:financial",
+    CYBER: "risk:cyber",
+  }),
+});
+
+// Cybersecurity Layer v1 (defensive-first, bounded, non-operational)
+const CYBER = Object.freeze({
+  TAGS: Object.freeze({
+    DEFENSIVE_ONLY: "cyber:defensive_only",
+    THREAT_AWARENESS: "cyber:threat_awareness",
+    SOCIAL_ENGINEERING: "cyber:social_engineering",
+    PRIVACY_HYGIENE: "cyber:privacy_hygiene",
+    HARDENING: "cyber:hardening",
+    REDTEAM_BLOCK: "cyber:redteam_block",
+  }),
+  SIGNALS: Object.freeze({
+    SAFE_DEFAULTS: "cyber_safe_defaults",
+    AVOID_STEP_BY_STEP: "cyber_avoid_step_by_step",
+    SUGGEST_DEFENSIVE_ALTS: "cyber_suggest_defensive_alternatives",
+    VERIFY_SOURCE: "cyber_verify_source",
+    MINIMIZE_SENSITIVE_DATA: "cyber_minimize_sensitive_data",
+  }),
+});
+
+// English / communication Layer v1 (clarity + structure)
+const ENGLISH = Object.freeze({
+  TAGS: Object.freeze({
+    CLARITY: "en:clarity",
+    STRUCTURE: "en:structure",
+    AUDIENCE: "en:audience",
+    TONE: "en:tone",
+    DEFINITIONS: "en:defn",
+  }),
+  SIGNALS: Object.freeze({
+    USE_PLAIN_LANGUAGE: "en_use_plain_language",
+    DEFINE_JARGON: "en_define_jargon",
+    ASK_AUDIENCE: "en_ask_audience",
+    BULLET_STRUCTURE: "en_bullets",
+    SHORT_SENTENCES: "en_short_sentences",
+  }),
+});
+
+// Finance/Econ Layer v1 (non-advice posture + unit economics)
+const FIN = Object.freeze({
+  TAGS: Object.freeze({
+    NON_ADVICE: "fin:non_advice",
+    RISK_DISCLOSURE: "fin:risk_disclosure",
+    BUDGETING: "fin:budgeting",
+    UNIT_ECON: "fin:unit_econ",
+    PRICING: "fin:pricing",
+    COMPLIANCE: "fin:compliance",
+  }),
+  SIGNALS: Object.freeze({
+    USE_SCENARIOS: "fin_use_scenarios",
+    ASK_CONSTRAINTS: "fin_ask_constraints",
+    ENCOURAGE_PRO: "fin_encourage_pro",
+    CLARIFY_ASSUMPTIONS: "fin_clarify_assumptions",
+  }),
+});
+
+// Strategy Layer v1 (systems thinking + decision-making cues)
+const STRATEGY = Object.freeze({
+  TAGS: Object.freeze({
+    TRADEOFFS: "strat:tradeoffs",
+    METRICS: "strat:metrics",
+    SEQUENCING: "strat:sequencing",
+    RISK: "strat:risk",
+    OPTION_VALUE: "strat:option_value",
+    EXECUTION: "strat:execution",
+  }),
+  SIGNALS: Object.freeze({
+    DECISION_MATRIX: "strat_decision_matrix",
+    DEFINE_GOAL: "strat_define_goal",
+    IDENTIFY_CONSTRAINTS: "strat_identify_constraints",
+    NEXT_ACTIONS: "strat_next_actions",
+    TIME_HORIZON: "strat_time_horizon",
+  }),
+});
+
+// AI Layer v1 (intro + agents + ethics + cross-domain couplings)
+const AI = Object.freeze({
+  TAGS: Object.freeze({
+    INTRO: "ai:intro",
+    ML_CORE: "ai:ml_core",
+    LLM: "ai:llm",
+    AGENTS: "ai:agents",
+    EVAL: "ai:eval",
+    SAFETY: "ai:safety",
+    GOVERNANCE: "ai:governance",
+    AI_LAW: "ai:law",
+    AI_PSY: "ai:psychology",
+    AI_CYBER: "ai:cyber",
+    AI_MKT: "ai:marketing",
+  }),
+  SIGNALS: Object.freeze({
+    DEFINE_TERMS: "ai_define_terms",
+    USE_EXAMPLES: "ai_use_examples",
+    MENTION_LIMITS: "ai_mention_limits",
+    EVAL_FIRST: "ai_eval_first",
+    ASK_CONSTRAINTS: "ai_ask_constraints",
+    SAFETY_POSTURE: "ai_safety_posture",
+  }),
+});
+
+// Marion narration style contract (canonical policy hints)
+const MARION_STYLE_CONTRACT = Object.freeze({
+  maxSentences: 2,
+  forbidTokens: ["sorry", "unfortunately", "i think", "maybe", "might", "i’m sorry", "im sorry"],
+  allowMetaphor: false,
+  tone: "system",
+  tags: Object.freeze({
+    ok: "[marion:ok]",
+    hold: "[marion:hold]",
+    retry: "[marion:retry]",
+    deny: "[marion:deny]",
+  }),
+  handoff: Object.freeze({
+    marionEndsHard: true,
+    nyxBeginsAfter: true,
+    allowSameTurnSplit: true,
+  }),
+});
+
+// -------------------------
+// NEW: Lane Expert Router contract (Nyx gets ALL knowledge lanes via Marion)
+// -------------------------
+const LANE_EXPERTS = Object.freeze({
+  // internal “knowledge lanes” (NOT UI chips)
+  ENGLISH: "english",
+  CYBER: "cyber",
+  FINANCE: "finance",
+  STRATEGY: "strategy",
+  AI: "ai",
+  PSYCHOLOGY: "psychology",
+  ETHICS: "ethics",
+  LAW: "law",
+  // UI-chip-specific lanes (still treated as lanesUsed when locked)
+  MUSIC: "music",
+  ROKU: "roku",
+  RADIO: "radio",
+  SCHEDULE: "schedule",
+  NEWS_CANADA: "news-canada",
+  GENERAL: "general",
+});
+
+const LANES_AVAILABLE = Object.freeze([
+  LANE_EXPERTS.ENGLISH,
+  LANE_EXPERTS.CYBER,
+  LANE_EXPERTS.FINANCE,
+  LANE_EXPERTS.STRATEGY,
+  LANE_EXPERTS.AI,
+  LANE_EXPERTS.PSYCHOLOGY,
+  LANE_EXPERTS.ETHICS,
+  LANE_EXPERTS.LAW,
+  // chip lanes
+  LANE_EXPERTS.MUSIC,
+  LANE_EXPERTS.ROKU,
+  LANE_EXPERTS.RADIO,
+  LANE_EXPERTS.SCHEDULE,
+  LANE_EXPERTS.NEWS_CANADA,
+  LANE_EXPERTS.GENERAL,
+]);
+
+function clampLaneExperts(list, max = 6) {
+  return uniqBounded(
+    (Array.isArray(list) ? list : []).map((x) => safeStr(x, 24).trim().toLowerCase()),
+    max
+  );
 }
 
-function shouldInvokeMarion({ text, intent, domain, sentiment, emotion }) {
-  const t = String(text || '').toLowerCase();
-  const emo = normalizeEmotionMeta(emotion);
-  if (!t) return false;
-  if (emo.supportFlags.crisis) return false;
-  if (emo.routeExhaustion || emo.needsNovelMove || emo.fallbackSuppression) return true;
-  if (emo.conversationPlan.shouldUseSupportLock) return true;
-  if (domain === 'general' && intent === 'general' && emo.mode === 'NORMAL') return false;
-  if (domain === 'support' || domain === 'psychology') return true;
-  if (['law', 'finance', 'ai_cyber', 'language', 'marketing_media'].includes(domain)) return true;
-  if (['planning', 'qa', 'guidance', 'composition', 'diagnostic'].includes(intent)) return true;
-  if (sentiment === 'distressed') return true;
-  if (/(explain|compare|analyze|walk me through|help me understand)/.test(t)) return true;
+function laneCrossAllowedByDefault(effectiveLane) {
+  const ln = safeStr(effectiveLane || "", 40).trim().toLowerCase();
+  // HARD GUARD: chip lanes do NOT cross by default (stops music bleed)
+  if (ln === "music" || ln === "roku" || ln === "schedule" || ln === "news-canada" || ln === "radio") return false;
+  // general is the router across all lanes
+  if (ln === "general") return true;
+  // unknown lanes: conservative default
   return false;
 }
 
-function extractMarionAnswer(result) {
-  if (!result || typeof result !== 'object') return null;
-  if (typeof result.answer === 'string' && result.answer.trim()) {
-    return { answer: normalizeText(result.answer), confidence: Number(result.confidence || 0.74), cites: Array.isArray(result.cites) ? result.cites : [], nextAction: result.nextAction || 'respond', raw: result };
-  }
-  if (typeof result.reply === 'string' && result.reply.trim()) {
-    return { answer: normalizeText(result.reply), confidence: Number(result.confidence || 0.72), cites: [], nextAction: 'respond', raw: result };
-  }
-  if (typeof result.text === 'string' && result.text.trim()) {
-    return { answer: normalizeText(result.text), confidence: Number(result.confidence || 0.7), cites: [], nextAction: 'respond', raw: result };
-  }
-  return null;
-}
+// Decide which knowledge experts to use this turn (Marion decides; Nyx displays)
+// - General: English always-on + choose up to 4 more based on tags/risk
+// - Music/Roku/etc: locked lane (no cross), but we still return English as “render governor” only if cross is allowed (it isn’t), so we keep it out to avoid bleed.
+// - Stabilize intent: include psychology/ethics/law even in general
+function computeLaneExpertRouting(effectiveLane, cog) {
+  const ln = safeStr(effectiveLane || "", 40).trim().toLowerCase() || "general";
+  const c = isPlainObject(cog) ? cog : {};
 
-function pickMarionMethod(marionSO) {
-  if (!marionSO || typeof marionSO !== 'object') return null;
-  for (const name of ['resolve', 'query', 'run', 'synthesize', 'respond', 'handle']) {
-    if (typeof marionSO[name] === 'function') return name;
-  }
-  return null;
-}
+  const crossLaneAllowed = laneCrossAllowedByDefault(ln);
 
-function createMarionBridge(config = {}) {
-  const {
-    logger = console,
-    phaseFlags = {},
-    domainKeywords = DEFAULT_DOMAIN_KEYWORDS,
-    loopLimit = 3,
-    marionSO = null,
-    memoryProvider = { getContext: noopAsync, putContext: noopAsync },
-    evidenceEngine = { collect: noopAsync },
-    domainRouter = null,
-    synthesize = null,
-    telemetry = { track: noopAsync },
-    maxInputChars = 3000,
-    maxMemoryHints = 8,
-  } = config;
-
-  const phases = { ...DEFAULT_PHASE_FLAGS, ...(phaseFlags || {}) };
-  const loopGuard = new SimpleLoopGuard(loopLimit);
-  const marionMethod = pickMarionMethod(marionSO);
-  const getMemory = safeCall(memoryProvider.getContext || noopAsync, () => null);
-  const putMemory = safeCall(memoryProvider.putContext || noopAsync, () => null);
-  const collectEvidence = safeCall(evidenceEngine.collect || noopAsync, () => []);
-  const track = safeCall(telemetry.track || noopAsync, () => null);
-  const invokeMarion = safeCall(async (payload) => {
-    if (!marionSO || !marionMethod) return null;
-    const result = await marionSO[marionMethod](payload);
-    return extractMarionAnswer(result);
-  }, () => null);
-
-  function classify(request = {}) {
-    const rawText = normalizeText(request.userText).slice(0, maxInputChars);
-    const tokens = tokenize(rawText);
-    const intent = inferIntent(rawText);
-    const incomingEmotion = normalizeEmotionMeta(request.meta && request.meta.emotion);
-    const inferredEmotion = incomingEmotion.primaryEmotion ? incomingEmotion : analyzeEmotionFallback(rawText, request.meta && request.meta.priorState);
-    let sentiment = sentimentHint(rawText);
-    if (inferredEmotion.mode === 'VULNERABLE' || inferredEmotion.supportFlags.highDistress) sentiment = 'distressed';
-    const scoredDomain = scoreDomain(tokens, rawText, domainKeywords);
-    const domainResult = choosePreferredDomain(scoredDomain, inferredEmotion, request.meta || {});
-    const responseMode = buildResponseMode({ intent, sentiment, domain: domainResult.primary, emotion: inferredEmotion });
+  // Locked chip lanes: keep them pure
+  if (!crossLaneAllowed && ln !== "general") {
+    const locked = ln;
     return {
-      text: rawText,
-      tokens,
-      intent,
-      sentiment,
-      domain: domainResult.primary,
-      candidates: domainResult.candidates,
-      responseMode,
-      emotion: inferredEmotion,
-      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent, domain: domainResult.primary, sentiment, emotion: inferredEmotion }),
+      effectiveLane: locked,
+      crossLaneAllowed: false,
+      lanesUsed: clampLaneExperts([locked], 3),
+      lanesAvailable: LANES_AVAILABLE,
+      reason: "lane_lock",
     };
   }
 
-  async function resolve(request = {}) {
-    const packet = packetSkeleton();
-    const sessionId = String(request.sessionId || 'session_unknown');
-    const userId = String(request.userId || 'user_unknown');
-    const turnId = String(request.turnId || `turn_${Date.now()}`);
-    const meta = request.meta || {};
-    const classification = classify(request);
-    const rawText = classification.text;
-    const traceId = buildTraceId({ sessionId, turnId, text: rawText });
+  // General router (ALL knowledge lanes available; English is governor)
+  const lanes = [];
+  lanes.push(LANE_EXPERTS.ENGLISH);
 
-    packet.traceId = traceId;
-    packet.input = { text: rawText, sessionId, userId, turnId, meta, emotion: classification.emotion };
+  // Safety & regulation: pull in these lanes
+  const intent = safeStr(c.intent || "", 16).toUpperCase();
+  const riskTier = safeStr(c.riskTier || "", 10).toLowerCase();
+  const riskDomains = Array.isArray(c.riskDomains) ? c.riskDomains : [];
 
-    if (!rawText) {
-      packet.ok = false;
-      packet.errors.push('empty_input');
-      packet.synthesis = buildFallbackAnswer({ domain: 'general', intent: 'empty' });
-      return packet;
-    }
+  if (intent === "STABILIZE" || riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) {
+    lanes.push(LANE_EXPERTS.PSYCHOLOGY, LANE_EXPERTS.ETHICS, LANE_EXPERTS.LAW);
+  }
 
-    const loopSignature = hashLite(`${sessionId}|${rawText.toLowerCase()}|${classification.emotion.primaryEmotion}|${classification.emotion.nuanceProfile.archetype}`);
-    const loop = phases.phase13_loopResistance ? loopGuard.check(loopSignature) : { count: 1, tripped: false };
+  // Topic-based adds (bounded)
+  if (Array.isArray(c.cyberTags) && c.cyberTags.length) lanes.push(LANE_EXPERTS.CYBER);
+  if (Array.isArray(c.finTags) && c.finTags.length) lanes.push(LANE_EXPERTS.FINANCE);
+  if (Array.isArray(c.strategyTags) && c.strategyTags.length) lanes.push(LANE_EXPERTS.STRATEGY);
+  if (Array.isArray(c.aiTags) && c.aiTags.length) lanes.push(LANE_EXPERTS.AI);
 
-    let domainResult = { primary: classification.domain, candidates: classification.candidates };
-    if (domainRouter && typeof domainRouter.route === 'function' && phases.phase10_domainRouting) {
-      try {
-        const override = await domainRouter.route({
-          text: rawText,
-          tokens: classification.tokens,
-          intent: classification.intent,
-          sentiment: classification.sentiment,
-          sessionId, userId, meta,
-        });
-        if (override && override.primary) {
-          domainResult = { primary: String(override.primary), candidates: Array.isArray(override.candidates) ? override.candidates : domainResult.candidates };
-        }
-      } catch (error) {
-        packet.errors.push(`domain_router_failed:${error.message}`);
-      }
-    }
+  // If risk domain flags exist, map them
+  if (riskDomains.includes(RISK.DOMAINS.CYBER)) lanes.push(LANE_EXPERTS.CYBER);
+  if (riskDomains.includes(RISK.DOMAINS.FINANCIAL)) lanes.push(LANE_EXPERTS.FINANCE);
+  if (riskDomains.includes(RISK.DOMAINS.LEGAL)) lanes.push(LANE_EXPERTS.LAW);
 
-    domainResult = choosePreferredDomain(domainResult, classification.emotion, meta);
-    const primaryDomain = domainResult.primary;
-    const responseMode = buildResponseMode({ intent: classification.intent, sentiment: classification.sentiment, domain: primaryDomain, emotion: classification.emotion });
+  // Keep it crisp: English + up to 4 others
+  const pruned = clampLaneExperts(lanes, 5);
+  return {
+    effectiveLane: "general",
+    crossLaneAllowed: true,
+    lanesUsed: pruned,
+    lanesAvailable: LANES_AVAILABLE,
+    reason: "general_router",
+  };
+}
 
-    const knowledgeDomains = Object.keys(meta.knowledgeSections || {}).filter((k) => Array.isArray(meta.knowledgeSections[k]) && meta.knowledgeSections[k].length > 0);
-    packet.routing = {
-      intent: classification.intent,
-      sentiment: classification.sentiment,
-      domain: primaryDomain,
-      candidates: domainResult.candidates,
-      responseMode,
-      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent: classification.intent, domain: primaryDomain, sentiment: classification.sentiment, emotion: classification.emotion }),
-      emotion: classification.emotion,
-      knowledgeDomains,
-    };
+// -------------------------
+// NEW: lane canonicalization (CHIP BRIDGE LOCK)
+// -------------------------
+function normalizeLaneRaw(v) {
+  const s = safeStr(v, 40).trim().toLowerCase();
+  if (!s) return "";
+  // whitelist known lanes used by Nyx chips & backend
+  if (
+    s === "general" ||
+    s === "music" ||
+    s === "roku" ||
+    s === "radio" ||
+    s === "schedule" ||
+    s === "news-canada"
+  )
+    return s;
+  // allow other lanes but clamp token shape
+  if (/^[a-z0-9][a-z0-9_-]{0,30}$/.test(s)) return s;
+  return "";
+}
 
-    const memoryContext = phases.phase11_memoryLift ? await getMemory({
-      sessionId, userId, turnId, domain: primaryDomain, intent: classification.intent, text: rawText, meta,
-    }) : null;
+function readPayloadLane(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const ts = isPlainObject(n.turnSignals) ? n.turnSignals : {};
+  // common places your stack might stash lane
+  const candidates = [ts.payloadLane, ts.lane, n.payload && n.payload.lane, n.body && n.body.lane, n.lane];
+  for (const c of candidates) {
+    const v = normalizeLaneRaw(c);
+    if (v) return v;
+  }
+  return "";
+}
 
-    const memoryHints = uniqueStrings([
-      classification.emotion.primaryEmotion,
-      classification.emotion.nuanceProfile.archetype,
-      memoryContext && memoryContext.lastIntent,
-      memoryContext && memoryContext.lastDomain,
-      ...(memoryContext && Array.isArray(memoryContext.openLoops) ? memoryContext.openLoops : []),
-      ...(memoryContext && Array.isArray(memoryContext.userPreferences) ? memoryContext.userPreferences : []),
-      ...(memoryContext && Array.isArray(memoryContext.recentTopics) ? memoryContext.recentTopics : []),
-    ]).slice(0, maxMemoryHints);
+function detectChipSelect(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const ts = isPlainObject(n.turnSignals) ? n.turnSignals : {};
+  const payloadAction = safeStr(ts.payloadAction || "", 40).trim().toLowerCase();
+  const payloadIntent = safeStr(ts.payloadIntent || "", 40).trim().toLowerCase();
+  const payloadLabel = safeStr(ts.payloadLabel || ts.payloadChip || "", 40).trim().toLowerCase();
 
-    packet.memory = {
-      found: !!memoryContext,
-      hints: memoryHints,
-      continuity: {
-        lastIntent: (memoryContext && memoryContext.lastIntent) || null,
-        lastDomain: (memoryContext && memoryContext.lastDomain) || null,
-        unresolved: (memoryContext && memoryContext.openLoops) || [],
+  // Host sends:
+  // payload.action="chip", payload.intent="select", label=<chip>, lane=<lane>
+  if (payloadAction === "chip") return { isChip: true, why: "payload_action_chip", label: payloadLabel };
+  if (payloadIntent === "select" && payloadLabel) return { isChip: true, why: "payload_intent_select", label: payloadLabel };
+  return { isChip: false, why: "", label: "" };
+}
+
+// -------------------------
+// NEW: canonical bridge contract (Marion ↔ Nyx)
+// -------------------------
+function normalizeBridgeKind(k) {
+  const s = safeStr(k, 24).trim().toLowerCase();
+  if (s === "chip_select") return "chip_select";
+  if (s === "lane_switch") return "lane_switch";
+  if (s === "route") return "route";
+  return "";
+}
+function buildBridgeContract(args) {
+  const a = isPlainObject(args) ? args : {};
+  const kind = normalizeBridgeKind(a.kind) || "";
+  const laneFrom = normalizeLaneRaw(a.laneFrom) || "";
+  const laneTo = normalizeLaneRaw(a.laneTo) || "";
+  const reason = safeStr(a.reason || "", 40);
+  const chipLabel = safeStr(a.chipLabel || "", 24).trim().toLowerCase();
+  const payloadAction = safeStr(a.payloadAction || "", 24).trim().toLowerCase();
+
+  if (!kind || !laneTo) return null;
+
+  return {
+    enabled: true,
+    kind,
+    laneFrom: laneFrom || "",
+    laneTo,
+    reason: reason || kind,
+    chipLabel: chipLabel || "",
+    payloadAction: payloadAction || "",
+  };
+}
+
+// -------------------------
+// mac mode inference (lightweight)
+// -------------------------
+function normalizeMacModeRaw(v) {
+  const s = safeStr(v, 60).trim().toLowerCase();
+  if (!s) return "";
+  if (s === "architect" || s === "builder" || s === "dev") return "architect";
+  if (s === "user" || s === "viewer" || s === "consumer") return "user";
+  if (s === "transitional" || s === "mixed" || s === "both") return "transitional";
+  return "";
+}
+
+function detectMacModeImplicit(text) {
+  const t = safeStr(text, 1400).trim();
+  if (!t) return { mode: "", scoreA: 0, scoreU: 0, scoreT: 0, why: [] };
+
+  const s = t.toLowerCase();
+  let a = 0,
+    u = 0,
+    tr = 0;
+  const why = [];
+
+  if (/\b(let's|lets)\s+(define|design|lock|implement|encode|ship|wire)\b/.test(s)) {
+    a += 3;
+    why.push("architect:lets-define/design");
+  }
+  if (/\b(non[-\s]?negotiable|must|hard rule|lock this in|constitution|mediator|pipeline|governor|decision table)\b/.test(s)) {
+    a += 3;
+    why.push("architect:constraints/architecture");
+  }
+  if (/\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s)) {
+    a += 2;
+    why.push("architect:enumeration");
+  }
+  if (/\b(index\.js|chatengine\.js|statespine\.js|render|cors|session|payload|json|endpoint|route|resolver|pack|tests?)\b/.test(s)) {
+    a += 2;
+    why.push("architect:technical");
+  }
+
+  if (/\b(i('?m)?\s+not\s+sure|help\s+me\s+understand|does\s+this\s+make\s+sense|where\s+do i|get\s+the\s+url)\b/.test(s)) {
+    u += 3;
+    why.push("user:uncertainty/how-to");
+  }
+  if (/\b(confused|stuck|frustrated|overwhelmed|worried)\b/.test(s)) {
+    u += 2;
+    why.push("user:emotion");
+  }
+
+  if (a > 0 && u > 0) {
+    tr += 3;
+    why.push("transitional:mixed-signals");
+  }
+
+  let mode = "";
+  if (tr >= 3) mode = "transitional";
+  else if (a >= u + 2) mode = "architect";
+  else if (u >= a + 2) mode = "user";
+
+  return { mode, scoreA: a, scoreU: u, scoreT: tr, why };
+}
+
+function suggestModeHysteresisPatch(session, chosenMode, implicit) {
+  const s = isPlainObject(session) ? session : {};
+  const prevMode = normalizeMacModeRaw(s.macMode || s.mode || s.lastMode || "");
+  const nextMode = normalizeMacModeRaw(chosenMode);
+
+  if (!nextMode) return null;
+
+  const confA = Number(implicit?.scoreA) || 0;
+  const confU = Number(implicit?.scoreU) || 0;
+  const confT = Number(implicit?.scoreT) || 0;
+
+  let conf = 0.55;
+  if (nextMode === "transitional") conf = 0.65;
+  else if (nextMode === "architect") conf = clamp01(0.5 + confA * 0.05);
+  else if (nextMode === "user") conf = clamp01(0.5 + confU * 0.05);
+
+  if (prevMode && prevMode !== nextMode && conf < 0.7) {
+    return {
+      sessionPatchSuggestion: {
+        macMode: prevMode,
+        macModeStability: "held",
+        macModeConfidence: clamp01(conf),
+        macModeCandidate: nextMode,
       },
+      effectiveMode: prevMode,
     };
+  }
 
-    let evidenceRaw = [];
-    if (phases.phase12_evidenceRanking) {
-      evidenceRaw = await collectEvidence({
-        text: rawText,
-        tokens: classification.tokens,
-        intent: classification.intent,
-        domain: primaryDomain,
-        sentiment: classification.sentiment,
-        sessionId, userId, turnId, meta, memoryHints, traceId,
+  return {
+    sessionPatchSuggestion: {
+      macMode: nextMode,
+      macModeStability: prevMode === nextMode ? "steady" : "switched",
+      macModeConfidence: clamp01(conf),
+      macModeCandidate: nextMode,
+      macModeScores: { a: confA, u: confU, t: confT },
+    },
+    effectiveMode: nextMode,
+  };
+}
+
+// -------------------------
+// shared: safe token set
+// -------------------------
+function safeTokenSet(tokens, max = 10) {
+  const out = [];
+  const seen = new Set();
+  for (const t of Array.isArray(tokens) ? tokens : []) {
+    const v = safeStr(t, 32).trim().toLowerCase();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/* =========================
+   LEGACY KNOWLEDGE WIRES
+   (UNCHANGED from your file)
+   ========================= */
+
+function buildPsychologyQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+  const desire = safeStr(c.latentDesire || "", 16).trim().toLowerCase();
+
+  const reg = safeStr(c?.psychology?.regulationState || "", 16);
+  const load = safeStr(c?.psychology?.cognitiveLoad || "", 12);
+  const agency = safeStr(c?.psychology?.agencyPreference || "", 16);
+  const pressure = safeStr(c?.psychology?.socialPressure || "", 12);
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const needs = [];
+  if (intent === "STABILIZE" || reg === PSYCH.REG.DYSREGULATED) needs.push("regulation");
+  if (reg === PSYCH.REG.STRAINED) needs.push("reduce_load");
+  if (load === PSYCH.LOAD.HIGH) needs.push("brevity");
+  if (agency === PSYCH.AGENCY.AUTONOMOUS) needs.push("options");
+  if (desire === "mastery") needs.push("framework");
+  if (desire === "comfort") needs.push("validation");
+  if (riskTier === "high" || riskDomains.includes("risk:self_harm")) needs.push("safety_redirect");
+
+  const tokens = safeTokenSet(
+    [lane || "", action || "", intent || "", mode || "", desire || "", reg || "", load || "", pressure || "", ...riskDomains, ...needs],
+    12
+  );
+
+  const keyObj = { lane, action, intent, mode, desire, reg, load, agency, pressure, riskTier, riskDomains, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: {
+      lane,
+      action,
+      intent,
+      mode,
+      desire,
+      regulationState: reg,
+      cognitiveLoad: load,
+      agencyPreference: agency,
+      socialPressure: pressure,
+      riskTier,
+      riskDomains,
+      needs: safeTokenSet(needs, 8),
+    },
+  };
+}
+
+function clampPsychHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  const out = {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          foundations: safeStr(h.packs.foundations || "", 32),
+          clinicalSafety: safeStr(h.packs.clinicalSafety || "", 32),
+          biases: safeStr(h.packs.biases || "", 32),
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+  return out;
+}
+
+function queryPsychologyKnowledge(norm, session, cog) {
+  const q = buildPsychologyQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+  if (!PsychologyK || typeof PsychologyK !== "object") return { enabled: false, reason: "module_missing" };
+
+  try {
+    if (typeof PsychologyK.getMarionHints === "function") {
+      const res = PsychologyK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    if (typeof PsychologyK.query === "function") {
+      const res = PsychologyK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    if (typeof PsychologyK.mediatePsych === "function") {
+      const res = PsychologyK.mediatePsych({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampPsychHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    const packs = isPlainObject(PsychologyK.PACKS) ? PsychologyK.PACKS : null;
+    if (packs) {
+      return clampPsychHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: {
+          foundations: packs.foundations || "",
+          clinicalSafety: packs.clinicalSafety || "",
+          biases: packs.biases || "",
+        },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `psych_query_fail:${code}` };
+  }
+}
+
+/* =========================
+   CYBER / ENGLISH / FIN / AI legacy wires
+   (UNCHANGED from your file)
+   ========================= */
+
+function buildCyberQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const cyberTags = safeTokenSet(c.cyberTags || [], 8);
+  const cyberSignals = safeTokenSet(c.cyberSignals || [], 8);
+
+  const needs = [];
+  if (cyberTags.includes(CYBER.TAGS.REDTEAM_BLOCK)) needs.push("posture");
+  if (riskDomains.includes(RISK.DOMAINS.CYBER)) needs.push("risk:cyber");
+  if (riskTier === RISK.TIERS.HIGH) needs.push("contain");
+  if (intent === "ADVANCE") needs.push("mitigation");
+  if (intent === "CLARIFY") needs.push("triage");
+  if (intent === "STABILIZE") needs.push("containment");
+
+  const tokens = safeTokenSet(
+    ["risk:cyber", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...cyberTags, ...cyberSignals, ...needs],
+    14
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, cyberTags, cyberSignals, needs: safeTokenSet(needs, 8) },
+  };
+}
+
+function clampCyberHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          safetyPosture: safeStr(h.packs.safetyPosture || "", 48),
+          topPacks: uniqBounded(h.packs.topPacks || [], 3),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryCyberKnowledge(norm, session, cog) {
+  const q = buildCyberQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+  if (!CyberK || typeof CyberK !== "object") return { enabled: false, reason: "module_missing" };
+
+  try {
+    if (typeof CyberK.getMarionHints === "function") {
+      const res = CyberK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampCyberHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    if (typeof CyberK.query === "function") {
+      const res = CyberK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampCyberHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    const packs = isPlainObject(CyberK.PACK_FILES) ? CyberK.PACK_FILES : null;
+    if (packs) {
+      return clampCyberHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { safetyPosture: packs.safetyPosture || "", topPacks: [], versions: packs },
+        confidence: 0,
+        reason: "packs_only",
       });
     }
 
-    const rankedEvidence = rankEvidence({ items: evidenceRaw, domain: primaryDomain, intent: classification.intent, memoryHints });
-    packet.evidence = {
-      count: rankedEvidence.length,
-      top: rankedEvidence.slice(0, 5),
-      sources: uniqueStrings(rankedEvidence.map(x => x.source)),
-    };
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `cyber_query_fail:${code}` };
+  }
+}
 
-    packet.guardrails.loopGuard = loop.tripped ? { active: true, count: loop.count, action: 'deepen_or_redirect' } : { active: false, count: loop.count, action: 'none' };
-    packet.guardrails.emotion = {
-      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
-      suppressMenus: !!classification.emotion.conversationPlan.shouldSuppressMenus,
-      loopRisk: classification.emotion.nuanceProfile.loopRisk,
-      archetype: classification.emotion.nuanceProfile.archetype,
-      conversationNeed: classification.emotion.nuanceProfile.conversationNeed,
-      avoidLaneRebuild: true,
-      questionSuppression: !!(classification.emotion.conversationPlan.askAllowed === false || classification.emotion.nuanceProfile.questionPressure === 'low' || classification.emotion.nuanceProfile.questionPressure === 'none')
-    };
-    if (loop.tripped) packet.routing.responseMode.concise = true;
+function buildEnglishQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
 
-    let marionResult = null;
-    if (packet.routing.shouldUseMarion && phases.phase16_bridgeGating && phases.phase17_marionIsolation) {
-      marionResult = await invokeMarion({
-        text: rawText,
-        userText: rawText,
-        sessionId, userId, turnId, traceId, meta,
-        routing: packet.routing,
-        memory: packet.memory,
-        evidence: rankedEvidence,
-        emotion: classification.emotion,
-        loopGuard: packet.guardrails.loopGuard,
-      });
-      if (!marionResult && marionSO && !marionMethod) packet.errors.push('marion_method_unresolved');
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const englishTags = safeTokenSet(c.englishTags || [], 8);
+  const englishSignals = safeTokenSet(c.englishSignals || [], 8);
+
+  const needs = [];
+  if (englishTags.includes(ENGLISH.TAGS.CLARITY)) needs.push("clarity");
+  if (englishTags.includes(ENGLISH.TAGS.STRUCTURE)) needs.push("structure");
+  if (englishTags.includes(ENGLISH.TAGS.AUDIENCE)) needs.push("audience");
+  if (englishTags.includes(ENGLISH.TAGS.TONE)) needs.push("tone");
+  if (englishTags.includes(ENGLISH.TAGS.DEFINITIONS)) needs.push("definitions");
+  if (englishSignals.includes(ENGLISH.SIGNALS.DEFINE_JARGON)) needs.push("define_jargon");
+  if (englishSignals.includes(ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE)) needs.push("plain_language");
+
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) needs.push("safety_redirect");
+
+  const tokens = safeTokenSet(
+    ["english", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...englishTags, ...englishSignals, ...needs],
+    14
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, englishTags, englishSignals, needs: safeTokenSet(needs, 10) },
+  };
+}
+
+function clampEnglishHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          curriculum: safeStr(h.packs.curriculum || "", 48),
+          core: uniqBounded(h.packs.core || [], 6),
+          faces: uniqBounded(h.packs.faces || [], 4),
+          dialogue: uniqBounded(h.packs.dialogue || [], 4),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryEnglishKnowledge(norm, session, cog) {
+  const q = buildEnglishQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+  if (!EnglishK || typeof EnglishK !== "object") return { enabled: false, reason: "module_missing" };
+
+  try {
+    if (typeof EnglishK.getMarionHints === "function") {
+      const res = EnglishK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampEnglishHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
     }
 
-    packet.marion = {
-      invoked: !!packet.routing.shouldUseMarion,
-      available: !!marionSO,
-      method: marionMethod || null,
-      answered: !!(marionResult && marionResult.answer),
-      emotionAware: !!classification.emotion.primaryEmotion,
-      archetype: classification.emotion.nuanceProfile.archetype,
-      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
-      marionMaySpeak: true,
-      allowMenuRegeneration: false,
-      knowledgeDomains: packet.routing.knowledgeDomains || []
-    };
+    if (typeof EnglishK.query === "function") {
+      const res = EnglishK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampEnglishHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
 
-    let synthesis = null;
-    try {
-      if (synthesize && typeof synthesize === 'function') {
-        synthesis = await synthesize({
-          text: rawText,
-          intent: classification.intent,
-          domain: primaryDomain,
-          sentiment: classification.sentiment,
-          memory: packet.memory,
-          evidence: rankedEvidence,
-          responseMode,
-          emotion: classification.emotion,
-          loopGuard: packet.guardrails.loopGuard,
-          traceId,
-          marion: marionResult,
-        });
-      } else {
-        synthesis = defaultSynthesize({ domain: primaryDomain, intent: classification.intent, evidence: rankedEvidence, responseMode, marionResult, emotion: classification.emotion });
+    const packs = isPlainObject(EnglishK.PACK_FILES) ? EnglishK.PACK_FILES : null;
+    if (packs) {
+      return clampEnglishHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { curriculum: packs.curriculum || "", core: [], faces: [], dialogue: [], versions: packs },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `english_query_fail:${code}` };
+  }
+}
+
+function buildFinanceQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const finTags = safeTokenSet(c.finTags || [], 8);
+  const finSignals = safeTokenSet(c.finSignals || [], 8);
+
+  const needs = [];
+  if (finTags.includes(FIN.TAGS.UNIT_ECON)) needs.push("unit_econ");
+  if (finTags.includes(FIN.TAGS.PRICING)) needs.push("pricing");
+  if (finTags.includes(FIN.TAGS.BUDGETING)) needs.push("budgeting");
+  if (finTags.includes(FIN.TAGS.COMPLIANCE)) needs.push("compliance");
+  if (finSignals.includes(FIN.SIGNALS.CLARIFY_ASSUMPTIONS)) needs.push("clarify_assumptions");
+  if (finSignals.includes(FIN.SIGNALS.ASK_CONSTRAINTS)) needs.push("ask_constraints");
+  if (finSignals.includes(FIN.SIGNALS.USE_SCENARIOS)) needs.push("scenarios");
+  if (finSignals.includes(FIN.SIGNALS.ENCOURAGE_PRO)) needs.push("encourage_pro");
+  if (riskTier === RISK.TIERS.HIGH || riskDomains.includes(RISK.DOMAINS.SELF_HARM)) needs.push("safety_redirect");
+
+  const tokens = safeTokenSet(
+    ["finance", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...finTags, ...finSignals, ...needs],
+    14
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, finTags, finSignals, needs: safeTokenSet(needs, 10) },
+  };
+}
+
+function clampFinanceHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs) ? { primary: safeStr(h.packs.primary || "", 64), versions: isPlainObject(h.packs.versions) ? h.packs.versions : {} } : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 8),
+    frameworks: uniqBounded(h.frameworks || [], 6),
+    guardrails: uniqBounded(h.guardrails || [], 6),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 6),
+    responseCues: uniqBounded(h.responseCues || [], 8),
+    hits: uniqBounded(h.hits || [], 10),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryFinanceKnowledge(norm, session, cog) {
+  const q = buildFinanceQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+  if (!FinanceK || typeof FinanceK !== "object") return { enabled: false, reason: "module_missing" };
+
+  try {
+    if (typeof FinanceK.getMarionHints === "function") {
+      const res = FinanceK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampFinanceHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    if (typeof FinanceK.query === "function") {
+      const res = FinanceK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampFinanceHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    const packs = isPlainObject(FinanceK.PACK_FILES) ? FinanceK.PACK_FILES : null;
+    if (packs) {
+      return clampFinanceHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { primary: "", versions: packs },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `finance_query_fail:${code}` };
+  }
+}
+
+function buildAIQuery(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const action = safeStr(n.action || "", 24).trim().toLowerCase();
+  const lane = safeStr(n.lane || s.lane || "", 24).trim().toLowerCase();
+  const intent = safeStr(c.intent || "", 12).trim().toUpperCase();
+  const mode = safeStr(c.mode || "", 16).trim().toLowerCase();
+
+  const riskTier = safeStr(c.riskTier || "", 10).trim().toLowerCase();
+  const riskDomains = safeTokenSet(c.riskDomains || [], 6);
+
+  const aiTags = safeTokenSet(c.aiTags || [], 10);
+  const aiSignals = safeTokenSet(c.aiSignals || [], 10);
+
+  const needs = [];
+  if (aiSignals.includes(AI.SIGNALS.DEFINE_TERMS)) needs.push("define_terms");
+  if (aiSignals.includes(AI.SIGNALS.EVAL_FIRST)) needs.push("eval_first");
+  if (aiSignals.includes(AI.SIGNALS.ASK_CONSTRAINTS)) needs.push("ask_constraints");
+  if (aiSignals.includes(AI.SIGNALS.SAFETY_POSTURE)) needs.push("safety_posture");
+
+  const tokens = safeTokenSet(
+    ["ai", lane || "", action || "", intent || "", mode || "", riskTier || "", ...riskDomains, ...aiTags, ...aiSignals, ...needs],
+    16
+  );
+
+  const keyObj = { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, tokens };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return {
+    enabled: true,
+    queryKey,
+    tokens,
+    features: { lane, action, intent, mode, riskTier, riskDomains, aiTags, aiSignals, needs: safeTokenSet(needs, 10) },
+  };
+}
+
+function clampAIHints(hints) {
+  const h = isPlainObject(hints) ? hints : {};
+  return {
+    enabled: !!h.enabled,
+    queryKey: safeStr(h.queryKey || "", 18),
+    packs: isPlainObject(h.packs)
+      ? {
+          intro: safeStr(h.packs.intro || "", 64),
+          ethicsLaw: safeStr(h.packs.ethicsLaw || "", 64),
+          agents: safeStr(h.packs.agents || "", 64),
+          cross: uniqBounded(h.packs.cross || [], 6),
+          versions: isPlainObject(h.packs.versions) ? h.packs.versions : {},
+        }
+      : {},
+    focus: safeStr(h.focus || "", 32),
+    stance: safeStr(h.stance || "", 32),
+    principles: uniqBounded(h.principles || [], 10),
+    frameworks: uniqBounded(h.frameworks || [], 8),
+    guardrails: uniqBounded(h.guardrails || [], 8),
+    exampleTypes: uniqBounded(h.exampleTypes || [], 8),
+    responseCues: uniqBounded(h.responseCues || [], 10),
+    hits: uniqBounded(h.hits || [], 12),
+    confidence: clamp01(h.confidence),
+    reason: safeStr(h.reason || "", 60),
+  };
+}
+
+function queryAIKnowledge(norm, session, cog) {
+  const q = buildAIQuery(norm, session, cog);
+  if (!q.enabled) return { enabled: false, reason: "disabled" };
+  if (!AIK || typeof AIK !== "object") return { enabled: false, reason: "module_missing" };
+
+  try {
+    if (typeof AIK.getMarionHints === "function") {
+      const res = AIK.getMarionHints(
+        { features: q.features, tokens: q.tokens, queryKey: q.queryKey },
+        { session: isPlainObject(session) ? session : {}, cog: isPlainObject(cog) ? cog : {} }
+      );
+      const h = clampAIHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    if (typeof AIK.query === "function") {
+      const res = AIK.query({ features: q.features, tokens: q.tokens, queryKey: q.queryKey });
+      const h = clampAIHints(res);
+      return { ...h, enabled: true, queryKey: q.queryKey };
+    }
+
+    const packs = isPlainObject(AIK.PACK_FILES) ? AIK.PACK_FILES : null;
+    if (packs) {
+      return clampAIHints({
+        enabled: true,
+        queryKey: q.queryKey,
+        packs: { intro: packs.ai_intro || "", ethicsLaw: packs.ai_law_ethics || "", agents: packs.ai_agents || "", cross: [], versions: packs },
+        confidence: 0,
+        reason: "packs_only",
+      });
+    }
+
+    return { enabled: false, reason: "no_api" };
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    return { enabled: false, reason: `ai_query_fail:${code}` };
+  }
+}
+
+// -------------------------
+// PSYCHOLOGY LAYER (always-on, deterministic, bounded)
+// -------------------------
+function estimateCognitiveLoad(norm, session, nowMs) {
+  const text = safeStr(norm?.text || "", 1400);
+  const s = text.toLowerCase();
+
+  const len = text.length;
+  const hasEnum = /\b(step\s*\d+|1\s*,\s*2\s*,\s*3|1\s*2\s*3)\b/.test(s) || /\b\d+\)\s/.test(s);
+  const qMarks = (text.match(/\?/g) || []).length;
+  const tech =
+    /\b(index\.js|chatengine\.js|statespine\.js|cors|session|payload|endpoint|route|resolver|deterministic|contract|telemetry|policy|json|tests?)\b/.test(
+      s
+    );
+  const urgent = /\b(asap|urgent|right now|immediately|quick|fast)\b/.test(s);
+
+  let score = 0;
+  if (len >= 900) score += 2;
+  else if (len >= 450) score += 1;
+
+  if (qMarks >= 3) score += 1;
+  if (hasEnum) score += 1;
+  if (tech) score += 1;
+  if (urgent) score += 1;
+
+  const lastAdvanceAt = Number(isPlainObject(session) ? session.lastAdvanceAt : 0) || 0;
+  const now = Number(nowMs || 0) || 0;
+  if (lastAdvanceAt && now && now - lastAdvanceAt > 90 * 1000) score += 1;
+
+  if (score >= 4) return PSYCH.LOAD.HIGH;
+  if (score >= 2) return PSYCH.LOAD.MEDIUM;
+  return PSYCH.LOAD.LOW;
+}
+
+function estimateRegulationState(norm) {
+  const text = safeStr(norm?.text || "", 1400).toLowerCase();
+
+  if (/\b(panic|i can'?t breathe|i'?m freaking out|meltdown|spiral|breakdown|i can'?t do this)\b/.test(text)) {
+    return PSYCH.REG.DYSREGULATED;
+  }
+
+  if (/\b(overwhelmed|stuck|frustrated|anxious|stress(ed)?|worried|i'?m not sure|confused)\b/.test(text)) {
+    return PSYCH.REG.STRAINED;
+  }
+
+  return PSYCH.REG.REGULATED;
+}
+
+function estimateAgencyPreference(norm, session, mode) {
+  const text = safeStr(norm?.text || "", 1400).toLowerCase();
+
+  if (/\b(give me a plan|tell me what to do|decide for me|just pick|do it)\b/.test(text)) {
+    return PSYCH.AGENCY.GUIDED;
+  }
+
+  if (/\b(options|ideas|what are my choices|pick from|menu)\b/.test(text)) {
+    return PSYCH.AGENCY.AUTONOMOUS;
+  }
+
+  if (safeStr(mode || "").toLowerCase() === "architect") return PSYCH.AGENCY.GUIDED;
+  if (safeStr(mode || "").toLowerCase() === "user") return PSYCH.AGENCY.AUTONOMOUS;
+
+  const clicked = !!(norm?.turnSignals?.hasPayload && norm?.turnSignals?.payloadActionable);
+  if (clicked) return PSYCH.AGENCY.GUIDED;
+
+  return PSYCH.AGENCY.GUIDED;
+}
+
+function estimateSocialPressure(norm) {
+  const text = safeStr(norm?.text || "", 1400).toLowerCase();
+  if (/\b(demo|client|stakeholder|investor|sponsor|launch|press|deadline|meeting)\b/.test(text)) return PSYCH.PRESSURE.HIGH;
+  if (/\b(team|we need|today|this week|timeline)\b/.test(text)) return PSYCH.PRESSURE.MEDIUM;
+  return PSYCH.PRESSURE.LOW;
+}
+
+function computePsychologyReasoningObject(norm, session, medSeed, nowMs) {
+  const mode = safeStr(medSeed?.mode || "", 20).toLowerCase();
+  const load = estimateCognitiveLoad(norm, session, nowMs);
+  const regulationState = estimateRegulationState(norm);
+  const agencyPreference = estimateAgencyPreference(norm, session, mode);
+  const socialPressure = estimateSocialPressure(norm);
+
+  // Affect proxy (non-clinical): helps Nyx pace + respond with empathy without "diagnosing"
+  const affect = computeAffectProxy(safeStr(norm?.text || "", 1800));
+
+  return { cognitiveLoad: load, regulationState, motivation: "", agencyPreference, socialPressure, affect };
+}
+
+// -------------------------
+// move policy (StateSpine reconciliation hint)
+// -------------------------
+function normalizeMove(m) {
+  const s = safeStr(m, 20).trim().toUpperCase();
+  if (s === "ADVANCE" || s === "CLARIFY" || s === "STABILIZE") return s;
+  return "CLARIFY";
+}
+function normalizeDominance(d) {
+  const s = safeStr(d, 12).trim().toLowerCase();
+  if (s === "firm" || s === "neutral" || s === "soft") return s;
+  return "neutral";
+}
+function normalizeBudget(b) {
+  const s = safeStr(b, 12).trim().toLowerCase();
+  if (s === "short" || s === "medium") return s;
+  return "short";
+}
+
+function deriveMovePolicy(cog) {
+  const intent = safeStr(cog?.intent || "", 20).toUpperCase();
+  const actionable = !!cog?.actionable;
+
+  const psych = isPlainObject(cog?.psychology) ? cog.psychology : {};
+  const reg = safeStr(psych.regulationState || "", 16);
+  const affect = isPlainObject(psych.affect) ? psych.affect : {};
+  const distressTag = Array.isArray(affect.tags) && affect.tags.includes("distress_language");
+  const selfHarmTag = Array.isArray(affect.tags) && affect.tags.includes("self_harm_language");
+
+  const riskTier = safeStr(cog?.riskTier || "", 10).toLowerCase();
+
+  let preferredMove = normalizeMove(intent);
+  let hardOverride = false;
+  let reason = "intent";
+
+  // Highest precedence: self-harm / high risk -> stabilize
+  if (selfHarmTag || riskTier === RISK.TIERS.HIGH) {
+    preferredMove = "STABILIZE";
+    hardOverride = true;
+    reason = "high_risk_stabilize";
+  } else if (reg === PSYCH.REG.DYSREGULATED) {
+    preferredMove = actionable ? "ADVANCE" : "STABILIZE";
+    hardOverride = !actionable;
+    reason = actionable ? "dysregulated_actionable" : "dysregulated_containment";
+  } else if ((reg === PSYCH.REG.STRAINED || distressTag || riskTier === RISK.TIERS.MEDIUM) && !actionable) {
+    // Distress turns should prioritize stabilization posture (support + grounding) before deep problem-solving.
+    preferredMove = "STABILIZE";
+    hardOverride = false;
+    reason = distressTag ? "distress_stabilize" : "strained_stabilize";
+  } else if (reg === PSYCH.REG.STRAINED && !actionable) {
+    preferredMove = "CLARIFY";
+    hardOverride = false;
+    reason = "strained_clarify";
+  }
+
+  return { preferredMove, hardOverride, reason };
+}
+
+// -------------------------
+// ETHICS LAYER
+// -------------------------
+function computeEthicsLayer(norm, psych, seed) {
+  const n = isPlainObject(norm) ? norm : {};
+  const p = isPlainObject(psych) ? psych : {};
+  const s = isPlainObject(seed) ? seed : {};
+
+  const tags = [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN];
+  const signals = [];
+
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+  const reg = safeStr(p.regulationState || "", 16);
+  const agencyPref = safeStr(p.agencyPreference || "", 16);
+
+  const selfHarm = /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
+
+  if (selfHarm) {
+    tags.push(ETHICS.TAGS.HARM_AVOIDANCE, ETHICS.TAGS.SAFETY_REDIRECT);
+    signals.push(ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL, ETHICS.SIGNALS.ENCOURAGE_HELP_SEEKING);
+  } else if (reg === PSYCH.REG.DYSREGULATED) {
+    tags.push(ETHICS.TAGS.HARM_AVOIDANCE);
+    signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.MINIMIZE_RISKY_DETAIL);
+  }
+
+  tags.push(ETHICS.TAGS.AGENCY_RESPECT);
+  if (agencyPref === PSYCH.AGENCY.AUTONOMOUS && !s.actionable) signals.push(ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
+
+
+// Distress language (non-self-harm): keep tone supportive, non-clinical, and encourage help-seeking when appropriate
+const distress = /\b(i'?m hurting|i am hurting|hurting|in pain|overwhelmed|depressed|hopeless|helpless|panic|anxious|anxiety)\b/.test(text);
+if (distress && !selfHarm) {
+  tags.push(ETHICS.TAGS.HARM_AVOIDANCE);
+  signals.push(ETHICS.SIGNALS.USE_NEUTRAL_TONE, ETHICS.SIGNALS.OFFER_OPTIONS_NOT_ORDERS);
+  // Host/Nyx should include a brief disclaimer: supportive companion, not a licensed therapist/medical professional.
+  signals.push("non_clinical_disclaimer");
+}
+
+  return {
+    ethicsTags: uniqBounded(tags.map((x) => safeStr(x, 32)), 8),
+    ethicsSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
+  };
+}
+
+// -------------------------
+// RISKBRIDGE v1
+// -------------------------
+// (UNCHANGED)
+function computeRiskBridge(norm, psych, ethics, lawSeed) {
+  const n = isPlainObject(norm) ? norm : {};
+  const p = isPlainObject(psych) ? psych : {};
+  const e = isPlainObject(ethics) ? ethics : {};
+  const seed = isPlainObject(lawSeed) ? lawSeed : {};
+
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const domains = [];
+  const signals = [];
+  let tier = RISK.TIERS.NONE;
+
+  const reg = safeStr(p.regulationState || "", 16);
+  const load = safeStr(p.cognitiveLoad || "", 12);
+  const pressure = safeStr(p.socialPressure || "", 12);
+  const actionable = !!seed.actionable;
+
+  const selfHarm = /\b(suicid(e|al)|kill myself|end it all|self[-\s]?harm|cutting|i don't want to live)\b/.test(text);
+  if (selfHarm) {
+    domains.push(RISK.DOMAINS.SELF_HARM);
+    tier = RISK.TIERS.HIGH;
+    signals.push("containment_required");
+  }
+
+
+// Distress / pain language (non-self-harm): elevate to MEDIUM and switch to stabilize/clarify posture
+// Example: "I am hurting" should not get "execute cleanly" style responses.
+const distress = /\b(i'?m hurting|i am hurting|hurting|in pain|i'?m in pain|i am in pain|i feel (?:awful|terrible|broken)|overwhelmed|depressed|hopeless|helpless|panic|anxious|anxiety)\b/.test(text);
+if (distress && tier !== RISK.TIERS.HIGH) {
+  if (!domains.includes(RISK.DOMAINS.MEDICAL)) domains.push(RISK.DOMAINS.MEDICAL);
+  tier = RISK.TIERS.MEDIUM;
+  signals.push("distress_language");
+}
+
+  const violence = /\b(kill|murder|shoot|stab|bomb|attack|hurt them|hurt him|hurt her|beat (them|him|her)|make a weapon)\b/.test(text);
+  if (violence) {
+    domains.push(RISK.DOMAINS.VIOLENCE);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("violence_related");
+  }
+
+  const illegal = /\b(how to (steal|fraud)|bypass (the )?law|evade (the )?law|counterfeit|forg(e|ery)|identity theft)\b/.test(text);
+  if (illegal) {
+    domains.push(RISK.DOMAINS.ILLEGAL);
+    tier = RISK.TIERS.HIGH;
+    signals.push("illegal_intent_detected");
+  }
+
+  const privacy =
+    /\b(doxx|dox|ip address|track (a|an|the) (person|user)|stalk|find (their|his|her) address|social security|sin number|credit card number)\b/.test(
+      text
+    );
+  if (privacy) {
+    domains.push(RISK.DOMAINS.PRIVACY);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("privacy_sensitive");
+  }
+
+  const sexual = /\b(nudes?|porn|explicit|sexual|sex tape|onlyfans|hook up|fetish|bdsm)\b/.test(text);
+  if (sexual) {
+    domains.push(RISK.DOMAINS.SEXUAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("sexual_content");
+  }
+
+  const hate =
+    /\b(nazi|white power|genocide|ethnic cleansing|kill (all|the) (jews|muslims|christians|blacks|whites)|racial superiority)\b/.test(text);
+  if (hate) {
+    domains.push(RISK.DOMAINS.HATE);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+    signals.push("hate_related");
+  }
+
+  if (/\b(diagnose|medical advice|prescription|dose)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.MEDICAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(legal advice|lawsuit|sue|liability|contract dispute)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.LEGAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(financial advice|invest|portfolio|trading|crypto|tax)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.FINANCIAL);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+  if (/\b(cyber|security|infosec|phish|malware|exploit|breach|hack)\b/.test(text)) {
+    domains.push(RISK.DOMAINS.CYBER);
+    if (tier !== RISK.TIERS.HIGH) tier = RISK.TIERS.MEDIUM;
+  }
+
+  if (reg === PSYCH.REG.DYSREGULATED && tier !== RISK.TIERS.HIGH) {
+    tier = RISK.TIERS.MEDIUM;
+    signals.push("emotional_instability");
+  }
+
+  if (domains.length >= 2 && tier !== RISK.TIERS.HIGH) {
+    tier = RISK.TIERS.MEDIUM;
+    signals.push("multi_domain");
+  }
+
+  if (tier === RISK.TIERS.NONE && (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH)) {
+    tier = RISK.TIERS.LOW;
+    signals.push("high_load_or_pressure");
+  }
+
+  const lawOverrides = {};
+
+  if (tier === RISK.TIERS.HIGH) {
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+    lawOverrides.dominanceBias = "firm";
+    if (!actionable) lawOverrides.forceIntent = "STABILIZE";
+  } else if (tier === RISK.TIERS.MEDIUM) {
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+  } else if (tier === RISK.TIERS.LOW && !actionable) {
+    lawOverrides.budgetClamp = "short";
+  }
+
+  if (Array.isArray(e.ethicsTags) && e.ethicsTags.includes(ETHICS.TAGS.SAFETY_REDIRECT)) {
+    signals.push("ethics_safety_redirect");
+    if (!domains.includes(RISK.DOMAINS.SELF_HARM)) domains.push(RISK.DOMAINS.SELF_HARM);
+    tier = RISK.TIERS.HIGH;
+    lawOverrides.forceIntent = "STABILIZE";
+    lawOverrides.budgetClamp = "short";
+    lawOverrides.velvetBlock = true;
+    lawOverrides.dominanceBias = "firm";
+  }
+
+  return {
+    riskTier: tier,
+    riskDomains: uniqBounded(domains, 6),
+    riskSignals: uniqBounded(signals, 6),
+    lawOverrides: isPlainObject(lawOverrides) ? { ...lawOverrides } : {},
+  };
+}
+
+function applyRiskOverridesToLawSeed(lawSeed, risk) {
+  const seed = isPlainObject(lawSeed) ? { ...lawSeed } : {};
+  const r = isPlainObject(risk) ? risk : {};
+  const o = isPlainObject(r.lawOverrides) ? r.lawOverrides : {};
+
+  // forceIntent must win even if actionable (safety precedence)
+  if (o.forceIntent) {
+    const fi = normalizeMove(o.forceIntent);
+    seed.intent = fi;
+  }
+
+  if (o.budgetClamp === "short") seed.budget = "short";
+  if (typeof o.velvetBlock === "boolean" && o.velvetBlock) seed.velvetAllowed = false;
+
+  if (o.dominanceBias === "firm" || o.dominanceBias === "neutral") {
+    if (safeStr(seed.mode || "", 20).toLowerCase() !== "user") seed.dominance = o.dominanceBias;
+  }
+
+  return seed;
+}
+
+// -------------------------
+// LAW LAYER
+// -------------------------
+function applyLawLayer(seed, psych) {
+  const out = isPlainObject(seed) ? { ...seed } : {};
+  const tags = [];
+  const reasons = [];
+
+  const p = isPlainObject(psych) ? psych : {};
+  const reg = safeStr(p.regulationState || "", 16);
+  const load = safeStr(p.cognitiveLoad || "", 12);
+  const pressure = safeStr(p.socialPressure || "", 12);
+
+  const actionable = !!out.actionable;
+  const stalled = !!out.stalled;
+
+  if (reg === PSYCH.REG.DYSREGULATED) {
+    out.intent = actionable ? "ADVANCE" : "STABILIZE";
+    out.dominance = "firm";
+    out.budget = "short";
+    out.groundingMaxLines = clampInt(out.groundingMaxLines, 0, 2, 0);
+    tags.push(LAW.TAGS.CONTAINMENT);
+    reasons.push(actionable ? "containment_actionable" : "containment_hold");
+  }
+
+  if (actionable && out.intent !== "STABILIZE") {
+    out.intent = "ADVANCE";
+    if (safeStr(out.mode || "", 20).toLowerCase() !== "user") out.dominance = "firm";
+    tags.push(LAW.TAGS.ACTION_SUPREMACY);
+    reasons.push("action_supremacy");
+  }
+
+  if (stalled && !actionable) {
+    out.intent = "CLARIFY";
+    out.dominance = out.dominance === "firm" ? "firm" : "neutral";
+    out.budget = "short";
+    out.groundingMaxLines = clampInt(out.groundingMaxLines, 0, 1, 0);
+    tags.push(LAW.TAGS.NO_SPIN);
+    reasons.push("stall_clarify");
+  }
+
+  if (load === PSYCH.LOAD.HIGH || pressure === PSYCH.PRESSURE.HIGH) {
+    out.budget = "short";
+    tags.push(LAW.TAGS.BUDGET_CLAMP);
+    reasons.push("budget_clamp");
+  }
+
+  const intent = safeStr(out.intent || "", 20).toUpperCase();
+  if (intent === "STABILIZE") {
+    out.velvetAllowed = false;
+    tags.push(LAW.TAGS.VELVET_GUARD);
+    reasons.push("velvet_off_stabilize");
+  } else if (out.velvetAllowed === false) {
+    tags.push(LAW.TAGS.VELVET_GUARD);
+    reasons.push("velvet_guard");
+  }
+
+  tags.push(LAW.TAGS.COHERENCE);
+  reasons.push("coherent");
+
+  return {
+    ...out,
+    lawTags: tags.slice(0, 8).map((x) => safeStr(x, 32)),
+    lawReasons: reasons.slice(0, 8).map((x) => safeStr(x, 40)),
+  };
+}
+
+/* =========================
+   CYBER / ENGLISH / FIN / STRATEGY / AI layers
+   (UNCHANGED logic — same as your file)
+   ========================= */
+
+function computeCyberLayer(norm, psych) {
+  const n = isPlainObject(norm) ? norm : {};
+  const p = isPlainObject(psych) ? psych : {};
+
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const tags = [CYBER.TAGS.DEFENSIVE_ONLY];
+  const signals = [CYBER.SIGNALS.SAFE_DEFAULTS];
+
+  const mentionsSecurity =
+    /\b(cyber|security|infosec|privacy|phish|phishing|malware|ransom|ddos|sql injection|xss|csrf|breach|exploit|hack)\b/.test(text);
+
+  const socialEng = /\b(phish|phishing|social engineering|impersonat|spoof|fraud|scam|otp|2fa code|verification code)\b/.test(text);
+
+  const suspiciousAsk =
+    /\b(how to hack|hack into|steal password|bypass|crack|keylog|ddos (a|an)|make malware|write malware|exploit (a|an)|phish (a|an) (email|site)|credential stuffing)\b/.test(
+      text
+    );
+
+  if (mentionsSecurity) {
+    tags.push(CYBER.TAGS.THREAT_AWARENESS, CYBER.TAGS.HARDENING);
+    signals.push(CYBER.SIGNALS.MINIMIZE_SENSITIVE_DATA);
+  }
+
+  if (socialEng) {
+    tags.push(CYBER.TAGS.SOCIAL_ENGINEERING, CYBER.TAGS.PRIVACY_HYGIENE);
+    signals.push(CYBER.SIGNALS.VERIFY_SOURCE);
+  }
+
+  const reg = safeStr(p.regulationState || "", 16);
+  if (reg === PSYCH.REG.DYSREGULATED && mentionsSecurity) signals.push(CYBER.SIGNALS.AVOID_STEP_BY_STEP);
+
+  if (suspiciousAsk) {
+    tags.push(CYBER.TAGS.REDTEAM_BLOCK);
+    signals.push(CYBER.SIGNALS.AVOID_STEP_BY_STEP, CYBER.SIGNALS.SUGGEST_DEFENSIVE_ALTS);
+  }
+
+  return { cyberTags: uniqBounded(tags, 8), cyberSignals: uniqBounded(signals, 6) };
+}
+
+function computeEnglishLayer(norm, seed) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(seed) ? seed : {};
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+  const action = safeStr(n?.action || "", 80).toLowerCase();
+
+  const tags = [];
+  const signals = [];
+
+  const writingAsk = /\b(rewrite|revise|edit|proofread|grammar|spelling|tone|make this clearer|summarize|shorten|simplify|translate)\b/.test(text);
+
+  const docOrComms = /\b(email|letter|proposal|pitch|script|press release|bio|about page|copy|caption)\b/.test(text);
+
+  const technicalDensity = /\b(api|cors|endpoint|resolver|session|deterministic|contract|telemetry|governor|policy)\b/.test(text);
+
+  if (writingAsk || docOrComms) {
+    tags.push(ENGLISH.TAGS.CLARITY, ENGLISH.TAGS.STRUCTURE, ENGLISH.TAGS.TONE);
+    signals.push(ENGLISH.SIGNALS.BULLET_STRUCTURE, ENGLISH.SIGNALS.SHORT_SENTENCES);
+  }
+
+  if (technicalDensity && (writingAsk || docOrComms)) {
+    tags.push(ENGLISH.TAGS.DEFINITIONS, ENGLISH.TAGS.AUDIENCE);
+    signals.push(ENGLISH.SIGNALS.DEFINE_JARGON, ENGLISH.SIGNALS.ASK_AUDIENCE);
+  }
+
+  const mode = safeStr(s.mode || "", 20).toLowerCase();
+  const intent = safeStr(s.intent || "", 20).toUpperCase();
+  if (mode === "user" && intent !== "ADVANCE") {
+    if (!tags.length) tags.push(ENGLISH.TAGS.CLARITY);
+    signals.push(ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE);
+  }
+
+  if (action === "counsel_intro" && !tags.length) {
+    tags.push(ENGLISH.TAGS.TONE);
+    signals.push(ENGLISH.SIGNALS.SHORT_SENTENCES);
+  }
+
+  return {
+    englishTags: uniqBounded(tags.map((x) => safeStr(x, 24)), 8),
+    englishSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6),
+  };
+}
+
+function computeFinanceLayer(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const tags = [];
+  const signals = [];
+
+  const financeTopic =
+    /\b(price|pricing|revenue|profit|margin|budget|cashflow|forecast|break[-\s]?even|roi|lifetime value|ltv|cac|unit economics|economics|tax|sred|grant|funding|invoice|subscription)\b/.test(
+      text
+    );
+
+  const investingTopic = /\b(invest|portfolio|stocks?|crypto|options trading|day trade|forex)\b/.test(text);
+
+  if (financeTopic || investingTopic) {
+    tags.push(FIN.TAGS.NON_ADVICE);
+    signals.push(FIN.SIGNALS.CLARIFY_ASSUMPTIONS, FIN.SIGNALS.ASK_CONSTRAINTS);
+
+    if (/\bprice|pricing\b/.test(text)) tags.push(FIN.TAGS.PRICING);
+    if (/\b(budget|cashflow|forecast)\b/.test(text)) tags.push(FIN.TAGS.BUDGETING);
+    if (/\b(ltv|cac|unit economics|margin|break[-\s]?even)\b/.test(text)) tags.push(FIN.TAGS.UNIT_ECON);
+
+    if (/\b(tax|sred|grant|funding|compliance)\b/.test(text)) {
+      tags.push(FIN.TAGS.COMPLIANCE, FIN.TAGS.RISK_DISCLOSURE);
+      signals.push(FIN.SIGNALS.ENCOURAGE_PRO);
+    } else if (investingTopic) {
+      tags.push(FIN.TAGS.RISK_DISCLOSURE);
+      signals.push(FIN.SIGNALS.USE_SCENARIOS);
+    }
+  }
+
+  return { finTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), finSignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
+}
+
+function computeStrategyLayer(norm, seed, psych) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(seed) ? seed : {};
+  const p = isPlainObject(psych) ? psych : {};
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const tags = [];
+  const signals = [];
+
+  const strategicLanguage =
+    /\b(strategy|strategic|roadmap|milestone|priorit(y|ize)|trade[-\s]?off|risk|constraint|decision|plan|architecture|system|governance)\b/.test(text);
+
+  const measurementLanguage = /\b(metric|kpi|measure|benchmark|baseline|success criteria|a\/b|experiment)\b/.test(text);
+
+  const sequencingLanguage = /\b(first|next|then|after that|sequence|phase|layer|step\s*\d+)\b/.test(text);
+
+  const seedMode = safeStr(s.mode || "", 20).toLowerCase();
+
+  if (strategicLanguage || seedMode === "architect") {
+    tags.push(STRATEGY.TAGS.TRADEOFFS, STRATEGY.TAGS.EXECUTION);
+    signals.push(STRATEGY.SIGNALS.DEFINE_GOAL, STRATEGY.SIGNALS.IDENTIFY_CONSTRAINTS);
+
+    if (measurementLanguage) {
+      tags.push(STRATEGY.TAGS.METRICS);
+      signals.push(STRATEGY.SIGNALS.NEXT_ACTIONS);
+    }
+    if (sequencingLanguage) {
+      tags.push(STRATEGY.TAGS.SEQUENCING);
+      signals.push(STRATEGY.SIGNALS.TIME_HORIZON);
+    }
+    if (/\b(option value|reversible|irreversible|one[-\s]?way door|two[-\s]?way door)\b/.test(text)) {
+      tags.push(STRATEGY.TAGS.OPTION_VALUE);
+      signals.push(STRATEGY.SIGNALS.DECISION_MATRIX);
+    }
+    if (/\b(risk|attack surface|failure mode|blast radius|rollback)\b/.test(text)) {
+      tags.push(STRATEGY.TAGS.RISK);
+      signals.push(STRATEGY.SIGNALS.DECISION_MATRIX);
+    }
+  }
+
+  if (safeStr(p.cognitiveLoad || "", 12) === PSYCH.LOAD.HIGH && tags.length) signals.push(STRATEGY.SIGNALS.NEXT_ACTIONS);
+
+  return { strategyTags: uniqBounded(tags.map((x) => safeStr(x, 28)), 8), strategySignals: uniqBounded(signals.map((x) => safeStr(x, 40)), 6) };
+}
+
+function computeAILayer(norm) {
+  const n = isPlainObject(norm) ? norm : {};
+  const text = safeStr(n?.text || "", 1400).toLowerCase();
+
+  const tags = [];
+  const signals = [];
+
+  const aiCore =
+    /\b(artificial intelligence|ai\b|machine learning|ml\b|deep learning|neural network|supervised|unsupervised|reinforcement learning)\b/.test(text);
+  const llm =
+    /\b(llm|large language model|transformer|prompt|rag|retrieval[-\s]?augmented|embedding|vector database|fine[-\s]?tune|alignment|rlhf)\b/.test(text);
+  const agents = /\b(agent(s)?|tool use|function calling|planner|orchestrator|workflow automation)\b/.test(text);
+  const evals = /\b(eval|evaluation|benchmark|metrics|hallucination|grounding|confidence|tests?)\b/.test(text);
+  const governance = /\b(governance|policy|compliance|audit|model risk|risk management)\b/.test(text);
+
+  const aiLaw = /\b(ai.*law|law.*ai|legal|contract|liability|privacy law|gdpr|pipeda|copyright|trademark|case law)\b/.test(text);
+  const aiPsy = /\b(ai.*psych|psych.*ai|cognitive|bias|therapy|mental health)\b/.test(text);
+  const aiCyber = /\b(ai.*cyber|cyber.*ai|security|infosec|malware|phish|breach)\b/.test(text);
+  const aiMkt = /\b(ai.*marketing|marketing.*ai|ads|seo|copywriting|campaign|conversion|funnel)\b/.test(text);
+
+  if (aiCore) tags.push(AI.TAGS.INTRO, AI.TAGS.ML_CORE);
+  if (llm) tags.push(AI.TAGS.LLM);
+  if (agents) tags.push(AI.TAGS.AGENTS);
+  if (evals) tags.push(AI.TAGS.EVAL);
+  if (governance) tags.push(AI.TAGS.GOVERNANCE);
+
+  if (aiLaw) tags.push(AI.TAGS.AI_LAW);
+  if (aiPsy) tags.push(AI.TAGS.AI_PSY);
+  if (aiCyber) tags.push(AI.TAGS.AI_CYBER);
+  if (aiMkt) tags.push(AI.TAGS.AI_MKT);
+
+  if (aiCore || llm || agents) signals.push(AI.SIGNALS.DEFINE_TERMS, AI.SIGNALS.USE_EXAMPLES, AI.SIGNALS.MENTION_LIMITS);
+  if (evals) signals.push(AI.SIGNALS.EVAL_FIRST);
+  if (agents) signals.push(AI.SIGNALS.ASK_CONSTRAINTS);
+  if (governance || aiLaw) signals.push(AI.SIGNALS.SAFETY_POSTURE);
+
+  return { aiTags: uniqBounded(tags, 10), aiSignals: uniqBounded(signals, 10) };
+}
+
+// -------------------------
+// Apply PRO impacts to mediator outputs
+// -------------------------
+function applyPsychologyToMediator(cog, psych) {
+  const out = isPlainObject(cog) ? { ...cog } : {};
+  const p = isPlainObject(psych) ? psych : {};
+
+  if (p.cognitiveLoad === PSYCH.LOAD.HIGH || p.socialPressure === PSYCH.PRESSURE.HIGH) out.budget = "short";
+
+  if (p.regulationState === PSYCH.REG.DYSREGULATED) {
+    out.intent = out.actionable ? "ADVANCE" : "STABILIZE";
+    out.dominance = "firm";
+    const cur = Number(out.groundingMaxLines);
+    const curSafe = Number.isFinite(cur) ? cur : 0;
+    out.groundingMaxLines = Math.max(0, Math.min(2, curSafe));
+  }
+
+  if (p.regulationState === PSYCH.REG.STRAINED && !out.actionable) {
+    out.intent = "CLARIFY";
+    if (out.dominance !== "firm") out.dominance = "neutral";
+    const cur = Number(out.groundingMaxLines);
+    const curSafe = Number.isFinite(cur) ? cur : 0;
+    out.groundingMaxLines = Math.max(0, Math.min(1, curSafe));
+  }
+
+  if (p.agencyPreference === PSYCH.AGENCY.GUIDED) {
+    if (out.intent === "ADVANCE") out.dominance = out.dominance === "soft" ? "neutral" : out.dominance;
+  } else if (p.agencyPreference === PSYCH.AGENCY.AUTONOMOUS) {
+    if (out.dominance === "firm" && out.intent !== "ADVANCE") out.dominance = "neutral";
+  }
+
+  out.psychology = {
+    cognitiveLoad: safeStr(p.cognitiveLoad || "", 12),
+    regulationState: safeStr(p.regulationState || "", 16),
+    motivation: safeStr(p.motivation || "", 16),
+    agencyPreference: safeStr(p.agencyPreference || "", 16),
+    socialPressure: safeStr(p.socialPressure || "", 12),
+  };
+
+  out.movePolicy = deriveMovePolicy(out);
+  return out;
+}
+
+// -------------------------
+// intent classification
+// -------------------------
+function classifyTurnIntent(norm) {
+  const text = safeStr(norm?.text || "", 1200).trim().toLowerCase();
+  const action = safeStr(norm?.action || "", 80).trim();
+
+  const hasPayload = !!norm?.turnSignals?.hasPayload;
+  const textEmpty = !!norm?.turnSignals?.textEmpty;
+  const payloadActionable = !!norm?.turnSignals?.payloadActionable;
+  const payloadAction = safeStr(norm?.turnSignals?.payloadAction || "", 60).trim();
+  const payloadYear = normYear(norm?.turnSignals?.payloadYear);
+
+  const actionable =
+    !!action ||
+    (payloadActionable && hasPayload && (payloadAction || payloadYear !== null)) ||
+    (payloadActionable && textEmpty && hasPayload);
+
+  if (actionable) return "ADVANCE";
+
+  if (/\b(i('?m)?\s+stuck|i('?m)?\s+worried|overwhelmed|frustrated|anxious|panic|stress(ed)?|reassure|calm)\b/.test(text)) {
+    return "STABILIZE";
+  }
+
+  if (/\b(explain|how do i|how to|what is|walk me through|where do i|get|why|help me)\b/.test(text)) {
+    return "CLARIFY";
+  }
+
+  return "CLARIFY";
+}
+
+// -------------------------
+// latent desire inference
+// -------------------------
+function inferLatentDesire(norm, session, med) {
+  const t = safeStr(norm?.text || "", 1400).toLowerCase();
+  const a = safeStr(norm?.action || "", 80).toLowerCase();
+  const mode = safeStr(med?.mode || "", 20).toLowerCase();
+
+  if (/\b(optimi[sz]e|systems?|framework|architecture|hard(en)?|constraints?|regression tests?|unit tests?|audit|refactor|contract|deterministic)\b/.test(t)) {
+    return LATENT_DESIRE.MASTERY;
+  }
+  if (/\b(am i right|do i make sense|how am i perceived|handsome|attractive|validation|do you think)\b/.test(t)) {
+    return LATENT_DESIRE.VALIDATION;
+  }
+  if (/\b(why|meaning|connect|pattern|link|what connects|deeper|layer)\b/.test(t)) {
+    return LATENT_DESIRE.CURIOSITY;
+  }
+  if (/\b(worried|overwhelmed|stuck|anxious|stress|reassure|calm)\b/.test(t)) {
+    return LATENT_DESIRE.COMFORT;
+  }
+
+  if (a === "counsel_intro") return LATENT_DESIRE.COMFORT;
+  if (a === "top10" || a === "yearend_hot100") return LATENT_DESIRE.AUTHORITY;
+  if (a === "story_moment" || a === "micro_moment" || a === "custom_story") return LATENT_DESIRE.COMFORT;
+
+  if (mode === "architect") {
+    if (/\bdesign|implement|encode|ship|lock|wire|merge|pin|canonical\b/.test(t)) return LATENT_DESIRE.MASTERY;
+    return LATENT_DESIRE.AUTHORITY;
+  }
+
+  if (truthy(session?.velvetMode)) return LATENT_DESIRE.COMFORT;
+  return LATENT_DESIRE.CURIOSITY;
+}
+
+// -------------------------
+// confidence inference
+// -------------------------
+function inferConfidence(norm, session, med) {
+  const s = isPlainObject(session) ? session : {};
+  const text = safeStr(norm?.text || "", 1400).trim();
+  const action = safeStr(norm?.action || "", 80).trim();
+  const hasPayload = !!norm?.turnSignals?.hasPayload;
+  const textEmpty = !!norm?.turnSignals?.textEmpty;
+  const actionablePayload = !!norm?.turnSignals?.payloadActionable;
+
+  let user = 0.5;
+
+  if (
+    action ||
+    (actionablePayload &&
+      hasPayload &&
+      (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() || normYear(norm?.turnSignals?.payloadYear) !== null))
+  ) {
+    user += 0.15;
+  }
+  if (textEmpty && hasPayload && actionablePayload) user += 0.05;
+
+  if (/\b(i('?m)?\s+not\s+sure|confused|stuck|overwhelmed)\b/i.test(text)) user -= 0.25;
+  if (/\b(are you sure|really\??)\b/i.test(text)) user -= 0.1;
+
+  let nyx = 0.55;
+  if (safeStr(med?.intent || "", 20).toUpperCase() === "ADVANCE") nyx += 0.15;
+  if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") nyx -= 0.25;
+
+  const lastAction = safeStr(s.lastAction || "", 80).trim();
+  const lastYear = normYear(s.lastYear);
+  const yr = normYear(norm?.year);
+  if (lastAction && lastAction === action && lastYear && yr && lastYear === yr) nyx += 0.1;
+
+  const mode = safeStr(med?.mode || "", 20).toLowerCase();
+  if (mode === "architect" || mode === "transitional") nyx += 0.05;
+  if (mode === "user") nyx -= 0.05;
+
+  return { user: clamp01(user), nyx: clamp01(nyx) };
+}
+
+// -------------------------
+// velvet mode (music-first)
+// -------------------------
+function computeVelvet(norm, session, med, desire, now, velvetAllowed) {
+  const s = isPlainObject(session) ? session : {};
+  const action = safeStr(norm?.action || "", 80).trim();
+  const lane = safeStr(norm?.lane || "", 40).trim() || (action ? "music" : "");
+  const yr = normYear(norm?.year);
+  const lastYear = normYear(s.lastYear);
+  const lastLane = safeStr(s.lane || "", 40).trim();
+
+  const already = truthy(s.velvetMode);
+
+  const wantsDepth =
+    action === "story_moment" ||
+    action === "micro_moment" ||
+    action === "custom_story" ||
+    /\b(why|meaning|connect|deeper|layer)\b/i.test(safeStr(norm?.text || "", 1400));
+
+  const repeatedTopic = !!(lastLane && lane && lastLane === lane && yr && lastYear && yr === lastYear);
+
+  const acceptedChip = !!(
+    norm?.turnSignals?.hasPayload &&
+    norm?.turnSignals?.payloadActionable &&
+    (safeStr(norm?.turnSignals?.payloadAction || "", 60).trim() || normYear(norm?.turnSignals?.payloadYear) !== null)
+  );
+
+  const musicFirstEligible = lane === "music" || !!action;
+
+  if (!velvetAllowed) {
+    return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "forced_exit" : "blocked" };
+  }
+
+  let signals = 0;
+  if (wantsDepth) signals++;
+  if (repeatedTopic) signals++;
+  if (acceptedChip) signals++;
+  if (clamp01(med?.confidence?.nyx) >= 0.6) signals++;
+  if (desire === LATENT_DESIRE.COMFORT || desire === LATENT_DESIRE.CURIOSITY) signals++;
+
+  if (!musicFirstEligible) return { velvet: already, velvetSince: Number(s.velvetSince || 0) || 0, reason: already ? "carry" : "no" };
+
+  if (already) {
+    if (safeStr(med?.intent || "", 20).toUpperCase() === "STABILIZE") return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "stabilize_exit" };
+    if (lastLane && lane && lastLane !== lane) return { velvet: false, velvetSince: Number(s.velvetSince || 0) || 0, reason: "lane_shift_exit" };
+    return { velvet: true, velvetSince: Number(s.velvetSince || 0) || now, reason: "hold" };
+  }
+
+  if (signals >= 2) return { velvet: true, velvetSince: now, reason: "entry" };
+  return { velvet: false, velvetSince: 0, reason: "no" };
+}
+
+// -------------------------
+// bounded trace (no raw user text)
+// -------------------------
+function buildTrace(norm, session, med) {
+  const y = normYear(norm?.year);
+  const bridgeKind = safeStr(med?.bridge?.kind || "", 16);
+  const bridgeTo = safeStr(med?.bridge?.laneTo || "", 12);
+
+  const parts = [
+    `m=${safeStr(med?.mode || "", 16)}`,
+    `i=${safeStr(med?.intent || "", 10)}`,
+    `d=${safeStr(med?.dominance || "", 8)}`,
+    `b=${safeStr(med?.budget || "", 8)}`,
+    `ln=${safeStr(med?.lane || "", 12) || "-"}`,
+    `la=${safeStr(med?.laneAction || "", 12) || "-"}`,
+    `a=${safeStr(norm?.action || "", 18) || "-"}`,
+    `y=${y !== null ? y : "-"}`,
+    `p=${med?.actionable ? "1" : "0"}`,
+    `e=${med?.textEmpty ? "1" : "0"}`,
+    `st=${med?.stalled ? "1" : "0"}`,
+    `rk=${safeStr(med?.riskTier || "", 6) || "-"}`,
+    `ld=${safeStr(med?.latentDesire || "", 10)}`,
+    `cn=${String(Math.round(clamp01(med?.confidence?.nyx) * 100))}`,
+    `v=${med?.velvet ? "1" : "0"}`,
+    `pl=${safeStr(med?.psychology?.cognitiveLoad || "", 6) || "-"}`,
+    `pr=${safeStr(med?.psychology?.regulationState || "", 10) || "-"}`,
+    `br=${bridgeKind || "-"}`,
+    `bt=${bridgeTo || "-"}`,
+    `lw=${Array.isArray(med?.lawTags) && med.lawTags.length ? safeStr(med.lawTags[0], 12) : "-"}`,
+    `et=${Array.isArray(med?.ethicsTags) && med.ethicsTags.length ? safeStr(med.ethicsTags[0], 12) : "-"}`,
+    `cy=${Array.isArray(med?.cyberTags) && med.cyberTags.length ? safeStr(med.cyberTags[0], 12) : "-"}`,
+    `ai=${Array.isArray(med?.aiTags) && med.aiTags.length ? safeStr(med.aiTags[0], 12) : "-"}`,
+    `mv=${safeStr(med?.movePolicy?.preferredMove || "", 8) || "-"}`,
+    `pb=${med?.psyche?.enabled ? "1" : "0"}`,
+    `pk=${med?.psychologyHints?.enabled ? "1" : "0"}`,
+    `ck=${med?.cyberKnowledgeHints?.enabled ? "1" : "0"}`,
+    `ek=${med?.englishKnowledgeHints?.enabled ? "1" : "0"}`,
+    `fk=${med?.financeKnowledgeHints?.enabled ? "1" : "0"}`,
+    `ak=${med?.aiKnowledgeHints?.enabled ? "1" : "0"}`,
+    // NEW: expert router summary
+    `xl=${Array.isArray(med?.lanesUsed) ? med.lanesUsed.join(",").slice(0, 24) : "-"}`,
+    `xc=${med?.crossLaneAllowed ? "1" : "0"}`,
+  ];
+
+  const base = parts.join("|");
+  if (base.length <= MARION_TRACE_MAX) return base;
+  return base.slice(0, MARION_TRACE_MAX - 3) + "...";
+}
+function hashTrace(trace) {
+  return sha1Lite(safeStr(trace, 400)).slice(0, 10);
+}
+
+// -------------------------
+// contract clamp + dev safety checks
+// -------------------------
+function tracePolicyCheck(cog, norm, opts) {
+  const o = isPlainObject(opts) ? opts : {};
+  if (!truthy(o.devTracePolicyCheck)) return null;
+
+  const nText = safeStr(norm?.text || "", 2000).trim();
+  if (!nText) return null;
+
+  const out = [];
+  const needles = [nText.slice(0, 18), nText.slice(0, 24), nText.slice(Math.max(0, nText.length - 18))].filter(Boolean);
+
+  const fields = [
+    "marionTrace",
+    "macModeWhy",
+    "lawReasons",
+    "riskSignals",
+    "ethicsSignals",
+    "psyche",
+    "psychologyHints",
+    "cyberKnowledgeHints",
+    "englishKnowledgeHints",
+    "financeKnowledgeHints",
+    "aiKnowledgeHints",
+    "bridge",
+    "handoff",
+    "lanesUsed",
+    "lanesAvailable",
+  ];
+
+  for (const f of fields) {
+    const v = cog && cog[f];
+    const s = safeSerialize(v, 1200);
+    if (!s) continue;
+    for (const needle of needles) {
+      if (needle && needle.length >= 10 && s.includes(needle)) {
+        out.push(`trace_policy_violation:${f}`);
+        break;
       }
-    } catch (error) {
-      packet.errors.push(`synthesis_failed:${error.message}`);
+    }
+  }
+  return out.length ? uniqBounded(out, 6) : null;
+}
+
+
+function computeRoutingUpgradeHints(c) {
+  const x = isPlainObject(c) ? c : {};
+  const routeConfidence = clamp01(x.routeConfidence != null ? x.routeConfidence : (x.confidence && x.confidence.nyx) || 0.62);
+  const intentConfidence = clamp01(x.intentConfidence != null ? x.intentConfidence : routeConfidence);
+  const intentU = safeStr(x.intent || "", 16).toUpperCase();
+  const riskTierL = safeStr(x.riskTier || "", 12).toLowerCase();
+  const supportFirst = intentU === "STABILIZE" || riskTierL === RISK.TIERS.HIGH || riskTierL === RISK.TIERS.MEDIUM;
+  const ambiguityScore = clamp01(
+    x.ambiguityScore != null
+      ? x.ambiguityScore
+      : supportFirst
+      ? 0.12
+      : intentU === "CLARIFY"
+      ? 0.6
+      : 0.24
+  );
+  const unresolvedThreads = clampStringArray(x.unresolvedThreads || [], 6, 120);
+  const assumptions = clampStringArray(x.assumptions || [], 6, 100);
+  const contradictions = clampStringArray(x.contradictions || [], 4, 100);
+  const minimalClarifier = supportFirst
+    ? ""
+    : safeStr(
+        x.minimalClarifier ||
+          x.clarifyPrompt ||
+          (ambiguityScore >= 0.55 ? "What’s the one missing detail I need to proceed?" : ""),
+        180
+      );
+  const actionHints = clampStringArray(x.actionHints || [], 6, 72);
+
+  return {
+    schema: "marionSO.routingUpgrade.v1",
+    intentConfidence,
+    routeConfidence,
+    ambiguityScore,
+    minimalClarifier,
+    unresolvedThreads,
+    assumptions,
+    contradictions,
+    actionHints,
+    supportFirst,
+    metaControlSuppressed: supportFirst,
+    decisionMode: supportFirst ? "support_first" : ambiguityScore >= 0.55 ? "clarify_minimal" : routeConfidence >= 0.66 ? "direct_or_execute" : "narrow_and_verify",
+    contractConformant: true
+  };
+}
+
+function finalizeContract(cog, nowMs, extra) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const ex = isPlainObject(extra) ? extra : {};
+
+  const mode = normalizeMacModeRaw(c.mode) || "architect";
+  const intent = normalizeMove(c.intent);
+  const dominance = normalizeDominance(c.dominance);
+  const budget = normalizeBudget(c.budget);
+
+  const lane = normalizeLaneRaw(c.lane) || "general";
+  const laneAction = safeStr(c.laneAction || "", 24).trim().toLowerCase();
+  const laneReason = safeStr(c.laneReason || "", 40);
+
+  const riskTier = toLowerToken(c.riskTier, 10);
+  const riskTierNorm =
+    riskTier === RISK.TIERS.NONE || riskTier === RISK.TIERS.LOW || riskTier === RISK.TIERS.MEDIUM || riskTier === RISK.TIERS.HIGH
+      ? riskTier
+      : RISK.TIERS.LOW;
+
+  const velvetAllowed = c.velvetAllowed !== false;
+  const velvet = !!c.velvet && velvetAllowed && intent !== "STABILIZE";
+  const velvetSince = velvet ? clampInt(c.velvetSince, 0, Number(nowMs || 0) || nowMsDefault(), Number(nowMs || 0) || nowMsDefault()) : 0;
+
+  const bridge = isPlainObject(c.bridge) && c.bridge.enabled ? buildBridgeContract(c.bridge) || null : null;
+
+  const out = {
+    ...c,
+    marionVersion: MARION_VERSION,
+
+    mode,
+    intent,
+    dominance,
+    budget,
+
+    lane,
+    laneAction: laneAction || "",
+    laneReason: laneReason || "",
+
+    stalled: !!c.stalled,
+    actionable: !!c.actionable,
+    textEmpty: !!c.textEmpty,
+
+    groundingMaxLines: clampInt(c.groundingMaxLines, 0, 3, 0),
+
+    riskTier: riskTierNorm,
+    riskDomains: uniqBounded(c.riskDomains || [], 6),
+    riskSignals: uniqBounded(c.riskSignals || [], 6),
+
+    lawTags: uniqBounded(c.lawTags || [], 8),
+    lawReasons: uniqBounded(c.lawReasons || [], 8),
+
+    ethicsTags: uniqBounded(c.ethicsTags || [], 8),
+    ethicsSignals: uniqBounded(c.ethicsSignals || [], 6),
+
+    cyberTags: uniqBounded(c.cyberTags || [], 8),
+    cyberSignals: uniqBounded(c.cyberSignals || [], 6),
+
+    englishTags: uniqBounded(c.englishTags || [], 8),
+    englishSignals: uniqBounded(c.englishSignals || [], 6),
+
+    finTags: uniqBounded(c.finTags || [], 8),
+    finSignals: uniqBounded(c.finSignals || [], 6),
+
+    strategyTags: uniqBounded(c.strategyTags || [], 8),
+    strategySignals: uniqBounded(c.strategySignals || [], 6),
+
+    aiTags: uniqBounded(c.aiTags || [], 10),
+    aiSignals: uniqBounded(c.aiSignals || [], 10),
+
+    latentDesire: safeStr(c.latentDesire || LATENT_DESIRE.CURIOSITY, 16),
+    confidence: { user: clamp01(c?.confidence?.user), nyx: clamp01(c?.confidence?.nyx) },
+
+    velvetAllowed: !!velvetAllowed,
+    velvet,
+    velvetSince,
+    velvetReason: safeStr(c.velvetReason || "", 40),
+
+    marionState: safeStr(c.marionState || "SEEK", 16).toUpperCase(),
+    marionReason: safeStr(c.marionReason || "default", 40),
+
+    // NEW: expert router contract (Nyx lane brain payload)
+    effectiveLane: normalizeLaneRaw(c.effectiveLane) || lane,
+    crossLaneAllowed: !!c.crossLaneAllowed,
+    lanesUsed: clampLaneExperts(c.lanesUsed || [], 6),
+    lanesAvailable: Array.isArray(c.lanesAvailable) ? clampLaneExperts(c.lanesAvailable, 24) : LANES_AVAILABLE,
+
+    // NEW: canonical bridge output
+    bridge: bridge || { enabled: false, reason: "none" },
+    supportCompatible: !!c.supportCompatible,
+    questionSuppression: !!c.questionSuppression,
+    avoidLaneRebuild: c.avoidLaneRebuild !== false,
+    allowMenuRegeneration: !!c.allowMenuRegeneration,
+    knowledgeDomains: isPlainObject(c.knowledgeDomains) ? c.knowledgeDomains : { schema: 'marionSO.knowledgeDomains.v1', primaryDomain: 'language', secondaryDomains: [], availableDomains: [], counts: {} },
+    marionSurfaceRole: safeStr(c.marionSurfaceRole || 'reasoning_only', 32),
+    marionMaySpeak: !!c.marionMaySpeak,
+
+    marionStyle: MARION_STYLE_CONTRACT,
+    handoff: isPlainObject(c.handoff)
+      ? { ...c.handoff }
+      : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
+
+    macModeOverride: safeStr(c.macModeOverride || "", 60),
+    macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
+
+    psyche: isPlainObject(c.psyche)
+      ? {
+          enabled: !!c.psyche.enabled,
+          version: safeStr(c.psyche.version || "", 24),
+          queryKey: safeStr(c.psyche.queryKey || "", 24),
+          mode: safeStr(c.psyche.mode || "", 24),
+          regulation: safeStr(c.psyche.regulation || "", 24),
+          stance: safeStr(c.psyche.stance || "", 32),
+          toneCues: uniqBounded(c.psyche.toneCues || [], 10),
+          uiCues: uniqBounded(c.psyche.uiCues || [], 10),
+          responseCues: uniqBounded(c.psyche.responseCues || [], 12),
+          guardrails: uniqBounded(c.psyche.guardrails || [], 10),
+          confidence: clamp01(c.psyche.confidence),
+          reason: safeStr(c.psyche.reason || "", 60),
+          domains: isPlainObject(c.psyche.domains) ? c.psyche.domains : undefined,
+        }
+      : { enabled: false, reason: "none" },
+
+    psychologyHints: isPlainObject(c.psychologyHints) ? clampPsychHints(c.psychologyHints) : { enabled: false, reason: "none" },
+    cyberKnowledgeHints: isPlainObject(c.cyberKnowledgeHints) ? clampCyberHints(c.cyberKnowledgeHints) : { enabled: false, reason: "none" },
+    englishKnowledgeHints: isPlainObject(c.englishKnowledgeHints) ? clampEnglishHints(c.englishKnowledgeHints) : { enabled: false, reason: "none" },
+    financeKnowledgeHints: isPlainObject(c.financeKnowledgeHints) ? clampFinanceHints(c.financeKnowledgeHints) : { enabled: false, reason: "none" },
+    aiKnowledgeHints: isPlainObject(c.aiKnowledgeHints) ? clampAIHints(c.aiKnowledgeHints) : { enabled: false, reason: "none" },
+
+    privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
+
+    movePolicy: isPlainObject(c.movePolicy)
+      ? { preferredMove: normalizeMove(c.movePolicy.preferredMove), hardOverride: !!c.movePolicy.hardOverride, reason: safeStr(c.movePolicy.reason || "intent", 40) }
+      : deriveMovePolicy({ ...c, intent, actionable: !!c.actionable, psychology: c.psychology }),
+
+    intentConfidence: clamp01(c.intentConfidence != null ? c.intentConfidence : (c?.confidence?.nyx || 0.62)),
+    routeConfidence: clamp01(c.routeConfidence != null ? c.routeConfidence : (c?.confidence?.nyx || 0.62)),
+    ambiguityScore: clamp01(c.ambiguityScore != null ? c.ambiguityScore : (intent === "CLARIFY" ? 0.6 : 0.24)),
+    minimalClarifier: safeStr(c.minimalClarifier || c.clarifyPrompt || "", 180),
+    unresolvedThreads: clampStringArray(c.unresolvedThreads || [], 6, 120),
+    assumptions: clampStringArray(c.assumptions || [], 6, 100),
+    contradictions: clampStringArray(c.contradictions || [], 4, 100),
+    actionHints: clampStringArray(c.actionHints || [], 6, 72),
+  };
+
+  out.marionTrace = safeStr(out.marionTrace || "", MARION_TRACE_MAX + 8);
+  out.marionTraceHash = safeStr(out.marionTraceHash || "", 16);
+
+  // ---------
+  // Clamp Audio / Intro hints (PHASES 1–5) to prevent cross-contamination
+  // ---------
+  if (isPlainObject(out.tempo)) out.tempo = clampTempoProfile(out.tempo);
+  else out.tempo = clampTempoProfile({ lane: out.lane, intent: out.intent });
+
+  if (isPlainObject(out.audio)) {
+    // Ensure tempo inside audio is clamped, and all fields bounded.
+    const a = isPlainObject(out.audio) ? out.audio : {};
+    out.audio = {
+      version: safeStr(a.version || "audio_v1", 24),
+      speakEnabled: !!a.speakEnabled,
+      listenEnabled: !!a.listenEnabled,
+      silent: !!a.silent,
+      userGestureRequired: !!a.userGestureRequired,
+      bargeInAllowed: !!a.bargeInAllowed,
+      maxSpeakChars: clampInt(a.maxSpeakChars, 120, 1200, 520),
+      voiceStyle: safeStr(a.voiceStyle || "neutral", 24),
+      speakOnceKey: safeStr(a.speakOnceKey || "", 48),
+      lane: normalizeLaneRaw(a.lane || out.lane) || "general",
+      intent: normalizeMove(a.intent || out.intent),
+      tempo: clampTempoProfile(a.tempo || out.tempo),
+    };
+  } else {
+    out.audio = computeAudioEnvelope({}, {}, out, out.tempo, {});
+  }
+
+  if (isPlainObject(out.intro)) {
+    out.intro = {
+      enabled: !!out.intro.enabled,
+      cueKey: safeStr(out.intro.cueKey || "", 32),
+      reason: safeStr(out.intro.reason || "", 40),
+    };
+  } else {
+    out.intro = { enabled: false, cueKey: "", reason: "none" };
+  }
+
+  if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
+  out.routingUpgrade = computeRoutingUpgradeHints(out);
+
+  
+  // ==========================================================
+  // COG CONTRACT COMPAT (for stateSpine sanitizeMarionCog)
+  // Expose small, stable top-level fields:
+  //   mode, intent, stage, layers, needsClarify, askKind, rationale, trace
+  // ==========================================================
+  const intentU = safeStr(out.intent || "", 16).toUpperCase();
+  const riskTierL = safeStr(out.riskTier || "", 12).toLowerCase();
+  const supportFirst = intentU === "STABILIZE" || riskTierL === RISK.TIERS.HIGH || riskTierL === RISK.TIERS.MEDIUM;
+
+  // CLARIFY gate: only true when Marion explicitly decided to clarify.
+  // IMPORTANT: STABILIZE should NOT auto-route into the generic clarifier (this caused looping UX).
+  const needsClarify =
+    !supportFirst &&
+    !out.questionSuppression &&
+    (
+      intentU === "CLARIFY" ||
+      safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
+      safeStr(out.bridge?.kind || "", 24).toLowerCase() === "clarify"
+    );
+
+  // Stage selection:
+  // - support-first / STABILIZE always drives a response (deliver)
+  // - ADVANCE -> deliver
+  // - otherwise -> triage/clarify
+  const stage =
+    supportFirst || intentU === "STABILIZE"
+      ? "deliver"
+      : needsClarify
+      ? "clarify"
+      : intentU === "ADVANCE"
+      ? "deliver"
+      : "triage";
+
+
+  // layers: infer from present hint/tag payloads (bounded)
+  const layers = [];
+  function pushLayer(x){
+    const v = safeStr(x || "", 24).toLowerCase().trim();
+    if (!v) return;
+    if (!layers.includes(v)) layers.push(v);
+  }
+
+  // lane as a "layer" (kept compact)
+  pushLayer(out.lane);
+
+  if (isPlainObject(out.aiKnowledgeHints) && out.aiKnowledgeHints.enabled) pushLayer("ai");
+  if (isPlainObject(out.financeKnowledgeHints) && out.financeKnowledgeHints.enabled) pushLayer("finance");
+  if (isPlainObject(out.englishKnowledgeHints) && out.englishKnowledgeHints.enabled) pushLayer("english");
+  if (isPlainObject(out.cyberKnowledgeHints) && out.cyberKnowledgeHints.enabled) pushLayer("cyber");
+  if (isPlainObject(out.psychologyHints) && out.psychologyHints.enabled) pushLayer("psy");
+  if (Array.isArray(out.lawTags) && out.lawTags.length) pushLayer("law");
+  if (Array.isArray(out.ethicsTags) && out.ethicsTags.length) pushLayer("ethics");
+  if (Array.isArray(out.strategyTags) && out.strategyTags.length) pushLayer("strategy");
+
+  // cap layers to 8 (stateSpine bound)
+  if (layers.length > 8) layers.length = 8;
+
+  // trace: compact boolean flags only (NO raw text)
+  const trace = {
+    ak: isPlainObject(out.aiKnowledgeHints) && out.aiKnowledgeHints.enabled,
+    fin: isPlainObject(out.financeKnowledgeHints) && out.financeKnowledgeHints.enabled,
+    eng: isPlainObject(out.englishKnowledgeHints) && out.englishKnowledgeHints.enabled,
+    cyber: isPlainObject(out.cyberKnowledgeHints) && out.cyberKnowledgeHints.enabled,
+    psy: isPlainObject(out.psychologyHints) && out.psychologyHints.enabled,
+    law: Array.isArray(out.lawTags) && out.lawTags.length > 0,
+    eth: Array.isArray(out.ethicsTags) && out.ethicsTags.length > 0,
+    strat: Array.isArray(out.strategyTags) && out.strategyTags.length > 0,
+  };
+
+  // attach compat keys
+  out.needsClarify = needsClarify;
+  out.stage = stage;
+  out.layers = layers;
+  out.supportFirst = !!supportFirst;
+  out.metaControlSuppressed = !!supportFirst;
+  if (out.questionSuppression) {
+    out.needsClarify = false;
+    out.askKind = 'none';
+    out.askId = '';
+    out.clarifyPrompt = '';
+    out.minimalClarifier = '';
+  }
+
+  // optional hints for clarifying flows
+  if (needsClarify) {
+    out.askKind = safeStr(out.bridge?.askKind || "need_more_detail", 40) || "need_more_detail";
+    out.rationale = safeStr(out.bridge?.reason || out.bridge?.why || "", 160) || undefined;
+  }
+  // Expose stable cog summary fields for stateSpine (sanitized; no raw text)
+  out.needsClarify = !!needsClarify;
+  out.stage = stage;
+  out.layers = Array.isArray(layers) ? layers.slice(0, 8) : [];
+
+  // Ask contract (stable ids, no raw text)
+  // AskId is a deterministic short hash of the current decision context (NOT user text).
+  out.askKind = safeStr(out.askKind || out.bridge?.askKind || (intentU === "STABILIZE" ? "wellbeing_check" : "need_more_detail"), 40) || "need_more_detail";
+  out.askId = sha1Lite(
+    JSON.stringify({
+      i: intentU || "",
+      st: out.stage || "",
+      ln: safeStr(out.lane || "", 24),
+      la: safeStr(out.laneAction || "", 24),
+      bk: safeStr(out.bridge?.kind || "", 24),
+      to: safeStr(out.bridge?.laneTo || "", 24),
+      ak: safeStr(out.askKind || "", 40),
+    })
+  ).slice(0, 12);
+
+  // Optional prompt hint (Nyx may use, chatEngine/stateSpine may ignore)
+  if (!out.clarifyPrompt) {
+    out.clarifyPrompt =
+      intentU === "STABILIZE"
+        ? "Are you safe right now, and do you want emotional support or practical steps?"
+        : "What’s the one missing detail I need to proceed?";
+  }
+  if (!out.minimalClarifier) out.minimalClarifier = out.clarifyPrompt;
+
+
+  // -------------------------
+  // Operational Intelligence envelope (enterprise-heavy, Nyx-safe)
+  // - Additive only: chatEngine can consume; Nyx can ignore.
+  // - Privacy: no raw user text stored.
+  // -------------------------
+  const met = isPlainObject(out.marionMetrics) ? out.marionMetrics : {};
+  if (!isPlainObject(out.opPackage)) {
+    out.opPackage = buildOperationalPackage(ex.norm || {}, ex.session || {}, out, met);
+  } else {
+    // clamp to keep logs bounded
+    out.opPackage = {
+      ...out.opPackage,
+      schema: safeStr(out.opPackage.schema || OP_PACKAGE_SCHEMA, 40),
+      objective: safeStr(out.opPackage.objective || "", 180),
+      summary: safeStr(out.opPackage.summary || "", 160),
+      keyFindings: clampStringArray(out.opPackage.keyFindings || [], 6, 180),
+      recommendedActions: clampStringArray(out.opPackage.recommendedActions || [], 6, 180),
+      assumptions: clampStringArray(out.opPackage.assumptions || [], 6, 160),
+      risks: clampStringArray(out.opPackage.risks || [], 8, 80),
+      confidenceScore: clamp01(out.opPackage.confidenceScore),
+      operationalWeight: clamp01(out.opPackage.operationalWeight),
+      escalationFlag: !!out.opPackage.escalationFlag,
+      decisionTags: clampStringArray(out.opPackage.decisionTags || [], 12, 72),
+      depthHint: clampInt(out.opPackage.depthHint || 0, 0, 20, 0),
+      sessionKeyHint: safeStr(out.opPackage.sessionKeyHint || "", 64),
+    };
+  }
+
+  // Metrics for enterprise observability (bounded)
+  out.marionMetrics = isPlainObject(out.marionMetrics)
+    ? {
+        schema: safeStr(out.marionMetrics.schema || OPINTEL_SCHEMA, 40),
+        cpuMs: clampInt(out.marionMetrics.cpuMs, 0, 60000, 0),
+        gateBudgetMs: clampInt(out.marionMetrics.gateBudgetMs, 0, 60000, 0),
+        clampedBytes: clampInt(out.marionMetrics.clampedBytes, 0, 10_000_000, 0),
+        tracePolicyIssues: clampStringArray(out.marionMetrics.tracePolicyIssues || out.tracePolicyIssues || [], 8, 80),
+      }
+    : {
+        schema: OPINTEL_SCHEMA,
+        cpuMs: 0,
+        gateBudgetMs: 0,
+        clampedBytes: 0,
+        tracePolicyIssues: clampStringArray(out.tracePolicyIssues || [], 8, 80),
+      };
+
+
+  out.trace = trace;
+
+  return out;
+}
+
+// -------------------------
+// PsycheBridge integration (option 2)
+// -------------------------
+function buildPsycheBridgeInput(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+
+  const tokens = safeTokenSet(
+    []
+      .concat(c.riskDomains || [])
+      .concat(c.ethicsTags || [])
+      .concat(c.cyberTags || [])
+      .concat(c.englishTags || [])
+      .concat(c.finTags || [])
+      .concat(c.aiTags || [])
+      .concat(c.strategyTags || [])
+      // affect tags help PsycheBridge pick stabilization stance without raw user text
+      .concat((isPlainObject(c.psychology) && isPlainObject(c.psychology.affect) && Array.isArray(c.psychology.affect.tags)) ? c.psychology.affect.tags : [])
+      // coarse intent/mode/desire tokens (bounded; not raw text)
+      .concat([safeStr(c.intent || "", 16).toLowerCase(), safeStr(c.mode || "", 16).toLowerCase(), safeStr(c.latentDesire || "", 16).toLowerCase()].filter(Boolean)),
+    24
+  );
+
+  const features = {
+    lane: safeStr(n.lane || s.lane || "", 24).trim().toLowerCase(),
+    action: safeStr(n.action || "", 24).trim().toLowerCase(),
+    intent: safeStr(c.intent || "", 16).trim().toUpperCase(),
+    mode: safeStr(c.mode || "", 16).trim().toLowerCase(),
+    desire: safeStr(c.latentDesire || "", 16).trim().toLowerCase(),
+
+    regulationState: safeStr(c?.psychology?.regulationState || "", 16),
+    cognitiveLoad: safeStr(c?.psychology?.cognitiveLoad || "", 12),
+    agencyPreference: safeStr(c?.psychology?.agencyPreference || "", 16),
+    socialPressure: safeStr(c?.psychology?.socialPressure || "", 12),
+
+    riskTier: safeStr(c.riskTier || "", 10).trim().toLowerCase(),
+    riskDomains: safeTokenSet(c.riskDomains || [], 8),
+  };
+
+  const keyObj = { features, tokens, v: "psycheBridgeInput:v1" };
+  const queryKey = sha1Lite(JSON.stringify(keyObj)).slice(0, 14);
+
+  return { features, tokens, queryKey };
+}
+
+function callPsycheBridge(norm, session, cog, opts) {
+  if ((!SiteBridge || typeof SiteBridge !== "object") && (!PsycheBridge || typeof PsycheBridge !== "object")) return null;
+
+  const input = buildPsycheBridgeInput(norm, session, cog);
+
+  try {
+    const s = isPlainObject(session) ? session : {};
+    const bridgeOpts = isPlainObject(opts) ? opts : {};
+    const sessionKey =
+      safeStr(s.sessionKey || s.sid || s.sessionId || s.id || s.turnSessionKey || "", 64) ||
+      safeStr(s.fingerprint || "", 64);
+
+    // Prefer SiteBridge (phases 1–5). Fall back to legacy PsycheBridge when needed.
+    let out = null;
+
+    if (SiteBridge && typeof SiteBridge === "object") {
+      if (typeof SiteBridge.build === "function") {
+        out = SiteBridge.build({
+          features: input.features,
+          tokens: input.tokens,
+          queryKey: input.queryKey,
+          sessionKey,
+          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts), requestId, turnId, traceId, inputSig },
+        });
+      } else if (typeof SiteBridge.buildPsyche === "function") {
+        out = SiteBridge.buildPsyche({
+          features: input.features,
+          tokens: input.tokens,
+          queryKey: input.queryKey,
+          sessionKey,
+          opts: { ...(bridgeOpts.siteBridge || bridgeOpts.bridge || bridgeOpts), requestId, turnId, traceId, inputSig },
+        });
+      }
     }
 
-    if (!synthesis || !synthesis.answer) synthesis = buildFallbackAnswer({ domain: primaryDomain, intent: classification.intent, emotion: classification.emotion, evidenceThin: rankedEvidence.length < 2 });
-    packet.synthesis = synthesis;
-    packet.diagnostics = {
-      confidence: Number(synthesis.confidence || 0),
-      usedFallback: synthesis.mode === 'fail-open' || synthesis.nextAction === 'fallback_synthesis',
-      emotionPrimary: classification.emotion.primaryEmotion || null,
-      emotionArchetype: classification.emotion.nuanceProfile.archetype || null,
-      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
-      evidenceThin: rankedEvidence.length < 2,
-      traceReady: phases.phase15_traceability,
+    // Legacy path
+    if (!isPlainObject(out) && PsycheBridge && typeof PsycheBridge === "object") {
+      const payload = {
+        features: input.features,
+        tokens: input.tokens,
+        queryKey: input.queryKey,
+        session: s,
+        cog: isPlainObject(cog) ? cog : {},
+        normMeta: {
+          lane: safeStr(norm?.lane || "", 24),
+          action: safeStr(norm?.action || "", 24),
+          hasPayload: !!norm?.turnSignals?.hasPayload,
+          payloadActionable: !!norm?.turnSignals?.payloadActionable,
+          textEmpty: !!norm?.turnSignals?.textEmpty,
+        },
+      };
+
+      if (typeof PsycheBridge.build === "function") out = PsycheBridge.build(payload);
+      else if (typeof PsycheBridge.buildPsyche === "function") out = PsycheBridge.buildPsyche(payload);
+      else if (typeof PsycheBridge.query === "function") out = PsycheBridge.query(payload);
+    }
+
+    if (!isPlainObject(out)) return null;
+
+    // Normalize to a single "psyche" envelope for Nyx + chatEngine.
+    // SiteBridge already returns the final contract; legacy PsycheBridge may not.
+    const enabled = out.enabled === false ? false : true;
+
+    return {
+      enabled,
+      source: SiteBridge && isPlainObject(out) && out.version ? "site_bridge" : "psyche_bridge",
+      version: safeStr(out.version || "", 16),
+      queryKey: safeStr(out.queryKey || input.queryKey || "", 32),
+      sessionKey: safeStr(out.sessionKey || sessionKey || "", 64),
+
+      // Phase 1–5 hints (safe, deterministic)
+      tempo: isPlainObject(out.tempo) ? out.tempo : undefined,
+      audio: isPlainObject(out.audio) ? out.audio : undefined,
+      intro: isPlainObject(out.intro) ? out.intro : undefined,
+
+      // Domain payload (SiteBridge canonical)
+      domains: isPlainObject(out.domains) ? out.domains : undefined,
+
+      // Global control signals
+      mode: safeStr(out.mode || "", 12),
+      intent: safeStr(out.intent || "", 16),
+      regulation: safeStr(out.regulation || "", 12),
+      cognitiveLoad: safeStr(out.cognitiveLoad || "", 12),
+      stance: safeStr(out.stance || "", 32),
+
+      toneCues: Array.isArray(out.toneCues) ? out.toneCues.slice(0, 10) : [],
+      uiCues: Array.isArray(out.uiCues) ? out.uiCues.slice(0, 12) : [],
+      guardrails: Array.isArray(out.guardrails) ? out.guardrails.slice(0, 12) : [],
+      responseCues: Array.isArray(out.responseCues) ? out.responseCues.slice(0, 14) : [],
+
+      confidence: clamp01(out.confidence),
+      diag: isPlainObject(out.diag) ? out.diag : {},
+      reason: safeStr(out.reason || "", 60),
+    };
+  } catch (e) {
+    return {
+      enabled: false,
+      version: "psycheBridge",
+      queryKey: "",
+      confidence: 0,
+      reason: `psyche_bridge_fail:${safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40)}`,
+    };
+  }
+}
+
+
+// -------------------------
+// NEW: Tempo + LoopGuard (PHONE-GATEWAY READY)
+// -------------------------
+function computeTempoProfile(norm, session, cog, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || s.lane || "general") || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase() || "CLARIFY";
+
+  // Human tempo: 1–2s is noticeable on voice. We bias to "fast acknowledge" + "streaming feel".
+  // This profile is a hint for Nyx/host (TTS pacing + micro-pauses + filler policy).
+  const psych = isPlainObject(c.psychology) ? c.psychology : {};
+  const load = safeStr(psych.cognitiveLoad || PSYCH.LOAD.MEDIUM, 12);
+  const reg = safeStr(psych.regulationState || PSYCH.REG.REGULATED, 16);
+
+  // Session-level preference hooks (host can store / tweak without redeploy)
+  const userPref = isPlainObject(s.siteTempo) ? s.siteTempo : {};
+  const preferFast = truthy(userPref.fast) || truthy(ctx.preferFast);
+
+  // Base target latency (ms) for audible acknowledgement
+  let ackMs = preferFast ? 220 : 320; // "uh-huh / got it" moment
+  let maxSilenceMs = preferFast ? 650 : 900; // after this, a tiny filler is allowed (if enabled)
+  let chunkMs = preferFast ? 600 : 800; // how quickly Nyx should emit first useful clause
+
+  // Higher load = shorter sentences + more micro-pauses (but avoid dead air)
+  let sentenceMax = 2;
+  let pauseShortMs = 130;
+  let pauseLongMs = 260;
+
+  if (load === PSYCH.LOAD.HIGH || reg === PSYCH.REG.DYSREGULATED) {
+    sentenceMax = 1;
+    pauseShortMs = 110;
+    pauseLongMs = 210;
+    maxSilenceMs = Math.min(maxSilenceMs, 750);
+  }
+
+  // Lane tuning: "music" and "roku" can be a touch more playful, but still fast.
+  if (lane === "music" || lane === "radio") {
+    ackMs = Math.max(200, ackMs - 40);
+    chunkMs = Math.max(520, chunkMs - 60);
+  }
+  if (intent === "STABILIZE") {
+    // slower but warm; still avoid awkward silence
+    pauseLongMs = Math.min(320, pauseLongMs + 40);
+    maxSilenceMs = Math.max(700, maxSilenceMs);
+  }
+
+
+// ACK text (shown immediately by host to create "human tempo" perception)
+const riskTier = safeStr(c.riskTier || "", 10).toLowerCase();
+const affect = isPlainObject(psych.affect) ? psych.affect : {};
+const tension = clamp01(affect.tension);
+const distressTag = Array.isArray(affect.tags) && affect.tags.includes("distress_language");
+const selfHarmTag = Array.isArray(affect.tags) && affect.tags.includes("self_harm_language");
+
+let ackText = "Got it.";
+let suppressOperationalTone = false;
+
+// High-sensitivity turns
+if (intent === "STABILIZE" || riskTier === "high" || selfHarmTag) {
+  ackText = "I’m here with you. Let’s take this one step at a time.";
+  suppressOperationalTone = true;
+} else if (riskTier === "medium" || distressTag || reg === PSYCH.REG.STRAINED || tension > 0.55) {
+  ackText = "Okay — I hear you.";
+  suppressOperationalTone = true;
+} else if (lane === "music" || lane === "radio") {
+  ackText = "Alright — let’s do it.";
+}
+
+  // Bounded output
+  return {
+    enabled: true,
+    lane,
+    intent,
+    ackText,
+    suppressOperationalTone,
+    // hard constraints for voice UX
+    ackMs: clampInt(ackMs, 160, 600, 320),
+    chunkMs: clampInt(chunkMs, 420, 1200, 800),
+    maxSilenceMs: clampInt(maxSilenceMs, 450, 1600, 900),
+    // micro-pauses (TTS)
+    pauseShortMs: clampInt(pauseShortMs, 80, 220, 130),
+    pauseLongMs: clampInt(pauseLongMs, 160, 420, 260),
+    sentenceMax: clampInt(sentenceMax, 1, 3, 2),
+    // filler policy for phone-gateway readiness
+    filler: {
+      enabled: true,
+      allow: true,
+      // "mm", "okay", "one sec" — used only if maxSilenceMs would be exceeded
+      maxPerMinute: 6,
+      style: intent === "STABILIZE" ? "gentle" : "neutral",
+    },
+  };
+}
+
+function normalizeTextForHash(t) {
+  const s = safeStr(t || "", 900).toLowerCase();
+  return s
+    .replace(/https?:\/\/\S+/g, " url ")
+    .replace(/\b\d{4,}\b/g, " # ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 700);
+}
+
+
+// -------------------------
+// NEW: Audio Envelope (PHASES 1–5) — PURE HINTS ONLY (NO SIDE EFFECTS)
+// -------------------------
+// MarionSO never performs audio. It emits bounded *hints* so Nyx/host can:
+// - Phase 1: wire TTS/STT consistently (speak/listen gating, barge-in)
+// - Phase 2: intro ritual cue (first-open greeting) without loops
+// - Phase 3: tempo + chunking + micro-pauses + thinking delays
+// - Phase 4: lane voice style mapping (general vs chip-locked lanes)
+// - Phase 5: hardening flags (user-gesture requirement, silent embeds)
+//
+// IMPORTANT: These cues are non-binding. Host is final authority.
+
+function clampTempoProfile(t) {
+  const x = isPlainObject(t) ? t : {};
+  return {
+    version: safeStr(x.version || "tempo_v1", 24),
+    lane: normalizeLaneRaw(x.lane) || "general",
+    intent: normalizeMove(x.intent || "CLARIFY"),
+    ackMs: clampInt(x.ackMs, 80, 2200, 320),
+    maxSilenceMs: clampInt(x.maxSilenceMs, 200, 4200, 900),
+    chunkMs: clampInt(x.chunkMs, 120, 9000, 900),
+    microPauseMs: clampInt(x.microPauseMs, 40, 900, 160),
+    thinkingDelayMs: clampInt(x.thinkingDelayMs, 0, 1500, 220),
+    fillerAllowed: !!x.fillerAllowed,
+    fillerMaxChars: clampInt(x.fillerMaxChars, 0, 40, 14),
+    speakRateHint: clamp01(x.speakRateHint || 0.52),
+    speakPitchHint: clamp01(x.speakPitchHint || 0.48),
+    preferShortSentences: !!x.preferShortSentences,
+    reason: safeStr(x.reason || "", 60),
+  };
+}
+
+
+// Clamp SiteBridge/host-provided audio envelope into Marion contract.
+function clampAudioEnvelope(a, cog) {
+  const x = isPlainObject(a) ? a : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(x.lane || c.lane) || "general";
+  const intent = normalizeMove(x.intent || c.intent || "CLARIFY");
+  const tempo = clampTempoProfile(x.tempo || c.tempo || {});
+  return {
+    version: safeStr(x.version || "audio_v1", 24),
+    speakEnabled: !!x.speakEnabled,
+    listenEnabled: !!x.listenEnabled,
+    silent: !!x.silent,
+    userGestureRequired: x.userGestureRequired === false ? false : true,
+    bargeInAllowed: x.bargeInAllowed === false ? false : true,
+    maxSpeakChars: clampInt(x.maxSpeakChars, 120, 2200, 700),
+    maxSpeakSeconds: clampInt(x.maxSpeakSeconds, 6, 60, 22),
+    cooldownMs: clampInt(x.cooldownMs, 0, 2000, 280),
+    voiceStyle: safeStr(x.voiceStyle || "neutral", 16),
+    speakOnceKey: safeStr(x.speakOnceKey || "", 48),
+    lane,
+    intent,
+    tempo,
+  };
+}
+
+// Clamp SiteBridge/host-provided intro envelope into Marion contract.
+function clampIntroEnvelope(i, cog) {
+  const x = isPlainObject(i) ? i : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(x.lane || c.lane) || "general";
+  return {
+    enabled: x.enabled === false ? false : true,
+    cueKey: safeStr(x.cueKey || "", 32),
+    speakOnOpen: x.speakOnOpen === false ? false : true,
+    oncePerSession: x.oncePerSession === false ? false : true,
+    lane,
+  };
+}
+function computeVoiceStyle(lane, intent, psych) {
+  const ln = normalizeLaneRaw(lane) || "general";
+  const it = normalizeMove(intent || "CLARIFY");
+  const p = isPlainObject(psych) ? psych : {};
+  const reg = safeStr(p.regulationState || PSYCH.REG.REGULATED, 16);
+
+  // Voice style is a named preset the host can map to actual voices/SSML later.
+  // Keep it compact and deterministic.
+  if (it === "STABILIZE" || reg === PSYCH.REG.DYSREGULATED) return "soothing";
+  if (ln === "music" || ln === "radio") return "upbeat";
+  if (ln === "news-canada") return "broadcast";
+  if (ln === "roku" || ln === "schedule") return "concise";
+  if (ln === "general" && it === "ADVANCE") return "confident";
+  return "neutral";
+}
+
+function computeAudioEnvelope(norm, session, cog, tempo, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const t = clampTempoProfile(tempo);
+
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || s.lane) || "general";
+  const intent = normalizeMove(c.intent || "CLARIFY");
+
+  // Phase 5: embed / environment hardening
+  const silent = truthy(ctx.silentAudio) || truthy(ctx.silent) || truthy(s.silentAudio);
+  const userGestureRequired = truthy(ctx.userGestureRequired) || truthy(s.userGestureRequired);
+
+  // Phase 1: default audio behavior flags (host may override)
+  const speakEnabled = !silent;
+  const listenEnabled = !silent;
+
+  // Phase 1: barge-in policy (user interrupts TTS with voice/typing)
+  // Conservative: allow barge-in unless in chip-locked lanes where you want zero surprises.
+  const crossAllowed = laneCrossAllowedByDefault(lane);
+  const bargeInAllowed = crossAllowed && !silent;
+
+  // Phase 3: chunking guard (avoid long monologues)
+  const maxSpeakChars = intent === "STABILIZE" ? 420 : intent === "ADVANCE" ? 560 : 460;
+
+  const voiceStyle = computeVoiceStyle(lane, intent, c.psychology);
+
+  return {
+    version: "audio_v1",
+    speakEnabled,
+    listenEnabled,
+    silent,
+    userGestureRequired,
+    bargeInAllowed,
+    maxSpeakChars,
+    voiceStyle,
+    tempo: t,
+    // Host can use these to prevent repeats without needing raw text
+    speakOnceKey: safeStr(c.turnId || n?.turnSignals?.turnId || "", 40) || "",
+    lane,
+    intent,
+  };
+}
+
+function computeIntroRitualCue(norm, session, cog, nowMs, ctx = {}) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const now = Number(nowMs || 0) || 0;
+
+  // Only cue intro on non-actionable turns to avoid hijacking chip clicks / payload actions.
+  const actionable = !!c.actionable || !!n?.turnSignals?.payloadActionable;
+
+  // "Once per session": session stores nyxIntroAt.
+  const already = Number(s.nyxIntroAt || 0) || 0;
+
+  // Phase 2: allow host to disable intros without redeploy
+  const introOff = truthy(ctx.disableIntro) || truthy(s.disableIntro);
+
+  const shouldCue = !introOff && !already && !actionable;
+
+  return {
+    enabled: shouldCue,
+    cueKey: shouldCue ? "nyx_intro_v1" : "",
+    onceKey: shouldCue ? "nyxIntroAt" : "",
+    patch: shouldCue ? { nyxIntroAt: now } : null,
+    reason: introOff ? "disabled" : already ? "already" : actionable ? "actionable" : shouldCue ? "first_open" : "none",
+  };
+}
+
+
+function computeTurnSignature(norm, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || n.lane || "general") || "general";
+  const intent = safeStr(c.intent || "", 16).toUpperCase() || "CLARIFY";
+  const mode = safeStr(c.mode || "", 16).toLowerCase() || "architect";
+  const action = safeStr(c.laneAction || n.action || "", 24).toLowerCase();
+
+  // hashed-only text fingerprint (never stored raw)
+  const text = normalizeTextForHash(n.text || n.raw || n.userText || "");
+  const textHash = text ? sha1Lite(text).slice(0, 10) : "";
+
+  // Include knowledge query keys where present (prevents false loop trips when packs differ)
+  const psycheKey = safeStr(c?.psyche?.queryKey || "", 24);
+  const aiKey = safeStr(c?.aiKnowledgeHints?.queryKey || "", 24);
+  const psychKey = safeStr(c?.psychologyHints?.queryKey || "", 24);
+
+  const sigObj = { lane, intent, mode, action, textHash, psycheKey, aiKey, psychKey };
+  return { sig: sha1Lite(JSON.stringify(sigObj)).slice(0, 14), textHash };
+}
+
+function computeLoopGuard(session, sig, now) {
+  const s = isPlainObject(session) ? session : {};
+  const lg = isPlainObject(s.loopGuard) ? s.loopGuard : {};
+  const lastSig = safeStr(lg.lastSig || "", 18);
+  const lastAt = Number(lg.lastAt) || 0;
+  const count = Number(lg.count) || 0;
+
+  const windowMs = 90_000; // 90s
+  const same = !!sig && lastSig && sig === lastSig && now - lastAt <= windowMs;
+
+  const nextCount = same ? count + 1 : 0;
+  const tripped = same && nextCount >= 2;
+
+  return {
+    tripped,
+    same,
+    next: { lastSig: sig || lastSig, lastAt: now, count: nextCount },
+    meta: { windowMs, prevCount: count, nextCount, lastAt },
+  };
+}
+
+function applyBrutalLoopBreaker(cog, loopMeta) {
+  const c = isPlainObject(cog) ? cog : {};
+  const distressLike = safeStr(c.intent || '', 16).toUpperCase() === 'STABILIZE' || ['medium', 'high'].includes(safeStr(c.riskTier || '', 12).toLowerCase());
+  // Force a clean pivot without creating another generic clarify loop.
+  c.stalled = true;
+  c.actionable = false;
+  c.intent = distressLike ? 'STABILIZE' : 'ADVANCE';
+  c.budget = 'short';
+  c.marionState = 'BREAK_LOOP';
+  c.marionReason = 'loop_guard';
+  c.movePolicy = { preferredMove: distressLike ? 'STABILIZE' : 'ADVANCE', hardOverride: true, reason: 'loop_guard' };
+  c.bridge = { enabled: false, reason: 'loop_guard' };
+  c.needsClarify = false;
+  c.askKind = 'none';
+  c.clarifyPrompt = '';
+  c.minimalClarifier = '';
+  c.questionSuppression = true;
+  c.avoidLaneRebuild = true;
+
+  c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
+  c.handoff.marionEndsHard = true;
+  c.handoff.nyxBeginsAfter = true;
+  c.handoff.allowSameTurnSplit = true;
+  c.handoff.marionTagSuggested = distressLike ? MARION_STYLE_CONTRACT.tags.hold : MARION_STYLE_CONTRACT.tags.ok;
+  c.handoff.nyxCue = distressLike ? 'hold' : 'respond';
+
+  c.loopBreaker = {
+    enabled: true,
+    tripped: true,
+    level: 'brutal',
+    reason: 'repeat_signature',
+    recommendedShift: distressLike ? 'stabilize_without_question' : 'direct_answer_no_menu',
+    ...loopMeta,
+  };
+
+  c.englishSignals = uniqBounded([...(Array.isArray(c.englishSignals) ? c.englishSignals : []), ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE], 8);
+  return c;
+}
+
+
+function normalizeKnowledgeDomainKey(v) {
+  const s = safeStr(v, 40).trim().toLowerCase();
+  if (!s) return "";
+  if (s === "psych" || s === "psy" || s === "support") return "psychology";
+  if (s === "legal") return "law";
+  if (s === "english" || s === "copy" || s === "writing") return "language";
+  if (s === "ai" || s === "cyber" || s === "security" || s === "tech") return "ai_cyber";
+  if (s === "marketing" || s === "media" || s === "brand") return "marketing_media";
+  if (["psychology","law","finance","language","ai_cyber","marketing_media"].includes(s)) return s;
+  return "";
+}
+
+function coerceKnowledgeSections(source) {
+  const out = {
+    psychology: [],
+    law: [],
+    finance: [],
+    language: [],
+    ai_cyber: [],
+    marketing_media: [],
+  };
+  const src = isPlainObject(source) ? source : {};
+  const candidates = [src.knowledgeSections, src.knowledge, src.domainKnowledge, src.sections];
+  for (const cand of candidates) {
+    if (!isPlainObject(cand)) continue;
+    for (const [k,v] of Object.entries(cand)) {
+      const nk = normalizeKnowledgeDomainKey(k);
+      if (!nk) continue;
+      if (Array.isArray(v)) out[nk].push(...v.map((x)=>safeSerialize(x, 220)));
+      else if (isPlainObject(v)) out[nk].push(safeSerialize(v, 220));
+      else if (v != null) out[nk].push(safeSerialize(v, 220));
+    }
+  }
+  for (const k of Object.keys(out)) out[k] = clampStringArray(out[k], 8, 220);
+  return out;
+}
+
+function buildKnowledgeDomainSummary(norm, session, opts, cog) {
+  const merged = {
+    knowledgeSections: {
+      ...coerceKnowledgeSections(session),
+      ...coerceKnowledgeSections(opts),
+      ...coerceKnowledgeSections(norm),
+    }
+  };
+  const ks = coerceKnowledgeSections(merged);
+  const counts = {};
+  for (const k of Object.keys(ks)) counts[k] = Array.isArray(ks[k]) ? ks[k].length : 0;
+
+  const emotionalPressure = safeStr(cog?.intent || '', 16).toUpperCase() === 'STABILIZE' ||
+    ['medium','high'].includes(safeStr(cog?.riskTier || '', 12).toLowerCase());
+
+  const ranking = Object.entries(counts)
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => {
+      const pa = (emotionalPressure && a.domain === 'psychology') ? 1000 : 0
+      const pb = (emotionalPressure && b.domain === 'psychology') ? 1000 : 0
+      return (pb + b.count) - (pa + a.count)
+    });
+  return {
+    availableDomains: ranking.filter((x)=>x.count>0).map((x)=>x.domain).slice(0,6),
+    counts,
+    primaryDomain: (ranking.find((x)=>x.count>0) || {}).domain || (emotionalPressure ? 'psychology' : 'language'),
+    secondaryDomains: ranking.filter((x)=>x.count>0).map((x)=>x.domain).slice(1,3),
+    sections: ks,
+  };
+}
+
+function applyMarionRoleGuard(cog, knowledgeSummary) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const ks = isPlainObject(knowledgeSummary) ? knowledgeSummary : { availableDomains: [], counts: {}, primaryDomain: 'language', secondaryDomains: [], sections: {} };
+  const intentU = safeStr(c.intent || '', 16).toUpperCase();
+  const distressLike = intentU === 'STABILIZE' || ['medium','high'].includes(safeStr(c.riskTier || '', 12).toLowerCase());
+  const explicitBridge = !!(isPlainObject(c.bridge) && c.bridge.enabled && ['chip_select','lane_switch'].includes(safeStr(c.bridge.kind || '', 24).toLowerCase()));
+
+  c.knowledgeDomains = {
+    schema: 'marionSO.knowledgeDomains.v1',
+    primaryDomain: ks.primaryDomain,
+    secondaryDomains: Array.isArray(ks.secondaryDomains) ? ks.secondaryDomains.slice(0, 2) : [],
+    availableDomains: Array.isArray(ks.availableDomains) ? ks.availableDomains.slice(0, 6) : [],
+    counts: isPlainObject(ks.counts) ? ks.counts : {},
+  };
+
+  c.supportCompatible = distressLike;
+  c.questionSuppression = distressLike;
+  c.avoidLaneRebuild = true;
+  c.allowMenuRegeneration = false;
+  c.marionSurfaceRole = 'reasoning_only';
+  c.marionMaySpeak = false;
+
+  if (!explicitBridge) {
+    c.bridge = { enabled: false, reason: distressLike ? 'role_guard_support' : 'role_guard_reasoning_only' };
+    c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
+    c.handoff.nyxCue = distressLike ? 'hold' : 'respond';
+  }
+
+  if (distressLike) {
+    c.needsClarify = false;
+    c.askKind = 'none';
+    c.minimalClarifier = '';
+    c.clarifyPrompt = '';
+    c.movePolicy = { preferredMove: 'STABILIZE', hardOverride: true, reason: 'role_guard_support' };
+  }
+
+  c.decisionTags = uniqBounded([...(safeArr(c.decisionTags)), 'role:reasoning_only', 'menu:suppressed', `domain:${ks.primaryDomain}`], 12);
+  return c;
+}
+
+function aggregateKnowledgeHints(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const out = {
+    enabled: true,
+    // psyche wins if present; otherwise we surface per-lane hints
+    psyche: isPlainObject(c.psyche) ? c.psyche : { enabled: false, reason: "none" },
+    hints: {
+      psychology: isPlainObject(c.psychologyHints) ? c.psychologyHints : { enabled: false, reason: "none" },
+      cyber: isPlainObject(c.cyberKnowledgeHints) ? c.cyberKnowledgeHints : { enabled: false, reason: "none" },
+      english: isPlainObject(c.englishKnowledgeHints) ? c.englishKnowledgeHints : { enabled: false, reason: "none" },
+      finance: isPlainObject(c.financeKnowledgeHints) ? c.financeKnowledgeHints : { enabled: false, reason: "none" },
+      ai: isPlainObject(c.aiKnowledgeHints) ? c.aiKnowledgeHints : { enabled: false, reason: "none" },
+    },
+  };
+
+  const fired = [];
+  if (out.psyche && out.psyche.enabled) fired.push("psyche");
+  for (const k of Object.keys(out.hints)) {
+    if (out.hints[k] && out.hints[k].enabled) fired.push(k);
+  }
+  out.fired = fired.slice(0, 6);
+  out.firedCount = out.fired.length;
+
+  return out;
+}
+
+// -------------------------
+// main: mediate
+// -------------------------
+function mediate(norm, session, opts = {}) {
+  try {
+    const s = isPlainObject(session) ? session : {};
+    const n0 = isPlainObject(norm) ? norm : {};
+    const o = isPlainObject(opts) ? opts : {};
+
+    // OPINTEL++++: enterprise trace ids (no raw text stored)
+    const requestId = safeStr(o.requestId || "", 64).trim();
+    const turnId = safeStr(o.turnId || "", 64).trim();
+    const traceId = safeStr(o.traceId || requestId || "", 64).trim();
+    const inputSig =
+      safeStr(o.inputSig || "", 64).trim() ||
+      sha1Lite(`${safeStr(n0.text || "", 420)}|${readPayloadLane(n0)}|${safeSerialize(n0.payload || {}, 240)}`).slice(0, 18);
+
+    // Lane lock from UI payload (prevents bridge drift)
+    const payloadLaneLock = readPayloadLane(n0);
+
+    const clockNow = typeof o.nowMs === "function" ? o.nowMs : nowMsDefault;
+    const now = Number(clockNow()) || nowMsDefault();
+
+    // CPU budget gate (prevents long mediator work from cascading into API 503 timeouts)
+    const gate = budgetGate(now, Number(o.cpuBudgetMs || o.cpuBudget || 0) || DEFAULT_CPU_BUDGET_MS);
+
+    // Optional safe debug (no raw user text)
+    const dbg = !!(o.debug || o.marionDebug || MARION_DEBUG);
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.debug("[MarionSO] mediate:start", { v: MARION_VERSION, lane: safeStr(n0.lane || s.lane || "", 24), hasPayload: !!n0?.turnSignals?.hasPayload, t: now });
+    }
+
+
+
+    // CANON LANE FIRST (payload lane wins)
+    const payloadLane = readPayloadLane(n0);
+    const sessionLane = normalizeLaneRaw(s.lane) || "";
+    const lane = payloadLane || sessionLane || "general";
+    const laneReason = payloadLane ? "payload_lane" : sessionLane ? "session_lane" : "default";
+
+    const chipMeta = detectChipSelect(n0);
+    const isChip = !!chipMeta.isChip;
+
+    // Build a shallow norm copy with canonical lane (no mutation of caller object)
+    const n = { ...n0, lane };
+
+    const hasPayload = !!n?.turnSignals?.hasPayload;
+    const textEmpty = !!n?.turnSignals?.textEmpty;
+    const payloadActionable = !!n?.turnSignals?.payloadActionable;
+
+    const macModeOverride =
+      normalizeMacModeRaw(
+        n?.turnSignals?.macModeOverride ||
+          n?.macModeOverride ||
+          n?.macMode ||
+          n?.payload?.macMode ||
+          n?.payload?.mode ||
+          n?.body?.macMode ||
+          n?.body?.mode ||
+          ""
+      ) || "";
+
+    const implicit = detectMacModeImplicit(n.text || "");
+    let modeCandidate = macModeOverride || implicit.mode || "";
+    if (!modeCandidate) modeCandidate = "architect";
+    if (modeCandidate !== "architect" && modeCandidate !== "user" && modeCandidate !== "transitional") modeCandidate = "architect";
+
+    const hysteresis = suggestModeHysteresisPatch(s, modeCandidate, implicit);
+    const mode = (hysteresis && hysteresis.effectiveMode) || modeCandidate;
+
+    const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
+    const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
+
+    let intent = toUpperToken(n.turnIntent || "", 20);
+    if (!intent || (intent !== "ADVANCE" && intent !== "CLARIFY" && intent !== "STABILIZE")) intent = classifyTurnIntent(n);
+
+    const payloadAction = safeStr(n?.turnSignals?.payloadAction || "", 60).trim();
+    const payloadYear = normYear(n?.turnSignals?.payloadYear);
+
+    const actionable =
+      !!safeStr(n.action || "", 80).trim() ||
+      (payloadActionable && hasPayload && (safeStr(payloadAction, 60).trim() || payloadYear !== null)) ||
+      (payloadActionable && textEmpty && hasPayload);
+
+    // Bridge triggers:
+    // 1) chip select (explicit)
+    // 2) payload lane differs from session lane (implicit lane switch)
+    const laneChanged = !!(payloadLane && sessionLane && payloadLane !== sessionLane);
+
+    // CHIP FAST-PATH: treat chip select as actionable bridge + lane switch signal
+    const laneAction = isChip || laneChanged ? "switch_lane" : "";
+
+    if (actionable) intent = "ADVANCE";
+    if (isChip || laneChanged) intent = "ADVANCE";
+
+    if (stalled && (mode === "architect" || mode === "transitional") && intent !== "ADVANCE") intent = "CLARIFY";
+
+    let dominance = "neutral";
+    let budget = "medium";
+
+    if (mode === "architect" || mode === "transitional") {
+      budget = "short";
+      dominance = intent === "ADVANCE" ? "firm" : "neutral";
+    } else {
+      budget = "medium";
+      dominance = intent === "ADVANCE" ? "neutral" : "soft";
+    }
+
+    const grounding = mode === "user" || mode === "transitional";
+    let groundingMaxLines = intent === "STABILIZE" ? 3 : grounding ? 1 : 0;
+
+    const psychSeed = computePsychologyReasoningObject(
+      n,
+      s,
+      { mode, intent, dominance, budget, actionable, textEmpty, stalled },
+      now
+    );
+
+    // Bridge is declared early so distress gating never references an uninitialized binding.
+    let bridge = null;
+
+    // Affect-driven stabilization: if user language signals distress/pain, prioritize STABILIZE
+    // (unless we are in an explicit actionable/bridge advance)
+    const _aff = isPlainObject(psychSeed?.affect) ? psychSeed.affect : {};
+    const _tags = Array.isArray(_aff.tags) ? _aff.tags : [];
+    const _distress = _tags.includes("distress_language") || _tags.includes("escalation_language");
+    const _selfHarm = _tags.includes("self_harm_language");
+    if (!_selfHarm && _distress && !actionable && !(bridge && bridge.enabled) && intent !== "ADVANCE") {
+      intent = "STABILIZE";
+    }
+    if (_selfHarm && intent !== "ADVANCE") {
+      intent = "STABILIZE";
+    }
+
+    // Phase 10 guard: when the user is distressed, keep Marion fast and simple.
+    // Default behavior: disable SiteBridge/PsycheBridge enrichment on distress to prevent payload bloat and reduce timeout risk.
+    const distressSignal = !!(_distress || _selfHarm);
+    const disableBridgeOnDistress = distressSignal && (o.disableBridgeOnDistress === undefined ? true : !!o.disableBridgeOnDistress);
+
+
+    const latentDesire = inferLatentDesire(n, s, { mode, intent, dominance, budget });
+    const confidence = inferConfidence(n, s, { mode, intent, dominance, budget });
+
+    const psych0 = { ...psychSeed, motivation: safeStr(latentDesire || "", 16) };
+
+    const lawSeed0 = {
+      mode,
+      intent,
+      dominance,
+      budget,
+      groundingMaxLines,
+      actionable,
+      stalled,
+      textEmpty: !!textEmpty,
+      velvetAllowed: true,
+      lane,
+      laneAction,
+      laneReason,
     };
 
-    const memoryWrite = {
-      sessionId, userId, turnId, traceId,
-      lastIntent: classification.intent,
-      lastDomain: primaryDomain,
-      recentTopics: uniqueStrings([primaryDomain, classification.intent, ...classification.tokens.slice(0, 6)]).slice(0, 10),
-      openLoops: synthesis.nextAction === 'clarify_or_expand' ? [rawText.slice(0, 120)] : [],
-      lastConfidence: Number(synthesis.confidence || 0),
-      updatedAt: safeNowISO(),
+    const ethics0 = computeEthicsLayer(n, psych0, lawSeed0);
+
+    const risk0 = computeRiskBridge(n, psych0, ethics0, lawSeed0);
+    const lawSeed1 = applyRiskOverridesToLawSeed(lawSeed0, risk0);
+
+    const lawApplied = applyLawLayer(lawSeed1, psych0);
+
+    intent = normalizeMove(lawApplied.intent);
+    dominance = normalizeDominance(lawApplied.dominance || dominance);
+    budget = normalizeBudget(lawApplied.budget || budget);
+    groundingMaxLines = clampInt(lawApplied.groundingMaxLines, 0, 3, groundingMaxLines);
+    const velvetAllowed = lawApplied.velvetAllowed !== false;
+
+    const velvet = computeVelvet(n, s, { mode, intent, dominance, budget, confidence }, latentDesire, now, velvetAllowed);
+
+    if (velvet.velvet && mode === "user" && intent !== "ADVANCE") dominance = "soft";
+    if (latentDesire === LATENT_DESIRE.MASTERY && (mode === "architect" || mode === "transitional") && intent === "ADVANCE") dominance = "firm";
+
+    // ---------
+    // BRIDGE CONTRACT (Marion → Nyx routing)
+    // ---------
+    if (isChip) {
+      bridge = buildBridgeContract({
+        kind: "chip_select",
+        laneFrom: sessionLane || "",
+        laneTo: lane,
+        reason: chipMeta.why || "chip_select",
+        chipLabel: chipMeta.label || "",
+        payloadAction: payloadAction || "chip",
+      });
+    } else if (laneChanged) {
+      bridge = buildBridgeContract({
+        kind: "lane_switch",
+        laneFrom: sessionLane || "",
+        laneTo: lane,
+        reason: "payload_lane_change",
+        chipLabel: "",
+        payloadAction: payloadAction || "route",
+      });
+    }
+
+    let marionState = "SEEK";
+    let marionReason = "default";
+    const a = safeStr(n.action || "", 80).trim();
+
+    if (bridge && bridge.enabled) {
+      marionState = "BRIDGE";
+      marionReason = bridge.kind;
+    } else if (intent === "STABILIZE") {
+      marionState = "STABILIZE";
+      marionReason = "intent_stabilize";
+    } else if (intent === "ADVANCE") {
+      marionState = "DELIVER";
+      marionReason = actionable ? "actionable" : "advance";
+    } else if (a === "switch_lane" || a === "ask_year") {
+      marionState = "BRIDGE";
+      marionReason = "routing";
+    } else {
+      marionState = "SEEK";
+      marionReason = "clarify";
+    }
+
+    let cog = {
+      marionVersion: MARION_VERSION,
+      requestId,
+      turnId,
+      traceId,
+      inputSig,
+
+      mode,
+      intent,
+      dominance,
+      budget,
+
+      lane,
+      laneAction,
+      laneReason,
+
+      stalled: !!stalled,
+      actionable: !!actionable || !!(bridge && bridge.enabled),
+      textEmpty: !!textEmpty,
+      groundingMaxLines,
+
+      // bridge payload for Nyx
+      bridge: bridge || { enabled: false, reason: "none" },
+
+      riskTier: safeStr(risk0?.riskTier || RISK.TIERS.NONE, 10),
+      riskDomains: uniqBounded(risk0?.riskDomains || [], 6),
+      riskSignals: uniqBounded(risk0?.riskSignals || [], 6),
+      riskLawOverrides: isPlainObject(risk0?.lawOverrides) ? { ...risk0.lawOverrides } : {},
+
+      lawTags: Array.isArray(lawApplied.lawTags) ? lawApplied.lawTags.slice(0, 8) : [],
+      lawReasons: Array.isArray(lawApplied.lawReasons) ? lawApplied.lawReasons.slice(0, 8) : [],
+      velvetAllowed: !!velvetAllowed,
+
+      latentDesire,
+      confidence: { user: clamp01(confidence.user), nyx: clamp01(confidence.nyx) },
+
+      velvet: !!velvet.velvet,
+      velvetSince: velvet.velvet ? Number(velvet.velvetSince || 0) || now : 0,
+      velvetReason: safeStr(velvet.reason || "", 40),
+
+      marionState,
+      marionReason,
+
+      marionStyle: MARION_STYLE_CONTRACT,
+
+      // NEW: handoff cue for Nyx UI
+      handoff: {
+        marionEndsHard: true,
+        nyxBeginsAfter: true,
+        allowSameTurnSplit: true,
+        marionTagSuggested:
+          intent === "ADVANCE"
+            ? MARION_STYLE_CONTRACT.tags.ok
+            : intent === "STABILIZE"
+            ? MARION_STYLE_CONTRACT.tags.hold
+            : MARION_STYLE_CONTRACT.tags.ok,
+        nyxCue: bridge && bridge.enabled ? "route" : intent === "STABILIZE" ? "hold" : "respond",
+        bridge: bridge && bridge.enabled ? { kind: bridge.kind, laneTo: bridge.laneTo } : { kind: "", laneTo: "" },
+      },
+
+      macModeOverride: macModeOverride || "",
+      macModeWhy: Array.isArray(implicit.why) ? implicit.why.slice(0, 6).map((x) => safeStr(x, 60)) : [],
+
+      ...(hysteresis && hysteresis.sessionPatchSuggestion ? { sessionPatchSuggestion: hysteresis.sessionPatchSuggestion } : {}),
+
+      privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
     };
 
-    await putMemory(memoryWrite);
-    await track({
-      event: 'marion_bridge_resolve',
-      traceId, sessionId, userId, turnId,
-      intent: classification.intent,
-      domain: primaryDomain,
-      evidenceCount: rankedEvidence.length,
-      confidence: memoryWrite.lastConfidence,
-      fallback: packet.diagnostics.usedFallback,
-      loopCount: loop.count,
-      usedMarion: packet.marion.answered,
+    // Apply psych shaping to mediator outputs
+    cog = applyPsychologyToMediator(cog, psych0);
+
+
+// Phase 3++++: local support hinting (non-crisis) — lets chatEngine/Nyx avoid clarify spirals
+// and (optionally) short-circuit to deterministic empathy if upstream LLM is unhealthy.
+try {
+  const _aff = isPlainObject(cog?.psychology?.affect) ? cog.psychology.affect : {};
+  const _tags = Array.isArray(_aff.tags) ? _aff.tags : [];
+  const _hasDistress = _tags.includes("distress_language") || _tags.includes("escalation_language");
+  const _hasSelfHarm = _tags.includes("self_harm_language");
+  if (_hasDistress && !_hasSelfHarm) {
+    cog.support = {
+      enabled: true,
+      mode: "DISTRESS",
+      localOk: true,
+      reason: "affect_distress",
+      cues: uniqBounded(
+        [
+          "validate_feeling",
+          "ask_one_soft_question",
+          cog.velvetAllowed ? "warm_tone_ok" : "",
+        ].filter(Boolean),
+        6
+      ),
+    };
+    // Stronger stabilizer intent if we sniff distress (prevents lane prompts)
+    if (safeStr(cog.intent || "").toUpperCase() === "CLARIFY") cog.intent = "STABILIZE";
+    if (isPlainObject(cog.handoff)) {
+      cog.handoff.nyxCue = "hold";
+      if (!cog.handoff.marionTagSuggested) cog.handoff.marionTagSuggested = MARION_STYLE_CONTRACT.tags.hold;
+    }
+  }
+} catch (e) {
+  // fail-open: no support hint
+}
+
+
+    // Recompute ethics after psych is attached (single authoritative set)
+    const ethics = computeEthicsLayer(n, psych0, cog);
+    cog.ethicsTags = ethics.ethicsTags;
+    cog.ethicsSignals = ethics.ethicsSignals;
+
+    const cyber = computeCyberLayer(n, psych0);
+    cog.cyberTags = cyber.cyberTags;
+    cog.cyberSignals = cyber.cyberSignals;
+
+    const english = computeEnglishLayer(n, { mode: cog.mode, intent: cog.intent });
+    cog.englishTags = english.englishTags;
+    cog.englishSignals = english.englishSignals;
+
+    const fin = computeFinanceLayer(n);
+    cog.finTags = fin.finTags;
+    cog.finSignals = fin.finSignals;
+
+    const strat = computeStrategyLayer(n, { mode: cog.mode, intent: cog.intent }, psych0);
+    cog.strategyTags = strat.strategyTags;
+    cog.strategySignals = strat.strategySignals;
+
+    const ai = computeAILayer(n);
+    cog.aiTags = ai.aiTags;
+    cog.aiSignals = ai.aiSignals;
+
+    // =========================
+    // KNOWLEDGE: PsycheBridge first (option 2)
+    // =========================
+    const psyche = gate.ok() && !(o.disablePsycheBridge || o.disableBridge) && !disableBridgeOnDistress ? callPsycheBridge(n, s, cog, opts) : null;
+    if (!psyche && !gate.ok()) {
+      cog.psyche = { enabled: false, reason: "cpu_budget" };
+    }
+    if (!psyche && disableBridgeOnDistress) {
+      cog.psyche = { enabled: false, reason: "distress_short_circuit" };
+      cog.siteBridge = { enabled: false, reason: "distress_short_circuit" };
+    }
+    if (psyche && psyche.enabled) {
+      cog.psyche = psyche;
+      cog.siteBridge = psyche;
+
+      // Phase 1–5: if SiteBridge provided audio/tempo/intro, prefer those envelopes.
+      if (isPlainObject(psyche.tempo)) cog.tempo = clampTempoProfile(psyche.tempo);
+      if (isPlainObject(psyche.audio)) cog.audio = clampAudioEnvelope(psyche.audio, cog);
+      if (isPlainObject(psyche.intro)) cog.intro = clampIntroEnvelope(psyche.intro, cog);
+
+      cog.psychologyHints = { enabled: false, reason: "psyche_bridge" };
+      cog.cyberKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.englishKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.financeKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+      cog.aiKnowledgeHints = { enabled: false, reason: "psyche_bridge" };
+    } else {
+      const psyHints = gate.ok() ? queryPsychologyKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
+      cog.psychologyHints = clampPsychHints(psyHints);
+
+      const cyHints = gate.ok() ? queryCyberKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
+      cog.cyberKnowledgeHints = clampCyberHints(cyHints);
+
+      const enHints = gate.ok() ? queryEnglishKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
+      cog.englishKnowledgeHints = clampEnglishHints(enHints);
+
+      const fiHints = gate.ok() ? queryFinanceKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
+      cog.financeKnowledgeHints = clampFinanceHints(fiHints);
+
+      const aiHints = gate.ok() ? queryAIKnowledge(n, s, cog) : { enabled: false, reason: gate.ok() ? "disabled" : "cpu_budget" };
+      cog.aiKnowledgeHints = clampAIHints(aiHints);
+
+      cog.psyche = { enabled: false, reason: psyche ? psyche.reason || "psyche_bridge_disabled" : "psyche_bridge_missing" };
+    }
+
+    // =========================
+    // NEW: Lane Expert Router (Marion applies ALL knowledge lanes to Nyx)
+    // =========================
+    // IMPORTANT:
+    // - This does not change the widget structure.
+    // - It only adds deterministic routing metadata that chatEngine can consume.
+    const routing = computeLaneExpertRouting(cog.lane, cog);
+    cog.effectiveLane = routing.effectiveLane;
+    cog.crossLaneAllowed = !!routing.crossLaneAllowed;
+    cog.lanesUsed = Array.isArray(routing.lanesUsed) ? routing.lanesUsed : [];
+    cog.lanesAvailable = Array.isArray(routing.lanesAvailable) ? routing.lanesAvailable : LANES_AVAILABLE;
+
+    // OPINTEL++++ (P15): payload lane lock supersedes inferred routing to prevent bridge drift
+    if (payloadLaneLock && payloadLaneLock !== cog.effectiveLane) {
+      cog.decisionTags = uniqBounded([...(safeArr(cog.decisionTags)), "bridge:drift_guard", `lane_lock:${payloadLaneLock}`], 10);
+      cog.bridgeDriftGuard = true;
+      cog.effectiveLane = payloadLaneLock;
+      cog.crossLaneAllowed = laneCrossAllowedByDefault(payloadLaneLock);
+      cog.lanesUsed = clampLaneExperts([payloadLaneLock], 3);
+    }
+    cog.laneExpertReason = safeStr(routing.reason || "", 24);
+
+    // Six-domain knowledge visibility + Marion role guard.
+    const knowledgeSummary = buildKnowledgeDomainSummary(n, s, o, cog);
+    cog = applyMarionRoleGuard(cog, knowledgeSummary);
+
+    // ---------
+    // SESSION PATCH SUGGESTION (UPGRADED for bridge)
+    // ---------
+    const patch = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+    if (bridge && bridge.enabled) {
+      patch.lane = bridge.laneTo;
+      patch.lastLane = bridge.laneFrom || sessionLane || "";
+      patch.bridgeKind = bridge.kind;
+      patch.bridgeLaneTo = bridge.laneTo;
+      patch.bridgeReason = bridge.reason || bridge.kind;
+      patch.lastAdvanceAt = now; // actionable route should advance clocks
+    } else if (payloadLane && payloadLane !== sessionLane) {
+      // still safe to patch lane on canonical payload lane
+      patch.lane = payloadLane;
+      patch.lastLane = sessionLane || "";
+    }
+    if (Object.keys(patch).length) cog.sessionPatchSuggestion = patch;
+
+    // ---------
+    // TEMPO (site binding for audio; phone-gateway baseline)
+    // ---------
+    const tempo = computeTempoProfile(n, s, cog, {
+      now,
+      preferFast: truthy(o.preferFastTempo) || truthy(n?.turnSignals?.preferFastTempo),
+    });
+    cog.tempo = tempo;
+
+
+    // ---------
+    // AUDIO ENVELOPE (PHASES 1–5) — host-facing hints only
+    // ---------
+    const audio = computeAudioEnvelope(n, s, cog, tempo, {
+      silentAudio: truthy(o.silentAudio) || truthy(n?.turnSignals?.silentAudio),
+      userGestureRequired: truthy(o.userGestureRequired) || truthy(n?.turnSignals?.userGestureRequired),
+      disableIntro: truthy(o.disableIntro) || truthy(n?.turnSignals?.disableIntro),
+    });
+    cog.audio = audio;
+
+    // Intro ritual cue (Phase 2): optional first-open greeting, once per session
+    const intro = computeIntroRitualCue(n, s, cog, now, {
+      disableIntro: truthy(o.disableIntro) || truthy(n?.turnSignals?.disableIntro),
+    });
+    if (intro.enabled) {
+      cog.intro = { enabled: true, cueKey: intro.cueKey, reason: intro.reason };
+      // merge session patch
+      const p0 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+      if (isPlainObject(intro.patch)) Object.assign(p0, intro.patch);
+      cog.sessionPatchSuggestion = p0;
+    } else {
+      cog.intro = { enabled: false, cueKey: "", reason: intro.reason };
+    }
+
+
+    // ---------
+    // KNOWLEDGE AGGREGATOR (deterministic summary; "packs firing" visibility)
+    // ---------
+    cog.knowledge = aggregateKnowledgeHints(cog);
+
+    // ---------
+    // BRUTAL LOOP BREAKER (repeat signature within window => force CLARIFY)
+    // ---------
+    const sig = computeTurnSignature(n, cog);
+    const lg = computeLoopGuard(s, sig.sig, now);
+    // session patch: keep only hashed signatures (no raw user text)
+    const patch2 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+    patch2.loopGuard = { ...lg.next, lastTextHash: sig.textHash };
+    // tempo preference persistence (optional)
+    patch2.siteTempo = {
+      ...(isPlainObject(s.siteTempo) ? s.siteTempo : {}),
+      fast: truthy((isPlainObject(s.siteTempo) ? s.siteTempo.fast : false) || o.preferFastTempo || n?.turnSignals?.preferFastTempo),
+      last: { ackMs: tempo.ackMs, chunkMs: tempo.chunkMs, maxSilenceMs: tempo.maxSilenceMs, at: now },
+    };
+    cog.sessionPatchSuggestion = patch2;
+
+    if (lg.tripped) {
+      applyBrutalLoopBreaker(cog, { ...lg.meta, sig: sig.sig });
+    }
+
+
+    const trace = buildTrace(n, s, {
+      ...cog,
+      confidence: cog.confidence,
+      latentDesire: cog.latentDesire,
+      velvet: cog.velvet,
+      psychology: cog.psychology,
+      movePolicy: cog.movePolicy,
+      lawTags: cog.lawTags,
+      ethicsTags: cog.ethicsTags,
+      cyberTags: cog.cyberTags,
+      aiTags: cog.aiTags,
+      psyche: cog.psyche,
+      psychologyHints: cog.psychologyHints,
+      cyberKnowledgeHints: cog.cyberKnowledgeHints,
+      englishKnowledgeHints: cog.englishKnowledgeHints,
+      financeKnowledgeHints: cog.financeKnowledgeHints,
+      aiKnowledgeHints: cog.aiKnowledgeHints,
+      lane: cog.lane,
+      laneAction: cog.laneAction,
+      bridge: cog.bridge,
+      lanesUsed: cog.lanesUsed,
+      crossLaneAllowed: cog.crossLaneAllowed,
     });
 
-    try {
-      if (logger && typeof logger.info === 'function') {
-        logger.info('[marionBridge.resolve]', {
-          traceId,
-          intent: classification.intent,
-          domain: primaryDomain,
-          evidenceCount: rankedEvidence.length,
-          confidence: memoryWrite.lastConfidence,
-          fallback: packet.diagnostics.usedFallback,
-          usedMarion: packet.marion.answered,
-        });
-      }
-    } catch {}
+    cog.marionTrace = safeStr(trace, MARION_TRACE_MAX + 8);
+    cog.marionTraceHash = hashTrace(trace);
 
-    return packet;
-  }
-
-  async function maybeResolve(request = {}) {
-    const classification = classify(request);
-    if (!classification.shouldUseMarion) {
-      return { ok: true, usedBridge: false, reason: 'bridge_not_needed', classification, packet: null };
+    // External overrides (kept)
+    if (o && o.forceBudget && (o.forceBudget === "short" || o.forceBudget === "medium")) cog.budget = o.forceBudget;
+    if (o && o.forceDominance && (o.forceDominance === "firm" || o.forceDominance === "neutral" || o.forceDominance === "soft")) cog.dominance = o.forceDominance;
+    if (o && o.forceIntent && (o.forceIntent === "ADVANCE" || o.forceIntent === "CLARIFY" || o.forceIntent === "STABILIZE")) {
+      cog.intent = o.forceIntent;
+      cog.movePolicy = deriveMovePolicy(cog);
     }
-    const packet = await resolve(request);
-    return { ok: true, usedBridge: true, reason: 'bridge_resolved', classification, packet };
-  }
+    if (o && typeof o.forceVelvet === "boolean") {
+      cog.velvet = o.forceVelvet;
+      cog.velvetSince = o.forceVelvet ? now : 0;
+      cog.velvetReason = o.forceVelvet ? "forced_on" : "forced_off";
+      cog.movePolicy = deriveMovePolicy(cog);
+    }
 
-  async function healthcheck() {
-    return {
-      ok: true,
-      bridge: 'marionBridge.js',
-      version: BRIDGE_VERSION,
-      checks: {
-        marionSO: !!marionSO,
-        marionMethod: marionMethod || null,
-        memoryProvider: !!memoryProvider,
-        evidenceEngine: !!evidenceEngine,
-        telemetry: !!telemetry,
-        phases,
-        now: safeNowISO(),
+    if (!gate.ok()) {
+      cog.degraded = true;
+      cog.degradeReason = "cpu_budget";
+    }
+
+    const issues = tracePolicyCheck(cog, n, o);
+    const metrics = { schema: OPINTEL_SCHEMA, cpuMs: gate.elapsed(), gateBudgetMs: gate.budgetMs, clampedBytes: 0, tracePolicyIssues: issues || [] };
+    cog.marionMetrics = metrics;
+    // OI operational package is additive and safe; Nyx may ignore.
+    cog.opPackage = buildOperationalPackage(n, s, cog, metrics);
+
+    const final = finalizeContract(cog, now, { tracePolicyIssues: issues, norm: n, session: s });
+
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.debug("[MarionSO] mediate:done", {
+        v: MARION_VERSION,
+        lane: safeStr(final?.lane || "", 24),
+        intent: safeStr(final?.intent || "", 16),
+        mode: safeStr(final?.mode || "", 16),
+        budget: safeStr(final?.budget || "", 16),
+        elapsedMs: gate.elapsed(),
+        degraded: !!final?.degraded,
+        degradeReason: safeStr(final?.degradeReason || "", 40),
+      });
+    }
+
+    return final;
+  } catch (e) {
+    const code = safeStr(e && (e.code || e.name) ? e.code || e.name : "ERR", 40);
+    const now = nowMsDefault();
+    const fail = {
+      marionVersion: MARION_VERSION,
+      mode: "architect",
+      intent: "CLARIFY",
+      dominance: "neutral",
+      budget: "short",
+      lane: "general",
+      laneAction: "",
+      laneReason: "fail_open",
+      stalled: false,
+      actionable: false,
+      textEmpty: false,
+      groundingMaxLines: 0,
+      bridge: { enabled: false, reason: "fail_open" },
+      // NEW router defaults
+      effectiveLane: "general",
+      crossLaneAllowed: true,
+      lanesUsed: [LANE_EXPERTS.ENGLISH],
+      lanesAvailable: LANES_AVAILABLE,
+      riskTier: RISK.TIERS.LOW,
+      riskDomains: [],
+      riskSignals: ["fail_open"],
+      riskLawOverrides: {},
+      lawTags: [LAW.TAGS.COHERENCE],
+      lawReasons: ["fail_open"],
+      velvetAllowed: false,
+      latentDesire: LATENT_DESIRE.CURIOSITY,
+      confidence: { user: 0.5, nyx: 0.55 },
+      velvet: false,
+      velvetSince: 0,
+      velvetReason: "fail_open",
+      marionState: "SEEK",
+      marionReason: "fail_open",
+      psychology: {
+        cognitiveLoad: PSYCH.LOAD.MEDIUM,
+        regulationState: PSYCH.REG.REGULATED,
+        motivation: LATENT_DESIRE.CURIOSITY,
+        agencyPreference: PSYCH.AGENCY.GUIDED,
+        socialPressure: PSYCH.PRESSURE.LOW,
       },
+      ethicsTags: [ETHICS.TAGS.NON_DECEPTIVE, ETHICS.TAGS.PRIVACY_MIN, ETHICS.TAGS.HARM_AVOIDANCE],
+      ethicsSignals: [ETHICS.SIGNALS.USE_NEUTRAL_TONE],
+      cyberTags: [CYBER.TAGS.DEFENSIVE_ONLY],
+      cyberSignals: [CYBER.SIGNALS.SAFE_DEFAULTS],
+      englishTags: [],
+      englishSignals: [],
+      finTags: [],
+      finSignals: [],
+      strategyTags: [],
+      strategySignals: [],
+      aiTags: [],
+      aiSignals: [],
+      psyche: { enabled: false, reason: "fail_open" },
+      psychologyHints: { enabled: false, reason: "fail_open" },
+      cyberKnowledgeHints: { enabled: false, reason: "fail_open" },
+      englishKnowledgeHints: { enabled: false, reason: "fail_open" },
+      financeKnowledgeHints: { enabled: false, reason: "fail_open" },
+      aiKnowledgeHints: { enabled: false, reason: "fail_open" },
+      movePolicy: { preferredMove: "CLARIFY", hardOverride: false, reason: "fail_open" },
+      marionStyle: MARION_STYLE_CONTRACT,
+      handoff: {
+        marionEndsHard: true,
+        nyxBeginsAfter: true,
+        allowSameTurnSplit: true,
+        marionTagSuggested: MARION_STYLE_CONTRACT.tags.retry,
+        nyxCue: "retry",
+        bridge: { kind: "", laneTo: "" },
+      },
+      marionTrace: "fail_open",
+      marionTraceHash: sha1Lite("fail_open").slice(0, 10),
+      macModeOverride: "",
+      macModeWhy: [],
+      privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
+      errorCode: code,
     };
+    return finalizeContract(fail, now, {});
   }
-
-  function resetLoop(sessionId, text = '') {
-    const key = hashLite(`${sessionId}|${String(text).toLowerCase()}`);
-    loopGuard.reset(key);
-    return { ok: true, key };
-  }
-
-  return { classify, resolve, maybeResolve, healthcheck, resetLoop };
 }
 
 module.exports = {
-  createMarionBridge,
-  DEFAULT_PHASE_FLAGS,
-  DEFAULT_DOMAIN_KEYWORDS,
-  BRIDGE_VERSION,
+  MARION_VERSION,
+  SO_VERSION,
+  version,
+  PHASE10_PLAN,
+  PHASE15_PLAN,
+  LATENT_DESIRE,
+  MARION_STYLE_CONTRACT,
+  PSYCH,
+  LAW,
+  ETHICS,
+  RISK,
+  CYBER,
+  ENGLISH,
+  FIN,
+  STRATEGY,
+  AI,
+
+  // NEW router exports
+  LANE_EXPERTS,
+  LANES_AVAILABLE,
+  computeLaneExpertRouting,
+  normalizeKnowledgeDomainKey,
+  coerceKnowledgeSections,
+  buildKnowledgeDomainSummary,
+  applyMarionRoleGuard,
+
+  mediate,
+
+  // diagnostics
+  buildTrace,
+  hashTrace,
+
+  // hardening exports (unit tests / integration)
+  finalizeContract,
+  computeRoutingUpgradeHints,
+  tracePolicyCheck,
+  suggestModeHysteresisPatch,
+
+  // bridge exports (unit tests)
+  buildBridgeContract,
+  normalizeBridgeKind,
+
+  // psyche bridge exports
+  buildPsycheBridgeInput,
+  callPsycheBridge,
+
+  // legacy psych knowledge exports (integration tests)
+  buildPsychologyQuery,
+  queryPsychologyKnowledge,
+  clampPsychHints,
+
+  // legacy cyber knowledge exports (integration tests)
+  buildCyberQuery,
+  queryCyberKnowledge,
+  clampCyberHints,
+
+  // legacy english knowledge exports (integration tests)
+  buildEnglishQuery,
+  queryEnglishKnowledge,
+  clampEnglishHints,
+
+  // legacy finance knowledge exports (integration tests)
+  buildFinanceQuery,
+  queryFinanceKnowledge,
+  clampFinanceHints,
+
+  // legacy ai knowledge exports (integration tests)
+  buildAIQuery,
+  queryAIKnowledge,
+  clampAIHints,
+
+  // risk bridge exports (unit tests)
+  computeRiskBridge,
+  applyRiskOverridesToLawSeed,
+
+  // law/ethics exports (unit tests)
+  applyLawLayer,
+  computeEthicsLayer,
+
+  // cyber/english/finance/strategy/ai exports (unit tests)
+  computeCyberLayer,
+  computeEnglishLayer,
+  computeFinanceLayer,
+  computeStrategyLayer,
+  computeAILayer,
+
+  // audio exports
+  computeTempoProfile,
+  computeAudioEnvelope,
+  computeIntroRitualCue,
+
+  // psych exports (unit tests)
+  computePsychologyReasoningObject,
+  applyPsychologyToMediator,
 };
