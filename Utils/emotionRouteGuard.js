@@ -22,7 +22,7 @@
  * - tts.js
  */
 
-const VERSION = 'emotionRouteGuard v3.0.0';
+const VERSION = 'emotionRouteGuard v3.1.0';
 
 function safeStr(v) {
   if (v === null || v === undefined) return '';
@@ -73,6 +73,38 @@ function countPhraseHits(text, phrases) {
     hits += m ? m.length : 0;
   }
   return hits;
+}
+
+function normalizeForMatching(text) {
+  return lower(text)
+    .replace(/\bcan'?t\b/g, 'cannot')
+    .replace(/\bwon'?t\b/g, 'will not')
+    .replace(/\bi'?m\b/g, 'i am')
+    .replace(/\bit'?s\b/g, 'it is')
+    .replace(/\bdoesn'?t\b/g, 'does not')
+    .replace(/\bdon'?t\b/g, 'do not')
+    .replace(/\bfeels like\b/g, 'feel like')
+    .replace(/[^a-z0-9?!' ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function detectPresentationSignals(text) {
+  const t = normalizeForMatching(text);
+  return {
+    isQuestion: /\?/.test(text) || /\b(can you|could you|would you|should i|what do i|how do i|why do i|am i|is this|do you think)\b/.test(t),
+    asksForHelp: /\b(help me|i need help|can you help|need support|stay with me|talk to me)\b/.test(t),
+    asksForDirectness: /\bjust tell me|be direct|straight up|give it to me straight|no fluff|exactly|just answer|simple answer\b/.test(t),
+    asksForRelief: /\b(make it stop|i need this to stop|get me out of this|calm me down|help me breathe)\b/.test(t),
+    hasContrast: /\b(but|though|except|yet)\b/.test(t),
+    hasUncertainty: /\b(maybe|i guess|not sure|i think|possibly|kind of|sort of)\b/.test(t),
+    narrativeDensity: (t.match(/\b(and|because|when|after|before|then|while)\b/g) || []).length,
+    shortBurst: t.split(/\s+/).filter(Boolean).length <= 6,
+    selfReferential: /\b(i|me|my|myself)\b/.test(t),
+    relational: /\b(we|us|our|they|them|partner|friend|family|mother|father|wife|husband)\b/.test(t),
+    mentionsLooping: /\b(loop|looping|same response|same thing|again and again|repeating|back to the same)\b/.test(t),
+    requestsAction: /\b(what should i do|next step|what now|how do i move forward|what can i do)\b/.test(t)
+  };
 }
 
 const BEHAVIOR_ARCHETYPES = {
@@ -152,6 +184,9 @@ function createNuance(nuance = {}) {
     fallbackArchetype: nuance.fallbackArchetype || 'ground',
     questionPressure: nuance.questionPressure || 'medium',
     mirrorDepth: nuance.mirrorDepth || 'medium',
+    grammarSensitivity: nuance.grammarSensitivity || 'medium',
+    supportLockBias: nuance.supportLockBias || 'auto',
+    followupVariants: uniq(nuance.followupVariants || ['reflective_restate', 'gentle_next_question']),
     transitionTargets: uniq(nuance.transitionTargets || ['clarify']),
     antiLoopShift: nuance.antiLoopShift || 'shift_to_grounding_after_two_similar_turns'
   };
@@ -677,6 +712,7 @@ function basePayload() {
     scores: {},
     rankedEmotions: [],
     nuanceProfile: createNuance(),
+    presentationSignals: {},
     conversationPlan: {},
     continuity: {},
     routeHints: [],
@@ -781,12 +817,13 @@ function deriveRegulationSignals(text) {
   return REGULATION_PHRASES.filter((p) => lower(text).includes(lower(p)));
 }
 
-function deriveNuanceProfile(primary, secondary) {
+function deriveNuanceProfile(primary, secondary, text = '', priorState = {}) {
   const p = EMOTION_DEFS[primary]?.nuance || createNuance();
   const s = EMOTION_DEFS[secondary]?.nuance || null;
-  if (!s) return { ...p };
+  const signals = detectPresentationSignals(text);
+  const prevLoop = num(priorState.sameArchetypeCount, 0) >= 2 || num(priorState.noProgressTurnCount, 0) >= 2;
 
-  return {
+  const profile = !s ? { ...p } : {
     ...p,
     secondaryBlend: {
       arousal: s.arousal,
@@ -794,35 +831,96 @@ function deriveNuanceProfile(primary, secondary) {
       archetype: s.archetype
     },
     transitionTargets: uniq([...(p.transitionTargets || []), ...(s.transitionTargets || [])]),
+    followupVariants: uniq([...(p.followupVariants || []), ...(s.followupVariants || [])]),
     loopRisk: p.loopRisk === 'high' || s.loopRisk === 'high'
       ? 'high'
       : (p.loopRisk === 'medium' || s.loopRisk === 'medium' ? 'medium' : 'low')
   };
+
+  if (signals.asksForDirectness || signals.requestsAction) {
+    profile.questionPressure = profile.questionPressure === 'none' ? 'none' : 'low';
+    profile.followupStyle = 'narrowing';
+    profile.followupVariants = uniq(['direct_answer_then_one_question', ...(profile.followupVariants || [])]);
+  }
+
+  if (signals.isQuestion && profile.archetype === 'witness' && profile.transitionReadiness !== 'low') {
+    profile.fallbackArchetype = 'clarify';
+  }
+
+  if (signals.shortBurst && ['high', 'medium'].includes(profile.loopRisk)) {
+    profile.mirrorDepth = 'low';
+    profile.followupVariants = uniq(['brief_presence', ...(profile.followupVariants || [])]);
+  }
+
+  if (signals.narrativeDensity >= 2) {
+    profile.mirrorDepth = profile.mirrorDepth === 'low' ? 'medium' : 'high';
+    profile.followupVariants = uniq(['narrative_reflection', ...(profile.followupVariants || [])]);
+  }
+
+  if (signals.mentionsLooping || prevLoop) {
+    profile.loopRisk = 'high';
+    profile.supportLockBias = 'strong';
+    profile.followupVariants = uniq(['novel_move_required', ...(profile.followupVariants || [])]);
+  }
+
+  if (signals.asksForRelief) {
+    profile.archetype = ['soothe', 'ground'].includes(profile.archetype) ? profile.archetype : 'ground';
+    profile.questionPressure = 'none';
+    profile.transitionReadiness = 'low';
+  }
+
+  return profile;
 }
 
-function deriveConversationPlan(payload) {
+function deriveConversationPlan(payload, priorState = {}) {
   const nuance = payload.nuanceProfile || createNuance();
   const archetype = BEHAVIOR_ARCHETYPES[nuance.archetype] || BEHAVIOR_ARCHETYPES.clarify;
   const fallbackArchetype = BEHAVIOR_ARCHETYPES[nuance.fallbackArchetype] || BEHAVIOR_ARCHETYPES.ground;
+  const signals = payload.presentationSignals || detectPresentationSignals('');
   const lowQuestion = nuance.questionPressure === 'low' || nuance.questionPressure === 'none';
-  const askAllowed = !(payload.intensity >= 0.82 && lowQuestion);
+  const repeatedArchetype = num(priorState.sameArchetypeCount, 0) >= 2;
+  const intense = payload.intensity >= 0.82;
+  const askAllowed = !(intense && lowQuestion) && nuance.questionPressure !== 'none' && !signals.asksForRelief;
+  const shouldSuppressMenus = payload.intensity >= 0.6 || nuance.loopRisk === 'high' || signals.mentionsLooping || repeatedArchetype;
+  const shouldPreferReflection = ['witness', 'soothe', 'repair', 'reconnect', 'meaning_make'].includes(nuance.conversationNeed) || signals.shortBurst;
+  const shouldDelaySolutioning = ['witness', 'soothe', 'repair'].includes(nuance.conversationNeed) || signals.asksForRelief;
+  const supportLockBias = nuance.supportLockBias === 'strong' || shouldSuppressMenus || nuance.transitionReadiness === 'low'
+    ? 'strong'
+    : nuance.supportLockBias;
+
+  let questionStyle = askAllowed ? archetype.questionStyle : 'defer_question';
+  if (signals.asksForDirectness && askAllowed) questionStyle = 'single_direct_question';
+  if (signals.requestsAction && askAllowed) questionStyle = 'action_gate';
+
+  let followupVariants = uniq(nuance.followupVariants || []);
+  if (repeatedArchetype || signals.mentionsLooping) {
+    followupVariants = uniq(['state_shift_reflection', 'ground_then_narrow', ...followupVariants]);
+  }
+  if (signals.asksForDirectness) {
+    followupVariants = uniq(['direct_answer_then_one_question', ...followupVariants]);
+  }
+  if (signals.narrativeDensity >= 2) {
+    followupVariants = uniq(['narrative_reflection', ...followupVariants]);
+  }
 
   return {
     archetype: nuance.archetype,
     fallbackArchetype: nuance.fallbackArchetype,
     openingStyle: archetype.openingStyle,
     fallbackOpeningStyle: fallbackArchetype.openingStyle,
-    questionStyle: askAllowed ? archetype.questionStyle : 'defer_question',
+    questionStyle,
     askAllowed,
     questionPressure: nuance.questionPressure,
     mirrorDepth: nuance.mirrorDepth,
     transitionReadiness: nuance.transitionReadiness,
     transitionTargets: nuance.transitionTargets,
-    antiLoopShift: nuance.antiLoopShift,
+    followupVariants,
+    antiLoopShift: repeatedArchetype || signals.mentionsLooping ? 'force_variant_or_grounding_shift' : nuance.antiLoopShift,
     allowsActionShift: !!archetype.allowsActionShift && nuance.transitionReadiness !== 'low',
-    shouldSuppressMenus: payload.intensity >= 0.6 || ['high', 'medium'].includes(nuance.loopRisk),
-    shouldPreferReflection: ['witness', 'soothe', 'repair', 'reconnect', 'meaning_make'].includes(nuance.conversationNeed),
-    shouldDelaySolutioning: ['witness', 'soothe', 'repair'].includes(nuance.conversationNeed),
+    shouldSuppressMenus,
+    shouldPreferReflection,
+    shouldDelaySolutioning,
+    supportLockBias,
     recommendedDepth: nuance.transitionReadiness === 'low' ? 'stay_with_emotion' : 'move_when_user_signals_ready'
   };
 }
@@ -832,6 +930,7 @@ function deriveSupportFlags(payload, text) {
   const isThreat = ['threat', 'distress', 'self_evaluative'].includes(payload.emotionCluster);
   const isStuck = /stuck|again|same thing|loop|repeating|back to the same/i.test(safeStr(text));
   const nuance = payload.nuanceProfile || createNuance();
+  const signals = payload.presentationSignals || detectPresentationSignals(text);
 
   return {
     needsStabilization: payload.intensity >= 0.65 || isThreat,
@@ -841,6 +940,10 @@ function deriveSupportFlags(payload, text) {
     needsForwardMotion: ['drive', 'uplift', 'low_activation'].includes(payload.emotionCluster) || nuance.conversationNeed === 'channel' || isStuck,
     needsWitnessing: nuance.conversationNeed === 'witness',
     needsRepair: nuance.conversationNeed === 'repair',
+    prefersDirectness: signals.asksForDirectness || signals.requestsAction,
+    asksForHelp: signals.asksForHelp,
+    asksForRelief: signals.asksForRelief,
+    narrativePresentation: signals.narrativeDensity >= 2,
     delayQuestions: nuance.questionPressure === 'low' || nuance.questionPressure === 'none',
     shouldSuppressMenus: !!payload.conversationPlan?.shouldSuppressMenus,
     mentionsLooping: /loop|looping|again and again|same response|back to the same/i.test(body)
@@ -918,7 +1021,9 @@ function deriveDownstream(payload) {
       archetype: payload.nuanceProfile?.archetype,
       conversationNeed: payload.nuanceProfile?.conversationNeed,
       loopRisk: payload.nuanceProfile?.loopRisk,
-      supportLockRecommended: !!payload.conversationPlan?.shouldSuppressMenus
+      supportLockRecommended: !!payload.conversationPlan?.shouldSuppressMenus,
+      supportLockBias: payload.conversationPlan?.supportLockBias,
+      presentationSignals: payload.presentationSignals
     },
     chatEngine: {
       routeBias: payload.routeBias,
@@ -927,7 +1032,10 @@ function deriveDownstream(payload) {
       routeHints: payload.routeHints,
       askAllowed: !!payload.conversationPlan?.askAllowed,
       shouldSuppressMenus: !!payload.conversationPlan?.shouldSuppressMenus,
-      antiLoopShift: payload.conversationPlan?.antiLoopShift
+      antiLoopShift: payload.conversationPlan?.antiLoopShift,
+      supportLockBias: payload.conversationPlan?.supportLockBias,
+      followupVariants: payload.conversationPlan?.followupVariants || [],
+      presentationSignals: payload.presentationSignals
     },
     supportResponse: {
       supportModeCandidate: payload.supportModeCandidate,
@@ -937,7 +1045,8 @@ function deriveDownstream(payload) {
       intensity: payload.intensity,
       confidence: payload.confidence,
       nuanceProfile: payload.nuanceProfile,
-      conversationPlan: payload.conversationPlan
+      conversationPlan: payload.conversationPlan,
+      presentationSignals: payload.presentationSignals
     },
     sitebridge: {
       summary: `${payload.primaryEmotion || 'unknown'} / ${payload.emotionCluster} / ${payload.routeBias}`,
@@ -947,7 +1056,8 @@ function deriveDownstream(payload) {
       tone: payload.valence === 'negative' ? 'gentle_regulated' : 'warm_attuned',
       volatility: payload.emotionalVolatility,
       intensity: payload.intensity,
-      mirrorDepth: payload.conversationPlan?.mirrorDepth || 'medium'
+      mirrorDepth: payload.conversationPlan?.mirrorDepth || 'medium',
+      followupStyle: payload.nuanceProfile?.followupStyle || 'reflective'
     },
     tts: {
       prosodyBias: payload.valence === 'negative' ? 'slower_steadier' : 'natural_warm',
@@ -962,6 +1072,8 @@ function analyzeEmotionRoute(input = {}, priorState = {}) {
   const text = safeStr(input.text || input.message || input.userText || '');
   payload.input.textLength = text.length;
   payload.input.hasPriorState = !!priorState && Object.keys(priorState || {}).length > 0;
+
+  payload.presentationSignals = detectPresentationSignals(text);
 
   const scores = analyzeEmotionText(text);
   payload.scores = Object.fromEntries(
@@ -983,8 +1095,8 @@ function analyzeEmotionRoute(input = {}, priorState = {}) {
   payload.contradictions = deriveContradictions(scores);
   payload.recoverySignals = deriveRecoverySignals(text);
   payload.regulationSignals = deriveRegulationSignals(text);
-  payload.nuanceProfile = deriveNuanceProfile(primary, secondary);
-  payload.conversationPlan = deriveConversationPlan(payload);
+  payload.nuanceProfile = deriveNuanceProfile(primary, secondary, text, priorState);
+  payload.conversationPlan = deriveConversationPlan(payload, priorState);
 
   payload.continuity = deriveContinuity(payload, priorState);
   payload.fallbackSuppression = !!payload.continuity.fallbackSuppression;
