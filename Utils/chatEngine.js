@@ -124,7 +124,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.13.0 OPINTEL LOOP-FINAL";
+const CE_VERSION = "chatEngine v0.14.0 OPINTEL LOOP-FINAL SUPPORT-LOCK";
 
 function nowMs() {
   return Date.now();
@@ -1137,6 +1137,64 @@ function buildSupportiveEmotionUi(emo) {
     mode: "supportive"
   };
 }
+function isGenericMenuBounceReply(summary) {
+  const s = safeStr(summary, 360).toLowerCase();
+  if (!s) return false;
+  return (
+    /do you want diagnosis, restructuring, or an exact code update/.test(s) ||
+    /tell me what you want next/.test(s) ||
+    /pick what you want next/.test(s) ||
+    /music, movies, or sponsors/.test(s) ||
+    /give me the exact target and i will keep this tight/.test(s) ||
+    /give me the exact target and i will stay with that path/.test(s)
+  );
+}
+function resolveInteractionMode(norm, emo, plannerDecision, spineState, supportPacket) {
+  const technical = isTechnicalExecutionInbound(norm);
+  const supportLock = !!(
+    !technical && (
+      supportPacket?.meta?.supportLock ||
+      spineState?.supportLock?.active ||
+      emo?.supportFlags?.crisis ||
+      emo?.bypassClarify ||
+      emo?.supportFlags?.highDistress ||
+      emo?.valence === "negative" ||
+      emo?.valence === "mixed" ||
+      emo?.supportFlags?.needsGentlePacing
+    )
+  );
+  return {
+    technical,
+    supportLock,
+    suppressChips: technical || !!supportPacket?.meta?.suppressChips || !!(supportLock && spineState?.supportLock?.suppressChips !== false),
+    suppressLaneRouting: technical || !!supportPacket?.meta?.suppressLaneRouting || supportLock,
+    followupStyle: technical ? "none" : (supportPacket?.meta?.followupStyle || (supportLock ? "supportive" : "default")),
+    conversationDepth: supportPacket?.meta?.conversationDepth || (technical ? "technical" : (supportLock ? "deep_support" : "standard")),
+    plannerMode: safeStr(plannerDecision?._plannerMode || "", 48)
+  };
+}
+function normalizeUiForInteractionMode(mode, lane, emo, followUps, ui) {
+  const baseUi = isPlainObject(ui) ? ui : buildUiForLane(lane);
+  const list = Array.isArray(followUps) ? followUps : [];
+  if (mode?.technical) {
+    return { chips: [], allowMic: true, mode: "technical" };
+  }
+  if (mode?.supportLock) {
+    return { chips: list, allowMic: true, mode: "supportive", conversationDepth: mode.conversationDepth || "deep_support" };
+  }
+  return baseUi;
+}
+function normalizeFollowUpsForInteractionMode(mode, lane, emo, followUps) {
+  if (mode?.technical) return [];
+  if (mode?.supportLock) {
+    return Array.isArray(followUps) && followUps.length ? followUps : buildSupportiveEmotionFollowUps(emo);
+  }
+  return Array.isArray(followUps) ? followUps : buildFollowUpsForLane(lane);
+}
+function shouldForceSupportReply(mode, replyText) {
+  if (!mode?.supportLock) return false;
+  return isGenericMenuBounceReply(replyText);
+}
 function finalizeSpineSafe(params) {
   try {
     if (typeof Spine?.finalizeTurn === "function") {
@@ -1162,7 +1220,8 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: safeStr(packet.mode || "supportive"),
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet.meta) ? packet.meta : {}
     };
   }
 
@@ -1188,7 +1247,8 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply,
       mode: "supportive",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet?.meta) ? packet.meta : {}
     };
   }
 
@@ -1207,7 +1267,8 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply,
       mode: "positive",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet?.meta) ? packet.meta : {}
     };
   }
 
@@ -1215,7 +1276,8 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: "mixed",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet.meta) ? packet.meta : {}
     };
   }
 
@@ -1508,7 +1570,7 @@ async function handleChat(input) {
           turnSignals: norm.turnSignals,
           cog: {
             intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
-            mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+            mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
             publicMode
           }
         })
@@ -1533,17 +1595,24 @@ async function handleChat(input) {
         lane = "general";
       }
 
-      const safeReply = applyPublicSanitization(
+      let safeReply = applyPublicSanitization(
         scrubExecutionStyleArtifacts(softSpeak(emotionFirst.reply)),
         norm,
         session,
         publicMode
       );
-      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
+      const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, { meta: isPlainObject(emotionFirst.meta) ? emotionFirst.meta : {} });
+      if (shouldForceSupportReply(interactionMode, safeReply)) {
+        const recoveryPacket = buildSupportPacketSafe(norm, emo);
+        if (recoveryPacket && safeStr(recoveryPacket.reply)) {
+          safeReply = applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(recoveryPacket.reply)), norm, session, publicMode);
+        }
+      }
+      const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive" || interactionMode.supportLock;
       const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
-      const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+      const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
-      const ui = isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane);
+      const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane));
       const nextSpine = finalizeSpineSafe({
         prevState: corePrev,
         inbound: {
@@ -1557,7 +1626,7 @@ async function handleChat(input) {
           latencyMs: Math.max(0, nowMs() - started),
           cog: {
             intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-            mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+            mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
             publicMode
           }
         },
@@ -1576,7 +1645,7 @@ async function handleChat(input) {
         marionCog: {
           route: "emotion_route_guard",
           intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
           publicMode
         },
         assistantSummary: safeReply,
@@ -1600,8 +1669,8 @@ async function handleChat(input) {
         cog: {
           route: "emotion_route_guard",
           publicMode,
-          mode: "transitional",
-          intent: emo?.bypassClarify ? "STABILIZE" : "ENGAGE",
+          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : "transitional"),
+          intent: interactionMode.supportLock ? "STABILIZE" : (emo?.bypassClarify ? "STABILIZE" : "ENGAGE"),
           emotion: emo ? {
             mode: emo.mode,
             valence: emo.valence,
@@ -1618,6 +1687,7 @@ async function handleChat(input) {
           earlyReturn: "emotion_first",
           emotionCached: !!emo?.cached,
           telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "emotion_first" }),
+          interactionMode,
           t: nowMs(),
           phase: 7
         }
@@ -1646,6 +1716,9 @@ async function handleChat(input) {
           __emotionNeedsNovelMove: !!emo?.needsNovelMove,
           __emotionRouteExhaustion: !!emo?.routeExhaustion,
           __emotionAt: nowMs(),
+          __supportLock: !!interactionMode.supportLock,
+          __supportLockTurns: interactionMode.supportLock ? 2 : 0,
+          __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard"),
           __cacheInSig: inSig,
           __cacheReply: safeReply,
           __cacheLane: lane,
@@ -1822,12 +1895,21 @@ async function handleChat(input) {
       publicMode
     );
 
+    const interactionPacket = buildSupportPacketSafe(norm, emo);
+    const interactionMode = resolveInteractionMode(norm, emo, plannerDecision, corePrev, interactionPacket);
+    if (interactionMode.supportLock && shouldForceSupportReply(interactionMode, safeReply)) {
+      const recoveryPacket = interactionPacket && safeStr(interactionPacket.reply) ? interactionPacket : buildSupportPacketSafe(norm, emo);
+      if (recoveryPacket && safeStr(recoveryPacket.reply)) {
+        safeReply = applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(recoveryPacket.reply)), norm, session, publicMode);
+      }
+      lane = "general";
+    }
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
-    const bridge = computeBridge(sessionLaneState, requestId);
+    const bridge = interactionMode.supportLock ? null : computeBridge(sessionLaneState, requestId);
     const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
-    const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+    const followUps = normalizeFollowUpsForInteractionMode(interactionMode, lane, emo, dedupeFollowUpsForExecution(followUpsRaw, norm, emo));
     const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
-    const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane);
+    const ui = normalizeUiForInteractionMode(interactionMode, lane, emo, followUps, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane));
 
     let nextSpine = null;
     try {
@@ -1863,7 +1945,7 @@ async function handleChat(input) {
         marionCog: {
           route: emo ? "emotion_route_guard" : "general",
           intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
-          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+          mode: interactionMode.technical ? "technical" : (interactionMode.supportLock ? "supportive" : (isTechnicalExecutionInbound(norm) ? "execution" : "transitional")),
           publicMode
         },
         assistantSummary: safeReply,
@@ -1928,6 +2010,7 @@ async function handleChat(input) {
         phase: 14,
         emotionCached: !!emo?.cached,
         telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "final" }),
+        interactionMode,
         sessionId: shortId(sessionId),
         turnId: shortId(turnId)
       }
@@ -1952,6 +2035,9 @@ async function handleChat(input) {
         __cacheFollowUps: followUps,
         __cacheDirectives: directives,
         __cacheAt: nowMs(),
+        __supportLock: !!interactionMode.supportLock,
+        __supportLockTurns: interactionMode.supportLock ? 2 : 0,
+        __supportConversationDepth: safeStr(interactionMode.conversationDepth || "standard"),
         __emotionMode: safeStr(emo?.mode || "NORMAL"),
         __emotionValence: safeStr(emo?.valence || "neutral"),
         __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
