@@ -79,16 +79,30 @@ const buildUiForLane = typeof laneRouter?.buildUiForLane === "function"
   ? laneRouter.buildUiForLane
   : function fallbackBuildUiForLane() {
       return {
-        chips: [],
-        allowMic: true,
-        mode: "quiet"
+        chips: [
+          { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
+          { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
+          { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
+          { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
+        ],
+        allowMic: true
       };
     };
 
 const buildFollowUpsForLane = typeof laneRouter?.buildFollowUpsForLane === "function"
   ? laneRouter.buildFollowUpsForLane
-  : function fallbackBuildFollowUpsForLane() {
-      return [];
+  : function fallbackBuildFollowUpsForLane(lane) {
+      const l = safeStr(lane || "general");
+      if (l === "music") {
+        return [
+          { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
+          { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
+        ];
+      }
+      return [
+        { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
+        { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
+      ];
     };
 
 const buildMemoryContext = typeof memoryAdapter?.buildMemoryContext === "function"
@@ -113,7 +127,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.17.0 OPINTEL LOOP-HARDENED-STABLE";
+const CE_VERSION = "chatEngine v0.17.0 PRESENTATION-AWARE LOOP-HARDEN";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
@@ -209,6 +223,7 @@ function shouldSuppressLaneArtifacts(norm, emo, routeOut) {
   if (isTechnicalExecutionInbound(norm)) return true;
   if (emo?.bypassClarify || emo?.fallbackSuppression || emo?.routeExhaustion || emo?.supportFlags?.mentionsLooping) return true;
   if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization) return true;
+  if (emo?.conversationPlan?.shouldSuppressMenus || emo?.nuanceProfile?.supportLockBias === "strong") return true;
   const routeReply = safeStr(routeOut?.reply || "");
   if (/pick a lane|take it there|exact target|go to music|go to movies|menu/i.test(routeReply)) return true;
   return false;
@@ -222,10 +237,8 @@ function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
   const suppress = shouldSuppressLaneArtifacts(norm, emo, routeOut);
   if (suppress) return { followUps: [], followUpsStrings: [], ui: quietUi(emo ? "supportive" : "direct"), menusSuppressed: true };
   const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
+  const followUpsStrings = (Array.isArray(followUps) ? followUps : []).map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean);
   const ui = isPlainObject(uiRaw) ? uiRaw : buildUiForLane(lane);
-  const followUpsStrings = Array.isArray(followUps)
-    ? followUps.map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean)
-    : [];
   return { followUps, followUpsStrings, ui, menusSuppressed: false };
 }
 
@@ -253,7 +266,11 @@ async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId,
         emotionCluster: emo.emotionCluster,
         supportModeCandidate: emo.supportModeCandidate,
         fallbackSuppression: !!emo.fallbackSuppression,
-        routeExhaustion: !!emo.routeExhaustion
+        routeExhaustion: !!emo.routeExhaustion,
+        expressionStyle: safeStr(emo.expressionStyle || "").toLowerCase(),
+        deliveryTone: safeStr(emo.deliveryTone || "").toLowerCase(),
+        semanticFrame: safeStr(emo.semanticFrame || "").toLowerCase(),
+        responseFamily: safeStr(emo.responseFamily || "").toLowerCase()
       } : null
     }
   };
@@ -941,6 +958,79 @@ function buildGreetingReply(kind, seed) {
   return pickBySeed(k === "GREETING_HOW" ? poolHow : poolOnly, seed);
 }
 
+function normalizeNuanceProfile(nuance) {
+  const n = isPlainObject(nuance) ? nuance : {};
+  return {
+    archetype: safeStr(n.archetype || '').toLowerCase(),
+    fallbackArchetype: safeStr(n.fallbackArchetype || '').toLowerCase(),
+    conversationNeed: safeStr(n.conversationNeed || '').toLowerCase(),
+    followupStyle: safeStr(n.followupStyle || '').toLowerCase(),
+    transitionReadiness: safeStr(n.transitionReadiness || '').toLowerCase(),
+    loopRisk: safeStr(n.loopRisk || '').toLowerCase(),
+    questionPressure: safeStr(n.questionPressure || '').toLowerCase(),
+    mirrorDepth: safeStr(n.mirrorDepth || '').toLowerCase(),
+    antiLoopShift: safeStr(n.antiLoopShift || '').toLowerCase(),
+    followupVariants: Array.isArray(n.followupVariants) ? n.followupVariants.slice(0, 10) : [],
+    transitionTargets: Array.isArray(n.transitionTargets) ? n.transitionTargets.slice(0, 8) : []
+  };
+}
+function normalizeConversationPlan(plan) {
+  const p = isPlainObject(plan) ? plan : {};
+  return {
+    primaryArchetype: safeStr(p.primaryArchetype || '').toLowerCase(),
+    fallbackArchetype: safeStr(p.fallbackArchetype || '').toLowerCase(),
+    askAllowed: p.askAllowed === false ? false : true,
+    questionStyle: safeStr(p.questionStyle || '').toLowerCase(),
+    questionPressure: safeStr(p.questionPressure || '').toLowerCase(),
+    mirrorDepth: safeStr(p.mirrorDepth || '').toLowerCase(),
+    shouldSuppressMenus: !!p.shouldSuppressMenus,
+    shouldPreferReflection: !!p.shouldPreferReflection,
+    shouldDelaySolutioning: !!p.shouldDelaySolutioning,
+    recommendedDepth: safeStr(p.recommendedDepth || '').toLowerCase(),
+    antiLoopShift: safeStr(p.antiLoopShift || '').toLowerCase(),
+    transitionTargets: Array.isArray(p.transitionTargets) ? p.transitionTargets.slice(0, 8) : [],
+    conversationNeed: safeStr(p.conversationNeed || '').toLowerCase(),
+    followupStyle: safeStr(p.followupStyle || '').toLowerCase(),
+    allowsActionShift: !!p.allowsActionShift,
+    expressionStyle: safeStr(p.expressionStyle || '').toLowerCase(),
+    deliveryTone: safeStr(p.deliveryTone || '').toLowerCase(),
+    semanticFrame: safeStr(p.semanticFrame || '').toLowerCase(),
+    responseFamily: safeStr(p.responseFamily || '').toLowerCase(),
+    followupVariants: Array.isArray(p.followupVariants) ? p.followupVariants.slice(0, 10) : []
+  };
+}
+function deriveEmotionResponseFamily(emo) {
+  const expressionStyle = safeStr(emo?.expressionStyle || '').toLowerCase();
+  const semanticFrame = safeStr(emo?.semanticFrame || '').toLowerCase();
+  const valence = safeStr(emo?.valence || '').toLowerCase();
+  const dom = safeStr(emo?.dominantEmotion || emo?.primaryEmotion || '').toLowerCase();
+  if (expressionStyle.includes('poetic') || semanticFrame.includes('awe')) return 'reflective_mirroring';
+  if (expressionStyle.includes('recovery') || semanticFrame.includes('recovery')) return 'grounded_reinforcement';
+  if (expressionStyle.includes('achievement') || semanticFrame.includes('achievement')) return 'earned_affirmation';
+  if (expressionStyle.includes('celebratory')) return 'warm_celebration';
+  if (['gratitude','relief','calmness','satisfaction','contentment','serenity'].includes(dom)) return 'grounded_reinforcement';
+  if (['joy','excitement','triumph','pride','momentum','confidence','focus','resolve'].includes(dom)) return 'warm_affirmation';
+  if (valence == 'positive') return 'warm_affirmation';
+  if (valence == 'negative' || valence == 'mixed') return 'supportive_presence';
+  return 'default';
+}
+function buildEmotionPresentation(emo, session) {
+  const s = isPlainObject(session) ? session : {};
+  const enriched = isPlainObject(emo) ? { ...emo } : {};
+  enriched.nuanceProfile = normalizeNuanceProfile(enriched.nuanceProfile || enriched.downstream?.supportResponse?.nuanceProfile || {});
+  enriched.conversationPlan = normalizeConversationPlan(enriched.conversationPlan || enriched.downstream?.supportResponse?.conversationPlan || {});
+  enriched.expressionStyle = safeStr(enriched.expressionStyle || enriched.downstream?.supportResponse?.expressionStyle || enriched.conversationPlan.expressionStyle || 'plain_statement').toLowerCase();
+  enriched.deliveryTone = safeStr(enriched.deliveryTone || enriched.downstream?.supportResponse?.deliveryTone || enriched.conversationPlan.deliveryTone || 'warm_affirming').toLowerCase();
+  enriched.semanticFrame = safeStr(enriched.semanticFrame || enriched.downstream?.supportResponse?.semanticFrame || enriched.conversationPlan.semanticFrame || enriched.expressionStyle || 'plain_statement').toLowerCase();
+  enriched.presentationSignals = isPlainObject(enriched.presentationSignals) ? enriched.presentationSignals : (isPlainObject(enriched.downstream?.supportResponse?.presentationSignals) ? enriched.downstream.supportResponse.presentationSignals : {});
+  enriched.priorResponseFamily = safeStr(s.__lastResponseFamily || s.__responseFamily || '').toLowerCase();
+  enriched.lastOpeningFamily = safeStr(s.__lastOpeningFamily || '').toLowerCase();
+  enriched.lastQuestionStyle = safeStr(s.__lastQuestionStyle || '').toLowerCase();
+  enriched.sameResponseFamilyCount = clampInt(s.__sameResponseFamilyCount || 0, 0, 0, 99);
+  enriched.responseFamily = safeStr(enriched.responseFamily || enriched.conversationPlan.responseFamily || deriveEmotionResponseFamily(enriched)).toLowerCase();
+  return enriched;
+}
+
 function normalizeEmotionGuardResult(raw) {
   const r = isPlainObject(raw) ? raw : {};
   const state = isPlainObject(r.state) ? r.state : {};
@@ -1076,6 +1166,13 @@ function normalizeEmotionGuardResult(raw) {
       needsNovelMove: !!continuity.needsNovelMove,
       routeExhaustion: !!continuity.routeExhaustion
     },
+    nuanceProfile: normalizeNuanceProfile(r.nuanceProfile || downstream?.supportResponse?.nuanceProfile || {}),
+    conversationPlan: normalizeConversationPlan(r.conversationPlan || downstream?.supportResponse?.conversationPlan || {}),
+    presentationSignals: isPlainObject(r.presentationSignals) ? r.presentationSignals : (isPlainObject(downstream?.supportResponse?.presentationSignals) ? downstream.supportResponse.presentationSignals : {}),
+    expressionStyle: safeStr(r.expressionStyle || downstream?.supportResponse?.expressionStyle || '').toLowerCase(),
+    deliveryTone: safeStr(r.deliveryTone || downstream?.supportResponse?.deliveryTone || '').toLowerCase(),
+    semanticFrame: safeStr(r.semanticFrame || downstream?.supportResponse?.semanticFrame || '').toLowerCase(),
+    responseFamily: safeStr(r.responseFamily || downstream?.supportResponse?.responseFamily || '').toLowerCase(),
     summary: isPlainObject(r.summary) ? r.summary : { concise: "", narrative: "" },
     tags: [...new Set(tags.filter(Boolean))].slice(0, 20),
     cached: !!r.cached
@@ -1153,6 +1250,13 @@ function applyEmotionSignalsToNorm(norm, emo) {
   norm.turnSignals.emotionSameEmotionCount = clampInt(emo.continuity?.sameEmotionCount || 0, 0, 0, 99);
   norm.turnSignals.emotionSameSupportModeCount = clampInt(emo.continuity?.sameSupportModeCount || 0, 0, 0, 99);
   norm.turnSignals.emotionNoProgressTurnCount = clampInt(emo.continuity?.noProgressTurnCount || 0, 0, 0, 99);
+  norm.turnSignals.expressionStyle = safeStr(emo.expressionStyle || "");
+  norm.turnSignals.deliveryTone = safeStr(emo.deliveryTone || "");
+  norm.turnSignals.semanticFrame = safeStr(emo.semanticFrame || "");
+  norm.turnSignals.responseFamily = safeStr(emo.responseFamily || "");
+  norm.turnSignals.followupStyle = safeStr(emo.conversationPlan?.followupStyle || emo.nuanceProfile?.followupStyle || "");
+  norm.turnSignals.questionStyle = safeStr(emo.conversationPlan?.questionStyle || "");
+  norm.turnSignals.askAllowed = emo.conversationPlan?.askAllowed === false ? false : true;
 }
 function isTechnicalExecutionInbound(norm) {
   const text = safeStr(norm?.text || "", 400).toLowerCase();
@@ -1197,11 +1301,19 @@ function dedupeFollowUpsForExecution(followUps, norm, emo) {
 function buildSupportPacketSafe(norm, emo) {
   if (!emo || !Support) return null;
   try {
+    const presentation = {
+      priorResponseFamily: safeStr(emo?.priorResponseFamily || norm?.ctx?.lastResponseFamily || norm?.ctx?.priorResponseFamily || "").toLowerCase(),
+      lastResponseFamily: safeStr(emo?.priorResponseFamily || norm?.ctx?.lastResponseFamily || norm?.ctx?.priorResponseFamily || "").toLowerCase(),
+      expressionStyle: safeStr(emo?.expressionStyle || "").toLowerCase(),
+      deliveryTone: safeStr(emo?.deliveryTone || "").toLowerCase(),
+      semanticFrame: safeStr(emo?.semanticFrame || "").toLowerCase()
+    };
     if (typeof Support.buildSupportPacket === "function") {
       return Support.buildSupportPacket({
         userText: safeStr(norm?.text || ""),
         emo,
-        seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
+        seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
+        ...presentation
       }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true });
     }
     if (typeof Support.buildSupportiveResponse === "function") {
@@ -1211,13 +1323,19 @@ function buildSupportPacketSafe(norm, emo) {
         reply: Support.buildSupportiveResponse({
           userText: safeStr(norm?.text || ""),
           emo,
-          seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || "")
+          seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
+          ...presentation
         }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true }),
         meta: {
           crisis: !!emo.supportFlags?.crisis,
           dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
           valence: safeStr(emo.valence || "neutral"),
-          tone: safeStr(emo.tone || "steady_neutral")
+          tone: safeStr(emo.tone || "steady_neutral"),
+          expressionStyle: presentation.expressionStyle,
+          deliveryTone: presentation.deliveryTone,
+          semanticFrame: presentation.semanticFrame,
+          priorResponseFamily: presentation.priorResponseFamily,
+          responseFamily: safeStr(emo.responseFamily || "").toLowerCase()
         }
       };
     }
@@ -1249,11 +1367,39 @@ function buildEmotionDirectives(emo, packet) {
 }
 function buildSupportiveEmotionFollowUps(emo) {
   const dom = safeStr(emo?.dominantEmotion || "").trim().toLowerCase();
+  const frame = safeStr(emo?.semanticFrame || "").toLowerCase();
+  const style = safeStr(emo?.expressionStyle || "").toLowerCase();
+  const positive = safeStr(emo?.valence || "").toLowerCase() === "positive";
 
   if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress) {
     return [
       { id: "fu_ground", type: "action", label: "Stay with me", payload: { action: "support_ground", mode: "supportive" } },
       { id: "fu_breathe", type: "action", label: "One breath", payload: { action: "support_breathe", mode: "supportive" } }
+    ];
+  }
+
+  if (positive) {
+    if (style === 'achievement_statement' || frame.includes('achievement')) {
+      return [
+        { id: "fu_build_win", type: "action", label: "Build on it", payload: { action: "positive_build", mode: "positive", frame: "achievement" } },
+        { id: "fu_name_win", type: "action", label: "Name the win", payload: { action: "positive_name", mode: "positive", frame: "achievement" } }
+      ];
+    }
+    if (style === 'poetic_observation' || frame.includes('awe') || frame.includes('environment')) {
+      return [
+        { id: "fu_stay_with_it", type: "action", label: "Stay with it", payload: { action: "positive_reflect", mode: "positive", frame: "aesthetic" } },
+        { id: "fu_put_words", type: "action", label: "Put words to it", payload: { action: "positive_name", mode: "positive", frame: "aesthetic" } }
+      ];
+    }
+    if (style === 'recovery_statement' || frame.includes('recovery') || dom === 'relief') {
+      return [
+        { id: "fu_anchor_it", type: "action", label: "Anchor it", payload: { action: "positive_anchor", mode: "positive", frame: "recovery" } },
+        { id: "fu_next_step", type: "action", label: "Use this energy", payload: { action: "positive_channel", mode: "positive", frame: "recovery" } }
+      ];
+    }
+    return [
+      { id: "fu_keep_it_going", type: "action", label: "Keep it going", payload: { action: "positive_extend", mode: "positive" } },
+      { id: "fu_turn_into_step", type: "action", label: "Turn it into a step", payload: { action: "positive_channel", mode: "positive" } }
     ];
   }
 
@@ -1276,6 +1422,12 @@ function buildSupportiveEmotionUi(emo) {
     mode: "supportive"
   };
 }
+function isGenericMenuBounceReply(summary) {
+  const s = safeStr(summary || "").toLowerCase();
+  if (!s) return false;
+  return /exact target|pick a lane|go to music|go to movies|drop you into a menu|tell me where you want to go|what do you want next/.test(s);
+}
+
 function finalizeSpineSafe(params) {
   try {
     if (typeof Spine?.finalizeTurn === "function") {
@@ -1301,13 +1453,15 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: safeStr(packet.mode || "supportive"),
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet.meta) ? packet.meta : {}
     };
   }
 
   const vulnerableSupport =
     emo.mode === "VULNERABLE" ||
     emo.valence === "negative" ||
+    emo.valence === "mixed" ||
     !!emo.supportFlags?.needsGentlePacing;
 
   if (vulnerableSupport) {
@@ -1317,9 +1471,9 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     if (packet && safeStr(packet.reply)) {
       reply = safeStr(packet.reply);
     } else if (dom === "loneliness" || dom === "lonely" || dom === "isolation") {
-      reply = "I am here with you. You do not have to sit in that feeling alone. Do you want to tell me what is making today feel heavy?";
+      reply = "I am here with you. You do not have to sit in that feeling alone. What is making today feel heavy?";
     } else if (dom === "sadness" || dom === "grief" || dom === "hurt") {
-      reply = "I am here, and I am listening. Tell me what is weighing on you most right now.";
+      reply = "I am here, and I am listening. What is weighing on you most right now?";
     } else {
       reply = "I am here with you. Talk to me. What feels hardest right now?";
     }
@@ -1327,26 +1481,30 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply,
       mode: "supportive",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet?.meta) ? packet.meta : {}
     };
   }
 
-  if (emo.valence === "positive" && Array.isArray(emo.positiveReinforcements) && emo.positiveReinforcements.length) {
-    const dom = safeStr(emo.dominantEmotion || "positive");
-    let reply = "That is a good signal. What do you want to do with that energy next?";
-
-    if (packet && safeStr(packet.reply)) {
-      reply = safeStr(packet.reply);
-    } else if (dom === "confidence" || dom === "pride" || dom === "momentum") {
-      reply = "That has strong forward motion in it. What do you want to build on next?";
-    } else if (dom === "gratitude" || dom === "connection" || dom === "calm") {
-      reply = "That sounds steady in a good way. Do you want to stay with it for a second or turn it into a next step?";
+  if (emo.valence === "positive" && (packet && safeStr(packet.reply) || Array.isArray(emo.positiveReinforcements) && emo.positiveReinforcements.length)) {
+    let reply = safeStr(packet?.reply || "");
+    const dom = safeStr(emo.dominantEmotion || "positive").toLowerCase();
+    if (!reply) {
+      if (["confidence","pride","momentum","triumph","resolve","focus"].includes(dom)) {
+        reply = "That has strong forward motion in it. What do you want to build on next?";
+      } else if (["gratitude","connection","calmness","satisfaction","contentment","serenity","relief"].includes(dom)) {
+        reply = "That sounds steady in a good way. Do you want to stay with it for a second or turn it into a next step?";
+      } else if (["awe","aestheticappreciation"].includes(dom) || safeStr(emo.expressionStyle).includes('poetic')) {
+        reply = "There is something beautiful in the way you are holding that. Do you want to stay with it a little longer or say what makes it stand out?";
+      } else {
+        reply = "That is a strong signal in a good direction. What do you want to do with that energy next?";
+      }
     }
-
     return {
       reply,
       mode: "positive",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet?.meta) ? packet.meta : {}
     };
   }
 
@@ -1354,7 +1512,8 @@ function maybeBuildEmotionFirstReply(norm, emo) {
     return {
       reply: safeStr(packet.reply),
       mode: "mixed",
-      directives: buildEmotionDirectives(emo, packet)
+      directives: buildEmotionDirectives(emo, packet),
+      meta: isPlainObject(packet?.meta) ? packet.meta : {}
     };
   }
 
@@ -1371,26 +1530,6 @@ function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
   return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
-}
-function makeStableFallbackReply(norm, emo, reason) {
-  const packet = buildSupportPacketSafe(norm, emo);
-  if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
-  if (isTechnicalExecutionInbound(norm)) {
-    return "I hit a backend interruption, but I can still continue. Send the exact technical step once and I will stay on that path without reopening menus.";
-  }
-  if (emo?.supportFlags?.needsStabilization || emo?.supportFlags?.needsConnection || emo?.fallbackSuppression || emo?.routeExhaustion) {
-    return "I am here with you. The backend hit a rough edge, but I am staying with this path. Send one next line and I will continue without bouncing you into a menu.";
-  }
-  return reason === "route_missing"
-    ? "I am here. Send the next thing you need in one line and I will stay with it."
-    : "I hit a backend interruption, but I am still here. Send one next line and I will continue without bouncing you into a menu.";
-}
-function shouldBypassLaneRouting(norm, emo, bridgePacket) {
-  if (isTechnicalExecutionInbound(norm)) return true;
-  if (emo?.bypassClarify || emo?.fallbackSuppression || emo?.routeExhaustion) return true;
-  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization || emo?.supportFlags?.needsConnection) return true;
-  if (bridgePacket?.guardrails?.emotion?.supportLock || bridgePacket?.guardrails?.emotion?.suppressMenus) return true;
-  return false;
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1474,7 +1613,7 @@ function computeBridge(sessionLaneState, requestId) {
 function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
-  const msg = makeStableFallbackReply(extra?.norm || src, extra?.emo || null, "terminal_error");
+  const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
   return {
     ok: false,
     reply: msg,
@@ -1598,7 +1737,7 @@ async function handleChat(input) {
     const inboundRepeat = detectInboundRepeat(session, inSig);
     logChatDiag('inbound_repeat_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), inboundRepeatN: inboundRepeat.n, inboundRepeatTripped: !!inboundRepeat.tripped, inboundFastReturn: !!inboundRepeat.canFastReturn });
 
-    const emo = runEmotionGuard(norm.text || "", corePrev);
+    const emo = buildEmotionPresentation(runEmotionGuard(norm.text || "", { ...(isPlainObject(corePrev) ? corePrev : {}), lastResponseFamily: safeStr(session.__lastResponseFamily || session.__responseFamily || "") }), session);
     logChatDiag('emotion_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), emotionMode: safeStr(emo?.mode || 'NONE'), emotionValence: safeStr(emo?.valence || 'neutral'), emotionDominant: safeStr(emo?.dominantEmotion || ''), emotionBypassClarify: !!emo?.bypassClarify, emotionHighDistress: !!emo?.supportFlags?.highDistress, emotionCrisis: !!emo?.supportFlags?.crisis });
     applyEmotionSignalsToNorm(norm, emo);
 
@@ -1769,7 +1908,11 @@ async function handleChat(input) {
             tone: emo.tone,
             bypassClarify: !!emo.bypassClarify,
             recoveryPresent: !!emo.supportFlags?.recoveryPresent,
-            contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
+            contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99),
+            expressionStyle: safeStr(emo.expressionStyle || ""),
+            deliveryTone: safeStr(emo.deliveryTone || ""),
+            semanticFrame: safeStr(emo.semanticFrame || ""),
+            responseFamily: safeStr(emotionFirst.meta?.responseFamily || emo.responseFamily || "")
           } : null
         },
         requestId,
@@ -1805,6 +1948,14 @@ async function handleChat(input) {
           __emotionFallbackSuppression: !!emo?.fallbackSuppression,
           __emotionNeedsNovelMove: !!emo?.needsNovelMove,
           __emotionRouteExhaustion: !!emo?.routeExhaustion,
+          __emotionExpressionStyle: safeStr(emo?.expressionStyle || ""),
+          __emotionDeliveryTone: safeStr(emo?.deliveryTone || ""),
+          __emotionSemanticFrame: safeStr(emo?.semanticFrame || ""),
+          __responseFamily: safeStr(emotionFirst.meta?.responseFamily || emo?.responseFamily || ""),
+          __lastResponseFamily: safeStr(emotionFirst.meta?.responseFamily || emo?.responseFamily || ""),
+          __lastOpeningFamily: safeStr(emotionFirst.meta?.openingFamily || ""),
+          __lastQuestionStyle: safeStr(emotionFirst.meta?.questionStyle || emo?.conversationPlan?.questionStyle || ""),
+          __sameResponseFamilyCount: safeStr(session.__lastResponseFamily || "").toLowerCase() === safeStr(emotionFirst.meta?.responseFamily || emo?.responseFamily || "").toLowerCase() ? clampInt(session.__sameResponseFamilyCount || 0, 0, 0, 99) + 1 : 0,
           __emotionAt: nowMs(),
         __lastIntent: safeStr(bridgeRouting?.intent || plannerDecision?.move || ""),
         __lastDomain: safeStr(bridgeRouting?.domain || ""),
@@ -1964,54 +2115,48 @@ async function handleChat(input) {
     const bridgeRouting = isPlainObject(bridgePacket?.routing) ? bridgePacket.routing : null;
     const bridgeShouldAnswer = !!(marionBridgeOut?.usedBridge && safeStr(bridgeSynthesis?.answer || ""));
 
-    const bypassLaneRouting = shouldBypassLaneRouting(norm, emo, bridgePacket);
     const routeOut = bridgeShouldAnswer
       ? {
           reply: safeStr(bridgeSynthesis.answer),
-          lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || "general") || "general",
+          lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || (emo ? "general" : "general")) || "general",
           directives: [],
           followUps: [],
           ui: quietUi(bridgeRouting?.domain === "psychology" ? "supportive" : "direct"),
           meta: {
             bridgeResolved: true,
             bridgeDomain: safeStr(bridgeRouting?.domain || "general"),
-            bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
-            suppressMenus: true
+            bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99)
           }
-        }
-      : bypassLaneRouting
-      ? {
-          reply: makeStableFallbackReply(norm, emo, "support_lock"),
-          lane: "general",
-          directives: [],
-          followUps: [],
-          ui: quietUi(emo ? "supportive" : "direct"),
-          meta: { bypassedLaneRouting: true, suppressMenus: true, supportLockBias: true }
         }
       : routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: makeStableFallbackReply(norm, emo, "route_missing"),
+          reply: isPlainObject(emo) && safeStr(emo.valence).toLowerCase() === "positive"
+            ? "I hear the positive signal in that. I can stay with it, reflect it, or help you build on it."
+            : "I am here with you. We can keep this simple and steady without dropping you into a menu.",
           lane: safeStr(norm.lane || "general") || "general",
           directives: [],
-          followUps: [],
-          ui: quietUi(emo ? "supportive" : "direct"),
-          meta: { failOpen: true, routeLaneMissing: true, suppressMenus: true }
+          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
+          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+          meta: { failOpen: true, routeLaneMissing: true }
         };
 
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
+    if (emo && isGenericMenuBounceReply(reply)) {
+      const recoveryPacket = buildSupportPacketSafe(norm, emo);
+      if (recoveryPacket && safeStr(recoveryPacket.reply)) {
+        reply = safeStr(recoveryPacket.reply);
+        if (isPlainObject(routeOut.meta)) {
+          routeOut.meta.responseFamily = safeStr(recoveryPacket.meta?.responseFamily || emo.responseFamily || '').toLowerCase();
+          routeOut.meta.openingFamily = safeStr(recoveryPacket.meta?.openingFamily || '').toLowerCase();
+          routeOut.meta.questionStyle = safeStr(recoveryPacket.meta?.questionStyle || emo.conversationPlan?.questionStyle || '').toLowerCase();
+        }
+      }
+    }
     logChatDiag('route_selected', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), routeReplyHash: hashText(reply || ''), routeMeta: isPlainObject(routeOut?.meta) ? routeOut.meta : {} });
 
-    if (!reply) reply = makeStableFallbackReply(norm, emo, "empty_reply");
-    if (!bridgeShouldAnswer && shouldSuppressLaneArtifacts(norm, emo, routeOut)) {
-      reply = makeStableFallbackReply(norm, emo, "suppressed_lane_artifacts");
-      lane = "general";
-      if (!isPlainObject(routeOut.meta)) routeOut.meta = {};
-      routeOut.meta.suppressMenus = true;
-      routeOut.followUps = [];
-      routeOut.ui = quietUi(emo ? "supportive" : "direct");
-    }
+    if (!reply) reply = isPlainObject(emo) && safeStr(emo.valence).toLowerCase() === "positive" ? "That sounds like a real positive shift. I can stay with it or help you build on it." : "I am here with you. We can keep this simple and steady.";
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
@@ -2136,7 +2281,11 @@ async function handleChat(input) {
           bypassClarify: !!emo.bypassClarify,
           recoveryPresent: !!emo.supportFlags?.recoveryPresent,
           positivePresent: !!emo.supportFlags?.positivePresent,
-          contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99)
+          contradictions: clampInt(emo.contradictions?.count || 0, 0, 0, 99),
+          expressionStyle: safeStr(emo.expressionStyle || ""),
+          deliveryTone: safeStr(emo.deliveryTone || ""),
+          semanticFrame: safeStr(emo.semanticFrame || ""),
+          responseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo.responseFamily || "")
         } : null
       },
       requestId,
@@ -2183,6 +2332,14 @@ async function handleChat(input) {
         __emotionFallbackSuppression: !!emo?.fallbackSuppression,
         __emotionNeedsNovelMove: !!emo?.needsNovelMove,
         __emotionRouteExhaustion: !!emo?.routeExhaustion,
+        __emotionExpressionStyle: safeStr(emo?.expressionStyle || ""),
+        __emotionDeliveryTone: safeStr(emo?.deliveryTone || ""),
+        __emotionSemanticFrame: safeStr(emo?.semanticFrame || ""),
+        __responseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo?.responseFamily || ""),
+        __lastResponseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo?.responseFamily || ""),
+        __lastOpeningFamily: safeStr(routeOut?.meta?.openingFamily || bridgePacket?.synthesis?.openingFamily || ""),
+        __lastQuestionStyle: safeStr(routeOut?.meta?.questionStyle || emo?.conversationPlan?.questionStyle || ""),
+        __sameResponseFamilyCount: safeStr(session.__lastResponseFamily || "").toLowerCase() === safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo?.responseFamily || "").toLowerCase() ? clampInt(session.__sameResponseFamilyCount || 0, 0, 0, 99) + 1 : 0,
         __emotionAt: nowMs(),
         __lastIntent: safeStr(bridgeRouting?.intent || plannerDecision?.move || ""),
         __lastDomain: safeStr(bridgeRouting?.domain || ""),
@@ -2206,8 +2363,6 @@ async function handleChat(input) {
   } catch (err) {
     logChatDiag('turn_fail', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), error: safeStr(err && err.message ? err.message : err).slice(0, 180) });
     const failContract = failSafeContract(err, rawInput, {
-      norm,
-      emo,
       sessionPatch: mergeSessionPatches(
         lifecycle.patch,
         failTurnLifecycle(session, {
@@ -2216,7 +2371,7 @@ async function handleChat(input) {
           inSig,
           inboundKey,
           lane: safeStr(norm?.lane || "general") || "general",
-          reply: makeStableFallbackReply(norm, emo, "caught_error")
+          reply: "Backend is stabilizing. Try again in a moment — or tap Reset."
         })
       )
     });
