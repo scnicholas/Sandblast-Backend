@@ -20,31 +20,23 @@ const PHASES = Object.freeze({
   p14_retrySignal: true,
   p15_operationalDiagnostics: true,
   p16_projectUuidGuard: true,
-  p17_providerErrorPassThrough: true
+  p17_providerErrorPassThrough: true,
+  p18_traceCorrelation: true,
+  p19_safeSnapshots: true,
+  p20_structuredFailureSurface: true
 });
 
-const TTS_VERSION = "tts.js v2.1.1";
+const TTS_VERSION = "tts.js v2.2.0 HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
 const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
+const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
+const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
 
 const DEFAULT_SPEECH_HINTS = Object.freeze({
-  pauses: {
-    commaMs: 110,
-    periodMs: 300,
-    questionMs: 340,
-    exclaimMs: 320,
-    colonMs: 180,
-    semicolonMs: 220,
-    ellipsisMs: 480
-  },
-  pacing: {
-    mode: "natural",
-    preservePunctuation: true,
-    sentenceBreath: true,
-    noRunOns: true
-  }
+  pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
+  pacing: { mode: "natural", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
 });
 
 const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
@@ -66,27 +58,6 @@ let lastOkAt = 0;
 let lastFailAt = 0;
 let lastProviderStatus = 0;
 let lastElapsedMs = 0;
-const TTS_DEBUG = !['0','false','off','no'].includes(_lower(process.env.SB_TTS_DEBUG || 'true'));
-function _shortId(v, keep = 6) {
-  const s = _trim(v);
-  if (!s) return '';
-  if (s.length <= keep * 2) return s;
-  return `${s.slice(0, keep)}…${s.slice(-keep)}`;
-}
-function _textHash(v) {
-  const s = _trim(v);
-  return s ? crypto.createHash('sha1').update(s).digest('hex').slice(0, 12) : '';
-}
-function _textPreview(v, max = 180) {
-  const s = _trim(_str(v).replace(/[\r\n]+/g, ' '));
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
-function _logTts(event, data) {
-  if (!TTS_DEBUG) return;
-  try {
-    console.info('[TTS_DIAG]', JSON.stringify({ ts: new Date().toISOString(), event: _trim(event || 'tts_diag'), ...(data && typeof data === 'object' ? data : {}) }));
-  } catch (_) {}
-}
 
 const _str = (v) => (v == null ? "" : String(v));
 const _trim = (v) => _str(v).trim();
@@ -128,43 +99,95 @@ function _setHeader(res, k, v) {
   } catch (_) {}
 }
 
+function _hash(value) {
+  return crypto.createHash("sha1").update(_str(value)).digest("hex").slice(0, 12);
+}
+
+function _preview(value, max = LOG_PREVIEW_MAX) {
+  const s = _str(value).replace(/\s+/g, " ").trim();
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function _mask(value, left = 4, right = 3) {
+  const s = _trim(value);
+  if (!s) return "";
+  if (s.length <= left + right) return s;
+  return `${s.slice(0, left)}***${s.slice(-right)}`;
+}
+
+function _sanitizeLogData(data) {
+  if (data == null) return data;
+  if (Array.isArray(data)) return data.map(_sanitizeLogData);
+  if (typeof data !== "object") return data;
+
+  const out = {};
+  for (const [k, v] of Object.entries(data)) {
+    const key = _lower(k);
+    if (["token", "authorization", "api_key", "apikey", "resemble_api_token", "audio", "buffer", "audiobase64", "audiobuffer", "data"].includes(key)) {
+      continue;
+    }
+    if (key.includes("voiceuuid") || key.includes("projectuuid")) {
+      out[k] = _mask(v);
+      continue;
+    }
+    out[k] = _sanitizeLogData(v);
+  }
+  return out;
+}
+
+function _log(event, data) {
+  if (!LOG_ENABLED) return;
+  try {
+    console.log(`[TTS] ${event}`, _sanitizeLogData(data));
+  } catch (_) {}
+}
+
 function _setCommonAudioHeaders(res, traceId, meta) {
   _setHeader(res, "Cache-Control", "no-store, max-age=0");
   _setHeader(res, "X-SB-Trace-ID", traceId);
   _setHeader(res, "X-SB-TTS-Version", TTS_VERSION);
   if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", meta.provider);
-  if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", String(meta.requestId));
-  if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", String(meta.sessionId));
   if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", meta.voiceUuid);
   if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(meta.elapsedMs));
   if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(meta.shapeMs));
   if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(meta.segmentCount));
   if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(meta.providerStatus));
   if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", String(meta.reason).slice(0, 80));
+  if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", String(meta.requestId).slice(0, 80));
+  if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", String(meta.turnId).slice(0, 80));
+  if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", String(meta.sessionId).slice(0, 80));
 }
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
 
-function _recordFailure(message, status) {
+function _recordFailure(message, status, meta) {
   failCount += 1;
   lastError = _trim(message) || "tts_failed";
   lastFailAt = _now();
   lastProviderStatus = Number(status || 0) || 0;
+  _log("failure_recorded", {
+    failCount, status: lastProviderStatus, message: lastError,
+    traceId: meta && meta.traceId, requestId: meta && meta.requestId, turnId: meta && meta.turnId, sessionId: meta && meta.sessionId
+  });
   if (failCount >= CIRCUIT_LIMIT) {
     circuitOpenUntil = _now() + CIRCUIT_RESET_MS;
     try {
-      console.warn("[TTS] Circuit breaker OPEN", { failCount, resetInMs: CIRCUIT_RESET_MS });
+      console.warn("[TTS] Circuit breaker OPEN", { failCount, resetInMs: CIRCUIT_RESET_MS, traceId: meta && meta.traceId });
     } catch (_) {}
   }
 }
 
-function _recordSuccess(status, elapsedMs) {
+function _recordSuccess(status, elapsedMs, meta) {
   failCount = 0;
   circuitOpenUntil = 0;
   lastError = "";
   lastOkAt = _now();
   lastProviderStatus = Number(status || 200) || 200;
   lastElapsedMs = Number(elapsedMs || 0) || 0;
+  _log("success_recorded", {
+    status: lastProviderStatus, elapsedMs: lastElapsedMs,
+    traceId: meta && meta.traceId, requestId: meta && meta.requestId, turnId: meta && meta.turnId, sessionId: meta && meta.sessionId
+  });
 }
 
 function _resolvePreferredVoice(inputVoice) {
@@ -226,9 +249,9 @@ function _healthSnapshot() {
       hasProject: !!projectUuid,
       hasVoice: !!voiceUuid,
       useProjectUuidByDefault: _useProjectUuidByDefault(),
-      voiceUuidPreview: voiceUuid ? `${voiceUuid.slice(0, 4)}***${voiceUuid.slice(-3)}` : "",
+      voiceUuidPreview: voiceUuid ? _mask(voiceUuid) : "",
       voiceName: voiceName || "",
-      projectUuidPreview: projectUuid ? `${projectUuid.slice(0, 4)}***${projectUuid.slice(-3)}` : ""
+      projectUuidPreview: projectUuid ? _mask(projectUuid) : ""
     }
   };
 }
@@ -283,71 +306,26 @@ function _normalizeWhitespace(text) {
 
 function _expandContractions(text) {
   let out = _str(text);
-
   const replacements = [
-    [/\bI'm\b/gi, "I am"],
-    [/\bI've\b/gi, "I have"],
-    [/\bI'll\b/gi, "I will"],
-    [/\bI'd\b/gi, "I would"],
-    [/\bYou're\b/gi, "You are"],
-    [/\bYou've\b/gi, "You have"],
-    [/\bYou'll\b/gi, "You will"],
-    [/\bYou'd\b/gi, "You would"],
-    [/\bWe're\b/gi, "We are"],
-    [/\bWe've\b/gi, "We have"],
-    [/\bWe'll\b/gi, "We will"],
-    [/\bWe'd\b/gi, "We would"],
-    [/\bThey're\b/gi, "They are"],
-    [/\bThey've\b/gi, "They have"],
-    [/\bThey'll\b/gi, "They will"],
-    [/\bThey'd\b/gi, "They would"],
-    [/\bIt's\b/gi, "It is"],
-    [/\bThat’s\b/gi, "That is"],
-    [/\bThat's\b/gi, "That is"],
-    [/\bThere's\b/gi, "There is"],
-    [/\bHere’s\b/gi, "Here is"],
-    [/\bHere's\b/gi, "Here is"],
-    [/\bWhat's\b/gi, "What is"],
-    [/\bWho’s\b/gi, "Who is"],
-    [/\bWho's\b/gi, "Who is"],
-    [/\bWhere’s\b/gi, "Where is"],
-    [/\bWhere's\b/gi, "Where is"],
-    [/\bWhen’s\b/gi, "When is"],
-    [/\bWhen's\b/gi, "When is"],
-    [/\bWhy’s\b/gi, "Why is"],
-    [/\bWhy's\b/gi, "Why is"],
-    [/\bHow’s\b/gi, "How is"],
-    [/\bHow's\b/gi, "How is"],
-    [/\bCannot\b/gi, "Cannot"],
-    [/\bcan't\b/gi, "cannot"],
-    [/\bwon't\b/gi, "will not"],
-    [/\bdon't\b/gi, "do not"],
-    [/\bdoesn't\b/gi, "does not"],
-    [/\bdidn't\b/gi, "did not"],
-    [/\bisn't\b/gi, "is not"],
-    [/\baren't\b/gi, "are not"],
-    [/\bwasn't\b/gi, "was not"],
-    [/\bweren't\b/gi, "were not"],
-    [/\bhaven't\b/gi, "have not"],
-    [/\bhasn't\b/gi, "has not"],
-    [/\bhadn't\b/gi, "had not"],
-    [/\bwouldn't\b/gi, "would not"],
-    [/\bshouldn't\b/gi, "should not"],
-    [/\bcouldn't\b/gi, "could not"],
-    [/\bmustn't\b/gi, "must not"],
-    [/\bneedn't\b/gi, "need not"],
-    [/\blet's\b/gi, "let us"],
-    [/\bit'd\b/gi, "it would"],
-    [/\bit'll\b/gi, "it will"],
-    [/\bthey're\b/gi, "they are"],
-    [/\bwe're\b/gi, "we are"],
+    [/\bI'm\b/gi, "I am"], [/\bI've\b/gi, "I have"], [/\bI'll\b/gi, "I will"], [/\bI'd\b/gi, "I would"],
+    [/\bYou're\b/gi, "You are"], [/\bYou've\b/gi, "You have"], [/\bYou'll\b/gi, "You will"], [/\bYou'd\b/gi, "You would"],
+    [/\bWe're\b/gi, "We are"], [/\bWe've\b/gi, "We have"], [/\bWe'll\b/gi, "We will"], [/\bWe'd\b/gi, "We would"],
+    [/\bThey're\b/gi, "They are"], [/\bThey've\b/gi, "They have"], [/\bThey'll\b/gi, "They will"], [/\bThey'd\b/gi, "They would"],
+    [/\bIt's\b/gi, "It is"], [/\bThat’s\b/gi, "That is"], [/\bThat's\b/gi, "That is"], [/\bThere's\b/gi, "There is"],
+    [/\bHere’s\b/gi, "Here is"], [/\bHere's\b/gi, "Here is"], [/\bWhat's\b/gi, "What is"], [/\bWho’s\b/gi, "Who is"],
+    [/\bWho's\b/gi, "Who is"], [/\bWhere’s\b/gi, "Where is"], [/\bWhere's\b/gi, "Where is"], [/\bWhen’s\b/gi, "When is"],
+    [/\bWhen's\b/gi, "When is"], [/\bWhy’s\b/gi, "Why is"], [/\bWhy's\b/gi, "Why is"], [/\bHow’s\b/gi, "How is"],
+    [/\bHow's\b/gi, "How is"], [/\bCannot\b/gi, "Cannot"], [/\bcan't\b/gi, "cannot"], [/\bwon't\b/gi, "will not"],
+    [/\bdon't\b/gi, "do not"], [/\bdoesn't\b/gi, "does not"], [/\bdidn't\b/gi, "did not"], [/\bisn't\b/gi, "is not"],
+    [/\baren't\b/gi, "are not"], [/\bwasn't\b/gi, "was not"], [/\bweren't\b/gi, "were not"], [/\bhaven't\b/gi, "have not"],
+    [/\bhasn't\b/gi, "has not"], [/\bhadn't\b/gi, "had not"], [/\bwouldn't\b/gi, "would not"], [/\bshouldn't\b/gi, "should not"],
+    [/\bcouldn't\b/gi, "could not"], [/\bmustn't\b/gi, "must not"], [/\bneedn't\b/gi, "need not"], [/\blet's\b/gi, "let us"],
+    [/\bit'd\b/gi, "it would"], [/\bit'll\b/gi, "it will"], [/\bthey're\b/gi, "they are"], [/\bwe're\b/gi, "we are"],
     [/\byou're\b/gi, "you are"]
   ];
-
   replacements.forEach(([pattern, replacement]) => {
     out = out.replace(pattern, replacement);
   });
-
   return out;
 }
 
@@ -433,7 +411,6 @@ function _pauseToken(ms) {
 function _decorateSegment(segment, pauses) {
   let s = _trim(segment);
   if (!s) return "";
-
   s = s
     .replace(/,\s+and\s+I will\b/gi, ", and I will")
     .replace(/,\s+and\s+I can\b/gi, ", and I can")
@@ -449,7 +426,6 @@ function _decorateSegment(segment, pauses) {
     .replace(/\.\s*$/g, `. ${_pauseToken(pauses.periodMs)}`)
     .replace(/\?\s*$/g, `? ${_pauseToken(pauses.questionMs)}`)
     .replace(/!\s*$/g, `! ${_pauseToken(pauses.exclaimMs)}`);
-
   return s.trim();
 }
 
@@ -542,53 +518,163 @@ function _normalizeProviderAudio(out) {
   };
 }
 
+async function generate(text, options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const input = _normalizePayloadLikeInput({ text, ...opts }, { headers: { "x-sb-trace-id": opts.traceId || _makeTrace() } });
+  const snapshot = _buildInputSnapshot(input);
+  const startedAt = _now();
+
+  _log("generate_start", { ...snapshot, activeRequests, circuitOpen: _circuitOpen(), failCount });
+
+  if (!input.text) return { ok: false, reason: "empty_text", status: 400, retryable: false };
+  if (!input.voiceUuid) {
+    _log("generate_reject_missing_voice", snapshot);
+    return { ok: false, reason: "missing_voice", message: "No Mixer or provider voice is configured.", status: 503, retryable: false };
+  }
+  if (activeRequests >= MAX_CONCURRENT) {
+    _log("generate_reject_concurrency_limit", { ...snapshot, activeRequests, maxConcurrent: MAX_CONCURRENT });
+    return { ok: false, reason: "concurrency_limit", status: 429, retryable: true };
+  }
+  if (_circuitOpen()) {
+    _log("generate_reject_circuit_open", { ...snapshot, circuitOpenUntil });
+    return { ok: false, reason: "circuit_open", status: 503, retryable: true };
+  }
+
+  const shaped = _shapeSpeechText(input.text, { speechHints: input.speechHints, pronunciationMap: input.pronunciationMap });
+
+  const providerInput = {
+    ...input,
+    text: shaped.text,
+    textDisplay: input.textDisplay || shaped.displayText,
+    textSpeak: shaped.textSpeak,
+    plainText: shaped.plainText,
+    ssmlText: shaped.ssmlText,
+    speechChunks: input.speechChunks && input.speechChunks.length ? input.speechChunks : shaped.segments,
+    speechHints: shaped.speechHints,
+    pronunciationMap: shaped.pronunciationMap,
+    segmentCount: shaped.segmentCount,
+    shapeElapsedMs: shaped.shapeElapsedMs
+  };
+
+  _log("generate_shaped", {
+    ...snapshot,
+    shapeElapsedMs: shaped.shapeElapsedMs,
+    segmentCount: shaped.segmentCount,
+    speakHash: _hash(providerInput.textSpeak || ""),
+    speakPreview: _preview(providerInput.textSpeak || "")
+  });
+
+  activeRequests += 1;
+  try {
+    _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount });
+    const out = await synthesize(providerInput);
+    const normalizedOut = _normalizeProviderAudio(out);
+
+    _log("provider_response", {
+      ...snapshot,
+      ok: !!normalizedOut.ok,
+      providerStatus: normalizedOut.providerStatus || 0,
+      reason: normalizedOut.reason || "",
+      authMode: normalizedOut.authMode || "",
+      providerEndpoint: normalizedOut.providerEndpoint || "",
+      bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
+      elapsedMs: normalizedOut.elapsedMs || 0
+    });
+
+    if (!normalizedOut.ok) {
+      _recordFailure(normalizedOut.message || normalizedOut.reason || "provider_failed", normalizedOut.providerStatus || 503, snapshot);
+      return {
+        ok: false,
+        reason: normalizedOut.reason || "provider_failed",
+        message: normalizedOut.message || "TTS failed",
+        status: normalizedOut.retryable === false ? 400 : (normalizedOut.providerStatus || 503),
+        retryable: !!normalizedOut.retryable,
+        provider: "resemble",
+        providerStatus: normalizedOut.providerStatus || 503,
+        providerEndpoint: normalizedOut.providerEndpoint || "",
+        authMode: normalizedOut.authMode || "",
+        shapeElapsedMs: shaped.shapeElapsedMs,
+        segmentCount: shaped.segmentCount,
+        textDisplay: providerInput.textDisplay,
+        textSpeak: providerInput.textSpeak,
+        voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
+        traceId: input.traceId,
+        requestId: input.requestId,
+        turnId: input.turnId,
+        sessionId: input.sessionId
+      };
+    }
+
+    _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs, snapshot);
+    return {
+      ok: true,
+      provider: "resemble",
+      buffer: normalizedOut.buffer,
+      mimeType: normalizedOut.mimeType || "audio/mpeg",
+      elapsedMs: normalizedOut.elapsedMs || 0,
+      requestId: normalizedOut.requestId || input.requestId,
+      providerStatus: normalizedOut.providerStatus || 200,
+      providerEndpoint: normalizedOut.providerEndpoint || "",
+      authMode: normalizedOut.authMode || "",
+      shapeElapsedMs: shaped.shapeElapsedMs,
+      segmentCount: shaped.segmentCount,
+      textDisplay: providerInput.textDisplay,
+      textSpeak: providerInput.textSpeak,
+      ssmlText: providerInput.ssmlText,
+      speechChunks: providerInput.speechChunks,
+      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
+      traceId: input.traceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId
+    };
+  } catch (err) {
+    const msg = _trim(err && (err.message || err)) || "tts_exception";
+    _log("provider_exception", { ...snapshot, message: msg, elapsedMs: _now() - startedAt });
+    _recordFailure(msg, 503, snapshot);
+    return {
+      ok: false,
+      reason: "exception",
+      message: msg,
+      status: 503,
+      retryable: true,
+      provider: "resemble",
+      providerStatus: 503,
+      shapeElapsedMs: shaped.shapeElapsedMs,
+      segmentCount: shaped.segmentCount,
+      textDisplay: providerInput.textDisplay,
+      textSpeak: providerInput.textSpeak,
+      voiceUuid: input.voiceUuid,
+      traceId: input.traceId,
+      requestId: input.requestId,
+      turnId: input.turnId,
+      sessionId: input.sessionId
+    };
+  } finally {
+    activeRequests = Math.max(0, activeRequests - 1);
+    _log("generate_complete", { ...snapshot, totalElapsedMs: _now() - startedAt, activeRequests });
+  }
+}
+
 function _normalizePayloadLikeInput(payload, req) {
   const body = payload && typeof payload === "object" ? payload : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
-  const text = _pickFirst(
-    body.textSpeak,
-    body.text,
-    body.data,
-    body.speak,
-    body.say,
-    body.message,
-    body.prompt,
-    body.textDisplay
-  );
+  const text = _pickFirst(body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay);
 
   const voiceUuid = _resolvePreferredVoice(_pickFirst(
-    body.voice_uuid,
-    body.voiceUuid,
-    body.voiceId,
-    body.voice,
-    headers["x-sb-voice"],
-    headers["x-voice-uuid"]
+    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice, headers["x-sb-voice"], headers["x-voice-uuid"]
   ));
 
   const explicitProjectUuid = _pickFirst(
-    body.project_uuid,
-    body.projectUuid,
-    headers["x-sb-project"],
-    headers["x-project-uuid"]
+    body.project_uuid, body.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
   );
-
   const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
-  const outputFormat = _lower(_pickFirst(
-    body.output_format,
-    body.outputFormat,
-    body.format,
-    headers["x-audio-format"],
-    "mp3"
-  )) === "wav" ? "wav" : "mp3";
-
-  const traceId = _pickFirst(
-    headers["x-sb-trace-id"],
-    body.traceId,
-    body.requestId,
-    _makeTrace()
-  );
+  const outputFormat = _lower(_pickFirst(body.output_format, body.outputFormat, body.format, headers["x-audio-format"], "mp3")) === "wav" ? "wav" : "mp3";
+  const traceId = _pickFirst(headers["x-sb-trace-id"], body.traceId, body.requestId, _makeTrace());
+  const requestId = _pickFirst(headers["x-sb-request-id"], body.requestId, body.sourceId, traceId);
+  const turnId = _pickFirst(headers["x-sb-turn-id"], body.turnId, "");
+  const sessionId = _pickFirst(headers["x-sb-session-id"], body.sessionId, body.sid, "");
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
@@ -598,6 +684,9 @@ function _normalizePayloadLikeInput(payload, req) {
     projectUuid,
     outputFormat,
     traceId,
+    requestId,
+    turnId,
+    sessionId,
     title: _pickFirst(body.title, body.source, body.client && body.client.source, "nyx_tts").slice(0, 120),
     sampleRate: body.sampleRate || body.sample_rate,
     precision: body.precision,
@@ -625,63 +714,29 @@ function _resolveInput(req) {
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
   const text = _pickFirst(
-    body.textSpeak,
-    body.text,
-    body.data,
-    body.speak,
-    body.say,
-    body.message,
-    body.prompt,
-    body.textDisplay,
-    query.text,
-    query.speak,
-    query.say,
-    query.prompt,
-    params.text
+    body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay,
+    query.text, query.speak, query.say, query.prompt, params.text
   );
 
   const voiceUuid = _resolvePreferredVoice(_pickFirst(
-    body.voice_uuid,
-    body.voiceUuid,
-    body.voiceId,
-    body.voice,
-    query.voice_uuid,
-    query.voiceUuid,
-    query.voiceId,
-    query.voice,
-    headers["x-sb-voice"],
-    headers["x-voice-uuid"]
+    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
+    query.voice_uuid, query.voiceUuid, query.voiceId, query.voice,
+    headers["x-sb-voice"], headers["x-voice-uuid"]
   ));
 
   const explicitProjectUuid = _pickFirst(
-    body.project_uuid,
-    body.projectUuid,
-    query.project_uuid,
-    query.projectUuid,
-    headers["x-sb-project"],
-    headers["x-project-uuid"]
+    body.project_uuid, body.projectUuid, query.project_uuid, query.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
   );
-
   const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
   const outputFormat = _lower(_pickFirst(
-    body.output_format,
-    body.outputFormat,
-    body.format,
-    query.output_format,
-    query.outputFormat,
-    query.format,
-    headers["x-audio-format"],
-    "mp3"
+    body.output_format, body.outputFormat, body.format, query.output_format, query.outputFormat, query.format, headers["x-audio-format"], "mp3"
   )) === "wav" ? "wav" : "mp3";
 
-  const traceId = _pickFirst(
-    headers["x-sb-trace-id"],
-    headers["x-sb-traceid"],
-    query.traceId,
-    body.traceId,
-    _makeTrace()
-  );
+  const traceId = _pickFirst(headers["x-sb-trace-id"], headers["x-sb-traceid"], query.traceId, body.traceId, _makeTrace());
+  const requestId = _pickFirst(headers["x-sb-request-id"], query.requestId, body.requestId, traceId);
+  const turnId = _pickFirst(headers["x-sb-turn-id"], query.turnId, body.turnId, "");
+  const sessionId = _pickFirst(headers["x-sb-session-id"], query.sessionId, body.sessionId, body.sid, query.sid, "");
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
@@ -691,6 +746,9 @@ function _resolveInput(req) {
     projectUuid,
     outputFormat,
     traceId,
+    requestId,
+    turnId,
+    sessionId,
     title: _pickFirst(body.title, query.title, body.source, body.client && body.client.source, "nyx_tts").slice(0, 120),
     sampleRate: body.sampleRate || body.sample_rate || query.sampleRate || query.sample_rate,
     precision: body.precision || query.precision,
@@ -710,138 +768,36 @@ function _resolveInput(req) {
       : (Array.isArray(query.speechChunks) ? query.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : []),
     preserveMixerVoice: _bool(body.preserveMixerVoice != null ? body.preserveMixerVoice : query.preserveMixerVoice, true),
     provider: _pickFirst(body.provider, query.provider, "resemble"),
-    routeKind: _pickFirst(body.routeKind, query.routeKind, body.intro || query.intro ? "intro" : "main"),
-    sessionId: _pickFirst(body.sessionId, body.sid, query.sessionId, query.sid, headers['x-sb-session-id'], headers['x-session-id']),
-    requestId: _pickFirst(body.requestId, query.requestId, headers['x-sb-request-id'], headers['x-request-id'], ''),
-    turnId: _pickFirst(body.turnId, body.messageId, query.turnId, query.messageId, headers['x-sb-turn-id'], headers['x-turn-id'], '')
+    routeKind: _pickFirst(body.routeKind, query.routeKind, body.intro || query.intro ? "intro" : "main")
   };
 }
 
-async function generate(text, options) {
-  const startedAt = _now();
-  const opts = options && typeof options === "object" ? options : {};
-  const input = _normalizePayloadLikeInput({ text, ...opts }, { headers: { "x-sb-trace-id": opts.traceId || _makeTrace() } });
-
-  _logTts('generate_start', { traceId: input.traceId, requestId: _shortId(input.requestId), turnId: _shortId(input.turnId), sessionId: _shortId(input.sessionId), routeKind: input.routeKind, source: input.source, voiceUuid: _shortId(input.voiceUuid), textHash: _textHash(input.text), textPreview: _textPreview(input.text), textLen: _trim(input.text).length, activeRequests, circuitOpen: _circuitOpen(), failCount });
-
-  if (!input.text) {
-    _logTts('generate_reject', { traceId: input.traceId, reason: 'empty_text', requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId) });
-    return { ok: false, reason: "empty_text", status: 400, retryable: false };
-  }
-  if (!input.voiceUuid) {
-    _logTts('generate_reject', { traceId: input.traceId, reason: 'missing_voice', requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId) });
-    return {
-      ok: false,
-      reason: "missing_voice",
-      message: "No Mixer or provider voice is configured.",
-      status: 503,
-      retryable: false
-    };
-  }
-  if (activeRequests >= MAX_CONCURRENT) {
-    _logTts('generate_reject', { traceId: input.traceId, reason: 'concurrency_limit', activeRequests, maxConcurrent: MAX_CONCURRENT, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId) });
-    return { ok: false, reason: "concurrency_limit", status: 429, retryable: true };
-  }
-  if (_circuitOpen()) {
-    _logTts('generate_reject', { traceId: input.traceId, reason: 'circuit_open', requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), circuitResetAt: circuitOpenUntil });
-    return { ok: false, reason: "circuit_open", status: 503, retryable: true };
-  }
-
-  const shaped = _shapeSpeechText(input.text, {
-    speechHints: input.speechHints,
-    pronunciationMap: input.pronunciationMap
-  });
-
-  const providerInput = {
-    ...input,
-    text: shaped.text,
-    textDisplay: input.textDisplay || shaped.displayText,
-    textSpeak: shaped.textSpeak,
-    plainText: shaped.plainText,
-    ssmlText: shaped.ssmlText,
-    speechChunks: input.speechChunks && input.speechChunks.length ? input.speechChunks : shaped.segments,
-    speechHints: shaped.speechHints,
-    pronunciationMap: shaped.pronunciationMap,
-    segmentCount: shaped.segmentCount,
-    shapeElapsedMs: shaped.shapeElapsedMs
+function _buildInputSnapshot(input) {
+  const src = input && typeof input === "object" ? input : {};
+  return {
+    traceId: src.traceId || "",
+    requestId: src.requestId || "",
+    turnId: src.turnId || "",
+    sessionId: src.sessionId || "",
+    routeKind: src.routeKind || "",
+    intro: !!src.intro,
+    mode: src.mode || "",
+    source: src.source || "",
+    textLen: _str(src.text || "").length,
+    textHash: _hash(src.text || ""),
+    textPreview: _preview(src.textDisplay || src.text || ""),
+    voiceUuid: _mask(src.voiceUuid || ""),
+    projectUuid: _mask(src.projectUuid || ""),
+    outputFormat: src.outputFormat || "",
+    wantJson: !!src.wantJson
   };
-
-  activeRequests += 1;
-  try {
-    _logTts('provider_request', { traceId: input.traceId, requestId: _shortId(input.requestId), turnId: _shortId(input.turnId), sessionId: _shortId(input.sessionId), provider: 'resemble', voiceUuid: _shortId(providerInput.voiceUuid), projectUuid: _shortId(providerInput.projectUuid), outputFormat: providerInput.outputFormat, segmentCount: providerInput.segmentCount, shapeElapsedMs: providerInput.shapeElapsedMs, textHash: _textHash(providerInput.textSpeak || providerInput.text), textLen: _trim(providerInput.textSpeak || providerInput.text).length, activeRequests });
-    const out = await synthesize(providerInput);
-    const normalizedOut = _normalizeProviderAudio(out);
-
-    if (!normalizedOut.ok) {
-      _recordFailure(normalizedOut.message || normalizedOut.reason || "provider_failed", normalizedOut.providerStatus || 503);
-      _logTts('provider_failure', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), providerStatus: normalizedOut.providerStatus || 503, reason: normalizedOut.reason || 'provider_failed', message: _trim(normalizedOut.message || ''), elapsedMs: _now() - startedAt, segmentCount: shaped.segmentCount, shapeElapsedMs: shaped.shapeElapsedMs, activeRequests });
-      return {
-        ok: false,
-        reason: normalizedOut.reason || "provider_failed",
-        message: normalizedOut.message || "TTS failed",
-        status: normalizedOut.retryable === false ? 400 : (normalizedOut.providerStatus || 503),
-        retryable: !!normalizedOut.retryable,
-        provider: "resemble",
-        providerStatus: normalizedOut.providerStatus || 503,
-        providerEndpoint: normalizedOut.providerEndpoint || "",
-        authMode: normalizedOut.authMode || "",
-        shapeElapsedMs: shaped.shapeElapsedMs,
-        segmentCount: shaped.segmentCount,
-        textDisplay: providerInput.textDisplay,
-        textSpeak: providerInput.textSpeak,
-        voiceUuid: normalizedOut.voiceUuid || input.voiceUuid
-      };
-    }
-
-    _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs);
-    _logTts('provider_success', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), providerStatus: normalizedOut.providerStatus || 200, elapsedMs: normalizedOut.elapsedMs || (_now() - startedAt), shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0, activeRequests });
-    return {
-      ok: true,
-      provider: "resemble",
-      buffer: normalizedOut.buffer,
-      mimeType: normalizedOut.mimeType || "audio/mpeg",
-      elapsedMs: normalizedOut.elapsedMs || 0,
-      requestId: normalizedOut.requestId,
-      providerStatus: normalizedOut.providerStatus || 200,
-      providerEndpoint: normalizedOut.providerEndpoint || "",
-      authMode: normalizedOut.authMode || "",
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      ssmlText: providerInput.ssmlText,
-      speechChunks: providerInput.speechChunks,
-      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid
-    };
-  } catch (err) {
-    const msg = _trim(err && (err.message || err)) || "tts_exception";
-    _recordFailure(msg, 503);
-    _logTts('provider_exception', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), message: msg, elapsedMs: _now() - startedAt, activeRequests });
-    return {
-      ok: false,
-      reason: "exception",
-      message: msg,
-      status: 503,
-      retryable: true,
-      provider: "resemble",
-      providerStatus: 503,
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      voiceUuid: input.voiceUuid
-    };
-  } finally {
-    activeRequests -= 1;
-    _logTts('generate_end', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), elapsedMs: _now() - startedAt, activeRequests });
-  }
 }
 
 async function delegateTts(payload, req) {
-  const startedAt = _now();
   const input = _normalizePayloadLikeInput(payload, req);
+  const snapshot = _buildInputSnapshot(input);
 
-  _logTts('delegate_start', { traceId: input.traceId, requestId: _shortId(input.requestId), turnId: _shortId(input.turnId), sessionId: _shortId(input.sessionId), routeKind: input.routeKind, source: input.source, textHash: _textHash(input.text), textPreview: _textPreview(input.text) });
+  _log("delegate_start", snapshot);
 
   if (!input.text) {
     return {
@@ -853,14 +809,24 @@ async function delegateTts(payload, req) {
       providerStatus: 400,
       mime: "audio/mpeg",
       text: input.textDisplay || input.text || "",
-      voiceUuid: input.voiceUuid || ""
+      voiceUuid: input.voiceUuid || "",
+      traceId: input.traceId,
+      requestId: input.requestId,
+      turnId: input.turnId,
+      sessionId: input.sessionId
     };
   }
 
   const result = await generate(input.text, input);
 
   if (!result.ok) {
-    _logTts('delegate_fail', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), reason: result.reason || 'tts_unavailable', providerStatus: result.status || result.providerStatus || 503, elapsedMs: _now() - startedAt });
+    _log("delegate_failure", {
+      ...snapshot,
+      reason: result.reason || "",
+      providerStatus: result.status || result.providerStatus || 503,
+      authMode: result.authMode || "",
+      providerEndpoint: result.providerEndpoint || ""
+    });
     return {
       ok: false,
       provider: result.provider || "resemble",
@@ -873,36 +839,57 @@ async function delegateTts(payload, req) {
       mime: "audio/mpeg",
       text: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
-      voiceUuid: result.voiceUuid || input.voiceUuid
+      voiceUuid: result.voiceUuid || input.voiceUuid,
+      traceId: result.traceId || input.traceId,
+      requestId: result.requestId || input.requestId,
+      turnId: result.turnId || input.turnId,
+      sessionId: result.sessionId || input.sessionId
     };
   }
 
-  _logTts('delegate_success', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), providerStatus: result.providerStatus || 200, elapsedMs: _now() - startedAt, bytes: result.buffer ? result.buffer.length : (result.audio ? result.audio.length : 0) });
+  _log("delegate_success", {
+    ...snapshot,
+    providerStatus: result.providerStatus || 200,
+    elapsedMs: result.elapsedMs || 0,
+    bytes: result.buffer ? result.buffer.length : 0
+  });
+
   return {
     ok: true,
     provider: result.provider || "resemble",
     audio: result.buffer,
     mime: result.mimeType || "audio/mpeg",
     elapsedMs: result.elapsedMs || 0,
-    requestId: result.requestId || input.sourceId || "",
+    requestId: result.requestId || input.sourceId || input.requestId || "",
     providerStatus: result.providerStatus || 200,
     providerEndpoint: result.providerEndpoint || "",
     authMode: result.authMode || "",
     text: result.textDisplay || input.textDisplay || input.text,
     textSpeak: result.textSpeak || input.text,
     voiceUuid: result.voiceUuid || input.voiceUuid,
-    routeKind: input.routeKind || "main"
+    routeKind: input.routeKind || "main",
+    traceId: result.traceId || input.traceId,
+    turnId: result.turnId || input.turnId,
+    sessionId: result.sessionId || input.sessionId
   };
 }
 
 async function handleTts(req, res) {
-  const startedAt = _now();
   const input = _resolveInput(req);
-  _logTts('http_start', { traceId: input.traceId, requestId: _shortId(input.requestId), turnId: _shortId(input.turnId), sessionId: _shortId(input.sessionId), routeKind: input.routeKind, method: req && req.method ? req.method : '', path: req && req.originalUrl ? req.originalUrl : '', textHash: _textHash(input.text), textPreview: _textPreview(input.text), textLen: _trim(input.text).length });
-  _setCommonAudioHeaders(res, input.traceId, { provider: "resemble", voiceUuid: input.voiceUuid, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId) });
+  const startedAt = _now();
+  const snapshot = _buildInputSnapshot(input);
+
+  _setCommonAudioHeaders(res, input.traceId, {
+    provider: "resemble",
+    voiceUuid: input.voiceUuid,
+    requestId: input.requestId,
+    turnId: input.turnId,
+    sessionId: input.sessionId
+  });
+
+  _log("http_start", { ...snapshot, method: req && req.method, path: req && req.originalUrl });
 
   if (input.healthCheck) {
-    _logTts('http_healthcheck', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), elapsedMs: _now() - startedAt });
     return _safeJson(res, 200, {
       ok: true,
       provider: "resemble",
@@ -912,7 +899,6 @@ async function handleTts(req, res) {
   }
 
   if (!input.text) {
-    _logTts('http_missing_text', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), elapsedMs: _now() - startedAt });
     return _safeJson(res, 400, {
       ok: false,
       spokenUnavailable: true,
@@ -926,20 +912,30 @@ async function handleTts(req, res) {
   const result = await generate(input.text, input);
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
-    requestId: _shortId(input.requestId || result.requestId || ''),
-    sessionId: _shortId(input.sessionId || ''),
     voiceUuid: result.voiceUuid || input.voiceUuid,
     elapsedMs: result.elapsedMs || 0,
     shapeMs: result.shapeElapsedMs || 0,
     segmentCount: result.segmentCount || 0,
     providerStatus: result.providerStatus || result.status || 0,
-    reason: result.reason || ""
+    reason: result.reason || "",
+    requestId: result.requestId || input.requestId,
+    turnId: result.turnId || input.turnId,
+    sessionId: result.sessionId || input.sessionId
   });
 
   if (!result.ok) {
     const upstreamStatus = Number(result.providerStatus || result.status || 503) || 503;
-    _logTts('http_fail', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), reason: result.reason || 'tts_unavailable', providerStatus: upstreamStatus, elapsedMs: _now() - startedAt });
     const status = result.status === 429 ? 429 : (result.status >= 400 && result.status < 500 ? result.status : 503);
+
+    _log("http_failure", {
+      ...snapshot,
+      status,
+      upstreamStatus,
+      reason: result.reason || "",
+      providerEndpoint: result.providerEndpoint || "",
+      authMode: result.authMode || "",
+      elapsedMs: _now() - startedAt
+    });
 
     return _safeJson(res, status, {
       ok: false,
@@ -957,13 +953,16 @@ async function handleTts(req, res) {
       textSpeak: result.textSpeak || input.text,
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0,
+      requestId: result.requestId || input.requestId || "",
+      turnId: result.turnId || input.turnId || "",
+      sessionId: result.sessionId || input.sessionId || "",
       health: _healthSnapshot(),
       payload: { spokenUnavailable: true }
     });
   }
 
   if (input.wantJson) {
-    _logTts('http_healthcheck', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), elapsedMs: _now() - startedAt });
+    _log("http_success_json", { ...snapshot, bytes: result.buffer ? result.buffer.length : 0, elapsedMs: _now() - startedAt });
     return _safeJson(res, 200, {
       ok: true,
       provider: result.provider,
@@ -980,25 +979,31 @@ async function handleTts(req, res) {
       speechChunks: result.speechChunks || [],
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0,
-      voiceUuid: result.voiceUuid || input.voiceUuid || ""
+      voiceUuid: result.voiceUuid || input.voiceUuid || "",
+      turnId: result.turnId || input.turnId || "",
+      sessionId: result.sessionId || input.sessionId || ""
     });
   }
 
   try {
-    _logTts('http_audio_success', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), providerStatus: result.providerStatus || 200, elapsedMs: _now() - startedAt, bytes: result.buffer.length });
     _setHeader(res, "Content-Type", result.mimeType || "audio/mpeg");
     _setHeader(res, "Content-Length", String(result.buffer.length));
     _setHeader(res, "Accept-Ranges", "none");
+    _log("http_success_audio", { ...snapshot, bytes: result.buffer.length, mimeType: result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
     res.status(200).send(result.buffer);
   } catch (e) {
-    _logTts('http_send_fail', { traceId: input.traceId, requestId: _shortId(input.requestId), sessionId: _shortId(input.sessionId), message: _trim(e && (e.message || e)) || 'send_failed', elapsedMs: _now() - startedAt });
+    const detail = _trim(e && (e.message || e)) || "Failed to send audio buffer.";
+    _log("http_send_failed", { ...snapshot, detail, elapsedMs: _now() - startedAt });
     return _safeJson(res, 503, {
       ok: false,
       spokenUnavailable: true,
       error: "send_failed",
-      detail: _trim(e && (e.message || e)) || "Failed to send audio buffer.",
+      detail,
       traceId: input.traceId,
       provider: result.provider || "resemble",
+      requestId: result.requestId || input.requestId || "",
+      turnId: result.turnId || input.turnId || "",
+      sessionId: result.sessionId || input.sessionId || "",
       payload: { spokenUnavailable: true }
     });
   }
