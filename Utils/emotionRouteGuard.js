@@ -22,7 +22,7 @@
  * - tts.js
  */
 
-const VERSION = 'emotionRouteGuard v3.1.0';
+const VERSION = 'emotionRouteGuard v3.2.0 PRESENTATION-XOVER';
 
 function safeStr(v) {
   if (v === null || v === undefined) return '';
@@ -103,7 +103,14 @@ function detectPresentationSignals(text) {
     selfReferential: /\b(i|me|my|myself)\b/.test(t),
     relational: /\b(we|us|our|they|them|partner|friend|family|mother|father|wife|husband)\b/.test(t),
     mentionsLooping: /\b(loop|looping|same response|same thing|again and again|repeating|back to the same)\b/.test(t),
-    requestsAction: /\b(what should i do|next step|what now|how do i move forward|what can i do)\b/.test(t)
+    requestsAction: /\b(what should i do|next step|what now|how do i move forward|what can i do)\b/.test(t),
+    directPositive: /\b(i am happy|i feel happy|i feel great|i feel amazing|i am doing great|i am doing well|my life is great|today is great|it is a great day|i am in a good mood|things are going right)\b/.test(t),
+    celebratoryBuzz: /\b(amazing|awesome|fantastic|outstanding|incredible|what a day|so good|so amazing|let's go|crushed it|nailed it|killed it)\b/.test(t),
+    poeticObservation: /\b(beautiful day|beautiful out|light today|bright today|the air feels|the sky feels|it feels light|there is a softness|everything feels open|it is gorgeous out)\b/.test(t),
+    recoveryStatement: /\b(finally|turning around|coming back|doing better|feeling better|things are finally going right|getting my footing back|starting to feel like myself|back on track)\b/.test(t),
+    lifeAppraisal: /\b(my life is great|life is good|things are good|things are going right|everything is lining up|i am in a good place)\b/.test(t),
+    environmentalAppreciation: /\b(beautiful day|great day|nice out|gorgeous out|sun is out|weather is amazing|lovely day|outstanding out there)\b/.test(t),
+    achievementStatement: /\b(i did great|i did really well|i crushed it|i nailed it|i handled it well|i pulled it off|i won|i made it happen)\b/.test(t)
   };
 }
 
@@ -720,6 +727,10 @@ function basePayload() {
     contradictions: [],
     recoverySignals: [],
     regulationSignals: [],
+    presentationSignals: {},
+    expressionStyle: 'plain_statement',
+    deliveryTone: 'warm_affirming',
+    semanticFrame: 'plain_statement',
     downstream: {}
   };
 }
@@ -746,8 +757,10 @@ function analyzeEmotionText(text) {
     if (score > 0) scores[emotion] = round(score);
   }
 
+  applyBroadPhraseBoosts(scores, text);
   return scores;
 }
+
 
 function deriveDominance(scores) {
   const ranked = topEntries(scores, 6);
@@ -815,6 +828,106 @@ function deriveRecoverySignals(text) {
 
 function deriveRegulationSignals(text) {
   return REGULATION_PHRASES.filter((p) => lower(text).includes(lower(p)));
+}
+
+
+function applyBroadPhraseBoosts(scores, text) {
+  const t = normalizeForMatching(text);
+  const add = (key, val) => {
+    if (!key) return;
+    scores[key] = round((scores[key] || 0) + val);
+  };
+
+  if (/\b(beautiful day|great day|lovely day|gorgeous out|beautiful out|outstanding out there|nice out)\b/.test(t)) {
+    add('aestheticAppreciation', 1.8);
+    add('awe', 1.0);
+    add('calmness', 0.9);
+    add('joy', 0.8);
+  }
+
+  if (/\b(my life is great|life is good|things are going right|everything is lining up|i am in a good place)\b/.test(t)) {
+    add('gratitude', 1.5);
+    add('optimism', 1.4);
+    add('satisfaction', 1.2);
+    add('joy', 1.0);
+  }
+
+  if (/\b(i feel great|i feel amazing|i am happy today|i am in a good mood|today feels light)\b/.test(t)) {
+    add('joy', 1.7);
+    add('contentment', 1.1);
+    add('calmness', 0.8);
+  }
+
+  if (/\b(i did great|i did really well|i crushed it|i nailed it|i pulled it off|i won)\b/.test(t)) {
+    add('pride', 1.6);
+    add('triumph', 1.5);
+    add('confidence', 1.1);
+    add('momentum', 0.9);
+  }
+
+  if (/\b(finally|turning around|coming back|getting better|back on track|things are finally going right)\b/.test(t)) {
+    add('relief', 1.5);
+    add('renewal', 1.1);
+    add('optimism', 0.9);
+  }
+
+  if (/\b(grateful|thankful|appreciate this|appreciative of this)\b/.test(t)) {
+    add('gratitude', 1.6);
+    add('connectedness', 0.7);
+  }
+
+  return scores;
+}
+
+function deriveExpressionStyle(payload, text = '') {
+  const s = payload.presentationSignals || detectPresentationSignals(text);
+  if (s.poeticObservation || s.environmentalAppreciation) return 'poetic_observation';
+  if (s.recoveryStatement) return 'recovery_statement';
+  if (s.achievementStatement) return 'achievement_statement';
+  if (s.lifeAppraisal) return 'life_appraisal';
+  if (s.celebratoryBuzz) return 'celebratory_burst';
+  if (s.directPositive) return 'direct_positive';
+  if (s.narrativeDensity >= 2 && payload.valence === 'positive') return 'reflective_positive';
+  if (s.shortBurst && payload.valence === 'positive') return 'short_positive_declaration';
+  if (s.requestsAction) return 'action_seeking';
+  if (s.asksForDirectness) return 'direct_request';
+  if (s.shortBurst) return 'short_declaration';
+  if (s.narrativeDensity >= 2) return 'narrative_share';
+  return 'plain_statement';
+}
+
+function deriveDeliveryTone(payload) {
+  const style = payload.expressionStyle || 'plain_statement';
+  if (payload.valence === 'negative' || payload.emotionCluster === 'distress' || payload.emotionCluster === 'threat') return 'gentle_grounded';
+  if (style === 'celebratory_burst' || style === 'achievement_statement') return 'bright_celebratory';
+  if (style === 'poetic_observation') return 'reflective_warm';
+  if (style === 'recovery_statement') return 'steady_reinforcing';
+  if (style === 'life_appraisal') return 'anchored_affirming';
+  if (payload.primaryEmotion === 'relief' || payload.primaryEmotion === 'contentment' || payload.primaryEmotion === 'calmness') return 'steady_warm';
+  return payload.valence === 'positive' ? 'warm_affirming' : 'neutral_attuned';
+}
+
+function deriveSemanticFrame(payload) {
+  const style = payload.expressionStyle || 'plain_statement';
+  const primary = payload.primaryEmotion || 'unknown';
+  if (style === 'poetic_observation') {
+    if (['aestheticAppreciation', 'awe', 'calmness', 'serenity'].includes(primary)) return 'awe_appreciation';
+    return 'reflective_appreciation';
+  }
+  if (style === 'recovery_statement') return payload.primaryEmotion === 'relief' ? 'relief_recovery' : 'recovery_positive';
+  if (style === 'achievement_statement') return ['triumph', 'pride', 'confidence'].includes(primary) ? 'achievement_pride' : 'achievement_positive';
+  if (style === 'life_appraisal') {
+    if (['gratitude', 'optimism'].includes(primary)) return 'gratitude_life_appraisal';
+    if (['satisfaction', 'contentment', 'calmness'].includes(primary)) return 'grounded_positive_appraisal';
+    return 'broad_positive_appraisal';
+  }
+  if (style === 'celebratory_burst') return 'energized_positive';
+  if (style === 'direct_positive' || style === 'short_positive_declaration') {
+    if (['joy', 'gratitude'].includes(primary)) return 'joy_direct_positive';
+    if (['contentment', 'calmness', 'satisfaction', 'relief'].includes(primary)) return 'grounded_positive';
+    if (['momentum', 'determination', 'confidence', 'optimism'].includes(primary)) return 'momentum_positive';
+  }
+  return `${primary || 'unknown'}_${style}`;
 }
 
 function deriveNuanceProfile(primary, secondary, text = '', priorState = {}) {
@@ -921,7 +1034,12 @@ function deriveConversationPlan(payload, priorState = {}) {
     shouldPreferReflection,
     shouldDelaySolutioning,
     supportLockBias,
-    recommendedDepth: nuance.transitionReadiness === 'low' ? 'stay_with_emotion' : 'move_when_user_signals_ready'
+    recommendedDepth: nuance.transitionReadiness === 'low' ? 'stay_with_emotion' : 'move_when_user_signals_ready',
+    expressionStyle: payload.expressionStyle || 'plain_statement',
+    deliveryTone: payload.deliveryTone || 'warm_affirming',
+    semanticFrame: payload.semanticFrame || 'plain_statement',
+    openingFamily: (payload.expressionStyle === 'poetic_observation' ? 'reflective_mirroring' : payload.expressionStyle === 'recovery_statement' ? 'grounded_reinforcement' : payload.expressionStyle === 'celebratory_burst' ? 'warm_celebration' : payload.expressionStyle === 'achievement_statement' ? 'earned_affirmation' : 'warm_affirmation'),
+    responseFamily: (payload.semanticFrame || payload.expressionStyle || nuance.archetype || 'default')
   };
 }
 
