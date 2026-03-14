@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.3.2-opintel+++++bridgeapi";
+const MARION_VERSION = "marionSO v1.3.2-opintel+++++supportfix+++++bridge-role-guard";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
@@ -45,7 +45,6 @@ const PHASE10_PLAN = PHASE15_PLAN;
 
 const SO_VERSION = MARION_VERSION;
 const version = MARION_VERSION;
-const BRIDGE_API_VERSION = "marionSO.bridge.v1.0.0";
 
 // -------------------------
 // Optional SiteBridge (FAIL-OPEN)
@@ -2571,6 +2570,13 @@ function finalizeContract(cog, nowMs, extra) {
 
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
+    supportCompatible: !!c.supportCompatible,
+    questionSuppression: !!c.questionSuppression,
+    avoidLaneRebuild: c.avoidLaneRebuild !== false,
+    allowMenuRegeneration: !!c.allowMenuRegeneration,
+    knowledgeDomains: isPlainObject(c.knowledgeDomains) ? c.knowledgeDomains : { schema: 'marionSO.knowledgeDomains.v1', primaryDomain: 'language', secondaryDomains: [], availableDomains: [], counts: {} },
+    marionSurfaceRole: safeStr(c.marionSurfaceRole || 'reasoning_only', 32),
+    marionMaySpeak: !!c.marionMaySpeak,
 
     marionStyle: MARION_STYLE_CONTRACT,
     handoff: isPlainObject(c.handoff)
@@ -2677,6 +2683,7 @@ function finalizeContract(cog, nowMs, extra) {
   // IMPORTANT: STABILIZE should NOT auto-route into the generic clarifier (this caused looping UX).
   const needsClarify =
     !supportFirst &&
+    !out.questionSuppression &&
     (
       intentU === "CLARIFY" ||
       safeStr(out.laneAction || "", 24).toLowerCase() === "ask" ||
@@ -2708,28 +2715,28 @@ function finalizeContract(cog, nowMs, extra) {
   // lane as a "layer" (kept compact)
   pushLayer(out.lane);
 
-  if (Array.isArray(out.aiKnowledgeHints) && out.aiKnowledgeHints.length) pushLayer("ai");
-  if (Array.isArray(out.financeHints) && out.financeHints.length) pushLayer("finance");
-  if (Array.isArray(out.englishHints) && out.englishHints.length) pushLayer("english");
-  if (Array.isArray(out.cyberHints) && out.cyberHints.length) pushLayer("cyber");
-  if (Array.isArray(out.psychologyHints) && out.psychologyHints.length) pushLayer("psy");
+  if (isPlainObject(out.aiKnowledgeHints) && out.aiKnowledgeHints.enabled) pushLayer("ai");
+  if (isPlainObject(out.financeKnowledgeHints) && out.financeKnowledgeHints.enabled) pushLayer("finance");
+  if (isPlainObject(out.englishKnowledgeHints) && out.englishKnowledgeHints.enabled) pushLayer("english");
+  if (isPlainObject(out.cyberKnowledgeHints) && out.cyberKnowledgeHints.enabled) pushLayer("cyber");
+  if (isPlainObject(out.psychologyHints) && out.psychologyHints.enabled) pushLayer("psy");
   if (Array.isArray(out.lawTags) && out.lawTags.length) pushLayer("law");
   if (Array.isArray(out.ethicsTags) && out.ethicsTags.length) pushLayer("ethics");
-  if (Array.isArray(out.strategyHints) && out.strategyHints.length) pushLayer("strategy");
+  if (Array.isArray(out.strategyTags) && out.strategyTags.length) pushLayer("strategy");
 
   // cap layers to 8 (stateSpine bound)
   if (layers.length > 8) layers.length = 8;
 
   // trace: compact boolean flags only (NO raw text)
   const trace = {
-    ak: Array.isArray(out.aiKnowledgeHints) && out.aiKnowledgeHints.length > 0,
-    fin: Array.isArray(out.financeHints) && out.financeHints.length > 0,
-    eng: Array.isArray(out.englishHints) && out.englishHints.length > 0,
-    cyber: Array.isArray(out.cyberHints) && out.cyberHints.length > 0,
-    psy: Array.isArray(out.psychologyHints) && out.psychologyHints.length > 0,
+    ak: isPlainObject(out.aiKnowledgeHints) && out.aiKnowledgeHints.enabled,
+    fin: isPlainObject(out.financeKnowledgeHints) && out.financeKnowledgeHints.enabled,
+    eng: isPlainObject(out.englishKnowledgeHints) && out.englishKnowledgeHints.enabled,
+    cyber: isPlainObject(out.cyberKnowledgeHints) && out.cyberKnowledgeHints.enabled,
+    psy: isPlainObject(out.psychologyHints) && out.psychologyHints.enabled,
     law: Array.isArray(out.lawTags) && out.lawTags.length > 0,
     eth: Array.isArray(out.ethicsTags) && out.ethicsTags.length > 0,
-    strat: Array.isArray(out.strategyHints) && out.strategyHints.length > 0,
+    strat: Array.isArray(out.strategyTags) && out.strategyTags.length > 0,
   };
 
   // attach compat keys
@@ -2738,6 +2745,13 @@ function finalizeContract(cog, nowMs, extra) {
   out.layers = layers;
   out.supportFirst = !!supportFirst;
   out.metaControlSuppressed = !!supportFirst;
+  if (out.questionSuppression) {
+    out.needsClarify = false;
+    out.askKind = 'none';
+    out.askId = '';
+    out.clarifyPrompt = '';
+    out.minimalClarifier = '';
+  }
 
   // optional hints for clarifying flows
   if (needsClarify) {
@@ -3287,32 +3301,149 @@ function computeLoopGuard(session, sig, now) {
 
 function applyBrutalLoopBreaker(cog, loopMeta) {
   const c = isPlainObject(cog) ? cog : {};
-  // Force a clean pivot: tighten budget, clarify, and instruct Nyx to ask ONE constraint.
+  const distressLike = safeStr(c.intent || '', 16).toUpperCase() === 'STABILIZE' || ['medium', 'high'].includes(safeStr(c.riskTier || '', 12).toLowerCase());
+  // Force a clean pivot without creating another generic clarify loop.
   c.stalled = true;
   c.actionable = false;
-  c.intent = "CLARIFY";
-  c.budget = "short";
-  c.marionState = "BREAK_LOOP";
-  c.marionReason = "loop_guard";
-  c.movePolicy = { preferredMove: "CLARIFY", hardOverride: true, reason: "loop_guard" };
+  c.intent = distressLike ? 'STABILIZE' : 'ADVANCE';
+  c.budget = 'short';
+  c.marionState = 'BREAK_LOOP';
+  c.marionReason = 'loop_guard';
+  c.movePolicy = { preferredMove: distressLike ? 'STABILIZE' : 'ADVANCE', hardOverride: true, reason: 'loop_guard' };
+  c.bridge = { enabled: false, reason: 'loop_guard' };
+  c.needsClarify = false;
+  c.askKind = 'none';
+  c.clarifyPrompt = '';
+  c.minimalClarifier = '';
+  c.questionSuppression = true;
+  c.avoidLaneRebuild = true;
 
   c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
   c.handoff.marionEndsHard = true;
   c.handoff.nyxBeginsAfter = true;
   c.handoff.allowSameTurnSplit = true;
-  c.handoff.marionTagSuggested = MARION_STYLE_CONTRACT.tags.retry;
-  c.handoff.nyxCue = "retry";
+  c.handoff.marionTagSuggested = distressLike ? MARION_STYLE_CONTRACT.tags.hold : MARION_STYLE_CONTRACT.tags.ok;
+  c.handoff.nyxCue = distressLike ? 'hold' : 'respond';
 
   c.loopBreaker = {
     enabled: true,
     tripped: true,
-    level: "brutal",
-    reason: "repeat_signature",
+    level: 'brutal',
+    reason: 'repeat_signature',
+    recommendedShift: distressLike ? 'stabilize_without_question' : 'direct_answer_no_menu',
     ...loopMeta,
   };
 
-  // Add a constraint signal for Nyx without leaking user text
-  c.englishSignals = uniqBounded([...(Array.isArray(c.englishSignals) ? c.englishSignals : []), ENGLISH.SIGNALS.ASK_AUDIENCE], 8);
+  c.englishSignals = uniqBounded([...(Array.isArray(c.englishSignals) ? c.englishSignals : []), ENGLISH.SIGNALS.USE_PLAIN_LANGUAGE], 8);
+  return c;
+}
+
+
+function normalizeKnowledgeDomainKey(v) {
+  const s = safeStr(v, 40).trim().toLowerCase();
+  if (!s) return "";
+  if (s === "psych" || s === "psy" || s === "support") return "psychology";
+  if (s === "legal") return "law";
+  if (s === "english" || s === "copy" || s === "writing") return "language";
+  if (s === "ai" || s === "cyber" || s === "security" || s === "tech") return "ai_cyber";
+  if (s === "marketing" || s === "media" || s === "brand") return "marketing_media";
+  if (["psychology","law","finance","language","ai_cyber","marketing_media"].includes(s)) return s;
+  return "";
+}
+
+function coerceKnowledgeSections(source) {
+  const out = {
+    psychology: [],
+    law: [],
+    finance: [],
+    language: [],
+    ai_cyber: [],
+    marketing_media: [],
+  };
+  const src = isPlainObject(source) ? source : {};
+  const candidates = [src.knowledgeSections, src.knowledge, src.domainKnowledge, src.sections];
+  for (const cand of candidates) {
+    if (!isPlainObject(cand)) continue;
+    for (const [k,v] of Object.entries(cand)) {
+      const nk = normalizeKnowledgeDomainKey(k);
+      if (!nk) continue;
+      if (Array.isArray(v)) out[nk].push(...v.map((x)=>safeSerialize(x, 220)));
+      else if (isPlainObject(v)) out[nk].push(safeSerialize(v, 220));
+      else if (v != null) out[nk].push(safeSerialize(v, 220));
+    }
+  }
+  for (const k of Object.keys(out)) out[k] = clampStringArray(out[k], 8, 220);
+  return out;
+}
+
+function buildKnowledgeDomainSummary(norm, session, opts, cog) {
+  const merged = {
+    knowledgeSections: {
+      ...coerceKnowledgeSections(session),
+      ...coerceKnowledgeSections(opts),
+      ...coerceKnowledgeSections(norm),
+    }
+  };
+  const ks = coerceKnowledgeSections(merged);
+  const counts = {};
+  for (const k of Object.keys(ks)) counts[k] = Array.isArray(ks[k]) ? ks[k].length : 0;
+
+  const emotionalPressure = safeStr(cog?.intent || '', 16).toUpperCase() === 'STABILIZE' ||
+    ['medium','high'].includes(safeStr(cog?.riskTier || '', 12).toLowerCase());
+
+  const ranking = Object.entries(counts)
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => {
+      const pa = (emotionalPressure && a.domain === 'psychology') ? 1000 : 0
+      const pb = (emotionalPressure && b.domain === 'psychology') ? 1000 : 0
+      return (pb + b.count) - (pa + a.count)
+    });
+  return {
+    availableDomains: ranking.filter((x)=>x.count>0).map((x)=>x.domain).slice(0,6),
+    counts,
+    primaryDomain: (ranking.find((x)=>x.count>0) || {}).domain || (emotionalPressure ? 'psychology' : 'language'),
+    secondaryDomains: ranking.filter((x)=>x.count>0).map((x)=>x.domain).slice(1,3),
+    sections: ks,
+  };
+}
+
+function applyMarionRoleGuard(cog, knowledgeSummary) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const ks = isPlainObject(knowledgeSummary) ? knowledgeSummary : { availableDomains: [], counts: {}, primaryDomain: 'language', secondaryDomains: [], sections: {} };
+  const intentU = safeStr(c.intent || '', 16).toUpperCase();
+  const distressLike = intentU === 'STABILIZE' || ['medium','high'].includes(safeStr(c.riskTier || '', 12).toLowerCase());
+  const explicitBridge = !!(isPlainObject(c.bridge) && c.bridge.enabled && ['chip_select','lane_switch'].includes(safeStr(c.bridge.kind || '', 24).toLowerCase()));
+
+  c.knowledgeDomains = {
+    schema: 'marionSO.knowledgeDomains.v1',
+    primaryDomain: ks.primaryDomain,
+    secondaryDomains: Array.isArray(ks.secondaryDomains) ? ks.secondaryDomains.slice(0, 2) : [],
+    availableDomains: Array.isArray(ks.availableDomains) ? ks.availableDomains.slice(0, 6) : [],
+    counts: isPlainObject(ks.counts) ? ks.counts : {},
+  };
+
+  c.supportCompatible = distressLike;
+  c.questionSuppression = distressLike;
+  c.avoidLaneRebuild = true;
+  c.allowMenuRegeneration = false;
+  c.marionSurfaceRole = 'reasoning_only';
+  c.marionMaySpeak = false;
+
+  if (!explicitBridge) {
+    c.bridge = { enabled: false, reason: distressLike ? 'role_guard_support' : 'role_guard_reasoning_only' };
+    c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
+    c.handoff.nyxCue = distressLike ? 'hold' : 'respond';
+  }
+
+  if (distressLike) {
+    c.needsClarify = false;
+    c.askKind = 'none';
+    c.minimalClarifier = '';
+    c.clarifyPrompt = '';
+    c.movePolicy = { preferredMove: 'STABILIZE', hardOverride: true, reason: 'role_guard_support' };
+  }
+
+  c.decisionTags = uniqBounded([...(safeArr(c.decisionTags)), 'role:reasoning_only', 'menu:suppressed', `domain:${ks.primaryDomain}`], 12);
   return c;
 }
 
@@ -3461,6 +3592,9 @@ function mediate(norm, session, opts = {}) {
       now
     );
 
+    // Bridge is declared early so distress gating never references an uninitialized binding.
+    let bridge = null;
+
     // Affect-driven stabilization: if user language signals distress/pain, prioritize STABILIZE
     // (unless we are in an explicit actionable/bridge advance)
     const _aff = isPlainObject(psychSeed?.affect) ? psychSeed.affect : {};
@@ -3521,7 +3655,6 @@ function mediate(norm, session, opts = {}) {
     // ---------
     // BRIDGE CONTRACT (Marion → Nyx routing)
     // ---------
-    let bridge = null;
     if (isChip) {
       bridge = buildBridgeContract({
         kind: "chip_select",
@@ -3760,6 +3893,10 @@ try {
     }
     cog.laneExpertReason = safeStr(routing.reason || "", 24);
 
+    // Six-domain knowledge visibility + Marion role guard.
+    const knowledgeSummary = buildKnowledgeDomainSummary(n, s, o, cog);
+    cog = applyMarionRoleGuard(cog, knowledgeSummary);
+
     // ---------
     // SESSION PATCH SUGGESTION (UPGRADED for bridge)
     // ---------
@@ -3990,79 +4127,6 @@ try {
   }
 }
 
-
-
-function buildBridgeAnswerFromCog(cog) {
-  const c = isPlainObject(cog) ? cog : {};
-  const op = isPlainObject(c.opPackage) ? c.opPackage : {};
-  const lane = safeStr(c.effectiveLane || c.lane || "general", 24) || "general";
-  const intent = safeStr(c.intent || "CLARIFY", 16).toUpperCase();
-  const objective = safeStr(op.objective || "", 220).trim();
-  const summary = safeStr(op.summary || c.marionReason || c.laneReason || "", 180).trim();
-  const actions = Array.isArray(op.recommendedActions) ? op.recommendedActions.slice(0, 2).map((x) => safeStr(x, 120)).filter(Boolean) : [];
-
-  if (intent === "STABILIZE") {
-    return objective || "Let us steady this first. Name the single pressure point you want to handle right now, and we will keep it contained.";
-  }
-  if (intent === "ADVANCE") {
-    const head = objective || (summary ? `Routing through ${lane}: ${summary}.` : `Routing through ${lane} with the next concrete step.`);
-    if (actions.length) return `${head} Next: ${actions.join(' Then: ')}.`;
-    return head;
-  }
-  return objective || (summary ? `Before I advance, I need one missing detail: ${summary}.` : "Before I advance, I need the single missing detail that decides the path.");
-}
-
-function buildBridgeEnvelopeFromCog(cog) {
-  const c = isPlainObject(cog) ? cog : {};
-  const op = isPlainObject(c.opPackage) ? c.opPackage : {};
-  return {
-    ok: true,
-    source: "marionSO",
-    version: BRIDGE_API_VERSION,
-    answer: buildBridgeAnswerFromCog(c),
-    confidence: clamp01(op.confidenceScore || c?.confidence?.nyx || 0.62),
-    nextAction: safeStr(c.intent || "respond", 16).toLowerCase() === "clarify" ? "clarify_or_expand" : "respond",
-    cites: [],
-    cog: c,
-    meta: {
-      lane: safeStr(c.effectiveLane || c.lane || "general", 24),
-      intent: safeStr(c.intent || "CLARIFY", 16).toUpperCase(),
-      riskTier: safeStr(c.riskTier || RISK.TIERS.NONE, 10),
-      bridgeApiVersion: BRIDGE_API_VERSION,
-    }
-  };
-}
-
-async function resolve(payload = {}) {
-  const p = isPlainObject(payload) ? payload : {};
-  const norm = isPlainObject(p.norm) ? p.norm : {
-    text: safeStr(p.text || p.userText || "", 1600),
-    lane: safeStr(p?.routing?.domain || p?.meta?.lane || "general", 24) || "general",
-    payload: {},
-    turnSignals: {}
-  };
-  const session = isPlainObject(p.session) ? p.session : { sessionId: safeStr(p.sessionId || "", 80), userId: safeStr(p.userId || "", 80) };
-  const cog = mediate(norm, session, {
-    requestId: safeStr(p.requestId || p.traceId || "", 64),
-    turnId: safeStr(p.turnId || "", 64),
-    traceId: safeStr(p.traceId || p.requestId || "", 64),
-  });
-  return buildBridgeEnvelopeFromCog(cog);
-}
-
-async function query(payload = {}) { return resolve(payload); }
-async function respond(payload = {}) { return resolve(payload); }
-async function handle(payload = {}) { return resolve(payload); }
-function healthcheck() {
-  return {
-    ok: true,
-    source: "marionSO",
-    version: MARION_VERSION,
-    bridgeApiVersion: BRIDGE_API_VERSION,
-    exports: ["mediate", "resolve", "query", "respond", "handle"],
-  };
-}
-
 module.exports = {
   MARION_VERSION,
   SO_VERSION,
@@ -4085,6 +4149,10 @@ module.exports = {
   LANE_EXPERTS,
   LANES_AVAILABLE,
   computeLaneExpertRouting,
+  normalizeKnowledgeDomainKey,
+  coerceKnowledgeSections,
+  buildKnowledgeDomainSummary,
+  applyMarionRoleGuard,
 
   mediate,
 
