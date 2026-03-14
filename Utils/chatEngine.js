@@ -79,30 +79,16 @@ const buildUiForLane = typeof laneRouter?.buildUiForLane === "function"
   ? laneRouter.buildUiForLane
   : function fallbackBuildUiForLane() {
       return {
-        chips: [
-          { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
-          { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
-          { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
-          { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
-        ],
-        allowMic: true
+        chips: [],
+        allowMic: true,
+        mode: "quiet"
       };
     };
 
 const buildFollowUpsForLane = typeof laneRouter?.buildFollowUpsForLane === "function"
   ? laneRouter.buildFollowUpsForLane
-  : function fallbackBuildFollowUpsForLane(lane) {
-      const l = safeStr(lane || "general");
-      if (l === "music") {
-        return [
-          { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
-          { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
-        ];
-      }
-      return [
-        { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
-        { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
-      ];
+  : function fallbackBuildFollowUpsForLane() {
+      return [];
     };
 
 const buildMemoryContext = typeof memoryAdapter?.buildMemoryContext === "function"
@@ -127,7 +113,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.13.0 OPINTEL LOOP-FINAL";
+const CE_VERSION = "chatEngine v0.17.0 OPINTEL LOOP-HARDENED-STABLE";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
@@ -237,7 +223,10 @@ function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
   if (suppress) return { followUps: [], followUpsStrings: [], ui: quietUi(emo ? "supportive" : "direct"), menusSuppressed: true };
   const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
   const ui = isPlainObject(uiRaw) ? uiRaw : buildUiForLane(lane);
-  return { followUps, followUpsStrings: artifacts.followUpsStrings, ui, menusSuppressed: false };
+  const followUpsStrings = Array.isArray(followUps)
+    ? followUps.map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean)
+    : [];
+  return { followUps, followUpsStrings, ui, menusSuppressed: false };
 }
 
 async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId, turnId, publicMode) {
@@ -1383,6 +1372,26 @@ function makeInFlightReply(norm, emo) {
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
   return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
 }
+function makeStableFallbackReply(norm, emo, reason) {
+  const packet = buildSupportPacketSafe(norm, emo);
+  if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
+  if (isTechnicalExecutionInbound(norm)) {
+    return "I hit a backend interruption, but I can still continue. Send the exact technical step once and I will stay on that path without reopening menus.";
+  }
+  if (emo?.supportFlags?.needsStabilization || emo?.supportFlags?.needsConnection || emo?.fallbackSuppression || emo?.routeExhaustion) {
+    return "I am here with you. The backend hit a rough edge, but I am staying with this path. Send one next line and I will continue without bouncing you into a menu.";
+  }
+  return reason === "route_missing"
+    ? "I am here. Send the next thing you need in one line and I will stay with it."
+    : "I hit a backend interruption, but I am still here. Send one next line and I will continue without bouncing you into a menu.";
+}
+function shouldBypassLaneRouting(norm, emo, bridgePacket) {
+  if (isTechnicalExecutionInbound(norm)) return true;
+  if (emo?.bypassClarify || emo?.fallbackSuppression || emo?.routeExhaustion) return true;
+  if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization || emo?.supportFlags?.needsConnection) return true;
+  if (bridgePacket?.guardrails?.emotion?.supportLock || bridgePacket?.guardrails?.emotion?.suppressMenus) return true;
+  return false;
+}
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
   const body = isPlainObject(src.body) ? src.body : {};
@@ -1465,7 +1474,7 @@ function computeBridge(sessionLaneState, requestId) {
 function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
-  const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
+  const msg = makeStableFallbackReply(extra?.norm || src, extra?.emo || null, "terminal_error");
   return {
     ok: false,
     reply: msg,
@@ -1955,35 +1964,54 @@ async function handleChat(input) {
     const bridgeRouting = isPlainObject(bridgePacket?.routing) ? bridgePacket.routing : null;
     const bridgeShouldAnswer = !!(marionBridgeOut?.usedBridge && safeStr(bridgeSynthesis?.answer || ""));
 
+    const bypassLaneRouting = shouldBypassLaneRouting(norm, emo, bridgePacket);
     const routeOut = bridgeShouldAnswer
       ? {
           reply: safeStr(bridgeSynthesis.answer),
-          lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || (emo ? "general" : "general")) || "general",
+          lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || "general") || "general",
           directives: [],
           followUps: [],
           ui: quietUi(bridgeRouting?.domain === "psychology" ? "supportive" : "direct"),
           meta: {
             bridgeResolved: true,
             bridgeDomain: safeStr(bridgeRouting?.domain || "general"),
-            bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99)
+            bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
+            suppressMenus: true
           }
+        }
+      : bypassLaneRouting
+      ? {
+          reply: makeStableFallbackReply(norm, emo, "support_lock"),
+          lane: "general",
+          directives: [],
+          followUps: [],
+          ui: quietUi(emo ? "supportive" : "direct"),
+          meta: { bypassedLaneRouting: true, suppressMenus: true, supportLockBias: true }
         }
       : routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: "Tell me the exact thing you need help with and I will stay on that without bouncing you into a menu.",
+          reply: makeStableFallbackReply(norm, emo, "route_missing"),
           lane: safeStr(norm.lane || "general") || "general",
           directives: [],
-          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
-          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
-          meta: { failOpen: true, routeLaneMissing: true }
+          followUps: [],
+          ui: quietUi(emo ? "supportive" : "direct"),
+          meta: { failOpen: true, routeLaneMissing: true, suppressMenus: true }
         };
 
     let reply = safeStr(routeOut?.reply || "").trim();
     let lane = safeStr(routeOut?.lane || norm.lane || session.lane || "general") || "general";
     logChatDiag('route_selected', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), routeReplyHash: hashText(reply || ''), routeMeta: isPlainObject(routeOut?.meta) ? routeOut.meta : {} });
 
-    if (!reply) reply = "Tell me where you want to go and I will take it there.";
+    if (!reply) reply = makeStableFallbackReply(norm, emo, "empty_reply");
+    if (!bridgeShouldAnswer && shouldSuppressLaneArtifacts(norm, emo, routeOut)) {
+      reply = makeStableFallbackReply(norm, emo, "suppressed_lane_artifacts");
+      lane = "general";
+      if (!isPlainObject(routeOut.meta)) routeOut.meta = {};
+      routeOut.meta.suppressMenus = true;
+      routeOut.followUps = [];
+      routeOut.ui = quietUi(emo ? "supportive" : "direct");
+    }
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
@@ -2178,6 +2206,8 @@ async function handleChat(input) {
   } catch (err) {
     logChatDiag('turn_fail', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), error: safeStr(err && err.message ? err.message : err).slice(0, 180) });
     const failContract = failSafeContract(err, rawInput, {
+      norm,
+      emo,
       sessionPatch: mergeSessionPatches(
         lifecycle.patch,
         failTurnLifecycle(session, {
@@ -2186,7 +2216,7 @@ async function handleChat(input) {
           inSig,
           inboundKey,
           lane: safeStr(norm?.lane || "general") || "general",
-          reply: "Backend is stabilizing. Try again in a moment — or tap Reset."
+          reply: makeStableFallbackReply(norm, emo, "caught_error")
         })
       )
     });
