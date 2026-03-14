@@ -124,7 +124,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.12.1 OPINTEL RUNTIME-FIX";
+const CE_VERSION = "chatEngine v0.13.0 OPINTEL LOOP-FINAL";
 
 function nowMs() {
   return Date.now();
@@ -1137,6 +1137,20 @@ function buildSupportiveEmotionUi(emo) {
     mode: "supportive"
   };
 }
+function finalizeSpineSafe(params) {
+  try {
+    if (typeof Spine?.finalizeTurn === "function") {
+      return Spine.finalizeTurn(params);
+    }
+  } catch (_e) {}
+  const prev = isPlainObject(params?.prevState) ? params.prevState : { rev: 0 };
+  return {
+    ...prev,
+    rev: (Number.isFinite(prev.rev) ? prev.rev : 0) + 1,
+    lane: safeStr(params?.lane || prev.lane || "general") || "general"
+  };
+}
+
 function maybeBuildEmotionFirstReply(norm, emo) {
   if (!emo) return null;
   const text = safeStr(norm?.text || "").trim();
@@ -1491,8 +1505,21 @@ async function handleChat(input) {
       ? maybeBuildEmotionFirstReply(norm, emo)
       : null;
     if (emotionFirst && safeStr(emotionFirst.reply)) {
-      const lane = safeStr(norm.lane || "general") || "general";
+      let lane = safeStr(norm.lane || "general") || "general";
       logChatDiag('emotion_first_return', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), emotionMode: safeStr(emotionFirst.mode || ''), replyHash: hashText(emotionFirst.reply || '') });
+
+      const emotionLoopPatch = detectAndPatchLoop(session, lane, safeStr(emotionFirst.reply));
+      if (emotionLoopPatch.tripped) {
+        logChatDiag('emotion_first_loop_tripped', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), loopCount: emotionLoopPatch.n, replyHash: hashText(emotionFirst.reply || '') });
+        emotionFirst = {
+          ...emotionFirst,
+          reply: makeBreakerReply(norm, emo),
+          mode: "supportive",
+          directives: Array.isArray(emotionFirst.directives) ? emotionFirst.directives : []
+        };
+        lane = "general";
+      }
+
       const safeReply = applyPublicSanitization(
         scrubExecutionStyleArtifacts(softSpeak(emotionFirst.reply)),
         norm,
@@ -1500,9 +1527,48 @@ async function handleChat(input) {
         publicMode
       );
       const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
-      const followUps = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
+      const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
+      const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
       const ui = isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane);
+      const nextSpine = finalizeSpineSafe({
+        prevState: corePrev,
+        inbound: {
+          text: norm.text,
+          payload: norm.payload,
+          ctx: norm.ctx,
+          lane: norm.lane,
+          year: norm.year,
+          action: norm.action,
+          turnSignals: norm.turnSignals,
+          latencyMs: Math.max(0, nowMs() - started),
+          cog: {
+            intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
+            mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+            publicMode
+          }
+        },
+        lane,
+        topicOverride: "",
+        actionTaken: safeStr(norm.action || ""),
+        followUps,
+        pendingAsk: null,
+        decision: {
+          move: safeStr(plannerDecision?.move || (emo?.bypassClarify ? "ADVANCE" : "ADVANCE"), 20).toUpperCase(),
+          rationale: safeStr(plannerDecision?.rationale || (emo?.bypassClarify ? "emotion_bypass" : "emotion_first_turn"), 80),
+          speak: safeReply,
+          stage: safeStr(plannerDecision?.stage || "deliver", 20).toLowerCase(),
+          _plannerMode: safeStr(plannerDecision?._plannerMode || "emotion_first", 48)
+        },
+        marionCog: {
+          route: "emotion_route_guard",
+          intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
+          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
+          publicMode
+        },
+        assistantSummary: safeReply,
+        updateReason: "emotion_first"
+      });
 
       const emotionContract = {
         ok: true,
@@ -1547,13 +1613,25 @@ async function handleChat(input) {
       emotionContract.sessionPatch = mergeSessionPatches(
         lifecycle.patch,
         inboundRepeat.patch,
+        emotionLoopPatch.patch,
         {
           lane,
           publicMode,
           __lastInboundKey: inboundKey,
+          __memoryWindow: buildMemoryContext(sessionId || resolveSessionId(norm, session, inboundKey)) || {},
+          __spineState: nextSpine,
+          __conversationPhase: safeStr(nextSpine?.phase || "active"),
           __emotionMode: safeStr(emo?.mode || "NORMAL"),
           __emotionValence: safeStr(emo?.valence || "neutral"),
           __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
+          __emotionPrimary: safeStr(emo?.primaryEmotion || emo?.dominantEmotion || "neutral"),
+          __emotionSecondary: safeStr(emo?.secondaryEmotion || ""),
+          __emotionCluster: safeStr(emo?.emotionCluster || ""),
+          __emotionRouteBias: safeStr(emo?.routeBias || ""),
+          __emotionSupportMode: safeStr(emo?.supportModeCandidate || ""),
+          __emotionFallbackSuppression: !!emo?.fallbackSuppression,
+          __emotionNeedsNovelMove: !!emo?.needsNovelMove,
+          __emotionRouteExhaustion: !!emo?.routeExhaustion,
           __emotionAt: nowMs(),
           __cacheInSig: inSig,
           __cacheReply: safeReply,
@@ -1771,6 +1849,8 @@ async function handleChat(input) {
         },
         marionCog: {
           route: emo ? "emotion_route_guard" : "general",
+          intent: emo?.bypassClarify ? "STABILIZE" : safeStr(plannerDecision?.move || "ADVANCE", 20).toUpperCase(),
+          mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
           publicMode
         },
         assistantSummary: safeReply,
