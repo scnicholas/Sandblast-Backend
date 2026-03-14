@@ -18,7 +18,10 @@
  */
 'use strict';
 
-const BRIDGE_VERSION = '1.1.0-opintel';
+let EmotionRouteGuard = null;
+try { EmotionRouteGuard = require('./emotionRouteGuard'); } catch (_e) { EmotionRouteGuard = null; }
+
+const BRIDGE_VERSION = '1.2.0-opintel-emotion-coupled';
 
 const DEFAULT_PHASE_FLAGS = Object.freeze({
   phase10_domainRouting: true,
@@ -59,6 +62,53 @@ function uniqueStrings(arr) {
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').replace(/[^\S\r\n]+/g, ' ').trim();
+}
+
+function normalizeEmotionMeta(emotion) {
+  const e = emotion && typeof emotion === 'object' ? emotion : {};
+  const nuance = e.nuanceProfile && typeof e.nuanceProfile === 'object' ? e.nuanceProfile : {};
+  const plan = e.conversationPlan && typeof e.conversationPlan === 'object' ? e.conversationPlan : {};
+  return {
+    mode: String(e.mode || 'NORMAL'),
+    primaryEmotion: String(e.primaryEmotion || e.dominantEmotion || ''),
+    emotionCluster: String(e.emotionCluster || ''),
+    routeBias: String(e.routeBias || ''),
+    supportModeCandidate: String(e.supportModeCandidate || ''),
+    fallbackSuppression: !!e.fallbackSuppression,
+    needsNovelMove: !!e.needsNovelMove,
+    routeExhaustion: !!e.routeExhaustion,
+    supportFlags: e.supportFlags && typeof e.supportFlags === 'object' ? e.supportFlags : {},
+    nuanceProfile: {
+      archetype: String(nuance.archetype || 'clarify'),
+      conversationNeed: String(nuance.conversationNeed || 'clarify'),
+      transitionReadiness: String(nuance.transitionReadiness || 'medium'),
+      loopRisk: String(nuance.loopRisk || 'medium'),
+      questionPressure: String(nuance.questionPressure || 'medium'),
+      mirrorDepth: String(nuance.mirrorDepth || 'medium')
+    },
+    conversationPlan: {
+      shouldUseSupportLock: !!plan.shouldUseSupportLock,
+      shouldSuppressMenus: !!plan.shouldSuppressMenus,
+      shouldSuppressLaneRouting: !!plan.shouldSuppressLaneRouting,
+      askAllowed: plan.askAllowed === false ? false : true,
+      followupStyle: String(plan.followupStyle || 'reflective'),
+      recommendedDepth: String(plan.recommendedDepth || 'standard'),
+      primaryArchetype: String(plan.primaryArchetype || nuance.archetype || 'clarify'),
+      conversationNeed: String(plan.conversationNeed || nuance.conversationNeed || 'clarify'),
+      loopRisk: String(plan.loopRisk || nuance.loopRisk || 'medium'),
+      transitionReadiness: String(plan.transitionReadiness || nuance.transitionReadiness || 'medium'),
+      antiLoopShift: String(plan.antiLoopShift || nuance.antiLoopShift || '')
+    }
+  };
+}
+
+function analyzeEmotionFallback(text, priorState) {
+  try {
+    if (EmotionRouteGuard && typeof EmotionRouteGuard.analyzeEmotionRoute === 'function') {
+      return normalizeEmotionMeta(EmotionRouteGuard.analyzeEmotionRoute({ text }, priorState || {}));
+    }
+  } catch {}
+  return normalizeEmotionMeta(null);
 }
 
 function tokenize(text) {
@@ -158,14 +208,22 @@ function packetSkeleton() {
   };
 }
 
-function buildResponseMode({ intent, sentiment, domain }) {
-  const concise = intent === 'diagnostic' || intent === 'planning';
-  const warmth = sentiment === 'distressed' ? 'high' : 'moderate';
+function buildResponseMode({ intent, sentiment, domain, emotion }) {
+  const emo = normalizeEmotionMeta(emotion);
+  const concise = intent === 'diagnostic' || intent === 'planning' || emo.conversationPlan.shouldSuppressMenus;
+  const warmth = sentiment === 'distressed' || emo.supportFlags.needsConnection ? 'high' : 'moderate';
   const style = domain === 'finance' ? 'analytical'
     : domain === 'law' ? 'careful'
     : domain === 'psychology' || domain === 'support' ? 'supportive'
     : 'clear';
-  return { concise, warmth, style };
+  return {
+    concise,
+    warmth,
+    style,
+    questionPressure: emo.nuanceProfile.questionPressure || 'medium',
+    followupStyle: emo.conversationPlan.followupStyle || 'reflective',
+    supportLock: !!emo.conversationPlan.shouldUseSupportLock
+  };
 }
 
 function normalizeEvidenceItems(items) {
@@ -238,10 +296,14 @@ function defaultSynthesize({ domain, intent, evidence, responseMode, marionResul
   };
 }
 
-function shouldInvokeMarion({ text, intent, domain, sentiment }) {
+function shouldInvokeMarion({ text, intent, domain, sentiment, emotion }) {
   const t = String(text || '').toLowerCase();
+  const emo = normalizeEmotionMeta(emotion);
   if (!t) return false;
-  if (domain === 'general' && intent === 'general') return false;
+  if (emo.supportFlags.crisis) return false;
+  if (emo.routeExhaustion || emo.needsNovelMove || emo.fallbackSuppression) return true;
+  if (emo.conversationPlan.shouldUseSupportLock) return true;
+  if (domain === 'general' && intent === 'general' && emo.mode === 'NORMAL') return false;
   if (domain === 'support' || domain === 'psychology') return true;
   if (['law', 'finance', 'ai_cyber', 'language', 'marketing_media'].includes(domain)) return true;
   if (['planning', 'qa', 'guidance', 'composition', 'diagnostic'].includes(intent)) return true;
@@ -305,9 +367,12 @@ function createMarionBridge(config = {}) {
     const rawText = normalizeText(request.userText).slice(0, maxInputChars);
     const tokens = tokenize(rawText);
     const intent = inferIntent(rawText);
-    const sentiment = sentimentHint(rawText);
+    const incomingEmotion = normalizeEmotionMeta(request.meta && request.meta.emotion);
+    const inferredEmotion = incomingEmotion.primaryEmotion ? incomingEmotion : analyzeEmotionFallback(rawText, request.meta && request.meta.priorState);
+    let sentiment = sentimentHint(rawText);
+    if (inferredEmotion.mode === 'VULNERABLE' || inferredEmotion.supportFlags.highDistress) sentiment = 'distressed';
     const domainResult = scoreDomain(tokens, rawText, domainKeywords);
-    const responseMode = buildResponseMode({ intent, sentiment, domain: domainResult.primary });
+    const responseMode = buildResponseMode({ intent, sentiment, domain: domainResult.primary, emotion: inferredEmotion });
     return {
       text: rawText,
       tokens,
@@ -316,7 +381,8 @@ function createMarionBridge(config = {}) {
       domain: domainResult.primary,
       candidates: domainResult.candidates,
       responseMode,
-      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent, domain: domainResult.primary, sentiment }),
+      emotion: inferredEmotion,
+      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent, domain: domainResult.primary, sentiment, emotion: inferredEmotion }),
     };
   }
 
@@ -331,7 +397,7 @@ function createMarionBridge(config = {}) {
     const traceId = buildTraceId({ sessionId, turnId, text: rawText });
 
     packet.traceId = traceId;
-    packet.input = { text: rawText, sessionId, userId, turnId, meta };
+    packet.input = { text: rawText, sessionId, userId, turnId, meta, emotion: classification.emotion };
 
     if (!rawText) {
       packet.ok = false;
@@ -340,7 +406,7 @@ function createMarionBridge(config = {}) {
       return packet;
     }
 
-    const loopSignature = hashLite(`${sessionId}|${rawText.toLowerCase()}`);
+    const loopSignature = hashLite(`${sessionId}|${rawText.toLowerCase()}|${classification.emotion.primaryEmotion}|${classification.emotion.nuanceProfile.archetype}`);
     const loop = phases.phase13_loopResistance ? loopGuard.check(loopSignature) : { count: 1, tripped: false };
 
     let domainResult = { primary: classification.domain, candidates: classification.candidates };
@@ -362,7 +428,7 @@ function createMarionBridge(config = {}) {
     }
 
     const primaryDomain = domainResult.primary;
-    const responseMode = buildResponseMode({ intent: classification.intent, sentiment: classification.sentiment, domain: primaryDomain });
+    const responseMode = buildResponseMode({ intent: classification.intent, sentiment: classification.sentiment, domain: primaryDomain, emotion: classification.emotion });
 
     packet.routing = {
       intent: classification.intent,
@@ -370,7 +436,8 @@ function createMarionBridge(config = {}) {
       domain: primaryDomain,
       candidates: domainResult.candidates,
       responseMode,
-      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent: classification.intent, domain: primaryDomain, sentiment: classification.sentiment }),
+      shouldUseMarion: shouldInvokeMarion({ text: rawText, intent: classification.intent, domain: primaryDomain, sentiment: classification.sentiment, emotion: classification.emotion }),
+      emotion: classification.emotion,
     };
 
     const memoryContext = phases.phase11_memoryLift ? await getMemory({
@@ -378,6 +445,8 @@ function createMarionBridge(config = {}) {
     }) : null;
 
     const memoryHints = uniqueStrings([
+      classification.emotion.primaryEmotion,
+      classification.emotion.nuanceProfile.archetype,
       memoryContext && memoryContext.lastIntent,
       memoryContext && memoryContext.lastDomain,
       ...(memoryContext && Array.isArray(memoryContext.openLoops) ? memoryContext.openLoops : []),
@@ -415,6 +484,13 @@ function createMarionBridge(config = {}) {
     };
 
     packet.guardrails.loopGuard = loop.tripped ? { active: true, count: loop.count, action: 'deepen_or_redirect' } : { active: false, count: loop.count, action: 'none' };
+    packet.guardrails.emotion = {
+      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
+      suppressMenus: !!classification.emotion.conversationPlan.shouldSuppressMenus,
+      loopRisk: classification.emotion.nuanceProfile.loopRisk,
+      archetype: classification.emotion.nuanceProfile.archetype,
+      conversationNeed: classification.emotion.nuanceProfile.conversationNeed
+    };
     if (loop.tripped) packet.routing.responseMode.concise = true;
 
     let marionResult = null;
@@ -426,6 +502,7 @@ function createMarionBridge(config = {}) {
         routing: packet.routing,
         memory: packet.memory,
         evidence: rankedEvidence,
+        emotion: classification.emotion,
         loopGuard: packet.guardrails.loopGuard,
       });
       if (!marionResult && marionSO && !marionMethod) packet.errors.push('marion_method_unresolved');
@@ -436,6 +513,9 @@ function createMarionBridge(config = {}) {
       available: !!marionSO,
       method: marionMethod || null,
       answered: !!(marionResult && marionResult.answer),
+      emotionAware: !!classification.emotion.primaryEmotion,
+      archetype: classification.emotion.nuanceProfile.archetype,
+      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
     };
 
     let synthesis = null;
@@ -449,6 +529,7 @@ function createMarionBridge(config = {}) {
           memory: packet.memory,
           evidence: rankedEvidence,
           responseMode,
+          emotion: classification.emotion,
           loopGuard: packet.guardrails.loopGuard,
           traceId,
           marion: marionResult,
@@ -465,6 +546,9 @@ function createMarionBridge(config = {}) {
     packet.diagnostics = {
       confidence: Number(synthesis.confidence || 0),
       usedFallback: synthesis.mode === 'fail-open' || synthesis.nextAction === 'fallback_synthesis',
+      emotionPrimary: classification.emotion.primaryEmotion || null,
+      emotionArchetype: classification.emotion.nuanceProfile.archetype || null,
+      supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
       evidenceThin: rankedEvidence.length < 2,
       traceReady: phases.phase15_traceability,
     };
