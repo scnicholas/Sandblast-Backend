@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.4.0 EMOTION-XOVER";
+const VERSION = "supportResponse v1.5.0 EMOTION-XOVER LOOP-HARDEN";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -860,7 +860,9 @@ function buildSupportiveResponse(input = {}, config = {}) {
       ? "I hear the strain in this. We will keep it technical, direct, and free of extra support layering."
       : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
   } catch (_err) {
-    return "I hear you. We can keep this simple and steady. What feels most important right now?";
+    return looksTechnicalRequest(safeStr(input && input.userText || ""))
+      ? "I hear the strain in this. We will keep it technical, direct, and free of extra support layering."
+      : "I hear you. We can keep this simple and steady. What feels most important right now?";
   }
 }
 
