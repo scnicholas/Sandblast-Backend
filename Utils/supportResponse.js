@@ -86,6 +86,48 @@ function lower(v) {
   return safeStr(v).toLowerCase();
 }
 
+function normalizeNuanceProfile(nuance) {
+  const n = isPlainObject(nuance) ? nuance : {};
+  const uniqSafe = (arr, fallback = []) => uniq(Array.isArray(arr) ? arr : fallback);
+  return {
+    arousal: safeStr(n.arousal || 'medium').toLowerCase(),
+    socialDirection: safeStr(n.socialDirection || 'mixed').toLowerCase(),
+    timeOrientation: safeStr(n.timeOrientation || 'present').toLowerCase(),
+    controlState: safeStr(n.controlState || 'uncertain').toLowerCase(),
+    conversationNeed: safeStr(n.conversationNeed || 'clarify').toLowerCase(),
+    followupStyle: safeStr(n.followupStyle || 'reflective').toLowerCase(),
+    transitionReadiness: safeStr(n.transitionReadiness || 'medium').toLowerCase(),
+    loopRisk: safeStr(n.loopRisk || 'medium').toLowerCase(),
+    archetype: safeStr(n.archetype || 'clarify').toLowerCase(),
+    fallbackArchetype: safeStr(n.fallbackArchetype || 'ground').toLowerCase(),
+    questionPressure: safeStr(n.questionPressure || 'medium').toLowerCase(),
+    mirrorDepth: safeStr(n.mirrorDepth || 'medium').toLowerCase(),
+    transitionTargets: uniqSafe(n.transitionTargets, ['clarify']),
+    antiLoopShift: safeStr(n.antiLoopShift || 'shift_to_grounding_after_two_similar_turns').toLowerCase()
+  };
+}
+
+function normalizeConversationPlan(plan) {
+  const p = isPlainObject(plan) ? plan : {};
+  return {
+    primaryArchetype: safeStr(p.primaryArchetype || '').toLowerCase(),
+    fallbackArchetype: safeStr(p.fallbackArchetype || '').toLowerCase(),
+    askAllowed: p.askAllowed === false ? false : true,
+    questionStyle: safeStr(p.questionStyle || '').toLowerCase(),
+    questionPressure: safeStr(p.questionPressure || '').toLowerCase(),
+    mirrorDepth: safeStr(p.mirrorDepth || '').toLowerCase(),
+    shouldSuppressMenus: !!p.shouldSuppressMenus,
+    shouldPreferReflection: !!p.shouldPreferReflection,
+    shouldDelaySolutioning: !!p.shouldDelaySolutioning,
+    recommendedDepth: safeStr(p.recommendedDepth || '').toLowerCase(),
+    antiLoopShift: safeStr(p.antiLoopShift || '').toLowerCase(),
+    transitionTargets: uniq(p.transitionTargets),
+    conversationNeed: safeStr(p.conversationNeed || '').toLowerCase(),
+    followupStyle: safeStr(p.followupStyle || '').toLowerCase(),
+    allowsActionShift: !!p.allowsActionShift
+  };
+}
+
 function emotionAny(emo, list) {
   const set = new Set((Array.isArray(list) ? list : []).map((x) => lower(x)));
   const vals = [
@@ -168,13 +210,31 @@ function shouldSupportLock(emo, userText, cfg) {
 function buildConversationLayerMeta(emo, userText, cfg) {
   const technical = looksTechnicalRequest(userText);
   const supportLock = shouldSupportLock(emo, userText, cfg);
+  const plan = normalizeConversationPlan(emo.conversationPlan);
+  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
+  const recommendedTurns = nuance.transitionReadiness === "low"
+    ? Math.max(2, clampInt(cfg.supportLockTurns, 2, 1, 4))
+    : clampInt(cfg.supportLockTurns, 2, 1, 4);
+
   return {
     supportLock,
-    supportLockTurns: supportLock ? clampInt(cfg.supportLockTurns, 2, 1, 4) : 0,
-    suppressChips: technical ? !!cfg.suppressChipsOnTechnical : (supportLock ? !!cfg.suppressChipsOnSupport : false),
-    suppressLaneRouting: supportLock,
-    followupStyle: technical ? "none" : (supportLock ? "supportive" : "default"),
-    conversationDepth: technical ? "technical" : (supportLock ? "deep_support" : "standard")
+    supportLockTurns: supportLock ? recommendedTurns : 0,
+    suppressChips: technical
+      ? !!cfg.suppressChipsOnTechnical
+      : (supportLock ? true : !!plan.shouldSuppressMenus || !!cfg.suppressChipsOnSupport),
+    suppressLaneRouting: technical ? !!cfg.suppressChipsOnTechnical : (supportLock || !!plan.shouldSuppressMenus),
+    followupStyle: technical
+      ? "none"
+      : safeStr(plan.followupStyle || nuance.followupStyle || (supportLock ? "supportive" : "default"), 40) || "default",
+    conversationDepth: technical
+      ? "technical"
+      : safeStr(plan.recommendedDepth || (supportLock ? "deep_support" : "standard"), 40) || "standard",
+    askAllowed: technical ? false : !!plan.askAllowed && !emo.supportFlags.delayQuestions && nuance.questionPressure !== "none",
+    questionPressure: safeStr(plan.questionPressure || nuance.questionPressure || "medium", 20) || "medium",
+    archetype: safeStr(plan.primaryArchetype || nuance.archetype || "clarify", 40) || "clarify",
+    conversationNeed: safeStr(plan.conversationNeed || nuance.conversationNeed || "clarify", 40) || "clarify",
+    antiLoopShift: safeStr(plan.antiLoopShift || nuance.antiLoopShift || "", 80),
+    transitionTargets: uniq(plan.transitionTargets && plan.transitionTargets.length ? plan.transitionTargets : nuance.transitionTargets)
   };
 }
 
@@ -206,6 +266,8 @@ function normalizeEmotionPayload(emo) {
   const distressReinforcements = uniq(e.distressReinforcements);
   const positiveReinforcements = uniq(e.positiveReinforcements);
   const recoverySignals = uniq(e.recoverySignals);
+  const nuanceProfile = normalizeNuanceProfile(e.nuanceProfile || e.nuance || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.nuanceProfile);
+  const conversationPlan = normalizeConversationPlan(e.conversationPlan || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.conversationPlan);
 
   const primaryEmotion = safeStr(e.primaryEmotion || e.dominantEmotion || "neutral").toLowerCase();
   const secondaryEmotion = safeStr(e.secondaryEmotion || "").toLowerCase();
@@ -261,6 +323,10 @@ function normalizeEmotionPayload(emo) {
       needsContainment: !!supportFlags.needsContainment,
       needsConnection: !!supportFlags.needsConnection,
       needsForwardMotion: !!supportFlags.needsForwardMotion,
+      needsWitnessing: !!supportFlags.needsWitnessing,
+      needsRepair: !!supportFlags.needsRepair,
+      delayQuestions: !!supportFlags.delayQuestions,
+      shouldSuppressMenus: !!supportFlags.shouldSuppressMenus,
       mentionsLooping: !!supportFlags.mentionsLooping
     },
     disclaimers: {
@@ -282,6 +348,8 @@ function normalizeEmotionPayload(emo) {
       concise: safeStr(summary.concise || ""),
       narrative: safeStr(summary.narrative || "")
     },
+    nuanceProfile,
+    conversationPlan,
     tags,
     routeHints,
     responseHints,
@@ -311,6 +379,8 @@ function buildReflectiveLead(emo, seed) {
   const dom = emo.primaryEmotion || emo.dominantEmotion;
   const val = emo.valence;
   const intense = emo.intensity >= 75;
+  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
+  const plan = normalizeConversationPlan(emo.conversationPlan);
 
   if (emo.supportFlags.crisis) {
     return pick([
@@ -410,6 +480,30 @@ function buildReflectiveLead(emo, seed) {
       "That sounds like your mind is trying to orient and understand.",
       "I can hear the pull to explore this a bit further."
     ], `${seed}|lead|curious`);
+  }
+
+  if (nuance.conversationNeed === "witness" || plan.shouldPreferReflection) {
+    return pick([
+      "I want to stay with the feeling before we try to tidy it up.",
+      "This sounds like something that needs to be witnessed, not rushed past.",
+      "There is more to hold here than to fix immediately."
+    ], `${seed}|lead|witness`);
+  }
+
+  if (nuance.conversationNeed === "repair") {
+    return pick([
+      "There is pain here, but also a part of you trying to make sense of it without becoming the villain in your own story.",
+      "This feels like a moment that needs care, not self-punishment.",
+      "I can hear both the hurt and the urge to repair something important."
+    ], `${seed}|lead|repair`);
+  }
+
+  if (nuance.conversationNeed === "boundary") {
+    return pick([
+      "Your system sounds like it is trying to protect a line that got crossed.",
+      "This feels like a boundary response, not random intensity.",
+      "I can hear that something in this is asking for distance or containment."
+    ], `${seed}|lead|boundary`);
   }
 
   if (val === "positive") {
@@ -599,7 +693,9 @@ function buildMicroStep(emo, cfg, seed) {
   const maxSteps = clampInt(cfg.maxMicroSteps, 1, 0, 2);
   if (maxSteps <= 0) return "";
 
-  const pool = emo.supportFlags.crisis || emo.valence === "negative" || emo.valence === "critical_negative"
+  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
+  const plan = normalizeConversationPlan(emo.conversationPlan);
+  let pool = emo.supportFlags.crisis || emo.valence === "negative" || emo.valence === "critical_negative"
     ? mapDistressMicroSteps(emo)
     : emo.valence === "positive"
       ? mapPositiveMicroSteps(emo)
@@ -607,12 +703,55 @@ function buildMicroStep(emo, cfg, seed) {
           "What is the smallest clean next step you can take from here?"
         ];
 
+  if (plan.shouldDelaySolutioning || nuance.transitionReadiness === "low" || nuance.followupStyle === "reflective") {
+    pool = [
+      "We do not need a full solution yet — let us just stay with the clearest part of what is happening.",
+      "For this turn, we can keep it to one honest layer instead of forcing a fix.",
+      "Let us hold the signal steady before we ask it to become a plan."
+    ].concat(pool);
+  }
+
+  if (nuance.conversationNeed === "repair") {
+    pool = [
+      "Let us separate repair from self-attack and find the smallest honest correction.",
+      "Name the part that needs care first, then decide what needs repair after that."
+    ].concat(pool);
+  }
+
+  if (nuance.conversationNeed === "boundary") {
+    pool = [
+      "Reduce exposure first — figure out what needs distance, not just what needs explanation.",
+      "Pin down the line that got crossed so your next move comes from clarity, not just heat."
+    ].concat(pool);
+  }
+
+  if (emo.needsNovelMove || emo.routeExhaustion || nuance.loopRisk === "high") {
+    pool = [
+      "We are not going to recycle the same emotional loop — let us shift the angle and work the next clean layer.",
+      safeStr(plan.antiLoopShift || nuance.antiLoopShift || "Shift the pattern before asking for more explanation.")
+        .replace(/_/g, " ")
+    ].concat(pool);
+  }
+
   return pickN(pool, `${seed}|micro`, maxSteps).join(" ");
 }
 
 function buildQuestion(emo, cfg, seed) {
   const maxQuestions = clampInt(cfg.maxQuestionCount, 1, 0, 1);
   if (maxQuestions <= 0) return "";
+
+  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
+  const plan = normalizeConversationPlan(emo.conversationPlan);
+  if (plan.askAllowed === false || emo.supportFlags.delayQuestions || nuance.questionPressure === "none") return "";
+
+  if (nuance.questionPressure === "low" && (plan.shouldDelaySolutioning || nuance.transitionReadiness === "low")) {
+    const gentle = pick([
+      "Do you want me to stay with the feeling a little longer, or help you name the most important part of it?",
+      "What part of this feels safest to put words around right now?",
+      "Would it help more to stay with the emotion, or to narrow one piece of it?"
+    ], `${seed}|q|gentle`);
+    return gentle;
+  }
 
   if (emo.supportFlags.crisis) {
     return pick([
@@ -660,6 +799,22 @@ function buildQuestion(emo, cfg, seed) {
       "What part of this feels most unfair?",
       "What is the real injury underneath the anger?"
     ], `${seed}|q|anger`);
+  }
+
+  if (nuance.conversationNeed === "repair") {
+    return pick([
+      "What feels most repairable here without attacking yourself?",
+      "What part needs accountability, and what part just needs care?",
+      "Where do you want to begin separating regret from self-erasure?"
+    ], `${seed}|q|repair`);
+  }
+
+  if (nuance.conversationNeed === "boundary") {
+    return pick([
+      "What boundary feels most important here?",
+      "What part of this needs distance or containment first?",
+      "Where did the line get crossed for you?"
+    ], `${seed}|q|boundary`);
   }
 
   if (emo.valence === "positive") {
@@ -875,9 +1030,13 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
     parts.push(buildMicroStep(emo, cfg, seed));
 
-    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical;
+    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical && !!layering.askAllowed;
     if (shouldAsk) {
       parts.push(buildQuestion(emo, cfg, seed));
+    }
+
+    if (emo.needsNovelMove || emo.routeExhaustion || emo.supportFlags.mentionsLooping) {
+      parts.push('I am going to shift the pattern here so this does not collapse into the same loop again.');
     }
 
     let out = joinSentences(parts);
@@ -947,7 +1106,15 @@ function buildSupportPacket(input = {}, config = {}) {
       suppressChips: !!layering.suppressChips,
       suppressLaneRouting: !!layering.suppressLaneRouting,
       followupStyle: layering.followupStyle,
-      conversationDepth: layering.conversationDepth
+      conversationDepth: layering.conversationDepth,
+      askAllowed: !!layering.askAllowed,
+      questionPressure: layering.questionPressure,
+      archetype: layering.archetype,
+      conversationNeed: layering.conversationNeed,
+      antiLoopShift: layering.antiLoopShift,
+      transitionTargets: layering.transitionTargets,
+      nuanceProfile: emo.nuanceProfile,
+      conversationPlan: emo.conversationPlan
     }
   };
 }
