@@ -1423,6 +1423,19 @@ async function handleChat(input) {
       };
     }
 
+    const corePrev = typeof Spine?.coerceState === "function"
+      ? Spine.coerceState(
+          session.__spineState ||
+          session.spineState ||
+          session.state ||
+          (typeof Spine?.createState === "function"
+            ? Spine.createState({ lane: safeStr(norm.lane || session.lane || "general") || "general" })
+            : { rev: 0, lane: safeStr(norm.lane || session.lane || "general") || "general", stage: "open" })
+        )
+      : (isPlainObject(session.__spineState)
+          ? session.__spineState
+          : { rev: 0, lane: safeStr(norm.lane || session.lane || "general") || "general", stage: "open" });
+
     const inboundRepeat = detectInboundRepeat(session, inSig);
     logChatDiag('inbound_repeat_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), inboundRepeatN: inboundRepeat.n, inboundRepeatTripped: !!inboundRepeat.tripped, inboundFastReturn: !!inboundRepeat.canFastReturn });
 
