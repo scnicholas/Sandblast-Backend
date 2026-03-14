@@ -79,30 +79,16 @@ const buildUiForLane = typeof laneRouter?.buildUiForLane === "function"
   ? laneRouter.buildUiForLane
   : function fallbackBuildUiForLane() {
       return {
-        chips: [
-          { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
-          { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
-          { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
-          { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
-        ],
-        allowMic: true
+        chips: [],
+        allowMic: true,
+        mode: "quiet"
       };
     };
 
 const buildFollowUpsForLane = typeof laneRouter?.buildFollowUpsForLane === "function"
   ? laneRouter.buildFollowUpsForLane
-  : function fallbackBuildFollowUpsForLane(lane) {
-      const l = safeStr(lane || "general");
-      if (l === "music") {
-        return [
-          { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
-          { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
-        ];
-      }
-      return [
-        { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
-        { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
-      ];
+  : function fallbackBuildFollowUpsForLane() {
+      return [];
     };
 
 const buildMemoryContext = typeof memoryAdapter?.buildMemoryContext === "function"
@@ -127,7 +113,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.17.0 PRESENTATION-AWARE LOOP-HARDEN";
+const CE_VERSION = "chatEngine v0.18.0 BACKEND-STABILITY HARDEN";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
@@ -224,8 +210,10 @@ function shouldSuppressLaneArtifacts(norm, emo, routeOut) {
   if (emo?.bypassClarify || emo?.fallbackSuppression || emo?.routeExhaustion || emo?.supportFlags?.mentionsLooping) return true;
   if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization) return true;
   if (emo?.conversationPlan?.shouldSuppressMenus || emo?.nuanceProfile?.supportLockBias === "strong") return true;
+  if (safeStr(norm?.ctx?.supportLockMode || norm?.ctx?.supportLock || "").toLowerCase() === "active") return true;
+  if (safeStr(norm?.ctx?.conversationMode || "").toLowerCase() === "support") return true;
   const routeReply = safeStr(routeOut?.reply || "");
-  if (/pick a lane|take it there|exact target|go to music|go to movies|menu/i.test(routeReply)) return true;
+  if (/pick a lane|take it there|exact target|go to music|go to movies|menu|tap reset/i.test(routeReply)) return true;
   return false;
 }
 
@@ -1524,12 +1512,12 @@ function makeBreakerReply(norm, emo) {
   if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
     return safeStr(packet.reply);
   }
-  return "Loop detected — I am seeing the same request repeating. To break it, send one fresh input only or pick a single lane. Options: just talk, ideas, step-by-step plan, or switch lane.";
+  return "I am seeing repetition, so I am slowing this down and keeping it steady. Give me one fresh sentence and I will stay with it without reopening menus.";
 }
 function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
-  return "I am already processing that exact turn. Do not resend it. Send one fresh input when this pass completes.";
+  return "I am already processing that exact turn. Hold steady for a moment, then send one fresh sentence only if you still need to.";
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1613,7 +1601,7 @@ function computeBridge(sessionLaneState, requestId) {
 function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
-  const msg = "Backend is stabilizing. Try again in a moment — or tap Reset.";
+  const msg = "I am keeping this steady while the backend recovers. No menu bounce, no lane shift.";
   return {
     ok: false,
     reply: msg,
@@ -1640,7 +1628,7 @@ function failSafeContract(err, input, extra) {
       }
     },
     requestId,
-    meta: { v: CE_VERSION, failSafe: true, t: nowMs(), phase: 15 }
+    meta: { v: CE_VERSION, failSafe: true, degradedSupport: true, suppressMenus: true, supportCompatible: true, t: nowMs(), phase: 15 }
   };
 }
 
@@ -2070,7 +2058,7 @@ async function handleChat(input) {
         sessionLane: lane,
         bridge: null,
         ctx: {},
-        ui: buildUiForLane(lane),
+        ui: artifacts.ui,
         directives: [],
         followUps,
         followUpsStrings: artifacts.followUpsStrings,
@@ -2089,7 +2077,7 @@ async function handleChat(input) {
           __greeted: true,
           __lastInboundKey: inboundKey,
           __cacheInSig: inSig,
-          __cacheReply: reply,
+          __cacheReply: applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(reply)), norm, session, publicMode),
           __cacheLane: lane,
           __cacheFollowUps: followUps,
           __cacheDirectives: [],
@@ -2132,13 +2120,13 @@ async function handleChat(input) {
       ? routeLane(norm, session, emo)
       : {
           reply: isPlainObject(emo) && safeStr(emo.valence).toLowerCase() === "positive"
-            ? "I hear the positive signal in that. I can stay with it, reflect it, or help you build on it."
+            ? "I hear the positive signal in that, and I can stay with it without flattening this into a menu."
             : "I am here with you. We can keep this simple and steady without dropping you into a menu.",
-          lane: safeStr(norm.lane || "general") || "general",
+          lane: "general",
           directives: [],
-          followUps: buildFollowUpsForLane(safeStr(norm.lane || "general") || "general"),
-          ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
-          meta: { failOpen: true, routeLaneMissing: true }
+          followUps: [],
+          ui: quietUi(emo ? "supportive" : "direct"),
+          meta: { failOpen: true, routeLaneMissing: true, supportCompatible: true, suppressMenus: true }
         };
 
     let reply = safeStr(routeOut?.reply || "").trim();
