@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.5.0 EMOTION-XOVER LOOP-HARDEN";
+const VERSION = "supportResponse v1.6.0 EMOTION-XOVER LOOP-HARDEN SUPPORT-LOCK";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -48,6 +48,9 @@ const DEFAULT_CONFIG = {
   keepCrisisShort: true,
   suppressQuestionOnTechnical: true,
   suppressQuestionOnRecovery: true,
+  supportLockTurns: 2,
+  suppressChipsOnSupport: true,
+  suppressChipsOnTechnical: true,
   debug: false
 };
 
@@ -146,6 +149,33 @@ function looksTechnicalRequest(text) {
   const s = safeStr(text).toLowerCase();
   if (!s) return false;
   return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend)/.test(s);
+}
+
+function shouldSupportLock(emo, userText, cfg) {
+  const technical = looksTechnicalRequest(userText);
+  if (technical) return false;
+  if (!emo || !isPlainObject(emo)) return false;
+  if (emo.supportFlags.crisis) return true;
+  if (emo.supportFlags.highDistress) return true;
+  if (emo.bypassClarify) return true;
+  if (emo.fallbackSuppression || emo.needsNovelMove || emo.routeExhaustion) return true;
+  if (emo.valence === "negative" || emo.valence === "mixed") return true;
+  if (emo.supportFlags.needsGentlePacing || emo.supportFlags.needsContainment || emo.supportFlags.needsConnection) return true;
+  if (emotionAny(emo, ["sadness", "grief", "hurt", "loneliness", "lonely", "isolation", "despair", "helplessness", "anxiety", "fear", "shame"])) return true;
+  return !!cfg.supportLockTurns;
+}
+
+function buildConversationLayerMeta(emo, userText, cfg) {
+  const technical = looksTechnicalRequest(userText);
+  const supportLock = shouldSupportLock(emo, userText, cfg);
+  return {
+    supportLock,
+    supportLockTurns: supportLock ? clampInt(cfg.supportLockTurns, 2, 1, 4) : 0,
+    suppressChips: technical ? !!cfg.suppressChipsOnTechnical : (supportLock ? !!cfg.suppressChipsOnSupport : false),
+    suppressLaneRouting: supportLock,
+    followupStyle: technical ? "none" : (supportLock ? "supportive" : "default"),
+    conversationDepth: technical ? "technical" : (supportLock ? "deep_support" : "standard")
+  };
 }
 
 function stripTerminalQuestion(text) {
@@ -880,10 +910,18 @@ function buildSupportPacket(input = {}, config = {}) {
       meta: {
         crisis: true,
         dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
-        valence: emo.valence
+        valence: emo.valence,
+        supportLock: true,
+        supportLockTurns: Math.max(2, clampInt(cfg.supportLockTurns, 2, 1, 4)),
+        suppressChips: true,
+        suppressLaneRouting: true,
+        followupStyle: "supportive",
+        conversationDepth: "crisis_support"
       }
     };
   }
+
+  const layering = buildConversationLayerMeta(emo, input.userText || "", cfg);
 
   return {
     ok: true,
@@ -903,7 +941,13 @@ function buildSupportPacket(input = {}, config = {}) {
       supportModeCandidate: emo.supportModeCandidate,
       fallbackSuppression: !!emo.fallbackSuppression,
       needsNovelMove: !!emo.needsNovelMove,
-      routeExhaustion: !!emo.routeExhaustion
+      routeExhaustion: !!emo.routeExhaustion,
+      supportLock: !!layering.supportLock,
+      supportLockTurns: layering.supportLockTurns,
+      suppressChips: !!layering.suppressChips,
+      suppressLaneRouting: !!layering.suppressLaneRouting,
+      followupStyle: layering.followupStyle,
+      conversationDepth: layering.conversationDepth
     }
   };
 }
