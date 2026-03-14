@@ -21,7 +21,7 @@
 let EmotionRouteGuard = null;
 try { EmotionRouteGuard = require('./emotionRouteGuard'); } catch (_e) { EmotionRouteGuard = null; }
 
-const BRIDGE_VERSION = '1.2.0-opintel-emotion-coupled';
+const BRIDGE_VERSION = '1.3.0-opintel-emotion-coupled-loop-hardened';
 
 const DEFAULT_PHASE_FLAGS = Object.freeze({
   phase10_domainRouting: true,
@@ -170,6 +170,23 @@ function scoreDomain(tokens, text, keywordsByDomain) {
   return { primary: top.score > 0 ? top.domain : 'general', candidates: scored.filter(x => x.score > 0).slice(0, 3) };
 }
 
+function choosePreferredDomain(domainResult, emotion, requestMeta) {
+  const result = domainResult && typeof domainResult === 'object' ? domainResult : { primary: 'general', candidates: [] };
+  const emo = normalizeEmotionMeta(emotion);
+  const knowledgeSections = requestMeta && requestMeta.knowledgeSections && typeof requestMeta.knowledgeSections === 'object'
+    ? requestMeta.knowledgeSections
+    : {};
+  const hasPsych = Array.isArray(knowledgeSections.psychology) && knowledgeSections.psychology.length > 0;
+  const distressed = emo.mode === 'VULNERABLE' || emo.supportFlags.highDistress || emo.supportFlags.needsConnection || emo.conversationPlan.shouldUseSupportLock;
+  if (distressed && (hasPsych || result.primary === 'general' || result.primary === 'support')) {
+    const candidates = uniqueStrings(['psychology', ...(Array.isArray(result.candidates) ? result.candidates.map((x) => x.domain || x) : [])])
+      .slice(0, 3)
+      .map((x) => typeof x === 'string' ? { domain: x, score: x === 'psychology' ? 999 : 1 } : x);
+    return { primary: 'psychology', candidates };
+  }
+  return result;
+}
+
 function inferIntent(text) {
   const t = String(text || '').toLowerCase();
   if (!t) return 'empty';
@@ -262,17 +279,27 @@ function rankEvidence({ items, domain, intent, memoryHints }) {
   return deduped;
 }
 
-function buildFallbackAnswer({ domain, intent }) {
+function buildFallbackAnswer({ domain, intent, emotion, evidenceThin = true }) {
+  const emo = normalizeEmotionMeta(emotion);
+  const supportive = emo.conversationPlan.shouldUseSupportLock || emo.supportFlags.highDistress || emo.supportFlags.needsConnection || domain === 'psychology';
+  const answer = supportive
+    ? 'I am here with you. I do not need to reopen menus or push you into another lane. Stay on this thread and give me the next line you want me to work with.'
+    : `I can keep working on this directly. The Marion knowledge path is thin right now, so I will stay with the clearest available line instead of reopening menus or bouncing lanes.`;
   return {
     mode: 'fail-open',
-    answer: `I can help with this. I am routing it through the ${domain} lane in ${intent} mode, but the Marion knowledge path returned thin evidence, so this answer should be treated as provisional until the evidence layer fills in.`,
-    confidence: 0.42,
-    nextAction: 'fallback_synthesis',
+    answer,
+    confidence: evidenceThin ? 0.42 : 0.5,
+    nextAction: 'respond',
     cites: [],
+    supportCompatible: supportive,
+    questionSuppression: supportive || emo.conversationPlan.askAllowed === false,
+    avoidLaneRebuild: true,
+    allowMenuRegeneration: false,
   };
 }
 
-function defaultSynthesize({ domain, intent, evidence, responseMode, marionResult }) {
+function defaultSynthesize({ domain, intent, evidence, responseMode, marionResult, emotion }) {
+  const emo = normalizeEmotionMeta(emotion);
   const marionAnswer = marionResult && typeof marionResult.answer === 'string' ? normalizeText(marionResult.answer) : '';
   if (marionAnswer) {
     return {
@@ -280,19 +307,27 @@ function defaultSynthesize({ domain, intent, evidence, responseMode, marionResul
       answer: marionAnswer,
       confidence: clamp(Number(marionResult.confidence || 0.74), 0.35, 0.95),
       cites: Array.isArray(marionResult.cites) ? marionResult.cites.slice(0, 4) : [],
-      nextAction: marionResult.nextAction || 'respond',
+      nextAction: 'respond',
+      supportCompatible: !!(marionResult.supportCompatible || emo.conversationPlan.shouldUseSupportLock),
+      questionSuppression: !!(marionResult.questionSuppression || emo.conversationPlan.askAllowed === false),
+      avoidLaneRebuild: marionResult.avoidLaneRebuild !== false,
+      allowMenuRegeneration: false,
     };
   }
   const bullets = evidence.slice(0, 3).map(item => item.content);
   const stitched = bullets.join(' ').trim();
-  const answer = stitched || buildFallbackAnswer({ domain, intent }).answer;
-  const confidence = evidence.length ? clamp(0.55 + evidence.length * 0.08, 0.55, 0.92) : 0.42;
+  if (!stitched) return buildFallbackAnswer({ domain, intent, emotion, evidenceThin: true });
+  const confidence = clamp(0.55 + evidence.length * 0.08, 0.55, 0.92);
   return {
     mode: responseMode,
-    answer,
+    answer: stitched,
     confidence,
     cites: evidence.map(item => ({ title: item.title, source: item.source })).slice(0, 4),
-    nextAction: confidence < 0.6 ? 'clarify_or_expand' : 'respond',
+    nextAction: 'respond',
+    supportCompatible: !!emo.conversationPlan.shouldUseSupportLock,
+    questionSuppression: !!(emo.conversationPlan.askAllowed === false || emo.nuanceProfile.questionPressure === 'low' || emo.nuanceProfile.questionPressure === 'none'),
+    avoidLaneRebuild: true,
+    allowMenuRegeneration: false,
   };
 }
 
@@ -371,7 +406,8 @@ function createMarionBridge(config = {}) {
     const inferredEmotion = incomingEmotion.primaryEmotion ? incomingEmotion : analyzeEmotionFallback(rawText, request.meta && request.meta.priorState);
     let sentiment = sentimentHint(rawText);
     if (inferredEmotion.mode === 'VULNERABLE' || inferredEmotion.supportFlags.highDistress) sentiment = 'distressed';
-    const domainResult = scoreDomain(tokens, rawText, domainKeywords);
+    const scoredDomain = scoreDomain(tokens, rawText, domainKeywords);
+    const domainResult = choosePreferredDomain(scoredDomain, inferredEmotion, request.meta || {});
     const responseMode = buildResponseMode({ intent, sentiment, domain: domainResult.primary, emotion: inferredEmotion });
     return {
       text: rawText,
@@ -427,9 +463,11 @@ function createMarionBridge(config = {}) {
       }
     }
 
+    domainResult = choosePreferredDomain(domainResult, classification.emotion, meta);
     const primaryDomain = domainResult.primary;
     const responseMode = buildResponseMode({ intent: classification.intent, sentiment: classification.sentiment, domain: primaryDomain, emotion: classification.emotion });
 
+    const knowledgeDomains = Object.keys(meta.knowledgeSections || {}).filter((k) => Array.isArray(meta.knowledgeSections[k]) && meta.knowledgeSections[k].length > 0);
     packet.routing = {
       intent: classification.intent,
       sentiment: classification.sentiment,
@@ -438,6 +476,7 @@ function createMarionBridge(config = {}) {
       responseMode,
       shouldUseMarion: shouldInvokeMarion({ text: rawText, intent: classification.intent, domain: primaryDomain, sentiment: classification.sentiment, emotion: classification.emotion }),
       emotion: classification.emotion,
+      knowledgeDomains,
     };
 
     const memoryContext = phases.phase11_memoryLift ? await getMemory({
@@ -489,7 +528,9 @@ function createMarionBridge(config = {}) {
       suppressMenus: !!classification.emotion.conversationPlan.shouldSuppressMenus,
       loopRisk: classification.emotion.nuanceProfile.loopRisk,
       archetype: classification.emotion.nuanceProfile.archetype,
-      conversationNeed: classification.emotion.nuanceProfile.conversationNeed
+      conversationNeed: classification.emotion.nuanceProfile.conversationNeed,
+      avoidLaneRebuild: true,
+      questionSuppression: !!(classification.emotion.conversationPlan.askAllowed === false || classification.emotion.nuanceProfile.questionPressure === 'low' || classification.emotion.nuanceProfile.questionPressure === 'none')
     };
     if (loop.tripped) packet.routing.responseMode.concise = true;
 
@@ -516,6 +557,9 @@ function createMarionBridge(config = {}) {
       emotionAware: !!classification.emotion.primaryEmotion,
       archetype: classification.emotion.nuanceProfile.archetype,
       supportLock: !!classification.emotion.conversationPlan.shouldUseSupportLock,
+      marionMaySpeak: true,
+      allowMenuRegeneration: false,
+      knowledgeDomains: packet.routing.knowledgeDomains || []
     };
 
     let synthesis = null;
@@ -535,13 +579,13 @@ function createMarionBridge(config = {}) {
           marion: marionResult,
         });
       } else {
-        synthesis = defaultSynthesize({ domain: primaryDomain, intent: classification.intent, evidence: rankedEvidence, responseMode, marionResult });
+        synthesis = defaultSynthesize({ domain: primaryDomain, intent: classification.intent, evidence: rankedEvidence, responseMode, marionResult, emotion: classification.emotion });
       }
     } catch (error) {
       packet.errors.push(`synthesis_failed:${error.message}`);
     }
 
-    if (!synthesis || !synthesis.answer) synthesis = buildFallbackAnswer({ domain: primaryDomain, intent: classification.intent });
+    if (!synthesis || !synthesis.answer) synthesis = buildFallbackAnswer({ domain: primaryDomain, intent: classification.intent, emotion: classification.emotion, evidenceThin: rankedEvidence.length < 2 });
     packet.synthesis = synthesis;
     packet.diagnostics = {
       confidence: Number(synthesis.confidence || 0),
