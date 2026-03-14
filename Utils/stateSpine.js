@@ -21,7 +21,7 @@
  */
 
 const SPINE_VERSION =
-  "stateSpine v1.6.0 (EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
+  "stateSpine v1.7.0 (TECH-PRIORITY++++ + EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -1425,6 +1425,27 @@ function decideNextMove(state, inbound = {}) {
         []
       ),
       rationale: "emotion_crisis_short_circuit",
+    };
+  }
+
+  const technicalProgressIntent =
+    isProgressIntentText(text) ||
+    isMenuIntentToken(text) ||
+    isMenuIntentToken(n.action || "") ||
+    (payloadActionable && (
+      isMenuIntentToken(safeStr(n.payload?.route || "", 80)) ||
+      isMenuIntentToken(safeStr(n.payload?.action || "", 80)) ||
+      isMenuIntentToken(safeStr(n.payload?.label || "", 120))
+    ));
+
+  if (technicalProgressIntent && !isDistressText(text) && !n.signals.emotionNeedCrisis) {
+    return {
+      move: MOVE.ADVANCE,
+      stage: STAGE.DELIVER,
+      speak: "I am going to keep this on the technical target and not let lingering emotion state pull us off path.",
+      ask: null,
+      rationale: "technical_progress_priority",
+      _plannerMode: "execution_priority",
     };
   }
 
