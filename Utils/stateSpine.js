@@ -21,7 +21,7 @@
  */
 
 const SPINE_VERSION =
-  "stateSpine v1.8.0 (SUPPORT-LOCK++++ + TECH-PRIORITY++++ + EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
+  "stateSpine v1.9.0 (PHASE12-NUANCE++++ + SUPPORT-LOCK++++ + TECH-PRIORITY++++ + EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -168,6 +168,11 @@ function clamp01(n) {
   if (x < 0) return 0;
   if (x > 1) return 1;
   return x;
+}
+
+function isLowQuestionPressure(v) {
+  const s = safeStr(v, 24).toLowerCase().trim();
+  return s === 'low' || s === 'none';
 }
 
 function hasActionablePayload(payload) {
@@ -703,6 +708,11 @@ function createState(seed = {}) {
       mode: safeStr(seed?.supportLock?.mode || "", 40),
       suppressChips: seed?.supportLock?.suppressChips === false ? false : true,
       conversationDepth: safeStr(seed?.supportLock?.conversationDepth || "", 40) || "standard",
+      archetype: safeStr(seed?.supportLock?.archetype || "", 40),
+      conversationNeed: safeStr(seed?.supportLock?.conversationNeed || "", 40),
+      antiLoopShift: safeStr(seed?.supportLock?.antiLoopShift || "", 80),
+      questionPressure: safeStr(seed?.supportLock?.questionPressure || "", 20) || "medium",
+      askAllowed: seed?.supportLock?.askAllowed === false ? false : true,
     },
     lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
     lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
@@ -748,6 +758,14 @@ function createState(seed = {}) {
       emotionRepeatedFallbackCount: Number.isFinite(seed?.diag?.emotionRepeatedFallbackCount)
         ? Math.max(0, Math.trunc(seed.diag.emotionRepeatedFallbackCount))
         : 0,
+      emotionArchetype: safeStr(seed?.diag?.emotionArchetype || "", 40),
+      emotionConversationNeed: safeStr(seed?.diag?.emotionConversationNeed || "", 40),
+      emotionTransitionReadiness: safeStr(seed?.diag?.emotionTransitionReadiness || "", 24),
+      emotionLoopRisk: safeStr(seed?.diag?.emotionLoopRisk || "", 24),
+      emotionQuestionPressure: safeStr(seed?.diag?.emotionQuestionPressure || "", 24),
+      emotionSameArchetypeCount: Number.isFinite(seed?.diag?.emotionSameArchetypeCount)
+        ? Math.max(0, Math.trunc(seed.diag.emotionSameArchetypeCount))
+        : 0,
     },
 
     op: {
@@ -773,6 +791,15 @@ function createState(seed = {}) {
       emotionFallbackSuppression: !!seed?.op?.emotionFallbackSuppression,
       emotionNeedsNovelMove: !!seed?.op?.emotionNeedsNovelMove,
       emotionRouteExhaustion: !!seed?.op?.emotionRouteExhaustion,
+      emotionArchetype: safeStr(seed?.op?.emotionArchetype || "", 40) || "",
+      emotionConversationNeed: safeStr(seed?.op?.emotionConversationNeed || "", 40) || "",
+      emotionTransitionReadiness: safeStr(seed?.op?.emotionTransitionReadiness || "", 24) || "",
+      emotionLoopRiskLabel: safeStr(seed?.op?.emotionLoopRiskLabel || "", 24) || "",
+      emotionQuestionPressure: safeStr(seed?.op?.emotionQuestionPressure || "", 24) || "",
+      emotionAskAllowed: seed?.op?.emotionAskAllowed === false ? false : true,
+      emotionShouldSuppressMenus: !!seed?.op?.emotionShouldSuppressMenus,
+      emotionAntiLoopShift: safeStr(seed?.op?.emotionAntiLoopShift || "", 80) || "",
+      emotionSameArchetypeCount: Number.isFinite(seed?.op?.emotionSameArchetypeCount) ? Math.max(0, Math.trunc(seed.op.emotionSameArchetypeCount)) : 0,
     },
 
     governance: {
@@ -826,7 +853,7 @@ function coerceState(prev) {
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
   if (!out.supportLock || typeof out.supportLock !== "object") {
-    out.supportLock = { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard" };
+    out.supportLock = { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard", archetype: "", conversationNeed: "", antiLoopShift: "", questionPressure: "medium", askAllowed: true };
   } else {
     out.supportLock = {
       active: !!out.supportLock.active,
@@ -835,6 +862,11 @@ function coerceState(prev) {
       mode: safeStr(out.supportLock.mode || "", 40),
       suppressChips: out.supportLock.suppressChips === false ? false : true,
       conversationDepth: safeStr(out.supportLock.conversationDepth || "", 40) || "standard",
+      archetype: safeStr(out.supportLock.archetype || "", 40),
+      conversationNeed: safeStr(out.supportLock.conversationNeed || "", 40),
+      antiLoopShift: safeStr(out.supportLock.antiLoopShift || "", 80),
+      questionPressure: safeStr(out.supportLock.questionPressure || "", 20) || "medium",
+      askAllowed: out.supportLock.askAllowed === false ? false : true,
     };
   }
 
@@ -1186,8 +1218,13 @@ function updateState(prev, patch = {}, reason = "turn") {
           mode: patchSupportLock.mode != null ? safeStr(patchSupportLock.mode, 40) : safeStr(p?.supportLock?.mode || "", 40),
           suppressChips: patchSupportLock.suppressChips === false ? false : (patchSupportLock.suppressChips === true ? true : (p?.supportLock?.suppressChips === false ? false : true)),
           conversationDepth: patchSupportLock.conversationDepth != null ? safeStr(patchSupportLock.conversationDepth, 40) : (safeStr(p?.supportLock?.conversationDepth || "", 40) || "standard"),
+          archetype: patchSupportLock.archetype != null ? safeStr(patchSupportLock.archetype, 40) : safeStr(p?.supportLock?.archetype || "", 40),
+          conversationNeed: patchSupportLock.conversationNeed != null ? safeStr(patchSupportLock.conversationNeed, 40) : safeStr(p?.supportLock?.conversationNeed || "", 40),
+          antiLoopShift: patchSupportLock.antiLoopShift != null ? safeStr(patchSupportLock.antiLoopShift, 80) : safeStr(p?.supportLock?.antiLoopShift || "", 80),
+          questionPressure: patchSupportLock.questionPressure != null ? safeStr(patchSupportLock.questionPressure, 20) : (safeStr(p?.supportLock?.questionPressure || "", 20) || "medium"),
+          askAllowed: patchSupportLock.askAllowed === false ? false : (patchSupportLock.askAllowed === true ? true : (p?.supportLock?.askAllowed === false ? false : true)),
         }
-      : (p.supportLock || { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard" }),
+      : (p.supportLock || { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard", archetype: "", conversationNeed: "", antiLoopShift: "", questionPressure: "medium", askAllowed: true }),
 
     activeContext:
       patchObj.activeContext === null
@@ -1399,6 +1436,17 @@ function normalizeInbound(inbound = {}) {
     emotionNoProgressTurnCount: Number.isFinite(ts && ts.emotionNoProgressTurnCount)
       ? Math.max(0, Math.trunc(ts.emotionNoProgressTurnCount))
       : 0,
+    emotionSameArchetypeCount: Number.isFinite(ts && ts.emotionSameArchetypeCount)
+      ? Math.max(0, Math.trunc(ts.emotionSameArchetypeCount))
+      : 0,
+    emotionArchetype: safeStr(ts && ts.emotionArchetype || ts && ts.archetype || '', 40).toLowerCase(),
+    emotionConversationNeed: safeStr(ts && ts.emotionConversationNeed || ts && ts.conversationNeed || '', 40).toLowerCase(),
+    emotionTransitionReadiness: safeStr(ts && ts.emotionTransitionReadiness || ts && ts.transitionReadiness || '', 24).toLowerCase(),
+    emotionLoopRisk: safeStr(ts && ts.emotionLoopRisk || ts && ts.loopRisk || '', 24).toLowerCase(),
+    emotionQuestionPressure: safeStr(ts && ts.emotionQuestionPressure || ts && ts.questionPressure || '', 24).toLowerCase(),
+    emotionAskAllowed: ts && ts.emotionAskAllowed === false ? false : true,
+    emotionShouldSuppressMenus: !!(ts && (ts.emotionShouldSuppressMenus || ts.suppressChips || ts.shouldSuppressMenus)),
+    emotionAntiLoopShift: safeStr(ts && ts.emotionAntiLoopShift || ts && ts.antiLoopShift || '', 80).toLowerCase(),
   };
 
   const cog = sanitizeMarionCog(body.cog || body.marion || null);
@@ -1435,7 +1483,9 @@ function decideNextMove(state, inbound = {}) {
     n.signals.emotionNeedsNovelMove ||
     (n.signals.emotionFallbackSuppression && n.signals.emotionNoProgressTurnCount >= 1) ||
     n.signals.emotionSameEmotionCount >= 2 ||
-    n.signals.emotionSameSupportModeCount >= 2
+    n.signals.emotionSameSupportModeCount >= 2 ||
+    n.signals.emotionSameArchetypeCount >= 2 ||
+    (n.signals.emotionLoopRisk === 'high' && isLowQuestionPressure(n.signals.emotionQuestionPressure))
   );
 
   if (emotionLoopPressure && !n.signals.emotionNeedCrisis) {
@@ -1747,25 +1797,41 @@ function computeSupportLock(prev, inbound, decision) {
   const n = normalizeInbound(inbound);
   const move = safeStr(decision?.move || "", 20).toLowerCase();
   const crisis = !!n.signals.emotionNeedCrisis;
-  const supportSignal = !!(n.signals.emotionBypassClarify || n.signals.emotionNeedSoft || isDistressText(n.text || "") || n.signals.emotionValence === "negative" || n.signals.emotionValence === "mixed");
+  const supportSignal = !!(
+    n.signals.emotionBypassClarify ||
+    n.signals.emotionNeedSoft ||
+    isDistressText(n.text || "") ||
+    n.signals.emotionValence === "negative" ||
+    n.signals.emotionValence === "mixed" ||
+    n.signals.emotionShouldSuppressMenus
+  );
   const technical = isProgressIntentText(n.text || "") || isMenuIntentToken(n.text || "") || isMenuIntentToken(n.action || "");
+  const lockTurns = n.signals.emotionTransitionReadiness === 'low' ? 3 : 2;
+  const lockShape = {
+    archetype: safeStr(n.signals.emotionArchetype || "", 40),
+    conversationNeed: safeStr(n.signals.emotionConversationNeed || "", 40),
+    antiLoopShift: safeStr(n.signals.emotionAntiLoopShift || "", 80),
+    questionPressure: safeStr(n.signals.emotionQuestionPressure || "", 20) || "medium",
+    askAllowed: n.signals.emotionAskAllowed === false ? false : true,
+  };
 
   if (crisis) {
-    return { active: true, turnsRemaining: 3, reason: "crisis_support", mode: "support", suppressChips: true, conversationDepth: "crisis_support" };
+    return { active: true, turnsRemaining: 3, reason: "crisis_support", mode: "support", suppressChips: true, conversationDepth: "crisis_support", ...lockShape };
   }
 
   if (technical) {
-    return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "technical" };
+    return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "technical", ...lockShape, askAllowed: false };
   }
 
   if (supportSignal && move !== MOVE.CLARIFY) {
     return {
       active: true,
-      turnsRemaining: Math.max(1, Number.isFinite(s?.supportLock?.turnsRemaining) ? s.supportLock.turnsRemaining : 0, 2),
+      turnsRemaining: Math.max(1, Number.isFinite(s?.supportLock?.turnsRemaining) ? s.supportLock.turnsRemaining : 0, lockTurns),
       reason: "emotion_support_lock",
       mode: safeStr(n.signals.emotionSupportMode || "support", 40) || "support",
-      suppressChips: true,
-      conversationDepth: "deep_support"
+      suppressChips: n.signals.emotionShouldSuppressMenus ? true : true,
+      conversationDepth: n.signals.emotionTransitionReadiness === 'low' ? "stay_with_emotion" : "deep_support",
+      ...lockShape
     };
   }
 
@@ -1777,11 +1843,16 @@ function computeSupportLock(prev, inbound, decision) {
       reason: safeStr(s?.supportLock?.reason || "emotion_support_lock", 80),
       mode: safeStr(s?.supportLock?.mode || "support", 40),
       suppressChips: s?.supportLock?.suppressChips === false ? false : true,
-      conversationDepth: safeStr(s?.supportLock?.conversationDepth || "deep_support", 40) || "deep_support"
+      conversationDepth: safeStr(s?.supportLock?.conversationDepth || "deep_support", 40) || "deep_support",
+      archetype: safeStr(s?.supportLock?.archetype || lockShape.archetype, 40),
+      conversationNeed: safeStr(s?.supportLock?.conversationNeed || lockShape.conversationNeed, 40),
+      antiLoopShift: safeStr(s?.supportLock?.antiLoopShift || lockShape.antiLoopShift, 80),
+      questionPressure: safeStr(s?.supportLock?.questionPressure || lockShape.questionPressure, 20) || "medium",
+      askAllowed: s?.supportLock?.askAllowed === false ? false : lockShape.askAllowed,
     };
   }
 
-  return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: technical ? "technical" : "standard" };
+  return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: technical ? "technical" : "standard", ...lockShape };
 }
 
 // -------------------------
@@ -2002,6 +2073,14 @@ function finalizeTurn({
       emotionRepeatedFallbackCount: Number.isFinite(prev?.diag?.emotionRepeatedFallbackCount)
         ? Math.max(0, Math.trunc(prev.diag.emotionRepeatedFallbackCount))
         : 0,
+      emotionArchetype: safeStr(n.signals.emotionArchetype || '', 40),
+      emotionConversationNeed: safeStr(n.signals.emotionConversationNeed || '', 40),
+      emotionTransitionReadiness: safeStr(n.signals.emotionTransitionReadiness || '', 24),
+      emotionLoopRisk: safeStr(n.signals.emotionLoopRisk || '', 24),
+      emotionQuestionPressure: safeStr(n.signals.emotionQuestionPressure || '', 24),
+      emotionSameArchetypeCount: Number.isFinite(n.signals.emotionSameArchetypeCount)
+        ? Math.max(0, Math.trunc(n.signals.emotionSameArchetypeCount))
+        : 0,
     },
 
     op: {
@@ -2039,6 +2118,15 @@ function finalizeTurn({
       emotionFallbackSuppression: !!n.signals.emotionFallbackSuppression,
       emotionNeedsNovelMove: !!n.signals.emotionNeedsNovelMove,
       emotionRouteExhaustion: !!n.signals.emotionRouteExhaustion,
+      emotionArchetype: safeStr(n.signals.emotionArchetype || '', 40),
+      emotionConversationNeed: safeStr(n.signals.emotionConversationNeed || '', 40),
+      emotionTransitionReadiness: safeStr(n.signals.emotionTransitionReadiness || '', 24),
+      emotionLoopRiskLabel: safeStr(n.signals.emotionLoopRisk || '', 24),
+      emotionQuestionPressure: safeStr(n.signals.emotionQuestionPressure || '', 24),
+      emotionAskAllowed: n.signals.emotionAskAllowed === false ? false : true,
+      emotionShouldSuppressMenus: !!n.signals.emotionShouldSuppressMenus,
+      emotionAntiLoopShift: safeStr(n.signals.emotionAntiLoopShift || '', 80),
+      emotionSameArchetypeCount: Number.isFinite(n.signals.emotionSameArchetypeCount) ? Math.max(0, Math.trunc(n.signals.emotionSameArchetypeCount)) : 0,
     },
 
     ...(assistantSummary != null
