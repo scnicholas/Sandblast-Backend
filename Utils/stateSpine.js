@@ -21,7 +21,7 @@
  */
 
 const SPINE_VERSION =
-  "stateSpine v1.7.0 (TECH-PRIORITY++++ + EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
+  "stateSpine v1.8.0 (SUPPORT-LOCK++++ + TECH-PRIORITY++++ + EMOTION-XOVER++++ + PHASE-SPINE++++ + LOOP-COLLAPSE++++ + MENU-INTENT RESOLUTION++++ + DIAG/RESTRUCTURE ADVANCE++++)";
 
 const LANE = Object.freeze({
   MUSIC: "music",
@@ -694,6 +694,16 @@ function createState(seed = {}) {
             rationale: safeStr(seed.lastDecision.rationale || "", 60),
           }
         : null,
+    supportLock: {
+      active: !!seed?.supportLock?.active,
+      turnsRemaining: Number.isFinite(seed?.supportLock?.turnsRemaining)
+        ? Math.max(0, Math.trunc(seed.supportLock.turnsRemaining))
+        : 0,
+      reason: safeStr(seed?.supportLock?.reason || "", 80),
+      mode: safeStr(seed?.supportLock?.mode || "", 40),
+      suppressChips: seed?.supportLock?.suppressChips === false ? false : true,
+      conversationDepth: safeStr(seed?.supportLock?.conversationDepth || "", 40) || "standard",
+    },
     lastActionTaken: safeStr(seed.lastActionTaken || "", 40) || null,
     lastTurnSig: safeStr(seed.lastTurnSig || "", 240) || null,
 
@@ -815,6 +825,18 @@ function coerceState(prev) {
   out.topic = safeStr(out.topic || "", 80) || "unknown";
   out.lastUserIntent = safeStr(out.lastUserIntent || "", 40) || "unknown";
   out.pendingAsk = normalizePendingAsk(out.pendingAsk);
+  if (!out.supportLock || typeof out.supportLock !== "object") {
+    out.supportLock = { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard" };
+  } else {
+    out.supportLock = {
+      active: !!out.supportLock.active,
+      turnsRemaining: Number.isFinite(out.supportLock.turnsRemaining) ? Math.max(0, Math.trunc(out.supportLock.turnsRemaining)) : 0,
+      reason: safeStr(out.supportLock.reason || "", 80),
+      mode: safeStr(out.supportLock.mode || "", 40),
+      suppressChips: out.supportLock.suppressChips === false ? false : true,
+      conversationDepth: safeStr(out.supportLock.conversationDepth || "", 40) || "standard",
+    };
+  }
 
   if (!out.memoryWindows || typeof out.memoryWindows !== "object") {
     out.memoryWindows = {
@@ -1078,6 +1100,7 @@ function updateState(prev, patch = {}, reason = "turn") {
   const patchMemoryWindows = isPlainObject(patchObj.memoryWindows) ? patchObj.memoryWindows : null;
   const patchOp = isPlainObject(patchObj.op) ? patchObj.op : null;
   const patchAudit = isPlainObject(patchObj.audit) ? patchObj.audit : null;
+  const patchSupportLock = isPlainObject(patchObj.supportLock) ? patchObj.supportLock : null;
 
   const patchMarion =
     Object.prototype.hasOwnProperty.call(patchObj, "marion") &&
@@ -1152,6 +1175,19 @@ function updateState(prev, patch = {}, reason = "turn") {
             type: safeStr(patchPendingAsk.type || "", 40) || undefined,
           }
         : p.pendingAsk,
+
+    supportLock: patchSupportLock
+      ? {
+          active: !!patchSupportLock.active,
+          turnsRemaining: Number.isFinite(patchSupportLock.turnsRemaining)
+            ? Math.max(0, Math.trunc(patchSupportLock.turnsRemaining))
+            : (p.supportLock && Number.isFinite(p.supportLock.turnsRemaining) ? p.supportLock.turnsRemaining : 0),
+          reason: patchSupportLock.reason != null ? safeStr(patchSupportLock.reason, 80) : safeStr(p?.supportLock?.reason || "", 80),
+          mode: patchSupportLock.mode != null ? safeStr(patchSupportLock.mode, 40) : safeStr(p?.supportLock?.mode || "", 40),
+          suppressChips: patchSupportLock.suppressChips === false ? false : (patchSupportLock.suppressChips === true ? true : (p?.supportLock?.suppressChips === false ? false : true)),
+          conversationDepth: patchSupportLock.conversationDepth != null ? safeStr(patchSupportLock.conversationDepth, 40) : (safeStr(p?.supportLock?.conversationDepth || "", 40) || "standard"),
+        }
+      : (p.supportLock || { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "standard" }),
 
     activeContext:
       patchObj.activeContext === null
@@ -1706,6 +1742,48 @@ function decideNextMove(state, inbound = {}) {
   };
 }
 
+function computeSupportLock(prev, inbound, decision) {
+  const s = coerceState(prev);
+  const n = normalizeInbound(inbound);
+  const move = safeStr(decision?.move || "", 20).toLowerCase();
+  const crisis = !!n.signals.emotionNeedCrisis;
+  const supportSignal = !!(n.signals.emotionBypassClarify || n.signals.emotionNeedSoft || isDistressText(n.text || "") || n.signals.emotionValence === "negative" || n.signals.emotionValence === "mixed");
+  const technical = isProgressIntentText(n.text || "") || isMenuIntentToken(n.text || "") || isMenuIntentToken(n.action || "");
+
+  if (crisis) {
+    return { active: true, turnsRemaining: 3, reason: "crisis_support", mode: "support", suppressChips: true, conversationDepth: "crisis_support" };
+  }
+
+  if (technical) {
+    return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: "technical" };
+  }
+
+  if (supportSignal && move !== MOVE.CLARIFY) {
+    return {
+      active: true,
+      turnsRemaining: Math.max(1, Number.isFinite(s?.supportLock?.turnsRemaining) ? s.supportLock.turnsRemaining : 0, 2),
+      reason: "emotion_support_lock",
+      mode: safeStr(n.signals.emotionSupportMode || "support", 40) || "support",
+      suppressChips: true,
+      conversationDepth: "deep_support"
+    };
+  }
+
+  const prevTurns = Number.isFinite(s?.supportLock?.turnsRemaining) ? s.supportLock.turnsRemaining : 0;
+  if (s?.supportLock?.active && prevTurns > 1) {
+    return {
+      active: true,
+      turnsRemaining: prevTurns - 1,
+      reason: safeStr(s?.supportLock?.reason || "emotion_support_lock", 80),
+      mode: safeStr(s?.supportLock?.mode || "support", 40),
+      suppressChips: s?.supportLock?.suppressChips === false ? false : true,
+      conversationDepth: safeStr(s?.supportLock?.conversationDepth || "deep_support", 40) || "deep_support"
+    };
+  }
+
+  return { active: false, turnsRemaining: 0, reason: "", mode: "", suppressChips: true, conversationDepth: technical ? "technical" : "standard" };
+}
+
 // -------------------------
 // finalize
 // -------------------------
@@ -1756,6 +1834,7 @@ function finalizeTurn({
     ? normalizeStage(decision.stage)
     : stageProgress(prev.stage, move);
   const nextPhase = inferConversationPhase(prev, inbound, { ...(decision || {}), stage: nextStage });
+  const nextSupportLock = computeSupportLock(prev, inbound, decision);
 
   const turnSig = computeTurnSig({
     lane: normalizeLane(lane || n.lane || prev.lane),
@@ -1880,6 +1959,7 @@ function finalizeTurn({
     lastUserIntent,
     activeContext,
     pendingAsk: nextPendingAsk,
+    supportLock: nextSupportLock,
     memoryWindows: {
       recentIntents: nextRecentIntents,
       unresolvedAsks: nextUnresolvedAsks,
