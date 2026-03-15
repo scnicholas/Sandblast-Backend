@@ -26,13 +26,14 @@ const PHASES = Object.freeze({
   p20_structuredFailureSurface: true
 });
 
-const TTS_VERSION = "tts.js v2.2.0 HARDENED";
+const TTS_VERSION = "tts.js v2.2.1 HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
 const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
+const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || 20000));
 
 const DEFAULT_SPEECH_HINTS = Object.freeze({
   pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
@@ -73,6 +74,16 @@ function _bool(v, d) {
   if (["0", "false", "no", "off"].includes(s)) return false;
   return d;
 }
+function _int(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function _headerSafe(value, max = 80) {
+  return _str(value).replace(/[\r\n]+/g, " ").trim().slice(0, max);
+}
+
 
 function _pickFirst() {
   for (let i = 0; i < arguments.length; i += 1) {
@@ -144,18 +155,18 @@ function _log(event, data) {
 
 function _setCommonAudioHeaders(res, traceId, meta) {
   _setHeader(res, "Cache-Control", "no-store, max-age=0");
-  _setHeader(res, "X-SB-Trace-ID", traceId);
-  _setHeader(res, "X-SB-TTS-Version", TTS_VERSION);
-  if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", meta.provider);
-  if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", meta.voiceUuid);
-  if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(meta.elapsedMs));
-  if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(meta.shapeMs));
-  if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(meta.segmentCount));
-  if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(meta.providerStatus));
-  if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", String(meta.reason).slice(0, 80));
-  if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", String(meta.requestId).slice(0, 80));
-  if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", String(meta.turnId).slice(0, 80));
-  if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", String(meta.sessionId).slice(0, 80));
+  _setHeader(res, "X-SB-Trace-ID", _headerSafe(traceId, 120));
+  _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
+  if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", _headerSafe(meta.provider, 40));
+  if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", _mask(meta.voiceUuid));
+  if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(_int(meta.elapsedMs, 0, 0, 300000)));
+  if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(_int(meta.shapeMs, 0, 0, 300000)));
+  if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(_int(meta.segmentCount, 0, 0, 999)));
+  if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(_int(meta.providerStatus, 0, 0, 999)));
+  if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", _headerSafe(meta.reason, 80));
+  if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", _headerSafe(meta.requestId, 80));
+  if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", _headerSafe(meta.turnId, 80));
+  if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", _headerSafe(meta.sessionId, 80));
 }
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
@@ -251,7 +262,8 @@ function _healthSnapshot() {
       useProjectUuidByDefault: _useProjectUuidByDefault(),
       voiceUuidPreview: voiceUuid ? _mask(voiceUuid) : "",
       voiceName: voiceName || "",
-      projectUuidPreview: projectUuid ? _mask(projectUuid) : ""
+      projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
+      providerTimeoutMs: PROVIDER_TIMEOUT_MS
     }
   };
 }
@@ -500,15 +512,40 @@ function _coerceBuffer(value) {
   return null;
 }
 
+async function _withTimeout(promise, ms, meta) {
+  let timer = null;
+  const timeoutMs = _int(ms, PROVIDER_TIMEOUT_MS, 1000, 120000);
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error(`provider_timeout_${timeoutMs}ms`);
+          err.code = "TTS_PROVIDER_TIMEOUT";
+          err.status = 504;
+          err.retryable = true;
+          err.meta = meta || {};
+          reject(err);
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function _normalizeProviderAudio(out) {
   const buffer = _coerceBuffer(out && (out.buffer || out.audio || out.audioBuffer || out.audioBase64 || out.base64 || out.data));
+  const providerStatus = Number(out && (out.providerStatus || out.status || 200)) || 200;
+  const explicitOk = out && typeof out.ok === "boolean" ? out.ok : null;
+  const inferredOk = !!(buffer && buffer.length && providerStatus >= 200 && providerStatus < 300);
   return {
-    ok: !!(out && out.ok && buffer && buffer.length),
+    ok: explicitOk == null ? inferredOk : !!(explicitOk && buffer && buffer.length),
     buffer,
     mimeType: _pickFirst(out && out.mimeType, out && out.contentType, out && out.content_type, "audio/mpeg"),
-    elapsedMs: Number(out && (out.elapsedMs || out.durationMs || 0)) || 0,
+    elapsedMs: _int(out && (out.elapsedMs || out.durationMs || 0), 0, 0, 300000),
     requestId: _pickFirst(out && out.requestId, out && out.id),
-    providerStatus: Number(out && (out.providerStatus || out.status || 200)) || 200,
+    providerStatus,
     message: _pickFirst(out && out.message, out && out.reason, out && out.error),
     reason: _pickFirst(out && out.reason, out && out.error, out && out.message),
     retryable: out && typeof out.retryable === "boolean" ? out.retryable : true,
@@ -566,8 +603,8 @@ async function generate(text, options) {
 
   activeRequests += 1;
   try {
-    _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount });
-    const out = await synthesize(providerInput);
+    _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, timeoutMs: PROVIDER_TIMEOUT_MS });
+    const out = await _withTimeout(synthesize(providerInput), PROVIDER_TIMEOUT_MS, snapshot);
     const normalizedOut = _normalizeProviderAudio(out);
 
     _log("provider_response", {
@@ -629,16 +666,19 @@ async function generate(text, options) {
     };
   } catch (err) {
     const msg = _trim(err && (err.message || err)) || "tts_exception";
-    _log("provider_exception", { ...snapshot, message: msg, elapsedMs: _now() - startedAt });
-    _recordFailure(msg, 503, snapshot);
+    const status = _int(err && err.status, 503, 400, 599);
+    const retryable = typeof (err && err.retryable) === "boolean" ? !!err.retryable : status >= 500;
+    const reason = err && err.code === "TTS_PROVIDER_TIMEOUT" ? "provider_timeout" : "exception";
+    _log("provider_exception", { ...snapshot, message: msg, status, retryable, elapsedMs: _now() - startedAt });
+    _recordFailure(msg, status, snapshot);
     return {
       ok: false,
-      reason: "exception",
+      reason,
       message: msg,
-      status: 503,
-      retryable: true,
+      status,
+      retryable,
       provider: "resemble",
-      providerStatus: 503,
+      providerStatus: status,
       shapeElapsedMs: shaped.shapeElapsedMs,
       segmentCount: shaped.segmentCount,
       textDisplay: providerInput.textDisplay,
