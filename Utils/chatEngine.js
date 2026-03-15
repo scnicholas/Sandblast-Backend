@@ -1299,13 +1299,30 @@ function buildSupportPacketSafe(norm, emo) {
       deliveryTone: safeStr(emo?.deliveryTone || "").toLowerCase(),
       semanticFrame: safeStr(emo?.semanticFrame || "").toLowerCase()
     };
+    const suppressLoopQuestion = !!(
+      emo?.supportFlags?.mentionsLooping ||
+      emo?.routeExhaustion ||
+      emo?.fallbackSuppression ||
+      emo?.needsNovelMove ||
+      clampInt(emo?.continuity?.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
+      clampInt(emo?.continuity?.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
+      clampInt(emo?.continuity?.noProgressTurnCount || 0, 0, 0, 99) >= 2
+    );
+    const supportCfg = {
+      suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm),
+      suppressQuestionOnRecovery: true,
+      suppressQuestionOnLoop: suppressLoopQuestion,
+      suppressQuestionOnHighContinuity: suppressLoopQuestion,
+      maxQuestionCount: suppressLoopQuestion ? 0 : 1,
+      maxMicroSteps: suppressLoopQuestion ? 1 : 1
+    };
     if (typeof Support.buildSupportPacket === "function") {
       return Support.buildSupportPacket({
         userText: safeStr(norm?.text || ""),
         emo,
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
         ...presentation
-      }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true });
+      }, supportCfg);
     }
     if (typeof Support.buildSupportiveResponse === "function") {
       return {
@@ -1316,7 +1333,7 @@ function buildSupportPacketSafe(norm, emo) {
           emo,
           seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
           ...presentation
-        }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true }),
+        }, supportCfg),
         meta: {
           crisis: !!emo.supportFlags?.crisis,
           dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
@@ -1326,7 +1343,8 @@ function buildSupportPacketSafe(norm, emo) {
           deliveryTone: presentation.deliveryTone,
           semanticFrame: presentation.semanticFrame,
           priorResponseFamily: presentation.priorResponseFamily,
-          responseFamily: safeStr(emo.responseFamily || "").toLowerCase()
+          responseFamily: safeStr(emo.responseFamily || "").toLowerCase(),
+          suppressLoopQuestion
         }
       };
     }
