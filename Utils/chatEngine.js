@@ -113,7 +113,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.20.0 BACKEND-STABILITY ROUTE-SUPPRESSION HARDEN";
+const CE_VERSION = "chatEngine v0.20.1 AUDIO-FAILURE ROUTE-SUPPRESSION HARDEN";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
@@ -222,28 +222,8 @@ function quietUi(mode) {
   return { chips: [], allowMic: true, mode: safeStr(mode || "quiet") || "quiet" };
 }
 
-function shouldUseSupportiveArtifacts(norm, emo, routeOut) {
-  if (!emo) return false;
-  if (emo.supportFlags?.crisis || emo.supportFlags?.highDistress || emo.supportFlags?.needsStabilization) return true;
-  if (emo.bypassClarify || emo.mode === "VULNERABLE" || emo.valence === "negative" || emo.valence === "mixed") return true;
-  if (safeStr(routeOut?.meta?.supportMode || routeOut?.meta?.responseMode || "").toLowerCase() === "supportive") return true;
-  if (safeStr(routeOut?.ui?.mode || "").toLowerCase() === "supportive") return true;
-  if (routeOut?.meta?.supportCompatible) return true;
-  return false;
-}
 function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
   const suppress = shouldSuppressLaneArtifacts(norm, emo, routeOut);
-  const supportiveArtifacts = shouldUseSupportiveArtifacts(norm, emo, routeOut);
-  if (suppress && supportiveArtifacts) {
-    const followUps = dedupeFollowUpsForExecution(
-      Array.isArray(followUpsRaw) && followUpsRaw.length ? followUpsRaw : buildSupportiveEmotionFollowUps(emo),
-      norm,
-      emo
-    );
-    const followUpsStrings = (Array.isArray(followUps) ? followUps : []).map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean);
-    const ui = isPlainObject(uiRaw) ? uiRaw : buildSupportiveEmotionUi(emo);
-    return { followUps, followUpsStrings, ui, menusSuppressed: true };
-  }
   if (suppress) return { followUps: [], followUpsStrings: [], ui: quietUi(emo ? "supportive" : "direct"), menusSuppressed: true };
   const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
   const followUpsStrings = (Array.isArray(followUps) ? followUps : []).map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean);
@@ -1319,13 +1299,30 @@ function buildSupportPacketSafe(norm, emo) {
       deliveryTone: safeStr(emo?.deliveryTone || "").toLowerCase(),
       semanticFrame: safeStr(emo?.semanticFrame || "").toLowerCase()
     };
+    const suppressLoopQuestion = !!(
+      emo?.supportFlags?.mentionsLooping ||
+      emo?.routeExhaustion ||
+      emo?.fallbackSuppression ||
+      emo?.needsNovelMove ||
+      clampInt(emo?.continuity?.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
+      clampInt(emo?.continuity?.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
+      clampInt(emo?.continuity?.noProgressTurnCount || 0, 0, 0, 99) >= 2
+    );
+    const supportCfg = {
+      suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm),
+      suppressQuestionOnRecovery: true,
+      suppressQuestionOnLoop: suppressLoopQuestion,
+      suppressQuestionOnHighContinuity: suppressLoopQuestion,
+      maxQuestionCount: suppressLoopQuestion ? 0 : 1,
+      maxMicroSteps: suppressLoopQuestion ? 1 : 1
+    };
     if (typeof Support.buildSupportPacket === "function") {
       return Support.buildSupportPacket({
         userText: safeStr(norm?.text || ""),
         emo,
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
         ...presentation
-      }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true });
+      }, supportCfg);
     }
     if (typeof Support.buildSupportiveResponse === "function") {
       return {
@@ -1336,7 +1333,7 @@ function buildSupportPacketSafe(norm, emo) {
           emo,
           seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
           ...presentation
-        }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true }),
+        }, supportCfg),
         meta: {
           crisis: !!emo.supportFlags?.crisis,
           dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
@@ -1346,7 +1343,8 @@ function buildSupportPacketSafe(norm, emo) {
           deliveryTone: presentation.deliveryTone,
           semanticFrame: presentation.semanticFrame,
           priorResponseFamily: presentation.priorResponseFamily,
-          responseFamily: safeStr(emo.responseFamily || "").toLowerCase()
+          responseFamily: safeStr(emo.responseFamily || "").toLowerCase(),
+          suppressLoopQuestion
         }
       };
     }
@@ -1386,13 +1384,6 @@ function buildSupportiveEmotionFollowUps(emo) {
     return [
       { id: "fu_ground", type: "action", label: "Stay with me", payload: { action: "support_ground", mode: "supportive" } },
       { id: "fu_breathe", type: "action", label: "One breath", payload: { action: "support_breathe", mode: "supportive" } }
-    ];
-  }
-
-  if (dom === "hurt" || dom === "sadness" || dom === "grief" || dom === "pain") {
-    return [
-      { id: "fu_keep_talking_hurt", type: "action", label: "Keep talking", payload: { action: "support_talk", mode: "supportive", emotion: dom || "hurt" } },
-      { id: "fu_what_happened_hurt", type: "action", label: "What happened?", payload: { action: "support_explain", mode: "supportive", emotion: dom || "hurt" } }
     ];
   }
 
@@ -1437,10 +1428,7 @@ function buildSupportiveEmotionUi(emo) {
   return {
     chips: buildSupportiveEmotionFollowUps(emo),
     allowMic: true,
-    mode: "supportive",
-    supportLock: true,
-    clearStaleUi: true,
-    suppressMenus: true
+    mode: "supportive"
   };
 }
 function isGenericMenuBounceReply(summary) {
@@ -1558,7 +1546,7 @@ function shouldPreferSupportPacket(norm, emo) {
   if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization) return true;
   if (emo?.bypassClarify || emo?.mode === "VULNERABLE") return true;
   if (safeStr(emo?.valence || "").toLowerCase() === "negative") return true;
-  return /(i am hurting|i'm hurting|hurt|hurting|tough day|rough day|hard day|bad day|lost after|feel lost|drained|overwhelmed|stressed|burned out|work was hard|day at work|meeting went badly|meeting was rough)/i.test(text);
+  return /(tough day|rough day|hard day|bad day|lost after|feel lost|drained|overwhelmed|stressed|burned out|work was hard|day at work|meeting went badly|meeting was rough)/i.test(text);
 }
 function buildDegradedSafeReply(norm, emo) {
   const text = safeStr(norm?.text || "").toLowerCase();
@@ -1570,6 +1558,93 @@ function buildDegradedSafeReply(norm, emo) {
   }
   return "I am here with you. We can keep this simple and steady.";
 }
+
+function _readNestedBagTtsFailure(bag) {
+  if (!isPlainObject(bag)) return null;
+  if (isPlainObject(bag.ttsFailure)) return bag.ttsFailure;
+  if (isPlainObject(bag.tts)) return bag.tts;
+  if (isPlainObject(bag.audioFailure)) return bag.audioFailure;
+  if (isPlainObject(bag.audio)) return bag.audio;
+  return null;
+}
+function _normalizeAudioAction(raw, retryable, status) {
+  const s = safeStr(raw).trim().toLowerCase();
+  if (s === "retry") return "retry";
+  if (s === "downgrade") return "downgrade";
+  if (s === "stop" || s === "terminal_stop" || s === "terminal") return "stop";
+  if (retryable && (status === 429 || status === 503 || status === 504)) return "retry";
+  if (!retryable && status >= 400 && status < 500) return "stop";
+  if (status >= 500) return "downgrade";
+  return retryable ? "retry" : "downgrade";
+}
+function normalizeAudioFailureSignal(rawInput, norm, session, prevSpine) {
+  const raw = isPlainObject(rawInput) ? rawInput : {};
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const prev = isPlainObject(prevSpine) ? prevSpine : {};
+  const bags = [
+    raw, raw.body, raw.payload, raw.ctx,
+    n.body, n.payload, n.ctx,
+    s,
+    s.__lastTtsFailure,
+    prev.audio
+  ];
+  let src = null;
+  for (const bag of bags) {
+    const hit = _readNestedBagTtsFailure(bag);
+    if (isPlainObject(hit)) { src = hit; break; }
+  }
+  const reason = safeStr(src?.reason || src?.message || src?.terminalStopReason || "").toLowerCase();
+  const providerStatus = clampInt(src?.providerStatus || src?.status || src?.lastFailureStatus, 0, 0, 999999);
+  const retryable = !!(src?.retryable || src?.lastFailureRetryable);
+  const explicitAction = safeStr(src?.action || src?.lastFailureAction || "");
+  const action = src ? _normalizeAudioAction(explicitAction, retryable, providerStatus) : "";
+  const shouldStop = !!(src && (src?.shouldTerminate || src?.shouldStop || action === "stop"));
+  const present = !!src && (!!reason || !!providerStatus || explicitAction !== "" || retryable);
+  return {
+    present,
+    ok: src?.ok === true,
+    reason: reason || "",
+    message: safeStr(src?.message || ""),
+    providerStatus,
+    retryable,
+    action,
+    shouldStop,
+    terminalStopUntil: Number(src?.terminalStopUntil || 0) || 0
+  };
+}
+function applyAudioFailureSignalsToNorm(norm, audioFailure) {
+  if (!isPlainObject(norm?.turnSignals)) return;
+  const af = isPlainObject(audioFailure) ? audioFailure : {};
+  norm.turnSignals.ttsFailurePresent = !!af.present;
+  norm.turnSignals.ttsFailure = af.present ? {
+    ok: !!af.ok,
+    reason: safeStr(af.reason || ""),
+    message: safeStr(af.message || ""),
+    providerStatus: clampInt(af.providerStatus || 0, 0, 0, 999999),
+    retryable: !!af.retryable,
+    action: safeStr(af.action || ""),
+    shouldTerminate: !!af.shouldStop
+  } : null;
+  norm.turnSignals.ttsReason = safeStr(af.reason || "");
+  norm.turnSignals.ttsProviderStatus = clampInt(af.providerStatus || 0, 0, 0, 999999);
+  norm.turnSignals.ttsRetryable = !!af.retryable;
+  norm.turnSignals.ttsAction = safeStr(af.action || "");
+  norm.turnSignals.ttsShouldStop = !!af.shouldStop;
+}
+function buildAudioDirective(audioFailure) {
+  const af = isPlainObject(audioFailure) ? audioFailure : {};
+  if (!af.present) return null;
+  return {
+    type: "tts_failure",
+    action: safeStr(af.action || "downgrade"),
+    reason: safeStr(af.reason || "tts_unavailable"),
+    retryable: !!af.retryable,
+    providerStatus: clampInt(af.providerStatus || 0, 0, 0, 999999),
+    terminal: !!af.shouldStop
+  };
+}
+
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
   const body = isPlainObject(src.body) ? src.body : {};
@@ -1615,7 +1690,14 @@ function normalizeInbound(input) {
     turnSignals: {
       textEmpty: !safeStr(text).trim(),
       hasPayload: !!Object.keys(payload).length,
-      payloadActionable: hasActionablePayload(payload)
+      payloadActionable: hasActionablePayload(payload),
+      ttsFailurePresent: false,
+      ttsFailure: null,
+      ttsReason: "",
+      ttsProviderStatus: 0,
+      ttsRetryable: false,
+      ttsAction: "",
+      ttsShouldStop: false
     }
   };
 }
@@ -1772,6 +1854,9 @@ async function handleChat(input) {
       : (isPlainObject(session.__spineState)
           ? session.__spineState
           : { rev: 0, lane: safeStr(norm.lane || session.lane || "general") || "general", stage: "open" });
+
+    const audioFailure = normalizeAudioFailureSignal(rawInput, norm, session, corePrev);
+    applyAudioFailureSignalsToNorm(norm, audioFailure);
 
     const inboundRepeat = detectInboundRepeat(session, inSig);
     logChatDiag('inbound_repeat_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), inboundRepeatN: inboundRepeat.n, inboundRepeatTripped: !!inboundRepeat.tripped, inboundFastReturn: !!inboundRepeat.canFastReturn });
@@ -2184,12 +2269,11 @@ async function handleChat(input) {
           reply: safeStr(directSupportPacket.reply),
           lane: "general",
           directives: Array.isArray(directSupportPacket.directives) ? directSupportPacket.directives : [],
-          followUps: buildSupportiveEmotionFollowUps(emo),
-          ui: buildSupportiveEmotionUi(emo),
+          followUps: [],
+          ui: quietUi("supportive"),
           meta: {
             supportPacket: true,
             supportCompatible: true,
-            supportMode: "supportive",
             suppressMenus: true,
             clearStaleUi: true,
             responseFamily: safeStr(directSupportPacket.meta?.responseFamily || emo?.responseFamily || '').toLowerCase(),
@@ -2214,8 +2298,8 @@ async function handleChat(input) {
       const recoveryPacket = buildSupportPacketSafe(norm, emo);
       if (recoveryPacket && safeStr(recoveryPacket.reply)) {
         reply = safeStr(recoveryPacket.reply);
-        routeOut.followUps = buildSupportiveEmotionFollowUps(emo);
-        routeOut.ui = buildSupportiveEmotionUi(emo);
+        routeOut.followUps = [];
+        routeOut.ui = quietUi("supportive");
         routeOut.meta = {
           ...(isPlainObject(routeOut.meta) ? routeOut.meta : {}),
           suppressMenus: true,
@@ -2259,7 +2343,9 @@ async function handleChat(input) {
         }
       : computeBridge(sessionLaneState, requestId);
     const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane);
-    const directives = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
+    const directivesBase = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
+    const audioDirective = buildAudioDirective(audioFailure);
+    const directives = audioDirective ? directivesBase.concat(audioDirective) : directivesBase;
     const artifacts = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane), routeOut);
     const followUps = artifacts.followUps;
     const ui = artifacts.ui;
@@ -2358,6 +2444,13 @@ async function handleChat(input) {
           deliveryTone: safeStr(emo.deliveryTone || ""),
           semanticFrame: safeStr(emo.semanticFrame || ""),
           responseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo.responseFamily || "")
+        } : null,
+        audioPolicy: audioFailure.present ? {
+          action: safeStr(audioFailure.action || ""),
+          reason: safeStr(audioFailure.reason || ""),
+          retryable: !!audioFailure.retryable,
+          providerStatus: clampInt(audioFailure.providerStatus || 0, 0, 0, 999999),
+          terminal: !!audioFailure.shouldStop
         } : null
       },
       requestId,
@@ -2372,7 +2465,10 @@ async function handleChat(input) {
         sessionId: shortId(sessionId),
         turnId: shortId(turnId),
         suppressMenus: !!artifacts.menusSuppressed,
-        clearStaleUi: !!artifacts.menusSuppressed
+        clearStaleUi: !!artifacts.menusSuppressed,
+        audioFailurePresent: !!audioFailure.present,
+        audioAction: safeStr(audioFailure.action || ""),
+        audioTerminal: !!audioFailure.shouldStop
       }
     };
 
@@ -2395,6 +2491,16 @@ async function handleChat(input) {
         __cacheFollowUps: followUps,
         __cacheDirectives: directives,
         __cacheAt: nowMs(),
+        __lastTtsFailure: audioFailure.present ? {
+          reason: safeStr(audioFailure.reason || ""),
+          message: safeStr(audioFailure.message || ""),
+          providerStatus: clampInt(audioFailure.providerStatus || 0, 0, 0, 999999),
+          retryable: !!audioFailure.retryable,
+          action: safeStr(audioFailure.action || ""),
+          shouldTerminate: !!audioFailure.shouldStop,
+          terminalStopUntil: Number(nextSpine?.audio?.terminalStopUntil || 0) || 0,
+          at: nowMs()
+        } : null,
         __emotionMode: safeStr(emo?.mode || "NORMAL"),
         __emotionValence: safeStr(emo?.valence || "neutral"),
         __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
