@@ -124,7 +124,11 @@ function normalizeConversationPlan(plan) {
     transitionTargets: uniq(p.transitionTargets),
     conversationNeed: safeStr(p.conversationNeed || '').toLowerCase(),
     followupStyle: safeStr(p.followupStyle || '').toLowerCase(),
-    allowsActionShift: !!p.allowsActionShift
+    allowsActionShift: !!p.allowsActionShift,
+    expressionStyle: safeStr(p.expressionStyle || '').toLowerCase(),
+    deliveryTone: safeStr(p.deliveryTone || '').toLowerCase(),
+    semanticFrame: safeStr(p.semanticFrame || '').toLowerCase(),
+    responseFamily: safeStr(p.responseFamily || '').toLowerCase()
   };
 }
 
@@ -203,6 +207,18 @@ const OPENING_VARIANTS = {
     'That sounds like a clean win.',
     'There is substance behind that good feeling.',
     'That sounds deserved.'
+  ],
+  purpose_alignment: [
+    'That has real alignment in it.',
+    'That sounds like your work is meeting something true in you.',
+    'There is a deeper fit in that statement.',
+    'That lands like purpose, not just a passing high.',
+    'That sounds like the kind of work connection people hope to find.',
+    'There is something deeply right-sized about that for you.',
+    'That feels like identity and work are pulling in the same direction.',
+    'That sounds meaningful in a lasting way.',
+    'There is a rare steadiness in loving what you do like that.',
+    'That carries purpose energy, not just productivity.'
   ],
   gentle_presence: [
     'I am here with you.',
@@ -339,8 +355,9 @@ function determineResponseFamily(emo, layer, presentation) {
   const semanticFrame = presentation.semanticFrame || safeStr(emo.conversationPlan.semanticFrame || '').toLowerCase();
   const expressionStyle = presentation.expressionStyle || safeStr(emo.conversationPlan.expressionStyle || '').toLowerCase();
   if (emo.valence === 'negative' || emo.supportFlags.highDistress) return 'gentle_presence';
+  if (semanticFrame.includes('purpose') || expressionStyle === 'purpose_work_affirmation') return 'purpose_alignment';
   if (semanticFrame.includes('achievement') || expressionStyle === 'achievement_statement') return 'earned_affirmation';
-  if (semanticFrame.includes('awe') || expressionStyle === 'poetic_observation') return 'reflective_mirroring';
+  if (semanticFrame.includes('aesthetic') || semanticFrame.includes('awe') || expressionStyle === 'poetic_observation') return 'reflective_mirroring';
   if (semanticFrame.includes('recovery') || expressionStyle === 'recovery_statement') return 'grounded_reinforcement';
   if (expressionStyle === 'celebratory_burst') return 'warm_celebration';
   if (semanticFrame.includes('grounded_positive') || semanticFrame.includes('life_appraisal')) return 'grounded_reinforcement';
@@ -349,8 +366,9 @@ function determineResponseFamily(emo, layer, presentation) {
 
 function determineValidationFamily(emo, presentation) {
   if (emo.valence === 'negative' || emo.supportFlags.highDistress) return 'gentle_validation';
-  if ((presentation.expressionStyle || '').includes('poetic') || (presentation.semanticFrame || '').includes('awe')) return 'reflective_positive';
+  if ((presentation.expressionStyle || '').includes('poetic') || (presentation.semanticFrame || '').includes('aesthetic') || (presentation.semanticFrame || '').includes('awe')) return 'reflective_positive';
   if ((presentation.expressionStyle || '').includes('recovery') || (presentation.semanticFrame || '').includes('recovery')) return 'positive_anchor';
+  if ((presentation.expressionStyle || '').includes('purpose') || (presentation.semanticFrame || '').includes('purpose')) return 'reflective_positive';
   if ((presentation.expressionStyle || '').includes('celebratory') || (presentation.expressionStyle || '').includes('achievement')) return 'positive_extension';
   return 'positive_anchor';
 }
@@ -1122,6 +1140,22 @@ function buildPositiveReinforcementLine(emo, seed) {
 
   if (emo.supportFlags.avoidCelebratoryTone) return "";
 
+  if ((safeStr(emo.semanticFrame || '').includes('purpose')) || (safeStr(emo.expressionStyle || '').includes('purpose_work'))) {
+    return pick([
+      'Loving what you do is a real signal of alignment, and that is worth honoring.',
+      'That kind of fit between you and your work is not small — it is worth protecting.',
+      'There is something deeply encouraging in hearing that level of alignment.'
+    ], `${seed}|pos|purpose`);
+  }
+
+  if (safeStr(emo.semanticFrame || '').includes('life_appraisal')) {
+    return pick([
+      'A broad statement like that usually means something is settling into a better shape.',
+      'That kind of overall good signal is worth anchoring instead of rushing past.',
+      'It is worth noticing when life feels more open and workable.'
+    ], `${seed}|pos|life`);
+  }
+
   if (emo.positiveReinforcements.includes("reinforce_self_trust")) {
     return pick([
       "There is a self-trust signal in this, and that is worth protecting.",
@@ -1292,9 +1326,10 @@ function buildSupportiveResponse(input = {}, config = {}) {
         buildValidation(emo, seed) || "We can keep this tight and practical.",
         buildRecoveryAcknowledgment(emo, seed),
         buildDistressReinforcementLine(emo, seed),
+        "There is value in getting clarity here, and I can help without turning this into noise.",
         emo.needsNovelMove || emo.routeExhaustion
-          ? "We will break the repetition here and move with one cleaner emotional strategy, not the same loop again."
-          : "We will stay on the exact technical target and not bounce this into a generic support loop."
+          ? "I am going to change the pattern and keep the answer cleaner so this does not fall back into repetition."
+          : "I will stay on the exact target and keep the response supportive, useful, and direct."
       ]);
     }
 
@@ -1338,7 +1373,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
     }
 
     if (emo.needsNovelMove || emo.routeExhaustion || emo.supportFlags.mentionsLooping || presentation.sameResponseFamilyCount >= 2) {
-      parts.push('I am going to vary the pattern here so it does not flatten into the same response shape again.');
+      parts.push('I am going to shift the shape a little here so it stays fresh and useful.');
     }
 
     let out = joinSentences(parts);
@@ -1348,12 +1383,12 @@ function buildSupportiveResponse(input = {}, config = {}) {
     if (out) return out;
 
     return technical
-      ? "I hear the strain in this. We will keep it technical, direct, and free of extra support layering."
-      : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
+      ? "I hear the strain in this. We will keep it direct, useful, and steady."
+      : "I hear you. I am here, and we can take this one steady step at a time. What feels most important right now?";
   } catch (_err) {
     return looksTechnicalRequest(safeStr(input && input.userText || ""))
-      ? "I hear the strain in this. We will keep it technical, direct, and free of extra support layering."
-      : "I hear you. We can keep this simple and steady. What feels most important right now?";
+      ? "I hear the strain in this. We will keep it direct, useful, and steady."
+      : "I hear you. I am here, and we can keep this simple and steady. What feels most important right now?";
   }
 }
 
