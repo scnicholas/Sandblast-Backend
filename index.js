@@ -44,7 +44,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.2.0sb";
+const INDEX_VERSION = "index.js v2.3.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 // ============================================================
@@ -546,9 +546,9 @@ function inferFailOpenMessage(req) {
   const distress = /(depress|sad|lonely|alone|hurt|grief|anxious|panic|afraid|overwhelm|hopeless|helpless)/.test(rawText);
   const positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
   const technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix)/.test(rawText);
-  if (technical) return "I am keeping the backend stable while this request recovers. No menu bounce, no lane shift.";
+  if (technical) return "I am keeping this stable while the backend reconnects, and I can stay with the request without dropping into a menu.";
   if (distress) return "I am here with you. The backend hit a rough patch, but I can keep this steady without dropping you into a menu.";
-  if (positive) return "I caught the positive signal. The backend is recovering, and I can keep the tone steady without flattening it into a fallback.";
+  if (positive) return "I caught the positive signal, and I can keep the tone steady while the backend reconnects.";
   return "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.";
 }
 
@@ -570,7 +570,9 @@ function normalizeContract(raw, ctx) {
   const reply = rawReply.slice(0, MAX_REPLY_CHARS);
   const lane = safeStr(src.lane || src.laneId || src.sessionLane || "general") || "general";
   const srcUi = isPlainObject(src.ui) ? src.ui : {};
-  const srcChips = Array.isArray(srcUi.chips) ? srcUi.chips : [];
+  const srcMeta = isPlainObject(src.meta) ? src.meta : {};
+  const shouldClearUi = !!(srcMeta.suppressMenus || srcMeta.clearStaleUi || srcMeta.degradedSupport || srcMeta.failSafe || safeStr(src.cog?.intent || "").toUpperCase() === "STABILIZE");
+  const srcChips = shouldClearUi ? [] : (Array.isArray(srcUi.chips) ? srcUi.chips : []);
   const chips = srcChips
     .map((x) => {
       if (isPlainObject(x)) {
@@ -585,7 +587,7 @@ function normalizeContract(raw, ctx) {
     .filter(Boolean)
     .slice(0, MAX_CHIPS);
 
-  const followUps = (Array.isArray(src.followUps) ? src.followUps : [])
+  const followUps = ((shouldClearUi ? [] : (Array.isArray(src.followUps) ? src.followUps : [])))
     .map((x) => {
       if (isPlainObject(x)) {
         const label = safeStr(x.label || x.text || "").trim();
@@ -615,15 +617,20 @@ function normalizeContract(raw, ctx) {
     bridge: src.bridge || null,
     ctx: isPlainObject(src.ctx) ? src.ctx : {},
     ui: {
-      ...srcUi,
+      ...(shouldClearUi ? { mode: safeStr(srcUi.mode || "quiet") || "quiet" } : srcUi),
       chips,
-      allowMic: srcUi.allowMic !== false
+      allowMic: srcUi.allowMic !== false,
+      replace: shouldClearUi,
+      clearStale: shouldClearUi,
+      revision: nowMs()
     },
     directives,
     followUps,
-    followUpsStrings: Array.isArray(src.followUpsStrings)
-      ? src.followUpsStrings.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, MAX_FOLLOWUPS)
-      : followUps.map((x) => safeStr(x?.label || x).trim()).filter(Boolean),
+    followUpsStrings: shouldClearUi
+      ? []
+      : (Array.isArray(src.followUpsStrings)
+        ? src.followUpsStrings.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, MAX_FOLLOWUPS)
+        : followUps.map((x) => safeStr(x?.label || x).trim()).filter(Boolean)),
     sessionPatch,
     cog: isPlainObject(src.cog) ? src.cog : {
       intent: "ADVANCE",
@@ -637,14 +644,16 @@ function normalizeContract(raw, ctx) {
       t: src.meta?.t || nowMs(),
       engineVersion: ENGINE.version,
       knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
+      clearStaleUi: shouldClearUi,
+      suppressMenus: shouldClearUi,
       ...(isPlainObject(src.meta) ? src.meta : {})
     }
   };
 }
 
 function buildFailOpenReply(message, ctx, extra) {
-  const fallback = oneLine(message || "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.") ||
-    "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.";
+  const fallback = oneLine(message || "I am here with you. The backend hit a rough patch, but I can keep this steady while it recovers.") ||
+    "I am here with you. The backend hit a rough patch, but I can keep this steady while it recovers.";
   return normalizeContract({
     ok: false,
     reply: fallback,
@@ -784,9 +793,9 @@ app.post("/api/chat", async (req, res) => {
     return sendJson(res, 200, out);
   } catch (err) {
     const fail = buildFailOpenReply(
-      "Backend is stabilizing. Try again in a moment.",
+      inferFailOpenMessage(req),
       ctx,
-      { error: safeStr(err && err.message ? err.message : err).slice(0, 220) }
+      { error: safeStr(err && err.message ? err.message : err).slice(0, 220), clearStaleUi: true, suppressMenus: true }
     );
     return sendJson(res, 200, fail);
   } finally {
