@@ -48,6 +48,8 @@ const DEFAULT_CONFIG = {
   keepCrisisShort: true,
   suppressQuestionOnTechnical: true,
   suppressQuestionOnRecovery: true,
+  suppressQuestionOnLoop: false,
+  suppressQuestionOnHighContinuity: false,
   debug: false
 };
 
@@ -849,6 +851,19 @@ function buildSupportiveResponse(input = {}, config = {}) {
     const emo = normalizeEmotionPayload(input.emo);
     const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.primaryEmotion || emo.dominantEmotion}|nyx`);
     const technical = looksTechnicalRequest(userText);
+    const continuityHeavy =
+      clampInt(emo.continuity.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
+      clampInt(emo.continuity.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
+      clampInt(emo.continuity.noProgressTurnCount || 0, 0, 0, 99) >= 2 ||
+      clampInt(emo.continuity.repeatedFallbackCount || 0, 0, 0, 99) >= 1;
+    const loopSensitive = !!(
+      technical ||
+      emo.supportFlags.mentionsLooping ||
+      emo.routeExhaustion ||
+      emo.fallbackSuppression ||
+      emo.needsNovelMove ||
+      continuityHeavy
+    );
 
     if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
       return buildCrisisResponse({ seed, country: input.country || "" });
@@ -860,9 +875,11 @@ function buildSupportiveResponse(input = {}, config = {}) {
         buildValidation(emo, seed) || "We can keep this tight and practical.",
         buildRecoveryAcknowledgment(emo, seed),
         buildDistressReinforcementLine(emo, seed),
-        emo.needsNovelMove || emo.routeExhaustion
-          ? "We will make the next move cleaner and more direct."
-          : "We will stay on the exact technical target and keep this useful."
+        loopSensitive
+          ? "I am not going to reopen the same loop. We will keep the next move cleaner and more direct."
+          : (emo.needsNovelMove || emo.routeExhaustion
+              ? "We will make the next move cleaner and more direct."
+              : "We will stay on the exact technical target and keep this useful.")
       ]);
     }
 
@@ -890,7 +907,12 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
     parts.push(buildMicroStep(emo, cfg, seed));
 
-    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical;
+    const shouldAsk = !(
+      (cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) ||
+      (cfg.suppressQuestionOnLoop && loopSensitive) ||
+      (cfg.suppressQuestionOnHighContinuity && continuityHeavy) ||
+      technical
+    );
     if (shouldAsk) {
       parts.push(buildQuestion(emo, cfg, seed));
     }
@@ -903,11 +925,13 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
     return technical
       ? "I hear the strain in this. We will keep it technical, direct, and useful."
-      : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
+      : (loopSensitive
+          ? "I hear you. We can keep this simple and steady, and I am not going to reopen the same loop."
+          : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?");
   } catch (_err) {
     return looksTechnicalRequest(safeStr(input && input.userText || ""))
       ? "I hear the strain in this. We will keep it technical, direct, and useful."
-      : "I hear you. We can keep this simple and steady. What feels most important right now?";
+      : "I hear you. We can keep this simple and steady.";
   }
 }
 
