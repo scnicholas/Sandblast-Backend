@@ -2,6 +2,9 @@
 
 const https = require("https");
 
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+
 const PHASES = Object.freeze({
   p01_contractSafe: true,
   p02_envResolution: true,
@@ -22,7 +25,11 @@ const PHASES = Object.freeze({
   p17_endpointValidation: true,
   p18_nestedAudioEnvelope: true,
   p19_downloadGuards: true,
-  p20_nonJsonTolerance: true
+  p20_nonJsonTolerance: true,
+  p21_privateNetworkGuard: true,
+  p22_sizeGuard: true,
+  p23_errorNormalization: true,
+  p24_headerSanitization: true
 });
 
 function _str(v){ return v == null ? "" : String(v); }
@@ -47,6 +54,53 @@ function _boolish(v, dflt){
   if (s === "1" || s === "true" || s === "yes" || s === "on") return true;
   if (s === "0" || s === "false" || s === "no" || s === "off") return false;
   return dflt;
+}
+function _mask(v){
+  const s = _trim(v);
+  if (!s) return "";
+  if (s.length <= 8) return `${s.slice(0, 2)}***${s.slice(-2)}`;
+  return `${s.slice(0, 6)}***${s.slice(-4)}`;
+}
+function _headerSafe(v, max){
+  return _str(v).replace(/[\r\n]+/g, " ").trim().slice(0, max || 120);
+}
+function _safeUrlForLogs(v){
+  const s = _normalizeUrlCandidate(v);
+  if (!s) return "";
+  try{
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  }catch(_){
+    return "";
+  }
+}
+function _isPrivateHostname(hostname){
+  const h = _lower(hostname);
+  if (!h) return true;
+  if (h === "localhost" || h === "127.0.0.1" || h === "::1") return true;
+  if (/^10\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
+  return false;
+}
+function _assertSafeRemoteUrl(raw, allowPrivate){
+  const safe = _normalizeUrlCandidate(raw);
+  if (!safe) throw new Error("invalid_remote_url");
+  const u = new URL(safe);
+  if (!/^https?:$/i.test(u.protocol)) throw new Error("unsupported_remote_protocol");
+  if (!allowPrivate && _isPrivateHostname(u.hostname)) throw new Error("private_network_url_blocked");
+  return safe;
+}
+function _normalizedProviderError(reason, message, status, retryable, extra){
+  return {
+    ok: false,
+    retryable: !!retryable,
+    reason: _trim(reason) || "provider_error",
+    message: _trim(message) || "Resemble synthesis failed.",
+    status: Number.isFinite(Number(status)) ? Number(status) : 0,
+    ...(extra || {})
+  };
 }
 function _mimeFor(fmt){
   const f = _lower(fmt);
@@ -79,6 +133,15 @@ function _requestTimeoutMs(){
     3000,
     60000
   );
+}
+function _allowPrivateAudioSrc(){
+  return _boolish(process.env.SB_TTS_ALLOW_PRIVATE_AUDIO_SRC, false);
+}
+function _maxAudioBytes(){
+  return _clampInt(process.env.SB_TTS_MAX_AUDIO_BYTES, MAX_AUDIO_BYTES, 1024 * 256, 100 * 1024 * 1024);
+}
+function _maxResponseBytes(){
+  return _clampInt(process.env.SB_TTS_MAX_RESPONSE_BYTES, MAX_RESPONSE_BYTES, 1024 * 256, 25 * 1024 * 1024);
 }
 function _enableSsml(){
   return _boolish(process.env.RESEMBLE_USE_SSML, true);
@@ -268,6 +331,7 @@ function _getHeader(headers, name){
 
 function _postViaHttps(url, headers, bodyObj, timeoutMs){
   const body = JSON.stringify(bodyObj);
+  const maxBytes = _maxResponseBytes();
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const req = https.request(
@@ -288,7 +352,15 @@ function _postViaHttps(url, headers, bodyObj, timeoutMs){
       },
       (res) => {
         const chunks = [];
-        res.on("data", (d) => chunks.push(d));
+        let total = 0;
+        res.on("data", (d) => {
+          total += d.length;
+          if (total > maxBytes){
+            req.destroy(new Error("provider_response_too_large"));
+            return;
+          }
+          chunks.push(d);
+        });
         res.on("end", () => {
           const buffer = Buffer.concat(chunks);
           resolve({
@@ -326,12 +398,21 @@ async function _postRequest(url, headers, bodyObj, timeoutMs){
       });
       const ab = await res.arrayBuffer();
       const buffer = Buffer.from(ab);
+      if (buffer.length > _maxResponseBytes()) throw new Error("provider_response_too_large");
       return {
         status: res.status,
         headers: Object.fromEntries(res.headers.entries()),
         buffer,
         text: buffer.toString("utf8")
       };
+    } catch (e){
+      const msg = _str(e && e.message ? e.message : e);
+      if (e && e.name === "AbortError") {
+        const err = new Error("provider_request_timeout");
+        err.cause = e;
+        throw err;
+      }
+      throw new Error(msg || "provider_request_failed");
     } finally {
       if (to) clearTimeout(to);
     }
@@ -340,6 +421,7 @@ async function _postRequest(url, headers, bodyObj, timeoutMs){
 }
 
 function _downloadViaHttps(url, timeoutMs){
+  const maxBytes = _maxAudioBytes();
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const req = https.request(
@@ -354,7 +436,15 @@ function _downloadViaHttps(url, timeoutMs){
       },
       (res) => {
         const chunks = [];
-        res.on("data", (d) => chunks.push(d));
+        let total = 0;
+        res.on("data", (d) => {
+          total += d.length;
+          if (total > maxBytes){
+            req.destroy(new Error("audio_src_too_large"));
+            return;
+          }
+          chunks.push(d);
+        });
         res.on("end", () => {
           resolve({
             status: res.statusCode || 0,
@@ -371,15 +461,7 @@ function _downloadViaHttps(url, timeoutMs){
 }
 
 async function _downloadBuffer(url, timeoutMs){
-  const safeUrl = _normalizeUrlCandidate(url);
-  if (!safeUrl){
-    throw new Error("invalid_audio_src_url");
-  }
-
-  const proto = new URL(safeUrl).protocol;
-  if (!/^https?:$/i.test(proto)){
-    throw new Error("unsupported_audio_src_protocol");
-  }
+  const safeUrl = _assertSafeRemoteUrl(url, _allowPrivateAudioSrc());
 
   if (typeof fetch === "function"){
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -392,11 +474,21 @@ async function _downloadBuffer(url, timeoutMs){
         signal: controller ? controller.signal : undefined
       });
       const ab = await res.arrayBuffer();
+      const buffer = Buffer.from(ab);
+      if (buffer.length > _maxAudioBytes()) throw new Error("audio_src_too_large");
       return {
         status: res.status,
         headers: Object.fromEntries(res.headers.entries()),
-        buffer: Buffer.from(ab)
+        buffer
       };
+    } catch (e){
+      const msg = _str(e && e.message ? e.message : e);
+      if (e && e.name === "AbortError") {
+        const err = new Error("audio_src_timeout");
+        err.cause = e;
+        throw err;
+      }
+      throw new Error(msg || "audio_src_download_failed");
     } finally {
       if (to) clearTimeout(to);
     }
@@ -410,7 +502,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
     ..._buildAuthHeaders(token, authMode),
     "User-Agent": "sb-nyx-tts/1.3"
   };
-  if (traceId) headers["X-SB-Trace-ID"] = traceId;
+  if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
 
   const urls = _candidateSynthesizeUrls();
   let lastResp = null;
@@ -419,7 +511,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
     const url = urls[i];
     try{
       const resp = await _postRequest(url, headers, payload, timeoutMs);
-      resp.providerEndpoint = url;
+      resp.providerEndpoint = _safeUrlForLogs(url);
       lastResp = resp;
 
       const status = resp && resp.status ? resp.status : 0;
@@ -432,7 +524,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
         headers: {},
         buffer: Buffer.alloc(0),
         text: _str(e && e.message ? e.message : e),
-        providerEndpoint: url,
+        providerEndpoint: _safeUrlForLogs(url),
         thrown: e
       };
     }
@@ -443,7 +535,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
     headers: {},
     buffer: Buffer.alloc(0),
     text: "No provider endpoint available.",
-    providerEndpoint: _pickFirst.apply(null, urls)
+    providerEndpoint: _safeUrlForLogs(_pickFirst.apply(null, urls))
   };
 }
 
@@ -559,9 +651,9 @@ async function synthesize(opts){
   const voiceUuid = _resolveVoiceUuid(opts && opts.voiceUuid);
   const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
   const outputFormat = _lower(_pickFirst(opts && opts.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
-  const sampleRate = opts && opts.sampleRate ? opts.sampleRate : undefined;
+  const sampleRate = opts && opts.sampleRate ? _clampInt(opts.sampleRate, undefined, 8000, 192000) : undefined;
   const precision = _pickFirst(opts && opts.precision, "").toUpperCase();
-  const title = _trim(opts && opts.title);
+  const title = _headerSafe(opts && opts.title, 120);
   const useHd = opts && typeof opts.useHd !== "undefined" ? _boolish(opts.useHd, false) : undefined;
   const traceId = _trim(opts && opts.traceId);
   const token = _getToken();
@@ -648,24 +740,23 @@ async function synthesize(opts){
   }catch(e){
     const msg = _str(e && e.message ? e.message : e);
     const timeoutish = /timeout|abort/i.test(msg);
-    return {
-      ok: false,
-      retryable: true,
-      reason: timeoutish ? "provider_timeout" : "network_error",
-      message: msg,
-      status: 0,
+    const reason =
+      /private_network_url_blocked/i.test(msg) ? "private_network_url_blocked" :
+      /too_large/i.test(msg) ? "provider_payload_too_large" :
+      (timeoutish ? "provider_timeout" : "network_error");
+    return _normalizedProviderError(reason, msg, 0, true, {
       elapsedMs: Date.now() - started,
       authMode,
-      providerEndpoint: resp && resp.providerEndpoint ? resp.providerEndpoint : _pickFirst.apply(null, _candidateSynthesizeUrls()),
-      voiceUuid,
-      traceId,
+      providerEndpoint: resp && resp.providerEndpoint ? resp.providerEndpoint : _safeUrlForLogs(_pickFirst.apply(null, _candidateSynthesizeUrls())),
+      voiceUuid: _mask(voiceUuid),
+      traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
       usedSsml: speech.useSsml,
       phases: PHASES
-    };
+    });
   }
 
   const status = resp && resp.status ? resp.status : 0;
@@ -688,8 +779,8 @@ async function synthesize(opts){
       requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
       authMode,
       providerEndpoint,
-      voiceUuid,
-      traceId,
+      voiceUuid: _mask(voiceUuid),
+      traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
@@ -701,6 +792,13 @@ async function synthesize(opts){
 
   let buf = null;
   let env = _extractAudioEnvelope(json);
+  if (!env.request_id){
+    env.request_id = _pickFirst(
+      _getHeader(resp && resp.headers, "x-request-id"),
+      _getHeader(resp && resp.headers, "x-amzn-requestid"),
+      _getHeader(resp && resp.headers, "x-correlation-id")
+    );
+  }
   let detectedOutputFormat = env.output_format || outputFormat;
   let detectedContentType = contentType;
 
@@ -815,8 +913,8 @@ async function synthesize(opts){
       requestId: env.request_id,
       authMode,
       providerEndpoint,
-      voiceUuid,
-      traceId,
+      voiceUuid: _mask(voiceUuid),
+      traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
@@ -838,8 +936,8 @@ async function synthesize(opts){
       requestId: env.request_id,
       authMode,
       providerEndpoint,
-      voiceUuid,
-      traceId,
+      voiceUuid: _mask(voiceUuid),
+      traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
       speechChunks: speech.speechChunks,
@@ -863,8 +961,8 @@ async function synthesize(opts){
     providerStatus: status,
     authMode,
     providerEndpoint,
-    voiceUuid,
-    traceId,
+    voiceUuid: _mask(voiceUuid),
+    traceId: _headerSafe(traceId, 120),
     textDisplay: speech.textDisplay,
     textSpeak: speech.textSpeak,
     plainText: speech.plainText,
