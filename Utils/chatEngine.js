@@ -222,8 +222,28 @@ function quietUi(mode) {
   return { chips: [], allowMic: true, mode: safeStr(mode || "quiet") || "quiet" };
 }
 
+function shouldUseSupportiveArtifacts(norm, emo, routeOut) {
+  if (!emo) return false;
+  if (emo.supportFlags?.crisis || emo.supportFlags?.highDistress || emo.supportFlags?.needsStabilization) return true;
+  if (emo.bypassClarify || emo.mode === "VULNERABLE" || emo.valence === "negative" || emo.valence === "mixed") return true;
+  if (safeStr(routeOut?.meta?.supportMode || routeOut?.meta?.responseMode || "").toLowerCase() === "supportive") return true;
+  if (safeStr(routeOut?.ui?.mode || "").toLowerCase() === "supportive") return true;
+  if (routeOut?.meta?.supportCompatible) return true;
+  return false;
+}
 function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
   const suppress = shouldSuppressLaneArtifacts(norm, emo, routeOut);
+  const supportiveArtifacts = shouldUseSupportiveArtifacts(norm, emo, routeOut);
+  if (suppress && supportiveArtifacts) {
+    const followUps = dedupeFollowUpsForExecution(
+      Array.isArray(followUpsRaw) && followUpsRaw.length ? followUpsRaw : buildSupportiveEmotionFollowUps(emo),
+      norm,
+      emo
+    );
+    const followUpsStrings = (Array.isArray(followUps) ? followUps : []).map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean);
+    const ui = isPlainObject(uiRaw) ? uiRaw : buildSupportiveEmotionUi(emo);
+    return { followUps, followUpsStrings, ui, menusSuppressed: true };
+  }
   if (suppress) return { followUps: [], followUpsStrings: [], ui: quietUi(emo ? "supportive" : "direct"), menusSuppressed: true };
   const followUps = dedupeFollowUpsForExecution(followUpsRaw, norm, emo);
   const followUpsStrings = (Array.isArray(followUps) ? followUps : []).map((x) => safeStr(x?.label || x?.title || "")).filter(Boolean);
@@ -1299,30 +1319,13 @@ function buildSupportPacketSafe(norm, emo) {
       deliveryTone: safeStr(emo?.deliveryTone || "").toLowerCase(),
       semanticFrame: safeStr(emo?.semanticFrame || "").toLowerCase()
     };
-    const suppressLoopQuestion = !!(
-      emo?.supportFlags?.mentionsLooping ||
-      emo?.routeExhaustion ||
-      emo?.fallbackSuppression ||
-      emo?.needsNovelMove ||
-      clampInt(emo?.continuity?.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
-      clampInt(emo?.continuity?.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
-      clampInt(emo?.continuity?.noProgressTurnCount || 0, 0, 0, 99) >= 2
-    );
-    const supportCfg = {
-      suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm),
-      suppressQuestionOnRecovery: true,
-      suppressQuestionOnLoop: suppressLoopQuestion,
-      suppressQuestionOnHighContinuity: suppressLoopQuestion,
-      maxQuestionCount: suppressLoopQuestion ? 0 : 1,
-      maxMicroSteps: suppressLoopQuestion ? 1 : 1
-    };
     if (typeof Support.buildSupportPacket === "function") {
       return Support.buildSupportPacket({
         userText: safeStr(norm?.text || ""),
         emo,
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
         ...presentation
-      }, supportCfg);
+      }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true });
     }
     if (typeof Support.buildSupportiveResponse === "function") {
       return {
@@ -1333,7 +1336,7 @@ function buildSupportPacketSafe(norm, emo) {
           emo,
           seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
           ...presentation
-        }, supportCfg),
+        }, { suppressQuestionOnTechnical: isTechnicalExecutionInbound(norm), suppressQuestionOnRecovery: true }),
         meta: {
           crisis: !!emo.supportFlags?.crisis,
           dominantEmotion: safeStr(emo.dominantEmotion || "neutral"),
@@ -1343,8 +1346,7 @@ function buildSupportPacketSafe(norm, emo) {
           deliveryTone: presentation.deliveryTone,
           semanticFrame: presentation.semanticFrame,
           priorResponseFamily: presentation.priorResponseFamily,
-          responseFamily: safeStr(emo.responseFamily || "").toLowerCase(),
-          suppressLoopQuestion
+          responseFamily: safeStr(emo.responseFamily || "").toLowerCase()
         }
       };
     }
@@ -1384,6 +1386,13 @@ function buildSupportiveEmotionFollowUps(emo) {
     return [
       { id: "fu_ground", type: "action", label: "Stay with me", payload: { action: "support_ground", mode: "supportive" } },
       { id: "fu_breathe", type: "action", label: "One breath", payload: { action: "support_breathe", mode: "supportive" } }
+    ];
+  }
+
+  if (dom === "hurt" || dom === "sadness" || dom === "grief" || dom === "pain") {
+    return [
+      { id: "fu_keep_talking_hurt", type: "action", label: "Keep talking", payload: { action: "support_talk", mode: "supportive", emotion: dom || "hurt" } },
+      { id: "fu_what_happened_hurt", type: "action", label: "What happened?", payload: { action: "support_explain", mode: "supportive", emotion: dom || "hurt" } }
     ];
   }
 
@@ -1428,7 +1437,10 @@ function buildSupportiveEmotionUi(emo) {
   return {
     chips: buildSupportiveEmotionFollowUps(emo),
     allowMic: true,
-    mode: "supportive"
+    mode: "supportive",
+    supportLock: true,
+    clearStaleUi: true,
+    suppressMenus: true
   };
 }
 function isGenericMenuBounceReply(summary) {
@@ -1546,7 +1558,7 @@ function shouldPreferSupportPacket(norm, emo) {
   if (emo?.supportFlags?.crisis || emo?.supportFlags?.highDistress || emo?.supportFlags?.needsStabilization) return true;
   if (emo?.bypassClarify || emo?.mode === "VULNERABLE") return true;
   if (safeStr(emo?.valence || "").toLowerCase() === "negative") return true;
-  return /(tough day|rough day|hard day|bad day|lost after|feel lost|drained|overwhelmed|stressed|burned out|work was hard|day at work|meeting went badly|meeting was rough)/i.test(text);
+  return /(i am hurting|i'm hurting|hurt|hurting|tough day|rough day|hard day|bad day|lost after|feel lost|drained|overwhelmed|stressed|burned out|work was hard|day at work|meeting went badly|meeting was rough)/i.test(text);
 }
 function buildDegradedSafeReply(norm, emo) {
   const text = safeStr(norm?.text || "").toLowerCase();
@@ -2172,11 +2184,12 @@ async function handleChat(input) {
           reply: safeStr(directSupportPacket.reply),
           lane: "general",
           directives: Array.isArray(directSupportPacket.directives) ? directSupportPacket.directives : [],
-          followUps: [],
-          ui: quietUi("supportive"),
+          followUps: buildSupportiveEmotionFollowUps(emo),
+          ui: buildSupportiveEmotionUi(emo),
           meta: {
             supportPacket: true,
             supportCompatible: true,
+            supportMode: "supportive",
             suppressMenus: true,
             clearStaleUi: true,
             responseFamily: safeStr(directSupportPacket.meta?.responseFamily || emo?.responseFamily || '').toLowerCase(),
@@ -2201,8 +2214,8 @@ async function handleChat(input) {
       const recoveryPacket = buildSupportPacketSafe(norm, emo);
       if (recoveryPacket && safeStr(recoveryPacket.reply)) {
         reply = safeStr(recoveryPacket.reply);
-        routeOut.followUps = [];
-        routeOut.ui = quietUi("supportive");
+        routeOut.followUps = buildSupportiveEmotionFollowUps(emo);
+        routeOut.ui = buildSupportiveEmotionUi(emo);
         routeOut.meta = {
           ...(isPlainObject(routeOut.meta) ? routeOut.meta : {}),
           suppressMenus: true,
