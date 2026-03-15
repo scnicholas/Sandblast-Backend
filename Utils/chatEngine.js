@@ -1292,6 +1292,9 @@ function buildSupportPacketSafe(norm, emo) {
     const presentation = {
       priorResponseFamily: safeStr(emo?.priorResponseFamily || norm?.ctx?.lastResponseFamily || norm?.ctx?.priorResponseFamily || "").toLowerCase(),
       lastResponseFamily: safeStr(emo?.priorResponseFamily || norm?.ctx?.lastResponseFamily || norm?.ctx?.priorResponseFamily || "").toLowerCase(),
+      lastOpeningFamily: safeStr(norm?.ctx?.lastOpeningFamily || "").toLowerCase(),
+      lastQuestionStyle: safeStr(norm?.ctx?.lastQuestionStyle || "").toLowerCase(),
+      sameResponseFamilyCount: clampInt(norm?.ctx?.sameResponseFamilyCount || 0, 0, 0, 99),
       expressionStyle: safeStr(emo?.expressionStyle || "").toLowerCase(),
       deliveryTone: safeStr(emo?.deliveryTone || "").toLowerCase(),
       semanticFrame: safeStr(emo?.semanticFrame || "").toLowerCase()
@@ -1512,12 +1515,12 @@ function makeBreakerReply(norm, emo) {
   if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
     return safeStr(packet.reply);
   }
-  return "I am seeing repetition, so I am slowing this down and keeping it steady. Give me one fresh sentence and I will stay with it without reopening menus.";
+  return "I am seeing repetition, so I am changing the pattern and keeping this steady. Give me one fresh sentence and I will stay with what matters.";
 }
 function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
   if (packet && packet.reply && safeStr(packet.reply)) return safeStr(packet.reply);
-  return "I am already processing that exact turn. Hold steady for a moment, then send one fresh sentence only if you still need to.";
+  return "I am already processing that exact turn. Give it a beat, then send one fresh line only if you still need me.";
 }
 function normalizeInbound(input) {
   const src = isPlainObject(input) ? input : {};
@@ -1586,6 +1589,33 @@ function computeLaneState(session, corePrev, lane, norm) {
   else if (safeStr(norm?.action || "").trim()) reason = "typed_action";
   return { current: cur, previous: prev, changed, reason };
 }
+
+function lightweightTextMood(text) {
+  const t = oneLine(text).toLowerCase();
+  if (!t) return 'neutral';
+  if (/\b(happy|great|amazing|beautiful day|love what i do|love my work|proud|did great|did well|fantastic|awesome|good mood|things are going well)\b/.test(t)) return 'positive';
+  if (/\b(depressed|sad|lonely|afraid|anxious|worried|overwhelmed|hurt|angry|hopeless)\b/.test(t)) return 'negative';
+  return 'neutral';
+}
+
+function buildDegradedSteadyReply(text, emo) {
+  const mood = emo && safeStr(emo.valence) ? safeStr(emo.valence).toLowerCase() : lightweightTextMood(text);
+  const frame = safeStr(emo?.semanticFrame || '').toLowerCase();
+  if (mood === 'positive') {
+    if (frame.includes('purpose') || /love what i do|love my work|love my job/.test(oneLine(text).toLowerCase())) {
+      return 'That sounds meaningful, and I am still with you here. Let me keep it steady and stay with what feels aligned in that.';
+    }
+    if (frame.includes('aesthetic') || /beautiful day|gorgeous outside|outstanding out there/.test(oneLine(text).toLowerCase())) {
+      return 'There is something good in that moment, and I can stay with it without flattening it. We can keep this calm and present.';
+    }
+    return 'I can hear the positive signal in that, and I am still with you. We can keep it steady and build on what feels good here.';
+  }
+  if (mood === 'negative') {
+    return 'I am still with you, and I can keep this gentle and steady. We do not need to force it or bounce you anywhere.';
+  }
+  return 'I am still with you, and I can keep this steady while this re-centers. No menu bounce, no lane shift.';
+}
+
 function computeBridge(sessionLaneState, requestId) {
   const st = isPlainObject(sessionLaneState) ? sessionLaneState : null;
   if (!st || !st.changed) return null;
@@ -1601,7 +1631,7 @@ function computeBridge(sessionLaneState, requestId) {
 function failSafeContract(err, input, extra) {
   const src = isPlainObject(input) ? input : {};
   const requestId = safeStr(src.requestId || "").slice(0, 80) || `req_${nowMs()}`;
-  const msg = "I am keeping this steady while the backend recovers. No menu bounce, no lane shift.";
+  const msg = buildDegradedSteadyReply(src?.text || src?.body?.text || src?.payload?.text || src?.body?.message || src?.payload?.message || "", extra?.emo || null);
   return {
     ok: false,
     reply: msg,
@@ -2119,9 +2149,7 @@ async function handleChat(input) {
       : routeLane
       ? routeLane(norm, session, emo)
       : {
-          reply: isPlainObject(emo) && safeStr(emo.valence).toLowerCase() === "positive"
-            ? "I hear the positive signal in that, and I can stay with it without flattening this into a menu."
-            : "I am here with you. We can keep this simple and steady without dropping you into a menu.",
+          reply: buildDegradedSteadyReply(norm?.text || "", emo),
           lane: "general",
           directives: [],
           followUps: [],
@@ -2144,7 +2172,7 @@ async function handleChat(input) {
     }
     logChatDiag('route_selected', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), routeReplyHash: hashText(reply || ''), routeMeta: isPlainObject(routeOut?.meta) ? routeOut.meta : {} });
 
-    if (!reply) reply = isPlainObject(emo) && safeStr(emo.valence).toLowerCase() === "positive" ? "That sounds like a real positive shift. I can stay with it or help you build on it." : "I am here with you. We can keep this simple and steady.";
+    if (!reply) reply = buildDegradedSteadyReply(norm?.text || "", emo);
 
     const loopPatch = detectAndPatchLoop(session, lane, reply);
     if (loopPatch.tripped) {
