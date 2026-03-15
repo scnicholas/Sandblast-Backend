@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.5.0 EMOTION-XOVER LOOP-HARDEN";
+const VERSION = "supportResponse v1.6.0 AUDIO-FAILURE SUPPORT-HARDEN";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -148,6 +148,83 @@ function looksTechnicalRequest(text) {
   const s = safeStr(text).toLowerCase();
   if (!s) return false;
   return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend)/.test(s);
+}
+
+function normalizeAudioFailure(input) {
+  const bag =
+    (isPlainObject(input?.ttsFailure) && input.ttsFailure) ||
+    (isPlainObject(input?.audioFailure) && input.audioFailure) ||
+    (isPlainObject(input?.turnSignals?.ttsFailure) && input.turnSignals.ttsFailure) ||
+    {};
+  const reason = lower(bag.reason || bag.message || "");
+  const providerStatus = clampInt(bag.providerStatus || bag.status, 0, 0, 999999);
+  const retryable = !!bag.retryable;
+  const action = /retry/i.test(safeStr(bag.action || "")) ? "retry" :
+    /stop|terminal/i.test(safeStr(bag.action || "")) ? "stop" :
+    /downgrade/i.test(safeStr(bag.action || "")) ? "downgrade" :
+    "";
+  const shouldTerminate = !!(bag.shouldTerminate || bag.shouldStop || action === "stop");
+  return {
+    present: !!(reason || providerStatus || retryable || action),
+    reason,
+    message: safeStr(bag.message || ""),
+    providerStatus,
+    retryable,
+    action: action || (retryable ? "downgrade" : (providerStatus >= 400 && providerStatus < 500 ? "stop" : "")),
+    shouldTerminate
+  };
+}
+
+function buildAudioFailureLine(audioFailure, seed) {
+  if (!audioFailure?.present) return "";
+  if (audioFailure.shouldTerminate || audioFailure.action === "stop") {
+    return pick([
+      "Audio is not the move right now, so I am keeping this clean and text-only.",
+      "I am not going to keep forcing audio through a broken lane.",
+      "The audio path needs to stop here, so I am keeping this stable in text."
+    ], `${seed}|audio|stop`);
+  }
+  if (audioFailure.action === "retry") {
+    return pick([
+      "Audio hit a temporary snag, so I am keeping the response steady instead of letting that derail the turn.",
+      "The voice layer looks transiently unstable, so I am holding the response in a safer lane.",
+      "Audio stumbled, but the turn itself does not need to spiral with it."
+    ], `${seed}|audio|retry`);
+  }
+  return pick([
+    "Audio is unstable, so I am downgrading this to a cleaner text response.",
+    "Rather than pushing a shaky voice path, I am keeping the response usable in text.",
+    "The voice path is noisy right now, so text is the safer lane."
+  ], `${seed}|audio|downgrade`);
+}
+
+function buildTechnicalStabilityLine(audioFailure, seed) {
+  if (!audioFailure?.present) {
+    return pick([
+      "We will keep the next move tight and deterministic.",
+      "We stay on the exact target and do not reopen side loops.",
+      "The next move needs to be clean, direct, and bounded."
+    ], `${seed}|tech|stable`);
+  }
+  if (audioFailure.shouldTerminate || audioFailure.action === "stop") {
+    return pick([
+      "That means no more audio re-entry on this turn.",
+      "So the clean move is terminalize the audio lane and keep backend flow intact.",
+      "That keeps the backend stable instead of reopening the same failure path."
+    ], `${seed}|tech|stop`);
+  }
+  if (audioFailure.action === "retry") {
+    return pick([
+      "A bounded retry is fine, but not conversational re-entry.",
+      "Transient retry is acceptable; looped re-triggering is not.",
+      "Retry has to stay capped and should never masquerade as new progression."
+    ], `${seed}|tech|retry`);
+  }
+  return pick([
+    "So we downgrade cleanly instead of replaying the same failure.",
+    "That calls for degrade-and-continue, not re-open-and-loop.",
+    "The right behavior here is downgrade without contaminating turn progression."
+  ], `${seed}|tech|downgrade`);
 }
 
 
@@ -849,6 +926,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
   try {
     const userText = safeStr(input.userText || "");
     const emo = normalizeEmotionPayload(input.emo);
+    const audioFailure = normalizeAudioFailure(input);
     const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.primaryEmotion || emo.dominantEmotion}|nyx`);
     const technical = looksTechnicalRequest(userText);
     const continuityHeavy =
@@ -873,8 +951,10 @@ function buildSupportiveResponse(input = {}, config = {}) {
       return joinSentences([
         buildReflectiveLead(emo, seed) || "I hear the pressure in this.",
         buildValidation(emo, seed) || "We can keep this tight and practical.",
+        buildAudioFailureLine(audioFailure, seed),
         buildRecoveryAcknowledgment(emo, seed),
         buildDistressReinforcementLine(emo, seed),
+        buildTechnicalStabilityLine(audioFailure, seed),
         loopSensitive
           ? "I am not going to reopen the same loop. We will keep the next move cleaner and more direct."
           : (emo.needsNovelMove || emo.routeExhaustion
@@ -896,6 +976,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
     parts.push(buildReflectiveLead(emo, seed));
     parts.push(buildValidation(emo, seed));
+    parts.push(buildAudioFailureLine(audioFailure, seed));
     parts.push(buildDistressReinforcementLine(emo, seed));
     parts.push(buildPositiveReinforcementLine(emo, seed));
     parts.push(buildRecoveryAcknowledgment(emo, seed));
@@ -911,7 +992,8 @@ function buildSupportiveResponse(input = {}, config = {}) {
       (cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) ||
       (cfg.suppressQuestionOnLoop && loopSensitive) ||
       (cfg.suppressQuestionOnHighContinuity && continuityHeavy) ||
-      technical
+      technical ||
+      !!audioFailure.shouldTerminate
     );
     if (shouldAsk) {
       parts.push(buildQuestion(emo, cfg, seed));
@@ -937,6 +1019,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
 function buildSupportPacket(input = {}, config = {}) {
   const emo = normalizeEmotionPayload(input.emo);
+  const audioFailure = normalizeAudioFailure(input);
   const seed = safeStr(input.seed || input.userText || "nyx");
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
 
@@ -949,7 +1032,10 @@ function buildSupportPacket(input = {}, config = {}) {
       meta: {
         crisis: true,
         dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
-        valence: emo.valence
+        valence: emo.valence,
+        audioFailurePresent: !!audioFailure.present,
+        audioAction: safeStr(audioFailure.action || ""),
+        audioTerminal: !!audioFailure.shouldTerminate
       }
     };
   }
@@ -972,7 +1058,13 @@ function buildSupportPacket(input = {}, config = {}) {
       supportModeCandidate: emo.supportModeCandidate,
       fallbackSuppression: !!emo.fallbackSuppression,
       needsNovelMove: !!emo.needsNovelMove,
-      routeExhaustion: !!emo.routeExhaustion
+      routeExhaustion: !!emo.routeExhaustion,
+      audioFailurePresent: !!audioFailure.present,
+      audioAction: safeStr(audioFailure.action || ""),
+      audioReason: safeStr(audioFailure.reason || ""),
+      audioRetryable: !!audioFailure.retryable,
+      audioProviderStatus: clampInt(audioFailure.providerStatus || 0, 0, 0, 999999),
+      audioTerminal: !!audioFailure.shouldTerminate
     }
   };
 }
