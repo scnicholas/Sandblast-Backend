@@ -3,16 +3,18 @@
 /**
  * Utils/stateSpine.js
  *
- * stateSpine v1.2.0 STAGE-LOCK LOOP-HARDEN
+ * stateSpine v1.3.0 AUDIO-TERMINAL HARDEN
  * ------------------------------------------------------------
  * PURPOSE
  * - Maintain durable conversational progression state
  * - Prevent same-stage replay and shallow re-entry loops
  * - Expose a compact planning contract to chatEngine
+ * - Terminalize repeated TTS/audio failures cleanly instead of re-entering
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.2.0 STAGE-LOCK LOOP-HARDEN";
+const SPINE_VERSION = "stateSpine v1.3.0 AUDIO-TERMINAL HARDEN";
+const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -46,6 +48,10 @@ function hashText(v) {
   return (h >>> 0).toString(16);
 }
 
+function nowMs() {
+  return Date.now();
+}
+
 function createState(seed = {}) {
   const lane = safeStr(seed.lane || "general") || "general";
   const stage = safeStr(seed.stage || "open") || "open";
@@ -73,6 +79,15 @@ function createState(seed = {}) {
       sameAssistantHashCount: 0,
       noProgressCount: 0,
       fallbackCount: 0
+    },
+    audio: {
+      lastFailureReason: "",
+      lastFailureStatus: 0,
+      lastFailureAction: "",
+      lastFailureRetryable: false,
+      lastFailureAt: 0,
+      terminalStopUntil: 0,
+      terminalStopReason: ""
     },
     lastUpdatedAt: 0
   };
@@ -110,13 +125,22 @@ function coerceState(input) {
       noProgressCount: clampInt(src?.repetition?.noProgressCount, 0, 0, 999999),
       fallbackCount: clampInt(src?.repetition?.fallbackCount, 0, 0, 999999)
     },
+    audio: {
+      lastFailureReason: safeStr(src?.audio?.lastFailureReason || ""),
+      lastFailureStatus: clampInt(src?.audio?.lastFailureStatus, 0, 0, 999999),
+      lastFailureAction: safeStr(src?.audio?.lastFailureAction || ""),
+      lastFailureRetryable: !!src?.audio?.lastFailureRetryable,
+      lastFailureAt: Number(src?.audio?.lastFailureAt || 0) || 0,
+      terminalStopUntil: Number(src?.audio?.terminalStopUntil || 0) || 0,
+      terminalStopReason: safeStr(src?.audio?.terminalStopReason || "")
+    },
     lastUpdatedAt: Number(src.lastUpdatedAt || 0) || 0
   };
 }
 
 function inferPhaseFromStage(stage, lock) {
   const s = safeStr(stage || "").toLowerCase();
-  if (s === "recovery" || s === "stabilize") return "recovery";
+  if (s === "recovery" || s === "stabilize" || s === "terminal_stop") return "recovery";
   if (s === "deliver" || s === "advance" || s === "domain_depth_1" || s === "domain_depth_2") return "active";
   if (s === "execution") return "execution";
   if (lock) return "recovery";
@@ -126,7 +150,7 @@ function inferPhaseFromStage(stage, lock) {
 function isTechnicalInbound(inbound) {
   const text = safeStr(inbound?.text || "").toLowerCase();
   const action = safeStr(inbound?.action || inbound?.payload?.action || inbound?.payload?.route || "").toLowerCase();
-  return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend|fix)/.test(text) ||
+  return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend|fix|voice route|voiceroute)/.test(text) ||
     /(diagnosis|restructure|patch|implement|debug|fix|repair|analysis)/.test(action);
 }
 
@@ -140,9 +164,25 @@ function extractIntent(inbound) {
   return "ADVANCE";
 }
 
+function normalizeAudioSignal(inbound) {
+  const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
+  const actionRaw = safeStr(sig.ttsAction || sig.audioAction || "");
+  const action = /retry/i.test(actionRaw) ? "retry" :
+    /downgrade/i.test(actionRaw) ? "downgrade" :
+    /stop|terminal/i.test(actionRaw) ? "stop" : "";
+  const shouldStop = !!(sig.ttsShouldStop || sig.audioShouldStop || action === "stop");
+  const retryable = !!(sig.ttsRetryable || sig.audioRetryable || action === "retry");
+  const reason = safeStr(sig.ttsReason || sig.audioReason || "");
+  const status = clampInt(sig.ttsProviderStatus || sig.audioProviderStatus, 0, 0, 999999);
+  return { action, shouldStop, retryable, reason, status };
+}
+
 function inferConversationPhase(prevState, inbound, plannerDecision) {
   const prev = coerceState(prevState);
   const technical = isTechnicalInbound(inbound);
+  const audio = normalizeAudioSignal(inbound);
+  if (audio.shouldStop) return "recovery";
+  if (prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs()) return "recovery";
   if (technical) return "execution";
   if (safeStr(plannerDecision?.stage || "").toLowerCase() === "recovery") return "recovery";
   if (prev.progressionLock) return "recovery";
@@ -154,6 +194,9 @@ function decideNextMove(prevState, inbound) {
   const userHash = hashText(oneLine(inbound?.text || "").toLowerCase());
   const intent = extractIntent(inbound);
   const technical = isTechnicalInbound(inbound);
+  const audio = normalizeAudioSignal(inbound);
+  const terminalStopActive = prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs();
+
   const mentionsLooping = !!inbound?.turnSignals?.emotionRouteExhaustion ||
     !!inbound?.turnSignals?.emotionFallbackSuppression ||
     clampInt(inbound?.turnSignals?.emotionNoProgressTurnCount, 0, 0, 99) >= 2 ||
@@ -161,6 +204,36 @@ function decideNextMove(prevState, inbound) {
 
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameIntent = !!(intent && prev.lastIntent && intent === prev.lastIntent);
+
+  if (audio.shouldStop || terminalStopActive) {
+    return {
+      move: "STABILIZE",
+      stage: "terminal_stop",
+      rationale: audio.reason ? `audio_terminal_${audio.reason}` : "audio_terminal_stop",
+      speak: "",
+      _plannerMode: "audio_terminal"
+    };
+  }
+
+  if (audio.action === "downgrade") {
+    return {
+      move: "ADVANCE",
+      stage: technical ? "execution" : "deliver",
+      rationale: audio.reason ? `audio_downgrade_${audio.reason}` : "audio_downgrade",
+      speak: "",
+      _plannerMode: technical ? "execution" : "audio_downgrade"
+    };
+  }
+
+  if (audio.action === "retry") {
+    return {
+      move: "ADVANCE",
+      stage: "execution",
+      rationale: audio.reason ? `audio_retry_${audio.reason}` : "audio_retry",
+      speak: "",
+      _plannerMode: "audio_retry"
+    };
+  }
 
   if (technical) {
     return {
@@ -219,12 +292,17 @@ function finalizeTurn(params = {}) {
   const sameAssistant = !!(assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
+  const audio = normalizeAudioSignal(inbound);
+
+  const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
   const progressionLock = !!(
     technical ||
     safeStr(intent) === "STABILIZE" ||
     stage === "recovery" ||
+    stage === "terminal_stop" ||
     sameUser ||
-    (sameAssistant && sameStage)
+    (sameAssistant && sameStage) ||
+    audio.shouldStop
   );
 
   const repetition = {
@@ -234,12 +312,12 @@ function finalizeTurn(params = {}) {
     sameUserHashCount: sameUser ? prev.repetition.sameUserHashCount + 1 : 0,
     sameAssistantHashCount: sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0,
     noProgressCount: (sameStage && sameIntent && sameLane) ? prev.repetition.noProgressCount + 1 : 0,
-    fallbackCount: /failopen|fallback|breaker|stabilize/i.test(safeStr(params.updateReason || "") + " " + safeStr(decision.rationale || ""))
-      ? prev.repetition.fallbackCount + 1
-      : 0
+    fallbackCount: /failopen|fallback|breaker|stabilize|audio_terminal|audio_downgrade/i.test(
+      safeStr(params.updateReason || "") + " " + safeStr(decision.rationale || "")
+    ) ? prev.repetition.fallbackCount + 1 : 0
   };
 
-  const volatility = progressionLock || repetition.noProgressCount >= 1
+  const volatility = audio.shouldStop || progressionLock || repetition.noProgressCount >= 1
     ? "elevated"
     : repetition.sameStageCount >= 2
       ? "guarded"
@@ -266,18 +344,32 @@ function finalizeTurn(params = {}) {
       assistant: clampInt(prev.turns.assistant, 0, 0, 999999) + 1
     },
     repetition,
-    lastUpdatedAt: Date.now()
+    audio: {
+      lastFailureReason: audio.reason || (audio.action ? prev.audio.lastFailureReason : ""),
+      lastFailureStatus: audio.status || (audio.action ? prev.audio.lastFailureStatus : 0),
+      lastFailureAction: audio.action || "",
+      lastFailureRetryable: !!audio.retryable,
+      lastFailureAt: audio.action ? nowMs() : prev.audio.lastFailureAt,
+      terminalStopUntil,
+      terminalStopReason: audio.shouldStop ? (audio.reason || "audio_terminal_stop") : ""
+    },
+    lastUpdatedAt: nowMs()
   };
 }
 
 function assertTurnUpdated(prevState, nextState) {
   const prev = coerceState(prevState);
   const next = coerceState(nextState);
-  return next.rev > prev.rev || next.lastUpdatedAt > prev.lastUpdatedAt || next.lastUserHash !== prev.lastUserHash;
+  return next.rev > prev.rev ||
+    next.lastUpdatedAt > prev.lastUpdatedAt ||
+    next.lastUserHash !== prev.lastUserHash ||
+    safeStr(next?.audio?.lastFailureAction || "") !== safeStr(prev?.audio?.lastFailureAction || "") ||
+    Number(next?.audio?.terminalStopUntil || 0) !== Number(prev?.audio?.terminalStopUntil || 0);
 }
 
 module.exports = {
   SPINE_VERSION,
+  TERMINAL_AUDIO_STOP_MS,
   createState,
   coerceState,
   inferConversationPhase,
