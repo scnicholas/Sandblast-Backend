@@ -37,7 +37,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.7.0 SEMANTIC-VARIATION LOOP-HARDEN";
+const VERSION = "supportResponse v1.5.0 EMOTION-XOVER LOOP-HARDEN";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -48,9 +48,6 @@ const DEFAULT_CONFIG = {
   keepCrisisShort: true,
   suppressQuestionOnTechnical: true,
   suppressQuestionOnRecovery: true,
-  supportLockTurns: 2,
-  suppressChipsOnSupport: true,
-  suppressChipsOnTechnical: true,
   debug: false
 };
 
@@ -84,319 +81,6 @@ function uniq(arr) {
 
 function lower(v) {
   return safeStr(v).toLowerCase();
-}
-
-function normalizeNuanceProfile(nuance) {
-  const n = isPlainObject(nuance) ? nuance : {};
-  const uniqSafe = (arr, fallback = []) => uniq(Array.isArray(arr) ? arr : fallback);
-  return {
-    arousal: safeStr(n.arousal || 'medium').toLowerCase(),
-    socialDirection: safeStr(n.socialDirection || 'mixed').toLowerCase(),
-    timeOrientation: safeStr(n.timeOrientation || 'present').toLowerCase(),
-    controlState: safeStr(n.controlState || 'uncertain').toLowerCase(),
-    conversationNeed: safeStr(n.conversationNeed || 'clarify').toLowerCase(),
-    followupStyle: safeStr(n.followupStyle || 'reflective').toLowerCase(),
-    transitionReadiness: safeStr(n.transitionReadiness || 'medium').toLowerCase(),
-    loopRisk: safeStr(n.loopRisk || 'medium').toLowerCase(),
-    archetype: safeStr(n.archetype || 'clarify').toLowerCase(),
-    fallbackArchetype: safeStr(n.fallbackArchetype || 'ground').toLowerCase(),
-    questionPressure: safeStr(n.questionPressure || 'medium').toLowerCase(),
-    mirrorDepth: safeStr(n.mirrorDepth || 'medium').toLowerCase(),
-    transitionTargets: uniqSafe(n.transitionTargets, ['clarify']),
-    antiLoopShift: safeStr(n.antiLoopShift || 'shift_to_grounding_after_two_similar_turns').toLowerCase()
-  };
-}
-
-function normalizeConversationPlan(plan) {
-  const p = isPlainObject(plan) ? plan : {};
-  return {
-    primaryArchetype: safeStr(p.primaryArchetype || '').toLowerCase(),
-    fallbackArchetype: safeStr(p.fallbackArchetype || '').toLowerCase(),
-    askAllowed: p.askAllowed === false ? false : true,
-    questionStyle: safeStr(p.questionStyle || '').toLowerCase(),
-    questionPressure: safeStr(p.questionPressure || '').toLowerCase(),
-    mirrorDepth: safeStr(p.mirrorDepth || '').toLowerCase(),
-    shouldSuppressMenus: !!p.shouldSuppressMenus,
-    shouldPreferReflection: !!p.shouldPreferReflection,
-    shouldDelaySolutioning: !!p.shouldDelaySolutioning,
-    recommendedDepth: safeStr(p.recommendedDepth || '').toLowerCase(),
-    antiLoopShift: safeStr(p.antiLoopShift || '').toLowerCase(),
-    transitionTargets: uniq(p.transitionTargets),
-    conversationNeed: safeStr(p.conversationNeed || '').toLowerCase(),
-    followupStyle: safeStr(p.followupStyle || '').toLowerCase(),
-    allowsActionShift: !!p.allowsActionShift,
-    expressionStyle: safeStr(p.expressionStyle || '').toLowerCase(),
-    deliveryTone: safeStr(p.deliveryTone || '').toLowerCase(),
-    semanticFrame: safeStr(p.semanticFrame || '').toLowerCase(),
-    responseFamily: safeStr(p.responseFamily || '').toLowerCase()
-  };
-}
-
-
-function normalizePresentationProfile(src) {
-  const s = isPlainObject(src) ? src : {};
-  return {
-    expressionStyle: safeStr(s.expressionStyle || '').toLowerCase(),
-    deliveryTone: safeStr(s.deliveryTone || '').toLowerCase(),
-    semanticFrame: safeStr(s.semanticFrame || '').toLowerCase(),
-    priorResponseFamily: safeStr(s.priorResponseFamily || '').toLowerCase(),
-    lastOpeningFamily: safeStr(s.lastOpeningFamily || '').toLowerCase(),
-    lastQuestionStyle: safeStr(s.lastQuestionStyle || '').toLowerCase(),
-    sameResponseFamilyCount: clampInt(s.sameResponseFamilyCount, 0, 0, 99),
-    presentationSignals: isPlainObject(s.presentationSignals) ? s.presentationSignals : {}
-  };
-}
-
-const OPENING_VARIANTS = {
-  warm_affirmation: [
-    'I can feel the lift in that.',
-    'That lands with real warmth.',
-    'There is a genuine positive signal in what you just said.',
-    'That feels good in a grounded way.',
-    'I can hear something bright and real in that.',
-    'That has a healthy kind of lift to it.',
-    'There is real life in that line.',
-    'That sounds like a good moment landing cleanly.',
-    'That carries a steady kind of good energy.',
-    'I can hear the positive charge in that.'
-  ],
-  warm_celebration: [
-    'That is a beautiful thing to hear.',
-    'Now that has some shine on it.',
-    'That deserves a real smile.',
-    'There is some strong good energy in that.',
-    'That feels like a win worth noticing.',
-    'I like the lift in that.',
-    'That lands like a real bright spot.',
-    'There is a lot of life in that one.',
-    'That sounds genuinely exciting.',
-    'That has celebration energy in it.'
-  ],
-  grounded_reinforcement: [
-    'That sounds steady in a good way.',
-    'I hear a more solid footing there.',
-    'That has a grounded kind of relief to it.',
-    'That sounds like something settling into place.',
-    'There is steadiness in that.',
-    'That feels more anchored than fleeting.',
-    'I can hear the exhale in that.',
-    'That has a stabilizing quality to it.',
-    'That sounds like things easing into alignment.',
-    'There is real ground under that feeling.'
-  ],
-  reflective_mirroring: [
-    'There is something quietly beautiful in that.',
-    'That lands like a soft observation with feeling inside it.',
-    'I can hear the reflective quality in that.',
-    'That feels more like noticing than announcing.',
-    'There is a gentle kind of appreciation in that.',
-    'That has a thoughtful softness to it.',
-    'It sounds like you are taking in the moment, not just naming it.',
-    'That feels almost scenic in the way you said it.',
-    'There is real texture in that observation.',
-    'That carries a calm kind of wonder.'
-  ],
-  earned_affirmation: [
-    'That sounds earned.',
-    'You get to take credit for that.',
-    'That was not luck — that was you showing up well.',
-    'There is real earned pride in that.',
-    'That sounds like you delivered.',
-    'You have every right to feel good about that.',
-    'That has accomplishment written all over it.',
-    'That sounds like a clean win.',
-    'There is substance behind that good feeling.',
-    'That sounds deserved.'
-  ],
-  purpose_alignment: [
-    'That has real alignment in it.',
-    'That sounds like your work is meeting something true in you.',
-    'There is a deeper fit in that statement.',
-    'That lands like purpose, not just a passing high.',
-    'That sounds like the kind of work connection people hope to find.',
-    'There is something deeply right-sized about that for you.',
-    'That feels like identity and work are pulling in the same direction.',
-    'That sounds meaningful in a lasting way.',
-    'There is a rare steadiness in loving what you do like that.',
-    'That carries purpose energy, not just productivity.'
-  ],
-  gentle_presence: [
-    'I am here with you.',
-    'I am staying with this with you.',
-    'I hear you clearly.',
-    'I am with you in this moment.',
-    'You do not have to force it here.',
-    'We can stay with this gently.',
-    'I am right here with you.',
-    'You do not need to carry this alone in here.',
-    'I am tracking with you.',
-    'We can hold this steadily.'
-  ]
-};
-
-const VALIDATION_VARIANTS = {
-  positive_anchor: [
-    'It is worth recognizing instead of brushing past.',
-    'That deserves to be noticed.',
-    'There is something solid in that.',
-    'That is not trivial — that matters.',
-    'I would not minimize that signal.',
-    'That is worth anchoring while it is here.',
-    'That has real value in it.',
-    'There is something healthy to preserve there.'
-  ],
-  positive_extension: [
-    'That can be built on.',
-    'There is room to carry that forward.',
-    'That kind of signal can turn into momentum.',
-    'That is the sort of thing worth extending.',
-    'That can become a stronger pattern if you protect it.',
-    'There is a next layer available inside that.',
-    'That can travel further than one moment.',
-    'That is the kind of energy worth using well.'
-  ],
-  reflective_positive: [
-    'The way you said it tells me this is not just surface-level positivity.',
-    'There is some meaning in that, not just a passing good mood.',
-    'That feels deeper than a quick upbeat moment.',
-    'There is texture in that positive signal.',
-    'That sounds felt, not performative.',
-    'There is some quiet truth in that.',
-    'That feels integrated, not just excited.',
-    'There is a real inner signal there.'
-  ],
-  gentle_validation: [
-    'It makes sense that this matters to you.',
-    'That is a human response, not a flaw.',
-    'You are not overreacting just because it is vivid.',
-    'What you are feeling tracks.',
-    'That lands as real to me.',
-    'There is nothing strange about reacting that way.',
-    'That fits the weight of what you are carrying.',
-    'It makes sense that it would hit like that.'
-  ]
-};
-
-const FOLLOWUP_STYLES = {
-  reflective: [
-    'What part of that feels most alive to you?',
-    'What about that stands out the most from the inside?',
-    'What is the strongest thread in that feeling?',
-    'Where does that land for you most clearly?',
-    'What feels most true in that right now?',
-    'What part of that do you want to stay with a little longer?'
-  ],
-  grounding: [
-    'What would help you keep this steady for the next little while?',
-    'What is one thing that would make the next stretch feel more grounded?',
-    'What would help settle this into something stable?',
-    'What keeps this from slipping away too fast?',
-    'What helps your footing stay under you here?',
-    'What would make this easier to hold onto calmly?'
-  ],
-  action_step: [
-    'What is one next move that fits this energy well?',
-    'How do you want to use this momentum?',
-    'What is the next concrete step from here?',
-    'What can you do next that matches this signal?',
-    'Where do you want to put this energy?',
-    'What is the cleanest next move you can make?' 
-  ],
-  meaning_making: [
-    'What do you think this says about what matters to you?',
-    'What meaning do you want to take from that?',
-    'What does this moment reveal about where you are headed?',
-    'What does that tell you about yourself or your life right now?',
-    'What feels important about this beyond the surface?',
-    'What are you learning from the shape of that feeling?'
-  ],
-  narrowing: [
-    'Which part matters most right now?',
-    'What is the clearest piece of that?',
-    'If you narrow it down, what is the main thing?',
-    'What is the one part you want to focus on first?',
-    'What is most important inside that?',
-    'What is the cleanest focal point here?'
-  ],
-  supportive: [
-    'Do you want me to stay with the feeling, or help you turn it into a next step?',
-    'Would it help more to reflect it back, or move with it?',
-    'Do you want to deepen this, or make it practical?',
-    'Should we sit with it a moment longer, or build on it?',
-    'Do you want warmth, clarity, or motion from me next?',
-    'Would it help if I mirrored it more, or sharpened it into action?'
-  ]
-};
-
-const QUESTION_STYLE_VARIANTS = {
-  gentle_reflective: FOLLOWUP_STYLES.reflective,
-  grounding: FOLLOWUP_STYLES.grounding,
-  execution: FOLLOWUP_STYLES.action_step,
-  extension: FOLLOWUP_STYLES.action_step,
-  integrative: FOLLOWUP_STYLES.meaning_making,
-  narrowing: FOLLOWUP_STYLES.narrowing,
-  connection_or_meaning: FOLLOWUP_STYLES.meaning_making,
-  small_next_step: FOLLOWUP_STYLES.action_step,
-  action_gate: FOLLOWUP_STYLES.action_step,
-  supportive: FOLLOWUP_STYLES.supportive,
-  default: FOLLOWUP_STYLES.supportive
-};
-
-function rotateChoice(list, seed, avoid) {
-  const arr = Array.isArray(list) ? list.filter(Boolean) : [];
-  if (!arr.length) return '';
-  const primary = pick(arr, seed);
-  if (!avoid || primary !== avoid || arr.length === 1) return primary;
-  const idx = arr.indexOf(primary);
-  return arr[(idx + 1) % arr.length] || primary;
-}
-
-function determineResponseFamily(emo, layer, presentation) {
-  const semanticFrame = presentation.semanticFrame || safeStr(emo.conversationPlan.semanticFrame || '').toLowerCase();
-  const expressionStyle = presentation.expressionStyle || safeStr(emo.conversationPlan.expressionStyle || '').toLowerCase();
-  if (emo.valence === 'negative' || emo.supportFlags.highDistress) return 'gentle_presence';
-  if (semanticFrame.includes('purpose') || expressionStyle === 'purpose_work_affirmation') return 'purpose_alignment';
-  if (semanticFrame.includes('achievement') || expressionStyle === 'achievement_statement') return 'earned_affirmation';
-  if (semanticFrame.includes('aesthetic') || semanticFrame.includes('awe') || expressionStyle === 'poetic_observation') return 'reflective_mirroring';
-  if (semanticFrame.includes('recovery') || expressionStyle === 'recovery_statement') return 'grounded_reinforcement';
-  if (expressionStyle === 'celebratory_burst') return 'warm_celebration';
-  if (semanticFrame.includes('grounded_positive') || semanticFrame.includes('life_appraisal')) return 'grounded_reinforcement';
-  return 'warm_affirmation';
-}
-
-function determineValidationFamily(emo, presentation) {
-  if (emo.valence === 'negative' || emo.supportFlags.highDistress) return 'gentle_validation';
-  if ((presentation.expressionStyle || '').includes('poetic') || (presentation.semanticFrame || '').includes('aesthetic') || (presentation.semanticFrame || '').includes('awe')) return 'reflective_positive';
-  if ((presentation.expressionStyle || '').includes('recovery') || (presentation.semanticFrame || '').includes('recovery')) return 'positive_anchor';
-  if ((presentation.expressionStyle || '').includes('purpose') || (presentation.semanticFrame || '').includes('purpose')) return 'reflective_positive';
-  if ((presentation.expressionStyle || '').includes('celebratory') || (presentation.expressionStyle || '').includes('achievement')) return 'positive_extension';
-  return 'positive_anchor';
-}
-
-function chooseOpeningVariant(emo, layer, presentation, seed) {
-  const family = determineResponseFamily(emo, layer, presentation);
-  const line = rotateChoice(OPENING_VARIANTS[family] || OPENING_VARIANTS.warm_affirmation, `${seed}|opening|${family}`, presentation.lastOpeningFamily);
-  return { family, line };
-}
-
-function chooseValidationVariant(emo, presentation, seed) {
-  const family = determineValidationFamily(emo, presentation);
-  const line = rotateChoice(VALIDATION_VARIANTS[family] || VALIDATION_VARIANTS.positive_anchor, `${seed}|validation|${family}`, presentation.priorResponseFamily);
-  return { family, line };
-}
-
-function chooseFollowupVariant(emo, layer, presentation, seed) {
-  const key = safeStr(layer.followupStyle || layer.conversationNeed || 'supportive').toLowerCase();
-  const family = FOLLOWUP_STYLES[key] ? key : 'supportive';
-  const line = rotateChoice(FOLLOWUP_STYLES[family], `${seed}|followup|${family}`, presentation.lastQuestionStyle);
-  return { family, line };
-}
-
-function chooseQuestionVariant(emo, layer, presentation, seed) {
-  const style = safeStr(emo.conversationPlan.questionStyle || layer.followupStyle || 'default').toLowerCase();
-  const family = QUESTION_STYLE_VARIANTS[style] ? style : 'default';
-  const line = rotateChoice(QUESTION_STYLE_VARIANTS[family], `${seed}|question|${family}`, presentation.lastQuestionStyle);
-  return { family, line };
 }
 
 function emotionAny(emo, list) {
@@ -464,63 +148,42 @@ function looksTechnicalRequest(text) {
   return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend)/.test(s);
 }
 
-function shouldSupportLock(emo, userText, cfg) {
-  const technical = looksTechnicalRequest(userText);
-  if (technical) return false;
-  if (!emo || !isPlainObject(emo)) return false;
-  if (emo.supportFlags.crisis) return true;
-  if (emo.supportFlags.highDistress) return true;
-  if (emo.bypassClarify) return true;
-  if (emo.fallbackSuppression || emo.needsNovelMove || emo.routeExhaustion) return true;
-  if (emo.valence === "negative" || emo.valence === "mixed") return true;
-  if (emo.supportFlags.needsGentlePacing || emo.supportFlags.needsContainment || emo.supportFlags.needsConnection) return true;
-  if (emotionAny(emo, ["sadness", "grief", "hurt", "loneliness", "lonely", "isolation", "despair", "helplessness", "anxiety", "fear", "shame"])) return true;
-  return !!cfg.supportLockTurns;
+
+function looksNeutralInformational(text) {
+  const s = safeStr(text).trim();
+  if (!s) return false;
+  if (/\?$/.test(s)) return false;
+  if (looksTechnicalRequest(s)) return false;
+  if (/(feel|felt|feeling|lost|depressed|sad|anxious|afraid|worried|lonely|angry|proud|happy|love|great|amazing|beautiful)/i.test(s)) return false;
+  return /(worked|project|meeting|today|finished|started|built|made|wrote|planned|called|spoke|talked|handled|reviewed|sent|had)/i.test(s);
 }
 
-function buildConversationLayerMeta(emo, userText, cfg, input = {}) {
-  const technical = looksTechnicalRequest(userText);
-  const supportLock = shouldSupportLock(emo, userText, cfg);
-  const plan = normalizeConversationPlan(emo.conversationPlan);
-  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
-  const presentation = normalizePresentationProfile({
-    expressionStyle: emo.expressionStyle || plan.expressionStyle,
-    deliveryTone: emo.deliveryTone || plan.deliveryTone,
-    semanticFrame: emo.semanticFrame || plan.semanticFrame,
-    priorResponseFamily: input.priorResponseFamily || input.lastResponseFamily || '',
-    lastOpeningFamily: input.lastOpeningFamily || '',
-    lastQuestionStyle: input.lastQuestionStyle || '',
-    sameResponseFamilyCount: input.sameResponseFamilyCount || 0,
-    presentationSignals: emo.presentationSignals || {}
-  });
-  const recommendedTurns = nuance.transitionReadiness === "low"
-    ? Math.max(2, clampInt(cfg.supportLockTurns, 2, 1, 4))
-    : clampInt(cfg.supportLockTurns, 2, 1, 4);
+function buildNeutralInformationalResponse(userText, emo, seed) {
+  const lead = pick([
+    "That is solid.",
+    "That counts.",
+    "Good — that has real weight.",
+    "That is worth acknowledging."
+  ], `${seed}|neutral|lead`);
 
-  return {
-    supportLock,
-    supportLockTurns: supportLock ? recommendedTurns : 0,
-    suppressChips: technical
-      ? !!cfg.suppressChipsOnTechnical
-      : (supportLock ? true : !!plan.shouldSuppressMenus || !!cfg.suppressChipsOnSupport),
-    suppressLaneRouting: technical ? !!cfg.suppressChipsOnTechnical : (supportLock || !!plan.shouldSuppressMenus),
-    followupStyle: technical
-      ? "none"
-      : safeStr(plan.followupStyle || nuance.followupStyle || (supportLock ? "supportive" : "default"), 40) || "default",
-    conversationDepth: technical
-      ? "technical"
-      : safeStr(plan.recommendedDepth || (supportLock ? "deep_support" : "standard"), 40) || "standard",
-    askAllowed: technical ? false : !!plan.askAllowed && !emo.supportFlags.delayQuestions && nuance.questionPressure !== "none",
-    questionPressure: safeStr(plan.questionPressure || nuance.questionPressure || "medium", 20) || "medium",
-    archetype: safeStr(plan.primaryArchetype || nuance.archetype || "clarify", 40) || "clarify",
-    conversationNeed: safeStr(plan.conversationNeed || nuance.conversationNeed || "clarify", 40) || "clarify",
-    antiLoopShift: safeStr(plan.antiLoopShift || nuance.antiLoopShift || "", 80),
-    transitionTargets: uniq(plan.transitionTargets && plan.transitionTargets.length ? plan.transitionTargets : nuance.transitionTargets),
-    expressionStyle: presentation.expressionStyle || plan.expressionStyle || '',
-    deliveryTone: presentation.deliveryTone || plan.deliveryTone || '',
-    semanticFrame: presentation.semanticFrame || plan.semanticFrame || '',
-    priorResponseFamily: presentation.priorResponseFamily || ''
-  };
+  const reinforce = pick([
+    "Putting real effort into something matters.",
+    "Showing up and doing the work is not nothing.",
+    "Even a straightforward progress note can say a lot about momentum.",
+    "There is something steady in that."
+  ], `${seed}|neutral|reinforce`);
+
+  const ask = pick([
+    "What kind of project was it?",
+    "What part of it took most of your attention?",
+    "Was it the kind of work you wanted to be doing today?",
+    "Did it feel productive, frustrating, or somewhere in between?"
+  ], `${seed}|neutral|ask`);
+
+  if (emo.valence === "positive") {
+    return joinSentences([lead, reinforce, ask]);
+  }
+  return joinSentences([lead, reinforce, ask]);
 }
 
 function stripTerminalQuestion(text) {
@@ -551,8 +214,6 @@ function normalizeEmotionPayload(emo) {
   const distressReinforcements = uniq(e.distressReinforcements);
   const positiveReinforcements = uniq(e.positiveReinforcements);
   const recoverySignals = uniq(e.recoverySignals);
-  const nuanceProfile = normalizeNuanceProfile(e.nuanceProfile || e.nuance || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.nuanceProfile);
-  const conversationPlan = normalizeConversationPlan(e.conversationPlan || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.conversationPlan);
 
   const primaryEmotion = safeStr(e.primaryEmotion || e.dominantEmotion || "neutral").toLowerCase();
   const secondaryEmotion = safeStr(e.secondaryEmotion || "").toLowerCase();
@@ -591,6 +252,9 @@ function normalizeEmotionPayload(emo) {
     tone: safeStr(e.tone || "steady_neutral").toLowerCase(),
     routeBias: safeStr(e.routeBias || "").toLowerCase(),
     supportModeCandidate: safeStr(e.supportModeCandidate || "").toLowerCase(),
+    expressionStyle: safeStr(e.expressionStyle || e.presentation?.expressionStyle || "").toLowerCase(),
+    deliveryTone: safeStr(e.deliveryTone || e.presentation?.deliveryTone || "").toLowerCase(),
+    semanticFrame: safeStr(e.semanticFrame || e.presentation?.semanticFrame || "").toLowerCase(),
     bypassClarify: !!e.bypassClarify,
     fallbackSuppression: !!e.fallbackSuppression,
     needsNovelMove: !!e.needsNovelMove,
@@ -608,10 +272,6 @@ function normalizeEmotionPayload(emo) {
       needsContainment: !!supportFlags.needsContainment,
       needsConnection: !!supportFlags.needsConnection,
       needsForwardMotion: !!supportFlags.needsForwardMotion,
-      needsWitnessing: !!supportFlags.needsWitnessing,
-      needsRepair: !!supportFlags.needsRepair,
-      delayQuestions: !!supportFlags.delayQuestions,
-      shouldSuppressMenus: !!supportFlags.shouldSuppressMenus,
       mentionsLooping: !!supportFlags.mentionsLooping
     },
     disclaimers: {
@@ -633,12 +293,6 @@ function normalizeEmotionPayload(emo) {
       concise: safeStr(summary.concise || ""),
       narrative: safeStr(summary.narrative || "")
     },
-    nuanceProfile,
-    conversationPlan,
-    expressionStyle: safeStr(e.expressionStyle || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.expressionStyle || conversationPlan.expressionStyle || '').toLowerCase(),
-    deliveryTone: safeStr(e.deliveryTone || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.deliveryTone || conversationPlan.deliveryTone || '').toLowerCase(),
-    semanticFrame: safeStr(e.semanticFrame || e.downstream && e.downstream.supportResponse && e.downstream.supportResponse.semanticFrame || conversationPlan.semanticFrame || '').toLowerCase(),
-    presentationSignals: isPlainObject(e.presentationSignals) ? e.presentationSignals : {},
     tags,
     routeHints,
     responseHints,
@@ -668,8 +322,6 @@ function buildReflectiveLead(emo, seed) {
   const dom = emo.primaryEmotion || emo.dominantEmotion;
   const val = emo.valence;
   const intense = emo.intensity >= 75;
-  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
-  const plan = normalizeConversationPlan(emo.conversationPlan);
 
   if (emo.supportFlags.crisis) {
     return pick([
@@ -769,30 +421,6 @@ function buildReflectiveLead(emo, seed) {
       "That sounds like your mind is trying to orient and understand.",
       "I can hear the pull to explore this a bit further."
     ], `${seed}|lead|curious`);
-  }
-
-  if (nuance.conversationNeed === "witness" || plan.shouldPreferReflection) {
-    return pick([
-      "I want to stay with the feeling before we try to tidy it up.",
-      "This sounds like something that needs to be witnessed, not rushed past.",
-      "There is more to hold here than to fix immediately."
-    ], `${seed}|lead|witness`);
-  }
-
-  if (nuance.conversationNeed === "repair") {
-    return pick([
-      "There is pain here, but also a part of you trying to make sense of it without becoming the villain in your own story.",
-      "This feels like a moment that needs care, not self-punishment.",
-      "I can hear both the hurt and the urge to repair something important."
-    ], `${seed}|lead|repair`);
-  }
-
-  if (nuance.conversationNeed === "boundary") {
-    return pick([
-      "Your system sounds like it is trying to protect a line that got crossed.",
-      "This feels like a boundary response, not random intensity.",
-      "I can hear that something in this is asking for distance or containment."
-    ], `${seed}|lead|boundary`);
   }
 
   if (val === "positive") {
@@ -982,9 +610,7 @@ function buildMicroStep(emo, cfg, seed) {
   const maxSteps = clampInt(cfg.maxMicroSteps, 1, 0, 2);
   if (maxSteps <= 0) return "";
 
-  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
-  const plan = normalizeConversationPlan(emo.conversationPlan);
-  let pool = emo.supportFlags.crisis || emo.valence === "negative" || emo.valence === "critical_negative"
+  const pool = emo.supportFlags.crisis || emo.valence === "negative" || emo.valence === "critical_negative"
     ? mapDistressMicroSteps(emo)
     : emo.valence === "positive"
       ? mapPositiveMicroSteps(emo)
@@ -992,61 +618,12 @@ function buildMicroStep(emo, cfg, seed) {
           "What is the smallest clean next step you can take from here?"
         ];
 
-  if (plan.shouldDelaySolutioning || nuance.transitionReadiness === "low" || nuance.followupStyle === "reflective") {
-    pool = [
-      "We do not need a full solution yet — let us just stay with the clearest part of what is happening.",
-      "For this turn, we can keep it to one honest layer instead of forcing a fix.",
-      "Let us hold the signal steady before we ask it to become a plan."
-    ].concat(pool);
-  }
-
-  if (nuance.conversationNeed === "repair") {
-    pool = [
-      "Let us separate repair from self-attack and find the smallest honest correction.",
-      "Name the part that needs care first, then decide what needs repair after that."
-    ].concat(pool);
-  }
-
-  if (nuance.conversationNeed === "boundary") {
-    pool = [
-      "Reduce exposure first — figure out what needs distance, not just what needs explanation.",
-      "Pin down the line that got crossed so your next move comes from clarity, not just heat."
-    ].concat(pool);
-  }
-
-  if (emo.needsNovelMove || emo.routeExhaustion || nuance.loopRisk === "high") {
-    pool = [
-      "We are not going to recycle the same emotional loop — let us shift the angle and work the next clean layer.",
-      safeStr(plan.antiLoopShift || nuance.antiLoopShift || "Shift the pattern before asking for more explanation.")
-        .replace(/_/g, " ")
-    ].concat(pool);
-  }
-
   return pickN(pool, `${seed}|micro`, maxSteps).join(" ");
 }
 
-function buildQuestion(emo, cfg, seed, layer = {}, presentation = {}) {
+function buildQuestion(emo, cfg, seed) {
   const maxQuestions = clampInt(cfg.maxQuestionCount, 1, 0, 1);
   if (maxQuestions <= 0) return "";
-
-  const nuance = normalizeNuanceProfile(emo.nuanceProfile);
-  const plan = normalizeConversationPlan(emo.conversationPlan);
-  if (plan.askAllowed === false || emo.supportFlags.delayQuestions || nuance.questionPressure === "none") return "";
-  if (emo.valence === 'positive' || presentation.expressionStyle || presentation.semanticFrame) {
-    const picked = chooseQuestionVariant(emo, layer, presentation, seed);
-    if (picked.line && !emo.supportFlags.crisis && !emotionAny(emo, ['loneliness','lonely','isolation','anxiety','fear','sadness','grief','disappointment','helplessness','shame','guilt','embarrassment','anger','frustration','resentment','disgust'])) {
-      return picked.line;
-    }
-  }
-
-  if (nuance.questionPressure === "low" && (plan.shouldDelaySolutioning || nuance.transitionReadiness === "low")) {
-    const gentle = pick([
-      "Do you want me to stay with the feeling a little longer, or help you name the most important part of it?",
-      "What part of this feels safest to put words around right now?",
-      "Would it help more to stay with the emotion, or to narrow one piece of it?"
-    ], `${seed}|q|gentle`);
-    return gentle;
-  }
 
   if (emo.supportFlags.crisis) {
     return pick([
@@ -1096,22 +673,6 @@ function buildQuestion(emo, cfg, seed, layer = {}, presentation = {}) {
     ], `${seed}|q|anger`);
   }
 
-  if (nuance.conversationNeed === "repair") {
-    return pick([
-      "What feels most repairable here without attacking yourself?",
-      "What part needs accountability, and what part just needs care?",
-      "Where do you want to begin separating regret from self-erasure?"
-    ], `${seed}|q|repair`);
-  }
-
-  if (nuance.conversationNeed === "boundary") {
-    return pick([
-      "What boundary feels most important here?",
-      "What part of this needs distance or containment first?",
-      "Where did the line get crossed for you?"
-    ], `${seed}|q|boundary`);
-  }
-
   if (emo.valence === "positive") {
     return pick([
       "What do you want to build on next?",
@@ -1139,22 +700,6 @@ function buildPositiveReinforcementLine(emo, seed) {
   if (!Array.isArray(emo.positiveReinforcements) || !emo.positiveReinforcements.length) return "";
 
   if (emo.supportFlags.avoidCelebratoryTone) return "";
-
-  if ((safeStr(emo.semanticFrame || '').includes('purpose')) || (safeStr(emo.expressionStyle || '').includes('purpose_work'))) {
-    return pick([
-      'Loving what you do is a real signal of alignment, and that is worth honoring.',
-      'That kind of fit between you and your work is not small — it is worth protecting.',
-      'There is something deeply encouraging in hearing that level of alignment.'
-    ], `${seed}|pos|purpose`);
-  }
-
-  if (safeStr(emo.semanticFrame || '').includes('life_appraisal')) {
-    return pick([
-      'A broad statement like that usually means something is settling into a better shape.',
-      'That kind of overall good signal is worth anchoring instead of rushing past.',
-      'It is worth noticing when life feels more open and workable.'
-    ], `${seed}|pos|life`);
-  }
 
   if (emo.positiveReinforcements.includes("reinforce_self_trust")) {
     return pick([
@@ -1304,17 +849,6 @@ function buildSupportiveResponse(input = {}, config = {}) {
     const emo = normalizeEmotionPayload(input.emo);
     const seed = safeStr(input.seed || userText || `${emo.mode}|${emo.primaryEmotion || emo.dominantEmotion}|nyx`);
     const technical = looksTechnicalRequest(userText);
-    const layering = buildConversationLayerMeta(emo, userText, cfg, input);
-    const presentation = normalizePresentationProfile({
-      expressionStyle: emo.expressionStyle || layering.expressionStyle,
-      deliveryTone: emo.deliveryTone || layering.deliveryTone,
-      semanticFrame: emo.semanticFrame || layering.semanticFrame,
-      priorResponseFamily: input.priorResponseFamily || input.lastResponseFamily || '',
-      lastOpeningFamily: input.lastOpeningFamily || '',
-      lastQuestionStyle: input.lastQuestionStyle || '',
-      sameResponseFamilyCount: input.sameResponseFamilyCount || 0,
-      presentationSignals: emo.presentationSignals || {}
-    });
 
     if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
       return buildCrisisResponse({ seed, country: input.country || "" });
@@ -1326,11 +860,14 @@ function buildSupportiveResponse(input = {}, config = {}) {
         buildValidation(emo, seed) || "We can keep this tight and practical.",
         buildRecoveryAcknowledgment(emo, seed),
         buildDistressReinforcementLine(emo, seed),
-        "There is value in getting clarity here, and I can help without turning this into noise.",
         emo.needsNovelMove || emo.routeExhaustion
-          ? "I am going to change the pattern and keep the answer cleaner so this does not fall back into repetition."
-          : "I will stay on the exact target and keep the response supportive, useful, and direct."
+          ? "We will make the next move cleaner and more direct."
+          : "We will stay on the exact technical target and keep this useful."
       ]);
+    }
+
+    if (looksNeutralInformational(userText) && emo.valence !== "negative" && !emo.supportFlags.highDistress) {
+      return enforceSingleQuestion(buildNeutralInformationalResponse(userText, emo, seed));
     }
 
     if (emotionAny(emo, ["loneliness", "lonely", "isolation"])) {
@@ -1338,28 +875,14 @@ function buildSupportiveResponse(input = {}, config = {}) {
       if (lonelyOut) return enforceSingleQuestion(lonelyOut);
     }
 
-    const opening = chooseOpeningVariant(emo, layering, presentation, seed);
-    const validation = chooseValidationVariant(emo, presentation, seed);
-    const followup = chooseFollowupVariant(emo, layering, presentation, seed);
-
     const parts = [];
 
-    parts.push(opening.line || buildReflectiveLead(emo, seed));
-    if (emo.valence === 'positive') {
-      parts.push(validation.line || buildValidation(emo, seed));
-      parts.push(buildPositiveReinforcementLine(emo, seed));
-      parts.push(buildRecoveryAcknowledgment(emo, seed));
-      if (followup.line && layering.conversationDepth !== 'technical' && !layering.askAllowed) {
-        parts.push(followup.line);
-      }
-    } else {
-      parts.push(buildReflectiveLead(emo, seed));
-      parts.push(validation.line || buildValidation(emo, seed));
-      parts.push(buildDistressReinforcementLine(emo, seed));
-      parts.push(buildPositiveReinforcementLine(emo, seed));
-      parts.push(buildRecoveryAcknowledgment(emo, seed));
-      parts.push(buildMixedStateLine(emo, seed));
-    }
+    parts.push(buildReflectiveLead(emo, seed));
+    parts.push(buildValidation(emo, seed));
+    parts.push(buildDistressReinforcementLine(emo, seed));
+    parts.push(buildPositiveReinforcementLine(emo, seed));
+    parts.push(buildRecoveryAcknowledgment(emo, seed));
+    parts.push(buildMixedStateLine(emo, seed));
 
     if (shouldUseDisclaimer(emo, cfg)) {
       parts.push(buildDisclaimer(seed));
@@ -1367,13 +890,9 @@ function buildSupportiveResponse(input = {}, config = {}) {
 
     parts.push(buildMicroStep(emo, cfg, seed));
 
-    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical && !!layering.askAllowed;
+    const shouldAsk = !(cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) && !technical;
     if (shouldAsk) {
-      parts.push(buildQuestion(emo, cfg, seed, layering, presentation));
-    }
-
-    if (emo.needsNovelMove || emo.routeExhaustion || emo.supportFlags.mentionsLooping || presentation.sameResponseFamilyCount >= 2) {
-      parts.push('I am going to shift the shape a little here so it stays fresh and useful.');
+      parts.push(buildQuestion(emo, cfg, seed));
     }
 
     let out = joinSentences(parts);
@@ -1383,12 +902,12 @@ function buildSupportiveResponse(input = {}, config = {}) {
     if (out) return out;
 
     return technical
-      ? "I hear the strain in this. We will keep it direct, useful, and steady."
-      : "I hear you. I am here, and we can take this one steady step at a time. What feels most important right now?";
+      ? "I hear the strain in this. We will keep it technical, direct, and useful."
+      : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?";
   } catch (_err) {
     return looksTechnicalRequest(safeStr(input && input.userText || ""))
-      ? "I hear the strain in this. We will keep it direct, useful, and steady."
-      : "I hear you. I am here, and we can keep this simple and steady. What feels most important right now?";
+      ? "I hear the strain in this. We will keep it technical, direct, and useful."
+      : "I hear you. We can keep this simple and steady. What feels most important right now?";
   }
 }
 
@@ -1406,18 +925,10 @@ function buildSupportPacket(input = {}, config = {}) {
       meta: {
         crisis: true,
         dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
-        valence: emo.valence,
-        supportLock: true,
-        supportLockTurns: Math.max(2, clampInt(cfg.supportLockTurns, 2, 1, 4)),
-        suppressChips: true,
-        suppressLaneRouting: true,
-        followupStyle: "supportive",
-        conversationDepth: "crisis_support"
+        valence: emo.valence
       }
     };
   }
-
-  const layering = buildConversationLayerMeta(emo, input.userText || "", cfg, input);
 
   return {
     ok: true,
@@ -1437,26 +948,7 @@ function buildSupportPacket(input = {}, config = {}) {
       supportModeCandidate: emo.supportModeCandidate,
       fallbackSuppression: !!emo.fallbackSuppression,
       needsNovelMove: !!emo.needsNovelMove,
-      routeExhaustion: !!emo.routeExhaustion,
-      supportLock: !!layering.supportLock,
-      supportLockTurns: layering.supportLockTurns,
-      suppressChips: !!layering.suppressChips,
-      suppressLaneRouting: !!layering.suppressLaneRouting,
-      followupStyle: layering.followupStyle,
-      conversationDepth: layering.conversationDepth,
-      askAllowed: !!layering.askAllowed,
-      questionPressure: layering.questionPressure,
-      archetype: layering.archetype,
-      conversationNeed: layering.conversationNeed,
-      antiLoopShift: layering.antiLoopShift,
-      transitionTargets: layering.transitionTargets,
-      nuanceProfile: emo.nuanceProfile,
-      conversationPlan: emo.conversationPlan,
-      expressionStyle: emo.expressionStyle || layering.expressionStyle,
-      deliveryTone: emo.deliveryTone || layering.deliveryTone,
-      semanticFrame: emo.semanticFrame || layering.semanticFrame,
-      responseFamily: determineResponseFamily(emo, layering, normalizePresentationProfile({ expressionStyle: emo.expressionStyle || layering.expressionStyle, deliveryTone: emo.deliveryTone || layering.deliveryTone, semanticFrame: emo.semanticFrame || layering.semanticFrame, priorResponseFamily: input.priorResponseFamily || input.lastResponseFamily || '' })),
-      priorResponseFamily: input.priorResponseFamily || input.lastResponseFamily || ''
+      routeExhaustion: !!emo.routeExhaustion
     }
   };
 }
