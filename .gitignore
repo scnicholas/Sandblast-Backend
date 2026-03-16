@@ -121,15 +121,19 @@ Data/wikipedia/**
 !Data/wikipedia/billboard_yearend_singles_1950_1959.json
 
 # =========================
+# Backend structured knowledge + modules
+# Explicit allowlist for new emotional / psychology stack
+# =========================
+!Data/emotion/**
+!Data/psychology/**
+!Data/modules/**
+!Data/contracts/**
+
+# =========================
 # Local audio artifacts (never commit)
 # =========================
 *.mp3
 nyx_*.mp3
-
-# =========================
-# Local sanity outputs
-# =========================
-Data/_sanity_music_report_*.json
 
 # =========================
 # Utility staging artifacts
