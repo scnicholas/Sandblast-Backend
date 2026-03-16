@@ -1073,16 +1073,19 @@ function deriveContinuity(payload, priorState = {}) {
   const sameEmotion = prevPrimary && prevPrimary === payload.primaryEmotion;
   const sameSupport = prevSupport && prevSupport === payload.supportModeCandidate;
   const sameArchetype = prevArchetype && prevArchetype === payload.nuanceProfile?.archetype;
+  const recoveryReset = Array.isArray(payload.recoverySignals) && payload.recoverySignals.length > 0;
+  const positiveMomentum = payload.valence === 'positive' && payload.intensity < 0.75;
 
-  const sameEmotionCount = sameEmotion ? prevSameEmotion + 1 : 0;
-  const sameSupportModeCount = sameSupport ? prevSameSupport + 1 : 0;
-  const sameArchetypeCount = sameArchetype ? prevSameArchetype + 1 : 0;
-  const noProgressTurnCount = (sameEmotion && sameSupport) ? prevNoProgress + 1 : 0;
-  const repeatedFallbackCount = prevFallback;
+  const sameEmotionCount = recoveryReset ? 0 : (sameEmotion ? prevSameEmotion + 1 : 0);
+  const sameSupportModeCount = recoveryReset ? 0 : (sameSupport ? prevSameSupport + 1 : 0);
+  const sameArchetypeCount = recoveryReset ? 0 : (sameArchetype ? prevSameArchetype + 1 : 0);
+  const noProgressTurnCount = (sameEmotion && sameSupport && !recoveryReset && !positiveMomentum) ? prevNoProgress + 1 : 0;
+  const currentFallbackPressure = payload.intensity >= 0.7 || sameArchetypeCount >= 2 || noProgressTurnCount >= 2;
+  const repeatedFallbackCount = recoveryReset ? 0 : (currentFallbackPressure ? prevFallback + 1 : 0);
 
-  const routeExhaustion = sameEmotionCount >= 2 && sameSupportModeCount >= 2 && noProgressTurnCount >= 2;
-  const fallbackSuppression = payload.intensity >= 0.65 || routeExhaustion || repeatedFallbackCount >= 1 || sameArchetypeCount >= 2;
-  const needsNovelMove = routeExhaustion || noProgressTurnCount >= 2 || repeatedFallbackCount >= 2 || sameArchetypeCount >= 3;
+  const routeExhaustion = sameEmotionCount >= 3 && sameSupportModeCount >= 2 && noProgressTurnCount >= 2;
+  const fallbackSuppression = currentFallbackPressure || routeExhaustion || repeatedFallbackCount >= 2;
+  const needsNovelMove = routeExhaustion || noProgressTurnCount >= 2 || repeatedFallbackCount >= 3 || sameArchetypeCount >= 3;
 
   return {
     previousPrimaryEmotion: prevPrimary || null,
@@ -1094,6 +1097,8 @@ function deriveContinuity(payload, priorState = {}) {
     sameArchetypeCount,
     noProgressTurnCount,
     repeatedFallbackCount,
+    recoveryReset,
+    positiveMomentum,
     routeExhaustion,
     fallbackSuppression,
     needsNovelMove
