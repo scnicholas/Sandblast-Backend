@@ -1321,6 +1321,8 @@ function buildSupportPacketSafe(norm, emo) {
         userText: safeStr(norm?.text || ""),
         emo,
         seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
+        ttsFailure: isPlainObject(norm?.turnSignals?.ttsFailure) ? norm.turnSignals.ttsFailure : null,
+        audioFailure: isPlainObject(norm?.turnSignals?.ttsFailure) ? norm.turnSignals.ttsFailure : null,
         ...presentation
       }, supportCfg);
     }
@@ -1332,6 +1334,8 @@ function buildSupportPacketSafe(norm, emo) {
           userText: safeStr(norm?.text || ""),
           emo,
           seed: safeStr(norm?.ctx?.sessionId || norm?.ctx?.sid || ""),
+          ttsFailure: isPlainObject(norm?.turnSignals?.ttsFailure) ? norm.turnSignals.ttsFailure : null,
+          audioFailure: isPlainObject(norm?.turnSignals?.ttsFailure) ? norm.turnSignals.ttsFailure : null,
           ...presentation
         }, supportCfg),
         meta: {
@@ -1577,22 +1581,70 @@ function _normalizeAudioAction(raw, retryable, status) {
   if (status >= 500) return "downgrade";
   return retryable ? "retry" : "downgrade";
 }
+function _isAudioRecoverySignal(src) {
+  if (!isPlainObject(src)) return false;
+  if (src.cleared === true) return true;
+  if (src.ok === true && safeStr(src.action || "").trim().toLowerCase() === "clear") return true;
+  return false;
+}
+function _audioFailureStillActive(src) {
+  if (!isPlainObject(src)) return false;
+  if (_isAudioRecoverySignal(src)) return false;
+  const until = Number(src.terminalStopUntil || 0) || 0;
+  const at = Number(src.at || 0) || 0;
+  if (until && until > nowMs()) return true;
+  if (at && (nowMs() - at) <= TURN_TERMINAL_WINDOW_MS) return true;
+  return false;
+}
 function normalizeAudioFailureSignal(rawInput, norm, session, prevSpine) {
   const raw = isPlainObject(rawInput) ? rawInput : {};
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
   const prev = isPlainObject(prevSpine) ? prevSpine : {};
+  const directBags = [raw, raw.body, raw.payload, raw.ctx, n.body, n.payload, n.ctx];
+  for (const bag of directBags) {
+    const hit = _readNestedBagTtsFailure(bag);
+    if (_isAudioRecoverySignal(hit)) {
+      return {
+        present: false,
+        ok: true,
+        cleared: true,
+        reason: "",
+        message: "",
+        providerStatus: clampInt(hit?.providerStatus || hit?.status || 200, 200, 0, 999999),
+        retryable: false,
+        action: "clear",
+        shouldStop: false,
+        terminalStopUntil: 0
+      };
+    }
+  }
   const bags = [
-    raw, raw.body, raw.payload, raw.ctx,
-    n.body, n.payload, n.ctx,
-    s,
-    s.__lastTtsFailure,
-    prev.audio
+    ...directBags,
+    _audioFailureStillActive(s.__lastTtsFailure) ? s.__lastTtsFailure : null,
+    _audioFailureStillActive(prev.audio) ? prev.audio : null,
+    _audioFailureStillActive(s) ? s : null
   ];
   let src = null;
   for (const bag of bags) {
     const hit = _readNestedBagTtsFailure(bag);
-    if (isPlainObject(hit)) { src = hit; break; }
+    if (!isPlainObject(hit)) continue;
+    if (_isAudioRecoverySignal(hit)) {
+      return {
+        present: false,
+        ok: true,
+        cleared: true,
+        reason: "",
+        message: "",
+        providerStatus: clampInt(hit?.providerStatus || hit?.status || 200, 200, 0, 999999),
+        retryable: false,
+        action: "clear",
+        shouldStop: false,
+        terminalStopUntil: 0
+      };
+    }
+    src = hit;
+    break;
   }
   const reason = safeStr(src?.reason || src?.message || src?.terminalStopReason || "").toLowerCase();
   const providerStatus = clampInt(src?.providerStatus || src?.status || src?.lastFailureStatus, 0, 0, 999999);
@@ -1600,17 +1652,18 @@ function normalizeAudioFailureSignal(rawInput, norm, session, prevSpine) {
   const explicitAction = safeStr(src?.action || src?.lastFailureAction || "");
   const action = src ? _normalizeAudioAction(explicitAction, retryable, providerStatus) : "";
   const shouldStop = !!(src && (src?.shouldTerminate || src?.shouldStop || action === "stop"));
-  const present = !!src && (!!reason || !!providerStatus || explicitAction !== "" || retryable);
+  const present = !!src && (!!reason || !!providerStatus || explicitAction !== "" || retryable) && _audioFailureStillActive(src);
   return {
     present,
-    ok: src?.ok === true,
-    reason: reason || "",
-    message: safeStr(src?.message || ""),
+    ok: src?.ok === true && !present,
+    cleared: false,
+    reason: present ? (reason || "") : "",
+    message: present ? safeStr(src?.message || "") : "",
     providerStatus,
     retryable,
-    action,
-    shouldStop,
-    terminalStopUntil: Number(src?.terminalStopUntil || 0) || 0
+    action: present ? action : "",
+    shouldStop: present ? shouldStop : false,
+    terminalStopUntil: present ? (Number(src?.terminalStopUntil || 0) || 0) : 0
   };
 }
 function applyAudioFailureSignalsToNorm(norm, audioFailure) {
@@ -1624,13 +1677,22 @@ function applyAudioFailureSignalsToNorm(norm, audioFailure) {
     providerStatus: clampInt(af.providerStatus || 0, 0, 0, 999999),
     retryable: !!af.retryable,
     action: safeStr(af.action || ""),
-    shouldTerminate: !!af.shouldStop
-  } : null;
+    shouldTerminate: !!af.shouldStop,
+    terminalStopUntil: Number(af.terminalStopUntil || 0) || 0
+  } : (af.ok && safeStr(af.action || "") === "clear" ? {
+    ok: true,
+    action: "clear",
+    cleared: true,
+    providerStatus: clampInt(af.providerStatus || 200, 200, 0, 999999),
+    shouldTerminate: false,
+    terminalStopUntil: 0
+  } : null);
   norm.turnSignals.ttsReason = safeStr(af.reason || "");
   norm.turnSignals.ttsProviderStatus = clampInt(af.providerStatus || 0, 0, 0, 999999);
   norm.turnSignals.ttsRetryable = !!af.retryable;
   norm.turnSignals.ttsAction = safeStr(af.action || "");
   norm.turnSignals.ttsShouldStop = !!af.shouldStop;
+  norm.turnSignals.ttsCleared = !!(af.ok && safeStr(af.action || "") === "clear");
 }
 function buildAudioDirective(audioFailure) {
   const af = isPlainObject(audioFailure) ? audioFailure : {};
@@ -2498,9 +2560,10 @@ async function handleChat(input) {
           retryable: !!audioFailure.retryable,
           action: safeStr(audioFailure.action || ""),
           shouldTerminate: !!audioFailure.shouldStop,
-          terminalStopUntil: Number(nextSpine?.audio?.terminalStopUntil || 0) || 0,
+          terminalStopUntil: Number(nextSpine?.audio?.terminalStopUntil || audioFailure.terminalStopUntil || 0) || 0,
           at: nowMs()
         } : null,
+        __lastTtsClearAt: (audioFailure.ok && safeStr(audioFailure.action || "") === "clear") ? nowMs() : Number(session.__lastTtsClearAt || 0) || 0,
         __emotionMode: safeStr(emo?.mode || "NORMAL"),
         __emotionValence: safeStr(emo?.valence || "neutral"),
         __emotionDominant: safeStr(emo?.dominantEmotion || "neutral"),
