@@ -29,7 +29,9 @@ const PHASES = Object.freeze({
   p21_privateNetworkGuard: true,
   p22_sizeGuard: true,
   p23_errorNormalization: true,
-  p24_headerSanitization: true
+  p24_headerSanitization: true,
+  p25_transientRetryBackoff: true,
+  p26_audioRecoverySignalReady: true
 });
 
 function _str(v){ return v == null ? "" : String(v); }
@@ -54,6 +56,9 @@ function _boolish(v, dflt){
   if (s === "1" || s === "true" || s === "yes" || s === "on") return true;
   if (s === "0" || s === "false" || s === "no" || s === "off") return false;
   return dflt;
+}
+function _sleep(ms){
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 function _mask(v){
   const s = _trim(v);
@@ -82,6 +87,8 @@ function _isPrivateHostname(hostname){
   if (/^192\.168\./.test(h)) return true;
   if (/^169\.254\./.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
+  if (/^fc00:/i.test(h) || /^fd/i.test(h)) return true;
+  if (/^fe80:/i.test(h)) return true;
   return false;
 }
 function _assertSafeRemoteUrl(raw, allowPrivate){
@@ -148,6 +155,15 @@ function _enableSsml(){
 }
 function _enableProsodyShaping(){
   return _boolish(process.env.RESEMBLE_ENABLE_PROSODY_SHAPING, true);
+}
+function _maxSynthAttempts(){
+  return _clampInt(process.env.SB_TTS_PROVIDER_MAX_ATTEMPTS, 3, 1, 5);
+}
+function _retryBaseMs(){
+  return _clampInt(process.env.SB_TTS_PROVIDER_RETRY_BASE_MS, 350, 100, 3000);
+}
+function _downloadAttempts(){
+  return _clampInt(process.env.SB_TTS_AUDIO_DOWNLOAD_ATTEMPTS, 2, 1, 4);
 }
 function _looksLikeMp3(buf){
   return Buffer.isBuffer(buf) && buf.length >= 3 && (
@@ -328,6 +344,15 @@ function _getHeader(headers, name){
   }
   return "";
 }
+function _retryableStatus(status){
+  return status === 0 || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+function _computeBackoffMs(attemptIndex){
+  const base = _retryBaseMs();
+  const exp = Math.min(attemptIndex, 6);
+  const jitter = Math.floor(Math.random() * 120);
+  return Math.min(base * Math.pow(2, exp), 4000) + jitter;
+}
 
 function _postViaHttps(url, headers, bodyObj, timeoutMs){
   const body = JSON.stringify(bodyObj);
@@ -497,10 +522,30 @@ async function _downloadBuffer(url, timeoutMs){
   return _downloadViaHttps(safeUrl, timeoutMs);
 }
 
+async function _downloadBufferWithRetry(url, timeoutMs){
+  let lastErr = null;
+  for (let i = 0; i < _downloadAttempts(); i++){
+    try{
+      const dl = await _downloadBuffer(url, timeoutMs);
+      if (dl && dl.status >= 200 && dl.status < 300 && Buffer.isBuffer(dl.buffer) && dl.buffer.length >= 16){
+        return dl;
+      }
+      lastErr = new Error(`audio_src_http_${dl && dl.status ? dl.status : 0}`);
+      if (!_retryableStatus(dl && dl.status ? dl.status : 0)) break;
+    }catch(e){
+      lastErr = e;
+      const msg = _lower(e && e.message);
+      if (!/timeout|429|5\d\d|download_failed|network|too_large/.test(msg)) break;
+    }
+    if (i < _downloadAttempts() - 1) await _sleep(_computeBackoffMs(i));
+  }
+  throw lastErr || new Error("audio_src_download_failed");
+}
+
 async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
   const headers = {
     ..._buildAuthHeaders(token, authMode),
-    "User-Agent": "sb-nyx-tts/1.3"
+    "User-Agent": "sb-nyx-tts/1.4"
   };
   if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
 
@@ -513,7 +558,6 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
       const resp = await _postRequest(url, headers, payload, timeoutMs);
       resp.providerEndpoint = _safeUrlForLogs(url);
       lastResp = resp;
-
       const status = resp && resp.status ? resp.status : 0;
       if (status && status !== 404 && status !== 405){
         return resp;
@@ -537,6 +581,61 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
     text: "No provider endpoint available.",
     providerEndpoint: _safeUrlForLogs(_pickFirst.apply(null, urls))
   };
+}
+
+async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
+  const authModes = ["bearer", "raw", "token"];
+  const attempts = _maxSynthAttempts();
+  let lastResp = null;
+  let lastAuthMode = "bearer";
+  let lastAttemptCount = 0;
+
+  for (let modeIndex = 0; modeIndex < authModes.length; modeIndex++){
+    const authMode = authModes[modeIndex];
+    for (let attempt = 0; attempt < attempts; attempt++){
+      lastAttemptCount++;
+      lastAuthMode = authMode;
+      const resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
+      lastResp = resp;
+      const status = resp && resp.status ? resp.status : 0;
+      const contentType = _getHeader(resp && resp.headers, "content-type");
+      const json = _isJsonContentType(contentType)
+        ? _parseJson(resp && resp.text ? resp.text : "")
+        : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
+
+      if (_providerSucceeded(status, json, resp)){
+        return { resp, authMode, attemptsUsed: lastAttemptCount };
+      }
+
+      if (speech && speech.useSsml){
+        const looksRejected =
+          (status === 400 || status === 415 || status === 422) ||
+          /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(
+            _normalizeProviderMessage(json, resp && resp.text)
+          );
+        if (looksRejected){
+          const plainPayload = { ...payload, data: speech.plainText };
+          delete plainPayload.data_type;
+          const plainResp = await _callSynthesize(plainPayload, token, traceId, timeoutMs, authMode);
+          lastResp = plainResp;
+          const plainCt = _getHeader(plainResp && plainResp.headers, "content-type");
+          const plainJson = _isJsonContentType(plainCt)
+            ? _parseJson(plainResp && plainResp.text ? plainResp.text : "")
+            : (_parseJson(plainResp && plainResp.text ? plainResp.text : "") || _safeJsonParseFromBuffer(plainResp && plainResp.buffer));
+          if (_providerSucceeded(plainResp && plainResp.status ? plainResp.status : 0, plainJson, plainResp)){
+            return { resp: plainResp, authMode, attemptsUsed: lastAttemptCount };
+          }
+          const plainStatus = plainResp && plainResp.status ? plainResp.status : 0;
+          if (!_retryableStatus(plainStatus)) break;
+        }
+      }
+
+      if (!_retryableStatus(status)) break;
+      if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
+    }
+  }
+
+  return { resp: lastResp, authMode: lastAuthMode, attemptsUsed: lastAttemptCount };
 }
 
 function _normalizeProviderMessage(json, fallbackText){
@@ -710,33 +809,13 @@ async function synthesize(opts){
 
   let resp;
   let authMode = "bearer";
+  let attemptsUsed = 0;
 
   try{
-    resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
-
-    if (speech.useSsml){
-      const ssmlJson = _parseJson(resp && resp.text ? resp.text : "");
-      const looksRejected =
-        (resp && (resp.status === 400 || resp.status === 415 || resp.status === 422)) ||
-        /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(
-          _normalizeProviderMessage(ssmlJson, resp && resp.text)
-        );
-
-      if (looksRejected){
-        const plainPayload = { ...payload, data: speech.plainText };
-        delete plainPayload.data_type;
-        resp = await _callSynthesize(plainPayload, token, traceId, timeoutMs, authMode);
-      }
-    }
-
-    if (resp && (resp.status === 401 || resp.status === 403)){
-      authMode = "raw";
-      resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
-    }
-    if (resp && (resp.status === 401 || resp.status === 403)){
-      authMode = "token";
-      resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
-    }
+    const outcome = await _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech);
+    resp = outcome && outcome.resp;
+    authMode = outcome && outcome.authMode ? outcome.authMode : authMode;
+    attemptsUsed = outcome && outcome.attemptsUsed ? outcome.attemptsUsed : attemptsUsed;
   }catch(e){
     const msg = _str(e && e.message ? e.message : e);
     const timeoutish = /timeout|abort/i.test(msg);
@@ -747,6 +826,7 @@ async function synthesize(opts){
     return _normalizedProviderError(reason, msg, 0, true, {
       elapsedMs: Date.now() - started,
       authMode,
+      attemptsUsed,
       providerEndpoint: resp && resp.providerEndpoint ? resp.providerEndpoint : _safeUrlForLogs(_pickFirst.apply(null, _candidateSynthesizeUrls())),
       voiceUuid: _mask(voiceUuid),
       traceId: _headerSafe(traceId, 120),
@@ -767,7 +847,7 @@ async function synthesize(opts){
     : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
 
   if (!_providerSucceeded(status, json, resp)){
-    const retryable = status >= 500 || status === 429 || status === 408 || status === 0;
+    const retryable = _retryableStatus(status);
     return {
       ok: false,
       retryable,
@@ -778,6 +858,7 @@ async function synthesize(opts){
       issues: json && Array.isArray(json.issues) ? json.issues : undefined,
       requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
       authMode,
+      attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
       traceId: _headerSafe(traceId, 120),
@@ -817,9 +898,10 @@ async function synthesize(opts){
         issues: env.issues,
         requestId: env.request_id,
         authMode,
+        attemptsUsed,
         providerEndpoint,
-        voiceUuid,
-        traceId,
+        voiceUuid: _mask(voiceUuid),
+        traceId: _headerSafe(traceId, 120),
         textDisplay: speech.textDisplay,
         textSpeak: speech.textSpeak,
         speechChunks: speech.speechChunks,
@@ -841,9 +923,10 @@ async function synthesize(opts){
         issues: env.issues,
         requestId: env.request_id,
         authMode,
+        attemptsUsed,
         providerEndpoint,
-        voiceUuid,
-        traceId,
+        voiceUuid: _mask(voiceUuid),
+        traceId: _headerSafe(traceId, 120),
         textDisplay: speech.textDisplay,
         textSpeak: speech.textSpeak,
         speechChunks: speech.speechChunks,
@@ -854,29 +937,7 @@ async function synthesize(opts){
     }
   } else if (env.audio_src){
     try{
-      const dl = await _downloadBuffer(String(env.audio_src), timeoutMs);
-      if (!dl || dl.status < 200 || dl.status >= 300 || !Buffer.isBuffer(dl.buffer) || dl.buffer.length < 16){
-        return {
-          ok: false,
-          retryable: true,
-          reason: "audio_src_download_failed",
-          message: "Provider returned audio_src but the audio could not be downloaded.",
-          status: dl && dl.status ? dl.status : status,
-          elapsedMs: Date.now() - started,
-          issues: env.issues,
-          requestId: env.request_id,
-          authMode,
-          providerEndpoint,
-          voiceUuid,
-          traceId,
-          textDisplay: speech.textDisplay,
-          textSpeak: speech.textSpeak,
-          speechChunks: speech.speechChunks,
-          segmentCount: speech.segmentCount,
-          usedSsml: speech.useSsml,
-          phases: PHASES
-        };
-      }
+      const dl = await _downloadBufferWithRetry(String(env.audio_src), timeoutMs);
       buf = dl.buffer;
       detectedContentType = _getHeader(dl.headers, "content-type") || detectedContentType;
     }catch(e){
@@ -890,9 +951,10 @@ async function synthesize(opts){
         issues: env.issues,
         requestId: env.request_id,
         authMode,
+        attemptsUsed,
         providerEndpoint,
-        voiceUuid,
-        traceId,
+        voiceUuid: _mask(voiceUuid),
+        traceId: _headerSafe(traceId, 120),
         textDisplay: speech.textDisplay,
         textSpeak: speech.textSpeak,
         speechChunks: speech.speechChunks,
@@ -912,6 +974,7 @@ async function synthesize(opts){
       issues: env.issues,
       requestId: env.request_id,
       authMode,
+      attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
       traceId: _headerSafe(traceId, 120),
@@ -935,6 +998,7 @@ async function synthesize(opts){
       issues: env.issues,
       requestId: env.request_id,
       authMode,
+      attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
       traceId: _headerSafe(traceId, 120),
@@ -960,6 +1024,7 @@ async function synthesize(opts){
     requestId: env.request_id,
     providerStatus: status,
     authMode,
+    attemptsUsed,
     providerEndpoint,
     voiceUuid: _mask(voiceUuid),
     traceId: _headerSafe(traceId, 120),
@@ -971,6 +1036,8 @@ async function synthesize(opts){
     segmentCount: speech.segmentCount,
     speechHints: speech.speechHints,
     usedSsml: speech.useSsml,
+    ttsFailure: { ok: true, action: "clear", retryable: false, shouldStop: false, shouldTerminate: false },
+    audioFailure: { ok: true, action: "clear", retryable: false, shouldStop: false, shouldTerminate: false },
     phases: PHASES
   };
 }
