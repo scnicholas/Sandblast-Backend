@@ -67,7 +67,7 @@ Scripts/debug_*.js
 _local_tmp/
 
 # =========================
-# Regression outputs (local only — never commit)
+# Regression outputs (local only — never commit by default)
 # =========================
 Scripts/_regression_out/
 _regression_out/
@@ -120,6 +120,11 @@ Data/wikipedia/**
 !Data/wikipedia/billboard_yearend_hot100_1970_2010.json
 !Data/wikipedia/billboard_yearend_singles_1950_1959.json
 
+# Explicitly include additional Wikipedia datasets currently needed
+!Data/wikipedia/billboard_yearend_hot100_1960_1969.json
+!Data/wikipedia/billboard_yearend_hot100_1976_1979.json
+!Data/wikipedia/billboard_yearend_hot100_2011_2024.json
+
 # =========================
 # Backend structured knowledge + modules
 # Explicit allowlist for new emotional / psychology stack
@@ -128,6 +133,37 @@ Data/wikipedia/**
 !Data/psychology/**
 !Data/modules/**
 !Data/contracts/**
+!Data/raw/**
+
+# =========================
+# Explicit include for current Data text/json-txt assets
+# These were showing red and need to be committed
+# =========================
+!Data/music_story_moments_v1.txt
+!Data/programming_schedule_v1.json.txt
+!Data/rokuLinks.json.txt
+!Data/time_links_v1.json.txt
+
+# =========================
+# Explicit include for current Scripts assets
+# These were showing red and need to be committed
+# =========================
+!Scripts/_regression_out/
+!Scripts/append_top40weekly_to_moments.js.txt
+!Scripts/audit_year_coverage_1960_2010.txt
+!Scripts/build_story_moments_1960_1989.txt
+!Scripts/build_story_moments_full_1950_2024.txt
+!Scripts/build_story_moments_yearend_hot100.txt
+!Scripts/build_top10_by_year_v1.js.txt
+!Scripts/cards_to_chart_dump.js
+!Scripts/cards_to_chart_dump.json
+!Scripts/check_top10_by_year_v1.js.txt
+!Scripts/csv_5col_to_3col.js.txt
+!Scripts/debug_bad_50s_singles.js
+!Scripts/enrich_layer2.json
+!Scripts/enrich_moments_from_rules.js.txt
+!Scripts/ingest_wikipedia_yearend_1950_1959.js.txt
+!Scripts/ingest_wikipedia_yearend_1950s.js.txt
 
 # =========================
 # Local audio artifacts (never commit)
