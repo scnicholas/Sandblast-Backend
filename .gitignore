@@ -119,25 +119,46 @@ Data/wikipedia/**
 !Data/wikipedia/charts/**
 !Data/wikipedia/billboard_yearend_hot100_1970_2010.json
 !Data/wikipedia/billboard_yearend_singles_1950_1959.json
-
-# Explicitly include additional Wikipedia datasets currently needed
 !Data/wikipedia/billboard_yearend_hot100_1960_1969.json
 !Data/wikipedia/billboard_yearend_hot100_1976_1979.json
 !Data/wikipedia/billboard_yearend_hot100_2011_2024.json
 
 # =========================
 # Backend structured knowledge + modules
-# Explicit allowlist for new emotional / psychology stack
+# Explicit allowlist for emotional / psychology stack
 # =========================
 !Data/emotion/**
 !Data/psychology/**
 !Data/modules/**
 !Data/contracts/**
-!Data/raw/**
+
+# =========================
+# RAW DATASETS / LARGE MEDIA
+# Keep out of normal Git history
+# =========================
+Data/raw/**
+public/avatar/assets/*.mp4
+avatar5.mp4
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.wav
+*.flac
+*.zip
+*.tar
+*.gz
+*.7z
+*.bin
+*.onnx
+*.pt
+*.pth
+*.ckpt
 
 # =========================
 # Explicit include for current Data text/json-txt assets
-# These were showing red and need to be committed
+# These are repo-safe and should be committed
 # =========================
 !Data/music_story_moments_v1.txt
 !Data/programming_schedule_v1.json.txt
@@ -146,7 +167,7 @@ Data/wikipedia/**
 
 # =========================
 # Explicit include for current Scripts assets
-# These were showing red and need to be committed
+# These are repo-safe and should be committed
 # =========================
 !Scripts/_regression_out/
 !Scripts/append_top40weekly_to_moments.js.txt
