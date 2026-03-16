@@ -1,49 +1,291 @@
 {
-  "id": "eng_sources_index_v1",
-  "version": "1.0.0",
-  "description": "Index of core source anchors used to inform this English domain layer (no copyrighted text included).",
+  "id": "eng_sources_index_v2",
+  "version": "2.0.0",
+  "title": "English Sources Index",
+  "description": "Comprehensive index of reference texts, open resources, and guidance used across the English domain layer.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [],
+  "sourcePolicy": {
+    "principles": [
+      "Prioritize foundational grammars and usage references for stable structural claims.",
+      "Use Canadian and public-facing style guidance for clarity, accessibility, and audience-sensitive wording.",
+      "Do not embed copyrighted textbook chapters verbatim.",
+      "Store bibliographic detail and use-case notes so Nyx and Marion can cite and prioritize sources intelligently."
+    ]
+  },
   "sources": [
     {
       "key": "S_QUARK_CGEL",
       "type": "reference_grammar",
+      "access": "book",
       "title": "A Comprehensive Grammar of the English Language",
-      "authors": ["Randolph Quirk", "Sidney Greenbaum", "Geoffrey Leech", "Jan Svartvik"],
-      "useInLayer": ["syntax_grammar_core", "clause types", "functions", "complements", "coordination/subordination"]
+      "authors": [
+        "Randolph Quirk",
+        "Sidney Greenbaum",
+        "Geoffrey Leech",
+        "Jan Svartvik"
+      ],
+      "year": 1985,
+      "publisher": "Longman",
+      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
+      "useInLayer": [
+        "syntax",
+        "morphology",
+        "clause structure",
+        "complementation",
+        "coordination",
+        "subordination"
+      ]
     },
     {
       "key": "S_BIBER_LGSWE",
       "type": "corpus_grammar",
+      "access": "book",
       "title": "Longman Grammar of Spoken and Written English",
-      "authors": ["Douglas Biber", "Stig Johansson", "Geoffrey Leech", "Susan Conrad", "Edward Finegan"],
-      "useInLayer": ["register_corpus_usage", "conversation vs news vs academic prose features", "frequency-driven reasoning"]
+      "authors": [
+        "Douglas Biber",
+        "Stig Johansson",
+        "Geoffrey Leech",
+        "Susan Conrad",
+        "Edward Finegan"
+      ],
+      "year": 1999,
+      "publisher": "Longman",
+      "citationAPA": "Biber, D., Johansson, S., Leech, G., Conrad, S., & Finegan, E. (1999). Longman grammar of spoken and written English. Longman.",
+      "useInLayer": [
+        "register",
+        "corpus usage",
+        "spoken vs written comparison",
+        "frequency-driven grammar choices"
+      ]
     },
     {
       "key": "S_SWAN_PEU",
       "type": "usage_reference",
+      "access": "book",
       "title": "Practical English Usage",
-      "authors": ["Michael Swan"],
-      "useInLayer": ["usage_diagnostics", "common learner confusions", "problem-solution lookup patterns"]
+      "authors": [
+        "Michael Swan"
+      ],
+      "year": 2016,
+      "edition": "4th",
+      "publisher": "Oxford University Press",
+      "citationAPA": "Swan, M. (2016). Practical English usage (4th ed.). Oxford University Press.",
+      "useInLayer": [
+        "usage diagnostics",
+        "learner confusions",
+        "articles",
+        "prepositions",
+        "complement frames",
+        "tense/aspect"
+      ]
     },
     {
       "key": "S_WILLIAMS_STYLE",
       "type": "academic_writing",
+      "access": "book",
       "title": "Style: Lessons in Clarity and Grace",
-      "authors": ["Joseph M. Williams", "Gregory G. Colomb", "Joseph Bizup"],
-      "useInLayer": ["academic_writing_clarity", "clarity principles", "revision strategies", "reader-centered prose"]
+      "authors": [
+        "Joseph M. Williams",
+        "Gregory G. Colomb",
+        "Joseph Bizup"
+      ],
+      "year": 2017,
+      "edition": "12th",
+      "publisher": "Pearson",
+      "citationAPA": "Williams, J. M., Colomb, G. G., & Bizup, J. (2017). Style: Lessons in clarity and grace (12th ed.). Pearson.",
+      "useInLayer": [
+        "clarity",
+        "revision",
+        "reader-centered prose",
+        "cohesion",
+        "argument structure"
+      ]
     },
     {
       "key": "S_EAP_CANADA_SURVEY",
       "type": "case_study_research",
+      "access": "article",
       "title": "English for Academic Purposes in Canada: Results From an Exploratory National Survey",
-      "authors": ["James N. Corcoran", "Julia Williams", "Kris Pierre Johnston"],
-      "useInLayer": ["eap_canada_case_studies", "program models", "support structures", "assessment and equity themes"]
+      "authors": [
+        "James N. Corcoran",
+        "Julia Williams",
+        "Kris Pierre Johnston"
+      ],
+      "citationAPA": "Corcoran, J. N., Williams, J., & Johnston, K. P. English for Academic Purposes in Canada: Results from an exploratory national survey.",
+      "useInLayer": [
+        "Canadian EAP contexts",
+        "program variation",
+        "student support structures",
+        "assessment literacy"
+      ]
     },
     {
       "key": "S_EAP_ACTION_RESEARCH",
       "type": "case_study_research",
+      "access": "article",
       "title": "A Self-Study Action Research Approach to English for Academic Purposes Development",
-      "authors": ["Judith Kerekes"],
-      "useInLayer": ["eap_canada_case_studies", "student self-study plans", "portfolio evidence", "iteration framework"]
+      "authors": [
+        "Judith Kerekes"
+      ],
+      "citationAPA": "Kerekes, J. A self-study action research approach to English for Academic Purposes development.",
+      "useInLayer": [
+        "portfolio learning",
+        "iterative evidence collection",
+        "self-study methodology"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_Grammar",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Grammar Introduction",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/grammar/index.html",
+      "useInLayer": [
+        "public grammar support",
+        "micro-exercises",
+        "quick reference lookup",
+        "student-facing support"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_GeneralWriting",
+      "type": "open_reference",
+      "access": "web",
+      "title": "General Writing",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/index.html",
+      "useInLayer": [
+        "style",
+        "mechanics",
+        "transitions",
+        "general revision support"
+      ]
+    },
+    {
+      "key": "S_UofT_WritingAdvice",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Writing Advice",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/",
+      "useInLayer": [
+        "Canadian academic writing norms",
+        "revising",
+        "editing",
+        "grammar support"
+      ]
+    },
+    {
+      "key": "S_UofT_HitParade",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Hit Parade of Errors in Grammar, Punctuation, and Style",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/revising/hit-parade-of-errors/",
+      "useInLayer": [
+        "error logs",
+        "grammar debugging",
+        "editing checklists"
+      ]
+    },
+    {
+      "key": "S_Canada_ContentStyleGuide",
+      "type": "government_guidance",
+      "access": "web",
+      "title": "Canada.ca Content Style Guide",
+      "organization": "Government of Canada",
+      "url": "https://design.canada.ca/style-guide/",
+      "useInLayer": [
+        "plain language",
+        "clarity",
+        "public-facing content",
+        "accessibility-minded style"
+      ]
+    },
+    {
+      "key": "S_ASC_PlainLanguage",
+      "type": "standards_guidance",
+      "access": "web",
+      "title": "CAN-ASC-3.1:2025 – Plain Language",
+      "organization": "Accessibility Standards Canada",
+      "url": "https://accessible.canada.ca/creating-accessibility-standards/can-asc-312025-plain-language",
+      "useInLayer": [
+        "accessible writing",
+        "plain language",
+        "audience-centered wording"
+      ]
+    },
+    {
+      "key": "S_NCTE_QAGrammar",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Some Questions and Answers about Grammar",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/qandaaboutgrammar/",
+      "useInLayer": [
+        "metalanguage",
+        "grammar as description",
+        "teaching orientation"
+      ]
+    },
+    {
+      "key": "S_NCTE_GrammarExercises",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Resolution on Grammar Exercises to Teach Speaking and Writing",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/grammarexercises/",
+      "useInLayer": [
+        "avoid isolated drills",
+        "contextualized grammar instruction",
+        "meaningful writing practice"
+      ]
+    }
+  ],
+  "referenceClasses": [
+    {
+      "class": "core_textbook",
+      "examples": [
+        "reference grammar",
+        "corpus grammar",
+        "usage reference"
+      ]
+    },
+    {
+      "class": "applied_case_study",
+      "examples": [
+        "EAP research",
+        "action research",
+        "portfolio studies"
+      ]
+    },
+    {
+      "class": "open_support",
+      "examples": [
+        "Purdue OWL",
+        "University writing centres"
+      ]
+    },
+    {
+      "class": "government_or_standards",
+      "examples": [
+        "Canada.ca style guide",
+        "Accessibility Standards Canada plain language guidance"
+      ]
     }
   ]
 }

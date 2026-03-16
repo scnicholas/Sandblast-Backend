@@ -1,23 +1,340 @@
 {
   "domain": "artificial_intelligence",
   "layer": "ai_cybersecurity",
-  "version": "1.0.0",
-  "description": "Applications of AI in defensive cybersecurity systems.",
+  "version": "1.1.0",
+  "description": "Expanded defensive AI cybersecurity knowledge pack for Marion. This file covers secure AI system design, adversarial machine learning, LLM and agent security, model governance, data integrity, evaluation, deployment controls, monitoring, and defensive case-study references. The intent is defensive-only design and trustworthy operationalization of AI systems in production environments.",
   "core_topics": [
-    "anomaly_detection",
-    "intrusion_detection_systems",
-    "threat_intelligence_modeling",
-    "automated_response_systems",
-    "adversarial_machine_learning"
+    "secure_ai_system_development_lifecycle",
+    "threat_modeling_for_ai_systems",
+    "adversarial_machine_learning",
+    "data_poisoning",
+    "evasion_and_inference_attacks",
+    "model_extraction_and_model_theft",
+    "backdoor_and_trojan_detection",
+    "prompt_injection_and_indirect_prompt_injection",
+    "training_data_poisoning",
+    "retrieval_augmented_generation_security",
+    "agent_tool_use_security",
+    "memory_and_context_manipulation",
+    "model_denial_of_service",
+    "supply_chain_and_dependency_risk",
+    "model_hardening_and_robustness",
+    "secure_deployment_and_runtime_monitoring",
+    "incident_response_for_ai_systems",
+    "governance_assurance_and_risk_management",
+    "privacy_and_data_integrity_protection",
+    "ai_red_teaming_and_security_evaluation"
   ],
   "security_focus": [
     "defensive_only_design",
+    "secure_by_design_ai_systems",
     "model_hardening",
     "adversarial_attack_mitigation",
-    "data_integrity_protection"
+    "data_integrity_protection",
+    "secure_training_pipelines",
+    "secure_inference_and_serving",
+    "guardrails_and_runtime_controls",
+    "defensive_red_teaming",
+    "trustworthy_monitoring_and_auditability"
   ],
   "institutional_alignment": [
+    "NIST_AI_RMF",
+    "NIST_AI_100_2_Adversarial_Machine_Learning",
+    "OWASP_LLM_Top_10",
+    "MITRE_ATLAS",
+    "ENISA_Securing_Machine_Learning_Algorithms",
+    "Guidelines_for_Secure_AI_System_Development",
+    "IARPA_TrojAI",
     "Amii_security_research",
     "Vector_AI_security_projects"
+  ],
+  "threat_taxonomy": {
+    "training_time_threats": [
+      "data_poisoning",
+      "backdoor_insertion",
+      "supply_chain_compromise",
+      "label_manipulation",
+      "tampered_model_artifacts"
+    ],
+    "inference_time_threats": [
+      "evasion_attacks",
+      "prompt_injection",
+      "indirect_prompt_injection",
+      "model_denial_of_service",
+      "unsafe_tool_invocation",
+      "context_window_manipulation"
+    ],
+    "confidentiality_threats": [
+      "model_extraction",
+      "membership_inference",
+      "training_data_leakage",
+      "sensitive_prompt_or_context_exposure"
+    ],
+    "integrity_threats": [
+      "output_manipulation",
+      "retrieval_poisoning",
+      "memory_corruption",
+      "backdoored_behavior_activation"
+    ],
+    "availability_threats": [
+      "resource_exhaustion",
+      "token_flooding",
+      "rate_limit_abuse",
+      "dependency_or_provider_failure"
+    ]
+  },
+  "defensive_control_families": [
+    {
+      "name": "governance_and_risk_management",
+      "controls": [
+        "asset_inventory_for_models_datasets_and_dependencies",
+        "documented_risk_assessment",
+        "use_case_boundedness",
+        "security_review_before_deployment",
+        "third_party_model_intake_controls"
+      ]
+    },
+    {
+      "name": "data_and_pipeline_security",
+      "controls": [
+        "data_provenance_tracking",
+        "training_data_validation",
+        "dataset_access_controls",
+        "artifact_signing_and_integrity_checks",
+        "segregated_training_and_serving_environments"
+      ]
+    },
+    {
+      "name": "model_and_application_hardening",
+      "controls": [
+        "input_validation_and_sanitization",
+        "output_filtering_and_policy_enforcement",
+        "prompt_and_context_isolation",
+        "retrieval_source_validation",
+        "least_privilege_tool_permissions",
+        "secrets_isolation"
+      ]
+    },
+    {
+      "name": "runtime_protection_and_monitoring",
+      "controls": [
+        "rate_limiting",
+        "anomaly_detection_for_queries_and_outputs",
+        "model_behavior_monitoring",
+        "security_logging",
+        "fallback_and_fail_safe_paths",
+        "kill_switch_and_degradation_modes"
+      ]
+    },
+    {
+      "name": "assurance_testing",
+      "controls": [
+        "adversarial_testing",
+        "prompt_injection_testing",
+        "backdoor_detection",
+        "red_teaming",
+        "benchmarking_for_security_failure_modes",
+        "regression_testing_for_guardrails"
+      ]
+    },
+    {
+      "name": "incident_response",
+      "controls": [
+        "model_roll_back_plan",
+        "credential_rotation",
+        "provider_failover",
+        "forensic_logging",
+        "security_patch_and_revalidation_process"
+      ]
+    }
+  ],
+  "primary_text_references": [
+    {
+      "title": "Adversarial Machine Learning",
+      "authors": [
+        "Anthony D. Joseph",
+        "Blaine Nelson",
+        "Benjamin I. P. Rubinstein",
+        "J. D. Tygar"
+      ],
+      "type": "core_textbook",
+      "focus": [
+        "adversarial_machine_learning",
+        "attacker_models",
+        "poisoning",
+        "evasion",
+        "defense"
+      ]
+    },
+    {
+      "title": "Adversarial Machine Learning",
+      "authors": [
+        "Yevgeniy Vorobeychik",
+        "Murat Kantarcioglu"
+      ],
+      "type": "technical_overview",
+      "focus": [
+        "threat_models",
+        "strategic_behavior",
+        "robust_learning",
+        "security_tradeoffs"
+      ]
+    },
+    {
+      "title": "Machine Learning and Security: Protecting Systems with Data and Algorithms",
+      "authors": [
+        "Clarence Chio",
+        "David Freeman"
+      ],
+      "type": "applied_practical_reference",
+      "focus": [
+        "anomaly_detection",
+        "malware_classification",
+        "network_security",
+        "operational_ml_security"
+      ]
+    },
+    {
+      "title": "Securing Machine Learning Algorithms",
+      "authors": [
+        "ENISA"
+      ],
+      "type": "institutional_reference",
+      "focus": [
+        "ml_taxonomy",
+        "threat_analysis",
+        "security_controls",
+        "governance"
+      ]
+    }
+  ],
+  "standards_and_framework_references": [
+    {
+      "title": "AI Risk Management Framework (AI RMF 1.0)",
+      "organization": "NIST",
+      "focus": [
+        "governance",
+        "risk_management",
+        "trustworthiness",
+        "operational_controls"
+      ]
+    },
+    {
+      "title": "Adversarial Machine Learning: A Taxonomy and Terminology of Attacks and Mitigations (NIST AI 100-2e2025)",
+      "organization": "NIST",
+      "focus": [
+        "aml_taxonomy",
+        "attacker_goals",
+        "life_cycle_stages",
+        "mitigations",
+        "genai_security"
+      ]
+    },
+    {
+      "title": "OWASP Top 10 for LLM Applications",
+      "organization": "OWASP",
+      "focus": [
+        "prompt_injection",
+        "training_data_poisoning",
+        "model_denial_of_service",
+        "supply_chain_risk",
+        "excessive_agency",
+        "sensitive_information_disclosure"
+      ]
+    },
+    {
+      "title": "MITRE ATLAS",
+      "organization": "MITRE",
+      "focus": [
+        "adversary_tactics_and_techniques",
+        "threat_modeling",
+        "red_teaming",
+        "defense_mapping"
+      ]
+    },
+    {
+      "title": "Guidelines for Secure AI System Development",
+      "organization": "NCSC/CISA and partner agencies",
+      "focus": [
+        "secure_design",
+        "secure_development",
+        "secure_deployment",
+        "secure_operation_and_maintenance"
+      ]
+    }
+  ],
+  "case_study_references": [
+    {
+      "title": "IARPA TrojAI Program",
+      "type": "defensive_research_program",
+      "why_it_matters": "A major program focused on detecting Trojaned and backdoored AI systems before deployment."
+    },
+    {
+      "title": "MITRE ATLAS Real-World Attack Observations",
+      "type": "threat_intelligence_reference",
+      "why_it_matters": "Useful for mapping realistic AI attack behaviors into a defensive security knowledge model."
+    },
+    {
+      "title": "OWASP LLM Top 10 Risk Scenarios",
+      "type": "application_security_reference",
+      "why_it_matters": "Provides practical failure modes for LLM-enabled systems, including prompt injection, data poisoning, and unsafe agency."
+    },
+    {
+      "title": "ENISA Securing Machine Learning Algorithms",
+      "type": "defensive_controls_reference",
+      "why_it_matters": "Connects threat categories to control families and helps translate abstract AI security risk into operational controls."
+    }
+  ],
+  "recommended_subtopics": [
+    {
+      "topic": "adversarial_machine_learning",
+      "why_it_matters": "This is the technical backbone of AI cybersecurity and frames how models fail under hostile conditions."
+    },
+    {
+      "topic": "prompt_injection_and_indirect_prompt_injection",
+      "why_it_matters": "Modern LLM systems and agentic workflows are especially vulnerable to instruction manipulation through user or retrieved content."
+    },
+    {
+      "topic": "backdoor_and_trojan_detection",
+      "why_it_matters": "Model integrity matters before deployment, not just after a system is already in production."
+    },
+    {
+      "topic": "retrieval_augmented_generation_security",
+      "why_it_matters": "RAG pipelines create new integrity and confidentiality risks through poisoned, deceptive, or exfiltrating source content."
+    },
+    {
+      "topic": "agent_tool_use_security",
+      "why_it_matters": "As AI systems gain tool access, the security boundary moves from output risk to real-world action risk."
+    },
+    {
+      "topic": "governance_assurance_and_risk_management",
+      "why_it_matters": "Technical controls fail without governance, intake discipline, monitoring, and clear incident handling."
+    }
+  ],
+  "learning_objectives": [
+    "understand_the_difference_between_classical_cybersecurity_and_ai_specific_security_risks",
+    "explain_training_time_and_inference_time_attacks_on_ai_systems",
+    "identify_integrity_confidentiality_and_availability_risks_in_ai_pipelines",
+    "understand_prompt_injection_and_llm_application_security_failures",
+    "reason_about_model_hardening_monitoring_and_safe_degradation",
+    "map_ai_security_threats_to_control_families_and_operational_defenses",
+    "understand_the_role_of_governance_and_risk_management_in_secure_ai",
+    "evaluate_defensive_case_studies_and_frameworks_for_practical_use"
+  ],
+  "ingestion_priority": [
+    "NIST AI 100-2e2025 Adversarial Machine Learning",
+    "AI Risk Management Framework (AI RMF 1.0)",
+    "OWASP Top 10 for LLM Applications",
+    "MITRE ATLAS",
+    "Guidelines for Secure AI System Development",
+    "Adversarial Machine Learning",
+    "Machine Learning and Security: Protecting Systems with Data and Algorithms",
+    "ENISA Securing Machine Learning Algorithms"
+  ],
+  "notes_for_marion": [
+    "Keep this pack defensive only. Do not expand into offensive exploitation guidance or procedural attack instructions.",
+    "Use this file as the AI security trunk for later cross-links into agents, governance, privacy, compliance, and infrastructure reliability.",
+    "Prioritize institutional guidance and canonical references before vendor or blog-style material.",
+    "Map future entries to training, deployment, monitoring, and incident response stages so Marion can reason in lifecycle terms."
   ]
 }

@@ -1,24 +1,323 @@
 {
   "domain": "artificial_intelligence",
   "layer": "ai_psychology",
-  "version": "1.0.0",
-  "description": "Intersection of artificial intelligence and cognitive science.",
+  "version": "1.1.0",
+  "description": "Expanded PhD-level knowledge pack on the intersection of artificial intelligence, psychology, and cognitive science for Marion. This file emphasizes computational cognitive modeling, human-AI interaction, trust and reliance, behavioral prediction, affective computing, clinical and decision-support considerations, and research frameworks that connect AI systems to human cognition and behavior.",
   "core_topics": [
-    "cognitive_load_modeling",
+    "computational_cognitive_modeling",
+    "cognitive_architectures",
     "human_ai_interaction",
+    "human_ai_collaboration",
+    "trust_in_automation_and_ai",
+    "reliance_calibration_and_overreliance",
     "behavioral_prediction",
-    "emotion_detection",
-    "reinforcement_learning_and_behavior"
+    "decision_support_and_judgment",
+    "emotion_detection_and_affective_computing",
+    "cognitive_load_modeling",
+    "attention_memory_and_reasoning_models",
+    "bounded_rationality_and_heuristics",
+    "explainability_and_mental_models",
+    "human_in_the_loop_and_human_centered_design",
+    "persuasion_manipulation_and_behavioral_influence",
+    "clinical_and_mental_health_cautions",
+    "educational_and_adaptive_ai",
+    "ethical_psychology_of_ai_use",
+    "measurement_validity_and_psychometrics_for_ai",
+    "social_cognition_and_anthropomorphism_in_ai_systems"
   ],
   "applications": [
     "adaptive_interfaces",
     "educational_ai",
     "cognitive_assistants",
-    "decision_support_systems"
+    "decision_support_systems",
+    "human_ai_teaming",
+    "clinical_screening_support",
+    "affective_user_modeling",
+    "behavior_change_support_systems",
+    "workplace_ai_augmentation",
+    "safety_critical_human_machine_coordination"
   ],
   "research_alignment": [
     "computational_cognitive_models",
     "bounded_rationality",
-    "human_in_the_loop_design"
+    "human_in_the_loop_design",
+    "computational_psychology",
+    "cognitive_science",
+    "judgment_and_decision_making",
+    "trust_calibration",
+    "human_factors",
+    "affective_computing",
+    "psychometrics_and_measurement"
+  ],
+  "theoretical_frames": [
+    {
+      "name": "computational_cognitive_science",
+      "importance": "Provides the strongest doctoral bridge between AI and psychology by treating cognition as something that can be formalized, simulated, and compared against human data."
+    },
+    {
+      "name": "human_centered_ai",
+      "importance": "Keeps the human as the locus of agency, interpretation, accountability, and value alignment."
+    },
+    {
+      "name": "trust_and_reliance_calibration",
+      "importance": "Explains when people under-trust, over-trust, or miscalibrate their use of AI and automation."
+    },
+    {
+      "name": "bounded_rationality_and_bias",
+      "importance": "Helps Marion reason about human decision limits, cognitive shortcuts, and where AI can either mitigate or amplify bias."
+    },
+    {
+      "name": "social_cognition_of_ai",
+      "importance": "Explains why people anthropomorphize AI, project agency onto systems, and respond to conversational systems as quasi-social actors."
+    }
+  ],
+  "primary_text_references": [
+    {
+      "title": "Cognitive Modeling",
+      "authors": [
+        "Jay B. Moore",
+        "Michael J. Bruderlin"
+      ],
+      "type": "graduate_textbook",
+      "focus": [
+        "computational_models_of_human_cognition",
+        "symbolic_and_connectionist_models",
+        "attention_memory_language_reasoning"
+      ]
+    },
+    {
+      "title": "Introduction to Modeling Cognitive Processes",
+      "authors": [
+        "Tom Verguts",
+        "Francis Tuerlinckx"
+      ],
+      "type": "graduate_textbook",
+      "focus": [
+        "cognitive_process_modeling",
+        "computational_explanation",
+        "cognitive_neuroscience_linkages"
+      ]
+    },
+    {
+      "title": "The Cambridge Handbook of Computational Psychology",
+      "editor": "Ron Sun",
+      "type": "doctoral_reference_handbook",
+      "focus": [
+        "connectionist_models",
+        "bayesian_models",
+        "cognitive_architectures",
+        "rational_analysis",
+        "emotion_and_motivation_models"
+      ]
+    },
+    {
+      "title": "The Oxford Handbook of Cognitive Science",
+      "editors": [
+        "Daniel Reisberg"
+      ],
+      "type": "doctoral_reference_handbook",
+      "focus": [
+        "cognitive_architectures",
+        "computational_theories_of_mind",
+        "attention_memory_language_reasoning"
+      ]
+    },
+    {
+      "title": "Trust in Human-Robot Interaction",
+      "editors": [
+        "Chang S. Nam",
+        "Joseph B. Lyons",
+        "Scott A. Chernova"
+      ],
+      "type": "advanced_reference",
+      "focus": [
+        "trust",
+        "human_robot_interaction",
+        "reliance",
+        "transparency",
+        "ethics_and_privacy"
+      ]
+    },
+    {
+      "title": "Affective Computing",
+      "author": "Rosalind W. Picard",
+      "type": "foundational_monograph",
+      "focus": [
+        "emotion_detection",
+        "affective_systems",
+        "human_computer_interaction",
+        "emotionally_intelligent_interfaces"
+      ]
+    }
+  ],
+  "reference_books_and_handbooks": [
+    {
+      "title": "The Cambridge Handbook of Computational Cognitive Sciences",
+      "type": "reference_handbook",
+      "focus": [
+        "evaluation_of_computational_modeling",
+        "perception",
+        "reasoning",
+        "learning",
+        "cognitive_architectures"
+      ]
+    },
+    {
+      "title": "The Oxford Handbook of Computational and Mathematical Psychology",
+      "type": "reference_handbook",
+      "focus": [
+        "formal_modeling",
+        "decision_models",
+        "learning_models",
+        "measurement"
+      ]
+    },
+    {
+      "title": "The Oxford Handbook of Cognitive Psychology",
+      "type": "reference_handbook",
+      "focus": [
+        "attention",
+        "memory",
+        "reasoning",
+        "judgment",
+        "decision_making"
+      ]
+    }
+  ],
+  "foundational_papers_and_reviews": [
+    {
+      "title": "Integrating Empirical Evidence on Factors That Influence Trust in Automation",
+      "authors": [
+        "Kevin A. Hoff",
+        "Masooda Bashir"
+      ],
+      "type": "systematic_review",
+      "focus": [
+        "trust_in_automation",
+        "trust_model",
+        "human_factors"
+      ]
+    },
+    {
+      "title": "From Automation to Autonomy: The Importance of Trust Repair in Human-Machine Interaction",
+      "authors": [
+        "Ewart J. de Visser",
+        "et al."
+      ],
+      "type": "theoretical_framework",
+      "focus": [
+        "trust_repair",
+        "autonomy",
+        "human_machine_interaction"
+      ]
+    },
+    {
+      "title": "Understanding Human-Centred AI: A Review of Its Defining Characteristics",
+      "type": "systematic_review",
+      "focus": [
+        "human_centered_ai",
+        "conceptual_clarity",
+        "design_principles"
+      ]
+    },
+    {
+      "title": "Human-Centered Human-AI Collaboration (HCHAC)",
+      "type": "recent_scholarly_overview",
+      "focus": [
+        "human_ai_collaboration",
+        "human_led_teaming",
+        "research_agenda"
+      ]
+    }
+  ],
+  "case_study_references": [
+    {
+      "title": "Trust Repair in Human-Machine Interaction",
+      "type": "case_framework",
+      "why_it_matters": "Important for Marion because failure recovery, apology strategy, and confidence calibration are psychological as much as technical."
+    },
+    {
+      "title": "Human Decision-Making Susceptibility to AI-Driven Manipulation",
+      "type": "behavioral_risk_case",
+      "why_it_matters": "Useful for understanding persuasion risk, hidden incentive effects, and why AI systems need guardrails around influence."
+    },
+    {
+      "title": "APA Guidance on AI and Psychological Practice",
+      "type": "professional_practice_case",
+      "why_it_matters": "Provides a cautionary frame for clinical and wellness-adjacent deployment, especially around evidence, privacy, and public safety."
+    },
+    {
+      "title": "Psychologists' Reported AI Use and Concerns",
+      "type": "field_adoption_case",
+      "why_it_matters": "Helpful for understanding real-world adoption, concern patterns, and the psychology profession's risk/benefit framing around AI."
+    }
+  ],
+  "advanced_subtopics": [
+    {
+      "topic": "cognitive_architectures",
+      "why_it_matters": "Architectures such as ACT-R, EPIC, CAPS-family, and CLARION matter because they give Marion a principled way to think about cognition instead of treating behavior as undifferentiated output."
+    },
+    {
+      "topic": "trust_and_reliance_calibration",
+      "why_it_matters": "This is central to whether users appropriately rely on AI, ignore it when they should not, or over-trust it when they should."
+    },
+    {
+      "topic": "mental_models_and_explainability",
+      "why_it_matters": "People do not use AI based only on objective performance; they use it based on how they understand what it is doing."
+    },
+    {
+      "topic": "persuasion_and_behavioral_influence",
+      "why_it_matters": "A PhD-level psychology pack cannot ignore the possibility that AI can shape beliefs, preferences, compliance, and affect."
+    },
+    {
+      "topic": "measurement_and_psychometrics",
+      "why_it_matters": "Psychological AI claims are weak if constructs are ill-defined, labels are noisy, or measurements lack validity and reliability."
+    },
+    {
+      "topic": "clinical_and_mental_health_caution",
+      "why_it_matters": "AI systems are frequently over-extended into mental-health-adjacent settings without the evidence base required for safe use."
+    }
+  ],
+  "learning_objectives": [
+    "understand_how_computational_models_connect_ai_and_human_cognition",
+    "explain_the_role_of_cognitive_architectures_in_the_study_of_mind_and_intelligent_behavior",
+    "distinguish_human_ai_interaction_from_human_ai_collaboration_and_teaming",
+    "evaluate_trust_reliance_and_overreliance_in_automation_and_ai_systems",
+    "analyze_how_ai_systems_shape_human_judgment_decision_making_and_behavior",
+    "understand_emotion_detection_and_affective_computing_as_psychological_and_measurement_problems",
+    "reason_about_bounded_rationality_bias_and_cognitive_load_in_ai_supported_tasks",
+    "critically_assess_clinical_or_wellness_claims_about_ai_using_psychological_evidence_standards",
+    "connect_explainability_mental_models_and_user_behavior_in_human_ai_systems",
+    "apply_human_centered_design_principles_to_the_deployment_of_ai_cognitive_assistants"
+  ],
+  "research_methods_and_evaluation": [
+    "behavioral_experiments",
+    "human_subjects_studies",
+    "psychometric_validation",
+    "trust_and_reliance_scales",
+    "reaction_time_and_error_analysis",
+    "mixed_methods_hai_evaluation",
+    "longitudinal_adoption_studies",
+    "ecological_validity_assessment",
+    "qualitative_studies_of_user_mental_models",
+    "comparative_human_vs_ai_vs_human_ai_teaming_designs"
+  ],
+  "ingestion_priority": [
+    "The Cambridge Handbook of Computational Psychology",
+    "The Oxford Handbook of Cognitive Science",
+    "Cognitive Modeling",
+    "Introduction to Modeling Cognitive Processes",
+    "Trust in Human-Robot Interaction",
+    "Affective Computing",
+    "Integrating Empirical Evidence on Factors That Influence Trust in Automation",
+    "From Automation to Autonomy: The Importance of Trust Repair in Human-Machine Interaction",
+    "Understanding Human-Centred AI: A Review of Its Defining Characteristics",
+    "APA guidance on AI and psychological practice"
+  ],
+  "notes_for_marion": [
+    "Keep this pack conceptually rigorous. It should function as a bridge between AI systems thinking and psychological theory, not as a loose collection of pop-psych claims.",
+    "Treat emotion detection and behavioral prediction as measurement problems, not just capability claims.",
+    "Separate supportive conversational design from clinical psychology claims unless the evidence base is explicit and strong.",
+    "Cross-link this pack later into agents, ethics/law, education, and decision-support systems."
   ]
 }

@@ -1,0 +1,647 @@
+{
+  "packId": "cyber_identity_access_v2",
+  "domain": "cybersecurity",
+  "packType": "identity_access",
+  "version": 2,
+  "updatedAt": "2026-03-15",
+  "intent": "Defensive identity, authentication, authorization, federation, and access-governance knowledge for secure architecture, operations, and policy reasoning.",
+  "principles": [
+    {
+      "id": "iam_identity_is_control_plane",
+      "name": "Identity Is a Core Control Plane",
+      "summary": "In cloud and hybrid environments, identity and session control often define trust boundaries more than network location.",
+      "useWhen": [
+        "zero trust design",
+        "cloud architecture",
+        "third-party access",
+        "remote workforce"
+      ],
+      "notes": [
+        "Treat identities, devices, sessions, and service principals as first-class security objects."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "identity control plane",
+          "zero trust",
+          "cloud identity",
+          "session trust"
+        ],
+        "intentSignals": [
+          "architecture",
+          "remote access",
+          "cloud"
+        ]
+      }
+    },
+    {
+      "id": "iam_phishing_resistant_authentication",
+      "name": "Phishing-Resistant Authentication",
+      "summary": "Prefer authentication methods that are resistant to credential phishing and relay attacks over weaker factors like SMS.",
+      "coreIdeas": [
+        "Use MFA broadly, prioritizing phishing-resistant methods where feasible.",
+        "Reduce reliance on shared secrets and weak recovery flows.",
+        "Treat enrollment, recovery, and reset paths as high-risk surfaces."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "phishing resistant mfa",
+          "fido",
+          "passkeys",
+          "strong authentication",
+          "aal"
+        ],
+        "intentSignals": [
+          "login security",
+          "account protection",
+          "authentication"
+        ]
+      }
+    },
+    {
+      "id": "iam_least_privilege_and_jit",
+      "name": "Least Privilege, Separation of Duties, and JIT Access",
+      "summary": "Users, administrators, and workloads should receive the minimum access necessary, ideally only for the time needed.",
+      "coreIdeas": [
+        "Define roles and entitlements precisely.",
+        "Use separation of duties for sensitive workflows.",
+        "Prefer just-in-time elevation and approval-based privileged access."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "least privilege",
+          "rbac",
+          "abac",
+          "jit",
+          "pam",
+          "separation of duties"
+        ],
+        "intentSignals": [
+          "access review",
+          "admin access",
+          "privilege"
+        ]
+      }
+    },
+    {
+      "id": "iam_lifecycle_governance",
+      "name": "Identity Lifecycle Governance",
+      "summary": "Provisioning, role change, leave of absence, contractor expiry, and offboarding must be accurate and timely to prevent access drift.",
+      "coreIdeas": [
+        "Automate joiner-mover-leaver processes.",
+        "Expire temporary access by default.",
+        "Continuously review dormant, orphaned, and overprivileged accounts."
+      ],
+      "riskPatterns": [
+        "Orphaned admin accounts.",
+        "Dormant vendor accounts.",
+        "Role changes that preserve excessive permissions."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "joiner mover leaver",
+          "offboarding",
+          "provisioning",
+          "access drift",
+          "orphaned account"
+        ],
+        "intentSignals": [
+          "governance",
+          "process",
+          "review"
+        ]
+      }
+    },
+    {
+      "id": "iam_verify_every_session",
+      "name": "Continuous Verification",
+      "summary": "Authentication is not a one-time event; sensitive access decisions should consider session risk, device posture, context, and behavior.",
+      "useWhen": [
+        "conditional access",
+        "high-value admin tasks",
+        "partner portals",
+        "VPN replacement"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "continuous verification",
+          "conditional access",
+          "session risk",
+          "device posture"
+        ],
+        "intentSignals": [
+          "policy design",
+          "zero trust",
+          "adaptive access"
+        ]
+      }
+    }
+  ],
+  "controlFamilies": [
+    {
+      "id": "iam_authentication_assurance",
+      "name": "Authentication Assurance",
+      "description": "Controls for identity proofing, authenticator selection, enrollment, lifecycle, and recovery.",
+      "components": [
+        "MFA enrollment",
+        "phishing-resistant authenticators",
+        "reset and recovery hardening",
+        "fraud and abuse monitoring"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "authentication assurance",
+          "identity proofing",
+          "recovery",
+          "reset"
+        ],
+        "intentSignals": [
+          "assurance",
+          "authenticate"
+        ]
+      }
+    },
+    {
+      "id": "iam_authorization_and_entitlements",
+      "name": "Authorization & Entitlement Governance",
+      "description": "Role design, approval logic, periodic certification, and resource scoping to keep access rights bounded.",
+      "components": [
+        "RBAC/ABAC",
+        "entitlement catalog",
+        "access certification",
+        "toxic-combination review"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "authorization",
+          "entitlement",
+          "access certification",
+          "rbac",
+          "abac"
+        ],
+        "intentSignals": [
+          "permissions",
+          "review",
+          "policy"
+        ]
+      }
+    },
+    {
+      "id": "iam_privileged_access",
+      "name": "Privileged Access Management",
+      "description": "Protect elevated accounts, administrative workflows, and privileged sessions.",
+      "components": [
+        "vaulted credentials",
+        "just-in-time elevation",
+        "session recording",
+        "break-glass governance"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "pam",
+          "privileged access",
+          "break glass",
+          "vault"
+        ],
+        "intentSignals": [
+          "admin",
+          "critical systems",
+          "elevated access"
+        ]
+      }
+    },
+    {
+      "id": "iam_machine_identity",
+      "name": "Machine Identity & Secrets Hygiene",
+      "description": "Protect service accounts, API keys, certificates, tokens, and workload identities.",
+      "components": [
+        "secret vaulting",
+        "certificate lifecycle",
+        "token scoping",
+        "service-account review"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "machine identity",
+          "service account",
+          "certificate",
+          "api key",
+          "token"
+        ],
+        "intentSignals": [
+          "automation",
+          "workload",
+          "credential"
+        ]
+      }
+    },
+    {
+      "id": "iam_monitoring_and_detection",
+      "name": "Identity Monitoring & Detection",
+      "description": "Monitor anomalous access, impossible travel, privilege abuse, token misuse, and risky sign-in behavior.",
+      "components": [
+        "risk-based sign-in detection",
+        "UEBA signals",
+        "privilege-change alerts",
+        "federation misuse monitoring"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "identity monitoring",
+          "impossible travel",
+          "token theft",
+          "ueba",
+          "anomaly detection"
+        ],
+        "intentSignals": [
+          "detect",
+          "alert",
+          "monitor"
+        ]
+      }
+    }
+  ],
+  "architecturalModels": [
+    {
+      "id": "model_centralized_idp",
+      "name": "Centralized Identity Provider Model",
+      "summary": "A primary IdP provides authentication and federation for workforce and business applications.",
+      "strengths": [
+        "simplifies SSO",
+        "centralizes policy",
+        "easier logging and revocation"
+      ],
+      "watchouts": [
+        "IdP availability becomes critical",
+        "misconfiguration can have broad blast radius"
+      ]
+    },
+    {
+      "id": "model_zero_trust_access",
+      "name": "Zero Trust Access Model",
+      "summary": "Access decisions consider user, device, workload, session, and resource context continuously, not just network location.",
+      "strengths": [
+        "fits hybrid work",
+        "improves segmentation logic",
+        "supports conditional access"
+      ],
+      "watchouts": [
+        "policy sprawl",
+        "telemetry and asset quality matter"
+      ]
+    },
+    {
+      "id": "model_federation_b2b_b2c",
+      "name": "Federation Model",
+      "summary": "Use federation for partner, customer, and workforce scenarios where trust is delegated across domains.",
+      "strengths": [
+        "reduces password sprawl",
+        "supports external collaboration"
+      ],
+      "watchouts": [
+        "claim mapping errors",
+        "reliance on upstream identity quality",
+        "SCIM/provisioning drift"
+      ]
+    }
+  ],
+  "riskPatterns": [
+    {
+      "id": "risk_credential_phishing",
+      "description": "Credential theft or session hijacking through phishing, adversary-in-the-middle pages, or token replay.",
+      "impact": "Account takeover, business email compromise, lateral movement, data access."
+    },
+    {
+      "id": "risk_privilege_creep",
+      "description": "Accumulated entitlements from role changes, exceptions, or temporary access that never expires.",
+      "impact": "Excessive access, audit failures, insider risk amplification."
+    },
+    {
+      "id": "risk_federation_misconfiguration",
+      "description": "Improper federation trust or claim mapping grants unintended access to resources.",
+      "impact": "Cross-tenant exposure, unauthorized application access."
+    },
+    {
+      "id": "risk_service_account_exposure",
+      "description": "Secrets, certificates, or service tokens are embedded, shared, or poorly rotated.",
+      "impact": "Automated abuse, persistence, CI/CD compromise, cloud control-plane access."
+    },
+    {
+      "id": "risk_recovery_path_abuse",
+      "description": "Weak password reset, help desk override, or account recovery flows become the easiest path into an account.",
+      "impact": "Bypass of strong authentication and durable account compromise."
+    }
+  ],
+  "crossDomainSignals": {
+    "privacy": [
+      "Limit access to personal data by role and purpose.",
+      "Treat identity proofing, audit logs, and user lifecycle data as privacy-relevant records."
+    ],
+    "law": [
+      "Access governance can affect breach reporting, evidentiary logging, and regulatory accountability."
+    ],
+    "finance": [
+      "Segregation of duties, approval workflows, and transaction authorization reduce fraud risk."
+    ],
+    "operations": [
+      "HR, ITSM, and vendor management data feeds are critical to clean lifecycle automation."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "identity access management",
+      "iam",
+      "authentication",
+      "authorization",
+      "mfa",
+      "sso",
+      "federation",
+      "pam",
+      "conditional access",
+      "service account"
+    ],
+    "intentSignals": [
+      "secure login",
+      "account protection",
+      "identity governance",
+      "access review",
+      "admin controls",
+      "zero trust"
+    ]
+  },
+  "frameworkRefresh": {
+    "nistDigitalIdentity": [
+      "Use NIST SP 800-63-4 / 63B concepts for assurance levels, authenticator lifecycle, and recovery design.",
+      "Treat enrollment, recovery, and federation as equal citizens, not just the login screen."
+    ],
+    "zeroTrust": [
+      "Map access decisions to identity, device, session, and resource context using NIST SP 800-207 principles.",
+      "Avoid implicit trust based only on network placement."
+    ],
+    "secureByDesign": [
+      "Default toward safer authentication, safer admin boundaries, and smaller permission surfaces."
+    ]
+  },
+  "learningModules": [
+    {
+      "id": "module_identity_core",
+      "title": "Identity Fundamentals & Assurance",
+      "level": "core",
+      "covers": [
+        "identity proofing basics",
+        "authentication factors",
+        "assurance concepts",
+        "recovery threat modeling"
+      ],
+      "outcomes": [
+        "Explain why weak recovery breaks strong MFA.",
+        "Distinguish authentication from authorization and federation."
+      ]
+    },
+    {
+      "id": "module_authorization_governance",
+      "title": "Authorization, Entitlements, and Access Reviews",
+      "level": "core",
+      "covers": [
+        "RBAC vs ABAC",
+        "segregation of duties",
+        "access certification",
+        "role design anti-patterns"
+      ],
+      "outcomes": [
+        "Design a safer role model.",
+        "Identify privilege creep and toxic access combinations."
+      ]
+    },
+    {
+      "id": "module_privileged_access",
+      "title": "Privileged Access Management",
+      "level": "intermediate",
+      "covers": [
+        "admin tiering",
+        "vaulting",
+        "break-glass accounts",
+        "JIT elevation",
+        "session controls"
+      ],
+      "outcomes": [
+        "Reduce standing privilege.",
+        "Define guardrails for emergency admin access."
+      ]
+    },
+    {
+      "id": "module_federation_sso",
+      "title": "SSO, Federation, and External Trust",
+      "level": "intermediate",
+      "covers": [
+        "SAML/OIDC concepts",
+        "claim mapping",
+        "partner access",
+        "SCIM and provisioning"
+      ],
+      "outcomes": [
+        "Spot risky federation assumptions.",
+        "Explain how upstream identity quality affects downstream risk."
+      ]
+    },
+    {
+      "id": "module_machine_identity",
+      "title": "Machine Identity, Secrets, and Workload Access",
+      "level": "intermediate",
+      "covers": [
+        "service principals",
+        "API tokens",
+        "certificate management",
+        "secret rotation",
+        "workload identity"
+      ],
+      "outcomes": [
+        "Replace hardcoded credentials with managed approaches.",
+        "Build a review process for non-human identities."
+      ]
+    },
+    {
+      "id": "module_identity_detection",
+      "title": "Identity Threat Detection & Response",
+      "level": "advanced",
+      "covers": [
+        "risky sign-ins",
+        "token misuse",
+        "impossible travel",
+        "access abuse investigations",
+        "session revocation"
+      ],
+      "outcomes": [
+        "Triage identity-driven incidents.",
+        "Translate suspicious login signals into containment actions."
+      ]
+    }
+  ],
+  "recommendedProjects": [
+    {
+      "id": "project_access_review_matrix",
+      "name": "Quarterly Access Review Matrix",
+      "description": "Build a role-and-entitlement review workbook for privileged, finance, HR, and vendor accounts.",
+      "skillsBuilt": [
+        "role engineering",
+        "certification cadence",
+        "evidence collection"
+      ]
+    },
+    {
+      "id": "project_break_glass_design",
+      "name": "Break-Glass Account Governance Pattern",
+      "description": "Define emergency account controls, approvals, storage, monitoring, and post-use review.",
+      "skillsBuilt": [
+        "incident readiness",
+        "PAM governance",
+        "auditability"
+      ]
+    },
+    {
+      "id": "project_service_account_inventory",
+      "name": "Service Account & Secret Inventory",
+      "description": "Catalog machine identities, owners, scopes, storage methods, rotation dates, and unused credentials.",
+      "skillsBuilt": [
+        "machine identity hygiene",
+        "cloud ops",
+        "credential risk reduction"
+      ]
+    },
+    {
+      "id": "project_federation_trust_map",
+      "name": "Federation Trust Map",
+      "description": "Document IdP relationships, relying parties, claims, lifecycle dependencies, and trust assumptions.",
+      "skillsBuilt": [
+        "federation analysis",
+        "architecture review",
+        "third-party risk"
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "id": "case_mfa_bypass_via_recovery",
+      "title": "Strong MFA, Weak Recovery",
+      "scenario": "An organization rolled out MFA but left help-desk recovery with weak caller verification and broad override authority.",
+      "lessons": [
+        "Recovery flows can become the soft underbelly of identity security.",
+        "Help-desk processes need scripts, escalation thresholds, and logging."
+      ]
+    },
+    {
+      "id": "case_token_theft_cloud_admin",
+      "title": "Session Token Theft on Admin Workstation",
+      "scenario": "An attacker captures a high-value session token from an unmanaged or compromised endpoint and reuses it to access cloud administration resources.",
+      "lessons": [
+        "Identity, device posture, and session protection must work together.",
+        "Admin access should be constrained to managed devices and bounded sessions."
+      ]
+    },
+    {
+      "id": "case_privilege_creep_after_reorg",
+      "title": "Privilege Creep After Organizational Change",
+      "scenario": "Several employees changed teams over six months and retained old entitlements because access removals were manual and incomplete.",
+      "lessons": [
+        "Joiner-mover-leaver automation matters.",
+        "Periodic certification and exception expiry prevent access drift."
+      ]
+    },
+    {
+      "id": "case_vendor_federation_mismatch",
+      "title": "Vendor Federation Claim Mapping Error",
+      "scenario": "A partner federation relationship mapped a broad group claim into a high-access application role.",
+      "lessons": [
+        "Federation should be tested like code.",
+        "Least-privilege defaults and explicit claim mapping reduce blast radius."
+      ]
+    }
+  ],
+  "sourceStack": {
+    "primary": [
+      {
+        "title": "NIST SP 800-63-4 Digital Identity Guidelines",
+        "type": "government standard",
+        "useFor": [
+          "assurance levels",
+          "authenticator lifecycle",
+          "identity proofing",
+          "federation"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "NIST SP 800-207 Zero Trust Architecture",
+        "type": "government standard",
+        "useFor": [
+          "zero trust",
+          "continuous verification",
+          "resource-centric access"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "Canadian Centre for Cyber Security ICAM guidance",
+        "type": "government guidance",
+        "useFor": [
+          "Canadian defensive IAM framing",
+          "SMB and enterprise identity governance"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "ITSG-33 security control catalogue",
+        "type": "government control catalogue",
+        "useFor": [
+          "control selection",
+          "assurance mapping",
+          "policy alignment"
+        ],
+        "priority": "medium"
+      }
+    ],
+    "secondary": [
+      {
+        "title": "Vendor architecture docs for IdP/PAM platforms",
+        "type": "product documentation",
+        "useFor": [
+          "implementation patterns",
+          "conditional access design",
+          "federation specifics"
+        ],
+        "priority": "medium"
+      },
+      {
+        "title": "Peer-reviewed IAM and usable security literature",
+        "type": "research",
+        "useFor": [
+          "phishing resistance",
+          "recovery abuse",
+          "user friction tradeoffs"
+        ],
+        "priority": "medium"
+      },
+      {
+        "title": "Textbooks and professional handbooks on IAM, cloud security, and enterprise architecture",
+        "type": "textbook",
+        "useFor": [
+          "curriculum depth",
+          "concept reinforcement",
+          "program design"
+        ],
+        "priority": "medium"
+      }
+    ],
+    "tertiary": [
+      {
+        "title": "Security awareness explainers and orientation summaries",
+        "type": "training material",
+        "useFor": [
+          "plain-language explanation",
+          "onboarding",
+          "executive briefing"
+        ],
+        "priority": "low"
+      }
+    ]
+  }
+}

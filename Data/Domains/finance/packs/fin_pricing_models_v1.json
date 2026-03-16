@@ -1,6 +1,6 @@
 {
   "id": "fin_pricing_models_v1",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "domain": "finance",
   "description": "A practical pricing-model pack: common pricing architectures, when to use them, how to test them, and guardrails for unit economics and ethics. Built for business decision-making and offer design.",
   "posture": {
@@ -20,90 +20,231 @@
   "pricingModelCatalog": [
     {
       "model": "one_time",
-      "aka": ["fixed_fee", "purchase"],
-      "bestFor": ["discrete_deliverables", "simple_offers", "low_ongoing_costs"],
-      "strengths": ["simple_to_explain", "fast_cash_collection"],
-      "risks": ["revenue_volatility", "misalignment_with_ongoing_support"],
+      "aka": [
+        "fixed_fee",
+        "purchase"
+      ],
+      "bestFor": [
+        "discrete_deliverables",
+        "simple_offers",
+        "low_ongoing_costs"
+      ],
+      "strengths": [
+        "simple_to_explain",
+        "fast_cash_collection"
+      ],
+      "risks": [
+        "revenue_volatility",
+        "misalignment_with_ongoing_support"
+      ],
       "notes": "Use when ongoing marginal cost is low or explicitly carved out via maintenance/support add-ons."
     },
     {
       "model": "subscription_flat",
-      "aka": ["monthly_recurring", "membership"],
-      "bestFor": ["ongoing_value", "retention_driven_products", "continuous_updates"],
-      "strengths": ["predictable_revenue", "lifecycle_relationship"],
-      "risks": ["churn_sensitivity", "requires_continuous_value_delivery"],
+      "aka": [
+        "monthly_recurring",
+        "membership"
+      ],
+      "bestFor": [
+        "ongoing_value",
+        "retention_driven_products",
+        "continuous_updates"
+      ],
+      "strengths": [
+        "predictable_revenue",
+        "lifecycle_relationship"
+      ],
+      "risks": [
+        "churn_sensitivity",
+        "requires_continuous_value_delivery"
+      ],
       "notes": "Keep tiers few and crisp. Define renewal value clearly."
     },
     {
       "model": "subscription_tiered",
-      "aka": ["good_better_best", "bundles"],
-      "bestFor": ["heterogeneous_customers", "feature_segmentation", "enterprise_upgrades"],
-      "strengths": ["captures_more_willingness_to_pay", "clear_upgrade_path"],
-      "risks": ["tier_confusion", "support_overhead_if_too_many_tiers"],
+      "aka": [
+        "good_better_best",
+        "bundles"
+      ],
+      "bestFor": [
+        "heterogeneous_customers",
+        "feature_segmentation",
+        "enterprise_upgrades"
+      ],
+      "strengths": [
+        "captures_more_willingness_to_pay",
+        "clear_upgrade_path"
+      ],
+      "risks": [
+        "tier_confusion",
+        "support_overhead_if_too_many_tiers"
+      ],
       "notes": "Differentiate tiers by outcomes/limits, not a long list of tiny features."
     },
     {
       "model": "usage_based",
-      "aka": ["pay_as_you_go", "metered"],
-      "bestFor": ["variable_consumption", "api_or_compute_costs", "aligned_value_per_unit"],
-      "strengths": ["scales_with_customer_success", "low_entry_barrier"],
-      "risks": ["bill_shock", "forecasting_anxiety", "complex_billing"],
+      "aka": [
+        "pay_as_you_go",
+        "metered"
+      ],
+      "bestFor": [
+        "variable_consumption",
+        "api_or_compute_costs",
+        "aligned_value_per_unit"
+      ],
+      "strengths": [
+        "scales_with_customer_success",
+        "low_entry_barrier"
+      ],
+      "risks": [
+        "bill_shock",
+        "forecasting_anxiety",
+        "complex_billing"
+      ],
       "notes": "Add caps, alerts, and a predictable middle tier to reduce anxiety."
     },
     {
       "model": "seat_based",
-      "aka": ["per_user", "per_agent"],
-      "bestFor": ["collaboration_tools", "team_software", "b2b_products"],
-      "strengths": ["simple_growth_lever", "aligns_with_team_adoption"],
-      "risks": ["seat_hoarding", "pressure_to_downsell_or_shared_accounts"],
+      "aka": [
+        "per_user",
+        "per_agent"
+      ],
+      "bestFor": [
+        "collaboration_tools",
+        "team_software",
+        "b2b_products"
+      ],
+      "strengths": [
+        "simple_growth_lever",
+        "aligns_with_team_adoption"
+      ],
+      "risks": [
+        "seat_hoarding",
+        "pressure_to_downsell_or_shared_accounts"
+      ],
       "notes": "Consider active-user pricing or role-based seats to prevent gaming."
     },
     {
       "model": "outcome_based",
-      "aka": ["performance_fee", "success_fee"],
-      "bestFor": ["clear_measurable_outcomes", "high_trust_relationships"],
-      "strengths": ["strong_alignment", "easy_to_sell_if_credible"],
-      "risks": ["attribution_disputes", "measurement_manipulation", "cashflow_variability"],
+      "aka": [
+        "performance_fee",
+        "success_fee"
+      ],
+      "bestFor": [
+        "clear_measurable_outcomes",
+        "high_trust_relationships"
+      ],
+      "strengths": [
+        "strong_alignment",
+        "easy_to_sell_if_credible"
+      ],
+      "risks": [
+        "attribution_disputes",
+        "measurement_manipulation",
+        "cashflow_variability"
+      ],
       "notes": "Define measurement rules up front. Prefer hybrid (base + success) for stability."
     },
     {
       "model": "freemium",
-      "aka": ["free_tier", "land_and_expand"],
-      "bestFor": ["low_marginal_costs", "viral_or_product_led_growth"],
-      "strengths": ["low_friction_adoption", "top_of_funnel_scale"],
-      "risks": ["support_burden", "conversion_difficulty", "value_leakage"],
+      "aka": [
+        "free_tier",
+        "land_and_expand"
+      ],
+      "bestFor": [
+        "low_marginal_costs",
+        "viral_or_product_led_growth"
+      ],
+      "strengths": [
+        "low_friction_adoption",
+        "top_of_funnel_scale"
+      ],
+      "risks": [
+        "support_burden",
+        "conversion_difficulty",
+        "value_leakage"
+      ],
       "notes": "Gate by limits that correlate with value: usage caps, collaboration, automation, or premium outcomes."
     },
     {
       "model": "trial",
-      "aka": ["free_trial", "pilot"],
-      "bestFor": ["higher_ticket_offers", "reducing_risk_for_buyer"],
-      "strengths": ["boosts_conversion", "builds_trust_fast"],
-      "risks": ["non_serious_users", "implementation_cost"],
+      "aka": [
+        "free_trial",
+        "pilot"
+      ],
+      "bestFor": [
+        "higher_ticket_offers",
+        "reducing_risk_for_buyer"
+      ],
+      "strengths": [
+        "boosts_conversion",
+        "builds_trust_fast"
+      ],
+      "risks": [
+        "non_serious_users",
+        "implementation_cost"
+      ],
       "notes": "Time-box, define success criteria, and require activation steps. Trials without activation are fake signals."
     },
     {
       "model": "bundling",
-      "aka": ["package_pricing", "suite"],
-      "bestFor": ["cross_sell", "reducing_comparison_shopping", "increasing_arpu"],
-      "strengths": ["raises_perceived_value", "reduces_line_item_friction"],
-      "risks": ["unwanted_features_inflate_cost", "harder_value_story"],
+      "aka": [
+        "package_pricing",
+        "suite"
+      ],
+      "bestFor": [
+        "cross_sell",
+        "reducing_comparison_shopping",
+        "increasing_arpu"
+      ],
+      "strengths": [
+        "raises_perceived_value",
+        "reduces_line_item_friction"
+      ],
+      "risks": [
+        "unwanted_features_inflate_cost",
+        "harder_value_story"
+      ],
       "notes": "Bundle around a job-to-be-done, not a random pile of features."
     },
     {
       "model": "penetration_pricing",
-      "aka": ["intro_offer", "launch_discount"],
-      "bestFor": ["new_market_entry", "fast_adoption"],
-      "strengths": ["quick_volume", "learning_speed"],
-      "risks": ["anchors_low_value", "hard_to_raise_price"],
+      "aka": [
+        "intro_offer",
+        "launch_discount"
+      ],
+      "bestFor": [
+        "new_market_entry",
+        "fast_adoption"
+      ],
+      "strengths": [
+        "quick_volume",
+        "learning_speed"
+      ],
+      "risks": [
+        "anchors_low_value",
+        "hard_to_raise_price"
+      ],
       "notes": "Treat as a campaign with an end date. Communicate future list price early."
     },
     {
       "model": "skimming",
-      "aka": ["premium_first"],
-      "bestFor": ["differentiated_offers", "early_adopters", "limited_supply_or_attention"],
-      "strengths": ["maximizes_margin", "signals_quality"],
-      "risks": ["smaller_initial_market", "competitive_entry"],
+      "aka": [
+        "premium_first"
+      ],
+      "bestFor": [
+        "differentiated_offers",
+        "early_adopters",
+        "limited_supply_or_attention"
+      ],
+      "strengths": [
+        "maximizes_margin",
+        "signals_quality"
+      ],
+      "risks": [
+        "smaller_initial_market",
+        "competitive_entry"
+      ],
       "notes": "Requires strong positioning and credible proof."
     }
   ],
@@ -229,5 +370,373 @@
     "cac": "customer_acquisition_cost_all_in",
     "payback_period": "time_to_recover_cac_from_gross_profit",
     "value_metric": "the_unit_used_to_measure_and_price_value_delivered"
-  }
+  },
+  "upgradeMetadata": {
+    "upgradedOn": "2026-03-15",
+    "upgradePremise": "Expanded to degree-style support with modules, case studies, projects, source ladders, and assistant-use guidance.",
+    "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_advice",
+    "domain": "finance"
+  },
+  "referenceArchitecture": {
+    "textbooks_and_open_learning": [
+      {
+        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "type": "open_learning",
+        "authority": "professional_education",
+        "use": [
+          "capital_markets",
+          "cost_of_capital",
+          "equity_vs_debt"
+        ],
+        "license_note": "public_web_reference_only"
+      },
+      {
+        "title": "OpenStax Principles of Economics 3e",
+        "type": "open_textbook",
+        "authority": "open_education",
+        "use": [
+          "microeconomics",
+          "macroeconomics",
+          "policy",
+          "market_structure"
+        ],
+        "license_note": "open_textbook_reference"
+      },
+      {
+        "title": "Open Textbook Library finance/economics catalog",
+        "type": "open_textbook_index",
+        "authority": "library_style_open_reference",
+        "use": [
+          "curriculum_design",
+          "supplemental_reading"
+        ],
+        "license_note": "index_reference"
+      },
+      {
+        "title": "CFA Institute Research Foundation publications",
+        "type": "professional_research",
+        "authority": "professional_body",
+        "use": [
+          "asset_management",
+          "portfolio_thinking",
+          "market_structure",
+          "ethics"
+        ],
+        "license_note": "public_research_reference_only"
+      }
+    ],
+    "government_and_public_institutions": [
+      {
+        "title": "Bank of Canada monetary policy and interest rates",
+        "type": "central_bank",
+        "authority": "government",
+        "use": [
+          "rates",
+          "macro",
+          "credit_conditions",
+          "canadian_context"
+        ]
+      },
+      {
+        "title": "Statistics Canada economic indicators",
+        "type": "official_statistics",
+        "authority": "government",
+        "use": [
+          "inflation",
+          "labour",
+          "GDP",
+          "household_finance"
+        ]
+      },
+      {
+        "title": "U.S. Federal Reserve FRED economic data",
+        "type": "official_data_platform",
+        "authority": "central_bank",
+        "use": [
+          "time_series",
+          "macro_history",
+          "stress_testing_inputs"
+        ]
+      },
+      {
+        "title": "IMF Finance & Development",
+        "type": "institutional_magazine",
+        "authority": "multilateral",
+        "use": [
+          "case_context",
+          "global_macro",
+          "development_finance",
+          "explanatory_articles"
+        ]
+      },
+      {
+        "title": "World Bank Data and research explainers",
+        "type": "multilateral_data",
+        "authority": "multilateral",
+        "use": [
+          "global_development",
+          "country_context",
+          "cross-border_economics"
+        ]
+      },
+      {
+        "title": "OECD economic outlook and policy materials",
+        "type": "multilateral_policy_research",
+        "authority": "multilateral",
+        "use": [
+          "policy",
+          "productivity",
+          "labour",
+          "competition"
+        ]
+      }
+    ],
+    "markets_and_business_press": [
+      {
+        "title": "Financial Times markets and markets data",
+        "type": "business_press_plus_market_data",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "index_data_context",
+          "equities",
+          "bonds",
+          "currencies",
+          "commodities"
+        ]
+      },
+      {
+        "title": "Wall Street Journal Markets",
+        "type": "business_press",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "corporate_finance",
+          "earnings_context"
+        ]
+      },
+      {
+        "title": "The Economist finance and economics coverage",
+        "type": "business_magazine",
+        "authority": "major_magazine",
+        "use": [
+          "synthesis",
+          "macro",
+          "policy",
+          "industry_case_context"
+        ]
+      },
+      {
+        "title": "Bloomberg Markets concepts and explainers",
+        "type": "financial_media",
+        "authority": "major_financial_media",
+        "use": [
+          "market_mechanics",
+          "bond_math",
+          "risk_events",
+          "earnings_reactions"
+        ]
+      }
+    ],
+    "markets_data_and_filings": [
+      {
+        "title": "SEC EDGAR",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "10-K",
+          "10-Q",
+          "prospectuses",
+          "risk_factors",
+          "capital_raises"
+        ]
+      },
+      {
+        "title": "SEDAR+",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "canadian_issuer_filings",
+          "prospectuses",
+          "MD&A"
+        ]
+      },
+      {
+        "title": "TMX and major exchange education/data pages",
+        "type": "exchange_reference",
+        "authority": "exchange",
+        "use": [
+          "market_structure",
+          "listing_context",
+          "sector_data"
+        ]
+      }
+    ]
+  },
+  "modulesCore": [
+    {
+      "name": "financial_statement_reading",
+      "focus": [
+        "income_statement",
+        "balance_sheet",
+        "cash_flow",
+        "notes"
+      ],
+      "outcome": "interpret quality of earnings, liquidity, leverage, and working-capital strain"
+    },
+    {
+      "name": "markets_news_interpretation",
+      "focus": [
+        "earnings_news",
+        "central_bank_updates",
+        "sector_moves",
+        "macro_surprises"
+      ],
+      "outcome": "separate signal from narrative and identify first-order vs second-order effects"
+    },
+    {
+      "name": "case_method_finance",
+      "focus": [
+        "problem_definition",
+        "assumption_mapping",
+        "ratio_analysis",
+        "decision_tradeoffs"
+      ],
+      "outcome": "diagnose rather than guess"
+    },
+    {
+      "name": "assistant_finance_language_control",
+      "focus": [
+        "plain_explanations",
+        "audience_leveling",
+        "assumption_disclosure",
+        "non-advisory_boundaries"
+      ],
+      "outcome": "Nyx and Marion explain finance without sounding vague or reckless"
+    }
+  ],
+  "assistantApplication": {
+    "nyx": {
+      "role": "front_end_finance_explainer",
+      "strengths": [
+        "plain_language_translation",
+        "market_story_simplification",
+        "risk_flagging",
+        "question_driven_clarification"
+      ],
+      "grammarTargets": [
+        "clean sentence boundaries",
+        "hedged claims where uncertainty exists",
+        "explicit contrasts",
+        "less jargon without loss of meaning"
+      ]
+    },
+    "marion": {
+      "role": "back_end_finance_reasoner",
+      "strengths": [
+        "framework_selection",
+        "source_prioritization",
+        "scenario_reasoning",
+        "evidence_weighting"
+      ],
+      "grammarTargets": [
+        "structured analytical prose",
+        "clear causal chains",
+        "assumption labeling",
+        "disciplined terminology"
+      ]
+    }
+  },
+  "referenceUseRules": [
+    "Prefer primary sources for filings, central-bank policy, official data, and regulatory text.",
+    "Use reputable business press for narrative context, not as sole evidence.",
+    "Separate historical fact, current market snapshot, and interpretation.",
+    "When discussing markets, state uncertainty and avoid deterministic forecasts.",
+    "For Nyx, keep explanations short and crisp; for Marion, preserve the analytical chain."
+  ],
+  "learningModules": [
+    {
+      "module": "pricing_architecture",
+      "topics": [
+        "tiers",
+        "usage",
+        "seats",
+        "hybrids",
+        "fences"
+      ],
+      "projects": [
+        "three-tier package builder"
+      ]
+    },
+    {
+      "module": "pricing_research_methods",
+      "topics": [
+        "Van Westendorp",
+        "conjoint",
+        "sales discovery",
+        "A/B tests"
+      ],
+      "projects": [
+        "pricing experiment tracker"
+      ]
+    },
+    {
+      "module": "pricing_ethics_and_legibility",
+      "topics": [
+        "overages",
+        "renewals",
+        "bill shock",
+        "cancellation clarity"
+      ],
+      "projects": [
+        "billing-language rewrite templates"
+      ]
+    }
+  ],
+  "caseStudiesV2": [
+    {
+      "id": "freemium_cost_sink",
+      "scenario": "free tier generates support load but weak conversion",
+      "teaches": [
+        "value gates",
+        "support economics",
+        "product-led growth tradeoffs"
+      ]
+    },
+    {
+      "id": "outcome_fee_dispute",
+      "scenario": "client disputes success metric attribution",
+      "teaches": [
+        "contract design",
+        "metric governance",
+        "hybrid pricing"
+      ]
+    },
+    {
+      "id": "usage_anxiety",
+      "scenario": "adoption slows because customers fear unpredictable bills",
+      "teaches": [
+        "caps, alerts, and default plans improve trust"
+      ]
+    }
+  ],
+  "projectsV2": [
+    {
+      "name": "pricing_model_recommender",
+      "type": "software_project",
+      "outputs": [
+        "model suggestion",
+        "guardrails",
+        "unit-economics checklist"
+      ]
+    },
+    {
+      "name": "pricing_legibility_linter",
+      "type": "assistant_module",
+      "outputs": [
+        "detect vague fee language",
+        "rewrite for clarity"
+      ]
+    }
+  ]
 }

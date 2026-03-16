@@ -1,0 +1,160 @@
+{
+  "packId": "psy_sources_index_v2",
+  "domain": "psychology",
+  "version": 2,
+  "updatedAt": "2026-03-15",
+  "description": "Cross-domain bibliography and source index for the psychology v2 bundle. Includes textbooks, handbook-style references, library-oriented resources, official guidelines, and evidence infrastructure.",
+  "referencePolicy": {
+    "verbatimContentEmbedded": false,
+    "restrictedTestItemsEmbedded": false,
+    "note": "Use bibliographic metadata and source hierarchy; do not include copyrighted chapters or proprietary assessment items."
+  },
+  "openAndOfficialSources": [
+    {
+      "title": "APA Guidelines for the Undergraduate Psychology Major 3.0",
+      "sourceType": "guideline",
+      "access": "public",
+      "authority": "APA",
+      "notes": "Useful for curriculum goals and learning outcomes."
+    },
+    {
+      "title": "APA Competency Benchmarks / Benchmarks Evaluation System",
+      "sourceType": "competency_framework",
+      "access": "public",
+      "authority": "APA",
+      "notes": "Useful for doctoral/professional competency framing."
+    },
+    {
+      "title": "APA Standards of Accreditation for Health Service Psychology",
+      "sourceType": "accreditation_standard",
+      "access": "public",
+      "authority": "APA",
+      "notes": "Useful for training structure and competence expectations."
+    },
+    {
+      "title": "NIH OBSSR mixed methods and behavioral/social sciences research resources",
+      "sourceType": "methods_resource",
+      "access": "public",
+      "authority": "NIH/OBSSR",
+      "notes": "Useful for research design and mixed-methods rigor."
+    },
+    {
+      "title": "OpenStax Psychology 2e",
+      "sourceType": "open_textbook",
+      "access": "public",
+      "authority": "OpenStax",
+      "notes": "Useful for baseline concepts and plain-language refreshers."
+    },
+    {
+      "title": "NCBI Bookshelf behavioral and social sciences volumes",
+      "sourceType": "open_reference",
+      "access": "public",
+      "authority": "NIH/NCBI",
+      "notes": "Useful for broad interdisciplinary context."
+    }
+  ],
+  "textbooksAndHandbooks": [
+    {
+      "area": "foundations",
+      "texts": [
+        "Schacter, Gilbert, Wegner, Nock — Psychology",
+        "OpenStax Psychology 2e",
+        "APA Handbook of Research Methods in Psychology"
+      ]
+    },
+    {
+      "area": "cognitive",
+      "texts": [
+        "Eysenck & Keane — Cognitive Psychology",
+        "Goldstein — Cognitive Psychology",
+        "Kahneman — Thinking, Fast and Slow"
+      ]
+    },
+    {
+      "area": "development",
+      "texts": [
+        "Berk — Development Through the Lifespan",
+        "Siegler et al. — How Children Develop",
+        "Shaffer & Kipp — Developmental Psychology"
+      ]
+    },
+    {
+      "area": "social",
+      "texts": [
+        "Aronson, Wilson, Sommers — Social Psychology",
+        "Hogg & Vaughan — Social Psychology",
+        "Fiske & Taylor — Social Cognition"
+      ]
+    },
+    {
+      "area": "research_methods",
+      "texts": [
+        "Shadish, Cook, & Campbell — Experimental and Quasi-Experimental Designs",
+        "Kazdin — Research Design in Clinical Psychology",
+        "Creswell & Creswell — Research Design"
+      ]
+    },
+    {
+      "area": "biases_fallacies",
+      "texts": [
+        "Kahneman — Thinking, Fast and Slow",
+        "Stanovich — Rationality and the Reflective Mind",
+        "Nisbett & Ross — Human Inference"
+      ]
+    },
+    {
+      "area": "interventions_skills",
+      "texts": [
+        "Miller & Rollnick — Motivational Interviewing",
+        "Beck — Cognitive Behavior Therapy",
+        "Hayes, Strosahl, & Wilson — ACT basics/clinical frame"
+      ]
+    },
+    {
+      "area": "clinical_safety",
+      "texts": [
+        "DSM-5-TR (classification reference only)",
+        "APA practice guideline materials",
+        "Suicide-risk and crisis-response public guidelines"
+      ]
+    }
+  ],
+  "assessmentFamilies": [
+    {
+      "family": "cognitive_tasks",
+      "examples": [
+        "working-memory span tasks",
+        "Stroop-type tasks",
+        "go/no-go and task-switching paradigms"
+      ],
+      "restriction": "task paradigms describable; proprietary implementation details may vary"
+    },
+    {
+      "family": "self_report_scales",
+      "examples": [
+        "wellbeing, stress, affect, personality, social attitudes"
+      ],
+      "restriction": "do not embed proprietary items or keys unless openly licensed"
+    },
+    {
+      "family": "developmental_assessment",
+      "examples": [
+        "executive-function tasks, attachment interviews, observational coding"
+      ],
+      "restriction": "use descriptive metadata, not restricted administration kits"
+    },
+    {
+      "family": "clinical_screening",
+      "examples": [
+        "depression, anxiety, suicide-risk screeners"
+      ],
+      "restriction": "assistant may discuss purpose and limits but must not diagnose or self-administer restricted tools as a substitute for care"
+    }
+  ],
+  "evidenceRules": [
+    "Prefer systematic reviews/meta-analyses for intervention efficacy claims.",
+    "Separate construct validity, predictive validity, and clinical utility.",
+    "Mark classic studies as historically important even when modern replication debates exist.",
+    "For assistant output, keep mechanism claims proportional to evidence strength."
+  ]
+}

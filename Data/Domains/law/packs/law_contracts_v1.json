@@ -1,9 +1,30 @@
 {
-  "packId": "law_contracts_v1",
-  "version": "1.0.0",
+  "packId": "law_contracts_v2",
+  "version": "2.0.0",
   "domain": "law",
   "jurisdiction": "CA",
-  "description": "High-level overview of Canadian contract law principles. Covers formation, interpretation, breach, damages, and common defences. Educational framework only — not legal advice.",
+  "packType": "curriculum_and_retrieval",
+  "updatedAt": "2026-03-15",
+  "description": "Expanded Canadian contracts pack for doctrinal retrieval, law-school-style study, and assistant support. Covers formation, interpretation, performance, breach, remedies, equitable doctrines, consumer and standard-form issues, relational contracting, good faith, and licensing / exam-oriented issue spotting. Educational only — not legal advice.",
+  "pedagogicalScope": {
+    "yearsCovered": [
+      "1L foundations",
+      "2L commercial / business-law deepening",
+      "3L/4L advanced drafting and dispute contexts"
+    ],
+    "practiceBridge": [
+      "law-school doctrinal analysis",
+      "memo / exam issue spotting",
+      "transactional document review",
+      "Ontario solicitor-side competency alignment",
+      "NCA-style doctrinal review"
+    ],
+    "audienceModes": [
+      "Nyx explanatory mode",
+      "Marion structured reasoning mode",
+      "student / founder learning mode"
+    ]
+  },
   "topics": [
     {
       "id": "lc_formation_offer_acceptance",
@@ -24,8 +45,17 @@
         "Assuming informal discussions automatically create binding agreements."
       ],
       "retrievalHints": {
-        "keywords": ["offer", "acceptance", "binding", "agreement", "consideration"],
-        "intentSignals": ["do we have a contract", "is this enforceable"]
+        "keywords": [
+          "offer",
+          "acceptance",
+          "binding",
+          "agreement",
+          "consideration"
+        ],
+        "intentSignals": [
+          "do we have a contract",
+          "is this enforceable"
+        ]
       }
     },
     {
@@ -46,8 +76,16 @@
         "Believing contract modifications are valid without new consideration."
       ],
       "retrievalHints": {
-        "keywords": ["consideration", "exchange", "value", "past consideration"],
-        "intentSignals": ["is this valid", "does this count"]
+        "keywords": [
+          "consideration",
+          "exchange",
+          "value",
+          "past consideration"
+        ],
+        "intentSignals": [
+          "is this valid",
+          "does this count"
+        ]
       }
     },
     {
@@ -68,8 +106,14 @@
         "Ignoring capacity concerns."
       ],
       "retrievalHints": {
-        "keywords": ["capacity", "intent to create legal relations", "minor contract"],
-        "intentSignals": ["is this valid contract"]
+        "keywords": [
+          "capacity",
+          "intent to create legal relations",
+          "minor contract"
+        ],
+        "intentSignals": [
+          "is this valid contract"
+        ]
       }
     },
     {
@@ -89,8 +133,14 @@
         "Ignoring context at time of formation."
       ],
       "retrievalHints": {
-        "keywords": ["interpretation", "ambiguous clause", "meaning of term"],
-        "intentSignals": ["what does this clause mean"]
+        "keywords": [
+          "interpretation",
+          "ambiguous clause",
+          "meaning of term"
+        ],
+        "intentSignals": [
+          "what does this clause mean"
+        ]
       }
     },
     {
@@ -112,8 +162,14 @@
         "Failing to review termination clauses."
       ],
       "retrievalHints": {
-        "keywords": ["breach", "violation", "non-performance"],
-        "intentSignals": ["what happens if they don't"]
+        "keywords": [
+          "breach",
+          "violation",
+          "non-performance"
+        ],
+        "intentSignals": [
+          "what happens if they don't"
+        ]
       }
     },
     {
@@ -135,8 +191,16 @@
         "Ignoring mitigation requirement."
       ],
       "retrievalHints": {
-        "keywords": ["damages", "compensation", "loss", "mitigation"],
-        "intentSignals": ["what can I claim", "how much"]
+        "keywords": [
+          "damages",
+          "compensation",
+          "loss",
+          "mitigation"
+        ],
+        "intentSignals": [
+          "what can I claim",
+          "how much"
+        ]
       }
     },
     {
@@ -157,17 +221,721 @@
         "Assuming verbal misstatements automatically void agreement."
       ],
       "retrievalHints": {
-        "keywords": ["misrepresentation", "duress", "mistake", "voidable"],
-        "intentSignals": ["can I get out of this contract"]
+        "keywords": [
+          "misrepresentation",
+          "duress",
+          "mistake",
+          "voidable"
+        ],
+        "intentSignals": [
+          "can I get out of this contract"
+        ]
+      }
+    },
+    {
+      "id": "lc_good_faith_honest_performance",
+      "title": "Good Faith and Honest Performance",
+      "coreDefinition": "Canadian contract law recognizes an organizing principle of good faith and a general duty of honest performance. Parties must not lie or knowingly mislead each other about contractual performance, and certain discretionary powers must be exercised in a manner consistent with the bargain.",
+      "frameworkSteps": [
+        "Identify the contractual power or performance obligation in dispute.",
+        "Ask whether the conduct involved dishonesty, misleading performance communication, or abuse of discretion.",
+        "Distinguish ordinary self-interest from conduct that defeats the contract's legitimate expectations.",
+        "Assess remedies and causation tied to the dishonest or bad-faith conduct."
+      ],
+      "quickExamples": [
+        "A party knowingly misleads the counterparty about whether a termination right will be exercised.",
+        "A discretionary pricing or allocation power is used in a way that undermines the contractual bargain."
+      ],
+      "commonMistakes": [
+        "Treating good faith as a free-floating fairness test untethered to the contract.",
+        "Assuming every sharp practice is automatically actionable without doctrinal fit."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "good faith",
+          "honest performance",
+          "dishonest",
+          "contractual discretion"
+        ],
+        "intentSignals": [
+          "did they act in bad faith",
+          "can they do this even if contract says so"
+        ]
+      },
+      "leadingCases": [
+        {
+          "name": "Bhasin v Hrynew",
+          "citation": "2014 SCC 71",
+          "principle": "Organizing principle of good faith; duty of honest performance."
+        },
+        {
+          "name": "C.M. Callow Inc. v Zollinger",
+          "citation": "2020 SCC 45",
+          "principle": "Misleading exercise of termination rights and honest performance."
+        },
+        {
+          "name": "Wastech Services Ltd. v Greater Vancouver Sewerage and Drainage District",
+          "citation": "2021 SCC 7",
+          "principle": "Good-faith limits on contractual discretion."
+        }
+      ]
+    },
+    {
+      "id": "lc_standard_form_unconscionability",
+      "title": "Standard Form Contracts, Inequality of Bargaining Power, and Unconscionability",
+      "coreDefinition": "Standard-form and non-negotiated agreements may be enforceable, but courts scrutinize clauses affected by unfair surprise, grossly improvident bargains, inequality of bargaining power, or public-policy concerns.",
+      "frameworkSteps": [
+        "Determine whether the contract was standard form, clickwrap, consumer-facing, or mandatory for access to work/services.",
+        "Assess bargaining inequality, practical ability to negotiate, and cost barriers to enforcement.",
+        "Review arbitration, forum-selection, exclusion, and notice clauses for enforceability.",
+        "Consider statutory overlays such as consumer-protection legislation."
+      ],
+      "quickExamples": [
+        "A mandatory arbitration clause makes small-value claims realistically impossible to pursue.",
+        "A buried exclusion clause is inconsistent with reasonable notice or statutory consumer rights."
+      ],
+      "commonMistakes": [
+        "Assuming digital assent makes every clause immune from review.",
+        "Ignoring provincial consumer-protection statutes."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "unconscionable",
+          "standard form",
+          "clickwrap",
+          "arbitration clause",
+          "consumer contract"
+        ],
+        "intentSignals": [
+          "can they force arbitration",
+          "is this clause unfair",
+          "do i have to accept this"
+        ]
+      },
+      "leadingCases": [
+        {
+          "name": "Uber Technologies Inc. v Heller",
+          "citation": "2020 SCC 16",
+          "principle": "Unconscionability in standard-form arbitration clause."
+        },
+        {
+          "name": "Douez v Facebook, Inc.",
+          "citation": "2017 SCC 33",
+          "principle": "Forum-selection clause scrutiny in consumer/privacy context."
+        },
+        {
+          "name": "Tercon Contractors Ltd. v British Columbia (Transportation and Highways)",
+          "citation": "2010 SCC 4",
+          "principle": "Enforceability of exclusion clauses."
+        }
+      ]
+    },
+    {
+      "id": "lc_privity_assignment_third_parties",
+      "title": "Privity, Assignment, and Third-Party Effects",
+      "coreDefinition": "Contracts generally bind the parties who made them, but rights may sometimes be assigned and third parties may benefit or be affected depending on doctrine, wording, and statute.",
+      "frameworkSteps": [
+        "Identify who is party to the contract and who is attempting to enforce or rely on it.",
+        "Distinguish assignment of rights from delegation of performance.",
+        "Check whether the contract restricts assignment or requires consent.",
+        "Consider recognized exceptions and contextual doctrines involving third-party beneficiaries."
+      ],
+      "quickExamples": [
+        "A receivables payment right is assigned to a lender.",
+        "A subcontractor seeks to rely on a limitation clause in a prime contract."
+      ],
+      "commonMistakes": [
+        "Confusing assignment of benefits with transfer of obligations.",
+        "Assuming a helpful clause is automatically enforceable by any related entity."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "privity",
+          "assign",
+          "third party",
+          "beneficiary",
+          "delegate"
+        ],
+        "intentSignals": [
+          "can a non-party enforce this",
+          "can they transfer the contract"
+        ]
+      }
+    },
+    {
+      "id": "lc_conditions_warranties_termination",
+      "title": "Conditions, Warranties, Innominate Terms, and Termination",
+      "coreDefinition": "Not every breach permits termination. Courts distinguish between more fundamental obligations and less central promises, often asking whether the breach substantially deprives the innocent party of the expected benefit.",
+      "frameworkSteps": [
+        "Identify the breached term and its role in the bargain.",
+        "Assess seriousness, timing, and commercial consequences of the breach.",
+        "Review express termination, cure, and notice clauses.",
+        "Separate right to terminate from right to damages."
+      ],
+      "quickExamples": [
+        "Late delivery in a seasonal supply contract may be fundamental if timing was central.",
+        "A minor technical breach may support damages but not termination."
+      ],
+      "commonMistakes": [
+        "Assuming any breach allows immediate exit.",
+        "Ignoring contractual notice and cure mechanisms."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "terminate",
+          "repudiation",
+          "fundamental breach",
+          "condition",
+          "warranty"
+        ],
+        "intentSignals": [
+          "can i cancel the contract",
+          "is this serious enough to terminate"
+        ]
+      }
+    },
+    {
+      "id": "lc_equitable_relief_specific_performance",
+      "title": "Equitable Relief: Specific Performance, Rectification, and Rescission",
+      "coreDefinition": "Equitable remedies may be available where damages are inadequate or where the written instrument does not reflect the parties' true agreement, subject to fairness and evidentiary limits.",
+      "frameworkSteps": [
+        "Identify why monetary damages may be inadequate.",
+        "Assess whether the remedy sought is prospective performance, correction of a written instrument, or unwinding of the transaction.",
+        "Check conduct-based bars such as delay, clean hands, or practical impossibility.",
+        "Tie the equitable remedy to evidence of the actual bargain and the relief truly needed."
+      ],
+      "quickExamples": [
+        "Unique land transaction where damages do not fully compensate.",
+        "Drafting error causes the written clause to fail to reflect the shared agreement."
+      ],
+      "commonMistakes": [
+        "Treating specific performance as routine.",
+        "Seeking rectification without strong evidence of a prior definite consensus."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "specific performance",
+          "rectification",
+          "rescission",
+          "equity"
+        ],
+        "intentSignals": [
+          "can the court force them",
+          "can the contract be corrected"
+        ]
+      }
+    },
+    {
+      "id": "lc_contract_drafting_architecture",
+      "title": "Contract Drafting Architecture",
+      "coreDefinition": "Transactional analysis depends on how the contract is built: parties, definitions, operative obligations, payment mechanics, risk allocation, change control, term/termination, dispute clauses, and schedules.",
+      "frameworkSteps": [
+        "Map the contract into structural blocks before analyzing individual clauses.",
+        "Identify whether the agreement is product, services, license, employment, financing, settlement, or mixed.",
+        "Test internal consistency across defined terms, schedules, and remedies.",
+        "Look for silent risk points: IP ownership, data use, limits of liability, renewal, assignment, governing law, notice."
+      ],
+      "quickExamples": [
+        "A SaaS agreement needs service levels, data handling, IP allocation, and suspension/termination logic.",
+        "A consulting MSA needs statement-of-work hierarchy and change-order mechanics."
+      ],
+      "commonMistakes": [
+        "Reading clauses in isolation without agreement hierarchy.",
+        "Ignoring schedules, exhibits, and order-of-precedence language."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "drafting",
+          "msa",
+          "sow",
+          "nda",
+          "limitation of liability",
+          "governing law"
+        ],
+        "intentSignals": [
+          "what should be in this contract",
+          "is this agreement missing anything"
+        ]
       }
     }
   ],
+  "modules": [
+    {
+      "moduleId": "LC_MOD_01",
+      "title": "1L Contract Formation and Enforceability",
+      "focus": [
+        "offer and acceptance",
+        "consideration",
+        "intention",
+        "capacity",
+        "certainty",
+        "electronic assent basics"
+      ],
+      "learningOutcomes": [
+        "Spot whether negotiations have crystallized into an enforceable agreement.",
+        "Separate preliminary negotiation language from definite contractual commitment.",
+        "Explain how consideration and intention operate in commercial settings."
+      ],
+      "deliverables": [
+        "issue-spotting memo",
+        "formation checklist",
+        "email-assent case analysis"
+      ]
+    },
+    {
+      "moduleId": "LC_MOD_02",
+      "title": "1L/2L Interpretation and Performance",
+      "focus": [
+        "factual matrix",
+        "text-context-purpose",
+        "parol evidence boundaries",
+        "express and implied terms",
+        "performance obligations"
+      ],
+      "learningOutcomes": [
+        "Interpret clauses contextually without collapsing into free-form fairness review.",
+        "Distinguish textual ambiguity from dissatisfaction with the deal.",
+        "Connect interpretive disputes to remedy questions."
+      ],
+      "deliverables": [
+        "clause-annotation brief",
+        "interpretation comparison chart",
+        "oral issue map"
+      ]
+    },
+    {
+      "moduleId": "LC_MOD_03",
+      "title": "2L Remedies and Equitable Control",
+      "focus": [
+        "expectation damages",
+        "reliance",
+        "restitution",
+        "mitigation",
+        "liquidated damages",
+        "specific performance",
+        "rescission",
+        "rectification"
+      ],
+      "learningOutcomes": [
+        "Choose the remedy that fits the injury and the contract structure.",
+        "Explain foreseeability and mitigation in concrete factual settings.",
+        "Differentiate equitable relief from damages and tie each to evidence."
+      ],
+      "deliverables": [
+        "damages worksheet",
+        "remedy-selection memo",
+        "equity short answer set"
+      ]
+    },
+    {
+      "moduleId": "LC_MOD_04",
+      "title": "Upper-Year Commercial and Standard-Form Problems",
+      "focus": [
+        "exclusion clauses",
+        "arbitration clauses",
+        "forum selection",
+        "unconscionability",
+        "consumer overlays",
+        "risk allocation"
+      ],
+      "learningOutcomes": [
+        "Assess enforceability of standard-form clauses under common law and statute.",
+        "Recognize bargaining-power problems in digital and platform contracts.",
+        "Translate doctrine into drafting recommendations."
+      ],
+      "deliverables": [
+        "standard-form risk review",
+        "red-flag memo",
+        "clause-rewrite exercise"
+      ]
+    },
+    {
+      "moduleId": "LC_MOD_05",
+      "title": "Licensing / Bar and NCA Issue Spotting",
+      "focus": [
+        "entry-level competence",
+        "fact application",
+        "organized legal analysis",
+        "document review",
+        "business-law framing",
+        "ethics touchpoints"
+      ],
+      "learningOutcomes": [
+        "Answer open-book or issue-heavy prompts with structure instead of rule-dumping.",
+        "Move from doctrinal recall to problem solving and client-facing explanation.",
+        "Integrate contracts doctrine with professional responsibility and practice management."
+      ],
+      "deliverables": [
+        "timed problem set",
+        "open-book index",
+        "client advisory outline"
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "LC_CASE_01_FOUNDERS_SAAS_MSA",
+      "title": "Founder SaaS Master Services Agreement Breakdown",
+      "scenario": "A startup signs a rushed SaaS MSA with auto-renewal, broad data-use language, a one-way limitation of liability, and ambiguous service-level commitments. The relationship sours after repeated outages.",
+      "issuesToSpot": [
+        "Agreement hierarchy and defined terms",
+        "Service levels versus marketing promises",
+        "Auto-renewal and termination window traps",
+        "Liability cap carve-outs and data/security breaches",
+        "Injunctive relief language versus damages"
+      ],
+      "recommendedOutputs": [
+        "red-flag review memo",
+        "clause-priority negotiation list",
+        "founder-safe summary for Nyx"
+      ]
+    },
+    {
+      "caseId": "LC_CASE_02_PLATFORM_ARBITRATION_CONSUMER",
+      "title": "Platform Arbitration Clause and Access-to-Justice Problem",
+      "scenario": "A user must accept a standard-form digital contract with a foreign arbitration clause and high upfront costs to challenge a small-value dispute.",
+      "issuesToSpot": [
+        "Inequality of bargaining power",
+        "Practical inaccessibility of the forum",
+        "Consumer-protection overlay",
+        "Unconscionability and enforceability"
+      ],
+      "recommendedOutputs": [
+        "issue-spotter answer",
+        "case comparison to Uber and Douez",
+        "plain-language explanation for Marion"
+      ]
+    },
+    {
+      "caseId": "LC_CASE_03_DISTRIBUTION_TERMINATION_AND_GOOD_FAITH",
+      "title": "Distributor Termination After Reassurances",
+      "scenario": "A manufacturer reassures a distributor that the relationship is stable while internally planning a non-renewal that destroys the distributor's near-term business planning.",
+      "issuesToSpot": [
+        "honest performance",
+        "termination rights versus misleading conduct",
+        "causation and measure of damages",
+        "duty to mitigate"
+      ],
+      "recommendedOutputs": [
+        "good-faith analysis chart",
+        "damages issue map",
+        "client advisory lane"
+      ]
+    },
+    {
+      "caseId": "LC_CASE_04_SHARE_PURCHASE_DISCLOSURE",
+      "title": "Share Purchase Agreement and Misrepresentation",
+      "scenario": "A buyer alleges the seller concealed key liabilities before signing a share purchase agreement containing representations, warranties, indemnities, and an entire-agreement clause.",
+      "issuesToSpot": [
+        "misrepresentation versus warranty claim",
+        "entire-agreement and reliance language",
+        "indemnity structure",
+        "notice provisions and survival periods"
+      ],
+      "recommendedOutputs": [
+        "SPA remedy roadmap",
+        "representation / warranty matrix",
+        "evidence preservation checklist"
+      ]
+    },
+    {
+      "caseId": "LC_CASE_05_CONSTRUCTION_CHANGE_ORDER",
+      "title": "Construction Scope Creep and Change Orders",
+      "scenario": "A contractor performs additional work after informal site instructions, but the contract requires signed written change orders and strict payment certification.",
+      "issuesToSpot": [
+        "variation procedures",
+        "waiver / estoppel arguments",
+        "documentary proof of authorization",
+        "quantum meruit / restitution fallback"
+      ],
+      "recommendedOutputs": [
+        "change-order compliance checklist",
+        "claim viability memo",
+        "project-document triage guide"
+      ]
+    }
+  ],
+  "courtCases": [
+    {
+      "name": "Sattva Capital Corp. v Creston Moly Corp.",
+      "citation": "2014 SCC 53",
+      "topic": "interpretation",
+      "whyItMatters": "Contextual approach to contractual interpretation and appellate restraint."
+    },
+    {
+      "name": "Bhasin v Hrynew",
+      "citation": "2014 SCC 71",
+      "topic": "good faith",
+      "whyItMatters": "Recognizes the organizing principle of good faith and the duty of honest performance."
+    },
+    {
+      "name": "Tercon Contractors Ltd. v British Columbia (Transportation and Highways)",
+      "citation": "2010 SCC 4",
+      "topic": "exclusion clauses",
+      "whyItMatters": "Leading modern framework for exclusion-clause enforceability."
+    },
+    {
+      "name": "Uber Technologies Inc. v Heller",
+      "citation": "2020 SCC 16",
+      "topic": "unconscionability",
+      "whyItMatters": "Modern treatment of unconscionability and inaccessible arbitration in standard-form contracts."
+    },
+    {
+      "name": "Douez v Facebook, Inc.",
+      "citation": "2017 SCC 33",
+      "topic": "forum selection",
+      "whyItMatters": "Consumer/privacy context and limits of forum-selection enforcement."
+    },
+    {
+      "name": "C.M. Callow Inc. v Zollinger",
+      "citation": "2020 SCC 45",
+      "topic": "honest performance",
+      "whyItMatters": "Explains misleading conduct around termination."
+    },
+    {
+      "name": "Wastech Services Ltd. v Greater Vancouver Sewerage and Drainage District",
+      "citation": "2021 SCC 7",
+      "topic": "contractual discretion",
+      "whyItMatters": "Good-faith constraints on discretionary powers."
+    },
+    {
+      "name": "Matthews v Ocean Nutrition Canada Ltd.",
+      "citation": "2020 SCC 26",
+      "topic": "termination and damages",
+      "whyItMatters": "Contractual damages analysis in the employment-related incentive context."
+    }
+  ],
+  "contractArchetypes": [
+    {
+      "typeId": "LC_ARCH_01",
+      "name": "NDA / Confidentiality Agreement",
+      "watchFors": [
+        "definition of confidential information",
+        "permitted use",
+        "return / destruction",
+        "residual knowledge",
+        "injunctive relief",
+        "survival"
+      ]
+    },
+    {
+      "typeId": "LC_ARCH_02",
+      "name": "Master Services Agreement + Statement of Work",
+      "watchFors": [
+        "order of precedence",
+        "acceptance criteria",
+        "change control",
+        "payment timing",
+        "IP ownership",
+        "indemnities",
+        "service levels"
+      ]
+    },
+    {
+      "typeId": "LC_ARCH_03",
+      "name": "SaaS / Software License Agreement",
+      "watchFors": [
+        "license scope",
+        "data rights",
+        "security commitments",
+        "downtime remedies",
+        "audit rights",
+        "subprocessors",
+        "suspension and termination"
+      ]
+    },
+    {
+      "typeId": "LC_ARCH_04",
+      "name": "Share Purchase / Asset Purchase Agreement",
+      "watchFors": [
+        "reps and warranties",
+        "indemnity baskets / caps",
+        "material adverse effect",
+        "closing conditions",
+        "survival",
+        "disclosure schedules"
+      ]
+    },
+    {
+      "typeId": "LC_ARCH_05",
+      "name": "Settlement Agreement",
+      "watchFors": [
+        "release scope",
+        "non-admission language",
+        "confidentiality",
+        "payment mechanics",
+        "tax treatment",
+        "default remedies"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "LC_PROJ_01",
+      "title": "Clause Risk Heatmap",
+      "goal": "Build a repeatable system for grading clause risk across limitation, indemnity, termination, dispute resolution, assignment, and IP terms.",
+      "outputs": [
+        "risk matrix",
+        "negotiation fallback positions",
+        "plain-language founder summary"
+      ]
+    },
+    {
+      "projectId": "LC_PROJ_02",
+      "title": "Open-Book Contracts Index",
+      "goal": "Create a contracts doctrine and case index optimized for licensing-style exams and time-constrained issue spotting.",
+      "outputs": [
+        "tabbed index",
+        "case-to-principle table",
+        "exam response skeletons"
+      ]
+    },
+    {
+      "projectId": "LC_PROJ_03",
+      "title": "Contract Lifecycle Evidence Pack",
+      "goal": "Map what documents to preserve from negotiation through termination for later disputes or audits.",
+      "outputs": [
+        "evidence checklist",
+        "email foldering rules",
+        "change-order log template"
+      ]
+    },
+    {
+      "projectId": "LC_PROJ_04",
+      "title": "Nyx Contract Explainer Layer",
+      "goal": "Translate doctrinal contract issues into short, accurate, non-advice explanations with clarifier prompts.",
+      "outputs": [
+        "assistant prompt templates",
+        "plain-language clause summaries",
+        "risk triage questions"
+      ]
+    }
+  ],
+  "assistantApplication": {
+    "nyx": {
+      "useCases": [
+        "plain-language explanation of whether an agreement likely formed",
+        "clause red-flag explanations for founders and operators",
+        "issue-spotting prompts before the user talks to counsel"
+      ],
+      "responseRules": [
+        "Lead with contract structure before discussing outcomes.",
+        "Use conditional language; avoid guaranteeing enforceability.",
+        "Ask for jurisdiction when procedure, limitation periods, or statutory consumer overlays matter."
+      ]
+    },
+    "marion": {
+      "useCases": [
+        "multi-factor doctrinal analysis",
+        "case-to-principle routing",
+        "comparison of remedies and drafting choices",
+        "building research paths from source hierarchy"
+      ],
+      "reasoningPatterns": [
+        "formation -> interpretation -> breach -> remedy",
+        "text -> context -> doctrine -> evidence -> practical lane",
+        "common law doctrine plus statutory overlay where relevant"
+      ]
+    }
+  },
+  "references": {
+    "treatisesAndTextbooks": [
+      {
+        "title": "Swan, Adamski & Na, Canadian Contract Law",
+        "type": "textbook",
+        "use": "core doctrinal anchor for formation, interpretation, remedies, and defences"
+      },
+      {
+        "title": "Fridman, The Law of Contract in Canada",
+        "type": "treatise",
+        "use": "broad common-law doctrinal coverage"
+      },
+      {
+        "title": "Waddams, The Law of Contracts",
+        "type": "treatise",
+        "use": "contract doctrine and remedies"
+      },
+      {
+        "title": "McCamus, The Law of Contracts",
+        "type": "treatise",
+        "use": "good-faith, interpretation, and broader common-law analysis"
+      },
+      {
+        "title": "Ben-Ishai, Percy & Boyle, Contracts: Cases and Commentaries",
+        "type": "casebook",
+        "use": "law-school style issue spotting and doctrinal synthesis"
+      }
+    ],
+    "openOrOfficialSources": [
+      {
+        "title": "Justice Laws Website",
+        "type": "official legislation portal",
+        "use": "federal statutes and regulations"
+      },
+      {
+        "title": "CanLII",
+        "type": "public case law and legislation repository",
+        "use": "case retrieval, noting up support, comparative jurisdiction scanning"
+      },
+      {
+        "title": "Supreme Court of Canada judgments",
+        "type": "official court source",
+        "use": "authoritative SCC reasons"
+      },
+      {
+        "title": "Ontario e-Laws",
+        "type": "official provincial legislation portal",
+        "use": "Ontario statutory overlays for business / consumer contexts"
+      }
+    ],
+    "examAndCurriculumAnchors": [
+      {
+        "title": "LSO Licensing Examinations",
+        "type": "entry-level licensing",
+        "use": "open-book solicitor/barrister competency framing"
+      },
+      {
+        "title": "LSO Entry-Level Solicitor Competencies",
+        "type": "competency framework",
+        "use": "business-law and client-service relevance"
+      },
+      {
+        "title": "NCA Assigned Requirements and Exam Outlines",
+        "type": "accreditation / syllabus",
+        "use": "Canadian common-law doctrinal baseline and study expectations"
+      }
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "contract",
+      "agreement",
+      "msa",
+      "sow",
+      "nda",
+      "breach",
+      "good faith",
+      "honest performance",
+      "consideration",
+      "unconscionability",
+      "arbitration clause",
+      "limitation of liability"
+    ],
+    "intentSignals": [
+      "do we have a contract",
+      "can i get out of this",
+      "what does this clause mean",
+      "is this enforceable",
+      "can they terminate",
+      "what can i claim"
+    ]
+  },
   "meta": {
     "stability": "high",
     "notes": [
-      "Provides structural explanation of Canadian contract principles.",
-      "Jurisdictional variations may apply.",
-      "Avoid case-specific legal advice."
+      "Designed for structured educational analysis, not legal advice.",
+      "Canadian orientation with province-specific overlays often required for procedure, consumer law, and limitations.",
+      "Textbook references are bibliographic anchors only; no copyrighted chapters reproduced."
     ]
   }
 }

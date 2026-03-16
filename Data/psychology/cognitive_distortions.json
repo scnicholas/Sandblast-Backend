@@ -1,0 +1,40 @@
+{
+  "distortions": [
+    {
+      "name": "catastrophizing",
+      "signals": [
+        "everything is ruined",
+        "this is the end",
+        "it's all going to fail"
+      ],
+      "response_hint": "ground gently without blunt contradiction"
+    },
+    {
+      "name": "all_or_nothing",
+      "signals": [
+        "always",
+        "never",
+        "completely",
+        "totally"
+      ],
+      "response_hint": "introduce nuance and flexibility"
+    },
+    {
+      "name": "mind_reading",
+      "signals": [
+        "they think i'm stupid",
+        "everyone knows i'm failing"
+      ],
+      "response_hint": "separate feeling from certainty"
+    },
+    {
+      "name": "self_attack",
+      "signals": [
+        "i'm useless",
+        "i'm pathetic",
+        "i ruin everything"
+      ],
+      "response_hint": "prioritize nonjudgment and stabilization"
+    }
+  ]
+}

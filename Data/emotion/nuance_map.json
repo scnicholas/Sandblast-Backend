@@ -1,0 +1,152 @@
+{
+  "sadness": {
+    "subtypes": [
+      "loneliness",
+      "grief",
+      "disappointment",
+      "hopelessness",
+      "hurt"
+    ],
+    "social_patterns": [
+      "feeling unseen",
+      "disconnected",
+      "withdrawn",
+      "mourning",
+      "discouraged"
+    ],
+    "response_style": [
+      "validation",
+      "warmth",
+      "gentle_followup"
+    ],
+    "risk_flags": [
+      "withdrawal",
+      "despair",
+      "isolation"
+    ]
+  },
+  "fear": {
+    "subtypes": [
+      "anxiety",
+      "panic",
+      "uncertainty",
+      "hypervigilance",
+      "overwhelm"
+    ],
+    "social_patterns": [
+      "reassurance seeking",
+      "catastrophizing",
+      "avoidance",
+      "spiraling"
+    ],
+    "response_style": [
+      "grounding",
+      "reassurance",
+      "slow_pacing"
+    ],
+    "risk_flags": [
+      "spiraling",
+      "panic_escalation",
+      "freeze_response"
+    ]
+  },
+  "anger": {
+    "subtypes": [
+      "frustration",
+      "resentment",
+      "hurt",
+      "moral_injury"
+    ],
+    "social_patterns": [
+      "defensiveness",
+      "irritability",
+      "pressure_release",
+      "boundary_activation"
+    ],
+    "response_style": [
+      "containment",
+      "clarity",
+      "deescalation"
+    ],
+    "risk_flags": [
+      "agitation",
+      "impulsivity",
+      "verbal_escalation"
+    ]
+  },
+  "joy": {
+    "subtypes": [
+      "relief",
+      "gratitude",
+      "excitement",
+      "contentment"
+    ],
+    "social_patterns": [
+      "connection",
+      "playfulness",
+      "openness"
+    ],
+    "response_style": [
+      "affirmation",
+      "shared_positive_tone",
+      "light_followup"
+    ],
+    "risk_flags": []
+  },
+  "surprise": {
+    "subtypes": [
+      "confusion",
+      "amazement",
+      "shock"
+    ],
+    "social_patterns": [
+      "pause",
+      "reorientation",
+      "seeking_context"
+    ],
+    "response_style": [
+      "clarification",
+      "stabilization"
+    ],
+    "risk_flags": [
+      "disorientation"
+    ]
+  },
+  "disgust": {
+    "subtypes": [
+      "revulsion",
+      "rejection",
+      "moral_disgust"
+    ],
+    "social_patterns": [
+      "distancing",
+      "aversion",
+      "shutdown"
+    ],
+    "response_style": [
+      "containment",
+      "careful_validation"
+    ],
+    "risk_flags": [
+      "hard_rejection",
+      "shutdown"
+    ]
+  },
+  "neutral": {
+    "subtypes": [
+      "flat",
+      "informational",
+      "unclear"
+    ],
+    "social_patterns": [
+      "low_signal",
+      "guarded",
+      "matter_of_fact"
+    ],
+    "response_style": [
+      "gentle_probe",
+      "clarity"
+    ],
+    "risk_flags": []
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "patterns": [
+    {
+      "name": "reassurance_seeking",
+      "signals": [
+        "do you really think",
+        "are you sure",
+        "tell me i'll be okay"
+      ],
+      "possible_meaning": "heightened need for safety, certainty, or emotional anchoring",
+      "care_mode": "steady_reassurance"
+    },
+    {
+      "name": "withdrawal_guarding",
+      "signals": [
+        "it's whatever",
+        "never mind",
+        "forget it"
+      ],
+      "possible_meaning": "protective distancing or fear of vulnerability",
+      "care_mode": "gentle_invitation"
+    },
+    {
+      "name": "hyperactivation",
+      "signals": [
+        "why does this always happen",
+        "everything goes wrong",
+        "nobody ever"
+      ],
+      "possible_meaning": "amplified distress response and relational insecurity",
+      "care_mode": "contain_then_clarify"
+    }
+  ]
+}

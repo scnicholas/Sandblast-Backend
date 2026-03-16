@@ -1,7 +1,21 @@
 {
-  "id": "eng_phonetics_phonology_v1",
-  "version": "1.0.0",
-  "description": "Sound system layer: phonetics (how sounds are made) and phonology (how sounds function in a system).",
+  "id": "eng_phonetics_phonology_v2",
+  "version": "2.0.0",
+  "title": "Phonetics and Phonology",
+  "description": "Speech sound production and patterning for intelligibility, rhythm, contrast, and pronunciation-aware explanation.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
   "anchors": [],
   "topics": [
     {
@@ -24,6 +38,80 @@
       "practice": [
         "Mark stress patterns in multisyllabic words.",
         "Explain a reduction pattern in fast speech vs careful speech."
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_PP_M01",
+      "name": "Consonants and Vowels",
+      "outcomes": [
+        "Use place, manner, and voicing to describe consonants.",
+        "Use height, backness, and rounding to describe vowels."
+      ]
+    },
+    {
+      "moduleId": "ENG_PP_M02",
+      "name": "Phonemic Contrast and Allophony",
+      "outcomes": [
+        "Find minimal pairs.",
+        "Explain predictable sound variants without calling them errors."
+      ]
+    },
+    {
+      "moduleId": "ENG_PP_M03",
+      "name": "Stress, Rhythm, and Intelligibility",
+      "outcomes": [
+        "Mark lexical stress.",
+        "Explain how stress and reduction affect perceived fluency and clarity."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "ENG_PP_CS01",
+      "title": "Pronunciation Feedback Without Shaming",
+      "scenario": "A learner needs help with intelligibility, but correction risks becoming overly prescriptive or accent-policing.",
+      "intervention": [
+        "Focus on intelligibility-impacting contrasts.",
+        "Separate accent difference from communication breakdown.",
+        "Use contrastive examples rather than generic correction."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_PP_P01",
+      "name": "Intelligibility Priority Map",
+      "goal": "Identify which sound contrasts and stress patterns matter most for understandable spoken output in assistant scenarios."
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_Purdue_OWL_GeneralWriting",
+      "type": "open_reference",
+      "access": "web",
+      "title": "General Writing",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/index.html",
+      "useInLayer": [
+        "style",
+        "mechanics",
+        "transitions",
+        "general revision support"
+      ]
+    },
+    {
+      "key": "S_NCTE_QAGrammar",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Some Questions and Answers about Grammar",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/qandaaboutgrammar/",
+      "useInLayer": [
+        "metalanguage",
+        "grammar as description",
+        "teaching orientation"
       ]
     }
   ]

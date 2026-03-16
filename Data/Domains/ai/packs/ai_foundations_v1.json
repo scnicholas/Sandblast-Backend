@@ -1,33 +1,128 @@
 {
   "domain": "artificial_intelligence",
   "layer": "foundations",
-  "version": "1.0.0",
-  "description": "Core theoretical and computational foundations of artificial intelligence aligned with University of Toronto and Amii curricula.",
+  "version": "1.1.0",
+  "description": "Expanded core theoretical and computational foundations of artificial intelligence for Marion, preserving the existing schema while broadening coverage across search, probabilistic reasoning, machine learning, neural networks, reinforcement learning, knowledge representation, evaluation, and optimization.",
   "core_topics": [
+    "intelligent_agents",
     "search_and_optimization",
+    "constraint_satisfaction",
+    "adversarial_search",
     "probability_and_bayesian_reasoning",
+    "decision_theory",
     "machine_learning_basics",
+    "statistical_learning",
+    "model_evaluation_and_generalization",
     "neural_networks",
+    "representation_learning",
+    "deep_learning_basics",
     "reinforcement_learning",
     "knowledge_representation",
+    "reasoning_under_uncertainty",
     "symbolic_vs_statistical_ai"
   ],
   "primary_text_references": [
     {
       "title": "Artificial Intelligence: A Modern Approach",
-      "authors": ["Russell", "Norvig"],
-      "type": "foundational_textbook"
+      "authors": [
+        "Stuart Russell",
+        "Peter Norvig"
+      ],
+      "type": "foundational_textbook",
+      "focus": [
+        "intelligent_agents",
+        "search",
+        "reasoning",
+        "planning",
+        "knowledge_representation"
+      ]
     },
     {
       "title": "Pattern Recognition and Machine Learning",
-      "author": "Christopher Bishop",
-      "type": "probabilistic_foundations"
+      "author": "Christopher M. Bishop",
+      "type": "probabilistic_foundations",
+      "focus": [
+        "probabilistic_models",
+        "inference",
+        "classification",
+        "optimization",
+        "generalization"
+      ]
+    },
+    {
+      "title": "Deep Learning",
+      "authors": [
+        "Ian Goodfellow",
+        "Yoshua Bengio",
+        "Aaron Courville"
+      ],
+      "type": "deep_learning_foundations",
+      "focus": [
+        "representation_learning",
+        "optimization",
+        "regularization",
+        "deep_neural_networks"
+      ]
+    },
+    {
+      "title": "Reinforcement Learning: An Introduction",
+      "authors": [
+        "Richard S. Sutton",
+        "Andrew G. Barto"
+      ],
+      "type": "reinforcement_learning_core_text",
+      "focus": [
+        "bandits",
+        "markov_decision_processes",
+        "value_functions",
+        "temporal_difference_learning",
+        "control"
+      ]
     }
   ],
   "learning_objectives": [
     "understand_intelligent_agents",
     "model_decision_under_uncertainty",
     "distinguish_supervised_unsupervised_rl",
-    "evaluate_model_generalization"
+    "evaluate_model_generalization",
+    "compare_symbolic_and_statistical_methods",
+    "understand_search_planning_and_constraints",
+    "explain_probabilistic_inference",
+    "reason_about_bias_variance_and_overfitting",
+    "understand_neural_network_training_dynamics",
+    "connect_foundations_to_real_world_ai_systems"
+  ],
+  "recommended_subtopics": [
+    {
+      "topic": "intelligent_agents",
+      "why_it_matters": "Agent framing gives Marion a durable conceptual base for goals, perception, action, utility, and environment design."
+    },
+    {
+      "topic": "search_and_optimization",
+      "why_it_matters": "Search remains the cleanest entry point for classical AI reasoning, planning, and constrained problem solving."
+    },
+    {
+      "topic": "probability_and_bayesian_reasoning",
+      "why_it_matters": "Probabilistic thinking is critical for uncertainty handling, belief updates, and decision support."
+    },
+    {
+      "topic": "model_evaluation_and_generalization",
+      "why_it_matters": "This is where Marion learns not just what models do, but how to judge whether they are trustworthy outside training data."
+    },
+    {
+      "topic": "symbolic_vs_statistical_ai",
+      "why_it_matters": "This gives Marion the conceptual bridge between logic-based systems and data-driven learning systems."
+    }
+  ],
+  "ingestion_priority": [
+    "Artificial Intelligence: A Modern Approach",
+    "Pattern Recognition and Machine Learning",
+    "Deep Learning",
+    "Reinforcement Learning: An Introduction"
+  ],
+  "notes_for_marion": [
+    "Keep this layer conceptual and explanatory rather than overloaded with fast-moving product news.",
+    "Use this file as the trunk for later connections into agents, ethics, cybersecurity, and psychology layers.",
+    "Prefer canonical texts and primary educational sources over blog-style summaries."
   ]
 }

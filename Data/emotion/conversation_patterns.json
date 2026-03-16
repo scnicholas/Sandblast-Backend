@@ -1,0 +1,40 @@
+{
+  "patterns": [
+    {
+      "match_type": "contains",
+      "phrases": ["i feel alone", "nobody gets me", "i feel unseen"],
+      "emotion_bias": "sadness",
+      "nuance_bias": "loneliness"
+    },
+    {
+      "match_type": "contains",
+      "phrases": ["i can't do this", "i'm overwhelmed", "too much right now"],
+      "emotion_bias": "fear",
+      "nuance_bias": "overwhelm"
+    },
+    {
+      "match_type": "contains",
+      "phrases": ["i'm so angry", "this is ridiculous", "i'm pissed"],
+      "emotion_bias": "anger",
+      "nuance_bias": "frustration"
+    },
+    {
+      "match_type": "contains",
+      "phrases": ["i'm okay", "it's fine", "whatever"],
+      "emotion_bias": "neutral",
+      "nuance_bias": "guarded"
+    },
+    {
+      "match_type": "contains",
+      "phrases": ["i'm scared", "i'm worried", "what if this goes wrong"],
+      "emotion_bias": "fear",
+      "nuance_bias": "anxiety"
+    },
+    {
+      "match_type": "contains",
+      "phrases": ["thank god", "i'm so relieved", "that's amazing"],
+      "emotion_bias": "joy",
+      "nuance_bias": "relief"
+    }
+  ]
+}

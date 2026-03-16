@@ -1,0 +1,343 @@
+{
+  "packId": "cyber_security_culture_v2",
+  "domain": "cybersecurity",
+  "packType": "security_culture",
+  "version": 2,
+  "updatedAt": "2026-03-15",
+  "intent": "Organizational security culture, human factors, governance mindset, and behavioral risk reduction principles.",
+  "coreThesis": "Security failures are often behavioral and systemic, not purely technical. Culture determines resilience.",
+  "principles": [
+    {
+      "id": "culture_shared_responsibility",
+      "name": "Security Is a Shared Responsibility",
+      "summary": "Security is not only an IT function; it requires participation across leadership, engineering, operations, and staff.",
+      "useWhen": [
+        "governance design",
+        "policy rollouts",
+        "executive alignment"
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "security culture",
+          "shared responsibility",
+          "leadership"
+        ],
+        "intentSignals": [
+          "policy",
+          "organization",
+          "governance"
+        ]
+      }
+    },
+    {
+      "id": "culture_psychological_safety",
+      "name": "Psychological Safety in Reporting",
+      "summary": "Employees must feel safe reporting mistakes or suspicious events without fear of punishment.",
+      "impact": "Improves early detection and reduces concealment of incidents.",
+      "retrievalHints": {
+        "keywords": [
+          "report incident",
+          "whistleblowing",
+          "fear of reporting"
+        ],
+        "intentSignals": [
+          "culture",
+          "improve reporting"
+        ]
+      }
+    },
+    {
+      "id": "culture_training_awareness",
+      "name": "Continuous Training & Awareness",
+      "summary": "Security awareness is an ongoing behavioral reinforcement process.",
+      "methods": [
+        "Phishing simulation exercises.",
+        "Short, periodic security refreshers.",
+        "Contextual training tied to real workflows."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "security training",
+          "phishing awareness",
+          "education"
+        ],
+        "intentSignals": [
+          "train",
+          "educate",
+          "improve awareness"
+        ]
+      }
+    },
+    {
+      "id": "culture_executive_buyin",
+      "name": "Executive Buy-In & Tone from the Top",
+      "summary": "Leadership behavior signals organizational priorities.",
+      "impact": [
+        "Budget allocation for controls.",
+        "Resource prioritization.",
+        "Incident transparency."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "executive support",
+          "board",
+          "leadership"
+        ],
+        "intentSignals": [
+          "strategy",
+          "investment"
+        ]
+      }
+    }
+  ],
+  "humanRiskPatterns": [
+    {
+      "id": "risk_social_engineering",
+      "description": "Manipulation of human trust to bypass technical controls.",
+      "examples": [
+        "Phishing emails.",
+        "Pretexting phone calls.",
+        "Impersonation attacks."
+      ],
+      "impact": "Credential compromise or financial fraud."
+    },
+    {
+      "id": "risk_shadow_it",
+      "description": "Unauthorized use of tools or services outside governance oversight.",
+      "impact": "Unmonitored data exposure and compliance gaps."
+    },
+    {
+      "id": "risk_normalization_of_deviation",
+      "description": "Gradual acceptance of insecure shortcuts due to productivity pressure.",
+      "impact": "Control erosion over time."
+    }
+  ],
+  "organizationalControls": [
+    {
+      "id": "control_clear_policy_framework",
+      "name": "Clear Policy Framework",
+      "description": "Policies must be understandable, enforceable, and aligned with daily operations."
+    },
+    {
+      "id": "control_incident_playbooks",
+      "name": "Defined Incident Playbooks",
+      "description": "Employees should know exactly what to do if they suspect compromise."
+    },
+    {
+      "id": "control_metrics_reporting",
+      "name": "Security Metrics & Reporting",
+      "description": "Track phishing rates, patch timelines, incident detection speed, and awareness engagement."
+    }
+  ],
+  "crossDomainSignals": {
+    "psychologyOverlap": [
+      "Cognitive bias in phishing susceptibility.",
+      "Behavioral reinforcement loops.",
+      "Stress-induced decision errors."
+    ],
+    "lawOverlap": [
+      "Compliance training obligations.",
+      "Regulatory reporting requirements."
+    ],
+    "financeOverlap": [
+      "Fraud prevention culture.",
+      "Insider threat mitigation."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "security culture",
+      "human risk",
+      "phishing training",
+      "governance",
+      "leadership",
+      "insider threat"
+    ],
+    "intentSignals": [
+      "improve culture",
+      "reduce human risk",
+      "organizational security"
+    ]
+  },
+  "programModules": [
+    {
+      "id": "mod_cult_01",
+      "name": "Leadership, Governance, and Tone from the Top",
+      "outcomes": [
+        "translate cyber risk for leaders",
+        "build ownership model",
+        "tie budget to risk reduction"
+      ]
+    },
+    {
+      "id": "mod_cult_02",
+      "name": "Reporting Culture and Psychological Safety",
+      "outcomes": [
+        "encourage early reporting",
+        "reduce shame-driven concealment",
+        "improve incident intake quality"
+      ]
+    },
+    {
+      "id": "mod_cult_03",
+      "name": "Human Risk and Workflow-Aware Training",
+      "outcomes": [
+        "make training contextual",
+        "reduce phishing susceptibility",
+        "address shadow IT"
+      ]
+    },
+    {
+      "id": "mod_cult_04",
+      "name": "Metrics That Matter",
+      "outcomes": [
+        "track phishing rates",
+        "measure patch and response timings",
+        "connect metrics to maturity"
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "id": "cs_silenced_reporting",
+      "title": "Employees hesitate to report suspicious activity because mistakes are punished",
+      "learningValue": [
+        "psychological safety",
+        "faster detection",
+        "leadership behavior"
+      ]
+    },
+    {
+      "id": "cs_shadow_it",
+      "title": "Shadow IT adoption bypasses review and exposes customer data",
+      "learningValue": [
+        "governance",
+        "approved tooling pathways",
+        "training and incentives"
+      ]
+    },
+    {
+      "id": "cs_exec_exception",
+      "title": "Executive exception culture weakens controls across the organization",
+      "learningValue": [
+        "tone from the top",
+        "policy fairness",
+        "control erosion prevention"
+      ]
+    }
+  ],
+  "recommendedProjects": [
+    {
+      "id": "proj_security_awareness",
+      "name": "Role-based awareness cadence planner",
+      "defensiveFocus": "contextual training, reinforcement loops, evidence of completion"
+    },
+    {
+      "id": "proj_reporting_channel",
+      "name": "Low-friction suspicious activity reporting channel",
+      "defensiveFocus": "early signal capture, no-blame reporting, triage routing"
+    }
+  ],
+  "sourceStack": {
+    "governmentAndStandards": [
+      {
+        "id": "src_cccs",
+        "title": "Canadian Centre for Cyber Security guidance",
+        "type": "government_guidance",
+        "priority": "high",
+        "useWhen": [
+          "Canadian baseline controls",
+          "threat advisories",
+          "SMB cyber hygiene"
+        ]
+      },
+      {
+        "id": "src_nist_csf_20",
+        "title": "NIST Cybersecurity Framework 2.0",
+        "type": "framework",
+        "priority": "high",
+        "useWhen": [
+          "program design",
+          "maturity roadmaps",
+          "executive alignment"
+        ]
+      },
+      {
+        "id": "src_nist_800_53_r5",
+        "title": "NIST SP 800-53 Rev. 5",
+        "type": "controls_catalog",
+        "priority": "high",
+        "useWhen": [
+          "control mapping",
+          "audit prep",
+          "security requirements"
+        ]
+      },
+      {
+        "id": "src_nist_800_61_r3",
+        "title": "NIST SP 800-61 Rev. 3",
+        "type": "incident_response_guidance",
+        "priority": "high",
+        "useWhen": [
+          "IR planning",
+          "playbooks",
+          "lessons learned"
+        ]
+      },
+      {
+        "id": "src_owasp_asvs",
+        "title": "OWASP ASVS / Top 10",
+        "type": "appsec_guidance",
+        "priority": "medium",
+        "useWhen": [
+          "web reviews",
+          "secure coding",
+          "SDLC gates"
+        ]
+      },
+      {
+        "id": "src_mitre_attack",
+        "title": "MITRE ATT&CK",
+        "type": "behavior_knowledge_base",
+        "priority": "medium",
+        "useWhen": [
+          "threat modeling",
+          "detections",
+          "coverage discussions"
+        ]
+      }
+    ],
+    "textbooksAndHandbooks": [
+      {
+        "title": "Security Engineering",
+        "author": "Ross Anderson",
+        "role": "systems-thinking and security architecture"
+      },
+      {
+        "title": "Computer Security: Principles and Practice",
+        "author": "William Stallings & Lawrie Brown",
+        "role": "broad conceptual foundation"
+      },
+      {
+        "title": "Engineering Trustworthy Systems",
+        "author": "various",
+        "role": "resilience and assurance framing"
+      },
+      {
+        "title": "Blue Team Handbook",
+        "author": "various",
+        "role": "defensive operations and triage orientation"
+      },
+      {
+        "title": "Web Application Security",
+        "author": "Andrew Hoffman",
+        "role": "application security and modern web risk"
+      }
+    ],
+    "libraryAndResearchAccessNotes": [
+      "Prefer university/public library access for ISO texts, textbooks, journals, and practitioner handbooks that are paywalled.",
+      "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
+      "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
+    ]
+  }
+}

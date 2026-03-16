@@ -1,34 +1,223 @@
 {
   "domain": "artificial_intelligence",
   "layer": "case_studies",
-  "version": "1.0.0",
-  "cases": [
-    {
-      "title": "Deep Reinforcement Learning in Game Systems",
-      "focus": "AlphaGo",
-      "learning_points": [
-        "reward_signal_design",
-        "exploration_vs_exploitation",
-        "policy_network_scaling"
-      ]
-    },
-    {
-      "title": "AI in Medical Diagnostics",
-      "focus": "Radiology_Assist_Systems",
-      "learning_points": [
-        "model_accuracy_vs_trust",
-        "human_in_the_loop",
-        "risk_governance"
-      ]
-    },
-    {
-      "title": "LLM-Based Conversational Agents",
-      "focus": "Enterprise_Agent_Architecture",
-      "learning_points": [
-        "state_management",
-        "knowledge_layering",
-        "risk_mediation"
-      ]
-    }
+  "version": "1.1.0",
+  "description": "Expanded cross-domain AI case studies pack for Marion. The pack organizes landmark and practical cases across six AI domains used in Marion: foundations, agents_and_systems, ethics_and_law, psychology, cybersecurity, and marketing. Each case is framed around learning value rather than hype.",
+  "domains_covered": [
+    "foundations",
+    "agents_and_systems",
+    "ethics_and_law",
+    "psychology",
+    "cybersecurity",
+    "marketing"
+  ],
+  "cases_by_domain": {
+    "foundations": [
+      {
+        "title": "AlphaGo",
+        "focus": "deep_reinforcement_learning_and_search",
+        "learning_points": [
+          "policy_and_value_network_integration",
+          "monte_carlo_tree_search",
+          "sequential_decision_making"
+        ],
+        "why_it_matters": "A canonical foundations case for combining learning, search, and evaluation into a single high-performance decision system."
+      },
+      {
+        "title": "AlphaGo Zero",
+        "focus": "self_play_reinforcement_learning",
+        "learning_points": [
+          "self_play_training",
+          "learning_without_human_game_data",
+          "iterative_policy_improvement"
+        ],
+        "why_it_matters": "Shows how a system can improve through self-play and environment feedback rather than curated human supervision."
+      },
+      {
+        "title": "Clinical imaging workflow AI",
+        "focus": "diagnostic_ai_efficiency_and_quality",
+        "learning_points": [
+          "human_ai_collaboration",
+          "workflow_integration",
+          "quality_maintenance_under_time_savings"
+        ],
+        "why_it_matters": "Grounds theoretical model performance in real deployment conditions where efficiency, safety, and workflow matter."
+      }
+    ],
+    "agents_and_systems": [
+      {
+        "title": "Generative Agents",
+        "focus": "memory_reflection_planning_agents",
+        "learning_points": [
+          "episodic_memory_streams",
+          "reflection_loops",
+          "social_behavior_simulation"
+        ],
+        "why_it_matters": "Shows how memory and reflection change agent behavior over longer horizons."
+      },
+      {
+        "title": "Voyager",
+        "focus": "embodied_agent_skill_acquisition",
+        "learning_points": [
+          "automatic_curriculum",
+          "skill_library_construction",
+          "lifelong_learning"
+        ],
+        "why_it_matters": "A strong case for embodied agents that learn reusable skills over time."
+      },
+      {
+        "title": "AutoGen-style multi-agent orchestration",
+        "focus": "role_specialized_agent_collaboration",
+        "learning_points": [
+          "conversation_programming",
+          "task_decomposition",
+          "agent_handoffs_and_coordination"
+        ],
+        "why_it_matters": "Useful for understanding how multi-agent systems can coordinate on complex tasks while introducing new failure modes."
+      }
+    ],
+    "ethics_and_law": [
+      {
+        "title": "State v. Loomis",
+        "focus": "algorithmic_risk_assessment_and_due_process",
+        "learning_points": [
+          "proprietary_scoring_limits",
+          "judicial_reliance_on_algorithmic_tools",
+          "due_process_concerns"
+        ],
+        "why_it_matters": "A core case for fairness, opacity, and legal accountability in automated decision systems."
+      },
+      {
+        "title": "Thaler v. Vidal",
+        "focus": "ai_and_patent_inventorship",
+        "learning_points": [
+          "natural_person_requirement",
+          "human_contribution_to_ai_assisted_inventions",
+          "limits_of_current_patent_doctrine"
+        ],
+        "why_it_matters": "Important for understanding where current patent law draws the line around AI-assisted innovation."
+      },
+      {
+        "title": "EU AI Act implementation model",
+        "focus": "risk_based_ai_regulation",
+        "learning_points": [
+          "prohibited_practices",
+          "high_risk_system_obligations",
+          "gpaI_governance"
+        ],
+        "why_it_matters": "A contemporary policy case for how cross-sector AI governance is being operationalized."
+      }
+    ],
+    "psychology": [
+      {
+        "title": "Trust repair in human-machine interaction",
+        "focus": "trust_calibration_after_system_failure",
+        "learning_points": [
+          "trust_repair",
+          "failure_recovery_strategies",
+          "human_reliance_after_error"
+        ],
+        "why_it_matters": "Crucial for understanding why failure recovery is psychological as well as technical."
+      },
+      {
+        "title": "Generative AI use in radiology reporting",
+        "focus": "human_ai_collaboration_and_efficiency",
+        "learning_points": [
+          "documentation_efficiency",
+          "clinical_quality_maintenance",
+          "collaborative_workflow_design"
+        ],
+        "why_it_matters": "Shows how AI can affect workload, quality, and trust in real expert settings."
+      },
+      {
+        "title": "Affective computing in adaptive interfaces",
+        "focus": "emotion_modeling_and_user_response",
+        "learning_points": [
+          "emotion_detection_limits",
+          "measurement_validity",
+          "adaptive_interaction_design"
+        ],
+        "why_it_matters": "Helpful for framing emotion-aware systems as psychological measurement problems, not magic."
+      }
+    ],
+    "cybersecurity": [
+      {
+        "title": "IARPA TrojAI",
+        "focus": "backdoor_and_trojan_detection",
+        "learning_points": [
+          "model_integrity_testing",
+          "backdoor_detection",
+          "predeployment_assurance"
+        ],
+        "why_it_matters": "A major defensive case for detecting compromised models before deployment."
+      },
+      {
+        "title": "MITRE ATLAS applied threat mapping",
+        "focus": "ai_attack_taxonomy_and_defense_mapping",
+        "learning_points": [
+          "adversary_tactics_and_techniques",
+          "defensive_mapping",
+          "threat_modeling"
+        ],
+        "why_it_matters": "Useful for organizing AI security knowledge in a structured operational way."
+      },
+      {
+        "title": "OWASP LLM Top 10 risk scenarios",
+        "focus": "application_layer_llm_security",
+        "learning_points": [
+          "prompt_injection",
+          "training_data_poisoning",
+          "model_denial_of_service"
+        ],
+        "why_it_matters": "A practical case cluster for LLM application failure modes and defensive design."
+      }
+    ],
+    "marketing": [
+      {
+        "title": "Personalization at scale",
+        "focus": "ai_personalization_and_next_best_action",
+        "learning_points": [
+          "tailored_messaging",
+          "journey_orchestration",
+          "customer_data_activation"
+        ],
+        "why_it_matters": "Shows how AI marketing value is often captured through better relevance and timing, not just automation volume."
+      },
+      {
+        "title": "Recommendation systems in e-commerce",
+        "focus": "ranking_and_product_discovery",
+        "learning_points": [
+          "retrieval_and_ranking",
+          "basket_size_impact",
+          "retention_support"
+        ],
+        "why_it_matters": "A core digital-commerce case for recommendation logic and commercial lift."
+      },
+      {
+        "title": "Generative AI in content operations",
+        "focus": "marketing_content_workflow_acceleration",
+        "learning_points": [
+          "creative_variation_generation",
+          "localization",
+          "content_velocity_with_governance"
+        ],
+        "why_it_matters": "Useful for understanding where genAI helps marketing teams operationally without replacing performance measurement."
+      }
+    ]
+  },
+  "cross_domain_learning_themes": [
+    "human_in_the_loop",
+    "governance_and_accountability",
+    "measurement_and_evaluation",
+    "safety_and_risk_management",
+    "memory_state_and_long_horizon_behavior",
+    "workflow_integration",
+    "trust_and_reliance",
+    "real_world_operational_constraints"
+  ],
+  "notes_for_marion": [
+    "Keep case studies as reasoning anchors rather than isolated anecdotes.",
+    "Tie each case to a domain trunk so Marion can generalize lessons across theory, systems, governance, psychology, cybersecurity, and commercial application.",
+    "Prefer cases with clear operational lessons over hype-heavy narratives."
   ]
 }

@@ -1,0 +1,383 @@
+{
+  "packId": "cyber_safety_and_posture_v2",
+  "domain": "cybersecurity",
+  "packType": "safety_posture",
+  "version": 2,
+  "updatedAt": "2026-03-15",
+  "intent": "Define defensive-only boundaries, refusal logic, escalation thresholds, and safe educational alternatives for cybersecurity reasoning and support.",
+  "posture": {
+    "mode": "defensive_only",
+    "nonOperational": true,
+    "noExploitGuidance": true,
+    "noBypassInstructions": true,
+    "noMalwareAssistance": true,
+    "noCredentialProcessing": true,
+    "humanOversightRequired": true,
+    "description": "This pack supports defensive awareness, risk reduction, governance, architecture, secure operations, and incident response. It does not provide exploit chains, intrusion steps, credential abuse, evasion, persistence, weaponization, or instructions that would materially enable harm."
+  },
+  "guardrails": [
+    {
+      "id": "guard_no_intrusion_steps",
+      "rule": "Do not provide step-by-step instructions to hack, exploit, bypass, compromise, persist, or evade detection.",
+      "redirectStrategy": "Shift to prevention, architecture hardening, detection, mitigation, recovery, or legal/ethical framing."
+    },
+    {
+      "id": "guard_no_weaponization",
+      "rule": "Do not provide malware creation, payload modification, phishing kit construction, credential stuffing, or exploit packaging guidance.",
+      "redirectStrategy": "Explain defensive indicators, common attack patterns at a high level, and protective controls instead."
+    },
+    {
+      "id": "guard_no_live_targeting",
+      "rule": "Do not help identify, probe, or exploit specific live targets, accounts, organizations, or environments.",
+      "redirectStrategy": "Offer safe lab design principles, defensive validation checklists, or authorized security-program guidance instead."
+    },
+    {
+      "id": "guard_no_sensitive_secret_handling",
+      "rule": "Do not process, analyze, store, or troubleshoot using real passwords, tokens, keys, or confidential access artifacts.",
+      "redirectStrategy": "Tell the user to rotate, revoke, and replace sensitive credentials, and continue with redacted examples only."
+    },
+    {
+      "id": "guard_no_privacy_abuse",
+      "rule": "Do not assist with doxxing, stalking, non-consensual surveillance, identity misuse, or unauthorized data access.",
+      "redirectStrategy": "Emphasize privacy, consent, and lawful defensive alternatives."
+    },
+    {
+      "id": "guard_no_dual_use_detail_overrun",
+      "rule": "For dual-use topics, keep explanations at a level that improves defense without enabling execution of abuse.",
+      "redirectStrategy": "Provide conceptual explanations, architecture changes, logging ideas, tabletop scenarios, and safe remediation steps."
+    }
+  ],
+  "requestTriageModel": {
+    "lowRisk": {
+      "signals": [
+        "general security education",
+        "policy design",
+        "risk explanation",
+        "secure architecture",
+        "defensive tool comparison"
+      ],
+      "responseMode": "Provide helpful, high-level, technically accurate defensive guidance."
+    },
+    "moderateRisk": {
+      "signals": [
+        "dual-use topic with ambiguous intent",
+        "questions about attack classes",
+        "requests involving scanning, payloads, or bypass concepts without target detail"
+      ],
+      "responseMode": "Constrain to non-procedural explanation, emphasize detection/mitigation, avoid operational detail."
+    },
+    "highRisk": {
+      "signals": [
+        "exploit code",
+        "account compromise",
+        "malware building",
+        "credential theft",
+        "live target instructions",
+        "evasion or persistence requests"
+      ],
+      "responseMode": "Refuse the harmful portion, explain the boundary briefly, and redirect to prevention, incident response, recovery, or legal resources."
+    }
+  },
+  "escalationLogic": {
+    "highRiskIndicators": [
+      "Explicit intent to hack, breach, or gain unauthorized access.",
+      "Requests for exploit code, shell commands, or working payloads.",
+      "Interest in bypassing MFA, endpoint controls, logging, EDR, or authentication.",
+      "Requests to write ransomware, spyware, keyloggers, or phishing infrastructure.",
+      "Troubleshooting with real secrets, internal IP ranges, or identifiable victim targets."
+    ],
+    "responseModes": {
+      "high": "Contain and redirect. No operational assistance.",
+      "medium": "Provide defensive explanation without procedural harm-enabling detail.",
+      "low": "Provide educational, policy, governance, and resilience-oriented guidance."
+    },
+    "escalateToHumanWhen": [
+      "There is an active compromise or safety-critical incident.",
+      "Legal, regulatory, or law-enforcement reporting may be required.",
+      "The user appears to possess real secrets or evidence requiring chain-of-custody handling.",
+      "A production environment may be at risk and urgent containment decisions are needed."
+    ]
+  },
+  "safeAlternatives": [
+    {
+      "id": "alt_tabletop",
+      "name": "Tabletop Exercises",
+      "description": "Use hypothetical scenarios to explore detection, escalation, containment, communications, and recovery without simulating offensive abuse."
+    },
+    {
+      "id": "alt_control_review",
+      "name": "Control and Architecture Reviews",
+      "description": "Review identity, logging, segmentation, backup, patching, and vendor-access controls to reduce exposure."
+    },
+    {
+      "id": "alt_detection_content",
+      "name": "Detection Engineering",
+      "description": "Discuss logging requirements, alert logic, tuning concepts, and validation approaches without teaching evasion."
+    },
+    {
+      "id": "alt_secure_labs",
+      "name": "Authorized Learning Labs",
+      "description": "Recommend isolated, lawful lab environments and benign sample data for education rather than live or production targets."
+    },
+    {
+      "id": "alt_incident_response",
+      "name": "Containment and Recovery Guidance",
+      "description": "Focus on account resets, host isolation, key rotation, backups, forensic preservation, and notification workflows."
+    }
+  ],
+  "toneGuidelines": {
+    "neutral": true,
+    "nonAccusatory": true,
+    "factBased": true,
+    "noMoralizing": true,
+    "clarityOverJargon": true,
+    "briefBoundaryThenHelp": true,
+    "explainWhyWhenRedirecting": true
+  },
+  "crossDomainAlignment": {
+    "law": [
+      "Unauthorized access, data misuse, and surveillance carry civil and criminal exposure.",
+      "Incident handling may trigger notification and evidence-preservation duties."
+    ],
+    "privacy": [
+      "Respect consent, minimization, and confidentiality when discussing logs, identities, and user data."
+    ],
+    "insurance": [
+      "Preserve documentation for claim support, including timelines, decisions, and recovery actions."
+    ],
+    "operations": [
+      "Defensive guidance should align with change control, business continuity, and responsible escalation."
+    ],
+    "ethics": [
+      "Favor harm reduction, informed consent, and non-deceptive assistance."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "hack",
+      "exploit",
+      "bypass",
+      "payload",
+      "malware",
+      "phish",
+      "credential theft",
+      "evade edr",
+      "break into account",
+      "illegal access"
+    ],
+    "intentSignals": [
+      "get into account",
+      "break into",
+      "steal password",
+      "write exploit",
+      "disable detection",
+      "deploy ransomware"
+    ]
+  },
+  "governanceAlignment": {
+    "nistCsf20": [
+      "Align responses with Govern, Identify, Protect, Detect, Respond, and Recover.",
+      "When refusing harmful requests, still offer safe help within one or more CSF functions."
+    ],
+    "secureByDesign": [
+      "Promote safer defaults, reduced attack surface, and secure administration models rather than reactive heroics."
+    ],
+    "incidentResponse": [
+      "When user context suggests compromise, pivot from curiosity to containment, preservation, and communication discipline."
+    ]
+  },
+  "learningModules": [
+    {
+      "id": "module_dual_use_boundaries",
+      "title": "Dual-Use Boundaries in Cybersecurity",
+      "level": "core",
+      "covers": [
+        "why some detail becomes harmful",
+        "non-operational explanation",
+        "safe redirection patterns"
+      ],
+      "outcomes": [
+        "Differentiate educational from enabling content.",
+        "Respond safely to ambiguous cyber requests."
+      ]
+    },
+    {
+      "id": "module_refusal_redirection",
+      "title": "Refusal, Redirection, and Safer Assistance",
+      "level": "core",
+      "covers": [
+        "brief refusals",
+        "helpful alternatives",
+        "incident-oriented pivots"
+      ],
+      "outcomes": [
+        "Refuse harmful asks without dead-ending the user.",
+        "Offer practical defensive next steps."
+      ]
+    },
+    {
+      "id": "module_sensitive_material_handling",
+      "title": "Handling Credentials, Secrets, and Sensitive Evidence",
+      "level": "intermediate",
+      "covers": [
+        "redaction",
+        "revocation",
+        "chain-of-custody basics",
+        "when not to inspect content"
+      ],
+      "outcomes": [
+        "Avoid unsafe handling of secrets.",
+        "Recognize when human specialists are needed."
+      ]
+    },
+    {
+      "id": "module_defensive_case_analysis",
+      "title": "Defensive Analysis of Common Attack Patterns",
+      "level": "intermediate",
+      "covers": [
+        "phishing",
+        "token theft",
+        "misconfiguration",
+        "ransomware impact patterns"
+      ],
+      "outcomes": [
+        "Explain how attacks work at a safe level.",
+        "Map patterns to prevention and response controls."
+      ]
+    },
+    {
+      "id": "module_incident_escalation",
+      "title": "Escalation and Operational Safety",
+      "level": "advanced",
+      "covers": [
+        "active incident clues",
+        "legal/compliance triggers",
+        "containment-first responses"
+      ],
+      "outcomes": [
+        "Recognize high-risk situations.",
+        "Pivot to containment and stakeholder coordination."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "id": "case_bypass_request_redirect",
+      "title": "From Bypass Request to Defensive Hardening",
+      "scenario": "A user asks how to bypass MFA on an account they claim to own.",
+      "safeResponsePattern": [
+        "Decline bypass instructions.",
+        "Recommend official recovery channels.",
+        "Explain stronger recovery design and account-hardening practices."
+      ],
+      "lesson": "The safest help is recovery and prevention, not circumvention."
+    },
+    {
+      "id": "case_live_target_probe",
+      "title": "Specific Live Target Mentioned",
+      "scenario": "A request includes a real company domain, IP range, or named account and asks how to test weaknesses.",
+      "safeResponsePattern": [
+        "Do not assist with probing or exploitation.",
+        "Redirect to authorized security assessment governance, scoping, and safe program design."
+      ],
+      "lesson": "Target specificity sharply raises misuse risk."
+    },
+    {
+      "id": "case_real_secret_shared",
+      "title": "User Pastes a Token or Password",
+      "scenario": "A user shares what appears to be a live API key or credential and asks for troubleshooting.",
+      "safeResponsePattern": [
+        "Do not process or validate the secret.",
+        "Advise immediate rotation/revocation and use redacted placeholders only."
+      ],
+      "lesson": "Secret hygiene beats ad hoc debugging with live credentials."
+    },
+    {
+      "id": "case_active_ransomware_panic",
+      "title": "Active Incident, High Stress",
+      "scenario": "A user reports encrypted files and asks what malware family to use a decryptor against.",
+      "safeResponsePattern": [
+        "Shift to incident response mode: isolate systems, preserve evidence, review backups, notify the right people, and avoid speculative execution."
+      ],
+      "lesson": "In real incidents, calm containment is more valuable than overconfident technical guessing."
+    }
+  ],
+  "sourceStack": {
+    "primary": [
+      {
+        "title": "NIST CSF 2.0",
+        "type": "government framework",
+        "useFor": [
+          "governance boundaries",
+          "defensive response mapping",
+          "risk communication"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "NIST SP 800-61 Rev. 3",
+        "type": "government incident response guidance",
+        "useFor": [
+          "active incident pivots",
+          "containment and recovery posture",
+          "communications discipline"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "CISA Secure by Design guidance",
+        "type": "government guidance",
+        "useFor": [
+          "safer defaults",
+          "reduced attack surface",
+          "defensive framing"
+        ],
+        "priority": "high"
+      },
+      {
+        "title": "Canadian Centre for Cyber Security baseline and operational guidance",
+        "type": "government guidance",
+        "useFor": [
+          "Canadian context",
+          "SMB posture",
+          "defensive control baselines"
+        ],
+        "priority": "high"
+      }
+    ],
+    "secondary": [
+      {
+        "title": "Professional incident response handbooks and blue-team texts",
+        "type": "textbook/handbook",
+        "useFor": [
+          "playbook design",
+          "communication models",
+          "tabletop facilitation"
+        ],
+        "priority": "medium"
+      },
+      {
+        "title": "Peer-reviewed cybercrime, usable security, and safety engineering literature",
+        "type": "research",
+        "useFor": [
+          "dual-use reasoning",
+          "user-support patterns",
+          "defensive education"
+        ],
+        "priority": "medium"
+      }
+    ],
+    "tertiary": [
+      {
+        "title": "Awareness guides, explainers, and orientation material",
+        "type": "training resource",
+        "useFor": [
+          "plain-language safety summaries",
+          "staff training",
+          "introductory briefings"
+        ],
+        "priority": "low"
+      }
+    ]
+  }
+}

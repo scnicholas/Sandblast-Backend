@@ -1,0 +1,35 @@
+{
+  "flags": [
+    {
+      "name": "self_harm_risk",
+      "signals": [
+        "i want to disappear",
+        "i don't want to be here",
+        "i want to hurt myself",
+        "i want to end it"
+      ],
+      "priority": "critical",
+      "action": "escalate_safety"
+    },
+    {
+      "name": "hopelessness_risk",
+      "signals": [
+        "nothing matters",
+        "there is no point",
+        "it will never get better"
+      ],
+      "priority": "high",
+      "action": "supportive_safety_check"
+    },
+    {
+      "name": "panic_risk",
+      "signals": [
+        "i can't breathe",
+        "i'm freaking out",
+        "i'm panicking"
+      ],
+      "priority": "high",
+      "action": "grounding_priority"
+    }
+  ]
+}

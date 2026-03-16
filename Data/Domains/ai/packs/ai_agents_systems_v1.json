@@ -1,26 +1,348 @@
 {
   "domain": "artificial_intelligence",
   "layer": "agents_systems",
-  "version": "1.0.0",
-  "description": "Design, architecture, and control of intelligent agents and multi-agent systems.",
+  "version": "1.1.0",
+  "description": "Expanded AI agents and systems knowledge pack for Marion. This file covers the evolution of intelligent agents from classical rational-agent models through reinforcement learning, multi-agent systems, tool-using language-model agents, embodied agents, software agents, agent memory, planning, evaluation, orchestration, and governance. The emphasis is on architecture, capability composition, operational reliability, and safe autonomy.",
   "core_topics": [
     "agent_architecture",
+    "rational_agent_model",
     "goal_planning",
     "state_management",
+    "memory_systems",
+    "tool_use_and_api_orchestration",
+    "reasoning_acting_loops",
+    "task_decomposition",
+    "reflection_and_self_correction",
     "multi_agent_coordination",
     "reinforcement_learning_agents",
-    "llm_agent_orchestration"
+    "decision_theoretic_agents",
+    "llm_agent_orchestration",
+    "embodied_agents",
+    "software_engineering_agents",
+    "evaluation_and_benchmarking",
+    "agent_safety_and_governance",
+    "human_in_the_loop_agents",
+    "agent_communication_protocols",
+    "resource_bounded_autonomy"
   ],
   "concept_models": [
     "perceive_plan_act_loop",
     "belief_desire_intention_model",
     "state_spine_architecture",
-    "reward_signal_design"
+    "reward_signal_design",
+    "react_reason_act_pattern",
+    "toolformer_self_supervised_tool_use",
+    "memory_reflection_planning_stack",
+    "hierarchical_task_decomposition",
+    "centralized_vs_decentralized_control",
+    "single_agent_vs_multi_agent_orchestration"
   ],
   "skills": [
     "design_modular_agents",
     "evaluate_autonomy_levels",
     "build_safety_constraints",
-    "integrate_external_tools"
+    "integrate_external_tools",
+    "design_memory_and_retrieval_loops",
+    "separate_planning_from_execution",
+    "define_agent_handoffs_and_roles",
+    "evaluate_failure_modes_and_recovery_paths",
+    "benchmark_task_completion_and_reliability",
+    "govern_agent_permissions_and_tool_scope"
+  ],
+  "architectural_patterns": [
+    {
+      "name": "classical_rational_agent",
+      "focus": [
+        "percepts",
+        "actions",
+        "utility",
+        "environment_modeling"
+      ],
+      "why_it_matters": "The rational-agent framing remains the cleanest conceptual trunk for agent design and connects directly to planning, uncertainty, and action selection."
+    },
+    {
+      "name": "deliberative_planning_agent",
+      "focus": [
+        "symbolic_search",
+        "planning",
+        "goal_selection",
+        "constraint_handling"
+      ],
+      "why_it_matters": "Classical planning still explains why agents need explicit action sequences, subgoals, and environment models."
+    },
+    {
+      "name": "reinforcement_learning_agent",
+      "focus": [
+        "policy_learning",
+        "value_estimation",
+        "exploration_exploitation",
+        "reward_design"
+      ],
+      "why_it_matters": "RL agents define how systems learn behavior through feedback and remain central to game-playing, control, and sequential decision-making."
+    },
+    {
+      "name": "tool_using_language_agent",
+      "focus": [
+        "api_calls",
+        "retrieval",
+        "calculators",
+        "search",
+        "external_execution"
+      ],
+      "why_it_matters": "Modern language agents become useful when they can call tools, retrieve evidence, and interact with external systems rather than only emit text."
+    },
+    {
+      "name": "multi_agent_system",
+      "focus": [
+        "coordination",
+        "negotiation",
+        "task_partitioning",
+        "role_specialization",
+        "collective_behavior"
+      ],
+      "why_it_matters": "Multi-agent designs matter for decomposition, distributed control, and role-based problem solving."
+    },
+    {
+      "name": "memory_reflection_agent",
+      "focus": [
+        "episodic_memory",
+        "semantic_memory",
+        "reflection",
+        "planning_over_history"
+      ],
+      "why_it_matters": "Memory and reflection loops are what make agents feel persistent, adaptive, and capable of long-horizon execution."
+    }
+  ],
+  "primary_text_references": [
+    {
+      "title": "Artificial Intelligence: A Modern Approach",
+      "authors": [
+        "Stuart Russell",
+        "Peter Norvig"
+      ],
+      "type": "foundational_textbook",
+      "focus": [
+        "intelligent_agents",
+        "search",
+        "planning",
+        "decision_theory",
+        "learning"
+      ]
+    },
+    {
+      "title": "Multiagent Systems, Second Edition",
+      "editor": "Gerhard Weiss",
+      "type": "advanced_textbook_reference",
+      "focus": [
+        "multiagent_systems",
+        "coordination",
+        "negotiation",
+        "communication",
+        "distributed_ai"
+      ]
+    },
+    {
+      "title": "Reinforcement Learning: An Introduction",
+      "authors": [
+        "Richard S. Sutton",
+        "Andrew G. Barto"
+      ],
+      "type": "core_textbook",
+      "focus": [
+        "markov_decision_processes",
+        "value_functions",
+        "policy_learning",
+        "temporal_difference_learning",
+        "control"
+      ]
+    },
+    {
+      "title": "An Introduction to MultiAgent Systems",
+      "author": "Michael Wooldridge",
+      "type": "textbook",
+      "focus": [
+        "agent_architecture",
+        "communication",
+        "cooperation",
+        "coordination",
+        "game_theory"
+      ]
+    }
+  ],
+  "foundational_papers_and_framework_references": [
+    {
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "type": "agent_pattern_paper",
+      "focus": [
+        "reasoning_acting_interleave",
+        "tool_use",
+        "interactive_decision_making",
+        "traceable_agent_behavior"
+      ]
+    },
+    {
+      "title": "Toolformer: Language Models Can Teach Themselves to Use Tools",
+      "type": "tool_use_paper",
+      "focus": [
+        "self_supervised_tool_use",
+        "api_selection",
+        "tool_argument_generation",
+        "tool_result_integration"
+      ]
+    },
+    {
+      "title": "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation",
+      "type": "multi_agent_framework_paper",
+      "focus": [
+        "conversable_agents",
+        "role_based_agents",
+        "conversation_programming",
+        "multi_agent_orchestration"
+      ]
+    },
+    {
+      "title": "A Survey on Large Language Model based Autonomous Agents",
+      "type": "survey",
+      "focus": [
+        "agent_taxonomy",
+        "architecture",
+        "memory",
+        "planning",
+        "tool_use",
+        "evaluation"
+      ]
+    },
+    {
+      "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+      "type": "memory_reflection_agent_paper",
+      "focus": [
+        "memory_streams",
+        "reflection",
+        "planning",
+        "social_agent_behavior"
+      ]
+    },
+    {
+      "title": "Voyager: An Open-Ended Embodied Agent with Large Language Models",
+      "type": "embodied_agent_paper",
+      "focus": [
+        "skill_library",
+        "automatic_curriculum",
+        "lifelong_learning",
+        "environment_feedback"
+      ]
+    }
+  ],
+  "case_study_references": [
+    {
+      "title": "AlphaGo",
+      "type": "landmark_agent_case",
+      "why_it_matters": "A canonical case showing how planning, value estimation, policy learning, and search can be integrated into a high-performance decision-making agent."
+    },
+    {
+      "title": "Generative Agents sandbox study",
+      "type": "social_agent_case",
+      "why_it_matters": "Illustrates how memory, reflection, and planning components shape believable multi-agent social behavior in simulated environments."
+    },
+    {
+      "title": "Voyager in Minecraft",
+      "type": "embodied_lifelong_learning_case",
+      "why_it_matters": "Demonstrates open-ended skill acquisition, curriculum generation, and reusable skill memory in an embodied setting."
+    },
+    {
+      "title": "AutoGen multi-agent task solving",
+      "type": "framework_case",
+      "why_it_matters": "Useful for understanding how role-specialized agents can coordinate through structured conversation to handle complex tasks."
+    }
+  ],
+  "evaluation_and_benchmarking_topics": [
+    "task_success_rate",
+    "tool_call_accuracy",
+    "planning_quality",
+    "long_horizon_completion",
+    "sample_efficiency",
+    "robustness_under_environment_feedback",
+    "hallucination_and_error_recovery",
+    "coordination_quality_in_multi_agent_setups",
+    "memory_retrieval_relevance",
+    "cost_latency_and_reliability_tradeoffs"
+  ],
+  "agent_failure_modes": [
+    "tool_misuse",
+    "state_drift",
+    "plan_looping",
+    "memory_contamination",
+    "premature_termination",
+    "over_delegation",
+    "under_specified_goals",
+    "unsafe_autonomous_actions",
+    "context_window_loss",
+    "error_propagation_across_agent_handoffs"
+  ],
+  "governance_and_safety_controls": [
+    "permission_bounded_tool_use",
+    "human_approval_gates",
+    "rate_limits_and_budget_limits",
+    "plan_validation_before_execution",
+    "state_integrity_checks",
+    "memory_scoping",
+    "fallback_and_degradation_modes",
+    "role_separation_between_planning_and_execution",
+    "auditing_and_trace_logging",
+    "termination_and_loop_guards"
+  ],
+  "recommended_subtopics": [
+    {
+      "topic": "memory_systems",
+      "why_it_matters": "Persistent or semi-persistent memory is one of the major differentiators between one-shot assistants and agents capable of long-horizon execution."
+    },
+    {
+      "topic": "tool_use_and_api_orchestration",
+      "why_it_matters": "Tool access is where agents become operationally useful, but also where reliability, permissions, and auditability become critical."
+    },
+    {
+      "topic": "multi_agent_coordination",
+      "why_it_matters": "Complex tasks often benefit from role specialization, but coordination overhead and cascading error risk rise quickly."
+    },
+    {
+      "topic": "evaluation_and_benchmarking",
+      "why_it_matters": "Agent systems can look impressive in demos while failing badly in sustained tasks; benchmarks and operational metrics are essential."
+    },
+    {
+      "topic": "agent_safety_and_governance",
+      "why_it_matters": "As agents gain autonomy, the important question stops being what they can do and becomes what they are allowed to do, when, and under whose control."
+    },
+    {
+      "topic": "software_engineering_agents",
+      "why_it_matters": "Coding agents are one of the most commercially important agent forms, so they deserve explicit treatment as a distinct systems category."
+    }
+  ],
+  "learning_objectives": [
+    "understand_the_evolution_from_classical_rational_agents_to_tool_using_llm_agents",
+    "distinguish_single_agent_multi_agent_and_embodied_agent_systems",
+    "explain_how_memory_planning_reflection_and_tool_use_interact_in_modern_agents",
+    "understand_how_reinforcement_learning_relates_to_agent_behavior_and_control",
+    "analyze_failure_modes_such_as_looping_state_drift_and_tool_misuse",
+    "evaluate_agent_systems_using_task_success_reliability_and_cost_metrics",
+    "design_safe_boundaries_for_agent_permissions_memory_and_execution_scope",
+    "connect_agent_architecture_choices_to_real_world_use_cases_in_software_operations_and_assistance"
+  ],
+  "ingestion_priority": [
+    "Artificial Intelligence: A Modern Approach",
+    "Reinforcement Learning: An Introduction",
+    "An Introduction to MultiAgent Systems",
+    "Multiagent Systems, Second Edition",
+    "ReAct: Synergizing Reasoning and Acting in Language Models",
+    "Toolformer: Language Models Can Teach Themselves to Use Tools",
+    "A Survey on Large Language Model based Autonomous Agents",
+    "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation",
+    "Generative Agents: Interactive Simulacra of Human Behavior",
+    "Voyager: An Open-Ended Embodied Agent with Large Language Models"
+  ],
+  "notes_for_marion": [
+    "Use this pack as the systems trunk that links foundations, psychology, cybersecurity, and governance into one operational picture.",
+    "Keep agent analysis architecture-first: state, memory, planning, tools, control boundaries, and evaluation.",
+    "Do not confuse fluent text generation with competent agency. Real agents require planning, environment interaction, memory discipline, and safe execution controls.",
+    "Cross-link this pack later into ethics/law for accountability and into cybersecurity for tool-use and autonomy risk."
   ]
 }

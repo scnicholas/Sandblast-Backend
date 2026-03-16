@@ -1,7 +1,21 @@
 {
-  "id": "eng_semantics_pragmatics_v1",
-  "version": "1.0.0",
-  "description": "Meaning layer: semantics (encoded meaning) and pragmatics (contextual meaning), with university-level reasoning tools.",
+  "id": "eng_semantics_pragmatics_v2",
+  "version": "2.0.0",
+  "title": "Semantics and Pragmatics",
+  "description": "Encoded meaning, contextual meaning, inference, stance, politeness, ambiguity, and discourse interpretation.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
   "anchors": [],
   "topics": [
     {
@@ -24,6 +38,113 @@
       "practice": [
         "Rewrite a claim with calibrated hedging appropriate for academic prose.",
         "Explain a misunderstanding as a pragmatic mismatch (not just 'bad grammar')."
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_SP_M01",
+      "name": "Meaning Relations",
+      "outcomes": [
+        "Test entailment, contradiction, and presupposition.",
+        "Spot lexical and structural ambiguity."
+      ]
+    },
+    {
+      "moduleId": "ENG_SP_M02",
+      "name": "Implicature and Inference",
+      "outcomes": [
+        "Explain what is suggested rather than stated.",
+        "Identify where context changes interpretation."
+      ]
+    },
+    {
+      "moduleId": "ENG_SP_M03",
+      "name": "Hedging, Politeness, and Stance",
+      "outcomes": [
+        "Tune directness to relationship and task.",
+        "Prevent pragmatic mismatch in academic and advisory writing."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "ENG_SP_CS01",
+      "title": "Technically Correct, Socially Wrong",
+      "scenario": "An answer is semantically accurate but pragmatically harsh or confusing.",
+      "diagnosisTargets": [
+        "over-directness",
+        "missing empathy marker",
+        "unstated implication",
+        "tone-audience mismatch"
+      ]
+    },
+    {
+      "caseId": "ENG_SP_CS02",
+      "title": "Ambiguity in User Prompts",
+      "scenario": "A user request permits multiple interpretations and the assistant must infer cautiously without hallucinating.",
+      "intervention": [
+        "State the most likely interpretation.",
+        "Preserve alternatives.",
+        "Ask only when ambiguity materially changes the task."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_SP_P01",
+      "name": "Inference Guardrails",
+      "goal": "Create a small annotation set showing literal meaning, probable implied meaning, and safer assistant response behavior."
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_WILLIAMS_STYLE",
+      "type": "academic_writing",
+      "access": "book",
+      "title": "Style: Lessons in Clarity and Grace",
+      "authors": [
+        "Joseph M. Williams",
+        "Gregory G. Colomb",
+        "Joseph Bizup"
+      ],
+      "year": 2017,
+      "edition": "12th",
+      "publisher": "Pearson",
+      "citationAPA": "Williams, J. M., Colomb, G. G., & Bizup, J. (2017). Style: Lessons in clarity and grace (12th ed.). Pearson.",
+      "useInLayer": [
+        "clarity",
+        "revision",
+        "reader-centered prose",
+        "cohesion",
+        "argument structure"
+      ]
+    },
+    {
+      "key": "S_UofT_WritingAdvice",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Writing Advice",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/",
+      "useInLayer": [
+        "Canadian academic writing norms",
+        "revising",
+        "editing",
+        "grammar support"
+      ]
+    },
+    {
+      "key": "S_NCTE_QAGrammar",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Some Questions and Answers about Grammar",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/qandaaboutgrammar/",
+      "useInLayer": [
+        "metalanguage",
+        "grammar as description",
+        "teaching orientation"
       ]
     }
   ]

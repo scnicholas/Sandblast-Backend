@@ -1,6 +1,6 @@
 {
   "id": "fin_case_studies_v1",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "domain": "finance",
   "description": "Reusable finance and economics case study patterns for diagnostic reasoning. Structured for mediator-safe decision support.",
   "posture": {
@@ -8,7 +8,329 @@
     "not_predictive": true,
     "requires_context_mapping": true
   },
-  "caseStudyPatterns": [
+  "diagnosticQuestions": [
+    "What metric moved first?",
+    "Which cost category changed?",
+    "Is this a demand problem or a cost problem?",
+    "Is the issue structural or temporary?",
+    "What data would disprove this diagnosis?"
+  ],
+  "guardrails": [
+    "case_patterns_are_templates_not_predictions",
+    "always_map_to_actual_financial_data",
+    "avoid_overgeneralization_without_metrics",
+    "clarify_time_horizon"
+  ],
+  "upgradeMetadata": {
+    "upgradedOn": "2026-03-15",
+    "upgradePremise": "Expanded to degree-style support with modules, case studies, projects, source ladders, and assistant-use guidance.",
+    "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_advice",
+    "domain": "finance"
+  },
+  "referenceArchitecture": {
+    "textbooks_and_open_learning": [
+      {
+        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "type": "open_learning",
+        "authority": "professional_education",
+        "use": [
+          "capital_markets",
+          "cost_of_capital",
+          "equity_vs_debt"
+        ],
+        "license_note": "public_web_reference_only"
+      },
+      {
+        "title": "OpenStax Principles of Economics 3e",
+        "type": "open_textbook",
+        "authority": "open_education",
+        "use": [
+          "microeconomics",
+          "macroeconomics",
+          "policy",
+          "market_structure"
+        ],
+        "license_note": "open_textbook_reference"
+      },
+      {
+        "title": "Open Textbook Library finance/economics catalog",
+        "type": "open_textbook_index",
+        "authority": "library_style_open_reference",
+        "use": [
+          "curriculum_design",
+          "supplemental_reading"
+        ],
+        "license_note": "index_reference"
+      },
+      {
+        "title": "CFA Institute Research Foundation publications",
+        "type": "professional_research",
+        "authority": "professional_body",
+        "use": [
+          "asset_management",
+          "portfolio_thinking",
+          "market_structure",
+          "ethics"
+        ],
+        "license_note": "public_research_reference_only"
+      }
+    ],
+    "government_and_public_institutions": [
+      {
+        "title": "Bank of Canada monetary policy and interest rates",
+        "type": "central_bank",
+        "authority": "government",
+        "use": [
+          "rates",
+          "macro",
+          "credit_conditions",
+          "canadian_context"
+        ]
+      },
+      {
+        "title": "Statistics Canada economic indicators",
+        "type": "official_statistics",
+        "authority": "government",
+        "use": [
+          "inflation",
+          "labour",
+          "GDP",
+          "household_finance"
+        ]
+      },
+      {
+        "title": "U.S. Federal Reserve FRED economic data",
+        "type": "official_data_platform",
+        "authority": "central_bank",
+        "use": [
+          "time_series",
+          "macro_history",
+          "stress_testing_inputs"
+        ]
+      },
+      {
+        "title": "IMF Finance & Development",
+        "type": "institutional_magazine",
+        "authority": "multilateral",
+        "use": [
+          "case_context",
+          "global_macro",
+          "development_finance",
+          "explanatory_articles"
+        ]
+      },
+      {
+        "title": "World Bank Data and research explainers",
+        "type": "multilateral_data",
+        "authority": "multilateral",
+        "use": [
+          "global_development",
+          "country_context",
+          "cross-border_economics"
+        ]
+      },
+      {
+        "title": "OECD economic outlook and policy materials",
+        "type": "multilateral_policy_research",
+        "authority": "multilateral",
+        "use": [
+          "policy",
+          "productivity",
+          "labour",
+          "competition"
+        ]
+      }
+    ],
+    "markets_and_business_press": [
+      {
+        "title": "Financial Times markets and markets data",
+        "type": "business_press_plus_market_data",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "index_data_context",
+          "equities",
+          "bonds",
+          "currencies",
+          "commodities"
+        ]
+      },
+      {
+        "title": "Wall Street Journal Markets",
+        "type": "business_press",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "corporate_finance",
+          "earnings_context"
+        ]
+      },
+      {
+        "title": "The Economist finance and economics coverage",
+        "type": "business_magazine",
+        "authority": "major_magazine",
+        "use": [
+          "synthesis",
+          "macro",
+          "policy",
+          "industry_case_context"
+        ]
+      },
+      {
+        "title": "Bloomberg Markets concepts and explainers",
+        "type": "financial_media",
+        "authority": "major_financial_media",
+        "use": [
+          "market_mechanics",
+          "bond_math",
+          "risk_events",
+          "earnings_reactions"
+        ]
+      }
+    ],
+    "markets_data_and_filings": [
+      {
+        "title": "SEC EDGAR",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "10-K",
+          "10-Q",
+          "prospectuses",
+          "risk_factors",
+          "capital_raises"
+        ]
+      },
+      {
+        "title": "SEDAR+",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "canadian_issuer_filings",
+          "prospectuses",
+          "MD&A"
+        ]
+      },
+      {
+        "title": "TMX and major exchange education/data pages",
+        "type": "exchange_reference",
+        "authority": "exchange",
+        "use": [
+          "market_structure",
+          "listing_context",
+          "sector_data"
+        ]
+      }
+    ]
+  },
+  "modulesCore": [
+    {
+      "name": "financial_statement_reading",
+      "focus": [
+        "income_statement",
+        "balance_sheet",
+        "cash_flow",
+        "notes"
+      ],
+      "outcome": "interpret quality of earnings, liquidity, leverage, and working-capital strain"
+    },
+    {
+      "name": "markets_news_interpretation",
+      "focus": [
+        "earnings_news",
+        "central_bank_updates",
+        "sector_moves",
+        "macro_surprises"
+      ],
+      "outcome": "separate signal from narrative and identify first-order vs second-order effects"
+    },
+    {
+      "name": "case_method_finance",
+      "focus": [
+        "problem_definition",
+        "assumption_mapping",
+        "ratio_analysis",
+        "decision_tradeoffs"
+      ],
+      "outcome": "diagnose rather than guess"
+    },
+    {
+      "name": "assistant_finance_language_control",
+      "focus": [
+        "plain_explanations",
+        "audience_leveling",
+        "assumption_disclosure",
+        "non-advisory_boundaries"
+      ],
+      "outcome": "Nyx and Marion explain finance without sounding vague or reckless"
+    }
+  ],
+  "assistantApplication": {
+    "nyx": {
+      "role": "front_end_finance_explainer",
+      "strengths": [
+        "plain_language_translation",
+        "market_story_simplification",
+        "risk_flagging",
+        "question_driven_clarification"
+      ],
+      "grammarTargets": [
+        "clean sentence boundaries",
+        "hedged claims where uncertainty exists",
+        "explicit contrasts",
+        "less jargon without loss of meaning"
+      ]
+    },
+    "marion": {
+      "role": "back_end_finance_reasoner",
+      "strengths": [
+        "framework_selection",
+        "source_prioritization",
+        "scenario_reasoning",
+        "evidence_weighting"
+      ],
+      "grammarTargets": [
+        "structured analytical prose",
+        "clear causal chains",
+        "assumption labeling",
+        "disciplined terminology"
+      ]
+    }
+  },
+  "referenceUseRules": [
+    "Prefer primary sources for filings, central-bank policy, official data, and regulatory text.",
+    "Use reputable business press for narrative context, not as sole evidence.",
+    "Separate historical fact, current market snapshot, and interpretation.",
+    "When discussing markets, state uncertainty and avoid deterministic forecasts.",
+    "For Nyx, keep explanations short and crisp; for Marion, preserve the analytical chain."
+  ],
+  "learningModules": [
+    {
+      "module": "diagnostic_pattern_recognition",
+      "topics": [
+        "symptom_vs_root_cause",
+        "metric_selection",
+        "time_horizon"
+      ],
+      "projects": [
+        "build_case-triage prompt set"
+      ]
+    },
+    {
+      "module": "industry_case_comparison",
+      "topics": [
+        "saas",
+        "retail",
+        "manufacturing",
+        "services",
+        "media"
+      ],
+      "projects": [
+        "compare failure patterns across sectors"
+      ]
+    }
+  ],
+  "caseStudyLibraryV2": [
     {
       "id": "high_cac_low_retention",
       "title": "High CAC, Low Retention",
@@ -166,19 +488,91 @@
         "renegotiate_debt_terms",
         "reduce_fixed_cost_commitments"
       ]
+    },
+    {
+      "id": "working_capital_crunch_after_growth",
+      "title": "Growth Creates a Cash Crunch",
+      "symptoms": [
+        "sales rise",
+        "inventory rises",
+        "cash falls"
+      ],
+      "diagnosis": [
+        "growth consumes working capital",
+        "receivables stretch"
+      ],
+      "financialImpact": [
+        "external financing need",
+        "supplier pressure"
+      ],
+      "recommendedFocus": [
+        "collections sprint",
+        "inventory rationalization",
+        "reforecast by cash not revenue"
+      ]
+    },
+    {
+      "id": "earnings_quality_warning",
+      "title": "Reported Profit, Weak Cash Quality",
+      "symptoms": [
+        "net income positive",
+        "operating cash flow weak",
+        "aggressive revenue recognition hints"
+      ],
+      "diagnosis": [
+        "earnings quality concerns",
+        "working-capital manipulation or timing"
+      ],
+      "financialImpact": [
+        "multiple compression",
+        "covenant concern"
+      ],
+      "recommendedFocus": [
+        "reconcile EBITDA to cash",
+        "inspect receivables and deferred revenue",
+        "review notes and filings"
+      ]
+    },
+    {
+      "id": "headline_driven_market_selloff",
+      "title": "Narrative Panic vs Fundamental Change",
+      "symptoms": [
+        "stock price gap down",
+        "sensational press",
+        "unclear cashflow impact"
+      ],
+      "diagnosis": [
+        "narrative overshoot possible",
+        "need to separate sentiment from cashflow pathway"
+      ],
+      "financialImpact": [
+        "multiple reset",
+        "liquidity change"
+      ],
+      "recommendedFocus": [
+        "map actual transmission channel",
+        "read filing or call transcript",
+        "avoid reacting to headline only"
+      ]
     }
   ],
-  "diagnosticQuestions": [
-    "What metric moved first?",
-    "Which cost category changed?",
-    "Is this a demand problem or a cost problem?",
-    "Is the issue structural or temporary?",
-    "What data would disprove this diagnosis?"
-  ],
-  "guardrails": [
-    "case_patterns_are_templates_not_predictions",
-    "always_map_to_actual_financial_data",
-    "avoid_overgeneralization_without_metrics",
-    "clarify_time_horizon"
+  "projectsV2": [
+    {
+      "name": "finance_case_router",
+      "type": "software_project",
+      "outputs": [
+        "maps user problem to known case pattern",
+        "asks missing diagnostic questions"
+      ]
+    },
+    {
+      "name": "case-to-metrics workbook",
+      "type": "analysis_module",
+      "outputs": [
+        "case summary",
+        "metrics needed",
+        "disconfirming evidence section"
+      ]
+    }
   ]
 }

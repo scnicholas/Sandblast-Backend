@@ -1,0 +1,28 @@
+{
+  "emotion": {
+    "primary": "sadness",
+    "secondary": "fear",
+    "confidence": 0.83,
+    "intensity": 0.69
+  },
+  "nuance": {
+    "subtype": "loneliness",
+    "social_pattern": "feeling unseen",
+    "risk_flags": ["withdrawal"]
+  },
+  "psychology": {
+    "interpretation": "possible emotional disconnection",
+    "care_mode": "validation_first"
+  },
+  "support": {
+    "tone": "gentle",
+    "followup": true,
+    "advice_level": "low"
+  },
+  "guard": {
+    "diagnosis_block": true,
+    "safe_to_continue": true,
+    "escalation_needed": false,
+    "detected_flags": []
+  }
+}

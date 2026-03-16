@@ -1,19 +1,61 @@
 {
-  "domain": "english",
-  "domainVersion": "2.0.0",
-  "updatedAt": "2026-02-12",
-  "defaultLoadOrder": [
-    "eng_curriculum_sequence_v1.json",
-    "eng_sources_index_v1.json",
-    "eng_foundations_language_science_v1.json",
-    "eng_phonetics_phonology_v1.json",
-    "eng_morphology_word_formation_v1.json",
-    "eng_syntax_grammar_core_v1.json",
-    "eng_semantics_pragmatics_v1.json",
-    "eng_register_corpus_usage_v1.json",
-    "eng_academic_writing_clarity_v1.json",
-    "eng_eap_canada_case_studies_v1.json",
-    "eng_face_examples_v1.json",
-    "eng_dialogue_snippets_v1.json"
+  "bundle": "english_domain_upgrade_v2",
+  "version": "2.0.0",
+  "files": [
+    {
+      "file": "eng_academic_writing_clarity_v2.json",
+      "id": "eng_academic_writing_clarity_v2",
+      "title": "Academic Writing, Clarity, and Revision"
+    },
+    {
+      "file": "eng_curriculum_sequence_v2.json",
+      "id": "eng_curriculum_sequence_v2",
+      "title": "English / Linguistics Curriculum Sequence"
+    },
+    {
+      "file": "eng_eap_canada_case_studies_v2.json",
+      "id": "eng_eap_canada_case_studies_v2",
+      "title": "Canadian EAP Case Studies"
+    },
+    {
+      "file": "eng_foundations_language_science_v2.json",
+      "id": "eng_foundations_language_science_v2",
+      "title": "Foundations of Language Science"
+    },
+    {
+      "file": "eng_morphology_word_formation_v2.json",
+      "id": "eng_morphology_word_formation_v2",
+      "title": "Morphology and Word Formation"
+    },
+    {
+      "file": "eng_phonetics_phonology_v2.json",
+      "id": "eng_phonetics_phonology_v2",
+      "title": "Phonetics and Phonology"
+    },
+    {
+      "file": "eng_register_corpus_usage_v2.json",
+      "id": "eng_register_corpus_usage_v2",
+      "title": "Register and Corpus-Informed Usage"
+    },
+    {
+      "file": "eng_semantics_pragmatics_v2.json",
+      "id": "eng_semantics_pragmatics_v2",
+      "title": "Semantics and Pragmatics"
+    },
+    {
+      "file": "eng_sources_index_v2.json",
+      "id": "eng_sources_index_v2",
+      "title": "English Sources Index"
+    },
+    {
+      "file": "eng_syntax_grammar_core_v2.json",
+      "id": "eng_syntax_grammar_core_v2",
+      "title": "Syntax and Grammar Core"
+    }
+  ],
+  "notes": [
+    "All English packs normalized to a parallel v2 structure.",
+    "Each file includes modules, case studies, projects, assistant application notes, and explicit reference texts used.",
+    "Copyrighted works are represented by full bibliographic metadata rather than verbatim copied chapters."
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "guidelines": {
+    "avoid": [
+      "sudden_confrontation",
+      "blame_language",
+      "graphic_repetition",
+      "pressure_to_disclose"
+    ],
+    "prefer": [
+      "choice_based_language",
+      "gentle_pacing",
+      "safety_orientation",
+      "grounded_validation"
+    ],
+    "signals": [
+      "i don't feel safe",
+      "i shut down",
+      "i freeze",
+      "i get triggered"
+    ]
+  }
+}

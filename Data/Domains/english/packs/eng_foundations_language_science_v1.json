@@ -1,8 +1,26 @@
 {
-  "id": "eng_foundations_language_science_v1",
-  "version": "1.0.0",
-  "description": "Foundations of English as a language system: observation, description vs prescription, core analytic lenses.",
-  "anchors": ["S_QUARK_CGEL", "S_BIBER_LGSWE"],
+  "id": "eng_foundations_language_science_v2",
+  "version": "2.0.0",
+  "title": "Foundations of Language Science",
+  "description": "Foundational concepts for describing English as a system: levels of analysis, form-function reasoning, description versus prescription, and evidence-minded analysis.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [
+    "S_QUARK_CGEL",
+    "S_BIBER_LGSWE",
+    "S_NCTE_QAGrammar"
+  ],
   "topics": [
     {
       "name": "Descriptive vs Prescriptive",
@@ -35,6 +53,138 @@
       "skills": [
         "Write micro-arguments: claim → example → explanation.",
         "State limitations (register, dialect, audience)."
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_FLS_M01",
+      "name": "Description Before Prescription",
+      "outcomes": [
+        "Separate observed use from preferred norm.",
+        "Explain appropriateness by audience and context."
+      ]
+    },
+    {
+      "moduleId": "ENG_FLS_M02",
+      "name": "Levels of Analysis",
+      "outcomes": [
+        "Name the analytic level before making a claim.",
+        "Avoid category mistakes across sound, word, clause, and discourse."
+      ]
+    },
+    {
+      "moduleId": "ENG_FLS_M03",
+      "name": "Evidence and Limits",
+      "outcomes": [
+        "Support claims with examples, corpora, or references.",
+        "State dialect, register, and audience limitations."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "ENG_FLS_CS01",
+      "title": "Mistaking Pragmatics for Grammar",
+      "scenario": "A response is labeled 'bad grammar' when the real problem is tone, implication, or audience mismatch.",
+      "diagnosisTargets": [
+        "wrong analytic level",
+        "pragmatic mismatch",
+        "register error mistaken as grammar error"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_FLS_P01",
+      "name": "Language Observation Ledger",
+      "goal": "Collect real examples across conversation, news, and academic prose and label the level of analysis and function."
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_QUARK_CGEL",
+      "type": "reference_grammar",
+      "access": "book",
+      "title": "A Comprehensive Grammar of the English Language",
+      "authors": [
+        "Randolph Quirk",
+        "Sidney Greenbaum",
+        "Geoffrey Leech",
+        "Jan Svartvik"
+      ],
+      "year": 1985,
+      "publisher": "Longman",
+      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
+      "useInLayer": [
+        "syntax",
+        "morphology",
+        "clause structure",
+        "complementation",
+        "coordination",
+        "subordination"
+      ]
+    },
+    {
+      "key": "S_BIBER_LGSWE",
+      "type": "corpus_grammar",
+      "access": "book",
+      "title": "Longman Grammar of Spoken and Written English",
+      "authors": [
+        "Douglas Biber",
+        "Stig Johansson",
+        "Geoffrey Leech",
+        "Susan Conrad",
+        "Edward Finegan"
+      ],
+      "year": 1999,
+      "publisher": "Longman",
+      "citationAPA": "Biber, D., Johansson, S., Leech, G., Conrad, S., & Finegan, E. (1999). Longman grammar of spoken and written English. Longman.",
+      "useInLayer": [
+        "register",
+        "corpus usage",
+        "spoken vs written comparison",
+        "frequency-driven grammar choices"
+      ]
+    },
+    {
+      "key": "S_NCTE_QAGrammar",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Some Questions and Answers about Grammar",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/qandaaboutgrammar/",
+      "useInLayer": [
+        "metalanguage",
+        "grammar as description",
+        "teaching orientation"
+      ]
+    },
+    {
+      "key": "S_NCTE_GrammarExercises",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Resolution on Grammar Exercises to Teach Speaking and Writing",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/grammarexercises/",
+      "useInLayer": [
+        "avoid isolated drills",
+        "contextualized grammar instruction",
+        "meaningful writing practice"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_GeneralWriting",
+      "type": "open_reference",
+      "access": "web",
+      "title": "General Writing",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/index.html",
+      "useInLayer": [
+        "style",
+        "mechanics",
+        "transitions",
+        "general revision support"
       ]
     }
   ]

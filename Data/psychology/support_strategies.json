@@ -1,0 +1,49 @@
+{
+  "strategies": {
+    "validation_first": {
+      "tone": "gentle",
+      "followup": true,
+      "advice_level": "low"
+    },
+    "presence_first": {
+      "tone": "warm",
+      "followup": true,
+      "advice_level": "low"
+    },
+    "grounding_first": {
+      "tone": "calm",
+      "followup": false,
+      "advice_level": "low"
+    },
+    "stabilize_first": {
+      "tone": "steady",
+      "followup": false,
+      "advice_level": "minimal"
+    },
+    "contain_and_clarify": {
+      "tone": "clear",
+      "followup": true,
+      "advice_level": "low"
+    },
+    "gentle_nonjudgment": {
+      "tone": "soft",
+      "followup": true,
+      "advice_level": "low"
+    },
+    "reduce_pressure": {
+      "tone": "slow",
+      "followup": false,
+      "advice_level": "minimal"
+    },
+    "steady_reassurance": {
+      "tone": "reassuring",
+      "followup": true,
+      "advice_level": "low"
+    },
+    "gentle_invitation": {
+      "tone": "light",
+      "followup": true,
+      "advice_level": "minimal"
+    }
+  }
+}

@@ -1,24 +1,275 @@
 {
   "domain": "artificial_intelligence",
   "layer": "ai_marketing",
-  "version": "1.0.0",
-  "description": "AI applications in digital marketing and behavioral targeting.",
+  "version": "1.1.0",
+  "description": "Expanded AI marketing and digital marketing knowledge pack for Marion. This file covers predictive analytics, recommendation systems, customer segmentation, attribution, content generation, media optimization, CRM personalization, lifecycle automation, experimentation, retail and e-commerce use, and governance constraints for AI-enabled marketing systems.",
   "core_topics": [
     "predictive_analytics",
     "recommendation_systems",
     "customer_segmentation",
     "conversion_optimization",
-    "marketing_automation"
+    "marketing_automation",
+    "personalization_and_next_best_action",
+    "customer_lifetime_value_modeling",
+    "attribution_modeling",
+    "lead_scoring_and_pipeline_forecasting",
+    "pricing_and_promotion_optimization",
+    "search_and_social_ad_optimization",
+    "marketing_mix_modeling",
+    "content_generation_and_creative_optimization",
+    "email_sms_and_crm_orchestration",
+    "ecommerce_and_retail_ai",
+    "conversational_marketing_and_sales_assistants",
+    "genai_for_content_operations",
+    "experimentation_and_incrementality",
+    "marketing_data_governance",
+    "privacy_fairness_and_consent_in_marketing_ai"
+  ],
+  "subdomains": [
+    "digital_marketing",
+    "performance_marketing",
+    "crm_and_lifecycle_marketing",
+    "brand_and_content_marketing",
+    "retail_media_and_ecommerce",
+    "b2b_marketing_operations",
+    "sales_enablement_and_revops",
+    "marketing_analytics"
   ],
   "metrics_focus": [
     "customer_lifetime_value",
     "conversion_rate",
     "engagement_scoring",
-    "attribution_modeling"
+    "attribution_modeling",
+    "incremental_revenue",
+    "return_on_ad_spend",
+    "customer_acquisition_cost",
+    "retention_rate",
+    "churn_probability",
+    "average_order_value",
+    "email_click_to_open_rate",
+    "lead_to_opportunity_rate",
+    "pipeline_velocity",
+    "creative_lift",
+    "media_efficiency"
   ],
   "ethical_constraints": [
     "privacy_preservation",
     "bias_detection",
-    "consent_management"
+    "consent_management",
+    "transparent_personalization",
+    "explainable_targeting_rules",
+    "fairness_in_customer_scoring",
+    "children_and_sensitive_category_protections",
+    "human_review_for_high_impact_decisions",
+    "data_minimization",
+    "deceptive_claims_prevention"
+  ],
+  "primary_text_references": [
+    {
+      "title": "Marketing Artificial Intelligence: AI, Marketing, and the Future of Business",
+      "authors": [
+        "Paul Roetzer",
+        "Mike Kaput"
+      ],
+      "type": "practitioner_text",
+      "focus": [
+        "ai_use_cases_in_marketing",
+        "content_operations",
+        "automation",
+        "organizational_adoption"
+      ]
+    },
+    {
+      "title": "Marketing Analytics: Data-Driven Techniques with Microsoft Excel",
+      "author": "Wayne L. Winston",
+      "type": "analytics_textbook",
+      "focus": [
+        "analytics",
+        "segmentation",
+        "forecasting",
+        "campaign_measurement"
+      ]
+    },
+    {
+      "title": "Digital Marketing Analytics: In Theory And In Practice",
+      "authors": [
+        "Kevin Hartman",
+        "Joe McCambley",
+        "Catharine Noronha",
+        "Giovanni Sutto"
+      ],
+      "type": "digital_marketing_textbook",
+      "focus": [
+        "digital_channels",
+        "measurement",
+        "attribution",
+        "optimization"
+      ]
+    },
+    {
+      "title": "Marketing Data Science: Modeling Techniques in Predictive Analytics with R and Python",
+      "authors": [
+        "Thomas W. Miller"
+      ],
+      "type": "technical_marketing_analytics_reference",
+      "focus": [
+        "predictive_modeling",
+        "customer_analytics",
+        "classification",
+        "forecasting"
+      ]
+    }
+  ],
+  "research_and_review_references": [
+    {
+      "title": "Machine learning and artificial intelligence use in marketing: a general taxonomy",
+      "type": "systematic_review",
+      "focus": [
+        "taxonomy_of_marketing_ai_use_cases",
+        "business_literature_synthesis",
+        "marketing_application_categories"
+      ]
+    },
+    {
+      "title": "How generative AI is shaping the future of marketing",
+      "type": "scholarly_review",
+      "focus": [
+        "genai_in_service_and_sales",
+        "content_generation",
+        "customer_interaction",
+        "product_and_service_innovation"
+      ]
+    },
+    {
+      "title": "The interplay of artificial intelligence, machine learning, and data analytics in digital marketing and promotions: A review and research agenda",
+      "type": "review_article",
+      "focus": [
+        "digital_marketing",
+        "promotions",
+        "research_agenda",
+        "applied_ml"
+      ]
+    }
+  ],
+  "channels_and_activation_layers": [
+    "search_marketing",
+    "social_advertising",
+    "display_and_programmatic",
+    "email_and_crm",
+    "sms_and_push",
+    "onsite_personalization",
+    "call_center_and_conversational_sales",
+    "content_workflows",
+    "retail_media",
+    "account_based_marketing"
+  ],
+  "capability_modules": [
+    {
+      "name": "customer_intelligence",
+      "components": [
+        "segmentation",
+        "lookalike_modeling",
+        "propensity_scoring",
+        "next_best_offer",
+        "lifetime_value_prediction"
+      ]
+    },
+    {
+      "name": "media_and_growth_optimization",
+      "components": [
+        "budget_allocation",
+        "bid_optimization",
+        "creative_testing",
+        "channel_mix_analysis",
+        "incrementality_measurement"
+      ]
+    },
+    {
+      "name": "content_and_genai_operations",
+      "components": [
+        "creative_ideation",
+        "copy_variation_generation",
+        "seo_assistance",
+        "localisation",
+        "content_performance_feedback_loops"
+      ]
+    },
+    {
+      "name": "crm_and_lifecycle_automation",
+      "components": [
+        "journey_orchestration",
+        "send_time_optimization",
+        "retention_models",
+        "churn_prevention",
+        "upsell_cross_sell_models"
+      ]
+    },
+    {
+      "name": "governance_and_measurement",
+      "components": [
+        "privacy_controls",
+        "consent_tracking",
+        "model_monitoring",
+        "bias_review",
+        "roi_measurement"
+      ]
+    }
+  ],
+  "case_study_references": [
+    {
+      "title": "Personalization at scale in consumer marketing",
+      "type": "management_case_reference",
+      "focus": "personalization_and_next_best_action",
+      "why_it_matters": "Useful for understanding how AI and data infrastructure support individualized messaging, offer selection, and customer journey optimization."
+    },
+    {
+      "title": "Recommendation systems in digital commerce",
+      "type": "platform_case_reference",
+      "focus": "recommendation_systems",
+      "why_it_matters": "Shows how ranking, retrieval, and customer-behavior models affect product discovery, basket size, and retention."
+    },
+    {
+      "title": "Generative AI for marketing content operations",
+      "type": "workflow_case_reference",
+      "focus": "genai_for_content_operations",
+      "why_it_matters": "Helps frame where generative AI assists with content velocity, localization, testing, and workflow compression without replacing measurement discipline."
+    },
+    {
+      "title": "Retail and e-commerce dynamic optimization",
+      "type": "commercial_case_reference",
+      "focus": "pricing_and_promotion_optimization",
+      "why_it_matters": "Useful for connecting predictive modeling, demand signals, and promotional efficiency in commerce environments."
+    }
+  ],
+  "project_ideas_for_marion": [
+    "marketing_use_case_taxonomy_index",
+    "customer_lifecycle_model_reference_pack",
+    "creative_testing_and_prompting_guidelines",
+    "privacy_and_consent_decision_rules_for_marketing_ai",
+    "ai_driven_campaign_measurement_playbook",
+    "b2b_lead_scoring_and_pipeline_forecasting_reference",
+    "retail_media_and_ecommerce_recommendation_patterns"
+  ],
+  "learning_objectives": [
+    "understand_the_major_ai_use_cases_in_digital_and_growth_marketing",
+    "distinguish_personalization_recommendation_and_segmentation_as_related_but_separate_capabilities",
+    "reason_about_marketing_measurement_using_incrementality_attribution_and_lifetime_value",
+    "understand_how_genai_changes_content_operations_but_not_the_need_for_measurement_and_governance",
+    "connect_predictive_models_to_crm_media_optimization_and_revenue_operations",
+    "apply_privacy_fairness_and_consent_constraints_to_marketing_ai_system_design"
+  ],
+  "ingestion_priority": [
+    "Machine learning and artificial intelligence use in marketing: a general taxonomy",
+    "How generative AI is shaping the future of marketing",
+    "Marketing Artificial Intelligence: AI, Marketing, and the Future of Business",
+    "Marketing Analytics: Data-Driven Techniques with Microsoft Excel",
+    "Digital Marketing Analytics: In Theory And In Practice",
+    "Marketing Data Science: Modeling Techniques in Predictive Analytics with R and Python"
+  ],
+  "notes_for_marion": [
+    "This pack should connect AI methods to actual marketing operating models rather than generic hype about automation.",
+    "Keep measurement central. Marketing claims are weak without incrementality, retention, and revenue linkage.",
+    "Treat personalization, targeting, and content generation as governance-sensitive areas because privacy, fairness, and deceptive-claims risk are always present.",
+    "Cross-link this pack later into ethics_law for privacy and consumer protection, and into psychology for persuasion, trust, and behavioral influence."
   ]
 }

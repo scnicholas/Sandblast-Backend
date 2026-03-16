@@ -1,0 +1,482 @@
+{
+  "packId": "psy_cognitive_v2",
+  "domain": "psychology",
+  "version": 2,
+  "description": "Doctoral-level cognitive psychology pack covering attention, memory, learning, reasoning, executive control, metacognition, and evidence-based explanation.",
+  "updatedAt": "2026-03-15",
+  "scope": [
+    "memory",
+    "attention",
+    "learning",
+    "decision-making",
+    "problem-solving",
+    "cognitive-load"
+  ],
+  "theories": [
+    {
+      "id": "working_memory_model",
+      "name": "Working Memory Model",
+      "category": "memory",
+      "oneLiner": "Working memory has limited capacity and is responsible for short-term information manipulation.",
+      "coreMechanism": [
+        "Limited capacity (~4 chunks).",
+        "Active manipulation of information.",
+        "Overload reduces performance."
+      ],
+      "actionablePrinciples": [
+        "Break complex tasks into chunks.",
+        "Reduce simultaneous information streams.",
+        "Externalize memory (notes, checklists)."
+      ],
+      "faceExamples": [
+        {
+          "title": "Overloaded founder",
+          "scenario": "User juggling multiple technical layers at once.",
+          "application": "Offload decisions into structured steps."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "overloaded",
+          "too much information",
+          "can't hold it all",
+          "brain full"
+        ],
+        "intentSignals": [
+          "simplify this",
+          "break this down"
+        ]
+      }
+    },
+    {
+      "id": "cognitive_load_theory",
+      "name": "Cognitive Load Theory",
+      "category": "learning",
+      "oneLiner": "Learning efficiency declines when intrinsic and extraneous load exceed processing capacity.",
+      "coreMechanism": [
+        "Intrinsic load (task complexity).",
+        "Extraneous load (presentation noise).",
+        "Germane load (schema building)."
+      ],
+      "actionablePrinciples": [
+        "Remove unnecessary information.",
+        "Sequence complexity gradually.",
+        "Use worked examples before abstraction."
+      ],
+      "faceExamples": [
+        {
+          "title": "Documentation overload",
+          "scenario": "User overwhelmed by too many moving system components.",
+          "application": "Reduce noise before adding optimization."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "too complex",
+          "hard to understand",
+          "overwhelming"
+        ],
+        "intentSignals": [
+          "why is this hard to learn"
+        ]
+      }
+    },
+    {
+      "id": "dual_process_theory",
+      "name": "Dual Process Theory",
+      "category": "decision-making",
+      "oneLiner": "Human reasoning operates through fast intuitive (System 1) and slow analytical (System 2) processes.",
+      "coreMechanism": [
+        "System 1: automatic, emotional, heuristic-driven.",
+        "System 2: deliberate, logical, effortful."
+      ],
+      "actionablePrinciples": [
+        "Pause before high-stakes decisions.",
+        "Separate emotional reaction from analysis.",
+        "Run a slow-pass review on major moves."
+      ],
+      "faceExamples": [
+        {
+          "title": "Reactive decision",
+          "scenario": "User wants to pivot immediately after frustration.",
+          "application": "Introduce deliberate evaluation step."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "gut feeling",
+          "instinct",
+          "reacting"
+        ],
+        "intentSignals": [
+          "am I thinking clearly"
+        ]
+      }
+    },
+    {
+      "id": "metacognition",
+      "name": "Metacognition",
+      "category": "self-regulation",
+      "oneLiner": "Thinking about one's own thinking improves strategy and learning efficiency.",
+      "coreMechanism": [
+        "Monitoring understanding.",
+        "Evaluating strategy effectiveness.",
+        "Adjusting approaches deliberately."
+      ],
+      "actionablePrinciples": [
+        "Ask: 'What do I actually understand?'",
+        "Test assumptions explicitly.",
+        "Build feedback loops."
+      ],
+      "faceExamples": [
+        {
+          "title": "Overconfidence check",
+          "scenario": "User believes they have mastered a domain quickly.",
+          "application": "Introduce benchmark validation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "how do I know",
+          "am I missing something",
+          "blind spot"
+        ],
+        "intentSignals": [
+          "evaluate my thinking"
+        ]
+      }
+    },
+    {
+      "id": "spaced_repetition",
+      "name": "Spaced Repetition",
+      "category": "memory",
+      "oneLiner": "Information retained better when exposure is spaced over time.",
+      "coreMechanism": [
+        "Forgetting curve decay.",
+        "Reinforcement at increasing intervals."
+      ],
+      "actionablePrinciples": [
+        "Review material at spaced intervals.",
+        "Use retrieval practice instead of rereading.",
+        "Schedule micro-reviews."
+      ],
+      "faceExamples": [
+        {
+          "title": "Skill retention",
+          "scenario": "User forgets system structures after short bursts.",
+          "application": "Implement structured review cadence."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "forget quickly",
+          "can't retain",
+          "memory fading"
+        ],
+        "intentSignals": [
+          "how do I remember this"
+        ]
+      }
+    },
+    {
+      "id": "attention_control_theory",
+      "name": "Attention Control Theory",
+      "category": "attention",
+      "oneLiner": "Anxiety and stress reduce attentional control and working memory efficiency.",
+      "coreMechanism": [
+        "Threat-related stimuli capture attention.",
+        "Executive control weakens under stress."
+      ],
+      "actionablePrinciples": [
+        "Stabilize emotional state before complex reasoning.",
+        "Reduce distractions.",
+        "Single-task under pressure."
+      ],
+      "faceExamples": [
+        {
+          "title": "High-pressure launch",
+          "scenario": "User under deadline cannot think clearly.",
+          "application": "Contain emotional load before strategy."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "can't focus",
+          "distracted",
+          "stress"
+        ],
+        "intentSignals": [
+          "why can't I concentrate"
+        ]
+      }
+    }
+  ],
+  "applicationRules": [
+    {
+      "id": "never_diagnose",
+      "instruction": "Use cognitive explanations as educational framing, not medical diagnosis."
+    },
+    {
+      "id": "always_include_actionable",
+      "instruction": "When a theory is surfaced, include at least one actionable principle."
+    },
+    {
+      "id": "match_load_to_user",
+      "instruction": "If cognitive load is high, simplify theory explanation."
+    }
+  ],
+  "meta": {
+    "intendedUse": "Cognitive reasoning support layer for Marion psychology domain.",
+    "compatibleWith": [
+      "psychologyKnowledge.js",
+      "MarionSO"
+    ],
+    "confidenceLevel": "core_foundational"
+  },
+  "academicLevel": "doctoral_retrieval_and_reasoning_support",
+  "referencePolicy": {
+    "includeReferenceMetadata": true,
+    "includeCaseStudies": true,
+    "includeModules": true,
+    "includeAssessmentMetadata": true,
+    "embedFullCopyrightedTexts": false,
+    "embedRestrictedTestItems": false
+  },
+  "sourceArchitecture": {
+    "primary": [
+      {
+        "type": "peer_reviewed_empirical_research",
+        "examples": [
+          "journal articles",
+          "registered reports",
+          "meta-analyses",
+          "systematic reviews"
+        ],
+        "useWhen": [
+          "effect size questions",
+          "mechanism questions",
+          "intervention evidence",
+          "method disputes"
+        ]
+      },
+      {
+        "type": "official_guidelines_and_competency_documents",
+        "examples": [
+          "APA education and training guidelines",
+          "NIH/OBSSR methods resources",
+          "accreditation standards"
+        ],
+        "useWhen": [
+          "curriculum design",
+          "competency mapping",
+          "doctoral training framing"
+        ]
+      }
+    ],
+    "secondary": [
+      {
+        "type": "textbooks_and_handbooks",
+        "examples": [
+          "graduate seminar texts",
+          "advanced survey texts",
+          "research methods handbooks",
+          "encyclopedias of psychology"
+        ],
+        "useWhen": [
+          "concept explanation",
+          "historical framing",
+          "doctrinal synthesis",
+          "course preparation"
+        ]
+      },
+      {
+        "type": "library_style_reference_tools",
+        "examples": [
+          "Oxford/Cambridge handbooks",
+          "APA handbooks",
+          "SAGE methods references",
+          "encyclopedias"
+        ],
+        "useWhen": [
+          "quick orientation",
+          "topic mapping",
+          "reading-list building"
+        ]
+      }
+    ],
+    "tertiary": [
+      {
+        "type": "open_education_and_public_facing_material",
+        "examples": [
+          "OpenStax",
+          "APA public explainers",
+          "university open course notes"
+        ],
+        "useWhen": [
+          "introductory orientation",
+          "plain-language explanation",
+          "public education"
+        ]
+      }
+    ],
+    "trustRules": [
+      "Prefer meta-analyses and systematic reviews over isolated studies for settled questions.",
+      "Prefer official competency/guideline sources for curricular and training claims.",
+      "Treat textbook summaries as synthesis, not as substitutes for primary evidence.",
+      "Separate measurement validity from popularity of an instrument."
+    ]
+  },
+  "assistantApplication": {
+    "nyx": [
+      "Use advanced ideas in plain language without sounding clinical or detached.",
+      "Prefer conceptual compression: mechanism → implication → next question.",
+      "Avoid sounding diagnostic when discussing emotions, habits, or conflict."
+    ],
+    "marion": [
+      "Weight claims by evidence tier and measurement quality.",
+      "Separate theory explanation, evidence appraisal, and action suggestions into distinct layers.",
+      "Use retrieval routing to pull safety pack before intervention content when risk language appears."
+    ]
+  },
+  "doctoralModules": [
+    {
+      "id": "mod_theory_history",
+      "title": "Theory, history, and paradigm formation",
+      "outcomes": [
+        "Compare competing explanatory frameworks.",
+        "Explain how paradigms rise, fragment, and get revised.",
+        "Distinguish descriptive, mechanistic, and normative claims."
+      ]
+    },
+    {
+      "id": "mod_methods_stats",
+      "title": "Methods, measurement, and statistical reasoning",
+      "outcomes": [
+        "Critique design validity, power, and measurement quality.",
+        "Interpret effect sizes and uncertainty correctly.",
+        "Identify confounds, bias pathways, and causal limits."
+      ]
+    },
+    {
+      "id": "mod_translation_ethics",
+      "title": "Translation, ethics, and applied reasoning",
+      "outcomes": [
+        "Translate evidence into bounded practical guidance.",
+        "Maintain safety and scope discipline.",
+        "Separate educational explanation from diagnosis or treatment."
+      ]
+    }
+  ],
+  "doctoralExamScaffolds": {
+    "writtenComps": [
+      "Compare two major theoretical frameworks and defend which better explains a class of findings.",
+      "Critique a study program as if reviewing a dissertation proposal.",
+      "Integrate theory, method, and ethics in a high-stakes applied scenario."
+    ],
+    "oralDefensePrompts": [
+      "What evidence would falsify your preferred explanation?",
+      "What measurement choices most threaten interpretation here?",
+      "How should an assistant explain this to a layperson without overstating certainty?"
+    ],
+    "specialtyPrompts": [
+      "Defend or reject the claim that working memory is best treated as a unitary bottleneck.",
+      "Explain when dual-process accounts illuminate judgment and when they obscure mechanism.",
+      "Design a study to test whether a learning intervention improves transfer rather than just short-term performance."
+    ]
+  },
+  "advancedDomains": [
+    "computational models of cognition",
+    "working-memory debates",
+    "bounded rationality and heuristics",
+    "cognitive control and interference",
+    "expertise, transfer, and schema formation"
+  ],
+  "caseStudies": [
+    {
+      "id": "case_cog_overload",
+      "title": "Operator overload in a multichannel system",
+      "focus": [
+        "working memory",
+        "extraneous load",
+        "task switching"
+      ],
+      "questions": [
+        "What is most likely failing first?",
+        "How would a lab paradigm operationalize this?"
+      ]
+    },
+    {
+      "id": "case_cog_false_confidence",
+      "title": "Strong confidence after shallow exposure",
+      "focus": [
+        "metacognition",
+        "fluency illusions",
+        "Dunning-Kruger-adjacent monitoring error"
+      ],
+      "questions": [
+        "What data would distinguish real mastery from familiarity?"
+      ]
+    },
+    {
+      "id": "case_cog_forgetting",
+      "title": "Fast forgetting after intense short bursts",
+      "focus": [
+        "spacing",
+        "retrieval practice",
+        "encoding specificity"
+      ],
+      "questions": [
+        "What schedule or measurement plan best tests retention?"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "title": "Cognitive-load explainer engine",
+      "deliverable": "Rule set that translates complex tasks into chunked, low-load steps for Nyx."
+    },
+    {
+      "title": "Memory-support toolkit",
+      "deliverable": "JSON modules for retrieval practice, spacing, cueing, and interference reduction."
+    }
+  ],
+  "assessmentFamilies": [
+    {
+      "name": "working_memory_tasks",
+      "examples": [
+        "digit span",
+        "operation span",
+        "n-back (with caveats)"
+      ],
+      "notes": "Describe tasks conceptually; do not oversell any single task as complete measurement."
+    },
+    {
+      "name": "executive_control_tasks",
+      "examples": [
+        "Stroop",
+        "flanker",
+        "task switching",
+        "go/no-go"
+      ],
+      "notes": "Useful for operationalization examples and doctoral methods discussions."
+    }
+  ],
+  "textReferenceMap": [
+    {
+      "area": "cognitive",
+      "coreTexts": [
+        "Eysenck & Keane — Cognitive Psychology",
+        "Goldstein — Cognitive Psychology",
+        "Kahneman — Thinking, Fast and Slow"
+      ],
+      "journalsOrEvidenceStreams": [
+        "Cognitive Psychology",
+        "Journal of Experimental Psychology",
+        "Trends in Cognitive Sciences"
+      ],
+      "officialOrOpenResources": [
+        "Open psychology textbooks for baseline definitions"
+      ]
+    }
+  ]
+}

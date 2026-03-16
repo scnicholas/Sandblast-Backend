@@ -1,0 +1,446 @@
+{
+  "packId": "psy_social_v1",
+  "domain": "psychology",
+  "version": 1,
+  "description": "Social psychology foundations: how people think, feel, and act in social contexts—attitudes, influence, groups, identity, prejudice, relationships, and prosocial/antisocial behavior. Built for Marion to answer 'why people do that' questions with clean caveats and practical, non-clinical insights.",
+  "updatedAt": "2026-02-13",
+  "scope": [
+    "social-cognition",
+    "self-identity",
+    "attitudes-persuasion",
+    "social-influence",
+    "group-processes",
+    "prejudice-discrimination",
+    "relationships",
+    "prosocial-antisocial",
+    "culture"
+  ],
+
+  "coreConcepts": [
+    {
+      "id": "social_cognition",
+      "name": "Social Cognition",
+      "oneLiner": "We use mental shortcuts to interpret people and situations—fast, useful, and sometimes wrong.",
+      "keyPoints": [
+        "Schemas guide attention and interpretation; they can create blind spots.",
+        "Heuristics reduce cognitive load but increase systematic biases.",
+        "Attributions: explaining behavior via person (disposition) vs situation."
+      ],
+      "commonMisconceptions": [
+        "If I feel confident, I must be correct.",
+        "Behavior always reflects personality more than context."
+      ],
+      "retrievalHints": {
+        "keywords": ["schema", "heuristic", "attribution", "social cognition", "interpretation"],
+        "intentSignals": ["why did they", "what were they thinking", "how do people judge"]
+      }
+    },
+    {
+      "id": "fundamental_attribution_error",
+      "name": "Fundamental Attribution Error",
+      "oneLiner": "We over-attribute others’ behavior to personality and underweight the situation.",
+      "keyPoints": [
+        "Stronger for judging others than ourselves (actor–observer asymmetry).",
+        "Reduced when situational constraints are salient and specific.",
+        "Can be moderated by culture (some contexts weigh situation more)."
+      ],
+      "commonMisconceptions": [
+        "I’m objective about other people’s motives.",
+        "If someone did it, they wanted to."
+      ],
+      "retrievalHints": {
+        "keywords": ["fundamental attribution error", "actor observer", "disposition", "situation"],
+        "intentSignals": ["they're just like that", "they must be", "why are people so"]
+      }
+    },
+    {
+      "id": "self_concept_identity",
+      "name": "Self-Concept and Identity",
+      "oneLiner": "The self is both personal (traits) and social (group memberships) and shifts by context.",
+      "keyPoints": [
+        "Self-schema influences goals, emotion, and attention.",
+        "Social identity: belonging to groups shapes beliefs and behavior.",
+        "Self-esteem can be buffered by group pride or threatened by exclusion."
+      ],
+      "commonMisconceptions": [
+        "People have one stable self that never shifts.",
+        "Group identity is always irrational."
+      ],
+      "retrievalHints": {
+        "keywords": ["self concept", "social identity", "self-esteem", "belonging"],
+        "intentSignals": ["who am I", "why do groups matter", "identity"]
+      }
+    },
+    {
+      "id": "attitudes",
+      "name": "Attitudes",
+      "oneLiner": "Attitudes are evaluations—shaped by beliefs, feelings, and past behavior—and they predict behavior best when specific and accessible.",
+      "keyPoints": [
+        "ABC model: affect, behavior, cognition.",
+        "Attitude–behavior link strengthens with specificity and low social pressure.",
+        "Attitudes can be explicit (reported) or implicit (automatic associations)."
+      ],
+      "commonMisconceptions": [
+        "Attitudes always predict behavior.",
+        "Implicit measures are perfect lie detectors."
+      ],
+      "retrievalHints": {
+        "keywords": ["attitudes", "implicit", "explicit", "ABC model"],
+        "intentSignals": ["why did they change their mind", "do attitudes predict"]
+      }
+    },
+    {
+      "id": "cognitive_dissonance",
+      "name": "Cognitive Dissonance",
+      "oneLiner": "When behavior and beliefs conflict, people reduce discomfort by changing beliefs, justifying behavior, or shifting attention.",
+      "keyPoints": [
+        "Dissonance is stronger when people feel choice and responsibility.",
+        "Justification can be internal (belief change) or external (excuses).",
+        "Can lead to escalation of commitment: doubling down after costs."
+      ],
+      "commonMisconceptions": [
+        "Only weak-minded people rationalize.",
+        "Dissonance always causes immediate belief change."
+      ],
+      "retrievalHints": {
+        "keywords": ["dissonance", "rationalize", "justify", "escalation of commitment"],
+        "intentSignals": ["why do people double down", "why won't they admit they're wrong"]
+      }
+    },
+    {
+      "id": "persuasion",
+      "name": "Persuasion",
+      "oneLiner": "Persuasion works through message content and mental route: thoughtful processing vs shortcuts.",
+      "keyPoints": [
+        "Dual-process: central/systematic vs peripheral/heuristic routes.",
+        "Credibility, liking, and social proof influence heuristic route.",
+        "Strong arguments + motivated audience strengthen durable change."
+      ],
+      "commonMisconceptions": [
+        "Facts alone persuade everyone.",
+        "Charisma beats evidence in all contexts."
+      ],
+      "retrievalHints": {
+        "keywords": ["persuasion", "central route", "peripheral route", "credibility", "social proof"],
+        "intentSignals": ["how do I convince", "why didn't evidence work", "persuasive messaging"]
+      }
+    },
+    {
+      "id": "social_influence_norms",
+      "name": "Social Influence and Norms",
+      "oneLiner": "People conform to fit in (normative) and to be right (informational).",
+      "keyPoints": [
+        "Normative influence: approval/avoid rejection.",
+        "Informational influence: uncertainty → adopt group as evidence.",
+        "Norms can be descriptive (what is done) or injunctive (what is approved)."
+      ],
+      "commonMisconceptions": [
+        "Conformity means lack of character.",
+        "If many people do it, it must be correct."
+      ],
+      "retrievalHints": {
+        "keywords": ["norms", "conformity", "normative", "informational", "descriptive", "injunctive"],
+        "intentSignals": ["peer pressure", "everyone is doing it", "why did I go along"]
+      }
+    },
+    {
+      "id": "obedience_authority",
+      "name": "Obedience and Authority",
+      "oneLiner": "Authority structures can amplify compliance—especially under ambiguity, diffusion of responsibility, and gradual escalation.",
+      "keyPoints": [
+        "Situational framing and legitimacy cues increase obedience.",
+        "Foot-in-the-door: small commitments escalate to bigger ones.",
+        "Accountability and dissent reduce harmful compliance."
+      ],
+      "commonMisconceptions": [
+        "Only bad people obey harmful orders.",
+        "Obedience is purely a personality trait."
+      ],
+      "retrievalHints": {
+        "keywords": ["obedience", "authority", "compliance", "foot in the door", "accountability"],
+        "intentSignals": ["why would someone follow", "how did this happen", "authority pressure"]
+      }
+    },
+    {
+      "id": "groups_roles",
+      "name": "Group Processes and Roles",
+      "oneLiner": "Groups shape identity, behavior, and decision quality through norms, roles, and dynamics.",
+      "keyPoints": [
+        "Roles are expectations; they can override personal preferences.",
+        "Group polarization: groups often shift to more extreme positions.",
+        "Groupthink risk rises with cohesion + poor dissent + high stakes."
+      ],
+      "commonMisconceptions": [
+        "Groups average out biases (they often amplify them).",
+        "Strong leaders automatically improve decisions."
+      ],
+      "retrievalHints": {
+        "keywords": ["groupthink", "polarization", "roles", "norms", "cohesion"],
+        "intentSignals": ["why did the group decide", "mob mentality", "team dynamics"]
+      }
+    },
+    {
+      "id": "deindividuation",
+      "name": "Deindividuation",
+      "oneLiner": "Anonymity + arousal + group immersion can reduce self-monitoring and increase norm-following (good or bad).",
+      "keyPoints": [
+        "Doesn’t always lead to antisocial behavior; it amplifies dominant norms.",
+        "Online contexts can increase disinhibition (with moderating factors).",
+        "Accountability cues reduce harmful effects."
+      ],
+      "commonMisconceptions": [
+        "Anonymity always makes people cruel.",
+        "Deindividuation equals 'loss of self' in all cases."
+      ],
+      "retrievalHints": {
+        "keywords": ["deindividuation", "anonymity", "disinhibition", "crowds"],
+        "intentSignals": ["online behavior", "crowd behavior", "why people act different in groups"]
+      }
+    },
+    {
+      "id": "prejudice_discrimination",
+      "name": "Prejudice and Discrimination",
+      "oneLiner": "Bias can be explicit or implicit, individual or structural; discrimination is behavior, prejudice is attitude.",
+      "keyPoints": [
+        "Ingroup favoritism is common even without outgroup hatred.",
+        "Stereotypes can be activated automatically, but behavior is modifiable.",
+        "Contact under the right conditions can reduce prejudice."
+      ],
+      "commonMisconceptions": [
+        "Implicit bias means someone is secretly hateful.",
+        "Prejudice is only an individual moral failure (structures matter too)."
+      ],
+      "retrievalHints": {
+        "keywords": ["prejudice", "discrimination", "stereotype", "ingroup", "outgroup", "implicit bias"],
+        "intentSignals": ["why are people racist", "bias", "stereotypes", "discrimination"]
+      }
+    },
+    {
+      "id": "stereotype_threat",
+      "name": "Stereotype Threat",
+      "oneLiner": "Performance can drop when people fear confirming a negative stereotype about their group.",
+      "keyPoints": [
+        "Triggered by identity salience and high-stakes evaluation.",
+        "Can be reduced by belonging cues, reframing, and supportive norms.",
+        "Not the sole explanation for group differences—context matters."
+      ],
+      "commonMisconceptions": [
+        "It affects everyone equally in every test.",
+        "It explains all achievement gaps by itself."
+      ],
+      "retrievalHints": {
+        "keywords": ["stereotype threat", "identity salience", "belonging cues"],
+        "intentSignals": ["why do I blank out", "test anxiety because of identity", "pressure to represent"]
+      }
+    },
+    {
+      "id": "aggression",
+      "name": "Aggression",
+      "oneLiner": "Aggression emerges from person × situation: provocation, norms, modeling, and self-control resources.",
+      "keyPoints": [
+        "Frustration can increase aggression, especially with provocation cues.",
+        "Social learning: modeling and reinforcement shape aggression.",
+        "Self-control and sleep/stress load affect impulse control."
+      ],
+      "commonMisconceptions": [
+        "Aggression is purely genetic.",
+        "Vent/‘catharsis’ reliably reduces aggression (often not)."
+      ],
+      "retrievalHints": {
+        "keywords": ["aggression", "provocation", "social learning", "self-control"],
+        "intentSignals": ["why do I get angry", "why do people lash out", "rage"]
+      }
+    },
+    {
+      "id": "prosocial_behavior",
+      "name": "Prosocial Behavior",
+      "oneLiner": "Helping depends on attention, interpretation, responsibility, and perceived cost—plus empathy and norms.",
+      "keyPoints": [
+        "Bystander effect: diffusion of responsibility when others are present.",
+        "Empathy increases helping, especially when costs are manageable.",
+        "Clear requests + role clarity increase intervention likelihood."
+      ],
+      "commonMisconceptions": [
+        "If people don’t help, they’re immoral.",
+        "Helping is always altruistic (often mixed motives)."
+      ],
+      "retrievalHints": {
+        "keywords": ["bystander effect", "helping", "empathy", "diffusion of responsibility"],
+        "intentSignals": ["why didn't anyone help", "why did I freeze", "how to encourage helping"]
+      }
+    },
+    {
+      "id": "relationships_attachment_social",
+      "name": "Relationships and Attachment (Social Lens)",
+      "oneLiner": "Closeness grows from repeated positive exchanges, trust, and responsiveness; attachment patterns shape expectations under stress.",
+      "keyPoints": [
+        "Interdependence: partners influence each other’s outcomes.",
+        "Responsiveness (seen, safe, valued) predicts satisfaction.",
+        "Conflict patterns matter more than conflict frequency."
+      ],
+      "commonMisconceptions": [
+        "Healthy couples never fight.",
+        "Jealousy equals love."
+      ],
+      "retrievalHints": {
+        "keywords": ["relationships", "trust", "responsiveness", "attachment", "conflict patterns"],
+        "intentSignals": ["why do relationships fail", "trust issues", "communication"]
+      }
+    },
+    {
+      "id": "culture",
+      "name": "Culture and Social Behavior",
+      "oneLiner": "Culture tunes norms, self-construal (independent/interdependent), and what counts as 'appropriate' behavior.",
+      "keyPoints": [
+        "Individualist vs collectivist tendencies shape attribution and persuasion.",
+        "Norm tightness/looseness affects conformity and deviance.",
+        "Avoid overgeneralizing: within-culture variation is large."
+      ],
+      "commonMisconceptions": [
+        "Culture determines behavior rigidly.",
+        "One culture explanation fits everyone in that group."
+      ],
+      "retrievalHints": {
+        "keywords": ["culture", "collectivist", "individualist", "norms", "tightness"],
+        "intentSignals": ["is this cultural", "why is it different there", "cross-cultural"]
+      }
+    }
+  ],
+
+  "frameworks": [
+    {
+      "id": "attribution_matrix",
+      "name": "Attribution Matrix (Quick)",
+      "steps": [
+        "Describe the behavior (what happened, observable).",
+        "List situational pressures (constraints, incentives, norms).",
+        "List dispositional factors (traits, motives, skills).",
+        "Check for base rate neglect (how common is this generally?).",
+        "Choose a balanced explanation with uncertainty."
+      ],
+      "useCases": ["conflict interpretation", "team behavior", "customer reactions"]
+    },
+    {
+      "id": "persuasion_planner",
+      "name": "Persuasion Planner",
+      "steps": [
+        "Audience: motivation + ability to process.",
+        "Route: central (arguments) vs peripheral (cues).",
+        "Message: one clear claim + evidence + relevance.",
+        "Credibility: expertise + trust + alignment with values.",
+        "Friction: preempt objections, reduce cognitive load."
+      ],
+      "useCases": ["marketing copy", "negotiation", "internal comms"]
+    },
+    {
+      "id": "group_decision_guardrails",
+      "name": "Group Decision Guardrails (Anti-Groupthink)",
+      "steps": [
+        "Assign a rotating devil’s advocate.",
+        "Collect independent opinions before discussion.",
+        "Surface disconfirming evidence explicitly.",
+        "Separate brainstorming from evaluation.",
+        "Use pre-mortems: 'How could this fail?'"
+      ],
+      "useCases": ["strategy decisions", "launch readiness", "risk planning"]
+    }
+  ],
+
+  "examples": [
+    {
+      "id": "bystander_example",
+      "type": "scenario",
+      "title": "Bystander Effect in Real Life",
+      "scenario": "A person collapses in a crowded area; people look around but no one calls for help immediately.",
+      "explanation": [
+        "Ambiguity: people aren’t sure it’s an emergency.",
+        "Pluralistic ignorance: everyone watches everyone else for cues.",
+        "Diffusion of responsibility: 'someone else will act.'"
+      ],
+      "whatHelps": ["Direct assignment: 'You in the blue jacket—call 911.'", "Clear emergency cues", "Role clarity"]
+    },
+    {
+      "id": "dissonance_example",
+      "type": "scenario",
+      "title": "Dissonance and Doubling Down",
+      "scenario": "Someone invests heavily in a project and it starts failing; they invest even more.",
+      "explanation": [
+        "Escalation of commitment reduces the pain of admitting loss.",
+        "Justification shifts from outcomes to identity ('I’m not a quitter')."
+      ],
+      "whatHelps": ["Predefined stop-loss criteria", "External review", "Separate identity from decision"]
+    },
+    {
+      "id": "norms_example",
+      "type": "scenario",
+      "title": "Norms Shape Behavior",
+      "scenario": "A new employee mirrors the team’s pace and communication style within a week.",
+      "explanation": [
+        "Descriptive norms: learning what’s typical.",
+        "Injunctive norms: learning what gets approval."
+      ],
+      "whatHelps": ["Explicit norms", "Onboarding clarity", "Modeling desired behavior"]
+    }
+  ],
+
+  "applicationRules": [
+    {
+      "id": "non_clinical_guard",
+      "instruction": "Explain social-psych concepts and practical interpersonal insights. Do not diagnose mental disorders or prescribe treatment."
+    },
+    {
+      "id": "harm_deescalation_guard",
+      "instruction": "If user content suggests violence/self-harm or coercion, prioritize safety framing and redirect to appropriate help; avoid tactical detail."
+    },
+    {
+      "id": "persuasion_ethics_guard",
+      "instruction": "For persuasion requests, default to honest influence (clarity, relevance, empathy). Avoid manipulation, deception, or coercive tactics."
+    },
+    {
+      "id": "bias_humility_guard",
+      "instruction": "Use probabilistic language for motives ('likely', 'may') unless the user provides direct evidence; avoid mind-reading."
+    }
+  ],
+
+  "responseTemplates": [
+    {
+      "id": "why_they_did_that",
+      "name": "Why They Did That (Balanced)",
+      "template": [
+        "Most likely situational pressures:",
+        "Possible dispositional factors:",
+        "What to test/ask to reduce uncertainty:",
+        "A low-drama next step you can take:"
+      ]
+    },
+    {
+      "id": "conflict_reframe",
+      "name": "Conflict Reframe",
+      "template": [
+        "What happened (observable):",
+        "The story you’re telling yourself:",
+        "Two alternative explanations:",
+        "One clean question to ask them:",
+        "One boundary if needed:"
+      ]
+    },
+    {
+      "id": "groupthink_check",
+      "name": "Groupthink Check",
+      "template": [
+        "What decision are we making?",
+        "What evidence would change our mind?",
+        "Who disagrees and why?",
+        "What’s the smallest experiment to test?",
+        "What’s the pre-mortem failure mode?"
+      ]
+    }
+  ],
+
+  "meta": {
+    "intendedUse": "Marion psychology domain pack: social psychology explanations + practical interpersonal insight.",
+    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "safetyProfile": "non-clinical, non-coercive; bias-humility; de-escalation aware",
+    "confidenceLevel": "foundational_social_psych"
+  }
+}

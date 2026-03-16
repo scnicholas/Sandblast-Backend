@@ -1,0 +1,61 @@
+{
+  "interpretations": {
+    "loneliness": {
+      "meaning": "possible emotional disconnection or unmet need for understanding",
+      "care_mode": "validation_first",
+      "avoid": [
+        "minimizing",
+        "over_advising",
+        "forced_positivity"
+      ]
+    },
+    "grief": {
+      "meaning": "possible mourning, loss processing, or emotional heaviness",
+      "care_mode": "presence_first",
+      "avoid": [
+        "rushing_recovery",
+        "silver_lining_too_early"
+      ]
+    },
+    "anxiety": {
+      "meaning": "possible anticipatory fear, uncertainty, or cognitive overload",
+      "care_mode": "grounding_first",
+      "avoid": [
+        "alarmist_language",
+        "too_many_steps_at_once"
+      ]
+    },
+    "panic": {
+      "meaning": "possible acute emotional overwhelm or alarm-state activation",
+      "care_mode": "stabilize_first",
+      "avoid": [
+        "high_pressure_questions",
+        "information_dumping"
+      ]
+    },
+    "frustration": {
+      "meaning": "possible blocked goal, pressure buildup, or emotional irritation",
+      "care_mode": "contain_and_clarify",
+      "avoid": [
+        "argumentative_tone",
+        "invalidating_logic_first"
+      ]
+    },
+    "shame": {
+      "meaning": "possible self-attack, embarrassment, or threat to self-worth",
+      "care_mode": "gentle_nonjudgment",
+      "avoid": [
+        "harsh_reframing",
+        "exposing_language"
+      ]
+    },
+    "overwhelm": {
+      "meaning": "possible cognitive overload, emotional flooding, or reduced processing bandwidth",
+      "care_mode": "reduce_pressure",
+      "avoid": [
+        "complex_multistep_advice",
+        "fast_pacing"
+      ]
+    }
+  }
+}

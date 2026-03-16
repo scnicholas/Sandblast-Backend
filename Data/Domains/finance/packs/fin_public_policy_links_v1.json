@@ -1,6 +1,6 @@
 {
   "id": "fin_public_policy_links_v1",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "domain": "finance",
   "description": "Structured mapping of public policy mechanisms to financial and economic outcomes. Designed for macro reasoning, regulatory awareness, and business strategy alignment.",
   "posture": {
@@ -209,5 +209,374 @@
     "assessing_tax_policy_shift_on_cashflow",
     "evaluating_regulatory_change_on_fintech_margin",
     "building_policy_risk_scenario_for_board_review"
+  ],
+  "upgradeMetadata": {
+    "upgradedOn": "2026-03-15",
+    "upgradePremise": "Expanded to degree-style support with modules, case studies, projects, source ladders, and assistant-use guidance.",
+    "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_advice",
+    "domain": "finance"
+  },
+  "referenceArchitecture": {
+    "textbooks_and_open_learning": [
+      {
+        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "type": "open_learning",
+        "authority": "professional_education",
+        "use": [
+          "capital_markets",
+          "cost_of_capital",
+          "equity_vs_debt"
+        ],
+        "license_note": "public_web_reference_only"
+      },
+      {
+        "title": "OpenStax Principles of Economics 3e",
+        "type": "open_textbook",
+        "authority": "open_education",
+        "use": [
+          "microeconomics",
+          "macroeconomics",
+          "policy",
+          "market_structure"
+        ],
+        "license_note": "open_textbook_reference"
+      },
+      {
+        "title": "Open Textbook Library finance/economics catalog",
+        "type": "open_textbook_index",
+        "authority": "library_style_open_reference",
+        "use": [
+          "curriculum_design",
+          "supplemental_reading"
+        ],
+        "license_note": "index_reference"
+      },
+      {
+        "title": "CFA Institute Research Foundation publications",
+        "type": "professional_research",
+        "authority": "professional_body",
+        "use": [
+          "asset_management",
+          "portfolio_thinking",
+          "market_structure",
+          "ethics"
+        ],
+        "license_note": "public_research_reference_only"
+      }
+    ],
+    "government_and_public_institutions": [
+      {
+        "title": "Bank of Canada monetary policy and interest rates",
+        "type": "central_bank",
+        "authority": "government",
+        "use": [
+          "rates",
+          "macro",
+          "credit_conditions",
+          "canadian_context"
+        ]
+      },
+      {
+        "title": "Statistics Canada economic indicators",
+        "type": "official_statistics",
+        "authority": "government",
+        "use": [
+          "inflation",
+          "labour",
+          "GDP",
+          "household_finance"
+        ]
+      },
+      {
+        "title": "U.S. Federal Reserve FRED economic data",
+        "type": "official_data_platform",
+        "authority": "central_bank",
+        "use": [
+          "time_series",
+          "macro_history",
+          "stress_testing_inputs"
+        ]
+      },
+      {
+        "title": "IMF Finance & Development",
+        "type": "institutional_magazine",
+        "authority": "multilateral",
+        "use": [
+          "case_context",
+          "global_macro",
+          "development_finance",
+          "explanatory_articles"
+        ]
+      },
+      {
+        "title": "World Bank Data and research explainers",
+        "type": "multilateral_data",
+        "authority": "multilateral",
+        "use": [
+          "global_development",
+          "country_context",
+          "cross-border_economics"
+        ]
+      },
+      {
+        "title": "OECD economic outlook and policy materials",
+        "type": "multilateral_policy_research",
+        "authority": "multilateral",
+        "use": [
+          "policy",
+          "productivity",
+          "labour",
+          "competition"
+        ]
+      }
+    ],
+    "markets_and_business_press": [
+      {
+        "title": "Financial Times markets and markets data",
+        "type": "business_press_plus_market_data",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "index_data_context",
+          "equities",
+          "bonds",
+          "currencies",
+          "commodities"
+        ]
+      },
+      {
+        "title": "Wall Street Journal Markets",
+        "type": "business_press",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "corporate_finance",
+          "earnings_context"
+        ]
+      },
+      {
+        "title": "The Economist finance and economics coverage",
+        "type": "business_magazine",
+        "authority": "major_magazine",
+        "use": [
+          "synthesis",
+          "macro",
+          "policy",
+          "industry_case_context"
+        ]
+      },
+      {
+        "title": "Bloomberg Markets concepts and explainers",
+        "type": "financial_media",
+        "authority": "major_financial_media",
+        "use": [
+          "market_mechanics",
+          "bond_math",
+          "risk_events",
+          "earnings_reactions"
+        ]
+      }
+    ],
+    "markets_data_and_filings": [
+      {
+        "title": "SEC EDGAR",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "10-K",
+          "10-Q",
+          "prospectuses",
+          "risk_factors",
+          "capital_raises"
+        ]
+      },
+      {
+        "title": "SEDAR+",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "canadian_issuer_filings",
+          "prospectuses",
+          "MD&A"
+        ]
+      },
+      {
+        "title": "TMX and major exchange education/data pages",
+        "type": "exchange_reference",
+        "authority": "exchange",
+        "use": [
+          "market_structure",
+          "listing_context",
+          "sector_data"
+        ]
+      }
+    ]
+  },
+  "modulesCore": [
+    {
+      "name": "financial_statement_reading",
+      "focus": [
+        "income_statement",
+        "balance_sheet",
+        "cash_flow",
+        "notes"
+      ],
+      "outcome": "interpret quality of earnings, liquidity, leverage, and working-capital strain"
+    },
+    {
+      "name": "markets_news_interpretation",
+      "focus": [
+        "earnings_news",
+        "central_bank_updates",
+        "sector_moves",
+        "macro_surprises"
+      ],
+      "outcome": "separate signal from narrative and identify first-order vs second-order effects"
+    },
+    {
+      "name": "case_method_finance",
+      "focus": [
+        "problem_definition",
+        "assumption_mapping",
+        "ratio_analysis",
+        "decision_tradeoffs"
+      ],
+      "outcome": "diagnose rather than guess"
+    },
+    {
+      "name": "assistant_finance_language_control",
+      "focus": [
+        "plain_explanations",
+        "audience_leveling",
+        "assumption_disclosure",
+        "non-advisory_boundaries"
+      ],
+      "outcome": "Nyx and Marion explain finance without sounding vague or reckless"
+    }
+  ],
+  "assistantApplication": {
+    "nyx": {
+      "role": "front_end_finance_explainer",
+      "strengths": [
+        "plain_language_translation",
+        "market_story_simplification",
+        "risk_flagging",
+        "question_driven_clarification"
+      ],
+      "grammarTargets": [
+        "clean sentence boundaries",
+        "hedged claims where uncertainty exists",
+        "explicit contrasts",
+        "less jargon without loss of meaning"
+      ]
+    },
+    "marion": {
+      "role": "back_end_finance_reasoner",
+      "strengths": [
+        "framework_selection",
+        "source_prioritization",
+        "scenario_reasoning",
+        "evidence_weighting"
+      ],
+      "grammarTargets": [
+        "structured analytical prose",
+        "clear causal chains",
+        "assumption labeling",
+        "disciplined terminology"
+      ]
+    }
+  },
+  "referenceUseRules": [
+    "Prefer primary sources for filings, central-bank policy, official data, and regulatory text.",
+    "Use reputable business press for narrative context, not as sole evidence.",
+    "Separate historical fact, current market snapshot, and interpretation.",
+    "When discussing markets, state uncertainty and avoid deterministic forecasts.",
+    "For Nyx, keep explanations short and crisp; for Marion, preserve the analytical chain."
+  ],
+  "learningModules": [
+    {
+      "module": "policy_to_cashflow",
+      "topics": [
+        "rates",
+        "tax",
+        "trade",
+        "regulation",
+        "subsidies"
+      ],
+      "projects": [
+        "policy impact matrix by business type"
+      ]
+    },
+    {
+      "module": "canadian_public_finance_context",
+      "topics": [
+        "Bank of Canada",
+        "federal policy",
+        "provincial incentives",
+        "trade exposure"
+      ],
+      "projects": [
+        "Canada-specific risk brief"
+      ]
+    },
+    {
+      "module": "regulation_and_market_structure",
+      "topics": [
+        "privacy",
+        "competition",
+        "capital requirements",
+        "procurement"
+      ],
+      "projects": [
+        "regulatory scenario notebook"
+      ]
+    }
+  ],
+  "caseStudiesV2": [
+    {
+      "id": "rate_hikes_hit_small_business",
+      "scenario": "overnight-rate increases change borrowing cost and customer demand",
+      "teaches": [
+        "transmission lags",
+        "debt sensitivity",
+        "working-capital planning"
+      ]
+    },
+    {
+      "id": "tariff_input_shock",
+      "scenario": "imported inputs jump in cost after trade-policy change",
+      "teaches": [
+        "pass-through decisions",
+        "supplier diversification",
+        "inventory strategy"
+      ]
+    },
+    {
+      "id": "tax_credit_growth_plan",
+      "scenario": "firm uses policy incentives to finance investment",
+      "teaches": [
+        "after-tax return logic",
+        "project timing",
+        "policy dependence risk"
+      ]
+    }
+  ],
+  "projectsV2": [
+    {
+      "name": "policy_transmission_mapper",
+      "type": "software_project",
+      "outputs": [
+        "from policy lever to market/balance-sheet effects"
+      ]
+    },
+    {
+      "name": "board_policy_risk_pack",
+      "type": "analysis_module",
+      "outputs": [
+        "one-page policy risk brief",
+        "top scenarios",
+        "watch indicators"
+      ]
+    }
   ]
 }

@@ -1,26 +1,355 @@
 {
   "domain": "artificial_intelligence",
   "layer": "ethics_law",
-  "version": "1.0.0",
-  "description": "Ethical, governance, and legal frameworks for responsible AI development.",
+  "version": "1.1.0",
+  "description": "Expanded law-school and bar-exam-level AI ethics and law knowledge pack for Marion. This file is designed as a doctrinal and policy trunk covering public law, private law, intellectual property, privacy, discrimination, administrative governance, product liability, civil procedure, evidence, constitutional framing, and cross-border regulatory frameworks relevant to artificial intelligence systems.",
   "core_topics": [
-    "algorithmic_bias",
-    "explainability",
-    "accountability",
-    "data_governance",
-    "ai_regulation",
-    "privacy_and_surveillance",
-    "alignment_problem"
+    "algorithmic_bias_and_discrimination",
+    "explainability_and_due_process",
+    "accountability_and_liability",
+    "data_governance_and_information_fiduciaries",
+    "ai_regulation_and_administrative_governance",
+    "privacy_surveillance_and_biometric_governance",
+    "alignment_safety_and_human_oversight",
+    "intellectual_property_and_authorship",
+    "patent_inventorship_and_ai_assisted_innovation",
+    "copyright_training_and_output_questions",
+    "trade_secret_and_model_confidentiality",
+    "consumer_protection_and_deceptive_ai_claims",
+    "platform_governance_and_content_moderation",
+    "employment_law_and_automated_decision_systems",
+    "health_law_and_clinical_ai_governance",
+    "financial_regulation_and_algorithmic_decision_systems",
+    "criminal_justice_and_risk_assessment_tools",
+    "torts_product_liability_and_negligence",
+    "civil_rights_and_equal_protection_issues",
+    "international_and_comparative_ai_governance"
   ],
-  "academic_sources": [
-    "Oxford_AI_Ethics_Framework",
-    "Toronto_Vector_AI_Governance_Papers",
-    "Amii_Responsible_AI_Guidelines"
+  "doctrinal_modules": [
+    {
+      "name": "constitutional_and_public_law",
+      "subtopics": [
+        "procedural_due_process",
+        "equal_protection",
+        "first_amendment_questions",
+        "state_action_and_public_procurement",
+        "administrative_law_and_rulemaking"
+      ]
+    },
+    {
+      "name": "private_law_and_torts",
+      "subtopics": [
+        "negligence",
+        "duty_of_care_in_ai_deployment",
+        "product_liability_for_ai_enabled_systems",
+        "foreseeability_and_proximate_cause",
+        "professional_malpractice_and_automation"
+      ]
+    },
+    {
+      "name": "privacy_and_data_protection",
+      "subtopics": [
+        "consent",
+        "purpose_limitation",
+        "data_minimization",
+        "biometric_data",
+        "surveillance_governance",
+        "cross_border_data_transfers"
+      ]
+    },
+    {
+      "name": "intellectual_property",
+      "subtopics": [
+        "copyrightability_of_ai_outputs",
+        "training_data_use",
+        "fair_use_and_text_data_mining",
+        "patent_inventorship",
+        "trade_secrets_and_model_weights",
+        "licensing_of_training_and_inference_assets"
+      ]
+    },
+    {
+      "name": "anti_discrimination_and_fairness",
+      "subtopics": [
+        "disparate_treatment",
+        "disparate_impact",
+        "algorithmic_auditing",
+        "fairness_metrics_and_legal_limits",
+        "employment_and_credit_decision_systems"
+      ]
+    },
+    {
+      "name": "evidence_and_procedure",
+      "subtopics": [
+        "admissibility_of_algorithmic_evidence",
+        "expert_testimony",
+        "source_code_disclosure",
+        "trade_secret_defenses",
+        "burdens_of_proof",
+        "judicial_review_of_automated_decisions"
+      ]
+    }
+  ],
+  "primary_text_references": [
+    {
+      "title": "The Cambridge Handbook of the Law, Ethics and Policy of Artificial Intelligence",
+      "type": "advanced_handbook",
+      "focus": [
+        "ai_ethics",
+        "ai_law",
+        "ai_policy",
+        "comparative_governance"
+      ]
+    },
+    {
+      "title": "Artificial Intelligence and Human Rights",
+      "type": "advanced_legal_monograph",
+      "focus": [
+        "human_rights",
+        "privacy",
+        "non_discrimination",
+        "fair_procedure",
+        "asylum",
+        "health",
+        "housing"
+      ]
+    },
+    {
+      "title": "Artificial Intelligence and Intellectual Property",
+      "type": "specialized_reference",
+      "focus": [
+        "copyright",
+        "patents",
+        "trademarks",
+        "trade_secrets",
+        "licensing"
+      ]
+    },
+    {
+      "title": "Law and Technology: A Methodical Approach",
+      "type": "law_school_textbook",
+      "focus": [
+        "technology_regulation",
+        "methodical_legal_analysis",
+        "privacy",
+        "platforms",
+        "automation"
+      ]
+    },
+    {
+      "title": "Information Technology Law: The Law and Society",
+      "type": "law_school_textbook",
+      "focus": [
+        "information_society",
+        "privacy",
+        "speech",
+        "platform_regulation",
+        "data_governance"
+      ]
+    },
+    {
+      "title": "The Oxford Handbook of Ethics of AI",
+      "type": "reference_handbook",
+      "focus": [
+        "ethics",
+        "governance",
+        "accountability",
+        "political_theory",
+        "applied_ethics"
+      ]
+    },
+    {
+      "title": "The Ethics of Artificial Intelligence",
+      "type": "monograph",
+      "focus": [
+        "agency",
+        "moral_responsibility",
+        "design_ethics",
+        "governance"
+      ]
+    },
+    {
+      "title": "New Laws of Robotics",
+      "type": "legal_theory_monograph",
+      "focus": [
+        "professional_replacement",
+        "human_expertise",
+        "governance",
+        "automation_and_work"
+      ]
+    },
+    {
+      "title": "The Black Box Society",
+      "type": "legal_policy_reference",
+      "focus": [
+        "algorithmic_opacity",
+        "transparency",
+        "accountability",
+        "institutional_power"
+      ]
+    }
+  ],
+  "primary_law_and_policy_sources": [
+    {
+      "title": "EU Artificial Intelligence Act",
+      "jurisdiction": "European Union",
+      "focus": [
+        "risk_based_regulation",
+        "prohibited_practices",
+        "high_risk_systems",
+        "general_purpose_ai",
+        "conformity_assessment"
+      ]
+    },
+    {
+      "title": "NIST AI Risk Management Framework (AI RMF 1.0)",
+      "jurisdiction": "United States / voluntary framework",
+      "focus": [
+        "governance",
+        "mapping",
+        "measurement",
+        "risk_management",
+        "trustworthiness"
+      ]
+    },
+    {
+      "title": "OECD AI Principles",
+      "jurisdiction": "International / OECD",
+      "focus": [
+        "rule_of_law",
+        "human_rights",
+        "democratic_values",
+        "transparency",
+        "robustness",
+        "accountability"
+      ]
+    },
+    {
+      "title": "UNESCO Recommendation on the Ethics of Artificial Intelligence",
+      "jurisdiction": "International / UNESCO",
+      "focus": [
+        "human_rights",
+        "dignity",
+        "fairness",
+        "non_discrimination",
+        "human_oversight"
+      ]
+    },
+    {
+      "title": "U.S. Copyright Office Copyright and Artificial Intelligence Reports",
+      "jurisdiction": "United States",
+      "focus": [
+        "digital_replicas",
+        "copyrightability_of_outputs",
+        "training_data_questions",
+        "copyright_policy"
+      ]
+    },
+    {
+      "title": "USPTO Inventorship Guidance for AI-Assisted Inventions",
+      "jurisdiction": "United States",
+      "focus": [
+        "human_contribution",
+        "inventorship",
+        "ai_assisted_inventions",
+        "patent_practice"
+      ]
+    },
+    {
+      "title": "FTC AI Enforcement and Guidance Materials",
+      "jurisdiction": "United States",
+      "focus": [
+        "deceptive_claims",
+        "consumer_protection",
+        "privacy",
+        "unfairness",
+        "biometric_and_ai_marketing_claims"
+      ]
+    }
+  ],
+  "case_law_references": [
+    {
+      "title": "State v. Loomis",
+      "court": "Wisconsin Supreme Court",
+      "year": 2016,
+      "why_it_matters": "Foundational case for algorithmic risk assessment, due process concerns, disclosure limits, and judicial reliance on proprietary scoring systems in criminal justice."
+    },
+    {
+      "title": "Google LLC v. Oracle America, Inc.",
+      "court": "Supreme Court of the United States",
+      "year": 2021,
+      "why_it_matters": "Key case on software copyright and fair use, highly relevant to AI code reuse, interoperability, and training-related copyright arguments."
+    },
+    {
+      "title": "Van Buren v. United States",
+      "court": "Supreme Court of the United States",
+      "year": 2021,
+      "why_it_matters": "Important for computer misuse boundaries, authorized access doctrine, and the legal perimeter of data access in software-enabled systems."
+    },
+    {
+      "title": "Thaler v. Vidal",
+      "court": "U.S. Court of Appeals for the Federal Circuit",
+      "year": 2022,
+      "why_it_matters": "Core AI-patent case establishing that under current U.S. patent law an inventor must be a natural person, while leaving room for human AI-assisted invention."
+    }
+  ],
+  "bar_exam_style_learning_objectives": [
+    "identify_the_major_sources_of_ai_law_in_public_law_private_law_and_cross_border_regulation",
+    "analyze_ai_disputes_using_issue_rule_application_conclusion_reasoning",
+    "distinguish_ethics_questions_from_binding_legal_obligations",
+    "evaluate_due_process_and_equal_protection_issues_in_automated_decision_systems",
+    "assess_product_liability_negligence_and_professional_responsibility_questions_for_ai_deployment",
+    "analyze_privacy_and_data_governance_problems_using_consent_purpose_limitation_security_and_fairness_concepts",
+    "apply_copyright_patent_and_trade_secret_doctrines_to_ai_training_outputs_and_ai_assisted_innovation",
+    "reason_about_consumer_protection_and_deceptive_claims_for_ai_marketing_and_productization",
+    "compare_the_eu_ai_act_with_soft_law_frameworks_like_nist_oecd_and_unesco",
+    "spot_evidence_procedure_and_discovery_questions_in_cases_involving_algorithmic_or_model_based_systems"
+  ],
+  "research_and_library_sources": [
+    "Cambridge_Handbook_of_the_Law_Ethics_and_Policy_of_AI",
+    "Oxford_Handbook_of_Ethics_of_AI",
+    "Oxford_Law_Pro_titles_on_AI_human_rights_and_information_technology_law",
+    "Harvard_University_Press_titles_on_algorithmic_governance_and_automation",
+    "NIST_primary_framework_documents",
+    "EUR_Lex_primary_EU_regulatory_texts",
+    "UNESCO_primary_ethics_documents",
+    "OECD_policy_principles_and_observatory_materials",
+    "U.S._Copyright_Office_primary_reports",
+    "USPTO_primary_guidance_materials",
+    "FTC_primary_guidance_and_enforcement_materials"
   ],
   "application_focus": [
     "risk_assessment",
     "regulatory_compliance",
     "harm_mitigation",
-    "ethical_agent_design"
+    "ethical_agent_design",
+    "litigation_issue_spotting",
+    "contracting_and_procurement_review",
+    "product_counsel_analysis",
+    "policy_and_governance_design",
+    "human_rights_assessment",
+    "professional_responsibility_and_safe_deployment"
+  ],
+  "ingestion_priority": [
+    "EU Artificial Intelligence Act",
+    "NIST AI Risk Management Framework",
+    "OECD AI Principles",
+    "UNESCO Recommendation on the Ethics of Artificial Intelligence",
+    "U.S. Copyright Office Copyright and Artificial Intelligence Reports",
+    "USPTO Inventorship Guidance for AI-Assisted Inventions",
+    "FTC AI enforcement and guidance materials",
+    "The Cambridge Handbook of the Law, Ethics and Policy of Artificial Intelligence",
+    "Artificial Intelligence and Human Rights",
+    "Artificial Intelligence and Intellectual Property",
+    "Law and Technology: A Methodical Approach",
+    "Information Technology Law: The Law and Society",
+    "New Laws of Robotics",
+    "The Black Box Society"
+  ],
+  "notes_for_marion": [
+    "This pack should reason like a lawyer: identify doctrine, jurisdiction, standard, facts, burden, and remedy before offering conclusions.",
+    "Keep ethics and law linked but distinct. Ethics can inform governance, but legal analysis must remain source- and jurisdiction-specific.",
+    "Treat AI law as an overlap field touching constitutional law, administrative law, IP, privacy, antidiscrimination, torts, contracts, and evidence.",
+    "Do not present unresolved policy debates as settled law. Mark contested areas such as AI training fair use, liability allocation, and autonomous decision accountability as legally dynamic."
   ]
 }

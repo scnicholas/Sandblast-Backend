@@ -1,0 +1,38 @@
+{
+  "primary_emotions": [
+    "anger",
+    "joy",
+    "sadness",
+    "fear",
+    "surprise",
+    "disgust",
+    "neutral"
+  ],
+  "secondary_emotions": [
+    "loneliness",
+    "grief",
+    "disappointment",
+    "hopelessness",
+    "anxiety",
+    "panic",
+    "uncertainty",
+    "hypervigilance",
+    "frustration",
+    "resentment",
+    "shame",
+    "emotional_numbness",
+    "relief",
+    "confusion",
+    "overwhelm",
+    "hurt"
+  ],
+  "intensity_scale": {
+    "min": 0,
+    "max": 1,
+    "bands": {
+      "low": [0, 0.33],
+      "moderate": [0.34, 0.66],
+      "high": [0.67, 1]
+    }
+  }
+}

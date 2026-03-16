@@ -60,3 +60,17 @@
     { "file": "law_dialogue_snippets_v1.json", "version": 1 }
   ]
 }
+{
+  "bundleName": "law_contracts_upgrade_v2",
+  "updatedAt": "2026-03-15",
+  "files": [
+    "law_contracts_v2.json",
+    "law_source_ladder_v2.json",
+    "law_contracts_sources_index_v2.json"
+  ],
+  "notes": [
+    "Contracts pack expanded with modules, case studies, contract archetypes, projects, assistant application guidance, and case bank.",
+    "Source ladder expanded for official law, treatises, library materials, and licensing/NCA scaffolds.",
+    "No copyrighted textbook chapters or full paywalled content reproduced."
+  ]
+}

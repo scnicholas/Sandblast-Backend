@@ -1,8 +1,25 @@
 {
-  "id": "eng_morphology_word_formation_v1",
-  "version": "1.0.0",
-  "description": "Morphology: internal word structure, inflection/derivation, and productive word-formation.",
-  "anchors": ["S_QUARK_CGEL"],
+  "id": "eng_morphology_word_formation_v2",
+  "version": "2.0.0",
+  "title": "Morphology and Word Formation",
+  "description": "Word structure, inflection, derivation, compounding, productivity, and lexical pattern reasoning.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [
+    "S_QUARK_CGEL",
+    "S_SWAN_PEU"
+  ],
   "topics": [
     {
       "name": "Morphemes and Productivity",
@@ -24,6 +41,110 @@
       "practice": [
         "Classify affixes and predict category output.",
         "Map derivational families (decide → decision → decisive)."
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_MWF_M01",
+      "name": "Morpheme Segmentation",
+      "outcomes": [
+        "Segment words plausibly and justify boundaries.",
+        "Distinguish folk etymology from current morphological analysis."
+      ]
+    },
+    {
+      "moduleId": "ENG_MWF_M02",
+      "name": "Inflection vs Derivation",
+      "outcomes": [
+        "Classify affixes and predict category output.",
+        "Explain how derivation shifts meaning or discourse role."
+      ]
+    },
+    {
+      "moduleId": "ENG_MWF_M03",
+      "name": "Productivity and Neologisms",
+      "outcomes": [
+        "Judge why a new formation feels natural, awkward, humorous, or domain-bound."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "ENG_MWF_CS01",
+      "title": "Nyx Invents Terms That Feel Off",
+      "scenario": "The assistant creates understandable but unnatural forms because it applies productive patterns without regard to frequency, register, or lexicalization.",
+      "intervention": [
+        "Check whether a coinage already exists.",
+        "Test whether the derivational pattern is productive in that semantic field.",
+        "Prefer transparent paraphrase when the coined form feels forced."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_MWF_P01",
+      "name": "Word Family Atlas",
+      "goal": "Map roots, derivations, category shifts, and register notes for high-value vocabulary families used by Nyx and Marion."
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_QUARK_CGEL",
+      "type": "reference_grammar",
+      "access": "book",
+      "title": "A Comprehensive Grammar of the English Language",
+      "authors": [
+        "Randolph Quirk",
+        "Sidney Greenbaum",
+        "Geoffrey Leech",
+        "Jan Svartvik"
+      ],
+      "year": 1985,
+      "publisher": "Longman",
+      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
+      "useInLayer": [
+        "syntax",
+        "morphology",
+        "clause structure",
+        "complementation",
+        "coordination",
+        "subordination"
+      ]
+    },
+    {
+      "key": "S_SWAN_PEU",
+      "type": "usage_reference",
+      "access": "book",
+      "title": "Practical English Usage",
+      "authors": [
+        "Michael Swan"
+      ],
+      "year": 2016,
+      "edition": "4th",
+      "publisher": "Oxford University Press",
+      "citationAPA": "Swan, M. (2016). Practical English usage (4th ed.). Oxford University Press.",
+      "useInLayer": [
+        "usage diagnostics",
+        "learner confusions",
+        "articles",
+        "prepositions",
+        "complement frames",
+        "tense/aspect"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_Grammar",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Grammar Introduction",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/grammar/index.html",
+      "useInLayer": [
+        "public grammar support",
+        "micro-exercises",
+        "quick reference lookup",
+        "student-facing support"
       ]
     }
   ]

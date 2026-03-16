@@ -1,0 +1,194 @@
+{
+  "packId": "law_contracts_sources_index_v2",
+  "version": "2.0.0",
+  "domain": "law",
+  "jurisdiction": "Canada",
+  "updatedAt": "2026-03-15",
+  "purpose": "Reference index for the upgraded contracts domain. Maps doctrinal texts, casebooks, official sources, library-style materials, and licensing / bar-prep anchors without reproducing copyrighted text.",
+  "sourceFamilies": {
+    "doctrinalTexts": [
+      {
+        "title": "Canadian Contract Law",
+        "authors": [
+          "Angela Swan",
+          "Jakub Adamski",
+          "Anita Anand / later editions may vary",
+          "and successor co-authors"
+        ],
+        "category": "textbook",
+        "level": "1L-2L core"
+      },
+      {
+        "title": "The Law of Contract in Canada",
+        "authors": [
+          "G.H.L. Fridman"
+        ],
+        "category": "treatise",
+        "level": "1L-advanced"
+      },
+      {
+        "title": "The Law of Contracts",
+        "authors": [
+          "S.M. Waddams"
+        ],
+        "category": "treatise",
+        "level": "advanced doctrinal"
+      },
+      {
+        "title": "The Law of Contracts",
+        "authors": [
+          "John D. McCamus"
+        ],
+        "category": "treatise",
+        "level": "advanced doctrinal"
+      },
+      {
+        "title": "Contracts: Cases and Commentaries",
+        "authors": [
+          "Alyssa King",
+          "Mohamed Khimji",
+          "or equivalent Canadian casebook line depending on edition"
+        ],
+        "category": "casebook",
+        "level": "law-school case analysis"
+      }
+    ],
+    "officialPrimaryLaw": [
+      {
+        "title": "Justice Laws Website",
+        "category": "official legislation"
+      },
+      {
+        "title": "Supreme Court of Canada Judgments",
+        "category": "official court decisions"
+      },
+      {
+        "title": "CanLII",
+        "category": "public case law and legislation"
+      },
+      {
+        "title": "Provincial legislation portals (e-Laws, etc.)",
+        "category": "official provincial law"
+      }
+    ],
+    "professionalAndLibrarySources": [
+      {
+        "title": "Canadian Encyclopedic Digest",
+        "category": "legal encyclopedia"
+      },
+      {
+        "title": "Halsbury's Laws of Canada",
+        "category": "legal encyclopedia"
+      },
+      {
+        "title": "Law journal databases / law reviews",
+        "category": "scholarship"
+      },
+      {
+        "title": "Law library guides and research guides",
+        "category": "methodology"
+      }
+    ],
+    "barAndExamAnchors": [
+      {
+        "title": "Law Society of Ontario licensing examinations",
+        "category": "bar / licensing"
+      },
+      {
+        "title": "Entry-level solicitor competencies",
+        "category": "competency framework"
+      },
+      {
+        "title": "Entry-level barrister competencies",
+        "category": "competency framework"
+      },
+      {
+        "title": "NCA assigned requirements",
+        "category": "Canadian common-law curriculum"
+      },
+      {
+        "title": "NCA exam outlines and sample exams",
+        "category": "exam preparation"
+      }
+    ]
+  },
+  "studySequences": [
+    {
+      "sequenceId": "LCS_SEQ_01",
+      "title": "1L Contracts Sequence",
+      "units": [
+        "formation",
+        "consideration",
+        "intention",
+        "privity",
+        "interpretation basics",
+        "breach",
+        "damages",
+        "defences"
+      ]
+    },
+    {
+      "sequenceId": "LCS_SEQ_02",
+      "title": "Upper-Year Commercial Contracts Sequence",
+      "units": [
+        "risk allocation",
+        "exclusion clauses",
+        "arbitration and forum selection",
+        "consumer and platform contracts",
+        "good faith",
+        "contract drafting",
+        "transaction documents"
+      ]
+    },
+    {
+      "sequenceId": "LCS_SEQ_03",
+      "title": "Licensing / Bar Review Sequence",
+      "units": [
+        "client problem intake",
+        "issue spotting",
+        "open-book indexing",
+        "documentary evidence awareness",
+        "business-law concepts",
+        "short-form advisory writing"
+      ]
+    }
+  ],
+  "caseClusters": [
+    {
+      "cluster": "Interpretation",
+      "cases": [
+        "Sattva",
+        "Tercon"
+      ]
+    },
+    {
+      "cluster": "Good Faith / Honest Performance",
+      "cases": [
+        "Bhasin",
+        "Callow",
+        "Wastech"
+      ]
+    },
+    {
+      "cluster": "Standard Form / Access to Justice",
+      "cases": [
+        "Uber",
+        "Douez"
+      ]
+    },
+    {
+      "cluster": "Remedies / Termination",
+      "cases": [
+        "Matthews",
+        "Tercon"
+      ]
+    }
+  ],
+  "meta": {
+    "notes": [
+      "Built as a bibliographic and retrieval layer rather than a text dump.",
+      "Suitable for Nyx / Marion reference routing and curriculum planning.",
+      "Use official / primary sources for any live legal proposition."
+    ]
+  }
+}

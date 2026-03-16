@@ -1,7 +1,22 @@
 {
-  "id": "eng_curriculum_sequence_v1",
-  "version": "1.0.0",
-  "description": "Curriculum sequencing for an English major with a language/linguistics + academic writing emphasis (not literature).",
+  "id": "eng_curriculum_sequence_v2",
+  "version": "2.0.0",
+  "title": "English / Linguistics Curriculum Sequence",
+  "description": "A sequenced, degree-style pathway for grammar, linguistics, academic writing, register, and applied language analysis.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [],
   "sequenceModel": {
     "principles": [
       "Year 1 builds metalanguage + observation skills (what to notice, how to label it).",
@@ -12,7 +27,12 @@
     "yearPlans": [
       {
         "year": 1,
-        "focus": ["foundations", "basic grammar terminology", "intro linguistics lens", "intro academic writing"],
+        "focus": [
+          "foundations",
+          "basic grammar terminology",
+          "intro linguistics lens",
+          "intro academic writing"
+        ],
         "packs": [
           "eng_foundations_language_science_v1",
           "eng_syntax_grammar_core_v1",
@@ -27,7 +47,12 @@
       },
       {
         "year": 2,
-        "focus": ["phonetics/phonology", "morphology", "syntax deeper", "usage diagnostics"],
+        "focus": [
+          "phonetics/phonology",
+          "morphology",
+          "syntax deeper",
+          "usage diagnostics"
+        ],
         "packs": [
           "eng_phonetics_phonology_v1",
           "eng_morphology_word_formation_v1",
@@ -42,7 +67,12 @@
       },
       {
         "year": 3,
-        "focus": ["semantics/pragmatics", "discourse", "register/corpus reasoning", "applied analysis"],
+        "focus": [
+          "semantics/pragmatics",
+          "discourse",
+          "register/corpus reasoning",
+          "applied analysis"
+        ],
         "packs": [
           "eng_semantics_pragmatics_v1",
           "eng_register_corpus_usage_v1",
@@ -57,7 +87,11 @@
       },
       {
         "year": 4,
-        "focus": ["capstone specialization", "methods", "professional output"],
+        "focus": [
+          "capstone specialization",
+          "methods",
+          "professional output"
+        ],
         "packs": [
           "eng_sources_index_v1",
           "eng_register_corpus_usage_v1",
@@ -71,5 +105,218 @@
         ]
       }
     ]
-  }
+  },
+  "expandedCurriculum": {
+    "year1": {
+      "theme": "Metalanguage and observation",
+      "modules": [
+        "foundations of language science",
+        "intro syntax",
+        "clarity and revision",
+        "EAP workflow basics"
+      ],
+      "projects": [
+        "personal glossary",
+        "sentence observation notebook",
+        "3 memo portfolio"
+      ]
+    },
+    "year2": {
+      "theme": "Structure and controlled analysis",
+      "modules": [
+        "phonetics/phonology",
+        "morphology",
+        "syntax diagnostics",
+        "usage debugging"
+      ],
+      "projects": [
+        "minimal pair lab",
+        "word family map",
+        "constituency portfolio"
+      ]
+    },
+    "year3": {
+      "theme": "Meaning, discourse, and evidence",
+      "modules": [
+        "semantics/pragmatics",
+        "register and corpus reasoning",
+        "annotation methods",
+        "small-scale case analysis"
+      ],
+      "projects": [
+        "corpus comparison",
+        "annotated bibliography",
+        "pragmatic ambiguity report"
+      ]
+    },
+    "year4": {
+      "theme": "Capstone and deployment",
+      "modules": [
+        "advanced revision",
+        "assistant language governance",
+        "professional/academic style transfer",
+        "intervention design"
+      ],
+      "projects": [
+        "Nyx grammar presence pack",
+        "Marion explanation layer",
+        "capstone report or teaching guide"
+      ]
+    }
+  },
+  "deploymentGuidance": {
+    "forNyx": "Use earlier-year modules for stable grammar and later-year modules for audience calibration, style shift, and pragmatic control.",
+    "forMarion": "Use the full sequence as a scaffold for explanation depth, error analysis, and teaching-oriented follow-up."
+  },
+  "referenceTextsUsed": [
+    {
+      "key": "S_QUARK_CGEL",
+      "type": "reference_grammar",
+      "access": "book",
+      "title": "A Comprehensive Grammar of the English Language",
+      "authors": [
+        "Randolph Quirk",
+        "Sidney Greenbaum",
+        "Geoffrey Leech",
+        "Jan Svartvik"
+      ],
+      "year": 1985,
+      "publisher": "Longman",
+      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
+      "useInLayer": [
+        "syntax",
+        "morphology",
+        "clause structure",
+        "complementation",
+        "coordination",
+        "subordination"
+      ]
+    },
+    {
+      "key": "S_BIBER_LGSWE",
+      "type": "corpus_grammar",
+      "access": "book",
+      "title": "Longman Grammar of Spoken and Written English",
+      "authors": [
+        "Douglas Biber",
+        "Stig Johansson",
+        "Geoffrey Leech",
+        "Susan Conrad",
+        "Edward Finegan"
+      ],
+      "year": 1999,
+      "publisher": "Longman",
+      "citationAPA": "Biber, D., Johansson, S., Leech, G., Conrad, S., & Finegan, E. (1999). Longman grammar of spoken and written English. Longman.",
+      "useInLayer": [
+        "register",
+        "corpus usage",
+        "spoken vs written comparison",
+        "frequency-driven grammar choices"
+      ]
+    },
+    {
+      "key": "S_SWAN_PEU",
+      "type": "usage_reference",
+      "access": "book",
+      "title": "Practical English Usage",
+      "authors": [
+        "Michael Swan"
+      ],
+      "year": 2016,
+      "edition": "4th",
+      "publisher": "Oxford University Press",
+      "citationAPA": "Swan, M. (2016). Practical English usage (4th ed.). Oxford University Press.",
+      "useInLayer": [
+        "usage diagnostics",
+        "learner confusions",
+        "articles",
+        "prepositions",
+        "complement frames",
+        "tense/aspect"
+      ]
+    },
+    {
+      "key": "S_WILLIAMS_STYLE",
+      "type": "academic_writing",
+      "access": "book",
+      "title": "Style: Lessons in Clarity and Grace",
+      "authors": [
+        "Joseph M. Williams",
+        "Gregory G. Colomb",
+        "Joseph Bizup"
+      ],
+      "year": 2017,
+      "edition": "12th",
+      "publisher": "Pearson",
+      "citationAPA": "Williams, J. M., Colomb, G. G., & Bizup, J. (2017). Style: Lessons in clarity and grace (12th ed.). Pearson.",
+      "useInLayer": [
+        "clarity",
+        "revision",
+        "reader-centered prose",
+        "cohesion",
+        "argument structure"
+      ]
+    },
+    {
+      "key": "S_EAP_CANADA_SURVEY",
+      "type": "case_study_research",
+      "access": "article",
+      "title": "English for Academic Purposes in Canada: Results From an Exploratory National Survey",
+      "authors": [
+        "James N. Corcoran",
+        "Julia Williams",
+        "Kris Pierre Johnston"
+      ],
+      "citationAPA": "Corcoran, J. N., Williams, J., & Johnston, K. P. English for Academic Purposes in Canada: Results from an exploratory national survey.",
+      "useInLayer": [
+        "Canadian EAP contexts",
+        "program variation",
+        "student support structures",
+        "assessment literacy"
+      ]
+    },
+    {
+      "key": "S_EAP_ACTION_RESEARCH",
+      "type": "case_study_research",
+      "access": "article",
+      "title": "A Self-Study Action Research Approach to English for Academic Purposes Development",
+      "authors": [
+        "Judith Kerekes"
+      ],
+      "citationAPA": "Kerekes, J. A self-study action research approach to English for Academic Purposes development.",
+      "useInLayer": [
+        "portfolio learning",
+        "iterative evidence collection",
+        "self-study methodology"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_Grammar",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Grammar Introduction",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/grammar/index.html",
+      "useInLayer": [
+        "public grammar support",
+        "micro-exercises",
+        "quick reference lookup",
+        "student-facing support"
+      ]
+    },
+    {
+      "key": "S_UofT_WritingAdvice",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Writing Advice",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/",
+      "useInLayer": [
+        "Canadian academic writing norms",
+        "revising",
+        "editing",
+        "grammar support"
+      ]
+    }
+  ]
 }

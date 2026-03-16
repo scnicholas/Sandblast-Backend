@@ -1,0 +1,538 @@
+{
+  "packId": "psy_biases_and_fallacies_v2",
+  "domain": "psychology",
+  "version": 2,
+  "description": "Doctoral-level pack on biases, heuristics, rationality, and reasoning fallacies for advanced judgment critique and assistant explanation.",
+  "updatedAt": "2026-03-15",
+  "scope": [
+    "decision-making",
+    "critical-thinking",
+    "business",
+    "self-reflection",
+    "debate",
+    "strategy"
+  ],
+  "biases": [
+    {
+      "id": "confirmation_bias",
+      "name": "Confirmation Bias",
+      "category": "information_processing",
+      "oneLiner": "We seek and interpret information that confirms our existing beliefs.",
+      "coreMechanism": [
+        "Selective attention toward belief-consistent evidence.",
+        "Discounting contradictory data.",
+        "Reinforcement through repetition."
+      ],
+      "actionablePrinciples": [
+        "Actively search for disconfirming evidence.",
+        "Ask: 'What would prove me wrong?'",
+        "Invite a structured counter-argument."
+      ],
+      "whenToApply": [
+        "Strategic decisions",
+        "Political discussions",
+        "Business validation",
+        "Conflict analysis"
+      ],
+      "faceExamples": [
+        {
+          "title": "Startup validation bias",
+          "scenario": "Founder only listens to positive user feedback.",
+          "application": "Create structured negative feedback channels."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "only seeing what I want",
+          "echo chamber",
+          "biased research"
+        ],
+        "intentSignals": [
+          "am I being biased",
+          "why do I ignore criticism"
+        ]
+      }
+    },
+    {
+      "id": "availability_heuristic",
+      "name": "Availability Heuristic",
+      "category": "judgment",
+      "oneLiner": "We estimate likelihood based on how easily examples come to mind.",
+      "coreMechanism": [
+        "Emotionally vivid events dominate perception.",
+        "Recent exposure increases perceived probability."
+      ],
+      "actionablePrinciples": [
+        "Check base rates before reacting.",
+        "Ask: 'Is this common or just memorable?'",
+        "Separate emotional intensity from statistical frequency."
+      ],
+      "whenToApply": [
+        "Risk perception",
+        "Media reactions",
+        "Fear-based decisions"
+      ],
+      "faceExamples": [
+        {
+          "title": "News-driven fear",
+          "scenario": "User fears rare event after media exposure.",
+          "application": "Re-anchor to statistical context."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "it feels common",
+          "everyone is doing it",
+          "news makes it seem"
+        ],
+        "intentSignals": [
+          "why does this feel bigger than it is"
+        ]
+      }
+    },
+    {
+      "id": "anchoring_bias",
+      "name": "Anchoring Bias",
+      "category": "decision-making",
+      "oneLiner": "Initial information disproportionately influences later judgments.",
+      "coreMechanism": [
+        "First exposure sets a cognitive reference point.",
+        "Subsequent adjustments are insufficient."
+      ],
+      "actionablePrinciples": [
+        "Generate multiple independent estimates.",
+        "Delay exposure to irrelevant anchors.",
+        "Recalculate from first principles."
+      ],
+      "whenToApply": [
+        "Negotiations",
+        "Pricing",
+        "Forecasting"
+      ],
+      "faceExamples": [
+        {
+          "title": "Salary negotiation",
+          "scenario": "First offer sets psychological ceiling.",
+          "application": "Enter with pre-calculated independent valuation."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "first number",
+          "initial offer",
+          "price expectation"
+        ],
+        "intentSignals": [
+          "did that first number affect me"
+        ]
+      }
+    },
+    {
+      "id": "sunk_cost_fallacy",
+      "name": "Sunk Cost Fallacy",
+      "category": "economic_behavior",
+      "oneLiner": "We continue investing because of past costs rather than future value.",
+      "coreMechanism": [
+        "Loss aversion.",
+        "Identity attachment to prior decisions.",
+        "Fear of admitting error."
+      ],
+      "actionablePrinciples": [
+        "Evaluate future value independent of past cost.",
+        "Ask: 'If I hadn’t invested already, would I start today?'",
+        "Normalize course correction."
+      ],
+      "whenToApply": [
+        "Business pivots",
+        "Relationships",
+        "Long-term projects"
+      ],
+      "faceExamples": [
+        {
+          "title": "Failing project persistence",
+          "scenario": "Founder continues funding non-performing product.",
+          "application": "Run forward-looking ROI-only analysis."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "already invested",
+          "too much time spent",
+          "can’t quit now"
+        ],
+        "intentSignals": [
+          "should I let this go"
+        ]
+      }
+    },
+    {
+      "id": "dunning_kruger_effect",
+      "name": "Dunning-Kruger Effect",
+      "category": "metacognition",
+      "oneLiner": "Low competence can reduce awareness of one’s own limitations.",
+      "coreMechanism": [
+        "Lack of skill reduces ability to evaluate skill.",
+        "Confidence may peak early in learning."
+      ],
+      "actionablePrinciples": [
+        "Build feedback loops.",
+        "Use external evaluation metrics.",
+        "Track performance objectively."
+      ],
+      "whenToApply": [
+        "Skill development",
+        "Leadership blind spots",
+        "Overconfidence analysis"
+      ],
+      "faceExamples": [
+        {
+          "title": "Premature mastery",
+          "scenario": "User believes they’ve mastered a domain quickly.",
+          "application": "Introduce benchmark testing."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "overconfident",
+          "I know enough",
+          "they don’t see their flaws"
+        ],
+        "intentSignals": [
+          "why are beginners so confident"
+        ]
+      }
+    },
+    {
+      "id": "loss_aversion",
+      "name": "Loss Aversion",
+      "category": "behavioral_economics",
+      "oneLiner": "Losses psychologically weigh more than equivalent gains.",
+      "coreMechanism": [
+        "Emotional asymmetry between gains and losses.",
+        "Risk avoidance in gain domain; risk seeking in loss domain."
+      ],
+      "actionablePrinciples": [
+        "Reframe losses as tuition.",
+        "Quantify downside realistically.",
+        "Pre-commit to risk thresholds."
+      ],
+      "whenToApply": [
+        "Investment decisions",
+        "Entrepreneurial risk",
+        "Personal change resistance"
+      ],
+      "faceExamples": [
+        {
+          "title": "Investment hesitation",
+          "scenario": "User avoids opportunity due to potential minor loss.",
+          "application": "Compare expected value, not emotional weight."
+        }
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "fear of losing",
+          "risk avoidance",
+          "can’t afford to fail"
+        ],
+        "intentSignals": [
+          "why am I so afraid of small losses"
+        ]
+      }
+    }
+  ],
+  "reasoningFallacies": [
+    {
+      "id": "straw_man",
+      "name": "Straw Man Fallacy",
+      "oneLiner": "Misrepresenting an opponent’s position to make it easier to attack.",
+      "correctionStrategy": [
+        "Restate opponent’s position fairly before critique.",
+        "Ask: 'Is that what you’re actually arguing?'"
+      ]
+    },
+    {
+      "id": "false_dichotomy",
+      "name": "False Dichotomy",
+      "oneLiner": "Presenting two options as the only possibilities when more exist.",
+      "correctionStrategy": [
+        "Generate at least one third option.",
+        "Ask: 'What’s between these extremes?'"
+      ]
+    },
+    {
+      "id": "appeal_to_authority",
+      "name": "Appeal to Authority (Misapplied)",
+      "oneLiner": "Assuming a claim is true solely because an authority figure says it.",
+      "correctionStrategy": [
+        "Check evidence quality.",
+        "Verify domain-specific expertise."
+      ]
+    }
+  ],
+  "applicationRules": [
+    {
+      "id": "educational_not_accusatory",
+      "instruction": "Frame bias explanations as shared human tendencies, not personal accusations."
+    },
+    {
+      "id": "avoid_labeling_user",
+      "instruction": "Do not label the user directly as biased; describe the pattern neutrally."
+    },
+    {
+      "id": "offer_corrective_action",
+      "instruction": "Every bias explanation should include at least one corrective strategy."
+    }
+  ],
+  "meta": {
+    "intendedUse": "Critical thinking enhancement layer for Marion domain reasoning.",
+    "compatibleWith": [
+      "MarionSO",
+      "chatEngine"
+    ],
+    "confidenceLevel": "applied_foundational"
+  },
+  "academicLevel": "doctoral_retrieval_and_reasoning_support",
+  "referencePolicy": {
+    "includeReferenceMetadata": true,
+    "includeCaseStudies": true,
+    "includeModules": true,
+    "includeAssessmentMetadata": true,
+    "embedFullCopyrightedTexts": false,
+    "embedRestrictedTestItems": false
+  },
+  "sourceArchitecture": {
+    "primary": [
+      {
+        "type": "peer_reviewed_empirical_research",
+        "examples": [
+          "journal articles",
+          "registered reports",
+          "meta-analyses",
+          "systematic reviews"
+        ],
+        "useWhen": [
+          "effect size questions",
+          "mechanism questions",
+          "intervention evidence",
+          "method disputes"
+        ]
+      },
+      {
+        "type": "official_guidelines_and_competency_documents",
+        "examples": [
+          "APA education and training guidelines",
+          "NIH/OBSSR methods resources",
+          "accreditation standards"
+        ],
+        "useWhen": [
+          "curriculum design",
+          "competency mapping",
+          "doctoral training framing"
+        ]
+      }
+    ],
+    "secondary": [
+      {
+        "type": "textbooks_and_handbooks",
+        "examples": [
+          "graduate seminar texts",
+          "advanced survey texts",
+          "research methods handbooks",
+          "encyclopedias of psychology"
+        ],
+        "useWhen": [
+          "concept explanation",
+          "historical framing",
+          "doctrinal synthesis",
+          "course preparation"
+        ]
+      },
+      {
+        "type": "library_style_reference_tools",
+        "examples": [
+          "Oxford/Cambridge handbooks",
+          "APA handbooks",
+          "SAGE methods references",
+          "encyclopedias"
+        ],
+        "useWhen": [
+          "quick orientation",
+          "topic mapping",
+          "reading-list building"
+        ]
+      }
+    ],
+    "tertiary": [
+      {
+        "type": "open_education_and_public_facing_material",
+        "examples": [
+          "OpenStax",
+          "APA public explainers",
+          "university open course notes"
+        ],
+        "useWhen": [
+          "introductory orientation",
+          "plain-language explanation",
+          "public education"
+        ]
+      }
+    ],
+    "trustRules": [
+      "Prefer meta-analyses and systematic reviews over isolated studies for settled questions.",
+      "Prefer official competency/guideline sources for curricular and training claims.",
+      "Treat textbook summaries as synthesis, not as substitutes for primary evidence.",
+      "Separate measurement validity from popularity of an instrument."
+    ]
+  },
+  "assistantApplication": {
+    "nyx": [
+      "Use advanced ideas in plain language without sounding clinical or detached.",
+      "Prefer conceptual compression: mechanism → implication → next question.",
+      "Avoid sounding diagnostic when discussing emotions, habits, or conflict."
+    ],
+    "marion": [
+      "Weight claims by evidence tier and measurement quality.",
+      "Separate theory explanation, evidence appraisal, and action suggestions into distinct layers.",
+      "Use retrieval routing to pull safety pack before intervention content when risk language appears."
+    ]
+  },
+  "doctoralModules": [
+    {
+      "id": "mod_theory_history",
+      "title": "Theory, history, and paradigm formation",
+      "outcomes": [
+        "Compare competing explanatory frameworks.",
+        "Explain how paradigms rise, fragment, and get revised.",
+        "Distinguish descriptive, mechanistic, and normative claims."
+      ]
+    },
+    {
+      "id": "mod_methods_stats",
+      "title": "Methods, measurement, and statistical reasoning",
+      "outcomes": [
+        "Critique design validity, power, and measurement quality.",
+        "Interpret effect sizes and uncertainty correctly.",
+        "Identify confounds, bias pathways, and causal limits."
+      ]
+    },
+    {
+      "id": "mod_translation_ethics",
+      "title": "Translation, ethics, and applied reasoning",
+      "outcomes": [
+        "Translate evidence into bounded practical guidance.",
+        "Maintain safety and scope discipline.",
+        "Separate educational explanation from diagnosis or treatment."
+      ]
+    }
+  ],
+  "doctoralExamScaffolds": {
+    "writtenComps": [
+      "Compare two major theoretical frameworks and defend which better explains a class of findings.",
+      "Critique a study program as if reviewing a dissertation proposal.",
+      "Integrate theory, method, and ethics in a high-stakes applied scenario."
+    ],
+    "oralDefensePrompts": [
+      "What evidence would falsify your preferred explanation?",
+      "What measurement choices most threaten interpretation here?",
+      "How should an assistant explain this to a layperson without overstating certainty?"
+    ],
+    "specialtyPrompts": [
+      "Are classic bias demonstrations best explained as irrationality, bounded rationality, or task framing?",
+      "Design a debiasing intervention and define how success would be measured.",
+      "How should an assistant challenge a fallacy while preserving user dignity and conversational momentum?"
+    ]
+  },
+  "advancedDomains": [
+    "heuristics-and-biases tradition",
+    "bounded rationality",
+    "rationality and metareasoning",
+    "argumentation and informal logic",
+    "debiasing design"
+  ],
+  "caseStudies": [
+    {
+      "id": "case_bias_founder_narrative",
+      "title": "Founder overweights confirming customer stories",
+      "focus": [
+        "confirmation bias",
+        "base-rate neglect",
+        "selection effects"
+      ],
+      "questions": [
+        "What structured debiasing protocol should Marion suggest?"
+      ]
+    },
+    {
+      "id": "case_bias_media_risk",
+      "title": "Rare event dominates perceived probability after vivid news coverage",
+      "focus": [
+        "availability",
+        "affect heuristic",
+        "base-rate correction"
+      ],
+      "questions": [
+        "How do you explain this without dismissing emotion?"
+      ]
+    },
+    {
+      "id": "case_bias_negotiation_anchor",
+      "title": "First number shapes all later judgment",
+      "focus": [
+        "anchoring",
+        "insufficient adjustment",
+        "reference dependence"
+      ],
+      "questions": [
+        "What pre-commitment structure reduces anchor pull?"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "title": "Debiasing checklist engine",
+      "deliverable": "Checklist library for strategic decisions, negotiation, hiring, and forecasting."
+    },
+    {
+      "title": "Fallacy detector with repair prompts",
+      "deliverable": "JSON mapping common argumentative errors to corrective dialogue moves."
+    }
+  ],
+  "assessmentFamilies": [
+    {
+      "name": "judgment_tasks",
+      "examples": [
+        "base-rate tasks",
+        "probability calibration",
+        "forecasting exercises"
+      ],
+      "notes": "Use to show how rationality constructs are operationalized."
+    },
+    {
+      "name": "argument_analysis",
+      "examples": [
+        "claim-evidence warrant coding",
+        "bias audit",
+        "counterfactual challenge prompts"
+      ],
+      "notes": "Useful for Nyx/Marion discourse quality control."
+    }
+  ],
+  "textReferenceMap": [
+    {
+      "area": "biases_and_fallacies",
+      "coreTexts": [
+        "Kahneman — Thinking, Fast and Slow",
+        "Stanovich — Rationality and the Reflective Mind",
+        "Nisbett & Ross — Human Inference"
+      ],
+      "journalsOrEvidenceStreams": [
+        "Behavioral and Brain Sciences",
+        "Judgment and Decision Making",
+        "Thinking & Reasoning"
+      ],
+      "officialOrOpenResources": [
+        "public-facing critical-thinking resources where appropriate"
+      ]
+    }
+  ]
+}

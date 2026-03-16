@@ -1,6 +1,6 @@
 {
   "id": "fin_capital_markets_v1",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "domain": "finance",
   "description": "Capital markets fundamentals: debt, equity, hybrid instruments, cost of capital, dilution logic, runway, and capital stack reasoning. Educational and decision-support only.",
   "posture": {
@@ -161,5 +161,411 @@
     "dilution": "reduction_in_ownership_percentage",
     "cost_of_capital": "required_return_by_funders",
     "leverage": "use_of_borrowed_funds_to_amplify_returns"
-  }
+  },
+  "upgradeMetadata": {
+    "upgradedOn": "2026-03-15",
+    "upgradePremise": "Expanded to degree-style support with modules, case studies, projects, source ladders, and assistant-use guidance.",
+    "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_advice",
+    "domain": "finance"
+  },
+  "referenceArchitecture": {
+    "textbooks_and_open_learning": [
+      {
+        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "type": "open_learning",
+        "authority": "professional_education",
+        "use": [
+          "capital_markets",
+          "cost_of_capital",
+          "equity_vs_debt"
+        ],
+        "license_note": "public_web_reference_only"
+      },
+      {
+        "title": "OpenStax Principles of Economics 3e",
+        "type": "open_textbook",
+        "authority": "open_education",
+        "use": [
+          "microeconomics",
+          "macroeconomics",
+          "policy",
+          "market_structure"
+        ],
+        "license_note": "open_textbook_reference"
+      },
+      {
+        "title": "Open Textbook Library finance/economics catalog",
+        "type": "open_textbook_index",
+        "authority": "library_style_open_reference",
+        "use": [
+          "curriculum_design",
+          "supplemental_reading"
+        ],
+        "license_note": "index_reference"
+      },
+      {
+        "title": "CFA Institute Research Foundation publications",
+        "type": "professional_research",
+        "authority": "professional_body",
+        "use": [
+          "asset_management",
+          "portfolio_thinking",
+          "market_structure",
+          "ethics"
+        ],
+        "license_note": "public_research_reference_only"
+      }
+    ],
+    "government_and_public_institutions": [
+      {
+        "title": "Bank of Canada monetary policy and interest rates",
+        "type": "central_bank",
+        "authority": "government",
+        "use": [
+          "rates",
+          "macro",
+          "credit_conditions",
+          "canadian_context"
+        ]
+      },
+      {
+        "title": "Statistics Canada economic indicators",
+        "type": "official_statistics",
+        "authority": "government",
+        "use": [
+          "inflation",
+          "labour",
+          "GDP",
+          "household_finance"
+        ]
+      },
+      {
+        "title": "U.S. Federal Reserve FRED economic data",
+        "type": "official_data_platform",
+        "authority": "central_bank",
+        "use": [
+          "time_series",
+          "macro_history",
+          "stress_testing_inputs"
+        ]
+      },
+      {
+        "title": "IMF Finance & Development",
+        "type": "institutional_magazine",
+        "authority": "multilateral",
+        "use": [
+          "case_context",
+          "global_macro",
+          "development_finance",
+          "explanatory_articles"
+        ]
+      },
+      {
+        "title": "World Bank Data and research explainers",
+        "type": "multilateral_data",
+        "authority": "multilateral",
+        "use": [
+          "global_development",
+          "country_context",
+          "cross-border_economics"
+        ]
+      },
+      {
+        "title": "OECD economic outlook and policy materials",
+        "type": "multilateral_policy_research",
+        "authority": "multilateral",
+        "use": [
+          "policy",
+          "productivity",
+          "labour",
+          "competition"
+        ]
+      }
+    ],
+    "markets_and_business_press": [
+      {
+        "title": "Financial Times markets and markets data",
+        "type": "business_press_plus_market_data",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "index_data_context",
+          "equities",
+          "bonds",
+          "currencies",
+          "commodities"
+        ]
+      },
+      {
+        "title": "Wall Street Journal Markets",
+        "type": "business_press",
+        "authority": "major_financial_press",
+        "use": [
+          "market_narrative",
+          "corporate_finance",
+          "earnings_context"
+        ]
+      },
+      {
+        "title": "The Economist finance and economics coverage",
+        "type": "business_magazine",
+        "authority": "major_magazine",
+        "use": [
+          "synthesis",
+          "macro",
+          "policy",
+          "industry_case_context"
+        ]
+      },
+      {
+        "title": "Bloomberg Markets concepts and explainers",
+        "type": "financial_media",
+        "authority": "major_financial_media",
+        "use": [
+          "market_mechanics",
+          "bond_math",
+          "risk_events",
+          "earnings_reactions"
+        ]
+      }
+    ],
+    "markets_data_and_filings": [
+      {
+        "title": "SEC EDGAR",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "10-K",
+          "10-Q",
+          "prospectuses",
+          "risk_factors",
+          "capital_raises"
+        ]
+      },
+      {
+        "title": "SEDAR+",
+        "type": "regulatory_filings",
+        "authority": "government",
+        "use": [
+          "canadian_issuer_filings",
+          "prospectuses",
+          "MD&A"
+        ]
+      },
+      {
+        "title": "TMX and major exchange education/data pages",
+        "type": "exchange_reference",
+        "authority": "exchange",
+        "use": [
+          "market_structure",
+          "listing_context",
+          "sector_data"
+        ]
+      }
+    ]
+  },
+  "modulesCore": [
+    {
+      "name": "financial_statement_reading",
+      "focus": [
+        "income_statement",
+        "balance_sheet",
+        "cash_flow",
+        "notes"
+      ],
+      "outcome": "interpret quality of earnings, liquidity, leverage, and working-capital strain"
+    },
+    {
+      "name": "markets_news_interpretation",
+      "focus": [
+        "earnings_news",
+        "central_bank_updates",
+        "sector_moves",
+        "macro_surprises"
+      ],
+      "outcome": "separate signal from narrative and identify first-order vs second-order effects"
+    },
+    {
+      "name": "case_method_finance",
+      "focus": [
+        "problem_definition",
+        "assumption_mapping",
+        "ratio_analysis",
+        "decision_tradeoffs"
+      ],
+      "outcome": "diagnose rather than guess"
+    },
+    {
+      "name": "assistant_finance_language_control",
+      "focus": [
+        "plain_explanations",
+        "audience_leveling",
+        "assumption_disclosure",
+        "non-advisory_boundaries"
+      ],
+      "outcome": "Nyx and Marion explain finance without sounding vague or reckless"
+    }
+  ],
+  "assistantApplication": {
+    "nyx": {
+      "role": "front_end_finance_explainer",
+      "strengths": [
+        "plain_language_translation",
+        "market_story_simplification",
+        "risk_flagging",
+        "question_driven_clarification"
+      ],
+      "grammarTargets": [
+        "clean sentence boundaries",
+        "hedged claims where uncertainty exists",
+        "explicit contrasts",
+        "less jargon without loss of meaning"
+      ]
+    },
+    "marion": {
+      "role": "back_end_finance_reasoner",
+      "strengths": [
+        "framework_selection",
+        "source_prioritization",
+        "scenario_reasoning",
+        "evidence_weighting"
+      ],
+      "grammarTargets": [
+        "structured analytical prose",
+        "clear causal chains",
+        "assumption labeling",
+        "disciplined terminology"
+      ]
+    }
+  },
+  "referenceUseRules": [
+    "Prefer primary sources for filings, central-bank policy, official data, and regulatory text.",
+    "Use reputable business press for narrative context, not as sole evidence.",
+    "Separate historical fact, current market snapshot, and interpretation.",
+    "When discussing markets, state uncertainty and avoid deterministic forecasts.",
+    "For Nyx, keep explanations short and crisp; for Marion, preserve the analytical chain."
+  ],
+  "learningModules": [
+    {
+      "module": "capital_stack_and_security_types",
+      "topics": [
+        "common_equity",
+        "preferred_equity",
+        "secured_debt",
+        "convertibles",
+        "SAFE_vs_note_logic"
+      ],
+      "projects": [
+        "build_cap_table_scenarios",
+        "compare_debt_vs_equity_matrix"
+      ]
+    },
+    {
+      "module": "primary_vs_secondary_markets",
+      "topics": [
+        "issuance",
+        "underwriting",
+        "exchange_trading",
+        "liquidity",
+        "market_depth"
+      ],
+      "projects": [
+        "map_company_financing_path_private_to_public"
+      ]
+    },
+    {
+      "module": "cost_of_capital_and_hurdle_rates",
+      "topics": [
+        "WACC",
+        "debt_tax_shield",
+        "equity_return_expectations",
+        "risk_premium_logic"
+      ],
+      "projects": [
+        "create_hurdle_rate_template_for_three_business_types"
+      ]
+    },
+    {
+      "module": "market_microstructure_basics",
+      "topics": [
+        "bid_ask_spread",
+        "market_makers",
+        "order_types",
+        "volatility_vs_liquidity"
+      ],
+      "projects": [
+        "translate market microstructure into plain-language prompts"
+      ]
+    }
+  ],
+  "caseStudiesV2": [
+    {
+      "id": "dilutive_growth_round",
+      "scenario": "venture-backed company raises fast under weak unit economics",
+      "questions": [
+        "what is the implicit cost of time?",
+        "how does dilution change control?",
+        "what assumptions justify the round?"
+      ],
+      "teaches": [
+        "capital timing",
+        "dilution compounding",
+        "runway vs governance"
+      ]
+    },
+    {
+      "id": "rate_shock_refinancing",
+      "scenario": "firm with floating-rate debt faces rate reset",
+      "questions": [
+        "what breaks first: coverage, covenants, or liquidity?",
+        "should management refinance, cut spend, or raise equity?"
+      ],
+      "teaches": [
+        "duration matching",
+        "refinancing risk",
+        "coverage analysis"
+      ]
+    },
+    {
+      "id": "public_listing_window",
+      "scenario": "issuer considers IPO during volatile market",
+      "questions": [
+        "is access to capital worth pricing concession?",
+        "what reporting burden arrives post-listing?"
+      ],
+      "teaches": [
+        "market timing",
+        "liquidity premium",
+        "public-company obligations"
+      ]
+    }
+  ],
+  "projectsV2": [
+    {
+      "name": "cap_table_simulator",
+      "type": "software_project",
+      "outputs": [
+        "round-by-round dilution table",
+        "founder ownership stress tests",
+        "scenario notes"
+      ]
+    },
+    {
+      "name": "capital_stack_visualizer",
+      "type": "software_project",
+      "outputs": [
+        "priority waterfall",
+        "recovery assumptions",
+        "investor class explanation"
+      ]
+    },
+    {
+      "name": "market-news-to-framework mapper",
+      "type": "workflow_module",
+      "outputs": [
+        "convert headlines into capital-market categories",
+        "flag primary source to verify"
+      ]
+    }
+  ]
 }

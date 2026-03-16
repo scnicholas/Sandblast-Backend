@@ -1,0 +1,388 @@
+{
+  "packId": "cyber_network_web_v2",
+  "domain": "cybersecurity",
+  "packType": "network_web",
+  "version": 2,
+  "updatedAt": "2026-03-15",
+  "intent": "Defensive network and web security fundamentals, architecture reasoning, and common risk patterns. No exploit instructions.",
+  "sections": [
+    {
+      "id": "network_segmentation",
+      "name": "Network Segmentation",
+      "summary": "Divide networks into logical segments to reduce lateral movement and blast radius.",
+      "principles": [
+        "Separate public-facing systems from internal systems.",
+        "Restrict east-west traffic with policy controls.",
+        "Use VLANs, firewalls, or microsegmentation for isolation.",
+        "Monitor cross-segment traffic."
+      ],
+      "riskPatterns": [
+        "Flat networks enabling rapid lateral movement.",
+        "Overly permissive firewall rules.",
+        "No monitoring between internal segments."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "segmentation",
+          "vlan",
+          "firewall rules",
+          "lateral movement"
+        ],
+        "intentSignals": [
+          "architecture",
+          "reduce risk",
+          "design"
+        ]
+      }
+    },
+    {
+      "id": "firewalls_and_gateways",
+      "name": "Firewalls & Gateways",
+      "summary": "Control inbound and outbound traffic based on defined policies.",
+      "principles": [
+        "Default-deny inbound traffic.",
+        "Limit exposed ports to required services.",
+        "Review firewall policies regularly.",
+        "Log and alert on policy violations."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "firewall",
+          "port exposure",
+          "gateway",
+          "ingress"
+        ],
+        "intentSignals": [
+          "secure perimeter",
+          "harden"
+        ]
+      }
+    },
+    {
+      "id": "secure_web_architecture",
+      "name": "Secure Web Architecture",
+      "summary": "Design web applications and APIs to minimize attack surface and enforce validation.",
+      "principles": [
+        "Validate and sanitize all user input.",
+        "Use parameterized queries to prevent injection flaws.",
+        "Implement proper authentication and session management.",
+        "Enforce HTTPS everywhere."
+      ],
+      "riskPatterns": [
+        "Injection vulnerabilities.",
+        "Improper session handling.",
+        "Unencrypted traffic."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "web security",
+          "input validation",
+          "https",
+          "api security"
+        ],
+        "intentSignals": [
+          "secure app",
+          "protect website"
+        ]
+      }
+    },
+    {
+      "id": "common_web_risks",
+      "name": "Common Web Application Risks",
+      "summary": "High-level defensive awareness of common vulnerability classes.",
+      "examples": [
+        "Injection flaws (SQL, command).",
+        "Cross-site scripting (XSS).",
+        "Cross-site request forgery (CSRF).",
+        "Broken access control.",
+        "Insecure deserialization."
+      ],
+      "notes": [
+        "Focus on mitigation strategies rather than exploit mechanics.",
+        "Tie vulnerabilities to secure coding and review practices."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "owasp",
+          "xss",
+          "csrf",
+          "injection",
+          "broken access control"
+        ],
+        "intentSignals": [
+          "vulnerability",
+          "secure coding"
+        ]
+      }
+    },
+    {
+      "id": "ddos_resilience",
+      "name": "DDoS & Availability Resilience",
+      "summary": "Protect availability through redundancy and traffic management.",
+      "principles": [
+        "Use content delivery networks (CDNs).",
+        "Implement rate limiting.",
+        "Scale infrastructure horizontally.",
+        "Monitor abnormal traffic spikes."
+      ],
+      "riskPatterns": [
+        "Single points of failure.",
+        "Unprotected public endpoints.",
+        "Lack of rate limiting."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "ddos",
+          "cdn",
+          "rate limit",
+          "traffic spike"
+        ],
+        "intentSignals": [
+          "availability",
+          "resilience"
+        ]
+      }
+    },
+    {
+      "id": "tls_and_encryption",
+      "name": "TLS & Data Encryption",
+      "summary": "Protect data in transit using strong cryptographic protocols.",
+      "principles": [
+        "Enforce modern TLS versions.",
+        "Disable weak cipher suites.",
+        "Use certificates from trusted authorities.",
+        "Rotate keys regularly."
+      ],
+      "riskPatterns": [
+        "Expired certificates.",
+        "Deprecated protocol versions.",
+        "Weak cipher configurations."
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "tls",
+          "ssl",
+          "certificate",
+          "encryption"
+        ],
+        "intentSignals": [
+          "secure communication",
+          "data protection"
+        ]
+      }
+    }
+  ],
+  "crossDomainSignals": {
+    "lawOverlap": [
+      "Data protection regulations related to transmission security.",
+      "Breach liability exposure for insecure web design."
+    ],
+    "financeOverlap": [
+      "Transaction integrity in payment systems.",
+      "Fraud detection through anomaly monitoring."
+    ]
+  },
+  "retrievalHints": {
+    "keywords": [
+      "network security",
+      "web security",
+      "firewall",
+      "segmentation",
+      "owasp",
+      "https"
+    ],
+    "intentSignals": [
+      "design",
+      "secure",
+      "harden",
+      "protect",
+      "architecture"
+    ]
+  },
+  "learningModules": [
+    {
+      "id": "mod_nw_01",
+      "name": "Segmentation and Trust Zones",
+      "outcomes": [
+        "Separate public and internal services",
+        "constrain east-west traffic",
+        "reason about blast radius"
+      ]
+    },
+    {
+      "id": "mod_nw_02",
+      "name": "Secure Web and API Patterns",
+      "outcomes": [
+        "Validate input",
+        "enforce strong auth/session handling",
+        "reduce exposure through secure defaults"
+      ]
+    },
+    {
+      "id": "mod_nw_03",
+      "name": "Transport Security and Key Hygiene",
+      "outcomes": [
+        "Explain modern TLS posture",
+        "spot weak certificate/process issues",
+        "tie crypto decisions to current specs"
+      ]
+    },
+    {
+      "id": "mod_nw_04",
+      "name": "Availability Engineering",
+      "outcomes": [
+        "Use rate limiting and CDN concepts",
+        "identify single points of failure",
+        "connect DDoS resilience to business continuity"
+      ]
+    }
+  ],
+  "softwareProjects": [
+    {
+      "id": "proj_firewall_review",
+      "name": "Firewall rule recertification workflow",
+      "defensiveFocus": "default deny, owner approval, stale-rule removal"
+    },
+    {
+      "id": "proj_api_gateway_baseline",
+      "name": "API gateway baseline policy bundle",
+      "defensiveFocus": "auth, rate limits, logging, TLS enforcement"
+    },
+    {
+      "id": "proj_tls_expiry_monitor",
+      "name": "Certificate and TLS expiry monitor",
+      "defensiveFocus": "certificate hygiene, renewal workflow, outage prevention"
+    }
+  ],
+  "caseStudies": [
+    {
+      "id": "cs_flat_network",
+      "title": "Flat network allows rapid internal spread after one compromised workstation",
+      "learningValue": [
+        "segmentation",
+        "internal monitoring",
+        "least privilege"
+      ]
+    },
+    {
+      "id": "cs_api_broken_access",
+      "title": "Broken access control in API exposes customer records",
+      "learningValue": [
+        "authorization reviews",
+        "secure design",
+        "logging for abuse detection"
+      ]
+    },
+    {
+      "id": "cs_tls_expiry",
+      "title": "Expired certificate causes trust failure and service disruption",
+      "learningValue": [
+        "certificate inventory",
+        "renewal automation",
+        "availability planning"
+      ]
+    }
+  ],
+  "sourceStack": {
+    "governmentAndStandards": [
+      {
+        "id": "src_cccs",
+        "title": "Canadian Centre for Cyber Security guidance",
+        "type": "government_guidance",
+        "priority": "high",
+        "useWhen": [
+          "Canadian baseline controls",
+          "threat advisories",
+          "SMB cyber hygiene"
+        ]
+      },
+      {
+        "id": "src_nist_csf_20",
+        "title": "NIST Cybersecurity Framework 2.0",
+        "type": "framework",
+        "priority": "high",
+        "useWhen": [
+          "program design",
+          "maturity roadmaps",
+          "executive alignment"
+        ]
+      },
+      {
+        "id": "src_nist_800_53_r5",
+        "title": "NIST SP 800-53 Rev. 5",
+        "type": "controls_catalog",
+        "priority": "high",
+        "useWhen": [
+          "control mapping",
+          "audit prep",
+          "security requirements"
+        ]
+      },
+      {
+        "id": "src_nist_800_61_r3",
+        "title": "NIST SP 800-61 Rev. 3",
+        "type": "incident_response_guidance",
+        "priority": "high",
+        "useWhen": [
+          "IR planning",
+          "playbooks",
+          "lessons learned"
+        ]
+      },
+      {
+        "id": "src_owasp_asvs",
+        "title": "OWASP ASVS / Top 10",
+        "type": "appsec_guidance",
+        "priority": "medium",
+        "useWhen": [
+          "web reviews",
+          "secure coding",
+          "SDLC gates"
+        ]
+      },
+      {
+        "id": "src_mitre_attack",
+        "title": "MITRE ATT&CK",
+        "type": "behavior_knowledge_base",
+        "priority": "medium",
+        "useWhen": [
+          "threat modeling",
+          "detections",
+          "coverage discussions"
+        ]
+      }
+    ],
+    "textbooksAndHandbooks": [
+      {
+        "title": "Security Engineering",
+        "author": "Ross Anderson",
+        "role": "systems-thinking and security architecture"
+      },
+      {
+        "title": "Computer Security: Principles and Practice",
+        "author": "William Stallings & Lawrie Brown",
+        "role": "broad conceptual foundation"
+      },
+      {
+        "title": "Engineering Trustworthy Systems",
+        "author": "various",
+        "role": "resilience and assurance framing"
+      },
+      {
+        "title": "Blue Team Handbook",
+        "author": "various",
+        "role": "defensive operations and triage orientation"
+      },
+      {
+        "title": "Web Application Security",
+        "author": "Andrew Hoffman",
+        "role": "application security and modern web risk"
+      }
+    ],
+    "libraryAndResearchAccessNotes": [
+      "Prefer university/public library access for ISO texts, textbooks, journals, and practitioner handbooks that are paywalled.",
+      "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
+      "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
+    ]
+  }
+}

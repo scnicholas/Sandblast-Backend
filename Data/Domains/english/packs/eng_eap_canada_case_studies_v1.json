@@ -1,8 +1,26 @@
 {
-  "id": "eng_eap_canada_case_studies_v1",
-  "version": "1.0.0",
-  "description": "Canadian higher-ed English-for-academic-purposes (EAP) case studies and applied student workflows.",
-  "anchors": ["S_EAP_CANADA_SURVEY", "S_EAP_ACTION_RESEARCH"],
+  "id": "eng_eap_canada_case_studies_v2",
+  "version": "2.0.0",
+  "title": "Canadian EAP Case Studies",
+  "description": "Canadian higher-education English-for-academic-purposes workflows, interventions, evidence collection, and applied language-support design.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [
+    "S_EAP_CANADA_SURVEY",
+    "S_EAP_ACTION_RESEARCH",
+    "S_UofT_WritingAdvice"
+  ],
   "caseStudies": [
     {
       "caseId": "EAP_CA_01_PROGRAM_VARIATION",
@@ -43,6 +61,24 @@
         "Micro-corpus: collect 20 'good' sentences from journal articles in the discipline; mimic structures ethically.",
         "Peer feedback loop: 2 peers, 3 criteria, fixed template."
       ]
+    },
+    {
+      "caseId": "EAP_CA_03_DISCIPLINARY_TRANSFER",
+      "title": "Strong Writing in One Course, Weak Writing in Another",
+      "scenario": "A student succeeds in general writing classes but struggles in lab reports and policy memos because discourse expectations shift by discipline.",
+      "whatToNotice": [
+        "Transfer is partial, not automatic.",
+        "Citation voice, hedging, evidence packaging, and paragraph logic vary by field.",
+        "Students often need genre models, not only grammar correction."
+      ],
+      "analysisPrompts": [
+        "Compare two genres for stance, density, evidence placement, and lexical choices.",
+        "Identify which features are discipline-specific versus general academic writing habits."
+      ],
+      "studentMoves": [
+        "Build a genre card for each major assignment type.",
+        "Collect mentor texts and label sentence frames ethically."
+      ]
     }
   ],
   "portableTemplates": [
@@ -55,6 +91,111 @@
         "Rationale (what changed and why)",
         "Evidence (rubric score / peer feedback / self-checklist)",
         "Next week adjustment"
+      ]
+    },
+    {
+      "templateId": "EAP_GENRE_CARD",
+      "fields": [
+        "Genre name",
+        "Purpose",
+        "Typical claim style",
+        "Evidence types",
+        "Common discourse moves",
+        "Frequent grammar / usage pressure points"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_EAP_M01",
+      "name": "Hidden Curriculum and Assessment Literacy",
+      "outcomes": [
+        "Translate vague comments like 'be more academic' into visible discourse features.",
+        "Design measurable intervention targets."
+      ]
+    },
+    {
+      "moduleId": "ENG_EAP_M02",
+      "name": "Portfolio and Action Research",
+      "outcomes": [
+        "Collect baseline, revision, and reflection evidence.",
+        "Avoid placebo progress by holding tasks constant."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_EAP_P01",
+      "name": "4-Week EAP Intervention Pack",
+      "goal": "Create a repeatable intervention for clarity, cohesion, and stance.",
+      "deliverables": [
+        "baseline sample",
+        "rubric",
+        "weekly artifact log",
+        "post-intervention comparison"
+      ]
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_EAP_CANADA_SURVEY",
+      "type": "case_study_research",
+      "access": "article",
+      "title": "English for Academic Purposes in Canada: Results From an Exploratory National Survey",
+      "authors": [
+        "James N. Corcoran",
+        "Julia Williams",
+        "Kris Pierre Johnston"
+      ],
+      "citationAPA": "Corcoran, J. N., Williams, J., & Johnston, K. P. English for Academic Purposes in Canada: Results from an exploratory national survey.",
+      "useInLayer": [
+        "Canadian EAP contexts",
+        "program variation",
+        "student support structures",
+        "assessment literacy"
+      ]
+    },
+    {
+      "key": "S_EAP_ACTION_RESEARCH",
+      "type": "case_study_research",
+      "access": "article",
+      "title": "A Self-Study Action Research Approach to English for Academic Purposes Development",
+      "authors": [
+        "Judith Kerekes"
+      ],
+      "citationAPA": "Kerekes, J. A self-study action research approach to English for Academic Purposes development.",
+      "useInLayer": [
+        "portfolio learning",
+        "iterative evidence collection",
+        "self-study methodology"
+      ]
+    },
+    {
+      "key": "S_UofT_WritingAdvice",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Writing Advice",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/",
+      "useInLayer": [
+        "Canadian academic writing norms",
+        "revising",
+        "editing",
+        "grammar support"
+      ]
+    },
+    {
+      "key": "S_Canada_ContentStyleGuide",
+      "type": "government_guidance",
+      "access": "web",
+      "title": "Canada.ca Content Style Guide",
+      "organization": "Government of Canada",
+      "url": "https://design.canada.ca/style-guide/",
+      "useInLayer": [
+        "plain language",
+        "clarity",
+        "public-facing content",
+        "accessibility-minded style"
       ]
     }
   ]
