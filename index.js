@@ -44,7 +44,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.3.0sb";
+const INDEX_VERSION = "index.js v2.4.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 // ============================================================
@@ -115,7 +115,11 @@ function safeRequire(modPath) {
   try {
     // eslint-disable-next-line import/no-dynamic-require, global-require
     return require(modPath);
-  } catch (_) {
+  } catch (err) {
+    log("MODULE_REQUIRE_FAIL", {
+      module: modPath,
+      detail: safeStr(err && (err.message || err)).slice(0, 220)
+    });
     return null;
   }
 }
@@ -346,6 +350,246 @@ const ttsMod = tryRequireMany([
   "./utils/tts",
   "./utils/tts.js"
 ]);
+
+function resolveTtsRuntime(mod) {
+  const src = mod && typeof mod === "object" ? mod : {};
+  return {
+    mod: src,
+    version: safeStr(src.TTS_VERSION || src.version || "missing"),
+    handleHttp:
+      (typeof src.handleTts === "function" && src.handleTts) ||
+      (typeof src.ttsHandler === "function" && src.ttsHandler) ||
+      (typeof src.handler === "function" && src.handler) ||
+      null,
+    delegate:
+      (typeof src.delegateTts === "function" && src.delegateTts) ||
+      null,
+    generate:
+      (typeof src.generate === "function" && src.generate) ||
+      null,
+    health:
+      (typeof src.health === "function" && src.health) ||
+      null
+  };
+}
+
+const TTS = resolveTtsRuntime(ttsMod);
+
+function getTtsHealthSafe() {
+  try {
+    const raw = TTS.health ? TTS.health() : null;
+    const src = isPlainObject(raw) ? raw : {};
+    const env = isPlainObject(src.env) ? src.env : {};
+    return {
+      ok: !!src.ok,
+      provider: safeStr(src.provider || "resemble") || "resemble",
+      version: safeStr(src.version || TTS.version || "missing"),
+      activeRequests: clampInt(src.activeRequests, 0, 0, 999999),
+      failCount: clampInt(src.failCount, 0, 0, 999999),
+      circuitOpen: !!src.circuitOpen,
+      circuitResetAt: clampInt(src.circuitResetAt, 0, 0, Number.MAX_SAFE_INTEGER),
+      lastError: safeStr(src.lastError || "").slice(0, 220),
+      lastOkAt: clampInt(src.lastOkAt, 0, 0, Number.MAX_SAFE_INTEGER),
+      lastFailAt: clampInt(src.lastFailAt, 0, 0, Number.MAX_SAFE_INTEGER),
+      lastProviderStatus: clampInt(src.lastProviderStatus, 0, 0, 999999),
+      lastElapsedMs: clampInt(src.lastElapsedMs, 0, 0, 600000),
+      env: {
+        hasToken: !!env.hasToken,
+        hasProject: !!env.hasProject,
+        hasVoice: !!env.hasVoice,
+        useProjectUuidByDefault: !!env.useProjectUuidByDefault,
+        voiceUuidPreview: safeStr(env.voiceUuidPreview || ""),
+        voiceName: safeStr(env.voiceName || ""),
+        projectUuidPreview: safeStr(env.projectUuidPreview || ""),
+        providerTimeoutMs: clampInt(env.providerTimeoutMs, 0, 0, 600000)
+      }
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      provider: "resemble",
+      version: TTS.version || "missing",
+      lastError: safeStr(err && (err.message || err)).slice(0, 220),
+      env: { hasToken: false, hasProject: false, hasVoice: false }
+    };
+  }
+}
+
+function buildTtsRuntimeSnapshot() {
+  const health = getTtsHealthSafe();
+  return {
+    loaded: !!ttsMod,
+    version: TTS.version,
+    handlerLoaded: !!TTS.handleHttp,
+    delegateLoaded: !!TTS.delegate,
+    generateLoaded: !!TTS.generate,
+    healthLoaded: !!TTS.health,
+    health
+  };
+}
+
+function getReqText(req) {
+  return safeStr(req?.body?.text || req?.body?.message || req?.query?.text || req?.query?.message || "").trim();
+}
+
+function cloneReqWithPatch(req, patch) {
+  const bodyPatch = isPlainObject(patch?.body) ? patch.body : {};
+  const queryPatch = isPlainObject(patch?.query) ? patch.query : {};
+  return {
+    ...req,
+    body: { ...(isPlainObject(req?.body) ? req.body : {}), ...bodyPatch },
+    query: { ...(isPlainObject(req?.query) ? req.query : {}), ...queryPatch }
+  };
+}
+
+function buildIntroText(req) {
+  return oneLine(
+    req?.body?.introText ||
+    req?.body?.text ||
+    req?.query?.introText ||
+    req?.query?.text ||
+    "Hi — how can I help you today?"
+  ) || "Hi — how can I help you today?";
+}
+
+async function sendDelegateResult(res, result, ctx) {
+  const src = isPlainObject(result) ? result : {};
+  if (src.ok && src.buffer) {
+    res.setHeader("Content-Type", safeStr(src.mimeType || src.mime || "audio/mpeg") || "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Index-Version", INDEX_VERSION);
+    res.setHeader("X-Request-Id", safeStr(src.requestId || ctx.requestId));
+    res.setHeader("X-SB-Trace-Id", safeStr(src.traceId || ctx.traceId));
+    return res.status(200).send(src.buffer);
+  }
+
+  const providerStatus = clampInt(
+    src.status || src.providerStatus || (src.retryable ? 503 : 500),
+    src.retryable ? 503 : 500,
+    200,
+    599
+  );
+
+  return sendJson(res, providerStatus, {
+    ok: false,
+    spokenUnavailable: true,
+    provider: safeStr(src.provider || "resemble") || "resemble",
+    error: safeStr(src.reason || src.error || "tts_unavailable") || "tts_unavailable",
+    detail: safeStr(src.message || src.detail || "TTS unavailable.").slice(0, 220),
+    retryable: !!src.retryable,
+    requestId: safeStr(src.requestId || ctx.requestId),
+    traceId: safeStr(src.traceId || ctx.traceId),
+    turnId: safeStr(src.turnId || ""),
+    sessionId: safeStr(src.sessionId || ctx.sessionId),
+    ttsFailure: isPlainObject(src.ttsFailure) ? src.ttsFailure : undefined,
+    audioFailure: isPlainObject(src.audioFailure) ? src.audioFailure : undefined,
+    health: getTtsHealthSafe(),
+    payload: { spokenUnavailable: true },
+    version: INDEX_VERSION
+  });
+}
+
+async function handleTtsWithFallback(req, res, mode) {
+  const ctx = buildRequestContext(req);
+  const health = getTtsHealthSafe();
+
+  try {
+    if (mode === "health") {
+      return sendJson(res, 200, {
+        ok: true,
+        route: "/api/tts/health",
+        requestId: ctx.requestId,
+        traceId: ctx.traceId,
+        version: INDEX_VERSION,
+        tts: buildTtsRuntimeSnapshot()
+      });
+    }
+
+    if (mode === "voice-route") {
+      return sendJson(res, 200, {
+        ok: true,
+        provider: health.provider || "resemble",
+        voiceReady: !!health.ok,
+        spokenAvailable: !!health.ok,
+        route: "/api/tts",
+        introRoute: "/api/tts/intro",
+        requestId: ctx.requestId,
+        traceId: ctx.traceId,
+        version: INDEX_VERSION,
+        tts: buildTtsRuntimeSnapshot()
+      });
+    }
+
+    let ttsReq = req;
+    if (mode === "intro" && !getReqText(req)) {
+      ttsReq = cloneReqWithPatch(req, {
+        body: { text: buildIntroText(req), source: safeStr(req?.body?.source || "intro") || "intro" },
+        query: { text: buildIntroText(req) }
+      });
+    }
+
+    if (TTS.handleHttp) {
+      return await TTS.handleHttp(ttsReq, res);
+    }
+
+    if (TTS.delegate) {
+      const payload = {
+        ...(isPlainObject(ttsReq?.body) ? ttsReq.body : {}),
+        text: getReqText(ttsReq),
+        requestId: ctx.requestId,
+        traceId: ctx.traceId,
+        sessionId: ctx.sessionId
+      };
+      const result = await TTS.delegate(payload, ttsReq);
+      return sendDelegateResult(res, result, ctx);
+    }
+
+    if (TTS.generate) {
+      const text = getReqText(ttsReq);
+      if (!text) {
+        return sendJson(res, 400, {
+          ok: false,
+          spokenUnavailable: true,
+          error: "missing_text",
+          detail: "No TTS text was provided.",
+          requestId: ctx.requestId,
+          traceId: ctx.traceId,
+          version: INDEX_VERSION
+        });
+      }
+      const result = await TTS.generate(text, {
+        ...(isPlainObject(ttsReq?.body) ? ttsReq.body : {}),
+        ...(isPlainObject(ttsReq?.query) ? ttsReq.query : {}),
+        requestId: ctx.requestId,
+        traceId: ctx.traceId,
+        sessionId: ctx.sessionId
+      });
+      return sendDelegateResult(res, result, ctx);
+    }
+
+    return sendJson(res, 503, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_runtime_missing",
+      detail: "No TTS runtime exports were available.",
+      requestId: ctx.requestId,
+      traceId: ctx.traceId,
+      version: INDEX_VERSION,
+      tts: buildTtsRuntimeSnapshot()
+    });
+  } catch (err) {
+    return sendJson(res, 503, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_route_failure",
+      detail: safeStr(err && (err.message || err)).slice(0, 220),
+      requestId: ctx.requestId,
+      traceId: ctx.traceId,
+      version: INDEX_VERSION,
+      tts: buildTtsRuntimeSnapshot()
+    });
+  }
+}
 
 // ============================================================
 // Security headers
@@ -843,58 +1087,58 @@ app.get("/api/chat/health", (_req, res) => {
 });
 
 // ============================================================
-// Voice routes (extracted)
-// Keeps Mixer voice path functioning and isolated.
+// Voice routes
+// Keeps extracted voice path available when present,
+// but index.js now owns a stable fail-open/fail-closed wrapper
+// so /api/tts, /api/tts/intro, /api/voice-route and health
+// never disappear when the external router is absent.
 // ============================================================
-if (registerVoiceRoutes) {
-  registerVoiceRoutes(app, {
-    ttsHandler:
-      (typeof ttsMod?.delegateTts === "function" && ttsMod.delegateTts) ||
-      (typeof ttsMod?.ttsHandler === "function" && ttsMod.ttsHandler) ||
-      null,
+let voiceRouteRegistrationMode = "index_wrapped";
+if (registerVoiceRoutes && truthy(process.env.SB_USE_EXTRACTED_VOICE_ROUTES || "")) {
+  try {
+    registerVoiceRoutes(app, {
+      ttsHandler:
+        (typeof ttsMod?.delegateTts === "function" && ttsMod.delegateTts) ||
+        (typeof ttsMod?.ttsHandler === "function" && ttsMod.ttsHandler) ||
+        (typeof ttsMod?.handleTts === "function" && ttsMod.handleTts) ||
+        null,
 
-    mixerVoiceId:
-      safeStr(process.env.MIXER_VOICE_ID || "") ||
-      safeStr(process.env.RESEMBLE_VOICE_ID || "") ||
-      safeStr(process.env.RESEMBLE_VOICE_UUID || "") ||
-      safeStr(process.env.NYX_VOICE_ID || ""),
+      mixerVoiceId:
+        safeStr(process.env.MIXER_VOICE_ID || "") ||
+        safeStr(process.env.RESEMBLE_VOICE_ID || "") ||
+        safeStr(process.env.RESEMBLE_VOICE_UUID || "") ||
+        safeStr(process.env.NYX_VOICE_ID || ""),
 
-    mixerVoiceName:
-      safeStr(process.env.MIXER_VOICE_NAME || "") ||
-      safeStr(process.env.NYX_VOICE_NAME || "") ||
-      "Nyx",
+      mixerVoiceName:
+        safeStr(process.env.MIXER_VOICE_NAME || "") ||
+        safeStr(process.env.NYX_VOICE_NAME || "") ||
+        "Nyx",
 
-    ttsRoutePath: "/api/tts",
-    introRoutePath: "/api/tts/intro",
-    voiceRoutePath: "/api/voice-route",
-    allowedOrigins,
-    debug: DEBUG_MODE
-  });
-} else {
-  app.post("/api/tts", (_req, res) => {
-    return sendJson(res, 503, {
-      ok: false,
-      error: "voice_route_missing",
-      version: INDEX_VERSION
+      ttsRoutePath: "/api/_legacy_tts",
+      introRoutePath: "/api/_legacy_tts/intro",
+      voiceRoutePath: "/api/_legacy_voice-route",
+      allowedOrigins,
+      debug: DEBUG_MODE
     });
-  });
-
-  app.post("/api/tts/intro", (_req, res) => {
-    return sendJson(res, 503, {
-      ok: false,
-      error: "voice_route_missing",
-      version: INDEX_VERSION
-    });
-  });
-
-  app.get("/api/voice-route", (_req, res) => {
-    return sendJson(res, 503, {
-      ok: false,
-      error: "voice_route_missing",
-      version: INDEX_VERSION
-    });
-  });
+    voiceRouteRegistrationMode = "external_legacy_registered";
+  } catch (err) {
+    voiceRouteRegistrationMode = "external_registration_failed";
+    log("VOICE_ROUTE_REGISTER_FAIL", safeStr(err && (err.message || err)).slice(0, 220));
+  }
 }
+
+app.get("/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
+app.get("/api/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
+app.post("/api/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
+
+app.get("/api/voice-route", (req, res) => handleTtsWithFallback(req, res, "voice-route"));
+app.post("/api/voice-route", (req, res) => handleTtsWithFallback(req, res, "voice-route"));
+
+app.get("/api/tts", (req, res) => handleTtsWithFallback(req, res, "tts"));
+app.post("/api/tts", (req, res) => handleTtsWithFallback(req, res, "tts"));
+
+app.get("/api/tts/intro", (req, res) => handleTtsWithFallback(req, res, "intro"));
+app.post("/api/tts/intro", (req, res) => handleTtsWithFallback(req, res, "intro"));
 
 // ============================================================
 // Warm / health / diagnostics
@@ -949,7 +1193,8 @@ app.get("/api/health", (_req, res) => {
     },
     knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
     voiceRouteLoaded: !!registerVoiceRoutes,
-    ttsLoaded: !!ttsMod
+    voiceRouteRegistrationMode,
+    tts: buildTtsRuntimeSnapshot()
   });
 });
 
@@ -971,7 +1216,8 @@ app.get("/api/diag", (_req, res) => {
     },
     knowledge: knowledgeRuntime.knowledgeStatusForMeta(),
     voiceRouteLoaded: !!registerVoiceRoutes,
-    ttsLoaded: !!ttsMod,
+    voiceRouteRegistrationMode,
+    tts: buildTtsRuntimeSnapshot(),
     ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"),
     ttsHandlerLoaded: !!(ttsMod && typeof ttsMod.ttsHandler === "function")
   });
@@ -1026,7 +1272,8 @@ const server = app.listen(PORT, () => {
     engineVersion: ENGINE.version,
     port: PORT,
     voiceRouteLoaded: !!registerVoiceRoutes,
-    ttsLoaded: !!ttsMod,
+    voiceRouteRegistrationMode,
+    tts: buildTtsRuntimeSnapshot(),
     ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"),
     knowledgeLoaded: knowledgeRuntime.knowledgeStatusForMeta()
   });
