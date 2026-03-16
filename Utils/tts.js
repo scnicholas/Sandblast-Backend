@@ -23,10 +23,13 @@ const PHASES = Object.freeze({
   p17_providerErrorPassThrough: true,
   p18_traceCorrelation: true,
   p19_safeSnapshots: true,
-  p20_structuredFailureSurface: true
+  p20_structuredFailureSurface: true,
+  p21_providerPreflight: true,
+  p22_recoveryClearSignal: true,
+  p23_boundedRetry: true
 });
 
-const TTS_VERSION = "tts.js v2.2.1 HARDENED";
+const TTS_VERSION = "tts.js v2.3.0 RECOVERY-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -34,6 +37,8 @@ const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
 const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || 20000));
+const RETRY_MAX = Math.max(0, Math.min(3, Number(process.env.SB_TTS_RETRY_MAX || 1)));
+const RETRY_BASE_MS = Math.max(100, Math.min(5000, Number(process.env.SB_TTS_RETRY_BASE_MS || 500)));
 
 const DEFAULT_SPEECH_HINTS = Object.freeze({
   pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
@@ -171,6 +176,76 @@ function _setCommonAudioHeaders(res, traceId, meta) {
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
 
+const _sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms || 0) || 0)));
+
+function _isRetryableStatus(status) {
+  const n = Number(status || 0) || 0;
+  return n === 408 || n === 409 || n === 425 || n === 429 || n === 499 || n === 500 || n === 502 || n === 503 || n === 504;
+}
+
+function _isRetryableReason(reason) {
+  const s = _lower(reason);
+  return !!s && /(timeout|temporar|temporary|throttle|rate|limit|unavailable|disconnect|socket|econn|reset|network|retry|overload|capacity|busy|circuit_open)/.test(s);
+}
+
+function _inferAudioAction(status, retryable, reason) {
+  if (_lower(reason) === "circuit_open") return "retry";
+  if (retryable && (_isRetryableStatus(status) || _isRetryableReason(reason))) return "retry";
+  if (!retryable && status >= 400 && status < 500) return "stop";
+  if (status >= 500) return "downgrade";
+  return retryable ? "retry" : "downgrade";
+}
+
+function _buildAudioFailureMeta(result, input) {
+  const status = _int(result && (result.providerStatus || result.status), 503, 0, 599);
+  const retryable = !!(result && result.retryable);
+  const reason = _pickFirst(result && result.reason, result && result.message, "tts_unavailable");
+  const action = _inferAudioAction(status, retryable, reason);
+  const shouldTerminate = action === "stop";
+  const terminalStopUntil = shouldTerminate ? (_now() + 30000) : 0;
+  return {
+    present: true,
+    ok: false,
+    provider: _pickFirst(result && result.provider, input && input.provider, "resemble"),
+    reason,
+    message: _pickFirst(result && result.message, result && result.detail, "TTS unavailable."),
+    retryable,
+    action,
+    shouldStop: shouldTerminate,
+    shouldTerminate,
+    terminalStopUntil,
+    status,
+    providerStatus: status,
+    voiceUuid: _pickFirst(result && result.voiceUuid, input && input.voiceUuid, ""),
+    traceId: _pickFirst(result && result.traceId, input && input.traceId, ""),
+    requestId: _pickFirst(result && result.requestId, input && input.requestId, ""),
+    turnId: _pickFirst(result && result.turnId, input && input.turnId, ""),
+    sessionId: _pickFirst(result && result.sessionId, input && input.sessionId, ""),
+    providerEndpoint: _pickFirst(result && result.providerEndpoint, ""),
+    authMode: _pickFirst(result && result.authMode, "")
+  };
+}
+
+function _buildAudioRecoveryMeta(result, input) {
+  return {
+    present: false,
+    ok: true,
+    action: "clear",
+    cleared: true,
+    shouldStop: false,
+    shouldTerminate: false,
+    terminalStopUntil: 0,
+    provider: _pickFirst(result && result.provider, input && input.provider, "resemble"),
+    status: _int(result && (result.providerStatus || result.status), 200, 0, 599),
+    providerStatus: _int(result && (result.providerStatus || result.status), 200, 0, 599),
+    voiceUuid: _pickFirst(result && result.voiceUuid, input && input.voiceUuid, ""),
+    traceId: _pickFirst(result && result.traceId, input && input.traceId, ""),
+    requestId: _pickFirst(result && result.requestId, input && input.requestId, ""),
+    turnId: _pickFirst(result && result.turnId, input && input.turnId, ""),
+    sessionId: _pickFirst(result && result.sessionId, input && input.sessionId, "")
+  };
+}
+
 function _recordFailure(message, status, meta) {
   failCount += 1;
   lastError = _trim(message) || "tts_failed";
@@ -241,8 +316,12 @@ function _healthSnapshot() {
   const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _resolveProjectUuid("");
   const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  const configured = !!(token && voiceUuid);
+  const ready = !!(configured && !_circuitOpen() && activeRequests < MAX_CONCURRENT);
   return {
-    ok: !!(token && voiceUuid),
+    ok: ready,
+    configured,
+    ready,
     provider: "resemble",
     phases: PHASES,
     version: TTS_VERSION,
@@ -255,6 +334,10 @@ function _healthSnapshot() {
     lastFailAt,
     lastProviderStatus,
     lastElapsedMs,
+    retry: {
+      max: RETRY_MAX,
+      baseMs: RETRY_BASE_MS
+    },
     env: {
       hasToken: !!token,
       hasProject: !!projectUuid,
@@ -563,18 +646,39 @@ async function generate(text, options) {
 
   _log("generate_start", { ...snapshot, activeRequests, circuitOpen: _circuitOpen(), failCount });
 
-  if (!input.text) return { ok: false, reason: "empty_text", status: 400, retryable: false };
+  if (!input.text) {
+    const failed = { ok: false, reason: "empty_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: "resemble" };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, providerStatus: 400, ttsFailure: audioFailure, audioFailure };
+  }
+
+  const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  if (!token) {
+    _log("generate_reject_missing_token", snapshot);
+    const failed = { ok: false, reason: "missing_token", message: "No TTS provider token is configured.", status: 503, retryable: false, provider: "resemble" };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, providerStatus: 503, ttsFailure: audioFailure, audioFailure };
+  }
+
   if (!input.voiceUuid) {
     _log("generate_reject_missing_voice", snapshot);
-    return { ok: false, reason: "missing_voice", message: "No Mixer or provider voice is configured.", status: 503, retryable: false };
+    const failed = { ok: false, reason: "missing_voice", message: "No Mixer or provider voice is configured.", status: 503, retryable: false, provider: "resemble" };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, providerStatus: 503, ttsFailure: audioFailure, audioFailure };
   }
+
   if (activeRequests >= MAX_CONCURRENT) {
     _log("generate_reject_concurrency_limit", { ...snapshot, activeRequests, maxConcurrent: MAX_CONCURRENT });
-    return { ok: false, reason: "concurrency_limit", status: 429, retryable: true };
+    const failed = { ok: false, reason: "concurrency_limit", message: "TTS concurrency limit reached.", status: 429, retryable: true, provider: "resemble" };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, providerStatus: 429, ttsFailure: audioFailure, audioFailure };
   }
+
   if (_circuitOpen()) {
     _log("generate_reject_circuit_open", { ...snapshot, circuitOpenUntil });
-    return { ok: false, reason: "circuit_open", status: 503, retryable: true };
+    const failed = { ok: false, reason: "circuit_open", message: "TTS circuit is temporarily open.", status: 503, retryable: true, provider: "resemble" };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, providerStatus: 503, ttsFailure: audioFailure, audioFailure };
   }
 
   const shaped = _shapeSpeechText(input.text, { speechHints: input.speechHints, pronunciationMap: input.pronunciationMap });
@@ -603,92 +707,141 @@ async function generate(text, options) {
 
   activeRequests += 1;
   try {
-    _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, timeoutMs: PROVIDER_TIMEOUT_MS });
-    const out = await _withTimeout(synthesize(providerInput), PROVIDER_TIMEOUT_MS, snapshot);
-    const normalizedOut = _normalizeProviderAudio(out);
+    let attempt = 0;
+    let lastFailure = null;
+    const maxAttempts = RETRY_MAX + 1;
 
-    _log("provider_response", {
-      ...snapshot,
-      ok: !!normalizedOut.ok,
-      providerStatus: normalizedOut.providerStatus || 0,
-      reason: normalizedOut.reason || "",
-      authMode: normalizedOut.authMode || "",
-      providerEndpoint: normalizedOut.providerEndpoint || "",
-      bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
-      elapsedMs: normalizedOut.elapsedMs || 0
-    });
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      try {
+        _log("provider_request", {
+          ...snapshot,
+          activeRequests,
+          attempt,
+          maxAttempts,
+          provider: "resemble",
+          shapeElapsedMs: shaped.shapeElapsedMs,
+          segmentCount: shaped.segmentCount,
+          timeoutMs: PROVIDER_TIMEOUT_MS
+        });
 
-    if (!normalizedOut.ok) {
-      _recordFailure(normalizedOut.message || normalizedOut.reason || "provider_failed", normalizedOut.providerStatus || 503, snapshot);
-      return {
-        ok: false,
-        reason: normalizedOut.reason || "provider_failed",
-        message: normalizedOut.message || "TTS failed",
-        status: normalizedOut.retryable === false ? 400 : (normalizedOut.providerStatus || 503),
-        retryable: !!normalizedOut.retryable,
-        provider: "resemble",
-        providerStatus: normalizedOut.providerStatus || 503,
-        providerEndpoint: normalizedOut.providerEndpoint || "",
-        authMode: normalizedOut.authMode || "",
-        shapeElapsedMs: shaped.shapeElapsedMs,
-        segmentCount: shaped.segmentCount,
-        textDisplay: providerInput.textDisplay,
-        textSpeak: providerInput.textSpeak,
-        voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
-        traceId: input.traceId,
-        requestId: input.requestId,
-        turnId: input.turnId,
-        sessionId: input.sessionId
-      };
+        const out = await _withTimeout(synthesize(providerInput), PROVIDER_TIMEOUT_MS, snapshot);
+        const normalizedOut = _normalizeProviderAudio(out);
+
+        _log("provider_response", {
+          ...snapshot,
+          attempt,
+          ok: !!normalizedOut.ok,
+          providerStatus: normalizedOut.providerStatus || 0,
+          reason: normalizedOut.reason || "",
+          authMode: normalizedOut.authMode || "",
+          providerEndpoint: normalizedOut.providerEndpoint || "",
+          bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
+          elapsedMs: normalizedOut.elapsedMs || 0
+        });
+
+        if (!normalizedOut.ok) {
+          const retryable = !!normalizedOut.retryable && (_isRetryableStatus(normalizedOut.providerStatus) || _isRetryableReason(normalizedOut.reason || normalizedOut.message));
+          lastFailure = {
+            ok: false,
+            reason: normalizedOut.reason || "provider_failed",
+            message: normalizedOut.message || "TTS failed",
+            status: retryable ? (normalizedOut.providerStatus || 503) : (normalizedOut.providerStatus >= 400 ? normalizedOut.providerStatus : 400),
+            retryable,
+            provider: "resemble",
+            providerStatus: normalizedOut.providerStatus || 503,
+            providerEndpoint: normalizedOut.providerEndpoint || "",
+            authMode: normalizedOut.authMode || "",
+            shapeElapsedMs: shaped.shapeElapsedMs,
+            segmentCount: shaped.segmentCount,
+            textDisplay: providerInput.textDisplay,
+            textSpeak: providerInput.textSpeak,
+            voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
+            traceId: input.traceId,
+            requestId: input.requestId,
+            turnId: input.turnId,
+            sessionId: input.sessionId
+          };
+
+          if (retryable && attempt < maxAttempts) {
+            const backoffMs = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+            _log("provider_retry_backoff", { ...snapshot, attempt, backoffMs, reason: lastFailure.reason, providerStatus: lastFailure.providerStatus });
+            await _sleep(backoffMs);
+            continue;
+          }
+
+          _recordFailure(lastFailure.message || lastFailure.reason || "provider_failed", lastFailure.providerStatus || 503, snapshot);
+          const audioFailure = _buildAudioFailureMeta(lastFailure, input);
+          return { ...lastFailure, ttsFailure: audioFailure, audioFailure };
+        }
+
+        _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs, snapshot);
+        const recovered = {
+          ok: true,
+          provider: "resemble",
+          buffer: normalizedOut.buffer,
+          mimeType: normalizedOut.mimeType || "audio/mpeg",
+          elapsedMs: normalizedOut.elapsedMs || 0,
+          requestId: normalizedOut.requestId || input.requestId,
+          providerStatus: normalizedOut.providerStatus || 200,
+          providerEndpoint: normalizedOut.providerEndpoint || "",
+          authMode: normalizedOut.authMode || "",
+          shapeElapsedMs: shaped.shapeElapsedMs,
+          segmentCount: shaped.segmentCount,
+          textDisplay: providerInput.textDisplay,
+          textSpeak: providerInput.textSpeak,
+          ssmlText: providerInput.ssmlText,
+          speechChunks: providerInput.speechChunks,
+          voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
+          traceId: input.traceId,
+          turnId: input.turnId,
+          sessionId: input.sessionId
+        };
+        const audioRecovery = _buildAudioRecoveryMeta(recovered, input);
+        return { ...recovered, ttsFailure: audioRecovery, audioFailure: audioRecovery };
+      } catch (err) {
+        const msg = _trim(err && (err.message || err)) || "tts_exception";
+        const status = _int(err && err.status, 503, 400, 599);
+        const retryable = typeof (err && err.retryable) === "boolean" ? !!err.retryable : _isRetryableStatus(status) || _isRetryableReason(msg);
+        const reason = err && err.code === "TTS_PROVIDER_TIMEOUT" ? "provider_timeout" : "exception";
+
+        _log("provider_exception", { ...snapshot, attempt, message: msg, status, retryable, elapsedMs: _now() - startedAt });
+
+        lastFailure = {
+          ok: false,
+          reason,
+          message: msg,
+          status,
+          retryable,
+          provider: "resemble",
+          providerStatus: status,
+          shapeElapsedMs: shaped.shapeElapsedMs,
+          segmentCount: shaped.segmentCount,
+          textDisplay: providerInput.textDisplay,
+          textSpeak: providerInput.textSpeak,
+          voiceUuid: input.voiceUuid,
+          traceId: input.traceId,
+          requestId: input.requestId,
+          turnId: input.turnId,
+          sessionId: input.sessionId
+        };
+
+        if (retryable && attempt < maxAttempts) {
+          const backoffMs = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+          _log("provider_retry_backoff", { ...snapshot, attempt, backoffMs, reason: lastFailure.reason, providerStatus: lastFailure.providerStatus });
+          await _sleep(backoffMs);
+          continue;
+        }
+
+        _recordFailure(msg, status, snapshot);
+        const audioFailure = _buildAudioFailureMeta(lastFailure, input);
+        return { ...lastFailure, ttsFailure: audioFailure, audioFailure };
+      }
     }
 
-    _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs, snapshot);
-    return {
-      ok: true,
-      provider: "resemble",
-      buffer: normalizedOut.buffer,
-      mimeType: normalizedOut.mimeType || "audio/mpeg",
-      elapsedMs: normalizedOut.elapsedMs || 0,
-      requestId: normalizedOut.requestId || input.requestId,
-      providerStatus: normalizedOut.providerStatus || 200,
-      providerEndpoint: normalizedOut.providerEndpoint || "",
-      authMode: normalizedOut.authMode || "",
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      ssmlText: providerInput.ssmlText,
-      speechChunks: providerInput.speechChunks,
-      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
-      traceId: input.traceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId
-    };
-  } catch (err) {
-    const msg = _trim(err && (err.message || err)) || "tts_exception";
-    const status = _int(err && err.status, 503, 400, 599);
-    const retryable = typeof (err && err.retryable) === "boolean" ? !!err.retryable : status >= 500;
-    const reason = err && err.code === "TTS_PROVIDER_TIMEOUT" ? "provider_timeout" : "exception";
-    _log("provider_exception", { ...snapshot, message: msg, status, retryable, elapsedMs: _now() - startedAt });
-    _recordFailure(msg, status, snapshot);
-    return {
-      ok: false,
-      reason,
-      message: msg,
-      status,
-      retryable,
-      provider: "resemble",
-      providerStatus: status,
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      voiceUuid: input.voiceUuid,
-      traceId: input.traceId,
-      requestId: input.requestId,
-      turnId: input.turnId,
-      sessionId: input.sessionId
-    };
+    const failed = lastFailure || { ok: false, reason: "provider_failed", message: "TTS failed", status: 503, retryable: true, provider: "resemble", providerStatus: 503 };
+    const audioFailure = _buildAudioFailureMeta(failed, input);
+    return { ...failed, ttsFailure: audioFailure, audioFailure };
   } finally {
     activeRequests = Math.max(0, activeRequests - 1);
     _log("generate_complete", { ...snapshot, totalElapsedMs: _now() - startedAt, activeRequests });
@@ -853,7 +1006,9 @@ async function delegateTts(payload, req) {
       traceId: input.traceId,
       requestId: input.requestId,
       turnId: input.turnId,
-      sessionId: input.sessionId
+      sessionId: input.sessionId,
+      ttsFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: input.provider || "resemble" }, input),
+      audioFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: input.provider || "resemble" }, input)
     };
   }
 
@@ -883,7 +1038,9 @@ async function delegateTts(payload, req) {
       traceId: result.traceId || input.traceId,
       requestId: result.requestId || input.requestId,
       turnId: result.turnId || input.turnId,
-      sessionId: result.sessionId || input.sessionId
+      sessionId: result.sessionId || input.sessionId,
+      ttsFailure: result.ttsFailure || _buildAudioFailureMeta(result, input),
+      audioFailure: result.audioFailure || result.ttsFailure || _buildAudioFailureMeta(result, input)
     };
   }
 
@@ -910,7 +1067,9 @@ async function delegateTts(payload, req) {
     routeKind: input.routeKind || "main",
     traceId: result.traceId || input.traceId,
     turnId: result.turnId || input.turnId,
-    sessionId: result.sessionId || input.sessionId
+    sessionId: result.sessionId || input.sessionId,
+    ttsFailure: result.ttsFailure || _buildAudioRecoveryMeta(result, input),
+    audioFailure: result.audioFailure || result.ttsFailure || _buildAudioRecoveryMeta(result, input)
   };
 }
 
@@ -930,10 +1089,11 @@ async function handleTts(req, res) {
   _log("http_start", { ...snapshot, method: req && req.method, path: req && req.originalUrl });
 
   if (input.healthCheck) {
+    const healthState = _healthSnapshot();
     return _safeJson(res, 200, {
-      ok: true,
+      ok: !!healthState.ok,
       provider: "resemble",
-      health: _healthSnapshot(),
+      health: healthState,
       traceId: input.traceId
     });
   }
@@ -945,7 +1105,13 @@ async function handleTts(req, res) {
       error: "missing_text",
       detail: "No TTS text was provided.",
       traceId: input.traceId,
-      payload: { spokenUnavailable: true }
+      ttsFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: "resemble" }, input),
+      audioFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: "resemble" }, input),
+      payload: {
+        spokenUnavailable: true,
+        ttsFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: "resemble" }, input),
+        audioFailure: _buildAudioFailureMeta({ reason: "missing_text", message: "No TTS text was provided.", status: 400, retryable: false, provider: "resemble" }, input)
+      }
     });
   }
 
@@ -996,15 +1162,16 @@ async function handleTts(req, res) {
       requestId: result.requestId || input.requestId || "",
       turnId: result.turnId || input.turnId || "",
       sessionId: result.sessionId || input.sessionId || "",
-      health: _healthSnapshot(),
+      health: healthState,
       payload: { spokenUnavailable: true }
     });
   }
 
   if (input.wantJson) {
     _log("http_success_json", { ...snapshot, bytes: result.buffer ? result.buffer.length : 0, elapsedMs: _now() - startedAt });
+    const healthState = _healthSnapshot();
     return _safeJson(res, 200, {
-      ok: true,
+      ok: !!healthState.ok,
       provider: result.provider,
       mimeType: result.mimeType,
       audioBase64: result.buffer.toString("base64"),
@@ -1021,7 +1188,14 @@ async function handleTts(req, res) {
       segmentCount: result.segmentCount || 0,
       voiceUuid: result.voiceUuid || input.voiceUuid || "",
       turnId: result.turnId || input.turnId || "",
-      sessionId: result.sessionId || input.sessionId || ""
+      sessionId: result.sessionId || input.sessionId || "",
+      ttsFailure: result.ttsFailure || _buildAudioRecoveryMeta(result, input),
+      audioFailure: result.audioFailure || result.ttsFailure || _buildAudioRecoveryMeta(result, input),
+      payload: {
+        spokenAvailable: true,
+        ttsFailure: result.ttsFailure || _buildAudioRecoveryMeta(result, input),
+        audioFailure: result.audioFailure || result.ttsFailure || _buildAudioRecoveryMeta(result, input)
+      }
     });
   }
 
@@ -1029,6 +1203,7 @@ async function handleTts(req, res) {
     _setHeader(res, "Content-Type", result.mimeType || "audio/mpeg");
     _setHeader(res, "Content-Length", String(result.buffer.length));
     _setHeader(res, "Accept-Ranges", "none");
+    _setHeader(res, "X-SB-TTS-STATE", "clear");
     _log("http_success_audio", { ...snapshot, bytes: result.buffer.length, mimeType: result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
     res.status(200).send(result.buffer);
   } catch (e) {
