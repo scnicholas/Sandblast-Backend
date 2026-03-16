@@ -156,26 +156,44 @@ function normalizeAudioFailure(input) {
     (isPlainObject(input?.audioFailure) && input.audioFailure) ||
     (isPlainObject(input?.turnSignals?.ttsFailure) && input.turnSignals.ttsFailure) ||
     {};
+  const explicitAction = lower(bag.action || "");
+  const cleared = bag.cleared === true || (bag.ok === true && explicitAction === "clear");
+  if (cleared) {
+    return {
+      present: false,
+      cleared: true,
+      reason: "",
+      message: "",
+      providerStatus: clampInt(bag.providerStatus || bag.status, 200, 0, 999999),
+      retryable: false,
+      action: "clear",
+      shouldTerminate: false,
+      terminalStopUntil: 0
+    };
+  }
   const reason = lower(bag.reason || bag.message || "");
   const providerStatus = clampInt(bag.providerStatus || bag.status, 0, 0, 999999);
   const retryable = !!bag.retryable;
-  const action = /retry/i.test(safeStr(bag.action || "")) ? "retry" :
-    /stop|terminal/i.test(safeStr(bag.action || "")) ? "stop" :
-    /downgrade/i.test(safeStr(bag.action || "")) ? "downgrade" :
+  const action = /retry/i.test(explicitAction) ? "retry" :
+    /stop|terminal/i.test(explicitAction) ? "stop" :
+    /downgrade/i.test(explicitAction) ? "downgrade" :
     "";
   const shouldTerminate = !!(bag.shouldTerminate || bag.shouldStop || action === "stop");
   return {
     present: !!(reason || providerStatus || retryable || action),
+    cleared: false,
     reason,
     message: safeStr(bag.message || ""),
     providerStatus,
     retryable,
-    action: action || (retryable ? "downgrade" : (providerStatus >= 400 && providerStatus < 500 ? "stop" : "")),
-    shouldTerminate
+    action: action || (retryable ? "retry" : (providerStatus >= 400 && providerStatus < 500 ? "stop" : (providerStatus >= 500 ? "downgrade" : ""))),
+    shouldTerminate,
+    terminalStopUntil: Number(bag.terminalStopUntil || 0) || 0
   };
 }
 
 function buildAudioFailureLine(audioFailure, seed) {
+  if (audioFailure?.cleared) return "";
   if (!audioFailure?.present) return "";
   if (audioFailure.shouldTerminate || audioFailure.action === "stop") {
     return pick([
