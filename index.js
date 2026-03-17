@@ -28,7 +28,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.5.0sb";
+const INDEX_VERSION = "index.js v2.6.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -70,6 +70,47 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
+
+function isAllowedOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return true;
+  if (CFG.corsAllowedOrigins.includes("*")) return true;
+  return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
+}
+
+function applyCors(req, res) {
+  const origin = cleanText(req.headers.origin || "");
+  const reqHeaders = cleanText(req.headers["access-control-request-headers"] || "");
+  const allowHeaders = uniq([
+    "Content-Type",
+    "Authorization",
+    "x-sb-trace-id",
+    CFG.apiTokenHeader,
+    ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
+  ]);
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Vary", "Origin");
+    if (CFG.corsAllowCredentials) {
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  }
+
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  return origin;
+}
+
+app.use((req, res, next) => {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  return next();
+});
+
 
 function safeStr(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -133,11 +174,34 @@ function boolEnv(name, fallback) {
   return !!fallback;
 }
 
+function parseOrigins(raw) {
+  return uniq(
+    cleanText(raw || "")
+      .split(",")
+      .map((s) => cleanText(s))
+      .filter(Boolean)
+  );
+}
+
+function sameHost(a, b) {
+  try {
+    return new URL(a).host === new URL(b).host;
+  } catch (_) {
+    return false;
+  }
+}
+
 const CFG = {
   apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
   apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
+  requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
   voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
   preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
+  corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
+  corsAllowedOrigins: parseOrigins(
+    process.env.SB_CORS_ALLOWED_ORIGINS ||
+    "https://www.sandblast.channel,https://sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
+  ),
   quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
   loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
@@ -235,18 +299,30 @@ function getSessionId(req) {
 }
 
 function readToken(req) {
-  return cleanText(req.headers[CFG.apiTokenHeader] || "");
+  const header = lower(CFG.apiTokenHeader || "x-sb-widget-token");
+  return cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
 }
 
-function enforceToken(req, res, next) {
-  if (!CFG.apiToken) return next();
-  const got = readToken(req);
-  if (got && got === CFG.apiToken) return next();
+function denyUnauthorized(res) {
   return res.status(401).json({
     ok: false,
     error: "unauthorized",
     meta: { v: INDEX_VERSION, t: now() }
   });
+}
+
+function enforceToken(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (!CFG.apiToken) return next();
+  const got = readToken(req);
+  if (got && got === CFG.apiToken) return next();
+  return denyUnauthorized(res);
+}
+
+function enforceVoiceRouteAccess(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (!CFG.requireVoiceRouteToken) return next();
+  return enforceToken(req, res, next);
 }
 
 function getLastTurn(sessionId) {
@@ -269,7 +345,6 @@ function getSupportState(sessionId) {
     updatedAt: 0
   };
 }
-
 function setSupportState(sessionId, patch) {
   const prev = getSupportState(sessionId);
   const next = {
@@ -564,7 +639,6 @@ function detectLoop(sessionId, reply, userText) {
     userHash
   };
 }
-
 function shapeEngineReply(raw) {
   if (!isObj(raw)) return {};
   const payload = isObj(raw.payload) ? raw.payload : {};
@@ -689,7 +763,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get("/api/voice-route", enforceToken, (_req, res) => {
+app.get("/api/voice-route", enforceVoiceRouteAccess, (_req, res) => {
   res.json({
     ok: true,
     payload: buildVoiceRouteSnapshot(),
@@ -873,8 +947,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
 
   let shaped = shapeEngineReply(engineRaw);
   let failSafe = false;
-
-  if (engineError) {
+    if (engineError) {
     failSafe = true;
     const supportReply = buildSafeSupportReply(norm.text, emotion, {
       traceId: norm.traceId,
@@ -1019,6 +1092,27 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     audio: shaped.audio || undefined,
     ttsProfile: shaped.ttsProfile || undefined,
     voiceRoute: shaped.voiceRoute || undefined
+  });
+});
+
+app.use("/api", (req, res) => {
+  applyCors(req, res);
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: req.path,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.use((err, req, res, _next) => {
+  console.log("[Sandblast][express:error]", err && (err.stack || err.message || err));
+  applyCors(req, res);
+  return res.status(500).json({
+    ok: false,
+    error: "server_error",
+    detail: cleanText(err && (err.message || err) || "server error"),
+    meta: { v: INDEX_VERSION, t: now() }
   });
 });
 
