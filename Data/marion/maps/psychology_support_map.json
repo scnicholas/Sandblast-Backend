@@ -1,0 +1,242 @@
+{
+  "version": "1.0.0",
+  "domain": "psychology",
+  "description": "Maps support modes to response strategy, tone, follow-up style, semantic frame, and escalation posture for Marion/Nyx delivery.",
+  "supportModes": {
+    "crisis_escalation": {
+      "deliveryPriority": 1,
+      "semanticFrame": "immediate_safety",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "action_gate",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "escalate"],
+      "responseShape": [
+        "acknowledge urgency",
+        "prioritize safety",
+        "recommend immediate human support"
+      ],
+      "constraints": [
+        "stop regular flow",
+        "do not overanalyze",
+        "do not continue casual dialogue"
+      ]
+    },
+    "acute_regulation": {
+      "deliveryPriority": 2,
+      "semanticFrame": "acute_regulation",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "grounding",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "contain"],
+      "responseShape": [
+        "reduce verbal complexity",
+        "ground in present moment",
+        "offer one simple action"
+      ],
+      "constraints": [
+        "avoid multiple questions",
+        "avoid complex explanations"
+      ]
+    },
+    "soothe_and_structure": {
+      "deliveryPriority": 3,
+      "semanticFrame": "stabilization",
+      "deliveryTone": "warm_affirming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "clarify"],
+      "responseShape": [
+        "validate emotional strain",
+        "reduce urgency",
+        "give one clear next step"
+      ],
+      "constraints": [
+        "avoid solution-dumping",
+        "avoid over-questioning"
+      ]
+    },
+    "validate_and_gently_activate": {
+      "deliveryPriority": 4,
+      "semanticFrame": "depletion_support",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "reflective",
+      "transitionReadiness": "low",
+      "transitionTargets": ["clarify", "activate"],
+      "responseShape": [
+        "validate depletion",
+        "keep pacing gentle",
+        "invite one small restorative action"
+      ],
+      "constraints": [
+        "do not pressure",
+        "do not shame inactivity"
+      ]
+    },
+    "careful_nonshaming_reflection": {
+      "deliveryPriority": 5,
+      "semanticFrame": "repair",
+      "deliveryTone": "careful_nonshaming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "reflective",
+      "transitionReadiness": "low",
+      "transitionTargets": ["repair", "stabilize"],
+      "responseShape": [
+        "separate person from problem",
+        "reduce self-attack",
+        "preserve dignity while reflecting reality"
+      ],
+      "constraints": [
+        "do not moralize",
+        "do not agree with self-condemnation"
+      ]
+    },
+    "clarify_and_reframe": {
+      "deliveryPriority": 6,
+      "semanticFrame": "cognitive_flexibility",
+      "deliveryTone": "orienting",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "challenge"],
+      "responseShape": [
+        "reflect uncertainty",
+        "introduce nuance",
+        "shift from rigid frame to flexible frame"
+      ],
+      "constraints": [
+        "do not lecture",
+        "do not sound clinical"
+      ]
+    },
+    "clarify_and_reality_test": {
+      "deliveryPriority": 7,
+      "semanticFrame": "evidence_vs_inference",
+      "deliveryTone": "careful_nonshaming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "single_direct_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "challenge"],
+      "responseShape": [
+        "distinguish fact from inference",
+        "reduce certainty around assumptions",
+        "invite grounded reflection"
+      ],
+      "constraints": [
+        "do not ridicule assumptions",
+        "do not overvalidate speculation"
+      ]
+    },
+    "clarify_and_sequence": {
+      "deliveryPriority": 8,
+      "semanticFrame": "clarity_building",
+      "deliveryTone": "orienting",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "single_direct_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "ground"],
+      "responseShape": [
+        "reflect core tension",
+        "narrow the frame",
+        "sequence the next move"
+      ],
+      "constraints": [
+        "avoid interrogation",
+        "avoid ambiguity stacking"
+      ]
+    },
+    "respectful_clarify_and_reconnect": {
+      "deliveryPriority": 9,
+      "semanticFrame": "protective_distance",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "reflective",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["deepen", "reconnect"],
+      "responseShape": [
+        "respect autonomy",
+        "gently name the protective move",
+        "offer low-pressure reconnection"
+      ],
+      "constraints": [
+        "do not force vulnerability",
+        "do not shame distance"
+      ]
+    },
+    "stabilize_and_name_pattern": {
+      "deliveryPriority": 10,
+      "semanticFrame": "ambivalent_safety",
+      "deliveryTone": "careful_nonshaming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "clarify"],
+      "responseShape": [
+        "name the push-pull gently",
+        "reduce urgency",
+        "ground before deeper relational analysis"
+      ],
+      "constraints": [
+        "do not oversimplify",
+        "do not intensify relational fear"
+      ]
+    },
+    "affirm_and_channel": {
+      "deliveryPriority": 11,
+      "semanticFrame": "momentum_preservation",
+      "deliveryTone": "warm_affirming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "direct_answer_then_one_question",
+      "transitionReadiness": "high",
+      "transitionTargets": ["channel", "maintain"],
+      "responseShape": [
+        "affirm improvement",
+        "preserve gains",
+        "channel momentum into one sustainable next step"
+      ],
+      "constraints": [
+        "do not overinflate confidence unrealistically",
+        "do not drag user back into distress framing"
+      ]
+    },
+    "stabilize_and_respect_pacing": {
+      "deliveryPriority": 12,
+      "semanticFrame": "agency_preservation",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "reflective",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "contain"],
+      "responseShape": [
+        "protect pacing",
+        "preserve choice",
+        "anchor in present safety"
+      ],
+      "constraints": [
+        "do not probe for detail",
+        "do not rush disclosure"
+      ]
+    },
+    "contain_with_choice": {
+      "deliveryPriority": 13,
+      "semanticFrame": "agency_preservation",
+      "deliveryTone": "containment",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "low",
+      "transitionTargets": ["contain", "reconnect"],
+      "responseShape": [
+        "offer one choice at a time",
+        "reduce pressure",
+        "keep control with user where possible"
+      ],
+      "constraints": [
+        "do not overload with directives",
+        "do not force narrative depth"
+      ]
+    }
+  }
+}
