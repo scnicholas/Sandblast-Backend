@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.4.1sb
+ * index.js v2.5.0sb
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -13,24 +13,8 @@
  * - Preserves Mixer voice path
  * - Keeps fail-open rendering contract
  * - Hardens TTS route error handling and response finalization
- *
- * 15 PHASE COVERAGE
- * ------------------------------------------------------------
- * Phase 01: Env + config normalization
- * Phase 02: Safe module resolution
- * Phase 03: Engine resolver hardening
- * Phase 04: Knowledge runtime isolation
- * Phase 05: Security headers
- * Phase 06: CORS + preflight discipline
- * Phase 07: Optional token gate
- * Phase 08: IP rate limiting / abuse control
- * Phase 09: Request context normalization
- * Phase 10: Session shaping / patch merge
- * Phase 11: Single-authority chat execution
- * Phase 12: Stable contract normalization
- * Phase 13: Voice route extraction / Mixer preservation
- * Phase 14: Health / diagnostics / warm routes
- * Phase 15: Graceful shutdown + fail-open safety
+ * - Adds affect/stabilize/fail-safe unification
+ * - Adds loop suppression / stale-UI wipe discipline
  */
 
 const express = require("express");
@@ -44,7 +28,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.4.1sb";
+const INDEX_VERSION = "index.js v2.5.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -54,626 +38,1002 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
   try {
-    setTimeout(() => process.exit(1), 250).unref?.();
-  } catch (_) {
-    process.exit(1);
-  }
+    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
+  } catch (_) {}
 });
 
-function safeStr(x) {
-  return x === null || x === undefined ? "" : String(x);
-}
-function isPlainObject(x) {
-  return !!x &&
-    typeof x === "object" &&
-    (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
-}
-function oneLine(s) {
-  return safeStr(s).replace(/\s+/g, " ").trim();
-}
-function clampInt(v, def, min, max) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  const t = Math.trunc(n);
-  if (t < min) return min;
-  if (t > max) return max;
-  return t;
-}
-function truthy(v) {
-  if (v === true) return true;
-  const s = safeStr(v).trim().toLowerCase();
-  return s === "1" || s === "true" || s === "yes" || s === "y" || s === "on";
-}
-function sha1Lite(str) {
-  const s = safeStr(str);
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
-function nowMs() {
-  return Date.now();
-}
-function safeJson(obj, fallback) {
-  try {
-    return JSON.stringify(obj);
-  } catch (_) {
-    return fallback || "{}";
-  }
-}
-function safeRequire(modPath) {
-  try {
-    return require(modPath);
-  } catch (err) {
-    log("MODULE_REQUIRE_FAIL", {
-      module: modPath,
-      detail: safeStr(err && (err.message || err)).slice(0, 220)
-    });
-    return null;
-  }
-}
 function tryRequireMany(paths) {
   for (const p of paths) {
-    const mod = safeRequire(p);
-    if (mod) return mod;
+    try {
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_) {}
   }
   return null;
 }
-function deepMerge(base, patch) {
-  const b = isPlainObject(base) ? base : {};
-  const p = isPlainObject(patch) ? patch : {};
-  const out = { ...b };
-  for (const k of Object.keys(p)) {
-    const bv = out[k];
-    const pv = p[k];
-    if (isPlainObject(bv) && isPlainObject(pv)) out[k] = deepMerge(bv, pv);
-    else out[k] = pv;
-  }
-  return out;
-}
-function log() {
-  console.log("[Sandblast]", ...arguments);
-}
-function errorDetailFrom(err, fallback) {
-  if (err === null || err === undefined) {
-    return safeStr(fallback || "unknown_error").slice(0, 220);
-  }
-  if (typeof err === "string") return safeStr(err).slice(0, 220);
-  if (isPlainObject(err)) {
-    const direct = err.detail || err.message || err.reason || err.error || err.code || "";
-    if (direct) return safeStr(direct).slice(0, 220);
-    try {
-      return safeJson(err, fallback || "{}").slice(0, 220);
-    } catch (_) {
-      return safeStr(fallback || "unknown_error").slice(0, 220);
-    }
-  }
-  return safeStr((err && err.message) || err).slice(0, 220) || safeStr(fallback || "unknown_error").slice(0, 220);
-}
-function buildErrorEnvelope(err, fallbackCode, fallbackDetail) {
-  return {
-    error: safeStr(fallbackCode || "unknown_error") || "unknown_error",
-    detail: errorDetailFrom(err, fallbackDetail || "Unknown error.")
-  };
-}
-function hasResponseEnded(res) {
-  return !!(res && (res.headersSent || res.writableEnded || res.finished));
-}
 
-const PORT = clampInt(process.env.PORT, 3000, 1, 65535);
-const NODE_ENV = safeStr(process.env.NODE_ENV || "development").toLowerCase();
-const MAX_BODY_KB = clampInt(process.env.MAX_BODY_KB, 512, 16, 4096);
-const MAX_CHAT_TEXT = clampInt(process.env.MAX_CHAT_TEXT, 12000, 128, 50000);
-const EXPECTED_API_TOKEN = safeStr(process.env.EXPECTED_API_TOKEN || "");
-const REQUIRE_API_TOKEN = truthy(process.env.REQUIRE_API_TOKEN || "");
-const DEBUG_MODE = truthy(process.env.SB_DEBUG || process.env.DEBUG || "");
-const TRUST_PROXY = truthy(process.env.TRUST_PROXY || "1");
-const CORS_ALLOW_ORIGIN = safeStr(process.env.CORS_ALLOW_ORIGIN || "*");
-const CORS_ALLOWED_HEADERS = oneLine(process.env.CORS_ALLOWED_HEADERS || "Content-Type, Authorization, X-Requested-With, X-Session-Id, X-Request-Id, X-SB-Trace-Id");
-const CORS_ALLOWED_METHODS = oneLine(process.env.CORS_ALLOWED_METHODS || "GET,POST,OPTIONS");
-const CHAT_PUBLIC_ROUTES = new Set(["/api/chat","/api/chat/reset","/api/chat/health","/api/health","/healthz","/readyz","/_warm"]);
-const VOICE_PUBLIC_ROUTE_PREFIXES = ["/api/tts","/api/voice"];
-const RATE_WINDOW_MS = clampInt(process.env.RATE_WINDOW_MS, 60000, 5000, 300000);
-const RATE_MAX_PER_IP = clampInt(process.env.RATE_MAX_PER_IP, 90, 10, 5000);
-const VOICE_RATE_MAX_PER_IP = clampInt(process.env.VOICE_RATE_MAX_PER_IP, 40, 5, 5000);
-const RATE_BAN_MS = clampInt(process.env.RATE_BAN_MS, 30000, 0, 600000);
-const AVATAR_DIR = path.join(process.cwd(), "public", "avatar");
-const DEDUPE_WINDOW_MS = clampInt(process.env.DEDUPE_WINDOW_MS, 8000, 500, 60000);
-const RESPONSE_CACHE_TTL_MS = clampInt(process.env.RESPONSE_CACHE_TTL_MS, 12000, 1000, 120000);
-const MAX_REPLY_CHARS = clampInt(process.env.MAX_REPLY_CHARS, 2400, 64, 12000);
-const MAX_FOLLOWUPS = clampInt(process.env.MAX_FOLLOWUPS, 4, 0, 10);
-const MAX_DIRECTIVES = clampInt(process.env.MAX_DIRECTIVES, 8, 0, 24);
-const MAX_CHIPS = clampInt(process.env.MAX_CHIPS, 4, 0, 8);
+const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
+if (envLoader && typeof envLoader.config === "function") {
+  try { envLoader.config(); } catch (_) {}
+}
 
 const app = express();
-if (TRUST_PROXY) app.set("trust proxy", 1);
-if (compression) app.use(compression());
 app.disable("x-powered-by");
-app.use(express.json({ limit: `${MAX_BODY_KB}kb` }));
-app.use(express.urlencoded({ extended: false, limit: `${MAX_BODY_KB}kb` }));
-app.use((err, _req, res, next) => {
-  if (!err) return next();
-  const msg = safeStr(err && err.message ? err.message : err);
-  const code = safeStr(err && err.type ? err.type : "");
-  if (code === "entity.too.large") {
-    return sendJson(res, 413, { ok: false, error: "payload_too_large", version: INDEX_VERSION, maxBodyKb: MAX_BODY_KB });
-  }
-  if (msg) return sendJson(res, 400, { ok: false, error: "invalid_json", version: INDEX_VERSION });
-  return next(err);
-});
+app.set("trust proxy", true);
 
-function resolveEngine() {
-  const mod = tryRequireMany(["./Utils/chatEngine","./Utils/chatEngine.js","./utils/chatEngine","./utils/chatEngine.js","./chatEngine","./chatEngine.js"]);
-  if (!mod) {
-    return {
-      version: "missing",
-      fn: async () => ({
-        ok: false, reply: "I am here, and I can keep this steady while the engine reconnects.",
-        payload: { reply: "I am here, and I can keep this steady while the engine reconnects." },
-        lane: "general", laneId: "general", sessionLane: "general", directives: [], followUps: [], followUpsStrings: [],
-        ui: { chips: [], allowMic: true }, sessionPatch: {}, cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-        meta: { failSafe: true, v: INDEX_VERSION, t: nowMs() }
-      })
-    };
-  }
-  const fn = (typeof mod === "function" && mod) || mod.handleChat || mod.chatEngine || mod.default || null;
-  if (!fn) {
-    return {
-      version: safeStr(mod.CE_VERSION || "invalid"),
-      fn: async () => ({
-        ok: false, reply: "I am keeping this stable while the response engine resets its contract.",
-        payload: { reply: "I am keeping this stable while the response engine resets its contract." },
-        lane: "general", laneId: "general", sessionLane: "general", directives: [], followUps: [], followUpsStrings: [],
-        ui: { chips: [], allowMic: true }, sessionPatch: {}, cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-        meta: { failSafe: true, invalidEngineExport: true, v: INDEX_VERSION, t: nowMs() }
-      })
-    };
-  }
-  return { version: safeStr(mod.CE_VERSION || mod.version || "present"), fn };
+if (compression) {
+  app.use(compression());
 }
-const ENGINE = resolveEngine();
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+
+const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_DIR = path.join(__dirname, "public");
+
+function safeStr(v) {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function now() {
+  return Date.now();
+}
+
+function lower(v) {
+  return safeStr(v).toLowerCase();
+}
+
+function clamp(n, min, max) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function uniq(arr) {
+  return Array.from(new Set(Array.isArray(arr) ? arr.filter(Boolean) : []));
+}
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function cleanText(v) {
+  return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function cleanReplyForUser(v) {
+  let t = cleanText(v);
+  if (!t) return "";
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
+  t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
+  t = t.replace(/\bbackend\b/ig, "system");
+  t = t.replace(/\s+([,.!?])/g, "$1").trim();
+  return t;
+}
+
+function replyHash(v) {
+  const s = cleanText(v).toLowerCase();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return String(h);
+}
+
+function makeTraceId(prefix) {
+  return `${prefix || "trace"}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function boolEnv(name, fallback) {
+  const raw = lower(process.env[name]);
+  if (!raw) return !!fallback;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return !!fallback;
+}
+
+const CFG = {
+  apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
+  apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
+  voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
+  preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
+  quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
+  loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
+  duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
+  requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
+  port: PORT
+};
+
+const chatEngineMod = tryRequireMany([
+  "./chatEngine",
+  "./chatEngine.js",
+  "./ChatEngine",
+  "./ChatEngine.js",
+  "./utils/chatEngine",
+  "./utils/chatEngine.js",
+  "./Utils/chatEngine",
+  "./Utils/chatEngine.js"
+]);
+
+const supportResponseMod = tryRequireMany([
+  "./supportResponse",
+  "./supportResponse.js",
+  "./utils/supportResponse",
+  "./utils/supportResponse.js",
+  "./Utils/supportResponse",
+  "./Utils/supportResponse.js"
+]);
+
+const voiceRouteMod = tryRequireMany([
+  "./utils/voiceRoute",
+  "./utils/voiceRoute.js",
+  "./Utils/voiceRoute",
+  "./Utils/voiceRoute.js"
+]);
+
+const ttsMod = tryRequireMany([
+  "./tts",
+  "./tts.js",
+  "./utils/tts",
+  "./utils/tts.js",
+  "./Utils/tts",
+  "./Utils/tts.js"
+]);
+
+const marionBridgeMod = tryRequireMany([
+  "./marionBridge",
+  "./marionBridge.js",
+  "./utils/marionBridge",
+  "./utils/marionBridge.js",
+  "./Utils/marionBridge",
+  "./Utils/marionBridge.js",
+  "./runtime/marionBridge",
+  "./runtime/marionBridge.js"
+]);
+
+const affectEngineMod = tryRequireMany([
+  "./affectEngine",
+  "./affectEngine.js",
+  "./utils/affectEngine",
+  "./utils/affectEngine.js",
+  "./Utils/affectEngine",
+  "./Utils/affectEngine.js"
+]);
 
 const knowledgeRuntimeMod = tryRequireMany(["./Utils/knowledgeRuntime","./Utils/knowledgeRuntime.js","./utils/knowledgeRuntime","./utils/knowledgeRuntime.js"]);
 const knowledgeRuntime = {
-  reloadKnowledge: typeof knowledgeRuntimeMod?.reloadKnowledge === "function" ? knowledgeRuntimeMod.reloadKnowledge : async () => ({ ok: true, skipped: true }),
-  knowledgeSnapshotForEngine: typeof knowledgeRuntimeMod?.knowledgeSnapshotForEngine === "function" ? knowledgeRuntimeMod.knowledgeSnapshotForEngine : () => ({}),
-  knowledgeStatusForMeta: typeof knowledgeRuntimeMod?.knowledgeStatusForMeta === "function" ? knowledgeRuntimeMod.knowledgeStatusForMeta : () => ({ ok: false, loaded: false, source: "index_fallback", extracted: true }),
-  getPackIndexSafe: typeof knowledgeRuntimeMod?.getPackIndexSafe === "function" ? knowledgeRuntimeMod.getPackIndexSafe : () => null
+  available: !!knowledgeRuntimeMod,
+  extract(query, opts) {
+    try {
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.extract === "function") {
+        return knowledgeRuntimeMod.extract(query, opts || {});
+      }
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.retrieve === "function") {
+        return knowledgeRuntimeMod.retrieve(query, opts || {});
+      }
+    } catch (_) {}
+    return { ok: false, loaded: false, source: "index_fallback", extracted: true };
+  }
 };
 
-const voiceRouteMod = tryRequireMany(["./Utils/voiceRoute","./Utils/voiceRoute.js","./utils/voiceRoute","./utils/voiceRoute.js"]);
-const registerVoiceRoutes = (typeof voiceRouteMod?.registerVoiceRoutes === "function" && voiceRouteMod.registerVoiceRoutes) || null;
-const ttsMod = tryRequireMany(["./Utils/tts","./Utils/tts.js","./utils/tts","./utils/tts.js"]);
+const memory = {
+  lastBySession: new Map(),
+  supportBySession: new Map(),
+  transportBySession: new Map()
+};
 
-function resolveTtsRuntime(mod) {
-  const src = mod && typeof mod === "object" ? mod : {};
-  return {
-    mod: src,
-    version: safeStr(src.TTS_VERSION || src.version || "missing"),
-    handleHttp: src.handleTts || src.ttsHandler || src.handler || null,
-    delegate: src.delegateTts || null,
-    generate: src.generate || null,
-    health: src.health || null
-  };
+function getSessionId(req) {
+  return cleanText(
+    req.headers["x-session-id"] ||
+    req.headers["x-sb-session-id"] ||
+    req.body?.sessionId ||
+    req.body?.payload?.sessionId ||
+    req.ip ||
+    "anon"
+  ).slice(0, 120);
 }
-const TTS = resolveTtsRuntime(ttsMod);
 
-function getTtsHealthSafe() {
-  try {
-    const raw = TTS.health ? TTS.health() : null;
-    const src = isPlainObject(raw) ? raw : {};
-    const env = isPlainObject(src.env) ? src.env : {};
-    return {
-      ok: !!src.ok,
-      provider: safeStr(src.provider || "resemble") || "resemble",
-      version: safeStr(src.version || TTS.version || "missing"),
-      activeRequests: clampInt(src.activeRequests, 0, 0, 999999),
-      failCount: clampInt(src.failCount, 0, 0, 999999),
-      circuitOpen: !!src.circuitOpen,
-      circuitResetAt: clampInt(src.circuitResetAt, 0, 0, Number.MAX_SAFE_INTEGER),
-      lastError: safeStr(src.lastError || "").slice(0, 220),
-      lastOkAt: clampInt(src.lastOkAt, 0, 0, Number.MAX_SAFE_INTEGER),
-      lastFailAt: clampInt(src.lastFailAt, 0, 0, Number.MAX_SAFE_INTEGER),
-      lastProviderStatus: clampInt(src.lastProviderStatus, 0, 0, 999999),
-      lastElapsedMs: clampInt(src.lastElapsedMs, 0, 0, 600000),
-      env: {
-        hasToken: !!env.hasToken, hasProject: !!env.hasProject, hasVoice: !!env.hasVoice,
-        useProjectUuidByDefault: !!env.useProjectUuidByDefault, voiceUuidPreview: safeStr(env.voiceUuidPreview || ""),
-        voiceName: safeStr(env.voiceName || ""), projectUuidPreview: safeStr(env.projectUuidPreview || ""),
-        providerTimeoutMs: clampInt(env.providerTimeoutMs, 0, 0, 600000)
-      }
-    };
-  } catch (err) {
-    return { ok: false, provider: "resemble", version: TTS.version || "missing", lastError: errorDetailFrom(err, "tts_health_failed"), env: { hasToken: false, hasProject: false, hasVoice: false } };
-  }
+function readToken(req) {
+  return cleanText(req.headers[CFG.apiTokenHeader] || "");
 }
-function buildTtsRuntimeSnapshot() {
-  const health = getTtsHealthSafe();
-  return { loaded: !!ttsMod, version: TTS.version, handlerLoaded: !!TTS.handleHttp, delegateLoaded: !!TTS.delegate, generateLoaded: !!TTS.generate, healthLoaded: !!TTS.health, health };
-}
-function getReqText(req) {
-  return safeStr(req?.body?.text || req?.body?.message || req?.query?.text || req?.query?.message || "").trim();
-}
-function cloneReqWithPatch(req, patch) {
-  const bodyPatch = isPlainObject(patch?.body) ? patch.body : {};
-  const queryPatch = isPlainObject(patch?.query) ? patch.query : {};
-  return { ...req, body: { ...(isPlainObject(req?.body) ? req.body : {}), ...bodyPatch }, query: { ...(isPlainObject(req?.query) ? req.query : {}), ...queryPatch } };
-}
-function buildIntroText(req) {
-  return oneLine(req?.body?.introText || req?.body?.text || req?.query?.introText || req?.query?.text || "Hi — how can I help you today?") || "Hi — how can I help you today?";
-}
-function logTtsFailure(ctx, code, err, extra) {
-  log("TTS_ROUTE_FAIL", { code: safeStr(code || "tts_route_failure"), detail: errorDetailFrom(err, "tts_route_failure"), requestId: safeStr(ctx?.requestId || ""), traceId: safeStr(ctx?.traceId || ""), sessionId: safeStr(ctx?.sessionId || ""), ...(isPlainObject(extra) ? extra : {}) });
-}
-async function sendDelegateResult(res, result, ctx) {
-  const src = isPlainObject(result) ? result : {};
-  if (src.ok && src.buffer) {
-    res.setHeader("Content-Type", safeStr(src.mimeType || src.mime || "audio/mpeg") || "audio/mpeg");
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-Index-Version", INDEX_VERSION);
-    res.setHeader("X-Request-Id", safeStr(src.requestId || ctx.requestId));
-    res.setHeader("X-SB-Trace-Id", safeStr(src.traceId || ctx.traceId));
-    return res.status(200).send(src.buffer);
-  }
-  const providerStatus = clampInt(src.status || src.providerStatus || (src.retryable ? 503 : 500), src.retryable ? 503 : 500, 200, 599);
-  return sendJson(res, providerStatus, {
-    ok: false, spokenUnavailable: true, provider: safeStr(src.provider || "resemble") || "resemble",
-    error: safeStr(src.reason || src.error || "tts_unavailable") || "tts_unavailable",
-    detail: errorDetailFrom(src.message || src.detail || src, "TTS unavailable."), retryable: !!src.retryable,
-    requestId: safeStr(src.requestId || ctx.requestId), traceId: safeStr(src.traceId || ctx.traceId),
-    turnId: safeStr(src.turnId || ""), sessionId: safeStr(src.sessionId || ctx.sessionId),
-    ttsFailure: isPlainObject(src.ttsFailure) ? src.ttsFailure : undefined,
-    audioFailure: isPlainObject(src.audioFailure) ? src.audioFailure : undefined,
-    health: getTtsHealthSafe(), payload: { spokenUnavailable: true }, version: INDEX_VERSION
+
+function enforceToken(req, res, next) {
+  if (!CFG.apiToken) return next();
+  const got = readToken(req);
+  if (got && got === CFG.apiToken) return next();
+  return res.status(401).json({
+    ok: false,
+    error: "unauthorized",
+    meta: { v: INDEX_VERSION, t: now() }
   });
 }
-async function handleTtsWithFallback(req, res, mode) {
-  const ctx = buildRequestContext(req);
-  const health = getTtsHealthSafe();
-  try {
-    if (mode === "health") return sendJson(res, 200, { ok: true, route: "/api/tts/health", requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION, tts: buildTtsRuntimeSnapshot() });
-    if (mode === "voice-route") return sendJson(res, 200, { ok: true, provider: health.provider || "resemble", voiceReady: !!health.ok, spokenAvailable: !!health.ok, route: "/api/tts", introRoute: "/api/tts/intro", requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION, tts: buildTtsRuntimeSnapshot() });
 
-    let ttsReq = req;
-    if (mode === "intro" && !getReqText(req)) {
-      ttsReq = cloneReqWithPatch(req, { body: { text: buildIntroText(req), source: safeStr(req?.body?.source || "intro") || "intro" }, query: { text: buildIntroText(req) } });
-    }
-
-    if (TTS.handleHttp) {
-      const maybeResult = await TTS.handleHttp(ttsReq, res);
-      if (hasResponseEnded(res)) return;
-      if (maybeResult !== undefined) return sendDelegateResult(res, maybeResult, ctx);
-      logTtsFailure(ctx, "tts_handler_no_output", null, { mode });
-      return sendJson(res, 503, { ok: false, spokenUnavailable: true, error: "tts_handler_no_output", detail: "TTS handler returned without sending a response.", requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION, tts: buildTtsRuntimeSnapshot() });
-    }
-    if (TTS.delegate) {
-      const payload = { ...(isPlainObject(ttsReq?.body) ? ttsReq.body : {}), text: getReqText(ttsReq), requestId: ctx.requestId, traceId: ctx.traceId, sessionId: ctx.sessionId };
-      const result = await TTS.delegate(payload, ttsReq);
-      return sendDelegateResult(res, result, ctx);
-    }
-    if (TTS.generate) {
-      const text = getReqText(ttsReq);
-      if (!text) return sendJson(res, 400, { ok: false, spokenUnavailable: true, error: "missing_text", detail: "No TTS text was provided.", requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION });
-      const result = await TTS.generate(text, { ...(isPlainObject(ttsReq?.body) ? ttsReq.body : {}), ...(isPlainObject(ttsReq?.query) ? ttsReq.query : {}), requestId: ctx.requestId, traceId: ctx.traceId, sessionId: ctx.sessionId });
-      return sendDelegateResult(res, result, ctx);
-    }
-    return sendJson(res, 503, { ok: false, spokenUnavailable: true, error: "tts_runtime_missing", detail: "No TTS runtime exports were available.", requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION, tts: buildTtsRuntimeSnapshot() });
-  } catch (err) {
-    logTtsFailure(ctx, "tts_route_failure", err, { mode });
-    if (hasResponseEnded(res)) return;
-    const envelope = buildErrorEnvelope(err, "tts_route_failure", "TTS route failed.");
-    return sendJson(res, 503, { ok: false, spokenUnavailable: true, error: envelope.error, detail: envelope.detail, requestId: ctx.requestId, traceId: ctx.traceId, version: INDEX_VERSION, tts: buildTtsRuntimeSnapshot() });
-  }
+function getLastTurn(sessionId) {
+  return memory.lastBySession.get(sessionId) || null;
 }
 
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "microphone=(), camera=(), geolocation=()");
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-  res.setHeader("Content-Security-Policy", [
-    "default-src 'self' data: blob: https:;",
-    "img-src 'self' data: blob: https:;",
-    "media-src 'self' data: blob: https:;",
-    "style-src 'self' 'unsafe-inline' https:;",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
-    "connect-src 'self' https: wss:;",
-    "frame-ancestors 'self';"
-  ].join(" "));
-  next();
-});
-
-const allowedOrigins = CORS_ALLOW_ORIGIN.split(",").map((x) => oneLine(x)).filter(Boolean);
-const allowedOriginSet = new Set(allowedOrigins);
-function resolveAllowOrigin(req) {
-  const origin = safeStr(req.headers.origin || "");
-  if (!origin) return allowedOrigins[0] || "*";
-  if (allowedOriginSet.has("*")) return "*";
-  if (allowedOriginSet.has(origin)) return origin;
-  return "";
+function setLastTurn(sessionId, data) {
+  memory.lastBySession.set(sessionId, {
+    ...(getLastTurn(sessionId) || {}),
+    ...(isObj(data) ? data : {}),
+    at: now()
+  });
 }
-function applyCors(req, res) {
-  const allowOrigin = resolveAllowOrigin(req);
-  if (req.headers.origin && !allowOrigin) return false;
-  res.setHeader("Access-Control-Allow-Origin", allowOrigin || "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
-  res.setHeader("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
-  res.setHeader("Access-Control-Expose-Headers", "Content-Type, X-Request-Id, X-SB-Trace-Id, X-Index-Version");
-  return true;
-}
-app.use((req, res, next) => {
-  const ok = applyCors(req, res);
-  if (!ok) return res.status(403).json({ ok: false, error: "origin_not_allowed", version: INDEX_VERSION });
-  if (req.method === "OPTIONS") return res.status(204).end();
-  return next();
-});
-
-function isPublicRoute(req) {
-  const p = safeStr(req.path || "");
-  if (CHAT_PUBLIC_ROUTES.has(p)) return true;
-  return VOICE_PUBLIC_ROUTE_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-app.use((req, res, next) => {
-  if (!REQUIRE_API_TOKEN || !EXPECTED_API_TOKEN) return next();
-  if (isPublicRoute(req)) return next();
-  const rawAuth = safeStr(req.headers.authorization || "");
-  const token = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7).trim() : safeStr(req.headers["x-api-token"] || "").trim();
-  if (token && token === EXPECTED_API_TOKEN) return next();
-  return res.status(401).json({ ok: false, error: "unauthorized", version: INDEX_VERSION });
-});
-
-const ipLedger = new Map();
-function getIp(req) {
-  return oneLine(req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
-}
-function touchIp(ip, kind) {
-  const now = nowMs();
-  const cur = ipLedger.get(ip) || { chatHits: [], voiceHits: [], blockedUntil: 0 };
-  cur.chatHits = (cur.chatHits || []).filter((t) => now - t <= RATE_WINDOW_MS);
-  cur.voiceHits = (cur.voiceHits || []).filter((t) => now - t <= RATE_WINDOW_MS);
-  if (kind === "voice") cur.voiceHits.push(now); else cur.chatHits.push(now);
-  const max = kind === "voice" ? VOICE_RATE_MAX_PER_IP : RATE_MAX_PER_IP;
-  const arr = kind === "voice" ? cur.voiceHits : cur.chatHits;
-  if (arr.length > max) cur.blockedUntil = now + RATE_BAN_MS;
-  ipLedger.set(ip, cur);
-  return cur;
-}
-app.use((req, res, next) => {
-  const reqPath = safeStr(req.path || "");
-  const isApiLike = reqPath.startsWith("/api/chat") || reqPath.startsWith("/api/tts") || reqPath.startsWith("/api/voice") || reqPath === "/api/health" || reqPath === "/api/diag";
-  if (!isApiLike) return next();
-  const ip = getIp(req);
-  const now = nowMs();
-  const cur = ipLedger.get(ip);
-  if (cur && cur.blockedUntil && now < cur.blockedUntil) return res.status(429).json({ ok: false, error: "rate_limited", retryAfterMs: cur.blockedUntil - now, version: INDEX_VERSION });
-  const isVoice = reqPath.startsWith("/api/tts") || reqPath.startsWith("/api/voice");
-  touchIp(ip, isVoice ? "voice" : "chat");
-  return next();
-});
-
-function getHeader(req, key) {
-  return safeStr(req.headers[key.toLowerCase()] || "");
-}
-function buildRequestContext(req) {
-  const traceId = oneLine(getHeader(req, "x-sb-trace-id")) || oneLine(getHeader(req, "x-request-id")) || `trace_${sha1Lite(`${nowMs()}|${Math.random()}|${req.path}`)}`;
-  const requestId = oneLine(req.body?.requestId) || oneLine(req.query?.requestId) || oneLine(getHeader(req, "x-request-id")) || `req_${sha1Lite(`${traceId}|${req.method}|${req.path}`)}`;
-  const sessionId = oneLine(req.body?.sessionId) || oneLine(req.body?.sid) || oneLine(getHeader(req, "x-session-id")) || `sess_${sha1Lite(`${requestId}|${getIp(req)}`)}`;
-  return { traceId, requestId, sessionId, ip: getIp(req), source: oneLine(req.body?.source || req.query?.source || "http"), routeHint: oneLine(req.body?.routeHint || req.query?.routeHint || req.path) };
-}
-function inferFailOpenMessage(req) {
-  const body = isPlainObject(req?.body) ? req.body : {};
-  const rawText = oneLine(body.text || body.message || body.userText || "").toLowerCase();
-  const distress = /(depress|sad|lonely|alone|hurt|grief|anxious|panic|afraid|overwhelm|hopeless|helpless)/.test(rawText);
-  const positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
-  const technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix)/.test(rawText);
-  if (technical) return "I am keeping this stable while the backend reconnects, and I can stay with the request without dropping into a menu.";
-  if (distress) return "I am here with you. The backend hit a rough patch, but I can keep this steady without dropping you into a menu.";
-  if (positive) return "I caught the positive signal, and I can keep the tone steady while the backend reconnects.";
-  return "I am here with you. The backend hit a rough patch, but I can keep this steady without bouncing you into a menu.";
-}
-function sendJson(res, status, payload) {
-  if (hasResponseEnded(res)) return;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.setHeader("X-Index-Version", INDEX_VERSION);
-  if (payload && payload.requestId) res.setHeader("X-Request-Id", safeStr(payload.requestId));
-  if (payload && payload.traceId) res.setHeader("X-SB-Trace-Id", safeStr(payload.traceId));
-  res.status(status).send(safeJson(payload, "{\"ok\":false,\"error\":\"json_serialize_failed\"}"));
-}
-function normalizeContract(raw, ctx) {
-  const src = isPlainObject(raw) ? raw : {};
-  const rawReply = safeStr(src.reply || src.payload?.reply || "").trim() || "Okay.";
-  const reply = rawReply.slice(0, MAX_REPLY_CHARS);
-  const lane = safeStr(src.lane || src.laneId || src.sessionLane || "general") || "general";
-  const srcUi = isPlainObject(src.ui) ? src.ui : {};
-  const srcMeta = isPlainObject(src.meta) ? src.meta : {};
-  const shouldClearUi = !!(srcMeta.suppressMenus || srcMeta.clearStaleUi || srcMeta.degradedSupport || srcMeta.failSafe || safeStr(src.cog?.intent || "").toUpperCase() === "STABILIZE");
-  const srcChips = shouldClearUi ? [] : (Array.isArray(srcUi.chips) ? srcUi.chips : []);
-  const chips = srcChips.map((x) => {
-      if (isPlainObject(x)) {
-        const label = safeStr(x.label || x.text || "").trim();
-        if (!label) return null;
-        return { ...x, label: label.slice(0, 80) };
-      }
-      const label = safeStr(x).trim();
-      if (!label) return null;
-      return { label: label.slice(0, 80) };
-    }).filter(Boolean).slice(0, MAX_CHIPS);
-  const followUps = ((shouldClearUi ? [] : (Array.isArray(src.followUps) ? src.followUps : []))).map((x) => {
-      if (isPlainObject(x)) {
-        const label = safeStr(x.label || x.text || "").trim();
-        if (!label) return null;
-        return { ...x, label: label.slice(0, 120) };
-      }
-      const label = safeStr(x).trim();
-      if (!label) return null;
-      return { label: label.slice(0, 120) };
-    }).filter(Boolean).slice(0, MAX_FOLLOWUPS);
-  const directives = (Array.isArray(src.directives) ? src.directives : []).filter((x) => isPlainObject(x) || typeof x === "string").slice(0, MAX_DIRECTIVES);
-  const sessionPatch = isPlainObject(src.sessionPatch) ? src.sessionPatch : {};
-  return {
-    ok: src.ok !== false, reply, payload: isPlainObject(src.payload) ? { ...src.payload, reply } : { reply },
-    lane, laneId: safeStr(src.laneId || lane) || lane, sessionLane: safeStr(src.sessionLane || lane) || lane,
-    bridge: src.bridge || null, ctx: isPlainObject(src.ctx) ? src.ctx : {},
-    ui: { ...(shouldClearUi ? { mode: safeStr(srcUi.mode || "quiet") || "quiet" } : srcUi), chips, allowMic: srcUi.allowMic !== false, replace: shouldClearUi, clearStale: shouldClearUi, revision: nowMs() },
-    directives, followUps,
-    followUpsStrings: shouldClearUi ? [] : (Array.isArray(src.followUpsStrings) ? src.followUpsStrings.map((x) => safeStr(x).trim()).filter(Boolean).slice(0, MAX_FOLLOWUPS) : followUps.map((x) => safeStr(x?.label || x).trim()).filter(Boolean)),
-    sessionPatch,
-    cog: isPlainObject(src.cog) ? src.cog : { intent: "ADVANCE", mode: "transitional", publicMode: true },
-    requestId: safeStr(src.requestId || ctx.requestId), traceId: safeStr(src.traceId || ctx.traceId),
-    meta: { v: safeStr(src.meta?.v || INDEX_VERSION), t: src.meta?.t || nowMs(), engineVersion: ENGINE.version, knowledge: knowledgeRuntime.knowledgeStatusForMeta(), clearStaleUi: shouldClearUi, suppressMenus: shouldClearUi, ...(isPlainObject(src.meta) ? src.meta : {}) }
+function getSupportState(sessionId) {
+  return memory.supportBySession.get(sessionId) || {
+    hold: 0,
+    active: false,
+    replyHash: "",
+    lastUserHash: "",
+    updatedAt: 0
   };
 }
-function buildFailOpenReply(message, ctx, extra) {
-  const fallback = oneLine(message || "I am here with you. The backend hit a rough patch, but I can keep this steady while it recovers.") || "I am here with you. The backend hit a rough patch, but I can keep this steady while it recovers.";
-  return normalizeContract({ ok: false, reply: fallback, payload: { reply: fallback }, lane: "general", laneId: "general", sessionLane: "general", ui: { chips: [], allowMic: true }, directives: [], followUps: [], followUpsStrings: [], sessionPatch: {}, cog: { intent: "STABILIZE", mode: "transitional", publicMode: true }, requestId: ctx.requestId, traceId: ctx.traceId, meta: { failSafe: true, ...(isPlainObject(extra) ? extra : {}) } }, ctx);
+
+function setSupportState(sessionId, patch) {
+  const prev = getSupportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    updatedAt: now()
+  };
+  memory.supportBySession.set(sessionId, next);
+  return next;
 }
 
-const sessionStore = new Map();
-const SESSION_TTL_MS = clampInt(process.env.SESSION_TTL_MS, 1000 * 60 * 60 * 6, 60000, 1000 * 60 * 60 * 48);
-function sweepSessions() {
-  const now = nowMs();
-  for (const [id, rec] of sessionStore.entries()) if (!rec || !rec.at || now - rec.at > SESSION_TTL_MS) sessionStore.delete(id);
+function getTransportState(sessionId) {
+  return memory.transportBySession.get(sessionId) || {
+    key: "",
+    at: 0,
+    count: 0
+  };
 }
-function readSession(sessionId) {
-  sweepSessions();
-  const rec = sessionStore.get(sessionId);
-  return rec && isPlainObject(rec.data) ? rec.data : {};
+
+function setTransportState(sessionId, patch) {
+  const prev = getTransportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    at: now()
+  };
+  memory.transportBySession.set(sessionId, next);
+  return next;
 }
-function writeSession(sessionId, current, patch) {
-  const merged = deepMerge(isPlainObject(current) ? current : {}, isPlainObject(patch) ? patch : {});
-  sessionStore.set(sessionId, { at: nowMs(), data: merged });
-  return merged;
+
+function normalizePayload(req) {
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const text = cleanText(body.text || payload.text || payload.query || "");
+  return {
+    text,
+    body,
+    payload,
+    lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
+    year: cleanText(payload.year || body.year || ""),
+    mode: cleanText(payload.mode || body.mode || ""),
+    turnId: payload.turnId || body.turnId || null,
+    traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
+    client: isObj(body.client) ? body.client : {}
+  };
 }
-const chatInflight = new Map();
-const recentResponses = new Map();
-function sweepTransientMaps() {
-  const now = nowMs();
-  for (const [key, rec] of recentResponses.entries()) if (!rec || !rec.at || now - rec.at > RESPONSE_CACHE_TTL_MS) recentResponses.delete(key);
-  for (const [key, rec] of chatInflight.entries()) if (!rec || !rec.at || now - rec.at > Math.max(DEDUPE_WINDOW_MS, 30000)) chatInflight.delete(key);
+
+function normalizeEmotion(raw, inputText) {
+  const out = {
+    ok: false,
+    label: "",
+    intensity: 0,
+    distress: false,
+    stabilize: false,
+    sensitive: false,
+    positive: false,
+    technical: false
+  };
+
+  const baseText = `${safeStr(inputText)} ${safeStr(raw && raw.label)} ${safeStr(raw && raw.name)} ${safeStr(raw && raw.primary)} ${safeStr(raw && raw.mode)} ${safeStr(raw && raw.intent)}`;
+  const txt = lower(baseText);
+
+  if (isObj(raw)) {
+    out.ok = true;
+    out.label = cleanText(raw.label || raw.name || raw.primary || "");
+    const n = Number(raw.intensity ?? raw.score ?? raw.weight ?? 0);
+    out.intensity = Number.isFinite(n) ? clamp(n, 0, 1) : 0;
+    out.distress = !!(raw.distress || raw.support || raw.overwhelmed || raw.anxious || raw.negative);
+    out.stabilize = !!(raw.stabilize || raw.regulate || raw.deescalate);
+    out.sensitive = !!(raw.sensitive || raw.crisis || raw.selfHarm);
+    out.positive = !!(raw.positive || raw.upbeat);
+    out.technical = !!raw.technical;
+  }
+
+  const rawText = txt;
+  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning)/.test(rawText);
+  out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
+  out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
+  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(raw);
+  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(raw);
+
+  if (!out.label) {
+    if (out.sensitive) out.label = "crisis";
+    else if (out.distress) out.label = "distress";
+    else if (out.technical) out.label = "technical";
+    else if (out.positive) out.label = "positive";
+    else out.label = "neutral";
+  }
+
+  if (!out.ok) out.ok = out.distress || out.sensitive || out.positive || out.technical || !!out.label;
+  return out;
+}
+
+function inferEmotion(text, reqCtx) {
+  const raw = cleanText(text);
+  let engineResult = null;
+
+  try {
+    if (affectEngineMod && typeof affectEngineMod.detect === "function") {
+      engineResult = affectEngineMod.detect(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod.analyze === "function") {
+      engineResult = affectEngineMod.analyze(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod === "function") {
+      engineResult = affectEngineMod(raw, reqCtx || {});
+    }
+  } catch (err) {
+    console.log("[Sandblast][affectEngine:error]", err && (err.stack || err.message || err));
+    engineResult = null;
+  }
+
+  return normalizeEmotion(engineResult, raw);
+}
+
+function normalizeSupportReply(text) {
+  const cleaned = cleanReplyForUser(text);
+  if (cleaned) return cleaned;
+  return "I am here with you. We can take this one step at a time.";
+}
+
+function buildSafeSupportReply(inputText, emotion, extras) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, inputText);
+  const opts = isObj(extras) ? extras : {};
+  const base = cleanText(inputText);
+
+  if (emo.sensitive) {
+    return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988. Tell me: did something happen today, or has this been building for a while?";
+  }
+
+  let externalReply = "";
+  try {
+    if (supportResponseMod && typeof supportResponseMod.buildSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.buildSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (supportResponseMod && typeof supportResponseMod.getSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.getSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (typeof supportResponseMod === "function") {
+      externalReply = safeStr(supportResponseMod({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    }
+  } catch (err) {
+    console.log("[Sandblast][supportResponse:error]", err && (err.stack || err.message || err));
+  }
+
+  if (externalReply) return normalizeSupportReply(externalReply);
+
+  if (emo.distress) {
+    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
+  }
+
+  return "I am here with you. Tell me what happened, and we will steady this together.";
+}
+
+function buildQuietUiPatch(reason, holdActive) {
+  const quiet = {
+    mode: "quiet",
+    chips: [],
+    allowMic: true,
+    replace: true,
+    clearStale: true,
+    revision: now()
+  };
+
+  return {
+    ui: quiet,
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {
+      supportLock: holdActive ? { active: true } : {}
+    },
+    metaPatch: {
+      clearStaleUi: true,
+      suppressMenus: true,
+      failSafe: reason === "failsafe",
+      supportHold: !!holdActive
+    }
+  };
+}
+
+function shouldEnterSupportHold(text, emotion, engineResult) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const intent = lower(engineResult && engineResult.intent);
+  const mode = lower(engineResult && engineResult.mode);
+  return !!(
+    emo.sensitive ||
+    emo.distress ||
+    emo.stabilize ||
+    intent === "stabilize" ||
+    mode === "transitional" ||
+    mode === "support" ||
+    mode === "quiet"
+  );
+}
+
+function buildSupportSessionPatch(existing, active, release) {
+  const prev = isObj(existing) ? existing : {};
+  const lock = {};
+  if (active) lock.active = true;
+  if (release) lock.release = true;
+  return {
+    ...prev,
+    supportLock: lock
+  };
+}
+
+function shouldSuppressMenus(engineOut, supportActive) {
+  const ui = isObj(engineOut?.ui) ? engineOut.ui : {};
+  const meta = isObj(engineOut?.meta) ? engineOut.meta : {};
+  if (supportActive) return true;
+  return !!(
+    ui.replace ||
+    ui.clearStale ||
+    ui.menuSuppressed ||
+    ui.degradedSupport ||
+    ui.failSafe ||
+    meta.clearStaleUi ||
+    meta.suppressMenus ||
+    meta.failSafe
+  );
+}
+
+function enforceQuietUiIfNeeded(base, opts) {
+  const out = isObj(base) ? { ...base } : {};
+  const o = isObj(opts) ? opts : {};
+  const supportActive = !!o.supportActive;
+  const failSafe = !!o.failSafe;
+  const forceQuiet = !!o.forceQuiet;
+
+  if (!(supportActive || failSafe || forceQuiet)) return out;
+
+  const patch = buildQuietUiPatch(failSafe ? "failsafe" : "support", supportActive);
+  out.ui = patch.ui;
+  out.directives = patch.directives;
+  out.followUps = patch.followUps;
+  out.followUpsStrings = patch.followUpsStrings;
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {})
+  };
+  out.meta = {
+    ...(isObj(out.meta) ? out.meta : {}),
+    ...(isObj(patch.metaPatch) ? patch.metaPatch : {})
+  };
+  return out;
+}
+
+function mergeMeta(base, patch) {
+  return {
+    ...(isObj(base) ? base : {}),
+    ...(isObj(patch) ? patch : {})
+  };
 }
 function buildTransportKey(ctx, text, req) {
   const msg = safeStr(text).trim().toLowerCase();
-  const keySeed = [ctx.sessionId, ctx.ip, msg, oneLine(req.body?.routeHint || ""), oneLine(req.body?.source || ""), oneLine(req.body?.clientTurnId || ""), oneLine(req.body?.turnId || "")].join("|");
-  return `chat_${sha1Lite(keySeed)}`;
-}
-function clonePayload(x) {
-  try { return JSON.parse(JSON.stringify(x)); } catch (_) { return x; }
+  return [
+    getSessionId(req),
+    safeStr(ctx?.lane || ""),
+    safeStr(ctx?.mode || ""),
+    safeStr(ctx?.year || ""),
+    msg
+  ].join("|");
 }
 
-app.post("/api/chat", async (req, res) => {
-  const ctx = buildRequestContext(req);
+function detectLoop(sessionId, reply, userText) {
+  const prev = getLastTurn(sessionId);
+  const curHash = replyHash(reply);
+  const userHash = replyHash(userText);
+  const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
+  const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
+  const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
+  return {
+    sameReply,
+    sameUser,
+    repeated: sameReply && sameUser,
+    curHash,
+    userHash
+  };
+}
+
+function shapeEngineReply(raw) {
+  if (!isObj(raw)) return {};
+  const payload = isObj(raw.payload) ? raw.payload : {};
+  return {
+    ok: raw.ok !== false,
+    reply: cleanText(raw.reply || payload.reply || raw.message || ""),
+    payload: isObj(payload) ? payload : {},
+    lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
+    laneId: cleanText(raw.laneId || raw.lane || ""),
+    sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
+    bridge: raw.bridge || null,
+    ctx: isObj(raw.ctx) ? raw.ctx : {},
+    ui: isObj(raw.ui) ? raw.ui : {},
+    directives: Array.isArray(raw.directives) ? raw.directives : [],
+    followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
+    followUpsStrings: Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : [],
+    sessionPatch: isObj(raw.sessionPatch) ? raw.sessionPatch : {},
+    cog: isObj(raw.cog) ? raw.cog : {},
+    meta: isObj(raw.meta) ? raw.meta : {},
+    audio: isObj(raw.audio) ? raw.audio : null,
+    ttsProfile: isObj(raw.ttsProfile) ? raw.ttsProfile : null,
+    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null
+  };
+}
+
+async function callChatEngine(input) {
+  if (!chatEngineMod) return null;
   try {
-    sweepTransientMaps();
-    const text = safeStr(req.body?.text || req.body?.message || "").slice(0, MAX_CHAT_TEXT);
-    const transportKey = buildTransportKey(ctx, text, req);
-    const now = nowMs();
-    const cached = recentResponses.get(transportKey);
-    if (cached && cached.payload && now - cached.at <= DEDUPE_WINDOW_MS) {
-      const replay = clonePayload(cached.payload);
-      if (replay && isPlainObject(replay.meta)) replay.meta.transportReplay = true;
-      return sendJson(res, 200, replay);
-    }
-    const inflight = chatInflight.get(transportKey);
-    if (inflight && inflight.promise && now - inflight.at <= DEDUPE_WINDOW_MS) {
-      const joined = await inflight.promise;
-      const replay = clonePayload(joined);
-      if (replay && isPlainObject(replay.meta)) replay.meta.transportJoin = true;
-      return sendJson(res, 200, replay);
-    }
-    const sessionRecord = readSession(ctx.sessionId);
-    const enginePromise = (async () => {
-      const engineInput = { ...req.body, text, requestId: ctx.requestId, traceId: ctx.traceId, source: ctx.source, routeHint: ctx.routeHint, session: sessionRecord, knowledge: knowledgeRuntime.knowledgeSnapshotForEngine(), __knowledgeStatus: knowledgeRuntime.knowledgeStatusForMeta(), packIndex: knowledgeRuntime.getPackIndexSafe(false) };
-      const engineOut = await ENGINE.fn(engineInput);
-      const out = normalizeContract(engineOut, ctx);
-      writeSession(ctx.sessionId, sessionRecord, out.sessionPatch);
-      recentResponses.set(transportKey, { at: nowMs(), payload: clonePayload(out) });
-      return out;
-    })();
-    chatInflight.set(transportKey, { at: now, promise: enginePromise });
-    const out = await enginePromise;
-    return sendJson(res, 200, out);
+    if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
+    if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
+    if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
+    if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    if (typeof chatEngineMod === "function") return await chatEngineMod(input);
   } catch (err) {
-    const fail = buildFailOpenReply(inferFailOpenMessage(req), ctx, { error: errorDetailFrom(err, "chat_route_failure"), clearStaleUi: true, suppressMenus: true });
-    return sendJson(res, 200, fail);
-  } finally {
-    const text = safeStr(req.body?.text || req.body?.message || "").slice(0, MAX_CHAT_TEXT);
-    const transportKey = buildTransportKey(ctx, text, req);
-    if (chatInflight.get(transportKey)) chatInflight.delete(transportKey);
+    console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
+    return { __engineError: err };
+  }
+  return null;
+}
+
+async function callMarionBridge(input) {
+  if (!marionBridgeMod) return null;
+  try {
+    if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
+    if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
+    if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
+    if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
+  } catch (err) {
+    console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
+  }
+  return null;
+}
+
+function buildVoiceRouteSnapshot() {
+  let out = {
+    ttsRoutePath: "/api/tts",
+    introRoutePath: "/api/tts/intro",
+    voice: process.env.SB_DEFAULT_VOICE || "nyx",
+    voiceId: process.env.SBNYX_RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || "",
+    voiceName: process.env.SB_DEFAULT_VOICE_NAME || "Nyx",
+    mixerVoiceId: process.env.SB_MIXER_VOICE_ID || "",
+    mixerVoiceName: process.env.SB_MIXER_VOICE_NAME || "",
+    preserveMixerVoice: CFG.preserveMixerVoice
+  };
+
+  try {
+    if (voiceRouteMod && typeof voiceRouteMod.getVoiceRoute === "function") {
+      const vr = voiceRouteMod.getVoiceRoute();
+      if (isObj(vr)) out = { ...out, ...vr };
+    } else if (voiceRouteMod && typeof voiceRouteMod.snapshot === "function") {
+      const vr = voiceRouteMod.snapshot();
+      if (isObj(vr)) out = { ...out, ...vr };
+    }
+  } catch (err) {
+    console.log("[Sandblast][voiceRoute:error]", err && (err.stack || err.message || err));
+  }
+
+  return out;
+}
+
+function attachVoiceRoute(payload) {
+  const out = isObj(payload) ? { ...payload } : {};
+  out.voiceRoute = buildVoiceRouteSnapshot();
+  return out;
+}
+
+async function synthesizeSpeech(reqBody, routeKind) {
+  if (!ttsMod) return null;
+  const input = isObj(reqBody) ? reqBody : {};
+  const payload = { ...input, routeKind: routeKind || input.routeKind || "main" };
+
+  if (typeof ttsMod.synthesize === "function") return await ttsMod.synthesize(payload);
+  if (typeof ttsMod.tts === "function") return await ttsMod.tts(payload);
+  if (typeof ttsMod.handle === "function") return await ttsMod.handle(payload);
+  if (typeof ttsMod === "function") return await ttsMod(payload);
+  return null;
+}
+
+function shapeTtsError(detail, traceId) {
+  return {
+    ok: false,
+    spokenUnavailable: true,
+    error: "tts_route_failure",
+    detail: cleanText(detail || "TTS route failed"),
+    requestId: cleanText(traceId || makeTraceId("tts")),
+    traceId: cleanText(traceId || makeTraceId("tts")),
+    version: INDEX_VERSION,
+    tts: {
+      loaded: !!ttsMod,
+      version: safeStr(ttsMod && (ttsMod.VERSION || ttsMod.version || "tts.js"))
+    }
+  };
+}
+
+app.get("/health", (_req, res) => {
+  res.json({
+    ok: true,
+    up: true,
+    version: INDEX_VERSION,
+    bootedAt: SERVER_BOOT_AT,
+    t: now()
+  });
+});
+
+app.get("/api/voice-route", enforceToken, (_req, res) => {
+  res.json({
+    ok: true,
+    payload: buildVoiceRouteSnapshot(),
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.post("/api/tts", enforceToken, async (req, res) => {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
+  try {
+    const result = await synthesizeSpeech(req.body, "main");
+    if (!result) {
+      return res.status(503).json(shapeTtsError("TTS module unavailable", traceId));
+    }
+
+    if (Buffer.isBuffer(result)) {
+      res.setHeader("Content-Type", "audio/mpeg");
+      return res.status(200).send(result);
+    }
+
+    if (isObj(result) && Buffer.isBuffer(result.audio)) {
+      res.setHeader("Content-Type", result.mimeType || "audio/mpeg");
+      return res.status(200).send(result.audio);
+    }
+
+    if (isObj(result) && result.ok === false) {
+      return res.status(503).json(shapeTtsError(result.detail || result.error || "TTS synthesis failed", traceId));
+    }
+
+    if (isObj(result)) {
+      return res.status(200).json(result);
+    }
+
+    return res.status(503).json(shapeTtsError("Invalid TTS response", traceId));
+  } catch (err) {
+    console.log("[Sandblast][tts:error]", err && (err.stack || err.message || err));
+    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId));
   }
 });
 
-app.post("/api/chat/reset", (req, res) => {
-  const ctx = buildRequestContext(req);
-  sessionStore.delete(ctx.sessionId);
-  return sendJson(res, 200, normalizeContract({ ok: true, reply: "Session reset complete.", payload: { reply: "Session reset complete." }, lane: "general", laneId: "general", sessionLane: "general", ui: { chips: [], allowMic: true }, directives: [], followUps: [], followUpsStrings: [], sessionPatch: {}, cog: { intent: "RESET", mode: "transitional", publicMode: true }, requestId: ctx.requestId, traceId: ctx.traceId, meta: { reset: true, v: INDEX_VERSION, t: nowMs() } }, ctx));
-});
-app.get("/api/chat/health", (_req, res) => sendJson(res, 200, { ok: true, version: INDEX_VERSION, engineVersion: ENGINE.version, upMs: nowMs() - SERVER_BOOT_AT, sessions: sessionStore.size, inflight: chatInflight.size, dedupeCache: recentResponses.size, knowledge: knowledgeRuntime.knowledgeStatusForMeta() }));
-
-let voiceRouteRegistrationMode = "index_wrapped";
-if (registerVoiceRoutes && truthy(process.env.SB_USE_EXTRACTED_VOICE_ROUTES || "")) {
+app.post("/api/tts/intro", enforceToken, async (req, res) => {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts_intro"));
   try {
-    registerVoiceRoutes(app, {
-      ttsHandler: ttsMod?.delegateTts || ttsMod?.ttsHandler || ttsMod?.handleTts || null,
-      mixerVoiceId: safeStr(process.env.MIXER_VOICE_ID || "") || safeStr(process.env.RESEMBLE_VOICE_ID || "") || safeStr(process.env.RESEMBLE_VOICE_UUID || "") || safeStr(process.env.NYX_VOICE_ID || ""),
-      mixerVoiceName: safeStr(process.env.MIXER_VOICE_NAME || "") || safeStr(process.env.NYX_VOICE_NAME || "") || "Nyx",
-      ttsRoutePath: "/api/_legacy_tts", introRoutePath: "/api/_legacy_tts/intro", voiceRoutePath: "/api/_legacy_voice-route", allowedOrigins, debug: DEBUG_MODE
+    const result = await synthesizeSpeech(req.body, "intro");
+    if (!result) {
+      return res.status(503).json(shapeTtsError("TTS intro module unavailable", traceId));
+    }
+
+    if (Buffer.isBuffer(result)) {
+      res.setHeader("Content-Type", "audio/mpeg");
+      return res.status(200).send(result);
+    }
+
+    if (isObj(result) && Buffer.isBuffer(result.audio)) {
+      res.setHeader("Content-Type", result.mimeType || "audio/mpeg");
+      return res.status(200).send(result.audio);
+    }
+
+    if (isObj(result) && result.ok === false) {
+      return res.status(503).json(shapeTtsError(result.detail || result.error || "TTS intro synthesis failed", traceId));
+    }
+
+    if (isObj(result)) {
+      return res.status(200).json(result);
+    }
+
+    return res.status(503).json(shapeTtsError("Invalid intro TTS response", traceId));
+  } catch (err) {
+    console.log("[Sandblast][tts:intro:error]", err && (err.stack || err.message || err));
+    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId));
+  }
+});
+
+app.post("/api/chat", enforceToken, async (req, res) => {
+  const startedAt = now();
+  const norm = normalizePayload(req);
+  const sessionId = getSessionId(req);
+  const transportKey = buildTransportKey({ lane: norm.lane, mode: norm.mode, year: norm.year }, norm.text, req);
+  const transportState = getTransportState(sessionId);
+
+    if (transportState.key && transportState.key === transportKey && (now() - transportState.at) < CFG.loopSuppressionWindowMs) {
+    const support = getSupportState(sessionId);
+    const quietReply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
+    const loopReply = enforceQuietUiIfNeeded(attachVoiceRoute({
+      ok: true,
+      reply: quietReply,
+      payload: { reply: quietReply },
+      lane: norm.lane || "general",
+      laneId: norm.lane || "general",
+      sessionLane: norm.lane || "general",
+      bridge: null,
+      ctx: {},
+      ui: {},
+      directives: [],
+      followUps: [],
+      followUpsStrings: [],
+      sessionPatch: buildSupportSessionPatch({}, true, false),
+      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+      requestId: makeTraceId("loop"),
+      traceId: norm.traceId,
+      meta: mergeMeta({
+        v: INDEX_VERSION,
+        t: now(),
+        engineVersion: "chatEngine loop suppression",
+        clearStaleUi: true,
+        suppressMenus: true,
+        failSafe: false,
+        loopSuppressed: true
+      }, {
+        supportHold: !!support.active
+      })
+    }), {
+      supportActive: true,
+      failSafe: false,
+      forceQuiet: true
     });
-    voiceRouteRegistrationMode = "external_legacy_registered";
-  } catch (err) {
-    voiceRouteRegistrationMode = "external_registration_failed";
-    log("VOICE_ROUTE_REGISTER_FAIL", errorDetailFrom(err, "voice_route_register_fail"));
+
+    setTransportState(sessionId, { key: transportKey, count: transportState.count + 1 });
+    setLastTurn(sessionId, {
+      replyHash: replyHash(quietReply),
+      userHash: replyHash(norm.text),
+      lane: norm.lane
+    });
+
+    return res.status(200).json(loopReply);
   }
-}
 
-app.get("/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
-app.get("/api/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
-app.post("/api/tts/health", (req, res) => handleTtsWithFallback(req, res, "health"));
-app.get("/api/voice-route", (req, res) => handleTtsWithFallback(req, res, "voice-route"));
-app.post("/api/voice-route", (req, res) => handleTtsWithFallback(req, res, "voice-route"));
-app.get("/api/tts", (req, res) => handleTtsWithFallback(req, res, "tts"));
-app.post("/api/tts", (req, res) => handleTtsWithFallback(req, res, "tts"));
-app.get("/api/tts/intro", (req, res) => handleTtsWithFallback(req, res, "intro"));
-app.post("/api/tts/intro", (req, res) => handleTtsWithFallback(req, res, "intro"));
+  setTransportState(sessionId, { key: transportKey, count: transportState.count + 1 });
 
-app.get("/_warm", async (_req, res) => {
+  const emotion = inferEmotion(norm.text, {
+    lane: norm.lane,
+    mode: norm.mode,
+    year: norm.year,
+    traceId: norm.traceId,
+    sessionId
+  });
+
+  const supportState = getSupportState(sessionId);
+  const supportRequested = shouldEnterSupportHold(norm.text, emotion, null);
+  let supportHold = supportState.hold || 0;
+  let supportActive = !!supportState.active;
+
+  if (supportRequested) {
+    supportActive = true;
+    supportHold = CFG.quietSupportHoldTurns;
+  } else if (supportActive && supportHold > 0) {
+    supportHold -= 1;
+    supportActive = supportHold > 0;
+  }
+
+  let marion = null;
   try {
-    const out = await knowledgeRuntime.reloadKnowledge();
-    return sendJson(res, 200, { ok: true, warmed: true, version: INDEX_VERSION, engineVersion: ENGINE.version, knowledgeReload: out || { ok: true, skipped: true }, upMs: nowMs() - SERVER_BOOT_AT });
-  } catch (err) {
-    return sendJson(res, 200, { ok: false, warmed: false, version: INDEX_VERSION, error: errorDetailFrom(err, "warm_route_failed") });
-  }
-});
-app.get("/healthz", (_req, res) => res.status(200).send("ok"));
-app.get("/readyz", (_req, res) => sendJson(res, 200, { ok: true, ready: true, version: INDEX_VERSION, engineVersion: ENGINE.version }));
-app.get("/api/health", (_req, res) => sendJson(res, 200, { ok: true, version: INDEX_VERSION, engineVersion: ENGINE.version, nodeEnv: NODE_ENV, upMs: nowMs() - SERVER_BOOT_AT, sessions: sessionStore.size, inflight: chatInflight.size, dedupeCache: recentResponses.size, dedupe: { windowMs: DEDUPE_WINDOW_MS, responseCacheTtlMs: RESPONSE_CACHE_TTL_MS }, knowledge: knowledgeRuntime.knowledgeStatusForMeta(), voiceRouteLoaded: !!registerVoiceRoutes, voiceRouteRegistrationMode, tts: buildTtsRuntimeSnapshot() }));
-app.get("/api/diag", (_req, res) => sendJson(res, 200, { ok: true, version: INDEX_VERSION, engineVersion: ENGINE.version, nodeEnv: NODE_ENV, debug: DEBUG_MODE, trustProxy: TRUST_PROXY, port: PORT, sessions: sessionStore.size, rate: { windowMs: RATE_WINDOW_MS, chatMaxPerIp: RATE_MAX_PER_IP, voiceMaxPerIp: VOICE_RATE_MAX_PER_IP, banMs: RATE_BAN_MS }, knowledge: knowledgeRuntime.knowledgeStatusForMeta(), voiceRouteLoaded: !!registerVoiceRoutes, voiceRouteRegistrationMode, tts: buildTtsRuntimeSnapshot(), ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"), ttsHandlerLoaded: !!(ttsMod && typeof ttsMod.ttsHandler === "function") }));
+    marion = await callMarionBridge({
+      text: norm.text,
+      lane: norm.lane,
+      mode: norm.mode,
+      year: norm.year,
+      traceId: norm.traceId,
+      sessionId,
+      emotion
+    });
+  } catch (_) {}
 
-if (fs.existsSync(AVATAR_DIR)) {
-  app.use("/avatar", express.static(AVATAR_DIR, { index: false, immutable: true, maxAge: "7d", setHeaders: (res) => { res.setHeader("Cache-Control", "public, max-age=604800, immutable"); } }));
+  let engineRaw = await callChatEngine({
+    text: norm.text,
+    payload: norm.payload,
+    lane: norm.lane,
+    mode: norm.mode,
+    year: norm.year,
+    traceId: norm.traceId,
+    requestTimeoutMs: CFG.requestTimeoutMs,
+    marion,
+    emotion
+  });
+
+  let engineError = null;
+  if (isObj(engineRaw) && engineRaw.__engineError) {
+    engineError = engineRaw.__engineError;
+    engineRaw = null;
+  }
+
+  let shaped = shapeEngineReply(engineRaw);
+  let failSafe = false;
+
+  if (engineError) {
+    failSafe = true;
+    const supportReply = buildSafeSupportReply(norm.text, emotion, {
+      traceId: norm.traceId,
+      sessionId,
+      source: "engine_error"
+    });
+
+    shaped = {
+      ok: false,
+      reply: supportReply,
+      payload: { reply: supportReply },
+      lane: norm.lane || "general",
+      laneId: norm.lane || "general",
+      sessionLane: norm.lane || "general",
+      bridge: null,
+      ctx: {},
+      ui: {},
+      directives: [],
+      followUps: [],
+      followUpsStrings: [],
+      sessionPatch: {},
+      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        engineVersion: "chatEngine failure contained",
+        knowledge: knowledgeRuntime.extract(norm.text, { marion }),
+        clearStaleUi: true,
+        suppressMenus: true,
+        failSafe: true,
+        error: cleanText(engineError && engineError.message || engineError || "engine failure")
+      }
+    };
+  }
+
+  let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
+  if (!reply) {
+    reply = buildSafeSupportReply(norm.text, emotion, {
+      traceId: norm.traceId,
+      sessionId,
+      source: "empty_reply"
+    });
+    shaped.reply = reply;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+    supportActive = true;
+    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+  }
+
+  reply = cleanReplyForUser(reply);
+  shaped.reply = reply;
+  shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+
+  const loop = detectLoop(sessionId, reply, norm.text);
+  if (loop.repeated) {
+    failSafe = false;
+    supportActive = true;
+    supportHold = Math.max(supportHold, 1);
+    reply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
+    shaped.reply = reply;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+    shaped.cog = {
+      ...(isObj(shaped.cog) ? shaped.cog : {}),
+      intent: "STABILIZE",
+      mode: "transitional",
+      publicMode: true
+    };
+    shaped.meta = mergeMeta(shaped.meta, {
+      duplicateReplySuppressed: true
+    });
+  }
+
+  const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
+  if (suppressMenus) {
+    supportActive = true;
+    supportHold = Math.max(supportHold, 1);
+  }
+
+  setSupportState(sessionId, {
+    active: supportActive,
+    hold: supportHold,
+    replyHash: replyHash(reply),
+    lastUserHash: replyHash(norm.text)
+  });
+
+  const sessionPatch = buildSupportSessionPatch(shaped.sessionPatch, supportActive, !supportActive);
+  shaped.sessionPatch = sessionPatch;
+
+  shaped.meta = mergeMeta(shaped.meta, {
+    v: INDEX_VERSION,
+    t: now(),
+    knowledge: shaped.meta?.knowledge || knowledgeRuntime.extract(norm.text, { marion }),
+    clearStaleUi: suppressMenus,
+    suppressMenus,
+    failSafe: !!failSafe,
+    error: shaped.meta?.error || "",
+    indexLoopGuard: true,
+    supportHold,
+    traceId: norm.traceId,
+    latencyMs: now() - startedAt
+  });
+
+  shaped.cog = {
+    ...(isObj(shaped.cog) ? shaped.cog : {}),
+    intent: shaped.cog?.intent || (supportActive ? "STABILIZE" : ""),
+    mode: shaped.cog?.mode || (supportActive ? "transitional" : ""),
+    publicMode: shaped.cog?.publicMode !== false
+  };
+
+  shaped = enforceQuietUiIfNeeded(attachVoiceRoute(shaped), {
+    supportActive,
+    failSafe,
+    forceQuiet: suppressMenus
+  });
+
+  shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
+  shaped.traceId = cleanText(shaped.traceId || norm.traceId);
+
+  setLastTurn(sessionId, {
+    replyHash: replyHash(reply),
+    userHash: replyHash(norm.text),
+    lane: shaped.lane || norm.lane
+  });
+
+  return res.status(200).json({
+    ok: shaped.ok !== false,
+    reply: shaped.reply,
+    payload: shaped.payload,
+    lane: shaped.lane || norm.lane || "general",
+    laneId: shaped.laneId || shaped.lane || norm.lane || "general",
+    sessionLane: shaped.sessionLane || shaped.lane || norm.lane || "general",
+    bridge: shaped.bridge || marion || null,
+    ctx: shaped.ctx || {},
+    ui: shaped.ui || {},
+    directives: Array.isArray(shaped.directives) ? shaped.directives : [],
+    followUps: Array.isArray(shaped.followUps) ? shaped.followUps : [],
+    followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings : [],
+    sessionPatch: shaped.sessionPatch || {},
+    cog: shaped.cog || {},
+    requestId: shaped.requestId,
+    traceId: shaped.traceId,
+    meta: shaped.meta || {},
+    audio: shaped.audio || undefined,
+    ttsProfile: shaped.ttsProfile || undefined,
+    voiceRoute: shaped.voiceRoute || undefined
+  });
+});
+
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
 }
-app.get("/", (_req, res) => sendJson(res, 200, { ok: true, service: "Sandblast Backend", version: INDEX_VERSION, engineVersion: ENGINE.version, upMs: nowMs() - SERVER_BOOT_AT }));
-app.use((req, res) => sendJson(res, 404, { ok: false, error: "not_found", path: safeStr(req.path || ""), method: safeStr(req.method || ""), version: INDEX_VERSION }));
+
+app.get("*", (req, res, next) => {
+  const p = path.join(PUBLIC_DIR, "index.html");
+  if (fs.existsSync(p)) return res.sendFile(p);
+  return next();
+});
 
 const server = app.listen(PORT, () => {
-  log("BOOT", { version: INDEX_VERSION, engineVersion: ENGINE.version, port: PORT, voiceRouteLoaded: !!registerVoiceRoutes, voiceRouteRegistrationMode, tts: buildTtsRuntimeSnapshot(), ttsDelegateLoaded: !!(ttsMod && typeof ttsMod.delegateTts === "function"), knowledgeLoaded: knowledgeRuntime.knowledgeStatusForMeta() });
+  console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
 });
-function shutdown(sig) {
-  log("SHUTDOWN", sig);
-  try {
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 5000).unref?.();
-  } catch (_) {
-    process.exit(0);
-  }
-}
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
 
 module.exports = { app, server, INDEX_VERSION };
