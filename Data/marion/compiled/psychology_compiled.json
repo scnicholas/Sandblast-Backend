@@ -1,0 +1,898 @@
+{
+  "version": "1.0.0",
+  "domain": "psychology",
+  "compiledAt": "2026-03-16T00:00:00.000Z",
+  "description": "Compiled psychology knowledge index for Marion ingestion. Aggregates affect interpretation, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma sensitivity into a unified retrieval structure.",
+  "sourceFiles": [
+    "Data/psychology/affect_interpretation.json",
+    "Data/psychology/attachment_patterns.json",
+    "Data/psychology/cognitive_distortions.json",
+    "Data/psychology/crisis_flags.json",
+    "Data/psychology/support_strategies.json",
+    "Data/psychology/trauma_sensitivity.json"
+  ],
+  "priorityOrder": [
+    "crisis_flags",
+    "affect_interpretation",
+    "cognitive_distortions",
+    "trauma_sensitivity",
+    "attachment_patterns",
+    "support_strategies"
+  ],
+  "subdomains": {
+    "affect_interpretation": {
+      "priority": 2,
+      "description": "Maps emotional language to likely affective states and support needs."
+    },
+    "attachment_patterns": {
+      "priority": 5,
+      "description": "Maps relational language to attachment-related interpretations."
+    },
+    "cognitive_distortions": {
+      "priority": 3,
+      "description": "Maps rigid or distorted thinking patterns to reframing support."
+    },
+    "crisis_flags": {
+      "priority": 1,
+      "description": "Identifies crisis or safety-oriented language requiring escalation."
+    },
+    "support_strategies": {
+      "priority": 6,
+      "description": "Defines preferred response structures and support patterns."
+    },
+    "trauma_sensitivity": {
+      "priority": 4,
+      "description": "Adds pacing, consent, safety, and regulation guidance for trauma-linked material."
+    }
+  },
+  "retrievalPolicy": {
+    "mode": "priority_then_relevance",
+    "maxPrimaryMatches": 3,
+    "maxSecondaryMatches": 4,
+    "preferCrisisFirst": true,
+    "preferSupportStrategyLast": true,
+    "requireSignalOrKeywordHit": true,
+    "allowSubdomainBlending": true
+  },
+  "records": [
+    {
+      "id": "psy_affect_interpretation_001",
+      "domain": "psychology",
+      "subdomain": "affect_interpretation",
+      "topic": "overwhelm_high_arousal",
+      "title": "High-arousal overwhelm",
+      "summary": "Language that suggests overload, spiraling, urgency, or inability to regulate in the moment.",
+      "signals": [
+        "i'm overwhelmed",
+        "i'm spiraling",
+        "i can't slow down",
+        "my mind won't stop",
+        "everything is too much"
+      ],
+      "keywords": ["overwhelm", "spiral", "panic", "flooded", "too much"],
+      "interpretation": "Possible acute overload with narrowed tolerance for complexity and reduced cognitive bandwidth.",
+      "supportMode": "soothe_and_structure",
+      "routeBias": "stabilize",
+      "riskLevel": "moderate",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": true,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": true,
+        "crisis": false
+      },
+      "responseGuidance": [
+        "Reduce intensity before analysis",
+        "Use short grounding language",
+        "Offer one immediate next step only"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "warm_affirming",
+        "semanticFrame": "stabilization",
+        "followupStyle": "grounding",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "contain"]
+      },
+      "contraindications": [
+        "Do not over-question",
+        "Do not jump to problem-solving too quickly",
+        "Do not mirror panic intensity"
+      ],
+      "tags": ["psychology", "affect", "overwhelm", "high_arousal", "stabilization"]
+    },
+    {
+      "id": "psy_affect_interpretation_002",
+      "domain": "psychology",
+      "subdomain": "affect_interpretation",
+      "topic": "shut_down_low_activation",
+      "title": "Low-activation shutdown",
+      "summary": "Language that suggests numbness, flatness, depletion, collapse, or reduced initiative.",
+      "signals": [
+        "i feel numb",
+        "i don't feel anything",
+        "i'm drained",
+        "i can't get moving",
+        "i feel empty"
+      ],
+      "keywords": ["numb", "empty", "drained", "flat", "shutdown"],
+      "interpretation": "Possible emotional blunting or depleted activation with limited readiness for pressure-heavy engagement.",
+      "supportMode": "validate_and_gently_activate",
+      "routeBias": "clarify",
+      "riskLevel": "moderate",
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": true,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false
+      },
+      "responseGuidance": [
+        "Validate depletion without dramatizing it",
+        "Use gentle sequencing",
+        "Invite one small restorative action"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "depletion_support",
+        "followupStyle": "reflective",
+        "transitionReadiness": "low",
+        "transitionTargets": ["clarify", "activate"]
+      },
+      "contraindications": [
+        "Do not frame as laziness",
+        "Do not apply aggressive motivational pressure"
+      ],
+      "tags": ["psychology", "affect", "shutdown", "low_activation", "depletion"]
+    },
+    {
+      "id": "psy_affect_interpretation_003",
+      "domain": "psychology",
+      "subdomain": "affect_interpretation",
+      "topic": "self_evaluative_shame",
+      "title": "Self-evaluative shame pattern",
+      "summary": "Language focused on defectiveness, worthlessness, inadequacy, or harsh self-judgment.",
+      "signals": [
+        "i'm a failure",
+        "there's something wrong with me",
+        "i'm not enough",
+        "i ruin everything",
+        "i hate myself"
+      ],
+      "keywords": ["shame", "failure", "worthless", "not enough", "defective"],
+      "interpretation": "Possible shame-dominant framing where identity is being collapsed into a painful state or outcome.",
+      "supportMode": "careful_nonshaming_reflection",
+      "routeBias": "stabilize",
+      "riskLevel": "moderate",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": true,
+        "crisis": false
+      },
+      "responseGuidance": [
+        "Separate personhood from outcome",
+        "Use non-shaming language",
+        "Reflect pain without endorsing self-attack"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "careful_nonshaming",
+        "semanticFrame": "identity_protection",
+        "followupStyle": "reflective",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "repair"]
+      },
+      "contraindications": [
+        "Do not agree with self-attack",
+        "Do not use blunt challenge too early"
+      ],
+      "tags": ["psychology", "affect", "shame", "self_evaluative", "repair"]
+    },
+    {
+      "id": "psy_affect_interpretation_004",
+      "domain": "psychology",
+      "subdomain": "affect_interpretation",
+      "topic": "recovery_positive_shift",
+      "title": "Recovery and positive shift",
+      "summary": "Language that suggests relief, stabilization, renewed agency, or emotional improvement.",
+      "signals": [
+        "i'm feeling better",
+        "things are turning around",
+        "i'm back on track",
+        "it finally feels manageable",
+        "i think i can do this"
+      ],
+      "keywords": ["better", "relief", "recovery", "back on track", "manageable"],
+      "interpretation": "Possible active recovery or improved regulation with readiness for forward motion.",
+      "supportMode": "affirm_and_channel",
+      "routeBias": "deepen_then_channel",
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": true,
+        "positivePresent": true
+      },
+      "responseGuidance": [
+        "Affirm movement without overstating certainty",
+        "Help preserve momentum",
+        "Offer one sustainable next step"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "warm_affirming",
+        "semanticFrame": "recovery",
+        "followupStyle": "direct_answer_then_one_question",
+        "transitionReadiness": "high",
+        "transitionTargets": ["channel", "maintain"]
+      },
+      "contraindications": [
+        "Do not overcomplicate improvement",
+        "Do not pull user backward into distress framing"
+      ],
+      "tags": ["psychology", "affect", "recovery", "positive_shift", "momentum"]
+    },
+    {
+      "id": "psy_attachment_patterns_001",
+      "domain": "psychology",
+      "subdomain": "attachment_patterns",
+      "topic": "anxious_attachment_activation",
+      "title": "Anxious attachment activation",
+      "summary": "Fear of disconnection, reassurance-seeking, or intense preoccupation with relational security.",
+      "signals": [
+        "why are they pulling away",
+        "i need to know they still care",
+        "i keep checking for a reply",
+        "i can't stop thinking about what they meant"
+      ],
+      "keywords": ["reassurance", "abandonment", "pulling away", "checking", "preoccupied"],
+      "interpretation": "Possible attachment activation organized around uncertainty, closeness threat, and reassurance-seeking.",
+      "supportMode": "soothe_and_structure",
+      "routeBias": "clarify",
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsConnection": true,
+        "needsClarification": true,
+        "needsContainment": false,
+        "highDistress": false
+      },
+      "responseGuidance": [
+        "Validate attachment alarm without escalating it",
+        "Differentiate signal from story",
+        "Reduce compulsive interpretive spiraling"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "relational_attunement",
+        "semanticFrame": "attachment_security",
+        "followupStyle": "gentle_next_question",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["clarify", "ground"]
+      },
+      "contraindications": [
+        "Do not shame reassurance-seeking",
+        "Do not prematurely declare the other person unsafe"
+      ],
+      "tags": ["psychology", "attachment", "anxious", "relationship", "reassurance"]
+    },
+    {
+      "id": "psy_attachment_patterns_002",
+      "domain": "psychology",
+      "subdomain": "attachment_patterns",
+      "topic": "avoidant_withdrawal",
+      "title": "Avoidant withdrawal pattern",
+      "summary": "Distancing, emotional minimization, or protective self-sufficiency under relational strain.",
+      "signals": [
+        "i'd rather handle it alone",
+        "i don't want to need anyone",
+        "i shut down when people get too close",
+        "i just disappear"
+      ],
+      "keywords": ["withdraw", "distance", "alone", "need no one", "shut down"],
+      "interpretation": "Possible protective deactivation pattern with distance used to preserve control or reduce vulnerability.",
+      "supportMode": "respectful_clarify_and_reconnect",
+      "routeBias": "deepen",
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsConnection": true,
+        "needsClarification": true,
+        "needsContainment": false,
+        "highDistress": false
+      },
+      "responseGuidance": [
+        "Respect autonomy while naming the protective pattern gently",
+        "Do not force emotional exposure",
+        "Offer low-pressure relational reflection"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "protective_distance",
+        "followupStyle": "reflective",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["deepen", "reconnect"]
+      },
+      "contraindications": [
+        "Do not frame distance as moral failure",
+        "Do not push intimacy before safety"
+      ],
+      "tags": ["psychology", "attachment", "avoidant", "distance", "protective_pattern"]
+    },
+    {
+      "id": "psy_attachment_patterns_003",
+      "domain": "psychology",
+      "subdomain": "attachment_patterns",
+      "topic": "disorganized_push_pull",
+      "title": "Push-pull relational conflict",
+      "summary": "Alternation between closeness-seeking and fear/withdrawal, often with confusion and volatility.",
+      "signals": [
+        "i want them close and then i want them gone",
+        "i don't trust it when it feels safe",
+        "i panic when they leave and panic when they stay"
+      ],
+      "keywords": ["push pull", "mixed signals", "panic", "closeness fear", "volatility"],
+      "interpretation": "Possible conflicting attachment impulses where closeness and threat feel fused.",
+      "supportMode": "stabilize_and_name_pattern",
+      "routeBias": "stabilize",
+      "riskLevel": "moderate",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsConnection": true,
+        "needsClarification": true,
+        "highDistress": true
+      },
+      "responseGuidance": [
+        "Name ambivalence without pathologizing it",
+        "Reduce urgency",
+        "Focus on present regulation before relational analysis"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "careful_nonshaming",
+        "semanticFrame": "ambivalent_safety",
+        "followupStyle": "ground_then_narrow",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "clarify"]
+      },
+      "contraindications": [
+        "Do not intensify attachment fear",
+        "Do not oversimplify into one motive"
+      ],
+      "tags": ["psychology", "attachment", "disorganized", "ambivalence", "stabilize"]
+    },
+    {
+      "id": "psy_cognitive_distortions_001",
+      "domain": "psychology",
+      "subdomain": "cognitive_distortions",
+      "topic": "catastrophizing",
+      "title": "Catastrophizing",
+      "summary": "Projecting the worst possible outcome and treating it as likely or inevitable.",
+      "signals": [
+        "everything is going to fall apart",
+        "this will ruin everything",
+        "it's going to be a disaster",
+        "there's no way this ends well"
+      ],
+      "keywords": ["worst case", "disaster", "ruin everything", "fall apart"],
+      "interpretation": "Possible threat amplification with future-oriented worst-case projection.",
+      "supportMode": "soothe_and_structure",
+      "routeBias": "stabilize",
+      "riskLevel": "low",
+      "responseGuidance": [
+        "Acknowledge fear before reframing",
+        "Separate possibility from probability",
+        "Shrink time horizon to the next actionable step"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "threat_reduction",
+        "followupStyle": "direct_answer_then_one_question",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["ground", "clarify"]
+      },
+      "contraindications": [
+        "Do not use dismissive optimism",
+        "Do not argue aggressively"
+      ],
+      "tags": ["psychology", "cognitive_distortion", "catastrophizing", "anxiety"]
+    },
+    {
+      "id": "psy_cognitive_distortions_002",
+      "domain": "psychology",
+      "subdomain": "cognitive_distortions",
+      "topic": "all_or_nothing_thinking",
+      "title": "All-or-nothing thinking",
+      "summary": "Interpreting outcomes in rigid extremes with little room for nuance.",
+      "signals": [
+        "if it's not perfect it's worthless",
+        "i either win or i fail",
+        "it's all bad",
+        "nothing about this is good"
+      ],
+      "keywords": ["perfect or worthless", "all bad", "total failure", "nothing good"],
+      "interpretation": "Possible binary evaluation pattern that narrows flexibility and inflates failure meaning.",
+      "supportMode": "clarify_and_reframe",
+      "routeBias": "clarify",
+      "riskLevel": "low",
+      "responseGuidance": [
+        "Introduce nuance gently",
+        "Look for partial truth and mixed evidence",
+        "Reduce identity fusion with outcome"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "orienting",
+        "semanticFrame": "cognitive_flexibility",
+        "followupStyle": "gentle_next_question",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["clarify", "challenge"]
+      },
+      "contraindications": [
+        "Do not lecture",
+        "Do not mirror black-and-white framing"
+      ],
+      "tags": ["psychology", "cognitive_distortion", "binary_thinking", "reframe"]
+    },
+    {
+      "id": "psy_cognitive_distortions_003",
+      "domain": "psychology",
+      "subdomain": "cognitive_distortions",
+      "topic": "mind_reading",
+      "title": "Mind reading",
+      "summary": "Assuming others' intentions, judgments, or emotional states without enough evidence.",
+      "signals": [
+        "they definitely think i'm pathetic",
+        "i know they meant it as a jab",
+        "everyone can tell i'm failing"
+      ],
+      "keywords": ["they think", "everyone can tell", "i know what they meant"],
+      "interpretation": "Possible projection of internal fear into assumed external judgment.",
+      "supportMode": "clarify_and_reality_test",
+      "routeBias": "clarify",
+      "riskLevel": "low",
+      "responseGuidance": [
+        "Distinguish observed facts from inferred meaning",
+        "Reduce certainty around unverifiable judgments",
+        "Invite evidence-based reflection"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "careful_nonshaming",
+        "semanticFrame": "evidence_vs_inference",
+        "followupStyle": "single_direct_question",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["clarify", "challenge"]
+      },
+      "contraindications": [
+        "Do not shame the inference",
+        "Do not overvalidate the assumption as fact"
+      ],
+      "tags": ["psychology", "cognitive_distortion", "mind_reading", "social_anxiety"]
+    },
+    {
+      "id": "psy_cognitive_distortions_004",
+      "domain": "psychology",
+      "subdomain": "cognitive_distortions",
+      "topic": "overgeneralization",
+      "title": "Overgeneralization",
+      "summary": "Using one event or repeated pain point to define the entire future or self.",
+      "signals": [
+        "this always happens",
+        "nothing ever works out for me",
+        "i never get it right",
+        "it's always the same"
+      ],
+      "keywords": ["always", "never", "nothing ever", "same every time"],
+      "interpretation": "Possible globalizing pattern that turns limited evidence into broad inevitability.",
+      "supportMode": "clarify_and_sequence",
+      "routeBias": "clarify",
+      "riskLevel": "low",
+      "responseGuidance": [
+        "Narrow the frame",
+        "Look for exceptions without forcing positivity",
+        "Restore specificity"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "orienting",
+        "semanticFrame": "specificity_restore",
+        "followupStyle": "ground_then_narrow",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["clarify", "ground"]
+      },
+      "contraindications": [
+        "Do not answer with simplistic contradiction only"
+      ],
+      "tags": ["psychology", "cognitive_distortion", "overgeneralization", "specificity"]
+    },
+    {
+      "id": "psy_crisis_flags_001",
+      "domain": "psychology",
+      "subdomain": "crisis_flags",
+      "topic": "self_harm_or_suicidal_language",
+      "title": "Self-harm or suicidal language",
+      "summary": "Statements suggesting desire to die, self-harm, disappearance, or inability to stay safe.",
+      "signals": [
+        "i want to die",
+        "i don't want to be here",
+        "i'm going to hurt myself",
+        "everyone would be better off without me",
+        "i can't keep myself safe"
+      ],
+      "keywords": ["die", "hurt myself", "not be here", "can't stay safe"],
+      "interpretation": "Immediate safety concern requiring crisis-oriented handling.",
+      "supportMode": "crisis_escalation",
+      "routeBias": "stabilize",
+      "riskLevel": "critical",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": true,
+        "needsConnection": true,
+        "highDistress": true,
+        "crisis": true
+      },
+      "responseGuidance": [
+        "Stop normal flow",
+        "Use direct supportive safety language",
+        "Encourage immediate human crisis support and emergency help where relevant"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "immediate_safety",
+        "followupStyle": "action_gate",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "escalate"]
+      },
+      "contraindications": [
+        "Do not continue casual conversation",
+        "Do not intellectualize the situation",
+        "Do not provide abstract-only comfort"
+      ],
+      "tags": ["psychology", "crisis", "self_harm", "suicide_risk", "safety"]
+    },
+    {
+      "id": "psy_crisis_flags_002",
+      "domain": "psychology",
+      "subdomain": "crisis_flags",
+      "topic": "violent_or_imminent_harm_language",
+      "title": "Imminent harm language",
+      "summary": "Statements suggesting imminent violence, loss of control, or risk to others.",
+      "signals": [
+        "i'm going to snap",
+        "i might hurt someone",
+        "i can't control what i'm about to do",
+        "someone is going to get hurt"
+      ],
+      "keywords": ["hurt someone", "snap", "can't control", "someone will get hurt"],
+      "interpretation": "Possible imminent harm escalation requiring immediate de-escalation and safety response.",
+      "supportMode": "crisis_escalation",
+      "routeBias": "stabilize",
+      "riskLevel": "critical",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": true,
+        "highDistress": true,
+        "crisis": true
+      },
+      "responseGuidance": [
+        "Move to immediate safety framing",
+        "Interrupt escalation",
+        "Encourage stepping away and contacting emergency/human support"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "containment",
+        "semanticFrame": "immediate_safety",
+        "followupStyle": "action_gate",
+        "transitionReadiness": "low",
+        "transitionTargets": ["contain", "escalate"]
+      },
+      "contraindications": [
+        "Do not normalize violent ideation",
+        "Do not continue regular support mode"
+      ],
+      "tags": ["psychology", "crisis", "violence_risk", "containment", "safety"]
+    },
+    {
+      "id": "psy_crisis_flags_003",
+      "domain": "psychology",
+      "subdomain": "crisis_flags",
+      "topic": "severe_disorientation_or_panic",
+      "title": "Severe panic or disorientation",
+      "summary": "Language suggesting inability to orient, breathe, slow down, or remain grounded.",
+      "signals": [
+        "i can't breathe",
+        "i'm losing it",
+        "nothing feels real",
+        "i can't calm down",
+        "i'm freaking out"
+      ],
+      "keywords": ["can't breathe", "losing it", "not real", "freaking out", "panic"],
+      "interpretation": "Possible acute dysregulation requiring immediate grounding and low-complexity response.",
+      "supportMode": "acute_regulation",
+      "routeBias": "stabilize",
+      "riskLevel": "high",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": true,
+        "highDistress": true,
+        "crisis": false
+      },
+      "responseGuidance": [
+        "Use grounding language",
+        "Reduce verbal complexity",
+        "Focus on immediate safety and regulation"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "acute_regulation",
+        "followupStyle": "grounding",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "contain"]
+      },
+      "contraindications": [
+        "Do not overload with analysis",
+        "Do not ask multi-part questions"
+      ],
+      "tags": ["psychology", "crisis_flag", "panic", "dysregulation", "grounding"]
+    },
+    {
+      "id": "psy_support_strategies_001",
+      "domain": "psychology",
+      "subdomain": "support_strategies",
+      "topic": "stabilize_then_narrow",
+      "title": "Stabilize, then narrow",
+      "summary": "Use when the user is emotionally activated and cognitive bandwidth is low.",
+      "triggers": [
+        "high distress",
+        "overwhelm",
+        "spiraling language",
+        "acute uncertainty"
+      ],
+      "supportMode": "soothe_and_structure",
+      "routeBias": "stabilize",
+      "responsePattern": [
+        "name the strain",
+        "reduce urgency",
+        "offer one concrete next step",
+        "avoid broad exploration until calmer"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "warm_affirming",
+        "semanticFrame": "stabilization",
+        "followupStyle": "ground_then_narrow",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "clarify"]
+      },
+      "contraindications": [
+        "Do not over-explain",
+        "Do not stack multiple suggestions"
+      ],
+      "tags": ["psychology", "support_strategy", "stabilize", "grounding"]
+    },
+    {
+      "id": "psy_support_strategies_002",
+      "domain": "psychology",
+      "subdomain": "support_strategies",
+      "topic": "reflect_then_clarify",
+      "title": "Reflect, then clarify",
+      "summary": "Use when the user is emotionally coherent but uncertain, conflicted, or tangled in interpretation.",
+      "triggers": [
+        "mixed feelings",
+        "uncertainty",
+        "relationship ambiguity",
+        "mind reading patterns"
+      ],
+      "supportMode": "clarify_and_sequence",
+      "routeBias": "clarify",
+      "responsePattern": [
+        "reflect core feeling",
+        "separate facts from assumptions",
+        "ask one narrowing question",
+        "sequence next move"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "orienting",
+        "semanticFrame": "clarity_building",
+        "followupStyle": "single_direct_question",
+        "transitionReadiness": "medium",
+        "transitionTargets": ["clarify", "challenge"]
+      },
+      "contraindications": [
+        "Do not sound interrogative",
+        "Do not rush to conclusions"
+      ],
+      "tags": ["psychology", "support_strategy", "clarify", "reflection"]
+    },
+    {
+      "id": "psy_support_strategies_003",
+      "domain": "psychology",
+      "subdomain": "support_strategies",
+      "topic": "affirm_and_channel",
+      "title": "Affirm and channel",
+      "summary": "Use when the user shows recovery, pride, relief, or constructive momentum.",
+      "triggers": [
+        "positive shift",
+        "relief",
+        "achievement",
+        "renewed confidence"
+      ],
+      "supportMode": "affirm_and_channel",
+      "routeBias": "deepen_then_channel",
+      "responsePattern": [
+        "affirm progress",
+        "stabilize gains",
+        "turn momentum into one sustainable action"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "warm_affirming",
+        "semanticFrame": "momentum_preservation",
+        "followupStyle": "direct_answer_then_one_question",
+        "transitionReadiness": "high",
+        "transitionTargets": ["channel", "maintain"]
+      },
+      "contraindications": [
+        "Do not overinflate confidence unrealistically",
+        "Do not drag the user back into distress framing"
+      ],
+      "tags": ["psychology", "support_strategy", "affirmation", "momentum", "recovery"]
+    },
+    {
+      "id": "psy_support_strategies_004",
+      "domain": "psychology",
+      "subdomain": "support_strategies",
+      "topic": "repair_nonshaming",
+      "title": "Repair without shame",
+      "summary": "Use when the user is fused with shame, guilt, or self-condemnation.",
+      "triggers": [
+        "i'm a failure",
+        "i ruin everything",
+        "there's something wrong with me"
+      ],
+      "supportMode": "careful_nonshaming_reflection",
+      "routeBias": "stabilize",
+      "responsePattern": [
+        "de-fuse identity from event",
+        "reduce self-attack",
+        "preserve dignity while reflecting reality"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "careful_nonshaming",
+        "semanticFrame": "repair",
+        "followupStyle": "reflective",
+        "transitionReadiness": "low",
+        "transitionTargets": ["repair", "stabilize"]
+      },
+      "contraindications": [
+        "Do not moralize",
+        "Do not use hard challenge too early"
+      ],
+      "tags": ["psychology", "support_strategy", "repair", "shame", "nonshaming"]
+    },
+    {
+      "id": "psy_trauma_sensitivity_001",
+      "domain": "psychology",
+      "subdomain": "trauma_sensitivity",
+      "topic": "avoid_forcing_detail",
+      "title": "Do not force traumatic detail",
+      "summary": "When the user hints at painful or destabilizing experiences, preserve choice and pacing.",
+      "signals": [
+        "something bad happened",
+        "i don't want to talk about all of it",
+        "it still gets to me",
+        "i can't go back into that right now"
+      ],
+      "interpretation": "Possible trauma-linked material where pacing and agency matter more than detail extraction.",
+      "supportMode": "stabilize_and_respect_pacing",
+      "routeBias": "stabilize",
+      "riskLevel": "moderate",
+      "responseGuidance": [
+        "Do not press for detail",
+        "Offer choice and pacing",
+        "Anchor in present safety and control"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "steadying",
+        "semanticFrame": "agency_preservation",
+        "followupStyle": "reflective",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "contain"]
+      },
+      "contraindications": [
+        "Do not probe for specifics",
+        "Do not romanticize resilience"
+      ],
+      "tags": ["psychology", "trauma_sensitivity", "pacing", "agency", "safety"]
+    },
+    {
+      "id": "psy_trauma_sensitivity_002",
+      "domain": "psychology",
+      "subdomain": "trauma_sensitivity",
+      "topic": "unexpected_trigger_activation",
+      "title": "Trigger activation response",
+      "summary": "Present-day cues may reactivate fear, shame, or physiological alarm linked to earlier experiences.",
+      "signals": [
+        "that set me off",
+        "i reacted way bigger than i expected",
+        "my body went into alarm",
+        "i know it's small but it hit hard"
+      ],
+      "interpretation": "Possible trigger-driven activation where intensity may exceed the present cue.",
+      "supportMode": "soothe_and_structure",
+      "routeBias": "stabilize",
+      "riskLevel": "moderate",
+      "responseGuidance": [
+        "Normalize trigger intensity without overpathologizing",
+        "Focus on current regulation",
+        "Differentiate past activation from present reality gently"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "warm_affirming",
+        "semanticFrame": "trigger_regulation",
+        "followupStyle": "grounding",
+        "transitionReadiness": "low",
+        "transitionTargets": ["stabilize", "clarify"]
+      },
+      "contraindications": [
+        "Do not call the user irrational",
+        "Do not invalidate bodily alarm"
+      ],
+      "tags": ["psychology", "trauma_sensitivity", "trigger", "regulation", "alarm_response"]
+    },
+    {
+      "id": "psy_trauma_sensitivity_003",
+      "domain": "psychology",
+      "subdomain": "trauma_sensitivity",
+      "topic": "control_and_choice_language",
+      "title": "Use control-and-choice language",
+      "summary": "Trauma-sensitive response often benefits from explicit restoration of agency, pacing, and consent in conversation.",
+      "signals": [
+        "i need space",
+        "i can't do too much at once",
+        "slow down",
+        "i need this to feel safe"
+      ],
+      "interpretation": "Conversation itself may need to become more choice-oriented and less directive.",
+      "supportMode": "contain_with_choice",
+      "routeBias": "stabilize",
+      "riskLevel": "low",
+      "responseGuidance": [
+        "Offer one choice at a time",
+        "Let the user set pacing where possible",
+        "Use low-pressure language"
+      ],
+      "toneProfile": {
+        "expressionStyle": "plain_statement",
+        "deliveryTone": "containment",
+        "semanticFrame": "agency_preservation",
+        "followupStyle": "gentle_next_question",
+        "transitionReadiness": "low",
+        "transitionTargets": ["contain", "reconnect"]
+      },
+      "contraindications": [
+        "Do not overload with directives",
+        "Do not push narrative depth for its own sake"
+      ],
+      "tags": ["psychology", "trauma_sensitivity", "agency", "choice", "containment"]
+    }
+  ]
+}
