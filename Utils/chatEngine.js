@@ -1,3 +1,5 @@
+## Part 1 of 3
+```javascript
 "use strict";
 
 /**
@@ -113,7 +115,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.20.1 AUDIO-FAILURE ROUTE-SUPPRESSION HARDEN";
+const CE_VERSION = "chatEngine v0.20.2 COHESION-LOCK EMOTION-GUARD HARDEN";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
 
@@ -219,7 +221,7 @@ function shouldSuppressLaneArtifacts(norm, emo, routeOut) {
 }
 
 function quietUi(mode) {
-  return { chips: [], allowMic: true, mode: safeStr(mode || "quiet") || "quiet" };
+  return { chips: [], allowMic: true, mode: safeStr(mode || "quiet") || "quiet", replace: true, clearStale: true };
 }
 
 function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
@@ -910,6 +912,10 @@ function detectGreetingQuick(text) {
   const raw0 = safeStr(text || "");
   const t0 = raw0.trim();
   if (!t0) return null;
+```
+
+## Part 2 of 3
+```javascript
   const canon = t0.toLowerCase().replace(/\s+/g, " ").replace(/[.!?]+$/g, "").trim();
   const how = /(how are you|how\'s it going|hows it going|how are you doing|how\'re you|whats up|what\'s up)(\s+today)?$/i;
   const greetHead = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))(\s+nyx)?(\s*[,:-])?\s*/i;
@@ -1020,6 +1026,89 @@ function buildEmotionPresentation(emo, session) {
   enriched.sameResponseFamilyCount = clampInt(s.__sameResponseFamilyCount || 0, 0, 0, 99);
   enriched.responseFamily = safeStr(enriched.responseFamily || enriched.conversationPlan.responseFamily || deriveEmotionResponseFamily(enriched)).toLowerCase();
   return enriched;
+}
+function normalizeEmotionEnvelope(emo) {
+  const src = isPlainObject(emo) ? { ...emo } : {};
+  const supportFlags = isPlainObject(src.supportFlags) ? { ...src.supportFlags } : {};
+  const continuity = isPlainObject(src.continuity) ? { ...src.continuity } : {};
+  const contradictions = isPlainObject(src.contradictions) ? { ...src.contradictions } : { count: 0, contradictions: [] };
+  const nuanceProfile = normalizeNuanceProfile(src.nuanceProfile || {});
+  const conversationPlan = normalizeConversationPlan(src.conversationPlan || {});
+  return {
+    ok: !!src.ok,
+    source: safeStr(src.source || 'emotion_route_guard'),
+    mode: safeStr(src.mode || 'NORMAL') || 'NORMAL',
+    valence: safeStr(src.valence || 'neutral').toLowerCase() || 'neutral',
+    intensity: clampInt(src.intensity || 0, 0, 0, 100),
+    confidence: clampInt(src.confidence || 0, 0, 0, 100),
+    dominantEmotion: safeStr(src.dominantEmotion || src.primaryEmotion || 'neutral') || 'neutral',
+    primaryEmotion: safeStr(src.primaryEmotion || src.dominantEmotion || 'neutral') || 'neutral',
+    secondaryEmotion: safeStr(src.secondaryEmotion || ''),
+    emotionCluster: safeStr(src.emotionCluster || ''),
+    tone: safeStr(src.tone || 'steady_neutral') || 'steady_neutral',
+    routeBias: safeStr(src.routeBias || ''),
+    supportModeCandidate: safeStr(src.supportModeCandidate || ''),
+    bypassClarify: !!src.bypassClarify,
+    fallbackSuppression: !!src.fallbackSuppression,
+    needsNovelMove: !!src.needsNovelMove,
+    routeExhaustion: !!src.routeExhaustion,
+    cached: !!src.cached,
+    emotionalVolatility: safeStr(src.emotionalVolatility || 'stable'),
+    supportFlags: {
+      crisis: !!supportFlags.crisis,
+      highDistress: !!supportFlags.highDistress,
+      needsGentlePacing: !!supportFlags.needsGentlePacing,
+      avoidCelebratoryTone: !!supportFlags.avoidCelebratoryTone,
+      recoveryPresent: !!supportFlags.recoveryPresent,
+      positivePresent: !!supportFlags.positivePresent,
+      needsStabilization: !!supportFlags.needsStabilization,
+      needsClarification: !!supportFlags.needsClarification,
+      needsContainment: !!supportFlags.needsContainment,
+      needsConnection: !!supportFlags.needsConnection,
+      needsForwardMotion: !!supportFlags.needsForwardMotion,
+      mentionsLooping: !!supportFlags.mentionsLooping
+    },
+    continuity: {
+      sameEmotionCount: clampInt(continuity.sameEmotionCount || 0, 0, 0, 99),
+      sameSupportModeCount: clampInt(continuity.sameSupportModeCount || 0, 0, 0, 99),
+      noProgressTurnCount: clampInt(continuity.noProgressTurnCount || 0, 0, 0, 99),
+      repeatedFallbackCount: clampInt(continuity.repeatedFallbackCount || 0, 0, 0, 99),
+      stateShift: safeStr(continuity.stateShift || 'stable_or_unknown'),
+      fallbackSuppression: !!continuity.fallbackSuppression,
+      needsNovelMove: !!continuity.needsNovelMove,
+      routeExhaustion: !!continuity.routeExhaustion
+    },
+    contradictions: {
+      count: clampInt(contradictions.count || 0, 0, 0, 99),
+      contradictions: Array.isArray(contradictions.contradictions) ? contradictions.contradictions.slice(0, 8) : []
+    },
+    nuanceProfile,
+    conversationPlan,
+    presentationSignals: isPlainObject(src.presentationSignals) ? src.presentationSignals : {},
+    expressionStyle: safeStr(src.expressionStyle || conversationPlan.expressionStyle || 'plain_statement').toLowerCase(),
+    deliveryTone: safeStr(src.deliveryTone || conversationPlan.deliveryTone || 'warm_affirming').toLowerCase(),
+    semanticFrame: safeStr(src.semanticFrame || conversationPlan.semanticFrame || 'plain_statement').toLowerCase(),
+    responseFamily: safeStr(src.responseFamily || conversationPlan.responseFamily || deriveEmotionResponseFamily(src)).toLowerCase(),
+    routeHints: Array.isArray(src.routeHints) ? src.routeHints.slice(0, 12) : [],
+    responseHints: Array.isArray(src.responseHints) ? src.responseHints.slice(0, 12) : [],
+    positiveReinforcements: Array.isArray(src.positiveReinforcements) ? src.positiveReinforcements.slice(0, 12) : [],
+    distressReinforcements: Array.isArray(src.distressReinforcements) ? src.distressReinforcements.slice(0, 12) : [],
+    recoverySignals: Array.isArray(src.recoverySignals) ? src.recoverySignals.slice(0, 12) : [],
+    priorResponseFamily: safeStr(src.priorResponseFamily || '').toLowerCase(),
+    lastOpeningFamily: safeStr(src.lastOpeningFamily || '').toLowerCase(),
+    lastQuestionStyle: safeStr(src.lastQuestionStyle || '').toLowerCase(),
+    sameResponseFamilyCount: clampInt(src.sameResponseFamilyCount || 0, 0, 0, 99),
+    tags: Array.isArray(src.tags) ? src.tags.slice(0, 20) : []
+  };
+}
+function shouldForceQuietSupport(norm, emo, routeOut) {
+  if (shouldSuppressLaneArtifacts(norm, emo, routeOut)) return true;
+  const ui = isPlainObject(routeOut?.ui) ? routeOut.ui : {};
+  const meta = isPlainObject(routeOut?.meta) ? routeOut.meta : {};
+  if (ui.replace || ui.clearStale || ui.menuSuppressed || ui.degradedSupport || ui.failSafe) return true;
+  if (meta.suppressMenus || meta.clearStaleUi || meta.degradedSupport || meta.failSafe) return true;
+  if (safeStr(routeOut?.cog?.intent || '').toUpperCase() === 'STABILIZE') return true;
+  return false;
 }
 
 function normalizeEmotionGuardResult(raw) {
@@ -1537,7 +1626,7 @@ function makeBreakerReply(norm, emo) {
   if (packet && packet.reply && (packet.mode === "supportive" || packet.mode === "crisis")) {
     return safeStr(packet.reply);
   }
-  return "I am seeing repetition, so I am slowing this down and keeping it steady. Give me one fresh sentence and I will stay with it without reopening menus.";
+  return "I am seeing repetition, so I am slowing this down and keeping it steady. Give me one fresh sentence and I will stay with it.";
 }
 function makeInFlightReply(norm, emo) {
   const packet = buildSupportPacketSafe(norm, emo);
@@ -1740,6 +1829,10 @@ function normalizeInbound(input) {
     normYear(payload.year) ||
     normYear(body.year);
 
+```
+
+## Part 3 of 3
+```javascript
   return {
     text,
     lane,
@@ -1891,7 +1984,7 @@ async function handleChat(input) {
         sessionLane: safeStr(norm.lane || "general") || "general",
         bridge: null,
         ctx: {},
-        ui: buildUiForLane(safeStr(norm.lane || "general") || "general"),
+        ui: quietUi(emoBlocked ? "supportive" : "quiet"),
         directives: [],
         followUps: [],
         followUpsStrings: [],
@@ -1923,7 +2016,7 @@ async function handleChat(input) {
     const inboundRepeat = detectInboundRepeat(session, inSig);
     logChatDiag('inbound_repeat_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), inboundRepeatN: inboundRepeat.n, inboundRepeatTripped: !!inboundRepeat.tripped, inboundFastReturn: !!inboundRepeat.canFastReturn });
 
-    const emo = buildEmotionPresentation(runEmotionGuard(norm.text || "", { ...(isPlainObject(corePrev) ? corePrev : {}), lastResponseFamily: safeStr(session.__lastResponseFamily || session.__responseFamily || "") }), session);
+    const emo = normalizeEmotionEnvelope(buildEmotionPresentation(runEmotionGuard(norm.text || "", { ...(isPlainObject(corePrev) ? corePrev : {}), lastResponseFamily: safeStr(session.__lastResponseFamily || session.__responseFamily || "") }), session));
     logChatDiag('emotion_eval', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), emotionMode: safeStr(emo?.mode || 'NONE'), emotionValence: safeStr(emo?.valence || 'neutral'), emotionDominant: safeStr(emo?.dominantEmotion || ''), emotionBypassClarify: !!emo?.bypassClarify, emotionHighDistress: !!emo?.supportFlags?.highDistress, emotionCrisis: !!emo?.supportFlags?.crisis });
     applyEmotionSignalsToNorm(norm, emo);
 
@@ -1998,7 +2091,7 @@ async function handleChat(input) {
         })
       : { move: "ADVANCE", stage: "deliver", rationale: "planner_missing" };
 
-    const emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
+    let emotionFirst = shouldAllowEmotionFirst(norm, emo, corePrev, plannerDecision)
       ? maybeBuildEmotionFirstReply(norm, emo)
       : null;
     if (emotionFirst && safeStr(emotionFirst.reply)) {
@@ -2262,7 +2355,7 @@ async function handleChat(input) {
         sessionLane: lane,
         bridge: null,
         ctx: {},
-        ui: artifacts.ui,
+        ui: shouldForceQuietSupport(norm, emo, { ui: artifacts.ui, meta: { suppressMenus: artifacts.menusSuppressed }, cog: { intent: isSupportiveEmotion ? "STABILIZE" : "ADVANCE" } }) ? quietUi(isSupportiveEmotion ? "supportive" : "quiet") : artifacts.ui,
         directives: [],
         followUps,
         followUpsStrings: artifacts.followUpsStrings,
@@ -2482,7 +2575,7 @@ async function handleChat(input) {
       sessionLane: lane,
       bridge,
       ctx: {},
-      ui,
+      ui: shouldForceQuietSupport(norm, emo, routeOut) ? quietUi(emo ? "supportive" : "quiet") : ui,
       directives,
       followUps,
       followUpsStrings: artifacts.followUpsStrings,
@@ -2653,3 +2746,4 @@ module.exports.computePublicMode = computePublicMode;
 module.exports.sanitizePublicReply = sanitizePublicReply;
 module.exports.STATE_SPINE_VERSION = Spine.SPINE_VERSION;
 module.exports.STATE_SPINE = Spine;
+```
