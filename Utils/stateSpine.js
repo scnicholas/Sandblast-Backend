@@ -1,19 +1,21 @@
+```javascript
 "use strict";
 
 /**
  * Utils/stateSpine.js
  *
- * stateSpine v1.3.0 AUDIO-TERMINAL HARDEN
+ * stateSpine v1.4.0 SUPPORT-LOCK LOOP-HARDEN
  * ------------------------------------------------------------
  * PURPOSE
  * - Maintain durable conversational progression state
  * - Prevent same-stage replay and shallow re-entry loops
- * - Expose a compact planning contract to chatEngine
+ * - Keep support-lock / quiet-mode cohesion with chatEngine + index
  * - Terminalize repeated TTS/audio failures cleanly instead of re-entering
+ * - Track emotion continuity so distress handling does not collapse too early
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.3.0 AUDIO-TERMINAL HARDEN";
+const SPINE_VERSION = "stateSpine v1.4.0 SUPPORT-LOCK LOOP-HARDEN";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
@@ -77,8 +79,24 @@ function createState(seed = {}) {
       sameIntentCount: 0,
       sameUserHashCount: 0,
       sameAssistantHashCount: 0,
+      sameEmotionCount: 0,
+      sameSupportModeCount: 0,
+      sameArchetypeCount: 0,
       noProgressCount: 0,
       fallbackCount: 0
+    },
+    support: {
+      lockActive: false,
+      lockBias: "",
+      quietTurns: 0,
+      holdTurns: 0,
+      reason: "",
+      shouldSuppressMenus: false,
+      supportMode: "",
+      archetype: "",
+      questionStyle: "",
+      emotionKey: "",
+      emotionCluster: ""
     },
     audio: {
       lastFailureReason: "",
@@ -94,7 +112,10 @@ function createState(seed = {}) {
 }
 
 function coerceState(input) {
-  const base = createState({ lane: safeStr(input?.lane || "general"), stage: safeStr(input?.stage || "open") });
+  const base = createState({
+    lane: safeStr(input?.lane || "general"),
+    stage: safeStr(input?.stage || "open")
+  });
   const src = isPlainObject(input) ? input : {};
   return {
     ...base,
@@ -122,8 +143,24 @@ function coerceState(input) {
       sameIntentCount: clampInt(src?.repetition?.sameIntentCount, 0, 0, 999999),
       sameUserHashCount: clampInt(src?.repetition?.sameUserHashCount, 0, 0, 999999),
       sameAssistantHashCount: clampInt(src?.repetition?.sameAssistantHashCount, 0, 0, 999999),
+      sameEmotionCount: clampInt(src?.repetition?.sameEmotionCount, 0, 0, 999999),
+      sameSupportModeCount: clampInt(src?.repetition?.sameSupportModeCount, 0, 0, 999999),
+      sameArchetypeCount: clampInt(src?.repetition?.sameArchetypeCount, 0, 0, 999999),
       noProgressCount: clampInt(src?.repetition?.noProgressCount, 0, 0, 999999),
       fallbackCount: clampInt(src?.repetition?.fallbackCount, 0, 0, 999999)
+    },
+    support: {
+      lockActive: !!src?.support?.lockActive,
+      lockBias: safeStr(src?.support?.lockBias || ""),
+      quietTurns: clampInt(src?.support?.quietTurns, 0, 0, 999999),
+      holdTurns: clampInt(src?.support?.holdTurns, 0, 0, 999999),
+      reason: safeStr(src?.support?.reason || ""),
+      shouldSuppressMenus: !!src?.support?.shouldSuppressMenus,
+      supportMode: safeStr(src?.support?.supportMode || ""),
+      archetype: safeStr(src?.support?.archetype || ""),
+      questionStyle: safeStr(src?.support?.questionStyle || ""),
+      emotionKey: safeStr(src?.support?.emotionKey || ""),
+      emotionCluster: safeStr(src?.support?.emotionCluster || "")
     },
     audio: {
       lastFailureReason: safeStr(src?.audio?.lastFailureReason || ""),
@@ -140,7 +177,7 @@ function coerceState(input) {
 
 function inferPhaseFromStage(stage, lock) {
   const s = safeStr(stage || "").toLowerCase();
-  if (s === "recovery" || s === "stabilize" || s === "terminal_stop") return "recovery";
+  if (s === "recovery" || s === "stabilize" || s === "terminal_stop" || s === "quiet") return "recovery";
   if (s === "deliver" || s === "advance" || s === "domain_depth_1" || s === "domain_depth_2") return "active";
   if (s === "execution") return "execution";
   if (lock) return "recovery";
@@ -177,15 +214,66 @@ function normalizeAudioSignal(inbound) {
   return { action, shouldStop, retryable, reason, status };
 }
 
+function normalizeEmotionSignals(inbound, prevState) {
+  const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
+  const prev = coerceState(prevState);
+  const supportMode = safeStr(sig.emotionSupportMode || prev.support.supportMode || "").toLowerCase();
+  const emotionKey = safeStr(sig.emotionPrimary || sig.emotionDominant || prev.support.emotionKey || "").toLowerCase();
+  const emotionCluster = safeStr(sig.emotionCluster || prev.support.emotionCluster || "").toLowerCase();
+  const questionStyle = safeStr(sig.questionStyle || prev.support.questionStyle || "").toLowerCase();
+  const supportLockSignal = !!(
+    sig.supportLockActive ||
+    sig.emotionSupportLock ||
+    sig.emotionShouldSuppressMenus ||
+    sig.emotionNeedSoft ||
+    sig.emotionNeedCrisis ||
+    sig.emotionFallbackSuppression ||
+    sig.emotionRouteExhaustion
+  );
+  const sameEmotionCount = clampInt(sig.emotionSameEmotionCount, prev.repetition.sameEmotionCount, 0, 999999);
+  const sameSupportModeCount = clampInt(sig.emotionSameSupportModeCount, prev.repetition.sameSupportModeCount, 0, 999999);
+  const sameArchetypeCount = clampInt(sig.emotionSameArchetypeCount, prev.repetition.sameArchetypeCount, 0, 999999);
+  const noProgressTurnCount = clampInt(sig.emotionNoProgressTurnCount, prev.repetition.noProgressCount, 0, 999999);
+  const repeatedFallbackCount = clampInt(sig.emotionRepeatedFallbackCount, prev.repetition.fallbackCount, 0, 999999);
+
+  return {
+    supportMode,
+    emotionKey,
+    emotionCluster,
+    questionStyle,
+    supportLockSignal,
+    shouldSuppressMenus: !!(
+      sig.emotionShouldSuppressMenus ||
+      sig.clearStaleUi ||
+      sig.suppressMenus ||
+      sig.emotionFallbackSuppression ||
+      sig.emotionRouteExhaustion
+    ),
+    highDistress: !!(sig.emotionNeedCrisis || sig.emotionNeedSoft),
+    mentionsLooping: !!(
+      sig.emotionRouteExhaustion ||
+      sig.emotionFallbackSuppression ||
+      noProgressTurnCount >= 2 ||
+      /loop|looping|same thing|again/i.test(safeStr(inbound?.text || ""))
+    ),
+    sameEmotionCount,
+    sameSupportModeCount,
+    sameArchetypeCount,
+    noProgressTurnCount,
+    repeatedFallbackCount
+  };
+}
+
 function inferConversationPhase(prevState, inbound, plannerDecision) {
   const prev = coerceState(prevState);
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
+  const emo = normalizeEmotionSignals(inbound, prev);
   if (audio.shouldStop) return "recovery";
   if (prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs()) return "recovery";
-  if (technical) return "execution";
+  if (emo.supportLockSignal || prev.support.lockActive || prev.progressionLock) return "recovery";
   if (safeStr(plannerDecision?.stage || "").toLowerCase() === "recovery") return "recovery";
-  if (prev.progressionLock) return "recovery";
+  if (technical) return "execution";
   return inferPhaseFromStage(prev.stage, prev.progressionLock);
 }
 
@@ -195,15 +283,12 @@ function decideNextMove(prevState, inbound) {
   const intent = extractIntent(inbound);
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
+  const emo = normalizeEmotionSignals(inbound, prev);
   const terminalStopActive = prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs();
-
-  const mentionsLooping = !!inbound?.turnSignals?.emotionRouteExhaustion ||
-    !!inbound?.turnSignals?.emotionFallbackSuppression ||
-    clampInt(inbound?.turnSignals?.emotionNoProgressTurnCount, 0, 0, 99) >= 2 ||
-    /\bloop|looping|same thing|again\b/i.test(safeStr(inbound?.text || ""));
 
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameIntent = !!(intent && prev.lastIntent && intent === prev.lastIntent);
+  const mentionsLooping = emo.mentionsLooping || sameUser;
 
   if (audio.shouldStop || terminalStopActive) {
     return {
@@ -235,11 +320,21 @@ function decideNextMove(prevState, inbound) {
     };
   }
 
+  if (emo.supportLockSignal || emo.highDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE") {
+    return {
+      move: "STABILIZE",
+      stage: "recovery",
+      rationale: emo.mentionsLooping ? "support_lock_loop_guard" : "emotion_stabilize",
+      speak: "",
+      _plannerMode: "support"
+    };
+  }
+
   if (technical) {
     return {
-      move: mentionsLooping || sameUser ? "STABILIZE" : "ADVANCE",
+      move: mentionsLooping || sameIntent ? "STABILIZE" : "ADVANCE",
       stage: "execution",
-      rationale: mentionsLooping || sameUser ? "technical_loop_guard" : "technical_execution",
+      rationale: mentionsLooping || sameIntent ? "technical_loop_guard" : "technical_execution",
       speak: "",
       _plannerMode: "execution"
     };
@@ -252,16 +347,6 @@ function decideNextMove(prevState, inbound) {
       rationale: mentionsLooping ? "route_exhaustion_guard" : "same_turn_repeat_guard",
       speak: "",
       _plannerMode: "stabilize"
-    };
-  }
-
-  if (safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE") {
-    return {
-      move: "STABILIZE",
-      stage: "recovery",
-      rationale: "emotion_stabilize",
-      speak: "",
-      _plannerMode: "support"
     };
   }
 
@@ -293,13 +378,18 @@ function finalizeTurn(params = {}) {
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
+  const emo = normalizeEmotionSignals(inbound, prev);
 
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
-  const progressionLock = !!(
-    technical ||
-    safeStr(intent) === "STABILIZE" ||
+  const supportLockActive = !!(
+    emo.supportLockSignal ||
     stage === "recovery" ||
     stage === "terminal_stop" ||
+    safeStr(intent) === "STABILIZE"
+  );
+  const progressionLock = !!(
+    technical ||
+    supportLockActive ||
     sameUser ||
     (sameAssistant && sameStage) ||
     audio.shouldStop
@@ -311,13 +401,40 @@ function finalizeTurn(params = {}) {
     sameIntentCount: sameIntent ? prev.repetition.sameIntentCount + 1 : 0,
     sameUserHashCount: sameUser ? prev.repetition.sameUserHashCount + 1 : 0,
     sameAssistantHashCount: sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0,
-    noProgressCount: (sameStage && sameIntent && sameLane) ? prev.repetition.noProgressCount + 1 : 0,
-    fallbackCount: /failopen|fallback|breaker|stabilize|audio_terminal|audio_downgrade/i.test(
-      safeStr(params.updateReason || "") + " " + safeStr(decision.rationale || "")
-    ) ? prev.repetition.fallbackCount + 1 : 0
+    sameEmotionCount: emo.sameEmotionCount,
+    sameSupportModeCount: emo.sameSupportModeCount,
+    sameArchetypeCount: emo.sameArchetypeCount,
+    noProgressCount: Math.max(
+      emo.noProgressTurnCount,
+      (sameStage && sameIntent && sameLane) ? prev.repetition.noProgressCount + 1 : 0
+    ),
+    fallbackCount: Math.max(
+      emo.repeatedFallbackCount,
+      /failopen|fallback|breaker|stabilize|audio_terminal|audio_downgrade|support_lock/i.test(
+        safeStr(params.updateReason || "") + " " + safeStr(decision.rationale || "")
+      ) ? prev.repetition.fallbackCount + 1 : 0
+    )
   };
 
-  const volatility = audio.shouldStop || progressionLock || repetition.noProgressCount >= 1
+  const holdTurns = supportLockActive
+    ? Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999), emo.highDistress ? 2 : 1)
+    : Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999) - 1, 0);
+
+  const support = {
+    lockActive: supportLockActive || holdTurns > 0,
+    lockBias: emo.shouldSuppressMenus ? "strong" : (prev.support.lockBias || ""),
+    quietTurns: emo.shouldSuppressMenus ? prev.support.quietTurns + 1 : 0,
+    holdTurns,
+    reason: supportLockActive ? safeStr(decision.rationale || intent || "support_lock") : "",
+    shouldSuppressMenus: !!emo.shouldSuppressMenus,
+    supportMode: safeStr(emo.supportMode || prev.support.supportMode || ""),
+    archetype: safeStr(inbound?.turnSignals?.emotionArchetype || prev.support.archetype || ""),
+    questionStyle: safeStr(emo.questionStyle || prev.support.questionStyle || ""),
+    emotionKey: safeStr(emo.emotionKey || prev.support.emotionKey || ""),
+    emotionCluster: safeStr(emo.emotionCluster || prev.support.emotionCluster || "")
+  };
+
+  const volatility = audio.shouldStop || progressionLock || repetition.noProgressCount >= 1 || support.lockActive
     ? "elevated"
     : repetition.sameStageCount >= 2
       ? "guarded"
@@ -344,6 +461,7 @@ function finalizeTurn(params = {}) {
       assistant: clampInt(prev.turns.assistant, 0, 0, 999999) + 1
     },
     repetition,
+    support,
     audio: {
       lastFailureReason: audio.reason || (audio.action ? prev.audio.lastFailureReason : ""),
       lastFailureStatus: audio.status || (audio.action ? prev.audio.lastFailureStatus : 0),
@@ -364,7 +482,9 @@ function assertTurnUpdated(prevState, nextState) {
     next.lastUpdatedAt > prev.lastUpdatedAt ||
     next.lastUserHash !== prev.lastUserHash ||
     safeStr(next?.audio?.lastFailureAction || "") !== safeStr(prev?.audio?.lastFailureAction || "") ||
-    Number(next?.audio?.terminalStopUntil || 0) !== Number(prev?.audio?.terminalStopUntil || 0);
+    Number(next?.audio?.terminalStopUntil || 0) !== Number(prev?.audio?.terminalStopUntil || 0) ||
+    !!next?.support?.lockActive !== !!prev?.support?.lockActive ||
+    clampInt(next?.repetition?.sameEmotionCount, 0, 0, 999999) !== clampInt(prev?.repetition?.sameEmotionCount, 0, 0, 999999);
 }
 
 module.exports = {
@@ -375,5 +495,8 @@ module.exports = {
   inferConversationPhase,
   decideNextMove,
   finalizeTurn,
-  assertTurnUpdated
+  assertTurnUpdated,
+  normalizeEmotionSignals
 };
+
+```
