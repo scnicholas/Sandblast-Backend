@@ -1,49 +1,139 @@
-{
-  "strategies": {
-    "validation_first": {
-      "tone": "gentle",
-      "followup": true,
-      "advice_level": "low"
+[
+  {
+    "id": "psy_support_strategies_001",
+    "domain": "psychology",
+    "subdomain": "support_strategies",
+    "topic": "stabilize_then_narrow",
+    "title": "Stabilize, then narrow",
+    "summary": "Use when the user is emotionally activated and cognitive bandwidth is low.",
+    "triggers": [
+      "high distress",
+      "overwhelm",
+      "spiraling language",
+      "acute uncertainty"
+    ],
+    "supportMode": "soothe_and_structure",
+    "routeBias": "stabilize",
+    "responsePattern": [
+      "name the strain",
+      "reduce urgency",
+      "offer one concrete next step",
+      "avoid broad exploration until calmer"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "warm_affirming",
+      "semanticFrame": "stabilization",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "clarify"]
     },
-    "presence_first": {
-      "tone": "warm",
-      "followup": true,
-      "advice_level": "low"
+    "contraindications": [
+      "Do not over-explain",
+      "Do not stack multiple suggestions"
+    ],
+    "tags": ["psychology", "support_strategy", "stabilize", "grounding"]
+  },
+  {
+    "id": "psy_support_strategies_002",
+    "domain": "psychology",
+    "subdomain": "support_strategies",
+    "topic": "reflect_then_clarify",
+    "title": "Reflect, then clarify",
+    "summary": "Use when the user is emotionally coherent but uncertain, conflicted, or tangled in interpretation.",
+    "triggers": [
+      "mixed feelings",
+      "uncertainty",
+      "relationship ambiguity",
+      "mind reading patterns"
+    ],
+    "supportMode": "clarify_and_sequence",
+    "routeBias": "clarify",
+    "responsePattern": [
+      "reflect core feeling",
+      "separate facts from assumptions",
+      "ask one narrowing question",
+      "sequence next move"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "orienting",
+      "semanticFrame": "clarity_building",
+      "followupStyle": "single_direct_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "challenge"]
     },
-    "grounding_first": {
-      "tone": "calm",
-      "followup": false,
-      "advice_level": "low"
+    "contraindications": [
+      "Do not sound interrogative",
+      "Do not rush to conclusions"
+    ],
+    "tags": ["psychology", "support_strategy", "clarify", "reflection"]
+  },
+  {
+    "id": "psy_support_strategies_003",
+    "domain": "psychology",
+    "subdomain": "support_strategies",
+    "topic": "affirm_and_channel",
+    "title": "Affirm and channel",
+    "summary": "Use when the user shows recovery, pride, relief, or constructive momentum.",
+    "triggers": [
+      "positive shift",
+      "relief",
+      "achievement",
+      "renewed confidence"
+    ],
+    "supportMode": "affirm_and_channel",
+    "routeBias": "deepen_then_channel",
+    "responsePattern": [
+      "affirm progress",
+      "stabilize gains",
+      "turn momentum into one sustainable action"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "warm_affirming",
+      "semanticFrame": "momentum_preservation",
+      "followupStyle": "direct_answer_then_one_question",
+      "transitionReadiness": "high",
+      "transitionTargets": ["channel", "maintain"]
     },
-    "stabilize_first": {
-      "tone": "steady",
-      "followup": false,
-      "advice_level": "minimal"
+    "contraindications": [
+      "Do not overinflate confidence unrealistically",
+      "Do not drag the user back into distress framing"
+    ],
+    "tags": ["psychology", "support_strategy", "affirmation", "momentum", "recovery"]
+  },
+  {
+    "id": "psy_support_strategies_004",
+    "domain": "psychology",
+    "subdomain": "support_strategies",
+    "topic": "repair_nonshaming",
+    "title": "Repair without shame",
+    "summary": "Use when the user is fused with shame, guilt, or self-condemnation.",
+    "triggers": [
+      "i'm a failure",
+      "i ruin everything",
+      "there's something wrong with me"
+    ],
+    "supportMode": "careful_nonshaming_reflection",
+    "routeBias": "stabilize",
+    "responsePattern": [
+      "de-fuse identity from event",
+      "reduce self-attack",
+      "preserve dignity while reflecting reality"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "careful_nonshaming",
+      "semanticFrame": "repair",
+      "followupStyle": "reflective",
+      "transitionReadiness": "low",
+      "transitionTargets": ["repair", "stabilize"]
     },
-    "contain_and_clarify": {
-      "tone": "clear",
-      "followup": true,
-      "advice_level": "low"
-    },
-    "gentle_nonjudgment": {
-      "tone": "soft",
-      "followup": true,
-      "advice_level": "low"
-    },
-    "reduce_pressure": {
-      "tone": "slow",
-      "followup": false,
-      "advice_level": "minimal"
-    },
-    "steady_reassurance": {
-      "tone": "reassuring",
-      "followup": true,
-      "advice_level": "low"
-    },
-    "gentle_invitation": {
-      "tone": "light",
-      "followup": true,
-      "advice_level": "minimal"
-    }
+    "contraindications": [
+      "Do not moralize",
+      "Do not use hard challenge too early"
+    ],
+    "tags": ["psychology", "support_strategy", "repair", "shame", "nonshaming"]
   }
-}
+]
