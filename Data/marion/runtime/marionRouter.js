@@ -1,3 +1,4 @@
+// runtime/marionRouter.js
 "use strict";
 
 const { classifyQuery } = require("./queryClassifier");
@@ -9,30 +10,37 @@ function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? 
 function _mergeSupportFlags(a, b, c) { return { ..._safeObj(a), ..._safeObj(b), ..._safeObj(c) }; }
 
 function _choosePrimaryDomain(classified, emotion, psychology) {
-  const crisis = !!_safeObj(classified.classifications).crisis;
-  if (crisis && psychology && psychology.matched) return "psychology";
+  const classifications = _safeObj(classified.classifications);
+  const candidates = _safeArray(classified.domainCandidates);
+
+  if (classifications.crisis && psychology && psychology.matched) return "psychology";
+
   if (psychology && psychology.matched && emotion && emotion.matched) {
     const psychScore = Number(_safeObj(psychology.primary).score || 0);
     const emoScore = Number(_safeObj(emotion.primary).score || 0);
     return psychScore >= emoScore ? "psychology" : "emotion";
   }
+
   if (psychology && psychology.matched) return "psychology";
   if (emotion && emotion.matched) return "emotion";
-  return _safeArray(classified.domainCandidates)[0] || "psychology";
+
+  return candidates[0] || "general";
 }
 
 function routeMarion(input = {}) {
+  const text = input.text || input.userText || input.query || "";
+
   const emotion = retrieveEmotion({
-    text: input.text,
-    userText: input.userText,
-    query: input.query,
+    text,
+    userText: input.userText || text,
+    query: input.query || text,
     maxMatches: 5
   });
 
   const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(emotion.supportFlags));
 
   const classified = classifyQuery({
-    text: input.text,
+    text,
     affect: input.affect,
     supportFlags: mergedFlags,
     emotion
@@ -44,7 +52,7 @@ function routeMarion(input = {}) {
   let psychology = null;
   if (domainCandidates.includes("psychology")) {
     psychology = retrievePsychology({
-      text: input.text,
+      text,
       supportFlags: finalSupportFlags,
       riskLevel: input.riskLevel || (_safeObj(classified.classifications).crisis ? "critical" : "low"),
       maxMatches: 3
@@ -58,7 +66,15 @@ function routeMarion(input = {}) {
     primaryDomain,
     classified,
     supportFlags: finalSupportFlags,
-    domains: { emotion, psychology }
+    domains: {
+      emotion,
+      psychology
+    },
+    diagnostics: {
+      domainCandidates,
+      usedPsychology: !!psychology,
+      supportFlagCount: Object.keys(finalSupportFlags).length
+    }
   };
 }
 
