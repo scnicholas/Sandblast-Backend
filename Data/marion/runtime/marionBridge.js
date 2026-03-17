@@ -4,7 +4,10 @@
 
 const EmotionRetriever = require("./emotionRetriever");
 const PsychologyRetriever = require("./psychologyRetriever");
+const DomainRetriever = require("./domainRetriever");
+const DatasetRetriever = require("./datasetRetriever");
 const { runLayer3 } = require("./layer3");
+const { runLayer4 } = require("./layer4");
 
 function _safeArray(v) {
   return Array.isArray(v) ? v : [];
@@ -116,7 +119,7 @@ function _normalizePsychologyResult(result = {}, emotion = {}) {
   if (!toneGuide) {
     toneGuide =
       _trim(route.routeBias) ||
-      (((emotion.intensity || 0) >= 0.6) ? "warm and steady" : "balanced");
+      ((emotion.intensity || 0) >= 0.6 ? "warm and steady" : "balanced");
   }
 
   return {
@@ -153,19 +156,91 @@ function _normalizeEvidenceItem(item = {}, fallbackSource = "general", fallbackD
   };
 }
 
+function _dedupeEvidence(items = []) {
+  const seen = new Set();
+  const out = [];
+
+  for (const item of _safeArray(items)) {
+    const normalized = _normalizeEvidenceItem(item, item.source || "general", item.domain || "general");
+    const key = [
+      normalized.id || "",
+      normalized.source || "",
+      normalized.dataset || "",
+      normalized.title || "",
+      normalized.summary || ""
+    ].join("::");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normalized);
+  }
+
+  return out;
+}
+
+function _sortEvidence(items = []) {
+  return _safeArray(items)
+    .slice()
+    .sort((a, b) => {
+      const scoreDelta = (Number(b.score) || 0) - (Number(a.score) || 0);
+      if (scoreDelta !== 0) return scoreDelta;
+      return (Number(b.confidence) || 0) - (Number(a.confidence) || 0);
+    });
+}
+
 function _mergeEvidence({ emotion, psychology, domainEvidence, datasetEvidence, memoryEvidence, generalEvidence }) {
+  const mergedDomainEvidence = _dedupeEvidence([
+    ..._safeArray(domainEvidence),
+    ..._safeArray(psychology.evidenceMatches)
+  ]);
+
+  const mergedDatasetEvidence = _dedupeEvidence([
+    ..._safeArray(datasetEvidence),
+    ..._safeArray(emotion.evidenceMatches)
+  ]);
+
+  const mergedMemoryEvidence = _dedupeEvidence(_safeArray(memoryEvidence));
+  const mergedGeneralEvidence = _dedupeEvidence(_safeArray(generalEvidence));
+
   return {
-    domainEvidence: _safeArray(domainEvidence).map((x) => _normalizeEvidenceItem(x, "domain", x.domain || "general")),
-    datasetEvidence: [
-      ..._safeArray(datasetEvidence).map((x) => _normalizeEvidenceItem(x, "dataset", x.domain || "general")),
-      ..._safeArray(emotion.evidenceMatches).map((x) => _normalizeEvidenceItem(x, "dataset", "psychology"))
-    ],
-    memoryEvidence: _safeArray(memoryEvidence).map((x) => _normalizeEvidenceItem(x, "memory", x.domain || "general")),
-    generalEvidence: [
-      ..._safeArray(generalEvidence).map((x) => _normalizeEvidenceItem(x, "general", x.domain || "general")),
-      ..._safeArray(psychology.evidenceMatches).map((x) => _normalizeEvidenceItem(x, "domain", "psychology"))
-    ]
+    domainEvidence: _sortEvidence(mergedDomainEvidence),
+    datasetEvidence: _sortEvidence(mergedDatasetEvidence),
+    memoryEvidence: _sortEvidence(mergedMemoryEvidence),
+    generalEvidence: _sortEvidence(mergedGeneralEvidence)
   };
+}
+
+async function _retrieveDomainEvidence({ userQuery, domain, conversationState }) {
+  const domainFn = _pickRetrieverFn(DomainRetriever, "retrieveDomain");
+  if (!domainFn) return [];
+
+  return Promise.resolve(
+    domainFn({
+      query: userQuery,
+      text: userQuery,
+      userQuery,
+      domain,
+      conversationState
+    })
+  );
+}
+
+async function _retrieveDatasetEvidence({ userQuery, domain, datasets, conversationState, emotion, psychology }) {
+  const datasetFn = _pickRetrieverFn(DatasetRetriever, "retrieveDataset");
+  if (!datasetFn) return [];
+
+  return Promise.resolve(
+    datasetFn({
+      query: userQuery,
+      text: userQuery,
+      userQuery,
+      domain,
+      datasets,
+      conversationState,
+      emotion,
+      psychology
+    })
+  );
 }
 
 async function retrieveLayer2Signals(input = {}) {
@@ -215,11 +290,30 @@ async function retrieveLayer2Signals(input = {}) {
 
   const psychology = _normalizePsychologyResult(rawPsychology, emotion);
 
+  const resolvedDomainEvidence = _safeArray(input.domainEvidence).length
+    ? _safeArray(input.domainEvidence)
+    : await _retrieveDomainEvidence({
+        userQuery,
+        domain,
+        conversationState
+      });
+
+  const resolvedDatasetEvidence = _safeArray(input.datasetEvidence).length
+    ? _safeArray(input.datasetEvidence)
+    : await _retrieveDatasetEvidence({
+        userQuery,
+        domain,
+        datasets,
+        conversationState,
+        emotion,
+        psychology
+      });
+
   const mergedEvidence = _mergeEvidence({
     emotion,
     psychology,
-    domainEvidence: input.domainEvidence,
-    datasetEvidence: input.datasetEvidence,
+    domainEvidence: resolvedDomainEvidence,
+    datasetEvidence: resolvedDatasetEvidence,
     memoryEvidence: input.memoryEvidence,
     generalEvidence: input.generalEvidence
   });
@@ -239,7 +333,13 @@ async function retrieveLayer2Signals(input = {}) {
     diagnostics: {
       requestedDomain,
       inferredDomain: domain,
-      inferredIntent: intent
+      inferredIntent: intent,
+      layer2EvidenceCounts: {
+        domainEvidence: mergedEvidence.domainEvidence.length,
+        datasetEvidence: mergedEvidence.datasetEvidence.length,
+        memoryEvidence: mergedEvidence.memoryEvidence.length,
+        generalEvidence: mergedEvidence.generalEvidence.length
+      }
     }
   };
 }
@@ -247,6 +347,10 @@ async function retrieveLayer2Signals(input = {}) {
 async function processWithMarion(input = {}) {
   const layer2Bundle = await retrieveLayer2Signals(input);
   const layer3 = await runLayer3(layer2Bundle);
+  const layer4 = await runLayer4({
+    fusionPacket: layer3.fusionPacket,
+    answerPlan: layer3.answerPlan
+  });
 
   return {
     ok: true,
@@ -255,10 +359,21 @@ async function processWithMarion(input = {}) {
     userQuery: layer2Bundle.userQuery,
     marionPacket: layer3.fusionPacket,
     answerPlan: layer3.answerPlan,
+    assembledResponse: layer4.assembledResponse,
+    nyxOutput: layer4.nyxOutput,
     layer2: {
       emotion: layer2Bundle.emotion,
       psychology: layer2Bundle.psychology,
       diagnostics: layer2Bundle.diagnostics
+    },
+    layer3: {
+      diagnostics: _safeObj(layer3.fusionPacket && layer3.fusionPacket.diagnostics),
+      weights: _safeObj(layer3.fusionPacket && layer3.fusionPacket.weights)
+    },
+    layer4: {
+      mode: _safeObj(layer4.assembledResponse && layer4.assembledResponse.responseMode).mode || "balanced",
+      safety: _safeObj(layer4.assembledResponse && layer4.assembledResponse.safetyEnvelope),
+      outputMetadata: _safeObj(layer4.nyxOutput && layer4.nyxOutput.metadata)
     }
   };
 }
