@@ -10,6 +10,9 @@ const { runLayer3 } = require("./layer3");
 const { runLayer4 } = require("./layer4");
 const { runLayer5 } = require("./layer5");
 
+const FALLBACK_REPLY = "I’m here with you. Let’s keep going together.";
+const FALLBACK_STATUS_REPLY = "I’m keeping this stable while I finish the handoff, and I can stay with the request without dropping out.";
+
 function _safeArray(v) {
   return Array.isArray(v) ? v : [];
 }
@@ -24,6 +27,10 @@ function _trim(v) {
 
 function _lower(v) {
   return _trim(v).toLowerCase();
+}
+
+function _clamp(n, min = 0, max = 1) {
+  return Math.max(min, Math.min(max, n));
 }
 
 function _pickRetrieverFn(mod, preferredName) {
@@ -87,11 +94,11 @@ function _normalizeEmotionResult(result = {}) {
   return {
     primaryEmotion,
     secondaryEmotion,
-    intensity: Math.max(0, Math.min(1, Number(intensity) || 0)),
+    intensity: _clamp(Number(intensity) || 0),
     valence: Math.max(-1, Math.min(1, Number(valence) || 0)),
     needs: _safeArray(result.needs),
     cues: _safeArray(result.cues),
-    confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0)),
+    confidence: _clamp(Number(result.confidence) || 0),
     supportFlags,
     matched: !!result.matched,
     primary,
@@ -129,7 +136,7 @@ function _normalizePsychologyResult(result = {}, emotion = {}) {
     needs,
     recommendedApproach,
     toneGuide,
-    confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0)),
+    confidence: _clamp(Number(result.confidence) || 0),
     matched: !!result.matched,
     route,
     primary: _safeObj(result.primary),
@@ -228,6 +235,183 @@ function _normalizePreviousMemory(previousMemory = {}) {
     },
     persistent,
     transient
+  };
+}
+
+function _safeNarrativeText(nyxOutput = {}, assembledResponse = {}) {
+  const narrative = _safeObj(nyxOutput.narrative);
+  const domainResponse = _safeObj(assembledResponse.domainResponse);
+  const fallbackResponse = _safeObj(assembledResponse.fallbackResponse);
+
+  const candidates = [
+    _trim(narrative.opening),
+    _trim(domainResponse.openingStrategy),
+    _trim(fallbackResponse.opening),
+    _trim(fallbackResponse.nextMove)
+  ].filter(Boolean);
+
+  if (candidates.length) {
+    return candidates.join(" ");
+  }
+
+  return FALLBACK_REPLY;
+}
+
+function _buildCompatibilityChips(nyxOutput = {}, assembledResponse = {}, fusionPacket = {}) {
+  const chips = [];
+  const evidence = _safeArray(_safeObj(nyxOutput.narrative).evidence);
+  const reasoning = _safeArray(_safeObj(nyxOutput.narrative).reasoning);
+  const domain = _trim(fusionPacket.domain || assembledResponse.domain || "general");
+
+  if (domain === "psychology") {
+    chips.push("Keep talking", "What happened?");
+  } else if (domain === "finance") {
+    chips.push("Risk view", "Break it down");
+  } else if (domain === "law") {
+    chips.push("What applies?", "Key risk");
+  } else {
+    chips.push("Tell me more", "Break it down");
+  }
+
+  if (evidence.length) chips.push("Evidence");
+  if (reasoning.length) chips.push("Next step");
+
+  return [...new Set(chips)].slice(0, 4);
+}
+
+function _buildCompatibilityPayload({
+  layer2Bundle = {},
+  fusionPacket = {},
+  answerPlan = {},
+  assembledResponse = {},
+  nyxOutput = {},
+  turnMemory = {},
+  partial = false,
+  status = "ok",
+  error = null
+} = {}) {
+  const replyText = _safeNarrativeText(nyxOutput, assembledResponse);
+  const chips = _buildCompatibilityChips(nyxOutput, assembledResponse, fusionPacket);
+  const mode =
+    _trim(_safeObj(_safeObj(assembledResponse).responseMode).mode) ||
+    _trim(_safeObj(nyxOutput.metadata).mode) ||
+    "balanced";
+
+  return {
+    ok: !error,
+    partial,
+    status,
+    reply: replyText,
+    text: replyText,
+    message: replyText,
+    output: replyText,
+    answer: replyText,
+
+    ui: {
+      text: replyText,
+      chips,
+      mode,
+      domain: fusionPacket.domain || layer2Bundle.domain || "general",
+      intent: fusionPacket.intent || layer2Bundle.intent || "general"
+    },
+
+    marionPacket: fusionPacket,
+    answerPlan,
+    assembledResponse,
+    nyxOutput,
+    turnMemory,
+
+    meta: {
+      mode,
+      domain: fusionPacket.domain || layer2Bundle.domain || "general",
+      intent: fusionPacket.intent || layer2Bundle.intent || "general",
+      partial,
+      status,
+      error: error ? String(error.message || error) : null
+    }
+  };
+}
+
+function _buildSafeLayer4Fallback({ layer2Bundle = {}, layer3 = {} } = {}) {
+  const fusionPacket = _safeObj(layer3.fusionPacket);
+  const domain = fusionPacket.domain || layer2Bundle.domain || "general";
+  const intent = fusionPacket.intent || layer2Bundle.intent || "general";
+  const emotion = _safeObj(fusionPacket.emotion);
+  const primaryEmotion = _trim(emotion.primaryEmotion) || "neutral";
+
+  const opening =
+    primaryEmotion !== "neutral"
+      ? `I can hear some ${primaryEmotion} in this, and I’m staying with you.`
+      : "I’m here, and I can stay with this clearly.";
+
+  const assembledResponse = {
+    ok: true,
+    domain,
+    intent,
+    responseMode: {
+      mode: intent === "support" ? "supportive" : "balanced"
+    },
+    toneEnvelope: {
+      warmth: 0.7,
+      precision: 0.72,
+      directness: 0.62,
+      directives: ["Stay calm and clear."],
+      forbidden: []
+    },
+    domainResponse: {
+      openingStrategy: opening,
+      reasoningSteps: ["Answer directly.", "Preserve continuity.", "Avoid overclaiming."],
+      toneDirectives: ["Keep the response stable and human."],
+      evidenceLines: []
+    },
+    safetyEnvelope: {
+      checks: ["Preserve stability.", "Do not drop continuity."],
+      warnings: [],
+      safeToElaborate: true,
+      forbidden: []
+    },
+    fallbackResponse: {
+      fallback: true,
+      opening,
+      posture: "balanced",
+      nextMove: "Continue with the request in a stable way."
+    },
+    sourcePacket: {
+      emotion,
+      psychology: _safeObj(fusionPacket.psychology),
+      evidence: _safeArray(fusionPacket.evidence),
+      weights: _safeObj(fusionPacket.weights)
+    }
+  };
+
+  const nyxOutput = {
+    ok: true,
+    channel: "nyx",
+    voiceDirectives: {
+      warmth: 0.7,
+      precision: 0.72,
+      directness: 0.62
+    },
+    narrative: {
+      mode: assembledResponse.responseMode.mode,
+      domain,
+      opening,
+      reasoning: assembledResponse.domainResponse.reasoningSteps,
+      tone: assembledResponse.toneEnvelope.directives,
+      evidence: [],
+      fallback: assembledResponse.fallbackResponse
+    },
+    safety: assembledResponse.safetyEnvelope,
+    metadata: {
+      domain,
+      intent,
+      mode: assembledResponse.responseMode.mode
+    }
+  };
+
+  return {
+    assembledResponse,
+    nyxOutput
   };
 }
 
@@ -367,69 +551,236 @@ async function retrieveLayer2Signals(input = {}) {
 
 async function processWithMarion(input = {}) {
   const previousMemory = _normalizePreviousMemory(input.previousMemory || {});
-  const layer2Bundle = await retrieveLayer2Signals(input);
+  let layer2Bundle = null;
+  let layer3 = null;
+  let layer4 = null;
+  let layer5 = null;
 
-  const layer3 = await runLayer3(layer2Bundle);
+  try {
+    layer2Bundle = await retrieveLayer2Signals(input);
 
-  const layer4 = await runLayer4({
-    fusionPacket: layer3.fusionPacket,
-    answerPlan: layer3.answerPlan
-  });
+    layer3 = await runLayer3(layer2Bundle);
 
-  const layer5 = await runLayer5({
-    userQuery: layer2Bundle.userQuery,
-    fusionPacket: layer3.fusionPacket,
-    assembledResponse: layer4.assembledResponse,
-    previousMemory
-  });
-
-  return {
-    ok: true,
-    intent: layer2Bundle.intent,
-    domain: layer2Bundle.domain,
-    userQuery: layer2Bundle.userQuery,
-
-    marionPacket: layer3.fusionPacket,
-    answerPlan: layer3.answerPlan,
-
-    assembledResponse: layer4.assembledResponse,
-    nyxOutput: layer4.nyxOutput,
-
-    continuityState: layer5.continuityState,
-    extractedSignals: layer5.extractedSignals,
-    persistence: layer5.persistence,
-    emotionalContinuity: layer5.emotionalContinuity,
-    domainContinuity: layer5.domainContinuity,
-    topicThread: layer5.topicThread,
-    resetGuard: layer5.resetGuard,
-    turnMemory: layer5.turnMemory,
-
-    layer2: {
-      emotion: layer2Bundle.emotion,
-      psychology: layer2Bundle.psychology,
-      diagnostics: layer2Bundle.diagnostics
-    },
-
-    layer3: {
-      diagnostics: _safeObj(layer3.fusionPacket && layer3.fusionPacket.diagnostics),
-      weights: _safeObj(layer3.fusionPacket && layer3.fusionPacket.weights)
-    },
-
-    layer4: {
-      mode: _safeObj(layer4.assembledResponse && layer4.assembledResponse.responseMode).mode || "balanced",
-      safety: _safeObj(layer4.assembledResponse && layer4.assembledResponse.safetyEnvelope),
-      outputMetadata: _safeObj(layer4.nyxOutput && layer4.nyxOutput.metadata)
-    },
-
-    layer5: {
-      continuityState: _safeObj(layer5.continuityState),
-      resetGuard: _safeObj(layer5.resetGuard),
-      topicThread: _safeObj(layer5.topicThread),
-      turnMemoryMeta: {
-        updatedAt: _safeObj(layer5.turnMemory).updatedAt || Date.now()
-      }
+    try {
+      layer4 = await runLayer4({
+        fusionPacket: layer3.fusionPacket,
+        answerPlan: layer3.answerPlan
+      });
+    } catch (layer4Error) {
+      layer4 = _buildSafeLayer4Fallback({
+        layer2Bundle,
+        layer3
+      });
+      layer4.error = layer4Error;
     }
-  };
+
+    try {
+      layer5 = await runLayer5({
+        userQuery: layer2Bundle.userQuery,
+        fusionPacket: _safeObj(layer3.fusionPacket),
+        assembledResponse: _safeObj(layer4.assembledResponse),
+        previousMemory
+      });
+    } catch (layer5Error) {
+      layer5 = {
+        continuityState: {
+          activeQuery: layer2Bundle.userQuery,
+          activeDomain: layer2Bundle.domain,
+          activeIntent: layer2Bundle.intent,
+          activeEmotion: _trim(_safeObj(_safeObj(layer3.fusionPacket).emotion).primaryEmotion) || "neutral",
+          emotionalIntensity: Number(_safeObj(_safeObj(layer3.fusionPacket).emotion).intensity) || 0,
+          psychologyRisks: _safeArray(_safeObj(_safeObj(layer3.fusionPacket).psychology).risks),
+          responseMode: _trim(_safeObj(_safeObj(layer4.assembledResponse).responseMode).mode) || "balanced",
+          timestamp: Date.now()
+        },
+        extractedSignals: {},
+        persistence: {},
+        emotionalContinuity: {},
+        domainContinuity: {},
+        topicThread: {},
+        resetGuard: {
+          shouldSuppressHardReset: true,
+          flags: ["layer5-fallback"]
+        },
+        turnMemory: {
+          lastQuery: layer2Bundle.userQuery,
+          domain: layer2Bundle.domain,
+          intent: layer2Bundle.intent,
+          emotion: {
+            primaryEmotion: _trim(_safeObj(_safeObj(layer3.fusionPacket).emotion).primaryEmotion) || "neutral",
+            intensity: Number(_safeObj(_safeObj(layer3.fusionPacket).emotion).intensity) || 0
+          },
+          updatedAt: Date.now()
+        },
+        error: layer5Error
+      };
+    }
+
+    const compatibility = _buildCompatibilityPayload({
+      layer2Bundle,
+      fusionPacket: _safeObj(layer3.fusionPacket),
+      answerPlan: _safeObj(layer3.answerPlan),
+      assembledResponse: _safeObj(layer4.assembledResponse),
+      nyxOutput: _safeObj(layer4.nyxOutput),
+      turnMemory: _safeObj(layer5.turnMemory),
+      partial: !!(layer4.error || layer5.error),
+      status: layer4.error || layer5.error ? "partial" : "ok",
+      error: layer4.error || layer5.error || null
+    });
+
+    return {
+      ok: true,
+      partial: compatibility.partial,
+      status: compatibility.status,
+
+      reply: compatibility.reply,
+      text: compatibility.text,
+      message: compatibility.message,
+      output: compatibility.output,
+      answer: compatibility.answer,
+      ui: compatibility.ui,
+      meta: compatibility.meta,
+
+      intent: layer2Bundle.intent,
+      domain: layer2Bundle.domain,
+      userQuery: layer2Bundle.userQuery,
+
+      marionPacket: layer3.fusionPacket,
+      answerPlan: layer3.answerPlan,
+
+      assembledResponse: layer4.assembledResponse,
+      nyxOutput: layer4.nyxOutput,
+
+      continuityState: layer5.continuityState,
+      extractedSignals: layer5.extractedSignals,
+      persistence: layer5.persistence,
+      emotionalContinuity: layer5.emotionalContinuity,
+      domainContinuity: layer5.domainContinuity,
+      topicThread: layer5.topicThread,
+      resetGuard: layer5.resetGuard,
+      turnMemory: layer5.turnMemory,
+
+      layer2: {
+        emotion: layer2Bundle.emotion,
+        psychology: layer2Bundle.psychology,
+        diagnostics: layer2Bundle.diagnostics
+      },
+
+      layer3: {
+        diagnostics: _safeObj(layer3.fusionPacket && layer3.fusionPacket.diagnostics),
+        weights: _safeObj(layer3.fusionPacket && layer3.fusionPacket.weights)
+      },
+
+      layer4: {
+        mode: _trim(_safeObj(_safeObj(layer4.assembledResponse).responseMode).mode) || "balanced",
+        safety: _safeObj(_safeObj(layer4.assembledResponse).safetyEnvelope),
+        outputMetadata: _safeObj(_safeObj(layer4.nyxOutput).metadata),
+        fallbackUsed: !!layer4.error,
+        error: layer4.error ? String(layer4.error.message || layer4.error) : null
+      },
+
+      layer5: {
+        continuityState: _safeObj(layer5.continuityState),
+        resetGuard: _safeObj(layer5.resetGuard),
+        topicThread: _safeObj(layer5.topicThread),
+        fallbackUsed: !!layer5.error,
+        error: layer5.error ? String(layer5.error.message || layer5.error) : null,
+        turnMemoryMeta: {
+          updatedAt: _safeObj(layer5.turnMemory).updatedAt || Date.now()
+        }
+      }
+    };
+  } catch (error) {
+    const safeReply = FALLBACK_STATUS_REPLY;
+
+    return {
+      ok: false,
+      partial: true,
+      status: "degraded",
+
+      reply: safeReply,
+      text: safeReply,
+      message: safeReply,
+      output: safeReply,
+      answer: safeReply,
+
+      ui: {
+        text: safeReply,
+        chips: ["Keep talking", "What happened?"],
+        mode: "stabilizing",
+        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
+        intent: _inferIntent(_trim(input.userQuery || input.query || input.text))
+      },
+
+      meta: {
+        mode: "stabilizing",
+        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
+        intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
+        partial: true,
+        status: "degraded",
+        error: String(error.message || error)
+      },
+
+      intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
+      domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
+      userQuery: _trim(input.userQuery || input.query || input.text),
+
+      marionPacket: {},
+      answerPlan: {},
+      assembledResponse: {},
+      nyxOutput: {},
+      continuityState: {},
+      extractedSignals: {},
+      persistence: {},
+      emotionalContinuity: {},
+      domainContinuity: {},
+      topicThread: {},
+      resetGuard: {
+        shouldSuppressHardReset: true,
+        flags: ["bridge-degraded"]
+      },
+      turnMemory: {
+        lastQuery: _trim(input.userQuery || input.query || input.text),
+        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
+        intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
+        emotion: {
+          primaryEmotion: "neutral",
+          intensity: 0
+        },
+        updatedAt: Date.now()
+      },
+
+      layer2: {
+        emotion: {},
+        psychology: {},
+        diagnostics: {}
+      },
+      layer3: {
+        diagnostics: {},
+        weights: {}
+      },
+      layer4: {
+        mode: "stabilizing",
+        safety: {},
+        outputMetadata: {},
+        fallbackUsed: true,
+        error: String(error.message || error)
+      },
+      layer5: {
+        continuityState: {},
+        resetGuard: {
+          shouldSuppressHardReset: true,
+          flags: ["bridge-degraded"]
+        },
+        topicThread: {},
+        fallbackUsed: true,
+        error: String(error.message || error),
+        turnMemoryMeta: {
+          updatedAt: Date.now()
+        }
+      }
+    };
+  }
 }
 
 module.exports = {
