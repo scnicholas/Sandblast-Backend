@@ -1,5 +1,3 @@
-// runtime/layer5/index.js
-
 const { buildContinuityState } = require('./ContinuityStateBuilder');
 const { extractMemorySignals } = require('./MemorySignalExtractor');
 const { classifyPersistence } = require('./PersistenceClassifier');
@@ -49,7 +47,10 @@ async function runLayer5({
     continuityState,
     emotionalContinuity,
     domainContinuity,
-    topicThread
+    topicThread,
+    extractedSignals,
+    previousMemory,
+    assembledResponse
   });
 
   const turnMemory = assembleTurnMemory({
@@ -59,7 +60,8 @@ async function runLayer5({
     emotionalContinuity,
     domainContinuity,
     topicThread,
-    resetGuard
+    resetGuard,
+    previousMemory
   });
 
   return {
