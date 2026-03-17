@@ -1,4 +1,6 @@
-// runtime/layer5/PersistenceClassifier.js
+function uniq(arr = []) {
+  return [...new Set(arr.filter(Boolean))];
+}
 
 function classifyPersistence(signals = {}) {
   const persistent = {};
@@ -7,6 +9,9 @@ function classifyPersistence(signals = {}) {
   const domain = signals.domain || 'general';
   const intent = signals.intent || 'general';
   const primaryEmotion = signals.primaryEmotion || 'neutral';
+  const emotionalIntensity = Number.isFinite(signals.emotionalIntensity)
+    ? signals.emotionalIntensity
+    : 0;
 
   if (domain && domain !== 'general') {
     persistent.domain = domain;
@@ -14,7 +19,7 @@ function classifyPersistence(signals = {}) {
     transient.domain = domain;
   }
 
-  if (intent === 'strategy' || intent === 'research' || intent === 'analysis') {
+  if (['strategy', 'research', 'analysis', 'planning', 'build', 'debug'].includes(intent)) {
     persistent.intent = intent;
   } else {
     transient.intent = intent;
@@ -24,23 +29,38 @@ function classifyPersistence(signals = {}) {
     transient.primaryEmotion = primaryEmotion;
   }
 
+  if (emotionalIntensity >= 0.65) {
+    transient.highEmotion = true;
+  }
+
   if ((signals.psychologyPatterns || []).length) {
-    transient.psychologyPatterns = signals.psychologyPatterns;
+    transient.psychologyPatterns = uniq(signals.psychologyPatterns);
   }
 
   if ((signals.psychologyNeeds || []).length) {
-    transient.psychologyNeeds = signals.psychologyNeeds;
+    transient.psychologyNeeds = uniq(signals.psychologyNeeds);
+  }
+
+  if ((signals.psychologyRisks || []).length) {
+    transient.psychologyRisks = uniq(signals.psychologyRisks);
   }
 
   if ((signals.emotionalNeeds || []).length) {
-    transient.emotionalNeeds = signals.emotionalNeeds;
+    transient.emotionalNeeds = uniq(signals.emotionalNeeds);
   }
 
   if ((signals.evidenceTitles || []).length) {
-    transient.evidenceTitles = signals.evidenceTitles;
+    transient.evidenceTitles = uniq(signals.evidenceTitles);
+  }
+
+  if ((signals.queryTokens || []).length) {
+    transient.queryTokens = uniq(signals.queryTokens).slice(0, 10);
   }
 
   persistent.responseMode = signals.responseMode || 'balanced';
+  persistent.queryFingerprint = signals.queryFingerprint || '';
+  persistent.lastMeaningfulDomain = persistent.domain || null;
+  persistent.lastMeaningfulIntent = persistent.intent || null;
 
   return {
     persistent,
