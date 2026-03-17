@@ -248,19 +248,170 @@ function _pickTopMatches(scored, maxMatches) {
     .slice(0, maxMatches);
 }
 
+function _deriveRiskLevel(input, primary) {
+  const explicit = _trim(input.riskLevel);
+  if (explicit) return _lower(explicit);
+
+  const emotion = _safeObj(input.emotion);
+  const supportFlags = _safeObj(input.supportFlags);
+
+  if (supportFlags.needsContainment || supportFlags.highDistress) return "high";
+  if ((emotion.intensity || 0) >= 0.7) return "high";
+  if ((emotion.intensity || 0) >= 0.45) return "moderate";
+  if (primary && primary.record && primary.record.riskLevel) return _lower(primary.record.riskLevel);
+  return "low";
+}
+
+function _derivePatterns(primary, matches, route) {
+  const values = [];
+
+  if (route && route.primarySubdomain) values.push(route.primarySubdomain);
+
+  for (const m of _safeArray(matches)) {
+    const record = _safeObj(m.record);
+    values.push(record.topic);
+    values.push(record.subdomain);
+    values.push(record.title);
+  }
+
+  return [...new Set(values.map(_trim).filter(Boolean))].slice(0, 6);
+}
+
+function _deriveRisks(primary, riskLevel, supportFlags) {
+  const values = [];
+  const record = _safeObj(primary && primary.record);
+
+  values.push(record.riskLevel);
+  values.push(..._safeArray(record.riskFlags));
+  values.push(..._safeArray(record.risks));
+
+  if (_safeObj(supportFlags).highDistress) values.push("high_distress");
+  if (_safeObj(supportFlags).needsContainment) values.push("containment");
+  if (_safeObj(supportFlags).needsStabilization) values.push("stabilization");
+
+  if (riskLevel) values.push(riskLevel);
+
+  return [...new Set(values.map(_trim).filter(Boolean))];
+}
+
+function _deriveNeeds(primary, supportFlags, emotion) {
+  const record = _safeObj(primary && primary.record);
+  const values = [];
+
+  values.push(..._safeArray(record.needs));
+  values.push(..._safeArray(record.responseNeeds));
+
+  if (_safeObj(supportFlags).needsStabilization) values.push("stabilization");
+  if (_safeObj(supportFlags).needsContainment) values.push("containment");
+  if (_safeObj(supportFlags).needsConnection) values.push("connection");
+  if (_safeObj(supportFlags).needsClarification) values.push("clarity");
+
+  const primaryEmotion = _lower(_safeObj(emotion).primaryEmotion);
+  if (primaryEmotion === "fear" || primaryEmotion === "panic") values.push("grounding");
+  if (primaryEmotion === "sadness" || primaryEmotion === "grief") values.push("reassurance");
+  if (primaryEmotion === "confusion" || primaryEmotion === "uncertainty") values.push("orientation");
+
+  return [...new Set(values.map(_trim).filter(Boolean))];
+}
+
+function _deriveRecommendedApproach(route, primary, riskLevel, emotion) {
+  const routeObj = _safeObj(route);
+  const record = _safeObj(primary && primary.record);
+
+  const explicit =
+    _trim(routeObj.supportMode) ||
+    _trim(record.supportMode) ||
+    _trim(record.responseMode) ||
+    _trim(record.approach);
+
+  if (explicit) return explicit;
+
+  if (riskLevel === "high" || riskLevel === "critical") return "supportive-directive";
+  if ((_safeObj(emotion).intensity || 0) >= 0.6) return "supportive-containment";
+  return "supportive";
+}
+
+function _deriveToneGuide(primary, supportProfile, emotion, route) {
+  const record = _safeObj(primary && primary.record);
+  const profile = _safeObj(supportProfile);
+  const routeBias = _trim(_safeObj(route).routeBias);
+
+  const explicit =
+    _trim(profile.toneGuide) ||
+    _trim(record.toneGuide) ||
+    _trim(record.tone) ||
+    _trim(record.voiceStyle);
+
+  if (explicit) return explicit;
+  if (routeBias) return routeBias;
+  if ((_safeObj(emotion).intensity || 0) >= 0.6) return "warm and steady";
+  return "balanced";
+}
+
+function _buildEvidence(matches) {
+  return _safeArray(matches).map((m, idx) => {
+    const record = _safeObj(m.record);
+    return {
+      id: `psych-${idx + 1}`,
+      source: "domain",
+      dataset: "psychology_compiled",
+      domain: "psychology",
+      title: _trim(record.title) || _trim(record.topic) || _trim(record.subdomain) || `psychology-${idx + 1}`,
+      summary: [...new Set([
+        _trim(record.topic),
+        _trim(record.subdomain),
+        ..._safeArray(m.reasons).map((r) => _trim(r.value))
+      ].filter(Boolean))].join(" | "),
+      content: JSON.stringify(record),
+      score: Math.max(0, Math.min(1, Number((m.score || 0) / 16).toFixed(4))),
+      confidence: Math.max(0, Math.min(1, Number((m.score || 0) / 16).toFixed(4))),
+      tags: [...new Set([
+        "psychology",
+        _trim(record.subdomain),
+        _trim(record.topic),
+        _trim(record.riskLevel),
+        ..._safeArray(m.reasons).map((r) => _trim(r.type))
+      ].filter(Boolean))],
+      recency: 0,
+      emotionalRelevance: 0.7,
+      metadata: {
+        reasons: m.reasons,
+        supportMode: _trim(record.supportMode)
+      }
+    };
+  });
+}
+
+function _confidence(primary, matches, route) {
+  if (!primary) return 0;
+  const base = Math.max(0, Math.min(1, Number((primary.score || 0) / 16)));
+  const routeBoost = route && route.primarySubdomain ? 0.08 : 0;
+  const densityBoost = _safeArray(matches).length > 1 ? 0.06 : 0;
+  return Math.max(0, Math.min(1, Number((base + routeBoost + densityBoost).toFixed(4))));
+}
+
 function retrievePsychology(input = {}) {
   const compiled = _loadCompiled();
-  const text = _trim(input.text);
+  const text = _trim(input.text || input.query || input.userText);
   const normalizedText = _normalizeText(text);
   const records = _safeArray(compiled.records);
+  const emotion = _safeObj(input.emotion);
+  const supportFlags = _safeObj(input.supportFlags || emotion.supportFlags);
 
   if (!text) {
     return {
       ok: true,
       domain: "psychology",
       matched: false,
+      patterns: [],
+      risks: [],
+      needs: [],
+      recommendedApproach: "supportive",
+      toneGuide: "balanced",
+      confidence: 0,
       matches: [],
       route: null,
+      evidenceMatches: [],
       meta: {
         reason: "empty_text"
       }
@@ -270,7 +421,7 @@ function retrievePsychology(input = {}) {
   const routed = _applyRouteRules(
     {
       text,
-      supportFlags: input.supportFlags,
+      supportFlags,
       riskLevel: input.riskLevel
     },
     records
@@ -287,20 +438,36 @@ function retrievePsychology(input = {}) {
   });
 
   const top = _pickTopMatches(scored, Number(input.maxMatches) || 3);
-
   const primary = top[0] || null;
+  const riskLevel = _deriveRiskLevel(input, primary);
+
+  const route = {
+    ruleId: routed.ruleId,
+    primarySubdomain: _trim(routed.routeTo.primarySubdomain),
+    secondarySubdomains: _safeArray(routed.routeTo.secondarySubdomains),
+    supportMode: _trim(routed.routeTo.supportMode),
+    routeBias: _trim(routed.routeTo.routeBias)
+  };
+
+  const patterns = _derivePatterns(primary, top, route);
+  const risks = _deriveRisks(primary, riskLevel, supportFlags);
+  const needs = _deriveNeeds(primary, supportFlags, emotion);
+  const recommendedApproach = _deriveRecommendedApproach(route, primary, riskLevel, emotion);
+  const toneGuide = _deriveToneGuide(primary, primary ? primary.supportProfile : null, emotion, route);
+  const confidence = _confidence(primary, top, route);
+  const evidenceMatches = _buildEvidence(top);
 
   return {
     ok: true,
     domain: "psychology",
     matched: !!primary,
-    route: {
-      ruleId: routed.ruleId,
-      primarySubdomain: _trim(routed.routeTo.primarySubdomain),
-      secondarySubdomains: _safeArray(routed.routeTo.secondarySubdomains),
-      supportMode: _trim(routed.routeTo.supportMode),
-      routeBias: _trim(routed.routeTo.routeBias)
-    },
+    patterns,
+    risks,
+    needs,
+    recommendedApproach,
+    toneGuide,
+    confidence,
+    route,
     primary: primary
       ? {
           score: primary.score,
@@ -315,14 +482,18 @@ function retrievePsychology(input = {}) {
       record: m.record,
       supportProfile: m.supportProfile
     })),
+    evidenceMatches,
     meta: {
       source: "psychology_compiled",
       normalizedText,
-      recordCount: records.length
+      recordCount: records.length,
+      linkedMaps: ["psychology_route_map", "psychology_support_map"],
+      derivedRiskLevel: riskLevel
     }
   };
 }
 
 module.exports = {
-  retrievePsychology
+  retrievePsychology,
+  retrieve: retrievePsychology
 };
