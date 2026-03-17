@@ -1,6 +1,5 @@
-"use strict";
-
 // runtime/datasetRetriever.js
+"use strict";
 
 const fs = require("fs");
 const path = require("path");
@@ -37,27 +36,20 @@ function _readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-function _safeArray(v) {
-  return Array.isArray(v) ? v : [];
-}
-
-function _safeObj(v) {
-  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
-}
-
-function _trim(v) {
-  return v == null ? "" : String(v).trim();
-}
-
-function _lower(v) {
-  return _trim(v).toLowerCase();
-}
+function _safeArray(v) { return Array.isArray(v) ? v : []; }
+function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+function _trim(v) { return v == null ? "" : String(v).trim(); }
+function _lower(v) { return _trim(v).toLowerCase(); }
 
 function _normalizeText(text) {
   return _lower(text)
     .replace(/[^a-z0-9\s'_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function _tokenize(text) {
+  return _normalizeText(text).split(" ").filter((t) => t.length > 2);
 }
 
 function _containsPhrase(haystack, phrase) {
@@ -106,10 +98,7 @@ function _discoverJsonFiles() {
     }
   }
 
-  for (const root of DATASET_ROOTS) {
-    walk(root);
-  }
-
+  for (const root of DATASET_ROOTS) walk(root);
   return files;
 }
 
@@ -158,6 +147,7 @@ function _candidateTerms(item = {}) {
     item.pattern,
     item.subdomain,
     item.category,
+    item.domain,
     ..._flattenStrings(item.keywords),
     ..._flattenStrings(item.signals),
     ..._flattenStrings(item.tags),
@@ -167,6 +157,15 @@ function _candidateTerms(item = {}) {
   ]);
 }
 
+function _overlapScore(queryTokens = [], item = {}) {
+  const itemTokens = new Set(_tokenize(JSON.stringify(item)));
+  let hits = 0;
+  for (const token of queryTokens) {
+    if (itemTokens.has(token)) hits += 1;
+  }
+  return hits;
+}
+
 function _scoreDatasetItem(query, item, context = {}) {
   const reasons = [];
   let score = 0;
@@ -174,12 +173,20 @@ function _scoreDatasetItem(query, item, context = {}) {
   const emotion = _safeObj(context.emotion);
   const psychology = _safeObj(context.psychology);
   const domain = _lower(context.domain || "general");
+  const queryTokens = _tokenize(query);
 
   for (const term of _candidateTerms(item)) {
     if (_containsPhrase(query, term)) {
       score += 4;
       reasons.push({ type: "term", value: term, weight: 4 });
     }
+  }
+
+  const overlap = _overlapScore(queryTokens, item);
+  if (overlap > 0) {
+    const overlapWeight = Math.min(4, overlap);
+    score += overlapWeight;
+    reasons.push({ type: "token-overlap", value: overlap, weight: overlapWeight });
   }
 
   const itemDomain = _lower(item.domain || item.category || "");
@@ -211,11 +218,16 @@ function _scoreDatasetItem(query, item, context = {}) {
     }
   }
 
+  if (context.conversationState && context.conversationState.recoveryMode === "guided-recovery") {
+    score += 1;
+    reasons.push({ type: "recovery-bias", value: "guided-recovery", weight: 1 });
+  }
+
   return { score, reasons };
 }
 
 function _normalizeEvidence(item, datasetName, file, score, reasons, idx, context = {}) {
-  const normalizedScore = Math.max(0, Math.min(1, Number((score / 20).toFixed(4))));
+  const normalizedScore = Math.max(0, Math.min(1, Number((score / 24).toFixed(4))));
   const inferredDomain =
     _trim(item.domain) ||
     _trim(item.category) ||
@@ -246,13 +258,14 @@ function _normalizeEvidence(item, datasetName, file, score, reasons, idx, contex
       ..._flattenStrings(item.tags),
       ..._flattenStrings(item.keywords)
     ]),
-    recency: Number.isFinite(Number(item.recency)) ? Number(item.recency) : 0,
+    recency: Number.isFinite(Number(item.recency)) ? Math.max(0, Math.min(1, Number(item.recency))) : 0,
     emotionalRelevance: Number.isFinite(Number(item.emotionalRelevance))
-      ? Number(item.emotionalRelevance)
+      ? Math.max(0, Math.min(1, Number(item.emotionalRelevance)))
       : ((_lower(item.label || item.emotion) === _lower(_safeObj(context.emotion).primaryEmotion)) ? 0.9 : 0.2),
     metadata: {
       file,
       reasons,
+      matchType: reasons.map((r) => r.type),
       originalItem: item
     }
   };
@@ -260,12 +273,10 @@ function _normalizeEvidence(item, datasetName, file, score, reasons, idx, contex
 
 async function retrieveDataset(input = {}) {
   const query = _trim(input.query || input.text || input.userQuery);
-  const maxMatches = Number(input.maxMatches) || 6;
+  const maxMatches = Math.max(1, Number(input.maxMatches) || 6);
   const allowedDatasets = _safeArray(input.datasets).map(_lower).filter(Boolean);
 
-  if (!query) {
-    return [];
-  }
+  if (!query) return [];
 
   const allItems = _loadAllDatasetItems();
 
@@ -276,8 +287,9 @@ async function retrieveDataset(input = {}) {
 
   const scored = filtered
     .map(({ datasetName, file, item }) => {
-      const { score, reasons } = _scoreDatasetItem(query, _safeObj(item), input);
-      return { datasetName, file, item: _safeObj(item), score, reasons };
+      const normalizedItem = _safeObj(item);
+      const { score, reasons } = _scoreDatasetItem(query, normalizedItem, input);
+      return { datasetName, file, item: normalizedItem, score, reasons };
     })
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score)
