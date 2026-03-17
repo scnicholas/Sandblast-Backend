@@ -1,3 +1,4 @@
+```javascript
 
 'use strict';
 
@@ -22,7 +23,7 @@
  * - tts.js
  */
 
-const VERSION = 'emotionRouteGuard v3.1.0';
+const VERSION = 'emotionRouteGuard v3.2.0 LOOP-COHESION SUPPORT-LOCK';
 
 function safeStr(v) {
   if (v === null || v === undefined) return '';
@@ -1020,9 +1021,14 @@ function deriveSupportFlags(payload, text) {
   const isStuck = /stuck|again|same thing|loop|repeating|back to the same/i.test(safeStr(text));
   const nuance = payload.nuanceProfile || createNuance();
   const signals = payload.presentationSignals || detectPresentationSignals(text);
+  const continuity = payload.continuity || {};
+  const crisis = /(kill myself|want to die|end it|self harm|self-harm|cannot go on|can't go on)/.test(body);
+  const highDistress = crisis || payload.intensity >= 0.78 || ['panic','dread','overwhelm','despair','grief','helplessness','abandonment'].includes(payload.primaryEmotion);
 
   return {
-    needsStabilization: payload.intensity >= 0.65 || isThreat,
+    crisis,
+    highDistress,
+    needsStabilization: highDistress || payload.intensity >= 0.65 || isThreat,
     needsClarification: ['uncertain', 'resistance'].includes(payload.emotionCluster) || nuance.conversationNeed === 'clarify',
     needsContainment: ['aversion', 'threat'].includes(payload.emotionCluster) || nuance.conversationNeed === 'boundary',
     needsConnection: ['relational', 'distress', 'affiliative'].includes(payload.emotionCluster) || nuance.conversationNeed === 'reconnect',
@@ -1034,7 +1040,14 @@ function deriveSupportFlags(payload, text) {
     asksForRelief: signals.asksForRelief,
     narrativePresentation: signals.narrativeDensity >= 2,
     delayQuestions: nuance.questionPressure === 'low' || nuance.questionPressure === 'none',
-    shouldSuppressMenus: !!payload.conversationPlan?.shouldSuppressMenus,
+    shouldSuppressMenus: !!(
+      payload.conversationPlan?.shouldSuppressMenus ||
+      continuity.fallbackSuppression ||
+      continuity.routeExhaustion ||
+      continuity.noProgressTurnCount >= 2 ||
+      highDistress
+    ),
+    supportLockStrong: payload.conversationPlan?.supportLockBias === 'strong' || highDistress || continuity.routeExhaustion || continuity.noProgressTurnCount >= 2,
     mentionsLooping: /loop|looping|again and again|same response|back to the same/i.test(body)
   };
 }
@@ -1146,7 +1159,12 @@ function deriveDownstream(payload) {
       presentationSignals: payload.presentationSignals,
       expressionStyle: payload.expressionStyle,
       deliveryTone: payload.deliveryTone,
-      semanticFrame: payload.semanticFrame
+      semanticFrame: payload.semanticFrame,
+      responseFamily: payload.conversationPlan?.responseFamily || 'gentle_presence',
+      openingFamily: payload.conversationPlan?.openingStyle || 'steady_presence',
+      questionStyle: payload.conversationPlan?.questionStyle || 'defer_question',
+      shouldSuppressMenus: !!payload.conversationPlan?.shouldSuppressMenus,
+      supportLockBias: payload.conversationPlan?.supportLockBias || 'auto'
     },
     sitebridge: {
       summary: `${payload.primaryEmotion || 'unknown'} / ${payload.emotionCluster} / ${payload.routeBias}`,
@@ -1208,6 +1226,9 @@ function analyzeEmotionRoute(input = {}, priorState = {}) {
   payload.routeExhaustion = !!payload.continuity.routeExhaustion;
 
   payload.supportFlags = deriveSupportFlags(payload, text);
+  payload.mode = payload.supportFlags.crisis
+    ? 'DISTRESS'
+    : (payload.supportFlags.highDistress || payload.valence === 'negative' ? 'VULNERABLE' : (payload.valence === 'positive' ? 'POSITIVE' : 'MIXED'));
   payload.routeHints = deriveRouteHints(payload);
   payload.downstream = deriveDownstream(payload);
 
@@ -1228,3 +1249,5 @@ module.exports = {
   analyzeEmotionRoute,
   emotionRouteGuard
 };
+
+```
