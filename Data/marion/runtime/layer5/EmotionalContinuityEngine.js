@@ -1,4 +1,6 @@
-// runtime/layer5/EmotionalContinuityEngine.js
+function clampIntensity(value) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+}
 
 function buildEmotionalContinuity({
   fusionPacket = {},
@@ -9,13 +11,19 @@ function buildEmotionalContinuity({
 
   const currentPrimary = currentEmotion.primaryEmotion || 'neutral';
   const previousPrimary = prevEmotion.primaryEmotion || 'neutral';
+  const currentIntensity = clampIntensity(currentEmotion.intensity);
+  const previousIntensity = clampIntensity(prevEmotion.intensity);
 
   const continuity = {
     previousPrimaryEmotion: previousPrimary,
     currentPrimaryEmotion: currentPrimary,
+    previousIntensity,
+    currentIntensity,
     maintained: false,
     shifted: false,
-    escalation: false
+    escalation: false,
+    deescalation: false,
+    stableEmotionStreak: 0
   };
 
   if (previousPrimary !== 'neutral' && currentPrimary === previousPrimary) {
@@ -26,13 +34,17 @@ function buildEmotionalContinuity({
     continuity.shifted = true;
   }
 
-  if (
-    Number.isFinite(currentEmotion.intensity) &&
-    Number.isFinite(prevEmotion.intensity) &&
-    currentEmotion.intensity > prevEmotion.intensity
-  ) {
+  if (currentIntensity > previousIntensity + 0.1) {
     continuity.escalation = true;
   }
+
+  if (previousIntensity > currentIntensity + 0.1) {
+    continuity.deescalation = true;
+  }
+
+  continuity.stableEmotionStreak = continuity.maintained
+    ? (Number(previousMemory?.emotionalContinuity?.stableEmotionStreak || 0) || 0) + 1
+    : (currentPrimary !== 'neutral' ? 1 : 0);
 
   return continuity;
 }
