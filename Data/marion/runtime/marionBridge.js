@@ -1,6 +1,5 @@
-"use strict";
-
 // runtime/marionBridge.js
+"use strict";
 
 const EmotionRetriever = require("./emotionRetriever");
 const PsychologyRetriever = require("./psychologyRetriever");
@@ -13,25 +12,11 @@ const { runLayer5 } = require("./layer5");
 const FALLBACK_REPLY = "I’m here with you. Let’s keep going together.";
 const FALLBACK_STATUS_REPLY = "I’m keeping this stable while I finish the handoff, and I can stay with the request without dropping out.";
 
-function _safeArray(v) {
-  return Array.isArray(v) ? v : [];
-}
-
-function _safeObj(v) {
-  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
-}
-
-function _trim(v) {
-  return v == null ? "" : String(v).trim();
-}
-
-function _lower(v) {
-  return _trim(v).toLowerCase();
-}
-
-function _clamp(n, min = 0, max = 1) {
-  return Math.max(min, Math.min(max, n));
-}
+function _safeArray(v) { return Array.isArray(v) ? v : []; }
+function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+function _trim(v) { return v == null ? "" : String(v).trim(); }
+function _lower(v) { return _trim(v).toLowerCase(); }
+function _clamp(n, min = 0, max = 1) { return Math.max(min, Math.min(max, Number.isFinite(Number(n)) ? Number(n) : min)); }
 
 function _pickRetrieverFn(mod, preferredName) {
   if (mod && typeof mod[preferredName] === "function") return mod[preferredName];
@@ -47,6 +32,7 @@ function _inferIntent(query = "") {
   if (/(strategy|roadmap|plan|implement|build|architecture|design)/.test(q)) return "strategy";
   if (/(research|study|dataset|source|evidence|reference)/.test(q)) return "research";
   if (/(help|support|hurting|sad|upset|anxious|afraid|overwhelmed)/.test(q)) return "support";
+  if (/(debug|fix|repair|stability|loop|retry|runtime|bridge)/.test(q)) return "debug";
 
   return "general";
 }
@@ -79,7 +65,7 @@ function _normalizeEmotionResult(result = {}) {
   if (typeof intensity !== "number" || Number.isNaN(intensity)) {
     const legacyIntensity = Number(primary.intensity);
     intensity = Number.isFinite(legacyIntensity)
-      ? Math.max(0, Math.min(1, legacyIntensity / 10))
+      ? Math.max(0, Math.min(1, legacyIntensity > 1 ? legacyIntensity / 10 : legacyIntensity))
       : 0;
   }
 
@@ -94,7 +80,7 @@ function _normalizeEmotionResult(result = {}) {
   return {
     primaryEmotion,
     secondaryEmotion,
-    intensity: _clamp(Number(intensity) || 0),
+    intensity: _clamp(intensity || 0),
     valence: Math.max(-1, Math.min(1, Number(valence) || 0)),
     needs: _safeArray(result.needs),
     cues: _safeArray(result.cues),
@@ -207,14 +193,11 @@ function _mergeEvidence({ emotion, psychology, domainEvidence, datasetEvidence, 
     ..._safeArray(emotion.evidenceMatches)
   ]);
 
-  const mergedMemoryEvidence = _dedupeEvidence(_safeArray(memoryEvidence));
-  const mergedGeneralEvidence = _dedupeEvidence(_safeArray(generalEvidence));
-
   return {
     domainEvidence: _sortEvidence(mergedDomainEvidence),
     datasetEvidence: _sortEvidence(mergedDatasetEvidence),
-    memoryEvidence: _sortEvidence(mergedMemoryEvidence),
-    generalEvidence: _sortEvidence(mergedGeneralEvidence)
+    memoryEvidence: _sortEvidence(_dedupeEvidence(_safeArray(memoryEvidence))),
+    generalEvidence: _sortEvidence(_dedupeEvidence(_safeArray(generalEvidence)))
   };
 }
 
@@ -234,7 +217,39 @@ function _normalizePreviousMemory(previousMemory = {}) {
       intensity: Number.isFinite(emotion.intensity) ? emotion.intensity : 0
     },
     persistent,
-    transient
+    transient,
+    fallbackStreak: Number(memory.fallbackStreak || 0),
+    repeatQueryStreak: Number(memory.repeatQueryStreak || 0),
+    continuityHealth: _trim(memory.continuityHealth) || "watch",
+    recoveryMode: _trim(memory.recoveryMode) || "normal"
+  };
+}
+
+function _buildPreLayer4TurnMemory(previousMemory = {}, layer2Bundle = {}, fusionPacket = {}) {
+  const previous = _normalizePreviousMemory(previousMemory);
+  const emotion = _safeObj(fusionPacket.emotion);
+  const currentQuery = _trim(layer2Bundle.userQuery);
+  const normalizedCurrent = _lower(currentQuery).replace(/\s+/g, " ").trim();
+  const normalizedPrevious = _lower(previous.lastQuery).replace(/\s+/g, " ").trim();
+  const repeatedQuery = !!normalizedCurrent && normalizedCurrent === normalizedPrevious;
+  const repeatQueryStreak = repeatedQuery ? Number(previous.repeatQueryStreak || 0) + 1 : 0;
+
+  return {
+    ...previous,
+    lastQuery: currentQuery,
+    domain: layer2Bundle.domain || previous.domain || "general",
+    intent: layer2Bundle.intent || previous.intent || "general",
+    emotion: {
+      primaryEmotion: _trim(emotion.primaryEmotion) || previous.emotion.primaryEmotion || "neutral",
+      intensity: Number.isFinite(emotion.intensity) ? emotion.intensity : previous.emotion.intensity || 0
+    },
+    repeatQueryStreak,
+    fallbackStreak: Number(previous.fallbackStreak || 0),
+    continuityHealth: _trim(previous.continuityHealth) || "watch",
+    recoveryMode:
+      repeatQueryStreak >= 2 || Number(previous.fallbackStreak || 0) >= 2
+        ? "guided-recovery"
+        : (_trim(previous.recoveryMode) || "normal")
   };
 }
 
@@ -250,11 +265,7 @@ function _safeNarrativeText(nyxOutput = {}, assembledResponse = {}) {
     _trim(fallbackResponse.nextMove)
   ].filter(Boolean);
 
-  if (candidates.length) {
-    return candidates.join(" ");
-  }
-
-  return FALLBACK_REPLY;
+  return candidates.length ? candidates.join(" ") : FALLBACK_REPLY;
 }
 
 function _buildCompatibilityChips(nyxOutput = {}, assembledResponse = {}, fusionPacket = {}) {
@@ -262,8 +273,11 @@ function _buildCompatibilityChips(nyxOutput = {}, assembledResponse = {}, fusion
   const evidence = _safeArray(_safeObj(nyxOutput.narrative).evidence);
   const reasoning = _safeArray(_safeObj(nyxOutput.narrative).reasoning);
   const domain = _trim(fusionPacket.domain || assembledResponse.domain || "general");
+  const recoveryMode = _trim(_safeObj(_safeObj(nyxOutput).metadata).recoveryMode);
 
-  if (domain === "psychology") {
+  if (recoveryMode === "guided-recovery") {
+    chips.push("Stay focused", "Next step");
+  } else if (domain === "psychology") {
     chips.push("Keep talking", "What happened?");
   } else if (domain === "finance") {
     chips.push("Risk view", "Break it down");
@@ -306,7 +320,6 @@ function _buildCompatibilityPayload({
     message: replyText,
     output: replyText,
     answer: replyText,
-
     ui: {
       text: replyText,
       chips,
@@ -314,13 +327,11 @@ function _buildCompatibilityPayload({
       domain: fusionPacket.domain || layer2Bundle.domain || "general",
       intent: fusionPacket.intent || layer2Bundle.intent || "general"
     },
-
     marionPacket: fusionPacket,
     answerPlan,
     assembledResponse,
     nyxOutput,
     turnMemory,
-
     meta: {
       mode,
       domain: fusionPacket.domain || layer2Bundle.domain || "general",
@@ -332,12 +343,13 @@ function _buildCompatibilityPayload({
   };
 }
 
-function _buildSafeLayer4Fallback({ layer2Bundle = {}, layer3 = {} } = {}) {
+function _buildSafeLayer4Fallback({ layer2Bundle = {}, layer3 = {}, turnMemory = {} } = {}) {
   const fusionPacket = _safeObj(layer3.fusionPacket);
   const domain = fusionPacket.domain || layer2Bundle.domain || "general";
   const intent = fusionPacket.intent || layer2Bundle.intent || "general";
   const emotion = _safeObj(fusionPacket.emotion);
   const primaryEmotion = _trim(emotion.primaryEmotion) || "neutral";
+  const recoveryMode = _trim(turnMemory.recoveryMode) || "normal";
 
   const opening =
     primaryEmotion !== "neutral"
@@ -346,51 +358,82 @@ function _buildSafeLayer4Fallback({ layer2Bundle = {}, layer3 = {} } = {}) {
 
   const assembledResponse = {
     ok: true,
+    partial: true,
+    status: "degraded-but-usable",
     domain,
     intent,
     responseMode: {
-      mode: intent === "support" ? "supportive" : "balanced"
+      mode: recoveryMode === "guided-recovery" ? "recovery" : (intent === "support" ? "supportive" : "balanced")
     },
     toneEnvelope: {
       warmth: 0.7,
-      precision: 0.72,
-      directness: 0.62,
-      directives: ["Stay calm and clear."],
-      forbidden: []
+      precision: 0.76,
+      directness: 0.66,
+      directives: [
+        "Stay calm and clear.",
+        "Avoid repetitive fallback phrasing."
+      ],
+      forbidden: ["generic filler"]
     },
     domainResponse: {
       openingStrategy: opening,
-      reasoningSteps: ["Answer directly.", "Preserve continuity.", "Avoid overclaiming."],
-      toneDirectives: ["Keep the response stable and human."],
-      evidenceLines: []
+      reasoningSteps: [
+        "Answer directly.",
+        "Preserve continuity.",
+        "Avoid overclaiming."
+      ],
+      toneDirectives: [
+        "Keep the response stable and human.",
+        "Reduce repetition under degraded conditions."
+      ],
+      evidenceLines: [],
+      recoveryNotes: recoveryMode === "guided-recovery"
+        ? ["Break repetition and give one grounded next move."]
+        : []
     },
     safetyEnvelope: {
       checks: ["Preserve stability.", "Do not drop continuity."],
-      warnings: [],
+      warnings: ["Layer 4 fallback active."],
       safeToElaborate: true,
-      forbidden: []
+      forbidden: ["repetitive fallback language"],
+      recoveryMode
     },
     fallbackResponse: {
       fallback: true,
       opening,
-      posture: "balanced",
-      nextMove: "Continue with the request in a stable way."
+      posture: recoveryMode === "guided-recovery" ? "guided-recovery" : "balanced",
+      nextMove: recoveryMode === "guided-recovery"
+        ? "Continue with one stable next step."
+        : "Continue with the request in a stable way.",
+      recoveryMode
     },
     sourcePacket: {
       emotion,
       psychology: _safeObj(fusionPacket.psychology),
       evidence: _safeArray(fusionPacket.evidence),
-      weights: _safeObj(fusionPacket.weights)
+      weights: _safeObj(fusionPacket.weights),
+      diagnostics: _safeObj(fusionPacket.diagnostics)
+    },
+    meta: {
+      evidenceKept: _safeArray(fusionPacket.evidence).length,
+      lowEvidence: _safeArray(fusionPacket.evidence).length < 2,
+      thinReasoning: false,
+      recoveryMode,
+      fallbackStreak: Number(turnMemory.fallbackStreak || 0),
+      repeatQueryStreak: Number(turnMemory.repeatQueryStreak || 0),
+      continuityHealth: _trim(turnMemory.continuityHealth) || "watch"
     }
   };
 
   const nyxOutput = {
     ok: true,
     channel: "nyx",
+    partial: true,
+    status: "degraded-but-usable",
     voiceDirectives: {
       warmth: 0.7,
-      precision: 0.72,
-      directness: 0.62
+      precision: 0.76,
+      directness: 0.66
     },
     narrative: {
       mode: assembledResponse.responseMode.mode,
@@ -399,13 +442,19 @@ function _buildSafeLayer4Fallback({ layer2Bundle = {}, layer3 = {} } = {}) {
       reasoning: assembledResponse.domainResponse.reasoningSteps,
       tone: assembledResponse.toneEnvelope.directives,
       evidence: [],
-      fallback: assembledResponse.fallbackResponse
+      fallback: assembledResponse.fallbackResponse,
+      recoveryNotes: assembledResponse.domainResponse.recoveryNotes
     },
     safety: assembledResponse.safetyEnvelope,
     metadata: {
       domain,
       intent,
-      mode: assembledResponse.responseMode.mode
+      mode: assembledResponse.responseMode.mode,
+      recoveryMode,
+      continuityHealth: _trim(turnMemory.continuityHealth) || "watch",
+      fallbackStreak: Number(turnMemory.fallbackStreak || 0),
+      repeatQueryStreak: Number(turnMemory.repeatQueryStreak || 0),
+      lowEvidence: true
     }
   };
 
@@ -419,33 +468,29 @@ async function _retrieveDomainEvidence({ userQuery, domain, conversationState })
   const domainFn = _pickRetrieverFn(DomainRetriever, "retrieveDomain");
   if (!domainFn) return [];
 
-  return Promise.resolve(
-    domainFn({
-      query: userQuery,
-      text: userQuery,
-      userQuery,
-      domain,
-      conversationState
-    })
-  );
+  return Promise.resolve(domainFn({
+    query: userQuery,
+    text: userQuery,
+    userQuery,
+    domain,
+    conversationState
+  }));
 }
 
 async function _retrieveDatasetEvidence({ userQuery, domain, datasets, conversationState, emotion, psychology }) {
   const datasetFn = _pickRetrieverFn(DatasetRetriever, "retrieveDataset");
   if (!datasetFn) return [];
 
-  return Promise.resolve(
-    datasetFn({
-      query: userQuery,
-      text: userQuery,
-      userQuery,
-      domain,
-      datasets,
-      conversationState,
-      emotion,
-      psychology
-    })
-  );
+  return Promise.resolve(datasetFn({
+    query: userQuery,
+    text: userQuery,
+    userQuery,
+    domain,
+    datasets,
+    conversationState,
+    emotion,
+    psychology
+  }));
 }
 
 async function retrieveLayer2Signals(input = {}) {
@@ -459,49 +504,36 @@ async function retrieveLayer2Signals(input = {}) {
   const emotionFn = _pickRetrieverFn(EmotionRetriever, "retrieveEmotion");
   const psychologyFn = _pickRetrieverFn(PsychologyRetriever, "retrievePsychology");
 
-  if (!emotionFn) {
-    throw new Error("Emotion retriever is missing a callable export.");
-  }
+  if (!emotionFn) throw new Error("Emotion retriever is missing a callable export.");
+  if (!psychologyFn) throw new Error("Psychology retriever is missing a callable export.");
 
-  if (!psychologyFn) {
-    throw new Error("Psychology retriever is missing a callable export.");
-  }
-
-  const rawEmotion = await Promise.resolve(
-    emotionFn({
-      text: userQuery,
-      query: userQuery,
-      userText: userQuery,
-      conversationState,
-      domain,
-      datasets
-    })
-  );
+  const rawEmotion = await Promise.resolve(emotionFn({
+    text: userQuery,
+    query: userQuery,
+    userText: userQuery,
+    conversationState,
+    domain,
+    datasets
+  }));
 
   const emotion = _normalizeEmotionResult(rawEmotion);
 
-  const rawPsychology = await Promise.resolve(
-    psychologyFn({
-      text: userQuery,
-      query: userQuery,
-      userText: userQuery,
-      conversationState,
-      domain,
-      datasets,
-      emotion,
-      supportFlags: emotion.supportFlags
-    })
-  );
+  const rawPsychology = await Promise.resolve(psychologyFn({
+    text: userQuery,
+    query: userQuery,
+    userText: userQuery,
+    conversationState,
+    domain,
+    datasets,
+    emotion,
+    supportFlags: emotion.supportFlags
+  }));
 
   const psychology = _normalizePsychologyResult(rawPsychology, emotion);
 
   const resolvedDomainEvidence = _safeArray(input.domainEvidence).length
     ? _safeArray(input.domainEvidence)
-    : await _retrieveDomainEvidence({
-        userQuery,
-        domain,
-        conversationState
-      });
+    : await _retrieveDomainEvidence({ userQuery, domain, conversationState });
 
   const resolvedDatasetEvidence = _safeArray(input.datasetEvidence).length
     ? _safeArray(input.datasetEvidence)
@@ -555,21 +587,34 @@ async function processWithMarion(input = {}) {
   let layer3 = null;
   let layer4 = null;
   let layer5 = null;
+  let preLayer4TurnMemory = null;
 
   try {
     layer2Bundle = await retrieveLayer2Signals(input);
-
     layer3 = await runLayer3(layer2Bundle);
+
+    preLayer4TurnMemory = _buildPreLayer4TurnMemory(previousMemory, layer2Bundle, _safeObj(layer3.fusionPacket));
 
     try {
       layer4 = await runLayer4({
-        fusionPacket: layer3.fusionPacket,
-        answerPlan: layer3.answerPlan
+        fusionPacket: _safeObj(layer3.fusionPacket),
+        answerPlan: _safeObj(layer3.answerPlan),
+        continuityState: {
+          activeQuery: layer2Bundle.userQuery,
+          activeDomain: layer2Bundle.domain,
+          activeIntent: layer2Bundle.intent,
+          activeEmotion: _trim(_safeObj(_safeObj(layer3.fusionPacket).emotion).primaryEmotion) || "neutral",
+          emotionalIntensity: Number(_safeObj(_safeObj(layer3.fusionPacket).emotion).intensity) || 0,
+          continuityHealth: preLayer4TurnMemory.continuityHealth || "watch",
+          recoveryMode: preLayer4TurnMemory.recoveryMode || "normal"
+        },
+        turnMemory: preLayer4TurnMemory
       });
     } catch (layer4Error) {
       layer4 = _buildSafeLayer4Fallback({
         layer2Bundle,
-        layer3
+        layer3,
+        turnMemory: preLayer4TurnMemory
       });
       layer4.error = layer4Error;
     }
@@ -591,6 +636,8 @@ async function processWithMarion(input = {}) {
           emotionalIntensity: Number(_safeObj(_safeObj(layer3.fusionPacket).emotion).intensity) || 0,
           psychologyRisks: _safeArray(_safeObj(_safeObj(layer3.fusionPacket).psychology).risks),
           responseMode: _trim(_safeObj(_safeObj(layer4.assembledResponse).responseMode).mode) || "balanced",
+          continuityHealth: preLayer4TurnMemory.continuityHealth || "watch",
+          recoveryMode: preLayer4TurnMemory.recoveryMode || "normal",
           timestamp: Date.now()
         },
         extractedSignals: {},
@@ -600,20 +647,37 @@ async function processWithMarion(input = {}) {
         topicThread: {},
         resetGuard: {
           shouldSuppressHardReset: true,
+          shouldForceRecoveryMode: preLayer4TurnMemory.recoveryMode === "guided-recovery",
           flags: ["layer5-fallback"]
         },
         turnMemory: {
-          lastQuery: layer2Bundle.userQuery,
-          domain: layer2Bundle.domain,
-          intent: layer2Bundle.intent,
-          emotion: {
-            primaryEmotion: _trim(_safeObj(_safeObj(layer3.fusionPacket).emotion).primaryEmotion) || "neutral",
-            intensity: Number(_safeObj(_safeObj(layer3.fusionPacket).emotion).intensity) || 0
-          },
+          ...preLayer4TurnMemory,
           updatedAt: Date.now()
         },
         error: layer5Error
       };
+    }
+
+    const shouldRerunLayer4 =
+      !layer4.error &&
+      _trim(_safeObj(_safeObj(layer4.nyxOutput).metadata).recoveryMode) !== _trim(_safeObj(layer5.turnMemory).recoveryMode);
+
+    if (shouldRerunLayer4) {
+      try {
+        layer4 = await runLayer4({
+          fusionPacket: _safeObj(layer3.fusionPacket),
+          answerPlan: _safeObj(layer3.answerPlan),
+          continuityState: _safeObj(layer5.continuityState),
+          turnMemory: _safeObj(layer5.turnMemory)
+        });
+      } catch (layer4RerunError) {
+        layer4 = _buildSafeLayer4Fallback({
+          layer2Bundle,
+          layer3,
+          turnMemory: _safeObj(layer5.turnMemory)
+        });
+        layer4.error = layer4RerunError;
+      }
     }
 
     const compatibility = _buildCompatibilityPayload({
@@ -623,8 +687,8 @@ async function processWithMarion(input = {}) {
       assembledResponse: _safeObj(layer4.assembledResponse),
       nyxOutput: _safeObj(layer4.nyxOutput),
       turnMemory: _safeObj(layer5.turnMemory),
-      partial: !!(layer4.error || layer5.error),
-      status: layer4.error || layer5.error ? "partial" : "ok",
+      partial: !!(layer4.error || layer5.error || _safeObj(layer4.assembledResponse).partial),
+      status: layer4.error || layer5.error ? "partial" : (_safeObj(layer4.assembledResponse).status || "ok"),
       error: layer4.error || layer5.error || null
     });
 
@@ -632,7 +696,6 @@ async function processWithMarion(input = {}) {
       ok: true,
       partial: compatibility.partial,
       status: compatibility.status,
-
       reply: compatibility.reply,
       text: compatibility.text,
       message: compatibility.message,
@@ -640,17 +703,13 @@ async function processWithMarion(input = {}) {
       answer: compatibility.answer,
       ui: compatibility.ui,
       meta: compatibility.meta,
-
       intent: layer2Bundle.intent,
       domain: layer2Bundle.domain,
       userQuery: layer2Bundle.userQuery,
-
       marionPacket: layer3.fusionPacket,
       answerPlan: layer3.answerPlan,
-
       assembledResponse: layer4.assembledResponse,
       nyxOutput: layer4.nyxOutput,
-
       continuityState: layer5.continuityState,
       extractedSignals: layer5.extractedSignals,
       persistence: layer5.persistence,
@@ -659,18 +718,15 @@ async function processWithMarion(input = {}) {
       topicThread: layer5.topicThread,
       resetGuard: layer5.resetGuard,
       turnMemory: layer5.turnMemory,
-
       layer2: {
         emotion: layer2Bundle.emotion,
         psychology: layer2Bundle.psychology,
         diagnostics: layer2Bundle.diagnostics
       },
-
       layer3: {
         diagnostics: _safeObj(layer3.fusionPacket && layer3.fusionPacket.diagnostics),
         weights: _safeObj(layer3.fusionPacket && layer3.fusionPacket.weights)
       },
-
       layer4: {
         mode: _trim(_safeObj(_safeObj(layer4.assembledResponse).responseMode).mode) || "balanced",
         safety: _safeObj(_safeObj(layer4.assembledResponse).safetyEnvelope),
@@ -678,7 +734,6 @@ async function processWithMarion(input = {}) {
         fallbackUsed: !!layer4.error,
         error: layer4.error ? String(layer4.error.message || layer4.error) : null
       },
-
       layer5: {
         continuityState: _safeObj(layer5.continuityState),
         resetGuard: _safeObj(layer5.resetGuard),
@@ -691,40 +746,38 @@ async function processWithMarion(input = {}) {
       }
     };
   } catch (error) {
+    const userQuery = _trim(input.userQuery || input.query || input.text);
+    const inferredDomain = _inferDomain(userQuery, _trim(input.requestedDomain || input.domain));
+    const inferredIntent = _inferIntent(userQuery);
     const safeReply = FALLBACK_STATUS_REPLY;
 
     return {
       ok: false,
       partial: true,
       status: "degraded",
-
       reply: safeReply,
       text: safeReply,
       message: safeReply,
       output: safeReply,
       answer: safeReply,
-
       ui: {
         text: safeReply,
         chips: ["Keep talking", "What happened?"],
         mode: "stabilizing",
-        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
-        intent: _inferIntent(_trim(input.userQuery || input.query || input.text))
+        domain: inferredDomain,
+        intent: inferredIntent
       },
-
       meta: {
         mode: "stabilizing",
-        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
-        intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
+        domain: inferredDomain,
+        intent: inferredIntent,
         partial: true,
         status: "degraded",
         error: String(error.message || error)
       },
-
-      intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
-      domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
-      userQuery: _trim(input.userQuery || input.query || input.text),
-
+      intent: inferredIntent,
+      domain: inferredDomain,
+      userQuery,
       marionPacket: {},
       answerPlan: {},
       assembledResponse: {},
@@ -740,25 +793,19 @@ async function processWithMarion(input = {}) {
         flags: ["bridge-degraded"]
       },
       turnMemory: {
-        lastQuery: _trim(input.userQuery || input.query || input.text),
-        domain: _inferDomain(_trim(input.userQuery || input.query || input.text), _trim(input.requestedDomain || input.domain)),
-        intent: _inferIntent(_trim(input.userQuery || input.query || input.text)),
+        lastQuery: userQuery,
+        domain: inferredDomain,
+        intent: inferredIntent,
         emotion: {
           primaryEmotion: "neutral",
           intensity: 0
         },
+        continuityHealth: "fragile",
+        recoveryMode: "guided-recovery",
         updatedAt: Date.now()
       },
-
-      layer2: {
-        emotion: {},
-        psychology: {},
-        diagnostics: {}
-      },
-      layer3: {
-        diagnostics: {},
-        weights: {}
-      },
+      layer2: { emotion: {}, psychology: {}, diagnostics: {} },
+      layer3: { diagnostics: {}, weights: {} },
       layer4: {
         mode: "stabilizing",
         safety: {},
@@ -775,9 +822,7 @@ async function processWithMarion(input = {}) {
         topicThread: {},
         fallbackUsed: true,
         error: String(error.message || error),
-        turnMemoryMeta: {
-          updatedAt: Date.now()
-        }
+        turnMemoryMeta: { updatedAt: Date.now() }
       }
     };
   }
