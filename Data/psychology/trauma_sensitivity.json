@@ -1,22 +1,110 @@
-{
-  "guidelines": {
-    "avoid": [
-      "sudden_confrontation",
-      "blame_language",
-      "graphic_repetition",
-      "pressure_to_disclose"
-    ],
-    "prefer": [
-      "choice_based_language",
-      "gentle_pacing",
-      "safety_orientation",
-      "grounded_validation"
-    ],
+[
+  {
+    "id": "psy_trauma_sensitivity_001",
+    "domain": "psychology",
+    "subdomain": "trauma_sensitivity",
+    "topic": "avoid_forcing_detail",
+    "title": "Do not force traumatic detail",
+    "summary": "When the user hints at painful or destabilizing experiences, preserve choice and pacing.",
     "signals": [
-      "i don't feel safe",
-      "i shut down",
-      "i freeze",
-      "i get triggered"
-    ]
+      "something bad happened",
+      "i don't want to talk about all of it",
+      "it still gets to me",
+      "i can't go back into that right now"
+    ],
+    "interpretation": "Possible trauma-linked material where pacing and agency matter more than detail extraction.",
+    "supportMode": "stabilize_and_respect_pacing",
+    "routeBias": "stabilize",
+    "riskLevel": "moderate",
+    "responseGuidance": [
+      "Do not press for detail",
+      "Offer choice and pacing",
+      "Anchor in present safety and control"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "steadying",
+      "semanticFrame": "agency_preservation",
+      "followupStyle": "reflective",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "contain"]
+    },
+    "contraindications": [
+      "Do not probe for specifics",
+      "Do not romanticize resilience"
+    ],
+    "tags": ["psychology", "trauma_sensitivity", "pacing", "agency", "safety"]
+  },
+  {
+    "id": "psy_trauma_sensitivity_002",
+    "domain": "psychology",
+    "subdomain": "trauma_sensitivity",
+    "topic": "unexpected_trigger_activation",
+    "title": "Trigger activation response",
+    "summary": "Present-day cues may reactivate fear, shame, or physiological alarm linked to earlier experiences.",
+    "signals": [
+      "that set me off",
+      "i reacted way bigger than i expected",
+      "my body went into alarm",
+      "i know it's small but it hit hard"
+    ],
+    "interpretation": "Possible trigger-driven activation where intensity may exceed the present cue.",
+    "supportMode": "soothe_and_structure",
+    "routeBias": "stabilize",
+    "riskLevel": "moderate",
+    "responseGuidance": [
+      "Normalize trigger intensity without overpathologizing",
+      "Focus on current regulation",
+      "Differentiate past activation from present reality gently"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "warm_affirming",
+      "semanticFrame": "trigger_regulation",
+      "followupStyle": "grounding",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "clarify"]
+    },
+    "contraindications": [
+      "Do not call the user irrational",
+      "Do not invalidate bodily alarm"
+    ],
+    "tags": ["psychology", "trauma_sensitivity", "trigger", "regulation", "alarm_response"]
+  },
+  {
+    "id": "psy_trauma_sensitivity_003",
+    "domain": "psychology",
+    "subdomain": "trauma_sensitivity",
+    "topic": "control_and_choice_language",
+    "title": "Use control-and-choice language",
+    "summary": "Trauma-sensitive response often benefits from explicit restoration of agency, pacing, and consent in conversation.",
+    "signals": [
+      "i need space",
+      "i can't do too much at once",
+      "slow down",
+      "i need this to feel safe"
+    ],
+    "interpretation": "Conversation itself may need to become more choice-oriented and less directive.",
+    "supportMode": "contain_with_choice",
+    "routeBias": "stabilize",
+    "riskLevel": "low",
+    "responseGuidance": [
+      "Offer one choice at a time",
+      "Let the user set pacing where possible",
+      "Use low-pressure language"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "containment",
+      "semanticFrame": "agency_preservation",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "low",
+      "transitionTargets": ["contain", "reconnect"]
+    },
+    "contraindications": [
+      "Do not overload with directives",
+      "Do not push narrative depth for its own sake"
+    ],
+    "tags": ["psychology", "trauma_sensitivity", "agency", "choice", "containment"]
   }
-}
+]
