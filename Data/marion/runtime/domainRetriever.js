@@ -11,71 +11,96 @@ const MARION_ROOT = path.resolve(RUNTIME_ROOT, "..");
 const DOMAIN_CONFIGS = {
   psychology: {
     root: path.join(MARION_ROOT, "psychology"),
-    compiled: [path.join(MARION_ROOT, "psychology", "compiled", "psychology_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "psychology", "compiled", "psychology_compiled.json")
+    ]
   },
   finance: {
     root: path.join(MARION_ROOT, "finance"),
-    compiled: [path.join(MARION_ROOT, "finance", "compiled", "finance_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "finance", "compiled", "finance_compiled.json")
+    ]
   },
   law: {
     root: path.join(MARION_ROOT, "law"),
-    compiled: [path.join(MARION_ROOT, "law", "compiled", "law_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "law", "compiled", "law_compiled.json")
+    ]
   },
   english: {
     root: path.join(MARION_ROOT, "english"),
-    compiled: [path.join(MARION_ROOT, "english", "compiled", "english_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "english", "compiled", "english_compiled.json")
+    ]
   },
   cybersecurity: {
     root: path.join(MARION_ROOT, "cybersecurity"),
-    compiled: [path.join(MARION_ROOT, "cybersecurity", "compiled", "cybersecurity_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "cybersecurity", "compiled", "cybersecurity_compiled.json")
+    ]
   },
   marketing: {
     root: path.join(MARION_ROOT, "marketing"),
-    compiled: [path.join(MARION_ROOT, "marketing", "compiled", "marketing_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "marketing", "compiled", "marketing_compiled.json")
+    ]
   },
   general: {
     root: path.join(MARION_ROOT, "general"),
-    compiled: [path.join(MARION_ROOT, "general", "compiled", "general_compiled.json")]
+    compiled: [
+      path.join(MARION_ROOT, "general", "compiled", "general_compiled.json")
+    ]
   }
 };
 
-const _cache = new Map();
+const CACHE = new Map();
+const MAX_WALK_DEPTH = 4;
 
-function _exists(p) {
+function _safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function _safeObj(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function _trim(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function _lower(value) {
+  return _trim(value).toLowerCase();
+}
+
+function _clamp(value, min = 0, max = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function _uniqStrings(values) {
+  return [...new Set(_safeArray(values).map(_trim).filter(Boolean))];
+}
+
+function _exists(filePath) {
   try {
-    fs.accessSync(p);
+    fs.accessSync(filePath);
     return true;
   } catch {
     return false;
   }
 }
 
-function _mtime(p) {
+function _mtime(filePath) {
   try {
-    return fs.statSync(p).mtimeMs || 0;
+    return fs.statSync(filePath).mtimeMs || 0;
   } catch {
     return 0;
   }
 }
 
-function _readJson(p) {
-  return JSON.parse(fs.readFileSync(p, "utf8"));
-}
-
-function _safeArray(v) {
-  return Array.isArray(v) ? v : [];
-}
-
-function _safeObj(v) {
-  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
-}
-
-function _trim(v) {
-  return v == null ? "" : String(v).trim();
-}
-
-function _lower(v) {
-  return _trim(v).toLowerCase();
+function _readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
 function _normalizeText(text) {
@@ -83,6 +108,10 @@ function _normalizeText(text) {
     .replace(/[^a-z0-9\s'_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function _tokenize(text) {
+  return _normalizeText(text).split(" ").filter((token) => token.length > 2);
 }
 
 function _containsPhrase(haystack, phrase) {
@@ -111,42 +140,101 @@ function _flattenStrings(value, out = []) {
   return out;
 }
 
-function _uniqStrings(arr) {
-  return [...new Set(_safeArray(arr).map((x) => _trim(x)).filter(Boolean))];
-}
-
 function _domainConfig(domain) {
   return DOMAIN_CONFIGS[domain] || DOMAIN_CONFIGS.general;
 }
 
-function _loadCompiledRecords(domain) {
-  const config = _domainConfig(domain);
-  const files = _safeArray(config.compiled).filter(_exists);
-  const records = [];
+function _walkJsonFiles(dir, depth = 0, files = []) {
+  if (!_exists(dir) || depth > MAX_WALK_DEPTH) return files;
 
-  for (const file of files) {
-    const cacheKey = `${domain}:${file}`;
-    const currentMtime = _mtime(file);
-    const cached = _cache.get(cacheKey);
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return files;
+  }
 
-    let payload;
-    if (cached && cached.mtime === currentMtime) {
-      payload = cached.payload;
-    } else {
-      payload = _readJson(file);
-      _cache.set(cacheKey, { mtime: currentMtime, payload });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      if (entry.name.toLowerCase() === "node_modules") continue;
+      _walkJsonFiles(fullPath, depth + 1, files);
+      continue;
     }
 
-    if (Array.isArray(payload)) {
-      records.push(...payload);
-    } else if (payload && Array.isArray(payload.records)) {
-      records.push(...payload.records);
-    } else if (payload && Array.isArray(payload.items)) {
-      records.push(...payload.items);
+    if (!entry.isFile()) continue;
+    if (!entry.name.toLowerCase().endsWith(".json")) continue;
+
+    files.push(fullPath);
+  }
+
+  return files;
+}
+
+function _loadPayloadFromFile(filePath) {
+  const currentMtime = _mtime(filePath);
+  const cached = CACHE.get(filePath);
+
+  if (cached && cached.mtime === currentMtime) {
+    return cached.payload;
+  }
+
+  const payload = _readJson(filePath);
+  CACHE.set(filePath, { mtime: currentMtime, payload });
+  return payload;
+}
+
+function _extractRecordsFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.records)) return payload.records;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  if (payload && typeof payload === "object") return [payload];
+  return [];
+}
+
+function _loadDomainRecords(domain) {
+  const config = _domainConfig(domain);
+  const compiledFiles = _safeArray(config.compiled).filter(_exists);
+
+  let files = compiledFiles;
+
+  // If compiled files are missing, fall back to scanning the domain tree.
+  if (!files.length) {
+    files = _walkJsonFiles(config.root).filter((filePath) => {
+      const base = path.basename(filePath).toLowerCase();
+      return !base.includes("manifest") && !base.includes("index");
+    });
+  }
+
+  const records = [];
+  const diagnostics = {
+    filesAttempted: files.length,
+    filesLoaded: 0,
+    compiledPreferred: !!compiledFiles.length,
+    sourceMode: compiledFiles.length ? "compiled" : "scan"
+  };
+
+  for (const filePath of files) {
+    try {
+      const payload = _loadPayloadFromFile(filePath);
+      const extracted = _extractRecordsFromPayload(payload);
+      diagnostics.filesLoaded += 1;
+
+      extracted.forEach((record, idx) => {
+        records.push({
+          __file: filePath,
+          __index: idx,
+          __sourceMode: diagnostics.sourceMode,
+          ..._safeObj(record)
+        });
+      });
+    } catch {
+      // Graceful skip; diagnostics still captures partial availability.
     }
   }
 
-  return records;
+  return { records, diagnostics };
 }
 
 function _candidateTerms(record = {}) {
@@ -155,6 +243,7 @@ function _candidateTerms(record = {}) {
     record.topic,
     record.subdomain,
     record.category,
+    record.domain,
     ..._flattenStrings(record.keywords),
     ..._flattenStrings(record.signals),
     ..._flattenStrings(record.tags),
@@ -163,72 +252,180 @@ function _candidateTerms(record = {}) {
   ]);
 }
 
-function _scoreRecord(query, record, requestedDomain) {
-  const terms = _candidateTerms(record);
+function _buildSearchBlob(record = {}) {
+  return _uniqStrings([
+    record.title,
+    record.topic,
+    record.subdomain,
+    record.category,
+    record.domain,
+    record.summary,
+    record.description,
+    record.content,
+    ..._flattenStrings(record.keywords),
+    ..._flattenStrings(record.signals),
+    ..._flattenStrings(record.tags),
+    ..._flattenStrings(record.aliases),
+    ..._flattenStrings(record.examples)
+  ]).join(" ");
+}
+
+function _tokenOverlapScore(queryTokens = [], blobText = "") {
+  const blobTokens = new Set(_tokenize(blobText));
+  if (!queryTokens.length || !blobTokens.size) return { hits: 0, ratio: 0 };
+
+  let hits = 0;
+  for (const token of queryTokens) {
+    if (blobTokens.has(token)) hits += 1;
+  }
+
+  return {
+    hits,
+    ratio: hits / queryTokens.length
+  };
+}
+
+function _scoreRecord(query, record, requestedDomain, context = {}) {
+  const normalizedRecord = _safeObj(record);
+  const terms = _candidateTerms(normalizedRecord);
   const reasons = [];
   let score = 0;
 
+  const queryTokens = _tokenize(query);
+  const blob = _buildSearchBlob(normalizedRecord);
+  const overlap = _tokenOverlapScore(queryTokens, blob);
+  const recordDomain = _lower(normalizedRecord.domain || requestedDomain || "general");
+  const recoveryMode = _lower(_safeObj(context.conversationState).recoveryMode || "normal");
+  const continuityHealth = _lower(_safeObj(context.conversationState).continuityHealth || "watch");
+
   for (const term of terms) {
-    if (_containsPhrase(query, term)) {
-      const weight =
-        term === record.title ? 7 :
-        term === record.topic ? 6 :
-        term === record.subdomain ? 5 : 4;
+    if (!_containsPhrase(query, term)) continue;
 
-      score += weight;
-      reasons.push({ type: "term", value: term, weight });
-    }
+    const weight =
+      term === normalizedRecord.title ? 7 :
+      term === normalizedRecord.topic ? 6 :
+      term === normalizedRecord.subdomain ? 5 :
+      term === normalizedRecord.category ? 4 :
+      3;
+
+    score += weight;
+    reasons.push({ type: "phrase-hit", value: term, weight });
   }
 
-  const recordDomain = _lower(record.domain || requestedDomain || "general");
+  if (overlap.hits > 0) {
+    const tokenWeight = Math.min(5, Math.max(1, Math.round(overlap.hits)));
+    score += tokenWeight;
+    reasons.push({
+      type: "token-overlap",
+      value: `${overlap.hits}/${queryTokens.length}`,
+      weight: tokenWeight
+    });
+  }
+
   if (recordDomain && recordDomain === _lower(requestedDomain)) {
-    score += 3;
-    reasons.push({ type: "domain", value: recordDomain, weight: 3 });
+    score += 2;
+    reasons.push({ type: "domain-alignment", value: recordDomain, weight: 2 });
   }
 
-  const confidence = Number(record.confidence);
+  const confidence = Number(normalizedRecord.confidence);
   if (Number.isFinite(confidence)) {
-    score += Math.max(0, Math.min(2, confidence * 2));
+    const confidenceWeight = Number(Math.max(0, Math.min(2, confidence * 2)).toFixed(4));
+    score += confidenceWeight;
+    reasons.push({
+      type: "confidence",
+      value: Number(confidence.toFixed(4)),
+      weight: confidenceWeight
+    });
   }
 
-  return { score, reasons };
+  const recency = Number(normalizedRecord.recency);
+  if (Number.isFinite(recency) && recency > 0) {
+    const recencyWeight = Number(Math.max(0, Math.min(1.25, recency * 1.25)).toFixed(4));
+    score += recencyWeight;
+    reasons.push({
+      type: "recency",
+      value: Number(recency.toFixed(4)),
+      weight: recencyWeight
+    });
+  }
+
+  if (recoveryMode === "guided-recovery") {
+    score += 0.75;
+    reasons.push({ type: "recovery-bias", value: "guided-recovery", weight: 0.75 });
+  }
+
+  if (continuityHealth === "fragile" && overlap.hits > 0) {
+    score += 0.5;
+    reasons.push({ type: "continuity-bias", value: "fragile", weight: 0.5 });
+  }
+
+  // Penalize thin records that match only weakly.
+  const hasMeaningfulText = !!_trim(normalizedRecord.summary || normalizedRecord.description || normalizedRecord.content);
+  if (!hasMeaningfulText && overlap.hits < 2) {
+    score -= 1;
+    reasons.push({ type: "thin-record-penalty", value: "limited-text", weight: -1 });
+  }
+
+  return {
+    score: Number(Math.max(0, score).toFixed(4)),
+    reasons,
+    overlap
+  };
 }
 
-function _normalizeEvidence(record, domain, score, reasons, idx) {
-  const rawScore = Number.isFinite(score) ? score : 0;
-  const normalizedScore = Math.max(0, Math.min(1, Number((rawScore / 18).toFixed(4))));
+function _normalizeEvidence(record, domain, scoreBundle, idx) {
+  const normalizedRecord = _safeObj(record);
+  const rawScore = Number(scoreBundle.score || 0);
+
+  // More honest normalization ceiling than the old arbitrary /18.
+  const normalizedScore = _clamp(Number((rawScore / 20).toFixed(4)));
   const confidence =
-    Number.isFinite(Number(record.confidence))
-      ? Math.max(0, Math.min(1, Number(record.confidence)))
+    Number.isFinite(Number(normalizedRecord.confidence))
+      ? _clamp(Number(normalizedRecord.confidence))
       : normalizedScore;
 
   return {
-    id: record.id || `domain-${domain}-${idx + 1}`,
+    id: normalizedRecord.id || `domain-${domain}-${idx + 1}`,
     source: "domain",
-    dataset: record.dataset || `${domain}_compiled`,
-    domain: _trim(record.domain) || domain || "general",
-    title: _trim(record.title) || _trim(record.topic) || _trim(record.subdomain) || `domain-${idx + 1}`,
+    dataset: normalizedRecord.dataset || `${domain}_compiled`,
+    domain: _trim(normalizedRecord.domain) || domain || "general",
+    title:
+      _trim(normalizedRecord.title) ||
+      _trim(normalizedRecord.topic) ||
+      _trim(normalizedRecord.subdomain) ||
+      `domain-${idx + 1}`,
     summary: _uniqStrings([
-      _trim(record.topic),
-      _trim(record.subdomain),
-      _trim(record.category),
-      ..._safeArray(reasons).map((r) => _trim(r.value))
+      _trim(normalizedRecord.topic),
+      _trim(normalizedRecord.subdomain),
+      _trim(normalizedRecord.category),
+      ..._safeArray(scoreBundle.reasons).map((reason) => `${reason.type}:${_trim(reason.value)}`)
     ]).join(" | "),
-    content: typeof record.content === "string" ? record.content : JSON.stringify(record),
+    content:
+      typeof normalizedRecord.content === "string"
+        ? normalizedRecord.content
+        : JSON.stringify(normalizedRecord),
     score: normalizedScore,
     confidence,
     tags: _uniqStrings([
       domain,
-      _trim(record.subdomain),
-      _trim(record.topic),
-      _trim(record.category),
-      ..._flattenStrings(record.tags)
+      _trim(normalizedRecord.subdomain),
+      _trim(normalizedRecord.topic),
+      _trim(normalizedRecord.category),
+      ..._flattenStrings(normalizedRecord.tags)
     ]),
-    recency: Number.isFinite(Number(record.recency)) ? Number(record.recency) : 0,
-    emotionalRelevance: Number.isFinite(Number(record.emotionalRelevance)) ? Number(record.emotionalRelevance) : 0.15,
+    recency: Number.isFinite(Number(normalizedRecord.recency))
+      ? _clamp(Number(normalizedRecord.recency))
+      : 0,
+    emotionalRelevance: Number.isFinite(Number(normalizedRecord.emotionalRelevance))
+      ? _clamp(Number(normalizedRecord.emotionalRelevance))
+      : 0.15,
     metadata: {
-      reasons,
-      originalRecord: record
+      reasons: scoreBundle.reasons,
+      overlap: scoreBundle.overlap,
+      file: normalizedRecord.__file || null,
+      fileIndex: Number.isFinite(Number(normalizedRecord.__index)) ? normalizedRecord.__index : null,
+      sourceMode: normalizedRecord.__sourceMode || "compiled",
+      originalRecord: normalizedRecord
     }
   };
 }
@@ -236,30 +433,39 @@ function _normalizeEvidence(record, domain, score, reasons, idx) {
 async function retrieveDomain(input = {}) {
   const query = _trim(input.query || input.text || input.userQuery);
   const domain = _lower(input.domain || input.requestedDomain || "general") || "general";
-  const maxMatches = Number(input.maxMatches) || 5;
+  const maxMatches = Math.max(1, Number(input.maxMatches) || 5);
 
-  if (!query) {
-    return [];
-  }
+  if (!query) return [];
 
-  let records = [];
+  let loaded;
   try {
-    records = _loadCompiledRecords(domain);
+    loaded = _loadDomainRecords(domain);
   } catch {
     return [];
   }
 
+  const records = _safeArray(loaded.records);
+  if (!records.length) return [];
+
   const scored = records
     .map((record) => {
-      const { score, reasons } = _scoreRecord(query, _safeObj(record), domain);
-      return { record: _safeObj(record), score, reasons };
+      const normalizedRecord = _safeObj(record);
+      const scoreBundle = _scoreRecord(query, normalizedRecord, domain, input);
+      return { record: normalizedRecord, scoreBundle };
     })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .filter((item) => item.scoreBundle.score > 0)
+    .sort((a, b) => {
+      const scoreDelta = b.scoreBundle.score - a.scoreBundle.score;
+      if (scoreDelta !== 0) return scoreDelta;
+
+      const confidenceA = Number(_safeObj(a.record).confidence || 0);
+      const confidenceB = Number(_safeObj(b.record).confidence || 0);
+      return confidenceB - confidenceA;
+    })
     .slice(0, maxMatches);
 
   return scored.map((item, idx) =>
-    _normalizeEvidence(item.record, domain, item.score, item.reasons, idx)
+    _normalizeEvidence(item.record, domain, item.scoreBundle, idx)
   );
 }
 
