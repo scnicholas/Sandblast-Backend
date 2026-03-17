@@ -1,3 +1,4 @@
+```javascript
 "use strict";
 
 /**
@@ -37,7 +38,7 @@
  * Phase 15: Fail-open integrity
  */
 
-const VERSION = "supportResponse v1.6.0 AUDIO-FAILURE SUPPORT-HARDEN";
+const VERSION = "supportResponse v1.7.0 LOOP-COHESION SUPPORT-LOCK HARDEN";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -48,8 +49,8 @@ const DEFAULT_CONFIG = {
   keepCrisisShort: true,
   suppressQuestionOnTechnical: true,
   suppressQuestionOnRecovery: true,
-  suppressQuestionOnLoop: false,
-  suppressQuestionOnHighContinuity: false,
+  suppressQuestionOnLoop: true,
+  suppressQuestionOnHighContinuity: true,
   debug: false
 };
 
@@ -396,9 +397,67 @@ function normalizeEmotionPayload(emo) {
     distressReinforcements,
     positiveReinforcements,
     recoverySignals,
-    cached: !!e.cached
+    cached: !!e.cached,
+    conversationPlan: normalizeConversationPlan(e.conversationPlan),
+    expressionStyle: safeStr(e.expressionStyle || e.conversationPlan?.expressionStyle || "").toLowerCase(),
+    deliveryTone: safeStr(e.deliveryTone || e.conversationPlan?.deliveryTone || "").toLowerCase(),
+    semanticFrame: safeStr(e.semanticFrame || e.conversationPlan?.semanticFrame || "").toLowerCase()
   };
 }
+
+
+function normalizeConversationPlan(plan) {
+  const p = isPlainObject(plan) ? plan : {};
+  return {
+    openingStyle: safeStr(p.openingStyle || "").toLowerCase(),
+    questionStyle: safeStr(p.questionStyle || "").toLowerCase(),
+    askAllowed: p.askAllowed === false ? false : true,
+    shouldSuppressMenus: !!p.shouldSuppressMenus,
+    supportLockBias: safeStr(p.supportLockBias || "").toLowerCase(),
+    expressionStyle: safeStr(p.expressionStyle || "").toLowerCase(),
+    deliveryTone: safeStr(p.deliveryTone || "").toLowerCase(),
+    semanticFrame: safeStr(p.semanticFrame || "").toLowerCase(),
+    responseFamily: safeStr(p.responseFamily || "").toLowerCase(),
+    followupVariants: uniq(p.followupVariants || [])
+  };
+}
+
+function deriveOpeningFamily(emo) {
+  const opening = safeStr(emo.conversationPlan?.openingStyle || "").toLowerCase();
+  if (opening) return opening;
+  if (emo.supportFlags.crisis) return "crisis_presence";
+  if (emo.supportFlags.highDistress || emo.supportFlags.needsGentlePacing) return "calming_validation";
+  if (emo.valence === "positive") return "affirming";
+  return "steady_presence";
+}
+
+function deriveResponseFamily(emo) {
+  const plan = emo.conversationPlan || {};
+  if (safeStr(plan.responseFamily)) return safeStr(plan.responseFamily).toLowerCase();
+  if (emo.supportFlags.crisis) return "crisis_support";
+  if (emo.supportFlags.highDistress || emo.supportFlags.needsStabilization) return "gentle_presence";
+  if (emo.valence === "positive" && !emo.supportFlags.avoidCelebratoryTone) return "warm_affirmation";
+  if (emo.valence === "mixed") return "reflective_mirroring";
+  return "steady_support";
+}
+
+function shouldSuppressMenusForSupport(emo, audioFailure, technical, continuityHeavy) {
+  return !!(
+    technical ||
+    audioFailure?.present ||
+    audioFailure?.shouldTerminate ||
+    emo.supportFlags?.crisis ||
+    emo.supportFlags?.highDistress ||
+    emo.supportFlags?.needsGentlePacing ||
+    emo.supportFlags?.shouldSuppressMenus ||
+    emo.conversationPlan?.shouldSuppressMenus ||
+    emo.fallbackSuppression ||
+    emo.routeExhaustion ||
+    emo.needsNovelMove ||
+    continuityHeavy
+  );
+}
+
 
 function shouldUseDisclaimer(emo, cfg) {
   if (cfg.includeDisclaimerOnEveryTurn) return true;
@@ -938,6 +997,7 @@ function buildLonelinessResponse(emo, cfg, seed) {
   return joinSentences(parts);
 }
 
+
 function buildSupportiveResponse(input = {}, config = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
 
@@ -951,7 +1011,8 @@ function buildSupportiveResponse(input = {}, config = {}) {
       clampInt(emo.continuity.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
       clampInt(emo.continuity.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
       clampInt(emo.continuity.noProgressTurnCount || 0, 0, 0, 99) >= 2 ||
-      clampInt(emo.continuity.repeatedFallbackCount || 0, 0, 0, 99) >= 1;
+      clampInt(emo.continuity.repeatedFallbackCount || 0, 0, 0, 99) >= 1 ||
+      clampInt(emo.continuity.sameArchetypeCount || 0, 0, 0, 99) >= 2;
     const loopSensitive = !!(
       technical ||
       emo.supportFlags.mentionsLooping ||
@@ -960,6 +1021,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
       emo.needsNovelMove ||
       continuityHeavy
     );
+    const suppressMenus = shouldSuppressMenusForSupport(emo, audioFailure, technical, continuityHeavy);
 
     if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
       return buildCrisisResponse({ seed, country: input.country || "" });
@@ -975,9 +1037,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
         buildTechnicalStabilityLine(audioFailure, seed),
         loopSensitive
           ? "I am not going to reopen the same loop. We will keep the next move cleaner and more direct."
-          : (emo.needsNovelMove || emo.routeExhaustion
-              ? "We will make the next move cleaner and more direct."
-              : "We will stay on the exact technical target and keep this useful.")
+          : "We will stay on the exact technical target and keep this useful."
       ]);
     }
 
@@ -991,7 +1051,6 @@ function buildSupportiveResponse(input = {}, config = {}) {
     }
 
     const parts = [];
-
     parts.push(buildReflectiveLead(emo, seed));
     parts.push(buildValidation(emo, seed));
     parts.push(buildAudioFailureLine(audioFailure, seed));
@@ -1007,14 +1066,20 @@ function buildSupportiveResponse(input = {}, config = {}) {
     parts.push(buildMicroStep(emo, cfg, seed));
 
     const shouldAsk = !(
+      suppressMenus ||
       (cfg.suppressQuestionOnRecovery && emo.supportFlags.recoveryPresent) ||
       (cfg.suppressQuestionOnLoop && loopSensitive) ||
       (cfg.suppressQuestionOnHighContinuity && continuityHeavy) ||
       technical ||
-      !!audioFailure.shouldTerminate
+      !!audioFailure.shouldTerminate ||
+      emo.conversationPlan.askAllowed === false ||
+      emo.supportFlags.delayQuestions
     );
+
     if (shouldAsk) {
       parts.push(buildQuestion(emo, cfg, seed));
+    } else if (loopSensitive && !technical) {
+      parts.push("We can keep this simple and steady without reopening the same loop.");
     }
 
     let out = joinSentences(parts);
@@ -1027,7 +1092,7 @@ function buildSupportiveResponse(input = {}, config = {}) {
       ? "I hear the strain in this. We will keep it technical, direct, and useful."
       : (loopSensitive
           ? "I hear you. We can keep this simple and steady, and I am not going to reopen the same loop."
-          : "I hear you. We can keep this steady and work one small step at a time. What feels most important right now?");
+          : "I hear you. We can keep this steady and work one small step at a time.");
   } catch (_err) {
     return looksTechnicalRequest(safeStr(input && input.userText || ""))
       ? "I hear the strain in this. We will keep it technical, direct, and useful."
@@ -1040,31 +1105,28 @@ function buildSupportPacket(input = {}, config = {}) {
   const audioFailure = normalizeAudioFailure(input);
   const seed = safeStr(input.seed || input.userText || "nyx");
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(config) ? config : {}) };
-
-  if (emo.supportFlags.crisis || emo.disclaimers.needCrisis) {
-    return {
-      ok: true,
-      version: VERSION,
-      mode: "crisis",
-      reply: buildCrisisResponse({ seed, country: input.country || "" }),
-      meta: {
-        crisis: true,
-        dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
-        valence: emo.valence,
-        audioFailurePresent: !!audioFailure.present,
-        audioAction: safeStr(audioFailure.action || ""),
-        audioTerminal: !!audioFailure.shouldTerminate
-      }
-    };
-  }
+  const technical = looksTechnicalRequest(safeStr(input.userText || ""));
+  const continuityHeavy =
+    clampInt(emo.continuity.sameSupportModeCount || 0, 0, 0, 99) >= 2 ||
+    clampInt(emo.continuity.sameEmotionCount || 0, 0, 0, 99) >= 3 ||
+    clampInt(emo.continuity.noProgressTurnCount || 0, 0, 0, 99) >= 2 ||
+    clampInt(emo.continuity.repeatedFallbackCount || 0, 0, 0, 99) >= 1 ||
+    clampInt(emo.continuity.sameArchetypeCount || 0, 0, 0, 99) >= 2;
+  const suppressMenus = shouldSuppressMenusForSupport(emo, audioFailure, technical, continuityHeavy);
+  const reply = emo.supportFlags.crisis || emo.disclaimers.needCrisis
+    ? buildCrisisResponse({ seed, country: input.country || "" })
+    : buildSupportiveResponse(input, cfg);
+  const responseFamily = deriveResponseFamily(emo);
+  const openingFamily = deriveOpeningFamily(emo);
+  const questionStyle = safeStr(emo.conversationPlan.questionStyle || (suppressMenus ? "defer_question" : "")).toLowerCase();
 
   return {
     ok: true,
     version: VERSION,
-    mode: "supportive",
-    reply: buildSupportiveResponse(input, cfg),
+    mode: emo.supportFlags.crisis || emo.disclaimers.needCrisis ? "crisis" : "supportive",
+    reply,
     meta: {
-      crisis: false,
+      crisis: !!(emo.supportFlags.crisis || emo.disclaimers.needCrisis),
       dominantEmotion: emo.primaryEmotion || emo.dominantEmotion,
       valence: emo.valence,
       tone: emo.tone,
@@ -1077,6 +1139,15 @@ function buildSupportPacket(input = {}, config = {}) {
       fallbackSuppression: !!emo.fallbackSuppression,
       needsNovelMove: !!emo.needsNovelMove,
       routeExhaustion: !!emo.routeExhaustion,
+      shouldSuppressMenus: !!suppressMenus,
+      supportLockBias: safeStr(emo.conversationPlan.supportLockBias || (suppressMenus ? "strong" : "")).toLowerCase(),
+      responseFamily,
+      openingFamily,
+      questionStyle,
+      askAllowed: suppressMenus ? false : (emo.conversationPlan.askAllowed === false ? false : true),
+      expressionStyle: safeStr(emo.expressionStyle || emo.conversationPlan.expressionStyle || "").toLowerCase(),
+      deliveryTone: safeStr(emo.deliveryTone || emo.conversationPlan.deliveryTone || "").toLowerCase(),
+      semanticFrame: safeStr(emo.semanticFrame || emo.conversationPlan.semanticFrame || "").toLowerCase(),
       audioFailurePresent: !!audioFailure.present,
       audioAction: safeStr(audioFailure.action || ""),
       audioReason: safeStr(audioFailure.reason || ""),
@@ -1095,3 +1166,5 @@ module.exports = {
   buildSupportPacket,
   normalizeEmotionPayload
 };
+
+```
