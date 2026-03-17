@@ -8,6 +8,7 @@ const DomainRetriever = require("./domainRetriever");
 const DatasetRetriever = require("./datasetRetriever");
 const { runLayer3 } = require("./layer3");
 const { runLayer4 } = require("./layer4");
+const { runLayer5 } = require("./layer5");
 
 function _safeArray(v) {
   return Array.isArray(v) ? v : [];
@@ -210,6 +211,26 @@ function _mergeEvidence({ emotion, psychology, domainEvidence, datasetEvidence, 
   };
 }
 
+function _normalizePreviousMemory(previousMemory = {}) {
+  const memory = _safeObj(previousMemory);
+  const emotion = _safeObj(memory.emotion);
+  const persistent = _safeObj(memory.persistent);
+  const transient = _safeObj(memory.transient);
+
+  return {
+    ...memory,
+    lastQuery: _trim(memory.lastQuery),
+    domain: _trim(memory.domain || persistent.domain) || "general",
+    intent: _trim(memory.intent || persistent.intent) || "general",
+    emotion: {
+      primaryEmotion: _trim(emotion.primaryEmotion) || "neutral",
+      intensity: Number.isFinite(emotion.intensity) ? emotion.intensity : 0
+    },
+    persistent,
+    transient
+  };
+}
+
 async function _retrieveDomainEvidence({ userQuery, domain, conversationState }) {
   const domainFn = _pickRetrieverFn(DomainRetriever, "retrieveDomain");
   if (!domainFn) return [];
@@ -345,11 +366,21 @@ async function retrieveLayer2Signals(input = {}) {
 }
 
 async function processWithMarion(input = {}) {
+  const previousMemory = _normalizePreviousMemory(input.previousMemory || {});
   const layer2Bundle = await retrieveLayer2Signals(input);
+
   const layer3 = await runLayer3(layer2Bundle);
+
   const layer4 = await runLayer4({
     fusionPacket: layer3.fusionPacket,
     answerPlan: layer3.answerPlan
+  });
+
+  const layer5 = await runLayer5({
+    userQuery: layer2Bundle.userQuery,
+    fusionPacket: layer3.fusionPacket,
+    assembledResponse: layer4.assembledResponse,
+    previousMemory
   });
 
   return {
@@ -357,23 +388,46 @@ async function processWithMarion(input = {}) {
     intent: layer2Bundle.intent,
     domain: layer2Bundle.domain,
     userQuery: layer2Bundle.userQuery,
+
     marionPacket: layer3.fusionPacket,
     answerPlan: layer3.answerPlan,
+
     assembledResponse: layer4.assembledResponse,
     nyxOutput: layer4.nyxOutput,
+
+    continuityState: layer5.continuityState,
+    extractedSignals: layer5.extractedSignals,
+    persistence: layer5.persistence,
+    emotionalContinuity: layer5.emotionalContinuity,
+    domainContinuity: layer5.domainContinuity,
+    topicThread: layer5.topicThread,
+    resetGuard: layer5.resetGuard,
+    turnMemory: layer5.turnMemory,
+
     layer2: {
       emotion: layer2Bundle.emotion,
       psychology: layer2Bundle.psychology,
       diagnostics: layer2Bundle.diagnostics
     },
+
     layer3: {
       diagnostics: _safeObj(layer3.fusionPacket && layer3.fusionPacket.diagnostics),
       weights: _safeObj(layer3.fusionPacket && layer3.fusionPacket.weights)
     },
+
     layer4: {
       mode: _safeObj(layer4.assembledResponse && layer4.assembledResponse.responseMode).mode || "balanced",
       safety: _safeObj(layer4.assembledResponse && layer4.assembledResponse.safetyEnvelope),
       outputMetadata: _safeObj(layer4.nyxOutput && layer4.nyxOutput.metadata)
+    },
+
+    layer5: {
+      continuityState: _safeObj(layer5.continuityState),
+      resetGuard: _safeObj(layer5.resetGuard),
+      topicThread: _safeObj(layer5.topicThread),
+      turnMemoryMeta: {
+        updatedAt: _safeObj(layer5.turnMemory).updatedAt || Date.now()
+      }
     }
   };
 }
