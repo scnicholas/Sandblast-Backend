@@ -1,40 +1,148 @@
-{
-  "distortions": [
-    {
-      "name": "catastrophizing",
-      "signals": [
-        "everything is ruined",
-        "this is the end",
-        "it's all going to fail"
-      ],
-      "response_hint": "ground gently without blunt contradiction"
+[
+  {
+    "id": "psy_cognitive_distortions_001",
+    "domain": "psychology",
+    "subdomain": "cognitive_distortions",
+    "topic": "catastrophizing",
+    "title": "Catastrophizing",
+    "summary": "Projecting the worst possible outcome and treating it as likely or inevitable.",
+    "signals": [
+      "everything is going to fall apart",
+      "this will ruin everything",
+      "it's going to be a disaster",
+      "there's no way this ends well"
+    ],
+    "keywords": ["worst case", "disaster", "ruin everything", "fall apart"],
+    "interpretation": "Possible threat amplification with future-oriented worst-case projection.",
+    "supportMode": "soothe_and_structure",
+    "routeBias": "stabilize",
+    "riskLevel": "low",
+    "responseGuidance": [
+      "Acknowledge fear before reframing",
+      "Separate possibility from probability",
+      "Shrink time horizon to the next actionable step"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "steadying",
+      "semanticFrame": "threat_reduction",
+      "followupStyle": "direct_answer_then_one_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["ground", "clarify"]
     },
-    {
-      "name": "all_or_nothing",
-      "signals": [
-        "always",
-        "never",
-        "completely",
-        "totally"
-      ],
-      "response_hint": "introduce nuance and flexibility"
+    "contraindications": [
+      "Do not use dismissive optimism",
+      "Do not argue aggressively"
+    ],
+    "tags": ["psychology", "cognitive_distortion", "catastrophizing", "anxiety"]
+  },
+  {
+    "id": "psy_cognitive_distortions_002",
+    "domain": "psychology",
+    "subdomain": "cognitive_distortions",
+    "topic": "all_or_nothing_thinking",
+    "title": "All-or-nothing thinking",
+    "summary": "Interpreting outcomes in rigid extremes with little room for nuance.",
+    "signals": [
+      "if it's not perfect it's worthless",
+      "i either win or i fail",
+      "it's all bad",
+      "nothing about this is good"
+    ],
+    "keywords": ["perfect or worthless", "all bad", "total failure", "nothing good"],
+    "interpretation": "Possible binary evaluation pattern that narrows flexibility and inflates failure meaning.",
+    "supportMode": "clarify_and_reframe",
+    "routeBias": "clarify",
+    "riskLevel": "low",
+    "responseGuidance": [
+      "Introduce nuance gently",
+      "Look for partial truth and mixed evidence",
+      "Reduce identity fusion with outcome"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "orienting",
+      "semanticFrame": "cognitive_flexibility",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "challenge"]
     },
-    {
-      "name": "mind_reading",
-      "signals": [
-        "they think i'm stupid",
-        "everyone knows i'm failing"
-      ],
-      "response_hint": "separate feeling from certainty"
+    "contraindications": [
+      "Do not lecture",
+      "Do not mirror black-and-white framing"
+    ],
+    "tags": ["psychology", "cognitive_distortion", "binary_thinking", "reframe"]
+  },
+  {
+    "id": "psy_cognitive_distortions_003",
+    "domain": "psychology",
+    "subdomain": "cognitive_distortions",
+    "topic": "mind_reading",
+    "title": "Mind reading",
+    "summary": "Assuming others' intentions, judgments, or emotional states without enough evidence.",
+    "signals": [
+      "they definitely think i'm pathetic",
+      "i know they meant it as a jab",
+      "everyone can tell i'm failing"
+    ],
+    "keywords": ["they think", "everyone can tell", "i know what they meant"],
+    "interpretation": "Possible projection of internal fear into assumed external judgment.",
+    "supportMode": "clarify_and_reality_test",
+    "routeBias": "clarify",
+    "riskLevel": "low",
+    "responseGuidance": [
+      "Distinguish observed facts from inferred meaning",
+      "Reduce certainty around unverifiable judgments",
+      "Invite evidence-based reflection"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "careful_nonshaming",
+      "semanticFrame": "evidence_vs_inference",
+      "followupStyle": "single_direct_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "challenge"]
     },
-    {
-      "name": "self_attack",
-      "signals": [
-        "i'm useless",
-        "i'm pathetic",
-        "i ruin everything"
-      ],
-      "response_hint": "prioritize nonjudgment and stabilization"
-    }
-  ]
-}
+    "contraindications": [
+      "Do not shame the inference",
+      "Do not overvalidate the assumption as fact"
+    ],
+    "tags": ["psychology", "cognitive_distortion", "mind_reading", "social_anxiety"]
+  },
+  {
+    "id": "psy_cognitive_distortions_004",
+    "domain": "psychology",
+    "subdomain": "cognitive_distortions",
+    "topic": "overgeneralization",
+    "title": "Overgeneralization",
+    "summary": "Using one event or repeated pain point to define the entire future or self.",
+    "signals": [
+      "this always happens",
+      "nothing ever works out for me",
+      "i never get it right",
+      "it's always the same"
+    ],
+    "keywords": ["always", "never", "nothing ever", "same every time"],
+    "interpretation": "Possible globalizing pattern that turns limited evidence into broad inevitability.",
+    "supportMode": "clarify_and_sequence",
+    "routeBias": "clarify",
+    "riskLevel": "low",
+    "responseGuidance": [
+      "Narrow the frame",
+      "Look for exceptions without forcing positivity",
+      "Restore specificity"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "orienting",
+      "semanticFrame": "specificity_restore",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "ground"]
+    },
+    "contraindications": [
+      "Do not answer with simplistic contradiction only"
+    ],
+    "tags": ["psychology", "cognitive_distortion", "overgeneralization", "specificity"]
+  }
+]
