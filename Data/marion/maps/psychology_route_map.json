@@ -1,0 +1,245 @@
+{
+  "version": "1.0.0",
+  "domain": "psychology",
+  "description": "Routing map for Marion psychology retrieval. Determines which subdomain to consult first based on detected signals, support flags, affect states, and user language patterns.",
+  "defaultRoute": {
+    "primarySubdomain": "affect_interpretation",
+    "secondarySubdomains": [
+      "cognitive_distortions",
+      "support_strategies"
+    ],
+    "supportModeFallback": "clarify_and_sequence",
+    "routeBiasFallback": "clarify"
+  },
+  "routingRules": [
+    {
+      "id": "psy_route_001",
+      "priority": 1,
+      "when": {
+        "supportFlags": {
+          "crisis": true
+        }
+      },
+      "routeTo": {
+        "primarySubdomain": "crisis_flags",
+        "secondarySubdomains": [
+          "affect_interpretation",
+          "trauma_sensitivity"
+        ],
+        "supportMode": "crisis_escalation",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_002",
+      "priority": 2,
+      "when": {
+        "riskLevel": ["critical", "high"],
+        "keywordsAny": [
+          "die",
+          "hurt myself",
+          "can't stay safe",
+          "snap",
+          "can't breathe",
+          "freaking out"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "crisis_flags",
+        "secondarySubdomains": [
+          "affect_interpretation"
+        ],
+        "supportMode": "acute_regulation",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_003",
+      "priority": 3,
+      "when": {
+        "keywordsAny": [
+          "overwhelmed",
+          "spiraling",
+          "too much",
+          "mind won't stop",
+          "panic"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies",
+          "cognitive_distortions"
+        ],
+        "supportMode": "soothe_and_structure",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_004",
+      "priority": 4,
+      "when": {
+        "keywordsAny": [
+          "numb",
+          "empty",
+          "drained",
+          "can't get moving",
+          "flat"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies"
+        ],
+        "supportMode": "validate_and_gently_activate",
+        "routeBias": "clarify"
+      }
+    },
+    {
+      "id": "psy_route_005",
+      "priority": 5,
+      "when": {
+        "keywordsAny": [
+          "failure",
+          "worthless",
+          "not enough",
+          "hate myself",
+          "something wrong with me"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies",
+          "cognitive_distortions"
+        ],
+        "supportMode": "careful_nonshaming_reflection",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_006",
+      "priority": 6,
+      "when": {
+        "keywordsAny": [
+          "pulling away",
+          "still care",
+          "checking for a reply",
+          "what they meant",
+          "abandonment"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "attachment_patterns",
+        "secondarySubdomains": [
+          "support_strategies",
+          "affect_interpretation"
+        ],
+        "supportMode": "soothe_and_structure",
+        "routeBias": "clarify"
+      }
+    },
+    {
+      "id": "psy_route_007",
+      "priority": 7,
+      "when": {
+        "keywordsAny": [
+          "handle it alone",
+          "don't want to need anyone",
+          "too close",
+          "disappear"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "attachment_patterns",
+        "secondarySubdomains": [
+          "support_strategies"
+        ],
+        "supportMode": "respectful_clarify_and_reconnect",
+        "routeBias": "deepen"
+      }
+    },
+    {
+      "id": "psy_route_008",
+      "priority": 8,
+      "when": {
+        "keywordsAny": [
+          "everything will fall apart",
+          "disaster",
+          "ruin everything",
+          "no way this ends well"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "cognitive_distortions",
+        "secondarySubdomains": [
+          "support_strategies",
+          "affect_interpretation"
+        ],
+        "supportMode": "soothe_and_structure",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_009",
+      "priority": 9,
+      "when": {
+        "keywordsAny": [
+          "always happens",
+          "never works",
+          "never get it right",
+          "all bad",
+          "perfect or worthless"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "cognitive_distortions",
+        "secondarySubdomains": [
+          "support_strategies"
+        ],
+        "supportMode": "clarify_and_reframe",
+        "routeBias": "clarify"
+      }
+    },
+    {
+      "id": "psy_route_010",
+      "priority": 10,
+      "when": {
+        "keywordsAny": [
+          "something bad happened",
+          "don't want to talk about all of it",
+          "set me off",
+          "body went into alarm",
+          "need this to feel safe"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "trauma_sensitivity",
+        "secondarySubdomains": [
+          "affect_interpretation",
+          "support_strategies"
+        ],
+        "supportMode": "stabilize_and_respect_pacing",
+        "routeBias": "stabilize"
+      }
+    },
+    {
+      "id": "psy_route_011",
+      "priority": 11,
+      "when": {
+        "supportFlags": {
+          "recoveryPresent": true
+        }
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies"
+        ],
+        "supportMode": "affirm_and_channel",
+        "routeBias": "deepen_then_channel"
+      }
+    }
+  ]
+}
