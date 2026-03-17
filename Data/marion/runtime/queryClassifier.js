@@ -1,3 +1,4 @@
+// runtime/queryClassifier.js
 "use strict";
 
 function _str(v) { return v == null ? "" : String(v); }
@@ -18,8 +19,21 @@ function _mergeFlags(base, extra) {
   return { ..._safeObj(base), ..._safeObj(extra) };
 }
 
+function _detectBusinessTechDomains(text = "") {
+  const t = _lower(text);
+  const domains = [];
+
+  if (/(finance|stock|stocks|market|markets|economics|capital|investing|investor)/.test(t)) domains.push("finance");
+  if (/(law|legal|contract|contracts|court|case law|bar exam|statute)/.test(t)) domains.push("law");
+  if (/(english|writing|literature|essay|grammar|rhetoric)/.test(t)) domains.push("english");
+  if (/(cyber|security|network|threat|infosec|malware)/.test(t)) domains.push("cybersecurity");
+  if (/(marketing|brand|branding|copy|campaign|audience|growth)/.test(t)) domains.push("marketing");
+
+  return domains;
+}
+
 function classifyQuery(input = {}) {
-  const text = _trim(input.text);
+  const text = _trim(input.text || input.query || input.userQuery);
   const supportFlags = _safeObj(input.supportFlags);
   const emotion = _safeObj(input.emotion);
   const primaryEmotion = _safeObj(emotion.primary);
@@ -77,14 +91,24 @@ function classifyQuery(input = {}) {
   const domainCandidates = [];
   if (emotionDetected) domainCandidates.push("emotion");
   if (psychology && !domainCandidates.includes("psychology")) domainCandidates.push("psychology");
+
+  for (const domain of _detectBusinessTechDomains(text)) {
+    if (!domainCandidates.includes(domain)) domainCandidates.push(domain);
+  }
+
   if (positive && !domainCandidates.includes("emotion")) domainCandidates.push("emotion");
   if (positive && !domainCandidates.includes("psychology")) domainCandidates.push("psychology");
-  if (!domainCandidates.length) domainCandidates.push("emotion", "psychology");
+  if (!domainCandidates.length) domainCandidates.push("general");
 
   return {
     ok: true,
     text,
-    classifications: { crisis, psychology, positive, emotion: emotionDetected },
+    classifications: {
+      crisis,
+      psychology,
+      positive,
+      emotion: emotionDetected
+    },
     supportFlags: mergedSupportFlags,
     domainCandidates
   };
