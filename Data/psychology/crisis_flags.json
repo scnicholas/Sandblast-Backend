@@ -1,35 +1,135 @@
-{
-  "flags": [
-    {
-      "name": "self_harm_risk",
-      "signals": [
-        "i want to disappear",
-        "i don't want to be here",
-        "i want to hurt myself",
-        "i want to end it"
-      ],
-      "priority": "critical",
-      "action": "escalate_safety"
+[
+  {
+    "id": "psy_crisis_flags_001",
+    "domain": "psychology",
+    "subdomain": "crisis_flags",
+    "topic": "self_harm_or_suicidal_language",
+    "title": "Self-harm or suicidal language",
+    "summary": "Statements suggesting desire to die, self-harm, disappearance, or inability to stay safe.",
+    "signals": [
+      "i want to die",
+      "i don't want to be here",
+      "i'm going to hurt myself",
+      "everyone would be better off without me",
+      "i can't keep myself safe"
+    ],
+    "keywords": ["die", "hurt myself", "not be here", "can't stay safe"],
+    "interpretation": "Immediate safety concern requiring crisis-oriented handling.",
+    "supportMode": "crisis_escalation",
+    "routeBias": "stabilize",
+    "riskLevel": "critical",
+    "supportFlags": {
+      "needsStabilization": true,
+      "needsContainment": true,
+      "needsConnection": true,
+      "highDistress": true,
+      "crisis": true
     },
-    {
-      "name": "hopelessness_risk",
-      "signals": [
-        "nothing matters",
-        "there is no point",
-        "it will never get better"
-      ],
-      "priority": "high",
-      "action": "supportive_safety_check"
+    "responseGuidance": [
+      "Stop normal flow",
+      "Use direct supportive safety language",
+      "Encourage immediate human crisis support and emergency help where relevant"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "steadying",
+      "semanticFrame": "immediate_safety",
+      "followupStyle": "action_gate",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "escalate"]
     },
-    {
-      "name": "panic_risk",
-      "signals": [
-        "i can't breathe",
-        "i'm freaking out",
-        "i'm panicking"
-      ],
-      "priority": "high",
-      "action": "grounding_priority"
-    }
-  ]
-}
+    "contraindications": [
+      "Do not continue casual conversation",
+      "Do not intellectualize the situation",
+      "Do not provide abstract-only comfort"
+    ],
+    "tags": ["psychology", "crisis", "self_harm", "suicide_risk", "safety"]
+  },
+  {
+    "id": "psy_crisis_flags_002",
+    "domain": "psychology",
+    "subdomain": "crisis_flags",
+    "topic": "violent_or_imminent_harm_language",
+    "title": "Imminent harm language",
+    "summary": "Statements suggesting imminent violence, loss of control, or risk to others.",
+    "signals": [
+      "i'm going to snap",
+      "i might hurt someone",
+      "i can't control what i'm about to do",
+      "someone is going to get hurt"
+    ],
+    "keywords": ["hurt someone", "snap", "can't control", "someone will get hurt"],
+    "interpretation": "Possible imminent harm escalation requiring immediate de-escalation and safety response.",
+    "supportMode": "crisis_escalation",
+    "routeBias": "stabilize",
+    "riskLevel": "critical",
+    "supportFlags": {
+      "needsStabilization": true,
+      "needsContainment": true,
+      "highDistress": true,
+      "crisis": true
+    },
+    "responseGuidance": [
+      "Move to immediate safety framing",
+      "Interrupt escalation",
+      "Encourage stepping away and contacting emergency/human support"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "containment",
+      "semanticFrame": "immediate_safety",
+      "followupStyle": "action_gate",
+      "transitionReadiness": "low",
+      "transitionTargets": ["contain", "escalate"]
+    },
+    "contraindications": [
+      "Do not normalize violent ideation",
+      "Do not continue regular support mode"
+    ],
+    "tags": ["psychology", "crisis", "violence_risk", "containment", "safety"]
+  },
+  {
+    "id": "psy_crisis_flags_003",
+    "domain": "psychology",
+    "subdomain": "crisis_flags",
+    "topic": "severe_disorientation_or_panic",
+    "title": "Severe panic or disorientation",
+    "summary": "Language suggesting inability to orient, breathe, slow down, or remain grounded.",
+    "signals": [
+      "i can't breathe",
+      "i'm losing it",
+      "nothing feels real",
+      "i can't calm down",
+      "i'm freaking out"
+    ],
+    "keywords": ["can't breathe", "losing it", "not real", "freaking out", "panic"],
+    "interpretation": "Possible acute dysregulation requiring immediate grounding and low-complexity response.",
+    "supportMode": "acute_regulation",
+    "routeBias": "stabilize",
+    "riskLevel": "high",
+    "supportFlags": {
+      "needsStabilization": true,
+      "needsContainment": true,
+      "highDistress": true,
+      "crisis": false
+    },
+    "responseGuidance": [
+      "Use grounding language",
+      "Reduce verbal complexity",
+      "Focus on immediate safety and regulation"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "steadying",
+      "semanticFrame": "acute_regulation",
+      "followupStyle": "grounding",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "contain"]
+    },
+    "contraindications": [
+      "Do not overload with analysis",
+      "Do not ask multi-part questions"
+    ],
+    "tags": ["psychology", "crisis_flag", "panic", "dysregulation", "grounding"]
+  }
+]
