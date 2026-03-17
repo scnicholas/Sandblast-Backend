@@ -1,34 +1,130 @@
-{
-  "patterns": [
-    {
-      "name": "reassurance_seeking",
-      "signals": [
-        "do you really think",
-        "are you sure",
-        "tell me i'll be okay"
-      ],
-      "possible_meaning": "heightened need for safety, certainty, or emotional anchoring",
-      "care_mode": "steady_reassurance"
+[
+  {
+    "id": "psy_attachment_patterns_001",
+    "domain": "psychology",
+    "subdomain": "attachment_patterns",
+    "topic": "anxious_attachment_activation",
+    "title": "Anxious attachment activation",
+    "summary": "Fear of disconnection, reassurance-seeking, or intense preoccupation with relational security.",
+    "signals": [
+      "why are they pulling away",
+      "i need to know they still care",
+      "i keep checking for a reply",
+      "i can't stop thinking about what they meant"
+    ],
+    "keywords": ["reassurance", "abandonment", "pulling away", "checking", "preoccupied"],
+    "interpretation": "Possible attachment activation organized around uncertainty, closeness threat, and reassurance-seeking.",
+    "supportMode": "soothe_and_structure",
+    "routeBias": "clarify",
+    "riskLevel": "low",
+    "supportFlags": {
+      "needsConnection": true,
+      "needsClarification": true,
+      "needsContainment": false,
+      "highDistress": false
     },
-    {
-      "name": "withdrawal_guarding",
-      "signals": [
-        "it's whatever",
-        "never mind",
-        "forget it"
-      ],
-      "possible_meaning": "protective distancing or fear of vulnerability",
-      "care_mode": "gentle_invitation"
+    "responseGuidance": [
+      "Validate attachment alarm without escalating it",
+      "Differentiate signal from story",
+      "Reduce compulsive interpretive spiraling"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "relational_attunement",
+      "semanticFrame": "attachment_security",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["clarify", "ground"]
     },
-    {
-      "name": "hyperactivation",
-      "signals": [
-        "why does this always happen",
-        "everything goes wrong",
-        "nobody ever"
-      ],
-      "possible_meaning": "amplified distress response and relational insecurity",
-      "care_mode": "contain_then_clarify"
-    }
-  ]
-}
+    "contraindications": [
+      "Do not shame reassurance-seeking",
+      "Do not prematurely declare the other person unsafe"
+    ],
+    "tags": ["psychology", "attachment", "anxious", "relationship", "reassurance"]
+  },
+  {
+    "id": "psy_attachment_patterns_002",
+    "domain": "psychology",
+    "subdomain": "attachment_patterns",
+    "topic": "avoidant_withdrawal",
+    "title": "Avoidant withdrawal pattern",
+    "summary": "Distancing, emotional minimization, or protective self-sufficiency under relational strain.",
+    "signals": [
+      "i'd rather handle it alone",
+      "i don't want to need anyone",
+      "i shut down when people get too close",
+      "i just disappear"
+    ],
+    "keywords": ["withdraw", "distance", "alone", "need no one", "shut down"],
+    "interpretation": "Possible protective deactivation pattern with distance used to preserve control or reduce vulnerability.",
+    "supportMode": "respectful_clarify_and_reconnect",
+    "routeBias": "deepen",
+    "riskLevel": "low",
+    "supportFlags": {
+      "needsConnection": true,
+      "needsClarification": true,
+      "needsContainment": false,
+      "highDistress": false
+    },
+    "responseGuidance": [
+      "Respect autonomy while naming the protective pattern gently",
+      "Do not force emotional exposure",
+      "Offer low-pressure relational reflection"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "steadying",
+      "semanticFrame": "protective_distance",
+      "followupStyle": "reflective",
+      "transitionReadiness": "medium",
+      "transitionTargets": ["deepen", "reconnect"]
+    },
+    "contraindications": [
+      "Do not frame distance as moral failure",
+      "Do not push intimacy before safety"
+    ],
+    "tags": ["psychology", "attachment", "avoidant", "distance", "protective_pattern"]
+  },
+  {
+    "id": "psy_attachment_patterns_003",
+    "domain": "psychology",
+    "subdomain": "attachment_patterns",
+    "topic": "disorganized_push_pull",
+    "title": "Push-pull relational conflict",
+    "summary": "Alternation between closeness-seeking and fear/withdrawal, often with confusion and volatility.",
+    "signals": [
+      "i want them close and then i want them gone",
+      "i don't trust it when it feels safe",
+      "i panic when they leave and panic when they stay"
+    ],
+    "keywords": ["push pull", "mixed signals", "panic", "closeness fear", "volatility"],
+    "interpretation": "Possible conflicting attachment impulses where closeness and threat feel fused.",
+    "supportMode": "stabilize_and_name_pattern",
+    "routeBias": "stabilize",
+    "riskLevel": "moderate",
+    "supportFlags": {
+      "needsStabilization": true,
+      "needsConnection": true,
+      "needsClarification": true,
+      "highDistress": true
+    },
+    "responseGuidance": [
+      "Name ambivalence without pathologizing it",
+      "Reduce urgency",
+      "Focus on present regulation before relational analysis"
+    ],
+    "toneProfile": {
+      "expressionStyle": "plain_statement",
+      "deliveryTone": "careful_nonshaming",
+      "semanticFrame": "ambivalent_safety",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "low",
+      "transitionTargets": ["stabilize", "clarify"]
+    },
+    "contraindications": [
+      "Do not intensify attachment fear",
+      "Do not oversimplify into one motive"
+    ],
+    "tags": ["psychology", "attachment", "disorganized", "ambivalence", "stabilize"]
+  }
+]
