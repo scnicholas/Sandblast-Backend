@@ -1,13 +1,17 @@
+// runtime/composeMarionResponse.js
 "use strict";
 
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _trim(v) { return v == null ? "" : String(v).trim(); }
+function _lower(v) { return _trim(v).toLowerCase(); }
+function _uniq(arr) { return [...new Set(_safeArray(arr).map(_trim).filter(Boolean))]; }
 
 function _emotionFallbackPlan(primaryEmotion = {}) {
-  const emotion = _trim(primaryEmotion.emotion).toLowerCase();
-  const valence = _trim(primaryEmotion.valence).toLowerCase();
-  const intensity = Number(primaryEmotion.intensity || 0);
+  const emotion = _lower(primaryEmotion.emotion);
+  const valence = _lower(primaryEmotion.valence);
+  const intensityRaw = Number(primaryEmotion.intensity || 0);
+  const intensity = intensityRaw > 1 ? Math.max(0, Math.min(1, intensityRaw / 10)) : Math.max(0, Math.min(1, intensityRaw));
 
   let semanticFrame = "emotional_attunement";
   let deliveryTone = "steadying";
@@ -17,13 +21,13 @@ function _emotionFallbackPlan(primaryEmotion = {}) {
   let supportMode = "clarify_and_sequence";
   let routeBias = "clarify";
   let guidance = [
-    "Reflect the user's emotional state clearly",
-    "Keep the language human and natural",
-    "Avoid repetitive support-shell phrasing"
+    "Reflect the user’s emotional state clearly.",
+    "Keep the language human and natural.",
+    "Avoid repetitive support-shell phrasing."
   ];
   let guardrails = [];
 
-  if (["panic", "fear", "overwhelm", "distress", "grief", "shame", "rage"].includes(emotion) || intensity >= 7) {
+  if (["panic", "fear", "overwhelm", "distress", "grief", "shame", "rage"].includes(emotion) || intensity >= 0.7) {
     semanticFrame = "stabilization";
     deliveryTone = "warm_affirming";
     followupStyle = "ground_then_narrow";
@@ -32,11 +36,11 @@ function _emotionFallbackPlan(primaryEmotion = {}) {
     supportMode = "soothe_and_structure";
     routeBias = "stabilize";
     guidance = [
-      "Reduce urgency before deeper analysis",
-      "Use short, grounding language",
-      "Offer one immediate next step only"
+      "Reduce urgency before deeper analysis.",
+      "Use short, grounding language.",
+      "Offer one immediate next step only."
     ];
-    guardrails = ["Do not over-question", "Do not mirror panic intensity"];
+    guardrails = ["Do not over-question.", "Do not mirror panic intensity."];
   } else if (["joy", "relief", "hope", "confidence", "gratitude", "pride", "calm"].includes(emotion) || valence === "positive") {
     semanticFrame = "momentum_preservation";
     deliveryTone = "warm_affirming";
@@ -46,13 +50,13 @@ function _emotionFallbackPlan(primaryEmotion = {}) {
     supportMode = "affirm_and_channel";
     routeBias = "deepen_then_channel";
     guidance = [
-      "Affirm the positive shift naturally",
-      "Preserve momentum without sounding mechanical",
-      "Offer one constructive next step"
+      "Affirm the positive shift naturally.",
+      "Preserve momentum without sounding mechanical.",
+      "Offer one constructive next step."
     ];
     guardrails = [
-      "Do not fall back to generic detection language",
-      "Do not flatten positive affect into a bland support template"
+      "Do not fall back to generic detection language.",
+      "Do not flatten positive affect into a bland support template."
     ];
   }
 
@@ -60,7 +64,7 @@ function _emotionFallbackPlan(primaryEmotion = {}) {
     interpretation: emotion ? `Detected emotional signal: ${emotion}.` : null,
     supportMode,
     routeBias,
-    riskLevel: intensity >= 8 ? "high" : "low",
+    riskLevel: intensity >= 0.8 ? "high" : "low",
     responsePlan: {
       semanticFrame,
       deliveryTone,
@@ -74,8 +78,46 @@ function _emotionFallbackPlan(primaryEmotion = {}) {
   };
 }
 
+function _buildRuntimeFallback(input = {}, routed = {}) {
+  const query = _trim(input.userQuery || input.query || input.text);
+  const requestedDomain = _trim(input.requestedDomain || input.domain) || "general";
+  const supportFlags = _safeObj(routed.supportFlags);
+
+  return {
+    ok: true,
+    matched: false,
+    domain: requestedDomain,
+    interpretation: query ? `No high-confidence structured match was found for: ${query}` : null,
+    supportMode: supportFlags.needsStabilization ? "soothe_and_structure" : "clarify_and_sequence",
+    routeBias: supportFlags.needsStabilization ? "stabilize" : "clarify",
+    riskLevel: supportFlags.crisis ? "critical" : (supportFlags.highDistress ? "high" : "low"),
+    supportFlags,
+    responsePlan: {
+      semanticFrame: supportFlags.needsStabilization ? "stabilization" : "clarity_building",
+      deliveryTone: supportFlags.needsStabilization ? "warm_affirming" : "steadying",
+      expressionStyle: "plain_statement",
+      followupStyle: supportFlags.needsClarification ? "direct_answer_then_one_question" : "reflective",
+      transitionReadiness: supportFlags.needsStabilization ? "low" : "medium",
+      transitionTargets: supportFlags.needsStabilization ? ["stabilize", "contain"] : ["clarify"]
+    },
+    guidance: [
+      "Keep the answer bounded to the strongest available signal.",
+      "Avoid template repetition.",
+      "Preserve continuity even when structured matching is thin."
+    ],
+    guardrails: [
+      "Do not invent unsupported interpretation.",
+      "Do not let fallback language become repetitive."
+    ],
+    source: {
+      domain: requestedDomain,
+      matched: false
+    }
+  };
+}
+
 function composeMarionResponse(routed = {}, input = {}) {
-  const primaryDomain = _trim(routed.primaryDomain) || "psychology";
+  const primaryDomain = _trim(routed.primaryDomain) || "general";
   const domains = _safeObj(routed.domains);
   const psychology = _safeObj(domains.psychology);
   const emotion = _safeObj(domains.emotion);
@@ -121,32 +163,23 @@ function composeMarionResponse(routed = {}, input = {}) {
   if (!psychology.matched || !record.id) {
     const primaryEmotion = _safeObj(emotion.primary);
     const fallback = emotion.matched ? _emotionFallbackPlan(primaryEmotion) : null;
+    const runtimeFallback = fallback || _buildRuntimeFallback(input, routed);
+
     return {
       ok: true,
       matched: !!fallback,
-      domain: primaryDomain,
-      interpretation: fallback ? fallback.interpretation : null,
-      supportMode: fallback ? fallback.supportMode : (route.supportMode || "clarify_and_sequence"),
-      routeBias: fallback ? fallback.routeBias : (route.routeBias || "clarify"),
-      riskLevel: fallback ? fallback.riskLevel : "low",
+      domain: primaryDomain || runtimeFallback.domain,
+      interpretation: runtimeFallback.interpretation,
+      supportMode: runtimeFallback.supportMode,
+      routeBias: runtimeFallback.routeBias,
+      riskLevel: runtimeFallback.riskLevel,
       supportFlags: emotion.supportFlags || routed.supportFlags || {},
-      responsePlan: fallback ? fallback.responsePlan : {
-        semanticFrame: "clarity_building",
-        deliveryTone: "steadying",
-        expressionStyle: "plain_statement",
-        followupStyle: "reflective",
-        transitionReadiness: "medium",
-        transitionTargets: ["clarify"]
-      },
-      guidance: fallback ? fallback.guidance : [
-        "Reflect the user's current tone simply",
-        "Ask one clear follow-up question",
-        "Avoid template repetition"
-      ],
-      guardrails: fallback ? fallback.guardrails : [],
+      responsePlan: runtimeFallback.responsePlan,
+      guidance: runtimeFallback.guidance,
+      guardrails: runtimeFallback.guardrails,
       source: {
-        domain: fallback ? "emotion" : primaryDomain,
-        matched: !!fallback
+        domain: runtimeFallback.source.domain,
+        matched: runtimeFallback.source.matched
       }
     };
   }
@@ -158,18 +191,22 @@ function composeMarionResponse(routed = {}, input = {}) {
     expressionStyle: toneProfile.expressionStyle || supportProfile.expressionStyle || "plain_statement",
     followupStyle: toneProfile.followupStyle || supportProfile.followupStyle || "reflective",
     transitionReadiness: toneProfile.transitionReadiness || supportProfile.transitionReadiness || "medium",
-    transitionTargets: toneProfile.transitionTargets || supportProfile.transitionTargets || []
+    transitionTargets: _uniq(toneProfile.transitionTargets || supportProfile.transitionTargets || [])
   };
 
-  const guidance = []
-    .concat(_safeArray(record.responseGuidance))
-    .concat(_safeArray(supportProfile.responseShape))
-    .filter(Boolean);
+  const guidance = _uniq(
+    []
+      .concat(_safeArray(record.responseGuidance))
+      .concat(_safeArray(supportProfile.responseShape))
+      .concat(["Keep continuity with the active user thread."])
+  );
 
-  const guardrails = []
-    .concat(_safeArray(record.contraindications))
-    .concat(_safeArray(supportProfile.constraints))
-    .filter(Boolean);
+  const guardrails = _uniq(
+    []
+      .concat(_safeArray(record.contraindications))
+      .concat(_safeArray(supportProfile.constraints))
+      .concat(["Do not allow structured support language to become repetitive."])
+  );
 
   const emotionPrimary = _safeObj(emotion.primary);
 
