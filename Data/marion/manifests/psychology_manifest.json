@@ -1,0 +1,126 @@
+{
+  "version": "1.0.0",
+  "domain": "psychology",
+  "manifestId": "marion_psychology_manifest_v1",
+  "description": "Canonical manifest for psychology ingestion into Marion. Declares source files, compile order, validation policy, routing dependencies, and deployment intent.",
+  "ingestionPolicy": {
+    "enabled": true,
+    "compileStrategy": "merge_normalize_index",
+    "dedupeStrategy": "id_first_then_topic",
+    "validationMode": "strict_required_fields",
+    "failOnMissingCriticalSource": true
+  },
+  "requiredFields": [
+    "id",
+    "domain",
+    "subdomain",
+    "topic",
+    "title",
+    "summary",
+    "supportMode",
+    "routeBias",
+    "tags"
+  ],
+  "optionalFields": [
+    "signals",
+    "keywords",
+    "interpretation",
+    "riskLevel",
+    "supportFlags",
+    "responseGuidance",
+    "toneProfile",
+    "contraindications",
+    "triggers",
+    "responsePattern"
+  ],
+  "sources": [
+    {
+      "id": "psych_source_001",
+      "name": "affect_interpretation",
+      "path": "Data/psychology/affect_interpretation.json",
+      "subdomain": "affect_interpretation",
+      "priority": 2,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Affect-state interpretation and emotional state routing."
+    },
+    {
+      "id": "psych_source_002",
+      "name": "attachment_patterns",
+      "path": "Data/psychology/attachment_patterns.json",
+      "subdomain": "attachment_patterns",
+      "priority": 5,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Relational and attachment-pattern interpretation."
+    },
+    {
+      "id": "psych_source_003",
+      "name": "cognitive_distortions",
+      "path": "Data/psychology/cognitive_distortions.json",
+      "subdomain": "cognitive_distortions",
+      "priority": 3,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Detection of distorted thinking patterns and reframing guidance."
+    },
+    {
+      "id": "psych_source_004",
+      "name": "crisis_flags",
+      "path": "Data/psychology/crisis_flags.json",
+      "subdomain": "crisis_flags",
+      "priority": 1,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Safety-first routing and escalation rules."
+    },
+    {
+      "id": "psych_source_005",
+      "name": "support_strategies",
+      "path": "Data/psychology/support_strategies.json",
+      "subdomain": "support_strategies",
+      "priority": 6,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Response shaping and support-mode delivery rules."
+    },
+    {
+      "id": "psych_source_006",
+      "name": "trauma_sensitivity",
+      "path": "Data/psychology/trauma_sensitivity.json",
+      "subdomain": "trauma_sensitivity",
+      "priority": 4,
+      "enabled": true,
+      "critical": true,
+      "purpose": "Trauma-informed pacing, agency, and safety guidance."
+    }
+  ],
+  "outputs": {
+    "compiledIndex": "Data/marion/compiled/psychology_compiled.json",
+    "routeMap": "Data/marion/maps/psychology_route_map.json",
+    "supportMap": "Data/marion/maps/psychology_support_map.json"
+  },
+  "buildOrder": [
+    "crisis_flags",
+    "affect_interpretation",
+    "cognitive_distortions",
+    "trauma_sensitivity",
+    "attachment_patterns",
+    "support_strategies"
+  ],
+  "runtimeIntent": {
+    "consumer": "Marion",
+    "secondaryConsumer": "Nyx via Marion",
+    "queryMode": "subdomain_priority_then_semantic_match",
+    "maxMatches": 3,
+    "preferCrisisGate": true,
+    "preferSupportStrategyAsFormatter": true
+  },
+  "compatibility": {
+    "supportsKnowledgeSections": true,
+    "supportsSupportModeCandidate": true,
+    "supportsRouteBias": true,
+    "supportsToneProfile": true,
+    "supportsSupportFlags": true
+  }
+}
