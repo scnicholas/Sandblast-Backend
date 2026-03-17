@@ -328,6 +328,100 @@ function _sortScored(arr) {
     .sort((a, b) => b.score - a.score);
 }
 
+function _intensityToNormalized(intensity) {
+  const n = Number(intensity);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n / 10));
+}
+
+function _valenceToNumeric(valence) {
+  const v = _lower(valence);
+  if (v === "positive") return 0.75;
+  if (v === "negative") return -0.75;
+  return 0;
+}
+
+function _confidenceFromPrimary(primary, totalMatches) {
+  if (!primary) return 0;
+  const raw = Math.min(1, (Number(primary.score) || 0) / 12);
+  const densityBoost = totalMatches > 1 ? 0.08 : 0;
+  return Math.max(0, Math.min(1, Number((raw + densityBoost).toFixed(4))));
+}
+
+function _deriveNeeds(emotionName, supportFlags, entry) {
+  const fromEntry = _uniqStrings([
+    ..._flattenStrings(_safeObj(entry).needs),
+    ..._flattenStrings(_safeObj(entry).supportNeeds),
+    ..._flattenStrings(_safeObj(entry).recommendations)
+  ]);
+
+  const inferred = [];
+  if (supportFlags.needsStabilization) inferred.push("stabilization");
+  if (supportFlags.needsContainment) inferred.push("containment");
+  if (supportFlags.needsClarification) inferred.push("clarity");
+  if (supportFlags.needsConnection) inferred.push("connection");
+
+  const e = _lower(emotionName);
+  if (e === "sadness" || e === "grief") inferred.push("reassurance");
+  if (e === "confusion" || e === "uncertainty") inferred.push("orientation");
+  if (e === "fear" || e === "panic") inferred.push("grounding");
+
+  return _uniqStrings([...fromEntry, ...inferred]);
+}
+
+function _deriveCues(primary, combined) {
+  const cues = [];
+  for (const match of _safeArray(combined).slice(0, 3)) {
+    for (const reason of _safeArray(match.reasons)) {
+      if (reason && reason.value) cues.push(_trim(reason.value));
+    }
+  }
+
+  const primaryType = primary && primary.type ? `${primary.type}_match` : "";
+  if (primaryType) cues.push(primaryType);
+
+  return _uniqStrings(cues).slice(0, 8);
+}
+
+function _buildEvidenceMatches(combined) {
+  return _safeArray(combined).map((m, idx) => {
+    const emotion = _emotionNameFromEntry(m.entry);
+    const valence = _inferValence(emotion, m.entry);
+    const intensity = _inferIntensity(m.score, m.entry);
+
+    return {
+      id: `emotion-${idx + 1}`,
+      source: m.type,
+      dataset:
+        m.type === "label" ? "base_labels" :
+        m.type === "pattern" ? "conversation_patterns" :
+        m.type === "nuance" ? "nuance_map" :
+        "emotion",
+      domain: "psychology",
+      title: emotion,
+      summary: _uniqStrings([
+        emotion,
+        ..._safeArray(m.reasons).map((r) => r.value)
+      ]).join(" | "),
+      content: JSON.stringify(m.entry),
+      score: Math.max(0, Math.min(1, Number((m.score || 0) / 12).toFixed(4))),
+      confidence: Math.max(0, Math.min(1, Number((m.score || 0) / 12).toFixed(4))),
+      tags: _uniqStrings([
+        "emotion",
+        valence,
+        emotion,
+        ..._safeArray(m.reasons).map((r) => r.type)
+      ]),
+      recency: 0,
+      emotionalRelevance: Math.max(0, Math.min(1, _intensityToNormalized(intensity))),
+      metadata: {
+        reasons: m.reasons,
+        originalType: m.type
+      }
+    };
+  });
+}
+
 function retrieveEmotion(input = {}) {
   const text = _trim(input.text || input.userText || input.query);
   const normalizedText = _normalizeText(text);
@@ -338,6 +432,14 @@ function retrieveEmotion(input = {}) {
       domain: "emotion",
       matched: false,
       primary: null,
+      primaryEmotion: "neutral",
+      secondaryEmotion: null,
+      intensity: 0,
+      valence: 0,
+      needs: [],
+      cues: [],
+      confidence: 0,
+      evidenceMatches: [],
       matches: [],
       supportFlags: {},
       meta: {
@@ -382,6 +484,14 @@ function retrieveEmotion(input = {}) {
       domain: "emotion",
       matched: false,
       primary: null,
+      primaryEmotion: "neutral",
+      secondaryEmotion: null,
+      intensity: 0,
+      valence: 0,
+      needs: [],
+      cues: [],
+      confidence: 0,
+      evidenceMatches: [],
       matches: [],
       supportFlags: {},
       meta: {
@@ -395,9 +505,14 @@ function retrieveEmotion(input = {}) {
   }
 
   const emotionName = _emotionNameFromEntry(primary.entry);
+  const secondaryEmotion = combined[1] ? _emotionNameFromEntry(combined[1].entry) : null;
   const valence = _inferValence(emotionName, primary.entry);
   const intensity = _inferIntensity(primary.score, primary.entry);
   const supportFlags = _buildSupportFlags(emotionName, valence, intensity);
+  const confidence = _confidenceFromPrimary(primary, combined.length);
+  const needs = _deriveNeeds(emotionName, supportFlags, primary.entry);
+  const cues = _deriveCues(primary, combined);
+  const evidenceMatches = _buildEvidenceMatches(combined);
 
   return {
     ok: true,
@@ -412,6 +527,14 @@ function retrieveEmotion(input = {}) {
       reasons: primary.reasons,
       entry: primary.entry
     },
+    primaryEmotion: emotionName,
+    secondaryEmotion,
+    intensity: _intensityToNormalized(intensity),
+    valence: _valenceToNumeric(valence),
+    needs,
+    cues,
+    confidence,
+    evidenceMatches,
     matches: combined.map((m) => {
       const emotion = _emotionNameFromEntry(m.entry);
       return {
@@ -430,11 +553,15 @@ function retrieveEmotion(input = {}) {
         labels: _safeArray(dataset.labels).length,
         patterns: _safeArray(dataset.patterns).length,
         nuance: _safeArray(dataset.nuance).length
-      }
+      },
+      normalizedText,
+      schemaLoaded: Object.keys(_safeObj(dataset.schema)).length > 0,
+      linkedDatasets: ["base_labels", "conversation_patterns", "emotion_analysis_schema", "nuance_map"]
     }
   };
 }
 
 module.exports = {
-  retrieveEmotion
+  retrieveEmotion,
+  retrieve: retrieveEmotion
 };
