@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.6.1sb";
+const INDEX_VERSION = "index.js v2.6.2sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -724,6 +724,14 @@ function ttsHandlerFromModule(mod) {
   if (typeof mod.ttsHandler === "function") return mod.ttsHandler.bind(mod);
   if (typeof mod.handler === "function") return mod.handler.bind(mod);
   if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod.delegateTts === "function") return mod.delegateTts.bind(mod);
+  if (typeof mod.generateSpeech === "function") return mod.generateSpeech.bind(mod);
+  if (typeof mod.speak === "function") return mod.speak.bind(mod);
+  if (typeof mod.run === "function") return mod.run.bind(mod);
+  if (typeof mod.generate === "function") return mod.generate.bind(mod);
+  if (typeof mod.tts === "function") return mod.tts.bind(mod);
+  if (typeof mod.synthesize === "function") return mod.synthesize.bind(mod);
+  if (typeof mod.default === "function") return mod.default.bind(mod);
   if (typeof mod === "function") return mod;
   return null;
 }
@@ -749,6 +757,7 @@ function ttsHealthFromModule(mod) {
   if (!mod) return null;
   if (typeof mod.health === "function") return mod.health.bind(mod);
   if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  if (typeof mod.status === "function") return mod.status.bind(mod);
   return null;
 }
 
@@ -811,6 +820,12 @@ app.get("/health", (req, res) => {
       voiceRoute: !!voiceRouteMod,
       tts: !!ttsMod
     },
+    bindings: {
+      voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
+      voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
+      ttsHandler: !!ttsHandlerFromModule(ttsMod),
+      ttsHealth: !!ttsHealthFromModule(ttsMod)
+    },
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     tts,
@@ -842,6 +857,7 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
       ok: false,
       enabled: false,
       error: "tts_health_unavailable",
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: INDEX_VERSION, t: now() }
     });
   }
@@ -851,6 +867,7 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
       ok: !!(health && health.ok !== false),
       enabled: true,
       health,
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: INDEX_VERSION, t: now() }
     });
   } catch (err) {
@@ -859,6 +876,7 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
       enabled: true,
       error: "tts_health_failed",
       detail: cleanText(err && (err.message || err) || "tts health failed"),
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: INDEX_VERSION, t: now() }
     });
   }
