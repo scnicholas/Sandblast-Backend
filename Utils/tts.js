@@ -1058,8 +1058,6 @@ async function handleTts(req, res) {
       traceId: input.traceId,
       ttsFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).ttsFailure,
       audioFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).audioFailure,
-      ttsFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).ttsFailure,
-      audioFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).audioFailure,
       payload: { spokenUnavailable: true }
     });
   }
@@ -1175,8 +1173,13 @@ module.exports = {
   delegateTts,
   ttsHandler: handleTts,
   handler: handleTts,
+  handle: delegateTts,
+  synthesize: delegateTts,
+  tts: delegateTts,
   generate,
   health,
   PHASES,
-  TTS_VERSION
+  TTS_VERSION,
+  VERSION: TTS_VERSION,
+  version: TTS_VERSION
 };
