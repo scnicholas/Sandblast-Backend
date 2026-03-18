@@ -3,20 +3,20 @@
 /**
  * Routes/voiceRoute.js
  *
- * voiceRoute v1.0.0 NORMALIZED-TTS-HARDEN
+ * voiceRoute v1.1.0 TTS-COMPAT-HARDEN
  * ------------------------------------------------------------
  * PURPOSE
- * - Handle normalized TTS provider failures consistently
- * - Decide retry vs downgrade vs stop in one place
+ * - Resolve TTS delegate compatibility across multiple export shapes
  * - Preserve backend contract integrity for audio and JSON clients
- * - Avoid re-entry loops on terminal audio failures
+ * - Keep downgrade behavior centralized and loop-safe
+ * - Expose health/status helpers for index.js compatibility
  */
 
-const tts = require("./tts");
+const ttsMod = require("./tts");
 let chatEngine = null;
 try { chatEngine = require("./chatEngine"); } catch (_e) { chatEngine = null; }
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.0.0 NORMALIZED-TTS-HARDEN";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.1.0 TTS-COMPAT-HARDEN";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 1));
 
 function safeStr(x) {
@@ -70,10 +70,40 @@ function normalizeInput(req) {
     wantJson: wantsJson(req)
   };
 }
+
+function resolveTtsDelegate(mod) {
+  if (!mod) return null;
+  if (typeof mod.delegateTts === "function") return mod.delegateTts.bind(mod);
+  if (typeof mod.handleTts === "function") return mod.handleTts.bind(mod);
+  if (typeof mod.tts === "function") return mod.tts.bind(mod);
+  if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod.handler === "function") return mod.handler.bind(mod);
+  if (typeof mod.ttsHandler === "function") return mod.ttsHandler.bind(mod);
+  if (typeof mod.synthesize === "function") return mod.synthesize.bind(mod);
+  if (typeof mod.generateSpeech === "function") return mod.generateSpeech.bind(mod);
+  if (typeof mod.generate === "function") return mod.generate.bind(mod);
+  if (typeof mod.speak === "function") return mod.speak.bind(mod);
+  if (typeof mod.run === "function") return mod.run.bind(mod);
+  if (typeof mod.default === "function") return mod.default.bind(mod);
+  if (typeof mod === "function") return mod;
+  return null;
+}
+
+function resolveTtsHealth(mod) {
+  if (!mod) return null;
+  if (typeof mod.health === "function") return mod.health.bind(mod);
+  if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  if (typeof mod.status === "function") return mod.status.bind(mod);
+  return null;
+}
+
+const delegateTts = resolveTtsDelegate(ttsMod);
+const ttsHealth = resolveTtsHealth(ttsMod);
+
 function classifyFailure(result, attempt) {
-  const status = clampInt(result?.providerStatus || result?.status, 0, 0, 999999);
-  const retryable = !!result?.retryable;
-  const reason = safeStr(result?.reason || "tts_unavailable").toLowerCase();
+  const status = clampInt(result && (result.providerStatus || result.status), 0, 0, 999999);
+  const retryable = !!(result && result.retryable);
+  const reason = safeStr(result && (result.reason || "tts_unavailable")).toLowerCase();
 
   if (reason === "missing_text") return { action: "stop", terminal: true, retryable: false, reason };
   if (reason === "missing_voice") return { action: "stop", terminal: true, retryable: false, reason };
@@ -90,33 +120,35 @@ function classifyFailure(result, attempt) {
   }
   return { action: "downgrade", terminal: false, retryable: retryable, reason };
 }
+
 function buildFailureEnvelope(input, result, decision) {
   return {
     ok: false,
     version: VOICE_ROUTE_VERSION,
-    provider: safeStr(result?.provider || input.provider || "resemble"),
-    action: safeStr(decision?.action || "downgrade"),
-    terminal: !!decision?.terminal,
-    retryable: !!decision?.retryable,
-    reason: safeStr(decision?.reason || result?.reason || "tts_unavailable"),
-    message: safeStr(result?.message || "TTS unavailable."),
-    providerStatus: clampInt(result?.providerStatus || result?.status, 0, 0, 999999),
-    requestId: safeStr(result?.requestId || input.requestId || ""),
-    turnId: safeStr(result?.turnId || input.turnId || ""),
-    sessionId: safeStr(result?.sessionId || input.sessionId || ""),
-    traceId: safeStr(result?.traceId || ""),
-    text: safeStr(result?.text || input.textDisplay || input.text || ""),
+    provider: safeStr((result && result.provider) || input.provider || "resemble"),
+    action: safeStr((decision && decision.action) || "downgrade"),
+    terminal: !!(decision && decision.terminal),
+    retryable: !!(decision && decision.retryable),
+    reason: safeStr((decision && decision.reason) || (result && result.reason) || "tts_unavailable"),
+    message: safeStr((result && result.message) || "TTS unavailable."),
+    providerStatus: clampInt(result && (result.providerStatus || result.status), 0, 0, 999999),
+    requestId: safeStr((result && result.requestId) || input.requestId || ""),
+    turnId: safeStr((result && result.turnId) || input.turnId || ""),
+    sessionId: safeStr((result && result.sessionId) || input.sessionId || ""),
+    traceId: safeStr((result && result.traceId) || ""),
+    text: safeStr((result && result.text) || input.textDisplay || input.text || ""),
     ttsFailure: {
       ok: false,
-      action: safeStr(decision?.action || "downgrade"),
-      shouldTerminate: !!decision?.terminal,
-      retryable: !!decision?.retryable,
-      reason: safeStr(decision?.reason || result?.reason || "tts_unavailable"),
-      message: safeStr(result?.message || "TTS unavailable."),
-      providerStatus: clampInt(result?.providerStatus || result?.status, 0, 0, 999999)
+      action: safeStr((decision && decision.action) || "downgrade"),
+      shouldTerminate: !!(decision && decision.terminal),
+      retryable: !!(decision && decision.retryable),
+      reason: safeStr((decision && decision.reason) || (result && result.reason) || "tts_unavailable"),
+      message: safeStr((result && result.message) || "TTS unavailable."),
+      providerStatus: clampInt(result && (result.providerStatus || result.status), 0, 0, 999999)
     }
   };
 }
+
 async function maybeBuildDowngradedText(input, envelope) {
   if (!chatEngine || typeof chatEngine.handleChat !== "function" || !input.text) {
     return {
@@ -143,13 +175,51 @@ async function maybeBuildDowngradedText(input, envelope) {
     };
   }
 }
+
 async function callDelegate(req, attempt) {
-  const payload = { ...(req.body && typeof req.body === "object" ? req.body : {}) };
-  payload.requestId = pickFirst(payload.requestId, req.query && req.query.requestId, req.headers && req.headers["x-sb-request-id"]);
-  payload.turnId = pickFirst(payload.turnId, req.query && req.query.turnId, req.headers && req.headers["x-sb-turn-id"]);
-  payload.sessionId = pickFirst(payload.sessionId, payload.sid, req.query && req.query.sessionId, req.query && req.query.sid, req.headers && req.headers["x-sb-session-id"]);
+  const payload = { ...(req && req.body && typeof req.body === "object" ? req.body : {}) };
+  payload.requestId = pickFirst(payload.requestId, req && req.query && req.query.requestId, req && req.headers && req.headers["x-sb-request-id"]);
+  payload.turnId = pickFirst(payload.turnId, req && req.query && req.query.turnId, req && req.headers && req.headers["x-sb-turn-id"]);
+  payload.sessionId = pickFirst(payload.sessionId, payload.sid, req && req.query && req.query.sessionId, req && req.query && req.query.sid, req && req.headers && req.headers["x-sb-session-id"]);
   payload.__voiceRouteAttempt = attempt;
-  return tts.delegateTts(payload, req);
+
+  if (!delegateTts) {
+    return {
+      ok: false,
+      retryable: false,
+      reason: "tts_delegate_unavailable",
+      message: "Resolved TTS delegate is unavailable",
+      providerStatus: 503,
+      requestId: safeStr(payload.requestId || ""),
+      turnId: safeStr(payload.turnId || ""),
+      sessionId: safeStr(payload.sessionId || "")
+    };
+  }
+
+  return delegateTts(payload, req);
+}
+
+async function health() {
+  try {
+    const info = ttsHealth ? await Promise.resolve(ttsHealth()) : null;
+    return {
+      ok: !!delegateTts,
+      enabled: !!delegateTts,
+      version: VOICE_ROUTE_VERSION,
+      ttsDelegateBound: !!delegateTts,
+      ttsHealthBound: !!ttsHealth,
+      tts: info && typeof info === "object" ? info : null
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      enabled: !!delegateTts,
+      version: VOICE_ROUTE_VERSION,
+      ttsDelegateBound: !!delegateTts,
+      ttsHealthBound: !!ttsHealth,
+      error: safeStr(err && (err.message || err) || "tts_health_failed")
+    };
+  }
 }
 
 async function voiceRoute(req, res) {
@@ -217,11 +287,17 @@ async function voiceRoute(req, res) {
     payload: (downgraded || {}).payload || { reply: safeStr((downgraded || {}).reply || envelope.text || input.text || "Audio unavailable.") },
     directives: (downgraded || {}).directives || [Object.assign({ type: "tts_failure" }, envelope.ttsFailure)]
   });
-
 }
 
 module.exports = voiceRoute;
 module.exports.voiceRoute = voiceRoute;
+module.exports.route = voiceRoute;
+module.exports.run = voiceRoute;
+module.exports.speak = voiceRoute;
 module.exports.default = voiceRoute;
+module.exports.health = health;
+module.exports.getHealth = health;
+module.exports.status = health;
+module.exports.resolveTtsDelegate = resolveTtsDelegate;
+module.exports.resolveTtsHealth = resolveTtsHealth;
 module.exports.VOICE_ROUTE_VERSION = VOICE_ROUTE_VERSION;
-
