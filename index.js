@@ -298,9 +298,18 @@ function getSessionId(req) {
   ).slice(0, 120);
 }
 
+function readBearerToken(req) {
+  const auth = cleanText((req.headers && req.headers.authorization) || req.get?.("Authorization") || "");
+  if (!auth) return "";
+  if (!/^bearer\s+/i.test(auth)) return "";
+  return cleanText(auth.replace(/^bearer\s+/i, ""));
+}
+
 function readToken(req) {
   const header = lower(CFG.apiTokenHeader || "x-sb-widget-token");
-  return cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
+  const byHeader = cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
+  if (byHeader) return byHeader;
+  return readBearerToken(req);
 }
 
 function denyUnauthorized(res) {
@@ -725,31 +734,44 @@ function attachVoiceRoute(payload) {
   return out;
 }
 
-async function synthesizeSpeech(reqBody, routeKind) {
+async function synthesizeSpeech(reqBody, routeKind, req) {
   if (!ttsMod) return null;
   const input = isObj(reqBody) ? reqBody : {};
   const payload = { ...input, routeKind: routeKind || input.routeKind || "main" };
 
-  if (typeof ttsMod.synthesize === "function") return await ttsMod.synthesize(payload);
-  if (typeof ttsMod.tts === "function") return await ttsMod.tts(payload);
-  if (typeof ttsMod.handle === "function") return await ttsMod.handle(payload);
-  if (typeof ttsMod === "function") return await ttsMod(payload);
+  if (typeof ttsMod.delegateTts === "function") return await ttsMod.delegateTts(payload, req || null);
+  if (typeof ttsMod.synthesize === "function") return await ttsMod.synthesize(payload, req || null);
+  if (typeof ttsMod.tts === "function") return await ttsMod.tts(payload, req || null);
+  if (typeof ttsMod.generate === "function") return await ttsMod.generate(payload.text || payload.data || "", payload);
+  if (typeof ttsMod.handle === "function") return await ttsMod.handle(payload, req || null);
+  if (typeof ttsMod.handler === "function") return await ttsMod.handler(payload, req || null);
+  if (typeof ttsMod === "function") return await ttsMod(payload, req || null);
   return null;
 }
 
-function shapeTtsError(detail, traceId) {
+function shapeTtsError(detail, traceId, extra) {
+  const meta = isObj(extra) ? extra : {};
+  let health = null;
+  try {
+    if (ttsMod && typeof ttsMod.health === "function") {
+      health = ttsMod.health();
+    }
+  } catch (_) {}
   return {
     ok: false,
     spokenUnavailable: true,
-    error: "tts_route_failure",
-    detail: cleanText(detail || "TTS route failed"),
-    requestId: cleanText(traceId || makeTraceId("tts")),
-    traceId: cleanText(traceId || makeTraceId("tts")),
+    error: cleanText(meta.error || "tts_route_failure") || "tts_route_failure",
+    detail: cleanText(detail || meta.detail || "TTS route failed"),
+    retryable: typeof meta.retryable === "boolean" ? meta.retryable : undefined,
+    requestId: cleanText(meta.requestId || traceId || makeTraceId("tts")),
+    traceId: cleanText(meta.traceId || traceId || makeTraceId("tts")),
     version: INDEX_VERSION,
+    providerStatus: Number(meta.providerStatus || meta.status || 0) || undefined,
     tts: {
       loaded: !!ttsMod,
-      version: safeStr(ttsMod && (ttsMod.VERSION || ttsMod.version || "tts.js"))
-    }
+      version: safeStr(ttsMod && (ttsMod.VERSION || ttsMod.TTS_VERSION || ttsMod.version || "tts.js"))
+    },
+    health: health || undefined
   };
 }
 
@@ -774,7 +796,7 @@ app.get("/api/voice-route", enforceVoiceRouteAccess, (_req, res) => {
 app.post("/api/tts", enforceToken, async (req, res) => {
   const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
   try {
-    const result = await synthesizeSpeech(req.body, "main");
+    const result = await synthesizeSpeech(req.body, "main", req);
     if (!result) {
       return res.status(503).json(shapeTtsError("TTS module unavailable", traceId));
     }
@@ -790,7 +812,7 @@ app.post("/api/tts", enforceToken, async (req, res) => {
     }
 
     if (isObj(result) && result.ok === false) {
-      return res.status(503).json(shapeTtsError(result.detail || result.error || "TTS synthesis failed", traceId));
+      return res.status(Number(result.status || result.providerStatus || 503) || 503).json(shapeTtsError(result.detail || result.message || result.error || "TTS synthesis failed", traceId, result));
     }
 
     if (isObj(result)) {
@@ -800,14 +822,14 @@ app.post("/api/tts", enforceToken, async (req, res) => {
     return res.status(503).json(shapeTtsError("Invalid TTS response", traceId));
   } catch (err) {
     console.log("[Sandblast][tts:error]", err && (err.stack || err.message || err));
-    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId));
+    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId, { error: "tts_route_failure" }));
   }
 });
 
 app.post("/api/tts/intro", enforceToken, async (req, res) => {
   const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts_intro"));
   try {
-    const result = await synthesizeSpeech(req.body, "intro");
+    const result = await synthesizeSpeech(req.body, "intro", req);
     if (!result) {
       return res.status(503).json(shapeTtsError("TTS intro module unavailable", traceId));
     }
@@ -823,7 +845,7 @@ app.post("/api/tts/intro", enforceToken, async (req, res) => {
     }
 
     if (isObj(result) && result.ok === false) {
-      return res.status(503).json(shapeTtsError(result.detail || result.error || "TTS intro synthesis failed", traceId));
+      return res.status(Number(result.status || result.providerStatus || 503) || 503).json(shapeTtsError(result.detail || result.message || result.error || "TTS intro synthesis failed", traceId, result));
     }
 
     if (isObj(result)) {
@@ -833,7 +855,7 @@ app.post("/api/tts/intro", enforceToken, async (req, res) => {
     return res.status(503).json(shapeTtsError("Invalid intro TTS response", traceId));
   } catch (err) {
     console.log("[Sandblast][tts:intro:error]", err && (err.stack || err.message || err));
-    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId));
+    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId, { error: "tts_route_failure" }));
   }
 });
 
