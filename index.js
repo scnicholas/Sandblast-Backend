@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.5.0sb
+ * index.js v2.6.1sb
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -15,6 +15,7 @@
  * - Hardens TTS route error handling and response finalization
  * - Adds affect/stabilize/fail-safe unification
  * - Adds loop suppression / stale-UI wipe discipline
+ * - Adds TTS response normalization so playable audio always streams when available
  */
 
 const express = require("express");
@@ -28,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.6.0sb";
+const INDEX_VERSION = "index.js v2.6.1sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -70,47 +71,6 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
-
-function isAllowedOrigin(origin) {
-  const o = cleanText(origin);
-  if (!o) return true;
-  if (CFG.corsAllowedOrigins.includes("*")) return true;
-  return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
-}
-
-function applyCors(req, res) {
-  const origin = cleanText(req.headers.origin || "");
-  const reqHeaders = cleanText(req.headers["access-control-request-headers"] || "");
-  const allowHeaders = uniq([
-    "Content-Type",
-    "Authorization",
-    "x-sb-trace-id",
-    CFG.apiTokenHeader,
-    ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
-  ]);
-
-  if (origin && isAllowedOrigin(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Vary", "Origin");
-    if (CFG.corsAllowCredentials) {
-      res.header("Access-Control-Allow-Credentials", "true");
-    }
-  }
-
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
-  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
-  return origin;
-}
-
-app.use((req, res, next) => {
-  applyCors(req, res);
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
-  }
-  return next();
-});
-
 
 function safeStr(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -209,6 +169,46 @@ const CFG = {
   port: PORT
 };
 
+function isAllowedOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return true;
+  if (CFG.corsAllowedOrigins.includes("*")) return true;
+  return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
+}
+
+function applyCors(req, res) {
+  const origin = cleanText(req.headers.origin || "");
+  const reqHeaders = cleanText(req.headers["access-control-request-headers"] || "");
+  const allowHeaders = uniq([
+    "Content-Type",
+    "Authorization",
+    "x-sb-trace-id",
+    CFG.apiTokenHeader,
+    ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
+  ]);
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Vary", "Origin");
+    if (CFG.corsAllowCredentials) {
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  }
+
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  return origin;
+}
+
+app.use((req, res, next) => {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  return next();
+});
+
 const chatEngineMod = tryRequireMany([
   "./chatEngine",
   "./chatEngine.js",
@@ -265,7 +265,13 @@ const affectEngineMod = tryRequireMany([
   "./Utils/affectEngine.js"
 ]);
 
-const knowledgeRuntimeMod = tryRequireMany(["./Utils/knowledgeRuntime","./Utils/knowledgeRuntime.js","./utils/knowledgeRuntime","./utils/knowledgeRuntime.js"]);
+const knowledgeRuntimeMod = tryRequireMany([
+  "./Utils/knowledgeRuntime",
+  "./Utils/knowledgeRuntime.js",
+  "./utils/knowledgeRuntime",
+  "./utils/knowledgeRuntime.js"
+]);
+
 const knowledgeRuntime = {
   available: !!knowledgeRuntimeMod,
   extract(query, opts) {
@@ -345,6 +351,7 @@ function setLastTurn(sessionId, data) {
     at: now()
   });
 }
+
 function getSupportState(sessionId) {
   return memory.supportBySession.get(sessionId) || {
     hold: 0,
@@ -354,6 +361,7 @@ function getSupportState(sessionId) {
     updatedAt: 0
   };
 }
+
 function setSupportState(sessionId, patch) {
   const prev = getSupportState(sessionId);
   const next = {
@@ -383,7 +391,6 @@ function setTransportState(sessionId, patch) {
   memory.transportBySession.set(sessionId, next);
   return next;
 }
-
 function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
@@ -432,8 +439,8 @@ function normalizeEmotion(raw, inputText) {
   out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning)/.test(rawText);
   out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
   out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
-  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(raw);
-  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(raw);
+  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
+  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(rawText);
 
   if (!out.label) {
     if (out.sensitive) out.label = "crisis";
@@ -622,6 +629,7 @@ function mergeMeta(base, patch) {
     ...(isObj(patch) ? patch : {})
   };
 }
+
 function buildTransportKey(ctx, text, req) {
   const msg = safeStr(text).trim().toLowerCase();
   return [
@@ -648,6 +656,7 @@ function detectLoop(sessionId, reply, userText) {
     userHash
   };
 }
+
 function shapeEngineReply(raw) {
   if (!isObj(raw)) return {};
   const payload = isObj(raw.payload) ? raw.payload : {};
@@ -700,276 +709,325 @@ async function callMarionBridge(input) {
   }
   return null;
 }
+function normalizePayload(req) {
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const text = cleanText(body.text || payload.text || payload.query || "");
+  return {
+    text,
+    body,
+    payload,
+    lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
+    year: cleanText(payload.year || body.year || ""),
+    mode: cleanText(payload.mode || body.mode || ""),
+    turnId: payload.turnId || body.turnId || null,
+    traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
+    client: isObj(body.client) ? body.client : {}
+  };
+}
 
-function buildVoiceRouteSnapshot() {
-  let out = {
-    ttsRoutePath: "/api/tts",
-    introRoutePath: "/api/tts/intro",
-    voice: process.env.SB_DEFAULT_VOICE || "nyx",
-    voiceId: process.env.SBNYX_RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_UUID || "",
-    voiceName: process.env.SB_DEFAULT_VOICE_NAME || "Nyx",
-    mixerVoiceId: process.env.SB_MIXER_VOICE_ID || "",
-    mixerVoiceName: process.env.SB_MIXER_VOICE_NAME || "",
-    preserveMixerVoice: CFG.preserveMixerVoice
+function normalizeEmotion(raw, inputText) {
+  const out = {
+    ok: false,
+    label: "",
+    intensity: 0,
+    distress: false,
+    stabilize: false,
+    sensitive: false,
+    positive: false,
+    technical: false
   };
 
-  try {
-    if (voiceRouteMod && typeof voiceRouteMod.getVoiceRoute === "function") {
-      const vr = voiceRouteMod.getVoiceRoute();
-      if (isObj(vr)) out = { ...out, ...vr };
-    } else if (voiceRouteMod && typeof voiceRouteMod.snapshot === "function") {
-      const vr = voiceRouteMod.snapshot();
-      if (isObj(vr)) out = { ...out, ...vr };
-    }
-  } catch (err) {
-    console.log("[Sandblast][voiceRoute:error]", err && (err.stack || err.message || err));
+  const baseText = `${safeStr(inputText)} ${safeStr(raw && raw.label)} ${safeStr(raw && raw.name)} ${safeStr(raw && raw.primary)} ${safeStr(raw && raw.mode)} ${safeStr(raw && raw.intent)}`;
+  const txt = lower(baseText);
+
+  if (isObj(raw)) {
+    out.ok = true;
+    out.label = cleanText(raw.label || raw.name || raw.primary || "");
+    const n = Number(raw.intensity ?? raw.score ?? raw.weight ?? 0);
+    out.intensity = Number.isFinite(n) ? clamp(n, 0, 1) : 0;
+    out.distress = !!(raw.distress || raw.support || raw.overwhelmed || raw.anxious || raw.negative);
+    out.stabilize = !!(raw.stabilize || raw.regulate || raw.deescalate);
+    out.sensitive = !!(raw.sensitive || raw.crisis || raw.selfHarm);
+    out.positive = !!(raw.positive || raw.upbeat);
+    out.technical = !!raw.technical;
   }
 
+  const rawText = txt;
+  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning)/.test(rawText);
+  out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
+  out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
+  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
+  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(rawText);
+
+  if (!out.label) {
+    if (out.sensitive) out.label = "crisis";
+    else if (out.distress) out.label = "distress";
+    else if (out.technical) out.label = "technical";
+    else if (out.positive) out.label = "positive";
+    else out.label = "neutral";
+  }
+
+  if (!out.ok) out.ok = out.distress || out.sensitive || out.positive || out.technical || !!out.label;
   return out;
 }
 
-function attachVoiceRoute(payload) {
-  const out = isObj(payload) ? { ...payload } : {};
-  out.voiceRoute = buildVoiceRouteSnapshot();
+function inferEmotion(text, reqCtx) {
+  const raw = cleanText(text);
+  let engineResult = null;
+
+  try {
+    if (affectEngineMod && typeof affectEngineMod.detect === "function") {
+      engineResult = affectEngineMod.detect(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod.analyze === "function") {
+      engineResult = affectEngineMod.analyze(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod === "function") {
+      engineResult = affectEngineMod(raw, reqCtx || {});
+    }
+  } catch (err) {
+    console.log("[Sandblast][affectEngine:error]", err && (err.stack || err.message || err));
+    engineResult = null;
+  }
+
+  return normalizeEmotion(engineResult, raw);
+}
+
+function normalizeSupportReply(text) {
+  const cleaned = cleanReplyForUser(text);
+  if (cleaned) return cleaned;
+  return "I am here with you. We can take this one step at a time.";
+}
+
+function buildSafeSupportReply(inputText, emotion, extras) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, inputText);
+  const opts = isObj(extras) ? extras : {};
+  const base = cleanText(inputText);
+
+  if (emo.sensitive) {
+    return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988. Tell me: did something happen today, or has this been building for a while?";
+  }
+
+  let externalReply = "";
+  try {
+    if (supportResponseMod && typeof supportResponseMod.buildSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.buildSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (supportResponseMod && typeof supportResponseMod.getSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.getSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (typeof supportResponseMod === "function") {
+      externalReply = safeStr(supportResponseMod({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    }
+  } catch (err) {
+    console.log("[Sandblast][supportResponse:error]", err && (err.stack || err.message || err));
+  }
+
+  if (externalReply) return normalizeSupportReply(externalReply);
+
+  if (emo.distress) {
+    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
+  }
+
+  return "I am here with you. Tell me what happened, and we will steady this together.";
+}
+
+function buildQuietUiPatch(reason, holdActive) {
+  const quiet = {
+    mode: "quiet",
+    chips: [],
+    allowMic: true,
+    replace: true,
+    clearStale: true,
+    revision: now()
+  };
+
+  return {
+    ui: quiet,
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {
+      supportLock: holdActive ? { active: true } : {}
+    },
+    metaPatch: {
+      clearStaleUi: true,
+      suppressMenus: true,
+      failSafe: reason === "failsafe",
+      supportHold: !!holdActive
+    }
+  };
+}
+
+function shouldEnterSupportHold(text, emotion, engineResult) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const intent = lower(engineResult && engineResult.intent);
+  const mode = lower(engineResult && engineResult.mode);
+  return !!(
+    emo.sensitive ||
+    emo.distress ||
+    emo.stabilize ||
+    intent === "stabilize" ||
+    mode === "transitional" ||
+    mode === "support" ||
+    mode === "quiet"
+  );
+}
+
+function buildSupportSessionPatch(existing, active, release) {
+  const prev = isObj(existing) ? existing : {};
+  const lock = {};
+  if (active) lock.active = true;
+  if (release) lock.release = true;
+  return {
+    ...prev,
+    supportLock: lock
+  };
+}
+
+function shouldSuppressMenus(engineOut, supportActive) {
+  const ui = isObj(engineOut?.ui) ? engineOut.ui : {};
+  const meta = isObj(engineOut?.meta) ? engineOut.meta : {};
+  if (supportActive) return true;
+  return !!(
+    ui.replace ||
+    ui.clearStale ||
+    ui.menuSuppressed ||
+    ui.degradedSupport ||
+    ui.failSafe ||
+    meta.clearStaleUi ||
+    meta.suppressMenus ||
+    meta.failSafe
+  );
+}
+
+function enforceQuietUiIfNeeded(base, opts) {
+  const out = isObj(base) ? { ...base } : {};
+  const o = isObj(opts) ? opts : {};
+  const supportActive = !!o.supportActive;
+  const failSafe = !!o.failSafe;
+  const forceQuiet = !!o.forceQuiet;
+
+  if (!(supportActive || failSafe || forceQuiet)) return out;
+
+  const patch = buildQuietUiPatch(failSafe ? "failsafe" : "support", supportActive);
+  out.ui = patch.ui;
+  out.directives = patch.directives;
+  out.followUps = patch.followUps;
+  out.followUpsStrings = patch.followUpsStrings;
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {})
+  };
+  out.meta = {
+    ...(isObj(out.meta) ? out.meta : {}),
+    ...(isObj(patch.metaPatch) ? patch.metaPatch : {})
+  };
   return out;
 }
 
-async function synthesizeSpeech(reqBody, routeKind, req) {
-  if (!ttsMod) return null;
-  const input = isObj(reqBody) ? reqBody : {};
-  const payload = { ...input, routeKind: routeKind || input.routeKind || "main" };
+function mergeMeta(base, patch) {
+  return {
+    ...(isObj(base) ? base : {}),
+    ...(isObj(patch) ? patch : {})
+  };
+}
 
-  if (typeof ttsMod.delegateTts === "function") return await ttsMod.delegateTts(payload, req || null);
-  if (typeof ttsMod.synthesize === "function") return await ttsMod.synthesize(payload, req || null);
-  if (typeof ttsMod.tts === "function") return await ttsMod.tts(payload, req || null);
-  if (typeof ttsMod.generate === "function") return await ttsMod.generate(payload.text || payload.data || "", payload);
-  if (typeof ttsMod.handle === "function") return await ttsMod.handle(payload, req || null);
-  if (typeof ttsMod.handler === "function") return await ttsMod.handler(payload, req || null);
-  if (typeof ttsMod === "function") return await ttsMod(payload, req || null);
+function buildTransportKey(ctx, text, req) {
+  const msg = safeStr(text).trim().toLowerCase();
+  return [
+    getSessionId(req),
+    safeStr(ctx?.lane || ""),
+    safeStr(ctx?.mode || ""),
+    safeStr(ctx?.year || ""),
+    msg
+  ].join("|");
+}
+
+function detectLoop(sessionId, reply, userText) {
+  const prev = getLastTurn(sessionId);
+  const curHash = replyHash(reply);
+  const userHash = replyHash(userText);
+  const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
+  const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
+  const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
+  return {
+    sameReply,
+    sameUser,
+    repeated: sameReply && sameUser,
+    curHash,
+    userHash
+  };
+}
+
+function shapeEngineReply(raw) {
+  if (!isObj(raw)) return {};
+  const payload = isObj(raw.payload) ? raw.payload : {};
+  return {
+    ok: raw.ok !== false,
+    reply: cleanText(raw.reply || payload.reply || raw.message || ""),
+    payload: isObj(payload) ? payload : {},
+    lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
+    laneId: cleanText(raw.laneId || raw.lane || ""),
+    sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
+    bridge: raw.bridge || null,
+    ctx: isObj(raw.ctx) ? raw.ctx : {},
+    ui: isObj(raw.ui) ? raw.ui : {},
+    directives: Array.isArray(raw.directives) ? raw.directives : [],
+    followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
+    followUpsStrings: Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : [],
+    sessionPatch: isObj(raw.sessionPatch) ? raw.sessionPatch : {},
+    cog: isObj(raw.cog) ? raw.cog : {},
+    meta: isObj(raw.meta) ? raw.meta : {},
+    audio: isObj(raw.audio) ? raw.audio : null,
+    ttsProfile: isObj(raw.ttsProfile) ? raw.ttsProfile : null,
+    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null
+  };
+}
+
+async function callChatEngine(input) {
+  if (!chatEngineMod) return null;
+  try {
+    if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
+    if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
+    if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
+    if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    if (typeof chatEngineMod === "function") return await chatEngineMod(input);
+  } catch (err) {
+    console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
+    return { __engineError: err };
+  }
   return null;
 }
 
-function shapeTtsError(detail, traceId, extra) {
-  const meta = isObj(extra) ? extra : {};
-  let health = null;
+async function callMarionBridge(input) {
+  if (!marionBridgeMod) return null;
   try {
-    if (ttsMod && typeof ttsMod.health === "function") {
-      health = ttsMod.health();
-    }
-  } catch (_) {}
-  return {
-    ok: false,
-    spokenUnavailable: true,
-    error: cleanText(meta.error || "tts_route_failure") || "tts_route_failure",
-    detail: cleanText(detail || meta.detail || "TTS route failed"),
-    retryable: typeof meta.retryable === "boolean" ? meta.retryable : undefined,
-    requestId: cleanText(meta.requestId || traceId || makeTraceId("tts")),
-    traceId: cleanText(meta.traceId || traceId || makeTraceId("tts")),
-    version: INDEX_VERSION,
-    providerStatus: Number(meta.providerStatus || meta.status || 0) || undefined,
-    tts: {
-      loaded: !!ttsMod,
-      version: safeStr(ttsMod && (ttsMod.VERSION || ttsMod.TTS_VERSION || ttsMod.version || "tts.js"))
-    },
-    health: health || undefined
-  };
+    if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
+    if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
+    if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
+    if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
+  } catch (err) {
+    console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
+  }
+  return null;
 }
-
-app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
-    up: true,
-    version: INDEX_VERSION,
-    bootedAt: SERVER_BOOT_AT,
-    t: now()
-  });
-});
-
-app.get("/api/voice-route", enforceVoiceRouteAccess, (_req, res) => {
-  res.json({
-    ok: true,
-    payload: buildVoiceRouteSnapshot(),
-    meta: { v: INDEX_VERSION, t: now() }
-  });
-});
-
-app.post("/api/tts", enforceToken, async (req, res) => {
-  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
-  try {
-    const result = await synthesizeSpeech(req.body, "main", req);
-    if (!result) {
-      return res.status(503).json(shapeTtsError("TTS module unavailable", traceId));
-    }
-
-    if (Buffer.isBuffer(result)) {
-      res.setHeader("Content-Type", "audio/mpeg");
-      return res.status(200).send(result);
-    }
-
-    if (isObj(result) && Buffer.isBuffer(result.audio)) {
-      res.setHeader("Content-Type", result.mimeType || "audio/mpeg");
-      return res.status(200).send(result.audio);
-    }
-
-    if (isObj(result) && result.ok === false) {
-      return res.status(Number(result.status || result.providerStatus || 503) || 503).json(shapeTtsError(result.detail || result.message || result.error || "TTS synthesis failed", traceId, result));
-    }
-
-    if (isObj(result)) {
-      return res.status(200).json(result);
-    }
-
-    return res.status(503).json(shapeTtsError("Invalid TTS response", traceId));
-  } catch (err) {
-    console.log("[Sandblast][tts:error]", err && (err.stack || err.message || err));
-    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId, { error: "tts_route_failure" }));
-  }
-});
-
-app.post("/api/tts/intro", enforceToken, async (req, res) => {
-  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts_intro"));
-  try {
-    const result = await synthesizeSpeech(req.body, "intro", req);
-    if (!result) {
-      return res.status(503).json(shapeTtsError("TTS intro module unavailable", traceId));
-    }
-
-    if (Buffer.isBuffer(result)) {
-      res.setHeader("Content-Type", "audio/mpeg");
-      return res.status(200).send(result);
-    }
-
-    if (isObj(result) && Buffer.isBuffer(result.audio)) {
-      res.setHeader("Content-Type", result.mimeType || "audio/mpeg");
-      return res.status(200).send(result.audio);
-    }
-
-    if (isObj(result) && result.ok === false) {
-      return res.status(Number(result.status || result.providerStatus || 503) || 503).json(shapeTtsError(result.detail || result.message || result.error || "TTS intro synthesis failed", traceId, result));
-    }
-
-    if (isObj(result)) {
-      return res.status(200).json(result);
-    }
-
-    return res.status(503).json(shapeTtsError("Invalid intro TTS response", traceId));
-  } catch (err) {
-    console.log("[Sandblast][tts:intro:error]", err && (err.stack || err.message || err));
-    return res.status(503).json(shapeTtsError(err && (err.message || err), traceId, { error: "tts_route_failure" }));
-  }
-});
-
-app.post("/api/chat", enforceToken, async (req, res) => {
-  const startedAt = now();
-  const norm = normalizePayload(req);
-  const sessionId = getSessionId(req);
-  const transportKey = buildTransportKey({ lane: norm.lane, mode: norm.mode, year: norm.year }, norm.text, req);
-  const transportState = getTransportState(sessionId);
-
-    if (transportState.key && transportState.key === transportKey && (now() - transportState.at) < CFG.loopSuppressionWindowMs) {
-    const support = getSupportState(sessionId);
-    const quietReply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
-    const loopReply = enforceQuietUiIfNeeded(attachVoiceRoute({
-      ok: true,
-      reply: quietReply,
-      payload: { reply: quietReply },
-      lane: norm.lane || "general",
-      laneId: norm.lane || "general",
-      sessionLane: norm.lane || "general",
-      bridge: null,
-      ctx: {},
-      ui: {},
-      directives: [],
-      followUps: [],
-      followUpsStrings: [],
-      sessionPatch: buildSupportSessionPatch({}, true, false),
-      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-      requestId: makeTraceId("loop"),
-      traceId: norm.traceId,
-      meta: mergeMeta({
-        v: INDEX_VERSION,
-        t: now(),
-        engineVersion: "chatEngine loop suppression",
-        clearStaleUi: true,
-        suppressMenus: true,
-        failSafe: false,
-        loopSuppressed: true
-      }, {
-        supportHold: !!support.active
-      })
-    }), {
-      supportActive: true,
-      failSafe: false,
-      forceQuiet: true
-    });
-
-    setTransportState(sessionId, { key: transportKey, count: transportState.count + 1 });
-    setLastTurn(sessionId, {
-      replyHash: replyHash(quietReply),
-      userHash: replyHash(norm.text),
-      lane: norm.lane
-    });
-
-    return res.status(200).json(loopReply);
-  }
-
-  setTransportState(sessionId, { key: transportKey, count: transportState.count + 1 });
-
-  const emotion = inferEmotion(norm.text, {
-    lane: norm.lane,
-    mode: norm.mode,
-    year: norm.year,
-    traceId: norm.traceId,
-    sessionId
-  });
-
-  const supportState = getSupportState(sessionId);
-  const supportRequested = shouldEnterSupportHold(norm.text, emotion, null);
-  let supportHold = supportState.hold || 0;
-  let supportActive = !!supportState.active;
-
-  if (supportRequested) {
-    supportActive = true;
-    supportHold = CFG.quietSupportHoldTurns;
-  } else if (supportActive && supportHold > 0) {
-    supportHold -= 1;
-    supportActive = supportHold > 0;
-  }
-
-  let marion = null;
-  try {
-    marion = await callMarionBridge({
-      text: norm.text,
-      lane: norm.lane,
-      mode: norm.mode,
-      year: norm.year,
-      traceId: norm.traceId,
-      sessionId,
-      emotion
-    });
-  } catch (_) {}
-
-  let engineRaw = await callChatEngine({
-    text: norm.text,
-    payload: norm.payload,
-    lane: norm.lane,
-    mode: norm.mode,
-    year: norm.year,
-    traceId: norm.traceId,
-    requestTimeoutMs: CFG.requestTimeoutMs,
-    marion,
-    emotion
-  });
-
-  let engineError = null;
-  if (isObj(engineRaw) && engineRaw.__engineError) {
-    engineError = engineRaw.__engineError;
-    engineRaw = null;
-  }
-
-  let shaped = shapeEngineReply(engineRaw);
-  let failSafe = false;
-    if (engineError) {
+  if (engineError) {
     failSafe = true;
     const supportReply = buildSafeSupportReply(norm.text, emotion, {
       traceId: norm.traceId,
