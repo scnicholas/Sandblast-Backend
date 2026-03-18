@@ -88,7 +88,6 @@ function _headerSafe(value, max = 80) {
   return _str(value).replace(/[\r\n]+/g, " ").trim().slice(0, max);
 }
 
-
 function _pickFirst() {
   for (let i = 0; i < arguments.length; i += 1) {
     const v = _trim(arguments[i]);
@@ -298,6 +297,7 @@ async function _synthesizeWithRetry(providerInput, snapshot, shapeElapsedMs, seg
         shapeElapsedMs,
         segmentCount
       };
+
       if (!retryable || attempt >= plan.maxAttempts) return lastFailure;
       const delayMs = Math.min(plan.maxDelayMs, plan.baseDelayMs * Math.pow(2, attempt - 1));
       _log("provider_retry_wait", { ...snapshot, attempt, delayMs, reason, providerStatus: status });
@@ -598,6 +598,7 @@ function _shapeSpeechText(rawText, options) {
   const pronouncedText = _applyPronunciationMap(speakBase, pronunciationMap);
   const segments = _segmentSentences(pronouncedText, speechHints);
   const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
+
   const joinPause = _pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65)));
   const ssmlText = ssmlSegments.length
     ? `<speak>${ssmlSegments.join(joinPause)}</speak>`
@@ -1006,13 +1007,16 @@ async function delegateTts(payload, req) {
     ok: true,
     provider: result.provider || "resemble",
     audio: result.buffer,
+    buffer: result.buffer,
     mime: result.mimeType || "audio/mpeg",
+    mimeType: result.mimeType || "audio/mpeg",
     elapsedMs: result.elapsedMs || 0,
     requestId: result.requestId || input.sourceId || input.requestId || "",
     providerStatus: result.providerStatus || 200,
     providerEndpoint: result.providerEndpoint || "",
     authMode: result.authMode || "",
     text: result.textDisplay || input.textDisplay || input.text,
+    textDisplay: result.textDisplay || input.textDisplay || input.text,
     textSpeak: result.textSpeak || input.text,
     voiceUuid: result.voiceUuid || input.voiceUuid,
     routeKind: input.routeKind || "main",
@@ -1058,6 +1062,8 @@ async function handleTts(req, res) {
       traceId: input.traceId,
       ttsFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).ttsFailure,
       audioFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).audioFailure,
+      ttsFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).ttsFailure,
+      audioFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).audioFailure,
       payload: { spokenUnavailable: true }
     });
   }
@@ -1167,19 +1173,3 @@ async function handleTts(req, res) {
 }
 
 const health = () => _healthSnapshot();
-
-module.exports = {
-  handleTts,
-  delegateTts,
-  ttsHandler: handleTts,
-  handler: handleTts,
-  handle: delegateTts,
-  synthesize: delegateTts,
-  tts: delegateTts,
-  generate,
-  health,
-  PHASES,
-  TTS_VERSION,
-  VERSION: TTS_VERSION,
-  version: TTS_VERSION
-};
