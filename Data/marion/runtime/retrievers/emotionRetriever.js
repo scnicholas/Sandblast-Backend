@@ -45,6 +45,61 @@ function _lower(v) { return _trim(v).toLowerCase(); }
 function _normalizeText(text) { return _lower(text).replace(/[^a-z0-9\s'’-]+/g, " ").replace(/\s+/g, " ").trim(); }
 function _uniqStrings(arr) { return [...new Set(_safeArray(arr).map((x) => _trim(x)).filter(Boolean))]; }
 
+function _extractGuidedPrompt(input = {}) {
+  const obj = _safeObj(input);
+  const direct = _safeObj(obj.guidedPrompt);
+  const body = _safeObj(obj.body);
+  const payload = _safeObj(obj.payload);
+  const ctx = _safeObj(obj.ctx || obj.context);
+  const fromBody = _safeObj(body.guidedPrompt);
+  const fromPayload = _safeObj(payload.guidedPrompt);
+  const gp = Object.keys(direct).length ? direct :
+    Object.keys(fromBody).length ? fromBody :
+    Object.keys(fromPayload).length ? fromPayload :
+    _safeObj(ctx.guidedPrompt);
+  if (!Object.keys(gp).length) return null;
+  return {
+    id: _trim(gp.id || gp.key || ""),
+    label: _trim(gp.label || gp.text || obj.text || obj.query || ""),
+    lane: _trim(gp.lane || obj.lane || payload.lane || body.lane || ""),
+    domainHint: _trim(gp.domainHint || obj.domainHint || payload.domainHint || body.domainHint || ""),
+    intentHint: _trim(gp.intentHint || obj.intentHint || payload.intentHint || body.intentHint || ""),
+    emotionalHint: _trim(gp.emotionalHint || obj.emotionalHint || payload.emotionalHint || body.emotionalHint || "")
+  };
+}
+
+function _applyGuidedPromptBias(result = {}, input = {}) {
+  const guidedPrompt = _extractGuidedPrompt(input);
+  if (!guidedPrompt) return result;
+  const next = _safeObj(result);
+  const locked = _safeObj(next.lockedEmotion);
+  const hint = _lower(guidedPrompt.emotionalHint);
+  const primary = _lower(locked.primaryEmotion || next.primaryEmotion);
+  const confidence = Number(next.confidence || locked.confidence || 0);
+  const meta = _safeObj(next.meta);
+  const linked = _uniqStrings([...(Array.isArray(meta.linkedDatasets) ? meta.linkedDatasets : []), "guided_prompt"]);
+  const boosted = hint && primary && hint === primary ? Math.max(confidence, Math.min(1, confidence + 0.08)) : confidence;
+
+  next.meta = {
+    ...meta,
+    guidedPrompt: guidedPrompt,
+    guidedPromptSource: true,
+    linkedDatasets: linked
+  };
+  next.confidence = boosted;
+  next.lockedEmotion = {
+    ...locked,
+    confidence: boosted,
+    meta: {
+      ..._safeObj(locked.meta),
+      guidedPrompt,
+      guidedPromptSource: true,
+      linkedDatasets: linked
+    }
+  };
+  return next;
+}
+
 function _flattenStrings(value, out = []) {
   if (typeof value === "string") {
     const s = _trim(value);
@@ -285,7 +340,7 @@ function retrieveEmotion(input = {}) {
       meta: { reason: "empty_text" }
     };
     empty.lockedEmotion = buildLockedEmotionContract(empty);
-    return empty;
+    return _applyGuidedPromptBias(empty, input);
   }
 
   const scored = [];
@@ -331,7 +386,7 @@ function retrieveEmotion(input = {}) {
       }
     };
     unmatched.lockedEmotion = buildLockedEmotionContract(unmatched);
-    return unmatched;
+    return _applyGuidedPromptBias(unmatched, input);
   }
 
   const emotionName = _emotionName(primary.entry);
@@ -385,7 +440,7 @@ function retrieveEmotion(input = {}) {
     }
   };
   result.lockedEmotion = buildLockedEmotionContract(result);
-  return result;
+  return _applyGuidedPromptBias(result, input);
 }
 
 module.exports = {
