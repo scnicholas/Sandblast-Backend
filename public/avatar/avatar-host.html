@@ -238,45 +238,6 @@ window.NYX_HOST_MODE = "widget_console";
     border-color: rgba(140,0,35,.30);
   }
 
-  .nyx-msg.nyx-assistant{ position:relative; overflow:hidden; }
-  .nyx-msg__state{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    margin:0 0 8px;
-    padding:4px 8px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(255,255,255,.04);
-    color:rgba(255,255,255,.76);
-    font:700 11px var(--nyx-font);
-    letter-spacing:.18px;
-    text-transform:capitalize;
-  }
-  .nyx-msg__text{ white-space:pre-wrap; }
-  .nyx-msg__actions{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-top:10px;
-  }
-  .nyx-msg__action{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    padding:8px 11px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(255,255,255,.05);
-    color:rgba(255,255,255,.92);
-    font:600 12.4px var(--nyx-font);
-    cursor:pointer;
-    transition:background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), transform .12s var(--nyx-ease);
-  }
-  .nyx-msg__action:hover{ background:rgba(140,0,35,.18); border-color:rgba(140,0,35,.48); transform:translateY(-1px); }
-  .nyx-msg__bridge{ margin-top:8px; color:rgba(255,255,255,.72); font:12.4px/1.45 var(--nyx-font); }
-
   #nyxEmpty{
     display:none;
     padding:14px 12px;
@@ -945,7 +906,7 @@ window.NYX_HOST_MODE = "widget_console";
 
 
 
-  var UI = { lane:"general", focused:false };
+  var UI = { lane:"general", focused:false, mode:"focused", placeholder:"Type to Nyx…", activeUi:null };
 
   var VOICE = {
     supportedTTS: !!window.fetch,
@@ -1065,6 +1026,95 @@ window.NYX_HOST_MODE = "widget_console";
     return false;
   }
 
+
+  function normalizeActionItems(items){
+    var seen = {};
+    var out = [];
+    var list = Array.isArray(items) ? items : [];
+    for(var i=0;i<list.length;i++){
+      var item = list[i] && typeof list[i] === "object" ? list[i] : null;
+      if(!item) continue;
+      var label = safeStr(item.label || item.title || item.text || "").trim();
+      if(!label) continue;
+      var key = label.toLowerCase();
+      if(seen[key]) continue;
+      seen[key] = true;
+      out.push({
+        id: safeStr(item.id || key.replace(/[^a-z0-9]+/g, "_")),
+        type: safeStr(item.type || "action") || "action",
+        label: label,
+        role: safeStr(item.role || "advance").toLowerCase() || "advance",
+        payload: item.payload && typeof item.payload === "object" ? item.payload : (safeStr(item.send || "").trim() ? { text: safeStr(item.send).trim() } : {})
+      });
+      if(out.length >= 4) break;
+    }
+    return out;
+  }
+
+  function defaultTopChips(){
+    return [
+      { id:"general", type:"lane", label:"General", payload:{ lane:"general" } },
+      { id:"music", type:"lane", label:"Music", payload:{ lane:"music" } },
+      { id:"roku", type:"lane", label:"Roku", payload:{ lane:"roku" } },
+      { id:"movies", type:"lane", label:"Movies", payload:{ lane:"movies" } },
+      { id:"radio", type:"lane", label:"Radio", payload:{ lane:"radio" } }
+    ];
+  }
+
+  function renderTopChips(items){
+    if(!chipsEl) return;
+    var list = Array.isArray(items) && items.length ? items : defaultTopChips();
+    chipsEl.innerHTML = "";
+    for(var i=0;i<list.length;i++){
+      var chip = list[i] && typeof list[i] === "object" ? list[i] : null;
+      if(!chip) continue;
+      var payload = chip.payload && typeof chip.payload === "object" ? chip.payload : {};
+      var btn = document.createElement("button");
+      btn.className = "chip";
+      btn.type = "button";
+      btn.setAttribute("data-type", safeStr(chip.type || "action") || "action");
+      btn.setAttribute("data-payload", safeStr(JSON.stringify(payload), 1200));
+      btn.setAttribute("data-label", safeStr(chip.label || ""));
+      if(payload.lane) btn.setAttribute("data-chip", safeStr(payload.lane).toLowerCase());
+      btn.textContent = safeStr(chip.label || "Continue") || "Continue";
+      chipsEl.appendChild(btn);
+    }
+    setActiveChip(UI.lane || "general");
+  }
+
+  function applyUiContract(ui){
+    var next = ui && typeof ui === "object" ? ui : {};
+    UI.activeUi = next;
+    if(typeof next.mode === "string" && next.mode.trim()) UI.mode = next.mode.trim().toLowerCase();
+    if(typeof next.state === "string" && next.state.trim()) UI.mode = next.state.trim().toLowerCase();
+    if(typeof next.emotionalState === "string" && next.emotionalState.trim()) UI.mode = next.emotionalState.trim().toLowerCase();
+    if(typeof next.placeholder === "string" && next.placeholder.trim()) UI.placeholder = next.placeholder.trim();
+    if(inputEl) inputEl.placeholder = UI.placeholder || "Type to Nyx…";
+    document.body.setAttribute("data-nyx-mode", UI.mode || "focused");
+    if(typeof next.allowMic === "boolean" && micBtn) micBtn.disabled = !next.allowMic;
+    renderTopChips(Array.isArray(next.chips) ? next.chips : null);
+    emitResize();
+  }
+
+  function buildAssistantMetaFromResponse(res, requestId, turn){
+    var ui = res && res.ui && typeof res.ui === "object" ? res.ui : {};
+    var emotionalTurn = res && res.emotionalTurn && typeof res.emotionalTurn === "object" ? res.emotionalTurn : {};
+    var actions = normalizeActionItems(emotionalTurn.actions || res.followUps || []);
+    return {
+      kind:"reply",
+      requestId: requestId,
+      turn: turn,
+      temp:false,
+      bridge: extractBridge(res) || null,
+      state: safeStr(emotionalTurn.primaryState || ui.emotionalState || ui.state || ui.mode || "focused").toLowerCase() || "focused",
+      secondaryState: safeStr(emotionalTurn.secondaryState || ui.emotionalSecondaryState || "steady").toLowerCase() || "steady",
+      actions: actions,
+      bridgeLine: safeStr(emotionalTurn.bridgeLine || "").trim(),
+      placeholder: safeStr(emotionalTurn.placeholder || ui.placeholder || "").trim(),
+      continuityScore: Number(emotionalTurn.continuityScore || ui.continuityScore || 0) || 0
+    };
+  }
+
   function setActiveChip(chip){
     UI.lane = safeStr(chip).toLowerCase().trim() || "general";
     if(chipsEl){
@@ -1079,53 +1129,6 @@ window.NYX_HOST_MODE = "widget_console";
   function updateEmptyState(){
     if(!widget) return;
     widget.classList.toggle("is-empty", THREAD.length === 0);
-  }
-
-
-  function normalizeActionItems(items){
-    if(!Array.isArray(items)) return [];
-    var out = [];
-    var seen = Object.create(null);
-    for(var i=0;i<items.length;i++){
-      var item = items[i] || {};
-      var label = safeStr(item.label || item.title).trim();
-      if(!label) continue;
-      var key = label.toLowerCase();
-      if(seen[key]) continue;
-      seen[key] = 1;
-      out.push({
-        id: safeStr(item.id || key.replace(/[^a-z0-9]+/g,"_")),
-        label: label,
-        role: safeStr(item.role || "advance").toLowerCase() || "advance",
-        payload: item.payload && typeof item.payload === "object" ? item.payload : {}
-      });
-      if(out.length >= 4) break;
-    }
-    return out;
-  }
-
-  function applyUiContract(ui){
-    ui = ui && typeof ui === "object" ? ui : {};
-    if(inputEl && ui.placeholder){
-      inputEl.setAttribute("placeholder", safeStr(ui.placeholder, 160));
-    }
-    if(ui.state && widget){
-      widget.setAttribute("data-engine-state", safeStr(ui.state, 40).toLowerCase());
-    }
-    if(chipsEl && Array.isArray(ui.chips) && ui.chips.length){
-      chipsEl.innerHTML = "";
-      for(var i=0;i<ui.chips.length;i++){
-        var chip = ui.chips[i] || {};
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "chip";
-        btn.setAttribute("data-chip", safeStr(chip.payload && chip.payload.lane ? chip.payload.lane : chip.id, 60));
-        btn.setAttribute("data-payload", JSON.stringify(chip.payload || {}));
-        btn.textContent = safeStr(chip.label || chip.id, 60);
-        if(chip.payload && chip.payload.lane && safeStr(chip.payload.lane).toLowerCase() === UI.lane) btn.classList.add("is-active");
-        chipsEl.appendChild(btn);
-      }
-    }
   }
 
   function pushMsg(role, text, meta){
@@ -1149,52 +1152,55 @@ window.NYX_HOST_MODE = "widget_console";
     if(!msgsEl) return;
     msgsEl.innerHTML = "";
     for(var i=0;i<THREAD.length;i++){
-      var m = THREAD[i];
+      var m = THREAD[i] || {};
+      var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
       var div = document.createElement("div");
-      div.className = "nyx-msg" + (m.role === "user" ? " me" : " nyx-assistant");
-      if(m.role === "user"){
-        div.textContent = m.text;
-      } else {
-        var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
-        var state = safeStr(meta.engineState || meta.state || meta.mode, 40).toLowerCase();
-        if(state){
-          var badge = document.createElement("div");
-          badge.className = "nyx-msg__state";
-          badge.textContent = state.replace(/_/g, " ");
-          div.appendChild(badge);
-        }
-        var body = document.createElement("div");
-        body.className = "nyx-msg__text";
-        body.textContent = m.text;
-        div.appendChild(body);
-        if(meta.bridgeLine){
-          var bridge = document.createElement("div");
-          bridge.className = "nyx-msg__bridge";
-          bridge.textContent = safeStr(meta.bridgeLine, 220);
-          div.appendChild(bridge);
-        }
-        var actions = normalizeActionItems(meta.actions);
-        if(actions.length){
-          var actionWrap = document.createElement("div");
-          actionWrap.className = "nyx-msg__actions";
-          for(var j=0;j<actions.length;j++){
-            var act = actions[j];
-            var btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "nyx-msg__action";
-            btn.setAttribute("data-action-label", act.label);
-            btn.setAttribute("data-action-payload", JSON.stringify(act.payload || {}));
-            btn.textContent = act.label;
-            actionWrap.appendChild(btn);
-          }
-          div.appendChild(actionWrap);
-        }
+      var role = safeStr(m.role || "nyx").toLowerCase();
+      var state = safeStr(meta.state || "focused").toLowerCase();
+      div.className = "nyx-msg" + (role === "user" ? " me" : " nyx-assistant nyx-msg--" + state) + ((meta.temp || meta.kind === "ack") ? " nyx-msg--typing" : "");
+
+      if(role !== "user"){
+        var badge = document.createElement("div");
+        badge.className = "nyx-msg__state";
+        badge.textContent = (state || "focused").replace(/[_-]+/g, " ");
+        div.appendChild(badge);
       }
+
+      var body = document.createElement("div");
+      body.className = "nyx-msg__text";
+      body.textContent = safeStr(m.text || "");
+      div.appendChild(body);
+
+      if(role !== "user" && meta.bridgeLine){
+        var bridge = document.createElement("div");
+        bridge.className = "nyx-msg__bridge";
+        bridge.textContent = safeStr(meta.bridgeLine || "");
+        div.appendChild(bridge);
+      }
+
+      if(role !== "user" && Array.isArray(meta.actions) && meta.actions.length){
+        var actionWrap = document.createElement("div");
+        actionWrap.className = "nyx-msg__actions";
+        for(var j=0;j<meta.actions.length;j++){
+          var a = meta.actions[j] && typeof meta.actions[j] === "object" ? meta.actions[j] : null;
+          if(!a) continue;
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "nyx-msg__action";
+          btn.textContent = safeStr(a.label || "Continue") || "Continue";
+          btn.setAttribute("data-action-payload", safeStr(JSON.stringify(a.payload || {}), 1200));
+          btn.setAttribute("data-action-label", safeStr(a.label || ""));
+          btn.setAttribute("data-action-role", safeStr(a.role || "advance"));
+          actionWrap.appendChild(btn);
+        }
+        div.appendChild(actionWrap);
+      }
+
       msgsEl.appendChild(div);
     }
     try{
       if(scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-    }catch(_){}
+    }catch(_){ }
     emitResize();
   }
 
@@ -1456,21 +1462,24 @@ window.NYX_HOST_MODE = "widget_console";
     renderMsgs();
 
     // Immediate ACK placeholder (tempo perception)
-    var ackId = pushMsg("nyx", "…", { kind:"ack", requestId: requestId, turn: turn, temp:true });
+    var ackId = pushMsg("nyx", "…", { kind:"ack", requestId: requestId, turn: turn, temp:true, state:(UI.mode || "focused") });
     renderMsgs();
 
     var url = apiBase() + (CONFIG.chatPath || "/api/chat");
+    var actionPayload = meta && meta.actionPayload && typeof meta.actionPayload === "object" ? meta.actionPayload : null;
     var packet = {
       requestId: requestId,
       text: text,
-      lane: UI.lane,
-      payload: meta && meta.payload && typeof meta.payload === "object" ? meta.payload : {},
+      lane: actionPayload && actionPayload.lane ? safeStr(actionPayload.lane).toLowerCase() : UI.lane,
+      payload: actionPayload || undefined,
       ctx: {
         tail: THREAD.slice(-10).map(function(m){ return { r:m.role, t:safeStr(m.text,360) }; }),
         source: "nyx_widget_console",
-        context: safeStr(CONFIG.context, 40)
+        context: safeStr(CONFIG.context, 40),
+        actionRole: safeStr(meta && meta.actionRole || ""),
+        actionLabel: safeStr(meta && meta.actionLabel || "")
       },
-      client: { source:"nyx_host_iframe", lane:UI.lane }
+      client: { source:"nyx_host_iframe", lane: UI.lane, mode: UI.mode || "focused" }
     };
 
     postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now(), requestId: requestId }, true);
@@ -1488,7 +1497,6 @@ window.NYX_HOST_MODE = "widget_console";
 
     // Build reply text
     var reply = "";
-    var engine = (res && res.meta && res.meta.emotionalEngine) || (res && res.cog && res.cog.emotion && res.cog.emotion.emotionalEngine) || null;
     if(res){
       reply = safeStr(res.reply || res.text || (res.data && (res.data.reply || res.data.text)) || "");
       // Some backends return { ok:true, data:{ reply }, cog:{...} }
@@ -1514,19 +1522,9 @@ window.NYX_HOST_MODE = "widget_console";
       }
     }catch(_){}
 
-    applyUiContract(res && res.ui ? res.ui : (engine ? { placeholder: engine.placeholder, state: engine.primaryState } : null));
-
     // Replace ack line with full reply (or append, depending on your preference)
     // We keep the ACK as first line and then push the full reply as a second message.
-    pushMsg("nyx", reply, {
-      kind:"reply",
-      requestId: requestId,
-      turn: turn,
-      bridge: bridge || null,
-      engineState: engine && engine.primaryState ? engine.primaryState : (res && res.ui && res.ui.state ? res.ui.state : "focused"),
-      bridgeLine: engine && engine.bridgeLine ? engine.bridgeLine : "",
-      actions: normalizeActionItems(res && res.followUps ? res.followUps : (engine && engine.actions ? engine.actions : []))
-    });
+    pushMsg("nyx", reply, { kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null });
     renderMsgs();
 
     // Voice: speak reply (not the ack)
@@ -1563,33 +1561,6 @@ window.NYX_HOST_MODE = "widget_console";
     });
   }
 
-  if(chipsEl){
-    chipsEl.addEventListener("click", function(e){
-      var t = e.target;
-      while(t && t !== chipsEl && !(t.classList && t.classList.contains("chip"))){
-        t = t.parentNode;
-      }
-      if(!t || t === chipsEl) return;
-      var chip = t.getAttribute("data-chip");
-      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
-      if(payload && payload.lane) setActiveChip(payload.lane);
-      else if(chip) setActiveChip(chip);
-
-      postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now(), payload: payload }, true);
-
-      if(payload && (payload.action || payload.text)){
-        sendText(safeStr(payload.text || payload.action || chip), { from:"chip", payload: payload });
-        return;
-      }
-
-      try{
-        var url = apiBase() + (CONFIG.chatPath || "/api/chat");
-        postJson(url, { requestId: makeId(), type:"lane_select", lane: UI.lane, ctx:{ source:"nyx_widget_console" } }, 6000).catch(function(){});
-      }catch(_){}
-    });
-  }
-
-
   if(msgsEl){
     msgsEl.addEventListener("click", function(e){
       var t = e.target;
@@ -1599,8 +1570,30 @@ window.NYX_HOST_MODE = "widget_console";
       if(!t || t === msgsEl) return;
       var payload = safeJsonParse(t.getAttribute("data-action-payload") || "{}") || {};
       var label = safeStr(t.getAttribute("data-action-label") || t.textContent || "").trim();
-      if(payload && payload.lane) setActiveChip(payload.lane);
-      sendText(label, { from:"action", payload: payload });
+      sendText((payload && payload.text) ? safeStr(payload.text) : label, { from:"action", actionPayload: payload, actionRole: t.getAttribute("data-action-role") || "advance", actionLabel: label });
+    });
+  }
+
+  if(chipsEl){
+    chipsEl.addEventListener("click", function(e){
+      var t = e.target;
+      while(t && t !== chipsEl && !(t.classList && t.classList.contains("chip"))){
+        t = t.parentNode;
+      }
+      if(!t || t === chipsEl) return;
+      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
+      var kind = safeStr(t.getAttribute("data-type") || "action").toLowerCase();
+      var label = safeStr(t.getAttribute("data-label") || t.textContent || "").trim();
+      if(payload.lane){
+        setActiveChip(payload.lane);
+        UI.lane = safeStr(payload.lane).toLowerCase() || UI.lane;
+      }
+      postToParent({ type:"NYX_CHIP", chip: payload.lane || label, lane: UI.lane, ts: now() }, true);
+      if(kind === "lane" && payload.lane && !payload.action){
+        sendText(label, { from:"chip", actionPayload: payload, actionRole:"pivot", actionLabel: label });
+        return;
+      }
+      sendText((payload && payload.text) ? safeStr(payload.text) : label, { from:"chip", actionPayload: payload, actionRole:"advance", actionLabel: label });
     });
   }
 
@@ -1633,9 +1626,18 @@ window.NYX_HOST_MODE = "widget_console";
     });
   }
 
+  applyUiContract({ chips: defaultTopChips(), mode:"focused", placeholder:"Ask Nyx anything about Sandblast…", allowMic:true });
   setActiveChip("general");
   if(THREAD.length === 0){
-    pushMsg("nyx", "Hi. I’m Nyx. Pick a mode, or tell me what you need.");
+    pushMsg("nyx", "Hi. I’m Nyx. Tell me what you need, and I’ll keep the next move clean.", {
+      kind:"reply",
+      state:"focused",
+      actions: normalizeActionItems([
+        { label:"Explore music", payload:{ lane:"music" }, role:"explore" },
+        { label:"What’s live on Roku?", payload:{ lane:"roku", action:"whats_live" }, role:"explore" },
+        { label:"Guide me to the best next step", payload:{ action:"best_next_step", lane:"general" }, role:"advance" }
+      ])
+    });
   }
   renderMsgs();
   if(inputEl) inputEl.focus();
