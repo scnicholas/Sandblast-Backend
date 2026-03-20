@@ -164,7 +164,8 @@ function resolveInputs(input = {}) {
     input.route ||
     {}
   );
-  return { lockedEmotion, strategy };
+  const guidedPrompt = input && typeof input === "object" ? (input.guidedPrompt || input.payload?.guidedPrompt || input.body?.guidedPrompt || null) : null;
+  return { lockedEmotion, strategy, guidedPrompt };
 }
 
 function mapIntent(strategy) {
@@ -396,7 +397,7 @@ function updateAffectMemory({ memory, affectState, ttsProfile, presetKey }) {
   };
 }
 
-function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile }) {
+function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt }) {
   return {
     version: VERSION,
     emotionLocked: true,
@@ -409,6 +410,7 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
     linkedDatasets: lockedEmotion.linkedDatasets,
     needs: lockedEmotion.needs,
     cues: lockedEmotion.cues,
+    guidedPrompt: guidedPrompt && typeof guidedPrompt === "object" ? guidedPrompt : null,
     strategyArchetype: strategy.archetype,
     supportMode: strategy.supportModeCandidate,
     deliveryTone: strategy.deliveryTone,
@@ -420,7 +422,7 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
 }
 
 function inferAffectState(input = {}) {
-  const { lockedEmotion, strategy } = resolveInputs(input);
+  const { lockedEmotion, strategy, guidedPrompt } = resolveInputs(input);
   if (!lockedEmotion.locked) {
     return {
       ok: false,
@@ -443,7 +445,7 @@ function runAffectEngine(input = {}) {
   const lane = safeStr(input.lane) || "Default";
   const memory = input.memory && typeof input.memory === "object" ? input.memory : {};
   const opts = mergeDeep({}, DEFAULTS, input.opts || {});
-  const { lockedEmotion, strategy } = resolveInputs(input);
+  const { lockedEmotion, strategy, guidedPrompt } = resolveInputs(input);
 
   if (!lockedEmotion.locked || !strategy.supportModeCandidate) {
     return {
@@ -479,7 +481,7 @@ function runAffectEngine(input = {}) {
     ttsProfile,
     spokenText,
     memory: nextMemory,
-    expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile }),
+    expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt }),
     debug: affectState.debug
   };
 }
