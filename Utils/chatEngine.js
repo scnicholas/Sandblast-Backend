@@ -2398,7 +2398,7 @@ async function handleChat(input) {
 
     const routeOut = bridgeShouldAnswer
       ? {
-          reply: safeStr(bridgeSynthesis.answer),
+          reply: safeStr(bridgeSynthesis.answer || bridgeSynthesis.text || marionBridgeOut?.reply || ""),
           lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || (emo ? "general" : "general")) || "general",
           directives: [],
           followUps: [],
@@ -2407,6 +2407,8 @@ async function handleChat(input) {
             bridgeResolved: true,
             bridgeDomain: safeStr(bridgeRouting?.domain || "general"),
             bridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
+            bridgeReplySource: safeStr(bridgeSynthesis?.answer ? "bridge.answer" : (bridgeSynthesis?.text ? "bridge.text" : "bridge.reply")),
+            bridgeLinkedDatasets: Array.isArray(bridgePacket?.meta?.linkedDatasets) ? bridgePacket.meta.linkedDatasets.slice(0, 12) : [],
             suppressMenus: true,
             clearStaleUi: true
           }
