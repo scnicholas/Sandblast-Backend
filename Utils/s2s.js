@@ -91,6 +91,9 @@ function createChatPayload(promptOrInput, context){
     if (!input.body.session) input.body.session = session;
     if (!input.session) input.session = session;
     if (!input.body.requestId) input.body.requestId = input.requestId;
+    if (!input.guidedPrompt && _isObj(body.guidedPrompt)) input.guidedPrompt = { ...body.guidedPrompt };
+    if (!input.body.guidedPrompt && _isObj(input.guidedPrompt)) input.body.guidedPrompt = { ...input.guidedPrompt };
+    if (!input.ctx.guidedPrompt && _isObj(input.guidedPrompt)) input.ctx.guidedPrompt = { ...input.guidedPrompt };
     return input;
   }
 
@@ -110,6 +113,7 @@ function createChatPayload(promptOrInput, context){
     },
     session,
     requestId: _traceId(),
+    guidedPrompt: _isObj(ctx.guidedPrompt) ? { ...ctx.guidedPrompt } : undefined,
   };
 }
 
@@ -163,6 +167,7 @@ function applyBridgeRefinements(out, input){
     },
   };
 
+  if (_isObj(input && input.guidedPrompt)) base.meta.guidedPrompt = { ...input.guidedPrompt };
   base.meta.s2s = {
     v: "s2s v1.0.1 OPINTEL LOOP-FIX",
     routeHash,
