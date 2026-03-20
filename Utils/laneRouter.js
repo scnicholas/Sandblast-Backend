@@ -3,7 +3,7 @@
 /**
  * utils/laneRouter.js
  *
- * laneRouter v1.2.0 UNIFIED-EMOTION-ACTIONS
+ * laneRouter v1.3.0 UI-RESPECTS-BRAIN
  * ------------------------------------------------------------
  * PURPOSE
  * - Keep lane ownership deterministic
@@ -23,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.2.0 UNIFIED-EMOTION-ACTIONS";
+const LR_VERSION = "laneRouter v1.3.0 UI-RESPECTS-BRAIN";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -116,6 +116,7 @@ function mapEmotionalState(emo) {
 function buildLaneSelectorChips(activeLane) {
   const lane = normalizeLaneValue(activeLane);
   return [
+    { id: "general", type: "lane", label: "General", payload: { lane: "general" }, role: lane === "general" ? "current" : "pivot" },
     { id: "music", type: "lane", label: "Music", payload: { lane: "music" }, role: lane === "music" ? "current" : "pivot" },
     { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" }, role: lane === "movies" ? "current" : "pivot" },
     { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" }, role: lane === "news" ? "current" : "pivot" },
@@ -130,6 +131,8 @@ function buildUiForLane(lane, emo) {
     chips: buildLaneSelectorChips(l),
     allowMic: true,
     mode: state,
+    state,
+    emotionalState: state,
     promptPlacement: "attached",
     replace: false,
     clearStale: false,
@@ -146,9 +149,19 @@ function buildUiForLane(lane, emo) {
 
   if (l === "music") {
     base.chips = [
-      { id: "top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" }, role: "advance" },
-      { id: "cinematic", type: "action", label: "Cinematic", payload: { lane: "music", action: "cinematic" }, role: "explore" },
-      { id: "yearend", type: "action", label: "Year-End", payload: { lane: "music", action: "yearend" }, role: "explore" }
+      { id: "music_top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" }, role: "advance" },
+      { id: "music_cinematic", type: "action", label: "Cinematic", payload: { lane: "music", action: "cinematic" }, role: "explore" },
+      { id: "music_yearend", type: "action", label: "Year-End", payload: { lane: "music", action: "yearend" }, role: "explore" },
+      { id: "music_reset", type: "action", label: "Reset", payload: { action: "reset" }, role: "recover" }
+    ];
+  }
+
+  if (l === "movies") {
+    base.chips = [
+      { id: "movies_title", type: "action", label: "Pick a Title", payload: { lane: "movies", action: "title_pick" }, role: "advance" },
+      { id: "movies_year", type: "action", label: "Pick a Year", payload: { lane: "movies", action: "year_pick" }, role: "narrow" },
+      { id: "movies_actor", type: "action", label: "By Actor", payload: { lane: "movies", action: "actor_pick" }, role: "explore" },
+      { id: "movies_reset", type: "action", label: "Reset", payload: { action: "reset" }, role: "recover" }
     ];
   }
 
@@ -160,6 +173,8 @@ function buildSupportUi() {
     chips: [],
     allowMic: true,
     mode: "supportive",
+    state: "supportive",
+    emotionalState: "supportive",
     promptPlacement: "attached",
     replace: true,
     clearStale: true,
@@ -212,11 +227,19 @@ function buildEmotionalActionsForLane(lane, emo, norm) {
     ], 3);
   }
 
+  if (state === "clarifying") {
+    return dedupeByLabel([
+      action("sharpen_scope", "Sharpen the scope", { action: "clarify_scope", lane: l }, "narrow", "steady"),
+      action("pick_path", "Pick the next path", { action: "pick_path", lane: l }, "advance", "steady"),
+      action("keep_simple", "Keep it simple", { action: "keep_simple", lane: l }, "confirm", "steady")
+    ], 3);
+  }
+
   return dedupeByLabel([
-    action("show_fix", "Show the exact fix", { action: "exact_fix", lane: l }, "advance", "focused"),
-    action("next_step", "Pick the next move", { action: "next_step", lane: l }, "advance", "focused"),
-    action("explore", "Explore options", { action: "explore_options", lane: l }, "explore", "curious")
-  ], state === "curious" ? 4 : 3);
+    action("explore_music", "Explore music", { lane: "music" }, "explore", "curious"),
+    action("live_roku", "What’s live on Roku?", { lane: "roku", action: "whats_live" }, "explore", "curious"),
+    action("guide_me", "Guide me to the best next step", { action: "best_next_step", lane: l }, "advance", "focused")
+  ], 3);
 }
 
 function buildFollowUpsForLane(lane, emo, norm) {
@@ -225,37 +248,37 @@ function buildFollowUpsForLane(lane, emo, norm) {
 
 function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
-  if (!text) return "I am here. Tell me what you want to work on, and I will keep it structured.";
+  if (!text) return "I’m here. Tell me what you want to work on, and I’ll keep it clean and intentional.";
 
-  if (isSupportiveEmotion(emo) || /(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)/i.test(text)) {
-    return "I am here with you. We do not have to force speed. Tell me what feels hardest right now, and I will keep the next step clean.";
+  if (isSupportiveEmotion(emo) || /\b(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)\b/i.test(text)) {
+    return "Okay. We can slow this down. Tell me what feels heaviest, and I’ll help you carry it one clean step at a time.";
   }
 
-  if (/(loop|looping|repeat|repeating)/i.test(text)) {
-    return "Understood. We are going after the loop directly. Give me the exact layer, and I will keep the path locked to that target.";
+  if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
+    return "Understood. We’re going after the loop directly. Give me the exact layer, and I’ll stay locked to that target.";
   }
 
   if (emo && safeStr(emo.valence || "") === "mixed" && Number(emo?.contradictions?.count || 0) > 0) {
-    return "I am seeing mixed signals in this. We can slow it down, isolate the main pressure point, and move from there.";
+    return "I’m seeing mixed pressure here. We can isolate the main point first and move without clutter.";
   }
 
-  if (/(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)/i.test(text)) {
-    return "Got it. We can work this as an architecture problem: lock the emotional engine, stop duplicated branching, and keep the response path deterministic.";
+  if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)\b/i.test(text)) {
+    return "Got it. We can work this as an architecture problem: keep the turn logic coherent, preserve state continuity, and remove any UI drift from the response path.";
   }
 
-  return "Give me the exact target and I will stay with that path without bouncing you into a menu.";
+  return "Give me the exact target, and I’ll stay with that path without bouncing you into filler.";
 }
 
 function normalizeLaneOutput(out, fallbackLane, emo, norm) {
-  const lane = normalizeLaneValue(safeStr(out?.lane || fallbackLane || "general") || "general");
+  const lane = normalizeLaneValue(
+    safeStr(out?.lane || fallbackLane || "general") || "general"
+  );
+
   const reply = safeStr(out?.reply || "").trim();
   const directives = Array.isArray(out?.directives) ? out.directives : [];
-  const followUps = Array.isArray(out?.followUps) && out.followUps.length
-    ? dedupeByLabel(out.followUps, 4)
-    : buildFollowUpsForLane(lane, emo, norm);
-  const ui = isPlainObject(out?.ui)
-    ? { ...buildUiForLane(lane, emo), ...out.ui }
-    : buildUiForLane(lane, emo);
+  const followUps = Array.isArray(out?.followUps) ? out.followUps : buildFollowUpsForLane(lane, emo, norm);
+  const ui = isPlainObject(out?.ui) ? out.ui : buildUiForLane(lane, emo);
+
   return {
     reply,
     lane,
@@ -268,6 +291,7 @@ function normalizeLaneOutput(out, fallbackLane, emo, norm) {
 
 function tryMusicLane(norm, emo) {
   if (!Music) return null;
+
   try {
     if (typeof Music.handleChat === "function") {
       const out = Music.handleChat(norm);
@@ -275,37 +299,52 @@ function tryMusicLane(norm, emo) {
       if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "music", emo, norm);
     }
   } catch (_e) {
-    return normalizeLaneOutput({
-      reply: "Music lane hit a snag. Give me a title, artist, or year and I will take another pass.",
+    return {
+      reply: "Music lane hit a snag. Give me a title, artist, or year and I’ll take another pass.",
       lane: "music",
       directives: [],
+      followUps: buildFollowUpsForLane("music", emo, norm),
+      ui: buildUiForLane("music", emo),
       meta: { failOpen: true, laneModule: "musicKnowledge" }
-    }, "music", emo, norm);
+    };
   }
+
   return null;
 }
 
 function tryMoviesLane(norm, emo) {
   if (!MoviesLane || typeof MoviesLane.handleChat !== "function") return null;
+
   try {
     const out = MoviesLane.handleChat(norm);
     if (typeof out === "string") return normalizeLaneOutput({ reply: out, lane: "movies" }, "movies", emo, norm);
     if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "movies", emo, norm);
   } catch (_e) {
-    return normalizeLaneOutput({
-      reply: "Movies lane hit a snag. Give me a title, actor, or year and I will take another pass.",
+    return {
+      reply: "Movies lane hit a snag. Give me a title, actor, or year and I’ll take another pass.",
       lane: "movies",
       directives: [],
+      followUps: buildFollowUpsForLane("movies", emo, norm),
+      ui: buildUiForLane("movies", emo),
       meta: { failOpen: true, laneModule: "moviesLane" }
-    }, "movies", emo, norm);
+    };
   }
+
   return null;
 }
 
 function resolveLane(norm, session) {
   const n = normalizeNorm(norm);
   const s = isPlainObject(session) ? session : {};
-  return normalizeLaneValue(n.lane || n?.payload?.lane || n?.body?.lane || s.lane || s.lastLane || "general");
+
+  return normalizeLaneValue(
+    n.lane ||
+    n?.payload?.lane ||
+    n?.body?.lane ||
+    s.lane ||
+    s.lastLane ||
+    "general"
+  );
 }
 
 function routeLane(norm, session, emo) {
@@ -318,7 +357,7 @@ function routeLane(norm, session, emo) {
       lane: "general",
       followUps: buildEmotionalActionsForLane("general", emo, n),
       ui: buildSupportUi(),
-      meta: { supportiveRoute: true, emotionalState: mapEmotionalState(emo) }
+      meta: { supportiveRoute: true, suppressMenus: true, clearStaleUi: true }
     }, "general", emo, n);
   }
 
@@ -334,8 +373,7 @@ function routeLane(norm, session, emo) {
 
   return normalizeLaneOutput({
     reply: simpleGeneralReply(n, emo),
-    lane: lane || "general",
-    meta: { emotionalState: mapEmotionalState(emo) }
+    lane: lane || "general"
   }, lane || "general", emo, n);
 }
 
