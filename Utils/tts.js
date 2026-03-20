@@ -30,7 +30,7 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.3.0 RECOVERY-HARDENED";
+const TTS_VERSION = "tts.js v2.3.1 FRONTEND-BRIDGE";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -87,6 +87,7 @@ function _int(value, fallback, min, max) {
 function _headerSafe(value, max = 80) {
   return _str(value).replace(/[\r\n]+/g, " ").trim().slice(0, max);
 }
+
 
 function _pickFirst() {
   for (let i = 0; i < arguments.length; i += 1) {
@@ -297,7 +298,6 @@ async function _synthesizeWithRetry(providerInput, snapshot, shapeElapsedMs, seg
         shapeElapsedMs,
         segmentCount
       };
-
       if (!retryable || attempt >= plan.maxAttempts) return lastFailure;
       const delayMs = Math.min(plan.maxDelayMs, plan.baseDelayMs * Math.pow(2, attempt - 1));
       _log("provider_retry_wait", { ...snapshot, attempt, delayMs, reason, providerStatus: status });
@@ -598,7 +598,6 @@ function _shapeSpeechText(rawText, options) {
   const pronouncedText = _applyPronunciationMap(speakBase, pronunciationMap);
   const segments = _segmentSentences(pronouncedText, speechHints);
   const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
-
   const joinPause = _pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65)));
   const ssmlText = ssmlSegments.length
     ? `<speak>${ssmlSegments.join(joinPause)}</speak>`
@@ -922,6 +921,7 @@ function _resolveInput(req) {
     intro: _bool(body.intro != null ? body.intro : query.intro, false) || _lower(body.routeKind || query.routeKind) === "intro" || _lower(body.mode || query.mode) === "intro",
     healthCheck: _bool(body.healthCheck != null ? body.healthCheck : query.healthCheck, false),
     wantJson: _bool(body.returnJson != null ? body.returnJson : query.returnJson, false),
+    ttsProfile: body.ttsProfile && typeof body.ttsProfile === "object" ? body.ttsProfile : (query.ttsProfile && typeof query.ttsProfile === "object" ? query.ttsProfile : {}),
     mode: _pickFirst(body.mode, query.mode, "presence"),
     source: _pickFirst(body.source, query.source, "tts"),
     sourceId: _pickFirst(body.sourceId, query.sourceId, body.requestId, query.requestId, ""),
@@ -1007,16 +1007,13 @@ async function delegateTts(payload, req) {
     ok: true,
     provider: result.provider || "resemble",
     audio: result.buffer,
-    buffer: result.buffer,
     mime: result.mimeType || "audio/mpeg",
-    mimeType: result.mimeType || "audio/mpeg",
     elapsedMs: result.elapsedMs || 0,
     requestId: result.requestId || input.sourceId || input.requestId || "",
     providerStatus: result.providerStatus || 200,
     providerEndpoint: result.providerEndpoint || "",
     authMode: result.authMode || "",
     text: result.textDisplay || input.textDisplay || input.text,
-    textDisplay: result.textDisplay || input.textDisplay || input.text,
     textSpeak: result.textSpeak || input.text,
     voiceUuid: result.voiceUuid || input.voiceUuid,
     routeKind: input.routeKind || "main",
@@ -1062,8 +1059,6 @@ async function handleTts(req, res) {
       traceId: input.traceId,
       ttsFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).ttsFailure,
       audioFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).audioFailure,
-      ttsFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).ttsFailure,
-      audioFailure: _normalizeFailureContract("send_failed", detail, 503, true, input).audioFailure,
       payload: { spokenUnavailable: true }
     });
   }
@@ -1173,3 +1168,19 @@ async function handleTts(req, res) {
 }
 
 const health = () => _healthSnapshot();
+
+module.exports = {
+  handleTts,
+  delegateTts,
+  ttsHandler: handleTts,
+  handler: handleTts,
+  handle: delegateTts,
+  synthesize: delegateTts,
+  tts: delegateTts,
+  generate,
+  health,
+  PHASES,
+  TTS_VERSION,
+  VERSION: TTS_VERSION,
+  version: TTS_VERSION
+};
