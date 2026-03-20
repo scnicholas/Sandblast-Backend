@@ -497,3 +497,4 @@ module.exports = {
   assertTurnUpdated,
   normalizeEmotionSignals
 };
+module.exports.default = module.exports;
