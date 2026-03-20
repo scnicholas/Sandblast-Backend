@@ -156,6 +156,8 @@ module.exports = {
   runAffectEngine,
   inferAffectState,
   selectStyleProfile,
+  normalizeTtsProfile,
+  smoothTtsProfile,
   applyProsodyMarkup
 };
 
@@ -186,6 +188,7 @@ function runAffectEngine(input = {}) {
   const ttsProfile = normalizeTtsProfile(styleProfile.tts, opts.vendor);
 
   // Smooth TTS profile turn-to-turn to prevent “wobble” (keeps Nyx feeling like one person).
+  const presetKey = derivePresetKey(styleKey, lane, affect);
   const smoothedTtsProfile = smoothTtsProfile({ ttsProfile, presetKey, affectState: affect, memory, opts });
 
   // Rewrite for speech (subtle punctuation beats)
@@ -499,6 +502,37 @@ function applyProsodyMarkup({ text, affectState, styleKey, lane, opts }) {
  *  Memory Update
  *  ---------------------------
  */
+
+function derivePresetKey(styleKey, lane, affectState) {
+  const safeStyle = safeStr(styleKey || "focused_analytical").trim() || "focused_analytical";
+  const safeLane = safeStr(lane || "Default").trim() || "Default";
+  const safeIntent = safeStr(affectState && affectState.intent || "assist").trim() || "assist";
+  return `${safeLane}:${safeStyle}:${safeIntent}`;
+}
+
+function smoothTtsProfile({ ttsProfile, presetKey, affectState, memory, opts }) {
+  const next = {
+    stability: clamp(num(ttsProfile && ttsProfile.stability, 0.75), 0, 1),
+    similarity: clamp(num(ttsProfile && ttsProfile.similarity, 0.85), 0, 1),
+    style: clamp(num(ttsProfile && ttsProfile.style, 0.25), 0, 1),
+    speakerBoost: !!(ttsProfile && ttsProfile.speakerBoost)
+  };
+
+  const prev = memory && typeof memory.prevTtsProfile === "object" ? memory.prevTtsProfile : null;
+  if (!prev) return next;
+
+  const samePreset = safeStr(memory && memory.lastPresetKey || "") === safeStr(presetKey || "");
+  const blend = samePreset ? 0.68 : 0.42;
+  const carry = 1 - blend;
+
+  return {
+    stability: clamp(num(prev.stability, next.stability) * carry + next.stability * blend, 0, 1),
+    similarity: clamp(num(prev.similarity, next.similarity) * carry + next.similarity * blend, 0, 1),
+    style: clamp(num(prev.style, next.style) * carry + next.style * blend, 0, 1),
+    speakerBoost: !!(samePreset ? (prev.speakerBoost || next.speakerBoost) : next.speakerBoost)
+  };
+}
+
 
 function updateAffectMemory({ memory, affectState, lane, opts }) {
   const m = mergeDeep({}, memory);
