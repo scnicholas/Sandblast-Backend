@@ -828,7 +828,91 @@ async function processWithMarion(input = {}) {
   }
 }
 
+
+
+function _normalizeBridgeInput(input = {}) {
+  const src = _safeObj(input);
+  const meta = _safeObj(src.meta);
+  const session = _safeObj(meta.session);
+  const emotionMeta = _safeObj(meta.emotion);
+  return {
+    userQuery: _trim(src.userQuery || src.query || src.text),
+    requestedDomain: _trim(src.requestedDomain || src.domain || meta.preferredDomain),
+    conversationState: _safeObj(src.conversationState || src.state || meta.norm || {}),
+    datasets: _safeArray(src.datasets),
+    previousMemory: _safeObj(src.previousMemory || session),
+    domainEvidence: _safeArray(src.domainEvidence || meta.domainEvidence),
+    datasetEvidence: _safeArray(src.datasetEvidence || meta.datasetEvidence),
+    memoryEvidence: _safeArray(src.memoryEvidence || meta.memoryEvidence),
+    generalEvidence: _safeArray(src.generalEvidence || meta.generalEvidence),
+    affect: emotionMeta,
+    supportFlags: _safeObj(src.supportFlags || emotionMeta.supportFlags)
+  };
+}
+
+function _buildBridgePacket(result = {}) {
+  const domainEvidence = _safeArray(result?.layer2?.diagnostics?.layer2EvidenceCounts ? [] : result?.assembledResponse?.domainEvidence);
+  const evidenceCount =
+    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.domainEvidence || 0) +
+    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.datasetEvidence || 0) +
+    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.memoryEvidence || 0) +
+    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.generalEvidence || 0);
+
+  return {
+    synthesis: {
+      answer: _trim(result.reply || result.answer || result.output || result.text || FALLBACK_REPLY),
+      text: _trim(result.text || result.reply || result.answer || result.output || FALLBACK_REPLY),
+      mode: _trim(_safeObj(result.meta).mode || _safeObj(_safeObj(result.layer4).outputMetadata).recoveryMode || 'balanced')
+    },
+    routing: {
+      domain: _trim(result.domain) || 'general',
+      intent: _trim(result.intent) || 'general',
+      status: _trim(result.status) || (result.ok === false ? 'degraded' : 'ok')
+    },
+    evidence: {
+      count: evidenceCount,
+      rankedCount: evidenceCount,
+      domainEvidence
+    },
+    continuity: {
+      state: _safeObj(result.continuityState),
+      turnMemory: _safeObj(result.turnMemory),
+      resetGuard: _safeObj(result.resetGuard)
+    },
+    meta: _safeObj(result.meta),
+    raw: result
+  };
+}
+
+function createMarionBridge() {
+  return {
+    async maybeResolve(req = {}) {
+      const normalized = _normalizeBridgeInput(req);
+      const result = await processWithMarion(normalized);
+      const answer = _trim(result.reply || result.answer || result.output || result.text);
+      const usedBridge = !!answer;
+      return {
+        usedBridge,
+        packet: usedBridge ? _buildBridgePacket(result) : null,
+        result
+      };
+    }
+  };
+}
+
+async function route(input = {}) {
+  return processWithMarion(_normalizeBridgeInput(input));
+}
+
+const ask = route;
+const handle = route;
+
 module.exports = {
   retrieveLayer2Signals,
-  processWithMarion
+  processWithMarion,
+  createMarionBridge,
+  route,
+  ask,
+  handle,
+  default: route
 };
