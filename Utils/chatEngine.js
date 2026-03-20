@@ -235,7 +235,8 @@ async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId,
   const bridge = getMarionBridge();
   if (!bridge || typeof bridge.maybeResolve !== "function") return { usedBridge: false, packet: null, sections: extractKnowledgeSections(rawInput, norm, session) };
   const knowledgeSections = extractKnowledgeSections(rawInput, norm, session);
-  const domainHint = (emo && (emo.supportFlags?.needsConnection || emo.supportFlags?.needsStabilization || emo.mode === "VULNERABLE")) ? "psychology" : safeStr(rawInput?.preferredDomain || "");
+  const guidedPrompt = extractGuidedPromptMeta(rawInput, norm);
+  const domainHint = safeStr((guidedPrompt && guidedPrompt.domainHint) || rawInput?.preferredDomain || "") || ((emo && (emo.supportFlags?.needsConnection || emo.supportFlags?.needsStabilization || emo.mode === "VULNERABLE")) ? "psychology" : "");
   const req = {
     text: safeStr(norm?.text || ""),
     sessionId: safeStr(session?.id || rawInput?.sessionId || norm?.ctx?.sessionId || ""),
@@ -248,6 +249,9 @@ async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId,
       norm,
       knowledgeSections,
       preferredDomain: domainHint || undefined,
+      guidedPrompt: guidedPrompt || undefined,
+      intentHint: safeStr((guidedPrompt && guidedPrompt.intentHint) || rawInput?.intentHint || ""),
+      emotionalHint: safeStr((guidedPrompt && guidedPrompt.emotionalHint) || rawInput?.emotionalHint || ""),
       emotion: emo ? {
         mode: emo.mode,
         primaryEmotion: emo.primaryEmotion,
@@ -269,6 +273,27 @@ async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId,
   } catch (_e) {
     return { usedBridge: false, packet: null, sections: knowledgeSections };
   }
+}
+
+function extractGuidedPromptMeta(rawInput, norm) {
+  const raw = isPlainObject(rawInput) ? rawInput : {};
+  const n = isPlainObject(norm) ? norm : {};
+  const body = isPlainObject(n.body) ? n.body : {};
+  const payload = isPlainObject(n.payload) ? n.payload : {};
+  const ctx = isPlainObject(n.ctx) ? n.ctx : {};
+  const gp = isPlainObject(raw.guidedPrompt) ? raw.guidedPrompt :
+    (isPlainObject(body.guidedPrompt) ? body.guidedPrompt :
+    (isPlainObject(payload.guidedPrompt) ? payload.guidedPrompt :
+    (isPlainObject(ctx.guidedPrompt) ? ctx.guidedPrompt : null)));
+  if (!isPlainObject(gp)) return null;
+  return {
+    id: safeStr(gp.id || gp.key || "").trim(),
+    label: safeStr(gp.label || gp.text || n.text || "").trim(),
+    lane: safeStr(gp.lane || n.lane || "").trim(),
+    domainHint: safeStr(gp.domainHint || raw.domainHint || payload.domainHint || body.domainHint || "").trim(),
+    intentHint: safeStr(gp.intentHint || raw.intentHint || payload.intentHint || body.intentHint || "").trim(),
+    emotionalHint: safeStr(gp.emotionalHint || raw.emotionalHint || payload.emotionalHint || body.emotionalHint || "").trim()
+  };
 }
 
 function nowMs() {
