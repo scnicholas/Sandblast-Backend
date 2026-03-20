@@ -56,3 +56,5 @@ async function runCognitivePipeline(input = {}) {
 module.exports = {
   runCognitivePipeline
 };
+module.exports.run = runCognitivePipeline;
+module.exports.handle = runCognitivePipeline;
