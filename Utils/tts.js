@@ -30,7 +30,7 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.3.1 FRONTEND-BRIDGE";
+const TTS_VERSION = "tts.js v2.3.0 RECOVERY-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -921,7 +921,6 @@ function _resolveInput(req) {
     intro: _bool(body.intro != null ? body.intro : query.intro, false) || _lower(body.routeKind || query.routeKind) === "intro" || _lower(body.mode || query.mode) === "intro",
     healthCheck: _bool(body.healthCheck != null ? body.healthCheck : query.healthCheck, false),
     wantJson: _bool(body.returnJson != null ? body.returnJson : query.returnJson, false),
-    ttsProfile: body.ttsProfile && typeof body.ttsProfile === "object" ? body.ttsProfile : (query.ttsProfile && typeof query.ttsProfile === "object" ? query.ttsProfile : {}),
     mode: _pickFirst(body.mode, query.mode, "presence"),
     source: _pickFirst(body.source, query.source, "tts"),
     sourceId: _pickFirst(body.sourceId, query.sourceId, body.requestId, query.requestId, ""),
@@ -1184,3 +1183,4 @@ module.exports = {
   VERSION: TTS_VERSION,
   version: TTS_VERSION
 };
+module.exports.default = module.exports;
