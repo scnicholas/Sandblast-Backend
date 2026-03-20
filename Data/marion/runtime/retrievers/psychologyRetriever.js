@@ -493,7 +493,17 @@ function retrievePsychology(input = {}) {
   };
 }
 
+function retrievePsychology_safe(input = {}) {
+  try { return retrievePsychology(input); }
+  catch (error) {
+    const degraded = {"matched":false,"patterns":[],"risks":[],"needs":[],"recommendedApproach":"supportive","toneGuide":"balanced","confidence":0,"route":{},"primary":{},"matches":[],"evidenceMatches":[],"meta":{"degraded":true}};
+    degraded.error = String(error && (error.message || error) || "retriever_error");
+    return degraded;
+  }
+}
+
 module.exports = {
-  retrievePsychology,
-  retrieve: retrievePsychology
+  retrievePsychology: retrievePsychology_safe,
+  retrieve: retrievePsychology_safe,
+  handle: retrievePsychology_safe
 };
