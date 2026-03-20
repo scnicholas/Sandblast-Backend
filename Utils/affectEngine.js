@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.1.0 LOCKED-EXPRESSION-BRIDGE";
+const VERSION = "affectEngine v3.2.0 BRIDGE-HARDENED";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -127,11 +127,15 @@ function normalizeLockedEmotion(lockedEmotion = {}) {
     evidenceMatches,
     evidenceDigest: toEvidenceDigest(evidenceMatches),
     linkedDatasets: uniq(meta.linkedDatasets),
-    datasetMeta: meta
+    datasetMeta: meta,
+    signature: safeStr(lockedEmotion.signature)
   };
 }
 
 function normalizeStrategy(strategy = {}) {
+  if (strategy && strategy.strategy && typeof strategy.strategy === "object") {
+    strategy = strategy.strategy;
+  }
   const expressionContract = strategy.expressionContract && typeof strategy.expressionContract === "object"
     ? strategy.expressionContract
     : {};
@@ -145,6 +149,22 @@ function normalizeStrategy(strategy = {}) {
     acknowledgementMode: safeStr(expressionContract.acknowledgementMode || strategy.acknowledgementMode) || "auto",
     expressionContract
   };
+}
+
+function resolveInputs(input = {}) {
+  const lockedEmotion = normalizeLockedEmotion(
+    (input.lockedEmotion && input.lockedEmotion.locked) ? input.lockedEmotion :
+    (input.emotion && input.emotion.locked) ? input.emotion :
+    (input.retrieverResult && input.retrieverResult.lockedEmotion) ? input.retrieverResult.lockedEmotion :
+    {}
+  );
+  const strategy = normalizeStrategy(
+    input.strategy ||
+    input.routeGuardResult ||
+    input.route ||
+    {}
+  );
+  return { lockedEmotion, strategy };
 }
 
 function mapIntent(strategy) {
@@ -225,7 +245,8 @@ function buildAffectState({ lockedEmotion, strategy, lane, memory, opts }) {
     consumedLockedEmotion: true,
     consumedStrategy: true,
     consumedDatasets: lockedEmotion.linkedDatasets,
-    emotionOverrideAttempted: false
+    emotionOverrideAttempted: false,
+    lockedEmotionSignature: lockedEmotion.signature || null
   };
   return affectState;
 }
@@ -383,6 +404,7 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
     primaryEmotion: lockedEmotion.primaryEmotion,
     secondaryEmotion: lockedEmotion.secondaryEmotion,
     emotionConfidence: lockedEmotion.confidence,
+    emotionSignature: lockedEmotion.signature || null,
     evidenceDigest: lockedEmotion.evidenceDigest,
     linkedDatasets: lockedEmotion.linkedDatasets,
     needs: lockedEmotion.needs,
@@ -398,7 +420,7 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
 }
 
 function inferAffectState(input = {}) {
-  const lockedEmotion = normalizeLockedEmotion(input.lockedEmotion || {});
+  const { lockedEmotion, strategy } = resolveInputs(input);
   if (!lockedEmotion.locked) {
     return {
       ok: false,
@@ -407,7 +429,6 @@ function inferAffectState(input = {}) {
       allowEmotionOverride: false
     };
   }
-  const strategy = normalizeStrategy(input.strategy || {});
   return buildAffectState({
     lockedEmotion,
     strategy,
@@ -418,12 +439,11 @@ function inferAffectState(input = {}) {
 }
 
 function runAffectEngine(input = {}) {
-  const assistantDraft = safeStr(input.assistantDraft);
+  const assistantDraft = safeStr(input.assistantDraft || input.replyText || input.reply || "");
   const lane = safeStr(input.lane) || "Default";
   const memory = input.memory && typeof input.memory === "object" ? input.memory : {};
   const opts = mergeDeep({}, DEFAULTS, input.opts || {});
-  const lockedEmotion = normalizeLockedEmotion(input.lockedEmotion || {});
-  const strategy = normalizeStrategy(input.strategy || null);
+  const { lockedEmotion, strategy } = resolveInputs(input);
 
   if (!lockedEmotion.locked || !strategy.supportModeCandidate) {
     return {
@@ -431,7 +451,11 @@ function runAffectEngine(input = {}) {
       source: "affectEngine",
       error: !lockedEmotion.locked ? "locked_emotion_required" : "strategy_required",
       allowEmotionOverride: false,
-      memory
+      memory,
+      debug: {
+        hasLockedEmotion: !!lockedEmotion.locked,
+        hasStrategy: !!strategy.supportModeCandidate
+      }
     };
   }
 
@@ -465,5 +489,6 @@ module.exports = {
   runAffectEngine,
   inferAffectState,
   selectStyleProfile,
-  applyProsodyMarkup
+  applyProsodyMarkup,
+  resolveInputs
 };
