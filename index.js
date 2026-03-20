@@ -657,12 +657,67 @@ function detectLoop(sessionId, reply, userText) {
   };
 }
 
+function applyAffectBridge(base, affectInput) {
+  const shaped = isObj(base) ? { ...base } : {};
+  if (!affectEngineMod || typeof affectEngineMod.runAffectEngine !== "function") return shaped;
+  const input = isObj(affectInput) ? affectInput : {};
+  try {
+    const lockedEmotion = isObj(input.lockedEmotion) ? input.lockedEmotion : null;
+    const strategy = isObj(input.strategy) ? input.strategy : null;
+    if (!lockedEmotion || !lockedEmotion.locked || !strategy) return shaped;
+    const affectOut = affectEngineMod.runAffectEngine({
+      assistantDraft: cleanText(shaped.reply || shaped.payload?.reply || ""),
+      lockedEmotion,
+      strategy,
+      lane: cleanText(shaped.lane || "Default") || "Default",
+      memory: isObj(input.memory) ? input.memory : {}
+    });
+    if (!isObj(affectOut) || affectOut.ok === false) return shaped;
+    const spokenText = cleanText(affectOut.spokenText || "");
+    if (!spokenText) return shaped;
+    shaped.reply = spokenText;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply: spokenText, spokenText };
+    shaped.ttsProfile = isObj(affectOut.ttsProfile) ? affectOut.ttsProfile : shaped.ttsProfile;
+    shaped.audio = isObj(shaped.audio) ? shaped.audio : {};
+    shaped.audio.textToSynth = spokenText;
+    shaped.audio.enabled = true;
+    shaped.meta = mergeMeta(shaped.meta, { affectApplied: true, linkedDatasets: Array.isArray(affectOut.expressionBridge?.linkedDatasets) ? affectOut.expressionBridge.linkedDatasets.slice(0, 12) : [] });
+  } catch (err) {
+    console.log("[Sandblast][affectBridge:error]", err && (err.stack || err.message || err));
+  }
+  return shaped;
+}
+
+function buildAffectInputFromMarion(marion) {
+  const src = isObj(marion) ? marion : {};
+  const layer2 = isObj(src.layer2) ? src.layer2 : {};
+  const emotion = isObj(layer2.emotion) ? layer2.emotion : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const lockedEmotion = isObj(meta.lockedEmotion) ? meta.lockedEmotion : (emotion.primaryEmotion ? {
+    locked: true,
+    primaryEmotion: cleanText(emotion.primaryEmotion || "neutral") || "neutral",
+    secondaryEmotion: cleanText(emotion.secondaryEmotion || ""),
+    intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+    valence: Number.isFinite(Number(emotion.valence)) ? Number(emotion.valence) : 0,
+    valenceLabel: cleanText(emotion.valenceLabel || ""),
+    confidence: Number.isFinite(Number(emotion.confidence)) ? Number(emotion.confidence) : 0,
+    needs: Array.isArray(emotion.needs) ? emotion.needs : [],
+    cues: Array.isArray(emotion.cues) ? emotion.cues : [],
+    supportFlags: isObj(emotion.supportFlags) ? emotion.supportFlags : {},
+    evidenceMatches: Array.isArray(emotion.evidenceMatches) ? emotion.evidenceMatches : [],
+    meta: { linkedDatasets: Array.isArray(meta.linkedDatasets) ? meta.linkedDatasets : [] }
+  } : null);
+  const strategy = isObj(meta.strategy) ? meta.strategy : null;
+  return { lockedEmotion, strategy };
+}
+
+
 function shapeEngineReply(raw) {
   if (!isObj(raw)) return {};
   const payload = isObj(raw.payload) ? raw.payload : {};
   return {
     ok: raw.ok !== false,
-    reply: cleanText(raw.reply || payload.reply || raw.message || ""),
+    reply: cleanText(raw.spokenText || payload.spokenText || raw.reply || payload.reply || raw.message || raw.text || ""),
     payload: isObj(payload) ? payload : {},
     lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
     laneId: cleanText(raw.laneId || raw.lane || ""),
@@ -1014,6 +1069,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   if (!shaped.laneId) shaped.laneId = shaped.lane;
   if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
   if (!shaped.bridge && marion) shaped.bridge = marion;
+  shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
 
   if (shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {})) {
     supportActive = true;
