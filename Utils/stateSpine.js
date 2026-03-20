@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.4.0 SUPPORT-LOCK LOOP-HARDEN";
+const SPINE_VERSION = "stateSpine v1.5.0 UI-RESPECTS-BRAIN";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
@@ -106,14 +106,6 @@ function createState(seed = {}) {
       terminalStopUntil: 0,
       terminalStopReason: ""
     },
-    emotionalEngine: {
-      primaryState: "focused",
-      secondaryState: "steady",
-      continuityScore: 0.35,
-      stateStreak: 0,
-      placeholder: "Ask Nyx anything about Sandblast…",
-      lastActionLabels: []
-    },
     lastUpdatedAt: 0
   };
 }
@@ -177,14 +169,6 @@ function coerceState(input) {
       lastFailureAt: Number(src?.audio?.lastFailureAt || 0) || 0,
       terminalStopUntil: Number(src?.audio?.terminalStopUntil || 0) || 0,
       terminalStopReason: safeStr(src?.audio?.terminalStopReason || "")
-    },
-    emotionalEngine: {
-      primaryState: safeStr(src?.emotionalEngine?.primaryState || "focused") || "focused",
-      secondaryState: safeStr(src?.emotionalEngine?.secondaryState || "steady") || "steady",
-      continuityScore: Math.max(0, Math.min(1, Number(src?.emotionalEngine?.continuityScore ?? 0.35) || 0.35)),
-      stateStreak: clampInt(src?.emotionalEngine?.stateStreak, 0, 0, 999999),
-      placeholder: safeStr(src?.emotionalEngine?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
-      lastActionLabels: Array.isArray(src?.emotionalEngine?.lastActionLabels) ? src.emotionalEngine.lastActionLabels.slice(0, 6).map((x) => safeStr(x)) : []
     },
     lastUpdatedAt: Number(src.lastUpdatedAt || 0) || 0
   };
@@ -277,23 +261,6 @@ function normalizeEmotionSignals(inbound, prevState) {
     noProgressTurnCount,
     repeatedFallbackCount
   };
-}
-
-
-
-function normalizeEmotionalEngineSignals(inbound, prevState) {
-  const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
-  const prev = coerceState(prevState);
-  const prevEngine = isPlainObject(prev.emotionalEngine) ? prev.emotionalEngine : createState().emotionalEngine;
-  const primaryState = safeStr(sig.enginePrimaryState || prevEngine.primaryState || "focused").toLowerCase() || "focused";
-  const secondaryState = safeStr(sig.engineSecondaryState || prevEngine.secondaryState || "steady").toLowerCase() || "steady";
-  const continuityScore = Math.max(0, Math.min(1, Number(sig.engineContinuityScore ?? prevEngine.continuityScore ?? 0.35) || 0.35));
-  const placeholder = safeStr(sig.enginePlaceholder || prevEngine.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…";
-  const lastActionLabels = Array.isArray(sig.engineActionLabels) ? sig.engineActionLabels.slice(0, 6).map((x) => safeStr(x)) : prevEngine.lastActionLabels;
-  const stateStreak = safeStr(prevEngine.primaryState || "") === primaryState
-    ? clampInt(prevEngine.stateStreak, 0, 0, 999999) + 1
-    : 0;
-  return { primaryState, secondaryState, continuityScore, placeholder, lastActionLabels, stateStreak };
 }
 
 function inferConversationPhase(prevState, inbound, plannerDecision) {
@@ -411,7 +378,6 @@ function finalizeTurn(params = {}) {
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev);
-  const engineSignals = normalizeEmotionalEngineSignals(inbound, prev);
 
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
   const supportLockActive = !!(
@@ -473,13 +439,25 @@ function finalizeTurn(params = {}) {
       ? "guarded"
       : "stable";
 
+  const inboundSignals = isPlainObject(inbound.turnSignals) ? inbound.turnSignals : {};
+  const requestedPrimaryState = safeStr(inboundSignals.enginePrimaryState || inboundSignals.primaryState || "").toLowerCase();
+  const requestedSecondaryState = safeStr(inboundSignals.engineSecondaryState || inboundSignals.secondaryState || "").toLowerCase();
+  const requestedPlaceholder = safeStr(inboundSignals.enginePlaceholder || inboundSignals.placeholder || "");
+  const requestedActions = Array.isArray(inboundSignals.engineActionLabels) ? inboundSignals.engineActionLabels.slice(0, 6).map((x) => safeStr(x)).filter(Boolean) : [];
+  const requestedContinuityScore = Math.max(0, Math.min(1, Number(inboundSignals.engineContinuityScore ?? prev.emotionalEngine.continuityScore) || prev.emotionalEngine.continuityScore || 0.35));
+  const prevPrimaryState = safeStr(prev?.emotionalEngine?.primaryState || "focused").toLowerCase() || "focused";
+  const nextPrimaryState = requestedPrimaryState || (support.lockActive ? "supportive" : prevPrimaryState || "focused");
+  const nextSecondaryState = requestedSecondaryState || safeStr(prev?.emotionalEngine?.secondaryState || "steady").toLowerCase() || "steady";
+  const stateStreak = nextPrimaryState === prevPrimaryState
+    ? clampInt(prev?.emotionalEngine?.stateStreak, 0, 0, 999999) + 1
+    : 1;
   const emotionalEngine = {
-    primaryState: engineSignals.primaryState,
-    secondaryState: engineSignals.secondaryState,
-    continuityScore: engineSignals.continuityScore,
-    stateStreak: engineSignals.stateStreak,
-    placeholder: engineSignals.placeholder,
-    lastActionLabels: Array.isArray(engineSignals.lastActionLabels) ? engineSignals.lastActionLabels : []
+    primaryState: nextPrimaryState,
+    secondaryState: nextSecondaryState,
+    continuityScore: requestedContinuityScore,
+    stateStreak,
+    placeholder: requestedPlaceholder || safeStr(prev?.emotionalEngine?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
+    lastActionLabels: requestedActions.length ? requestedActions : (Array.isArray(prev?.emotionalEngine?.lastActionLabels) ? prev.emotionalEngine.lastActionLabels.slice(0, 6) : [])
   };
 
   return {
@@ -539,7 +517,6 @@ module.exports = {
   decideNextMove,
   finalizeTurn,
   assertTurnUpdated,
-  normalizeEmotionSignals,
-  normalizeEmotionalEngineSignals
+  normalizeEmotionSignals
 };
 module.exports.default = module.exports;
