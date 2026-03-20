@@ -28,6 +28,16 @@ try { TTS = require("./tts"); } catch (_) {
   try { TTS = require("./TTS"); } catch (_e) { TTS = null; }
 }
 
+let AffectEngine = null;
+try { AffectEngine = require("./affectEngine.integrated"); } catch (_) {
+  try { AffectEngine = require("./affectEngine"); } catch (_e) { AffectEngine = null; }
+}
+
+let StateSpine = null;
+try { StateSpine = require("./stateSpine.integrated"); } catch (_) {
+  try { StateSpine = require("./stateSpine"); } catch (_e) { StateSpine = null; }
+}
+
 function _str(v){ return v == null ? "" : String(v); }
 function _trim(v){ return _str(v).trim(); }
 function _isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -267,6 +277,75 @@ function audioReplayGuard(audioPlan, input){
   }
   return audioPlan;
 }
+
+function applyAffectRefinements(out, input){
+  if (!AffectEngine || typeof AffectEngine.runAffectEngine !== "function") return out;
+  const reply = _trim(out && (out.reply || (out.payload && out.payload.reply) || ""));
+  if (!reply) return out;
+  const session = _isObj(input && input.session) ? input.session : {};
+  try {
+    const affectOut = AffectEngine.runAffectEngine({
+      userText: _trim(input && (input.text || input.prompt || "")),
+      assistantDraft: reply,
+      lane: _trim((out && (out.lane || out.laneId || out.sessionLane)) || (input && input.lane) || "Default"),
+      memory: _isObj(session.affectMemory) ? session.affectMemory : {},
+      opts: { vendor: _trim(process.env.TTS_PROVIDER || "generic") || "generic" }
+    });
+    const next = _isObj(out) ? { ...out } : {};
+    next.reply = _trim(affectOut.spokenText || reply) || reply;
+    next.payload = _isObj(next.payload) ? { ...next.payload, reply: next.reply } : { reply: next.reply };
+    next.bridge = _isObj(next.bridge) ? { ...next.bridge } : {};
+    next.bridge.affect = {
+      styleKey: affectOut.styleKey || "",
+      presetKey: affectOut.affectState && affectOut.affectState.presetKey || "",
+      intent: affectOut.affectState && affectOut.affectState.intent || "assist",
+      warmth: affectOut.affectState && affectOut.affectState.warmth || 0,
+      ttsProfile: affectOut.ttsProfile || {}
+    };
+    next.sessionPatch = _isObj(next.sessionPatch) ? { ...next.sessionPatch } : {};
+    next.sessionPatch.affectMemory = affectOut.memory || {};
+    next.audio = _isObj(next.audio) ? { ...next.audio, ttsProfile: affectOut.ttsProfile || {}, spokenText: affectOut.spokenText || reply } : { ttsProfile: affectOut.ttsProfile || {}, spokenText: affectOut.spokenText || reply };
+    return next;
+  } catch (_) {
+    return out;
+  }
+}
+
+function applyStateRefinements(out, input){
+  if (!StateSpine || typeof StateSpine.createState !== "function" || typeof StateSpine.decideNextMove !== "function" || typeof StateSpine.finalizeTurn !== "function") return out;
+  const session = _isObj(input && input.session) ? input.session : {};
+  const prev = _isObj(session.__stateSpine) ? session.__stateSpine : StateSpine.createState({ lane: _trim((out && out.lane) || 'general') || 'general', stage: 'open' });
+  const inbound = {
+    text: _trim(input && (input.text || input.prompt || '')),
+    action: _trim(input && input.action || ''),
+    payload: _isObj(input && input.body) ? input.body : {},
+    turnSignals: _isObj(out && out.turnSignals) ? out.turnSignals : {},
+    cog: _isObj(out && out.cog) ? out.cog : {}
+  };
+  try {
+    const decision = StateSpine.decideNextMove(prev, inbound);
+    const nextState = StateSpine.finalizeTurn(prev, inbound, {
+      lane: _trim((out && (out.lane || out.laneId)) || 'general') || 'general',
+      decision,
+      assistantText: _trim(out && (out.reply || (out.payload && out.payload.reply) || '')),
+      plannerDecision: { stage: decision && decision.stage || 'deliver' }
+    });
+    const next = _isObj(out) ? { ...out } : {};
+    next.sessionPatch = _isObj(next.sessionPatch) ? { ...next.sessionPatch } : {};
+    next.sessionPatch.__stateSpine = nextState;
+    next.bridge = _isObj(next.bridge) ? { ...next.bridge } : {};
+    next.bridge.state = {
+      phase: nextState.phase,
+      stage: nextState.stage,
+      volatility: nextState.volatility,
+      supportLock: !!(nextState.support && nextState.support.lockActive)
+    };
+    return next;
+  } catch (_) {
+    return out;
+  }
+}
+
 function finalizeBridgeContract(base){
   const out = _isObj(base) ? { ...base } : {};
   out.reply = _trim(out.reply || (out.payload && out.payload.reply) || '') || 'I am here.';
@@ -322,7 +401,9 @@ async function runLocalChat(promptOrInput, context){
 
   try {
     const out = await fn(input);
-    const refined = finalizeBridgeContract(applyBridgeRefinements(out, input));
+    const withAffect = applyAffectRefinements(out, input);
+    const withState = applyStateRefinements(withAffect, input);
+    const refined = finalizeBridgeContract(applyBridgeRefinements(withState, input));
     refined.requestId = _trim(refined.requestId) || input.requestId;
     refined.meta.elapsedMs = _clampInt(Date.now() - started, 0, 0, 600000);
     return refined;
