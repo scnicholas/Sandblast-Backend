@@ -269,8 +269,8 @@ function audioReplayGuard(audioPlan, input){
 }
 function finalizeBridgeContract(base){
   const out = _isObj(base) ? { ...base } : {};
-  out.reply = _trim(out.reply || (out.payload && out.payload.reply) || '') || 'I am here.';
-  out.payload = _isObj(out.payload) ? { ...out.payload, reply: _trim(out.payload.reply || out.reply) || out.reply } : { reply: out.reply };
+  out.reply = _trim((out.payload && (out.payload.spokenText || out.payload.reply)) || out.spokenText || out.reply || (out.bridge && out.bridge.tts && out.bridge.tts.textToSynth) || '') || 'I am here.';
+  out.payload = _isObj(out.payload) ? { ...out.payload, reply: _trim(out.payload.reply || out.reply) || out.reply, spokenText: _trim(out.payload.spokenText || out.reply) || out.reply } : { reply: out.reply, spokenText: out.reply };
   out.lane = _trim(out.lane || out.laneId || out.sessionLane || 'general') || 'general';
   out.laneId = _trim(out.laneId || out.lane || 'general') || 'general';
   out.sessionLane = _trim(out.sessionLane || out.lane || 'general') || 'general';
