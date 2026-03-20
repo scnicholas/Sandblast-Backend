@@ -1,13 +1,26 @@
+
 // runtime/marionBridge.js
 "use strict";
 
-const EmotionRetriever = require("./emotionRetriever");
-const PsychologyRetriever = require("./psychologyRetriever");
-const DomainRetriever = require("./domainRetriever");
-const DatasetRetriever = require("./datasetRetriever");
-const { runLayer3 } = require("./layer3");
-const { runLayer4 } = require("./layer4");
-const { runLayer5 } = require("./layer5");
+let EmotionRetriever = null;
+let PsychologyRetriever = null;
+let DomainRetriever = null;
+let DatasetRetriever = null;
+let runLayer3 = null;
+let runLayer4 = null;
+let runLayer5 = null;
+let routeMarion = null;
+let domainRouter = null;
+
+try { EmotionRetriever = require("./emotionRetriever"); } catch (_e) { EmotionRetriever = null; }
+try { PsychologyRetriever = require("./psychologyRetriever"); } catch (_e) { PsychologyRetriever = null; }
+try { DomainRetriever = require("./domainRetriever"); } catch (_e) { DomainRetriever = null; }
+try { DatasetRetriever = require("./datasetRetriever"); } catch (_e) { DatasetRetriever = null; }
+try { ({ runLayer3 } = require("./layer3")); } catch (_e) { runLayer3 = null; }
+try { ({ runLayer4 } = require("./layer4")); } catch (_e) { runLayer4 = null; }
+try { ({ runLayer5 } = require("./layer5")); } catch (_e) { runLayer5 = null; }
+try { ({ routeMarion } = require("./marionRouter")); } catch (_e) { routeMarion = null; }
+try { domainRouter = require("./domainRouter"); } catch (_e) { domainRouter = null; }
 
 const FALLBACK_REPLY = "I’m here with you. Let’s keep going together.";
 const FALLBACK_STATUS_REPLY = "I’m keeping this stable while I finish the handoff, and I can stay with the request without dropping out.";
@@ -493,12 +506,140 @@ async function _retrieveDatasetEvidence({ userQuery, domain, datasets, conversat
   }));
 }
 
+
+
+function _canonicalBridgeDomain(value) {
+  const fn = domainRouter && typeof domainRouter.canonicalizeDomain === "function"
+    ? domainRouter.canonicalizeDomain
+    : null;
+  const canonical = fn ? fn(value, "core") : _trim(value || "core").toLowerCase();
+  const alias = {
+    core: "general",
+    psych: "psychology",
+    fin: "finance",
+    en: "english",
+    cyber: "cyber",
+    strat: "strategy",
+    mkt: "marketing"
+  };
+  return alias[canonical] || canonical || "general";
+}
+
+function _datasetItemsToEvidence(datasets = [], domain = "general") {
+  const out = [];
+  for (const ds of _safeArray(datasets)) {
+    if (typeof ds === "string") {
+      const content = _trim(ds);
+      if (!content) continue;
+      out.push({ source: "dataset.inline", domain, title: domain + "_dataset", summary: content.slice(0, 240), content, score: 0.62, confidence: 0.62, tags: [domain, "dataset"] });
+      continue;
+    }
+    const obj = _safeObj(ds);
+    const content = _trim(obj.content || obj.text || obj.body || obj.summary || obj.note || obj.value);
+    if (!content) continue;
+    const itemDomain = _canonicalBridgeDomain(obj.domain || domain);
+    out.push({
+      id: obj.id || null,
+      source: obj.source || "dataset.object",
+      dataset: obj.dataset || obj.name || null,
+      domain: itemDomain,
+      title: obj.title || obj.label || obj.name || null,
+      summary: _trim(obj.summary || content.slice(0, 240)),
+      content,
+      score: Number.isFinite(Number(obj.score)) ? Number(obj.score) : 0.64,
+      confidence: Number.isFinite(Number(obj.confidence)) ? Number(obj.confidence) : 0.64,
+      tags: _safeArray(obj.tags).length ? _safeArray(obj.tags) : [itemDomain, "dataset"],
+      metadata: _safeObj(obj.metadata)
+    });
+  }
+  return out;
+}
+
+async function _runLayer3Safe(layer2Bundle) {
+  if (typeof runLayer3 === "function") return runLayer3(layer2Bundle);
+  return {
+    fusionPacket: {
+      intent: layer2Bundle.intent,
+      domain: layer2Bundle.domain,
+      emotion: layer2Bundle.emotion,
+      psychology: layer2Bundle.psychology,
+      evidence: {
+        domainEvidence: layer2Bundle.domainEvidence,
+        datasetEvidence: layer2Bundle.datasetEvidence,
+        memoryEvidence: layer2Bundle.memoryEvidence,
+        generalEvidence: layer2Bundle.generalEvidence
+      },
+      diagnostics: _safeObj(layer2Bundle.diagnostics),
+      weights: { emotion: 1, psychology: 1, datasets: 1 }
+    },
+    answerPlan: {
+      domain: layer2Bundle.domain,
+      intent: layer2Bundle.intent,
+      mode: layer2Bundle.emotion && layer2Bundle.emotion.intensity >= 0.6 ? "supportive" : "balanced"
+    }
+  };
+}
+
+async function _runLayer4Safe(params = {}) {
+  if (typeof runLayer4 === "function") return runLayer4(params);
+  return _buildSafeLayer4Fallback({
+    layer2Bundle: {
+      userQuery: _safeObj(params.continuityState).activeQuery || "",
+      domain: _safeObj(params.continuityState).activeDomain || "general",
+      intent: _safeObj(params.continuityState).activeIntent || "general"
+    },
+    layer3: {
+      fusionPacket: _safeObj(params.fusionPacket),
+      answerPlan: _safeObj(params.answerPlan)
+    },
+    turnMemory: _safeObj(params.turnMemory)
+  });
+}
+
+async function _runLayer5Safe(params = {}) {
+  if (typeof runLayer5 === "function") return runLayer5(params);
+  const assembled = _safeObj(params.assembledResponse);
+  return {
+    continuityState: {
+      activeQuery: _trim(params.userQuery),
+      activeDomain: _trim(_safeObj(params.fusionPacket).domain) || "general",
+      activeIntent: _trim(_safeObj(params.fusionPacket).intent) || "general",
+      activeEmotion: _trim(_safeObj(_safeObj(params.fusionPacket).emotion).primaryEmotion) || "neutral",
+      emotionalIntensity: Number(_safeObj(_safeObj(params.fusionPacket).emotion).intensity) || 0,
+      responseMode: _trim(_safeObj(assembled.responseMode).mode) || "balanced",
+      continuityHealth: _trim(_safeObj(params.previousMemory).continuityHealth) || "watch",
+      recoveryMode: _trim(_safeObj(params.previousMemory).recoveryMode) || "normal",
+      timestamp: Date.now()
+    },
+    extractedSignals: {},
+    persistence: {},
+    emotionalContinuity: {},
+    domainContinuity: {},
+    topicThread: {},
+    resetGuard: { shouldSuppressHardReset: true, shouldForceRecoveryMode: false, flags: ["layer5-safe"] },
+    turnMemory: {
+      ..._safeObj(params.previousMemory),
+      lastQuery: _trim(params.userQuery),
+      domain: _trim(_safeObj(params.fusionPacket).domain) || "general",
+      intent: _trim(_safeObj(params.fusionPacket).intent) || "general",
+      emotion: {
+        primaryEmotion: _trim(_safeObj(_safeObj(params.fusionPacket).emotion).primaryEmotion) || "neutral",
+        intensity: Number(_safeObj(_safeObj(params.fusionPacket).emotion).intensity) || 0
+      },
+      continuityHealth: _trim(_safeObj(params.previousMemory).continuityHealth) || "watch",
+      recoveryMode: _trim(_safeObj(params.previousMemory).recoveryMode) || "normal",
+      updatedAt: Date.now()
+    }
+  };
+}
+
 async function retrieveLayer2Signals(input = {}) {
   const userQuery = _trim(input.userQuery || input.query || input.text);
   const requestedDomain = _trim(input.requestedDomain || input.domain);
   const conversationState = _safeObj(input.conversationState);
   const datasets = _safeArray(input.datasets);
-  const domain = _inferDomain(userQuery, requestedDomain);
+  const routed = typeof routeMarion === "function" ? routeMarion({ text: userQuery, query: userQuery, requestedDomain, domain: requestedDomain, conversationState, supportFlags: input.supportFlags, session: input.session }) : null;
+  const domain = _canonicalBridgeDomain((routed && routed.primaryDomain) || requestedDomain || _inferDomain(userQuery, requestedDomain));
   const intent = _inferIntent(userQuery);
 
   const emotionFn = _pickRetrieverFn(EmotionRetriever, "retrieveEmotion");
@@ -535,16 +676,20 @@ async function retrieveLayer2Signals(input = {}) {
     ? _safeArray(input.domainEvidence)
     : await _retrieveDomainEvidence({ userQuery, domain, conversationState });
 
+  const inlineDatasetEvidence = _datasetItemsToEvidence(datasets, domain);
   const resolvedDatasetEvidence = _safeArray(input.datasetEvidence).length
     ? _safeArray(input.datasetEvidence)
-    : await _retrieveDatasetEvidence({
-        userQuery,
-        domain,
-        datasets,
-        conversationState,
-        emotion,
-        psychology
-      });
+    : [
+        ...(await _retrieveDatasetEvidence({
+          userQuery,
+          domain,
+          datasets,
+          conversationState,
+          emotion,
+          psychology
+        })),
+        ...inlineDatasetEvidence
+      ];
 
   const mergedEvidence = _mergeEvidence({
     emotion,
@@ -591,12 +736,12 @@ async function processWithMarion(input = {}) {
 
   try {
     layer2Bundle = await retrieveLayer2Signals(input);
-    layer3 = await runLayer3(layer2Bundle);
+    layer3 = await _runLayer3Safe(layer2Bundle);
 
     preLayer4TurnMemory = _buildPreLayer4TurnMemory(previousMemory, layer2Bundle, _safeObj(layer3.fusionPacket));
 
     try {
-      layer4 = await runLayer4({
+      layer4 = await _runLayer4Safe({
         fusionPacket: _safeObj(layer3.fusionPacket),
         answerPlan: _safeObj(layer3.answerPlan),
         continuityState: {
@@ -620,7 +765,7 @@ async function processWithMarion(input = {}) {
     }
 
     try {
-      layer5 = await runLayer5({
+      layer5 = await _runLayer5Safe({
         userQuery: layer2Bundle.userQuery,
         fusionPacket: _safeObj(layer3.fusionPacket),
         assembledResponse: _safeObj(layer4.assembledResponse),
@@ -664,7 +809,7 @@ async function processWithMarion(input = {}) {
 
     if (shouldRerunLayer4) {
       try {
-        layer4 = await runLayer4({
+        layer4 = await _runLayer4Safe({
           fusionPacket: _safeObj(layer3.fusionPacket),
           answerPlan: _safeObj(layer3.answerPlan),
           continuityState: _safeObj(layer5.continuityState),
@@ -680,7 +825,7 @@ async function processWithMarion(input = {}) {
       }
     }
 
-    const compatibility = _buildCompatibilityPayload({
+    let compatibility = _buildCompatibilityPayload({
       layer2Bundle,
       fusionPacket: _safeObj(layer3.fusionPacket),
       answerPlan: _safeObj(layer3.answerPlan),
@@ -692,8 +837,30 @@ async function processWithMarion(input = {}) {
       error: layer4.error || layer5.error || null
     });
 
-    return {
-      ok: true,
+const lockedEmotion = _buildLockedEmotionContractFromLayer2(layer2Bundle);
+const strategy = _buildStrategyFromLayer2(layer2Bundle);
+if (AffectEngine && typeof AffectEngine.runAffectEngine === "function") {
+  try {
+    const affectOut = AffectEngine.runAffectEngine({
+      assistantDraft: compatibility.reply,
+      lockedEmotion,
+      strategy,
+      lane: layer2Bundle.domain || "Default",
+      memory: _safeObj(previousMemory.affectMemory)
+    });
+    if (affectOut && affectOut.ok && _trim(affectOut.spokenText)) {
+      compatibility.reply = _trim(affectOut.spokenText);
+      compatibility.text = _trim(affectOut.spokenText);
+      compatibility.message = _trim(affectOut.spokenText);
+      compatibility.output = _trim(affectOut.spokenText);
+      compatibility.answer = _trim(affectOut.spokenText);
+      compatibility.meta = { ..._safeObj(compatibility.meta), spokenText: _trim(affectOut.spokenText), ttsProfile: _safeObj(affectOut.ttsProfile), linkedDatasets: ["base_labels", "conversation_patterns", "emotion_analysis_schema", "nuance_map"], strategy, lockedEmotion };
+    }
+  } catch (_affectError) {}
+}
+
+return {
+  ok: true,
       partial: compatibility.partial,
       status: compatibility.status,
       reply: compatibility.reply,
@@ -830,82 +997,145 @@ async function processWithMarion(input = {}) {
 
 
 
-function _normalizeBridgeInput(input = {}) {
-  const src = _safeObj(input);
-  const meta = _safeObj(src.meta);
-  const session = _safeObj(meta.session);
-  const emotionMeta = _safeObj(meta.emotion);
-  return {
-    userQuery: _trim(src.userQuery || src.query || src.text),
-    requestedDomain: _trim(src.requestedDomain || src.domain || meta.preferredDomain),
-    conversationState: _safeObj(src.conversationState || src.state || meta.norm || {}),
-    datasets: _safeArray(src.datasets),
-    previousMemory: _safeObj(src.previousMemory || session),
-    domainEvidence: _safeArray(src.domainEvidence || meta.domainEvidence),
-    datasetEvidence: _safeArray(src.datasetEvidence || meta.datasetEvidence),
-    memoryEvidence: _safeArray(src.memoryEvidence || meta.memoryEvidence),
-    generalEvidence: _safeArray(src.generalEvidence || meta.generalEvidence),
-    affect: emotionMeta,
-    supportFlags: _safeObj(src.supportFlags || emotionMeta.supportFlags)
-  };
-}
-
-function _buildBridgePacket(result = {}) {
-  const domainEvidence = _safeArray(result?.layer2?.diagnostics?.layer2EvidenceCounts ? [] : result?.assembledResponse?.domainEvidence);
-  const evidenceCount =
-    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.domainEvidence || 0) +
-    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.datasetEvidence || 0) +
-    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.memoryEvidence || 0) +
-    Number(_safeObj(_safeObj(result.layer2).diagnostics).layer2EvidenceCounts?.generalEvidence || 0);
+function createMarionBridge(options = {}) {
+  const memoryProvider = _safeObj(options.memoryProvider);
+  const evidenceEngine = _safeObj(options.evidenceEngine);
 
   return {
-    synthesis: {
-      answer: _trim(result.reply || result.answer || result.output || result.text || FALLBACK_REPLY),
-      text: _trim(result.text || result.reply || result.answer || result.output || FALLBACK_REPLY),
-      mode: _trim(_safeObj(result.meta).mode || _safeObj(_safeObj(result.layer4).outputMetadata).recoveryMode || 'balanced')
-    },
-    routing: {
-      domain: _trim(result.domain) || 'general',
-      intent: _trim(result.intent) || 'general',
-      status: _trim(result.status) || (result.ok === false ? 'degraded' : 'ok')
-    },
-    evidence: {
-      count: evidenceCount,
-      rankedCount: evidenceCount,
-      domainEvidence
-    },
-    continuity: {
-      state: _safeObj(result.continuityState),
-      turnMemory: _safeObj(result.turnMemory),
-      resetGuard: _safeObj(result.resetGuard)
-    },
-    meta: _safeObj(result.meta),
-    raw: result
-  };
-}
-
-function createMarionBridge() {
-  return {
+    version: "marionBridge.bridge.updated.v1",
     async maybeResolve(req = {}) {
-      const normalized = _normalizeBridgeInput(req);
-      const result = await processWithMarion(normalized);
-      const answer = _trim(result.reply || result.answer || result.output || result.text);
-      const usedBridge = !!answer;
+      const meta = _safeObj(req.meta);
+      const memory = memoryProvider && typeof memoryProvider.getContext === "function"
+        ? await Promise.resolve(memoryProvider.getContext(req))
+        : {};
+      const collectedEvidence = evidenceEngine && typeof evidenceEngine.collect === "function"
+        ? await Promise.resolve(evidenceEngine.collect(req))
+        : [];
+      const sections = _safeObj(meta.knowledgeSections);
+      const datasets = [];
+      for (const value of Object.values(sections)) {
+        if (Array.isArray(value)) datasets.push(...value);
+      }
+      const result = await processWithMarion({
+        userQuery: req.text || req.query || "",
+        requestedDomain: meta.preferredDomain || req.domain || "",
+        conversationState: _safeObj(meta.session),
+        previousMemory: memory,
+        datasets,
+        domainEvidence: _safeArray(collectedEvidence),
+        datasetEvidence: _datasetItemsToEvidence(datasets, _canonicalBridgeDomain(meta.preferredDomain || req.domain || "general")),
+        memoryEvidence: [],
+        generalEvidence: []
+      });
       return {
-        usedBridge,
-        packet: usedBridge ? _buildBridgePacket(result) : null,
-        result
+        usedBridge: !!result.ok || !!result.partial,
+        packet: result,
+        reply: result.reply || result.text || "",
+        domain: result.domain || _canonicalBridgeDomain(meta.preferredDomain || req.domain || "general"),
+        intent: result.intent || "general",
+        meta: result.meta || {},
+        ui: result.ui || {}
       };
     }
   };
 }
 
-async function route(input = {}) {
-  return processWithMarion(_normalizeBridgeInput(input));
+function _buildLockedEmotionContractFromLayer2(layer2Bundle = {}) {
+  const emotion = _safeObj(layer2Bundle.emotion);
+  return {
+    source: "marionBridge",
+    locked: true,
+    primaryEmotion: _trim(emotion.primaryEmotion) || "neutral",
+    secondaryEmotion: _trim(emotion.secondaryEmotion) || null,
+    intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+    valence: Number.isFinite(Number(emotion.valence)) ? Number(emotion.valence) : 0,
+    valenceLabel: _trim(emotion.valenceLabel || (Number(emotion.valence) > 0 ? "positive" : Number(emotion.valence) < 0 ? "negative" : "mixed")) || "mixed",
+    confidence: Number.isFinite(Number(emotion.confidence)) ? Number(emotion.confidence) : 0,
+    needs: _safeArray(emotion.needs),
+    cues: _safeArray(emotion.cues),
+    supportFlags: _safeObj(emotion.supportFlags),
+    evidenceMatches: _safeArray(emotion.evidenceMatches),
+    meta: { linkedDatasets: ["base_labels", "conversation_patterns", "emotion_analysis_schema", "nuance_map"], marionDomain: _trim(layer2Bundle.domain || "general") }
+  };
 }
 
+function _buildStrategyFromLayer2(layer2Bundle = {}) {
+  const lockedEmotion = _buildLockedEmotionContractFromLayer2(layer2Bundle);
+  const text = _trim(layer2Bundle.userQuery);
+  if (EmotionRouteGuard && typeof EmotionRouteGuard.analyzeEmotionRoute === "function") {
+    try {
+      const routed = EmotionRouteGuard.analyzeEmotionRoute({ text, lockedEmotion }, _safeObj(layer2Bundle.conversationState));
+      if (routed && typeof routed === "object") {
+        return routed.strategy && typeof routed.strategy === "object" ? routed.strategy : {
+          supportModeCandidate: _trim(routed.supportModeCandidate) || "steady_assist",
+          routeBias: _trim(routed.routeBias) || "maintain",
+          archetype: _trim(routed.archetype) || "clarify",
+          deliveryTone: _trim(routed.deliveryTone) || "neutral_warm",
+          questionPressure: _trim(_safeObj(routed.nuanceProfile).questionPressure || "medium"),
+          transitionReadiness: _trim(_safeObj(routed.nuanceProfile).transitionReadiness || "medium"),
+          acknowledgementMode: "auto",
+          expressionContract: _safeObj(routed.expressionContract)
+        };
+      }
+    } catch (_e) {}
+  }
+  return { supportModeCandidate: "steady_assist", routeBias: "maintain", archetype: "clarify", deliveryTone: "neutral_warm", questionPressure: "medium", transitionReadiness: "medium", acknowledgementMode: "auto", expressionContract: {} };
+}
+
+function _buildBridgePacket(result = {}) {
+  const domainEvidence = _safeArray(result?.assembledResponse?.domainEvidence);
+  const meta = _safeObj(result.meta);
+  const layer2 = _safeObj(result.layer2);
+  const strategy = _safeObj(meta.strategy || {});
+  const evidenceCount = Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.domainEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.datasetEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.memoryEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.generalEvidence || 0);
+  return {
+    synthesis: {
+      answer: _trim(result.reply || result.answer || result.output || result.text || FALLBACK_REPLY),
+      text: _trim(result.text || result.reply || result.answer || result.output || FALLBACK_REPLY),
+      mode: _trim(meta.mode || _safeObj(_safeObj(result.layer4).outputMetadata).recoveryMode || "balanced"),
+      spokenText: _trim(meta.spokenText || result.reply || result.text || FALLBACK_REPLY)
+    },
+    routing: { domain: _trim(result.domain) || "general", intent: _trim(result.intent) || "general", status: _trim(result.status) || (result.ok === false ? "degraded" : "ok") },
+    emotion: { lockedEmotion: _buildLockedEmotionContractFromLayer2({ ...layer2, domain: result.domain || layer2.domain || "general", userQuery: result.userQuery || "" }), strategy },
+    evidence: { count: evidenceCount, rankedCount: evidenceCount, domainEvidence },
+    continuity: { state: _safeObj(result.continuityState), turnMemory: _safeObj(result.turnMemory), resetGuard: _safeObj(result.resetGuard) },
+    meta: meta,
+    raw: result
+  };
+}
+
+function createMarionBridge(options = {}) {
+  const memoryProvider = _safeObj(options.memoryProvider);
+  const evidenceEngine = _safeObj(options.evidenceEngine);
+  return {
+    version: "marionBridge v2.0.0 DATASET-HANDOFF",
+    async maybeResolve(req = {}) {
+      const meta = _safeObj(req.meta);
+      const memory = memoryProvider && typeof memoryProvider.getContext === "function" ? await Promise.resolve(memoryProvider.getContext(req)) : {};
+      const collectedEvidence = evidenceEngine && typeof evidenceEngine.collect === "function" ? await Promise.resolve(evidenceEngine.collect(req)) : [];
+      const sections = _safeObj(meta.knowledgeSections);
+      const datasets = [];
+      for (const value of Object.values(sections)) if (Array.isArray(value)) datasets.push(...value);
+      const result = await processWithMarion({
+        userQuery: req.text || req.query || "",
+        requestedDomain: meta.preferredDomain || req.domain || "",
+        conversationState: _safeObj(meta.session),
+        previousMemory: memory,
+        datasets,
+        domainEvidence: _safeArray(collectedEvidence),
+        datasetEvidence: _safeArray(meta.datasetEvidence),
+        memoryEvidence: _safeArray(meta.memoryEvidence),
+        generalEvidence: _safeArray(meta.generalEvidence)
+      });
+      return { usedBridge: !!_trim(result.reply || result.text || result.answer || result.output), packet: _buildBridgePacket(result), reply: _trim(result.reply || result.text || result.answer || result.output), domain: result.domain || "general", intent: result.intent || "general", meta: _safeObj(result.meta), ui: _safeObj(result.ui), result };
+    }
+  };
+}
+
+async function route(input = {}) { return processWithMarion(input); }
 const ask = route;
 const handle = route;
+
 
 module.exports = {
   retrieveLayer2Signals,
