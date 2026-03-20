@@ -36,16 +36,12 @@ let MarionBridge = null;
 let MarionSO = null;
 let EmotionRouteGuard = null;
 let Support = null;
-let AffectEngine = null;
-let Continuity = null;
 
 try { Spine = require("./stateSpine"); } catch (_e) { Spine = null; }
 try { MarionBridgeMod = require("./marionBridge"); } catch (_e) { MarionBridgeMod = null; }
 try { MarionSO = require("./marionSO"); } catch (_e) { MarionSO = null; }
 try { EmotionRouteGuard = require("./emotionRouteGuard"); } catch (_e) { EmotionRouteGuard = null; }
 try { Support = require("./supportResponse"); } catch (_e) { Support = null; }
-try { AffectEngine = require("./affectEngine"); } catch (_e) { AffectEngine = null; }
-try { Continuity = require("./conversationContinuity"); } catch (_e) { Continuity = null; }
 
 let laneRouter = null;
 let memoryAdapter = null;
@@ -95,12 +91,6 @@ const buildFollowUpsForLane = typeof laneRouter?.buildFollowUpsForLane === "func
       return [];
     };
 
-const buildEmotionalActionsForLane = typeof laneRouter?.buildEmotionalActionsForLane === "function"
-  ? laneRouter.buildEmotionalActionsForLane
-  : function fallbackBuildEmotionalActionsForLane(lane, emo, norm) {
-      return buildFollowUpsForLane(lane, emo, norm);
-    };
-
 const buildMemoryContext = typeof memoryAdapter?.buildMemoryContext === "function"
   ? memoryAdapter.buildMemoryContext
   : function fallbackBuildMemoryContext() { return null; };
@@ -123,7 +113,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
       };
     };
 
-const CE_VERSION = "chatEngine v0.20.2 COHESION-LOCK EMOTION-GUARD HARDEN";
+const CE_VERSION = "chatEngine v0.21.0 UI-RESPECTS-BRAIN";
 
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "english", "cyber", "ai", "strategy", "marketing", "core"];
 
@@ -309,193 +299,6 @@ function extractGuidedPromptMeta(rawInput, norm) {
 function nowMs() {
   return Date.now();
 }
-
-function buildLockedEmotionForAffect(emo) {
-  if (!emo || !isPlainObject(emo)) return null;
-  return {
-    locked: true,
-    primaryEmotion: safeStr(emo.primaryEmotion || emo.dominantEmotion || "neutral").toLowerCase() || "neutral",
-    secondaryEmotion: safeStr(emo.secondaryEmotion || "").toLowerCase() || null,
-    intensity: Math.max(0, Math.min(1, Number(emo.intensity || 0) > 1 ? Number(emo.intensity || 0) / 100 : Number(emo.intensity || 0) || 0)),
-    valence: safeStr(emo.valence || "neutral").toLowerCase() === "positive" ? 0.65 : safeStr(emo.valence || "neutral").toLowerCase() === "negative" ? -0.7 : 0,
-    valenceLabel: safeStr(emo.valence || "mixed").toLowerCase() || "mixed",
-    confidence: Math.max(0, Math.min(1, Number(emo.confidence || 0) > 1 ? Number(emo.confidence || 0) / 100 : Number(emo.confidence || 0) || 0.72)),
-    supportFlags: isPlainObject(emo.supportFlags) ? emo.supportFlags : {},
-    needs: [
-      emo?.supportFlags?.needsConnection ? "connection" : "",
-      emo?.supportFlags?.needsForwardMotion ? "forward_motion" : "",
-      emo?.supportFlags?.needsStabilization ? "stabilization" : "",
-      emo?.supportFlags?.needsClarification ? "clarity" : ""
-    ].filter(Boolean),
-    cues: Array.isArray(emo.tags) ? emo.tags.slice(0, 12) : [],
-    signature: safeStr(emo.primaryEmotion || emo.dominantEmotion || "neutral") + "|" + safeStr(emo.supportModeCandidate || "steady_assist")
-  };
-}
-
-function buildStrategyForAffect(emo) {
-  if (!emo || !isPlainObject(emo)) return null;
-  const supportMode = safeStr(emo.supportModeCandidate || "steady_assist").toLowerCase() || "steady_assist";
-  const archetype = /clarify|sequence|regulate/.test(supportMode)
-    ? "clarify"
-    : /channel|coach|forward/.test(supportMode)
-    ? "channel"
-    : /celebrate|reinforce/.test(supportMode) || safeStr(emo.valence || "").toLowerCase() === "positive"
-    ? "celebrate"
-    : /stabilize|soothe|ground/.test(supportMode) || safeStr(emo.mode || "").toLowerCase() === "vulnerable"
-    ? "ground"
-    : "clarify";
-  return {
-    archetype,
-    supportModeCandidate: supportMode,
-    routeBias: safeStr(emo.routeBias || "maintain").toLowerCase() || "maintain",
-    deliveryTone: safeStr(emo.deliveryTone || "neutral_warm").toLowerCase() || "neutral_warm",
-    expressionContract: {
-      questionPressure: safeStr(emo?.conversationPlan?.questionStyle || "medium").toLowerCase() || "medium",
-      transitionReadiness: emo?.supportFlags?.needsStabilization ? "low" : "medium",
-      acknowledgementMode: "auto"
-    }
-  };
-}
-
-function dedupeActionObjects(items, maxItems) {
-  const seen = new Set();
-  const out = [];
-  for (const item of Array.isArray(items) ? items : []) {
-    const label = safeStr(item?.label || item?.title || "").trim();
-    if (!label) continue;
-    const key = label.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      id: safeStr(item?.id || key.replace(/[^a-z0-9]+/g, "_")).trim() || key.replace(/[^a-z0-9]+/g, "_"),
-      type: safeStr(item?.type || "action") || "action",
-      label,
-      role: safeStr(item?.role || "advance").toLowerCase() || "advance",
-      payload: isPlainObject(item?.payload) ? item.payload : (safeStr(item?.send || "") ? { text: safeStr(item.send) } : {})
-    });
-    if (out.length >= (Number(maxItems) > 0 ? Number(maxItems) : 4)) break;
-  }
-  return out;
-}
-
-function mergeUiContracts(baseUi, patchUi) {
-  const base = isPlainObject(baseUi) ? baseUi : {};
-  const patch = isPlainObject(patchUi) ? patchUi : {};
-  const out = { ...base, ...patch };
-  if (Array.isArray(base.chips) || Array.isArray(patch.chips)) out.chips = Array.isArray(patch.chips) ? patch.chips : (Array.isArray(base.chips) ? base.chips : []);
-  return out;
-}
-
-function buildUnifiedEmotionBundle(params) {
-  const lane = safeStr(params?.lane || "general") || "general";
-  const emo = isPlainObject(params?.emo) ? params.emo : null;
-  const norm = isPlainObject(params?.norm) ? params.norm : {};
-  const session = isPlainObject(params?.session) ? params.session : {};
-  const safeReply = safeStr(params?.safeReply || "");
-  const baseUi = isPlainObject(params?.ui) ? params.ui : buildUiForLane(lane);
-  const baseActions = dedupeActionObjects(Array.isArray(params?.followUps) ? params.followUps : [], 4);
-  const continuity = Continuity && typeof Continuity.consultContinuity === "function"
-    ? Continuity.consultContinuity({
-        session,
-        lane,
-        userText: norm.text,
-        now: nowMs(),
-        year: norm.year,
-        mode: safeStr(norm.action || norm?.payload?.action || ""),
-        debug: false
-      })
-    : null;
-
-  let affectOut = null;
-  if (AffectEngine && typeof AffectEngine.runAffectEngine === "function" && emo) {
-    try {
-      const lockedEmotion = buildLockedEmotionForAffect(emo);
-      const strategy = buildStrategyForAffect(emo);
-      if (lockedEmotion && strategy) {
-        affectOut = AffectEngine.runAffectEngine({
-          lane,
-          replyText: safeReply,
-          memory: isPlainObject(session.__affectMemory) ? session.__affectMemory : {},
-          lockedEmotion,
-          strategy,
-          guidedPrompt: extractGuidedPromptMeta(params?.rawInput, norm) || null
-        });
-      }
-    } catch (_e) {
-      affectOut = null;
-    }
-  }
-
-  const fallbackActions = dedupeActionObjects(buildEmotionalActionsForLane(lane, emo, norm), 4);
-  const continuityActions = continuity ? dedupeActionObjects(continuity.actions, 4) : [];
-  const affectActions = affectOut?.ok ? dedupeActionObjects(affectOut?.unifiedTurn?.actions, 4) : [];
-  const actions = affectActions.length ? affectActions : (baseActions.length ? baseActions : (continuityActions.length ? continuityActions : fallbackActions));
-  const primaryState = safeStr(affectOut?.unifiedTurn?.primaryState || continuity?.stateBand || baseUi.mode || (emo?.mode === "VULNERABLE" ? "supportive" : "focused")).toLowerCase() || "focused";
-  const secondaryState = safeStr(affectOut?.unifiedTurn?.secondaryState || "steady").toLowerCase() || "steady";
-  const continuityScore = Math.max(0, Math.min(1, Number(affectOut?.unifiedTurn?.continuityScore ?? (continuity?.continuityLevel === "deep" ? 0.88 : continuity?.continuityLevel === "warm" ? 0.7 : continuity?.continuityLevel === "light" ? 0.52 : 0.35)) || 0.35));
-  const placeholder = safeStr(affectOut?.unifiedTurn?.placeholder || baseUi.placeholder || (emo?.mode === "VULNERABLE" ? "Tell me what feels heavy…" : "Ask Nyx anything about Sandblast…")) || "Ask Nyx anything about Sandblast…";
-  const bridgeLine = continuity && continuity.shouldInjectContinuityLine && safeStr(continuity.continuityLine || continuity.microRecapLine || continuity.openerLine || "") ? safeStr(continuity.continuityLine || continuity.microRecapLine || continuity.openerLine || "") : "";
-  const replyText = bridgeLine && safeReply && !safeReply.toLowerCase().includes(bridgeLine.toLowerCase())
-    ? `${safeReply}
-
-${bridgeLine}`.trim()
-    : safeReply;
-
-  const ui = mergeUiContracts(baseUi, {
-    mode: primaryState,
-    state: primaryState,
-    emotionalState: primaryState,
-    emotionalSecondaryState: secondaryState,
-    continuityScore,
-    promptPlacement: "attached",
-    placeholder,
-    chips: Array.isArray(baseUi.chips) ? baseUi.chips : []
-  });
-
-  const engine = {
-    primaryState,
-    secondaryState,
-    continuityScore,
-    placeholder,
-    actions,
-    bridgeLine,
-    continuityLevel: safeStr(continuity?.continuityLevel || "none") || "none",
-    affect: affectOut && affectOut.ok ? {
-      styleKey: safeStr(affectOut.styleKey || ""),
-      ttsProfile: isPlainObject(affectOut.ttsProfile) ? affectOut.ttsProfile : null,
-      expressionBridge: affectOut.expressionBridge || null
-    } : null
-  };
-
-  return {
-    replyText,
-    actions,
-    ui,
-    engine,
-    turnSignalsPatch: {
-      enginePrimaryState: primaryState,
-      engineSecondaryState: secondaryState,
-      engineContinuityScore: continuityScore,
-      enginePlaceholder: placeholder,
-      engineActionLabels: actions.map((x) => x.label)
-    },
-    sessionPatch: {
-      __affectMemory: affectOut?.ok ? affectOut.memory : (isPlainObject(session.__affectMemory) ? session.__affectMemory : {}),
-      __emotionalEngine: {
-        primaryState,
-        secondaryState,
-        continuityScore,
-        placeholder,
-        lastActionLabels: actions.map((x) => x.label)
-      },
-      __inputPlaceholder: placeholder,
-      __lastActionLabels: actions.map((x) => x.label),
-      __continuityStateBand: safeStr(continuity?.stateBand || "new") || "new",
-      __continuityLevel: safeStr(continuity?.continuityLevel || "none") || "none"
-    }
-  };
-}
-
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
 }
@@ -2296,7 +2099,7 @@ async function handleChat(input) {
           lane: norm.lane,
           year: norm.year,
           action: norm.action,
-          turnSignals: norm.turnSignals,
+          turnSignals: { ...(isPlainObject(norm.turnSignals) ? norm.turnSignals : {}), ...(isPlainObject(unifiedEmotion?.turnSignalsPatch) ? unifiedEmotion.turnSignalsPatch : {}) },
           cog: {
             intent: emo?.bypassClarify ? "STABILIZE" : "ADVANCE",
             mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
@@ -2324,22 +2127,18 @@ async function handleChat(input) {
         lane = "general";
       }
 
-      const safeReplyBase = applyPublicSanitization(
+      const safeReply = applyPublicSanitization(
         scrubExecutionStyleArtifacts(softSpeak(emotionFirst.reply)),
         norm,
         session,
         publicMode
       );
       const isSupportiveEmotion = safeStr(emotionFirst.mode || "").toLowerCase() === "supportive";
-      const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane, emo, norm);
+      const followUpsRaw = isSupportiveEmotion ? buildSupportiveEmotionFollowUps(emo) : buildFollowUpsForLane(lane);
       const directives = Array.isArray(emotionFirst.directives) ? emotionFirst.directives : [];
-      const artifactsBase = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane, emo), { reply: safeReplyBase, lane, mode: emotionFirst.mode });
-      const emotionBundle = buildUnifiedEmotionBundle({ rawInput, norm, session, emo, lane, safeReply: safeReplyBase, followUps: artifactsBase.followUps, ui: artifactsBase.ui });
-      const safeReply = emotionBundle.replyText || safeReplyBase;
-      const followUps = emotionBundle.actions;
-      const ui = emotionBundle.ui;
-      if (isPlainObject(norm.turnSignals)) Object.assign(norm.turnSignals, emotionBundle.turnSignalsPatch);
-      const artifacts = { ...artifactsBase, followUps, followUpsStrings: followUps.map((x) => x.label), ui };
+      const artifacts = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isSupportiveEmotion ? buildSupportiveEmotionUi(emo) : buildUiForLane(lane), { reply: safeReply, lane, mode: emotionFirst.mode });
+      const followUps = artifacts.followUps;
+      const ui = artifacts.ui;
       const nextSpine = finalizeSpineSafe({
         prevState: corePrev,
         inbound: {
@@ -2365,7 +2164,7 @@ async function handleChat(input) {
         decision: {
           move: safeStr(plannerDecision?.move || (emo?.bypassClarify ? "ADVANCE" : "ADVANCE"), 20).toUpperCase(),
           rationale: safeStr(plannerDecision?.rationale || (emo?.bypassClarify ? "emotion_bypass" : "emotion_first_turn"), 80),
-          speak: safeReply,
+          speak: emotionalSafeReply,
           stage: safeStr(plannerDecision?.stage || "deliver", 20).toLowerCase(),
           _plannerMode: safeStr(plannerDecision?._plannerMode || "emotion_first", 48)
         },
@@ -2375,13 +2174,13 @@ async function handleChat(input) {
           mode: isTechnicalExecutionInbound(norm) ? "execution" : "transitional",
           publicMode
         },
-        assistantSummary: safeReply,
+        assistantSummary: emotionalSafeReply,
         updateReason: "emotion_first"
       });
 
       const emotionContract = {
         ok: true,
-        reply: safeReply,
+        reply: emotionalSafeReply,
         payload: { reply: safeReply },
         lane,
         laneId: lane,
@@ -2415,7 +2214,6 @@ async function handleChat(input) {
         requestId,
         meta: {
           v: CE_VERSION,
-          emotionalEngine: emotionBundle.engine,
           earlyReturn: "emotion_first",
           emotionCached: !!emo?.cached,
           telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "emotion_first" }),
@@ -2433,7 +2231,6 @@ async function handleChat(input) {
         {
           lane,
           publicMode,
-          __replyPlaceholder: safeStr(emotionBundle.engine.placeholder || ""),
           __lastInboundKey: inboundKey,
           __memoryWindow: buildMemoryContext(sessionId || resolveSessionId(norm, session, inboundKey)) || {},
           __spineState: nextSpine,
@@ -2458,9 +2255,6 @@ async function handleChat(input) {
           __lastQuestionStyle: safeStr(emotionFirst.meta?.questionStyle || emo?.conversationPlan?.questionStyle || ""),
           __sameResponseFamilyCount: safeStr(session.__lastResponseFamily || "").toLowerCase() === safeStr(emotionFirst.meta?.responseFamily || emo?.responseFamily || "").toLowerCase() ? clampInt(session.__sameResponseFamilyCount || 0, 0, 0, 99) + 1 : 0,
           __emotionAt: nowMs(),
-          __enginePrimaryState: safeStr(emotionBundle.engine.primaryState || "focused"),
-          __engineSecondaryState: safeStr(emotionBundle.engine.secondaryState || "steady"),
-          __engineContinuityScore: Number(emotionBundle.engine.continuityScore || 0) || 0,
         __lastIntent: safeStr(bridgeRouting?.intent || plannerDecision?.move || ""),
         __lastDomain: safeStr(bridgeRouting?.domain || ""),
         __knowledgeSections: marionBridgeOut?.sections || {},
@@ -2468,22 +2262,22 @@ async function handleChat(input) {
         __marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
         __marionBridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99),
           __cacheInSig: inSig,
-          __cacheReply: breakerEmotionBundle.replyText || safeReply,
+          __cacheReply: emotionalSafeReply,
           __cacheLane: lane,
           __cacheFollowUps: followUps,
+        __emotionalTurn: emotionalTurn,
           __cacheDirectives: directives,
           __cacheMenusSuppressed: !!artifacts.menusSuppressed,
           __cacheUiMode: safeStr(artifacts.ui?.mode || (artifacts.menusSuppressed ? "supportive" : "")),
           __cacheAt: nowMs()
         },
-        breakerEmotionBundle.sessionPatch,
         completeTurnLifecycle(session, {
           turnId,
           requestId,
           inSig,
           inboundKey,
           lane,
-          reply: breakerEmotionBundle.replyText || safeReply,
+          reply: safeReply,
           contract: emotionContract
         })
       );
@@ -2501,20 +2295,19 @@ async function handleChat(input) {
         publicMode
       );
 
-      const breakerEmotionBundle = buildUnifiedEmotionBundle({ rawInput, norm, session, emo, lane: "general", safeReply, followUps: [], ui: quietUi("supportive") });
       const breakerContract = {
         ok: true,
-        reply: breakerEmotionBundle.replyText || safeReply,
-        payload: { reply: breakerEmotionBundle.replyText || safeReply },
+        reply: safeReply,
+        payload: { reply: safeReply },
         lane: "general",
         laneId: "general",
         sessionLane: "general",
         bridge: null,
         ctx: {},
-        ui: breakerEmotionBundle.ui,
+        ui: quietUi("supportive"),
         directives: [],
-        followUps: breakerEmotionBundle.actions,
-        followUpsStrings: breakerEmotionBundle.actions.map((x) => x.label),
+        followUps: [],
+        followUpsStrings: [],
         sessionPatch: {},
         cog: {
           publicMode,
@@ -2536,7 +2329,7 @@ async function handleChat(input) {
         {
           __lastInboundKey: inboundKey,
           __cacheInSig: inSig,
-          __cacheReply: breakerEmotionBundle.replyText || safeReply,
+          __cacheReply: safeReply,
           __cacheLane: "general",
           __cacheFollowUps: [],
           __cacheDirectives: [],
@@ -2544,7 +2337,6 @@ async function handleChat(input) {
           __cacheUiMode: "supportive",
           __cacheAt: nowMs()
         },
-        breakerEmotionBundle.sessionPatch,
         completeTurnLifecycle(session, {
           turnId,
           requestId,
@@ -2569,21 +2361,19 @@ async function handleChat(input) {
         publicMode
       );
       const lane = safeStr(norm.lane || "general") || "general";
-      const artifactsBase = laneArtifactsForTurn(norm, emo, lane, buildFollowUpsForLane(lane, emo, norm), buildUiForLane(lane, emo), { reply, lane, mode: "greeting" });
-      const greetingEmotionBundle = buildUnifiedEmotionBundle({ rawInput, norm, session, emo, lane, safeReply: reply, followUps: artifactsBase.followUps, ui: artifactsBase.ui });
-      const followUps = greetingEmotionBundle.actions;
-      const artifacts = { ...artifactsBase, followUps, followUpsStrings: followUps.map((x) => x.label), ui: greetingEmotionBundle.ui };
+      const artifacts = laneArtifactsForTurn(norm, emo, lane, buildFollowUpsForLane(lane), buildUiForLane(lane), { reply, lane, mode: "greeting" });
+      const followUps = artifacts.followUps;
 
       const greetingContract = {
         ok: true,
-        reply: greetingEmotionBundle.replyText || reply,
-        payload: { reply: greetingEmotionBundle.replyText || reply },
+        reply,
+        payload: { reply },
         lane,
         laneId: lane,
         sessionLane: lane,
         bridge: null,
         ctx: {},
-        ui: shouldForceQuietSupport(norm, emo, { ui: artifacts.ui, meta: { suppressMenus: artifacts.menusSuppressed }, cog: { intent: "ADVANCE" } }) ? quietUi("quiet") : artifacts.ui,
+        ui: shouldForceQuietSupport(norm, emo, { ui: artifacts.ui, meta: { suppressMenus: artifacts.menusSuppressed }, cog: { intent: isSupportiveEmotion ? "STABILIZE" : "ADVANCE" } }) ? quietUi(isSupportiveEmotion ? "supportive" : "quiet") : artifacts.ui,
         directives: [],
         followUps,
         followUpsStrings: artifacts.followUpsStrings,
@@ -2599,11 +2389,10 @@ async function handleChat(input) {
         {
           lane,
           publicMode,
-          __replyPlaceholder: safeStr(greetingEmotionBundle.engine.placeholder || ""),
           __greeted: true,
           __lastInboundKey: inboundKey,
           __cacheInSig: inSig,
-          __cacheReply: greetingEmotionBundle.replyText || applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(reply)), norm, session, publicMode),
+          __cacheReply: applyPublicSanitization(scrubExecutionStyleArtifacts(softSpeak(reply)), norm, session, publicMode),
           __cacheLane: lane,
           __cacheFollowUps: followUps,
           __cacheDirectives: [],
@@ -2611,14 +2400,13 @@ async function handleChat(input) {
           __cacheUiMode: "supportive",
           __cacheAt: nowMs()
         },
-        emotionBundle.sessionPatch,
         completeTurnLifecycle(session, {
           turnId,
           requestId,
           inSig,
           inboundKey,
           lane,
-          reply: greetingEmotionBundle.replyText || reply,
+          reply,
           contract: greetingContract
         })
       );
@@ -2708,12 +2496,25 @@ async function handleChat(input) {
       lane = "general";
     }
 
-    const safeReplyBase = applyPublicSanitization(
+    const safeReply = applyPublicSanitization(
       scrubExecutionStyleArtifacts(softSpeak(applyBudgetText(reply, "medium"))),
       norm,
       session,
       publicMode
     );
+
+    const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane, emo, norm);
+    const unifiedEmotion = buildUnifiedEmotionBundle({
+      lane,
+      emo,
+      norm,
+      session,
+      safeReply,
+      ui: isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane, emo),
+      followUps: followUpsRaw,
+      rawInput
+    });
+    const emotionalSafeReply = safeStr(unifiedEmotion?.replyText || safeReply).trim() || safeReply;
 
     const sessionLaneState = computeLaneState(session, corePrev, lane, norm);
     const bridge = bridgeShouldAnswer
@@ -2729,17 +2530,21 @@ async function handleChat(input) {
           at: nowMs()
         }
       : computeBridge(sessionLaneState, requestId);
-    const followUpsRaw = Array.isArray(routeOut?.followUps) ? routeOut.followUps : buildFollowUpsForLane(lane, emo, norm);
     const directivesBase = Array.isArray(routeOut?.directives) ? routeOut.directives : [];
     const audioDirective = buildAudioDirective(audioFailure);
     const directives = audioDirective ? directivesBase.concat(audioDirective) : directivesBase;
-    const artifactsBase = laneArtifactsForTurn(norm, emo, lane, followUpsRaw, isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane, emo), routeOut);
-    const emotionBundle = buildUnifiedEmotionBundle({ rawInput, norm, session, emo, lane, safeReply: safeReplyBase, followUps: artifactsBase.followUps, ui: artifactsBase.ui });
-    const safeReply = emotionBundle.replyText || safeReplyBase;
-    const followUps = emotionBundle.actions;
-    const ui = emotionBundle.ui;
-    if (isPlainObject(norm.turnSignals)) Object.assign(norm.turnSignals, emotionBundle.turnSignalsPatch);
-    const artifacts = { ...artifactsBase, followUps, followUpsStrings: followUps.map((x) => x.label), ui };
+    const artifacts = laneArtifactsForTurn(norm, emo, lane, unifiedEmotion?.actions || followUpsRaw, unifiedEmotion?.ui || (isPlainObject(routeOut?.ui) ? routeOut.ui : buildUiForLane(lane, emo)), routeOut);
+    const followUps = Array.isArray(artifacts.followUps) && artifacts.followUps.length ? artifacts.followUps : dedupeActionObjects(unifiedEmotion?.actions || [], 4);
+    const ui = mergeUiContracts(artifacts.ui, unifiedEmotion?.ui || {});
+    const emotionalTurn = {
+      primaryState: safeStr(unifiedEmotion?.engine?.primaryState || ui?.emotionalState || ui?.state || ui?.mode || "focused").toLowerCase() || "focused",
+      secondaryState: safeStr(unifiedEmotion?.engine?.secondaryState || ui?.emotionalSecondaryState || "steady").toLowerCase() || "steady",
+      continuityScore: Math.max(0, Math.min(1, Number(unifiedEmotion?.engine?.continuityScore ?? ui?.continuityScore ?? 0.35) || 0.35)),
+      placeholder: safeStr(unifiedEmotion?.engine?.placeholder || ui?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
+      actions: followUps,
+      bridgeLine: safeStr(unifiedEmotion?.engine?.bridgeLine || ""),
+      continuityLevel: safeStr(unifiedEmotion?.engine?.continuityLevel || "none") || "none"
+    };
 
     let nextSpine = null;
     try {
@@ -2789,7 +2594,7 @@ async function handleChat(input) {
       at: nowMs(),
       lane,
       user: safeStr(norm.text || "").slice(0, 400),
-      assistant: safeReply.slice(0, 400),
+      assistant: emotionalSafeReply.slice(0, 400),
       emotion: emo ? {
         mode: emo.mode,
         valence: emo.valence,
@@ -2804,14 +2609,15 @@ async function handleChat(input) {
 
     const finalContract = {
       ok: true,
-      reply: safeReply,
-      payload: { reply: safeReply },
+      reply: emotionalSafeReply,
+      payload: { reply: emotionalSafeReply },
       lane,
       laneId: lane,
       sessionLane: lane,
       bridge,
       ctx: {},
       ui: shouldForceQuietSupport(norm, emo, routeOut) ? quietUi(emo ? "supportive" : "quiet") : ui,
+      emotionalTurn,
       directives,
       followUps,
       followUpsStrings: artifacts.followUpsStrings,
@@ -2834,8 +2640,7 @@ async function handleChat(input) {
           expressionStyle: safeStr(emo.expressionStyle || ""),
           deliveryTone: safeStr(emo.deliveryTone || ""),
           semanticFrame: safeStr(emo.semanticFrame || ""),
-          responseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo.responseFamily || ""),
-          emotionalEngine: emotionBundle.engine
+          responseFamily: safeStr(routeOut?.meta?.responseFamily || bridgePacket?.synthesis?.responseFamily || emo.responseFamily || "")
         } : null,
         audioPolicy: audioFailure.present ? {
           action: safeStr(audioFailure.action || ""),
@@ -2848,7 +2653,6 @@ async function handleChat(input) {
       requestId,
       meta: {
         v: CE_VERSION,
-        emotionalEngine: emotionBundle.engine,
         t: nowMs(),
         phase: 14,
         marionBridgeUsed: !!bridgeShouldAnswer,
@@ -2865,7 +2669,7 @@ async function handleChat(input) {
       }
     };
 
-    logChatDiag('turn_complete', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), bridgeActive: !!bridge, followUpCount: Array.isArray(followUps) ? followUps.length : 0, directiveCount: Array.isArray(directives) ? directives.length : 0, replyHash: hashText(safeReply || '') });
+    logChatDiag('turn_complete', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, lane, elapsedMs: nowMs() - started }), bridgeActive: !!bridge, followUpCount: Array.isArray(followUps) ? followUps.length : 0, directiveCount: Array.isArray(directives) ? directives.length : 0, replyHash: hashText(emotionalSafeReply || '') });
 
     finalContract.sessionPatch = mergeSessionPatches(
       lifecycle.patch,
@@ -2922,7 +2726,7 @@ async function handleChat(input) {
         __marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
         __marionBridgeEvidenceCount: clampInt(bridgePacket?.evidence?.rankedCount || bridgePacket?.evidence?.count || 0, 0, 0, 99)
       },
-      emotionBundle.sessionPatch,
+      isPlainObject(unifiedEmotion?.sessionPatch) ? unifiedEmotion.sessionPatch : {},
       completeTurnLifecycle(session, {
         turnId,
         requestId,
