@@ -1,4 +1,3 @@
-```javascript
 "use strict";
 
 /**
@@ -498,5 +497,3 @@ module.exports = {
   assertTurnUpdated,
   normalizeEmotionSignals
 };
-
-```
