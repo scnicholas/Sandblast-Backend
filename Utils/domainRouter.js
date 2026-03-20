@@ -135,6 +135,33 @@ const RISK_TIER = Object.freeze({
   HIGH: "high",
 });
 
+
+
+const DOMAIN_ALIASES = Object.freeze({
+  general: DOMAIN_ENUM.CORE,
+  core: DOMAIN_ENUM.CORE,
+  emotion: DOMAIN_ENUM.PSY,
+  psychology: DOMAIN_ENUM.PSY,
+  psych: DOMAIN_ENUM.PSY,
+  finance: DOMAIN_ENUM.FIN,
+  fin: DOMAIN_ENUM.FIN,
+  legal: DOMAIN_ENUM.LAW,
+  law: DOMAIN_ENUM.LAW,
+  english: DOMAIN_ENUM.EN,
+  writing: DOMAIN_ENUM.EN,
+  cybersecurity: DOMAIN_ENUM.CYBER,
+  cyber: DOMAIN_ENUM.CYBER,
+  ai: DOMAIN_ENUM.AI,
+  strategy: DOMAIN_ENUM.STRAT,
+  marketing: DOMAIN_ENUM.MKT,
+  music: DOMAIN_ENUM.MUSIC,
+});
+
+function canonicalizeDomain(value, fallback = DOMAIN_ENUM.CORE) {
+  const key = normToken(value || '');
+  return DOMAIN_ALIASES[key] || fallback;
+}
+
 // -------------------------
 // scoring
 // -------------------------
@@ -348,8 +375,8 @@ function routeDomain(norm, session, cog, opts = {}) {
 
   // reason (compact)
   const reason = {
-    primary: pick.primary,
-    secondary: pick.secondary,
+    primary: canonicalizeDomain(pick.primary),
+    secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
     confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
     signals: scored.signals,
   };
@@ -357,8 +384,8 @@ function routeDomain(norm, session, cog, opts = {}) {
   return {
     ok: true,
     routerVersion: ROUTER_VERSION,
-    primary: pick.primary,
-    secondary: pick.secondary,
+    primary: canonicalizeDomain(pick.primary),
+    secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
     reason,
     signals: scored.signals,
   };
@@ -368,6 +395,7 @@ module.exports = {
   ROUTER_VERSION,
   DOMAIN_ENUM,
   DEFAULT_DOMAIN_ORDER,
+  canonicalizeDomain,
   scoreDomains,
   routeDomain,
 };
