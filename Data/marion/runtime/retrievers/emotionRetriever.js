@@ -561,7 +561,17 @@ function retrieveEmotion(input = {}) {
   };
 }
 
+function retrieveEmotion_safe(input = {}) {
+  try { return retrieveEmotion(input); }
+  catch (error) {
+    const degraded = {"matched":false,"primaryEmotion":"neutral","secondaryEmotion":null,"intensity":0,"valence":0,"needs":[],"cues":[],"confidence":0,"supportFlags":{},"primary":{},"matches":[],"evidenceMatches":[],"meta":{"degraded":true}};
+    degraded.error = String(error && (error.message || error) || "retriever_error");
+    return degraded;
+  }
+}
+
 module.exports = {
-  retrieveEmotion,
-  retrieve: retrieveEmotion
+  retrieveEmotion: retrieveEmotion_safe,
+  retrieve: retrieveEmotion_safe,
+  handle: retrieveEmotion_safe
 };
