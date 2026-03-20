@@ -394,9 +394,14 @@ function setTransportState(sessionId, patch) {
 function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
-  const text = cleanText(body.text || payload.text || payload.query || "");
+  const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
+  const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
   return {
     text,
+    guidedPrompt,
+    domainHint: cleanText(body.domainHint || payload.domainHint || (guidedPrompt && guidedPrompt.domainHint) || ""),
+    intentHint: cleanText(body.intentHint || payload.intentHint || (guidedPrompt && guidedPrompt.intentHint) || ""),
+    emotionalHint: cleanText(body.emotionalHint || payload.emotionalHint || (guidedPrompt && guidedPrompt.emotionalHint) || ""),
     body,
     payload,
     lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
@@ -708,7 +713,7 @@ function buildAffectInputFromMarion(marion) {
     meta: { linkedDatasets: Array.isArray(meta.linkedDatasets) ? meta.linkedDatasets : [] }
   } : null);
   const strategy = isObj(meta.strategy) ? meta.strategy : null;
-  return { lockedEmotion, strategy };
+  return { lockedEmotion, strategy, guidedPrompt: src.guidedPrompt || meta.guidedPrompt || null };
 }
 
 
@@ -1025,7 +1030,11 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     sessionId,
     turnId: norm.turnId,
     payload: norm.payload,
-    emotion
+    emotion,
+    guidedPrompt: norm.guidedPrompt,
+    domainHint: norm.domainHint,
+    intentHint: norm.intentHint,
+    emotionalHint: norm.emotionalHint
   };
 
   let marion = null;
@@ -1049,7 +1058,11 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     client: norm.client,
     marion,
     emotion,
-    knowledge: knowledgeRuntime.extract(norm.text, { marion })
+    guidedPrompt: norm.guidedPrompt,
+    domainHint: norm.domainHint,
+    intentHint: norm.intentHint,
+    emotionalHint: norm.emotionalHint,
+    knowledge: knowledgeRuntime.extract(norm.text, { marion, guidedPrompt: norm.guidedPrompt })
   };
 
   let engineRaw = null;
