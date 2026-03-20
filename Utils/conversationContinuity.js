@@ -316,6 +316,36 @@ function shouldInjectContinuityLine({ session, continuityLevel }) {
   return false;
 }
 
+
+
+function continuityStateBand(continuityLevel, depth) {
+  if (continuityLevel === "deep") return depth === "deep" ? "bonded" : "stable";
+  if (continuityLevel === "warm") return "warming";
+  if (continuityLevel === "light") return "fresh";
+  return "new";
+}
+
+function buildContinuityActionCluster({ lane, continuityLevel, chips, reentryStyle }) {
+  const l = String(lane || "general").toLowerCase();
+  const base = Array.isArray(chips) ? chips.slice(0, 4) : [];
+  if (continuityLevel === "none") return base;
+  if (l === "music") {
+    return [
+      { label: "Resume the thread", send: "resume", role: "confirm" },
+      { label: "Pick a year", send: "pick a year", role: "advance" },
+      { label: "Shift the lens", send: "story moment", role: "pivot" }
+    ];
+  }
+  if (reentryStyle === "resume") {
+    return [
+      { label: "Resume", send: "resume", role: "confirm" },
+      { label: "Start fresh", send: "start fresh", role: "recover" },
+      { label: "Show the next move", send: "next step", role: "advance" }
+    ];
+  }
+  return base;
+}
+
 /* =========================
    Public API
 ========================= */
@@ -415,6 +445,7 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
     allowReturnLanguage,
     suggestResumeOptions,
     chipsSetKey,
+    stateBand: continuityStateBand(continuityLevel, depth),
 
     continuityLine,
     openerLine,
@@ -423,6 +454,7 @@ function consultContinuity({ session, lane, userText, now, year, mode, debug }) 
 
     vars: { year: y, mode: m },
     chips: Array.isArray(chips) ? chips : [],
+    actions: buildContinuityActionCluster({ lane: sessionLane, continuityLevel, chips, reentryStyle }),
 
     // helpers (caller can use)
     usable: continuityUsable({ session: s, now: nowT }),
@@ -452,5 +484,7 @@ module.exports = {
   shouldInjectContinuityLine,
   replaceVars,
   clampYear,
-  normalizeMode
+  normalizeMode,
+  continuityStateBand,
+  buildContinuityActionCluster
 };
