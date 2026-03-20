@@ -115,7 +115,7 @@ const buildTelemetry = typeof telemetryAdapter?.buildTelemetry === "function"
 
 const CE_VERSION = "chatEngine v0.20.2 COHESION-LOCK EMOTION-GUARD HARDEN";
 
-const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "language", "ai_cyber", "marketing_media"];
+const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "english", "cyber", "ai", "strategy", "marketing", "core"];
 
 function getMarionBridge() {
   if (MarionBridge) return MarionBridge;
@@ -2738,6 +2738,3 @@ module.exports.computePublicMode = computePublicMode;
 module.exports.sanitizePublicReply = sanitizePublicReply;
 module.exports.STATE_SPINE_VERSION = Spine.SPINE_VERSION;
 module.exports.STATE_SPINE = Spine;
-module.exports.run = handleChat;
-module.exports.handle = handleChat;
-module.exports.reply = handleChat;
