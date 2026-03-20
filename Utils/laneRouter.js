@@ -3,32 +3,13 @@
 /**
  * utils/laneRouter.js
  *
- * laneRouter v1.0.0
+ * laneRouter v1.2.0 UNIFIED-EMOTION-ACTIONS
  * ------------------------------------------------------------
  * PURPOSE
- * - Extract lane/domain routing out of chatEngine.js
  * - Keep lane ownership deterministic
- * - Preserve current music + movies lane hooks
- * - Keep fail-open behavior
- * - Do NOT own loop control here
- *
- * 15 PHASE COVERAGE
- * ------------------------------------------------------------
- * Phase 01: Safe dependency loading
- * Phase 02: Inbound lane normalization
- * Phase 03: Lane hint extraction
- * Phase 04: Music lane delegation
- * Phase 05: Movies lane delegation
- * Phase 06: General fallback routing
- * Phase 07: UI chip generation
- * Phase 08: Follow-up generation
- * Phase 09: Route output normalization
- * Phase 10: Fail-open lane fallback
- * Phase 11: Public-safe string shaping
- * Phase 12: Minimal greeting-aware generality
- * Phase 13: Optional lane metadata
- * Phase 14: Stable export surface
- * Phase 15: Structural hardening
+ * - Generate lane-aware UI without breaking support-lock behavior
+ * - Convert generic follow-ups into action-role clusters the UI can attach to the active assistant turn
+ * - Stay fail-open safe when lane modules are missing
  */
 
 let Music = null;
@@ -42,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.0.0";
+const LR_VERSION = "laneRouter v1.2.0 UNIFIED-EMOTION-ACTIONS";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -61,11 +42,9 @@ function oneLine(s) {
 function normalizeLaneValue(v) {
   const raw = oneLine(v || "").toLowerCase();
   if (!raw) return "general";
-
   if (raw === "movie" || raw === "film" || raw === "films") return "movies";
   if (raw === "song" || raw === "songs" || raw === "radio") return "music";
   if (raw === "default" || raw === "chat" || raw === "general") return "general";
-
   return raw;
 }
 
@@ -83,111 +62,200 @@ function normalizeNorm(norm) {
   };
 }
 
-function buildUiForLane(lane) {
-  const l = normalizeLaneValue(lane);
-
-  if (l === "music") {
-    return {
-      chips: [
-        { id: "top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" } },
-        { id: "cinematic", type: "action", label: "Cinematic", payload: { lane: "music", action: "cinematic" } },
-        { id: "yearend", type: "action", label: "Year-End", payload: { lane: "music", action: "yearend" } }
-      ],
-      allowMic: true
-    };
-  }
-
+function action(id, label, payload, role, tone) {
   return {
-    chips: [
-      { id: "music", type: "lane", label: "Music", payload: { lane: "music" } },
-      { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" } },
-      { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" } },
-      { id: "reset", type: "action", label: "Reset", payload: { action: "reset" } }
-    ],
-    allowMic: true
+    id: safeStr(id || label || "action").trim() || "action",
+    type: "action",
+    label: safeStr(label || "Continue").trim() || "Continue",
+    payload: isPlainObject(payload) ? payload : {},
+    role: safeStr(role || "advance").toLowerCase() || "advance",
+    tone: safeStr(tone || "steady").toLowerCase() || "steady"
   };
 }
 
-function buildFollowUpsForLane(lane) {
-  const l = normalizeLaneValue(lane);
-
-  if (l === "music") {
-    return [
-      { id: "fu_top10", type: "action", label: "Give me a Top 10", payload: { lane: "music", action: "top10" } },
-      { id: "fu_year", type: "action", label: "Pick a year", payload: { lane: "music", action: "year_pick" } }
-    ];
+function dedupeByLabel(items, maxItems) {
+  const seen = new Set();
+  const out = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!item) continue;
+    const label = safeStr(item.label || item.title || "").trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...item, label });
+    if (out.length >= (Number(maxItems) > 0 ? Number(maxItems) : 4)) break;
   }
-
-  return [
-    { id: "fu_music", type: "lane", label: "Go to Music", payload: { lane: "music" } },
-    { id: "fu_movies", type: "lane", label: "Go to Movies", payload: { lane: "movies" } }
-  ];
-}
-
-
-function buildSupportUi() {
-  return {
-    chips: [
-      { id: "support_talk", type: "action", label: "Talk to me", payload: { action: "support_talk", mode: "supportive" } },
-      { id: "support_stay", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive" } }
-    ],
-    allowMic: true,
-    mode: "supportive"
-  };
-}
-
-function buildSupportFollowUps() {
-  return [
-    { id: "fu_support_talk", type: "action", label: "Talk to me", payload: { action: "support_talk", mode: "supportive" } },
-    { id: "fu_support_stay", type: "action", label: "Stay with me", payload: { action: "support_stay", mode: "supportive" } }
-  ];
+  return out;
 }
 
 function isSupportiveEmotion(emo) {
   return !!(
-    emo &&
-    (
+    emo && (
       emo.bypassClarify ||
       safeStr(emo.mode || "").toLowerCase() === "vulnerable" ||
       safeStr(emo.valence || "").toLowerCase() === "negative" ||
-      !!emo?.supportFlags?.needsGentlePacing
+      !!emo?.supportFlags?.needsGentlePacing ||
+      !!emo?.supportFlags?.needsStabilization
     )
   );
+}
+
+function mapEmotionalState(emo) {
+  const mode = safeStr(emo?.mode || "").toLowerCase();
+  const valence = safeStr(emo?.valence || "").toLowerCase();
+  const supportMode = safeStr(emo?.supportModeCandidate || "").toLowerCase();
+  if (emo?.supportFlags?.crisis) return "reassuring";
+  if (isSupportiveEmotion(emo) || /soothe|stabilize|ground/.test(supportMode) || mode === "distress") return "supportive";
+  if (valence === "positive") return "celebratory";
+  if (/clarify|sequence|regulate/.test(supportMode)) return "clarifying";
+  if (/channel|coach|forward/.test(supportMode)) return "decisive";
+  return "focused";
+}
+
+function buildLaneSelectorChips(activeLane) {
+  const lane = normalizeLaneValue(activeLane);
+  return [
+    { id: "music", type: "lane", label: "Music", payload: { lane: "music" }, role: lane === "music" ? "current" : "pivot" },
+    { id: "movies", type: "lane", label: "Movies", payload: { lane: "movies" }, role: lane === "movies" ? "current" : "pivot" },
+    { id: "news", type: "lane", label: "News Canada", payload: { lane: "news" }, role: lane === "news" ? "current" : "pivot" },
+    { id: "reset", type: "action", label: "Reset", payload: { action: "reset" }, role: "recover" }
+  ];
+}
+
+function buildUiForLane(lane, emo) {
+  const l = normalizeLaneValue(lane);
+  const state = mapEmotionalState(emo);
+  const base = {
+    chips: buildLaneSelectorChips(l),
+    allowMic: true,
+    mode: state,
+    promptPlacement: "attached",
+    replace: false,
+    clearStale: false,
+    placeholder: l === "music"
+      ? "Tell Nyx a year, artist, or chart move…"
+      : l === "movies"
+      ? "Tell Nyx a title, actor, or year…"
+      : state === "supportive"
+      ? "Tell Nyx what feels heavy…"
+      : state === "decisive"
+      ? "Tell Nyx what you want done…"
+      : "Ask Nyx anything about Sandblast…"
+  };
+
+  if (l === "music") {
+    base.chips = [
+      { id: "top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" }, role: "advance" },
+      { id: "cinematic", type: "action", label: "Cinematic", payload: { lane: "music", action: "cinematic" }, role: "explore" },
+      { id: "yearend", type: "action", label: "Year-End", payload: { lane: "music", action: "yearend" }, role: "explore" }
+    ];
+  }
+
+  return base;
+}
+
+function buildSupportUi() {
+  return {
+    chips: [],
+    allowMic: true,
+    mode: "supportive",
+    promptPlacement: "attached",
+    replace: true,
+    clearStale: true,
+    placeholder: "Tell Nyx what feels hardest…"
+  };
+}
+
+function buildEmotionalActionsForLane(lane, emo, norm) {
+  const l = normalizeLaneValue(lane);
+  const text = safeStr(norm?.text || "").trim();
+  const state = mapEmotionalState(emo);
+
+  if (state === "supportive") {
+    return dedupeByLabel([
+      action("break_down", "Break it down for me", { action: "support_break_down", lane: l }, "stabilize", "gentle"),
+      action("easy_next", "Show the easiest next step", { action: "support_easy_next", lane: l }, "advance", "gentle"),
+      action("stay_guided", "Stay with this and guide me", { action: "guided_mode_on", lane: l, mode: "supportive" }, "confirm", "gentle")
+    ], 3);
+  }
+
+  if (l === "music") {
+    return dedupeByLabel([
+      action("top10", "Give me a Top 10", { lane: "music", action: "top10" }, "advance", "focused"),
+      action("pick_year", "Pick a year", { lane: "music", action: "year_pick" }, "narrow", "focused"),
+      action("story", "Tell me the story", { lane: "music", action: "story_moment" }, "explore", "curious")
+    ], 3);
+  }
+
+  if (l === "movies") {
+    return dedupeByLabel([
+      action("pick_title", "Give me a title", { lane: "movies", action: "title_pick" }, "advance", "focused"),
+      action("pick_year", "Pick a year", { lane: "movies", action: "year_pick" }, "narrow", "focused"),
+      action("actor_route", "Search by actor", { lane: "movies", action: "actor_pick" }, "explore", "curious")
+    ], 3);
+  }
+
+  if (/widget|chat engine|state spine|emotion|backend|render|file|code|patch|fix/i.test(text)) {
+    return dedupeByLabel([
+      action("exact_fix", "Show the exact fix", { action: "exact_fix", lane: l }, "advance", "decisive"),
+      action("production_build", "Generate the production-ready build", { action: "production_build", lane: l }, "advance", "decisive"),
+      action("critical_path", "Stay on the critical path", { action: "critical_path", lane: l }, "confirm", "focused")
+    ], 3);
+  }
+
+  if (state === "celebratory") {
+    return dedupeByLabel([
+      action("build_on_it", "Build on this", { action: "build_on_it", lane: l }, "advance", "bright"),
+      action("next_move", "Turn this into a next step", { action: "next_step", lane: l }, "advance", "focused"),
+      action("stay_here", "Stay with this for a second", { action: "linger_here", lane: l }, "confirm", "warm")
+    ], 3);
+  }
+
+  return dedupeByLabel([
+    action("show_fix", "Show the exact fix", { action: "exact_fix", lane: l }, "advance", "focused"),
+    action("next_step", "Pick the next move", { action: "next_step", lane: l }, "advance", "focused"),
+    action("explore", "Explore options", { action: "explore_options", lane: l }, "explore", "curious")
+  ], state === "curious" ? 4 : 3);
+}
+
+function buildFollowUpsForLane(lane, emo, norm) {
+  return buildEmotionalActionsForLane(lane, emo, norm);
 }
 
 function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
   if (!text) return "I am here. Tell me what you want to work on, and I will keep it structured.";
 
-  if (isSupportiveEmotion(emo) || /\b(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)\b/i.test(text)) {
-    return "I am here with you. You do not have to sit in that feeling alone. Tell me what feels hardest right now.";
+  if (isSupportiveEmotion(emo) || /(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)/i.test(text)) {
+    return "I am here with you. We do not have to force speed. Tell me what feels hardest right now, and I will keep the next step clean.";
   }
 
-  if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
-    return "Understood. We are going after the loop directly. Give me the file or the exact layer, and I will keep the response locked to that target.";
+  if (/(loop|looping|repeat|repeating)/i.test(text)) {
+    return "Understood. We are going after the loop directly. Give me the exact layer, and I will keep the path locked to that target.";
   }
 
   if (emo && safeStr(emo.valence || "") === "mixed" && Number(emo?.contradictions?.count || 0) > 0) {
-    return "I am seeing mixed signals in this. We can slow it down and isolate the main pressure point first.";
+    return "I am seeing mixed signals in this. We can slow it down, isolate the main pressure point, and move from there.";
   }
 
-  if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)\b/i.test(text)) {
-    return "Got it. We can work this as an architecture problem: isolate the heavy logic, stop duplicated emotional parsing, and keep the response path deterministic.";
+  if (/(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)/i.test(text)) {
+    return "Got it. We can work this as an architecture problem: lock the emotional engine, stop duplicated branching, and keep the response path deterministic.";
   }
 
   return "Give me the exact target and I will stay with that path without bouncing you into a menu.";
 }
 
-function normalizeLaneOutput(out, fallbackLane) {
-  const lane = normalizeLaneValue(
-    safeStr(out?.lane || fallbackLane || "general") || "general"
-  );
-
+function normalizeLaneOutput(out, fallbackLane, emo, norm) {
+  const lane = normalizeLaneValue(safeStr(out?.lane || fallbackLane || "general") || "general");
   const reply = safeStr(out?.reply || "").trim();
   const directives = Array.isArray(out?.directives) ? out.directives : [];
-  const followUps = Array.isArray(out?.followUps) ? out.followUps : buildFollowUpsForLane(lane);
-  const ui = isPlainObject(out?.ui) ? out.ui : buildUiForLane(lane);
-
+  const followUps = Array.isArray(out?.followUps) && out.followUps.length
+    ? dedupeByLabel(out.followUps, 4)
+    : buildFollowUpsForLane(lane, emo, norm);
+  const ui = isPlainObject(out?.ui)
+    ? { ...buildUiForLane(lane, emo), ...out.ui }
+    : buildUiForLane(lane, emo);
   return {
     reply,
     lane,
@@ -198,62 +266,46 @@ function normalizeLaneOutput(out, fallbackLane) {
   };
 }
 
-function tryMusicLane(norm) {
+function tryMusicLane(norm, emo) {
   if (!Music) return null;
-
   try {
     if (typeof Music.handleChat === "function") {
       const out = Music.handleChat(norm);
-      if (typeof out === "string") return normalizeLaneOutput({ reply: out, lane: "music" }, "music");
-      if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "music");
+      if (typeof out === "string") return normalizeLaneOutput({ reply: out, lane: "music" }, "music", emo, norm);
+      if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "music", emo, norm);
     }
   } catch (_e) {
-    return {
+    return normalizeLaneOutput({
       reply: "Music lane hit a snag. Give me a title, artist, or year and I will take another pass.",
       lane: "music",
       directives: [],
-      followUps: buildFollowUpsForLane("music"),
-      ui: buildUiForLane("music"),
       meta: { failOpen: true, laneModule: "musicKnowledge" }
-    };
+    }, "music", emo, norm);
   }
-
   return null;
 }
 
-function tryMoviesLane(norm) {
+function tryMoviesLane(norm, emo) {
   if (!MoviesLane || typeof MoviesLane.handleChat !== "function") return null;
-
   try {
     const out = MoviesLane.handleChat(norm);
-    if (typeof out === "string") return normalizeLaneOutput({ reply: out, lane: "movies" }, "movies");
-    if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "movies");
+    if (typeof out === "string") return normalizeLaneOutput({ reply: out, lane: "movies" }, "movies", emo, norm);
+    if (isPlainObject(out) && safeStr(out.reply)) return normalizeLaneOutput(out, "movies", emo, norm);
   } catch (_e) {
-    return {
+    return normalizeLaneOutput({
       reply: "Movies lane hit a snag. Give me a title, actor, or year and I will take another pass.",
       lane: "movies",
       directives: [],
-      followUps: buildFollowUpsForLane("movies"),
-      ui: buildUiForLane("movies"),
       meta: { failOpen: true, laneModule: "moviesLane" }
-    };
+    }, "movies", emo, norm);
   }
-
   return null;
 }
 
 function resolveLane(norm, session) {
   const n = normalizeNorm(norm);
   const s = isPlainObject(session) ? session : {};
-
-  return normalizeLaneValue(
-    n.lane ||
-    n?.payload?.lane ||
-    n?.body?.lane ||
-    s.lane ||
-    s.lastLane ||
-    "general"
-  );
+  return normalizeLaneValue(n.lane || n?.payload?.lane || n?.body?.lane || s.lane || s.lastLane || "general");
 }
 
 function routeLane(norm, session, emo) {
@@ -264,26 +316,27 @@ function routeLane(norm, session, emo) {
     return normalizeLaneOutput({
       reply: simpleGeneralReply(n, emo),
       lane: "general",
-      followUps: buildSupportFollowUps(),
+      followUps: buildEmotionalActionsForLane("general", emo, n),
       ui: buildSupportUi(),
-      meta: { supportiveRoute: true }
-    }, "general");
+      meta: { supportiveRoute: true, emotionalState: mapEmotionalState(emo) }
+    }, "general", emo, n);
   }
 
   if (lane === "music") {
-    const musicOut = tryMusicLane(n);
+    const musicOut = tryMusicLane(n, emo);
     if (musicOut) return musicOut;
   }
 
   if (lane === "movies") {
-    const moviesOut = tryMoviesLane(n);
+    const moviesOut = tryMoviesLane(n, emo);
     if (moviesOut) return moviesOut;
   }
 
   return normalizeLaneOutput({
     reply: simpleGeneralReply(n, emo),
-    lane: lane || "general"
-  }, lane || "general");
+    lane: lane || "general",
+    meta: { emotionalState: mapEmotionalState(emo) }
+  }, lane || "general", emo, n);
 }
 
 module.exports = {
@@ -291,6 +344,8 @@ module.exports = {
   routeLane,
   buildUiForLane,
   buildFollowUpsForLane,
+  buildEmotionalActionsForLane,
   resolveLane,
-  normalizeLaneValue
+  normalizeLaneValue,
+  mapEmotionalState
 };
