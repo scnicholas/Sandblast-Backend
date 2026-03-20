@@ -1,5 +1,3 @@
-## Part 1 of 3
-```javascript
 "use strict";
 
 /**
@@ -912,10 +910,7 @@ function detectGreetingQuick(text) {
   const raw0 = safeStr(text || "");
   const t0 = raw0.trim();
   if (!t0) return null;
-```
 
-## Part 2 of 3
-```javascript
   const canon = t0.toLowerCase().replace(/\s+/g, " ").replace(/[.!?]+$/g, "").trim();
   const how = /(how are you|how\'s it going|hows it going|how are you doing|how\'re you|whats up|what\'s up)(\s+today)?$/i;
   const greetHead = /^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))(\s+nyx)?(\s*[,:-])?\s*/i;
@@ -1829,10 +1824,7 @@ function normalizeInbound(input) {
     normYear(payload.year) ||
     normYear(body.year);
 
-```
 
-## Part 3 of 3
-```javascript
   return {
     text,
     lane,
@@ -2746,4 +2738,6 @@ module.exports.computePublicMode = computePublicMode;
 module.exports.sanitizePublicReply = sanitizePublicReply;
 module.exports.STATE_SPINE_VERSION = Spine.SPINE_VERSION;
 module.exports.STATE_SPINE = Spine;
-```
+module.exports.run = handleChat;
+module.exports.handle = handleChat;
+module.exports.reply = handleChat;
