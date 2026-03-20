@@ -43,6 +43,27 @@ function lower(v) { return safeStr(v).toLowerCase(); }
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 function uniq(arr) { return [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean))]; }
 
+function extractGuidedPrompt(input = {}) {
+  const obj = input && typeof input === "object" ? input : {};
+  const direct = obj.guidedPrompt && typeof obj.guidedPrompt === "object" ? obj.guidedPrompt : {};
+  const payload = obj.payload && typeof obj.payload === "object" ? obj.payload : {};
+  const body = obj.body && typeof obj.body === "object" ? obj.body : {};
+  const ctx = (obj.ctx && typeof obj.ctx === "object" ? obj.ctx : (obj.context && typeof obj.context === "object" ? obj.context : {}));
+  const gp = Object.keys(direct).length ? direct :
+    (payload.guidedPrompt && typeof payload.guidedPrompt === "object" ? payload.guidedPrompt :
+    (body.guidedPrompt && typeof body.guidedPrompt === "object" ? body.guidedPrompt :
+    (ctx.guidedPrompt && typeof ctx.guidedPrompt === "object" ? ctx.guidedPrompt : {})));
+  if (!Object.keys(gp).length) return null;
+  return {
+    id: safeStr(gp.id || gp.key || "").trim(),
+    label: safeStr(gp.label || gp.text || "").trim(),
+    lane: safeStr(gp.lane || obj.lane || payload.lane || body.lane || "").trim(),
+    domainHint: safeStr(gp.domainHint || obj.domainHint || payload.domainHint || body.domainHint || "").trim(),
+    intentHint: safeStr(gp.intentHint || obj.intentHint || payload.intentHint || body.intentHint || "").trim(),
+    emotionalHint: safeStr(gp.emotionalHint || obj.emotionalHint || payload.emotionalHint || body.emotionalHint || "").trim()
+  };
+}
+
 function detectPresentationSignals(text) {
   const t = lower(text)
     .replace(/\bcan'?t\b/g, "cannot")
@@ -139,7 +160,7 @@ function deriveConversationNeed(primaryEmotion) {
   return "clarify";
 }
 
-function buildStrategyFromEmotion(lockedEmotion, signals, priorState) {
+function buildStrategyFromEmotion(lockedEmotion, signals, priorState, guidedPrompt) {
   const primaryEmotion = lower(lockedEmotion.primaryEmotion || "neutral");
   const base = EMOTION_STRATEGY_MAP[primaryEmotion] || EMOTION_STRATEGY_MAP.neutral;
   const intensity = clamp(Number(lockedEmotion.intensity) || 0, 0, 1);
@@ -148,7 +169,13 @@ function buildStrategyFromEmotion(lockedEmotion, signals, priorState) {
   const conversationNeed = deriveConversationNeed(primaryEmotion);
   const transitionReadiness = deriveTransitionReadiness(primaryEmotion, intensity);
   const loopRisk = deriveLoopRisk(primaryEmotion, intensity, signals, priorState);
-  const questionPressure = base.questionPressure === "medium" && signals.asksForRelief ? "low" : base.questionPressure;
+  let questionPressure = base.questionPressure === "medium" && signals.asksForRelief ? "low" : base.questionPressure;
+  let guidedDomainHint = "";
+  if (guidedPrompt && typeof guidedPrompt === "object") {
+    guidedDomainHint = safeStr(guidedPrompt.domainHint || "").trim();
+    if (safeStr(guidedPrompt.intentHint || "").toLowerCase() === "support" && base.routeBias === "maintain") base.routeBias = "stabilize";
+    if (safeStr(guidedPrompt.emotionalHint || "").toLowerCase() === primaryEmotion && questionPressure === "medium") questionPressure = "low";
+  }
 
   const nuanceProfile = {
     arousal: intensity >= 0.75 ? "high" : intensity <= 0.25 ? "low" : "medium",
@@ -174,6 +201,7 @@ function buildStrategyFromEmotion(lockedEmotion, signals, priorState) {
   ]);
 
   return {
+    guidedDomainHint,
     primaryEmotion: lockedEmotion.primaryEmotion,
     secondaryEmotion: lockedEmotion.secondaryEmotion || null,
     intensity,
@@ -223,7 +251,8 @@ function analyzeEmotionRoute(input = {}, priorState = {}) {
   }
 
   const signals = detectPresentationSignals(text);
-  const strategy = buildStrategyFromEmotion(lockedEmotion, signals, priorState);
+  const guidedPrompt = extractGuidedPrompt(input);
+  const strategy = buildStrategyFromEmotion(lockedEmotion, signals, priorState, guidedPrompt);
 
   payload.primaryEmotion = lockedEmotion.primaryEmotion;
   payload.secondaryEmotion = lockedEmotion.secondaryEmotion || null;
@@ -264,5 +293,6 @@ module.exports = {
   VERSION,
   ARCHETYPES,
   analyzeEmotionRoute,
-  emotionRouteGuard
+  emotionRouteGuard,
+  extractGuidedPrompt
 };
