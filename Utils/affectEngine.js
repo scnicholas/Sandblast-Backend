@@ -421,6 +421,120 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
   };
 }
 
+
+
+function derivePrimaryState({ affectState, strategy, continuity }) {
+  const continuityBand = continuity && typeof continuity === "object" ? safeStr(continuity.stateBand || continuity.level || "") : "";
+  if (affectState.risk_flag !== "none") return "reassuring";
+  if (affectState.valenceLabel === "negative") return "supportive";
+  if (strategy.archetype === "clarify") return continuityBand === "deep" ? "focused" : "clarifying";
+  if (strategy.archetype === "channel") return "decisive";
+  if (strategy.archetype === "celebrate" || affectState.valenceLabel === "positive") return "celebratory";
+  return continuityBand === "deep" ? "focused" : "curious";
+}
+
+function deriveSecondaryState({ affectState, strategy }) {
+  if (affectState.risk_flag !== "none") return "holding";
+  if (strategy.supportModeCandidate.includes("stabilize") || strategy.supportModeCandidate.includes("soothe")) return "reassuring";
+  if (strategy.supportModeCandidate.includes("clarify") || strategy.archetype === "clarify") return "narrowing";
+  if (strategy.supportModeCandidate.includes("channel") || strategy.archetype === "channel") return "advancing";
+  if (affectState.valenceLabel === "positive") return "amplifying";
+  return "steady";
+}
+
+function continuityWeight(memory = {}) {
+  const prev = memory.prevUnifiedTurn && typeof memory.prevUnifiedTurn === "object" ? memory.prevUnifiedTurn : null;
+  if (!prev) return 0;
+  const streak = clamp(num(prev.stateStreak, 0), 0, 6);
+  return clamp(0.18 + streak * 0.07, 0, 0.55);
+}
+
+function smoothStateLabel(nextLabel, prevLabel, weight) {
+  if (!prevLabel) return nextLabel;
+  if (nextLabel === prevLabel) return nextLabel;
+  return weight >= 0.42 ? prevLabel : nextLabel;
+}
+
+function placeholderForState(state) {
+  switch (safeStr(state).toLowerCase()) {
+    case "supportive": return "Tell me what feels heavy…";
+    case "reassuring": return "Tell me what feels hardest right now…";
+    case "clarifying": return "Give me the part you want sharpened…";
+    case "decisive": return "Tell me what you want done…";
+    case "celebratory": return "Tell me what you want to build on…";
+    case "focused": return "Pick the next move…";
+    default: return "Ask Nyx anything about Sandblast…";
+  }
+}
+
+function buildActionCluster({ primaryState, lane, guidedPrompt }) {
+  const l = lower(lane) || "general";
+  const gpLane = guidedPrompt && typeof guidedPrompt === "object" ? lower(guidedPrompt.lane || "") : "";
+  const resolvedLane = gpLane || l;
+  const items = [];
+  const add = (label, role, payload) => items.push({ label, role, payload: payload || {} });
+
+  if (primaryState === "supportive" || primaryState === "reassuring") {
+    add("Break it down for me", "stabilize", { action: "support_break_down", lane: resolvedLane });
+    add("Show the easiest next step", "advance", { action: "next_step", lane: resolvedLane });
+    add("Stay with this and guide me", "confirm", { action: "guided_mode_on", lane: resolvedLane });
+  } else if (resolvedLane === "music") {
+    add("Give me a Top 10", "advance", { lane: "music", action: "top10" });
+    add("Pick a year", "narrow", { lane: "music", action: "year_pick" });
+    add("Tell me the story", "explore", { lane: "music", action: "story_moment" });
+  } else if (primaryState === "clarifying") {
+    add("Visual redesign", "narrow", { action: "visual_redesign", lane: resolvedLane });
+    add("Backend fix", "advance", { action: "backend_fix", lane: resolvedLane });
+    add("Voice upgrade", "pivot", { action: "voice_upgrade", lane: resolvedLane });
+  } else if (primaryState === "decisive" || primaryState === "focused") {
+    add("Show the exact fix", "advance", { action: "exact_fix", lane: resolvedLane });
+    add("Generate the code", "advance", { action: "generate_code", lane: resolvedLane });
+    add("Apply this to the widget", "pivot", { action: "apply_widget", lane: resolvedLane });
+  } else {
+    add("Pick the next move", "advance", { action: "next_step", lane: resolvedLane });
+    add("Explore options", "explore", { action: "explore_options", lane: resolvedLane });
+    add("Keep this focused", "confirm", { action: "focus_mode", lane: resolvedLane });
+  }
+
+  return items.slice(0, primaryState === "curious" ? 4 : 3).map((item, idx) => ({
+    id: `${safeStr(item.payload.action || item.label).toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${idx + 1}`,
+    type: "action",
+    label: item.label,
+    role: item.role,
+    payload: item.payload
+  }));
+}
+
+function buildUnifiedTurn({ affectState, strategy, guidedPrompt, memory, lane }) {
+  const continuity = memory.prevUnifiedTurn && typeof memory.prevUnifiedTurn === "object" ? memory.prevUnifiedTurn : {};
+  const weight = continuityWeight(memory);
+  const primaryState = smoothStateLabel(
+    derivePrimaryState({ affectState, strategy, continuity }),
+    safeStr(continuity.primaryState || ""),
+    weight
+  );
+  const secondaryState = smoothStateLabel(
+    deriveSecondaryState({ affectState, strategy }),
+    safeStr(continuity.secondaryState || ""),
+    Math.max(0.25, weight * 0.85)
+  );
+  const continuityScore = clamp(num(continuity.continuityScore, 0.35) * 0.45 + (weight + 0.3) * 0.55, 0, 1);
+  return {
+    primaryState,
+    secondaryState,
+    placeholder: placeholderForState(primaryState),
+    actions: buildActionCluster({ primaryState, lane, guidedPrompt }),
+    continuityScore,
+    stateStreak: safeStr(continuity.primaryState || "") === primaryState ? clamp(num(continuity.stateStreak, 0) + 1, 0, 99) : 0,
+    expression: {
+      styleKey: affectState.presetKey || "calm_support",
+      pacing: affectState.ttsProfile ? (affectState.ttsProfile.style >= 0.3 ? "expressive" : "steady") : "steady",
+      energy: affectState.style || "neutral",
+      intent: affectState.intent || "assist"
+    }
+  };
+}
+
 function inferAffectState(input = {}) {
   const { lockedEmotion, strategy, guidedPrompt } = resolveInputs(input);
   if (!lockedEmotion.locked) {
@@ -470,7 +584,9 @@ function runAffectEngine(input = {}) {
   affectState.presetKey = styleKey;
 
   const spokenText = applyProsodyMarkup({ text: assistantDraft, affectState, strategy, styleKey, opts });
+  const unifiedTurn = buildUnifiedTurn({ affectState, strategy, guidedPrompt, memory, lane });
   const nextMemory = updateAffectMemory({ memory, affectState, ttsProfile, presetKey: styleKey });
+  nextMemory.prevUnifiedTurn = unifiedTurn;
 
   return {
     ok: true,
@@ -481,6 +597,7 @@ function runAffectEngine(input = {}) {
     ttsProfile,
     spokenText,
     memory: nextMemory,
+    unifiedTurn,
     expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt }),
     debug: affectState.debug
   };
@@ -492,5 +609,8 @@ module.exports = {
   inferAffectState,
   selectStyleProfile,
   applyProsodyMarkup,
-  resolveInputs
+  resolveInputs,
+  derivePrimaryState,
+  buildUnifiedTurn,
+  placeholderForState
 };
