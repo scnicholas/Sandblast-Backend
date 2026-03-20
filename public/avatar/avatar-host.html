@@ -238,6 +238,45 @@ window.NYX_HOST_MODE = "widget_console";
     border-color: rgba(140,0,35,.30);
   }
 
+  .nyx-msg.nyx-assistant{ position:relative; overflow:hidden; }
+  .nyx-msg__state{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin:0 0 8px;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.04);
+    color:rgba(255,255,255,.76);
+    font:700 11px var(--nyx-font);
+    letter-spacing:.18px;
+    text-transform:capitalize;
+  }
+  .nyx-msg__text{ white-space:pre-wrap; }
+  .nyx-msg__actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:10px;
+  }
+  .nyx-msg__action{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 11px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.05);
+    color:rgba(255,255,255,.92);
+    font:600 12.4px var(--nyx-font);
+    cursor:pointer;
+    transition:background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), transform .12s var(--nyx-ease);
+  }
+  .nyx-msg__action:hover{ background:rgba(140,0,35,.18); border-color:rgba(140,0,35,.48); transform:translateY(-1px); }
+  .nyx-msg__bridge{ margin-top:8px; color:rgba(255,255,255,.72); font:12.4px/1.45 var(--nyx-font); }
+
   #nyxEmpty{
     display:none;
     padding:14px 12px;
@@ -1042,6 +1081,53 @@ window.NYX_HOST_MODE = "widget_console";
     widget.classList.toggle("is-empty", THREAD.length === 0);
   }
 
+
+  function normalizeActionItems(items){
+    if(!Array.isArray(items)) return [];
+    var out = [];
+    var seen = Object.create(null);
+    for(var i=0;i<items.length;i++){
+      var item = items[i] || {};
+      var label = safeStr(item.label || item.title).trim();
+      if(!label) continue;
+      var key = label.toLowerCase();
+      if(seen[key]) continue;
+      seen[key] = 1;
+      out.push({
+        id: safeStr(item.id || key.replace(/[^a-z0-9]+/g,"_")),
+        label: label,
+        role: safeStr(item.role || "advance").toLowerCase() || "advance",
+        payload: item.payload && typeof item.payload === "object" ? item.payload : {}
+      });
+      if(out.length >= 4) break;
+    }
+    return out;
+  }
+
+  function applyUiContract(ui){
+    ui = ui && typeof ui === "object" ? ui : {};
+    if(inputEl && ui.placeholder){
+      inputEl.setAttribute("placeholder", safeStr(ui.placeholder, 160));
+    }
+    if(ui.state && widget){
+      widget.setAttribute("data-engine-state", safeStr(ui.state, 40).toLowerCase());
+    }
+    if(chipsEl && Array.isArray(ui.chips) && ui.chips.length){
+      chipsEl.innerHTML = "";
+      for(var i=0;i<ui.chips.length;i++){
+        var chip = ui.chips[i] || {};
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip";
+        btn.setAttribute("data-chip", safeStr(chip.payload && chip.payload.lane ? chip.payload.lane : chip.id, 60));
+        btn.setAttribute("data-payload", JSON.stringify(chip.payload || {}));
+        btn.textContent = safeStr(chip.label || chip.id, 60);
+        if(chip.payload && chip.payload.lane && safeStr(chip.payload.lane).toLowerCase() === UI.lane) btn.classList.add("is-active");
+        chipsEl.appendChild(btn);
+      }
+    }
+  }
+
   function pushMsg(role, text, meta){
     text = safeStr(text).trim();
     if(!text) return null;
@@ -1065,8 +1151,45 @@ window.NYX_HOST_MODE = "widget_console";
     for(var i=0;i<THREAD.length;i++){
       var m = THREAD[i];
       var div = document.createElement("div");
-      div.className = "nyx-msg" + (m.role === "user" ? " me" : "");
-      div.textContent = m.text;
+      div.className = "nyx-msg" + (m.role === "user" ? " me" : " nyx-assistant");
+      if(m.role === "user"){
+        div.textContent = m.text;
+      } else {
+        var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
+        var state = safeStr(meta.engineState || meta.state || meta.mode, 40).toLowerCase();
+        if(state){
+          var badge = document.createElement("div");
+          badge.className = "nyx-msg__state";
+          badge.textContent = state.replace(/_/g, " ");
+          div.appendChild(badge);
+        }
+        var body = document.createElement("div");
+        body.className = "nyx-msg__text";
+        body.textContent = m.text;
+        div.appendChild(body);
+        if(meta.bridgeLine){
+          var bridge = document.createElement("div");
+          bridge.className = "nyx-msg__bridge";
+          bridge.textContent = safeStr(meta.bridgeLine, 220);
+          div.appendChild(bridge);
+        }
+        var actions = normalizeActionItems(meta.actions);
+        if(actions.length){
+          var actionWrap = document.createElement("div");
+          actionWrap.className = "nyx-msg__actions";
+          for(var j=0;j<actions.length;j++){
+            var act = actions[j];
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "nyx-msg__action";
+            btn.setAttribute("data-action-label", act.label);
+            btn.setAttribute("data-action-payload", JSON.stringify(act.payload || {}));
+            btn.textContent = act.label;
+            actionWrap.appendChild(btn);
+          }
+          div.appendChild(actionWrap);
+        }
+      }
       msgsEl.appendChild(div);
     }
     try{
@@ -1341,6 +1464,7 @@ window.NYX_HOST_MODE = "widget_console";
       requestId: requestId,
       text: text,
       lane: UI.lane,
+      payload: meta && meta.payload && typeof meta.payload === "object" ? meta.payload : {},
       ctx: {
         tail: THREAD.slice(-10).map(function(m){ return { r:m.role, t:safeStr(m.text,360) }; }),
         source: "nyx_widget_console",
@@ -1364,6 +1488,7 @@ window.NYX_HOST_MODE = "widget_console";
 
     // Build reply text
     var reply = "";
+    var engine = (res && res.meta && res.meta.emotionalEngine) || (res && res.cog && res.cog.emotion && res.cog.emotion.emotionalEngine) || null;
     if(res){
       reply = safeStr(res.reply || res.text || (res.data && (res.data.reply || res.data.text)) || "");
       // Some backends return { ok:true, data:{ reply }, cog:{...} }
@@ -1389,9 +1514,19 @@ window.NYX_HOST_MODE = "widget_console";
       }
     }catch(_){}
 
+    applyUiContract(res && res.ui ? res.ui : (engine ? { placeholder: engine.placeholder, state: engine.primaryState } : null));
+
     // Replace ack line with full reply (or append, depending on your preference)
     // We keep the ACK as first line and then push the full reply as a second message.
-    pushMsg("nyx", reply, { kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null });
+    pushMsg("nyx", reply, {
+      kind:"reply",
+      requestId: requestId,
+      turn: turn,
+      bridge: bridge || null,
+      engineState: engine && engine.primaryState ? engine.primaryState : (res && res.ui && res.ui.state ? res.ui.state : "focused"),
+      bridgeLine: engine && engine.bridgeLine ? engine.bridgeLine : "",
+      actions: normalizeActionItems(res && res.followUps ? res.followUps : (engine && engine.actions ? engine.actions : []))
+    });
     renderMsgs();
 
     // Voice: speak reply (not the ack)
@@ -1436,15 +1571,36 @@ window.NYX_HOST_MODE = "widget_console";
       }
       if(!t || t === chipsEl) return;
       var chip = t.getAttribute("data-chip");
-      if(!chip) return;
-      setActiveChip(chip);
+      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
+      if(payload && payload.lane) setActiveChip(payload.lane);
+      else if(chip) setActiveChip(chip);
 
-      postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now() }, true);
+      postToParent({ type:"NYX_CHIP", chip: UI.lane, lane: UI.lane, ts: now(), payload: payload }, true);
+
+      if(payload && (payload.action || payload.text)){
+        sendText(safeStr(payload.text || payload.action || chip), { from:"chip", payload: payload });
+        return;
+      }
 
       try{
         var url = apiBase() + (CONFIG.chatPath || "/api/chat");
         postJson(url, { requestId: makeId(), type:"lane_select", lane: UI.lane, ctx:{ source:"nyx_widget_console" } }, 6000).catch(function(){});
       }catch(_){}
+    });
+  }
+
+
+  if(msgsEl){
+    msgsEl.addEventListener("click", function(e){
+      var t = e.target;
+      while(t && t !== msgsEl && !(t.classList && t.classList.contains("nyx-msg__action"))){
+        t = t.parentNode;
+      }
+      if(!t || t === msgsEl) return;
+      var payload = safeJsonParse(t.getAttribute("data-action-payload") || "{}") || {};
+      var label = safeStr(t.getAttribute("data-action-label") || t.textContent || "").trim();
+      if(payload && payload.lane) setActiveChip(payload.lane);
+      sendText(label, { from:"action", payload: payload });
     });
   }
 
