@@ -30,7 +30,7 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.3.0 RECOVERY-HARDENED";
+const TTS_VERSION = "tts.js v2.4.0 VOICE-LOCK-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -85,6 +85,74 @@ const _trim = (v) => _str(v).trim();
 const _lower = (v) => _trim(v).toLowerCase();
 const _now = () => Date.now();
 const _makeTrace = () => `tts_${Date.now().toString(16)}_${crypto.randomBytes(4).toString("hex")}`;
+
+const STRICT_VOICE_LOCK = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_STRICT_VOICE_LOCK || "true").toLowerCase());
+
+function _looksLikeShortVoiceId(value) {
+  return /^[0-9a-f]{8}$/i.test(_trim(value));
+}
+
+function _looksLikeVoiceIdentifier(value) {
+  return _looksLikeUuid(value) || _looksLikeShortVoiceId(value);
+}
+
+function _extractVoiceUuidCandidate() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const candidate = arguments[i];
+    if (candidate == null) continue;
+    if (typeof candidate === "string") {
+      const v = _trim(candidate);
+      if (v) return v;
+      continue;
+    }
+    if (typeof candidate === "object") {
+      const nested = _pickFirst(
+        candidate.voice_uuid,
+        candidate.voiceUuid,
+        candidate.voiceId,
+        candidate.voice,
+        candidate.resembleVoiceUuid,
+        candidate.mixerVoiceUuid,
+        candidate.uuid,
+        candidate.id
+      );
+      if (nested) return nested;
+    }
+  }
+  return "";
+}
+
+function _voiceSelectionSource(requestedVoiceUuid, resolvedVoiceUuid) {
+  if (_trim(requestedVoiceUuid) && _trim(resolvedVoiceUuid)) return "request";
+  if (!_trim(requestedVoiceUuid) && _trim(resolvedVoiceUuid)) return "lock";
+  return "missing";
+}
+
+function _voiceContract(input) {
+  const integrity = _voiceIntegrityConfig();
+  const requestedVoiceUuid = _trim(input && input.requestedVoiceUuid);
+  const resolvedVoiceUuid = _trim(input && input.voiceUuid);
+  const problems = [];
+
+  if (!resolvedVoiceUuid) problems.push("missing_voice_uuid");
+  if (requestedVoiceUuid && !_looksLikeVoiceIdentifier(requestedVoiceUuid)) problems.push("invalid_requested_voice_uuid");
+  if (resolvedVoiceUuid && !_looksLikeVoiceIdentifier(resolvedVoiceUuid)) problems.push("invalid_resolved_voice_uuid");
+  if (STRICT_VOICE_LOCK && integrity.configured && integrity.conflictingKeys.length) problems.push("conflicting_locked_voice_env");
+  if (STRICT_VOICE_LOCK && requestedVoiceUuid && integrity.voiceUuid && requestedVoiceUuid !== integrity.voiceUuid) {
+    problems.push("voice_uuid_override_blocked");
+  }
+
+  return {
+    ok: problems.length === 0,
+    strict: STRICT_VOICE_LOCK,
+    source: _voiceSelectionSource(requestedVoiceUuid, resolvedVoiceUuid),
+    requestedVoiceUuid,
+    resolvedVoiceUuid,
+    problems,
+    integrity
+  };
+}
+
 
 function _bool(v, d) {
   if (v == null || v === "") return d;
@@ -179,6 +247,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", _headerSafe(meta.provider, 40));
   if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", _mask(meta.voiceUuid));
+  if (meta && meta.voiceSource) _setHeader(res, "X-SB-Voice-Source", _headerSafe(meta.voiceSource, 40));
   if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(_int(meta.elapsedMs, 0, 0, 300000)));
   if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(_int(meta.shapeMs, 0, 0, 300000)));
   if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(_int(meta.segmentCount, 0, 0, 999)));
@@ -376,7 +445,8 @@ function _voiceIntegrityConfig() {
     configuredKeys: candidates.map((item) => item.key),
     conflictingKeys,
     configured: !!authoritative,
-    valid: !!authoritative && conflictingKeys.length === 0
+    valid: !!authoritative && conflictingKeys.length === 0 && _looksLikeVoiceIdentifier(authoritative),
+    strict: STRICT_VOICE_LOCK
   };
 }
 
@@ -448,7 +518,8 @@ function _healthSnapshot() {
       voiceUuidPreview: voiceUuid ? _mask(voiceUuid) : "",
       voiceName: voiceName || "",
       projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
-      providerTimeoutMs: PROVIDER_TIMEOUT_MS
+      providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+      strictVoiceLock: STRICT_VOICE_LOCK
     },
     voiceIntegrity: {
       configured: integrity.configured,
@@ -761,6 +832,11 @@ async function generate(text, options) {
     _log("generate_reject_missing_token", snapshot);
     return _normalizeFailureContract("missing_token", "No provider token is configured.", 503, false, input);
   }
+  const voiceContract = _voiceContract(input);
+  if (!voiceContract.ok) {
+    _log("generate_reject_voice_contract", { ...snapshot, voiceProblems: voiceContract.problems, voiceSource: voiceContract.source });
+    return _normalizeFailureContract("voice_contract_failed", `Voice lock rejected request: ${voiceContract.problems.join(", ") || "unknown_voice_issue"}`, 503, false, input, { voiceUuid: input.voiceUuid });
+  }
   if (!input.voiceUuid) {
     _log("generate_reject_missing_voice", snapshot);
     return _normalizeFailureContract("missing_voice", "No Mixer or provider voice is configured.", 503, false, input);
@@ -879,8 +955,10 @@ function _normalizePayloadLikeInput(payload, req) {
 
   const text = _pickFirst(body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay);
 
-  const requestedVoiceUuid = _pickFirst(
-    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice, headers["x-sb-voice"], headers["x-voice-uuid"]
+  const requestedVoiceUuid = _extractVoiceUuidCandidate(
+    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
+    body.resembleVoiceUuid, body.mixerVoiceUuid, body.voiceConfig, body.voiceConfig && body.voiceConfig.voice,
+    headers["x-sb-voice"], headers["x-voice-uuid"]
   );
   const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
 
@@ -938,9 +1016,11 @@ function _resolveInput(req) {
     query.text, query.speak, query.say, query.prompt, params.text
   );
 
-  const requestedVoiceUuid = _pickFirst(
+  const requestedVoiceUuid = _extractVoiceUuidCandidate(
     body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
+    body.resembleVoiceUuid, body.mixerVoiceUuid, body.voiceConfig, body.voiceConfig && body.voiceConfig.voice,
     query.voice_uuid, query.voiceUuid, query.voiceId, query.voice,
+    query.resembleVoiceUuid, query.mixerVoiceUuid,
     headers["x-sb-voice"], headers["x-voice-uuid"]
   );
   const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
@@ -996,6 +1076,7 @@ function _resolveInput(req) {
 
 function _buildInputSnapshot(input) {
   const src = input && typeof input === "object" ? input : {};
+  const contract = _voiceContract(src);
   return {
     traceId: src.traceId || "",
     requestId: src.requestId || "",
@@ -1010,6 +1091,9 @@ function _buildInputSnapshot(input) {
     textPreview: _preview(src.textDisplay || src.text || ""),
     requestedVoiceUuid: _mask(src.requestedVoiceUuid || ""),
     voiceUuid: _mask(src.voiceUuid || ""),
+    voiceSource: contract.source,
+    voiceStrict: contract.strict,
+    voiceProblems: contract.problems,
     projectUuid: _mask(src.projectUuid || ""),
     outputFormat: src.outputFormat || "",
     wantJson: !!src.wantJson
@@ -1090,6 +1174,7 @@ async function handleTts(req, res) {
   _setCommonAudioHeaders(res, input.traceId, {
     provider: "resemble",
     voiceUuid: input.voiceUuid,
+    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, input.voiceUuid),
     requestId: input.requestId,
     turnId: input.turnId,
     sessionId: input.sessionId
@@ -1104,6 +1189,28 @@ async function handleTts(req, res) {
       provider: "resemble",
       health,
       traceId: input.traceId
+    });
+  }
+
+  const voiceContract = _voiceContract(input);
+  if (!voiceContract.ok) {
+    return _safeJson(res, 503, {
+      ok: false,
+      spokenUnavailable: true,
+      error: "voice_contract_failed",
+      detail: `Voice lock rejected request: ${voiceContract.problems.join(", ") || "unknown_voice_issue"}`,
+      traceId: input.traceId,
+      requestId: input.requestId || "",
+      turnId: input.turnId || "",
+      sessionId: input.sessionId || "",
+      voiceUuid: input.voiceUuid || "",
+      requestedVoiceUuid: input.requestedVoiceUuid || "",
+      voiceSource: voiceContract.source,
+      voiceProblems: voiceContract.problems,
+      health: _healthSnapshot(),
+      ttsFailure: _normalizeFailureContract("voice_contract_failed", "Voice lock rejected request.", 503, false, input, { voiceUuid: input.voiceUuid }).ttsFailure,
+      audioFailure: _normalizeFailureContract("voice_contract_failed", "Voice lock rejected request.", 503, false, input, { voiceUuid: input.voiceUuid }).audioFailure,
+      payload: { spokenUnavailable: true }
     });
   }
 
@@ -1124,6 +1231,7 @@ async function handleTts(req, res) {
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
     voiceUuid: result.voiceUuid || input.voiceUuid,
+    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, result.voiceUuid || input.voiceUuid),
     elapsedMs: result.elapsedMs || 0,
     shapeMs: result.shapeElapsedMs || 0,
     segmentCount: result.segmentCount || 0,
