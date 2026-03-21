@@ -1,4 +1,3 @@
-\
 "use strict";
 
 /**
@@ -8,31 +7,43 @@
  * - Convert routed intelligence into a stable UI contract
  * - Keep user-facing language out of system-log territory
  * - Preserve emotional continuity and action cohesion
+ *
+ * REFINEMENT NOTES
+ * - Hardened normalization and fallback handling
+ * - Reduced duplicated derivation work
+ * - Added predictable reply fallback behavior
+ * - Tightened sanitization and output consistency
+ * - Preserved external contract shape while improving internals
  */
 
-const VERSION = "conversationalResponseSystem v1.0.0 SURGICAL-COHESION";
+const VERSION = "conversationalResponseSystem v1.1.0 HARDENED-COHESION";
 
-function safeStr(v) { return v == null ? "" : String(v); }
-function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-function arr(v) { return Array.isArray(v) ? v : []; }
-function uniq(items) {
-  const out = [];
-  const seen = new Set();
-  for (const item of arr(items)) {
-    const key = typeof item === "string"
-      ? item.trim().toLowerCase()
-      : JSON.stringify(item);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
+function safeStr(v) {
+  return v == null ? "" : String(v);
 }
-function clamp01(v, d = 0) {
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function arr(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+function toFiniteNumber(v, fallback = 0) {
   const n = Number(v);
-  if (!Number.isFinite(n)) return d;
-  return Math.max(0, Math.min(1, n));
+  return Number.isFinite(n) ? n : fallback;
 }
+
+function clamp(v, min, max, fallback = min) {
+  const n = toFiniteNumber(v, fallback);
+  return Math.max(min, Math.min(max, n));
+}
+
+function clamp01(v, fallback = 0) {
+  return clamp(v, 0, 1, fallback);
+}
+
 function firstNonEmpty() {
   for (const value of arguments) {
     const s = safeStr(value).trim();
@@ -40,33 +51,100 @@ function firstNonEmpty() {
   }
   return "";
 }
+
+function uniq(items) {
+  const out = [];
+  const seen = new Set();
+
+  for (const item of arr(items)) {
+    const key = typeof item === "string"
+      ? item.trim().toLowerCase()
+      : JSON.stringify(item);
+
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+
+  return out;
+}
+
+function normalizeSupportFlags(raw) {
+  const src = isObj(raw) ? raw : {};
+  return {
+    highDistress: !!src.highDistress,
+    needsContainment: !!src.needsContainment,
+    needsGrounding: !!src.needsGrounding,
+    vulnerable: !!src.vulnerable
+  };
+}
+
 function normalizeEmotion(raw) {
   const src = isObj(raw) ? raw : {};
-  const supportFlags = isObj(src.supportFlags) ? src.supportFlags : {};
   return {
     primaryEmotion: firstNonEmpty(src.primaryEmotion, src.emotion, "neutral").toLowerCase(),
     secondaryEmotion: firstNonEmpty(src.secondaryEmotion, "").toLowerCase(),
     intensity: clamp01(src.intensity, 0),
-    valence: Math.max(-1, Math.min(1, Number(src.valence) || 0)),
-    supportFlags
+    valence: clamp(src.valence, -1, 1, 0),
+    supportFlags: normalizeSupportFlags(src.supportFlags)
   };
 }
 
-function inferState(domain, emotion, mode) {
-  const d = safeStr(domain || "general").toLowerCase();
-  const m = safeStr(mode || "").toLowerCase();
+function normalizeContext(result, packet) {
+  const domain = firstNonEmpty(
+    result && result.domain,
+    packet && packet.routing && packet.routing.domain,
+    "general"
+  ).toLowerCase();
+
+  const requestedMode = firstNonEmpty(
+    result && result.mode,
+    packet && packet.synthesis && packet.synthesis.mode,
+    "balanced"
+  ).toLowerCase();
+
+  const intent = firstNonEmpty(
+    result && result.intent,
+    packet && packet.routing && packet.routing.intent,
+    "general"
+  ).toLowerCase();
+
+  const emotion = normalizeEmotion(
+    (result && result.emotion) ||
+    (packet && packet.emotion && packet.emotion.lockedEmotion) ||
+    {}
+  );
+
+  const evidenceCount = Math.max(0, toFiniteNumber(packet && packet.evidence && packet.evidence.count, 0));
+
+  return { domain, requestedMode, intent, emotion, evidenceCount };
+}
+
+function inferState(domain, emotion, requestedMode) {
+  const d = safeStr(domain).toLowerCase();
+  const m = safeStr(requestedMode).toLowerCase();
+
   if (d === "psychology") return "supportive";
   if (m === "recovery") return "clarifying";
   if (emotion.supportFlags.highDistress || emotion.supportFlags.needsContainment) return "supportive";
-  if (emotion.primaryEmotion === "sad" || emotion.primaryEmotion === "anxious") return "supportive";
+  if (emotion.primaryEmotion === "sad" || emotion.primaryEmotion === "anxious" || emotion.primaryEmotion === "overwhelmed") {
+    return "supportive";
+  }
+
   return "focused";
 }
 
 function splitReply(reply) {
   const text = safeStr(reply).trim();
   if (!text) return { lead: "", body: "", bridge: "" };
-  const parts = text.split(/\n{2,}|\n/).map((x) => x.trim()).filter(Boolean);
+
+  const parts = text
+    .split(/\n{2,}|\n/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
   if (!parts.length) return { lead: text, body: "", bridge: "" };
+
   return {
     lead: parts[0],
     body: parts.slice(1).join("\n").trim(),
@@ -77,124 +155,201 @@ function splitReply(reply) {
 function sanitizeUserFacingReply(reply) {
   let out = safeStr(reply).trim();
   if (!out) return "";
+
   const banned = [
     /\b(shell is active|guiding properly)\b/ig,
     /\broute[_ ]?guard\b/ig,
     /\bturn lifecycle\b/ig,
     /\bphase \d+\b/ig,
     /\bfallback packet\b/ig,
-    /\btelemetry\b/ig
+    /\btelemetry\b/ig,
+    /\bsystem(?:-|\s)?log\b/ig,
+    /\bruntime(?:-|\s)?trace\b/ig,
+    /\binternal(?:-|\s)?pipeline\b/ig
   ];
-  for (const rx of banned) out = out.replace(rx, "");
-  out = out.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+
+  for (const rx of banned) {
+    out = out.replace(rx, "");
+  }
+
+  out = out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
   return out;
+}
+
+function buildFallbackReply(context) {
+  if (context.domain === "psychology") {
+    return context.emotion.supportFlags.highDistress || context.emotion.intensity >= 0.75
+      ? "I’m here with you. We can take this one step at a time."
+      : "I’m with you. Tell me what feels most important right now.";
+  }
+
+  if (context.domain === "finance") {
+    return "Let’s break this down clearly and focus on the numbers that matter most.";
+  }
+
+  if (context.domain === "law") {
+    return "Let’s sort out what applies, where the risk sits, and what the clean next move is.";
+  }
+
+  return "I’m with you. Give me a little more, and I’ll help tighten the next move.";
 }
 
 function domainPlaceholder(domain) {
   switch (safeStr(domain).toLowerCase()) {
-    case "psychology": return "Tell Nyx what feels heavy…";
-    case "finance": return "Ask Nyx to break down the numbers…";
-    case "law": return "Ask Nyx what applies and where the risk is…";
-    default: return "Ask Nyx anything about Sandblast…";
+    case "psychology":
+      return "Tell Nyx what feels heavy…";
+    case "finance":
+      return "Ask Nyx to break down the numbers…";
+    case "law":
+      return "Ask Nyx what applies and where the risk is…";
+    default:
+      return "Ask Nyx anything about Sandblast…";
   }
 }
 
 function action(label, payload, role = "advance") {
   const clean = safeStr(label).trim();
   if (!clean) return null;
-  return { label: clean, role, payload: isObj(payload) ? payload : { text: clean } };
+
+  return {
+    label: clean,
+    role,
+    payload: isObj(payload) ? payload : { text: clean }
+  };
 }
 
-function buildSuggestedActions(domain, emotion, evidenceCount) {
+function buildSuggestedActions(context) {
   const actions = [];
-  if (domain === "psychology") {
+
+  if (context.domain === "psychology") {
     actions.push(action("Keep talking"));
     actions.push(action("What happened?"));
     actions.push(action("What do you need right now?"));
-  } else if (domain === "finance") {
+  } else if (context.domain === "finance") {
     actions.push(action("Break it down"));
     actions.push(action("Risk view"));
-  } else if (domain === "law") {
+    actions.push(action("Show the numbers"));
+  } else if (context.domain === "law") {
     actions.push(action("What applies?"));
     actions.push(action("Key risk"));
+    actions.push(action("Next legal step"));
   } else {
     actions.push(action("Tell me more"));
     actions.push(action("Next step"));
   }
-  if (evidenceCount > 0) actions.push(action("Evidence"));
-  if (emotion.primaryEmotion === "sad" || emotion.primaryEmotion === "anxious") {
+
+  if (context.evidenceCount > 0) {
+    actions.push(action("Evidence"));
+  }
+
+  if (
+    context.emotion.primaryEmotion === "sad" ||
+    context.emotion.primaryEmotion === "anxious" ||
+    context.emotion.supportFlags.highDistress
+  ) {
     actions.unshift(action("Stay with me"));
   }
+
   return uniq(actions).filter(Boolean).slice(0, 4);
 }
 
-function buildBridgeLine(domain, emotion, mode) {
-  if (safeStr(domain).toLowerCase() === "psychology") {
-    if (emotion.supportFlags.highDistress || emotion.intensity >= 0.75) return "We can go one step at a time.";
+function buildBridgeLine(context) {
+  if (context.domain === "psychology") {
+    if (context.emotion.supportFlags.highDistress || context.emotion.intensity >= 0.75) {
+      return "We can go one step at a time.";
+    }
     return "You do not have to explain it perfectly.";
   }
-  if (safeStr(mode).toLowerCase() === "recovery") return "Let’s tighten the next move and keep it clean.";
+
+  if (context.requestedMode === "recovery") {
+    return "Let’s tighten the next move and keep it clean.";
+  }
+
   return "";
 }
 
+function resolveReply(result, packet, context) {
+  const rawReply = firstNonEmpty(
+    result && result.reply,
+    packet && packet.synthesis && packet.synthesis.answer,
+    ""
+  );
+
+  const sanitized = sanitizeUserFacingReply(rawReply);
+  return sanitized || buildFallbackReply(context);
+}
+
 function buildUi(result, packet) {
-  const domain = firstNonEmpty(result.domain, packet.routing && packet.routing.domain, "general").toLowerCase();
-  const mode = firstNonEmpty(result.mode, packet.synthesis && packet.synthesis.mode, "balanced").toLowerCase();
-  const emotion = normalizeEmotion(result.emotion || (packet.emotion && packet.emotion.lockedEmotion) || {});
-  const evidenceCount = Number(packet.evidence && packet.evidence.count) || 0;
-  const chips = buildSuggestedActions(domain, emotion, evidenceCount).map((x) => x.label);
+  const context = normalizeContext(result, packet);
+  const state = inferState(context.domain, context.emotion, context.requestedMode);
+  const actions = buildSuggestedActions(context);
+  const text = resolveReply(result, packet, context);
+  const bridgeLine = buildBridgeLine(context);
+
   return {
-    text: sanitizeUserFacingReply(firstNonEmpty(result.reply, packet.synthesis && packet.synthesis.answer)),
-    chips,
+    text,
+    chips: actions.map((x) => x.label),
     allowMic: true,
-    mode: inferState(domain, emotion, mode),
-    state: inferState(domain, emotion, mode),
-    domain,
-    intent: firstNonEmpty(result.intent, packet.routing && packet.routing.intent, "general").toLowerCase(),
-    placeholder: domainPlaceholder(domain),
-    bridgeLine: buildBridgeLine(domain, emotion, mode),
-    actions: buildSuggestedActions(domain, emotion, evidenceCount)
+    mode: state,
+    state,
+    domain: context.domain,
+    intent: context.intent,
+    placeholder: domainPlaceholder(context.domain),
+    bridgeLine,
+    actions
   };
 }
 
 function buildEmotionalTurn(result, packet, ui) {
-  const emotion = normalizeEmotion(result.emotion || (packet.emotion && packet.emotion.lockedEmotion) || {});
-  const reply = sanitizeUserFacingReply(firstNonEmpty(result.reply, packet.synthesis && packet.synthesis.answer));
+  const context = normalizeContext(result, packet);
+  const reply = resolveReply(result, packet, context);
   const parts = splitReply(reply);
+  const bridge = safeStr(ui && ui.bridgeLine).trim();
+  const stitchedText = [parts.lead, parts.body].filter(Boolean).join("\n").trim() || reply;
+
   return {
-    primaryState: safeStr(ui.state || "focused").toLowerCase(),
-    secondaryState: emotion.intensity >= 0.7 ? "intense" : "steady",
-    continuityScore: emotion.intensity >= 0.8 ? 0.86 : 0.74,
-    continuityLevel: emotion.intensity >= 0.8 ? "high" : "steady",
-    placeholder: ui.placeholder,
-    bridgeLine: ui.bridgeLine,
+    primaryState: safeStr((ui && ui.state) || "focused").toLowerCase(),
+    secondaryState: context.emotion.intensity >= 0.7 ? "intense" : "steady",
+    continuityScore: context.emotion.intensity >= 0.8 ? 0.86 : 0.74,
+    continuityLevel: context.emotion.intensity >= 0.8 ? "high" : "steady",
+    placeholder: (ui && ui.placeholder) || domainPlaceholder(context.domain),
+    bridgeLine: bridge,
     response: {
       lead: parts.lead,
       body: parts.body,
-      bridge: ui.bridgeLine
+      bridge
     },
-    actions: arr(ui.actions).slice(0, 4),
-    lane: firstNonEmpty(result.domain, "general").toLowerCase(),
-    replyText: [parts.lead, parts.body].filter(Boolean).join("\n").trim() || reply,
-    responseText: [parts.lead, parts.body].filter(Boolean).join("\n").trim() || reply,
-    text: [parts.lead, parts.body].filter(Boolean).join("\n").trim() || reply,
-    spokenText: [parts.lead, parts.body, ui.bridgeLine].filter(Boolean).join(" ").trim() || reply,
-    emotion
+    actions: arr(ui && ui.actions).slice(0, 4),
+    lane: context.domain,
+    replyText: stitchedText,
+    responseText: stitchedText,
+    text: stitchedText,
+    spokenText: [parts.lead, parts.body, bridge].filter(Boolean).join(" ").trim() || reply,
+    emotion: context.emotion
   };
 }
 
 function buildResponseContract(result = {}, packet = {}) {
   const ui = buildUi(result, packet);
   const emotionalTurn = buildEmotionalTurn(result, packet, ui);
-  const reply = sanitizeUserFacingReply(firstNonEmpty(result.reply, emotionalTurn.replyText, packet.synthesis && packet.synthesis.answer));
+  const reply = resolveReply(result, packet, normalizeContext(result, packet));
   const followUps = arr(ui.actions).slice(0, 4);
+
   return {
     version: VERSION,
     reply,
     ui,
     emotionalTurn,
     followUps,
-    followUpsStrings: followUps.map((x) => safeStr(x.label || "").trim()).filter(Boolean),
+    followUpsStrings: followUps
+      .map((x) => safeStr(x && x.label).trim())
+      .filter(Boolean),
     payload: {
       reply,
       text: reply,
