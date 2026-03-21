@@ -1020,7 +1020,15 @@ function _resolveOptionalDatasetImports(meta = {}) {
     _tryRequire("./labs/meldImport"),
     _tryRequire("./labs/meltImport"),
     _tryRequire("./labs/meld"),
-    _tryRequire("./labs/melt")
+    _tryRequire("./labs/melt"),
+    _tryRequire("../labs/meldImport"),
+    _tryRequire("../labs/meltImport"),
+    _tryRequire("../labs/meld"),
+    _tryRequire("../labs/melt"),
+    _tryRequire("../../labs/meldImport"),
+    _tryRequire("../../labs/meltImport"),
+    _tryRequire("../../labs/meld"),
+    _tryRequire("../../labs/melt")
   ];
 
   for (const mod of modules) {
