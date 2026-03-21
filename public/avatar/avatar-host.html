@@ -238,6 +238,91 @@ window.NYX_HOST_MODE = "widget_console";
     border-color: rgba(140,0,35,.30);
   }
 
+  .nyx-msg.nyx-assistant{
+    padding: 0;
+    background: transparent;
+    border: none;
+    max-width: 100%;
+  }
+  .nyx-turn{
+    display:block;
+    border:1px solid rgba(255,255,255,.10);
+    background: linear-gradient(180deg, rgba(18,18,24,.74), rgba(8,8,12,.58));
+    border-radius: 18px;
+    padding: 12px 12px 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  .nyx-turn__meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:8px;
+    color: rgba(255,255,255,.64);
+    font: 700 11px/1 var(--nyx-font);
+    letter-spacing:.08em;
+    text-transform: uppercase;
+  }
+  .nyx-turn__state{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:5px 8px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.05);
+  }
+  .nyx-turn__state::before{
+    content:"";
+    width:7px; height:7px; border-radius:999px;
+    background: rgba(255,255,255,.54);
+    box-shadow: 0 0 10px rgba(255,255,255,.18);
+  }
+  .nyx-turn[data-state="supportive"] .nyx-turn__state::before,
+  #nyxWidget[data-engine-state="supportive"] #nyxMarion{
+    background: rgba(140,0,35,.92);
+    box-shadow: 0 0 12px rgba(140,0,35,.35);
+  }
+  .nyx-turn[data-state="focused"] .nyx-turn__state::before{ background: rgba(63,184,255,.85); box-shadow: 0 0 12px rgba(63,184,255,.25); }
+  .nyx-turn[data-state="clarifying"] .nyx-turn__state::before{ background: rgba(255,192,99,.90); box-shadow: 0 0 12px rgba(255,192,99,.22); }
+  .nyx-turn[data-state="curious"] .nyx-turn__state::before{ background: rgba(143,105,255,.90); box-shadow: 0 0 12px rgba(143,105,255,.22); }
+  .nyx-turn__body{
+    color: rgba(255,255,255,.94);
+    font: var(--nyx-font-msg)/1.6 var(--nyx-font);
+    white-space: pre-wrap;
+  }
+  .nyx-turn__body p{ margin:0 0 8px; }
+  .nyx-turn__body p:last-child{ margin-bottom:0; }
+  .nyx-turn__bridge{
+    margin-top:9px;
+    color: rgba(255,255,255,.72);
+    font: 600 12.5px/1.45 var(--nyx-font);
+  }
+  .nyx-turn__actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:10px;
+  }
+  .nyx-action{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px 11px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.055);
+    color: rgba(255,255,255,.92);
+    font: 700 12.4px/1 var(--nyx-font);
+    cursor:pointer;
+    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
+  }
+  .nyx-action:hover{
+    transform: translateY(-1px);
+    background: rgba(140,0,35,.15);
+    border-color: rgba(140,0,35,.48);
+  }
+
+
   #nyxEmpty{
     display:none;
     padding:14px 12px;
@@ -1082,53 +1167,76 @@ window.NYX_HOST_MODE = "widget_console";
     setActiveChip(UI.lane || "general");
   }
 
-  function applyUiContract(ui){
-    var next = ui && typeof ui === "object" ? ui : {};
-    UI.activeUi = next;
-    if(typeof next.mode === "string" && next.mode.trim()) UI.mode = next.mode.trim().toLowerCase();
-    if(typeof next.state === "string" && next.state.trim()) UI.mode = next.state.trim().toLowerCase();
-    if(typeof next.emotionalState === "string" && next.emotionalState.trim()) UI.mode = next.emotionalState.trim().toLowerCase();
-    if(typeof next.placeholder === "string" && next.placeholder.trim()) UI.placeholder = next.placeholder.trim();
-    if(inputEl) inputEl.placeholder = UI.placeholder || "Type to Nyx…";
-    document.body.setAttribute("data-nyx-mode", UI.mode || "focused");
-    if(typeof next.allowMic === "boolean" && micBtn) micBtn.disabled = !next.allowMic;
-    renderTopChips(Array.isArray(next.chips) ? next.chips : null);
-    emitResize();
-  }
-
-  function buildAssistantMetaFromResponse(res, requestId, turn){
-    var ui = res && res.ui && typeof res.ui === "object" ? res.ui : {};
-    var emotionalTurn = res && res.emotionalTurn && typeof res.emotionalTurn === "object" ? res.emotionalTurn : {};
-    var actions = normalizeActionItems(emotionalTurn.actions || res.followUps || []);
-    return {
-      kind:"reply",
-      requestId: requestId,
-      turn: turn,
-      temp:false,
-      bridge: extractBridge(res) || null,
-      state: safeStr(emotionalTurn.primaryState || ui.emotionalState || ui.state || ui.mode || "focused").toLowerCase() || "focused",
-      secondaryState: safeStr(emotionalTurn.secondaryState || ui.emotionalSecondaryState || "steady").toLowerCase() || "steady",
-      actions: actions,
-      bridgeLine: safeStr(emotionalTurn.bridgeLine || "").trim(),
-      placeholder: safeStr(emotionalTurn.placeholder || ui.placeholder || "").trim(),
-      continuityScore: Number(emotionalTurn.continuityScore || ui.continuityScore || 0) || 0
-    };
-  }
-
-  function setActiveChip(chip){
-    UI.lane = safeStr(chip).toLowerCase().trim() || "general";
-    if(chipsEl){
-      var list = chipsEl.querySelectorAll(".chip");
-      for(var i=0;i<list.length;i++){
-        var el = list[i];
-        el.classList.toggle("is-active", el.getAttribute("data-chip") === UI.lane);
+  
+function applyUiContract(ui){
+    ui = ui && typeof ui === "object" ? ui : {};
+    if(inputEl && ui.placeholder){
+      inputEl.setAttribute("placeholder", safeStr(ui.placeholder, 160));
+    }
+    if(ui.state && widget){
+      widget.setAttribute("data-engine-state", safeStr(ui.state, 40).toLowerCase());
+    }
+    if(typeof ui.allowMic === "boolean" && micBtn){
+      micBtn.style.display = ui.allowMic ? "" : "none";
+    }
+    if(chipsEl && Array.isArray(ui.chips)){
+      chipsEl.innerHTML = "";
+      for(var i=0;i<ui.chips.length;i++){
+        var chip = ui.chips[i] || {};
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip";
+        var payload = chip.payload && typeof chip.payload === "object" ? chip.payload : {};
+        var chipLane = safeStr(payload.lane || chip.id, 60).toLowerCase();
+        btn.setAttribute("data-chip", chipLane);
+        btn.setAttribute("data-payload", JSON.stringify(payload));
+        btn.textContent = safeStr(chip.label || chip.id, 60);
+        if(chipLane && chipLane === UI.lane) btn.classList.add("is-active");
+        chipsEl.appendChild(btn);
       }
     }
   }
 
-  function updateEmptyState(){
-    if(!widget) return;
-    widget.classList.toggle("is-empty", THREAD.length === 0);
+  function normalizeBackendResponse(res){
+    var ui = res && res.ui && typeof res.ui === "object" ? res.ui : {};
+    var emotionalTurn = res && res.emotionalTurn && typeof res.emotionalTurn === "object" ? res.emotionalTurn : {};
+    var actions = normalizeActionItems(emotionalTurn.actions || res.followUps || []);
+    var reply = safeStr(
+      emotionalTurn.replyText ||
+      emotionalTurn.text ||
+      emotionalTurn.responseText ||
+      res.reply ||
+      res.text ||
+      (res.data && (res.data.reply || res.data.text)) ||
+      res.message ||
+      "",
+      4000
+    ).trim();
+    var state = safeStr(
+      emotionalTurn.primaryState ||
+      emotionalTurn.state ||
+      ui.emotionalState ||
+      ui.state ||
+      ui.mode ||
+      "focused",
+      40
+    ).toLowerCase() || "focused";
+    return {
+      reply: reply,
+      meta: {
+        engineState: state,
+        stateLabel: safeStr(emotionalTurn.primaryState || emotionalTurn.state || state, 40),
+        bridgeLine: safeStr(emotionalTurn.bridgeLine || emotionalTurn.bridge || ui.bridgeLine || "", 220),
+        actions: actions
+      },
+      ui: {
+        chips: Array.isArray(ui.chips) ? ui.chips : defaultTopChips(),
+        mode: safeStr(ui.mode || state, 40),
+        state: state,
+        placeholder: safeStr(emotionalTurn.placeholder || ui.placeholder || "", 160),
+        allowMic: ui.allowMic !== false
+      }
+    };
   }
 
   function pushMsg(role, text, meta){
@@ -1148,59 +1256,49 @@ window.NYX_HOST_MODE = "widget_console";
     return id;
   }
 
-  function renderMsgs(){
+  
+function renderMsgs(){
     if(!msgsEl) return;
     msgsEl.innerHTML = "";
     for(var i=0;i<THREAD.length;i++){
-      var m = THREAD[i] || {};
-      var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
+      var m = THREAD[i];
       var div = document.createElement("div");
-      var role = safeStr(m.role || "nyx").toLowerCase();
-      var state = safeStr(meta.state || "focused").toLowerCase();
-      div.className = "nyx-msg" + (role === "user" ? " me" : " nyx-assistant nyx-msg--" + state) + ((meta.temp || meta.kind === "ack") ? " nyx-msg--typing" : "");
-
-      if(role !== "user"){
-        var badge = document.createElement("div");
-        badge.className = "nyx-msg__state";
-        badge.textContent = (state || "focused").replace(/[_-]+/g, " ");
-        div.appendChild(badge);
-      }
-
-      var body = document.createElement("div");
-      body.className = "nyx-msg__text";
-      body.textContent = safeStr(m.text || "");
-      div.appendChild(body);
-
-      if(role !== "user" && meta.bridgeLine){
-        var bridge = document.createElement("div");
-        bridge.className = "nyx-msg__bridge";
-        bridge.textContent = safeStr(meta.bridgeLine || "");
-        div.appendChild(bridge);
-      }
-
-      if(role !== "user" && Array.isArray(meta.actions) && meta.actions.length){
-        var actionWrap = document.createElement("div");
-        actionWrap.className = "nyx-msg__actions";
-        for(var j=0;j<meta.actions.length;j++){
-          var a = meta.actions[j] && typeof meta.actions[j] === "object" ? meta.actions[j] : null;
-          if(!a) continue;
-          var btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "nyx-msg__action";
-          btn.textContent = safeStr(a.label || "Continue") || "Continue";
-          btn.setAttribute("data-action-payload", safeStr(JSON.stringify(a.payload || {}), 1200));
-          btn.setAttribute("data-action-label", safeStr(a.label || ""));
-          btn.setAttribute("data-action-role", safeStr(a.role || "advance"));
-          actionWrap.appendChild(btn);
+      div.className = "nyx-msg" + (m.role === "user" ? " me" : " nyx-assistant");
+      if(m.role === "user"){
+        div.textContent = m.text;
+      } else {
+        var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
+        var state = safeStr(meta.engineState || meta.state || meta.mode || "focused", 40).toLowerCase() || "focused";
+        var stateLabel = safeStr(meta.stateLabel || state, 40).replace(/[_-]+/g, " ");
+        stateLabel = stateLabel ? stateLabel.charAt(0).toUpperCase() + stateLabel.slice(1) : "Focused";
+        var bodyHtml = "";
+        var lines = safeStr(m.text).split(/\n{2,}|\n/).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
+        if(!lines.length) lines = [safeStr(m.text)];
+        for(var li=0; li<lines.length; li++){
+          var p = document.createElement("p");
+          p.textContent = lines[li];
+          bodyHtml += p.outerHTML;
         }
-        div.appendChild(actionWrap);
+        var bridgeLine = safeStr(meta.bridgeLine || "", 220).trim();
+        var actions = normalizeActionItems(meta.actions || []);
+        var actionsHtml = "";
+        if(actions.length){
+          actionsHtml = '<div class="nyx-turn__actions">' + actions.map(function(a){
+            return '<button type="button" class="nyx-action" data-action-id="' + escHtml(a.id) + '" data-role="' + escHtml(a.role) + '" data-payload="' + escHtml(JSON.stringify(a.payload || {})) + '">' + escHtml(a.label) + '</button>';
+          }).join("") + '</div>';
+        }
+        div.innerHTML =
+          '<div class="nyx-turn" data-state="' + escHtml(state) + '">' +
+            '<div class="nyx-turn__meta"><span class="nyx-turn__state">' + escHtml(stateLabel) + '</span></div>' +
+            '<div class="nyx-turn__body">' + bodyHtml + (bridgeLine ? '<div class="nyx-turn__bridge">' + escHtml(bridgeLine) + '</div>' : '') + '</div>' +
+            actionsHtml +
+          '</div>';
       }
-
       msgsEl.appendChild(div);
     }
     try{
       if(scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-    }catch(_){ }
+    }catch(_){}
     emitResize();
   }
 
@@ -1491,30 +1589,22 @@ window.NYX_HOST_MODE = "widget_console";
       return;
     }
 
+
     var bridge = extractBridge(res);
-    var ack = pickAck(bridge);
-    if(ackId) replaceMsg(ackId, ack, { kind:"ack", requestId: requestId, turn: turn, temp:false, bridge: bridge || null });
-
-    // Build reply text
-    var reply = "";
-    if(res){
-      reply = safeStr(res.reply || res.text || (res.data && (res.data.reply || res.data.text)) || "");
-      // Some backends return { ok:true, data:{ reply }, cog:{...} }
-      if(!reply && res.ok && res.message) reply = safeStr(res.message);
-    }
-
+    var normalized = normalizeBackendResponse(res || {});
+    var reply = normalized.reply;
     if(!reply && res && res.ok === false){
       if(res.error === "aborted") reply = "Okay — interrupted. Say that again when you’re ready.";
       else reply = "Connection issue. Pass apiBase/token via NYX_CONFIG so I can reach the backend.";
     }
-    if(!reply) reply = "…";
+    if(!reply) reply = "I’m still here. Tell me what you need, and I’ll keep this moving.";
 
-    // Apply lane + marion indicators
     if(res && res.lane && typeof res.lane === "string"){ setActiveChip(res.lane.toLowerCase()); }
-    if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
-    else if(bridge) setMarionOn(true);
+    else if(normalized.ui && normalized.ui.chips){ applyUiContract(normalized.ui); }
 
-    // Optional: show bridge badge in Marion tooltip
+    if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
+    else if(bridge || (res && res.meta && res.meta.marionBridgeUsed)) setMarionOn(true);
+
     try{
       if(marionEl && bridge){
         var b = bridgeBadge(bridge);
@@ -1522,12 +1612,11 @@ window.NYX_HOST_MODE = "widget_console";
       }
     }catch(_){}
 
-    // Replace ack line with full reply (or append, depending on your preference)
-    // We keep the ACK as first line and then push the full reply as a second message.
-    pushMsg("nyx", reply, { kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null });
+    applyUiContract(normalized.ui);
+    if(ackId) replaceMsg(ackId, reply, Object.assign({ kind:"reply", requestId: requestId, turn: turn, temp:false, bridge: bridge || null }, normalized.meta));
+    else pushMsg("nyx", reply, Object.assign({ kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null }, normalized.meta));
     renderMsgs();
 
-    // Voice: speak reply (not the ack)
     if(VOICE.voiceOn){
       var wasMic = VOICE.micOn;
       if(wasMic) toggleMic(false);
@@ -1571,6 +1660,22 @@ window.NYX_HOST_MODE = "widget_console";
       var payload = safeJsonParse(t.getAttribute("data-action-payload") || "{}") || {};
       var label = safeStr(t.getAttribute("data-action-label") || t.textContent || "").trim();
       sendText((payload && payload.text) ? safeStr(payload.text) : label, { from:"action", actionPayload: payload, actionRole: t.getAttribute("data-action-role") || "advance", actionLabel: label });
+    });
+  }
+
+  if(msgsEl){
+    msgsEl.addEventListener("click", function(e){
+      var t = e.target;
+      while(t && t !== msgsEl && !(t.classList && t.classList.contains("nyx-action"))){
+        t = t.parentNode;
+      }
+      if(!t || t === msgsEl) return;
+      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
+      var label = safeStr(t.textContent || "");
+      if(payload && typeof payload === "object" && payload.lane){
+        setActiveChip(payload.lane);
+      }
+      sendText(label, { from:"action", actionId:safeStr(t.getAttribute("data-action-id") || ""), payload: payload });
     });
   }
 
