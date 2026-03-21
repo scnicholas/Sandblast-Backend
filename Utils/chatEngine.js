@@ -231,6 +231,120 @@ function laneArtifactsForTurn(norm, emo, lane, followUpsRaw, uiRaw, routeOut) {
   return { followUps, followUpsStrings, ui, menusSuppressed: false };
 }
 
+
+function buildContractResponse(reply, emotionalTurn) {
+  const fallback = safeStr(reply || "").trim();
+  const turn = isPlainObject(emotionalTurn) ? emotionalTurn : {};
+  const response = isPlainObject(turn.response) ? turn.response : {};
+  let lead = safeStr(response.lead || turn.lead || "").trim();
+  let body = safeStr(response.body || turn.replyText || turn.responseText || turn.text || fallback || "").trim();
+  let bridge = safeStr(response.bridge || turn.bridgeLine || turn.bridge || "").trim();
+  if (!lead && body) {
+    const idx = body.indexOf("\n");
+    if (idx > 0 && idx < 140) {
+      lead = body.slice(0, idx).trim();
+      body = body.slice(idx + 1).trim();
+    }
+  }
+  return {
+    lead,
+    body,
+    bridge,
+    replyText: [lead, body].filter(Boolean).join("\n").trim() || fallback,
+    spokenText: [lead, body, bridge].filter(Boolean).join(" ").trim() || fallback
+  };
+}
+function normalizeUiContractStable(ui, lane, emotionalTurn, followUps) {
+  const src = isPlainObject(ui) ? { ...ui } : {};
+  const turn = isPlainObject(emotionalTurn) ? emotionalTurn : {};
+  const chips = Array.isArray(src.chips) ? src.chips.slice(0, 8) : [];
+  return {
+    ...src,
+    chips,
+    allowMic: src.allowMic !== false,
+    mode: safeStr(src.mode || turn.primaryState || "focused") || "focused",
+    state: safeStr(src.state || turn.primaryState || src.mode || "focused") || "focused",
+    placeholder: safeStr(src.placeholder || turn.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
+    bridgeLine: safeStr(src.bridgeLine || turn.bridgeLine || turn?.response?.bridge || "") || "",
+    lane: safeStr(src.lane || lane || "general") || "general",
+    actions: Array.isArray(src.actions) ? src.actions.slice(0, 8) : (Array.isArray(followUps) ? followUps.slice(0, 8) : [])
+  };
+}
+function normalizeEmotionalTurnStable(turn, reply, lane, ui, followUps, cog) {
+  const src = isPlainObject(turn) ? { ...turn } : {};
+  const response = buildContractResponse(reply, src);
+  const inferredState =
+    safeStr(src.primaryState || src.state || ui?.state || ui?.mode || cog?.route === "marion_bridge" && "focused" || "focused").toLowerCase() || "focused";
+  const continuityLevel = safeStr(src.continuityLevel || src.continuity || "steady").toLowerCase() || "steady";
+  return {
+    ...src,
+    primaryState: inferredState,
+    secondaryState: safeStr(src.secondaryState || "steady").toLowerCase() || "steady",
+    continuityScore: Number.isFinite(Number(src.continuityScore)) ? Math.max(0, Math.min(1, Number(src.continuityScore))) : 0.62,
+    continuityLevel,
+    placeholder: safeStr(src.placeholder || ui?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
+    bridgeLine: safeStr(src.bridgeLine || response.bridge || ui?.bridgeLine || "") || "",
+    response: {
+      lead: response.lead,
+      body: response.body,
+      bridge: response.bridge
+    },
+    actions: Array.isArray(src.actions) ? src.actions.slice(0, 8) : (Array.isArray(followUps) ? followUps.slice(0, 8) : []),
+    lane: safeStr(src.lane || lane || "general") || "general",
+    replyText: response.replyText,
+    responseText: response.replyText,
+    text: response.replyText,
+    spokenText: response.spokenText
+  };
+}
+function normalizeBridgeStable(bridge, marionBridgeUsed, marionBridgeDomain) {
+  if (!isPlainObject(bridge)) {
+    return marionBridgeUsed ? {
+      v: safeStr(marionBridgeDomain ? "bridge.v2" : ""),
+      authority: "bridge_primary",
+      domain: safeStr(marionBridgeDomain || "general") || "general",
+      confidence: 0
+    } : null;
+  }
+  return {
+    ...bridge,
+    authority: safeStr(bridge.authority || (marionBridgeUsed ? "bridge_primary" : "assistive")) || (marionBridgeUsed ? "bridge_primary" : "assistive"),
+    domain: safeStr(bridge.domain || marionBridgeDomain || "general") || "general"
+  };
+}
+function buildStableContract(base) {
+  const src = isPlainObject(base) ? { ...base } : {};
+  const lane = safeStr(src.lane || src.laneId || src.sessionLane || "general") || "general";
+  const reply = safeStr(src.reply || src?.payload?.reply || "");
+  const cog = isPlainObject(src.cog) ? { ...src.cog } : {};
+  const followUps = Array.isArray(src.followUps) ? src.followUps.slice(0, 12) : [];
+  const ui = normalizeUiContractStable(src.ui, lane, src.emotionalTurn, followUps);
+  const emotionalTurn = normalizeEmotionalTurnStable(src.emotionalTurn, reply, lane, ui, followUps, cog);
+  const payload = isPlainObject(src.payload) ? { ...src.payload, reply: safeStr(src.payload.reply || reply || emotionalTurn.replyText) } : { reply: reply || emotionalTurn.replyText };
+  const bridge = normalizeBridgeStable(src.bridge, !!src?.meta?.marionBridgeUsed, safeStr(src?.meta?.marionBridgeDomain || ""));
+  return {
+    ok: src.ok !== false,
+    reply: reply || emotionalTurn.replyText,
+    payload,
+    lane,
+    laneId: safeStr(src.laneId || lane) || lane,
+    sessionLane: safeStr(src.sessionLane || lane) || lane,
+    bridge,
+    ctx: isPlainObject(src.ctx) ? src.ctx : {},
+    ui,
+    emotionalTurn,
+    directives: Array.isArray(src.directives) ? src.directives.slice(0, 12) : [],
+    followUps,
+    followUpsStrings: Array.isArray(src.followUpsStrings) && src.followUpsStrings.length
+      ? src.followUpsStrings.slice(0, 12)
+      : followUps.map((x) => safeStr(x?.label || x?.title || x || "")).filter(Boolean),
+    sessionPatch: isPlainObject(src.sessionPatch) ? src.sessionPatch : {},
+    cog,
+    requestId: safeStr(src.requestId || ""),
+    meta: isPlainObject(src.meta) ? src.meta : {}
+  };
+}
+
 async function maybeResolveMarionBridge(rawInput, norm, session, emo, requestId, turnId, publicMode) {
   const bridge = getMarionBridge();
   if (!bridge || typeof bridge.maybeResolve !== "function") return { usedBridge: false, packet: null, sections: extractKnowledgeSections(rawInput, norm, session) };
@@ -2050,7 +2164,7 @@ async function handleChat(input) {
     if (lifecycle.blocked && lifecycle.replay) {
       logChatDiag('lifecycle_replay', buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }));
       return {
-        ...lifecycle.replay,
+        ...buildStableContract(lifecycle.replay),
         requestId,
         sessionPatch: mergeSessionPatches(lifecycle.replay.sessionPatch, lifecycle.patch, {
           __turnLifecycleReason: lifecycle.reason
@@ -2067,7 +2181,7 @@ async function handleChat(input) {
         session,
         publicMode
       );
-      return {
+      return buildStableContract({
         ok: true,
         reply: blockedReply,
         payload: { reply: blockedReply },
@@ -2086,7 +2200,7 @@ async function handleChat(input) {
         cog: { publicMode, mode: "transitional", intent: "STABILIZE" },
         requestId,
         meta: { v: CE_VERSION, blocked: true, reason: lifecycle.reason, t: nowMs(), phase: 15 }
-      };
+      });
     }
 
     const corePrev = typeof Spine?.coerceState === "function"
@@ -2162,7 +2276,7 @@ async function handleChat(input) {
             __turnLifecycleReason: "cached_fast_return"
           }
         );
-        return replayContract;
+        return buildStableContract(replayContract);
       }
     }
 
@@ -2357,7 +2471,7 @@ async function handleChat(input) {
         })
       );
 
-      return emotionContract;
+      return buildStableContract(emotionContract);
     }
 
     if (inboundRepeat.tripped) {
@@ -2423,7 +2537,7 @@ async function handleChat(input) {
         })
       );
 
-      return breakerContract;
+      return buildStableContract(breakerContract);
     }
 
     const greeting = detectGreetingQuick(norm.text || "");
@@ -2486,7 +2600,7 @@ async function handleChat(input) {
         })
       );
 
-      return greetingContract;
+      return buildStableContract(greetingContract);
     }
 
     const marionBridgeOut = await maybeResolveMarionBridge(rawInput, norm, session, emo, requestId, turnId, publicMode);
@@ -2503,7 +2617,9 @@ async function handleChat(input) {
           lane: safeStr((bridgeRouting && bridgeRouting.domain) || norm.lane || session.lane || (emo ? "general" : "general")) || "general",
           directives: [],
           followUps: [],
-          ui: quietUi(bridgeRouting?.domain === "psychology" ? "supportive" : "direct"),
+          ui: isPlainObject(marionBridgeOut?.ui)
+            ? marionBridgeOut.ui
+            : quietUi(bridgeRouting?.domain === "psychology" ? "supportive" : "direct"),
           meta: {
             bridgeResolved: true,
             bridgeDomain: safeStr(bridgeRouting?.domain || "general"),
@@ -2602,6 +2718,7 @@ async function handleChat(input) {
           confidence: Number(bridgePacket?.synthesis?.confidence || 0) || 0,
           knowledgeDomains: Object.keys(marionBridgeOut?.sections || {}).filter((k) => Array.isArray(marionBridgeOut.sections[k]) && marionBridgeOut.sections[k].length),
           supportLockBias: !!shouldSuppressLaneArtifacts(norm, emo, routeOut),
+          authority: safeStr(bridgePacket?.authority?.mode || "bridge_primary") || "bridge_primary",
           at: nowMs()
         }
       : computeBridge(sessionLaneState, requestId);
@@ -2740,6 +2857,8 @@ async function handleChat(input) {
         phase: 14,
         marionBridgeUsed: !!bridgeShouldAnswer,
         marionBridgeDomain: safeStr(bridgeRouting?.domain || ""),
+        marionBridgeAuthority: safeStr(bridgePacket?.authority?.mode || ""),
+        linkedDatasets: Array.isArray(bridgePacket?.meta?.linkedDatasets) ? bridgePacket.meta.linkedDatasets.slice(0, 24) : [],
         emotionCached: !!emo?.cached,
         telemetry: buildTelemetry({ norm, lane, emo, requestId, publicMode, phase: "final" }),
         sessionId: shortId(sessionId),
@@ -2769,6 +2888,7 @@ async function handleChat(input) {
         __cacheReply: safeReply,
         __cacheLane: lane,
         __cacheFollowUps: followUps,
+        __emotionalTurn: emotionalTurn,
         __cacheDirectives: directives,
         __cacheAt: nowMs(),
         __lastTtsFailure: audioFailure.present ? {
@@ -2821,7 +2941,7 @@ async function handleChat(input) {
       })
     );
 
-    return finalContract;
+    return buildStableContract(finalContract);
   } catch (err) {
     logChatDiag('turn_fail', { ...buildTurnDiagSnapshot(norm, session, { requestId, turnId, sessionId, inboundKey, inSig, publicMode, elapsedMs: nowMs() - started }), error: safeStr(err && err.message ? err.message : err).slice(0, 180) });
     const failContract = failSafeContract(err, rawInput, {
@@ -2859,7 +2979,7 @@ async function handleChat(input) {
         contract: failContract
       })
     );
-    return failContract;
+    return buildStableContract(failContract);
   }
 }
 
