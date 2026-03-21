@@ -1544,6 +1544,81 @@ function buildSupportiveEmotionUi(emo) {
     mode: "supportive"
   };
 }
+
+function buildUiChipActions(ui) {
+  const list = Array.isArray(ui?.chips) ? ui.chips : [];
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    const label = safeStr(item?.label || item?.title || item?.id || "").trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: safeStr(item?.id || key.replace(/[^a-z0-9]+/g, "_")),
+      label,
+      role: safeStr(item?.role || "advance").toLowerCase() || "advance",
+      payload: isPlainObject(item?.payload) ? { ...item.payload } : {}
+    });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+function normalizeEmotionalTurnShape(params) {
+  const src = isPlainObject(params) ? params : {};
+  const ui = isPlainObject(src.ui) ? src.ui : {};
+  const bridge = isPlainObject(src.bridge) ? src.bridge : {};
+  const emo = isPlainObject(src.emo) ? src.emo : {};
+  const bridgePacket = isPlainObject(src.bridgePacket) ? src.bridgePacket : {};
+  const actions = Array.isArray(src.actions) && src.actions.length
+    ? src.actions
+    : buildUiChipActions(ui);
+  const primaryState = safeStr(
+    src.primaryState ||
+    ui.state ||
+    ui.emotionalState ||
+    (emo.supportFlags?.needsStabilization || emo.supportFlags?.highDistress ? "supportive" : "") ||
+    (bridge.domain === "psychology" ? "supportive" : "") ||
+    ui.mode ||
+    "focused"
+  ).toLowerCase() || "focused";
+  const secondaryState = safeStr(
+    src.secondaryState ||
+    ui.secondaryState ||
+    ui.emotionalSecondaryState ||
+    (emo.deliveryTone || emo.expressionStyle || "") ||
+    "steady"
+  ).toLowerCase() || "steady";
+  const continuityScore = Number(
+    src.continuityScore ||
+    bridgePacket?.continuity?.state?.continuityScore ||
+    bridgePacket?.continuity?.turnMemory?.continuityScore ||
+    0.82
+  ) || 0.82;
+  return {
+    primaryState,
+    secondaryState,
+    state: primaryState,
+    replyText: safeStr(src.replyText || src.reply || ""),
+    bridgeLine: safeStr(
+      src.bridgeLine ||
+      bridge.badge ||
+      bridge.domain ||
+      ui.bridgeLine ||
+      ""
+    ).trim(),
+    placeholder: safeStr(
+      src.placeholder ||
+      ui.placeholder ||
+      ""
+    ).trim(),
+    continuityScore,
+    actions
+  };
+}
+
 function isGenericMenuBounceReply(summary) {
   const s = safeStr(summary || "").toLowerCase();
   if (!s) return false;
