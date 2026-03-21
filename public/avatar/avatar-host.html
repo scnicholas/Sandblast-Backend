@@ -3,1771 +3,199 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Nyx Avatar Host — Widget Console (Text + Chips + Voice)</title>
-
-<!-- Skin -->
-<link rel="stylesheet" href="./avatar.css?v=WIDGET_CONSOLE_9210c" />
-
-<script>
-/* ============================================================
-   NYX WIDGET CONSOLE MODE
-   - Text + Chips (no hero stage)
-   - Adaptive height (content-driven) with max 90vh
-   - Voice controls: TTS (speech synthesis) + STT (speech recognition)
-   - Speech-to-speech pipeline: mic -> send -> TTS reply (when enabled)
-============================================================ */
-window.NYX_HOST_WIDGET_CONSOLE = true;
-window.NYX_DISABLE_LEGACY = true;
-window.NYX_HOST_MODE = "widget_console";
-</script>
-
+<title>Nyx Avatar Host — Commercial Console</title>
 <style>
-  html,body{height:auto}
-  body{
-    margin:0;
-    background:transparent;
-    overflow:visible; /* important for adaptive height inside iframe */
-  }
-
-  /* ============================================================
-     HARD FENCE: if anything legacy appears, hide it
-  ============================================================ */
-  #wrap,#avatarRoot,#panel,#nyxOverlay,#nyxInputDock,
-  #sbnyx-host,#sbnyx-launcher,#nyxLauncher,#nyx-host,
-  .sbnyx-launcher,.sbnyx-host,.nyx-mic-puck,.mic-puck,.floating-mic,.micOrb,#micOrb,#nyxMicOrb,
-  .sbnyx-close,#sbnyxClose,.nyx-legacy-close,#nyxLegacyClose,
-  #nyxHero,#nyxStage,#nyxHeroVideo,#nyxBubble,#nyxBubbleText,#nyxTopControls{
-    display:none !important;
-  }
-
   :root{
-    --nyx-widget-max: 90vh;
-    --nyx-widget-compact: 66vh;
-
-    --nyx-radius: 22px;
-    --nyx-line: rgba(255,255,255,.08);
-    --nyx-soft: rgba(255,255,255,.06);
-
-    --nyx-glass: rgba(12,12,16,.80);
-    --nyx-glass2: rgba(18,18,22,.64);
-
-    --nyx-text: rgba(255,255,255,.92);
-    --nyx-muted: rgba(255,255,255,.68);
-    --nyx-accent: rgba(140,0,35,.92);
-
-    --nyx-ease: cubic-bezier(.2,.8,.2,1);
-
-    /* legibility */
-    --nyx-font: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    --nyx-font-msg: 14.5px;
-    --nyx-font-ui: 12.8px;
-    --nyx-font-chip: 12.6px;
-    --nyx-font-input: 14px;
-
-    --nyx-pad: 12px;
+    --bg: rgba(10,12,18,.90);
+    --panel: rgba(18,22,30,.88);
+    --line: rgba(255,255,255,.08);
+    --line-strong: rgba(255,255,255,.14);
+    --text: rgba(255,255,255,.94);
+    --muted: rgba(255,255,255,.68);
+    --accent: rgba(140,0,35,.92);
+    --focus: rgba(63,184,255,.92);
+    --warn: rgba(255,192,99,.95);
+    --curious: rgba(143,105,255,.92);
+    --radius: 22px;
+    --shadow: 0 26px 80px rgba(0,0,0,.52), 0 0 40px rgba(140,0,35,.08);
+    --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --max-h: 90vh;
+    --compact-h: 74vh;
   }
-
+  html,body{margin:0;height:auto;background:transparent;overflow:visible;font-family:var(--font);color:var(--text)}
+  *,*::before,*::after{box-sizing:border-box}
   #nyxWidget{
-    width:100%;
-    max-width: 540px;
-    margin:0;
-    border-radius: var(--nyx-radius);
-    overflow:hidden;
-    border: 1px solid var(--nyx-line);
-    background: var(--nyx-glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 22px 80px rgba(0,0,0,.72), 0 0 70px rgba(140,0,35,.12);
-
-    height: auto;
-    max-height: var(--nyx-widget-compact);
-    display:flex;
-    flex-direction:column;
-    min-width:0;
+    width:100%;max-width:560px;min-width:0;margin:0;position:relative;overflow:hidden;
+    border-radius:var(--radius);border:1px solid var(--line);background:
+      radial-gradient(120% 140% at 0% 0%, rgba(140,0,35,.14), transparent 46%),
+      linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 28%),
+      var(--bg);
+    box-shadow:var(--shadow);backdrop-filter: blur(16px);-webkit-backdrop-filter: blur(16px);
+    display:flex;flex-direction:column;max-height:var(--compact-h)
   }
-  body.is-focus #nyxWidget{ max-height: var(--nyx-widget-max); }
-
-  /* ============================================================
-     Header
-  ============================================================ */
-  #nyxHeader{
-    padding: 11px var(--nyx-pad);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    border-bottom: 1px solid rgba(255,255,255,.07);
-    background:
-      radial-gradient(120% 130% at 0% 0%, rgba(140,0,35,.18) 0%, rgba(0,0,0,0) 52%),
-      linear-gradient(180deg, rgba(0,0,0,.26), rgba(0,0,0,0));
-  }
-  #nyxTitle{
-    display:flex; align-items:center; gap:10px;
-    font: 700 14px var(--nyx-font);
-    color: var(--nyx-text);
-    user-select:none;
-    letter-spacing:.25px;
-  }
-  #nyxDot{
-    width:9px; height:9px; border-radius:999px;
-    background: var(--nyx-accent);
-    box-shadow: 0 0 14px rgba(140,0,35,.45);
-  }
-  #nyxMarion{
-    display:inline-flex; align-items:center; justify-content:center;
-    width:18px; height:18px; border-radius:999px;
-    border:1px solid rgba(255,255,255,.14);
-    background: rgba(0,0,0,.18);
-    color: rgba(255,255,255,.72);
-    font: 900 11px var(--nyx-font);
-  }
-  #nyxMarion.on{
-    background: rgba(140,0,35,.16);
-    border-color: rgba(140,0,35,.55);
-    color: rgba(255,255,255,.90);
-    box-shadow: 0 0 16px rgba(140,0,35,.25);
-  }
-
-  #nyxHeaderActions{ display:flex; gap:8px; align-items:center; }
-
-  .nyx-btn{
-    font: 12.5px var(--nyx-font);
-    padding: 8px 10px;
-    border-radius: 12px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(0,0,0,.18);
-    color: rgba(255,255,255,.88);
-    cursor:pointer;
-    user-select:none;
-    white-space:nowrap;
-    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
-  }
-  .nyx-btn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.05); }
-  .nyx-btn:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
-
-  .nyx-iconbtn{
-    width:38px; height:38px;
-    display:inline-flex; align-items:center; justify-content:center;
-    border-radius:12px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(0,0,0,.18);
-    color: rgba(255,255,255,.90);
-    cursor:pointer;
-    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), box-shadow .12s var(--nyx-ease);
-  }
-  .nyx-iconbtn:hover{ transform: translateY(-1px); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.05); }
-  .nyx-iconbtn:focus{ outline:2px solid rgba(140,0,35,.35); outline-offset:2px; }
-
-  .nyx-iconbtn.on{
-    border-color: rgba(140,0,35,.55);
-    background: rgba(140,0,35,.16);
-    box-shadow: 0 0 18px rgba(140,0,35,.14);
-  }
-  .nyx-iconbtn.hot{
-    border-color: rgba(140,0,35,.65);
-    background: rgba(140,0,35,.22);
-    box-shadow: 0 0 22px rgba(140,0,35,.18);
-  }
-
-  /* ============================================================
-     Chips rail — FIXED ALIGNMENT
-  ============================================================ */
-  #nyxChips{
-    display:flex;
-    gap:10px;
-    padding:10px var(--nyx-pad);
-    border-bottom: 1px solid rgba(255,255,255,.06);
-    overflow-x:auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width:none;
-    background: rgba(0,0,0,.10);
-    align-items:center;
-  }
-  #nyxChips::-webkit-scrollbar{ display:none; }
-
-  .chip{
-    flex:0 0 auto;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:8px;
-
-    font: 600 var(--nyx-font-chip) var(--nyx-font);
-    line-height: 1;
-    padding: 9px 12px;
-    border-radius:999px;
-
-    border:1px solid rgba(255,255,255,.14);
-    background: rgba(255,255,255,.055);
-    color: rgba(255,255,255,.92);
-
-    cursor:pointer;
-    user-select:none;
-    white-space:nowrap;
-    transform: translateZ(0);
-    transition: background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), filter .12s var(--nyx-ease);
-  }
-  .chip:hover{ background: rgba(140,0,35,.14); border-color: rgba(140,0,35,.55); }
-  .chip.is-active{ background: rgba(140,0,35,.24); border-color: rgba(140,0,35,.62); }
-
-  /* ============================================================
-     Transcript
-  ============================================================ */
-  #nyxScroll{
-    flex:1 1 auto;
-    min-height:0;
-    overflow:auto;
-    padding: var(--nyx-pad);
-    padding-bottom: 14px;
-  }
-  #nyxMsgs{ display:flex; flex-direction:column; gap:10px; }
-
-  .nyx-msg{
-    max-width:92%;
-    padding: 11px 13px;
-    border-radius:16px;
-    border:1px solid rgba(255,255,255,.09);
-    background: rgba(0,0,0,.24);
-    color: rgba(255,255,255,.92);
-    font: var(--nyx-font-msg)/1.55 var(--nyx-font);
-    white-space: pre-wrap;
-  }
-  .nyx-msg.me{
-    margin-left:auto;
-    background: rgba(140,0,35,.20);
-    border-color: rgba(140,0,35,.30);
-  }
-
-  .nyx-msg.nyx-assistant{
-    padding: 0;
-    background: transparent;
-    border: none;
-    max-width: 100%;
-  }
-  .nyx-turn{
-    display:block;
-    border:1px solid rgba(255,255,255,.10);
-    background: linear-gradient(180deg, rgba(18,18,24,.74), rgba(8,8,12,.58));
-    border-radius: 18px;
-    padding: 12px 12px 10px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.18);
-  }
-  .nyx-turn__meta{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-bottom:8px;
-    color: rgba(255,255,255,.64);
-    font: 700 11px/1 var(--nyx-font);
-    letter-spacing:.08em;
-    text-transform: uppercase;
-  }
-  .nyx-turn__state{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding:5px 8px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,.10);
-    background: rgba(255,255,255,.05);
-  }
-  .nyx-turn__state::before{
-    content:"";
-    width:7px; height:7px; border-radius:999px;
-    background: rgba(255,255,255,.54);
-    box-shadow: 0 0 10px rgba(255,255,255,.18);
-  }
-  .nyx-turn[data-state="supportive"] .nyx-turn__state::before,
-  #nyxWidget[data-engine-state="supportive"] #nyxMarion{
-    background: rgba(140,0,35,.92);
-    box-shadow: 0 0 12px rgba(140,0,35,.35);
-  }
-  .nyx-turn[data-state="focused"] .nyx-turn__state::before{ background: rgba(63,184,255,.85); box-shadow: 0 0 12px rgba(63,184,255,.25); }
-  .nyx-turn[data-state="clarifying"] .nyx-turn__state::before{ background: rgba(255,192,99,.90); box-shadow: 0 0 12px rgba(255,192,99,.22); }
-  .nyx-turn[data-state="curious"] .nyx-turn__state::before{ background: rgba(143,105,255,.90); box-shadow: 0 0 12px rgba(143,105,255,.22); }
-  .nyx-turn__body{
-    color: rgba(255,255,255,.94);
-    font: var(--nyx-font-msg)/1.6 var(--nyx-font);
-    white-space: pre-wrap;
-  }
-  .nyx-turn__body p{ margin:0 0 8px; }
-  .nyx-turn__body p:last-child{ margin-bottom:0; }
-  .nyx-turn__bridge{
-    margin-top:9px;
-    color: rgba(255,255,255,.72);
-    font: 600 12.5px/1.45 var(--nyx-font);
-  }
-  .nyx-turn__actions{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-top:10px;
-  }
-  .nyx-action{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    padding:8px 11px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.055);
-    color: rgba(255,255,255,.92);
-    font: 700 12.4px/1 var(--nyx-font);
-    cursor:pointer;
-    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease);
-  }
-  .nyx-action:hover{
-    transform: translateY(-1px);
-    background: rgba(140,0,35,.15);
-    border-color: rgba(140,0,35,.48);
-  }
-
-
-  #nyxEmpty{
-    display:none;
-    padding:14px 12px;
-    border-radius: 16px;
-    border:1px dashed rgba(255,255,255,.16);
-    background: rgba(255,255,255,.04);
-    color: rgba(255,255,255,.74);
-    font: 13.5px/1.5 var(--nyx-font);
-  }
-  #nyxWidget.is-empty #nyxEmpty{ display:block; }
-  #nyxWidget.is-empty #nyxMsgs{ display:none; }
-
-  /* ============================================================
-     Input row
-  ============================================================ */
-  #nyxInputRow{
-    display:flex;
-    gap:8px;
-    padding: var(--nyx-pad);
-    border-top: 1px solid rgba(255,255,255,.08);
-    background: rgba(0,0,0,.16);
-    padding-bottom: calc(var(--nyx-pad) + env(safe-area-inset-bottom,0px));
-    align-items:center;
-  }
-  #nyxInput{
-    flex:1;
-    border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(0,0,0,.35);
-    color: rgba(255,255,255,.92);
-    padding: 11px 12px;
-    outline:none;
-    min-width:0;
-    font: 500 var(--nyx-font-input) var(--nyx-font);
-  }
-  #nyxInput:focus{
-    border-color: rgba(255,255,255,.18);
-    box-shadow: 0 0 0 3px rgba(140,0,35,.14);
-  }
-  #nyxSend{
-    border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background: rgba(140,0,35,.85);
-    color: rgba(255,255,255,.95);
-    padding: 11px 14px;
-    cursor:pointer;
-    white-space:nowrap;
-    font: 700 13px var(--nyx-font);
-  }
-  #nyxSend:disabled{ opacity:.65; cursor:not-allowed; }
-
-  #nyxHint{
-    padding: 0 var(--nyx-pad) 10px var(--nyx-pad);
-    color: rgba(255,255,255,.58);
-    font: 12px/1.35 var(--nyx-font);
-    display:none;
-  }
-  body.has-voice #nyxHint{ display:block; }
-
-
-  #nyxAudioUnlock{
-    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
-    background:rgba(4,4,8,.22); z-index:5;
-  }
-  body.audio-locked #nyxAudioUnlock{ display:flex; }
-  #nyxAudioUnlock .unlockCard{
-    max-width:320px; margin:16px; padding:16px 18px; border-radius:18px;
-    border:1px solid rgba(255,255,255,.14); background:rgba(12,12,18,.82);
-    box-shadow:0 12px 36px rgba(0,0,0,.42); color:rgba(255,255,255,.92);
-    text-align:center; font:13px/1.45 var(--nyx-font);
-  }
-  #nyxAudioUnlock .t{ font:800 15px var(--nyx-font); margin-bottom:6px; }
-  #nyxAudioUnlock .s{ color:rgba(255,255,255,.72); margin-bottom:10px; }
-  #nyxAudioUnlock .b{ display:inline-block; padding:9px 12px; border-radius:999px; border:1px solid rgba(140,0,35,.48); background:rgba(140,0,35,.18); font:800 12px var(--nyx-font); }
-
-  @media (max-width: 420px){
-    #nyxWidget{ max-height: 78vh; max-width: 100%; }
-    body.is-focus #nyxWidget{ max-height: 90vh; }
-    :root{ --nyx-font-msg: 14px; --nyx-font-input: 14px; }
-  }
-
-
-  /* ============================================================
-     LEFT NAV VEIL (FIXED, DOES NOT COVER NYX)
-     - Sits above background, below widget
-     - Clickable, routes to pages
-     - Safe for older audiences: clear hover/focus feedback
-  ============================================================ */
-  :root{
-    --nyx-veil-w: min(220px, 22vw);
-    --nyx-veil-opacity: .72;
-    --nyx-veil-blur: 10px;
-    --nyx-veil-border: rgba(255,255,255,.10);
-  }
-
-  /* Kill switch */
-  html.nyx-veil-off #nyxNavVeil{ display:none !important; }
-
-  #nyxNavVeil{
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: var(--nyx-veil-w);
-
-    /* IMPORTANT: do not cover the widget */
-    z-index: 1;
-
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-
-    padding: 16px 12px;
-    box-sizing:border-box;
-
-    background:
-      linear-gradient(180deg, rgba(8,8,12,.62), rgba(8,8,12,.40)),
-      radial-gradient(700px 520px at 25% 18%, rgba(140,0,35,.18), transparent 60%),
-      radial-gradient(520px 360px at 40% 62%, rgba(255,255,255,.07), transparent 62%);
-    border-right: 1px solid var(--nyx-veil-border);
-
-    -webkit-backdrop-filter: blur(var(--nyx-veil-blur));
-    backdrop-filter: blur(var(--nyx-veil-blur));
-    opacity: var(--nyx-veil-opacity);
-  }
-
-  /* Keep widget above veil */
-  #nyxWidget{ position: relative; z-index: 3; }
-
-  #nyxNavVeil .veil-title{
-    font: 800 12px var(--nyx-font);
-    letter-spacing: .18em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,.72);
-    margin: 2px 2px 6px;
-    user-select:none;
-  }
-
-  #nyxNavVeil .veil-btn{
-    width: 100%;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-
-    padding: 11px 12px;
-    border-radius: 14px;
-
-    border: 1px solid rgba(255,255,255,.14);
-    background: rgba(0,0,0,.20);
-    color: rgba(255,255,255,.92);
-
-    font: 700 13px var(--nyx-font);
-    cursor:pointer;
-    user-select:none;
-
-    transition: transform .12s var(--nyx-ease), background .12s var(--nyx-ease), border-color .12s var(--nyx-ease), filter .12s var(--nyx-ease);
-  }
-  #nyxNavVeil .veil-btn:hover{
-    transform: translateY(-1px);
-    background: rgba(140,0,35,.14);
-    border-color: rgba(140,0,35,.55);
-    filter: brightness(1.02);
-  }
-  #nyxNavVeil .veil-btn:active{ transform: translateY(0); }
-  #nyxNavVeil .veil-btn:focus{
-    outline: 2px solid rgba(140,0,35,.35);
-    outline-offset: 2px;
-  }
-  #nyxNavVeil .veil-btn .arrow{
-    opacity:.72;
-    font-weight:900;
-  }
-
-  /* Keep widget clear of left veil on desktop */
-  @media (min-width: 821px){
-    body.nyx-widget-console #nyxWidget{
-      margin-left: calc(var(--nyx-veil-w) + 18px);
-    }
-  }
-
-  /* Responsive: shrink rail on small screens; collapse to bottom strip on phones */
-  @media (max-width: 860px){
-    :root{ --nyx-veil-w: min(190px, 26vw); --nyx-veil-opacity: .68; }
-  }
-  @media (max-width: 520px){
-    #nyxNavVeil{
-      left: 10px;
-      right: 10px;
-      top: auto;
-      bottom: calc(10px + env(safe-area-inset-bottom,0px));
-      width: auto;
-      height: auto;
-      flex-direction: row;
-      flex-wrap: wrap;
-      justify-content: center;
-      border-right: none;
-      border: 1px solid var(--nyx-veil-border);
-      border-radius: 18px;
-      padding: 10px;
-      gap:8px;
-    }
-    #nyxNavVeil .veil-title{ display:none; }
-    #nyxNavVeil .veil-btn{ width: auto; padding: 10px 12px; border-radius: 999px; font-size: 12.5px; }
-  }
-
+  body.is-focus #nyxWidget{max-height:var(--max-h)}
+  #nyxWidget::before{content:"";position:absolute;inset:0;pointer-events:none;background: radial-gradient(65% 28% at 50% 0%, rgba(255,255,255,.05), transparent 70%);opacity:.7}
+  #nyxHeader{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,0))}
+  #nyxBrand{display:flex;align-items:center;gap:10px;min-width:0}
+  #nyxStatusDot{width:9px;height:9px;border-radius:999px;background:var(--accent);box-shadow:0 0 14px rgba(140,0,35,.4)}
+  #nyxTitleBlock{display:flex;flex-direction:column;min-width:0}
+  #nyxTitle{font:800 14px/1 var(--font);letter-spacing:.02em}
+  #nyxSub{font:600 11.5px/1.2 var(--font);color:var(--muted);margin-top:4px}
+  #nyxPresence{display:flex;gap:8px;align-items:center;min-width:0;flex-wrap:wrap;justify-content:flex-end}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);font:700 11.5px/1 var(--font);color:var(--text);white-space:nowrap}
+  .pill::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(255,255,255,.42);box-shadow:0 0 10px rgba(255,255,255,.12)}
+  .pill[data-state="supportive"]::before{background:var(--accent);box-shadow:0 0 12px rgba(140,0,35,.35)}
+  .pill[data-state="focused"]::before{background:var(--focus);box-shadow:0 0 12px rgba(63,184,255,.22)}
+  .pill[data-state="clarifying"]::before{background:var(--warn);box-shadow:0 0 12px rgba(255,192,99,.22)}
+  .pill[data-state="curious"]::before{background:var(--curious);box-shadow:0 0 12px rgba(143,105,255,.22)}
+  .iconbtn,.textbtn{appearance:none;border:1px solid var(--line-strong);background:rgba(0,0,0,.18);color:var(--text);cursor:pointer;transition:transform .12s var(--ease),background .12s var(--ease),border-color .12s var(--ease), box-shadow .12s var(--ease)}
+  .iconbtn:hover,.textbtn:hover,.chip:hover,.nyx-action:hover{transform:translateY(-1px);background:rgba(255,255,255,.05)}
+  .iconbtn:focus-visible,.textbtn:focus-visible,.chip:focus-visible,.nyx-action:focus-visible,#nyxInput:focus-visible,#nyxSend:focus-visible{outline:2px solid rgba(140,0,35,.38);outline-offset:2px}
+  .iconbtn{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;font-size:16px}
+  .iconbtn.on,.iconbtn.hot{border-color:rgba(140,0,35,.54);background:rgba(140,0,35,.16);box-shadow:0 0 18px rgba(140,0,35,.12)}
+  .textbtn{border-radius:12px;padding:10px 11px;font:700 12px/1 var(--font)}
+  #nyxChips{position:relative;z-index:1;display:flex;gap:9px;align-items:center;overflow:auto;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);scrollbar-width:none}
+  #nyxChips::-webkit-scrollbar{display:none}
+  .chip,.nyx-action{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);padding:9px 12px;border-radius:999px;font:700 12px/1 var(--font);cursor:pointer;white-space:nowrap;transition:transform .12s var(--ease), background .12s var(--ease), border-color .12s var(--ease)}
+  .chip.is-active{background:rgba(140,0,35,.2);border-color:rgba(140,0,35,.56)}
+  #nyxScroll{position:relative;z-index:1;flex:1 1 auto;min-height:0;overflow:auto;padding:14px}
+  #nyxMsgs{display:flex;flex-direction:column;gap:12px}
+  #nyxEmpty{display:none;border:1px dashed rgba(255,255,255,.14);border-radius:18px;padding:16px;background:rgba(255,255,255,.03);color:var(--muted);font:600 13px/1.5 var(--font)}
+  #nyxWidget.is-empty #nyxEmpty{display:block}
+  #nyxWidget.is-empty #nyxMsgs{display:none}
+  .msg{max-width:92%;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.035);font:500 14px/1.58 var(--font);white-space:pre-wrap;word-break:break-word}
+  .msg.user{margin-left:auto;background:rgba(140,0,35,.16);border-color:rgba(140,0,35,.28)}
+  .msg.assistant{max-width:100%;padding:0;background:transparent;border:none}
+  .nyx-card{border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:12px;background:linear-gradient(180deg, rgba(24,28,36,.82), rgba(12,14,20,.72));box-shadow:0 10px 28px rgba(0,0,0,.18)}
+  .nyx-card.pending{opacity:.78}
+  .nyx-card__meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .nyx-card__state{display:inline-flex;align-items:center;gap:8px;padding:6px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.045);font:800 11px/1 var(--font);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+  .nyx-card__state::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(255,255,255,.45);box-shadow:0 0 10px rgba(255,255,255,.12)}
+  .nyx-card[data-state="supportive"] .nyx-card__state::before{background:var(--accent);box-shadow:0 0 12px rgba(140,0,35,.35)}
+  .nyx-card[data-state="focused"] .nyx-card__state::before{background:var(--focus);box-shadow:0 0 12px rgba(63,184,255,.22)}
+  .nyx-card[data-state="clarifying"] .nyx-card__state::before{background:var(--warn);box-shadow:0 0 12px rgba(255,192,99,.22)}
+  .nyx-card[data-state="curious"] .nyx-card__state::before{background:var(--curious);box-shadow:0 0 12px rgba(143,105,255,.22)}
+  .nyx-card__continuity{font:700 11px/1 var(--font);color:rgba(255,255,255,.52)}
+  .nyx-card__body{font:500 14px/1.65 var(--font);color:var(--text)}
+  .nyx-card__body p{margin:0 0 9px}
+  .nyx-card__body p:last-child{margin-bottom:0}
+  .nyx-card__bridge{margin-top:10px;font:700 12px/1.45 var(--font);color:rgba(255,255,255,.74)}
+  .nyx-card__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .typing{display:inline-flex;align-items:center;gap:4px}.typing span{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.55);display:inline-block;animation:blink 1.15s infinite ease-in-out}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}@keyframes blink{0%,80%,100%{transform:scale(.75);opacity:.35}40%{transform:scale(1);opacity:1}}
+  #nyxFooter{position:relative;z-index:1;border-top:1px solid var(--line);background:rgba(255,255,255,.02)}
+  #nyxDockState{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px 0;color:var(--muted);font:700 11.5px/1.3 var(--font)}
+  #nyxInputRow{display:flex;gap:8px;align-items:center;padding:10px 14px 14px}
+  #nyxInput{flex:1;min-width:0;border-radius:14px;border:1px solid var(--line-strong);background:rgba(0,0,0,.32);color:var(--text);padding:12px 13px;font:500 14px/1.2 var(--font)}
+  #nyxSend{appearance:none;border:none;border-radius:14px;background:rgba(140,0,35,.88);color:white;padding:12px 14px;font:800 13px/1 var(--font);cursor:pointer;min-width:74px}
+  #nyxSend:disabled{opacity:.68;cursor:not-allowed}
+  #nyxHint{display:none;padding:0 14px 12px;color:rgba(255,255,255,.58);font:600 11.5px/1.35 var(--font)}
+  body.has-voice #nyxHint{display:block}
+  #nyxAudioUnlock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,4,8,.26);z-index:4}
+  body.audio-locked #nyxAudioUnlock{display:flex}
+  .unlockCard{max-width:320px;margin:16px;padding:16px 18px;border-radius:18px;border:1px solid rgba(255,255,255,.14);background:rgba(12,14,20,.88);box-shadow:0 14px 36px rgba(0,0,0,.38);text-align:center}
+  .unlockTitle{font:800 15px/1.1 var(--font);margin-bottom:6px}.unlockSub{font:600 12px/1.45 var(--font);color:var(--muted);margin-bottom:12px}.unlockBtn{display:inline-flex;padding:10px 12px;border-radius:999px;border:1px solid rgba(140,0,35,.48);background:rgba(140,0,35,.18);font:800 12px/1 var(--font)}
+  @media (max-width:420px){#nyxWidget{max-width:100%;max-height:82vh}body.is-focus #nyxWidget{max-height:90vh}#nyxHeader,#nyxChips,#nyxScroll,#nyxInputRow,#nyxDockState{padding-left:12px;padding-right:12px}}
 </style>
 </head>
-
-<body class="nyx-widget-console">
-
-  <!-- ============================================================
-       LEFT NAV VEIL (Channels)
-       - Fixed overlay rail that does NOT cover Nyx/widget
-       - Clicks route parent/top to destination
-  ============================================================ -->
-  <aside id="nyxNavVeil" aria-label="Sandblast channels">
-    <div class="veil-title">Channels</div>
-    <button class="veil-btn" type="button" data-nav="/tv"><span>Sandblast TV</span><span class="arrow">›</span></button>
-    <button class="veil-btn" type="button" data-nav="/radio"><span>Radio</span><span class="arrow">›</span></button>
-    <button class="veil-btn" type="button" data-nav="/news-canada"><span>News Canada</span><span class="arrow">›</span></button>
-    <button class="veil-btn" type="button" data-nav="/news-features"><span>News Features</span><span class="arrow">›</span></button>
-  </aside>
-
-
-  <main id="nyxWidget" class="is-empty" aria-label="Nyx Widget Console">
-
-    <header id="nyxHeader">
-      <div id="nyxTitle">
-        <span id="nyxDot" aria-hidden="true"></span>
-        <span>Nyx</span>
-        <span id="nyxMarion" title="Marion guiding" aria-label="Marion guiding">M</span>
-      </div>
-
-      <div id="nyxHeaderActions">
-        <button class="nyx-iconbtn" id="nyxMic" type="button" aria-label="Speech to text" title="Speech to text">🎙</button>
-        <button class="nyx-iconbtn" id="nyxVoice" type="button" aria-label="Voice on/off" title="Voice on/off">🔈</button>
-        <button class="nyx-btn" id="nyxFocus" type="button" aria-label="Toggle focus">Focus</button>
-      </div>
-    </header>
-
-    <nav id="nyxChips" aria-label="Modes">
-      <button class="chip is-active" type="button" data-chip="general">General</button>
-      <button class="chip" type="button" data-chip="music">Music</button>
-      <button class="chip" type="button" data-chip="roku">Roku</button>
-      <button class="chip" type="button" data-chip="movies">Movies</button>
-      <button class="chip" type="button" data-chip="radio">Radio</button>
-    </nav>
-
-    <section id="nyxScroll" aria-label="Conversation">
-      <div id="nyxEmpty">Pick a mode above, or type below.</div>
-      <div id="nyxMsgs"></div>
-    </section>
-
-    <div id="nyxHint">Tip: 🎙 speech-to-text. 🔊 uses backend voice. Focus expands up to 90vh.</div>
-
-    <footer id="nyxInputRow">
-      <input id="nyxInput" type="text" placeholder="Type to Nyx…" autocomplete="off" />
-      <button id="nyxSend" type="button">Send</button>
-    </footer>
-
-  
-    <audio id="nyxTtsAudio" preload="auto" crossorigin="anonymous"></audio>
-
-  
-    <div id="nyxAudioUnlock" role="button" tabindex="0" aria-label="Enable audio">
-      <div class="unlockCard">
-        <div class="t">Audio needs a tap</div>
-        <div class="s">Click here (or press any key) to enable Nyx voice.</div>
-        <div class="b">Enable Audio</div>
+<body>
+<main id="nyxWidget" class="is-empty" data-engine-state="focused" aria-label="Nyx commercial widget console">
+  <header id="nyxHeader">
+    <div id="nyxBrand">
+      <span id="nyxStatusDot" aria-hidden="true"></span>
+      <div id="nyxTitleBlock">
+        <div id="nyxTitle">Nyx</div>
+        <div id="nyxSub">Guided console · Marion-aware emotional engine</div>
       </div>
     </div>
-
+    <div id="nyxPresence">
+      <span class="pill" id="nyxStatePill" data-state="focused">Focused</span>
+      <button class="iconbtn" id="nyxMic" type="button" aria-label="Speech to text" title="Speech to text">🎙</button>
+      <button class="iconbtn" id="nyxVoice" type="button" aria-label="Voice on or off" title="Voice on or off">🔈</button>
+      <button class="textbtn" id="nyxFocus" type="button">Focus</button>
+    </div>
+  </header>
+  <nav id="nyxChips" aria-label="Top actions"></nav>
+  <section id="nyxScroll" aria-label="Conversation transcript">
+    <div id="nyxEmpty">Ask Nyx anything, or tap one of the guided actions above.</div>
+    <div id="nyxMsgs"></div>
+  </section>
+  <footer id="nyxFooter">
+    <div id="nyxDockState">
+      <span id="nyxContextHint">Conversation stays intentional.</span>
+      <span id="nyxContinuity">Continuity: steady</span>
+    </div>
+    <div id="nyxInputRow">
+      <input id="nyxInput" type="text" placeholder="Ask Nyx anything about Sandblast…" autocomplete="off" />
+      <button id="nyxSend" type="button">Send</button>
+    </div>
+    <div id="nyxHint">Voice uses backend TTS. Tap once if audio needs permission.</div>
+  </footer>
+  <audio id="nyxTtsAudio" preload="metadata" crossorigin="anonymous"></audio>
+  <div id="nyxAudioUnlock" role="button" tabindex="0" aria-label="Enable audio">
+    <div class="unlockCard">
+      <div class="unlockTitle">Enable Nyx voice</div>
+      <div class="unlockSub">Your browser needs one tap before audio can play reliably.</div>
+      <div class="unlockBtn">Enable audio</div>
+    </div>
+  </div>
 </main>
-
 <script>
 (function(){
   "use strict";
-  // ============================================================
-  // BACKEND TTS (Resemble-first) — Phase 1–5
-  // - Uses /api/tts (audio/* binary) instead of speechSynthesis
-  // - Deterministic playback with queue + autoplay unlock
-  // - Never calls ElevenLabs from the client
-  // ============================================================
-  var TTS = {
-    armed: false,
-    locked: false,           // autoplay blocked until user gesture
-    inFlight: false,
-    q: [],
-    lastErr: "",
-    audioEl: null
-  };
-
-  function ttsAudioEl(){
-    if(TTS.audioEl) return TTS.audioEl;
-    TTS.audioEl = document.getElementById("nyxTtsAudio") || null;
-    if(TTS.audioEl){
-      TTS.audioEl.preload = "auto";
-      TTS.audioEl.crossOrigin = "anonymous";
-      TTS.audioEl.addEventListener("play", function(){
-        TTS.locked = false;
-        document.body.classList.remove("audio-locked");
-      });
-      TTS.audioEl.addEventListener("ended", function(){ ttsPump(false); });
-      TTS.audioEl.addEventListener("error", function(){
-        TTS.lastErr = "AUDIO_ELEMENT_ERROR";
-        ttsPump(true);
-      });
-    }
-    return TTS.audioEl;
-  }
-
-  function setHint(msg){
-    var h = $("nyxHint");
-    if(!h) return;
-    h.textContent = msg;
-  }
-
-  function armAudio(){
-    var a = ttsAudioEl();
-    if(!a) return false;
-    TTS.armed = true;
-    try{
-      a.muted = true;
-      a.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAA";
-      var p = a.play();
-      if(p && typeof p.then === "function"){
-        p.then(function(){
-          try{ a.pause(); }catch(_){}
-          try{ a.currentTime = 0; }catch(_){}
-          a.muted = false;
-          TTS.locked = false;
-          document.body.classList.remove("audio-locked");
-        }).catch(function(err){
-          TTS.locked = true;
-          document.body.classList.add("audio-locked");
-          TTS.lastErr = (err && err.name) ? err.name : "PLAY_BLOCKED";
-        });
-      }
-    }catch(e){
-      TTS.locked = true;
-      document.body.classList.add("audio-locked");
-      TTS.lastErr = "ARM_FAIL";
-    }
-    return true;
-  }
-
-  try{
-    window.addEventListener("pointerdown", function(){ armAudio(); }, { once:true, passive:true });
-    window.addEventListener("keydown", function(){ armAudio(); }, { once:true, passive:true });
-  }catch(_){}
-
-  function ttsEndpoint(){
-    return apiBase() + "/api/tts";
-  }
-
-  function enqueueSpeak(text){
-    var t = safeStr(text, 2000).trim();
-    if(!t) return;
-    TTS.q.push({ text: t });
-    ttsPump(false);
-  }
-
-  function stopSpeaking(){
-    try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(_){}
-    var a = ttsAudioEl();
-    if(a){
-      try{ a.pause(); }catch(_){}
-      try{ a.currentTime = 0; }catch(_){}
-    }
-    TTS.q = [];
-    TTS.inFlight = false;
-  }
-
-  function ttsPump(force){
-    if(TTS.inFlight && !force) return;
-    var a = ttsAudioEl();
-    if(!a) return;
-
-    if(!TTS.armed || TTS.locked){
-      document.body.classList.add("audio-locked");
-      return;
-    }
-
-    try{ if(!a.paused && !force) return; }catch(_){}
-
-    var job = TTS.q.shift();
-    if(!job) return;
-
-    TTS.inFlight = true;
-
-    var url = ttsEndpoint();
-    var payload = { text: job.text, format: "mp3" };
-
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify(payload),
-      credentials: "include"
-    }).then(function(r){
-      if(!r || !r.ok) throw new Error("TTS_HTTP_" + (r ? r.status : 0));
-      return r.blob().then(function(b){ return { blob:b }; });
-    }).then(function(out){
-      var b = out.blob;
-      if(!b || !b.size || b.size < 1024) throw new Error("TTS_EMPTY_AUDIO");
-      var objUrl = URL.createObjectURL(b);
-      a.src = objUrl;
-      var p = a.play();
-      if(p && typeof p.catch === "function"){
-        p.catch(function(err){
-          TTS.locked = true;
-          document.body.classList.add("audio-locked");
-          TTS.lastErr = (err && err.name) ? err.name : "PLAY_BLOCKED";
-          setHint("Audio blocked — tap 🔈 then try again.");
-        });
-      }
-      setTimeout(function(){ try{ URL.revokeObjectURL(objUrl); }catch(_){ } }, 60000);
-    }).catch(function(err){
-      TTS.lastErr = (err && err.message) ? err.message : "TTS_FAIL";
-      setHint("Audio issue — tap 🔈 then try again.");
-    }).finally(function(){
-      setTimeout(function(){ TTS.inFlight = false; }, 150);
-    });
-  }
-
-
-  // ============================================================
-  // SINGLE-INIT GUARD (prevents double-mount / double event binding)
-  // ============================================================
-  if(window.__NYX_WIDGET_CONSOLE_BOOTED__){
-    try{ console.warn("[NYX] avatar-host: boot blocked (already initialized)"); }catch(_){ }
-    return;
-  }
-  window.__NYX_WIDGET_CONSOLE_BOOTED__ = true;
-
-  var CONFIG = {
-    version: "WIDGET_CONSOLE_v9210e",
-    apiBase: null,
-    token: null,
-    chatPath: "/api/chat",
-    context: "sandblast",
-    publicMode: true,
-    debug: false,
-    voiceDefaultOn: true,
-    sttAutoSend: true,
-    parentOrigin: null,
-    avatarOrigin: null,
-    strictParentOrigin: false
-  };
-  /*
-    FIX LEGEND
-    [GREEN #28c76f] Parent/iframe origin handshake hardened
-    [BLUE  #4dabf7] API base resolution + config request fallback hardened
-    [AMBER #ffb020] Intro voice queue + unlock flush hardened
-    [ROSE  #c2185b] Audio diagnostics + posted-audio recovery hardened
-  */
-
-  function safeStr(x, maxLen){
-    var s = (x===null || x===undefined) ? "" : String(x);
-    if(maxLen && isFinite(maxLen) && maxLen>0 && s.length>maxLen) s = s.slice(0, maxLen);
-    return s;
-  }
-  function safeJsonParse(str){ try { return JSON.parse(str); } catch(e){ return null; } }
-  function now(){ return Date.now(); }
-  function $(id){ return document.getElementById(id); }
-  function makeId(){
-    try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){}
-    return (Math.random().toString(16).slice(2) + now().toString(16)).slice(0, 24);
-  }
-  function clampToken(s, minLen){
-    s = safeStr(s).trim();
-    if(!s) return "";
-    if(minLen && s.length < minLen) return "";
-    if(s.length > 256) s = s.slice(0,256);
-    return s;
-  }
-
-  function parseQuery(){
-    var out = {};
-    try{
-      var qs = (location.search || "").replace(/^\?/,"");
-      if(!qs) return out;
-      qs.split("&").forEach(function(kv){
-        if(!kv) return;
-        var p = kv.split("=");
-        var k = decodeURIComponent(p[0]||"").trim();
-        var v = decodeURIComponent((p[1]||"").replace(/\+/g," ")).trim();
-        if(k) out[k]=v;
-      });
-    }catch(_){}
-    return out;
-  }
-
-  function applyConfigPartial(part){
-    if(!part || typeof part !== "object") return;
-    if(typeof part.apiBase === "string" && part.apiBase.trim()) CONFIG.apiBase = part.apiBase.trim().replace(/\/+$/,"");
-    if(typeof part.token === "string") CONFIG.token = clampToken(part.token, 16);
-    if(typeof part.chatPath === "string" && part.chatPath.trim()) CONFIG.chatPath = part.chatPath.trim();
-    if(typeof part.context === "string" && part.context.trim()) CONFIG.context = part.context.trim();
-    if(typeof part.publicMode === "boolean") CONFIG.publicMode = part.publicMode;
-    if(typeof part.debug === "boolean") CONFIG.debug = part.debug;
-    if(typeof part.voiceDefaultOn === "boolean") CONFIG.voiceDefaultOn = part.voiceDefaultOn;
-    if(typeof part.sttAutoSend === "boolean") CONFIG.sttAutoSend = part.sttAutoSend;
-    if(typeof part.parentOrigin === "string" && part.parentOrigin.trim()) CONFIG.parentOrigin = part.parentOrigin.trim();
-    if(typeof part.avatarOrigin === "string" && part.avatarOrigin.trim()) CONFIG.avatarOrigin = part.avatarOrigin.trim();
-    if(typeof part.strictParentOrigin === "boolean") CONFIG.strictParentOrigin = part.strictParentOrigin;
-    if(CONFIG.parentOrigin && !PARENT_ORIGIN) PARENT_ORIGIN = CONFIG.parentOrigin;
-  }
-
-  (function bootstrapFromQuery(){
-    var q = parseQuery();
-    applyConfigPartial({
-      apiBase: q.apiBase || q.API_BASE || q.base || q.backend || window.NYX_API_BASE || window.SBNYX_API_BASE || window.SB_API_BASE,
-      token: q.token || q.TOKEN || q.sbToken || q.sbt || window.NYX_API_TOKEN || window.SBNYX_TOKEN || window.SB_WIDGET_TOKEN,
-      chatPath: q.chatPath || q.chat || q.endpoint,
-      context: q.context || q.ctx || q.mode,
-      parentOrigin: q.parentOrigin || q.PARENT_ORIGIN || window.NYX_PARENT_ORIGIN || window.SBNYX_PARENT_ORIGIN,
-      avatarOrigin: q.avatarOrigin || q.AVATAR_ORIGIN || window.NYX_AVATAR_ORIGIN || window.SBNYX_AVATAR_ORIGIN,
-      strictParentOrigin: (q.strictParentOrigin !== undefined && q.strictParentOrigin !== "") ? /^(1|true|yes|on)$/i.test(String(q.strictParentOrigin)) : undefined,
-      publicMode: (q.publicMode !== undefined && q.publicMode !== "") ? !/^(0|false|no|off)$/i.test(String(q.publicMode)) : undefined,
-      debug: (q.debug !== undefined && q.debug !== "") ? /^(1|true|yes|on)$/i.test(String(q.debug)) : undefined
-    });
-  })();
-
-  var PARENT_ORIGIN = null;
-  function postToParent(payload, allowWildcard){
-    if(!window.parent || window.parent === window) return false;
-    try{
-      var target = PARENT_ORIGIN || CONFIG.parentOrigin || (allowWildcard ? "*" : null);
-      if(!target) return false;
-      window.parent.postMessage(payload, target);
-      return true;
-    }catch(_){ return false; }
-  }
-
-  function debugAudioState(kind, extra){
-    try{ postToParent({ type:"NYX_AUDIO_STATE", kind:kind, extra:extra||{}, ts:now() }, true); }catch(_){}
-  }
-
-  function configLooksReady(){ return !!(CONFIG.apiBase && CONFIG.chatPath); }
-
-  function requestConfig(reason){
-    postToParent({
-      type:"NYX_REQUEST_CONFIG",
-      reason:safeStr(reason||"boot",40),
-      needs:{ apiBase:!CONFIG.apiBase, token:!CONFIG.token, parentOrigin:!PARENT_ORIGIN },
-      version:CONFIG.version,
-      ts:now()
-    }, true);
-  }
-
-  function sendReady(){ postToParent({ type:"NYX_READY", v: CONFIG.version, ts: now(), apiBase: apiBase(), parentOrigin: PARENT_ORIGIN || CONFIG.parentOrigin || "" }, true); }
-  sendReady();
-  requestConfig("boot");
-  var tries=0, maxTries=18;
-  var __readyTimer = setInterval(function(){
-    tries++;
-    if(tries>maxTries){ clearInterval(__readyTimer); return; }
-    sendReady();
-    if(!configLooksReady() || !PARENT_ORIGIN) requestConfig("retry");
-  }, 250);
-
-  window.addEventListener("message", function(ev){
-    try{
-      var data = ev && ev.data;
-      if(typeof data === "string"){ var p = safeJsonParse(data); if(p) data = p; }
-      if(!data || typeof data !== "object") return;
-      if(typeof data.type !== "string" || data.type.indexOf("NYX_") !== 0) return;
-
-      var incomingOrigin = safeStr(ev.origin, 220).trim();
-      if(!PARENT_ORIGIN){
-        if(CONFIG.parentOrigin && incomingOrigin && incomingOrigin !== CONFIG.parentOrigin && CONFIG.strictParentOrigin) return;
-        if(incomingOrigin) PARENT_ORIGIN = CONFIG.parentOrigin || incomingOrigin;
-      }
-      if(PARENT_ORIGIN && incomingOrigin && incomingOrigin !== PARENT_ORIGIN) return;
-
-      if(data.type === "NYX_CONFIG"){
-        applyConfigPartial(data.config || {});
-        if(data.parentOrigin && !PARENT_ORIGIN) PARENT_ORIGIN = safeStr(data.parentOrigin,220).trim();
-        try{ if(__readyTimer) clearInterval(__readyTimer); }catch(_){ }
-        postToParent({ type:"NYX_CONFIG_ACK", v: CONFIG.version, ts: now(), apiBase: apiBase(), parentOrigin: PARENT_ORIGIN || "" }, false);
-        setTimeout(function(){ voiceInitMaybe(); }, 0);
-      }
-
-      if(data.type === "NYX_ARM_AUDIO"){
-        armAudio();
-        VOICE.voiceOn = true;
-        updateVoiceUI();
-        flushPostedAudio();
-        ttsPump(false);
-      }
-
-      if(data.type === "NYX_STOP_AUDIO"){
-        stopSpeaking();
-      }
-
-      if(data.type === "NYX_TTS_AUDIO"){
-        playPostedAudio(data.payload || {});
-      }
-    }catch(_){}
-  });
-
-  var widget = $("nyxWidget");
-  function emitResize(){
-    if(!widget) return;
-    var rect = widget.getBoundingClientRect();
-    var h = Math.ceil(rect.height);
-    postToParent({ type:"NYX_RESIZE", h: h, ts: now() }, true);
-  }
-  if(widget && window.ResizeObserver){
-    try{
-      var ro = new ResizeObserver(function(){ emitResize(); });
-      ro.observe(widget);
-      setTimeout(emitResize, 250);
-    }catch(_){}
-  }else{
-    // fallback (older browsers) — keep handle so we don't accidentally stack intervals
-    try{ if(window.__NYX_RESIZE_TMR__) clearInterval(window.__NYX_RESIZE_TMR__); }catch(_){ }
-    window.__NYX_RESIZE_TMR__ = setInterval(emitResize, 800);
-  }
-
-  var marionEl = $("nyxMarion");
-  var chipsEl = $("nyxChips");
-  var msgsEl = $("nyxMsgs");
-  var scrollEl = $("nyxScroll");
-  var inputEl = $("nyxInput");
-  var sendBtn = $("nyxSend");
-  var focusBtn = $("nyxFocus");
-  var micBtn = $("nyxMic");
-  var voiceBtn = $("nyxVoice");
-
-  /* ============================================================
-     NAV VEIL ROUTING (safe)
-     - Prefer parent navigation via postMessage
-     - Fallback to top/window navigation if allowed
-  ============================================================ */
-  (function bindNavVeil(){
-    var veil = $("nyxNavVeil");
-    if(!veil) return;
-
-    veil.addEventListener("click", function(e){
-      var t = e.target;
-      while(t && t !== veil && !(t.getAttribute && t.getAttribute("data-nav"))){
-        t = t.parentNode;
-      }
-      if(!t || t === veil) return;
-
-      var href = t.getAttribute("data-nav");
-      if(!href) return;
-
-      // Notify parent (best for iframes)
-      postToParent({ type:"NYX_NAV", href: href, ts: now() }, true);
-
-      // Attempt to navigate top window (works if allowed)
-      try{
-        if(window.top && window.top.location){
-          window.top.location.href = href;
-          return;
-        }
-      }catch(_){}
-
-      // Fallback: navigate current frame
-      try{ window.location.href = href; }catch(_){}
-    }, true);
-  })();
-
-
-
-  var UI = { lane:"general", focused:false, mode:"focused", placeholder:"Type to Nyx…", activeUi:null };
-
-  var VOICE = {
-    supportedTTS: !!window.fetch,
-    supportedSTT: false,
-    voiceOn: false,
-    micOn: false,
-    autoSend: true,
-    pendingIntro: false
-  };
-
-  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  VOICE.supportedSTT = !!SpeechRec;
-
-  document.body.classList.toggle("has-voice", VOICE.supportedTTS || VOICE.supportedSTT);
-
-  var rec = null;
+  var CONFIG = { version:"avatar-host v10.0.0 COMMERCIAL-RENDERER", chatPath:"/api/chat", ttsPath:"/api/tts", timeoutMs:45000, voiceDefaultOn:false, sttAutoSend:true, strictParentOrigin:false, context:"widget_console", apiBase:null, token:null, tokenHeader:null, parentOrigin:null };
+  var UI = { lane:"general", mode:"focused", focused:false, engineState:"focused", continuity:"steady", placeholder:"Ask Nyx anything about Sandblast…" };
+  var VOICE = { voiceOn:false, micOn:false, supportedSTT:false, autoSend:true };
   var THREAD = [];
-  var MAX_TURNS = 24;
-
-
-  // ============================================================
-  // LOOP BREAKER (front-end)
-  // - stops repeated identical assistant messages
-  // - stops send storms (double-init / double-submit)
-  // ============================================================
-  var LOOP = {
-    lastSig: "",
-    streak: 0,
-    lastAt: 0,
-    maxStreak: 2,
-    windowMs: 6500
-  };
-
-  function _sig(role, text){
-    return role + "::" + safeStr(text, 220).toLowerCase().replace(/\s+/g," ").trim();
-  }
-
-  function _loopGuard(role, text){
-    var s = _sig(role, text);
-    var t = now();
-    if(s && s === LOOP.lastSig && (t - LOOP.lastAt) <= LOOP.windowMs){
-      LOOP.streak++;
-    } else {
-      LOOP.lastSig = s;
-      LOOP.streak = 0;
-    }
-    LOOP.lastAt = t;
-
-    if(role === "nyx" && LOOP.streak >= LOOP.maxStreak){
-      // Replace with a breaker message and reset streak.
-      LOOP.streak = 0;
-      return {
-        blocked: true,
-        replacement: "I’m catching a loop on my side. Quick reset: pick a mode chip, or tell me what you want in one sentence. If it keeps happening, hit Reset and I’ll reconnect cleanly."
-      };
-    }
-    return { blocked:false };
-  }
-
-  function setMarionOn(on){
-    if(!marionEl) return;
-    marionEl.classList.toggle("on", !!on);
-  }
-
-  function extractBridge(res){
-    // Accept multiple backend shapes safely
-    if(!res || typeof res !== "object") return null;
-    return res.bridge || (res.cog && res.cog.bridge) || (res.data && (res.data.bridge || (res.data.cog && res.data.cog.bridge))) || null;
-  }
-
-  function bridgeBadge(bridge){
-    if(!bridge || typeof bridge !== "object") return "";
-    var lane = safeStr(bridge.lane || "").trim();
-    var mode = safeStr(bridge.mode || "").trim();
-    var intent = safeStr(bridge.intent || "").trim();
-    var stage = safeStr(bridge.stage || "").trim();
-
-    var firedN = 0;
-    try{ firedN = (bridge.knowledge && bridge.knowledge.fired && bridge.knowledge.fired.length) ? bridge.knowledge.fired.length : 0; }catch(_){}
-
-    var loopFlag = "";
-    try{ if(bridge.loop && bridge.loop.flag) loopFlag = " · LOOP"; }catch(_){}
-
-    var parts = [];
-    if(lane) parts.push(lane);
-    if(mode) parts.push(mode);
-    if(intent) parts.push(intent);
-    if(stage) parts.push(stage);
-    var base = parts.join(" · ");
-    if(firedN) base += " · K:" + firedN;
-    return base + loopFlag;
-  }
-
-  function pickAck(bridge){
-    // Human tempo: show an immediate acknowledgement
-    var ack = "";
-    try{ ack = safeStr(bridge && bridge.tempo && bridge.tempo.ack, 80).trim(); }catch(_){}
-    if(!ack){
-      // fallbacks by lane (light touch)
-      if(UI.lane === "music") ack = "Got it — music mode.";
-      else if(UI.lane === "roku") ack = "Okay — Roku.";
-      else if(UI.lane === "radio") ack = "Alright — Radio.";
-      else ack = "Got it.";
-    }
-    return ack;
-  }
-
-  function replaceMsg(id, newText, newMeta){
-    if(!id) return false;
-    for(var i=0;i<THREAD.length;i++){
-      if(THREAD[i] && THREAD[i].id === id){
-        THREAD[i].text = safeStr(newText).trim() || THREAD[i].text;
-        if(newMeta) THREAD[i].meta = newMeta;
-        return true;
-      }
-    }
-    return false;
-  }
-
-
-  function normalizeActionItems(items){
-    var seen = {};
-    var out = [];
-    var list = Array.isArray(items) ? items : [];
-    for(var i=0;i<list.length;i++){
-      var item = list[i] && typeof list[i] === "object" ? list[i] : null;
-      if(!item) continue;
-      var label = safeStr(item.label || item.title || item.text || "").trim();
-      if(!label) continue;
-      var key = label.toLowerCase();
-      if(seen[key]) continue;
-      seen[key] = true;
-      out.push({
-        id: safeStr(item.id || key.replace(/[^a-z0-9]+/g, "_")),
-        type: safeStr(item.type || "action") || "action",
-        label: label,
-        role: safeStr(item.role || "advance").toLowerCase() || "advance",
-        payload: item.payload && typeof item.payload === "object" ? item.payload : (safeStr(item.send || "").trim() ? { text: safeStr(item.send).trim() } : {})
-      });
-      if(out.length >= 4) break;
-    }
-    return out;
-  }
-
-  function defaultTopChips(){
-    return [
-      { id:"general", type:"lane", label:"General", payload:{ lane:"general" } },
-      { id:"music", type:"lane", label:"Music", payload:{ lane:"music" } },
-      { id:"roku", type:"lane", label:"Roku", payload:{ lane:"roku" } },
-      { id:"movies", type:"lane", label:"Movies", payload:{ lane:"movies" } },
-      { id:"radio", type:"lane", label:"Radio", payload:{ lane:"radio" } }
-    ];
-  }
-
-  function renderTopChips(items){
-    if(!chipsEl) return;
-    var list = Array.isArray(items) && items.length ? items : defaultTopChips();
-    chipsEl.innerHTML = "";
-    for(var i=0;i<list.length;i++){
-      var chip = list[i] && typeof list[i] === "object" ? list[i] : null;
-      if(!chip) continue;
-      var payload = chip.payload && typeof chip.payload === "object" ? chip.payload : {};
-      var btn = document.createElement("button");
-      btn.className = "chip";
-      btn.type = "button";
-      btn.setAttribute("data-type", safeStr(chip.type || "action") || "action");
-      btn.setAttribute("data-payload", safeStr(JSON.stringify(payload), 1200));
-      btn.setAttribute("data-label", safeStr(chip.label || ""));
-      if(payload.lane) btn.setAttribute("data-chip", safeStr(payload.lane).toLowerCase());
-      btn.textContent = safeStr(chip.label || "Continue") || "Continue";
-      chipsEl.appendChild(btn);
-    }
-    setActiveChip(UI.lane || "general");
-  }
-
-  
-function applyUiContract(ui){
-    ui = ui && typeof ui === "object" ? ui : {};
-    if(inputEl && ui.placeholder){
-      inputEl.setAttribute("placeholder", safeStr(ui.placeholder, 160));
-    }
-    if(ui.state && widget){
-      widget.setAttribute("data-engine-state", safeStr(ui.state, 40).toLowerCase());
-    }
-    if(typeof ui.allowMic === "boolean" && micBtn){
-      micBtn.style.display = ui.allowMic ? "" : "none";
-    }
-    if(chipsEl && Array.isArray(ui.chips)){
-      chipsEl.innerHTML = "";
-      for(var i=0;i<ui.chips.length;i++){
-        var chip = ui.chips[i] || {};
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "chip";
-        var payload = chip.payload && typeof chip.payload === "object" ? chip.payload : {};
-        var chipLane = safeStr(payload.lane || chip.id, 60).toLowerCase();
-        btn.setAttribute("data-chip", chipLane);
-        btn.setAttribute("data-payload", JSON.stringify(payload));
-        btn.textContent = safeStr(chip.label || chip.id, 60);
-        if(chipLane && chipLane === UI.lane) btn.classList.add("is-active");
-        chipsEl.appendChild(btn);
-      }
-    }
-  }
-
-  function normalizeBackendResponse(res){
-    var ui = res && res.ui && typeof res.ui === "object" ? res.ui : {};
-    var emotionalTurn = res && res.emotionalTurn && typeof res.emotionalTurn === "object" ? res.emotionalTurn : {};
-    var actions = normalizeActionItems(emotionalTurn.actions || res.followUps || []);
-    var reply = safeStr(
-      emotionalTurn.replyText ||
-      emotionalTurn.text ||
-      emotionalTurn.responseText ||
-      res.reply ||
-      res.text ||
-      (res.data && (res.data.reply || res.data.text)) ||
-      res.message ||
-      "",
-      4000
-    ).trim();
-    var state = safeStr(
-      emotionalTurn.primaryState ||
-      emotionalTurn.state ||
-      ui.emotionalState ||
-      ui.state ||
-      ui.mode ||
-      "focused",
-      40
-    ).toLowerCase() || "focused";
-    return {
-      reply: reply,
-      meta: {
-        engineState: state,
-        stateLabel: safeStr(emotionalTurn.primaryState || emotionalTurn.state || state, 40),
-        bridgeLine: safeStr(emotionalTurn.bridgeLine || emotionalTurn.bridge || ui.bridgeLine || "", 220),
-        actions: actions
-      },
-      ui: {
-        chips: Array.isArray(ui.chips) ? ui.chips : defaultTopChips(),
-        mode: safeStr(ui.mode || state, 40),
-        state: state,
-        placeholder: safeStr(emotionalTurn.placeholder || ui.placeholder || "", 160),
-        allowMic: ui.allowMic !== false
-      }
-    };
-  }
-
-  function pushMsg(role, text, meta){
-    text = safeStr(text).trim();
-    if(!text) return null;
-
-    // loop breaker only applies to assistant emissions
-    var g = _loopGuard(role, text);
-    if(g && g.blocked){
-      text = g.replacement;
-    }
-
-    var id = makeId();
-    THREAD.push({ id:id, role: role, text: text, ts: now(), meta: meta || null });
-    if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS);
-    updateEmptyState();
-    return id;
-  }
-
-  
-function renderMsgs(){
-    if(!msgsEl) return;
-    msgsEl.innerHTML = "";
-    for(var i=0;i<THREAD.length;i++){
-      var m = THREAD[i];
-      var div = document.createElement("div");
-      div.className = "nyx-msg" + (m.role === "user" ? " me" : " nyx-assistant");
-      if(m.role === "user"){
-        div.textContent = m.text;
-      } else {
-        var meta = m.meta && typeof m.meta === "object" ? m.meta : {};
-        var state = safeStr(meta.engineState || meta.state || meta.mode || "focused", 40).toLowerCase() || "focused";
-        var stateLabel = safeStr(meta.stateLabel || state, 40).replace(/[_-]+/g, " ");
-        stateLabel = stateLabel ? stateLabel.charAt(0).toUpperCase() + stateLabel.slice(1) : "Focused";
-        var bodyHtml = "";
-        var lines = safeStr(m.text).split(/\n{2,}|\n/).map(function(x){ return safeStr(x).trim(); }).filter(Boolean);
-        if(!lines.length) lines = [safeStr(m.text)];
-        for(var li=0; li<lines.length; li++){
-          var p = document.createElement("p");
-          p.textContent = lines[li];
-          bodyHtml += p.outerHTML;
-        }
-        var bridgeLine = safeStr(meta.bridgeLine || "", 220).trim();
-        var actions = normalizeActionItems(meta.actions || []);
-        var actionsHtml = "";
-        if(actions.length){
-          actionsHtml = '<div class="nyx-turn__actions">' + actions.map(function(a){
-            return '<button type="button" class="nyx-action" data-action-id="' + escHtml(a.id) + '" data-role="' + escHtml(a.role) + '" data-payload="' + escHtml(JSON.stringify(a.payload || {})) + '">' + escHtml(a.label) + '</button>';
-          }).join("") + '</div>';
-        }
-        div.innerHTML =
-          '<div class="nyx-turn" data-state="' + escHtml(state) + '">' +
-            '<div class="nyx-turn__meta"><span class="nyx-turn__state">' + escHtml(stateLabel) + '</span></div>' +
-            '<div class="nyx-turn__body">' + bodyHtml + (bridgeLine ? '<div class="nyx-turn__bridge">' + escHtml(bridgeLine) + '</div>' : '') + '</div>' +
-            actionsHtml +
-          '</div>';
-      }
-      msgsEl.appendChild(div);
-    }
-    try{
-      if(scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-    }catch(_){}
-    emitResize();
-  }
-
-  function apiBase(){
-    var b = (CONFIG.apiBase && String(CONFIG.apiBase).trim()) ? String(CONFIG.apiBase).trim() : (window.NYX_API_BASE || window.SBNYX_API_BASE || location.origin);
-    return String(b || location.origin).replace(/\/+$/,"");
-  }
-
-  async function postJson(url, payload, opts){
-    // opts can be timeoutMs (number) or { timeoutMs, signal }
-    var timeoutMs = 14000;
-    var signal = null;
-    if(typeof opts === "number") timeoutMs = opts;
-    else if(opts && typeof opts === "object"){
-      if(typeof opts.timeoutMs === "number") timeoutMs = opts.timeoutMs;
-      if(opts.signal) signal = opts.signal;
-    }
-
-    var headers = { "Content-Type":"application/json" };
-    if(CONFIG.token){
-      headers["x-sb-token"] = CONFIG.token;
-      headers["Authorization"] = "Bearer " + CONFIG.token;
-      headers["X-API-Token"] = CONFIG.token;
-    }
-
-    var ctrl = null;
-    var to = null;
-    if(!signal){
-      ctrl = new AbortController();
-      signal = ctrl.signal;
-      to = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, timeoutMs);
-    } else {
-      // still enforce a timeout value for UI, but don't abort the caller's signal here
-      to = setTimeout(function(){ try{ /* noop */ }catch(_){} }, timeoutMs);
-    }
-
-    try{
-      var r = await fetch(url, {
-        method:"POST",
-        headers: headers,
-        body: JSON.stringify(payload),
-        credentials: "include",
-        signal: signal
-      });
-
-      var txt = await r.text().catch(function(){ return ""; });
-      var json = safeJsonParse(txt);
-      if(!json) return { ok:false, error:"bad_json", status:r.status, raw: txt.slice(0, 500) };
-      json.__httpStatus = r.status;
-      json.__rawText = txt;
-      return json;
-    } catch(e){
-      return { ok:false, error:(e && e.name === "AbortError") ? "aborted" : "network", status:0 };
-    } finally {
-      if(to) clearTimeout(to);
-    }
-  }
-
-  function updateVoiceUI(){
-    if(voiceBtn){
-      voiceBtn.classList.toggle("on", !!VOICE.voiceOn);
-      voiceBtn.textContent = VOICE.voiceOn ? "🔊" : "🔈";
-      voiceBtn.setAttribute("aria-pressed", VOICE.voiceOn ? "true" : "false");
-      voiceBtn.title = VOICE.voiceOn ? "Voice ON" : "Voice OFF";
-    }
-    if(micBtn){
-      micBtn.classList.toggle("hot", !!VOICE.micOn);
-      micBtn.setAttribute("aria-pressed", VOICE.micOn ? "true" : "false");
-      micBtn.title = VOICE.micOn ? "Listening…" : "Speech to text";
-    }
-  }
-
-  function speak(text){
-    text = safeStr(text, 700).trim();
-    if(!text) return;
-    if(!VOICE.voiceOn) return;
-    enqueueSpeak(text);
-    VOICE.pendingIntro = false;
-  }
-
-  function playPostedAudio(payload){
-    payload = payload && typeof payload === "object" ? payload : {};
-    var mime = safeStr(payload.mimeType, 80).trim() || "audio/mpeg";
-    var b64 = safeStr(payload.base64, 12000000).trim();
-    if(!VOICE.voiceOn){ TTS.pendingPosted = payload; return false; }
-    if(!TTS.armed || TTS.locked){ TTS.pendingPosted = payload; document.body.classList.add("audio-locked"); return false; }
-    if(!b64){ TTS.lastErr = "POSTED_AUDIO_EMPTY"; setHint("Audio payload empty."); return false; }
-    try{
-      var bin = atob(b64.replace(/\s+/g,""));
-      var len = bin.length;
-      var bytes = new Uint8Array(len);
-      for(var i=0;i<len;i++) bytes[i] = bin.charCodeAt(i);
-      return playBlob(new Blob([bytes], { type: mimeLooksPlayable(mime) ? mime : "audio/mpeg" }), { posted:true, traceId:safeStr(payload.traceId,120) });
-    }catch(err){
-      TTS.lastErr = (err && err.message) ? err.message : "POSTED_AUDIO_FAIL";
-      setHint("Posted audio failed — tap Enable Audio.");
-      debugAudioState("posted_audio_fail", { err:TTS.lastErr, mime:mime });
-      return false;
-    }
-  }
-
-  function ensureRecognizer(){
-    if(!SpeechRec) return null;
-    if(rec) return rec;
-    try{
-      rec = new SpeechRec();
-      rec.lang = "en-US";
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-
-      rec.onresult = function(ev){
-        try{
-          var finalText = "";
-          var interim = "";
-          for(var i=ev.resultIndex; i<ev.results.length; i++){
-            var r = ev.results[i];
-            var t = (r && r[0] && r[0].transcript) ? String(r[0].transcript) : "";
-            if(r.isFinal) finalText += t;
-            else interim += t;
-          }
-          if(inputEl){
-            inputEl.value = (finalText || interim || "").trim();
-          }
-          if(finalText && VOICE.autoSend){
-            toggleMic(false);
-            var v = finalText.trim();
-            if(inputEl) inputEl.value = "";
-            sendText(v, { from:"stt" });
-          }
-        }catch(_){}
-      };
-
-      rec.onerror = function(){ toggleMic(false); };
-      rec.onend = function(){
-        // Avoid tight restart loops on some browsers
-        if(VOICE.micOn){
-          VOICE._restartCount = (VOICE._restartCount || 0) + 1;
-          var t = now();
-          VOICE._restartWindowAt = VOICE._restartWindowAt || t;
-          if((t - VOICE._restartWindowAt) > 10000){
-            VOICE._restartWindowAt = t;
-            VOICE._restartCount = 1;
-          }
-          if(VOICE._restartCount > 6){
-            VOICE.micOn = false;
-            updateVoiceUI();
-            pushMsg("nyx", "Mic paused to prevent a browser loop. Tap 🎙 again to resume.");
-            renderMsgs();
-            return;
-          }
-          setTimeout(function(){
-            try{ rec.start(); }catch(_){ VOICE.micOn = false; updateVoiceUI(); }
-          }, 180);
-        }
-      };
-
-      return rec;
-    }catch(_){
-      return null;
-    }
-  }
-
-  function toggleMic(force){
-    if(!VOICE.supportedSTT){
-      VOICE.micOn = false;
-      updateVoiceUI();
-      return;
-    }
-    if(typeof force === "boolean") VOICE.micOn = force;
-    else VOICE.micOn = !VOICE.micOn;
-
-    var r = ensureRecognizer();
-    if(!r){
-      VOICE.micOn = false;
-      updateVoiceUI();
-      return;
-    }
-
-    if(VOICE.micOn){
-      try{
-        stopSpeaking();
-        r.start();
-      }catch(_){
-        VOICE.micOn = false;
-      }
-    }else{
-      try{ r.stop(); }catch(_){}
-    }
-    updateVoiceUI();
-  }
-
-  function voiceInitMaybe(){
-    if(VOICE.voiceOn === false && CONFIG.voiceDefaultOn === true){
-      VOICE.voiceOn = true;
-    }
-    VOICE.autoSend = (CONFIG.sttAutoSend !== false);
-    updateVoiceUI();
-
-    if(VOICE.voiceOn){
-      VOICE.pendingIntro = true;
-      enqueueSpeak("Hi. I’m Nyx. Pick a mode, or tell me what you need.");
-      setTimeout(function(){
-        if(!TTS.armed) armAudio();
-        flushPostedAudio();
-        ttsPump(false);
-      }, 250);
-    }
-  }
-
-  function maybeSpeakLastNyxReply(){
-    if(!VOICE.voiceOn) return;
-    for(var i=THREAD.length-1;i>=0;i--){
-      if(THREAD[i].role === "nyx"){
-        speak(THREAD[i].text);
-        return;
-      }
-    }
-  }
-
-  function gestureUnlock(){
-    if(!VOICE.pendingIntro) return;
-    if(!VOICE.voiceOn) return;
-    VOICE.pendingIntro = false;
-    armAudio();
-    flushPostedAudio();
-    ttsPump(true);
-  }
-  window.addEventListener("pointerdown", gestureUnlock, { passive:true });
-  window.addEventListener("keydown", gestureUnlock);
-
-  var SEND = { inFlight:false, activeCtrl:null, activeReqId:"", activeTurn:0 };
-
-  async function sendText(text, meta){
-    text = safeStr(text).trim();
-    if(!text) return;
-
-    // BARGE-IN READY: abort any in-flight request when user sends again
-    try{
-      if(SEND.activeCtrl){
-        SEND.activeCtrl.abort();
-      }
-    }catch(_){}
-
-    SEND.activeTurn = (SEND.activeTurn || 0) + 1;
-    var turn = SEND.activeTurn;
-
-    var requestId = makeId();
-    SEND.activeReqId = requestId;
-
-    SEND.activeCtrl = new AbortController();
-    var signal = SEND.activeCtrl.signal;
-
-    SEND.inFlight = true;
-    if(sendBtn) sendBtn.disabled = true;
-    if(inputEl) inputEl.disabled = true;
-
-    // Push user msg
-    pushMsg("user", text, meta);
-    renderMsgs();
-
-    // Immediate ACK placeholder (tempo perception)
-    var ackId = pushMsg("nyx", "…", { kind:"ack", requestId: requestId, turn: turn, temp:true, state:(UI.mode || "focused") });
-    renderMsgs();
-
-    var url = apiBase() + (CONFIG.chatPath || "/api/chat");
-    var actionPayload = meta && meta.actionPayload && typeof meta.actionPayload === "object" ? meta.actionPayload : null;
-    var packet = {
-      requestId: requestId,
-      text: text,
-      lane: actionPayload && actionPayload.lane ? safeStr(actionPayload.lane).toLowerCase() : UI.lane,
-      payload: actionPayload || undefined,
-      ctx: {
-        tail: THREAD.slice(-10).map(function(m){ return { r:m.role, t:safeStr(m.text,360) }; }),
-        source: "nyx_widget_console",
-        context: safeStr(CONFIG.context, 40),
-        actionRole: safeStr(meta && meta.actionRole || ""),
-        actionLabel: safeStr(meta && meta.actionLabel || "")
-      },
-      client: { source:"nyx_host_iframe", lane: UI.lane, mode: UI.mode || "focused" }
-    };
-
-    postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now(), requestId: requestId }, true);
-
-    var res = await postJson(url, packet, { timeoutMs: 16000, signal: signal });
-
-    // If a newer send happened, discard this response
-    if(turn !== SEND.activeTurn || requestId !== SEND.activeReqId){
-      return;
-    }
-
-
-    var bridge = extractBridge(res);
-    var normalized = normalizeBackendResponse(res || {});
-    var reply = normalized.reply;
-    if(!reply && res && res.ok === false){
-      if(res.error === "aborted") reply = "Okay — interrupted. Say that again when you’re ready.";
-      else reply = "Connection issue. Pass apiBase/token via NYX_CONFIG so I can reach the backend.";
-    }
-    if(!reply) reply = "I’m still here. Tell me what you need, and I’ll keep this moving.";
-
-    if(res && res.lane && typeof res.lane === "string"){ setActiveChip(res.lane.toLowerCase()); }
-    else if(normalized.ui && normalized.ui.chips){ applyUiContract(normalized.ui); }
-
-    if(res && typeof res.marionOn === "boolean") setMarionOn(res.marionOn);
-    else if(bridge || (res && res.meta && res.meta.marionBridgeUsed)) setMarionOn(true);
-
-    try{
-      if(marionEl && bridge){
-        var b = bridgeBadge(bridge);
-        if(b) marionEl.title = b;
-      }
-    }catch(_){}
-
-    applyUiContract(normalized.ui);
-    if(ackId) replaceMsg(ackId, reply, Object.assign({ kind:"reply", requestId: requestId, turn: turn, temp:false, bridge: bridge || null }, normalized.meta));
-    else pushMsg("nyx", reply, Object.assign({ kind:"reply", requestId: requestId, turn: turn, bridge: bridge || null }, normalized.meta));
-    renderMsgs();
-
-    if(VOICE.voiceOn){
-      var wasMic = VOICE.micOn;
-      if(wasMic) toggleMic(false);
-      enqueueSpeak(reply);
-      if(wasMic && VOICE.autoSend){
-        setTimeout(function(){ toggleMic(true); }, 900);
-      }
-    }
-
-    SEND.inFlight = false;
-    if(sendBtn) sendBtn.disabled = false;
-    if(inputEl) inputEl.disabled = false;
-    try{ if(inputEl) inputEl.focus(); }catch(_){ }
-  }
-
-  if(sendBtn){
-    sendBtn.addEventListener("click", function(){
-      var v = inputEl ? inputEl.value : "";
-      if(inputEl) inputEl.value = "";
-      sendText(v, { from:"typed" });
-    });
-  }
-  if(inputEl){
-    inputEl.addEventListener("keydown", function(e){
-      if(e.key === "Enter"){
-        e.preventDefault();
-        var v = inputEl.value;
-        inputEl.value = "";
-        sendText(v, { from:"typed" });
-      }
-    });
-  }
-
-  if(msgsEl){
-    msgsEl.addEventListener("click", function(e){
-      var t = e.target;
-      while(t && t !== msgsEl && !(t.classList && t.classList.contains("nyx-msg__action"))){
-        t = t.parentNode;
-      }
-      if(!t || t === msgsEl) return;
-      var payload = safeJsonParse(t.getAttribute("data-action-payload") || "{}") || {};
-      var label = safeStr(t.getAttribute("data-action-label") || t.textContent || "").trim();
-      sendText((payload && payload.text) ? safeStr(payload.text) : label, { from:"action", actionPayload: payload, actionRole: t.getAttribute("data-action-role") || "advance", actionLabel: label });
-    });
-  }
-
-  if(msgsEl){
-    msgsEl.addEventListener("click", function(e){
-      var t = e.target;
-      while(t && t !== msgsEl && !(t.classList && t.classList.contains("nyx-action"))){
-        t = t.parentNode;
-      }
-      if(!t || t === msgsEl) return;
-      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
-      var label = safeStr(t.textContent || "");
-      if(payload && typeof payload === "object" && payload.lane){
-        setActiveChip(payload.lane);
-      }
-      sendText(label, { from:"action", actionId:safeStr(t.getAttribute("data-action-id") || ""), payload: payload });
-    });
-  }
-
-  if(chipsEl){
-    chipsEl.addEventListener("click", function(e){
-      var t = e.target;
-      while(t && t !== chipsEl && !(t.classList && t.classList.contains("chip"))){
-        t = t.parentNode;
-      }
-      if(!t || t === chipsEl) return;
-      var payload = safeJsonParse(t.getAttribute("data-payload") || "{}") || {};
-      var kind = safeStr(t.getAttribute("data-type") || "action").toLowerCase();
-      var label = safeStr(t.getAttribute("data-label") || t.textContent || "").trim();
-      if(payload.lane){
-        setActiveChip(payload.lane);
-        UI.lane = safeStr(payload.lane).toLowerCase() || UI.lane;
-      }
-      postToParent({ type:"NYX_CHIP", chip: payload.lane || label, lane: UI.lane, ts: now() }, true);
-      if(kind === "lane" && payload.lane && !payload.action){
-        sendText(label, { from:"chip", actionPayload: payload, actionRole:"pivot", actionLabel: label });
-        return;
-      }
-      sendText((payload && payload.text) ? safeStr(payload.text) : label, { from:"chip", actionPayload: payload, actionRole:"advance", actionLabel: label });
-    });
-  }
-
-  if(focusBtn){
-    focusBtn.addEventListener("click", function(){
-      UI.focused = !UI.focused;
-      document.body.classList.toggle("is-focus", UI.focused);
-      focusBtn.textContent = UI.focused ? "Compact" : "Focus";
-      emitResize();
-      if(inputEl) inputEl.focus();
-    });
-  }
-
-  if(voiceBtn){
-    voiceBtn.addEventListener("click", function(){
-      VOICE.voiceOn = !VOICE.voiceOn;
-      if(VOICE.voiceOn){ armAudio(); }
-      if(!VOICE.voiceOn) stopSpeaking();
-      updateVoiceUI();
-      emitResize();
-      if(inputEl) inputEl.focus();
-    });
-  }
-
-  if(micBtn){
-    micBtn.addEventListener("click", function(){
-      toggleMic();
-      emitResize();
-      if(inputEl) inputEl.focus();
-    });
-  }
-
-  applyUiContract({ chips: defaultTopChips(), mode:"focused", placeholder:"Ask Nyx anything about Sandblast…", allowMic:true });
-  setActiveChip("general");
-  if(THREAD.length === 0){
-    pushMsg("nyx", "Hi. I’m Nyx. Tell me what you need, and I’ll keep the next move clean.", {
-      kind:"reply",
-      state:"focused",
-      actions: normalizeActionItems([
-        { label:"Explore music", payload:{ lane:"music" }, role:"explore" },
-        { label:"What’s live on Roku?", payload:{ lane:"roku", action:"whats_live" }, role:"explore" },
-        { label:"Guide me to the best next step", payload:{ action:"best_next_step", lane:"general" }, role:"advance" }
-      ])
-    });
-  }
-  renderMsgs();
-  if(inputEl) inputEl.focus();
-
-  setTimeout(function(){ voiceInitMaybe(); }, 0);
-
-  (function bindAudioUnlock(){
-    var veil = $("nyxAudioUnlock");
-    if(!veil) return;
-    function go(){
-      armAudio();
-      VOICE.voiceOn = true;
-      updateVoiceUI();
-      if(!TTS.locked){
-        document.body.classList.remove("audio-locked");
-        setHint("Audio ready.");
-        VOICE.pendingIntro = false;
-        flushPostedAudio();
-        ttsPump(true);
-      }
-    }
-    veil.addEventListener("click", function(){ go(); }, true);
-    veil.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
-  })();
-
+  var MAX_TURNS = 36;
+  var PARENT_ORIGIN = "";
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  var rec = null;
+  var SEND = { inFlight:false, controller:null, requestId:"", counter:0 };
+  var TTS = { audio:null, q:[], busy:false, locked:false, armed:false };
+  var $ = function(id){ return document.getElementById(id); };
+  var widget = $("nyxWidget"), chipsEl = $("nyxChips"), msgsEl = $("nyxMsgs"), scrollEl = $("nyxScroll"), inputEl = $("nyxInput"), sendBtn = $("nyxSend"), micBtn = $("nyxMic"), voiceBtn = $("nyxVoice"), focusBtn = $("nyxFocus"), audioEl = $("nyxTtsAudio"), statePill = $("nyxStatePill"), contextHint = $("nyxContextHint"), continuityEl = $("nyxContinuity"), hintEl = $("nyxHint");
+  function safeStr(v,max){ var s = v == null ? "" : String(v); return typeof max === "number" && max > 0 ? s.slice(0,max) : s; }
+  function isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function now(){ return Date.now(); }
+  function oneLine(s){ return safeStr(s).replace(/\s+/g," ").trim(); }
+  function escHtml(s){ return safeStr(s).replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+  function parseJSON(s){ try{ return JSON.parse(s); }catch(_){ return null; } }
+  function makeId(){ return "nyx_" + Math.random().toString(36).slice(2,10) + "_" + now().toString(36); }
+  function cap(v,min,max){ v = Number(v); if(!Number.isFinite(v)) return min; return Math.max(min, Math.min(max, v)); }
+  function titleCase(s){ s = safeStr(s).replace(/[_-]+/g," ").trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Focused"; }
+  function linesFromText(text){ return safeStr(text).split(/\n{2,}|\n/).map(function(x){ return safeStr(x).trim(); }).filter(Boolean); }
+  function collectConfig(){ var q = new URLSearchParams(location.search || ""); Object.assign(CONFIG, { apiBase:q.get("apiBase") || q.get("backend") || q.get("base") || window.NYX_API_BASE || window.SBNYX_API_BASE || location.origin, token:q.get("token") || q.get("sbToken") || window.NYX_API_TOKEN || window.SBNYX_TOKEN || window.SB_WIDGET_TOKEN || window.SBNYX_WIDGET_TOKEN || "", tokenHeader:q.get("tokenHeader") || window.NYX_API_TOKEN_HEADER || window.SBNYX_TOKEN_HEADER || window.SB_WIDGET_TOKEN_HEADER || window.SBNYX_WIDGET_TOKEN_HEADER || "X-SB-WIDGET-TOKEN", parentOrigin:q.get("parentOrigin") || window.NYX_PARENT_ORIGIN || window.SBNYX_PARENT_ORIGIN || "", voiceDefaultOn:q.get("voice") === "1" || CONFIG.voiceDefaultOn, strictParentOrigin:q.get("strictParentOrigin") === "1" || CONFIG.strictParentOrigin }); if(CONFIG.parentOrigin) PARENT_ORIGIN = CONFIG.parentOrigin; }
+  function apiBase(){ return safeStr(CONFIG.apiBase).trim() || location.origin; }
+  function postToParent(payload, allowWildcard){ try{ var target = PARENT_ORIGIN || CONFIG.parentOrigin || (allowWildcard ? "*" : ""); if(window.parent && target) window.parent.postMessage(payload, target); }catch(_){} }
+  function emitResize(){ setTimeout(function(){ try{ postToParent({ type:"NYX_RESIZE", h:Math.ceil(widget.getBoundingClientRect().height || 0), ts:now() }, true); }catch(_){} }, 0); }
+  function setHint(text){ if(hintEl) hintEl.textContent = safeStr(text, 240); }
+  function updateEmptyState(){ widget.classList.toggle("is-empty", THREAD.length === 0); }
+  function defaultTopChips(){ return [ { id:"general", label:"General", payload:{ lane:"general" } }, { id:"music", label:"Music", payload:{ lane:"music", text:"Explore music" } }, { id:"roku", label:"Roku", payload:{ lane:"roku", text:"What’s live on Roku?" } }, { id:"radio", label:"Radio", payload:{ lane:"radio", text:"Open radio" } } ]; }
+  function normalizeActionItems(items){ if(!Array.isArray(items)) return []; var out = [], seen = Object.create(null); for(var i=0;i<items.length;i++){ var raw = items[i], label = "", payload = {}, role = "advance", id = ""; if(typeof raw === "string"){ label = safeStr(raw,80).trim(); payload = { text:label }; } else if(isObj(raw)){ label = safeStr(raw.label || raw.title || raw.text || raw.id, 80).trim(); payload = isObj(raw.payload) ? raw.payload : {}; role = safeStr(raw.role || payload.role || "advance",24).toLowerCase() || "advance"; id = safeStr(raw.id || label,80); } if(!label) continue; var key = label.toLowerCase() + "|" + safeStr(payload.lane || payload.action || payload.text || "").toLowerCase(); if(seen[key]) continue; seen[key] = true; out.push({ id:id || makeId(), label:label, role:role, payload:payload }); if(out.length >= 4) break; } return out; }
+  function normalizeTurnResponse(turn, fallbackReply){ turn = isObj(turn) ? turn : {}; var response = isObj(turn.response) ? turn.response : {}; var lead = safeStr(response.lead || turn.lead || "", 800).trim(); var body = safeStr(response.body || turn.replyText || turn.responseText || turn.text || fallbackReply || "", 4000).trim(); var bridge = safeStr(response.bridge || turn.bridgeLine || turn.bridge || "", 400).trim(); if(!lead && body){ var idx = body.indexOf("\n"); if(idx > 0 && idx < 140){ lead = body.slice(0, idx).trim(); body = body.slice(idx + 1).trim(); } } return { lead:lead, body:body, bridge:bridge }; }
+  function normalizeBackendResponse(res){ res = isObj(res) ? res : {}; var ui = isObj(res.ui) ? res.ui : {}; var turn = isObj(res.emotionalTurn) ? res.emotionalTurn : {}; var reply = safeStr(res.reply || res.text || res.message || (isObj(res.data) ? (res.data.reply || res.data.text || "") : ""), 4000).trim(); var state = safeStr(turn.primaryState || turn.state || ui.emotionalState || ui.state || ui.mode || "focused", 40).toLowerCase() || "focused"; var continuityScore = cap(turn.continuityScore != null ? turn.continuityScore : (ui.continuityScore != null ? ui.continuityScore : .35), 0, 1); var continuityLevel = safeStr(turn.continuityLevel || ui.continuityLevel || (continuityScore >= .75 ? "strong" : continuityScore >= .45 ? "steady" : "forming"), 24).toLowerCase(); var response = normalizeTurnResponse(turn, reply); if(!response.lead && !response.body) response.body = reply || "I’m here. Tell me what you need next."; return { ok:res.ok !== false, ui:{ chips:Array.isArray(ui.chips) && ui.chips.length ? ui.chips : defaultTopChips(), mode:safeStr(ui.mode || state, 40) || state, state:state, allowMic:ui.allowMic !== false, placeholder:safeStr(turn.placeholder || ui.placeholder || UI.placeholder || "Ask Nyx anything about Sandblast…", 180), bridgeLine:safeStr(turn.bridgeLine || ui.bridgeLine || response.bridge || "", 240) }, emotionalTurn:{ primaryState:state, secondaryState:safeStr(turn.secondaryState || ui.emotionalSecondaryState || "steady",40).toLowerCase() || "steady", continuityScore:continuityScore, continuityLevel:continuityLevel, placeholder:safeStr(turn.placeholder || ui.placeholder || UI.placeholder || "Ask Nyx anything about Sandblast…", 180), response:response, actions:normalizeActionItems(turn.actions || res.followUps || ui.actions || []), bridgeLine:safeStr(turn.bridgeLine || response.bridge || "", 240) } }; }
+  function renderTopChips(chips){ chipsEl.innerHTML = ""; chips.forEach(function(chip){ chip = isObj(chip) ? chip : { label:safeStr(chip), payload:{ text:safeStr(chip) } }; var payload = isObj(chip.payload) ? chip.payload : {}; var label = safeStr(chip.label || chip.id || payload.text || payload.lane || "Action", 80); if(!label) return; var id = safeStr(chip.id || payload.lane || label, 60).toLowerCase(); var btn = document.createElement("button"); btn.type = "button"; btn.className = "chip" + (((payload.lane && safeStr(payload.lane).toLowerCase() === UI.lane) || id === UI.lane) ? " is-active" : ""); btn.textContent = label; btn.setAttribute("data-chip-id", id); btn.setAttribute("data-payload", JSON.stringify(payload)); chipsEl.appendChild(btn); }); }
+  function applyUiContract(ui){ ui = isObj(ui) ? ui : {}; UI.mode = safeStr(ui.mode || UI.mode || "focused",40).toLowerCase() || "focused"; UI.engineState = safeStr(ui.state || UI.mode || "focused",40).toLowerCase() || "focused"; UI.placeholder = safeStr(ui.placeholder || UI.placeholder || "Ask Nyx anything about Sandblast…", 180); widget.setAttribute("data-engine-state", UI.engineState); statePill.textContent = titleCase(UI.engineState); statePill.setAttribute("data-state", UI.engineState); if(inputEl) inputEl.placeholder = UI.placeholder; if(micBtn) micBtn.style.display = ui.allowMic === false ? "none" : "inline-flex"; renderTopChips(Array.isArray(ui.chips) ? ui.chips : defaultTopChips()); emitResize(); }
+  function pushMessage(entry){ entry = isObj(entry) ? entry : {}; var item = { id:entry.id || makeId(), role:entry.role === "user" ? "user" : "assistant", text:safeStr(entry.text || ""), turn:isObj(entry.turn) ? entry.turn : null, pending:!!entry.pending, ts:now() }; THREAD.push(item); if(THREAD.length > MAX_TURNS) THREAD = THREAD.slice(THREAD.length - MAX_TURNS); updateEmptyState(); return item.id; }
+  function updateMessage(id, patch){ patch = isObj(patch) ? patch : {}; for(var i=THREAD.length-1;i>=0;i--){ if(THREAD[i].id === id){ THREAD[i] = Object.assign({}, THREAD[i], patch); return THREAD[i]; } } return null; }
+  function renderAssistantCard(item){ var turn = isObj(item.turn) ? item.turn : { primaryState:"focused", response:{ body:safeStr(item.text) }, actions:[] }; var response = normalizeTurnResponse(turn, item.text); var state = safeStr(turn.primaryState || "focused",40).toLowerCase() || "focused"; var continuity = safeStr(turn.continuityLevel || "steady", 20) || "steady"; var bodyParts = []; if(response.lead) bodyParts.push("<p>" + escHtml(response.lead) + "</p>"); linesFromText(response.body).forEach(function(line){ bodyParts.push("<p>" + escHtml(line) + "</p>"); }); if(!bodyParts.length) bodyParts.push("<p>I’m here.</p>"); var actions = normalizeActionItems(turn.actions || []); var actionsHtml = actions.length ? '<div class="nyx-card__actions">' + actions.map(function(action){ return '<button type="button" class="nyx-action" data-action-id="' + escHtml(action.id) + '" data-action-role="' + escHtml(action.role) + '" data-payload="' + escHtml(JSON.stringify(action.payload || {})) + '">' + escHtml(action.label) + '</button>'; }).join("") + '</div>' : ""; var pendingHtml = item.pending ? '<span class="typing" aria-label="Nyx is thinking"><span></span><span></span><span></span></span>' : escHtml(continuity); return '<div class="nyx-card' + (item.pending ? ' pending' : '') + '" data-state="' + escHtml(state) + '">' + '<div class="nyx-card__meta"><span class="nyx-card__state">' + escHtml(titleCase(state)) + '</span><span class="nyx-card__continuity">' + pendingHtml + '</span></div>' + '<div class="nyx-card__body">' + bodyParts.join("") + (response.bridge ? '<div class="nyx-card__bridge">' + escHtml(response.bridge) + '</div>' : '') + '</div>' + actionsHtml + '</div>'; }
+  function renderThread(){ msgsEl.innerHTML = ""; THREAD.forEach(function(item){ var node = document.createElement("div"); node.className = "msg " + (item.role === "user" ? "user" : "assistant"); if(item.role === "user") node.textContent = item.text; else node.innerHTML = renderAssistantCard(item); msgsEl.appendChild(node); }); updateEmptyState(); widget.classList.toggle("is-empty", THREAD.length === 0); scrollEl.scrollTop = scrollEl.scrollHeight + 200; emitResize(); }
+  async function fetchJson(url, payload, options){ options = isObj(options) ? options : {}; var headers = { "Content-Type":"application/json" }; if(CONFIG.token) headers[CONFIG.tokenHeader || "X-SB-WIDGET-TOKEN"] = CONFIG.token; var ctrl = options.controller || new AbortController(); var timer = setTimeout(function(){ try{ ctrl.abort(); }catch(_){} }, options.timeoutMs || CONFIG.timeoutMs || 45000); try{ var res = await fetch(url, { method:"POST", headers:headers, body:JSON.stringify(payload || {}), credentials:"include", signal:ctrl.signal }); var text = await res.text().catch(function(){ return ""; }); var json = parseJSON(text); if(!json) return { ok:false, error:"bad_json", status:res.status, raw:text.slice(0,500) }; json.__status = res.status; return json; } catch(err){ return { ok:false, error:err && err.name === "AbortError" ? "aborted" : "network", message:safeStr(err && err.message || "", 180) }; } finally { clearTimeout(timer); } }
+  function ttsEndpoint(){ return apiBase() + CONFIG.ttsPath; }
+  function chatEndpoint(){ return apiBase() + CONFIG.chatPath; }
+  function ensureAudio(){ if(TTS.audio) return TTS.audio; TTS.audio = audioEl; return TTS.audio; }
+  function armAudio(){ var a = ensureAudio(); if(!a) return false; TTS.armed = true; try{ a.muted = true; a.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAA"; var p = a.play(); if(p && typeof p.then === "function"){ p.then(function(){ try{ a.pause(); a.currentTime = 0; }catch(_){} a.muted = false; TTS.locked = false; document.body.classList.remove("audio-locked"); }).catch(function(){ TTS.locked = true; document.body.classList.add("audio-locked"); }); } } catch(_){ TTS.locked = true; document.body.classList.add("audio-locked"); } return true; }
+  function stopSpeaking(){ var a = ensureAudio(); TTS.q = []; TTS.busy = false; if(a){ try{ a.pause(); a.currentTime = 0; }catch(_){} } }
+  async function enqueueSpeak(text){ text = oneLine(text).slice(0,1200); if(!text || !VOICE.voiceOn) return; TTS.q.push(text); if(TTS.busy) return; TTS.busy = true; while(TTS.q.length){ var chunk = TTS.q.shift(); var a = ensureAudio(); if(!a) break; if(!TTS.armed || TTS.locked){ document.body.classList.add("audio-locked"); break; } var headers = { "Content-Type":"application/json" }; if(CONFIG.token) headers[CONFIG.tokenHeader || "X-SB-WIDGET-TOKEN"] = CONFIG.token; try{ var res = await fetch(ttsEndpoint(), { method:"POST", headers:headers, credentials:"include", body:JSON.stringify({ text:chunk, source:"nyx_host_iframe" }) }); if(!res.ok) continue; var blob = await res.blob(); if(!blob || !blob.size) continue; var url = URL.createObjectURL(blob); a.src = url; await a.play().catch(function(){ TTS.locked = true; document.body.classList.add("audio-locked"); }); await new Promise(function(resolve){ a.onended = resolve; a.onerror = resolve; }); URL.revokeObjectURL(url); } catch(_){ } } TTS.busy = false; }
+  function updateVoiceUI(){ voiceBtn.classList.toggle("on", !!VOICE.voiceOn); voiceBtn.textContent = VOICE.voiceOn ? "🔊" : "🔈"; micBtn.classList.toggle("hot", !!VOICE.micOn); document.body.classList.toggle("has-voice", !!VOICE.voiceOn); }
+  function ensureRecognizer(){ if(!SpeechRec) return null; if(rec) return rec; try{ rec = new SpeechRec(); rec.lang = "en-US"; rec.interimResults = true; rec.maxAlternatives = 1; rec.onresult = function(ev){ var finalText = "", interim = ""; for(var i=ev.resultIndex;i<ev.results.length;i++){ var r = ev.results[i], t = r && r[0] && r[0].transcript ? String(r[0].transcript) : ""; if(r.isFinal) finalText += t; else interim += t; } if(inputEl) inputEl.value = (finalText || interim || "").trim(); if(finalText && VOICE.autoSend){ toggleMic(false); var v = finalText.trim(); if(inputEl) inputEl.value = ""; sendText(v, { from:"stt" }); } }; rec.onerror = function(){ toggleMic(false); }; rec.onend = function(){ if(VOICE.micOn){ setTimeout(function(){ try{ rec.start(); }catch(_){ VOICE.micOn = false; updateVoiceUI(); } }, 180); } }; return rec; } catch(_){ return null; } }
+  function toggleMic(force){ if(!VOICE.supportedSTT) return; VOICE.micOn = typeof force === "boolean" ? force : !VOICE.micOn; var r = ensureRecognizer(); if(!r){ VOICE.micOn = false; updateVoiceUI(); return; } if(VOICE.micOn){ try{ stopSpeaking(); r.start(); }catch(_){ VOICE.micOn = false; } } else { try{ r.stop(); }catch(_){} } updateVoiceUI(); }
+  function updateStatePresentation(turn){ turn = isObj(turn) ? turn : {}; var state = safeStr(turn.primaryState || UI.engineState || "focused",40).toLowerCase() || "focused"; UI.engineState = state; widget.setAttribute("data-engine-state", state); statePill.textContent = titleCase(state); statePill.setAttribute("data-state", state); UI.continuity = safeStr(turn.continuityLevel || UI.continuity || "steady",20) || "steady"; continuityEl.textContent = "Continuity: " + UI.continuity; contextHint.textContent = safeStr(turn.bridgeLine || "Conversation stays intentional.", 140) || "Conversation stays intentional."; }
+  async function sendText(text, meta){ text = safeStr(text, 2000).trim(); if(!text) return; meta = isObj(meta) ? meta : {}; try{ if(SEND.controller) SEND.controller.abort(); }catch(_){} SEND.controller = new AbortController(); SEND.inFlight = true; SEND.counter += 1; var requestId = makeId(); SEND.requestId = requestId; sendBtn.disabled = true; inputEl.disabled = true; pushMessage({ role:"user", text:text }); var pendingId = pushMessage({ role:"assistant", pending:true, turn:{ primaryState:UI.engineState || "focused", continuityLevel:UI.continuity || "steady", response:{ body:"" }, actions:[] } }); renderThread(); var actionPayload = isObj(meta.actionPayload) ? meta.actionPayload : null; var packet = { requestId:requestId, text:text, lane:safeStr((actionPayload && actionPayload.lane) || UI.lane || "general").toLowerCase() || "general", payload:actionPayload || undefined, ctx:{ tail:THREAD.slice(-10).map(function(m){ return { r:m.role, t:safeStr(m.text, 320) }; }), source:"nyx_widget_console", context:safeStr(CONFIG.context, 40), actionRole:safeStr(meta.actionRole || "", 30), actionLabel:safeStr(meta.actionLabel || "", 80) }, client:{ source:"nyx_host_iframe", lane:UI.lane, mode:UI.mode || "focused" } }; postToParent({ type:"NYX_USER_TEXT", text:text, lane:UI.lane, ts:now(), requestId:requestId }, true); var raw = await fetchJson(chatEndpoint(), packet, { controller:SEND.controller, timeoutMs:CONFIG.timeoutMs }); var normalized = normalizeBackendResponse(raw); if(!normalized.ok){ normalized = normalizeBackendResponse({ ok:true, reply:"I’m still here. Something in the handoff came through rough, so I’m keeping this stable while we continue.", emotionalTurn:{ primaryState:"clarifying", continuityLevel:"watch", bridgeLine:"Try the next move below.", actions:[{ label:"Try again", payload:{ text:text, lane:UI.lane }, role:"recover" }, { label:"Simplify this", payload:{ action:"simplify", lane:UI.lane, text:text }, role:"stabilize" }] }, ui:{ chips:defaultTopChips(), mode:"clarifying", state:"clarifying", placeholder:"Tell Nyx what needs to be clarified…" } }); } applyUiContract(normalized.ui); updateStatePresentation(normalized.emotionalTurn); updateMessage(pendingId, { pending:false, text: normalized.emotionalTurn.response.body || normalized.emotionalTurn.response.lead || "", turn: normalized.emotionalTurn }); renderThread(); if(VOICE.voiceOn) enqueueSpeak((normalized.emotionalTurn.response.lead ? normalized.emotionalTurn.response.lead + " " : "") + (normalized.emotionalTurn.response.body || "")); postToParent({ type:"NYX_ASSISTANT_TURN", requestId:requestId, lane:UI.lane, state:normalized.emotionalTurn.primaryState, continuity:normalized.emotionalTurn.continuityLevel, ts:now() }, true); SEND.inFlight = false; sendBtn.disabled = false; inputEl.disabled = false; inputEl.value = ""; inputEl.focus(); }
+  function bindEvents(){ sendBtn.addEventListener("click", function(){ var v = safeStr(inputEl.value, 2000).trim(); if(v) sendText(v, { from:"typed" }); }); inputEl.addEventListener("keydown", function(ev){ if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); var v = safeStr(inputEl.value, 2000).trim(); if(v) sendText(v, { from:"typed" }); } }); chipsEl.addEventListener("click", function(ev){ var btn = ev.target && ev.target.closest ? ev.target.closest(".chip") : null; if(!btn) return; var payload = parseJSON(btn.getAttribute("data-payload") || "{}") || {}; var label = safeStr(btn.textContent, 80).trim(); if(payload.lane) UI.lane = safeStr(payload.lane, 30).toLowerCase(); applyUiContract({ chips:defaultTopChips(), mode:UI.mode, state:UI.engineState, placeholder:UI.placeholder, allowMic:true }); sendText(safeStr(payload.text || label), { from:"chip", actionPayload:payload, actionRole:"pivot", actionLabel:label }); }); msgsEl.addEventListener("click", function(ev){ var btn = ev.target && ev.target.closest ? ev.target.closest(".nyx-action") : null; if(!btn) return; var payload = parseJSON(btn.getAttribute("data-payload") || "{}") || {}; var label = safeStr(btn.textContent, 80).trim(); sendText(safeStr(payload.text || label), { from:"action", actionPayload:payload, actionRole:safeStr(btn.getAttribute("data-action-role") || "advance", 24), actionLabel:label }); }); focusBtn.addEventListener("click", function(){ UI.focused = !UI.focused; document.body.classList.toggle("is-focus", UI.focused); focusBtn.textContent = UI.focused ? "Compact" : "Focus"; emitResize(); inputEl.focus(); }); voiceBtn.addEventListener("click", function(){ VOICE.voiceOn = !VOICE.voiceOn; if(VOICE.voiceOn) armAudio(); if(!VOICE.voiceOn) stopSpeaking(); updateVoiceUI(); }); micBtn.addEventListener("click", function(){ toggleMic(); }); var unlock = $("nyxAudioUnlock"); function unlockAudio(){ armAudio(); VOICE.voiceOn = true; updateVoiceUI(); if(!TTS.locked){ document.body.classList.remove("audio-locked"); setHint("Audio ready."); } } unlock.addEventListener("click", unlockAudio, true); unlock.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); unlockAudio(); } }, true); window.addEventListener("pointerdown", function(){ armAudio(); }, { once:true, passive:true }); window.addEventListener("keydown", function(){ armAudio(); }, { once:true, passive:true }); window.addEventListener("message", function(ev){ var data = isObj(ev.data) ? ev.data : {}; if(!data.type) return; if(CONFIG.strictParentOrigin && CONFIG.parentOrigin && ev.origin !== CONFIG.parentOrigin) return; if(ev.origin && !PARENT_ORIGIN) PARENT_ORIGIN = CONFIG.parentOrigin || ev.origin; if(data.type === "NYX_CONFIG"){ if(data.apiBase) CONFIG.apiBase = safeStr(data.apiBase, 320); if(data.token) CONFIG.token = safeStr(data.token, 320); if(data.tokenHeader) CONFIG.tokenHeader = safeStr(data.tokenHeader, 80); if(data.parentOrigin && !PARENT_ORIGIN) PARENT_ORIGIN = safeStr(data.parentOrigin, 240); postToParent({ type:"NYX_CONFIG_ACK", v:CONFIG.version, ts:now(), apiBase:apiBase(), parentOrigin:PARENT_ORIGIN || "" }, false); } if(data.type === "NYX_SEND_TEXT"){ var text = safeStr(data.text, 2000).trim(); if(text) sendText(text, { from:"parent", actionPayload:isObj(data.payload) ? data.payload : null, actionRole:safeStr(data.role || "advance",24), actionLabel:safeStr(data.label || text,80) }); } }); }
+  function boot(){ collectConfig(); VOICE.supportedSTT = !!SpeechRec; VOICE.autoSend = CONFIG.sttAutoSend !== false; updateVoiceUI(); applyUiContract({ chips:defaultTopChips(), mode:"focused", state:"focused", placeholder:"Ask Nyx anything about Sandblast…", allowMic:true }); updateStatePresentation({ primaryState:"focused", continuityLevel:"steady", bridgeLine:"Conversation stays intentional." }); bindEvents(); pushMessage({ role:"assistant", turn:{ primaryState:"focused", continuityLevel:"steady", response:{ lead:"Hi. I’m Nyx.", body:"Tell me what you need, and I’ll keep the next move clean.", bridge:"Choose a path below, or ask directly." }, actions:[ { label:"Explore music", payload:{ lane:"music", text:"Explore music" }, role:"explore" }, { label:"What’s live on Roku?", payload:{ lane:"roku", action:"whats_live", text:"What’s live on Roku?" }, role:"explore" }, { label:"Guide me to the best next step", payload:{ lane:"general", action:"best_next_step", text:"Guide me to the best next step" }, role:"advance" } ] } }); renderThread(); postToParent({ type:"NYX_READY", v:CONFIG.version, ts:now(), apiBase:apiBase(), parentOrigin:PARENT_ORIGIN || "" }, true); inputEl.focus(); }
+  boot();
 })();
 </script>
 </body>
