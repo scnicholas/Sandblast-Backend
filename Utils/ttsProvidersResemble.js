@@ -44,6 +44,19 @@ const PHASES = Object.freeze({
   p26_audioRecoverySignalReady: true
 });
 
+const LOCKED_VOICE_ENV_KEYS = Object.freeze([
+  "RESEMBLE_VOICE_UUID",
+  "SB_RESEMBLE_VOICE_UUID",
+  "SBNYX_RESEMBLE_VOICE_UUID"
+]);
+
+const REQUEST_VOICE_ENV_KEYS = Object.freeze([
+  "MIXER_VOICE_ID",
+  "RESEMBLE_VOICE_ID",
+  "NYX_VOICE_ID",
+  "TTS_VOICE_ID"
+]);
+
 function _str(v){ return v == null ? "" : String(v); }
 function _trim(v){ return _str(v).trim(); }
 function _pickFirst(){
@@ -141,14 +154,36 @@ function _getToken(){
 function _getProjectUuid(){
   return _manualOrEnv(_manualConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
 }
+function _voiceResolutionState(requestedValue){
+  const requested = _trim(requestedValue);
+  const manualVoice = _trim(_manualConfig().voiceUuid);
+  const lockedCandidates = [manualVoice, ...LOCKED_VOICE_ENV_KEYS.map((key) => process.env[key])]
+    .map(_trim)
+    .filter(Boolean);
+  const validLocked = lockedCandidates.filter(_looksLikeUuid);
+  const uniqueLocked = [...new Set(validLocked)];
+  const lockedVoiceUuid = uniqueLocked[0] || "";
+  const requestCandidates = [requested, ...REQUEST_VOICE_ENV_KEYS.map((key) => process.env[key])]
+    .map(_trim)
+    .filter(Boolean);
+  const requestedLooksValid = _looksLikeUuid(requested);
+  const conflict = uniqueLocked.length > 1;
+  const overrideBlocked = !!(lockedVoiceUuid && requestedLooksValid && requested !== lockedVoiceUuid);
+
+  return {
+    requestedVoiceUuid: requested,
+    lockedVoiceUuid,
+    voiceUuid: lockedVoiceUuid || (requestedLooksValid ? requested : ""),
+    configured: !!lockedVoiceUuid,
+    valid: !!lockedVoiceUuid && !conflict,
+    conflict,
+    configuredKeys: [manualVoice ? "MANUAL_RESEMBLE_CONFIG.voiceUuid" : "", ...LOCKED_VOICE_ENV_KEYS].filter(Boolean),
+    requestCandidates
+  };
+}
+
 function _getVoiceUuid(){
-  return _manualOrEnv(
-    _manualConfig().voiceUuid,
-    process.env.RESEMBLE_VOICE_UUID,
-    process.env.SB_RESEMBLE_VOICE_UUID,
-    process.env.SBNYX_RESEMBLE_VOICE_UUID,
-    ""
-  );
+  return _voiceResolutionState("").voiceUuid;
 }
 function _defaultModel(){
   return _pickFirst(process.env.RESEMBLE_TTS_MODEL, "chatterbox-turbo");
@@ -217,12 +252,8 @@ function _looksLikeUuid(v){
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_trim(v));
 }
 function _resolveVoiceUuid(v){
-  const requested = _trim(v);
-  const envVoice = _getVoiceUuid();
-  if (_looksLikeUuid(requested)) return requested;
-  if (_looksLikeUuid(envVoice)) return envVoice;
-  if (requested && envVoice && requested === envVoice.slice(0, requested.length)) return envVoice;
-  return envVoice || requested;
+  const state = _voiceResolutionState(v);
+  return state.voiceUuid;
 }
 function _escapeXml(s){
   return _str(s)
@@ -768,7 +799,8 @@ async function synthesize(opts){
 
   const speech = _buildSpeechEnvelope(opts || {});
   const text = _trim(speech.useSsml ? speech.ssmlText : speech.plainText);
-  const voiceUuid = _resolveVoiceUuid(opts && opts.voiceUuid);
+  const voiceState = _voiceResolutionState(opts && opts.voiceUuid);
+  const voiceUuid = voiceState.voiceUuid;
   const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
   const outputFormat = _lower(_pickFirst(opts && opts.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
   const sampleRate = opts && opts.sampleRate ? _clampInt(opts.sampleRate, undefined, 8000, 192000) : undefined;
@@ -806,9 +838,10 @@ async function synthesize(opts){
       ok: false,
       retryable: false,
       reason: "missing_voice",
-      message: "Missing voiceUuid / RESEMBLE_VOICE_UUID",
+      message: "Missing locked RESEMBLE_VOICE_UUID voice configuration",
       status: 0,
       elapsedMs: Date.now() - started,
+      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
       phases: PHASES
     };
   }
@@ -850,6 +883,9 @@ async function synthesize(opts){
       attemptsUsed,
       providerEndpoint: resp && resp.providerEndpoint ? resp.providerEndpoint : _safeUrlForLogs(_pickFirst.apply(null, _candidateSynthesizeUrls())),
       voiceUuid: _mask(voiceUuid),
+      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
+      voiceLocked: voiceState.configured,
+      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
       traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
@@ -882,6 +918,9 @@ async function synthesize(opts){
       attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
+      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
+      voiceLocked: voiceState.configured,
+      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
       traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
@@ -998,6 +1037,9 @@ async function synthesize(opts){
       attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
+      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
+      voiceLocked: voiceState.configured,
+      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
       traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
@@ -1022,6 +1064,9 @@ async function synthesize(opts){
       attemptsUsed,
       providerEndpoint,
       voiceUuid: _mask(voiceUuid),
+      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
+      voiceLocked: voiceState.configured,
+      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
       traceId: _headerSafe(traceId, 120),
       textDisplay: speech.textDisplay,
       textSpeak: speech.textSpeak,
