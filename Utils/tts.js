@@ -39,6 +39,16 @@ const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
 const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || 20000));
 
+
+const MANUAL_RESEMBLE_BACKEND_CONFIG = Object.freeze({
+  // Manual fallback placeholders: paste real values between the quotes if you want file-level overrides.
+  // Leave blank to keep using environment variables.
+  apiKey: "",
+  voiceUuid: "",
+  projectUuid: "",
+  useProjectUuid: false
+});
+
 const DEFAULT_SPEECH_HINTS = Object.freeze({
   pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
   pacing: { mode: "natural", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
@@ -90,6 +100,18 @@ function _headerSafe(value, max = 80) {
 
 
 function _pickFirst() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const v = _trim(arguments[i]);
+    if (v) return v;
+  }
+  return "";
+}
+
+function _manualBackendConfig() {
+  return MANUAL_RESEMBLE_BACKEND_CONFIG || {};
+}
+
+function _manualOrEnv() {
   for (let i = 0; i < arguments.length; i += 1) {
     const v = _trim(arguments[i]);
     if (v) return v;
@@ -176,7 +198,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
 const _circuitOpen = () => _now() < circuitOpenUntil;
 
 function _hasProviderToken() {
-  return !!_pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  return !!_manualOrEnv(_manualBackendConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
 }
 
 function _isRetryableStatus(status) {
@@ -341,6 +363,7 @@ function _recordSuccess(status, elapsedMs, meta) {
 function _resolvePreferredVoice(inputVoice) {
   return _pickFirst(
     inputVoice,
+    _manualBackendConfig().voiceUuid,
     process.env.MIXER_VOICE_ID,
     process.env.RESEMBLE_VOICE_UUID,
     process.env.SB_RESEMBLE_VOICE_UUID,
@@ -361,14 +384,14 @@ function _resolvePreferredVoiceName(inputName) {
 }
 
 function _useProjectUuidByDefault() {
-  return _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false);
+  return _bool(_manualBackendConfig().useProjectUuid, _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false));
 }
 
 function _resolveProjectUuid(explicitValue) {
   const explicit = _trim(explicitValue);
   if (explicit) return explicit;
   if (_useProjectUuidByDefault()) {
-    return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
+    return _manualOrEnv(_manualBackendConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
   }
   return "";
 }
@@ -377,7 +400,7 @@ function _healthSnapshot() {
   const voiceUuid = _resolvePreferredVoice("");
   const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _resolveProjectUuid("");
-  const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  const token = _manualOrEnv(_manualBackendConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
   const configured = !!(token && voiceUuid);
   const ready = configured && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
   return {
@@ -1181,6 +1204,7 @@ module.exports = {
   PHASES,
   TTS_VERSION,
   VERSION: TTS_VERSION,
-  version: TTS_VERSION
+  version: TTS_VERSION,
+  MANUAL_RESEMBLE_BACKEND_CONFIG
 };
 module.exports.default = module.exports;
