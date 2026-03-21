@@ -5,6 +5,16 @@ const https = require("https");
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 
+
+const MANUAL_RESEMBLE_CONFIG = Object.freeze({
+  // Manual fallback placeholders: paste real values between the quotes if you want file-level overrides.
+  // Leave blank to use environment variables instead.
+  apiKey: "",
+  voiceUuid: "",
+  projectUuid: "",
+  synthUrl: "https://f.cluster.resemble.ai/synthesize"
+});
+
 const PHASES = Object.freeze({
   p01_contractSafe: true,
   p02_envResolution: true,
@@ -44,6 +54,15 @@ function _pickFirst(){
   return "";
 }
 function _lower(s){ return _trim(s).toLowerCase(); }
+
+function _manualConfig(){
+  return MANUAL_RESEMBLE_CONFIG || {};
+}
+function _manualOrEnv(){
+  const args = Array.from(arguments);
+  const manualValue = _pickFirst.apply(null, args);
+  return manualValue || _pickFirst.apply(null, args.slice(1));
+}
 function _clampInt(v, dflt, min, max){
   const n = Number(v);
   if (!Number.isFinite(n)) return dflt;
@@ -117,13 +136,14 @@ function _mimeFor(fmt){
   return "audio/mpeg";
 }
 function _getToken(){
-  return _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY, "");
+  return _manualOrEnv(_manualConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY, "");
 }
 function _getProjectUuid(){
-  return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
+  return _manualOrEnv(_manualConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
 }
 function _getVoiceUuid(){
-  return _pickFirst(
+  return _manualOrEnv(
+    _manualConfig().voiceUuid,
     process.env.RESEMBLE_VOICE_UUID,
     process.env.SB_RESEMBLE_VOICE_UUID,
     process.env.SBNYX_RESEMBLE_VOICE_UUID,
@@ -311,6 +331,7 @@ function _normalizeUrlCandidate(url){
 
 function _candidateSynthesizeUrls(){
   const explicit = [
+    _manualConfig().synthUrl,
     process.env.RESEMBLE_SYNTH_URL,
     process.env.RESEMBLE_TTS_URL,
     process.env.RESEMBLE_API_URL,
@@ -1042,4 +1063,4 @@ async function synthesize(opts){
   };
 }
 
-module.exports = { synthesize };
+module.exports = { synthesize, MANUAL_RESEMBLE_CONFIG };
