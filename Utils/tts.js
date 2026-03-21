@@ -38,16 +38,22 @@ const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
 const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || 20000));
+const VOICE_LOCK_ENV_KEYS = Object.freeze([
+  "RESEMBLE_VOICE_UUID",
+  "SB_RESEMBLE_VOICE_UUID",
+  "SBNYX_RESEMBLE_VOICE_UUID",
+  "MIXER_VOICE_ID",
+  "RESEMBLE_VOICE_ID",
+  "NYX_VOICE_ID",
+  "TTS_VOICE_ID"
+]);
 
+const VOICE_NAME_ENV_KEYS = Object.freeze([
+  "MIXER_VOICE_NAME",
+  "NYX_VOICE_NAME",
+  "TTS_VOICE_NAME"
+]);
 
-const MANUAL_RESEMBLE_BACKEND_CONFIG = Object.freeze({
-  // Manual fallback placeholders: paste real values between the quotes if you want file-level overrides.
-  // Leave blank to keep using environment variables.
-  apiKey: "",
-  voiceUuid: "",
-  projectUuid: "",
-  useProjectUuid: false
-});
 
 const DEFAULT_SPEECH_HINTS = Object.freeze({
   pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
@@ -100,18 +106,6 @@ function _headerSafe(value, max = 80) {
 
 
 function _pickFirst() {
-  for (let i = 0; i < arguments.length; i += 1) {
-    const v = _trim(arguments[i]);
-    if (v) return v;
-  }
-  return "";
-}
-
-function _manualBackendConfig() {
-  return MANUAL_RESEMBLE_BACKEND_CONFIG || {};
-}
-
-function _manualOrEnv() {
   for (let i = 0; i < arguments.length; i += 1) {
     const v = _trim(arguments[i]);
     if (v) return v;
@@ -198,7 +192,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
 const _circuitOpen = () => _now() < circuitOpenUntil;
 
 function _hasProviderToken() {
-  return !!_manualOrEnv(_manualBackendConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  return !!_pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
 }
 
 function _isRetryableStatus(status) {
@@ -360,49 +354,77 @@ function _recordSuccess(status, elapsedMs, meta) {
   });
 }
 
+function _looksLikeUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_trim(value));
+}
+
+function _voiceIntegrityConfig() {
+  const candidates = VOICE_LOCK_ENV_KEYS
+    .map((key) => ({ key, value: _trim(process.env[key]) }))
+    .filter((item) => item.value);
+
+  const validCandidates = candidates.filter((item) => _looksLikeUuid(item.value));
+  const uniqueValues = [...new Set(validCandidates.map((item) => item.value))];
+  const authoritative = uniqueValues[0] || "";
+  const conflictingKeys = uniqueValues.length > 1
+    ? candidates.filter((item) => item.value && item.value !== authoritative).map((item) => item.key)
+    : [];
+
+  return {
+    voiceUuid: authoritative,
+    voiceName: _pickFirst(...VOICE_NAME_ENV_KEYS.map((key) => process.env[key])),
+    configuredKeys: candidates.map((item) => item.key),
+    conflictingKeys,
+    configured: !!authoritative,
+    valid: !!authoritative && conflictingKeys.length === 0
+  };
+}
+
 function _resolvePreferredVoice(inputVoice) {
-  return _pickFirst(
-    inputVoice,
-    _manualBackendConfig().voiceUuid,
-    process.env.MIXER_VOICE_ID,
-    process.env.RESEMBLE_VOICE_UUID,
-    process.env.SB_RESEMBLE_VOICE_UUID,
-    process.env.SBNYX_RESEMBLE_VOICE_UUID,
-    process.env.RESEMBLE_VOICE_ID,
-    process.env.NYX_VOICE_ID,
-    process.env.TTS_VOICE_ID
-  );
+  const requested = _trim(inputVoice);
+  const integrity = _voiceIntegrityConfig();
+  const locked = integrity.voiceUuid;
+
+  if (!locked) return requested;
+
+  if (requested && requested !== locked) {
+    _log("voice_override_blocked", {
+      requestedVoiceUuid: _mask(requested),
+      lockedVoiceUuid: _mask(locked),
+      configuredKeys: integrity.configuredKeys,
+      conflictingKeys: integrity.conflictingKeys
+    });
+  }
+
+  return locked;
 }
 
 function _resolvePreferredVoiceName(inputName) {
-  return _pickFirst(
-    inputName,
-    process.env.MIXER_VOICE_NAME,
-    process.env.NYX_VOICE_NAME,
-    process.env.TTS_VOICE_NAME
-  );
+  const lockedName = _trim(_voiceIntegrityConfig().voiceName);
+  return lockedName || _trim(inputName);
 }
 
 function _useProjectUuidByDefault() {
-  return _bool(_manualBackendConfig().useProjectUuid, _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false));
+  return _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false);
 }
 
 function _resolveProjectUuid(explicitValue) {
   const explicit = _trim(explicitValue);
   if (explicit) return explicit;
   if (_useProjectUuidByDefault()) {
-    return _manualOrEnv(_manualBackendConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
+    return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
   }
   return "";
 }
 
 function _healthSnapshot() {
-  const voiceUuid = _resolvePreferredVoice("");
+  const integrity = _voiceIntegrityConfig();
+  const voiceUuid = integrity.voiceUuid;
   const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _resolveProjectUuid("");
-  const token = _manualOrEnv(_manualBackendConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
   const configured = !!(token && voiceUuid);
-  const ready = configured && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
+  const ready = configured && integrity.valid && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
   return {
     ok: ready,
     configured,
@@ -427,6 +449,14 @@ function _healthSnapshot() {
       voiceName: voiceName || "",
       projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
       providerTimeoutMs: PROVIDER_TIMEOUT_MS
+    },
+    voiceIntegrity: {
+      configured: integrity.configured,
+      valid: integrity.valid,
+      configuredKeys: integrity.configuredKeys,
+      conflictingKeys: integrity.conflictingKeys,
+      lockedVoiceUuid: voiceUuid ? _mask(voiceUuid) : "",
+      lockedVoiceName: voiceName || ""
     }
   };
 }
@@ -849,9 +879,10 @@ function _normalizePayloadLikeInput(payload, req) {
 
   const text = _pickFirst(body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay);
 
-  const voiceUuid = _resolvePreferredVoice(_pickFirst(
+  const requestedVoiceUuid = _pickFirst(
     body.voice_uuid, body.voiceUuid, body.voiceId, body.voice, headers["x-sb-voice"], headers["x-voice-uuid"]
-  ));
+  );
+  const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
 
   const explicitProjectUuid = _pickFirst(
     body.project_uuid, body.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
@@ -867,6 +898,7 @@ function _normalizePayloadLikeInput(payload, req) {
   return {
     text: _trim(text).slice(0, MAX_TEXT),
     textDisplay: _trim(_pickFirst(body.textDisplay)).slice(0, MAX_TEXT),
+    requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, body.mixerVoiceName)),
     projectUuid,
@@ -906,11 +938,12 @@ function _resolveInput(req) {
     query.text, query.speak, query.say, query.prompt, params.text
   );
 
-  const voiceUuid = _resolvePreferredVoice(_pickFirst(
+  const requestedVoiceUuid = _pickFirst(
     body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
     query.voice_uuid, query.voiceUuid, query.voiceId, query.voice,
     headers["x-sb-voice"], headers["x-voice-uuid"]
-  ));
+  );
+  const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
 
   const explicitProjectUuid = _pickFirst(
     body.project_uuid, body.projectUuid, query.project_uuid, query.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
@@ -929,6 +962,7 @@ function _resolveInput(req) {
   return {
     text: _trim(text).slice(0, MAX_TEXT),
     textDisplay: _trim(_pickFirst(body.textDisplay, query.textDisplay)).slice(0, MAX_TEXT),
+    requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, query.voiceName)),
     projectUuid,
@@ -974,6 +1008,7 @@ function _buildInputSnapshot(input) {
     textLen: _str(src.text || "").length,
     textHash: _hash(src.text || ""),
     textPreview: _preview(src.textDisplay || src.text || ""),
+    requestedVoiceUuid: _mask(src.requestedVoiceUuid || ""),
     voiceUuid: _mask(src.voiceUuid || ""),
     projectUuid: _mask(src.projectUuid || ""),
     outputFormat: src.outputFormat || "",
@@ -1204,7 +1239,6 @@ module.exports = {
   PHASES,
   TTS_VERSION,
   VERSION: TTS_VERSION,
-  version: TTS_VERSION,
-  MANUAL_RESEMBLE_BACKEND_CONFIG
+  version: TTS_VERSION
 };
 module.exports.default = module.exports;
