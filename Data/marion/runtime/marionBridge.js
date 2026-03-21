@@ -998,7 +998,6 @@ return {
 
 
 
-
 function _tryRequire(path) {
   try { return require(path); } catch (_e) { return null; }
 }
@@ -1006,7 +1005,6 @@ function _tryRequire(path) {
 function _resolveOptionalDatasetImports(meta = {}) {
   const out = [];
   const seen = new Set();
-
   const rawCandidates = [
     meta.meldImport,
     meta.meltImport,
@@ -1015,7 +1013,6 @@ function _resolveOptionalDatasetImports(meta = {}) {
     _safeObj(meta.guidedPrompt).meldImport,
     _safeObj(meta.guidedPrompt).meltImport
   ];
-
   const modules = [
     _tryRequire("./labs/meldImport"),
     _tryRequire("./labs/meltImport"),
@@ -1024,18 +1021,12 @@ function _resolveOptionalDatasetImports(meta = {}) {
     _tryRequire("../labs/meldImport"),
     _tryRequire("../labs/meltImport"),
     _tryRequire("../labs/meld"),
-    _tryRequire("../labs/melt"),
-    _tryRequire("../../labs/meldImport"),
-    _tryRequire("../../labs/meltImport"),
-    _tryRequire("../../labs/meld"),
-    _tryRequire("../../labs/melt")
+    _tryRequire("../labs/melt")
   ];
-
   for (const mod of modules) {
     if (!mod) continue;
     rawCandidates.push(mod.default || mod.dataset || mod.records || mod.items || mod.data || mod);
   }
-
   const pushItem = (item, sourceLabel) => {
     if (!item) return;
     if (typeof item === "string") {
@@ -1070,22 +1061,68 @@ function _resolveOptionalDatasetImports(meta = {}) {
         tags: Array.isArray(item.tags) ? item.tags : ["meld", "emotion", "dataset"],
         metadata: _safeObj(item.metadata)
       };
-      const key = [
-        normalized.source,
-        normalized.dataset,
-        normalized.title,
-        normalized.content,
-        normalized.summary
-      ].join("::");
+      const key = [normalized.source, normalized.dataset, normalized.title, normalized.content, normalized.summary].join("::");
       if (!normalized.content && !normalized.summary) return;
       if (seen.has(key)) return;
       seen.add(key);
       out.push(normalized);
     }
   };
-
   for (const candidate of rawCandidates) pushItem(candidate, "labs.meldImport");
   return out;
+}
+
+function _buildBridgeUiPayload(result = {}, packet = {}) {
+  const meta = _safeObj(result.meta);
+  const domain = _trim(result.domain || _safeObj(packet.routing).domain || "general") || "general";
+  const mode = _trim(meta.mode || _safeObj(_safeObj(result.layer4).outputMetadata).recoveryMode || "balanced") || "balanced";
+  const chips = _buildCompatibilityChips(result.nyxOutput, result.assembledResponse, result.marionPacket || {});
+  return {
+    text: _trim(result.reply || result.text || result.answer || result.output || FALLBACK_REPLY),
+    chips,
+    mode,
+    state: domain === "psychology" ? "supportive" : (mode === "recovery" ? "clarifying" : "focused"),
+    domain,
+    intent: _trim(result.intent || "general") || "general",
+    placeholder: domain === "psychology" ? "Tell Nyx what feels heavy…" : "Tell Nyx what you want done…",
+    bridgeLine: _trim(_safeObj(result.nyxOutput).narrative?.fallback?.nextMove || "")
+  };
+}
+
+function _buildBridgeEmotionalTurn(result = {}, ui = {}) {
+  const meta = _safeObj(result.meta);
+  const replyText = _trim(result.reply || result.text || result.answer || result.output || FALLBACK_REPLY);
+  const state = _trim(ui.state || (result.domain === "psychology" ? "supportive" : "focused")) || "focused";
+  const bridge = _trim(ui.bridgeLine || "");
+  const lines = replyText.split(/\n{2,}|\n/).map((x) => _trim(x)).filter(Boolean);
+  const lead = lines[0] || replyText;
+  const body = lines.slice(1).join("\n").trim() || (lines.length ? "" : replyText);
+  return {
+    primaryState: state,
+    secondaryState: _trim(meta.recoveryMode || "steady") || "steady",
+    continuityScore: 0.72,
+    continuityLevel: _trim(_safeObj(result.turnMemory).continuityHealth || "steady") || "steady",
+    placeholder: _trim(ui.placeholder || "Ask Nyx anything about Sandblast…"),
+    bridgeLine: bridge,
+    response: {
+      lead,
+      body: body || (lead === replyText ? "" : replyText),
+      bridge
+    },
+    actions: chipsFromUi(ui)
+  };
+}
+
+function chipsFromUi(ui = {}) {
+  const chips = _safeArray(ui.chips);
+  return chips.slice(0, 4).map((chip) => {
+    if (typeof chip === "string") {
+      return { label: chip, role: "advance", payload: { text: chip } };
+    }
+    const obj = _safeObj(chip);
+    const label = _trim(obj.label || obj.text || obj.title || "");
+    return label ? { label, role: _trim(obj.role || "advance") || "advance", payload: _safeObj(obj.payload) } : null;
+  }).filter(Boolean);
 }
 
 function createMarionBridge(options = {}) {
@@ -1093,7 +1130,7 @@ function createMarionBridge(options = {}) {
   const evidenceEngine = _safeObj(options.evidenceEngine);
 
   return {
-    version: "marionBridge v2.1.0 MELD-HANDOFF-HARDENED",
+    version: "marionBridge v2.2.0 BRIDGE-AUTHORITY-HARDENED",
     async maybeResolve(req = {}) {
       const meta = _safeObj(req.meta);
       const memory = memoryProvider && typeof memoryProvider.getContext === "function"
@@ -1107,7 +1144,6 @@ function createMarionBridge(options = {}) {
       for (const value of Object.values(sections)) {
         if (Array.isArray(value)) datasets.push(...value);
       }
-
       const optionalImports = _resolveOptionalDatasetImports(meta);
       if (optionalImports.length) datasets.push(...optionalImports);
 
@@ -1124,24 +1160,130 @@ function createMarionBridge(options = {}) {
       });
 
       const packet = _buildBridgePacket(result);
+      const linkedDatasets = [...new Set(_safeArray(datasets).map((x) => _trim(_safeObj(x).dataset || _safeObj(x).source || "")).filter(Boolean))].slice(0, 24);
+      packet.authority = {
+        shouldAnswer: !!_trim(packet?.synthesis?.answer || result.reply || result.text || ""),
+        mode: result.ok === false ? "degraded" : "bridge_primary",
+        confidence: Number(_safeObj(packet.synthesis).confidence || 0) || 0.78,
+        reason: optionalImports.length ? "bridge_dataset_and_meld" : "bridge_dataset"
+      };
       packet.meta = {
         ..._safeObj(packet.meta),
-        importedDatasetCount: optionalImports.length
+        importedDatasetCount: optionalImports.length,
+        linkedDatasets
       };
 
+      const ui = _buildBridgeUiPayload(result, packet);
+      const emotionalTurn = _buildBridgeEmotionalTurn(result, ui);
+
       return {
-        usedBridge: !!_trim(result.reply || result.text || result.answer || result.output),
+        usedBridge: !!packet.authority.shouldAnswer,
         packet,
         reply: _trim(result.reply || result.text || result.answer || result.output),
-        domain: result.domain || "general",
+        domain: result.domain || _canonicalBridgeDomain(meta.preferredDomain || req.domain || "general"),
         intent: result.intent || "general",
         meta: {
           ..._safeObj(result.meta),
-          importedDatasetCount: optionalImports.length
+          importedDatasetCount: optionalImports.length,
+          linkedDatasets,
+          bridgeAuthority: packet.authority.mode
         },
-        ui: _safeObj(result.ui),
+        ui,
+        emotionalTurn,
         result
       };
+    }
+  };
+}
+
+function _buildLockedEmotionContractFromLayer2(layer2Bundle = {}) {
+  const emotion = _safeObj(layer2Bundle.emotion);
+  return {
+    source: "marionBridge",
+    locked: true,
+    primaryEmotion: _trim(emotion.primaryEmotion) || "neutral",
+    secondaryEmotion: _trim(emotion.secondaryEmotion) || null,
+    intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+    valence: Number.isFinite(Number(emotion.valence)) ? Number(emotion.valence) : 0,
+    valenceLabel: _trim(emotion.valenceLabel || (Number(emotion.valence) > 0 ? "positive" : Number(emotion.valence) < 0 ? "negative" : "mixed")) || "mixed",
+    confidence: Number.isFinite(Number(emotion.confidence)) ? Number(emotion.confidence) : 0,
+    needs: _safeArray(emotion.needs),
+    cues: _safeArray(emotion.cues),
+    supportFlags: _safeObj(emotion.supportFlags),
+    evidenceMatches: _safeArray(emotion.evidenceMatches),
+    meta: { linkedDatasets: ["base_labels", "conversation_patterns", "emotion_analysis_schema", "nuance_map"], marionDomain: _trim(layer2Bundle.domain || "general") }
+  };
+}
+
+function _buildStrategyFromLayer2(layer2Bundle = {}) {
+  const lockedEmotion = _buildLockedEmotionContractFromLayer2(layer2Bundle);
+  const text = _trim(layer2Bundle.userQuery);
+  if (EmotionRouteGuard && typeof EmotionRouteGuard.analyzeEmotionRoute === "function") {
+    try {
+      const routed = EmotionRouteGuard.analyzeEmotionRoute({ text, lockedEmotion }, _safeObj(layer2Bundle.conversationState));
+      if (routed && typeof routed === "object") {
+        return routed.strategy && typeof routed.strategy === "object" ? routed.strategy : {
+          supportModeCandidate: _trim(routed.supportModeCandidate) || "steady_assist",
+          routeBias: _trim(routed.routeBias) || "maintain",
+          archetype: _trim(routed.archetype) || "clarify",
+          deliveryTone: _trim(routed.deliveryTone) || "neutral_warm",
+          questionPressure: _trim(_safeObj(routed.nuanceProfile).questionPressure || "medium"),
+          transitionReadiness: _trim(_safeObj(routed.nuanceProfile).transitionReadiness || "medium"),
+          acknowledgementMode: "auto",
+          expressionContract: _safeObj(routed.expressionContract)
+        };
+      }
+    } catch (_e) {}
+  }
+  return { supportModeCandidate: "steady_assist", routeBias: "maintain", archetype: "clarify", deliveryTone: "neutral_warm", questionPressure: "medium", transitionReadiness: "medium", acknowledgementMode: "auto", expressionContract: {} };
+}
+
+function _buildBridgePacket(result = {}) {
+  const domainEvidence = _safeArray(result?.assembledResponse?.domainEvidence);
+  const meta = _safeObj(result.meta);
+  const layer2 = _safeObj(result.layer2);
+  const strategy = _safeObj(meta.strategy || {});
+  const evidenceCount = Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.domainEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.datasetEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.memoryEvidence || 0) + Number(_safeObj(_safeObj(layer2).diagnostics).layer2EvidenceCounts?.generalEvidence || 0);
+  return {
+    synthesis: {
+      answer: _trim(result.reply || result.answer || result.output || result.text || FALLBACK_REPLY),
+      text: _trim(result.text || result.reply || result.answer || result.output || FALLBACK_REPLY),
+      mode: _trim(meta.mode || _safeObj(_safeObj(result.layer4).outputMetadata).recoveryMode || "balanced"),
+      spokenText: _trim(meta.spokenText || result.reply || result.text || FALLBACK_REPLY)
+    },
+    routing: { domain: _trim(result.domain) || "general", intent: _trim(result.intent) || "general", status: _trim(result.status) || (result.ok === false ? "degraded" : "ok") },
+    emotion: { lockedEmotion: _buildLockedEmotionContractFromLayer2({ ...layer2, domain: result.domain || layer2.domain || "general", userQuery: result.userQuery || "" }), strategy },
+    evidence: { count: evidenceCount, rankedCount: evidenceCount, domainEvidence },
+    continuity: { state: _safeObj(result.continuityState), turnMemory: _safeObj(result.turnMemory), resetGuard: _safeObj(result.resetGuard) },
+    meta: meta,
+    raw: result
+  };
+}
+
+function createMarionBridge(options = {}) {
+  const memoryProvider = _safeObj(options.memoryProvider);
+  const evidenceEngine = _safeObj(options.evidenceEngine);
+  return {
+    version: "marionBridge v2.0.0 DATASET-HANDOFF",
+    async maybeResolve(req = {}) {
+      const meta = _safeObj(req.meta);
+      const memory = memoryProvider && typeof memoryProvider.getContext === "function" ? await Promise.resolve(memoryProvider.getContext(req)) : {};
+      const collectedEvidence = evidenceEngine && typeof evidenceEngine.collect === "function" ? await Promise.resolve(evidenceEngine.collect(req)) : [];
+      const sections = _safeObj(meta.knowledgeSections);
+      const datasets = [];
+      for (const value of Object.values(sections)) if (Array.isArray(value)) datasets.push(...value);
+      const result = await processWithMarion({
+        userQuery: req.text || req.query || "",
+        requestedDomain: meta.preferredDomain || req.domain || "",
+        conversationState: _safeObj(meta.session),
+        previousMemory: memory,
+        datasets,
+        domainEvidence: _safeArray(collectedEvidence),
+        datasetEvidence: _safeArray(meta.datasetEvidence),
+        memoryEvidence: _safeArray(meta.memoryEvidence),
+        generalEvidence: _safeArray(meta.generalEvidence)
+      });
+      return { usedBridge: !!_trim(result.reply || result.text || result.answer || result.output), packet: _buildBridgePacket(result), reply: _trim(result.reply || result.text || result.answer || result.output), domain: result.domain || "general", intent: result.intent || "general", meta: _safeObj(result.meta), ui: _safeObj(result.ui), result };
     }
   };
 }
@@ -1149,6 +1291,7 @@ function createMarionBridge(options = {}) {
 async function route(input = {}) { return processWithMarion(input); }
 const ask = route;
 const handle = route;
+
 
 module.exports = {
   retrieveLayer2Signals,
