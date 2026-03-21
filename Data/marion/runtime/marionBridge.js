@@ -1,4 +1,3 @@
-\
 "use strict";
 
 /**
@@ -8,6 +7,8 @@
  * - normalizes intent/domain/emotion
  * - gathers evidence from memory/datasets/external retrievers
  * - builds one authoritative answer packet for Nyx
+ * - adds surgical schema checks, behavior analysis, canonical routing,
+ *   and contract self-tests without drift-heavy rebuilds
  */
 
 let EmotionRetriever = null;
@@ -26,8 +27,24 @@ try { domainRouter = require("./domainRouter"); } catch (_e) { domainRouter = nu
 
 const { buildResponseContract } = require("./conversationalResponseSystem");
 
-const VERSION = "marionBridge v3.0.0 SURGICAL-AUTHORITY";
+const VERSION = "marionBridge v3.8.0 CANONICAL-HARDENED";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
+const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+const MAX_EVIDENCE = 16;
+const MAX_RANKED_EVIDENCE = 8;
+const MIN_CONFIDENCE = 0.72;
+const MAX_CONFIDENCE = 0.96;
+const DOMAIN_TEST_CASES = Object.freeze([
+  { domain: "psychology", text: "I feel anxious and overwhelmed right now." },
+  { domain: "finance", text: "Break down revenue, pricing, and investor risk." },
+  { domain: "law", text: "Analyze contract liability and legal exposure." },
+  { domain: "english", text: "Help me improve grammar and rhetoric in this draft." },
+  { domain: "cybersecurity", text: "Assess network breach risk and malware exposure." },
+  { domain: "marketing", text: "Build a campaign and branding strategy for the audience." },
+  { domain: "ai", text: "Compare model inference behavior and prompt quality." },
+  { domain: "strategy", text: "Design an operating model and roadmap for rollout." },
+  { domain: "general", text: "Help me think clearly about the next move." }
+]);
 
 function _safeObj(v) { return !!v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
@@ -35,6 +52,7 @@ function _trim(v) { return v == null ? "" : String(v).trim(); }
 function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp01(v, d = 0) { return Math.max(0, Math.min(1, _num(v, d))); }
+function _bool(v) { return !!v; }
 function _pickFn(mod, name) {
   if (mod && typeof mod[name] === "function") return mod[name];
   if (mod && typeof mod.retrieve === "function") return mod.retrieve;
@@ -51,6 +69,12 @@ function _uniqBy(items, keyFn) {
     out.push(item);
   }
   return out;
+}
+function _hashText(v) {
+  const s = _trim(v);
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i);
+  return String(h >>> 0);
 }
 function _canonicalDomain(v) {
   const raw = _lower(v || "general");
@@ -79,11 +103,11 @@ function _canonicalDomain(v) {
 }
 function _inferIntent(text) {
   const q = _lower(text);
-  if (/(sad|upset|anxious|overwhelmed|hurting|afraid|lonely|depressed)/.test(q)) return "support";
-  if (/(fix|debug|repair|stability|loop|bridge|error|bug)/.test(q)) return "debug";
-  if (/(plan|roadmap|strategy|architecture|design|build)/.test(q)) return "strategy";
-  if (/(analysis|assess|evaluate|compare|break down)/.test(q)) return "analysis";
-  if (/(research|dataset|evidence|source|reference)/.test(q)) return "research";
+  if (/(sad|upset|anxious|overwhelmed|hurting|afraid|lonely|depressed|grief|panic)/.test(q)) return "support";
+  if (/(fix|debug|repair|stability|loop|bridge|error|bug|broken|issue|failure)/.test(q)) return "debug";
+  if (/(plan|roadmap|strategy|architecture|design|build|scale|execution)/.test(q)) return "strategy";
+  if (/(analysis|assess|evaluate|compare|break down|audit|critical)/.test(q)) return "analysis";
+  if (/(research|dataset|evidence|source|reference|study|signal)/.test(q)) return "research";
   return "general";
 }
 function _inferDomain(text, requestedDomain, emotion) {
@@ -99,27 +123,75 @@ function _inferDomain(text, requestedDomain, emotion) {
   if (/(strategy|architecture|roadmap|operating model)/.test(joined)) return "strategy";
   return _canonicalDomain(requestedDomain);
 }
-function _normalizeEmotion(raw = {}, text = "") {
+function _normalizeSupportFlags(flags = {}) {
+  const src = _safeObj(flags);
+  return {
+    needsContainment: _bool(src.needsContainment),
+    highDistress: _bool(src.highDistress),
+    frustration: _bool(src.frustration),
+    urgency: _bool(src.urgency),
+    repeatEscalation: _bool(src.repeatEscalation)
+  };
+}
+function _analyzeBehavior(text = "", previousMemory = {}) {
+  const q = _lower(text);
+  const mem = _safeObj(previousMemory);
+  const lastQuery = _lower(mem.lastQuery || "");
+  const repeatQuery = !!q && !!lastQuery && q === lastQuery;
+  const exclamations = (_trim(text).match(/!/g) || []).length;
+  const questionMarks = (_trim(text).match(/\?/g) || []).length;
+  const capsTokens = (_trim(text).match(/\b[A-Z]{3,}\b/g) || []).length;
+  const urgencyHits = (q.match(/\b(now|urgent|asap|immediately|today|quick|fast)\b/g) || []).length;
+  const frustrationHits = (q.match(/\b(horrible|broken|annoying|stupid|mad|frustrated|angry|wtf|fail|failing)\b/g) || []).length;
+  const distressHits = (q.match(/\b(hurting|overwhelmed|panic|afraid|depressed|sad|anxious|lonely)\b/g) || []).length;
+  const directiveHits = (q.match(/\b(do|fix|update|resend|lock|stabilize|analyze|audit|build)\b/g) || []).length;
+  const cognitiveLoad = Math.min(1, ((q.split(/\s+/).filter(Boolean).length / 120) + (questionMarks * 0.08) + (directiveHits * 0.03)));
+  const volatility = Math.min(1, (exclamations * 0.08) + (capsTokens * 0.12) + (frustrationHits * 0.18) + (urgencyHits * 0.08));
+  return {
+    messageLength: _trim(text).length,
+    repeatQuery,
+    repeatQueryStreak: repeatQuery ? (_num(mem.repeatQueryStreak, 0) + 1) : 0,
+    exclamations,
+    questionMarks,
+    capsTokens,
+    urgencyHits,
+    frustrationHits,
+    distressHits,
+    directiveHits,
+    cognitiveLoad: Number(cognitiveLoad.toFixed(3)),
+    volatility: Number(volatility.toFixed(3)),
+    userState: distressHits > 0 ? "distressed" : (frustrationHits > 0 ? "frustrated" : (urgencyHits > 0 ? "urgent" : "stable"))
+  };
+}
+function _normalizeEmotion(raw = {}, text = "", behavior = {}) {
   const src = _safeObj(raw);
-  const supportFlags = _safeObj(src.supportFlags);
+  const supportFlags = _normalizeSupportFlags(src.supportFlags);
   let primaryEmotion = _lower(src.primaryEmotion || src.emotion || "");
   let intensity = _clamp01(src.intensity, 0);
+  const q = _lower(text);
+
   if (!primaryEmotion) {
-    const q = _lower(text);
     if (/(sad|down|grief|cry|depressed|heartbroken)/.test(q)) { primaryEmotion = "sad"; intensity = Math.max(intensity, 0.78); }
     else if (/(anxious|panic|worried|overwhelmed|scared|afraid)/.test(q)) { primaryEmotion = "anxious"; intensity = Math.max(intensity, 0.76); }
-    else if (/(angry|mad|furious|frustrated)/.test(q)) { primaryEmotion = "angry"; intensity = Math.max(intensity, 0.68); }
-    else if (/(happy|good|great|excited)/.test(q)) { primaryEmotion = "positive"; intensity = Math.max(intensity, 0.55); }
+    else if (/(angry|mad|furious|frustrated|annoyed|horrible)/.test(q)) { primaryEmotion = "angry"; intensity = Math.max(intensity, 0.68); }
+    else if (/(happy|good|great|excited|love)/.test(q)) { primaryEmotion = "positive"; intensity = Math.max(intensity, 0.55); }
     else { primaryEmotion = "neutral"; }
   }
+
+  intensity = Math.min(1, intensity + Math.min(0.22, _num(behavior.volatility, 0) * 0.35) + Math.min(0.16, _num(behavior.distressHits, 0) * 0.04));
+
   if (primaryEmotion === "sad" || primaryEmotion === "anxious") {
-    supportFlags.needsContainment = !!supportFlags.needsContainment || intensity >= 0.7;
-    supportFlags.highDistress = !!supportFlags.highDistress || intensity >= 0.82;
+    supportFlags.needsContainment = supportFlags.needsContainment || intensity >= 0.7;
+    supportFlags.highDistress = supportFlags.highDistress || intensity >= 0.82 || _num(behavior.distressHits, 0) >= 2;
   }
+  if (primaryEmotion === "angry" || _num(behavior.frustrationHits, 0) > 0) supportFlags.frustration = true;
+  if (_num(behavior.urgencyHits, 0) > 0) supportFlags.urgency = true;
+  if (_bool(behavior.repeatQuery) || _num(behavior.repeatQueryStreak, 0) >= 2) supportFlags.repeatEscalation = true;
+
   return {
     primaryEmotion,
     secondaryEmotion: _lower(src.secondaryEmotion || ""),
-    intensity,
+    intensity: Number(intensity.toFixed(3)),
     valence: primaryEmotion === "positive" ? 0.7 : (primaryEmotion === "neutral" ? 0 : -0.7),
     confidence: _clamp01(src.confidence, 0.72),
     supportFlags,
@@ -137,7 +209,8 @@ function _normalizeEvidenceItem(item, fallbackDomain = "general", fallbackSource
       content: text,
       score: 0.62,
       confidence: 0.62,
-      tags: [fallbackDomain, "inline"]
+      tags: [fallbackDomain, "inline"],
+      metadata: {}
     } : null;
   }
   const obj = _safeObj(item);
@@ -163,6 +236,40 @@ function _normalizeEvidence(items, fallbackDomain, fallbackSource) {
     (x) => [x.id || "", x.source || "", x.title || "", x.summary || ""].join("::")
   ).sort((a, b) => (_num(b.score) + _num(b.confidence)) - (_num(a.score) + _num(a.confidence)));
 }
+function _validateEvidenceShape(items = [], fallbackDomain = "general") {
+  const normalized = _normalizeEvidence(items, fallbackDomain, "validated");
+  const issues = [];
+  for (const item of normalized) {
+    if (!_trim(item.content)) issues.push(`missing_content:${item.title || "untitled"}`);
+    if (!_trim(item.title)) issues.push(`missing_title:${item.source || "unknown"}`);
+    if (!_trim(item.domain)) issues.push(`missing_domain:${item.source || "unknown"}`);
+  }
+  return { valid: issues.length === 0, issues, items: normalized };
+}
+function _validateInputShape(input = {}) {
+  const src = _safeObj(input);
+  const text = _trim(src.userQuery || src.query || src.text);
+  const issues = [];
+  if (!text) issues.push("missing_text");
+  if (text.length > 12000) issues.push("oversized_text");
+  return {
+    valid: issues.length === 0,
+    issues,
+    normalized: {
+      userQuery: text,
+      requestedDomain: _canonicalDomain(src.requestedDomain || src.domain || "general"),
+      intent: _trim(src.intent || ""),
+      previousMemory: _safeObj(src.previousMemory),
+      conversationState: _safeObj(src.conversationState),
+      datasets: _safeArray(src.datasets),
+      knowledgeSections: _safeObj(src.knowledgeSections),
+      domainEvidence: _safeArray(src.domainEvidence),
+      datasetEvidence: _safeArray(src.datasetEvidence),
+      memoryEvidence: _safeArray(src.memoryEvidence),
+      generalEvidence: _safeArray(src.generalEvidence)
+    }
+  };
+}
 async function _callRetriever(mod, preferredName, payload) {
   const fn = _pickFn(mod, preferredName);
   if (!fn) return null;
@@ -177,7 +284,28 @@ function _extractDatasets(inputDatasets = [], sections = {}) {
   }
   return out;
 }
-function _composeReply(domain, intent, emotion, evidence, text, memory) {
+function _resolveCanonicalRoute(text, requestedDomain) {
+  const routing = {
+    endpoint: CANONICAL_ENDPOINT,
+    source: "canonical",
+    domain: _canonicalDomain(requestedDomain),
+    intent: _inferIntent(text),
+    driftPrevented: true
+  };
+  if (typeof routeMarion === "function") {
+    try {
+      const routed = _safeObj(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain }));
+      routing.source = "marionRouter";
+      routing.domain = _canonicalDomain(routed.domain || routing.domain);
+      routing.intent = _trim(routed.intent || routing.intent) || "general";
+      routing.emotion = _safeObj(routed.emotion);
+    } catch (_e) {
+      routing.source = "canonical_fallback";
+    }
+  }
+  return routing;
+}
+function _composeReply(domain, intent, emotion, evidence, text, memory, behavior) {
   const cleanText = _trim(text);
   const top = _safeArray(evidence)[0];
   if (domain === "psychology") {
@@ -191,6 +319,12 @@ function _composeReply(domain, intent, emotion, evidence, text, memory) {
       return [
         "I can feel the pressure in this.",
         "Let’s slow it down and handle one piece at a time. Tell me the part that feels most urgent."
+      ].join("\n");
+    }
+    if (emotion.primaryEmotion === "angry" || behavior.userState === "frustrated") {
+      return [
+        "I can feel the friction in this.",
+        "Give me the sharpest version of what broke, and I will help you isolate the exact failure point without drift."
       ].join("\n");
     }
     return [
@@ -216,6 +350,35 @@ function _composeReply(domain, intent, emotion, evidence, text, memory) {
   }
   return "I have the thread.\nI can answer this directly and keep the conversation stable.";
 }
+function _deriveContinuityMode(emotion, behavior, memory = {}) {
+  const repeatStreak = Math.max(_num(memory.repeatQueryStreak, 0), _num(behavior.repeatQueryStreak, 0));
+  if (emotion.supportFlags.highDistress) {
+    return {
+      responseMode: "containment",
+      continuityHealth: "fragile",
+      recoveryMode: "guided-recovery"
+    };
+  }
+  if (emotion.supportFlags.frustration || repeatStreak >= 2) {
+    return {
+      responseMode: "recovery",
+      continuityHealth: "strained",
+      recoveryMode: "guided-recovery"
+    };
+  }
+  if (emotion.supportFlags.urgency) {
+    return {
+      responseMode: "directive",
+      continuityHealth: "alert",
+      recoveryMode: "normal"
+    };
+  }
+  return {
+    responseMode: emotion.primaryEmotion === "positive" ? "affirming" : "balanced",
+    continuityHealth: "steady",
+    recoveryMode: "normal"
+  };
+}
 function _buildPacket(result, evidence) {
   return {
     synthesis: {
@@ -228,10 +391,12 @@ function _buildPacket(result, evidence) {
     routing: {
       domain: result.domain,
       intent: result.intent,
-      status: result.status
+      status: result.status,
+      endpoint: result.endpoint
     },
     emotion: {
       lockedEmotion: result.emotion,
+      behavior: result.behavior,
       strategy: {
         mode: result.mode,
         warmth: result.domain === "psychology" ? 0.92 : 0.74,
@@ -240,70 +405,84 @@ function _buildPacket(result, evidence) {
     },
     evidence: {
       count: _safeArray(evidence).length,
-      rankedCount: _safeArray(evidence).length,
-      domainEvidence: _safeArray(evidence).slice(0, 8)
+      rankedCount: Math.min(_safeArray(evidence).length, MAX_RANKED_EVIDENCE),
+      domainEvidence: _safeArray(evidence).slice(0, MAX_RANKED_EVIDENCE)
     },
     continuity: {
       state: _safeObj(result.continuityState),
       turnMemory: _safeObj(result.turnMemory),
       resetGuard: {
         shouldSuppressHardReset: true,
-        shouldForceRecoveryMode: false,
-        flags: ["bridge_authority"]
+        shouldForceRecoveryMode: result.mode === "recovery" || result.mode === "containment",
+        flags: ["bridge_authority", "canonical_endpoint"]
       }
     },
     authority: {
       shouldAnswer: !!_trim(result.reply),
       mode: result.ok === false ? "degraded" : "bridge_primary",
       confidence: result.confidence,
-      reason: "marion_authority"
+      reason: "marion_authority",
+      packetSignature: _hashText(`${result.domain}|${result.intent}|${result.reply}`)
     },
+    diagnostics: _safeObj(result.diagnostics),
     meta: _safeObj(result.meta),
     raw: result
   };
 }
 
 async function retrieveLayer2Signals(input = {}) {
-  const text = _trim(input.userQuery || input.query || input.text);
-  const requestedDomain = _canonicalDomain(input.requestedDomain || input.domain || "general");
-  const memory = _safeObj(input.previousMemory);
-  const routed = typeof routeMarion === "function"
-    ? await Promise.resolve(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain }))
-    : {};
-  const rawEmotion = await _callRetriever(EmotionRetriever, "retrieveEmotion", { text, query: text, userQuery: text, conversationState: _safeObj(input.conversationState) });
-  const emotion = _normalizeEmotion(_safeObj(rawEmotion || routed.emotion), text);
-  const domain = _inferDomain(text, _trim(routed.domain || requestedDomain), emotion);
-  const intent = _trim(routed.intent || input.intent || _inferIntent(text)) || "general";
+  const inputCheck = _validateInputShape(input);
+  const normalized = inputCheck.normalized;
+  const text = normalized.userQuery;
+  const requestedDomain = normalized.requestedDomain;
+  const memory = _safeObj(normalized.previousMemory);
+  const behavior = _analyzeBehavior(text, memory);
+  const routing = _resolveCanonicalRoute(text, requestedDomain);
+  const rawEmotion = await _callRetriever(EmotionRetriever, "retrieveEmotion", { text, query: text, userQuery: text, conversationState: normalized.conversationState, behavior, endpoint: routing.endpoint });
+  const emotion = _normalizeEmotion(_safeObj(rawEmotion || routing.emotion), text, behavior);
+  const domain = _inferDomain(text, _trim(routing.domain || requestedDomain), emotion);
+  const intent = _trim(routing.intent || normalized.intent || _inferIntent(text)) || "general";
   const rawPsychology = domain === "psychology"
-    ? await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, emotion, conversationState: _safeObj(input.conversationState) })
+    ? await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, emotion, behavior, conversationState: normalized.conversationState, endpoint: routing.endpoint })
     : null;
   const psychology = _safeObj(rawPsychology);
-  const directDomainEvidence = await _callRetriever(DomainRetriever, "retrieveDomain", { text, query: text, userQuery: text, domain, conversationState: _safeObj(input.conversationState), emotion, psychology });
-  const datasets = _extractDatasets(input.datasets, input.knowledgeSections);
-  const directDatasetEvidence = await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, datasets, conversationState: _safeObj(input.conversationState), emotion, psychology });
-  const domainEvidence = _normalizeEvidence([].concat(input.domainEvidence || [], directDomainEvidence || [], psychology.evidenceMatches || []), domain, "domain");
-  const datasetEvidence = _normalizeEvidence([].concat(input.datasetEvidence || [], directDatasetEvidence || [], datasets || [], emotion.evidenceMatches || []), domain, "dataset");
-  const memoryEvidence = _normalizeEvidence(input.memoryEvidence || [], domain, "memory");
-  const generalEvidence = _normalizeEvidence(input.generalEvidence || [], domain, "general");
+  const directDomainEvidence = await _callRetriever(DomainRetriever, "retrieveDomain", { text, query: text, userQuery: text, domain, intent, conversationState: normalized.conversationState, emotion, psychology, behavior, endpoint: routing.endpoint });
+  const datasets = _extractDatasets(normalized.datasets, normalized.knowledgeSections);
+  const directDatasetEvidence = await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, intent, datasets, conversationState: normalized.conversationState, emotion, psychology, behavior, endpoint: routing.endpoint });
+
+  const validatedDomainEvidence = _validateEvidenceShape([].concat(normalized.domainEvidence || [], directDomainEvidence || [], psychology.evidenceMatches || []), domain);
+  const validatedDatasetEvidence = _validateEvidenceShape([].concat(normalized.datasetEvidence || [], directDatasetEvidence || [], datasets || [], emotion.evidenceMatches || []), domain);
+  const validatedMemoryEvidence = _validateEvidenceShape(normalized.memoryEvidence || [], domain);
+  const validatedGeneralEvidence = _validateEvidenceShape(normalized.generalEvidence || [], domain);
+
   return {
     userQuery: text,
     requestedDomain,
     domain,
     intent,
+    endpoint: routing.endpoint,
     emotion,
+    behavior,
     psychology,
     datasets,
-    domainEvidence,
-    datasetEvidence,
-    memoryEvidence,
-    generalEvidence,
+    domainEvidence: validatedDomainEvidence.items,
+    datasetEvidence: validatedDatasetEvidence.items,
+    memoryEvidence: validatedMemoryEvidence.items,
+    generalEvidence: validatedGeneralEvidence.items,
     diagnostics: {
+      endpoint: routing.endpoint,
+      routingSource: routing.source,
+      driftPrevented: routing.driftPrevented,
+      inputIssues: inputCheck.issues,
+      evidenceIssues: []
+        .concat(validatedDomainEvidence.issues, validatedDatasetEvidence.issues, validatedMemoryEvidence.issues, validatedGeneralEvidence.issues),
       evidenceCounts: {
-        domainEvidence: domainEvidence.length,
-        datasetEvidence: datasetEvidence.length,
-        memoryEvidence: memoryEvidence.length,
-        generalEvidence: generalEvidence.length
-      }
+        domainEvidence: validatedDomainEvidence.items.length,
+        datasetEvidence: validatedDatasetEvidence.items.length,
+        memoryEvidence: validatedMemoryEvidence.items.length,
+        generalEvidence: validatedGeneralEvidence.items.length
+      },
+      behavior
     },
     previousMemory: memory
   };
@@ -311,26 +490,29 @@ async function retrieveLayer2Signals(input = {}) {
 
 async function processWithMarion(input = {}) {
   const layer2 = await retrieveLayer2Signals(input);
-  const combinedEvidence = []
-    .concat(layer2.domainEvidence, layer2.datasetEvidence, layer2.memoryEvidence, layer2.generalEvidence)
-    .slice(0, 16);
+  const combinedEvidence = _uniqBy(
+    [].concat(layer2.domainEvidence, layer2.datasetEvidence, layer2.memoryEvidence, layer2.generalEvidence),
+    (x) => [x.id || "", x.source || "", x.title || "", x.summary || ""].join("::")
+  ).slice(0, MAX_EVIDENCE);
+
   const memory = _safeObj(layer2.previousMemory);
-  const reply = _composeReply(layer2.domain, layer2.intent, layer2.emotion, combinedEvidence, layer2.userQuery, memory);
-  const mode = layer2.domain === "psychology"
-    ? "supportive"
-    : (memory.repeatQueryStreak >= 2 ? "recovery" : "balanced");
+  const continuity = _deriveContinuityMode(layer2.emotion, layer2.behavior, memory);
+  const reply = _trim(_composeReply(layer2.domain, layer2.intent, layer2.emotion, combinedEvidence, layer2.userQuery, memory, layer2.behavior)) || FALLBACK_REPLY;
   const confidence = Math.max(
-    0.72,
-    Math.min(0.96, 0.72 + (Math.min(combinedEvidence.length, 6) * 0.03))
+    MIN_CONFIDENCE,
+    Math.min(MAX_CONFIDENCE, MIN_CONFIDENCE + (Math.min(combinedEvidence.length, 6) * 0.03) + (layer2.diagnostics.evidenceIssues.length ? -0.03 : 0))
   );
+
   const result = {
     ok: true,
-    partial: false,
+    partial: layer2.diagnostics.inputIssues.length > 0 || layer2.diagnostics.evidenceIssues.length > 0,
     status: "ok",
+    endpoint: layer2.endpoint,
     userQuery: layer2.userQuery,
     domain: layer2.domain,
     intent: layer2.intent,
     emotion: layer2.emotion,
+    behavior: layer2.behavior,
     psychology: layer2.psychology,
     evidence: combinedEvidence,
     reply,
@@ -338,16 +520,16 @@ async function processWithMarion(input = {}) {
     answer: reply,
     output: reply,
     spokenText: reply.replace(/\n+/g, " ").trim(),
-    mode,
+    mode: continuity.responseMode,
     continuityState: {
       activeQuery: layer2.userQuery,
       activeDomain: layer2.domain,
       activeIntent: layer2.intent,
       activeEmotion: layer2.emotion.primaryEmotion,
       emotionalIntensity: layer2.emotion.intensity,
-      responseMode: mode,
-      continuityHealth: "steady",
-      recoveryMode: mode === "recovery" ? "guided-recovery" : "normal",
+      responseMode: continuity.responseMode,
+      continuityHealth: continuity.continuityHealth,
+      recoveryMode: continuity.recoveryMode,
       timestamp: Date.now()
     },
     turnMemory: {
@@ -358,16 +540,25 @@ async function processWithMarion(input = {}) {
         primaryEmotion: layer2.emotion.primaryEmotion,
         intensity: layer2.emotion.intensity
       },
+      behavior: {
+        userState: layer2.behavior.userState,
+        volatility: layer2.behavior.volatility,
+        urgencyHits: layer2.behavior.urgencyHits,
+        frustrationHits: layer2.behavior.frustrationHits
+      },
       fallbackStreak: 0,
-      repeatQueryStreak: _trim(memory.lastQuery).toLowerCase() === _trim(layer2.userQuery).toLowerCase() ? (_num(memory.repeatQueryStreak, 0) + 1) : 0,
-      continuityHealth: "steady",
-      recoveryMode: mode === "recovery" ? "guided-recovery" : "normal",
+      repeatQueryStreak: layer2.behavior.repeatQueryStreak,
+      continuityHealth: continuity.continuityHealth,
+      recoveryMode: continuity.recoveryMode,
       updatedAt: Date.now()
     },
+    diagnostics: layer2.diagnostics,
     meta: {
       version: VERSION,
+      endpoint: layer2.endpoint,
       evidenceCount: combinedEvidence.length,
-      mode
+      mode: continuity.responseMode,
+      packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`)
     },
     layer2
   };
@@ -384,11 +575,40 @@ async function processWithMarion(input = {}) {
   };
 }
 
+async function runDomainContractTests() {
+  const results = [];
+  for (const testCase of DOMAIN_TEST_CASES) {
+    const out = await processWithMarion({
+      userQuery: testCase.text,
+      requestedDomain: testCase.domain,
+      previousMemory: {}
+    });
+    results.push({
+      domain: testCase.domain,
+      requestedDomain: testCase.domain,
+      resolvedDomain: out.domain,
+      intent: out.intent,
+      ok: !!_trim(out.reply),
+      hasPacket: !!_safeObj(out.packet).synthesis,
+      endpoint: out.endpoint,
+      mode: out.mode,
+      passed: out.domain === _canonicalDomain(testCase.domain) && !!_trim(out.reply) && out.endpoint === CANONICAL_ENDPOINT
+    });
+  }
+  return {
+    version: VERSION,
+    canonicalEndpoint: CANONICAL_ENDPOINT,
+    passed: results.every((x) => x.passed),
+    results
+  };
+}
+
 function createMarionBridge(options = {}) {
   const memoryProvider = _safeObj(options.memoryProvider);
   const evidenceEngine = _safeObj(options.evidenceEngine);
   return {
     version: VERSION,
+    canonicalEndpoint: CANONICAL_ENDPOINT,
     async maybeResolve(req = {}) {
       const meta = _safeObj(req.meta);
       const previousMemory = memoryProvider && typeof memoryProvider.getContext === "function"
@@ -417,7 +637,9 @@ function createMarionBridge(options = {}) {
         reply: result.reply,
         domain: result.domain,
         intent: result.intent,
+        endpoint: result.endpoint,
         meta: result.meta,
+        diagnostics: result.diagnostics,
         ui: result.ui,
         emotionalTurn: result.emotionalTurn,
         followUps: result.followUps,
@@ -434,8 +656,14 @@ const handle = route;
 
 module.exports = {
   VERSION,
+  CANONICAL_ENDPOINT,
+  DOMAIN_TEST_CASES,
+  validateInputShape: _validateInputShape,
+  validateEvidenceShape: _validateEvidenceShape,
+  analyzeBehavior: _analyzeBehavior,
   retrieveLayer2Signals,
   processWithMarion,
+  runDomainContractTests,
   createMarionBridge,
   route,
   ask,
