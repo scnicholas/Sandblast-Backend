@@ -2615,10 +2615,18 @@ async function handleChat(input) {
       primaryState: safeStr(unifiedEmotion?.engine?.primaryState || ui?.emotionalState || ui?.state || ui?.mode || "focused").toLowerCase() || "focused",
       secondaryState: safeStr(unifiedEmotion?.engine?.secondaryState || ui?.emotionalSecondaryState || "steady").toLowerCase() || "steady",
       continuityScore: Math.max(0, Math.min(1, Number(unifiedEmotion?.engine?.continuityScore ?? ui?.continuityScore ?? 0.35) || 0.35)),
+      continuityLevel: safeStr(unifiedEmotion?.engine?.continuityLevel || "none") || "none",
       placeholder: safeStr(unifiedEmotion?.engine?.placeholder || ui?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
       actions: followUps,
       bridgeLine: safeStr(unifiedEmotion?.engine?.bridgeLine || ""),
-      continuityLevel: safeStr(unifiedEmotion?.engine?.continuityLevel || "none") || "none"
+      replyText: emotionalSafeReply,
+      text: emotionalSafeReply,
+      responseText: emotionalSafeReply,
+      response: {
+        lead: safeStr(unifiedEmotion?.engine?.lead || ""),
+        body: emotionalSafeReply,
+        bridge: safeStr(unifiedEmotion?.engine?.bridgeLine || "")
+      }
     };
 
     let nextSpine = null;
