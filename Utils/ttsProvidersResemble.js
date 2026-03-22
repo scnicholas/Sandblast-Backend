@@ -333,6 +333,37 @@ function _parseJson(text){
   try { return JSON.parse(text || "{}"); } catch (_) { return null; }
 }
 
+function _isLikelyHtml(text){
+  const s = _trim(text).slice(0, 256).toLowerCase();
+  return s.startsWith("<!doctype html") || s.startsWith("<html") || s.includes("<body") || s.includes("</html>");
+}
+function _safePreview(value, max){
+  return _str(value).replace(/\s+/g, " ").trim().slice(0, max || 240);
+}
+function _firstObject(){
+  for (let i = 0; i < arguments.length; i++){
+    const v = arguments[i];
+    if (v && typeof v === "object" && !Array.isArray(v)) return v;
+  }
+  return null;
+}
+function _firstArrayObject(arr){
+  if (!Array.isArray(arr)) return null;
+  for (const item of arr){
+    if (item && typeof item === "object" && !Array.isArray(item)) return item;
+  }
+  return null;
+}
+function _inferFormatFromUrl(url){
+  const s = _lower(url);
+  if (!s) return "";
+  if (/\.wav(?:\?|$)/.test(s)) return "wav";
+  if (/\.ogg(?:\?|$)/.test(s)) return "ogg";
+  if (/\.flac(?:\?|$)/.test(s)) return "flac";
+  if (/\.mp3(?:\?|$)/.test(s)) return "mp3";
+  return "";
+}
+
 function _safeJsonParseFromBuffer(buf){
   if (!Buffer.isBuffer(buf) || !buf.length) return null;
   try{
@@ -710,6 +741,7 @@ function _providerSucceeded(status, json, resp){
     return true;
   }
 
+  if (_isLikelyHtml(resp && resp.text)) return false;
   if (!json) return false;
   if (json.success === true) return true;
   if (json.ok === true) return true;
@@ -723,42 +755,85 @@ function _providerSucceeded(status, json, resp){
 function _extractAudioEnvelope(json){
   if (!json || typeof json !== "object") return {};
 
-  const data = json.data && typeof json.data === "object" ? json.data : null;
-  const result = json.result && typeof json.result === "object" ? json.result : null;
-  const response = json.response && typeof json.response === "object" ? json.response : null;
-  const audio = json.audio && typeof json.audio === "object" ? json.audio : null;
+  const data = _firstObject(json.data);
+  const result = _firstObject(json.result);
+  const response = _firstObject(json.response);
+  const audio = _firstObject(json.audio);
+  const file = _firstObject(json.file);
+  const payload = _firstObject(json.payload);
+  const output = _firstObject(json.output);
+  const item0 = _firstArrayObject(json.items) || _firstArrayObject(json.outputs) || _firstArrayObject(json.results);
+  const nested = _firstObject(
+    data && data.audio,
+    result && result.audio,
+    response && response.audio,
+    payload && payload.audio,
+    output && output.audio,
+    item0 && item0.audio
+  );
 
   return {
     audio_content: _pickFirst(
       json.audio_content,
-      data && data.audio_content,
-      result && result.audio_content,
-      response && response.audio_content,
-      audio && audio.content
+      json.audio,
+      json.content,
+      data && (data.audio_content || data.audio || data.content),
+      result && (result.audio_content || result.audio || result.content),
+      response && (response.audio_content || response.audio || response.content),
+      audio && (audio.content || audio.audio_content),
+      nested && (nested.content || nested.audio_content),
+      output && (output.audio_content || output.content),
+      item0 && (item0.audio_content || item0.content)
     ),
     audio_base64: _pickFirst(
       json.audio_base64,
       json.base64,
-      data && (data.audio_base64 || data.base64),
-      result && (result.audio_base64 || result.base64),
-      response && (response.audio_base64 || response.base64),
-      audio && (audio.base64 || audio.audio_base64)
+      json.audioBase64,
+      json.audio_base_64,
+      data && (data.audio_base64 || data.base64 || data.audioBase64 || data.audio_base_64),
+      result && (result.audio_base64 || result.base64 || result.audioBase64 || result.audio_base_64),
+      response && (response.audio_base64 || response.base64 || response.audioBase64 || response.audio_base_64),
+      audio && (audio.base64 || audio.audio_base64 || audio.audioBase64),
+      nested && (nested.base64 || nested.audio_base64 || nested.audioBase64),
+      file && (file.base64 || file.audio_base64 || file.audioBase64),
+      output && (output.audio_base64 || output.base64 || output.audioBase64),
+      item0 && (item0.audio_base64 || item0.base64 || item0.audioBase64)
     ),
     audio_src: _pickFirst(
       json.audio_src,
       json.url,
-      data && (data.audio_src || data.url),
-      result && (result.audio_src || result.url),
-      response && (response.audio_src || response.url),
-      audio && (audio.url || audio.src)
+      json.src,
+      json.download_url,
+      data && (data.audio_src || data.url || data.src || data.download_url),
+      result && (result.audio_src || result.url || result.src || result.download_url),
+      response && (response.audio_src || response.url || response.src || response.download_url),
+      audio && (audio.url || audio.src || audio.audio_src || audio.download_url),
+      nested && (nested.url || nested.src || nested.audio_src || nested.download_url),
+      file && (file.url || file.src || file.download_url),
+      output && (output.audio_src || output.url || output.src || output.download_url),
+      item0 && (item0.audio_src || item0.url || item0.src || item0.download_url)
     ),
     output_format: _pickFirst(
       json.output_format,
       json.format,
-      data && (data.output_format || data.format),
-      result && (result.output_format || result.format),
-      response && (response.output_format || response.format),
-      audio && audio.format
+      json.mime_format,
+      data && (data.output_format || data.format || data.mime_format),
+      result && (result.output_format || result.format || result.mime_format),
+      response && (response.output_format || response.format || response.mime_format),
+      audio && (audio.format || audio.output_format),
+      nested && (nested.format || nested.output_format),
+      output && (output.output_format || output.format),
+      item0 && (item0.output_format || item0.format),
+      _inferFormatFromUrl(_pickFirst(
+        json.audio_src,
+        json.url,
+        data && (data.audio_src || data.url),
+        result && (result.audio_src || result.url),
+        response && (response.audio_src || response.url),
+        audio && (audio.url || audio.src),
+        nested && (nested.url || nested.src),
+        file && (file.url || file.src)
+      ))
     ),
     duration: json.duration || (data && data.duration) || (result && result.duration) || (response && response.duration),
     synth_duration: json.synth_duration || (data && data.synth_duration) || (result && result.synth_duration) || (response && response.synth_duration),
@@ -768,7 +843,8 @@ function _extractAudioEnvelope(json){
       json.id,
       data && (data.request_id || data.id),
       result && (result.request_id || result.id),
-      response && (response.request_id || response.id)
+      response && (response.request_id || response.id),
+      item0 && (item0.request_id || item0.id)
     ),
     issues: Array.isArray(json.issues)
       ? json.issues
@@ -776,7 +852,9 @@ function _extractAudioEnvelope(json){
         ? data.issues
         : (result && Array.isArray(result.issues)
           ? result.issues
-          : (response && Array.isArray(response.issues) ? response.issues : undefined)))
+          : (response && Array.isArray(response.issues)
+            ? response.issues
+            : (item0 && Array.isArray(item0.issues) ? item0.issues : undefined))))
   };
 }
 
@@ -931,6 +1009,7 @@ async function synthesize(opts){
       speechChunks: speech.speechChunks,
       segmentCount: speech.segmentCount,
       usedSsml: speech.useSsml,
+      rawPreview: _safePreview(resp && resp.text, 240),
       phases: PHASES
     };
   }
@@ -1006,6 +1085,7 @@ async function synthesize(opts){
       const dl = await _downloadBufferWithRetry(String(env.audio_src), timeoutMs);
       buf = dl.buffer;
       detectedContentType = _getHeader(dl.headers, "content-type") || detectedContentType;
+      detectedOutputFormat = _pickFirst(env.output_format, _inferFormatFromUrl(String(env.audio_src)), detectedOutputFormat);
     }catch(e){
       return {
         ok: false,
@@ -1088,10 +1168,17 @@ async function synthesize(opts){
     };
   }
 
+  const mimeType = _resolveMime(buf, detectedOutputFormat, detectedContentType);
+  const audioBase64 = buf.toString("base64");
+
   return {
     ok: true,
     buffer: buf,
-    mimeType: _resolveMime(buf, detectedOutputFormat, detectedContentType),
+    audioBase64,
+    audio: audioBase64,
+    byteLength: buf.length,
+    contentLength: buf.length,
+    mimeType,
     elapsedMs: Date.now() - started,
     duration: env.duration,
     synthDuration: env.synth_duration,
