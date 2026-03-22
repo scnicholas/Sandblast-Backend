@@ -258,6 +258,15 @@ const ttsMod = tryRequireMany([
   "./Utils/tts.js"
 ]);
 
+const ttsProviderResembleMod = tryRequireMany([
+  "./ttsProvidersResemble",
+  "./ttsProvidersResemble.js",
+  "./utils/ttsProvidersResemble",
+  "./utils/ttsProvidersResemble.js",
+  "./Utils/ttsProvidersResemble",
+  "./Utils/ttsProvidersResemble.js"
+]);
+
 const marionBridgeMod = tryRequireMany([
   "./marionBridge",
   "./marionBridge.js",
@@ -957,6 +966,57 @@ async function inlineTtsFallback(req, res) {
   }
 
   const cfg = buildTtsConfig();
+  const traceMeta = {
+    traceId,
+    configSource: "inline_fallback",
+    endpointMode: cfg.endpointMode,
+    requestedFormat: cfg.outputFormat,
+    synthesisUrl: cfg.synthesisUrl,
+    voiceUuid: cfg.voiceUuid,
+    projectConfigured: !!cfg.projectUuid,
+    apiKeyMasked: maskSecret(cfg.apiKey),
+    textPreview: clipText(text, 140),
+    textLength: text.length
+  };
+
+  if (ttsProviderResembleMod && typeof ttsProviderResembleMod.synthesize === "function") {
+    logTtsTrace("provider_inline_start", traceMeta);
+    try {
+      const providerOut = await callWithTimeout(ttsProviderResembleMod.synthesize({
+        text,
+        traceId,
+        voiceUuid: cfg.voiceUuid,
+        projectUuid: cfg.projectUuid,
+        outputFormat: cfg.outputFormat
+      }), cfg.timeoutMs, "resemble_provider_inline");
+
+      if (!providerOut || providerOut.ok === false || !Buffer.isBuffer(providerOut.buffer) || !providerOut.buffer.length) {
+        const detail = clipText(providerOut && (providerOut.message || providerOut.reason || "Resemble synth request failed"), 700);
+        return sendTtsJsonError(req, res, 503, "tts_inline_failure", detail, {
+          ...traceMeta,
+          stage: "provider_inline",
+          providerStatus: Number(providerOut && (providerOut.providerStatus || providerOut.status || 0) || 0),
+          authMode: cleanText(providerOut && providerOut.authMode || ""),
+          providerEndpoint: cleanText(providerOut && providerOut.providerEndpoint || "")
+        });
+      }
+
+      const mimeType = cleanText(providerOut.mimeType || (cfg.outputFormat === "wav" ? "audio/wav" : "audio/mpeg")) || "audio/mpeg";
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Length", String(providerOut.buffer.length));
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("x-sb-trace-id", traceId);
+      res.setHeader("x-sb-tts-source", "inline_fallback");
+      res.setHeader("x-sb-tts-stage", "complete");
+      if (providerOut.providerStatus) res.setHeader("x-sb-tts-upstream-status", String(providerOut.providerStatus));
+      return res.status(200).send(providerOut.buffer);
+    } catch (err) {
+      return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble provider inline failed"), {
+        ...traceMeta,
+        stage: "provider_inline_exception"
+      });
+    }
+  }
 
   if (!cfg.apiKey) {
     return sendTtsJsonError(req, res, 503, "tts_env_missing_api_key", "No Resemble API key is configured.", {
@@ -976,19 +1036,6 @@ async function inlineTtsFallback(req, res) {
     voice_uuid: cfg.voiceUuid,
     data: text,
     output_format: cfg.outputFormat
-  };
-
-  const traceMeta = {
-    traceId,
-    configSource: "inline_fallback",
-    endpointMode: cfg.endpointMode,
-    requestedFormat: cfg.outputFormat,
-    synthesisUrl: cfg.synthesisUrl,
-    voiceUuid: cfg.voiceUuid,
-    projectConfigured: !!cfg.projectUuid,
-    apiKeyMasked: maskSecret(cfg.apiKey),
-    textPreview: clipText(text, 140),
-    textLength: text.length
   };
 
   logTtsTrace("request_prepare", traceMeta);
