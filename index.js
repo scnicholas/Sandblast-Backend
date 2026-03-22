@@ -3,24 +3,24 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.6.1sb
+ * index.js v2.7.0sb
  * ------------------------------------------------------------
  * PURPOSE
- * - Tightened backend shell
- * - Removes duplicate replay authority from index layer
- * - Keeps Chat Engine as the semantic turn authority
- * - Delegates voice/TTS routing to utils/voiceRoute.js
- * - Preserves Mixer voice path
- * - Keeps fail-open rendering contract
- * - Hardens TTS route error handling and response finalization
- * - Adds affect/stabilize/fail-safe unification
- * - Adds loop suppression / stale-UI wipe discipline
- * - Adds TTS response normalization so playable audio always streams when available
+ * - Tightened backend shell and route integrity
+ * - Preserves Chat Engine as semantic turn authority
+ * - Preserves external voiceRoute / tts module delegation when available
+ * - Adds inline backend-authoritative TTS fallback so /api/tts and /tts never fail due to missing handler wiring
+ * - Adds legacy /tts alias to eliminate route drift
+ * - Hardens TTS normalization for JSON, buffer, stream, and provider-URL responses
+ * - Adds provider polling path for async Resemble clip generation
+ * - Preserves fail-open chat rendering while fail-closed on voice identity drift
+ * - Adds structured health, timeout, and support-hold protections
  */
 
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 let compression = null;
 try {
@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.6.2sb";
+const INDEX_VERSION = "index.js v2.7.0sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -123,7 +123,8 @@ function replyHash(v) {
 }
 
 function makeTraceId(prefix) {
-  return `${prefix || "trace"}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+  const seed = `${prefix || "trace"}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 10)}`;
+  return seed.replace(/[^a-zA-Z0-9_-]/g, "");
 }
 
 function boolEnv(name, fallback) {
@@ -151,6 +152,22 @@ function sameHost(a, b) {
   }
 }
 
+function parseJsonMaybe(text) {
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return null;
+  }
+}
+
+function pickFirst(...values) {
+  for (const v of values) {
+    const t = cleanText(v);
+    if (t) return t;
+  }
+  return "";
+}
+
 const CFG = {
   apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
   apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
@@ -160,14 +177,25 @@ const CFG = {
   corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
   corsAllowedOrigins: parseOrigins(
     process.env.SB_CORS_ALLOWED_ORIGINS ||
-    "https://www.sandblast.channel,https://sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
+    "https://www.sandblast.channel,https://sandblast.channel,https://sandblast-channel-e69060.design.webflow.com,http://localhost:3000,http://127.0.0.1:3000"
   ),
   quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
   loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
   requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
+  ttsRequestTimeoutMs: clamp(Number(process.env.SB_TTS_REQUEST_TIMEOUT_MS || 30000), 6000, 60000),
+  ttsPollMs: clamp(Number(process.env.SB_TTS_POLL_MS || 1200), 400, 4000),
+  ttsPollAttempts: clamp(Number(process.env.SB_TTS_POLL_ATTEMPTS || 18), 1, 60),
+  resembleBaseUrl: cleanText(process.env.SB_RESEMBLE_BASE_URL || process.env.RESEMBLE_BASE_URL || "https://app.resemble.ai/api/v2"),
+  resembleSyncUrl: cleanText(process.env.SB_RESEMBLE_SYNC_URL || process.env.RESEMBLE_SYNC_URL || "https://f.cluster.resemble.ai/synthesize"),
+  ttsProvider: lower(process.env.SB_TTS_PROVIDER || process.env.TTS_PROVIDER || "resemble") || "resemble",
   port: PORT
 };
+
+const fetchImpl = globalThis.fetch;
+if (typeof fetchImpl !== "function") {
+  throw new Error("Global fetch is required for index.js v2.7.0sb. Use Node 18+ or provide a fetch polyfill.");
+}
 
 function isAllowedOrigin(origin) {
   const o = cleanText(origin);
@@ -183,6 +211,8 @@ function applyCors(req, res) {
     "Content-Type",
     "Authorization",
     "x-sb-trace-id",
+    "x-sb-voice",
+    "x-sb-session-id",
     CFG.apiTokenHeader,
     ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
   ]);
@@ -197,7 +227,7 @@ function applyCors(req, res) {
 
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
-  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id,x-sb-voice-source,x-sb-voice-provider");
   return origin;
 }
 
@@ -391,6 +421,7 @@ function setTransportState(sessionId, patch) {
   memory.transportBySession.set(sessionId, next);
   return next;
 }
+
 function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
@@ -497,40 +528,18 @@ function buildSafeSupportReply(inputText, emotion, extras) {
   let externalReply = "";
   try {
     if (supportResponseMod && typeof supportResponseMod.buildSupportReply === "function") {
-      externalReply = safeStr(supportResponseMod.buildSupportReply({
-        text: base,
-        emo,
-        emotion: emo,
-        mode: "stabilize",
-        ...opts
-      }));
+      externalReply = safeStr(supportResponseMod.buildSupportReply({ text: base, emo, emotion: emo, mode: "stabilize", ...opts }));
     } else if (supportResponseMod && typeof supportResponseMod.getSupportReply === "function") {
-      externalReply = safeStr(supportResponseMod.getSupportReply({
-        text: base,
-        emo,
-        emotion: emo,
-        mode: "stabilize",
-        ...opts
-      }));
+      externalReply = safeStr(supportResponseMod.getSupportReply({ text: base, emo, emotion: emo, mode: "stabilize", ...opts }));
     } else if (typeof supportResponseMod === "function") {
-      externalReply = safeStr(supportResponseMod({
-        text: base,
-        emo,
-        emotion: emo,
-        mode: "stabilize",
-        ...opts
-      }));
+      externalReply = safeStr(supportResponseMod({ text: base, emo, emotion: emo, mode: "stabilize", ...opts }));
     }
   } catch (err) {
     console.log("[Sandblast][supportResponse:error]", err && (err.stack || err.message || err));
   }
 
   if (externalReply) return normalizeSupportReply(externalReply);
-
-  if (emo.distress) {
-    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
-  }
-
+  if (emo.distress) return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
   return "I am here with you. Tell me what happened, and we will steady this together.";
 }
 
@@ -549,9 +558,7 @@ function buildQuietUiPatch(reason, holdActive) {
     directives: [],
     followUps: [],
     followUpsStrings: [],
-    sessionPatch: {
-      supportLock: holdActive ? { active: true } : {}
-    },
+    sessionPatch: { supportLock: holdActive ? { active: true } : {} },
     metaPatch: {
       clearStaleUi: true,
       suppressMenus: true,
@@ -581,10 +588,7 @@ function buildSupportSessionPatch(existing, active, release) {
   const lock = {};
   if (active) lock.active = true;
   if (release) lock.release = true;
-  return {
-    ...prev,
-    supportLock: lock
-  };
+  return { ...prev, supportLock: lock };
 }
 
 function shouldSuppressMenus(engineOut, supportActive) {
@@ -592,14 +596,8 @@ function shouldSuppressMenus(engineOut, supportActive) {
   const meta = isObj(engineOut?.meta) ? engineOut.meta : {};
   if (supportActive) return true;
   return !!(
-    ui.replace ||
-    ui.clearStale ||
-    ui.menuSuppressed ||
-    ui.degradedSupport ||
-    ui.failSafe ||
-    meta.clearStaleUi ||
-    meta.suppressMenus ||
-    meta.failSafe
+    ui.replace || ui.clearStale || ui.menuSuppressed || ui.degradedSupport || ui.failSafe ||
+    meta.clearStaleUi || meta.suppressMenus || meta.failSafe
   );
 }
 
@@ -609,41 +607,24 @@ function enforceQuietUiIfNeeded(base, opts) {
   const supportActive = !!o.supportActive;
   const failSafe = !!o.failSafe;
   const forceQuiet = !!o.forceQuiet;
-
   if (!(supportActive || failSafe || forceQuiet)) return out;
-
   const patch = buildQuietUiPatch(failSafe ? "failsafe" : "support", supportActive);
   out.ui = patch.ui;
   out.directives = patch.directives;
   out.followUps = patch.followUps;
   out.followUpsStrings = patch.followUpsStrings;
-  out.sessionPatch = {
-    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
-    ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {})
-  };
-  out.meta = {
-    ...(isObj(out.meta) ? out.meta : {}),
-    ...(isObj(patch.metaPatch) ? patch.metaPatch : {})
-  };
+  out.sessionPatch = { ...(isObj(out.sessionPatch) ? out.sessionPatch : {}), ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {}) };
+  out.meta = { ...(isObj(out.meta) ? out.meta : {}), ...(isObj(patch.metaPatch) ? patch.metaPatch : {}) };
   return out;
 }
 
 function mergeMeta(base, patch) {
-  return {
-    ...(isObj(base) ? base : {}),
-    ...(isObj(patch) ? patch : {})
-  };
+  return { ...(isObj(base) ? base : {}), ...(isObj(patch) ? patch : {}) };
 }
 
 function buildTransportKey(ctx, text, req) {
   const msg = safeStr(text).trim().toLowerCase();
-  return [
-    getSessionId(req),
-    safeStr(ctx?.lane || ""),
-    safeStr(ctx?.mode || ""),
-    safeStr(ctx?.year || ""),
-    msg
-  ].join("|");
+  return [getSessionId(req), safeStr(ctx?.lane || ""), safeStr(ctx?.mode || ""), safeStr(ctx?.year || ""), msg].join("|");
 }
 
 function detectLoop(sessionId, reply, userText) {
@@ -653,13 +634,7 @@ function detectLoop(sessionId, reply, userText) {
   const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
   const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
   const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
-  return {
-    sameReply,
-    sameUser,
-    repeated: sameReply && sameUser,
-    curHash,
-    userHash
-  };
+  return { sameReply, sameUser, repeated: sameReply && sameUser, curHash, userHash };
 }
 
 function applyAffectBridge(base, affectInput) {
@@ -686,7 +661,10 @@ function applyAffectBridge(base, affectInput) {
     shaped.audio = isObj(shaped.audio) ? shaped.audio : {};
     shaped.audio.textToSynth = spokenText;
     shaped.audio.enabled = true;
-    shaped.meta = mergeMeta(shaped.meta, { affectApplied: true, linkedDatasets: Array.isArray(affectOut.expressionBridge?.linkedDatasets) ? affectOut.expressionBridge.linkedDatasets.slice(0, 12) : [] });
+    shaped.meta = mergeMeta(shaped.meta, {
+      affectApplied: true,
+      linkedDatasets: Array.isArray(affectOut.expressionBridge?.linkedDatasets) ? affectOut.expressionBridge.linkedDatasets.slice(0, 12) : []
+    });
   } catch (err) {
     console.log("[Sandblast][affectBridge:error]", err && (err.stack || err.message || err));
   }
@@ -716,14 +694,13 @@ function buildAffectInputFromMarion(marion) {
   return { lockedEmotion, strategy, guidedPrompt: src.guidedPrompt || meta.guidedPrompt || null };
 }
 
-
 function shapeEngineReply(raw) {
   if (!isObj(raw)) return {};
   const payload = isObj(raw.payload) ? raw.payload : {};
   return {
     ok: raw.ok !== false,
     reply: cleanText(raw.spokenText || payload.spokenText || raw.reply || payload.reply || raw.message || raw.text || ""),
-    payload: isObj(payload) ? payload : {},
+    payload,
     lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
     laneId: cleanText(raw.laneId || raw.lane || ""),
     sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
@@ -828,6 +805,7 @@ function attachVoiceRoute(base) {
   const route = {
     enabled: routeEnabled,
     endpoint: "/api/tts",
+    legacyEndpoint: "/tts",
     method: "POST",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
@@ -841,7 +819,6 @@ function attachVoiceRoute(base) {
   } else if (existing && Object.keys(existing).length) {
     shaped.voiceRoute = { ...route, ...existing };
   }
-
   return shaped;
 }
 
@@ -850,6 +827,7 @@ function normalizeVoiceRouteResponse(out) {
   return {
     enabled: out.enabled !== false,
     endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
+    legacyEndpoint: cleanText(out.legacyEndpoint || "/tts") || "/tts",
     method: cleanText(out.method || "POST") || "POST",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
@@ -857,6 +835,269 @@ function normalizeVoiceRouteResponse(out) {
     streamAudioSupported: out.streamAudioSupported !== false,
     traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
   };
+}
+
+function getVoiceContract(req) {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
+  const sessionId = getSessionId(req);
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const text = cleanText(body.text || payload.text || payload.reply || body.reply || body.message || "");
+  const clientVoice = cleanText(req.headers["x-sb-voice"] || body.voice_uuid || body.voiceUuid || payload.voice_uuid || payload.voiceUuid || "");
+  const lockedVoice = pickFirst(process.env.RESEMBLE_VOICE_UUID, process.env.SB_RESEMBLE_VOICE_UUID, process.env.SB_VOICE_UUID);
+  const apiKey = pickFirst(process.env.RESEMBLE_API_KEY, process.env.SB_RESEMBLE_API_KEY, process.env.RESEMBLE_TOKEN, process.env.SB_RESEMBLE_TOKEN);
+  const projectUuid = pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, process.env.RESEMBLE_PROJECT_ID);
+  const voice_uuid = lockedVoice || clientVoice;
+  const contract = {
+    traceId,
+    sessionId,
+    text,
+    apiKey,
+    voice_uuid,
+    lockedVoice,
+    clientVoice,
+    projectUuid,
+    provider: CFG.ttsProvider,
+    preserveMixerVoice: CFG.preserveMixerVoice,
+    requestedFormat: cleanText(body.format || payload.format || "mp3") || "mp3",
+    requestedSampleRate: cleanText(body.sample_rate || payload.sample_rate || body.sampleRate || payload.sampleRate || "")
+  };
+  return contract;
+}
+
+function isAudioContentType(ct) {
+  const x = lower(ct);
+  return x.startsWith("audio/") || x.includes("octet-stream") || x.includes("mpeg") || x.includes("wav");
+}
+
+async function fetchWithTimeout(url, options, timeoutMs, label) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`${label || "fetch"}_timeout`)), clamp(Number(timeoutMs || CFG.ttsRequestTimeoutMs), 1000, 120000));
+  try {
+    return await fetchImpl(url, { ...(options || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildResembleHeaders(apiKey) {
+  return {
+    "Authorization": `Token ${apiKey}`,
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  };
+}
+
+async function resolveAudioFromJson(json, traceId) {
+  const src = pickFirst(
+    json?.audio_src,
+    json?.audioUrl,
+    json?.url,
+    json?.item?.audio_src,
+    json?.item?.audioUrl,
+    json?.clip?.audio_src,
+    json?.clip?.audioUrl,
+    json?.data?.audio_src,
+    json?.data?.audioUrl
+  );
+  if (!src) return null;
+  const audioRes = await fetchWithTimeout(src, { method: "GET" }, CFG.ttsRequestTimeoutMs, "tts_audio_fetch");
+  if (!audioRes.ok) {
+    throw new Error(`tts_audio_fetch_failed_${audioRes.status}`);
+  }
+  const contentType = cleanText(audioRes.headers.get("content-type") || "audio/mpeg") || "audio/mpeg";
+  const buf = Buffer.from(await audioRes.arrayBuffer());
+  return { ok: true, contentType, buffer: buf, meta: { traceId, providerStage: "audio_url" } };
+}
+
+async function pollResembleClip(baseUrl, apiKey, clipId, traceId) {
+  const cleanBase = cleanText(baseUrl).replace(/\/$/, "");
+  const target = `${cleanBase}/clips/${encodeURIComponent(clipId)}`;
+  for (let i = 0; i < CFG.ttsPollAttempts; i++) {
+    const res = await fetchWithTimeout(target, {
+      method: "GET",
+      headers: buildResembleHeaders(apiKey)
+    }, CFG.ttsRequestTimeoutMs, "tts_poll");
+
+    const text = await res.text();
+    const json = parseJsonMaybe(text) || {};
+    const status = lower(json?.item?.status || json?.status || json?.clip?.status || "");
+
+    if (pickFirst(json?.item?.audio_src, json?.audio_src, json?.clip?.audio_src)) {
+      return await resolveAudioFromJson(json, traceId);
+    }
+
+    if (["failed", "error", "canceled", "cancelled"].includes(status)) {
+      throw new Error(`tts_provider_failed_${status}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, CFG.ttsPollMs));
+  }
+  throw new Error("tts_provider_poll_timeout");
+}
+
+async function synthesizeWithInlineResemble(contract) {
+  if (contract.provider !== "resemble") {
+    throw new Error(`tts_provider_unsupported_${contract.provider}`);
+  }
+  if (!contract.apiKey) {
+    throw new Error("tts_env_missing_api_key");
+  }
+  if (!contract.voice_uuid) {
+    throw new Error("tts_env_missing_voice_uuid");
+  }
+  if (!contract.text) {
+    throw new Error("tts_missing_text");
+  }
+
+  const syncPayload = {
+    voice_uuid: contract.voice_uuid,
+    data: contract.text,
+    precision: "PCM_16",
+    no_audio_header: false
+  };
+
+  try {
+    const syncRes = await fetchWithTimeout(CFG.resembleSyncUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Token ${contract.apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "audio/*,application/json"
+      },
+      body: JSON.stringify(syncPayload)
+    }, CFG.ttsRequestTimeoutMs, "tts_sync_request");
+
+    const ct = cleanText(syncRes.headers.get("content-type") || "");
+    if (syncRes.ok && isAudioContentType(ct)) {
+      const buf = Buffer.from(await syncRes.arrayBuffer());
+      if (buf.length > 0) {
+        return { ok: true, contentType: ct || "audio/wav", buffer: buf, meta: { provider: "resemble", mode: "sync", traceId: contract.traceId } };
+      }
+    }
+
+    const syncText = await syncRes.text();
+    const syncJson = parseJsonMaybe(syncText);
+    if (syncRes.ok && syncJson) {
+      const viaUrl = await resolveAudioFromJson(syncJson, contract.traceId).catch(() => null);
+      if (viaUrl) return { ...viaUrl, meta: { ...(viaUrl.meta || {}), provider: "resemble", mode: "sync_json", traceId: contract.traceId } };
+    }
+  } catch (err) {
+    console.log("[Sandblast][tts:inlineSync:error]", err && (err.stack || err.message || err));
+  }
+
+  const asyncPayload = {
+    voice_uuid: contract.voice_uuid,
+    body: contract.text
+  };
+  if (contract.projectUuid) asyncPayload.project_uuid = contract.projectUuid;
+
+  const asyncRes = await fetchWithTimeout(`${cleanText(CFG.resembleBaseUrl).replace(/\/$/, "")}/clips`, {
+    method: "POST",
+    headers: buildResembleHeaders(contract.apiKey),
+    body: JSON.stringify(asyncPayload)
+  }, CFG.ttsRequestTimeoutMs, "tts_async_request");
+
+  const asyncText = await asyncRes.text();
+  const asyncJson = parseJsonMaybe(asyncText) || {};
+  if (!asyncRes.ok) {
+    const detail = cleanText(asyncJson?.message || asyncJson?.error || asyncText || `status_${asyncRes.status}`);
+    throw new Error(`tts_provider_http_${asyncRes.status}_${detail}`);
+  }
+
+  const viaUrl = await resolveAudioFromJson(asyncJson, contract.traceId).catch(() => null);
+  if (viaUrl) return { ...viaUrl, meta: { ...(viaUrl.meta || {}), provider: "resemble", mode: "async_url", traceId: contract.traceId } };
+
+  const clipId = pickFirst(asyncJson?.id, asyncJson?.item?.uuid, asyncJson?.item?.id, asyncJson?.clip?.uuid, asyncJson?.clip_uuid);
+  if (!clipId) {
+    throw new Error("tts_provider_missing_clip_id");
+  }
+  const polled = await pollResembleClip(CFG.resembleBaseUrl, contract.apiKey, clipId, contract.traceId);
+  return { ...polled, meta: { ...(polled.meta || {}), provider: "resemble", mode: "poll", traceId: contract.traceId } };
+}
+
+async function inlineTtsHandler(req, res) {
+  const contract = getVoiceContract(req);
+  const startedAt = now();
+  res.setHeader("x-sb-trace-id", contract.traceId);
+  res.setHeader("x-sb-voice-source", "inline-index");
+  res.setHeader("x-sb-voice-provider", contract.provider || "unknown");
+
+  if (!CFG.voiceRouteEnabled) {
+    return res.status(503).json({
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_disabled",
+      detail: "Voice route is disabled.",
+      traceId: contract.traceId,
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+
+  if (!contract.text) {
+    return res.status(400).json({
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_missing_text",
+      detail: "No text was provided for synthesis.",
+      traceId: contract.traceId,
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+
+  if (!contract.voice_uuid) {
+    return res.status(503).json({
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_env_missing_voice_uuid",
+      detail: "No locked voice UUID is configured on the backend.",
+      traceId: contract.traceId,
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+
+  if (!contract.apiKey) {
+    return res.status(503).json({
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_env_missing_api_key",
+      detail: "No TTS provider API key is configured on the backend.",
+      traceId: contract.traceId,
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+
+  try {
+    const result = await synthesizeWithInlineResemble(contract);
+    const contentType = cleanText(result?.contentType || "audio/mpeg") || "audio/mpeg";
+    const buffer = Buffer.isBuffer(result?.buffer) ? result.buffer : Buffer.from(result?.buffer || "");
+    if (!buffer || buffer.length === 0) {
+      throw new Error("tts_no_audio_returned");
+    }
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Length", String(buffer.length));
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("x-sb-tts-latency-ms", String(now() - startedAt));
+    return res.status(200).send(buffer);
+  } catch (err) {
+    console.log("[Sandblast][tts:inline:error]", err && (err.stack || err.message || err));
+    return res.status(503).json({
+      ok: false,
+      spokenUnavailable: true,
+      error: "tts_inline_failure",
+      detail: cleanText(err && (err.message || err) || "inline tts failed"),
+      traceId: contract.traceId,
+      meta: { v: INDEX_VERSION, t: now(), provider: contract.provider }
+    });
+  }
+}
+
+function getOperationalTtsHandler() {
+  const routed = voiceRouteHandlerFromModule(voiceRouteMod);
+  if (routed) return { handler: routed, source: "voiceRoute" };
+  const modular = ttsHandlerFromModule(ttsMod);
+  if (modular) return { handler: modular, source: "ttsModule" };
+  return { handler: inlineTtsHandler, source: "inline-index" };
 }
 
 app.get("/health", (req, res) => {
@@ -884,7 +1125,8 @@ app.get("/health", (req, res) => {
       voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
       voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
       ttsHandler: !!ttsHandlerFromModule(ttsMod),
-      ttsHealth: !!ttsHealthFromModule(ttsMod)
+      ttsHealth: !!ttsHealthFromModule(ttsMod),
+      inlineTtsFallback: true
     },
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     preserveMixerVoice: !!CFG.preserveMixerVoice,
@@ -898,6 +1140,7 @@ app.get("/api/health", (req, res) => {
   const ttsHealth = ttsHealthFromModule(ttsMod);
   let tts = null;
   try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  const op = getOperationalTtsHandler();
   return res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
@@ -905,27 +1148,40 @@ app.get("/api/health", (req, res) => {
     upMs: now() - SERVER_BOOT_AT,
     tts,
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
-    requireVoiceRouteToken: !!CFG.requireVoiceRouteToken
+    requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
+    ttsSource: op.source
   });
 });
 
 app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
   applyCors(req, res);
-  const handler = voiceHealthFromModule(voiceRouteMod) || ttsHealthFromModule(ttsMod);
-  if (!handler) {
-    return res.status(200).json({
-      ok: false,
-      enabled: false,
-      error: "tts_health_unavailable",
-      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
-      meta: { v: INDEX_VERSION, t: now() }
-    });
-  }
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  const voiceHealth = voiceHealthFromModule(voiceRouteMod);
+  const contract = getVoiceContract(req);
+  let health = null;
+  let source = "inline-index";
   try {
-    const health = await Promise.resolve(handler());
+    if (voiceHealth) {
+      source = "voiceRoute";
+      health = await Promise.resolve(voiceHealth());
+    } else if (ttsHealth) {
+      source = "ttsModule";
+      health = await Promise.resolve(ttsHealth());
+    } else {
+      health = {
+        ok: !!(contract.apiKey && contract.voice_uuid),
+        inlineFallback: true,
+        provider: contract.provider,
+        voiceConfigured: !!contract.voice_uuid,
+        apiKeyConfigured: !!contract.apiKey,
+        projectConfigured: !!contract.projectUuid
+      };
+    }
+
     return res.status(200).json({
       ok: !!(health && health.ok !== false),
       enabled: true,
+      source,
       health,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: INDEX_VERSION, t: now() }
@@ -934,6 +1190,7 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
     return res.status(503).json({
       ok: false,
       enabled: true,
+      source,
       error: "tts_health_failed",
       detail: cleanText(err && (err.message || err) || "tts health failed"),
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
@@ -942,20 +1199,13 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
   }
 });
 
-app.post("/api/tts", enforceVoiceRouteAccess, async (req, res) => {
+async function handleTtsRoute(req, res) {
   applyCors(req, res);
-  const handler = voiceRouteHandlerFromModule(voiceRouteMod) || ttsHandlerFromModule(ttsMod);
-  if (!handler) {
-    return res.status(503).json({
-      ok: false,
-      spokenUnavailable: true,
-      error: "tts_handler_missing",
-      detail: "No TTS or voice route handler is available.",
-      meta: { v: INDEX_VERSION, t: now() }
-    });
-  }
+  const op = getOperationalTtsHandler();
+  res.setHeader("x-sb-trace-id", cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts")));
+  res.setHeader("x-sb-voice-source", op.source);
   try {
-    return await handler(req, res);
+    return await op.handler(req, res);
   } catch (err) {
     console.log("[Sandblast][ttsRoute:error]", err && (err.stack || err.message || err));
     if (res.headersSent) return;
@@ -965,10 +1215,13 @@ app.post("/api/tts", enforceVoiceRouteAccess, async (req, res) => {
       error: "tts_route_failure",
       detail: cleanText(err && (err.message || err) || "tts route failed"),
       traceId: cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts")),
-      meta: { v: INDEX_VERSION, t: now() }
+      meta: { v: INDEX_VERSION, t: now(), source: op.source }
     });
   }
-});
+}
+
+app.post("/api/tts", enforceVoiceRouteAccess, handleTtsRoute);
+app.post("/tts", enforceVoiceRouteAccess, handleTtsRoute);
 
 app.post("/api/chat", enforceToken, async (req, res) => {
   applyCors(req, res);
@@ -1156,9 +1409,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
       mode: "transitional",
       publicMode: true
     };
-    shaped.meta = mergeMeta(shaped.meta, {
-      duplicateReplySuppressed: true
-    });
+    shaped.meta = mergeMeta(shaped.meta, { duplicateReplySuppressed: true });
   }
 
   const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
@@ -1199,12 +1450,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   };
 
   shaped = attachVoiceRoute(shaped);
-  shaped = enforceQuietUiIfNeeded(shaped, {
-    supportActive,
-    failSafe,
-    forceQuiet: suppressMenus
-  });
-
+  shaped = enforceQuietUiIfNeeded(shaped, { supportActive, failSafe, forceQuiet: suppressMenus });
   shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
   shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
   shaped.traceId = cleanText(shaped.traceId || norm.traceId);
