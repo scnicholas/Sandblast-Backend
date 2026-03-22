@@ -30,14 +30,20 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.4.1 BACKEND-LOCK-AUTH";
+const TTS_VERSION = "tts.js v2.5.0 BACKEND-LOCK-AUTH-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
 const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
-const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || 20000));
+const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_RESEMBLE_TIMEOUT_MS || process.env.RESEMBLE_TIMEOUT_MS || 20000));
+const TOKEN_ENV_KEYS = Object.freeze([
+  "RESEMBLE_API_TOKEN",
+  "SB_RESEMBLE_API_TOKEN",
+  "RESEMBLE_API_KEY",
+  "SB_RESEMBLE_API_KEY"
+]);
 const VOICE_LOCK_ENV_KEYS = Object.freeze([
   "RESEMBLE_VOICE_UUID",
   "SB_RESEMBLE_VOICE_UUID",
@@ -261,8 +267,12 @@ function _setCommonAudioHeaders(res, traceId, meta) {
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
 
+function _resolveProviderToken() {
+  return _pickFirst(...TOKEN_ENV_KEYS.map((key) => process.env[key]));
+}
+
 function _hasProviderToken() {
-  return !!_pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  return !!_resolveProviderToken();
 }
 
 function _isRetryableStatus(status) {
@@ -433,7 +443,7 @@ function _voiceIntegrityConfig() {
     .map((key) => ({ key, value: _trim(process.env[key]) }))
     .filter((item) => item.value);
 
-  const validCandidates = candidates.filter((item) => _looksLikeUuid(item.value));
+  const validCandidates = candidates.filter((item) => _looksLikeVoiceIdentifier(item.value));
   const uniqueValues = [...new Set(validCandidates.map((item) => item.value))];
   const authoritative = uniqueValues[0] || "";
   const conflictingKeys = uniqueValues.length > 1
@@ -476,7 +486,7 @@ function _resolvePreferredVoiceName(inputName) {
 }
 
 function _useProjectUuidByDefault() {
-  return _bool(process.env.RESEMBLE_USE_PROJECT_UUID, false);
+  return _bool(_pickFirst(process.env.RESEMBLE_USE_PROJECT_UUID, process.env.SB_RESEMBLE_USE_PROJECT_UUID), false);
 }
 
 function _resolveProjectUuid(explicitValue) {
@@ -493,7 +503,7 @@ function _healthSnapshot() {
   const voiceUuid = integrity.voiceUuid;
   const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _resolveProjectUuid("");
-  const token = _pickFirst(process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY);
+  const token = _resolveProviderToken();
   const configured = !!(token && voiceUuid);
   const ready = configured && integrity.valid && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
   return {
@@ -520,7 +530,8 @@ function _healthSnapshot() {
       voiceName: voiceName || "",
       projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
       providerTimeoutMs: PROVIDER_TIMEOUT_MS,
-      strictVoiceLock: STRICT_VOICE_LOCK
+      strictVoiceLock: STRICT_VOICE_LOCK,
+      tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key]))
     },
     voiceIntegrity: {
       configured: integrity.configured,
