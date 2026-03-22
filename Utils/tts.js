@@ -998,6 +998,74 @@ function _verifyAudioResult(result, input) {
   };
 }
 
+
+function _normalizeRouteSuccessAudio(result) {
+  const src = result && typeof result === "object" ? result : {};
+  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
+  const buffer = _coerceBuffer(
+    src.buffer ||
+    src.audio ||
+    src.binary ||
+    src.audioBuffer ||
+    src.audioBase64 ||
+    src.base64 ||
+    payload.buffer ||
+    payload.audio ||
+    payload.binary ||
+    payload.audioBuffer ||
+    payload.audioBase64 ||
+    payload.base64
+  );
+  const mimeType = _pickFirst(
+    src.mimeType,
+    src.mime,
+    src.contentType,
+    src.content_type,
+    payload.mimeType,
+    payload.mime,
+    payload.contentType,
+    payload.content_type,
+    /^RIFF/.test(buffer ? buffer.slice(0, 4).toString("ascii") : "") ? "audio/wav" : "audio/mpeg"
+  );
+  const bytes = buffer && buffer.length ? buffer.length : 0;
+  return {
+    ok: !!(buffer && bytes > 0),
+    buffer: buffer || null,
+    bytes,
+    mimeType,
+    verification: buffer && bytes > 0 ? "audio-buffer-ready" : "no_audio_buffer"
+  };
+}
+
+function _frontendErrorEnvelope(input, result, status, extra) {
+  const reason = _pickFirst(extra && extra.error, result && result.reason, result && result.error, "tts_unavailable");
+  const detail = _pickFirst(extra && extra.detail, result && result.message, result && result.detail, "TTS unavailable.");
+  return {
+    ok: false,
+    spokenUnavailable: true,
+    error: reason,
+    detail,
+    retryable: !!(result && result.retryable),
+    traceId: input.traceId,
+    provider: _pickFirst(result && result.provider, "resemble"),
+    providerStatus: Number((result && (result.providerStatus || result.status)) || status || 503) || 503,
+    providerEndpoint: _pickFirst(result && result.providerEndpoint),
+    authMode: _pickFirst(result && result.authMode),
+    voiceUuid: _pickFirst(result && result.voiceUuid, input.voiceUuid),
+    textDisplay: _pickFirst(result && result.textDisplay, input.textDisplay, input.text),
+    textSpeak: _pickFirst(result && result.textSpeak, input.text),
+    shapeElapsedMs: Number((result && result.shapeElapsedMs) || 0) || 0,
+    segmentCount: Number((result && result.segmentCount) || 0) || 0,
+    requestId: _pickFirst(result && result.requestId, input.requestId),
+    turnId: _pickFirst(result && result.turnId, input.turnId),
+    sessionId: _pickFirst(result && result.sessionId, input.sessionId),
+    health: _healthSnapshot(),
+    ttsFailure: (result && result.ttsFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).ttsFailure,
+    audioFailure: (result && result.audioFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).audioFailure,
+    payload: { spokenUnavailable: true }
+  };
+}
+
 async function generate(text, options) {
   const opts = options && typeof options === "object" ? options : {};
   const input = _normalizePayloadLikeInput({ text, ...opts }, { headers: { "x-sb-trace-id": opts.traceId || _makeTrace() } });
@@ -1330,144 +1398,6 @@ async function delegateTts(payload, req) {
   const result = await generate(input.text, input);
 
   if (!result.ok) {
-    _log("delegate_failure", {
-      ...snapshot,
-      reason: result.reason || "",
-      providerStatus: result.status || result.providerStatus || 503,
-      authMode: result.authMode || "",
-      providerEndpoint: result.providerEndpoint || ""
-    });
-    return {
-      ..._normalizeFailureContract(result.reason || "tts_unavailable", result.message || "TTS unavailable.", result.status || result.providerStatus || 503, !!result.retryable, input, { voiceUuid: result.voiceUuid || input.voiceUuid }),
-      provider: result.provider || "resemble",
-      providerStatus: result.status || result.providerStatus || 503,
-      providerEndpoint: result.providerEndpoint || "",
-      authMode: result.authMode || "",
-      mime: "audio/mpeg",
-      text: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text
-    };
-  }
-
-  _log("delegate_success", {
-    ...snapshot,
-    providerStatus: result.providerStatus || 200,
-    elapsedMs: result.elapsedMs || 0,
-    bytes: result.buffer ? result.buffer.length : 0
-  });
-
-  return {
-    ok: true,
-    provider: result.provider || "resemble",
-    audio: result.buffer,
-    mime: result.mimeType || "audio/mpeg",
-    elapsedMs: result.elapsedMs || 0,
-    bytes: result.bytes || (result.buffer ? result.buffer.length : 0),
-    audioVerification: result.audioVerification || "audio-buffer-ready",
-    requestId: result.requestId || input.sourceId || input.requestId || "",
-    providerStatus: result.providerStatus || 200,
-    providerEndpoint: result.providerEndpoint || "",
-    authMode: result.authMode || "",
-    text: result.textDisplay || input.textDisplay || input.text,
-    textSpeak: result.textSpeak || input.text,
-    voiceUuid: result.voiceUuid || input.voiceUuid,
-    routeKind: input.routeKind || "main",
-    traceId: result.traceId || input.traceId,
-    turnId: result.turnId || input.turnId,
-    sessionId: result.sessionId || input.sessionId,
-    ttsFailure: result.ttsFailure || _normalizeRecoveryContract(input),
-    audioFailure: result.audioFailure || _normalizeRecoveryContract(input)
-  };
-}
-
-async function handleTts(req, res) {
-  const input = _resolveInput(req);
-  const startedAt = _now();
-  const snapshot = _buildInputSnapshot(input);
-
-  _setCommonAudioHeaders(res, input.traceId, {
-    provider: "resemble",
-    voiceUuid: input.voiceUuid,
-    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, input.voiceUuid),
-    voiceLock: _voiceIntegrityConfig().configured ? "backend" : "request",
-    requestId: input.requestId,
-    turnId: input.turnId,
-    sessionId: input.sessionId
-  });
-
-  _log("http_start", { ...snapshot, method: req && req.method, path: req && req.originalUrl });
-
-  if (input.healthCheck) {
-    const health = _healthSnapshot();
-    _setHeader(res, "X-SB-Response-Mode", "health");
-    return _safeJson(res, health.ok ? 200 : 503, {
-      ok: health.ok,
-      provider: "resemble",
-      health,
-      traceId: input.traceId
-    });
-  }
-
-  const voiceContract = _voiceContract(input);
-  if (!voiceContract.ok) {
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, 503, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "voice_contract_failed",
-      detail: `Voice lock rejected request: ${voiceContract.problems.join(", ") || "unknown_voice_issue"}`,
-      traceId: input.traceId,
-      requestId: input.requestId || "",
-      turnId: input.turnId || "",
-      sessionId: input.sessionId || "",
-      voiceUuid: input.voiceUuid || "",
-      requestedVoiceUuid: input.requestedVoiceUuid || "",
-      voiceSource: voiceContract.source,
-      voiceProblems: voiceContract.problems,
-      health: _healthSnapshot(),
-      ttsFailure: _normalizeFailureContract("voice_contract_failed", "Voice lock rejected request.", 503, false, input, { voiceUuid: input.voiceUuid }).ttsFailure,
-      audioFailure: _normalizeFailureContract("voice_contract_failed", "Voice lock rejected request.", 503, false, input, { voiceUuid: input.voiceUuid }).audioFailure,
-      payload: { spokenUnavailable: true }
-    });
-  }
-
-  if (!input.text) {
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, 400, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "missing_text",
-      detail: "No TTS text was provided.",
-      traceId: input.traceId,
-      ttsFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).ttsFailure,
-      audioFailure: _normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input).audioFailure,
-      payload: { spokenUnavailable: true }
-    });
-  }
-
-  const result = await generate(input.text, input);
-  _setCommonAudioHeaders(res, input.traceId, {
-    provider: result.provider || "resemble",
-    voiceUuid: result.voiceUuid || input.voiceUuid,
-    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, result.voiceUuid || input.voiceUuid),
-    voiceLock: _voiceIntegrityConfig().configured ? "backend" : "request",
-    elapsedMs: result.elapsedMs || 0,
-    shapeMs: result.shapeElapsedMs || 0,
-    segmentCount: result.segmentCount || 0,
-    providerStatus: result.providerStatus || result.status || 0,
-    failoverKind: result.failoverKind || "",
-    reason: result.reason || "",
-    requestId: result.requestId || input.requestId,
-    turnId: result.turnId || input.turnId,
-    sessionId: result.sessionId || input.sessionId
-  });
-  if (AUDIO_VERIFY_HEADER) {
-    _setHeader(res, "X-SB-Audio-Verification", _headerSafe(result.audioVerification || (result.ok ? "audio-buffer-ready" : "audio-unavailable"), 48));
-    _setHeader(res, "X-SB-Audio-Bytes", String(_int(result.bytes || (result.buffer ? result.buffer.length : 0), 0, 0, 100000000)));
-    _setHeader(res, "X-SB-Audio-Ready", result.ok && result.buffer && result.buffer.length ? "true" : "false");
-  }
-
-  if (!result.ok) {
     const upstreamStatus = Number(result.providerStatus || result.status || 503) || 503;
     const status = result.status === 429 ? 429 : (result.status >= 400 && result.status < 500 ? result.status : 503);
 
@@ -1482,42 +1412,36 @@ async function handleTts(req, res) {
     });
 
     _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, status, {
-      ok: false,
-      spokenUnavailable: true,
-      error: result.reason || "tts_unavailable",
-      detail: result.message || "TTS unavailable.",
-      retryable: !!result.retryable,
-      traceId: input.traceId,
-      provider: result.provider || "resemble",
-      providerStatus: upstreamStatus,
-      providerEndpoint: result.providerEndpoint || "",
-      authMode: result.authMode || "",
-      voiceUuid: result.voiceUuid || input.voiceUuid || "",
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0,
-      requestId: result.requestId || input.requestId || "",
-      turnId: result.turnId || input.turnId || "",
-      sessionId: result.sessionId || input.sessionId || "",
-      health: _healthSnapshot(),
-      ttsFailure: result.ttsFailure || _normalizeFailureContract(result.reason || "tts_unavailable", result.message || "TTS unavailable.", status, !!result.retryable, input).ttsFailure,
-      audioFailure: result.audioFailure || _normalizeFailureContract(result.reason || "tts_unavailable", result.message || "TTS unavailable.", status, !!result.retryable, input).audioFailure,
-      payload: { spokenUnavailable: true }
+    return _safeJson(res, status, _frontendErrorEnvelope(input, result, status));
+  }
+
+  if (!routeAudio.ok) {
+    _log("http_success_without_audio", {
+      ...snapshot,
+      reason: result.reason || "success_without_audio",
+      providerStatus: result.providerStatus || 200,
+      elapsedMs: _now() - startedAt
     });
+    _setHeader(res, "X-SB-Response-Mode", "error");
+    return _safeJson(res, 502, _frontendErrorEnvelope(input, {
+      ...result,
+      reason: "tts_backend_unrecognized_payload",
+      message: "Provider reported success but no playable audio reached the TTS route.",
+      retryable: true,
+      providerStatus: result.providerStatus || 502
+    }, 502));
   }
 
   const allowJsonSuccess = !!(input.wantJson && !AUDIO_FIRST_LOCK && req && String(req.method || "").toUpperCase() === "GET");
   if (allowJsonSuccess) {
-    _log("http_success_json", { ...snapshot, bytes: result.buffer ? result.buffer.length : 0, elapsedMs: _now() - startedAt });
+    _log("http_success_json", { ...snapshot, bytes: routeAudio.bytes || 0, elapsedMs: _now() - startedAt });
     _setHeader(res, "X-SB-Response-Mode", "json-audio");
     return _safeJson(res, 200, {
       ok: true,
       provider: result.provider,
-      mimeType: result.mimeType,
-      audio: result.buffer.toString("base64"),
-      audioBase64: result.buffer.toString("base64"),
+      mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg",
+      audio: routeAudio.buffer.toString("base64"),
+      audioBase64: routeAudio.buffer.toString("base64"),
       traceId: input.traceId,
       elapsedMs: result.elapsedMs || 0,
       requestId: result.requestId,
@@ -1539,12 +1463,12 @@ async function handleTts(req, res) {
 
   try {
     _setHeader(res, "X-SB-Response-Mode", "audio");
-    _setHeader(res, "Content-Type", result.mimeType || "audio/mpeg");
-    _setHeader(res, "Content-Length", String(result.buffer.length));
+    _setHeader(res, "Content-Type", routeAudio.mimeType || result.mimeType || "audio/mpeg");
+    _setHeader(res, "Content-Length", String(routeAudio.bytes));
     _setHeader(res, "Accept-Ranges", "none");
     _setHeader(res, "X-SB-Audio-Playback-Verify", _headerSafe(result.requestId || input.requestId || input.traceId, 80));
-    _log("http_success_audio", { ...snapshot, bytes: result.buffer.length, mimeType: result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
-    res.status(200).send(result.buffer);
+    _log("http_success_audio", { ...snapshot, bytes: routeAudio.bytes, mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
+    res.status(200).send(routeAudio.buffer);
   } catch (e) {
     const detail = _trim(e && (e.message || e)) || "Failed to send audio buffer.";
     _log("http_send_failed", { ...snapshot, detail, elapsedMs: _now() - startedAt });
