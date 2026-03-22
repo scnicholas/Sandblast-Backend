@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.6.2sb";
+const INDEX_VERSION = "index.js v2.10.1sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -99,6 +99,19 @@ function isObj(v) {
 
 function cleanText(v) {
   return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function clipText(v, max) {
+  const s = cleanText(v);
+  const n = clamp(Number(max || 280), 32, 4000);
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function maskSecret(v) {
+  const s = cleanText(v);
+  if (!s) return "";
+  if (s.length <= 8) return "********";
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 
 function cleanReplyForUser(v) {
@@ -901,6 +914,14 @@ async function readResponseBodySafe(resp) {
   }
 }
 
+function logTtsTrace(stage, data) {
+  try {
+    console.log("[Sandblast][tts:inline]", stage, JSON.stringify(isObj(data) ? data : { value: safeStr(data) }));
+  } catch (_) {
+    try { console.log("[Sandblast][tts:inline]", stage, data); } catch (_) {}
+  }
+}
+
 function sendTtsJsonError(req, res, code, error, detail, extraMeta) {
   if (res.headersSent) return;
   return res.status(code).json({
@@ -918,6 +939,7 @@ function sendTtsJsonError(req, res, code, error, detail, extraMeta) {
 }
 
 async function inlineTtsFallback(req, res) {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
   const text = cleanText(
     req.body?.text ||
     req.body?.payload?.text ||
@@ -929,7 +951,8 @@ async function inlineTtsFallback(req, res) {
 
   if (!text) {
     return sendTtsJsonError(req, res, 400, "tts_missing_text", "No text was provided for synthesis.", {
-      configSource: "inline_fallback"
+      configSource: "inline_fallback",
+      traceId
     });
   }
 
@@ -937,13 +960,15 @@ async function inlineTtsFallback(req, res) {
 
   if (!cfg.apiKey) {
     return sendTtsJsonError(req, res, 503, "tts_env_missing_api_key", "No Resemble API key is configured.", {
-      configSource: "inline_fallback"
+      configSource: "inline_fallback",
+      traceId
     });
   }
 
   if (!cfg.voiceUuid) {
     return sendTtsJsonError(req, res, 503, "tts_env_missing_voice_uuid", "No Resemble voice UUID is configured.", {
-      configSource: "inline_fallback"
+      configSource: "inline_fallback",
+      traceId
     });
   }
 
@@ -953,6 +978,21 @@ async function inlineTtsFallback(req, res) {
     output_format: cfg.outputFormat
   };
 
+  const traceMeta = {
+    traceId,
+    configSource: "inline_fallback",
+    endpointMode: cfg.endpointMode,
+    requestedFormat: cfg.outputFormat,
+    synthesisUrl: cfg.synthesisUrl,
+    voiceUuid: cfg.voiceUuid,
+    projectConfigured: !!cfg.projectUuid,
+    apiKeyMasked: maskSecret(cfg.apiKey),
+    textPreview: clipText(text, 140),
+    textLength: text.length
+  };
+
+  logTtsTrace("request_prepare", traceMeta);
+
   let upstream;
   try {
     upstream = await callWithTimeout(fetch(cfg.synthesisUrl, {
@@ -960,41 +1000,67 @@ async function inlineTtsFallback(req, res) {
       headers: {
         "Authorization": `Token ${cfg.apiKey}`,
         "Content-Type": "application/json",
-        "Accept": "audio/mpeg,audio/*;q=0.9,application/json;q=0.8,*/*;q=0.7"
+        "Accept": "audio/mpeg,audio/*;q=0.9,application/json;q=0.8,text/plain;q=0.7,*/*;q=0.6",
+        "x-sb-trace-id": traceId
       },
       body: JSON.stringify(synthPayload)
     }), cfg.timeoutMs, "resemble_synthesize_request");
   } catch (err) {
+    logTtsTrace("request_error", {
+      ...traceMeta,
+      stage: "synthesize_request",
+      error: cleanText(err && (err.stack || err.message || err) || "Resemble synth request failed")
+    });
     return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble synth request failed"), {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
+      ...traceMeta,
       stage: "synthesize_request"
     });
   }
 
   const contentType = lower(upstream.headers.get("content-type") || "");
+  const upstreamStatus = Number(upstream.status || 0);
+  logTtsTrace("response_head", {
+    ...traceMeta,
+    stage: "synthesize_response_head",
+    upstreamStatus,
+    contentType
+  });
+
   if (!upstream.ok) {
     const upstreamBody = await readResponseBodySafe(upstream);
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", upstreamBody || `Resemble synth failed with ${upstream.status}`, {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
+    const clipped = clipText(upstreamBody || `Resemble synth failed with ${upstreamStatus}`, 700);
+    logTtsTrace("response_error", {
+      ...traceMeta,
       stage: "synthesize_response",
-      upstreamStatus: upstream.status
+      upstreamStatus,
+      contentType,
+      upstreamBody: clipped
+    });
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", clipped, {
+      ...traceMeta,
+      stage: "synthesize_response",
+      upstreamStatus,
+      contentType,
+      upstreamSnippet: clipped
     });
   }
 
   if (contentType.includes("application/json") || contentType.includes("text/plain")) {
     const upstreamBody = await readResponseBodySafe(upstream);
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", upstreamBody || "Resemble returned JSON/text instead of audio.", {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
-      stage: "unexpected_non_audio_response"
+    const clipped = clipText(upstreamBody || "Resemble returned JSON/text instead of audio.", 700);
+    logTtsTrace("unexpected_non_audio", {
+      ...traceMeta,
+      stage: "unexpected_non_audio_response",
+      upstreamStatus,
+      contentType,
+      upstreamBody: clipped
+    });
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", clipped, {
+      ...traceMeta,
+      stage: "unexpected_non_audio_response",
+      upstreamStatus,
+      contentType,
+      upstreamSnippet: clipped
     });
   }
 
@@ -1002,31 +1068,51 @@ async function inlineTtsFallback(req, res) {
   try {
     arrayBuffer = await upstream.arrayBuffer();
   } catch (err) {
+    logTtsTrace("audio_buffer_error", {
+      ...traceMeta,
+      stage: "audio_buffer_read",
+      upstreamStatus,
+      contentType,
+      error: cleanText(err && (err.stack || err.message || err) || "Could not read audio payload")
+    });
     return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Could not read audio payload"), {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
-      stage: "audio_buffer_read"
+      ...traceMeta,
+      stage: "audio_buffer_read",
+      upstreamStatus,
+      contentType
     });
   }
 
   const buf = Buffer.from(arrayBuffer || new ArrayBuffer(0));
   if (!buf.length) {
+    logTtsTrace("empty_audio", {
+      ...traceMeta,
+      stage: "empty_audio",
+      upstreamStatus,
+      contentType
+    });
     return sendTtsJsonError(req, res, 503, "tts_inline_failure", "Audio response was empty.", {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
-      stage: "empty_audio"
+      ...traceMeta,
+      stage: "empty_audio",
+      upstreamStatus,
+      contentType
     });
   }
+
+  logTtsTrace("success", {
+    ...traceMeta,
+    stage: "complete",
+    upstreamStatus,
+    contentType,
+    audioBytes: buf.length
+  });
 
   res.setHeader("Content-Type", cfg.outputFormat === "wav" ? "audio/wav" : "audio/mpeg");
   res.setHeader("Content-Length", String(buf.length));
   res.setHeader("Cache-Control", "no-store");
-  res.setHeader("x-sb-trace-id", cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts")));
+  res.setHeader("x-sb-trace-id", traceId);
   res.setHeader("x-sb-tts-source", "inline_fallback");
+  res.setHeader("x-sb-tts-stage", "complete");
   return res.status(200).send(buf);
 }
 
