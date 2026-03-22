@@ -30,7 +30,7 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.4.0 VOICE-LOCK-HARDENED";
+const TTS_VERSION = "tts.js v2.4.1 BACKEND-LOCK-AUTH";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -247,7 +247,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", _headerSafe(meta.provider, 40));
   if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", _mask(meta.voiceUuid));
-  if (meta && meta.voiceSource) _setHeader(res, "X-SB-Voice-Source", _headerSafe(meta.voiceSource, 40));
+  if (meta && meta.voiceSource) _setHeader(res, "X-SB-Voice-Source", _headerSafe(meta.voiceSource, 40));\n  if (meta && meta.voiceLock) _setHeader(res, "X-SB-Voice-Lock", _headerSafe(meta.voiceLock, 40));
   if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(_int(meta.elapsedMs, 0, 0, 300000)));
   if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(_int(meta.shapeMs, 0, 0, 300000)));
   if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(_int(meta.segmentCount, 0, 0, 999)));
@@ -1174,7 +1174,7 @@ async function handleTts(req, res) {
   _setCommonAudioHeaders(res, input.traceId, {
     provider: "resemble",
     voiceUuid: input.voiceUuid,
-    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, input.voiceUuid),
+    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, input.voiceUuid),\n    voiceLock: _voiceIntegrityConfig().configured ? "backend" : "request",
     requestId: input.requestId,
     turnId: input.turnId,
     sessionId: input.sessionId
@@ -1231,7 +1231,7 @@ async function handleTts(req, res) {
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
     voiceUuid: result.voiceUuid || input.voiceUuid,
-    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, result.voiceUuid || input.voiceUuid),
+    voiceSource: _voiceSelectionSource(input.requestedVoiceUuid, result.voiceUuid || input.voiceUuid),\n    voiceLock: _voiceIntegrityConfig().configured ? "backend" : "request",
     elapsedMs: result.elapsedMs || 0,
     shapeMs: result.shapeElapsedMs || 0,
     segmentCount: result.segmentCount || 0,
