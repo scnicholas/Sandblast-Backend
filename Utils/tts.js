@@ -27,10 +27,13 @@ const PHASES = Object.freeze({
   p21_tokenPreflight: true,
   p22_retryBackoff: true,
   p23_recoveryClearSignal: true,
-  p24_healthReadinessTruth: true
+  p24_healthReadinessTruth: true,
+  p25_routeLevelFailover: true,
+  p26_exactFrontendContract: true,
+  p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.7.0 AUDIO-FIRST-LOCKED";
+const TTS_VERSION = "tts.js v2.8.0 RESEMBLE-FAILOVER-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -38,6 +41,7 @@ const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
 const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
 const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
 const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_RESEMBLE_TIMEOUT_MS || process.env.RESEMBLE_TIMEOUT_MS || 20000));
+const FAILOVER_MAX_VARIANTS = Math.max(1, Math.min(4, Number(process.env.SB_TTS_FAILOVER_VARIANTS || 3)));
 const TOKEN_ENV_KEYS = Object.freeze([
   "RESEMBLE_API_TOKEN",
   "SB_RESEMBLE_API_TOKEN",
@@ -288,6 +292,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(_int(meta.shapeMs, 0, 0, 300000)));
   if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(_int(meta.segmentCount, 0, 0, 999)));
   if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(_int(meta.providerStatus, 0, 0, 999)));
+  if (meta && meta.failoverKind) _setHeader(res, "X-SB-TTS-FAILOVER", _headerSafe(meta.failoverKind, 48));
   if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", _headerSafe(meta.reason, 80));
   if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", _headerSafe(meta.requestId, 80));
   if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", _headerSafe(meta.turnId, 80));
@@ -840,24 +845,132 @@ async function _withTimeout(promise, ms, meta) {
 }
 
 function _normalizeProviderAudio(out) {
-  const buffer = _coerceBuffer(out && (out.buffer || out.audio || out.audioBuffer || out.audioBase64 || out.base64 || out.data));
-  const providerStatus = Number(out && (out.providerStatus || out.status || 200)) || 200;
-  const explicitOk = out && typeof out.ok === "boolean" ? out.ok : null;
+  const payload = out && typeof out === "object"
+    ? (out.payload && typeof out.payload === "object" ? out.payload : {})
+    : {};
+  const nestedAudio = _pickFirst(
+    payload.audioBase64,
+    payload.audio_base64,
+    payload.audio,
+    payload.base64,
+    payload.data,
+    out && out.audioBase64,
+    out && out.audio_base64,
+    out && out.audio,
+    out && out.audioBuffer,
+    out && out.base64,
+    out && out.data
+  );
+  const buffer = _coerceBuffer(
+    out && (
+      out.buffer ||
+      out.binary ||
+      out.audioBuffer ||
+      nestedAudio ||
+      (out.response && (out.response.audio || out.response.audioBase64 || out.response.base64 || out.response.data))
+    )
+  );
+  const providerStatus = Number(out && (out.providerStatus || out.status || payload.status || 200)) || 200;
+  const explicitOk = out && typeof out.ok === "boolean" ? out.ok : (payload && typeof payload.ok === "boolean" ? payload.ok : null);
   const inferredOk = !!(buffer && buffer.length && providerStatus >= 200 && providerStatus < 300);
   return {
     ok: explicitOk == null ? inferredOk : !!(explicitOk && buffer && buffer.length),
     buffer,
-    mimeType: _pickFirst(out && out.mimeType, out && out.contentType, out && out.content_type, "audio/mpeg"),
-    elapsedMs: _int(out && (out.elapsedMs || out.durationMs || 0), 0, 0, 300000),
-    requestId: _pickFirst(out && out.requestId, out && out.id),
+    mimeType: _pickFirst(
+      out && out.mimeType,
+      out && out.contentType,
+      out && out.content_type,
+      payload.mimeType,
+      payload.contentType,
+      payload.content_type,
+      "audio/mpeg"
+    ),
+    elapsedMs: _int(out && (out.elapsedMs || out.durationMs || payload.elapsedMs || payload.durationMs || 0), 0, 0, 300000),
+    requestId: _pickFirst(out && out.requestId, out && out.id, payload.requestId, payload.id),
     providerStatus,
-    message: _pickFirst(out && out.message, out && out.reason, out && out.error),
-    reason: _pickFirst(out && out.reason, out && out.error, out && out.message),
-    retryable: out && typeof out.retryable === "boolean" ? out.retryable : true,
-    authMode: _pickFirst(out && out.authMode),
-    providerEndpoint: _pickFirst(out && out.providerEndpoint),
-    voiceUuid: _pickFirst(out && out.voiceUuid)
+    message: _pickFirst(out && out.message, out && out.reason, out && out.error, payload.message, payload.reason, payload.error),
+    reason: _pickFirst(out && out.reason, out && out.error, out && out.message, payload.reason, payload.error, payload.message),
+    retryable: out && typeof out.retryable === "boolean" ? out.retryable : (payload && typeof payload.retryable === "boolean" ? payload.retryable : true),
+    authMode: _pickFirst(out && out.authMode, payload.authMode),
+    providerEndpoint: _pickFirst(out && out.providerEndpoint, payload.providerEndpoint),
+    voiceUuid: _pickFirst(out && out.voiceUuid, payload.voiceUuid)
   };
+}
+
+function _buildProviderVariants(providerInput) {
+  const variants = [];
+  const baseText = _trim(providerInput && providerInput.text);
+  const textSpeak = _trim(providerInput && providerInput.textSpeak);
+  const plainText = _trim(providerInput && providerInput.plainText);
+  const ssmlText = _trim(providerInput && providerInput.ssmlText);
+  const outputFormat = _lower(_pickFirst(providerInput && providerInput.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
+
+  const pushVariant = (kind, text, format, extra) => {
+    const normalizedText = _trim(text);
+    if (!normalizedText) return;
+    const candidate = {
+      ...providerInput,
+      text: normalizedText,
+      outputFormat: format || outputFormat,
+      failoverKind: kind,
+      useSsml: kind === "ssml",
+      ...(extra || {})
+    };
+    const sig = [candidate.failoverKind, candidate.outputFormat, candidate.text].join("|");
+    if (!variants.some((v) => [v.failoverKind, v.outputFormat, v.text].join("|") === sig)) {
+      variants.push(candidate);
+    }
+  };
+
+  pushVariant("speak_text", textSpeak || baseText, outputFormat);
+  pushVariant("plain_text", plainText || baseText || textSpeak, outputFormat, { useSsml: false });
+  if (ssmlText) pushVariant("ssml", ssmlText, outputFormat, { useSsml: true });
+  if (outputFormat !== "wav") pushVariant("plain_text_wav", plainText || baseText || textSpeak, "wav", { useSsml: false });
+
+  return variants.slice(0, FAILOVER_MAX_VARIANTS);
+}
+
+async function _synthesizeWithFailover(providerInput, snapshot, shapeElapsedMs, segmentCount) {
+  const variants = _buildProviderVariants(providerInput);
+  let lastFailure = null;
+
+  for (let idx = 0; idx < variants.length; idx += 1) {
+    const variant = variants[idx];
+    const attemptSnapshot = {
+      ...snapshot,
+      failoverIndex: idx + 1,
+      failoverTotal: variants.length,
+      failoverKind: variant.failoverKind || "primary",
+      outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
+    };
+
+    _log("provider_failover_variant", attemptSnapshot);
+
+    const result = await _synthesizeWithRetry(variant, attemptSnapshot, shapeElapsedMs, segmentCount);
+    if (result && result.ok) {
+      return {
+        ok: true,
+        out: {
+          ...result.out,
+          failoverKind: variant.failoverKind || "primary",
+          outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
+        },
+        attempt: result.attempt,
+        failoverIndex: idx + 1,
+        failoverTotal: variants.length
+      };
+    }
+
+    lastFailure = {
+      ...(result || {}),
+      failoverKind: variant.failoverKind || "primary",
+      outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
+    };
+
+    if (lastFailure && lastFailure.retryable === false) break;
+  }
+
+  return lastFailure || { ok: false, reason: "provider_failed", message: "TTS failed", status: 503, retryable: true, providerStatus: 503, voiceUuid: providerInput.voiceUuid, shapeElapsedMs, segmentCount };
 }
 
 function _verifyAudioResult(result, input) {
@@ -943,7 +1056,7 @@ async function generate(text, options) {
   activeRequests += 1;
   try {
     _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, timeoutMs: PROVIDER_TIMEOUT_MS });
-    const providerResult = await _synthesizeWithRetry(providerInput, snapshot, shaped.shapeElapsedMs, shaped.segmentCount);
+    const providerResult = await _synthesizeWithFailover(providerInput, snapshot, shaped.shapeElapsedMs, shaped.segmentCount);
 
     if (!providerResult.ok) {
       _recordFailure(providerResult.message || providerResult.reason || "provider_failed", providerResult.providerStatus || providerResult.status || 503, snapshot);
@@ -951,6 +1064,7 @@ async function generate(text, options) {
         ..._normalizeFailureContract(providerResult.reason || "provider_failed", providerResult.message || "TTS failed", providerResult.status || providerResult.providerStatus || 503, !!providerResult.retryable, input, { voiceUuid: providerResult.voiceUuid || input.voiceUuid }),
         providerEndpoint: providerResult.providerEndpoint || "",
         authMode: providerResult.authMode || "",
+        failoverKind: providerResult.failoverKind || "primary",
         shapeElapsedMs: shaped.shapeElapsedMs,
         segmentCount: shaped.segmentCount,
         textDisplay: providerInput.textDisplay,
@@ -968,7 +1082,10 @@ async function generate(text, options) {
       providerEndpoint: normalizedOut.providerEndpoint || "",
       bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
       elapsedMs: normalizedOut.elapsedMs || 0,
-      attempt: providerResult.attempt || 1
+      attempt: providerResult.attempt || 1,
+      failoverIndex: providerResult.failoverIndex || 1,
+      failoverTotal: providerResult.failoverTotal || 1,
+      failoverKind: normalizedOut.failoverKind || "primary"
     });
 
     const audioVerified = _verifyAudioResult({ buffer: normalizedOut.buffer, mimeType: normalizedOut.mimeType, voiceUuid: normalizedOut.voiceUuid || input.voiceUuid }, input);
@@ -985,6 +1102,7 @@ async function generate(text, options) {
         ...audioVerified.failure,
         providerEndpoint: normalizedOut.providerEndpoint || "",
         authMode: normalizedOut.authMode || "",
+        failoverKind: normalizedOut.failoverKind || "primary",
         shapeElapsedMs: shaped.shapeElapsedMs,
         segmentCount: shaped.segmentCount,
         textDisplay: providerInput.textDisplay,
@@ -1008,6 +1126,7 @@ async function generate(text, options) {
       providerStatus: normalizedOut.providerStatus || 200,
       providerEndpoint: normalizedOut.providerEndpoint || "",
       authMode: normalizedOut.authMode || "",
+      failoverKind: normalizedOut.failoverKind || "primary",
       shapeElapsedMs: shaped.shapeElapsedMs,
       segmentCount: shaped.segmentCount,
       textDisplay: providerInput.textDisplay,
@@ -1336,6 +1455,7 @@ async function handleTts(req, res) {
     shapeMs: result.shapeElapsedMs || 0,
     segmentCount: result.segmentCount || 0,
     providerStatus: result.providerStatus || result.status || 0,
+    failoverKind: result.failoverKind || "",
     reason: result.reason || "",
     requestId: result.requestId || input.requestId,
     turnId: result.turnId || input.turnId,
@@ -1396,6 +1516,7 @@ async function handleTts(req, res) {
       ok: true,
       provider: result.provider,
       mimeType: result.mimeType,
+      audio: result.buffer.toString("base64"),
       audioBase64: result.buffer.toString("base64"),
       traceId: input.traceId,
       elapsedMs: result.elapsedMs || 0,
