@@ -660,7 +660,7 @@ async function _pollForCompletedAudio(initialJson, token, traceId, timeoutMs, pr
   const urls = _candidateStatusUrls(asyncEnv, projectUuid);
   if (!urls.length) return null;
 
-  const authModes = ["bearer", "raw", "token"];
+  const authModes = ["bearer"];
   const deadline = Date.now() + _pollMaxMs();
   let pollsUsed = 0;
   let lastResp = null;
@@ -970,7 +970,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 }
 
 async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
-  const authModes = ["bearer", "raw", "token"];
+  const authModes = ["bearer"];
   const attempts = _maxSynthAttempts();
   let lastResp = null;
   let lastAuthMode = "bearer";
