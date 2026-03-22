@@ -15,7 +15,7 @@ const PHASES = Object.freeze({
   p09_payloadHardening: true,
   p10_bufferCoercion: true,
   p11_headerTelemetry: true,
-  p12_jsonAudioMode: true,
+  p12_jsonAudioMode: false,
   p13_introParity: true,
   p14_retrySignal: true,
   p15_operationalDiagnostics: true,
@@ -30,7 +30,7 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true
 });
 
-const TTS_VERSION = "tts.js v2.5.0 BACKEND-LOCK-AUTH-HARDENED";
+const TTS_VERSION = "tts.js v2.6.0 AUDIO-FIRST-HARDENED";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -93,6 +93,29 @@ const _now = () => Date.now();
 const _makeTrace = () => `tts_${Date.now().toString(16)}_${crypto.randomBytes(4).toString("hex")}`;
 
 const STRICT_VOICE_LOCK = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_STRICT_VOICE_LOCK || "true").toLowerCase());
+
+
+const ALLOW_JSON_AUDIO = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_ALLOW_JSON_AUDIO || "false").toLowerCase());
+
+function _requestsJsonAudio(req, body, query, headers) {
+  const headerMode = _lower(_pickFirst(headers["x-sb-response-mode"], headers["x-response-mode"], headers["x-tts-mode"]));
+  const accept = _lower(_pickFirst(headers["accept"]));
+  const queryOptIn = _bool(query && (query.returnJsonAudio != null ? query.returnJsonAudio : query.returnJson), false);
+  const bodyOptIn = _bool(body && (body.returnJsonAudio != null ? body.returnJsonAudio : body.returnJson), false);
+  if (!ALLOW_JSON_AUDIO) return false;
+  const explicitHeader = ["json-audio", "audio-json", "base64-audio", "json"].includes(headerMode);
+  const explicitAccept = accept.includes("application/json") && !accept.includes("audio/");
+  return !!(explicitHeader || queryOptIn || bodyOptIn || explicitAccept);
+}
+
+function _requestIsHealth(req, body, query, headers) {
+  const path = _lower(_pickFirst(req && req.originalUrl, req && req.url));
+  if (path.includes("/health")) return true;
+  if (req && req.method && String(req.method).toUpperCase() === "GET") {
+    return _bool(query && query.healthCheck, false) || _bool(headers && headers["x-sb-health-check"], false);
+  }
+  return false;
+}
 
 function _looksLikeShortVoiceId(value) {
   return /^[0-9a-f]{8}$/i.test(_trim(value));
@@ -1002,8 +1025,8 @@ function _normalizePayloadLikeInput(payload, req) {
     precision: body.precision,
     useHd: body.useHd,
     intro: _bool(body.intro, false) || _lower(body.routeKind) === "intro" || _lower(body.mode) === "intro",
-    healthCheck: _bool(body.healthCheck, false),
-    wantJson: _bool(body.returnJson, false),
+    healthCheck: false,
+    wantJson: false,
     mode: _pickFirst(body.mode, "presence"),
     source: _pickFirst(body.source, "tts"),
     sourceId: _pickFirst(body.sourceId, body.requestId, ""),
@@ -1068,8 +1091,8 @@ function _resolveInput(req) {
     precision: body.precision || query.precision,
     useHd: body.useHd != null ? body.useHd : query.useHd,
     intro: _bool(body.intro != null ? body.intro : query.intro, false) || _lower(body.routeKind || query.routeKind) === "intro" || _lower(body.mode || query.mode) === "intro",
-    healthCheck: _bool(body.healthCheck != null ? body.healthCheck : query.healthCheck, false),
-    wantJson: _bool(body.returnJson != null ? body.returnJson : query.returnJson, false),
+    healthCheck: _requestIsHealth(req, body, query, headers),
+    wantJson: _requestsJsonAudio(req, body, query, headers),
     mode: _pickFirst(body.mode, query.mode, "presence"),
     source: _pickFirst(body.source, query.source, "tts"),
     sourceId: _pickFirst(body.sourceId, query.sourceId, body.requestId, query.requestId, ""),
@@ -1108,7 +1131,8 @@ function _buildInputSnapshot(input) {
     voiceProblems: contract.problems,
     projectUuid: _mask(src.projectUuid || ""),
     outputFormat: src.outputFormat || "",
-    wantJson: !!src.wantJson
+    wantJson: !!src.wantJson,
+    audioFirst: true
   };
 }
 
@@ -1197,6 +1221,7 @@ async function handleTts(req, res) {
 
   if (input.healthCheck) {
     const health = _healthSnapshot();
+    _setHeader(res, "X-SB-Response-Mode", "health");
     return _safeJson(res, health.ok ? 200 : 503, {
       ok: health.ok,
       provider: "resemble",
@@ -1207,6 +1232,7 @@ async function handleTts(req, res) {
 
   const voiceContract = _voiceContract(input);
   if (!voiceContract.ok) {
+    _setHeader(res, "X-SB-Response-Mode", "error");
     return _safeJson(res, 503, {
       ok: false,
       spokenUnavailable: true,
@@ -1228,6 +1254,7 @@ async function handleTts(req, res) {
   }
 
   if (!input.text) {
+    _setHeader(res, "X-SB-Response-Mode", "error");
     return _safeJson(res, 400, {
       ok: false,
       spokenUnavailable: true,
@@ -1270,6 +1297,7 @@ async function handleTts(req, res) {
       elapsedMs: _now() - startedAt
     });
 
+    _setHeader(res, "X-SB-Response-Mode", "error");
     return _safeJson(res, status, {
       ok: false,
       spokenUnavailable: true,
@@ -1298,6 +1326,7 @@ async function handleTts(req, res) {
 
   if (input.wantJson) {
     _log("http_success_json", { ...snapshot, bytes: result.buffer ? result.buffer.length : 0, elapsedMs: _now() - startedAt });
+    _setHeader(res, "X-SB-Response-Mode", "json-audio");
     return _safeJson(res, 200, {
       ok: true,
       provider: result.provider,
@@ -1323,6 +1352,7 @@ async function handleTts(req, res) {
   }
 
   try {
+    _setHeader(res, "X-SB-Response-Mode", "audio");
     _setHeader(res, "Content-Type", result.mimeType || "audio/mpeg");
     _setHeader(res, "Content-Length", String(result.buffer.length));
     _setHeader(res, "Accept-Ranges", "none");
@@ -1331,6 +1361,7 @@ async function handleTts(req, res) {
   } catch (e) {
     const detail = _trim(e && (e.message || e)) || "Failed to send audio buffer.";
     _log("http_send_failed", { ...snapshot, detail, elapsedMs: _now() - startedAt });
+    _setHeader(res, "X-SB-Response-Mode", "error");
     return _safeJson(res, 503, {
       ok: false,
       spokenUnavailable: true,
