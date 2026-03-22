@@ -12,7 +12,8 @@ const MANUAL_RESEMBLE_CONFIG = Object.freeze({
   apiKey: "",
   voiceUuid: "",
   projectUuid: "",
-  synthUrl: "https://f.cluster.resemble.ai/synthesize"
+  synthUrl: "https://f.cluster.resemble.ai/synthesize",
+  statusUrlTemplate: ""
 });
 
 const PHASES = Object.freeze({
@@ -41,7 +42,9 @@ const PHASES = Object.freeze({
   p23_errorNormalization: true,
   p24_headerSanitization: true,
   p25_transientRetryBackoff: true,
-  p26_audioRecoverySignalReady: true
+  p26_audioRecoverySignalReady: true,
+  p27_asyncPolling: true,
+  p28_asyncResultRetrieval: true
 });
 
 const LOCKED_VOICE_ENV_KEYS = Object.freeze([
@@ -219,6 +222,16 @@ function _retryBaseMs(){
 }
 function _downloadAttempts(){
   return _clampInt(process.env.SB_TTS_AUDIO_DOWNLOAD_ATTEMPTS, 2, 1, 4);
+}
+
+function _pollAttempts(){
+  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_ATTEMPTS, 10, 1, 40);
+}
+function _pollIntervalMs(){
+  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_INTERVAL_MS, 900, 200, 5000);
+}
+function _pollMaxMs(){
+  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_MAX_MS, 15000, 1000, 120000);
 }
 function _looksLikeMp3(buf){
   return Buffer.isBuffer(buf) && buf.length >= 3 && (
@@ -411,6 +424,296 @@ function _candidateSynthesizeUrls(){
     }
   }
   return uniq;
+}
+
+
+function _statusUrlTemplate(){
+  return _manualOrEnv(
+    _manualConfig().statusUrlTemplate,
+    process.env.RESEMBLE_STATUS_URL_TEMPLATE,
+    process.env.RESEMBLE_POLL_URL_TEMPLATE,
+    process.env.SB_RESEMBLE_STATUS_URL_TEMPLATE,
+    ""
+  );
+}
+
+function _replaceTemplateTokens(template, vars){
+  let out = _trim(template);
+  if (!out) return "";
+  for (const [key, value] of Object.entries(vars || {})){
+    const safe = encodeURIComponent(_trim(value));
+    out = out
+      .replace(new RegExp(`\\{${key}\\}`, "g"), safe)
+      .replace(new RegExp(`:${key}(?=\\b)`, "g"), safe);
+  }
+  return _normalizeUrlCandidate(out);
+}
+
+function _extractAsyncEnvelope(json){
+  if (!json || typeof json !== "object") return {};
+  const data = _firstObject(json.data);
+  const result = _firstObject(json.result);
+  const response = _firstObject(json.response);
+  const output = _firstObject(json.output);
+  const job = _firstObject(json.job) || _firstObject(data && data.job) || _firstObject(result && result.job) || _firstObject(response && response.job);
+  const item0 = _firstArrayObject(json.items) || _firstArrayObject(json.outputs) || _firstArrayObject(json.results);
+  const rawStatus = _pickFirst(
+    json.status,
+    json.state,
+    json.job_status,
+    json.render_status,
+    data && (data.status || data.state || data.job_status || data.render_status),
+    result && (result.status || result.state || result.job_status || result.render_status),
+    response && (response.status || response.state || response.job_status || response.render_status),
+    output && (output.status || output.state || output.job_status || output.render_status),
+    job && (job.status || job.state || job.job_status || job.render_status),
+    item0 && (item0.status || item0.state || item0.job_status || item0.render_status)
+  );
+
+  const id = _pickFirst(
+    json.clip_uuid,
+    json.clip_id,
+    json.generation_id,
+    json.request_id,
+    json.id,
+    data && (data.clip_uuid || data.clip_id || data.generation_id || data.request_id || data.id),
+    result && (result.clip_uuid || result.clip_id || result.generation_id || result.request_id || result.id),
+    response && (response.clip_uuid || response.clip_id || response.generation_id || response.request_id || response.id),
+    output && (output.clip_uuid || output.clip_id || output.generation_id || output.request_id || output.id),
+    job && (job.clip_uuid || job.clip_id || job.generation_id || job.request_id || job.id),
+    item0 && (item0.clip_uuid || item0.clip_id || item0.generation_id || item0.request_id || item0.id)
+  );
+
+  const statusUrl = _pickFirst(
+    json.status_url,
+    json.poll_url,
+    json.result_url,
+    json.job_url,
+    data && (data.status_url || data.poll_url || data.result_url || data.job_url),
+    result && (result.status_url || result.poll_url || result.result_url || result.job_url),
+    response && (response.status_url || response.poll_url || response.result_url || response.job_url),
+    output && (output.status_url || output.poll_url || output.result_url || output.job_url),
+    job && (job.status_url || job.poll_url || job.result_url || job.job_url),
+    item0 && (item0.status_url || item0.poll_url || item0.result_url || item0.job_url)
+  );
+
+  const errorMessage = _pickFirst(
+    json.error,
+    json.message,
+    json.detail,
+    json.reason,
+    data && (data.error || data.message || data.detail || data.reason),
+    result && (result.error || result.message || result.detail || result.reason),
+    response && (response.error || response.message || response.detail || response.reason),
+    output && (output.error || output.message || output.detail || output.reason),
+    job && (job.error || job.message || job.detail || job.reason),
+    item0 && (item0.error || item0.message || item0.detail || item0.reason)
+  );
+
+  const normalizedStatus = _lower(rawStatus);
+
+  return {
+    id: _trim(id),
+    status: normalizedStatus,
+    rawStatus: _trim(rawStatus),
+    statusUrl: _normalizeUrlCandidate(statusUrl),
+    pending: /^(queued|queue|pending|processing|rendering|running|in_progress|in-progress|starting|accepted|submitted)$/.test(normalizedStatus),
+    done: /^(complete|completed|done|ready|finished|success|succeeded)$/.test(normalizedStatus),
+    failed: /^(failed|error|errored|canceled|cancelled|rejected|expired)$/.test(normalizedStatus),
+    message: _trim(errorMessage)
+  };
+}
+
+function _candidateStatusUrls(asyncEnv, projectUuid){
+  const vars = {
+    id: asyncEnv && asyncEnv.id,
+    requestId: asyncEnv && asyncEnv.id,
+    clipId: asyncEnv && asyncEnv.id,
+    generationId: asyncEnv && asyncEnv.id,
+    projectUuid: projectUuid || ""
+  };
+  const urls = [
+    asyncEnv && asyncEnv.statusUrl,
+    _replaceTemplateTokens(_statusUrlTemplate(), vars)
+  ]
+    .map(_normalizeUrlCandidate)
+    .filter(Boolean);
+
+  const uniq = [];
+  const seen = new Set();
+  for (const u of urls){
+    if (!seen.has(u)){
+      seen.add(u);
+      uniq.push(u);
+    }
+  }
+  return uniq;
+}
+
+function _shouldAttemptAsyncPolling(status, json){
+  if (!(status >= 200 && status < 300) || !json || typeof json !== "object") return false;
+  const asyncEnv = _extractAsyncEnvelope(json);
+  if (asyncEnv.pending || asyncEnv.done || asyncEnv.failed) return !!(asyncEnv.id || asyncEnv.statusUrl);
+  if (asyncEnv.id && !(_extractAudioEnvelope(json).audio_content || _extractAudioEnvelope(json).audio_base64 || _extractAudioEnvelope(json).audio_src)) return true;
+  return false;
+}
+
+function _getViaHttps(url, headers, timeoutMs){
+  const maxBytes = _maxResponseBytes();
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request(
+      {
+        method: "GET",
+        hostname: u.hostname,
+        port: u.port || undefined,
+        protocol: u.protocol,
+        path: u.pathname + (u.search || ""),
+        headers: {
+          Accept: "application/json, audio/*;q=0.9, */*;q=0.8",
+          "Accept-Encoding": "identity",
+          ...headers
+        },
+        timeout: timeoutMs
+      },
+      (res) => {
+        const chunks = [];
+        let total = 0;
+        res.on("data", (d) => {
+          total += d.length;
+          if (total > maxBytes){
+            req.destroy(new Error("provider_response_too_large"));
+            return;
+          }
+          chunks.push(d);
+        });
+        res.on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          resolve({
+            status: res.statusCode || 0,
+            headers: res.headers || {},
+            buffer,
+            text: buffer.toString("utf8")
+          });
+        });
+      }
+    );
+    req.on("timeout", () => req.destroy(new Error("provider_request_timeout")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function _getRequest(url, headers, timeoutMs){
+  const safeUrl = _assertSafeRemoteUrl(url, false);
+  if (typeof fetch === "function"){
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    let to = null;
+    try{
+      if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(safeUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json, audio/*;q=0.9, */*;q=0.8",
+          "Accept-Encoding": "identity",
+          ...headers
+        },
+        signal: controller ? controller.signal : undefined
+      });
+      const ab = await res.arrayBuffer();
+      const buffer = Buffer.from(ab);
+      if (buffer.length > _maxResponseBytes()) throw new Error("provider_response_too_large");
+      return {
+        status: res.status,
+        headers: Object.fromEntries(res.headers.entries()),
+        buffer,
+        text: buffer.toString("utf8")
+      };
+    } catch (e){
+      const msg = _str(e && e.message ? e.message : e);
+      if (e && e.name === "AbortError") {
+        const err = new Error("provider_request_timeout");
+        err.cause = e;
+        throw err;
+      }
+      throw new Error(msg || "provider_request_failed");
+    } finally {
+      if (to) clearTimeout(to);
+    }
+  }
+  return _getViaHttps(safeUrl, headers, timeoutMs);
+}
+
+async function _pollRequest(url, token, traceId, timeoutMs, authMode){
+  const headers = {
+    ..._buildAuthHeaders(token, authMode),
+    "User-Agent": "sb-nyx-tts/1.4"
+  };
+  if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
+  const resp = await _getRequest(url, headers, timeoutMs);
+  resp.providerEndpoint = _safeUrlForLogs(url);
+  return resp;
+}
+
+async function _pollForCompletedAudio(initialJson, token, traceId, timeoutMs, projectUuid){
+  const asyncEnv = _extractAsyncEnvelope(initialJson);
+  const urls = _candidateStatusUrls(asyncEnv, projectUuid);
+  if (!urls.length) return null;
+
+  const authModes = ["bearer", "raw", "token"];
+  const deadline = Date.now() + _pollMaxMs();
+  let pollsUsed = 0;
+  let lastResp = null;
+  let lastJson = null;
+  let lastAuthMode = "bearer";
+
+  while (Date.now() <= deadline && pollsUsed < _pollAttempts()){
+    for (const url of urls){
+      for (const authMode of authModes){
+        pollsUsed++;
+        lastAuthMode = authMode;
+        try{
+          const resp = await _pollRequest(url, token, traceId, timeoutMs, authMode);
+          lastResp = resp;
+          const ct = _getHeader(resp && resp.headers, "content-type");
+          const json = _isJsonContentType(ct)
+            ? _parseJson(resp && resp.text ? resp.text : "")
+            : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
+          lastJson = json;
+
+          if (_providerSucceeded(resp && resp.status ? resp.status : 0, json, resp)){
+            return { resp, json, authMode, pollsUsed };
+          }
+
+          const state = _extractAsyncEnvelope(json);
+          if (state.failed){
+            return { resp, json, authMode, pollsUsed, failed: true, failureMessage: state.message || _normalizeProviderMessage(json, resp && resp.text) };
+          }
+          if (state.done){
+            const env = _extractAudioEnvelope(json);
+            if (env.audio_content || env.audio_base64 || env.audio_src){
+              return { resp, json, authMode, pollsUsed };
+            }
+          }
+        }catch(e){
+          lastResp = {
+            status: 0,
+            headers: {},
+            buffer: Buffer.alloc(0),
+            text: _str(e && e.message ? e.message : e),
+            providerEndpoint: _safeUrlForLogs(url),
+            thrown: e
+          };
+        }
+        if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
+      }
+      if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
+    }
+    if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
+    await _sleep(_pollIntervalMs());
+  }
+
+  return { resp: lastResp, json: lastJson, authMode: lastAuthMode, pollsUsed, timeout: true };
 }
 
 function _isAudioContentType(ct){
@@ -976,26 +1279,51 @@ async function synthesize(opts){
     });
   }
 
-  const status = resp && resp.status ? resp.status : 0;
-  const providerEndpoint = resp && resp.providerEndpoint ? resp.providerEndpoint : _pickFirst.apply(null, _candidateSynthesizeUrls());
-  const contentType = _getHeader(resp && resp.headers, "content-type");
-  const json = _isJsonContentType(contentType)
+  let status = resp && resp.status ? resp.status : 0;
+  let providerEndpoint = resp && resp.providerEndpoint ? resp.providerEndpoint : _pickFirst.apply(null, _candidateSynthesizeUrls());
+  let contentType = _getHeader(resp && resp.headers, "content-type");
+  let json = _isJsonContentType(contentType)
     ? _parseJson(resp && resp.text ? resp.text : "")
     : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
 
+  let pollOutcome = null;
+  if (!_providerSucceeded(status, json, resp) && _shouldAttemptAsyncPolling(status, json)){
+    pollOutcome = await _pollForCompletedAudio(json, token, traceId, timeoutMs, projectUuid);
+    if (pollOutcome && pollOutcome.resp){
+      resp = pollOutcome.resp;
+      authMode = pollOutcome.authMode || authMode;
+      status = resp && resp.status ? resp.status : status;
+      providerEndpoint = resp && resp.providerEndpoint ? resp.providerEndpoint : providerEndpoint;
+      contentType = _getHeader(resp && resp.headers, "content-type");
+      json = pollOutcome.json || (
+        _isJsonContentType(contentType)
+          ? _parseJson(resp && resp.text ? resp.text : "")
+          : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer))
+      );
+    }
+  }
+
   if (!_providerSucceeded(status, json, resp)){
-    const retryable = _retryableStatus(status);
+    const retryable = _retryableStatus(status) || !!(pollOutcome && pollOutcome.timeout);
+    const pollState = _extractAsyncEnvelope(json);
     return {
       ok: false,
       retryable,
-      reason: (status === 401 || status === 403) ? "auth_error" : "http_error",
-      message: _normalizeProviderMessage(json, resp && resp.text ? resp.text : "Resemble synthesis failed."),
+      reason:
+        (status === 401 || status === 403) ? "auth_error" :
+        (pollOutcome && pollOutcome.timeout) ? "async_poll_timeout" :
+        (pollState && pollState.failed) ? "async_provider_failed" :
+        "http_error",
+      message:
+        (pollOutcome && pollOutcome.failed && pollOutcome.failureMessage) ||
+        _normalizeProviderMessage(json, resp && resp.text ? resp.text : "Resemble synthesis failed."),
       status,
       elapsedMs: Date.now() - started,
       issues: json && Array.isArray(json.issues) ? json.issues : undefined,
       requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
       authMode,
       attemptsUsed,
+      pollsUsed: pollOutcome && pollOutcome.pollsUsed ? pollOutcome.pollsUsed : 0,
       providerEndpoint,
       voiceUuid,
       voiceUuidMasked: _mask(voiceUuid),
@@ -1010,6 +1338,7 @@ async function synthesize(opts){
       segmentCount: speech.segmentCount,
       usedSsml: speech.useSsml,
       rawPreview: _safePreview(resp && resp.text, 240),
+      asyncState: pollState && pollState.rawStatus ? pollState.rawStatus : undefined,
       phases: PHASES
     };
   }
@@ -1189,6 +1518,7 @@ async function synthesize(opts){
     providerStatus: status,
     authMode,
     attemptsUsed,
+    pollsUsed: pollOutcome && pollOutcome.pollsUsed ? pollOutcome.pollsUsed : 0,
     providerEndpoint,
     voiceUuid,
     voiceUuidMasked: _mask(voiceUuid),
