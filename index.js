@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.9.0sb";
+const INDEX_VERSION = "index.js v2.6.2sb";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -829,11 +829,11 @@ function isPlaceholderValue(v) {
     "your_project_uuid",
     "your_voice_uuid",
     "your_api_key",
+    "your_token",
     "full_uuid_from_resemble",
     "replace_me",
     "changeme",
-    "placeholder",
-    "your_token"
+    "placeholder"
   ].includes(x);
 }
 
@@ -853,27 +853,44 @@ function buildTtsConfig() {
     "RESEMBLE_API_TOKEN",
     "SB_RESEMBLE_API_TOKEN"
   ]);
+
   const voiceUuid = envFirst([
     "SB_RESEMBLE_VOICE_UUID",
     "RESEMBLE_VOICE_UUID"
   ]);
+
   const projectUuid = envFirst([
     "SB_RESEMBLE_PROJECT_UUID",
     "RESEMBLE_PROJECT_UUID"
   ]);
-  const endpointMode = envFirst([
+
+  const endpointModeRaw = envFirst([
     "SB_RESEMBLE_ENDPOINT_MODE",
     "RESEMBLE_ENDPOINT_MODE"
-  ], "stream") || "stream";
+  ], "clip") || "clip";
+
+  const endpointMode = ["clip", "stream", "synthesis"].includes(lower(endpointModeRaw))
+    ? lower(endpointModeRaw)
+    : "clip";
+
   const outputFormat = envFirst([
     "SB_RESEMBLE_OUTPUT_FORMAT",
     "RESEMBLE_OUTPUT_FORMAT"
   ], "mp3") || "mp3";
+
   const timeoutMs = clamp(Number(envFirst([
     "SB_RESEMBLE_TIMEOUT_MS",
     "RESEMBLE_TIMEOUT_MS"
   ], "15000") || 15000), 2000, 60000);
-  return { apiKey, voiceUuid, projectUuid, endpointMode, outputFormat, timeoutMs };
+
+  const synthesisUrl = envFirst([
+    "SB_RESEMBLE_TTS_URL",
+    "RESEMBLE_TTS_URL"
+  ], endpointMode === "stream"
+    ? "https://f.cluster.resemble.ai/stream"
+    : "https://f.cluster.resemble.ai/synthesize");
+
+  return { apiKey, voiceUuid, projectUuid, endpointMode, outputFormat, timeoutMs, synthesisUrl };
 }
 
 async function readResponseBodySafe(resp) {
@@ -901,114 +918,100 @@ function sendTtsJsonError(req, res, code, error, detail, extraMeta) {
 }
 
 async function inlineTtsFallback(req, res) {
-  const text = cleanText(req.body?.text || req.body?.payload?.text || req.body?.reply || req.body?.payload?.reply || req.body?.message || "");
+  const text = cleanText(
+    req.body?.text ||
+    req.body?.payload?.text ||
+    req.body?.reply ||
+    req.body?.payload?.reply ||
+    req.body?.message ||
+    ""
+  );
+
   if (!text) {
-    return sendTtsJsonError(req, res, 400, "tts_missing_text", "No text was provided for synthesis.");
+    return sendTtsJsonError(req, res, 400, "tts_missing_text", "No text was provided for synthesis.", {
+      configSource: "inline_fallback"
+    });
   }
 
   const cfg = buildTtsConfig();
+
   if (!cfg.apiKey) {
     return sendTtsJsonError(req, res, 503, "tts_env_missing_api_key", "No Resemble API key is configured.", {
       configSource: "inline_fallback"
     });
   }
+
   if (!cfg.voiceUuid) {
     return sendTtsJsonError(req, res, 503, "tts_env_missing_voice_uuid", "No Resemble voice UUID is configured.", {
       configSource: "inline_fallback"
     });
   }
 
-  const upstreamUrl = "https://app.resemble.ai/api/v2/clips";
-  const payload = {
+  const synthPayload = {
     voice_uuid: cfg.voiceUuid,
-    body: text,
+    data: text,
     output_format: cfg.outputFormat
   };
-  if (cfg.projectUuid) payload.project_uuid = cfg.projectUuid;
 
   let upstream;
   try {
-    upstream = await callWithTimeout(fetch(upstreamUrl, {
+    upstream = await callWithTimeout(fetch(cfg.synthesisUrl, {
       method: "POST",
       headers: {
         "Authorization": `Token ${cfg.apiKey}`,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "audio/mpeg,audio/*;q=0.9,application/json;q=0.8,*/*;q=0.7"
       },
-      body: JSON.stringify(payload)
-    }), cfg.timeoutMs, "resemble_create_clip");
+      body: JSON.stringify(synthPayload)
+    }), cfg.timeoutMs, "resemble_synthesize_request");
   } catch (err) {
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble create clip request failed"), {
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble synth request failed"), {
       configSource: "inline_fallback",
       endpointMode: cfg.endpointMode,
       requestedFormat: cfg.outputFormat,
       projectConfigured: !!cfg.projectUuid,
-      stage: "create_clip_request"
+      stage: "synthesize_request"
     });
   }
 
-  const createBodyText = await readResponseBodySafe(upstream);
-  let createJson = null;
-  try { createJson = createBodyText ? JSON.parse(createBodyText) : null; } catch (_) { createJson = null; }
-
+  const contentType = lower(upstream.headers.get("content-type") || "");
   if (!upstream.ok) {
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", createBodyText || `Resemble create clip failed with ${upstream.status}`, {
+    const upstreamBody = await readResponseBodySafe(upstream);
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", upstreamBody || `Resemble synth failed with ${upstream.status}`, {
       configSource: "inline_fallback",
       endpointMode: cfg.endpointMode,
       requestedFormat: cfg.outputFormat,
       projectConfigured: !!cfg.projectUuid,
-      stage: "create_clip_response",
+      stage: "synthesize_response",
       upstreamStatus: upstream.status
     });
   }
 
-  const audioSrc = cleanText(
-    createJson?.item?.audio_src ||
-    createJson?.audio_src ||
-    createJson?.item?.url ||
-    ""
-  );
-
-  if (!audioSrc) {
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", createBodyText || "No audio URL returned by Resemble.", {
+  if (contentType.includes("application/json") || contentType.includes("text/plain")) {
+    const upstreamBody = await readResponseBodySafe(upstream);
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", upstreamBody || "Resemble returned JSON/text instead of audio.", {
       configSource: "inline_fallback",
       endpointMode: cfg.endpointMode,
       requestedFormat: cfg.outputFormat,
       projectConfigured: !!cfg.projectUuid,
-      stage: "missing_audio_src"
+      stage: "unexpected_non_audio_response"
     });
   }
 
-  let audioResp;
+  let arrayBuffer;
   try {
-    audioResp = await callWithTimeout(fetch(audioSrc, {
-      method: "GET",
-      headers: { "Accept": "audio/mpeg,audio/*;q=0.9,*/*;q=0.8" }
-    }), cfg.timeoutMs, "resemble_fetch_audio");
+    arrayBuffer = await upstream.arrayBuffer();
   } catch (err) {
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Audio download failed"), {
+    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Could not read audio payload"), {
       configSource: "inline_fallback",
       endpointMode: cfg.endpointMode,
       requestedFormat: cfg.outputFormat,
       projectConfigured: !!cfg.projectUuid,
-      stage: "audio_fetch_request"
+      stage: "audio_buffer_read"
     });
   }
 
-  if (!audioResp.ok) {
-    const audioErr = await readResponseBodySafe(audioResp);
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", audioErr || `Audio fetch failed with ${audioResp.status}`, {
-      configSource: "inline_fallback",
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid,
-      stage: "audio_fetch_response",
-      upstreamStatus: audioResp.status
-    });
-  }
-
-  const arrayBuffer = await audioResp.arrayBuffer();
-  const buf = Buffer.from(arrayBuffer);
+  const buf = Buffer.from(arrayBuffer || new ArrayBuffer(0));
   if (!buf.length) {
     return sendTtsJsonError(req, res, 503, "tts_inline_failure", "Audio response was empty.", {
       configSource: "inline_fallback",
@@ -1103,7 +1106,16 @@ app.get("/health", (req, res) => {
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     tts,
     voice,
-    ttsConfig: (() => { const c = buildTtsConfig(); return { apiKeyConfigured: !!c.apiKey, voiceUuidConfigured: !!c.voiceUuid, projectUuidConfigured: !!c.projectUuid, endpointMode: c.endpointMode, outputFormat: c.outputFormat }; })()
+    ttsConfig: (() => {
+      const c = buildTtsConfig();
+      return {
+        apiKeyConfigured: !!c.apiKey,
+        voiceUuidConfigured: !!c.voiceUuid,
+        projectUuidConfigured: !!c.projectUuid,
+        endpointMode: c.endpointMode,
+        outputFormat: c.outputFormat
+      };
+    })()
   });
 });
 
