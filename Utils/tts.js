@@ -2185,6 +2185,34 @@ function _parseSpeechHints(body) {
   };
 }
 
+function _buildSpeechHintsForRoute(baseHints, meta) {
+  const hints = JSON.parse(JSON.stringify(baseHints || DEFAULT_SPEECH_HINTS));
+  const src = meta && typeof meta === "object" ? meta : {};
+  const routeKind = _lower(src.routeKind || src.mode);
+  const source = _lower(src.source);
+  const chipLike = source === "chip" || source === "guided_prompt" || source === "lane_chip" || source === "hero_chip";
+  const introLike = !!src.intro || routeKind === "intro";
+
+  if (introLike) {
+    hints.pauses.commaMs = Math.max(hints.pauses.commaMs || 0, 170);
+    hints.pauses.periodMs = Math.max(hints.pauses.periodMs || 0, 360);
+    hints.pauses.questionMs = Math.max(hints.pauses.questionMs || 0, 390);
+    hints.pacing.mode = hints.pacing.mode || "presentational";
+    hints.pacing.noRunOns = true;
+    hints.pacing.sentenceBreath = true;
+  }
+
+  if (chipLike) {
+    hints.pauses.commaMs = Math.min(Math.max(hints.pauses.commaMs || 0, 130), 170);
+    hints.pauses.periodMs = Math.min(Math.max(hints.pauses.periodMs || 0, 260), 320);
+    hints.pauses.questionMs = Math.min(Math.max(hints.pauses.questionMs || 0, 300), 340);
+    hints.pacing.mode = hints.pacing.mode || "guided";
+    hints.pacing.noRunOns = true;
+  }
+
+  return hints;
+}
+
 function _normalizeWhitespace(text) {
   return _str(text)
     .replace(/\r\n?/g, "\n")
@@ -2804,7 +2832,9 @@ function _normalizePayloadLikeInput(payload, req) {
   const body = payload && typeof payload === "object" ? payload : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
-  const text = _pickFirst(body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay);
+  const speech = body.speech && typeof body.speech === "object" ? body.speech : {}
+  const nestedPayload = body.payload && typeof body.payload === "object" ? body.payload : {}
+  const text = _pickFirst(body.textSpeak, speech.textSpeak, body.text, nestedPayload.textSpeak, nestedPayload.reply, body.reply, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay, speech.textDisplay);
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
     body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
@@ -2826,7 +2856,7 @@ function _normalizePayloadLikeInput(payload, req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(body.textDisplay)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(body.textDisplay, speech.textDisplay, payload.textDisplay, body.reply, payload.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, body.mixerVoiceName)),
@@ -2846,7 +2876,7 @@ function _normalizePayloadLikeInput(payload, req) {
     mode: _pickFirst(body.mode, "presence"),
     source: _pickFirst(body.source, "tts"),
     sourceId: _pickFirst(body.sourceId, body.requestId, ""),
-    speechHints: _parseSpeechHints(body),
+    speechHints: _buildSpeechHintsForRoute(_parseSpeechHints({ ...nestedPayload, ...speech, ...body }), body),
     pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object" ? body.pronunciationMap : null,
     speechChunks: Array.isArray(body.speechChunks) ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [],
     preserveMixerVoice: _bool(body.preserveMixerVoice, true),
@@ -2862,9 +2892,12 @@ function _resolveInput(req) {
   const params = req && req.params && typeof req.params === "object" ? req.params : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
+  const speech = body.speech && typeof body.speech === "object" ? body.speech : {};
+  const nestedPayload = body.payload && typeof body.payload === "object" ? body.payload : {};
+
   const text = _pickFirst(
-    body.textSpeak, body.text, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay,
-    query.text, query.speak, query.say, query.prompt, params.text
+    body.textSpeak, speech.textSpeak, body.text, nestedPayload.textSpeak, nestedPayload.reply, body.reply, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay, speech.textDisplay,
+    query.textSpeak, query.text, query.speak, query.say, query.prompt, query.reply, query.textDisplay, params.text
   );
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
@@ -2892,7 +2925,7 @@ function _resolveInput(req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(body.textDisplay, query.textDisplay)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(body.textDisplay, speech.textDisplay, nestedPayload.textDisplay, body.reply, nestedPayload.reply, query.textDisplay, query.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, query.voiceName)),
@@ -2912,7 +2945,7 @@ function _resolveInput(req) {
     mode: _pickFirst(body.mode, query.mode, "presence"),
     source: _pickFirst(body.source, query.source, "tts"),
     sourceId: _pickFirst(body.sourceId, query.sourceId, body.requestId, query.requestId, ""),
-    speechHints: _parseSpeechHints({ ...query, ...body }),
+    speechHints: _buildSpeechHintsForRoute(_parseSpeechHints({ ...query, ...nestedPayload, ...speech, ...body }), { ...query, ...body }),
     pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object"
       ? body.pronunciationMap
       : (query.pronunciationMap && typeof query.pronunciationMap === "object" ? query.pronunciationMap : null),
@@ -2988,6 +3021,14 @@ async function delegateTts(payload, req) {
       elapsedMs: result.elapsedMs || 0,
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0
+    },
+    speech: {
+      textDisplay: result.textDisplay || input.textDisplay || input.text,
+      textSpeak: result.textSpeak || input.text,
+      routeKind: input.routeKind || (input.intro ? "intro" : "main"),
+      intro: !!input.intro,
+      source: input.source || "tts",
+      sourceId: input.sourceId || ""
     }
   };
 }
