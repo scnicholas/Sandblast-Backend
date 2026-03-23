@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.11.0sb TTS-CONSOLIDATED";
+const INDEX_VERSION = "index.js v2.12.0sb TTS-HARDENED-AUDIO-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -169,7 +169,7 @@ function getBackendPublicBase() {
     process.env.SB_BACKEND_PUBLIC_BASE_URL ||
     process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL ||
     process.env.RENDER_EXTERNAL_URL ||
-    "https://sandbox-backend.onrender.com"
+    "https://sandblast-backend.onrender.com"
   ).replace(/\/$/, "");
 }
 
@@ -884,11 +884,15 @@ function attachVoiceRoute(base) {
   const route = {
     enabled: routeEnabled,
     endpoint: routeUrl("/api/tts"),
+    healthEndpoint: routeUrl("/api/tts/health"),
     method: "POST",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
     streamAudioSupported: true,
+    contractVersion: "audio-first-v1",
+    deterministicAudio: true,
+    failOpenChat: true,
     traceHeader: "x-sb-trace-id"
   };
 
@@ -906,11 +910,15 @@ function normalizeVoiceRouteResponse(out) {
   return {
     enabled: out.enabled !== false,
     endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
+    healthEndpoint: cleanText(out.healthEndpoint || "/api/tts/health") || "/api/tts/health",
     method: cleanText(out.method || "POST") || "POST",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
     streamAudioSupported: out.streamAudioSupported !== false,
+    contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
+    deterministicAudio: out.deterministicAudio !== false,
+    failOpenChat: out.failOpenChat !== false,
     traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
   };
 }
@@ -958,7 +966,13 @@ app.get("/api/health", (req, res) => {
     tts,
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
-    backendPublicBase: getBackendPublicBase()
+    backendPublicBase: getBackendPublicBase(),
+    audioContract: {
+      version: "audio-first-v1",
+      endpoint: routeUrl("/api/tts"),
+      healthEndpoint: routeUrl("/api/tts/health"),
+      deterministicAudio: true
+    }
   });
 });
 
@@ -1271,7 +1285,16 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     cog: shaped.cog || {},
     requestId: shaped.requestId,
     traceId: shaped.traceId,
-    meta: shaped.meta || {},
+    meta: {
+      ...(shaped.meta || {}),
+      audioContract: {
+        version: "audio-first-v1",
+        endpoint: routeUrl("/api/tts"),
+        healthEndpoint: routeUrl("/api/tts/health"),
+        deterministicAudio: true,
+        failOpenChat: true
+      }
+    },
     audio: shaped.audio || undefined,
     ttsProfile: shaped.ttsProfile || undefined,
     voiceRoute: shaped.voiceRoute || undefined
