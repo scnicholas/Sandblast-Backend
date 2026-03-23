@@ -9,8 +9,8 @@
  * - Tightened backend shell
  * - Removes duplicate replay authority from index layer
  * - Keeps Chat Engine as the semantic turn authority
- * - Delegates voice/TTS routing to utils/voiceRoute.js
- * - Preserves Mixer voice path
+ * - Uses TTS as the single synthesis authority
+ * - Preserves frontend voice route contract without provider-side dispatch authority
  * - Keeps fail-open rendering contract
  * - Hardens TTS route error handling and response finalization
  * - Adds affect/stabilize/fail-safe unification
@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.10.1sb";
+const INDEX_VERSION = "index.js v2.11.0sb TTS-CONSOLIDATED";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -258,14 +258,6 @@ const ttsMod = tryRequireMany([
   "./Utils/tts.js"
 ]);
 
-const ttsProviderResembleMod = tryRequireMany([
-  "./ttsProvidersResemble",
-  "./ttsProvidersResemble.js",
-  "./utils/ttsProvidersResemble",
-  "./utils/ttsProvidersResemble.js",
-  "./Utils/ttsProvidersResemble",
-  "./Utils/ttsProvidersResemble.js"
-]);
 
 const marionBridgeMod = tryRequireMany([
   "./marionBridge",
@@ -844,330 +836,12 @@ function ttsHealthFromModule(mod) {
 }
 
 
-function isPlaceholderValue(v) {
-  const x = lower(cleanText(v));
-  if (!x) return true;
-  return [
-    "your_project_uuid",
-    "your_voice_uuid",
-    "your_api_key",
-    "your_token",
-    "full_uuid_from_resemble",
-    "replace_me",
-    "changeme",
-    "placeholder"
-  ].includes(x);
-}
-
-function envFirst(names, fallback) {
-  const list = Array.isArray(names) ? names : [];
-  for (const name of list) {
-    const val = cleanText(process.env[name]);
-    if (val && !isPlaceholderValue(val)) return val;
-  }
-  return cleanText(fallback || "");
-}
-
-function buildTtsConfig() {
-  const apiKey = envFirst([
-    "SB_RESEMBLE_API_KEY",
-    "RESEMBLE_API_KEY",
-    "RESEMBLE_API_TOKEN",
-    "SB_RESEMBLE_API_TOKEN"
-  ]);
-
-  const voiceUuid = envFirst([
-    "SB_RESEMBLE_VOICE_UUID",
-    "RESEMBLE_VOICE_UUID"
-  ]);
-
-  const projectUuid = envFirst([
-    "SB_RESEMBLE_PROJECT_UUID",
-    "RESEMBLE_PROJECT_UUID"
-  ]);
-
-  const endpointModeRaw = envFirst([
-    "SB_RESEMBLE_ENDPOINT_MODE",
-    "RESEMBLE_ENDPOINT_MODE"
-  ], "clip") || "clip";
-
-  const endpointMode = ["clip", "stream", "synthesis"].includes(lower(endpointModeRaw))
-    ? lower(endpointModeRaw)
-    : "clip";
-
-  const outputFormat = envFirst([
-    "SB_RESEMBLE_OUTPUT_FORMAT",
-    "RESEMBLE_OUTPUT_FORMAT"
-  ], "mp3") || "mp3";
-
-  const timeoutMs = clamp(Number(envFirst([
-    "SB_RESEMBLE_TIMEOUT_MS",
-    "RESEMBLE_TIMEOUT_MS"
-  ], "15000") || 15000), 2000, 60000);
-
-  const synthesisUrl = envFirst([
-    "SB_RESEMBLE_TTS_URL",
-    "RESEMBLE_TTS_URL"
-  ], endpointMode === "stream"
-    ? "https://f.cluster.resemble.ai/stream"
-    : "https://f.cluster.resemble.ai/synthesize");
-
-  return { apiKey, voiceUuid, projectUuid, endpointMode, outputFormat, timeoutMs, synthesisUrl };
-}
-
-async function readResponseBodySafe(resp) {
-  try {
-    return await resp.text();
-  } catch (_) {
-    return "";
-  }
-}
-
-function logTtsTrace(stage, data) {
-  try {
-    console.log("[Sandblast][tts:inline]", stage, JSON.stringify(isObj(data) ? data : { value: safeStr(data) }));
-  } catch (_) {
-    try { console.log("[Sandblast][tts:inline]", stage, data); } catch (_) {}
-  }
-}
-
-function sendTtsJsonError(req, res, code, error, detail, extraMeta) {
-  if (res.headersSent) return;
-  return res.status(code).json({
-    ok: false,
-    spokenUnavailable: true,
-    error,
-    detail: cleanText(detail || "tts failure"),
-    traceId: cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts")),
-    meta: {
-      v: INDEX_VERSION,
-      t: now(),
-      ...(isObj(extraMeta) ? extraMeta : {})
-    }
-  });
-}
-
-async function inlineTtsFallback(req, res) {
-  const traceId = cleanText(req.headers["x-sb-trace-id"] || req.body?.traceId || makeTraceId("tts"));
-  const text = cleanText(
-    req.body?.text ||
-    req.body?.payload?.text ||
-    req.body?.reply ||
-    req.body?.payload?.reply ||
-    req.body?.message ||
-    ""
-  );
-
-  if (!text) {
-    return sendTtsJsonError(req, res, 400, "tts_missing_text", "No text was provided for synthesis.", {
-      configSource: "inline_fallback",
-      traceId
-    });
-  }
-
-  const cfg = buildTtsConfig();
-  const traceMeta = {
-    traceId,
-    configSource: "inline_fallback",
-    endpointMode: cfg.endpointMode,
-    requestedFormat: cfg.outputFormat,
-    synthesisUrl: cfg.synthesisUrl,
-    voiceUuid: cfg.voiceUuid,
-    projectConfigured: !!cfg.projectUuid,
-    apiKeyMasked: maskSecret(cfg.apiKey),
-    textPreview: clipText(text, 140),
-    textLength: text.length
-  };
-
-  if (ttsProviderResembleMod && typeof ttsProviderResembleMod.synthesize === "function") {
-    logTtsTrace("provider_inline_start", traceMeta);
-    try {
-      const providerOut = await callWithTimeout(ttsProviderResembleMod.synthesize({
-        text,
-        traceId,
-        voiceUuid: cfg.voiceUuid,
-        projectUuid: cfg.projectUuid,
-        outputFormat: cfg.outputFormat
-      }), cfg.timeoutMs, "resemble_provider_inline");
-
-      if (!providerOut || providerOut.ok === false || !Buffer.isBuffer(providerOut.buffer) || !providerOut.buffer.length) {
-        const detail = clipText(providerOut && (providerOut.message || providerOut.reason || "Resemble synth request failed"), 700);
-        return sendTtsJsonError(req, res, 503, "tts_inline_failure", detail, {
-          ...traceMeta,
-          stage: "provider_inline",
-          providerStatus: Number(providerOut && (providerOut.providerStatus || providerOut.status || 0) || 0),
-          authMode: cleanText(providerOut && providerOut.authMode || ""),
-          providerEndpoint: cleanText(providerOut && providerOut.providerEndpoint || "")
-        });
-      }
-
-      const mimeType = cleanText(providerOut.mimeType || (cfg.outputFormat === "wav" ? "audio/wav" : "audio/mpeg")) || "audio/mpeg";
-      res.setHeader("Content-Type", mimeType);
-      res.setHeader("Content-Length", String(providerOut.buffer.length));
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("x-sb-trace-id", traceId);
-      res.setHeader("x-sb-tts-source", "inline_fallback");
-      res.setHeader("x-sb-tts-stage", "complete");
-      if (providerOut.providerStatus) res.setHeader("x-sb-tts-upstream-status", String(providerOut.providerStatus));
-      return res.status(200).send(providerOut.buffer);
-    } catch (err) {
-      return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble provider inline failed"), {
-        ...traceMeta,
-        stage: "provider_inline_exception"
-      });
-    }
-  }
-
-  if (!cfg.apiKey) {
-    return sendTtsJsonError(req, res, 503, "tts_env_missing_api_key", "No Resemble API key is configured.", {
-      configSource: "inline_fallback",
-      traceId
-    });
-  }
-
-  if (!cfg.voiceUuid) {
-    return sendTtsJsonError(req, res, 503, "tts_env_missing_voice_uuid", "No Resemble voice UUID is configured.", {
-      configSource: "inline_fallback",
-      traceId
-    });
-  }
-
-  const synthPayload = {
-    voice_uuid: cfg.voiceUuid,
-    data: text,
-    output_format: cfg.outputFormat
-  };
-
-  logTtsTrace("request_prepare", traceMeta);
-
-  let upstream;
-  try {
-    upstream = await callWithTimeout(fetch(cfg.synthesisUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${cfg.apiKey}`,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg,audio/*;q=0.9,application/json;q=0.8,text/plain;q=0.7,*/*;q=0.6",
-        "x-sb-trace-id": traceId
-      },
-      body: JSON.stringify(synthPayload)
-    }), cfg.timeoutMs, "resemble_synthesize_request");
-  } catch (err) {
-    logTtsTrace("request_error", {
-      ...traceMeta,
-      stage: "synthesize_request",
-      error: cleanText(err && (err.stack || err.message || err) || "Resemble synth request failed")
-    });
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Resemble synth request failed"), {
-      ...traceMeta,
-      stage: "synthesize_request"
-    });
-  }
-
-  const contentType = lower(upstream.headers.get("content-type") || "");
-  const upstreamStatus = Number(upstream.status || 0);
-  logTtsTrace("response_head", {
-    ...traceMeta,
-    stage: "synthesize_response_head",
-    upstreamStatus,
-    contentType
-  });
-
-  if (!upstream.ok) {
-    const upstreamBody = await readResponseBodySafe(upstream);
-    const clipped = clipText(upstreamBody || `Resemble synth failed with ${upstreamStatus}`, 700);
-    logTtsTrace("response_error", {
-      ...traceMeta,
-      stage: "synthesize_response",
-      upstreamStatus,
-      contentType,
-      upstreamBody: clipped
-    });
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", clipped, {
-      ...traceMeta,
-      stage: "synthesize_response",
-      upstreamStatus,
-      contentType,
-      upstreamSnippet: clipped
-    });
-  }
-
-  if (contentType.includes("application/json") || contentType.includes("text/plain")) {
-    const upstreamBody = await readResponseBodySafe(upstream);
-    const clipped = clipText(upstreamBody || "Resemble returned JSON/text instead of audio.", 700);
-    logTtsTrace("unexpected_non_audio", {
-      ...traceMeta,
-      stage: "unexpected_non_audio_response",
-      upstreamStatus,
-      contentType,
-      upstreamBody: clipped
-    });
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", clipped, {
-      ...traceMeta,
-      stage: "unexpected_non_audio_response",
-      upstreamStatus,
-      contentType,
-      upstreamSnippet: clipped
-    });
-  }
-
-  let arrayBuffer;
-  try {
-    arrayBuffer = await upstream.arrayBuffer();
-  } catch (err) {
-    logTtsTrace("audio_buffer_error", {
-      ...traceMeta,
-      stage: "audio_buffer_read",
-      upstreamStatus,
-      contentType,
-      error: cleanText(err && (err.stack || err.message || err) || "Could not read audio payload")
-    });
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", cleanText(err && (err.message || err) || "Could not read audio payload"), {
-      ...traceMeta,
-      stage: "audio_buffer_read",
-      upstreamStatus,
-      contentType
-    });
-  }
-
-  const buf = Buffer.from(arrayBuffer || new ArrayBuffer(0));
-  if (!buf.length) {
-    logTtsTrace("empty_audio", {
-      ...traceMeta,
-      stage: "empty_audio",
-      upstreamStatus,
-      contentType
-    });
-    return sendTtsJsonError(req, res, 503, "tts_inline_failure", "Audio response was empty.", {
-      ...traceMeta,
-      stage: "empty_audio",
-      upstreamStatus,
-      contentType
-    });
-  }
-
-  logTtsTrace("success", {
-    ...traceMeta,
-    stage: "complete",
-    upstreamStatus,
-    contentType,
-    audioBytes: buf.length
-  });
-
-  res.setHeader("Content-Type", cfg.outputFormat === "wav" ? "audio/wav" : "audio/mpeg");
-  res.setHeader("Content-Length", String(buf.length));
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("x-sb-trace-id", traceId);
-  res.setHeader("x-sb-tts-source", "inline_fallback");
-  res.setHeader("x-sb-tts-stage", "complete");
-  return res.status(200).send(buf);
-}
-
 async function dispatchTts(req, res) {
-  const voiceHandler = voiceRouteHandlerFromModule(voiceRouteMod);
   const moduleHandler = ttsHandlerFromModule(ttsMod);
-  const handler = voiceHandler || moduleHandler || inlineTtsFallback;
-  return handler(req, res);
+  if (!moduleHandler) {
+    throw new Error("tts_handler_unavailable");
+  }
+  return moduleHandler(req, res);
 }
 
 function attachVoiceRoute(base) {
@@ -1211,11 +885,8 @@ function normalizeVoiceRouteResponse(out) {
 app.get("/health", (req, res) => {
   applyCors(req, res);
   const ttsHealth = ttsHealthFromModule(ttsMod);
-  const voiceHealth = voiceHealthFromModule(voiceRouteMod);
   let tts = null;
-  let voice = null;
   try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
-  try { voice = voiceHealth ? voiceHealth() : null; } catch (_) {}
   return res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
@@ -1230,25 +901,14 @@ app.get("/health", (req, res) => {
       tts: !!ttsMod
     },
     bindings: {
-      voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
-      voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
+      voiceRouteHandler: false,
+      voiceRouteHealth: false,
       ttsHandler: !!ttsHandlerFromModule(ttsMod),
       ttsHealth: !!ttsHealthFromModule(ttsMod)
     },
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     preserveMixerVoice: !!CFG.preserveMixerVoice,
-    tts,
-    voice,
-    ttsConfig: (() => {
-      const c = buildTtsConfig();
-      return {
-        apiKeyConfigured: !!c.apiKey,
-        voiceUuidConfigured: !!c.voiceUuid,
-        projectUuidConfigured: !!c.projectUuid,
-        endpointMode: c.endpointMode,
-        outputFormat: c.outputFormat
-      };
-    })()
+    tts
   });
 });
 
@@ -1270,7 +930,7 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
   applyCors(req, res);
-  const handler = voiceHealthFromModule(voiceRouteMod) || ttsHealthFromModule(ttsMod);
+  const handler = ttsHealthFromModule(ttsMod);
   if (!handler) {
     return res.status(200).json({
       ok: false,
@@ -1308,12 +968,9 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   } catch (err) {
     console.log("[Sandblast][ttsRoute:error]", err && (err.stack || err.message || err));
     if (res.headersSent) return;
-    const cfg = buildTtsConfig();
     return sendTtsJsonError(req, res, 503, "tts_route_failure", cleanText(err && (err.message || err) || "tts route failed"), {
-      configSource: voiceRouteHandlerFromModule(voiceRouteMod) ? "voice_route_module" : (ttsHandlerFromModule(ttsMod) ? "tts_module" : "inline_fallback"),
-      endpointMode: cfg.endpointMode,
-      requestedFormat: cfg.outputFormat,
-      projectConfigured: !!cfg.projectUuid
+      configSource: ttsHandlerFromModule(ttsMod) ? "tts_module" : "unavailable",
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
     });
   }
 });
