@@ -63,6 +63,17 @@ const REQUEST_VOICE_ENV_KEYS = Object.freeze([
   "TTS_VOICE_ID"
 ]);
 
+const TOKEN_ENV_KEYS = Object.freeze([
+  "RESEMBLE_API_TOKEN",
+  "SB_RESEMBLE_API_TOKEN",
+  "RESEMBLE_API_KEY",
+  "SB_RESEMBLE_API_KEY",
+  "SB_TTS_TOKEN",
+  "TTS_TOKEN",
+  "SANDBLAST_TTS_TOKEN",
+  "RESEMBLE_TOKEN"
+]);
+
 function _str(v){ return v == null ? "" : String(v); }
 function _trim(v){ return _str(v).trim(); }
 function _pickFirst(){
@@ -172,13 +183,13 @@ function _voiceResolutionState(requestedValue){
   const lockedCandidates = [manualVoice, ...LOCKED_VOICE_ENV_KEYS.map((key) => process.env[key])]
     .map(_trim)
     .filter(Boolean);
-  const validLocked = lockedCandidates.filter(_looksLikeUuid);
+  const validLocked = lockedCandidates.filter(_looksLikeVoiceIdentifier);
   const uniqueLocked = [...new Set(validLocked)];
   const lockedVoiceUuid = uniqueLocked[0] || "";
   const requestCandidates = [requested, ...REQUEST_VOICE_ENV_KEYS.map((key) => process.env[key])]
     .map(_trim)
     .filter(Boolean);
-  const requestedLooksValid = _looksLikeUuid(requested);
+  const requestedLooksValid = _looksLikeVoiceIdentifier(requested);
   const conflict = uniqueLocked.length > 1;
   const overrideBlocked = !!(lockedVoiceUuid && requestedLooksValid && requested !== lockedVoiceUuid);
 
@@ -260,6 +271,12 @@ function _looksLikeOgg(buf){
 function _looksLikeFlac(buf){
   return Buffer.isBuffer(buf) && buf.length >= 4 &&
     buf.slice(0, 4).toString("ascii") === "fLaC";
+}
+function _looksLikeShortVoiceId(v){
+  return /^[0-9a-f]{8}$/i.test(_trim(v));
+}
+function _looksLikeVoiceIdentifier(v){
+  return _looksLikeUuid(v) || _looksLikeShortVoiceId(v);
 }
 function _resolveMime(buffer, fallbackFmt, contentType){
   const ct = _lower(contentType);
@@ -669,7 +686,7 @@ async function _pollForCompletedAudio(initialJson, token, traceId, timeoutMs, pr
   const urls = _candidateStatusUrls(asyncEnv, projectUuid);
   if (!urls.length) return null;
 
-  const authModes = ["bearer"];
+  const authModes = ["bearer", "token", "raw"];
   const deadline = Date.now() + _pollMaxMs();
   let pollsUsed = 0;
   let lastResp = null;
@@ -979,7 +996,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 }
 
 async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
-  const authModes = ["bearer"];
+  const authModes = ["bearer", "token", "raw"];
   const attempts = _maxSynthAttempts();
   let lastResp = null;
   let lastAuthMode = "bearer";
@@ -1582,7 +1599,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.8.2 RESEMBLE-FAILOVER-HARDENED-TOKENFIX";
+const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -2118,7 +2135,9 @@ function _healthSnapshot() {
       projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
       providerTimeoutMs: PROVIDER_TIMEOUT_MS,
       strictVoiceLock: STRICT_VOICE_LOCK,
-      tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key]))
+      tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key])),
+      audioContract: "audio-first-v1",
+      authModes: ["bearer", "token", "raw"]
     },
     voiceIntegrity: {
       configured: integrity.configured,
@@ -2980,6 +2999,7 @@ async function handleTts(req, res) {
 
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   _setHeader(res, "X-SB-Trace-ID", _headerSafe(input.traceId, 120));
+  _setHeader(res, "X-SB-Audio-Contract", "audio-first-v1");
 
   if (input.healthCheck) {
     const healthState = _healthSnapshot();
