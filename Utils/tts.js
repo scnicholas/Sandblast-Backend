@@ -1619,7 +1619,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.8.0 RESEMBLE-FAILOVER-HARDENED";
+const TTS_VERSION = "tts.js v2.8.1 RESEMBLE-FAILOVER-HARDENED-ROUTEFIX";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1692,6 +1692,34 @@ const AUDIO_FIRST_LOCK = !["0", "false", "off", "no"].includes(String(process.en
 const AUDIO_VERIFY_HEADER = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_AUDIO_VERIFY_HEADER || "true").toLowerCase());
 
 const ALLOW_JSON_AUDIO = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_ALLOW_JSON_AUDIO || "false").toLowerCase());
+
+function _getBackendPublicBase() {
+  const raw = _pickFirst(
+    process.env.SB_BACKEND_PUBLIC_BASE_URL,
+    process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    "https://sandbox-backend.onrender.com"
+  );
+  return _trim(raw).replace(/\/$/, "");
+}
+
+function _getTokenSource() {
+  const candidates = [
+    ["MANUAL_RESEMBLE_CONFIG.apiKey", MANUAL_RESEMBLE_CONFIG && MANUAL_RESEMBLE_CONFIG.apiKey],
+    ["RESEMBLE_API_TOKEN", process.env.RESEMBLE_API_TOKEN],
+    ["RESEMBLE_API_KEY", process.env.RESEMBLE_API_KEY],
+    ["SB_RESEMBLE_API_TOKEN", process.env.SB_RESEMBLE_API_TOKEN],
+    ["SB_RESEMBLE_API_KEY", process.env.SB_RESEMBLE_API_KEY],
+    ["SB_TTS_TOKEN", process.env.SB_TTS_TOKEN],
+    ["TTS_TOKEN", process.env.TTS_TOKEN],
+    ["SANDBLAST_TTS_TOKEN", process.env.SANDBLAST_TTS_TOKEN],
+    ["RESEMBLE_TOKEN", process.env.RESEMBLE_TOKEN]
+  ];
+  for (const [name, value] of candidates) {
+    if (_trim(value)) return name;
+  }
+  return "";
+}
 
 function _requestsJsonAudio(req, body, query, headers) {
   const method = _lower(req && req.method);
