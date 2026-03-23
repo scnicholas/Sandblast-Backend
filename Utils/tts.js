@@ -141,6 +141,11 @@ function _normalizedProviderError(reason, message, status, retryable, extra){
   return {
     ok: false,
     retryable: !!retryable,
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason: reason || "tts_unavailable"
+    },
     reason: _trim(reason) || "provider_error",
     message: _trim(message) || "Resemble synthesis failed.",
     status: Number.isFinite(Number(status)) ? Number(status) : 0,
@@ -155,10 +160,48 @@ function _mimeFor(fmt){
   return "audio/mpeg";
 }
 function _getToken(){
-  return _manualOrEnv(_manualConfig().apiKey, process.env.RESEMBLE_API_TOKEN, process.env.RESEMBLE_API_KEY, "");
+  return _manualOrEnv(
+    _manualConfig().apiKey,
+    process.env.RESEMBLE_API_TOKEN,
+    process.env.RESEMBLE_API_KEY,
+    process.env.SB_RESEMBLE_API_TOKEN,
+    process.env.SB_RESEMBLE_API_KEY,
+    process.env.SB_TTS_TOKEN,
+    process.env.TTS_TOKEN,
+    process.env.SANDBLAST_TTS_TOKEN,
+    process.env.RESEMBLE_TOKEN,
+    ""
+  );
 }
 function _getProjectUuid(){
   return _manualOrEnv(_manualConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
+}
+function _getBackendPublicBase(){
+  return _normalizeUrlCandidate(
+    _pickFirst(
+      process.env.SB_BACKEND_PUBLIC_BASE_URL,
+      process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL,
+      process.env.RENDER_EXTERNAL_URL,
+      "https://sandbox-backend.onrender.com"
+    )
+  );
+}
+function _getTokenSource(){
+  const candidates = [
+    ["MANUAL_RESEMBLE_CONFIG.apiKey", _manualConfig().apiKey],
+    ["RESEMBLE_API_TOKEN", process.env.RESEMBLE_API_TOKEN],
+    ["RESEMBLE_API_KEY", process.env.RESEMBLE_API_KEY],
+    ["SB_RESEMBLE_API_TOKEN", process.env.SB_RESEMBLE_API_TOKEN],
+    ["SB_RESEMBLE_API_KEY", process.env.SB_RESEMBLE_API_KEY],
+    ["SB_TTS_TOKEN", process.env.SB_TTS_TOKEN],
+    ["TTS_TOKEN", process.env.TTS_TOKEN],
+    ["SANDBLAST_TTS_TOKEN", process.env.SANDBLAST_TTS_TOKEN],
+    ["RESEMBLE_TOKEN", process.env.RESEMBLE_TOKEN]
+  ];
+  for (const [name, value] of candidates){
+    if (_trim(value)) return name;
+  }
+  return "";
 }
 function _voiceResolutionState(requestedValue){
   const requested = _trim(requestedValue);
@@ -1589,7 +1632,11 @@ const TOKEN_ENV_KEYS = Object.freeze([
   "RESEMBLE_API_TOKEN",
   "SB_RESEMBLE_API_TOKEN",
   "RESEMBLE_API_KEY",
-  "SB_RESEMBLE_API_KEY"
+  "SB_RESEMBLE_API_KEY",
+  "SB_TTS_TOKEN",
+  "TTS_TOKEN",
+  "SANDBLAST_TTS_TOKEN",
+  "RESEMBLE_TOKEN"
 ]);
 const VOICE_LOCK_ENV_KEYS = Object.freeze([
   "RESEMBLE_VOICE_UUID",
@@ -1840,6 +1887,8 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", _headerSafe(meta.requestId, 80));
   if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", _headerSafe(meta.turnId, 80));
   if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", _headerSafe(meta.sessionId, 80));
+  _setHeader(res, "X-SB-Backend-Base", _headerSafe(_getBackendPublicBase(), 160));
+  _setHeader(res, "X-SB-TTS-Token-Source", _headerSafe(_getTokenSource() || "", 80));
 }
 
 const _circuitOpen = () => _now() < circuitOpenUntil;
@@ -1865,6 +1914,11 @@ function _normalizeFailureContract(reason, message, status, retryable, input, ex
     message: message || "TTS unavailable.",
     status: Number(status || 503) || 503,
     retryable: !!retryable,
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason: reason || "tts_unavailable"
+    },
     provider: "resemble",
     providerStatus: Number(status || 503) || 503,
     voiceUuid: (extra && extra.voiceUuid) || (input && input.voiceUuid) || "",
@@ -1877,6 +1931,11 @@ function _normalizeFailureContract(reason, message, status, retryable, input, ex
       action: retryable ? "retry" : "downgrade",
       reason: reason || "tts_unavailable",
       retryable: !!retryable,
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason: reason || "tts_unavailable"
+    },
       shouldStop: !retryable,
       shouldTerminate: !retryable,
       terminalStopUntil
@@ -1886,6 +1945,11 @@ function _normalizeFailureContract(reason, message, status, retryable, input, ex
       action: retryable ? "retry" : "downgrade",
       reason: reason || "tts_unavailable",
       retryable: !!retryable,
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason: reason || "tts_unavailable"
+    },
       shouldStop: !retryable,
       shouldTerminate: !retryable,
       terminalStopUntil
@@ -2108,6 +2172,8 @@ function _healthSnapshot() {
       projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
       providerTimeoutMs: PROVIDER_TIMEOUT_MS,
       strictVoiceLock: STRICT_VOICE_LOCK,
+      backendPublicBaseUrl: _getBackendPublicBase(),
+      tokenSource: _getTokenSource() || "",
       tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key]))
     },
     voiceIntegrity: {
@@ -2603,6 +2669,12 @@ function _frontendErrorEnvelope(input, result, status, extra) {
     turnId: _pickFirst(result && result.turnId, input.turnId),
     sessionId: _pickFirst(result && result.sessionId, input.sessionId),
     health: _healthSnapshot(),
+    backendPublicBaseUrl: _getBackendPublicBase(),
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason
+    },
     ttsFailure: (result && result.ttsFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).ttsFailure,
     audioFailure: (result && result.audioFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).audioFailure,
     payload: { spokenUnavailable: true }
@@ -2615,12 +2687,12 @@ async function generate(text, options) {
   const snapshot = _buildInputSnapshot(input);
   const startedAt = _now();
 
-  _log("generate_start", { ...snapshot, activeRequests, circuitOpen: _circuitOpen(), failCount });
+  _log("generate_start", { ...snapshot, activeRequests, circuitOpen: _circuitOpen(), failCount, tokenConfigured: _hasProviderToken(), tokenSource: _getTokenSource() || "", backendPublicBaseUrl: _getBackendPublicBase() || "" });
 
   if (!input.text) return _normalizeFailureContract("empty_text", "No TTS text was provided.", 400, false, input);
   if (!_hasProviderToken()) {
     _log("generate_reject_missing_token", snapshot);
-    return _normalizeFailureContract("missing_token", "No provider token is configured.", 503, false, input);
+    return _normalizeFailureContract("missing_token", `No provider token is configured. Checked: RESEMBLE_API_TOKEN, RESEMBLE_API_KEY, SB_RESEMBLE_API_TOKEN, SB_RESEMBLE_API_KEY, SB_TTS_TOKEN, TTS_TOKEN, SANDBLAST_TTS_TOKEN, RESEMBLE_TOKEN.`, 503, false, input, { tokenSource: _getTokenSource() || "" });
   }
   const voiceContract = _voiceContract(input);
   if (!voiceContract.ok) {
@@ -2970,6 +3042,11 @@ async function handleTts(req, res) {
 
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   _setHeader(res, "X-SB-Trace-ID", _headerSafe(input.traceId, 120));
+  _setHeader(res, "X-SB-TTS-Route-Exists", "true");
+  _setHeader(res, "X-SB-Backend-Base", _headerSafe(_getBackendPublicBase(), 160));
+  _setHeader(res, "X-SB-TTS-Token-Configured", _hasProviderToken() ? "true" : "false");
+
+  _log("http_route_start", { ...snapshot, routeExists: true, tokenConfigured: _hasProviderToken(), tokenSource: _getTokenSource() || "", backendPublicBaseUrl: _getBackendPublicBase() || "" });
 
   if (input.healthCheck) {
     const healthState = _healthSnapshot();
