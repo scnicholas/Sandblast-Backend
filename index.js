@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.11.0sb TTS-CONSOLIDATED";
+const INDEX_VERSION = "index.js v2.12.0sb TTS-TOKEN-INJECTION-HARDENED";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -71,6 +71,8 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const DEFAULT_BACKEND_PUBLIC_BASE = "https://sandbox-backend.onrender.com";
+
 
 function safeStr(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -164,6 +166,24 @@ function sameHost(a, b) {
   }
 }
 
+function normalizeBaseUrl(raw) {
+  const cleaned = cleanText(raw || "");
+  if (!cleaned) return "";
+  try {
+    const u = new URL(cleaned);
+    if (!/^https?:$/i.test(u.protocol)) return "";
+    u.hash = "";
+    u.search = "";
+    return u.toString().replace(/\/$/, "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function truthyTokenPresent(v) {
+  return cleanText(v).length > 0;
+}
+
 const CFG = {
   apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
   apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
@@ -179,7 +199,14 @@ const CFG = {
   loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
   requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
-  port: PORT
+  port: PORT,
+  backendPublicBaseUrl: normalizeBaseUrl(
+    process.env.SB_BACKEND_PUBLIC_BASE_URL ||
+    process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    DEFAULT_BACKEND_PUBLIC_BASE
+  ),
+  ttsRequestLogging: boolEnv("SB_TTS_REQUEST_LOGGING", true)
 };
 
 function isAllowedOrigin(origin) {
@@ -850,7 +877,7 @@ function attachVoiceRoute(base) {
   const routeEnabled = !!CFG.voiceRouteEnabled;
   const route = {
     enabled: routeEnabled,
-    endpoint: "/api/tts",
+    endpoint: `${CFG.backendPublicBaseUrl || ""}/api/tts`.replace(/(?<!:)\/\//g, "/"),
     method: "POST",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
@@ -882,6 +909,52 @@ function normalizeVoiceRouteResponse(out) {
   };
 }
 
+function buildTtsRouteSnapshot(req) {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || makeTraceId("tts"));
+  return {
+    traceId,
+    method: cleanText(req.method || "GET") || "GET",
+    path: cleanText(req.originalUrl || req.url || "/tts") || "/tts",
+    origin: cleanText(req.headers.origin || ""),
+    host: cleanText(req.headers.host || ""),
+    sessionId: getSessionId(req),
+    hasBearer: truthyTokenPresent(readBearerToken(req)),
+    hasWidgetToken: truthyTokenPresent(readToken(req)),
+    backendPublicBaseUrl: CFG.backendPublicBaseUrl || DEFAULT_BACKEND_PUBLIC_BASE
+  };
+}
+
+function sendTtsJsonError(req, res, status, error, detail, extra) {
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || makeTraceId("tts"));
+  return res.status(Number(status) || 503).json({
+    ok: false,
+    spokenUnavailable: true,
+    error: cleanText(error || "tts_route_failure") || "tts_route_failure",
+    detail: cleanText(detail || "tts route failed") || "tts route failed",
+    traceId,
+    fallback: {
+      kind: "text_only",
+      shouldContinueText: true,
+      reason: cleanText(error || "tts_route_failure") || "tts_route_failure"
+    },
+    voiceRoute: normalizeVoiceRouteResponse({
+      enabled: true,
+      endpoint: `${CFG.backendPublicBaseUrl || ""}/api/tts`.replace(/(?<!:)\/\//g, "/"),
+      method: "POST",
+      requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
+      preserveMixerVoice: !!CFG.preserveMixerVoice,
+      jsonAudioSupported: true,
+      streamAudioSupported: true,
+      traceHeader: "x-sb-trace-id"
+    }),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      ...(isObj(extra) ? extra : {})
+    }
+  });
+}
+
 app.get("/health", (req, res) => {
   applyCors(req, res);
   const ttsHealth = ttsHealthFromModule(ttsMod);
@@ -900,6 +973,10 @@ app.get("/health", (req, res) => {
       voiceRoute: !!voiceRouteMod,
       tts: !!ttsMod
     },
+    routes: {
+      tts: true,
+      apiTts: true
+    },
     bindings: {
       voiceRouteHandler: false,
       voiceRouteHealth: false,
@@ -908,6 +985,7 @@ app.get("/health", (req, res) => {
     },
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     preserveMixerVoice: !!CFG.preserveMixerVoice,
+    backendPublicBaseUrl: CFG.backendPublicBaseUrl || DEFAULT_BACKEND_PUBLIC_BASE,
     tts
   });
 });
@@ -923,6 +1001,8 @@ app.get("/api/health", (req, res) => {
     traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("health")),
     upMs: now() - SERVER_BOOT_AT,
     tts,
+    routes: { tts: true, apiTts: true },
+    backendPublicBaseUrl: CFG.backendPublicBaseUrl || DEFAULT_BACKEND_PUBLIC_BASE,
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken
   });
@@ -963,14 +1043,26 @@ app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
 
 app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   applyCors(req, res);
+  const snapshot = buildTtsRouteSnapshot(req);
+  if (CFG.ttsRequestLogging) {
+    console.log("[Sandblast][ttsRoute:start]", {
+      ...snapshot,
+      hasText: !!cleanText(req.body?.text || req.body?.payload?.text || req.query?.text || ""),
+      routeExists: true,
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+    });
+  }
   try {
+    res.setHeader("X-SB-TTS-Route-Exists", "true");
+    res.setHeader("X-SB-Backend-Base", CFG.backendPublicBaseUrl || DEFAULT_BACKEND_PUBLIC_BASE);
     return await dispatchTts(req, res);
   } catch (err) {
     console.log("[Sandblast][ttsRoute:error]", err && (err.stack || err.message || err));
     if (res.headersSent) return;
     return sendTtsJsonError(req, res, 503, "tts_route_failure", cleanText(err && (err.message || err) || "tts route failed"), {
       configSource: ttsHandlerFromModule(ttsMod) ? "tts_module" : "unavailable",
-      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod),
+      routeExists: true
     });
   }
 });
