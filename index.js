@@ -771,6 +771,34 @@ function shapeEngineReply(raw) {
   };
 }
 
+function deriveSpeechContract(shaped, norm) {
+  const payload = isObj(shaped && shaped.payload) ? shaped.payload : {};
+  const guidedPrompt = isObj(norm && norm.guidedPrompt) ? norm.guidedPrompt : {};
+  const rawDisplay = cleanText(payload.textDisplay || payload.reply || shaped.reply || norm.text || "");
+  const rawSpeak = cleanText(payload.textSpeak || payload.spokenText || shaped.reply || rawDisplay || norm.text || "");
+  const source = cleanText(payload.source || guidedPrompt.source || norm.body?.source || norm.payload?.source || "chat") || "chat";
+  const sourceId = cleanText(payload.sourceId || guidedPrompt.id || guidedPrompt.key || norm.body?.sourceId || norm.payload?.sourceId || "");
+  const routeKind = cleanText(payload.routeKind || guidedPrompt.routeKind || norm.mode || (guidedPrompt.intro ? "intro" : "main")) || "main";
+  const intro = !!(payload.intro || guidedPrompt.intro || routeKind === "intro");
+  const chipLike = !!(guidedPrompt.label || guidedPrompt.text || source.includes("chip"));
+  return {
+    textDisplay: rawDisplay,
+    textSpeak: rawSpeak,
+    routeKind,
+    intro,
+    source: chipLike ? (source === "chat" ? "guided_prompt" : source) : source,
+    sourceId,
+    speechHints: {
+      pacing: {
+        preservePunctuation: true,
+        sentenceBreath: true,
+        noRunOns: true,
+        mode: intro ? "presentational" : (chipLike ? "guided" : "conversational")
+      }
+    }
+  };
+}
+
 async function callChatEngine(input) {
   if (!chatEngineMod) return null;
   try {
@@ -877,10 +905,11 @@ async function dispatchTts(req, res) {
   return moduleHandler(req, res);
 }
 
-function attachVoiceRoute(base) {
+function attachVoiceRoute(base, speech) {
   const shaped = isObj(base) ? { ...base } : {};
   const existing = isObj(shaped.voiceRoute) ? shaped.voiceRoute : {};
   const routeEnabled = !!CFG.voiceRouteEnabled;
+  const speechMeta = isObj(speech) ? speech : {};
   const route = {
     enabled: routeEnabled,
     endpoint: routeUrl("/api/tts"),
@@ -893,7 +922,15 @@ function attachVoiceRoute(base) {
     contractVersion: "audio-first-v1",
     deterministicAudio: true,
     failOpenChat: true,
-    traceHeader: "x-sb-trace-id"
+    traceHeader: "x-sb-trace-id",
+    text: cleanText(speechMeta.textSpeak || shaped.reply || ""),
+    textDisplay: cleanText(speechMeta.textDisplay || shaped.reply || ""),
+    textSpeak: cleanText(speechMeta.textSpeak || shaped.reply || ""),
+    routeKind: cleanText(speechMeta.routeKind || "main") || "main",
+    intro: !!speechMeta.intro,
+    source: cleanText(speechMeta.source || "chat") || "chat",
+    sourceId: cleanText(speechMeta.sourceId || ""),
+    speechHints: isObj(speechMeta.speechHints) ? speechMeta.speechHints : undefined
   };
 
   if (routeEnabled && shaped.reply && !shaped.audio) {
@@ -919,7 +956,15 @@ function normalizeVoiceRouteResponse(out) {
     contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
     deterministicAudio: out.deterministicAudio !== false,
     failOpenChat: out.failOpenChat !== false,
-    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
+    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id",
+    text: cleanText(out.text || ""),
+    textDisplay: cleanText(out.textDisplay || out.text || ""),
+    textSpeak: cleanText(out.textSpeak || out.text || ""),
+    routeKind: cleanText(out.routeKind || "main") || "main",
+    intro: !!out.intro,
+    source: cleanText(out.source || "chat") || "chat",
+    sourceId: cleanText(out.sourceId || ""),
+    speechHints: isObj(out.speechHints) ? out.speechHints : undefined
   };
 }
 
@@ -1069,7 +1114,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
         supportHold: Math.max(supportHold, 1),
         latencyMs: now() - startedAt
       },
-      voiceRoute: normalizeVoiceRouteResponse(attachVoiceRoute({ reply: norm.text || "" }).voiceRoute)
+      voiceRoute: normalizeVoiceRouteResponse(attachVoiceRoute({ reply: norm.text || "" }, deriveSpeechContract({ reply: norm.text || "", payload: {} }, norm)).voiceRoute)
     });
   }
   setTransportState(sessionId, { key: transportKey, count: 1 });
@@ -1195,6 +1240,19 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   shaped.reply = reply;
   shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
 
+  const speech = deriveSpeechContract(shaped, norm);
+  shaped.payload = {
+    ...(isObj(shaped.payload) ? shaped.payload : {}),
+    reply,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    sourceId: speech.sourceId,
+    speechHints: speech.speechHints
+  };
+
   const loop = detectLoop(sessionId, reply, norm.text);
   if (loop.repeated) {
     failSafe = false;
@@ -1251,7 +1309,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     publicMode: shaped.cog?.publicMode !== false
   };
 
-  shaped = attachVoiceRoute(shaped);
+  shaped = attachVoiceRoute(shaped, speech);
   shaped = enforceQuietUiIfNeeded(shaped, {
     supportActive,
     failSafe,
@@ -1297,6 +1355,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     },
     audio: shaped.audio || undefined,
     ttsProfile: shaped.ttsProfile || undefined,
+    speech,
     voiceRoute: shaped.voiceRoute || undefined
   });
 });
