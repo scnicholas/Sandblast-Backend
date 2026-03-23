@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.12.0sb TTS-HARDENED-AUDIO-CONTRACT";
+const INDEX_VERSION = "index.js v2.13.0sb HERO-SPEECH-ALIGNMENT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
