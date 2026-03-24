@@ -1,13 +1,11 @@
-const fs = require("fs");
 const path = require("path");
+const { NEWS_CANADA_CONFIG } = require("./config");
+const { ensureDir, writeJson } = require("./utils");
 
-function saveArticles(articles) {
-  const outDir = path.join(process.cwd(), "data", "newscanada");
-  const outFile = path.join(outDir, "editors-picks.json");
-
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(outFile, JSON.stringify(articles, null, 2), "utf8");
-
+function saveArticles(payload) {
+  ensureDir(NEWS_CANADA_CONFIG.outputDir);
+  const outFile = path.join(NEWS_CANADA_CONFIG.outputDir, NEWS_CANADA_CONFIG.outputFile);
+  writeJson(outFile, payload);
   return outFile;
 }
 
