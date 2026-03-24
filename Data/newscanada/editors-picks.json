@@ -12,8 +12,18 @@
     "snapshotDir": "data\\newscanada\\snapshots"
   },
   "failures": [],
+  "carousel": {
+    "layout": "six-up",
+    "slots": 6,
+    "filledSlots": 6,
+    "emptySlots": 0,
+    "fallbackEnabled": false,
+    "rotationMs": 8000
+  },
   "articles": [
     {
+      "slot": 1,
+      "panelId": "news-canada-slot-1",
       "id": "26cbf454e87488eeb24a19b6f59fc48837f19074",
       "type": "article",
       "source": "News Canada",
@@ -24,14 +34,17 @@
         "Health Care",
         "Safety - Personal"
       ],
-      "body": "(NC) Did you know that just because something is naturally occurring doesn’t mean it’s free from health risks? Talc is a mineral that’s sourced from mines around the world. It’s used in a wide range of household items, from cosmetics and natural health products to paint and non-prescription drugs. Here are four things you should know: There are health concernsHealth Canada has assessed talc for health risks, and their assessment found two potential concerns. Talc can damage the lungs. This can happen if you inhale it in baby, body or loose face powders. It may cause ovarian cancer. This can occur if it comes in contact with the genital area. Talc can be in products ranging from diaper creams to bath bombs, as well as bubble bath products, genital antiperspirants and deodorants. Know the safety regulationsFederal regulations require that products containing talc have warning labels about safe usage. The government is also considering adding talc to its list of toxic substances. This would enable future actions to effectively help manage the risk associated with talc-based products throughout their entire lifecycle, from development and manufacturing through recycling or disposal. There are appropriate ways to use talcGovernment researchers concluded that there are no health risks from inhaling talc in things like pressed powder makeup, and it doesn’t pose any risk when used in products like paint, paper and plastics. Here’s how to protect yourselfRead product labels and choose talc-free options when available. If you do use a product that contains talc, avoid inhaling any airborne powders and never apply them on or near the genitals. There are risks to using talc, but staying informed is an important way to stay safer. Learn more about the health risks and safety measures at canada.ca/healthy-home.\n\n(NC) Did you know that just because something is naturally occurring doesn’t mean it’s free from health risks? Talc is a mineral that’s sourced from mines around the world. It’s used in a wide range of household items, from cosmetics and natural health products to paint and non-prescription drugs. Here are four things you should know:\n\nThere are risks to using talc, but staying informed is an important way to stay safer. Learn more about the health risks and safety measures at canada.ca/healthy-home.",
       "summary": "(NC) Did you know that just because something is naturally occurring doesn’t mean it’s free from health risks? Talc is a mineral that’s sourced from mines around the world. It’s used in a wide range of household items, from cosmetics and natural health...",
-      "mediaAttachments": [],
+      "teaser": "(NC) Did you know that just because something is naturally occurring doesn’t mean it’s free from health risks? Talc is a mineral that’s sourced from mines around the world. It’s used in a wide range of household items, from cosmetics and natural health...",
       "attribution": "(NC) / www.newscanada.com / News Canada",
       "scrapedAt": "2026-03-24T03:53:19.226Z",
-      "rank": 1
+      "rank": 1,
+      "mediaAttachments": [],
+      "isActive": true
     },
     {
+      "slot": 2,
+      "panelId": "news-canada-slot-2",
       "id": "f8e63f9493397a3f128c02c7f607d718b6cf4083",
       "type": "article",
       "source": "News Canada",
@@ -41,14 +54,17 @@
       "categories": [
         "Finance - Savings & Investment"
       ],
-      "body": "(NC) Are you expecting an income tax refund this year? If so, there are strategies to use it in ways that will make your money go a long way: Paying down debtMake a list of your debts. Include the interest rates, as well as how much each is costing you monthly, and over the long term. Paying off higher-interest and compound-interest debts, such as credit card debt, should be the priority. Building an emergency fundIt’s important to expect the unexpected, such as a surprise vet bill, car repair or loss of income. An emergency fund can be a key support for when life throws you a curveball, and a much less costly option than relying on credit. Planning for retirementIt is never too early or too late to put aside money for retirement. This is especially true if you don’t have a pension through your employer. A tax refund can be a great way to put a lump sum aside in a Tax-Free Savings Account (TFSA) or Registered Retirement Savings Plan (RRSP). You can speak with a financial professional to figure out what savings tools and products suit your needs to save for your retirement. There are resources available to help you make informed financial decisions. For example, the Financial Consumer Agency of Canada has unbiased information and tools on topics such as choosing a financial advisor, calculating credit card debt repayment options and setting financial goals. You can learn more at canada.ca/money.\n\n(NC) Are you expecting an income tax refund this year? If so, there are strategies to use it in ways that will make your money go a long way:\n\nYou can speak with a financial professional to figure out what savings tools and products suit your needs to save for your retirement.\n\nThere are resources available to help you make informed financial decisions. For example, the Financial Consumer Agency of Canada has unbiased information and tools on topics such as choosing a financial advisor, calculating credit card debt repayment options and setting financial goals. You can learn more at canada.ca/money.",
       "summary": "(NC) Are you expecting an income tax refund this year? If so, there are strategies to use it in ways that will make your money go a long way: Paying down debtMake a list of your debts. Include the interest rates, as well as how much each is costing you...",
-      "mediaAttachments": [],
+      "teaser": "(NC) Are you expecting an income tax refund this year? If so, there are strategies to use it in ways that will make your money go a long way: Paying down debtMake a list of your debts. Include the interest rates, as well as how much each is costing you...",
       "attribution": "(NC) / www.newscanada.com / News Canada",
       "scrapedAt": "2026-03-24T03:53:19.542Z",
-      "rank": 2
+      "rank": 2,
+      "mediaAttachments": [],
+      "isActive": true
     },
     {
+      "slot": 3,
+      "panelId": "news-canada-slot-3",
       "id": "62354d2c6634b514a6f5b11360e8495aa3bf41f3",
       "type": "article",
       "source": "News Canada",
@@ -61,14 +77,17 @@
         "Family & Parenting",
         "Home & Garden"
       ],
-      "body": "(NC) The days may be slowly getting longer, but winter nights are still cold, dark and long—perfect for huddling up at home. Movie nights are a classic family activity, especially during this time of year. There are some simple ways to make the experience new while still keeping things affordable. Here are some things you can try: Up your movie snack game. Variety is the spice of life—shake things up from night to night. Even a simple snack like popcorn has a lot of variety: The classic, with a twist: There’s nothing wrong with the classic butter n’ salt popcorn, but you can also try substituting seasoned salt for extra flavour. Caramel corn: Melt a little caramel in a saucepan or in the microwave and toss your popcorn in it a couple hours before you begin. Chicago mix: If you do half a batch of caramel corn, and toss the other half with a powdered cheese (like one that ready-made macaroni and cheese uses). Feeling fancy? You can combine any cold meats, cheeses and pickled veggies you’ve got on hand to make a charcuterie board. Make movie selection part of the fun. One simple way to add a fun flair to movie night is by having a theme. It doesn’t have to be complicated: retro night, comedy night, animated classics or greatest car chases—there are plenty of themes to choose from. One way to find inspiration for your theme is to look at the curated channels on a streaming service, such as Pluto TV. It’s free to access and enjoy, so you can pick the perfect theme without impacting your entertainment budget. Get creative with your space. Another fun way to keep things interesting is to try different ways of setting up your watch area. Rearranging things and making them special is a no-cost way to make the night a special event. One thing you can try is setting up a blanket fort by standing couch cushions up on both sides of the watching area, stretching a blanket between them as a “roof” and laying out plenty of pillows to relax on for watching. The key to a perfect movie night is to make it a fun way for you and your family to connect. When you keep that as the priority, you’ll find the other elements of your night falling into place. Families looking for free movies and shows can explore options available at pluto.tv.\n\n(NC) The days may be slowly getting longer, but winter nights are still cold, dark and long—perfect for huddling up at home. Movie nights are a classic family activity, especially during this time of year. There are some simple ways to make the experience new while still keeping things affordable. Here are some things you can try:\n\nUp your movie snack game. Variety is the spice of life—shake things up from night to night. Even a simple snack like popcorn has a lot of variety:\n\nFeeling fancy? You can combine any cold meats, cheeses and pickled veggies you’ve got on hand to make a charcuterie board.\n\nMake movie selection part of the fun. One simple way to add a fun flair to movie night is by having a theme. It doesn’t have to be complicated: retro night, comedy night, animated classics or greatest car chases—there are plenty of themes to choose from. One way to find inspiration for your theme is to look at the curated channels on a streaming service, such as Pluto TV. It’s free to access and enjoy, so you can pick the perfect theme without impacting your entertainment budget.\n\nGet creative with your space. Another fun way to keep things interesting is to try different ways of setting up your watch area. Rearranging things and making them special is a no-cost way to make the night a special event. One thing you can try is setting up a blanket fort by standing couch cushions up on both sides of the watching area, stretching a blanket between them as a “roof” and laying out plenty of pillows to relax on for watching.\n\nThe key to a perfect movie night is to make it a fun way for you and your family to connect. When you keep that as the priority, you’ll find the other elements of your night falling into place. Families looking for free movies and shows can explore options available at pluto.tv.",
       "summary": "(NC) The days may be slowly getting longer, but winter nights are still cold, dark and long—perfect for huddling up at home. Movie nights are a classic family activity, especially during this time of year. There are some simple ways to make the experience new...",
-      "mediaAttachments": [],
+      "teaser": "(NC) The days may be slowly getting longer, but winter nights are still cold, dark and long—perfect for huddling up at home. Movie nights are a classic family activity, especially during this time of year. There are some simple ways to make the experience new...",
       "attribution": "(NC) / www.newscanada.com / News Canada",
       "scrapedAt": "2026-03-24T03:53:19.862Z",
-      "rank": 3
+      "rank": 3,
+      "mediaAttachments": [],
+      "isActive": true
     },
     {
+      "slot": 4,
+      "panelId": "news-canada-slot-4",
       "id": "83dacbd497dcc43fcdc334064a3fed499cb34948",
       "type": "article",
       "source": "News Canada",
@@ -79,14 +98,17 @@
         "Health Care",
         "Safety - Personal"
       ],
-      "body": "(NC) Understanding what you can and can’t control can make a real difference to your health. Not all risks for heart disease and stroke can be controlled, but knowing what’s fixed helps you focus on what you can change. Did you know that about half of your overall risk is inherited? This makes healthy habits even more important for prevention. Dr. Sara Kirk, a professor of health promotion, says many factors influence our ability to make healthy choices. “We’re living in an often health-disrupting environment with social and structural determinants that can prevent people from being able to make decisions that would improve their health and wellbeing,” she says. “The choices we make are dictated by the choices that we have, and in some cases, there’s not even a choice.” Understanding your factors is a key first step. There are tools, like the Heart & Stroke Risk Screen, that can help, by showing you where you stand, and where changes can potentially help. Important risk factors you can’t change Genetics and age: Studies show that about half of a person’s overall risk for heart disease is inherited. As we age, the heart and blood vessels naturally change, which increases risk it. Understanding these factors encourages earlier screening for high blood pressure, high cholesterol and diabetes — and prompts preventive action. Sex: Women and other people who can experience natural or medically induced menopause face distinct risks during reproductive, menopause and post-menopause stages. Conditions such as hypertension and gestational diabetes during pregnancy increase lifetime risk, and after menopause, hormone changes can further raise it. Ethnicity: Different communities experience varied levels of risk based on genetic, cultural, environmental and socioeconomic factors. Racism and discrimination add pressures that contribute to depression, anxiety and chronic stress—all of which harm heart and brain health. Social and environmental factors: The ability to make healthy choices can be easier for some, and harder for others, depending on many factors, including where you live, your finances and access to healthy choices and resources. Air pollution also affects heart and brain health. Understanding what can’t be changed helps people focus on meaningful actions — and empowers them to protect their heart and brain health. Healthy habits such as sleep, physical activity, stress management and eating well make a powerful difference, and it’s never too late to start. You can find tips for healthy habits at heartandstroke.ca.\n\n(NC) Understanding what you can and can’t control can make a real difference to your health. Not all risks for heart disease and stroke can be controlled, but knowing what’s fixed helps you focus on what you can change. Did you know that about half of your overall risk is inherited? This makes healthy habits even more important for prevention.\n\nDr. Sara Kirk, a professor of health promotion, says many factors influence our ability to make healthy choices. “We’re living in an often health-disrupting environment with social and structural determinants that can prevent people from being able to make decisions that would improve their health and wellbeing,” she says. “The choices we make are dictated by the choices that we have, and in some cases, there’s not even a choice.”\n\nUnderstanding your factors is a key first step. There are tools, like the Heart & Stroke Risk Screen, that can help, by showing you where you stand, and where changes can potentially help.\n\nUnderstanding what can’t be changed helps people focus on meaningful actions — and empowers them to protect their heart and brain health. Healthy habits such as sleep, physical activity, stress management and eating well make a powerful difference, and it’s never too late to start. You can find tips for healthy habits at heartandstroke.ca.",
       "summary": "(NC) Understanding what you can and can’t control can make a real difference to your health. Not all risks for heart disease and stroke can be controlled, but knowing what’s fixed helps you focus on what you can change. Did you know that about half of your...",
-      "mediaAttachments": [],
+      "teaser": "(NC) Understanding what you can and can’t control can make a real difference to your health. Not all risks for heart disease and stroke can be controlled, but knowing what’s fixed helps you focus on what you can change. Did you know that about half of your...",
       "attribution": "(NC) / www.newscanada.com / News Canada",
       "scrapedAt": "2026-03-24T03:53:20.431Z",
-      "rank": 4
+      "rank": 4,
+      "mediaAttachments": [],
+      "isActive": true
     },
     {
+      "slot": 5,
+      "panelId": "news-canada-slot-5",
       "id": "27f459c1edd8da0fc6d722a9a8645f637e909f45",
       "type": "article",
       "source": "News Canada",
@@ -97,14 +119,17 @@
         "Finance - Home & Household",
         "Food & Nutrition"
       ],
-      "body": "(NC) Did you know that without a subsidy, a four-litre jug of milk that costs about $7.50 in southern Canada can cost over $50 in a northern grocery store? For many northern families, higher grocery prices are part of everyday life, and they reflect realities most Canadians never experience. When roads don’t lead to the grocery store Many northern communities aren’t connected to the rest of Canada by permanent roads. Groceries can’t be delivered by truck or train year-round, like they are in most southern communities. As a result, most food is flown to communities. For some communities with water access, non-perishable food can be delivered by ship during the summer when the ice has melted, and waterways are open. In the winter, non-perishable food can be shipped for short periods by ice roads, which is more affordable than air transport. Air delivery is essential, especially for fresh food, but it isn’t always reliable. Flights are often delayed or cancelled because of storms, strong winds, poor visibility or extreme cold. When planes can’t land, fresh food doesn’t arrive. Fewer options mean higher prices Transportation challenges are only part of the story. Many northern communities have just one or two grocery stores, with limited competition and smaller customer bases. The cost of shipping, storing and keeping food fresh, especially fruits and vegetables, is shared across fewer shoppers. As a result, nutritious foods are often the most expensive and the least consistently available. What makes groceries more affordable There are supports that help reduce the cost of groceries in the North and improve access to affordable food. One example is Nutrition North Canada, which currently helps 124 isolated northern communities through a retail subsidy. The highest subsidy is applied to essential foods such as frozen produce, milk, and infant formula. For example, a grocery cart of bagged milk, bananas, eggs and flour that costs $140 before the subsidy can be reduced to $30, saving families $110. Even with these measures, the cost of living is very high in the North, particularly for people living on fixed or low incomes. Improving food affordability over time depends on continued collaboration between communities, governments and partners to strengthen local food systems and infrastructure. Learn about the supports helping make nutritious food more accessible across the North at canada.ca/nutrition-north.\n\n(NC) Did you know that without a subsidy, a four-litre jug of milk that costs about $7.50 in southern Canada can cost over $50 in a northern grocery store? For many northern families, higher grocery prices are part of everyday life, and they reflect realities most Canadians never experience.\n\nMany northern communities aren’t connected to the rest of Canada by permanent roads. Groceries can’t be delivered by truck or train year-round, like they are in most southern communities.\n\nAs a result, most food is flown to communities. For some communities with water access, non-perishable food can be delivered by ship during the summer when the ice has melted, and waterways are open. In the winter, non-perishable food can be shipped for short periods by ice roads, which is more affordable than air transport.\n\nAir delivery is essential, especially for fresh food, but it isn’t always reliable. Flights are often delayed or cancelled because of storms, strong winds, poor visibility or extreme cold. When planes can’t land, fresh food doesn’t arrive.\n\nTransportation challenges are only part of the story. Many northern communities have just one or two grocery stores, with limited competition and smaller customer bases.\n\nThe cost of shipping, storing and keeping food fresh, especially fruits and vegetables, is shared across fewer shoppers. As a result, nutritious foods are often the most expensive and the least consistently available.\n\nThere are supports that help reduce the cost of groceries in the North and improve access to affordable food. One example is Nutrition North Canada, which currently helps 124 isolated northern communities through a retail subsidy.\n\nThe highest subsidy is applied to essential foods such as frozen produce, milk, and infant formula. For example, a grocery cart of bagged milk, bananas, eggs and flour that costs $140 before the subsidy can be reduced to $30, saving families $110.\n\nEven with these measures, the cost of living is very high in the North, particularly for people living on fixed or low incomes. Improving food affordability over time depends on continued collaboration between communities, governments and partners to strengthen local food systems and infrastructure.\n\nLearn about the supports helping make nutritious food more accessible across the North at canada.ca/nutrition-north.",
       "summary": "(NC) Did you know that without a subsidy, a four-litre jug of milk that costs about $7.50 in southern Canada can cost over $50 in a northern grocery store? For many northern families, higher grocery prices are part of everyday life, and they reflect realities...",
-      "mediaAttachments": [],
+      "teaser": "(NC) Did you know that without a subsidy, a four-litre jug of milk that costs about $7.50 in southern Canada can cost over $50 in a northern grocery store? For many northern families, higher grocery prices are part of everyday life, and they reflect realities...",
       "attribution": "(NC) / www.newscanada.com / News Canada",
       "scrapedAt": "2026-03-24T03:53:20.611Z",
-      "rank": 5
+      "rank": 5,
+      "mediaAttachments": [],
+      "isActive": true
     },
     {
+      "slot": 6,
+      "panelId": "news-canada-slot-6",
       "id": "d1901005d09926e1e595e4f495dfc22f72863ed2",
       "type": "article",
       "source": "News Canada",
@@ -115,17 +140,18 @@
         "55+",
         "Health Care"
       ],
-      "body": "--------- SCRIPT --------- Reporter Script: As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV. RSV poses a serious and often underestimated threat to older adults and those with weakened immune systems or certain underlying health problems, particularly those affecting the heart and lungs. For these individuals, the virus can quickly escalate from what seems like a common cold into a severe lung infection, that may require hospitalization. Tragically, it can even lead to life-threatening complications. In Canada, it's estimated that over twenty-three thousand adults aged sixty and older are hospitalized with RSV annually, with an estimated fourteen per cent of adults hospitalized from it experiencing a loss of independence and needing a higher level of care after discharge. One way to protect yourself and your loved ones is by speaking with your healthcare provider about available vaccination options against RSV. --------- SCRIPT --------- (NC) As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV. The threat is realRSV poses a serious and often underestimated threat to older adults and those with weakened immune systems or certain underlying health problems, particularly those affecting the heart and lungs. For these individuals, the virus can quickly escalate from what seems like a common cold into a severe lung infection, that may require hospitalization. Tragically, it can even lead to life-threatening complications. In Canada, it’s estimated that over 23,000 adults aged 60 and older are hospitalized with RSV annually, with an estimated 14 per cent of adults hospitalized from it experiencing a loss of independence and needing a higher level of care after discharge. One way to protect yourself and your loved ones is by speaking with your healthcare provider about available vaccination options against RSV. Audio preview: Download\n\n--------- SCRIPT --------- Reporter Script: As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV. RSV poses a serious and often underestimated threat to older adults and those with weakened immune systems or certain underlying health problems, particularly those affecting the heart and lungs. For these individuals, the virus can quickly escalate from what seems like a common cold into a severe lung infection, that may require hospitalization. Tragically, it can even lead to life-threatening complications. In Canada, it's estimated that over twenty-three thousand adults aged sixty and older are hospitalized with RSV annually, with an estimated fourteen per cent of adults hospitalized from it experiencing a loss of independence and needing a higher level of care after discharge. One way to protect yourself and your loved ones is by speaking with your healthcare provider about available vaccination options against RSV. --------- SCRIPT ---------\n\nAs Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV.\n\nRSV poses a serious and often underestimated threat to older adults and those with weakened immune systems or certain underlying health problems, particularly those affecting the heart and lungs.\n\nFor these individuals, the virus can quickly escalate from what seems like a common cold into a severe lung infection, that may require hospitalization. Tragically, it can even lead to life-threatening complications.\n\nIn Canada, it's estimated that over twenty-three thousand adults aged sixty and older are hospitalized with RSV annually, with an estimated fourteen per cent of adults hospitalized from it experiencing a loss of independence and needing a higher level of care after discharge.\n\nOne way to protect yourself and your loved ones is by speaking with your healthcare provider about available vaccination options against RSV.\n\n(NC) As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV.\n\nThe threat is realRSV poses a serious and often underestimated threat to older adults and those with weakened immune systems or certain underlying health problems, particularly those affecting the heart and lungs.\n\nIn Canada, it’s estimated that over 23,000 adults aged 60 and older are hospitalized with RSV annually, with an estimated 14 per cent of adults hospitalized from it experiencing a loss of independence and needing a higher level of care after discharge.",
       "summary": "--------- SCRIPT --------- Reporter Script: As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV. RSV poses a serious and often underestimated threat...",
+      "teaser": "--------- SCRIPT --------- Reporter Script: As Canadians navigate the colder months, seasonal illnesses are at their peak. With cases on the rise, one to be aware of is respiratory syncytial virus, or RSV. RSV poses a serious and often underestimated threat...",
+      "attribution": "(NC) / www.newscanada.com / News Canada",
+      "scrapedAt": "2026-03-24T03:53:21.207Z",
+      "rank": 6,
       "mediaAttachments": [
         {
           "label": "Download",
           "href": ""
         }
       ],
-      "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:21.207Z",
-      "rank": 6
+      "isActive": true
     }
   ]
 }
