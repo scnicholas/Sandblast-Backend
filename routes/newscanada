@@ -5,6 +5,16 @@ const controller = require("../controllers/newscanada.controller");
 
 const router = express.Router();
 
+/**
+ * News Canada routes
+ * - /health preserves service observability
+ * - /editors-picks returns the payload the six-slot carousel reads from
+ *
+ * Structural note:
+ * Keep the endpoint stable so the frontend can always hydrate all six panels
+ * from the JSON payload without changing the route contract.
+ */
+
 router.get("/health", controller.getHealth);
 router.get("/editors-picks", controller.getEditorsPicks);
 
