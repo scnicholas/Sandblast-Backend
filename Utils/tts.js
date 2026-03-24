@@ -1599,7 +1599,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.10.0 HERO-SPEECH-ALIGNMENT";
+const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -2183,34 +2183,6 @@ function _parseSpeechHints(body) {
       noRunOns: _bool(inputPacing.noRunOns, _bool(body.noRunOns, DEFAULT_SPEECH_HINTS.pacing.noRunOns))
     }
   };
-}
-
-function _buildSpeechHintsForRoute(baseHints, meta) {
-  const hints = JSON.parse(JSON.stringify(baseHints || DEFAULT_SPEECH_HINTS));
-  const src = meta && typeof meta === "object" ? meta : {};
-  const routeKind = _lower(src.routeKind || src.mode);
-  const source = _lower(src.source);
-  const chipLike = source === "chip" || source === "guided_prompt" || source === "lane_chip" || source === "hero_chip";
-  const introLike = !!src.intro || routeKind === "intro";
-
-  if (introLike) {
-    hints.pauses.commaMs = Math.max(hints.pauses.commaMs || 0, 170);
-    hints.pauses.periodMs = Math.max(hints.pauses.periodMs || 0, 360);
-    hints.pauses.questionMs = Math.max(hints.pauses.questionMs || 0, 390);
-    hints.pacing.mode = hints.pacing.mode || "presentational";
-    hints.pacing.noRunOns = true;
-    hints.pacing.sentenceBreath = true;
-  }
-
-  if (chipLike) {
-    hints.pauses.commaMs = Math.min(Math.max(hints.pauses.commaMs || 0, 130), 170);
-    hints.pauses.periodMs = Math.min(Math.max(hints.pauses.periodMs || 0, 260), 320);
-    hints.pauses.questionMs = Math.min(Math.max(hints.pauses.questionMs || 0, 300), 340);
-    hints.pacing.mode = hints.pacing.mode || "guided";
-    hints.pacing.noRunOns = true;
-  }
-
-  return hints;
 }
 
 function _normalizeWhitespace(text) {
@@ -2828,24 +2800,15 @@ async function generate(text, options) {
   }
 }
 
-
-function _speechSource(body) {
-  const src = body && typeof body === "object" ? body : {};
-  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
-  const speech = src.speech && typeof src.speech === "object" ? src.speech : {};
-  const voiceRoute = src.voiceRoute && typeof src.voiceRoute === "object" ? src.voiceRoute : {};
-  return { src, payload, speech, voiceRoute };
-}
-
 function _normalizePayloadLikeInput(payload, req) {
   const body = payload && typeof payload === "object" ? payload : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
-  const sources = _speechSource(body);
-  const merged = { ...sources.voiceRoute, ...sources.speech, ...sources.payload, ...body };
+  const speech = body && typeof body.speech === "object" ? body.speech : {};
+  const nestedPayload = body && typeof body.payload === "object" ? body.payload : {};
+  const voiceRoute = body && typeof body.voiceRoute === "object" ? body.voiceRoute : {};
+  const merged = { ...voiceRoute, ...nestedPayload, ...speech, ...body };
 
-  const text = _pickFirst(
-    merged.textSpeak, merged.text, merged.data, merged.speak, merged.say, merged.message, merged.prompt, merged.textDisplay
-  );
+  const text = _pickFirst(merged.textSpeak, merged.text, merged.data, merged.speak, merged.say, merged.message, merged.prompt, merged.textDisplay);
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
     merged.voice_uuid, merged.voiceUuid, merged.voiceId, merged.voice,
@@ -2867,7 +2830,7 @@ function _normalizePayloadLikeInput(payload, req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(merged.textDisplay, sources.payload.textDisplay, sources.speech.textDisplay, sources.voiceRoute.textDisplay)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(merged.textDisplay, merged.text, merged.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(merged.voiceName, merged.mixerVoiceName)),
@@ -2902,13 +2865,14 @@ function _resolveInput(req) {
   const query = req && req.query && typeof req.query === "object" ? req.query : {};
   const params = req && req.params && typeof req.params === "object" ? req.params : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
-
-  const bodySources = _speechSource(body);
-  const mergedBody = { ...bodySources.voiceRoute, ...bodySources.speech, ...bodySources.payload, ...body };
+  const speech = body && typeof body.speech === "object" ? body.speech : {};
+  const nestedPayload = body && typeof body.payload === "object" ? body.payload : {};
+  const voiceRoute = body && typeof body.voiceRoute === "object" ? body.voiceRoute : {};
+  const mergedBody = { ...voiceRoute, ...nestedPayload, ...speech, ...body };
 
   const text = _pickFirst(
     mergedBody.textSpeak, mergedBody.text, mergedBody.data, mergedBody.speak, mergedBody.say, mergedBody.message, mergedBody.prompt, mergedBody.textDisplay,
-    query.textSpeak, query.text, query.speak, query.say, query.prompt, query.textDisplay, params.text
+    query.text, query.speak, query.say, query.prompt, params.text
   );
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
@@ -2936,7 +2900,7 @@ function _resolveInput(req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay, mergedBody.text, mergedBody.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(mergedBody.voiceName, query.voiceName)),
@@ -3029,21 +2993,20 @@ async function delegateTts(payload, req) {
       voiceUuid: result.voiceUuid || input.voiceUuid,
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
-      routeKind: result.routeKind || input.routeKind || "main",
-      intro: !!(result.intro || input.intro),
-      source: result.source || input.source || "tts",
-      speechHints: result.speechHints || input.speechHints || {},
       elapsedMs: result.elapsedMs || 0,
       shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0
+      segmentCount: result.segmentCount || 0,
+      routeKind: result.routeKind || input.routeKind || "main",
+      intro: result.intro != null ? !!result.intro : !!input.intro,
+      source: result.source || input.source || "tts"
     },
     speech: {
+      text: result.textDisplay || input.textDisplay || input.text,
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
-      routeKind: input.routeKind || (input.intro ? "intro" : "main"),
-      intro: !!input.intro,
-      source: input.source || "tts",
-      sourceId: input.sourceId || ""
+      routeKind: result.routeKind || input.routeKind || "main",
+      intro: result.intro != null ? !!result.intro : !!input.intro,
+      source: result.source || input.source || "tts"
     }
   };
 }
@@ -3157,10 +3120,6 @@ async function handleTts(req, res) {
       authMode: result.authMode || "",
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
-      routeKind: result.routeKind || input.routeKind || "main",
-      intro: !!(result.intro || input.intro),
-      source: result.source || input.source || "tts",
-      speechHints: result.speechHints || input.speechHints || {},
       speechChunks: result.speechChunks || [],
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0,
@@ -3168,7 +3127,15 @@ async function handleTts(req, res) {
       turnId: result.turnId || input.turnId || "",
       sessionId: result.sessionId || input.sessionId || "",
       ttsFailure: result.ttsFailure || _normalizeRecoveryContract(input),
-      audioFailure: result.audioFailure || _normalizeRecoveryContract(input)
+      audioFailure: result.audioFailure || _normalizeRecoveryContract(input),
+      speech: {
+        text: result.textDisplay || input.textDisplay || input.text,
+        textDisplay: result.textDisplay || input.textDisplay || input.text,
+        textSpeak: result.textSpeak || input.text,
+        routeKind: result.routeKind || input.routeKind || "main",
+        intro: result.intro != null ? !!result.intro : !!input.intro,
+        source: result.source || input.source || "tts"
+      }
     });
   }
 
