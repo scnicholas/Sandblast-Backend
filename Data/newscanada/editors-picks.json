@@ -28,7 +28,8 @@
       "summary": "(NC) Did you know that just because something is naturally occurring doesn’t mean it’s free from health risks? Talc is a mineral that’s sourced from mines around the world. It’s used in a wide range of household items, from cosmetics and natural health...",
       "mediaAttachments": [],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:19.226Z"
+      "scrapedAt": "2026-03-24T03:53:19.226Z",
+      "rank": 1
     },
     {
       "id": "f8e63f9493397a3f128c02c7f607d718b6cf4083",
@@ -44,7 +45,8 @@
       "summary": "(NC) Are you expecting an income tax refund this year? If so, there are strategies to use it in ways that will make your money go a long way: Paying down debtMake a list of your debts. Include the interest rates, as well as how much each is costing you...",
       "mediaAttachments": [],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:19.542Z"
+      "scrapedAt": "2026-03-24T03:53:19.542Z",
+      "rank": 2
     },
     {
       "id": "62354d2c6634b514a6f5b11360e8495aa3bf41f3",
@@ -63,7 +65,8 @@
       "summary": "(NC) The days may be slowly getting longer, but winter nights are still cold, dark and long—perfect for huddling up at home. Movie nights are a classic family activity, especially during this time of year. There are some simple ways to make the experience new...",
       "mediaAttachments": [],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:19.862Z"
+      "scrapedAt": "2026-03-24T03:53:19.862Z",
+      "rank": 3
     },
     {
       "id": "83dacbd497dcc43fcdc334064a3fed499cb34948",
@@ -80,7 +83,8 @@
       "summary": "(NC) Understanding what you can and can’t control can make a real difference to your health. Not all risks for heart disease and stroke can be controlled, but knowing what’s fixed helps you focus on what you can change. Did you know that about half of your...",
       "mediaAttachments": [],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:20.431Z"
+      "scrapedAt": "2026-03-24T03:53:20.431Z",
+      "rank": 4
     },
     {
       "id": "27f459c1edd8da0fc6d722a9a8645f637e909f45",
@@ -97,7 +101,8 @@
       "summary": "(NC) Did you know that without a subsidy, a four-litre jug of milk that costs about $7.50 in southern Canada can cost over $50 in a northern grocery store? For many northern families, higher grocery prices are part of everyday life, and they reflect realities...",
       "mediaAttachments": [],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:20.611Z"
+      "scrapedAt": "2026-03-24T03:53:20.611Z",
+      "rank": 5
     },
     {
       "id": "d1901005d09926e1e595e4f495dfc22f72863ed2",
@@ -119,7 +124,8 @@
         }
       ],
       "attribution": "(NC) / www.newscanada.com / News Canada",
-      "scrapedAt": "2026-03-24T03:53:21.207Z"
+      "scrapedAt": "2026-03-24T03:53:21.207Z",
+      "rank": 6
     }
   ]
 }
