@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.0sb HERO-SPEECH-ALIGNMENT";
+const INDEX_VERSION = "index.js v2.12.0sb TTS-HARDENED-AUDIO-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -133,6 +133,25 @@ function replyHash(v) {
     h |= 0;
   }
   return String(h);
+}
+
+function buildSpeechCoordination(meta) {
+  const src = isObj(meta) ? meta : {};
+  const sessionId = cleanText(src.sessionId || "") || "anon";
+  const source = cleanText(src.source || "chat") || "chat";
+  const sourceId = cleanText(src.sourceId || "") || "none";
+  const routeKind = cleanText(src.routeKind || "main") || "main";
+  const textKey = replyHash(src.textSpeak || src.textDisplay || src.reply || "");
+  const utteranceId = cleanText(src.utteranceId || `${routeKind}_${source}_${sourceId}_${textKey}`.replace(/[^a-zA-Z0-9_-]+/g, "_"));
+  return {
+    strategy: "single_flight",
+    suppressConcurrent: true,
+    suppressDuplicateWindowMs: 1800,
+    scope: routeKind === "intro" ? "hero_intro" : "hero_turn",
+    groupKey: `${sessionId}:${routeKind}:${source}`,
+    dedupeKey: `${sessionId}:${utteranceId}`,
+    utteranceId
+  };
 }
 
 function makeTraceId(prefix) {
@@ -781,13 +800,23 @@ function deriveSpeechContract(shaped, norm) {
   const routeKind = cleanText(payload.routeKind || guidedPrompt.routeKind || norm.mode || (guidedPrompt.intro ? "intro" : "main")) || "main";
   const intro = !!(payload.intro || guidedPrompt.intro || routeKind === "intro");
   const chipLike = !!(guidedPrompt.label || guidedPrompt.text || source.includes("chip"));
+  const resolvedSource = chipLike ? (source === "chat" ? "guided_prompt" : source) : source;
+  const coordination = buildSpeechCoordination({
+    sessionId: norm && norm.sessionId,
+    source: resolvedSource,
+    sourceId,
+    routeKind,
+    textSpeak: rawSpeak,
+    textDisplay: rawDisplay
+  });
   return {
     textDisplay: rawDisplay,
     textSpeak: rawSpeak,
     routeKind,
     intro,
-    source: chipLike ? (source === "chat" ? "guided_prompt" : source) : source,
+    source: resolvedSource,
     sourceId,
+    coordination,
     speechHints: {
       pacing: {
         preservePunctuation: true,
@@ -930,6 +959,13 @@ function attachVoiceRoute(base, speech) {
     intro: !!speechMeta.intro,
     source: cleanText(speechMeta.source || "chat") || "chat",
     sourceId: cleanText(speechMeta.sourceId || ""),
+    coordination: isObj(speechMeta.coordination) ? speechMeta.coordination : buildSpeechCoordination({
+      source: speechMeta.source || "chat",
+      sourceId: speechMeta.sourceId || "",
+      routeKind: speechMeta.routeKind || "main",
+      textSpeak: speechMeta.textSpeak || shaped.reply || "",
+      textDisplay: speechMeta.textDisplay || shaped.reply || ""
+    }),
     speechHints: isObj(speechMeta.speechHints) ? speechMeta.speechHints : undefined
   };
 
@@ -964,6 +1000,7 @@ function normalizeVoiceRouteResponse(out) {
     intro: !!out.intro,
     source: cleanText(out.source || "chat") || "chat",
     sourceId: cleanText(out.sourceId || ""),
+    coordination: isObj(out.coordination) ? out.coordination : null,
     speechHints: isObj(out.speechHints) ? out.speechHints : undefined
   };
 }
@@ -1240,7 +1277,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   shaped.reply = reply;
   shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
 
-  const speech = deriveSpeechContract(shaped, norm);
+  let speech = deriveSpeechContract(shaped, norm);
   shaped.payload = {
     ...(isObj(shaped.payload) ? shaped.payload : {}),
     reply,
@@ -1250,6 +1287,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     intro: speech.intro,
     source: speech.source,
     sourceId: speech.sourceId,
+    coordination: speech.coordination,
     speechHints: speech.speechHints
   };
 
@@ -1316,6 +1354,20 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     forceQuiet: suppressMenus
   });
 
+  speech = deriveSpeechContract(shaped, norm);
+  shaped.payload = {
+    ...(isObj(shaped.payload) ? shaped.payload : {}),
+    reply: shaped.reply,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    sourceId: speech.sourceId,
+    coordination: speech.coordination,
+    speechHints: speech.speechHints
+  };
+  shaped.voiceRoute = attachVoiceRoute(shaped, speech).voiceRoute;
   shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
   shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
   shaped.traceId = cleanText(shaped.traceId || norm.traceId);
