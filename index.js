@@ -29,7 +29,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.12.0sb TTS-HARDENED-AUDIO-CONTRACT";
+const INDEX_VERSION = "index.js v2.12.1sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MOUNT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -271,6 +271,15 @@ const ttsMod = tryRequireMany([
   "./utils/tts.js",
   "./Utils/tts",
   "./Utils/tts.js"
+]);
+
+const newsCanadaRouter = tryRequireMany([
+  "./routes/newscanada",
+  "./routes/newscanada.js",
+  "./routes/newsCanada",
+  "./routes/newsCanada.js",
+  "./Routes/newscanada",
+  "./Routes/newscanada.js"
 ]);
 
 
@@ -1353,6 +1362,17 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     voiceRoute: shaped.voiceRoute || undefined
   });
 });
+
+if (newsCanadaRouter) {
+  app.use("/api/newscanada", newsCanadaRouter);
+  app.use("/newscanada", newsCanadaRouter);
+  console.log("[Sandblast][newsCanada] mounted", {
+    api: "/api/newscanada",
+    direct: "/newscanada"
+  });
+} else {
+  console.log("[Sandblast][newsCanada] router_missing");
+}
 
 app.use("/api", (req, res) => {
   applyCors(req, res);
