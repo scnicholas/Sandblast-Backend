@@ -1599,7 +1599,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
+const TTS_VERSION = "tts.js v2.10.0 HERO-SPEECH-ALIGNMENT";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1652,101 +1652,6 @@ const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
 });
 
 let activeRequests = 0;
-const speechLocks = new Map();
-const recentSpeechCompletions = new Map();
-
-function _coordNow(){ return Date.now(); }
-function _coordWindowMs(input){
-  const bodyCoord = input && input.coordination && input.coordination.suppressDuplicateWindowMs;
-  return _clampInt(bodyCoord, 1800, 250, 8000);
-}
-function _cleanupSpeechCoordination(){
-  const now = _coordNow();
-  for (const [k, v] of recentSpeechCompletions.entries()) {
-    if (!v || (now - Number(v.at || 0)) > 10000) recentSpeechCompletions.delete(k);
-  }
-  for (const [k, v] of speechLocks.entries()) {
-    if (!v || (now - Number(v.at || 0)) > 15000) speechLocks.delete(k);
-  }
-}
-function _buildCoordinationState(input){
-  const src = input && typeof input === 'object' ? input : {};
-  const coord = src.coordination && typeof src.coordination === 'object' ? src.coordination : {};
-  const sessionId = _trim(src.sessionId || 'anon');
-  const source = _trim(src.source || 'tts');
-  const sourceId = _trim(src.sourceId || src.requestId || 'none');
-  const routeKind = _trim(src.routeKind || (src.intro ? 'intro' : 'main') || 'main');
-  const textBasis = _trim(src.textSpeak || src.textDisplay || src.text || '');
-  const textHash = _hash(textBasis || '');
-  const utteranceId = _trim(coord.utteranceId || `${routeKind}_${source}_${sourceId}_${textHash}`.replace(/[^a-zA-Z0-9_-]+/g, '_'));
-  const groupKey = _trim(coord.groupKey || `${sessionId}:${routeKind}:${source}`);
-  const dedupeKey = _trim(coord.dedupeKey || `${sessionId}:${utteranceId}`);
-  return {
-    utteranceId,
-    groupKey,
-    dedupeKey,
-    windowMs: _coordWindowMs(src),
-    suppressConcurrent: coord.suppressConcurrent !== false
-  };
-}
-function _tryAcquireSpeechLock(input){
-  _cleanupSpeechCoordination();
-  const c = _buildCoordinationState(input);
-  const now = _coordNow();
-  if (c.suppressConcurrent) {
-    const active = speechLocks.get(c.groupKey);
-    if (active && active.utteranceId !== c.utteranceId && (now - Number(active.at || 0)) <= c.windowMs) {
-      return { ok: false, kind: 'concurrent', coordination: c, active };
-    }
-  }
-  const recent = recentSpeechCompletions.get(c.dedupeKey);
-  if (recent && (now - Number(recent.at || 0)) <= c.windowMs) {
-    return { ok: false, kind: 'duplicate', coordination: c, recent };
-  }
-  speechLocks.set(c.groupKey, { utteranceId: c.utteranceId, at: now, requestId: input && input.requestId || '' });
-  return { ok: true, coordination: c };
-}
-function _releaseSpeechLock(acquired, result){
-  if (!acquired || !acquired.coordination) return;
-  const c = acquired.coordination;
-  const active = speechLocks.get(c.groupKey);
-  if (active && active.utteranceId === c.utteranceId) speechLocks.delete(c.groupKey);
-  if (result && result.ok !== false) recentSpeechCompletions.set(c.dedupeKey, { at: _coordNow(), requestId: result.requestId || '' });
-  _cleanupSpeechCoordination();
-}
-function _buildSuppressedSpeechEnvelope(input, acquired){
-  const c = acquired && acquired.coordination ? acquired.coordination : _buildCoordinationState(input);
-  const why = acquired && acquired.kind === 'concurrent' ? 'speech_already_in_flight' : 'speech_duplicate_suppressed';
-  return {
-    ok: false,
-    suppressed: true,
-    spokenUnavailable: true,
-    reason: why,
-    error: why,
-    detail: acquired && acquired.kind === 'concurrent'
-      ? 'Another speech event is already active for this lane.'
-      : 'A duplicate speech event was suppressed to prevent overlap.',
-    status: 409,
-    providerStatus: 409,
-    retryable: false,
-    traceId: input.traceId || '',
-    requestId: input.requestId || '',
-    turnId: input.turnId || '',
-    sessionId: input.sessionId || '',
-    voiceUuid: input.voiceUuid || '',
-    coordination: c,
-    payload: { spokenUnavailable: true, suppressed: true, coordination: c },
-    speech: {
-      textDisplay: input.textDisplay || input.text || '',
-      textSpeak: input.text || '',
-      routeKind: input.routeKind || (input.intro ? 'intro' : 'main'),
-      intro: !!input.intro,
-      source: input.source || 'tts',
-      sourceId: input.sourceId || '',
-      coordination: c
-    }
-  };
-}
 let failCount = 0;
 let circuitOpenUntil = 0;
 let lastError = "";
@@ -2923,63 +2828,71 @@ async function generate(text, options) {
   }
 }
 
+
+function _speechSource(body) {
+  const src = body && typeof body === "object" ? body : {};
+  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
+  const speech = src.speech && typeof src.speech === "object" ? src.speech : {};
+  const voiceRoute = src.voiceRoute && typeof src.voiceRoute === "object" ? src.voiceRoute : {};
+  return { src, payload, speech, voiceRoute };
+}
+
 function _normalizePayloadLikeInput(payload, req) {
   const body = payload && typeof payload === "object" ? payload : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
+  const sources = _speechSource(body);
+  const merged = { ...sources.voiceRoute, ...sources.speech, ...sources.payload, ...body };
 
-  const speech = body.speech && typeof body.speech === "object" ? body.speech : {}
-  const nestedPayload = body.payload && typeof body.payload === "object" ? body.payload : {}
-  const text = _pickFirst(body.textSpeak, speech.textSpeak, body.text, nestedPayload.textSpeak, nestedPayload.reply, body.reply, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay, speech.textDisplay);
+  const text = _pickFirst(
+    merged.textSpeak, merged.text, merged.data, merged.speak, merged.say, merged.message, merged.prompt, merged.textDisplay
+  );
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
-    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
-    body.resembleVoiceUuid, body.mixerVoiceUuid, body.voiceConfig, body.voiceConfig && body.voiceConfig.voice,
+    merged.voice_uuid, merged.voiceUuid, merged.voiceId, merged.voice,
+    merged.resembleVoiceUuid, merged.mixerVoiceUuid, merged.voiceConfig, merged.voiceConfig && merged.voiceConfig.voice,
     headers["x-sb-voice"], headers["x-voice-uuid"]
   );
   const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
 
   const explicitProjectUuid = _pickFirst(
-    body.project_uuid, body.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
+    merged.project_uuid, merged.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
   );
   const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
-  const outputFormat = _lower(_pickFirst(body.output_format, body.outputFormat, body.format, headers["x-audio-format"], "mp3")) === "wav" ? "wav" : "mp3";
-  const traceId = _pickFirst(headers["x-sb-trace-id"], body.traceId, body.requestId, _makeTrace());
-  const requestId = _pickFirst(headers["x-sb-request-id"], body.requestId, body.sourceId, traceId);
-  const turnId = _pickFirst(headers["x-sb-turn-id"], body.turnId, "");
-  const sessionId = _pickFirst(headers["x-sb-session-id"], body.sessionId, body.sid, "");
+  const outputFormat = _lower(_pickFirst(merged.output_format, merged.outputFormat, merged.format, headers["x-audio-format"], "mp3")) === "wav" ? "wav" : "mp3";
+  const traceId = _pickFirst(headers["x-sb-trace-id"], merged.traceId, merged.requestId, _makeTrace());
+  const requestId = _pickFirst(headers["x-sb-request-id"], merged.requestId, merged.sourceId, traceId);
+  const turnId = _pickFirst(headers["x-sb-turn-id"], merged.turnId, "");
+  const sessionId = _pickFirst(headers["x-sb-session-id"], merged.sessionId, merged.sid, "");
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(body.textDisplay, speech.textDisplay, payload.textDisplay, body.reply, payload.reply)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(merged.textDisplay, sources.payload.textDisplay, sources.speech.textDisplay, sources.voiceRoute.textDisplay)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
-    voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, body.mixerVoiceName)),
+    voiceName: _resolvePreferredVoiceName(_pickFirst(merged.voiceName, merged.mixerVoiceName)),
     projectUuid,
     outputFormat,
     traceId,
     requestId,
     turnId,
     sessionId,
-    title: _pickFirst(body.title, body.source, body.client && body.client.source, "nyx_tts").slice(0, 120),
-    sampleRate: body.sampleRate || body.sample_rate,
-    precision: body.precision,
-    useHd: body.useHd,
-    intro: _bool(body.intro, false) || _lower(body.routeKind) === "intro" || _lower(body.mode) === "intro",
+    title: _pickFirst(merged.title, merged.source, merged.client && merged.client.source, "nyx_tts").slice(0, 120),
+    sampleRate: merged.sampleRate || merged.sample_rate,
+    precision: merged.precision,
+    useHd: merged.useHd,
+    intro: _bool(merged.intro, false) || _lower(merged.routeKind) === "intro" || _lower(merged.mode) === "intro",
     healthCheck: false,
     wantJson: false,
-    mode: _pickFirst(body.mode, "presence"),
-    source: _pickFirst(body.source, "tts"),
-    sourceId: _pickFirst(body.sourceId, body.requestId, ""),
-    coordination: body.coordination && typeof body.coordination === "object"
-      ? body.coordination
-      : (speech.coordination && typeof speech.coordination === "object" ? speech.coordination : (nestedPayload.coordination && typeof nestedPayload.coordination === "object" ? nestedPayload.coordination : null)),
-    speechHints: _buildSpeechHintsForRoute(_parseSpeechHints({ ...nestedPayload, ...speech, ...body }), body),
-    pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object" ? body.pronunciationMap : null,
-    speechChunks: Array.isArray(body.speechChunks) ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [],
-    preserveMixerVoice: _bool(body.preserveMixerVoice, true),
-    provider: _pickFirst(body.provider, "resemble"),
-    routeKind: _pickFirst(body.routeKind, body.mode, body.intro ? "intro" : "main"),
+    mode: _pickFirst(merged.mode, "presence"),
+    source: _pickFirst(merged.source, "tts"),
+    sourceId: _pickFirst(merged.sourceId, merged.requestId, ""),
+    speechHints: _parseSpeechHints(merged),
+    pronunciationMap: merged.pronunciationMap && typeof merged.pronunciationMap === "object" ? merged.pronunciationMap : null,
+    speechChunks: Array.isArray(merged.speechChunks) ? merged.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [],
+    preserveMixerVoice: _bool(merged.preserveMixerVoice, true),
+    provider: _pickFirst(merged.provider, "resemble"),
+    routeKind: _pickFirst(merged.routeKind, merged.mode, merged.intro ? "intro" : "main"),
     rawBody: body
   };
 }
@@ -2990,17 +2903,17 @@ function _resolveInput(req) {
   const params = req && req.params && typeof req.params === "object" ? req.params : {};
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
 
-  const speech = body.speech && typeof body.speech === "object" ? body.speech : {};
-  const nestedPayload = body.payload && typeof body.payload === "object" ? body.payload : {};
+  const bodySources = _speechSource(body);
+  const mergedBody = { ...bodySources.voiceRoute, ...bodySources.speech, ...bodySources.payload, ...body };
 
   const text = _pickFirst(
-    body.textSpeak, speech.textSpeak, body.text, nestedPayload.textSpeak, nestedPayload.reply, body.reply, body.data, body.speak, body.say, body.message, body.prompt, body.textDisplay, speech.textDisplay,
-    query.textSpeak, query.text, query.speak, query.say, query.prompt, query.reply, query.textDisplay, params.text
+    mergedBody.textSpeak, mergedBody.text, mergedBody.data, mergedBody.speak, mergedBody.say, mergedBody.message, mergedBody.prompt, mergedBody.textDisplay,
+    query.textSpeak, query.text, query.speak, query.say, query.prompt, query.textDisplay, params.text
   );
 
   const requestedVoiceUuid = _extractVoiceUuidCandidate(
-    body.voice_uuid, body.voiceUuid, body.voiceId, body.voice,
-    body.resembleVoiceUuid, body.mixerVoiceUuid, body.voiceConfig, body.voiceConfig && body.voiceConfig.voice,
+    mergedBody.voice_uuid, mergedBody.voiceUuid, mergedBody.voiceId, mergedBody.voice,
+    mergedBody.resembleVoiceUuid, mergedBody.mixerVoiceUuid, mergedBody.voiceConfig, mergedBody.voiceConfig && mergedBody.voiceConfig.voice,
     query.voice_uuid, query.voiceUuid, query.voiceId, query.voice,
     query.resembleVoiceUuid, query.mixerVoiceUuid,
     headers["x-sb-voice"], headers["x-voice-uuid"]
@@ -3008,58 +2921,51 @@ function _resolveInput(req) {
   const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
 
   const explicitProjectUuid = _pickFirst(
-    body.project_uuid, body.projectUuid, query.project_uuid, query.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
+    mergedBody.project_uuid, mergedBody.projectUuid, query.project_uuid, query.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
   );
   const projectUuid = _resolveProjectUuid(explicitProjectUuid);
 
   const outputFormat = _lower(_pickFirst(
-    body.output_format, body.outputFormat, body.format, query.output_format, query.outputFormat, query.format, headers["x-audio-format"], "mp3"
+    mergedBody.output_format, mergedBody.outputFormat, mergedBody.format, query.output_format, query.outputFormat, query.format, headers["x-audio-format"], "mp3"
   )) === "wav" ? "wav" : "mp3";
 
-  const traceId = _pickFirst(headers["x-sb-trace-id"], headers["x-sb-traceid"], query.traceId, body.traceId, _makeTrace());
-  const requestId = _pickFirst(headers["x-sb-request-id"], query.requestId, body.requestId, traceId);
-  const turnId = _pickFirst(headers["x-sb-turn-id"], query.turnId, body.turnId, "");
-  const sessionId = _pickFirst(headers["x-sb-session-id"], query.sessionId, body.sessionId, body.sid, query.sid, "");
+  const traceId = _pickFirst(headers["x-sb-trace-id"], headers["x-sb-traceid"], query.traceId, mergedBody.traceId, _makeTrace());
+  const requestId = _pickFirst(headers["x-sb-request-id"], query.requestId, mergedBody.requestId, traceId);
+  const turnId = _pickFirst(headers["x-sb-turn-id"], query.turnId, mergedBody.turnId, "");
+  const sessionId = _pickFirst(headers["x-sb-session-id"], query.sessionId, mergedBody.sessionId, mergedBody.sid, query.sid, "");
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(body.textDisplay, speech.textDisplay, nestedPayload.textDisplay, body.reply, nestedPayload.reply, query.textDisplay, query.reply)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
-    voiceName: _resolvePreferredVoiceName(_pickFirst(body.voiceName, query.voiceName)),
+    voiceName: _resolvePreferredVoiceName(_pickFirst(mergedBody.voiceName, query.voiceName)),
     projectUuid,
     outputFormat,
     traceId,
     requestId,
     turnId,
     sessionId,
-    title: _pickFirst(body.title, query.title, body.source, body.client && body.client.source, "nyx_tts").slice(0, 120),
-    sampleRate: body.sampleRate || body.sample_rate || query.sampleRate || query.sample_rate,
-    precision: body.precision || query.precision,
-    useHd: body.useHd != null ? body.useHd : query.useHd,
-    intro: _bool(body.intro != null ? body.intro : query.intro, false) || _lower(body.routeKind || query.routeKind) === "intro" || _lower(body.mode || query.mode) === "intro",
-    healthCheck: _requestIsHealth(req, body, query, headers),
-    wantJson: _requestsJsonAudio(req, body, query, headers),
-    mode: _pickFirst(body.mode, query.mode, "presence"),
-    source: _pickFirst(body.source, query.source, "tts"),
-    sourceId: _pickFirst(body.sourceId, query.sourceId, body.requestId, query.requestId, ""),
-    coordination: body.coordination && typeof body.coordination === "object"
-      ? body.coordination
-      : (speech.coordination && typeof speech.coordination === "object"
-        ? speech.coordination
-        : (nestedPayload.coordination && typeof nestedPayload.coordination === "object"
-          ? nestedPayload.coordination
-          : (query.coordination && typeof query.coordination === "object" ? query.coordination : null))),
-    speechHints: _buildSpeechHintsForRoute(_parseSpeechHints({ ...query, ...nestedPayload, ...speech, ...body }), { ...query, ...body }),
-    pronunciationMap: body.pronunciationMap && typeof body.pronunciationMap === "object"
-      ? body.pronunciationMap
+    title: _pickFirst(mergedBody.title, query.title, mergedBody.source, mergedBody.client && mergedBody.client.source, "nyx_tts").slice(0, 120),
+    sampleRate: mergedBody.sampleRate || mergedBody.sample_rate || query.sampleRate || query.sample_rate,
+    precision: mergedBody.precision || query.precision,
+    useHd: mergedBody.useHd != null ? mergedBody.useHd : query.useHd,
+    intro: _bool(mergedBody.intro != null ? mergedBody.intro : query.intro, false) || _lower(mergedBody.routeKind || query.routeKind) === "intro" || _lower(mergedBody.mode || query.mode) === "intro",
+    healthCheck: _requestIsHealth(req, mergedBody, query, headers),
+    wantJson: _requestsJsonAudio(req, mergedBody, query, headers),
+    mode: _pickFirst(mergedBody.mode, query.mode, "presence"),
+    source: _pickFirst(mergedBody.source, query.source, "tts"),
+    sourceId: _pickFirst(mergedBody.sourceId, query.sourceId, mergedBody.requestId, query.requestId, ""),
+    speechHints: _parseSpeechHints({ ...query, ...mergedBody }),
+    pronunciationMap: mergedBody.pronunciationMap && typeof mergedBody.pronunciationMap === "object"
+      ? mergedBody.pronunciationMap
       : (query.pronunciationMap && typeof query.pronunciationMap === "object" ? query.pronunciationMap : null),
-    speechChunks: Array.isArray(body.speechChunks)
-      ? body.speechChunks.map(_trim).filter(Boolean).slice(0, 24)
+    speechChunks: Array.isArray(mergedBody.speechChunks)
+      ? mergedBody.speechChunks.map(_trim).filter(Boolean).slice(0, 24)
       : (Array.isArray(query.speechChunks) ? query.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : []),
-    preserveMixerVoice: _bool(body.preserveMixerVoice != null ? body.preserveMixerVoice : query.preserveMixerVoice, true),
-    provider: _pickFirst(body.provider, query.provider, "resemble"),
-    routeKind: _pickFirst(body.routeKind, query.routeKind, body.intro || query.intro ? "intro" : "main")
+    preserveMixerVoice: _bool(mergedBody.preserveMixerVoice != null ? mergedBody.preserveMixerVoice : query.preserveMixerVoice, true),
+    provider: _pickFirst(mergedBody.provider, query.provider, "resemble"),
+    routeKind: _pickFirst(mergedBody.routeKind, query.routeKind, mergedBody.intro || query.intro ? "intro" : "main")
   };
 }
 
@@ -3075,7 +2981,6 @@ function _buildInputSnapshot(input) {
     intro: !!src.intro,
     mode: src.mode || "",
     source: src.source || "",
-    coordination: _buildCoordinationState(src),
     textLen: _str(src.text || "").length,
     textHash: _hash(src.text || ""),
     textPreview: _preview(src.textDisplay || src.text || ""),
@@ -3106,14 +3011,7 @@ async function delegateTts(payload, req) {
     };
   }
 
-  const coordinationAcquire = _tryAcquireSpeechLock(input);
-  if (!coordinationAcquire.ok) return _buildSuppressedSpeechEnvelope(input, coordinationAcquire);
-  let result;
-  try {
-    result = await generate(input.text, input);
-  } finally {
-    _releaseSpeechLock(coordinationAcquire, result);
-  }
+  const result = await generate(input.text, input);
   if (!result.ok) return result;
 
   return {
@@ -3131,6 +3029,10 @@ async function delegateTts(payload, req) {
       voiceUuid: result.voiceUuid || input.voiceUuid,
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
+      routeKind: result.routeKind || input.routeKind || "main",
+      intro: !!(result.intro || input.intro),
+      source: result.source || input.source || "tts",
+      speechHints: result.speechHints || input.speechHints || {},
       elapsedMs: result.elapsedMs || 0,
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0
@@ -3141,8 +3043,7 @@ async function delegateTts(payload, req) {
       routeKind: input.routeKind || (input.intro ? "intro" : "main"),
       intro: !!input.intro,
       source: input.source || "tts",
-      sourceId: input.sourceId || "",
-      coordination: _buildCoordinationState(input)
+      sourceId: input.sourceId || ""
     }
   };
 }
@@ -3172,22 +3073,7 @@ async function handleTts(req, res) {
     }, 400));
   }
 
-  const coordinationAcquire = _tryAcquireSpeechLock(input);
-  if (!coordinationAcquire.ok) {
-    const suppressed = _buildSuppressedSpeechEnvelope(input, coordinationAcquire);
-    _setHeader(res, "X-SB-Response-Mode", "suppressed");
-    _setHeader(res, "X-SB-Speech-Suppressed", "1");
-    _setHeader(res, "X-SB-Speech-Suppress-Reason", _headerSafe(suppressed.reason || "speech_suppressed", 80));
-    _setHeader(res, "Cache-Control", "no-store, max-age=0");
-    return _safeJson(res, 409, suppressed);
-  }
-
-  let result;
-  try {
-    result = await generate(input.text, input);
-  } finally {
-    _releaseSpeechLock(coordinationAcquire, result);
-  }
+  const result = await generate(input.text, input);
 
   if (!result.ok) {
     const upstreamStatus = Number(result.providerStatus || result.status || 503) || 503;
@@ -3271,13 +3157,16 @@ async function handleTts(req, res) {
       authMode: result.authMode || "",
       textDisplay: result.textDisplay || input.textDisplay || input.text,
       textSpeak: result.textSpeak || input.text,
+      routeKind: result.routeKind || input.routeKind || "main",
+      intro: !!(result.intro || input.intro),
+      source: result.source || input.source || "tts",
+      speechHints: result.speechHints || input.speechHints || {},
       speechChunks: result.speechChunks || [],
       shapeElapsedMs: result.shapeElapsedMs || 0,
       segmentCount: result.segmentCount || 0,
       voiceUuid: result.voiceUuid || input.voiceUuid || "",
       turnId: result.turnId || input.turnId || "",
       sessionId: result.sessionId || input.sessionId || "",
-      coordination: _buildCoordinationState(input),
       ttsFailure: result.ttsFailure || _normalizeRecoveryContract(input),
       audioFailure: result.audioFailure || _normalizeRecoveryContract(input)
     });
@@ -3289,7 +3178,6 @@ async function handleTts(req, res) {
     _setHeader(res, "Content-Length", String(routeAudio.bytes));
     _setHeader(res, "Accept-Ranges", "none");
     _setHeader(res, "X-SB-Audio-Playback-Verify", _headerSafe(result.requestId || input.requestId || input.traceId, 80));
-    _setHeader(res, "X-SB-Utterance-ID", _headerSafe(_buildCoordinationState(input).utteranceId, 120));
     _log("http_success_audio", { ...snapshot, bytes: routeAudio.bytes, mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
     return res.status(200).send(routeAudio.buffer);
   } catch (e) {
