@@ -1,96 +1,128 @@
 const cheerio = require("cheerio");
-const { URL } = require("url");
+const { NEWS_CANADA_CONFIG } = require("./config");
+const { cleanText, toAbsoluteUrl, isLikelyArticleUrl } = require("./utils");
 
-function toAbsoluteUrl(href) {
-  try {
-    return new URL(href, "https://www.newscanada.com").href;
-  } catch {
-    return "";
-  }
+function normalizeUrl(url) {
+  if (!url) return "";
+  return String(url).trim().replace(/#.*$/, "");
 }
 
-function cleanText(value = "") {
-  return String(value).replace(/\s+/g, " ").trim();
+function getHeadingText($, node) {
+  const own = cleanText($(node).text());
+  if (own) return own;
+
+  const previousHeading = $(node).prevAll("h1,h2,h3,h4,strong").first();
+  return cleanText(previousHeading.text());
 }
 
-function isLikelyArticleUrl(url) {
-  return /^https:\/\/www\.newscanada\.com\/[a-z]{2}\/.+/.test(url);
+function scoreCandidate(title, containerText, anchorText) {
+  let score = 0;
+  const titleLc = String(title || "").toLowerCase();
+  const containerLc = String(containerText || "").toLowerCase();
+  const anchorLc = String(anchorText || "").toLowerCase();
+
+  if (containerLc.includes("editor's picks") || containerLc.includes("editors picks")) score += 8;
+  if (anchorLc && anchorLc === titleLc) score += 1;
+  if (title.length >= 24) score += 2;
+  if (/\d{5,}/.test(titleLc) || /\d{5,}/.test(containerLc)) score += 1;
+  if (!/^(read more|more|click here|learn more)$/i.test(title)) score += 2;
+  if (!/(contact|privacy|terms|about|subscribe)/i.test(titleLc)) score += 1;
+
+  return score;
 }
 
-function extractEditorsPicksLinks(html) {
+function pushCandidate($, a, contextText, items) {
+  const title = cleanText($(a).text()) || cleanText($(a).attr("title"));
+  const href = cleanText($(a).attr("href"));
+  const url = normalizeUrl(toAbsoluteUrl(href, NEWS_CANADA_CONFIG.baseUrl));
+
+  if (!title || !url || !isLikelyArticleUrl(url)) return;
+
+  items.push({
+    title,
+    url,
+    score: scoreCandidate(title, contextText, cleanText($(a).text())),
+    context: String(contextText || "").slice(0, 400)
+  });
+}
+
+function collectAnchorsFromContainer($, container, items) {
+  const contextText = cleanText($(container).text());
+
+  $(container)
+    .find("a")
+    .each((_, a) => pushCandidate($, a, contextText, items));
+}
+
+function extractEditorsPicksLinks(html, logger) {
   const $ = cheerio.load(html);
-  const collected = [];
+  const items = [];
 
-  // Strategy 1: locate exact "Editor's Picks" label and inspect nearby siblings
   $("body *").each((_, el) => {
-    const text = cleanText($(el).text());
+    const text = cleanText($(el).text()).toLowerCase();
+    if (text !== "editor's picks" && text !== "editors picks") return;
 
-    if (text !== "Editor's Picks") return;
+    const parent = $(el).parent();
+    const section = $(el).closest("section, article, div");
+    const headingScope = getHeadingText($, el);
+
+    collectAnchorsFromContainer($, parent, items);
+    if (section.length) collectAnchorsFromContainer($, section, items);
 
     let cursor = $(el).next();
     let hops = 0;
-
-    while (cursor.length && hops < 20) {
-      // direct node if it is a link
-      if (cursor.is("a")) {
-        const title = cleanText(cursor.text());
-        const href = cleanText(cursor.attr("href"));
-        const abs = toAbsoluteUrl(href);
-
-        if (title && abs) {
-          collected.push({ title, url: abs });
-        }
-      }
-
-      // descendant links
-      cursor.find("a").each((__, a) => {
-        const title = cleanText($(a).text());
-        const href = cleanText($(a).attr("href"));
-        const abs = toAbsoluteUrl(href);
-
-        if (title && abs) {
-          collected.push({ title, url: abs });
-        }
-      });
-
+    while (cursor.length && hops < 14) {
+      const blockText = `${headingScope} ${cleanText(cursor.text())}`;
+      cursor.find("a").each((_, a) => pushCandidate($, a, blockText, items));
       cursor = cursor.next();
       hops += 1;
     }
   });
 
-  // Strategy 2: fallback pass — catch anchors whose nearby container mentions Editor's Picks
-  if (collected.length === 0) {
+  if (items.length === 0) {
     $("a").each((_, a) => {
+      const title = cleanText($(a).text()) || cleanText($(a).attr("title"));
       const href = cleanText($(a).attr("href"));
-      const title = cleanText($(a).text());
-      const abs = toAbsoluteUrl(href);
+      const url = normalizeUrl(toAbsoluteUrl(href, NEWS_CANADA_CONFIG.baseUrl));
       const parentText = cleanText($(a).parent().text());
       const grandParentText = cleanText($(a).parent().parent().text());
+      const context = `${parentText} ${grandParentText}`;
 
-      if (
-        title &&
-        abs &&
-        (parentText.includes("Editor's Picks") || grandParentText.includes("Editor's Picks"))
-      ) {
-        collected.push({ title, url: abs });
-      }
+      if (!title || !url || !isLikelyArticleUrl(url)) return;
+      if (!/editor'?s picks/i.test(context)) return;
+
+      items.push({
+        title,
+        url,
+        score: scoreCandidate(title, context, cleanText($(a).text())),
+        context: context.slice(0, 400)
+      });
     });
   }
 
-  const seen = new Set();
+  const byUrl = new Map();
+  for (const item of items) {
+    const existing = byUrl.get(item.url);
+    if (!existing || item.score > existing.score) {
+      byUrl.set(item.url, item);
+    }
+  }
 
-  return collected.filter((item) => {
-    if (!item.url) return false;
-    if (!isLikelyArticleUrl(item.url)) return false;
-    if (seen.has(item.url)) return false;
-    seen.add(item.url);
-    return true;
-  });
+  const results = Array.from(byUrl.values())
+    .filter((item) => item.score >= 8)
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+    .slice(0, NEWS_CANADA_CONFIG.maxEditorsPickLinks)
+    .map(({ title, url, score, context }) => ({ title, url, score, context }));
+
+  if (logger && typeof logger.debug === "function") {
+    logger.debug("[fetchEditorsPicks] extraction summary", {
+      candidatesFound: items.length,
+      uniqueCandidates: byUrl.size,
+      returned: results.length
+    });
+  }
+
+  return results;
 }
 
-module.exports = {
-  extractEditorsPicksLinks,
-  toAbsoluteUrl,
-  cleanText,
-  isLikelyArticleUrl
-};
+module.exports = { extractEditorsPicksLinks };
