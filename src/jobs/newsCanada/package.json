@@ -2,14 +2,19 @@
   "name": "news-canada-live-scraper",
   "version": "1.0.0",
   "private": true,
-  "description": "Sandblast News Canada scraper runner",
-  "main": "scrapeNewsCanada.js",
+  "description": "Sandblast backend + News Canada stable feed runner",
+  "main": "index.js",
   "type": "commonjs",
   "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
     "scrape": "node scrapeNewsCanada.js"
   },
   "dependencies": {
     "axios": "^1.8.4",
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "compression": "^1.7.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
   }
 }
