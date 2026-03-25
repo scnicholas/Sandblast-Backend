@@ -1,0 +1,15 @@
+{
+  "name": "news-canada-live-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sandblast News Canada scraper runner",
+  "main": "scrapeNewsCanada.js",
+  "type": "commonjs",
+  "scripts": {
+    "scrape": "node scrapeNewsCanada.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "cheerio": "^1.0.0"
+  }
+}
