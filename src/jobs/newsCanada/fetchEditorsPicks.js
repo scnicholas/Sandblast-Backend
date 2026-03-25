@@ -12,6 +12,8 @@ const STRONG_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?[^/?#]*-[0-9]{4,}(?:[/?#]|$)/i;
 const MODERATE_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?(?:[a-z0-9-]{18,}|[a-z0-9-]+\/[a-z0-9-]{18,})(?:[/?#]|$)/i;
 const NEGATIVE_ANCHOR_CONTEXT_RE = /(footer|header|navigation|menu|breadcrumb|social|follow us|share|copyright|all rights reserved)/i;
 const GENERIC_SECTION_TITLE_RE = /^(fraud\s*&\s*cybersecurity|health|finance|travel|family|food|business|lifestyle|technology|news canada content solutions)$/i;
+const SOFT_NEGATIVE_CONTEXT_RE = /(footer|header|navigation|menu|breadcrumb|social|follow us|share)/i;
+const HARD_NEGATIVE_TITLE_KEYWORDS_RE = /(about|contact|privacy|terms|subscribe|newsletter|content solutions|media attachments|related posts)/i;
 
 function normalizeUrl(url) {
   if (!url) return "";
@@ -22,6 +24,7 @@ function createStats() {
   return {
     candidatesSeen: 0,
     candidatesAccepted: 0,
+    rescuedCandidates: 0,
     rejected: {
       missingTitleOrUrl: 0,
       negativeTitle: 0,
@@ -107,11 +110,12 @@ function inspectUrlShape(url) {
   }
 }
 
-function hasNegativeTitle(title) {
+function hasNegativeTitle(title, urlInfo) {
   const text = String(title || "").trim();
   if (!text) return true;
   if (NEGATIVE_TITLE_RE.test(text)) return true;
-  if (text.length < 12) return true;
+  if (HARD_NEGATIVE_TITLE_KEYWORDS_RE.test(text)) return true;
+  if (text.length < 12 && !(urlInfo?.strong || urlInfo?.moderate)) return true;
   return false;
 }
 
@@ -126,18 +130,19 @@ function scoreCandidate(title, containerText, anchorText, href) {
   if (EDITORS_PICKS_RE.test(containerLc)) score += 8;
   if (anchorLc && anchorLc === titleLc) score += 1;
   if (title.length >= 24) score += 2;
-  if (!hasNegativeTitle(title)) score += 2;
+  if (!hasNegativeTitle(title, urlInfo)) score += 2;
   if (!NEGATIVE_CONTEXT_RE.test(titleLc) && !NEGATIVE_CONTEXT_RE.test(containerLc)) score += 2;
   if (urlInfo.strong) score += 6;
   else if (urlInfo.moderate) score += 3;
   if (/\b(news|canada|health|finance|food|travel|family|market|study|report|launch|guide|tips|new)\b/i.test(title)) score += 1;
   if (anchorLc && anchorLc.includes("read more")) score -= 2;
-  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(containerLc)) score -= 3;
+  if (SOFT_NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 2;
+  if (NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 3;
   if (urlInfo.listing) score -= 4;
   if (urlInfo.sectionLanding) score -= 8;
   if (urlInfo.negative) score -= 8;
   if (hrefLc.includes("/en/")) score += 1;
-  if (GENERIC_SECTION_TITLE_RE.test(String(title || "").trim())) score -= 4;
+  if (GENERIC_SECTION_TITLE_RE.test(String(title || "").trim())) score -= 2;
 
   return score;
 }
@@ -149,7 +154,10 @@ function shouldRejectCandidate({ title, url, contextText, stats }) {
     bump(stats, "missingTitleOrUrl");
     return true;
   }
-  if (hasNegativeTitle(title)) {
+
+  const urlInfo = inspectUrlShape(url);
+
+  if (hasNegativeTitle(title, urlInfo)) {
     bump(stats, "negativeTitle");
     return true;
   }
@@ -157,8 +165,6 @@ function shouldRejectCandidate({ title, url, contextText, stats }) {
     bump(stats, "unlikelyArticleUrl");
     return true;
   }
-
-  const urlInfo = inspectUrlShape(url);
   if (!urlInfo.valid) {
     bump(stats, "invalidUrl");
     return true;
@@ -178,12 +184,12 @@ function shouldRejectCandidate({ title, url, contextText, stats }) {
 
   const titleLc = String(title).toLowerCase();
   const contextLc = String(contextText || "").toLowerCase();
-  if (NEGATIVE_CONTEXT_RE.test(titleLc) || NEGATIVE_CONTEXT_RE.test(contextLc)) {
+  if (NEGATIVE_CONTEXT_RE.test(titleLc)) {
     bump(stats, "negativeContext");
     return true;
   }
-  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(contextLc) && !EDITORS_PICKS_RE.test(contextLc)) {
-    bump(stats, "negativeAnchorContext");
+  if (NEGATIVE_CONTEXT_RE.test(contextLc) && !EDITORS_PICKS_RE.test(contextLc)) {
+    bump(stats, "negativeContext");
     return true;
   }
 
@@ -214,7 +220,6 @@ function collectAnchorsFromContainer($, container, items, stats) {
   if (anchors.length === 0 || anchors.length > 36) return;
 
   const contextText = cleanText($(container).text());
-  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(contextText) && !EDITORS_PICKS_RE.test(contextText)) return;
   if (!EDITORS_PICKS_RE.test(contextText) && anchors.length > 16) return;
 
   anchors.each((_, a) => pushCandidate($, a, contextText, items, stats));
@@ -253,11 +258,11 @@ function collectPageFallback($, items, stats) {
     const grandParentText = cleanText($(a).parent().parent().text());
     const context = `${parentText} ${grandParentText}`.trim();
 
-    if (!context || NEGATIVE_ANCHOR_CONTEXT_RE.test(context)) return;
+    if (!context) return;
     if (shouldRejectCandidate({ title, url, contextText: context, stats })) return;
 
     const score = scoreCandidate(title, context, cleanText($(a).text()), url);
-    if (score < 8) {
+    if (score < 7) {
       bump(stats, "lowScore");
       return;
     }
@@ -270,6 +275,26 @@ function collectPageFallback($, items, stats) {
     });
     stats && (stats.candidatesAccepted += 1);
   });
+}
+
+function buildRescueCandidates(items, stats) {
+  if (items.length > 0) return items;
+
+  const rescued = [];
+  const seen = new Set();
+
+  for (const item of items) {
+    if (seen.has(item.url)) continue;
+    if (item.score < 6) continue;
+    seen.add(item.url);
+    rescued.push({ ...item, rescued: true });
+  }
+
+  if (stats) {
+    stats.rescuedCandidates = rescued.length;
+  }
+
+  return rescued;
 }
 
 function extractEditorsPicksLinks(html, logger) {
@@ -296,22 +321,39 @@ function extractEditorsPicksLinks(html, logger) {
   }
 
   const filtered = Array.from(byUrl.values());
-  const lowScoreDropped = filtered.filter((item) => item.score < 9).length;
+  const resultsPool = buildRescueCandidates(filtered, stats);
+  const lowScoreDropped = resultsPool.filter((item) => item.score < 8).length;
   if (lowScoreDropped) {
     stats.rejected.lowScore += lowScoreDropped;
   }
 
-  const results = filtered
-    .filter((item) => item.score >= 9)
+  let results = resultsPool
+    .filter((item) => item.score >= 8)
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, NEWS_CANADA_CONFIG.maxEditorsPickLinks)
-    .map(({ title, url, score, context }, index) => ({
+    .map(({ title, url, score, context, rescued }, index) => ({
       title,
       url,
       score,
       context,
+      rescued: Boolean(rescued),
       position: index + 1
     }));
+
+  if (results.length === 0 && filtered.length > 0) {
+    results = filtered
+      .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+      .slice(0, Math.min(6, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
+      .map(({ title, url, score, context }, index) => ({
+        title,
+        url,
+        score,
+        context,
+        rescued: true,
+        position: index + 1
+      }));
+    stats.rescuedCandidates = results.length;
+  }
 
   if (logger && typeof logger.debug === "function") {
     logger.debug("[fetchEditorsPicks] extraction summary", {
