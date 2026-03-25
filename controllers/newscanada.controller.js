@@ -1,19 +1,32 @@
 "use strict";
 
+const MAX_EDITORS_PICKS = 12;
+const FALLBACK_URL = "https://www.newscanada.com/home";
+
 const SAMPLE_STORIES = [
   {
+    id: "sample-1",
     title: "News Canada Feature One",
     summary: "Fallback editor’s pick payload so the carousel stays visible while upstream feed work is stabilized.",
-    url: "https://www.newscanada.com/",
+    body: "This fallback story keeps the Sandblast News Canada surface alive while the upstream feed is being refreshed. The pipeline now expects a stable full-story contract, not a thin summary payload.",
+    url: FALLBACK_URL,
     issue: "Editor’s Pick",
-    categories: ["Canada", "News"]
+    categories: ["Canada", "News"],
+    images: [],
+    publishedAt: "",
+    author: ""
   },
   {
+    id: "sample-2",
     title: "News Canada Feature Two",
     summary: "This controller preserves a clean frontend contract by always returning an array of usable story objects.",
-    url: "https://www.newscanada.com/",
+    body: "The backend now returns normalized stories with body, summary, images, author, and publication metadata so the widget can render directly without multi-step reconstruction.",
+    url: FALLBACK_URL,
     issue: "Top Story",
-    categories: ["Features", "Editorial"]
+    categories: ["Features", "Editorial"],
+    images: [],
+    publishedAt: "",
+    author: ""
   }
 ];
 
@@ -25,50 +38,147 @@ function cleanText(v) {
   return safeStr(v).replace(/\s+/g, " ").trim();
 }
 
-function normalizeItem(item) {
-  if (!item || typeof item !== "object") return null;
-  const title = cleanText(item.title || item.headline || item.name || "");
-  const url = cleanText(item.url || item.link || item.href || "");
-  if (!title || !url) return null;
+function cleanLongText(v) {
+  return safeStr(v).replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function normalizeImageEntry(entry) {
+  if (typeof entry === "string") {
+    const src = cleanText(entry);
+    return src ? { src, alt: "", caption: "" } : null;
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const src = cleanText(entry.src || entry.url || entry.image || entry.href || "");
+  if (!src) return null;
   return {
-    title,
-    summary: cleanText(item.summary || item.body || item.description || ""),
-    url,
-    issue: cleanText(item.issue || item.kicker || item.section || "Editor's Pick"),
-    categories: Array.isArray(item.categories) ? item.categories.map(cleanText).filter(Boolean).slice(0, 3) : []
+    src,
+    alt: cleanText(entry.alt || entry.title || entry.caption || ""),
+    caption: cleanText(entry.caption || "")
   };
 }
 
+function normalizeImages(item) {
+  const input = [];
+  if (Array.isArray(item && item.images)) input.push(...item.images);
+  if (Array.isArray(item && item.media)) input.push(...item.media);
+  if (item && item.image) input.push(item.image);
+  if (item && item.heroImage) input.push(item.heroImage);
+  if (item && item.thumbnail) input.push(item.thumbnail);
+
+  const seen = new Set();
+  return input.map(normalizeImageEntry).filter((entry) => {
+    if (!entry || !entry.src) return false;
+    const key = entry.src.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeCategories(item) {
+  const source = Array.isArray(item && item.categories)
+    ? item.categories
+    : Array.isArray(item && item.tags)
+      ? item.tags
+      : Array.isArray(item && item.topics)
+        ? item.topics
+        : Array.isArray(item && item.sections)
+          ? item.sections
+          : [];
+  return source.map(cleanText).filter(Boolean).slice(0, 4);
+}
+
+function buildId(item, url, title, index) {
+  const preferred = cleanText(item && (item.id || item.storyId || item.slug || item.guid || ""));
+  if (preferred) return preferred;
+  const seed = url || cleanText(title) || String(index || "story");
+  return seed.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `story-${index || 0}`;
+}
+
+function normalizeItem(item, index) {
+  if (!item || typeof item !== "object") return null;
+  const title = cleanText(item.title || item.headline || item.name || "");
+  const url = cleanText(item.url || item.link || item.href || item.storyUrl || item.canonicalUrl || "");
+  if (!title || !url) return null;
+
+  const body = cleanLongText(item.body || item.content || item.story || item.fullText || item.articleBody || item.text || "");
+  const summary = cleanText(item.summary || item.description || item.excerpt || item.deck || body.slice(0, 280));
+  const issue = cleanText(item.issue || item.kicker || item.section || item.categoryLabel || "Editor's Pick");
+
+  return {
+    id: buildId(item, url, title, index),
+    title,
+    summary,
+    body,
+    content: body,
+    url,
+    issue,
+    categories: normalizeCategories(item),
+    images: normalizeImages(item),
+    publishedAt: cleanText(item.publishedAt || item.publishDate || item.date || ""),
+    author: cleanText(item.author || item.byline || item.creator || ""),
+    keywords: Array.isArray(item && item.keywords) ? item.keywords.map(cleanText).filter(Boolean).slice(0, 8) : []
+  };
+}
+
+function extractList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const buckets = [payload.items, payload.stories, payload.articles, payload.results, payload.data, payload.feed, payload.entries];
+  for (const bucket of buckets) {
+    if (Array.isArray(bucket)) return bucket;
+  }
+  return [];
+}
+
 function normalizePayload(payload) {
-  const list = Array.isArray(payload) ? payload
-    : Array.isArray(payload && payload.items) ? payload.items
-    : Array.isArray(payload && payload.stories) ? payload.stories
-    : Array.isArray(payload && payload.data) ? payload.data
-    : [];
-  return list.map(normalizeItem).filter(Boolean).slice(0, 8);
+  return extractList(payload).map(normalizeItem).filter(Boolean).slice(0, MAX_EDITORS_PICKS);
+}
+
+function getUpstreamStories(req) {
+  const locals = req.app && req.app.locals ? req.app.locals : {};
+  return locals.newsCanadaEditorsPicks || locals.newsCanadaStories || [];
+}
+
+function findStory(normalized, query) {
+  const byId = cleanText(query && query.id);
+  const byUrl = cleanText(query && (query.url || query.storyUrl || query.href));
+  if (byId) {
+    const found = normalized.find((item) => item.id === byId);
+    if (found) return found;
+  }
+  if (byUrl) {
+    const found = normalized.find((item) => item.url === byUrl);
+    if (found) return found;
+  }
+  return null;
 }
 
 async function getEditorsPicks(req, res) {
   try {
-    const upstream = req.app && req.app.locals ? req.app.locals.newsCanadaEditorsPicks : null;
-    const normalized = normalizePayload(upstream);
+    const normalized = normalizePayload(getUpstreamStories(req));
     return res.status(200).json(normalized.length ? normalized : SAMPLE_STORIES);
   } catch (err) {
     console.log("[Sandblast][newsCanadaController:error]", err && (err.stack || err.message || err));
-    return res.status(500).json({
-      ok: false,
-      error: "news_canada_controller_failed",
-      detail: cleanText(err && (err.message || err) || "controller failure")
-    });
+    return res.status(500).json({ ok: false, error: "news_canada_controller_failed", detail: cleanText((err && (err.message || err)) || "controller failure") });
+  }
+}
+
+async function getStory(req, res) {
+  try {
+    const normalized = normalizePayload(getUpstreamStories(req));
+    const story = findStory(normalized, req.query || {});
+    if (story) return res.status(200).json({ ok: true, story });
+    return res.status(404).json({ ok: false, error: "news_canada_story_not_found", detail: "No matching story was found for the requested id or url." });
+  } catch (err) {
+    console.log("[Sandblast][newsCanadaStory:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({ ok: false, error: "news_canada_story_failed", detail: cleanText((err && (err.message || err)) || "story failure") });
   }
 }
 
 function getHealth(req, res) {
-  return res.status(200).json({
-    ok: true,
-    route: "/api/newscanada/editors-picks",
-    fallbackStories: SAMPLE_STORIES.length
-  });
+  const normalized = normalizePayload(getUpstreamStories(req));
+  return res.status(200).json({ ok: true, route: "/api/newscanada/editors-picks", storyRoute: "/api/newscanada/story", fallbackStories: SAMPLE_STORIES.length, availableStories: normalized.length });
 }
 
-module.exports = { getEditorsPicks, getHealth, normalizePayload };
+module.exports = { getEditorsPicks, getStory, getHealth, normalizePayload, normalizeItem };
