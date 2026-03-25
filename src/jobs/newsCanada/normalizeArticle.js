@@ -1,5 +1,26 @@
 const { hashString, summarize } = require("./utils");
 
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function uniqueStrings(values, limit) {
+  const seen = new Set();
+  const output = [];
+
+  (Array.isArray(values) ? values : []).forEach((value) => {
+    const text = normalizeText(value);
+    if (!text) return;
+
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    output.push(text);
+  });
+
+  return typeof limit === "number" ? output.slice(0, limit) : output;
+}
+
 function normalizeImages(parsed) {
   if (!Array.isArray(parsed.images)) return [];
 
@@ -8,11 +29,11 @@ function normalizeImages(parsed) {
     .map((image) => {
       if (!image || typeof image !== "object") return null;
 
-      const url = typeof image.url === "string" ? image.url.trim() : "";
+      const url = normalizeText(image.url);
       if (!url) return null;
 
-      const alt = typeof image.alt === "string" ? image.alt.trim() : "";
-      const caption = typeof image.caption === "string" ? image.caption.trim() : "";
+      const alt = normalizeText(image.alt);
+      const caption = normalizeText(image.caption);
       const key = `${url}::${caption}`;
 
       if (seen.has(key)) return null;
@@ -23,26 +44,62 @@ function normalizeImages(parsed) {
     .filter(Boolean);
 }
 
+function normalizeMediaAttachments(parsed) {
+  if (!Array.isArray(parsed.mediaAttachments)) return [];
+
+  const seen = new Set();
+  return parsed.mediaAttachments
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const label = normalizeText(item.label);
+      const href = normalizeText(item.href || item.url);
+      if (!href) return null;
+
+      const key = `${label}::${href}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+
+      return { label, href };
+    })
+    .filter(Boolean);
+}
+
 function normalizeArticle(parsed) {
-  const body = typeof parsed.body === "string" ? parsed.body.trim() : "";
+  const body = normalizeText(parsed.body || parsed.content || parsed.story || parsed.fullText);
+  const title = normalizeText(parsed.title);
+  const url = normalizeText(parsed.url);
   const images = normalizeImages(parsed);
-  const mediaAttachments = Array.isArray(parsed.mediaAttachments) ? parsed.mediaAttachments : [];
+  const mediaAttachments = normalizeMediaAttachments(parsed);
+  const categories = uniqueStrings(parsed.categories, 8);
+  const keywords = uniqueStrings(parsed.keywords || parsed.tags, 12);
+  const summarySeed = body || normalizeText(parsed.summary) || title;
+  const summary = normalizeText(parsed.summary) || summarize(summarySeed);
+  const heroImage = images[0] || null;
+  const publishedAt = normalizeText(parsed.publishedAt || parsed.publishDate);
+  const author = normalizeText(parsed.author);
+  const issue = normalizeText(parsed.issue || parsed.section || parsed.kicker);
 
   return {
-    id: hashString(parsed.url || ""),
+    id: hashString(url || `${title}::${publishedAt}`),
     type: "article",
     source: "News Canada",
-    title: parsed.title || "",
-    url: parsed.url || "",
-    issue: parsed.issue || "",
-    categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+    title,
+    url,
+    issue,
+    categories,
+    keywords,
     body,
-    summary: summarize(body || parsed.title || ""),
+    content: body,
+    fullText: body,
+    summary,
+    excerpt: summary,
     images,
     mediaAttachments,
-    author: parsed.author || "",
-    publishedAt: parsed.publishedAt || "",
-    heroImage: images[0] || null,
+    author,
+    publishedAt,
+    heroImage,
+    image: heroImage ? heroImage.url : "",
+    wordCount: body ? body.split(/\s+/).filter(Boolean).length : 0,
     attribution: "(NC) / www.newscanada.com / News Canada",
     scrapedAt: new Date().toISOString()
   };
