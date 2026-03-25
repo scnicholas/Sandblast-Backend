@@ -1,8 +1,17 @@
 const path = require("path");
 
+const BASE_URL = "https://www.newscanada.com";
+const HOME_PATH = "/home";
+const HOME_URL = new URL(HOME_PATH, BASE_URL).toString();
+
 const NEWS_CANADA_CONFIG = {
-  homeUrl: "https://www.newscanada.com/home",
-  baseUrl: "https://www.newscanada.com",
+  baseUrl: BASE_URL,
+  baseURL: BASE_URL,
+  homePath: HOME_PATH,
+  homeUrl: HOME_URL,
+  homeURL: HOME_URL,
+  editorsPicksUrl: HOME_URL,
+  editorsPicksURL: HOME_URL,
   userAgent: "SandblastNewsBot/2.0 (+https://sandblast.channel)",
   timeoutMs: 20000,
   retries: 3,
