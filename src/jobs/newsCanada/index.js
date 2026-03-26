@@ -77,6 +77,54 @@ function computeWordCount(text, fallback) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+function buildStableArticleId(article) {
+  return firstNonEmpty(
+    article.id,
+    article.url ? hashString(article.url) : "",
+    article.title ? hashString(article.title) : ""
+  );
+}
+
+function isRenderableStableArticle(article) {
+  if (!article || typeof article !== "object") {
+    return false;
+  }
+
+  return Boolean(
+    safeText(article.id) &&
+    safeText(article.title) &&
+    safeText(article.url) &&
+    ensureStorySummary(article)
+  );
+}
+
+function extractStableFeedArticles(payload) {
+  if (Array.isArray(payload)) {
+    return payload.filter(Boolean);
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const candidateArrays = [
+    payload.articles,
+    payload.items,
+    payload.stories,
+    payload.data && payload.data.articles,
+    payload.data && payload.data.items,
+    payload.data && payload.data.stories
+  ];
+
+  for (const candidate of candidateArrays) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
 function normalizeForStableFeed(article) {
   const categories = cleanArray(article.categories);
   const keywords = cleanArray(article.keywords);
@@ -84,12 +132,14 @@ function normalizeForStableFeed(article) {
   const summary = ensureStorySummary(article);
   const image = pickPrimaryImage(article);
   const publishedAt = safeText(article.publishedAt) || safeText(article.scrapedAt) || new Date().toISOString();
+  const title = safeText(article.title) || "Untitled story";
+  const id = buildStableArticleId(article);
 
   return {
-    id: safeText(article.id),
+    id,
     type: safeText(article.type) || "article",
     source: safeText(article.source) || FEED_SOURCE,
-    title: safeText(article.title) || "Untitled story",
+    title,
     url: safeText(article.url),
     issue: safeText(article.issue),
     categories,
@@ -99,14 +149,18 @@ function normalizeForStableFeed(article) {
     fullText: firstNonEmpty(article.fullText, body),
     summary,
     excerpt: firstNonEmpty(article.excerpt, summary),
-    images: Array.isArray(article.images) ? article.images : image ? [{ url: image, alt: safeText(article.title), caption: "" }] : [],
+    images: Array.isArray(article.images)
+      ? article.images.filter((entry) => entry && safeText(entry.url))
+      : image
+        ? [{ url: image, alt: title, caption: "" }]
+        : [],
     mediaAttachments: Array.isArray(article.mediaAttachments) ? article.mediaAttachments : [],
     author: safeText(article.author) || FEED_SOURCE,
     publishedAt,
     heroImage: article.heroImage && article.heroImage.url
       ? article.heroImage
       : image
-        ? { url: image, alt: safeText(article.title), caption: "" }
+        ? { url: image, alt: title, caption: "" }
         : null,
     image,
     wordCount: computeWordCount(body, article.wordCount),
@@ -117,7 +171,7 @@ function normalizeForStableFeed(article) {
       errors: [],
       warnings: [],
       metrics: {
-        titleLength: safeText(article.title).length,
+        titleLength: title.length,
         bodyLength: body.length,
         summaryLength: summary.length,
         categoryCount: categories.length,
@@ -180,23 +234,23 @@ async function runNewsCanadaEditorsPicksIngest() {
         continue;
       }
 
-      if (seenArticleIds.has(normalized.id)) {
-        logger.warn("Skipping duplicate article", link.url);
-        continue;
-      }
-
       const stableArticle = normalizeForStableFeed({
         ...normalized,
         validation
       });
 
-      if (!stableArticle.id || !stableArticle.title || !stableArticle.url) {
+      if (!isRenderableStableArticle(stableArticle)) {
         logger.warn("Skipping incomplete normalized article", link.url);
         failures.push({
           url: link.url,
           title: link.title,
           reason: ["incomplete_normalized_article"]
         });
+        continue;
+      }
+
+      if (seenArticleIds.has(stableArticle.id)) {
+        logger.warn("Skipping duplicate article", link.url);
         continue;
       }
 
@@ -214,6 +268,7 @@ async function runNewsCanadaEditorsPicksIngest() {
 
   const generatedAt = new Date().toISOString();
   const listingUrl = safeText(home.url) || "https://www.newscanada.com/home";
+  const renderableArticles = articles.filter(isRenderableStableArticle);
 
   const payload = {
     source: FEED_SOURCE,
@@ -221,24 +276,33 @@ async function runNewsCanadaEditorsPicksIngest() {
     generatedAt,
     version: FEED_VERSION,
     count: articles.length,
-    availableStories: articles.length,
+    availableStories: renderableArticles.length,
     rejectedCount: failures.length,
     type: FEED_TYPE,
     runId: hashString(`${Date.now()}-${Math.random()}`),
     counts: {
       candidates: links.length,
       saved: articles.length,
-      failed: failures.length
+      failed: failures.length,
+      renderable: renderableArticles.length
     },
     paths: {
       snapshotDir: path.relative(process.cwd(), NEWS_CANADA_CONFIG.snapshotDir)
     },
     failures,
-    articles
+    articles,
+    items: articles,
+    stories: articles,
+    diagnostics: {
+      hasArticlesArray: Array.isArray(articles),
+      renderableCount: renderableArticles.length,
+      extractedCount: extractStableFeedArticles({ articles }).length
+    }
   };
 
   const outFile = saveArticles(payload);
   logger.info(`Saved ${articles.length} articles`, outFile);
+  logger.info("Renderable stories", renderableArticles.length);
 
   return {
     outFile,
@@ -250,7 +314,7 @@ if (require.main === module) {
   runNewsCanadaEditorsPicksIngest()
     .then(({ outFile, payload }) => {
       console.log("\\nDone:", outFile);
-      console.log("Saved:", payload.counts.saved, "Failed:", payload.counts.failed);
+      console.log("Saved:", payload.counts.saved, "Failed:", payload.counts.failed, "Renderable:", payload.counts.renderable);
       process.exit(0);
     })
     .catch((error) => {
@@ -260,4 +324,9 @@ if (require.main === module) {
     });
 }
 
-module.exports = { runNewsCanadaEditorsPicksIngest, normalizeForStableFeed };
+module.exports = {
+  runNewsCanadaEditorsPicksIngest,
+  normalizeForStableFeed,
+  extractStableFeedArticles,
+  isRenderableStableArticle
+};
