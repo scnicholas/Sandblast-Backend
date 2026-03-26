@@ -97,26 +97,76 @@ function buildId(item, url, title, index) {
 
 function normalizeItem(item, index) {
   if (!item || typeof item !== "object") return null;
-  const title = cleanText(item.title || item.headline || item.name || "");
-  const url = cleanText(item.url || item.link || item.href || item.storyUrl || item.canonicalUrl || "");
-  if (!title || !url) return null;
 
-  const body = cleanLongText(item.body || item.content || item.story || item.fullText || item.articleBody || item.text || "");
-  const summary = cleanText(item.summary || item.description || item.excerpt || item.deck || body.slice(0, 280));
+  const title = cleanText(
+    item.title ||
+    item.headline ||
+    item.name ||
+    item.storyTitle ||
+    item.storyHeadline ||
+    ""
+  );
+
+  const url = cleanText(
+    item.url ||
+    item.link ||
+    item.href ||
+    item.storyUrl ||
+    item.canonicalUrl ||
+    item.permalink ||
+    ""
+  );
+
+  if (!title) return null;
+
+  const body = cleanLongText(
+    item.body ||
+    item.content ||
+    item.story ||
+    item.fullText ||
+    item.articleBody ||
+    item.text ||
+    item.summary ||
+    item.excerpt ||
+    ""
+  );
+
+  const summary = cleanText(
+    item.summary ||
+    item.description ||
+    item.excerpt ||
+    item.deck ||
+    item.body ||
+    item.content ||
+    body.slice(0, 280)
+  );
+
   const issue = cleanText(item.issue || item.kicker || item.section || item.categoryLabel || "Editor's Pick");
 
+  const images = normalizeImages(item);
+  const fallbackImage =
+    cleanText(item.image) ||
+    cleanText(item.thumbnail) ||
+    cleanText(item.heroImage && (item.heroImage.url || item.heroImage.src)) ||
+    (images[0] && images[0].src) ||
+    "";
+
+  const resolvedUrl = url || cleanText(item.sourceUrl || item.homeUrl || FALLBACK_URL);
+
   return {
-    id: buildId(item, url, title, index),
+    id: buildId(item, resolvedUrl, title, index),
     title,
     summary,
     body,
     content: body,
-    url,
+    url: resolvedUrl,
     issue,
     categories: normalizeCategories(item),
-    images: normalizeImages(item),
-    publishedAt: cleanText(item.publishedAt || item.publishDate || item.date || ""),
-    author: cleanText(item.author || item.byline || item.creator || ""),
+    images,
+    image: fallbackImage,
+    heroImage: fallbackImage ? { url: fallbackImage, alt: title, caption: "" } : null,
+    publishedAt: cleanText(item.publishedAt || item.publishDate || item.date || item.scrapedAt || ""),
+    author: cleanText(item.author || item.byline || item.creator || item.source || ""),
     keywords: Array.isArray(item && item.keywords) ? item.keywords.map(cleanText).filter(Boolean).slice(0, 8) : []
   };
 }
@@ -124,20 +174,76 @@ function normalizeItem(item, index) {
 function extractList(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") return [];
-  const buckets = [payload.items, payload.stories, payload.articles, payload.results, payload.data, payload.feed, payload.entries];
+
+  const buckets = [
+    payload.items,
+    payload.stories,
+    payload.articles,
+    payload.results,
+    payload.feed,
+    payload.entries,
+    payload.data && payload.data.items,
+    payload.data && payload.data.stories,
+    payload.data && payload.data.articles,
+    payload.payload && payload.payload.items,
+    payload.payload && payload.payload.stories,
+    payload.payload && payload.payload.articles
+  ];
+
   for (const bucket of buckets) {
     if (Array.isArray(bucket)) return bucket;
   }
+
+  if (payload.data && typeof payload.data === "object") {
+    const nested = extractList(payload.data);
+    if (nested.length) return nested;
+  }
+
+  if (payload.payload && typeof payload.payload === "object") {
+    const nested = extractList(payload.payload);
+    if (nested.length) return nested;
+  }
+
   return [];
 }
 
+function isRenderableStory(item) {
+  if (!item || typeof item !== "object") return false;
+  if (!cleanText(item.title)) return false;
+  if (!cleanText(item.url)) return false;
+  if (!cleanText(item.summary) && !cleanText(item.body) && !cleanText(item.content)) return false;
+  return true;
+}
+
 function normalizePayload(payload) {
-  return extractList(payload).map(normalizeItem).filter(Boolean).slice(0, MAX_EDITORS_PICKS);
+  return extractList(payload)
+    .map(normalizeItem)
+    .filter(isRenderableStory)
+    .slice(0, MAX_EDITORS_PICKS);
 }
 
 function getUpstreamStories(req) {
   const locals = req.app && req.app.locals ? req.app.locals : {};
-  return locals.newsCanadaEditorsPicks || locals.newsCanadaStories || [];
+
+  const sources = [
+    locals.newsCanadaEditorsPicks,
+    locals.newsCanadaStories,
+    locals.newsCanadaFeed,
+    locals.newsCanadaPayload,
+    locals.newsCanadaData,
+    locals.newsCanada && locals.newsCanada.editorsPicks,
+    locals.newsCanada && locals.newsCanada.stories,
+    locals.newsCanada && locals.newsCanada.feed
+  ];
+
+  for (const source of sources) {
+    const normalized = normalizePayload(source);
+    if (normalized.length) {
+      return source;
+    }
+  }
+
+  return locals.newsCanadaEditorsPicks || locals.newsCanadaStories || locals.newsCanadaFeed || locals.newsCanadaPayload || locals.newsCanadaData || [];
 }
 
 function findStory(normalized, query) {
@@ -156,7 +262,17 @@ function findStory(normalized, query) {
 
 async function getEditorsPicks(req, res) {
   try {
-    const normalized = normalizePayload(getUpstreamStories(req));
+    const upstream = getUpstreamStories(req);
+    const normalized = normalizePayload(upstream);
+
+    console.log("[Sandblast][newsCanada:editors-picks]", {
+      upstreamType: Array.isArray(upstream) ? "array" : typeof upstream,
+      rawKeys: upstream && typeof upstream === "object" && !Array.isArray(upstream) ? Object.keys(upstream).slice(0, 12) : [],
+      normalizedCount: normalized.length,
+      firstStory: normalized[0] ? { id: normalized[0].id, title: normalized[0].title, url: normalized[0].url } : null,
+      usingFallback: !normalized.length
+    });
+
     return res.status(200).json(normalized.length ? normalized : SAMPLE_STORIES);
   } catch (err) {
     console.log("[Sandblast][newsCanadaController:error]", err && (err.stack || err.message || err));
@@ -178,7 +294,14 @@ async function getStory(req, res) {
 
 function getHealth(req, res) {
   const normalized = normalizePayload(getUpstreamStories(req));
-  return res.status(200).json({ ok: true, route: "/api/newscanada/editors-picks", storyRoute: "/api/newscanada/story", fallbackStories: SAMPLE_STORIES.length, availableStories: normalized.length });
+  return res.status(200).json({
+    ok: true,
+    route: "/api/newscanada/editors-picks",
+    storyRoute: "/api/newscanada/story",
+    fallbackStories: SAMPLE_STORIES.length,
+    availableStories: normalized.length,
+    usingFallback: !normalized.length
+  });
 }
 
-module.exports = { getEditorsPicks, getStory, getHealth, normalizePayload, normalizeItem };
+module.exports = { getEditorsPicks, getStory, getHealth, normalizePayload, normalizeItem, extractList, isRenderableStory };
