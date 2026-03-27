@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.0sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-PRODUCTION-HARDENING";
+const INDEX_VERSION = "index.js v2.13.1sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-CONTRACT-ALIGNMENT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -1011,9 +1011,18 @@ function normalizeImageLike(entry, title) {
 function normalizeNewsCanadaStory(item, index) {
   if (!item || typeof item !== "object") return null;
 
+  const nestedStory = isObj(item.story) ? item.story : null;
+  const nestedArticle = isObj(item.article) ? item.article : null;
+  const nestedPopup = isObj(item.popup) ? item.popup : null;
+  const primary = nestedStory || nestedArticle || item;
+  const secondary = nestedPopup || nestedArticle || nestedStory || {};
+
   const title = cleanText(
     item.title ||
+    primary.title ||
+    secondary.title ||
     item.headline ||
+    primary.headline ||
     item.name ||
     item.label ||
     item.storyTitle ||
@@ -1024,35 +1033,58 @@ function normalizeNewsCanadaStory(item, index) {
     ""
   );
 
-  const body = typeof item.body === "string"
-    ? item.body.trim()
-    : (
-      typeof item.content === "string" ? item.content.trim()
-      : typeof item.fullText === "string" ? item.fullText.trim()
-      : typeof item.text === "string" ? item.text.trim()
-      : typeof item.longDescription === "string" ? item.longDescription.trim()
-      : typeof item.description === "string" ? item.description.trim()
-      : typeof item.storyBody === "string" ? item.storyBody.trim()
-      : ""
-    );
+  const body = cleanText(
+    item.body ||
+    primary.body ||
+    secondary.body ||
+    item.content ||
+    primary.content ||
+    secondary.content ||
+    item.fullText ||
+    primary.fullText ||
+    secondary.fullText ||
+    item.text ||
+    primary.text ||
+    secondary.text ||
+    item.longDescription ||
+    primary.longDescription ||
+    item.description ||
+    primary.description ||
+    secondary.description ||
+    item.storyBody ||
+    primary.storyBody ||
+    secondary.storyBody ||
+    ""
+  );
 
   const summary = cleanText(
     item.summary ||
-    item.description ||
+    primary.summary ||
+    secondary.summary ||
     item.excerpt ||
+    primary.excerpt ||
     item.deck ||
+    primary.deck ||
     item.shortDescription ||
+    primary.shortDescription ||
     item.synopsis ||
     item.teaser ||
+    secondary.excerpt ||
     body
   );
 
   const url = cleanText(
     item.url ||
+    primary.url ||
+    secondary.url ||
     item.link ||
+    primary.link ||
     item.href ||
+    primary.href ||
     item.storyUrl ||
+    primary.storyUrl ||
     item.canonicalUrl ||
+    primary.canonicalUrl ||
     item.permalink ||
     item.sourceUrl ||
     item.ctaUrl ||
@@ -1064,14 +1096,18 @@ function normalizeNewsCanadaStory(item, index) {
   if (!title) return null;
 
   const rawImages = [];
-  if (Array.isArray(item.images)) rawImages.push(...item.images);
-  if (Array.isArray(item.media)) rawImages.push(...item.media);
-  if (Array.isArray(item.gallery)) rawImages.push(...item.gallery);
-  if (item.image) rawImages.push(item.image);
-  if (item.heroImage) rawImages.push(item.heroImage);
-  if (item.thumbnail) rawImages.push(item.thumbnail);
-  if (item.poster) rawImages.push(item.poster);
-  if (item.artwork) rawImages.push(item.artwork);
+  const imageSources = [item, primary, secondary, nestedStory || {}, nestedArticle || {}, nestedPopup || {}];
+  for (const source of imageSources) {
+    if (!isObj(source)) continue;
+    if (Array.isArray(source.images)) rawImages.push(...source.images);
+    if (Array.isArray(source.media)) rawImages.push(...source.media);
+    if (Array.isArray(source.gallery)) rawImages.push(...source.gallery);
+    if (source.image) rawImages.push(source.image);
+    if (source.heroImage) rawImages.push(source.heroImage);
+    if (source.thumbnail) rawImages.push(source.thumbnail);
+    if (source.poster) rawImages.push(source.poster);
+    if (source.artwork) rawImages.push(source.artwork);
+  }
 
   const seenImages = new Set();
   const images = rawImages
@@ -1086,40 +1122,63 @@ function normalizeNewsCanadaStory(item, index) {
 
   const categoriesSource = Array.isArray(item.categories)
     ? item.categories
-    : Array.isArray(item.tags)
-      ? item.tags
-      : Array.isArray(item.topics)
-        ? item.topics
-        : Array.isArray(item.sections)
-          ? item.sections
-          : Array.isArray(item.lanes)
-            ? item.lanes
-            : [];
+    : Array.isArray(primary.categories)
+      ? primary.categories
+      : Array.isArray(item.tags)
+        ? item.tags
+        : Array.isArray(primary.tags)
+          ? primary.tags
+          : Array.isArray(item.topics)
+            ? item.topics
+            : Array.isArray(primary.topics)
+              ? primary.topics
+              : Array.isArray(item.sections)
+                ? item.sections
+                : Array.isArray(primary.sections)
+                  ? primary.sections
+                  : Array.isArray(item.lanes)
+                    ? item.lanes
+                    : Array.isArray(primary.lanes)
+                      ? primary.lanes
+                      : [];
+
+  const keywordsSource = Array.isArray(item.keywords)
+    ? item.keywords
+    : Array.isArray(primary.keywords)
+      ? primary.keywords
+      : Array.isArray(item.tags)
+        ? item.tags
+        : Array.isArray(primary.tags)
+          ? primary.tags
+          : [];
 
   const categories = categoriesSource.map(cleanText).filter(Boolean).slice(0, 6);
+  const keywords = keywordsSource.map(cleanText).filter(Boolean).slice(0, 10);
   const primaryImage = images[0] && images[0].url ? images[0].url : "";
   const resolvedSummary = summary || clipText(body, 280) || "News Canada story";
   const resolvedBody = body || resolvedSummary;
+  const storyUrl = cleanText(item.storyUrl || primary.storyUrl || item.url || primary.url || "");
+  const canonicalUrl = cleanText(item.canonicalUrl || primary.canonicalUrl || storyUrl || url || "");
 
   return {
-    id: cleanText(item.id || item.storyId || item.slug || item.guid || item.assetId || url || `story-${index || 0}`),
-    slug: cleanText(item.slug || item.id || item.storyId || ""),
+    id: cleanText(item.id || primary.id || item.storyId || primary.storyId || item.slug || primary.slug || item.guid || primary.guid || item.assetId || primary.assetId || url || `story-${index || 0}`),
+    slug: cleanText(item.slug || primary.slug || item.id || primary.id || item.storyId || primary.storyId || ""),
     title,
     summary: resolvedSummary,
     body: resolvedBody,
-    content: cleanText(item.content || resolvedBody) || resolvedBody,
-    fullText: cleanText(item.fullText || resolvedBody) || resolvedBody,
+    content: cleanText(item.content || primary.content || resolvedBody) || resolvedBody,
+    fullText: cleanText(item.fullText || primary.fullText || resolvedBody) || resolvedBody,
     url,
-    issue: cleanText(item.issue || item.kicker || item.section || item.categoryLabel || item.label || "Editor's Pick"),
+    issue: cleanText(item.issue || primary.issue || item.kicker || primary.kicker || item.section || primary.section || item.categoryLabel || primary.categoryLabel || item.label || primary.label || "Editor's Pick"),
     categories,
     images,
     image: primaryImage,
     heroImage: primaryImage ? { url: primaryImage, alt: title, caption: "" } : null,
-    publishedAt: cleanText(item.publishedAt || item.publishDate || item.date || item.scrapedAt || item.updatedAt || ""),
-    author: cleanText(item.author || item.byline || item.creator || item.source || item.publisher || ""),
-    storyUrl: cleanText(item.storyUrl || item.url || ""),
-    canonicalUrl: cleanText(item.canonicalUrl || item.url || item.storyUrl || ""),
-    keywords: Array.isArray(item.keywords) ? item.keywords.map(cleanText).filter(Boolean).slice(0, 10) : []
+    publishedAt: cleanText(item.publishedAt || primary.publishedAt || item.publishDate || primary.publishDate || item.date || primary.date || item.scrapedAt || primary.scrapedAt || item.updatedAt || primary.updatedAt || ""),
+    author: cleanText(item.author || primary.author || item.byline || primary.byline || item.creator || primary.creator || item.source || primary.source || item.publisher || primary.publisher || ""),
+    storyUrl,
+    canonicalUrl,
+    keywords
   };
 }
 
@@ -1489,13 +1548,19 @@ function buildNewsCanadaStoryPayload(story, index) {
     images.unshift(imageObj);
   }
 
-  const body = cleanText(raw.body || raw.content || raw.fullText || raw.summary || "");
-  const summary = cleanText(raw.summary || clipText(body, 280) || raw.title || "News Canada story");
+  const body = cleanText(raw.body || raw.content || raw.fullText || raw.summary || raw.excerpt || "");
+  const summary = cleanText(raw.summary || raw.excerpt || clipText(body, 280) || raw.title || "News Canada story");
   const popupBody = body || summary;
   const popupImage = imageObj && imageObj.url ? imageObj.url : "";
+  const storyId = cleanText(raw.id || raw.slug || `story-${index || 0}`);
+  const issue = cleanText(raw.issue || "Editor's Pick");
+  const url = cleanText(raw.url || raw.storyUrl || raw.canonicalUrl || FALLBACK_URL);
+  const storyUrl = cleanText(raw.storyUrl || raw.url || raw.canonicalUrl || FALLBACK_URL);
+  const canonicalUrl = cleanText(raw.canonicalUrl || raw.url || raw.storyUrl || FALLBACK_URL);
 
   return {
-    id: cleanText(raw.id || `story-${index || 0}`),
+    id: storyId,
+    storyId,
     slug: cleanText(raw.slug || raw.id || ""),
     title: cleanText(raw.title || "News Canada story"),
     summary,
@@ -1505,10 +1570,12 @@ function buildNewsCanadaStoryPayload(story, index) {
     popupBody,
     excerpt: summary,
     description: summary,
-    issue: cleanText(raw.issue || "Editor's Pick"),
-    url: cleanText(raw.url || raw.storyUrl || raw.canonicalUrl || FALLBACK_URL),
-    storyUrl: cleanText(raw.storyUrl || raw.url || raw.canonicalUrl || FALLBACK_URL),
-    canonicalUrl: cleanText(raw.canonicalUrl || raw.url || raw.storyUrl || FALLBACK_URL),
+    issue,
+    label: issue,
+    url,
+    href: url,
+    storyUrl,
+    canonicalUrl,
     categories: Array.isArray(raw.categories) ? raw.categories.map(cleanText).filter(Boolean).slice(0, 6) : [],
     keywords: Array.isArray(raw.keywords) ? raw.keywords.map(cleanText).filter(Boolean).slice(0, 10) : [],
     author: cleanText(raw.author || ""),
@@ -1520,7 +1587,7 @@ function buildNewsCanadaStoryPayload(story, index) {
     hasPopupContent: !!(popupBody && cleanText(raw.title || "")),
     popupReady: !!(popupBody && cleanText(raw.title || "")),
     lane: "newscanada",
-    source: "news_canada_disk_feed"
+    source: cleanText(raw.source || "news_canada_disk_feed") || "news_canada_disk_feed"
   };
 }
 
@@ -1545,7 +1612,9 @@ function buildNewsCanadaEditorsPicksResponse(req) {
     storyId: story.id || `story-${index}`,
     chipLabel: story.issue || "Editor's Pick",
     panelIndex: index,
-    hasImage: !!story.image
+    hasImage: !!story.image,
+    popupReady: !!story.popupReady,
+    readMoreReady: !!story.hasPopupContent
   }));
   const degraded = !!state.degraded;
   return {
@@ -1555,19 +1624,27 @@ function buildNewsCanadaEditorsPicksResponse(req) {
     fallbackStories: degraded ? stories.length : 0,
     availableStories: stories.length,
     storyCount: stories.length,
+    count: stories.length,
     stories,
     items: stories,
+    articles: stories,
     editorsPicks: stories,
+    editorPicks: stories,
     feed: stories,
     slides,
     panels: slides,
     chips: slides.map((slide) => ({
       id: slide.id,
+      storyId: slide.storyId || slide.id,
+      slideId: slide.slideId || slide.id,
       title: slide.title,
       label: slide.chipLabel,
+      chipLabel: slide.chipLabel,
       summary: slide.summary,
       image: slide.image,
-      url: slide.url
+      url: slide.url,
+      hasPopupContent: !!slide.hasPopupContent,
+      popupReady: !!slide.popupReady
     })),
     meta: {
       v: INDEX_VERSION,
