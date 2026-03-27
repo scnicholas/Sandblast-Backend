@@ -1,0 +1,96 @@
+{
+  "source": "News Canada",
+  "version": "editors-picks.v3.runtime-safe",
+  "generatedAt": "2026-03-26T05:38:32Z",
+  "contract": {
+    "name": "news-canada-editors-picks-runtime",
+    "purpose": "Lean runtime payload for backend delivery and frontend slide rendering.",
+    "canonicalArray": "stories",
+    "requiredStoryFields": [
+      "id",
+      "title",
+      "summary",
+      "url",
+      "categories",
+      "image"
+    ],
+    "optionalStoryFields": [
+      "body",
+      "issue",
+      "publishedAt"
+    ]
+  },
+  "count": 5,
+  "stories": [
+    {
+      "id": "66c893ec9f53cb32d8f2b2f150685de9385af07d",
+      "title": "A working woman’s guide to financial wellness",
+      "summary": "A practical guide to building financial wellness through goal setting, protecting savings and simplifying money management.",
+      "body": "A practical overview of financial wellness steps, including setting priorities, protecting savings and using simple tools to stay organized. This stabilized test copy is intentionally shortened for feed reliability while preserving the rendering contract.",
+      "url": "https://www.newscanada.com/en/a-working-woman-e2-80-99s-guide-to-financial-wellness-141322",
+      "issue": "March 2026",
+      "categories": [
+        "Finance - Home & Household"
+      ],
+      "image": "https://www.newscanada.com/Data/Posts/65d17a43-4ddf-4334-a81a-5e174ed0c191/57038e66-c7e9-4aa1-9d2c-240377029b52_fi_t.jpg",
+      "publishedAt": "2026-03-25T18:26:25.604Z"
+    },
+    {
+      "id": "62354d2c6634b514a6f5b11360e8495aa3bf41f3",
+      "title": "New ways to enjoy family movie nights this winter",
+      "summary": "Simple ideas for making family movie nights feel new again without adding much cost.",
+      "body": "A family-focused entertainment piece about refreshing movie night with themes, snacks and simple at-home setup ideas. This stabilized test copy is shortened to keep the JSON lightweight while maintaining the same UI data contract.",
+      "url": "https://www.newscanada.com/en/new-ways-to-enjoy-family-movie-nights-this-winter-141171",
+      "issue": "February 2026",
+      "categories": [
+        "Travel & Leisure",
+        "Technology & Science",
+        "Family & Parenting",
+        "Home & Garden"
+      ],
+      "image": "https://www.newscanada.com/Data/Posts/086596b7-dcc6-4f92-b206-13103e87d2ff/7cfe91c2-326d-4bf4-a2f6-1f98b0fe4a07_fi_t.jpg",
+      "publishedAt": "2026-03-25T18:26:26.192Z"
+    },
+    {
+      "id": "ed3e5cf1e8ec0fb771da51e35d8d8b8738a5859e",
+      "title": "4 things to test for when buying a home",
+      "summary": "Key home tests to consider after purchase, including air, moisture, radon and plumbing checks.",
+      "body": "A home-safety article focused on common checks for new buyers, including airflow, radon, moisture and plumbing concerns. This shortened copy preserves the structure expected by the frontend and popup routes.",
+      "url": "https://www.newscanada.com/en/4-things-to-test-for-when-buying-a-home-141281",
+      "issue": "March 2026",
+      "categories": [
+        "Safety - Personal",
+        "Home & Garden"
+      ],
+      "image": "https://www.newscanada.com/Data/Posts/84dc76a1-62e2-4265-88d1-6c0b3dd8cccb/5d59fa48-034c-4ebc-bb5a-6bcc14b253ae_fi_t.jpg",
+      "publishedAt": "2026-03-25T18:26:27.519Z"
+    },
+    {
+      "id": "1eec96e515a284a1c21a8e7de16aa3bdd6728a61",
+      "title": "Grief support matters at every stage of serious illness",
+      "summary": "An overview of grief during serious illness and the role of palliative and caregiver support.",
+      "body": "A health-focused article explaining that grief can begin during illness and that support matters for patients and caregivers alike. This shortened copy is intended for stable rendering while you finish the full extraction pipeline.",
+      "url": "https://www.newscanada.com/en/grief-support-matters-at-every-stage-of-serious-illness-141331",
+      "issue": "March 2026",
+      "categories": [
+        "Family & Parenting",
+        "Health Care"
+      ],
+      "image": "https://www.newscanada.com/Data/Posts/94f26aeb-a75a-43d4-a85d-5d744d70b8da/27b9359e-eb08-4f0a-9868-c4bebcc45964_fi_t.jpg",
+      "publishedAt": "2026-03-25T18:26:28.926Z"
+    },
+    {
+      "id": "b64fbb794e8bf067de90209cb27d4a72c24df357",
+      "title": "Know the risks of using financial apps",
+      "summary": "A look at the risks behind some financial apps and why users should be careful with account access.",
+      "body": "A financial safety article about app-based money tools, access methods and the risks of sharing banking credentials. This shortened placeholder keeps the feed valid and renderable while preserving the same article schema.",
+      "url": "https://www.newscanada.com/en/know-the-risks-of-using-financial-apps-141339",
+      "issue": "March 2026",
+      "categories": [
+        "Finance - Home & Household"
+      ],
+      "image": "https://www.newscanada.com/Data/Posts/5c2fccce-59fb-4896-b47e-6a06ec0f007f/fc704b4c-cfe3-4159-a3f1-ca2eac894e9c_fi_t.jpg",
+      "publishedAt": "2026-03-25T18:26:29.663Z"
+    }
+  ]
+}
