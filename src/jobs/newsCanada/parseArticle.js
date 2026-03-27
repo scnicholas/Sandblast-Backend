@@ -54,13 +54,7 @@ function extractTitle($) {
 }
 
 function extractIssue($) {
-  const labelNodes = [
-    "[class*='issue']",
-    "[id*='issue']",
-    "dt",
-    "strong",
-    "b"
-  ];
+  const labelNodes = ["[class*='issue']", "[id*='issue']", "dt", "strong", "b"];
 
   for (const selector of labelNodes) {
     const nodes = $(selector).toArray();
@@ -156,12 +150,10 @@ function extractCategories($) {
     $(selector).each((_, el) => {
       const text = cleanText($(el).text());
       const lower = text.toLowerCase();
-
       if (!text || ignore.has(lower)) return;
       if (text.length > 40) return;
       if (!/^[A-Za-z0-9+&'’*(),\-\/\s]+$/.test(text)) return;
       if (!CATEGORY_ALLOWLIST.test(text)) return;
-
       categories.add(text);
     });
   });
@@ -196,19 +188,28 @@ function selectBestBodyRoot($) {
   return $("body").first();
 }
 
-function shouldSkipBlock(text, tagName) {
+function shouldSkipBlock(text) {
   if (!text) return true;
   if (isStopMarker(text)) return true;
   if (/^(search|menu|faq|contact us|about us)$/i.test(text)) return true;
-  if ((tagName === 'p' || tagName === 'li' || tagName === 'div') && text.length < 25) return true;
+  if (/^image:?$/i.test(text)) return true;
+  if (/^www\.newscanada\.com$/i.test(text)) return true;
   return false;
 }
 
-function pushBodyPart(parts, seen, text) {
-  const cleaned = cleanText(text);
-  if (!cleaned || seen.has(cleaned)) return;
-  seen.add(cleaned);
-  parts.push(cleaned);
+function isThinUsefulText(text) {
+  if (!text) return false;
+  if (text.length >= 40) return true;
+  return /[.?!:;]/.test(text) || /\d/.test(text) || text.split(/\s+/).length >= 6;
+}
+
+function buildBodyDiagnostics(body, parts, scanned) {
+  return {
+    scannedNodes: scanned,
+    partCount: parts.length,
+    bodyLength: String(body || "").length,
+    thinBody: String(body || "").length > 0 && String(body || "").length < 280
+  };
 }
 
 function extractBody($, title) {
@@ -219,49 +220,49 @@ function extractBody($, title) {
   const seen = new Set();
   let scanned = 0;
 
-  const selectors = [
-    "h2",
-    "h3",
-    "p",
-    "li",
-    ".wp-block-paragraph",
-    ".textwidget",
-    "div[class*='content'] > div",
-    "div[class*='article'] > div"
-  ];
-
-  root.find(selectors.join(",")).each((_, el) => {
+  root.find("h2,h3,p,li").each((_, el) => {
     if (scanned >= NEWS_CANADA_CONFIG.maxBodyNodesToScan) return false;
     scanned += 1;
 
     const text = cleanText($(el).text());
-    const tagName = String(el.tagName || el.name || '').toLowerCase();
-    if (shouldSkipBlock(text, tagName)) return;
+    if (shouldSkipBlock(text)) return;
     if (title && text === title) return;
     if (seen.has(text)) return;
+    if (!isThinUsefulText(text)) return;
 
-    if (/^image:?$/i.test(text)) return;
-    if (/^www\.newscanada\.com$/i.test(text)) return;
-
-    pushBodyPart(parts, seen, text);
+    seen.add(text);
+    parts.push(text);
   });
 
-  const body = cleanMultilineText(parts.join("\n\n"));
-  if (body && body.length >= 140) return body;
+  let body = cleanMultilineText(parts.join("\n\n"));
 
-  const fallbackParts = [];
-  const fallbackSeen = new Set();
-  root.find("p, li, h2, h3, h4, div").each((_, el) => {
-    const text = cleanText($(el).text());
-    if (!text || isStopMarker(text)) return;
-    if (title && text === title) return;
-    if (/^image:?$/i.test(text) || /^www\.newscanada\.com$/i.test(text)) return;
-    if (String(el.tagName || el.name || '').toLowerCase() === 'div' && text.length < 40) return;
-    pushBodyPart(fallbackParts, fallbackSeen, text);
-  });
+  if (!body || body.length < 160) {
+    const fallbackParts = [];
+    root.find("p,li").each((_, el) => {
+      const text = cleanText($(el).text());
+      if (!text || shouldSkipBlock(text)) return;
+      if (title && text === title) return;
+      if (seen.has(text)) return;
+      if (text.length < 20) return;
+      seen.add(text);
+      fallbackParts.push(text);
+    });
 
-  const fallback = cleanMultilineText(fallbackParts.join("\n\n")) || cleanMultilineText(cleanText(root.text()));
-  return isStopMarker(fallback) ? "" : fallback;
+    const fallbackJoined = cleanMultilineText(fallbackParts.join("\n\n"));
+    if (fallbackJoined && fallbackJoined.length > body.length) {
+      body = fallbackJoined;
+    }
+  }
+
+  if (!body) {
+    const fallback = cleanMultilineText(cleanText(root.text()));
+    body = isStopMarker(fallback) ? "" : fallback;
+  }
+
+  return {
+    body,
+    diagnostics: buildBodyDiagnostics(body, parts, scanned)
+  };
 }
 
 function pushImage(images, seen, src, alt, caption) {
@@ -274,11 +275,7 @@ function pushImage(images, seen, src, alt, caption) {
   if (seen.has(key)) return;
   seen.add(key);
 
-  images.push({
-    url: src,
-    alt: alt || "",
-    caption: caption || ""
-  });
+  images.push({ url: src, alt: alt || "", caption: caption || "" });
 }
 
 function extractImages($, articleUrl, title) {
@@ -286,7 +283,7 @@ function extractImages($, articleUrl, title) {
   const seen = new Set();
   const root = selectBestBodyRoot($);
 
-  root.find("figure img, article img, main img").each((_, img) => {
+  root.find("figure img, article img, main img, img").each((_, img) => {
     const rawSrc = cleanText(
       $(img).attr("src") ||
       $(img).attr("data-src") ||
@@ -296,15 +293,11 @@ function extractImages($, articleUrl, title) {
     const src = rawSrc ? toAbsoluteUrl(rawSrc, articleUrl) : "";
     const alt = cleanText($(img).attr("alt")) || title || "";
     const caption = cleanText($(img).closest("figure").find("figcaption").first().text());
-
     pushImage(images, seen, src, alt, caption);
   });
 
   if (!images.length) {
-    const ogImage = textFromMeta($, [
-      "meta[property='og:image']",
-      "meta[name='twitter:image']"
-    ]);
+    const ogImage = textFromMeta($, ["meta[property='og:image']", "meta[name='twitter:image']"]);
     const src = ogImage ? toAbsoluteUrl(ogImage, articleUrl) : "";
     pushImage(images, seen, src, title || "", "");
   }
@@ -325,7 +318,6 @@ function extractMediaAttachments($, articleUrl) {
     const lowerHref = href.toLowerCase();
 
     if (!label && !href) return;
-
     if (
       lowerLabel.includes("audio") ||
       lowerLabel.includes("preview") ||
@@ -350,7 +342,7 @@ function parseArticle(html, url) {
   const issue = extractIssue($);
   const categories = extractCategories($);
   const keywords = extractKeywords($);
-  const body = extractBody($, title);
+  const bodyResult = extractBody($, title);
   const images = extractImages($, url, title);
   const mediaAttachments = extractMediaAttachments($, url);
   const author = extractAuthor($);
@@ -362,16 +354,17 @@ function parseArticle(html, url) {
     issue,
     categories,
     keywords,
-    body,
+    body: bodyResult.body,
     images,
     mediaAttachments,
     author,
     publishedAt,
     diagnostics: {
-      bodyLength: String(body || '').length,
+      body: bodyResult.diagnostics,
       imageCount: images.length,
       attachmentCount: mediaAttachments.length,
-      categoryCount: categories.length
+      hasPublishedAt: !!publishedAt,
+      hasAuthor: !!author
     }
   };
 }
