@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.12.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-SLIDES-RESTORE";
+const INDEX_VERSION = "index.js v2.12.5sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-BACKEND-RENDER-FIX";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -1142,35 +1142,37 @@ function extractNewsCanadaFeedList(payload) {
   if (!payload || typeof payload !== "object") return [];
 
   const buckets = [
-    payload.stories,
     payload.items,
+    payload.stories,
     payload.articles,
     payload.slides,
     payload.panels,
     payload.assets,
-    payload.results,
-    payload.feed,
-    payload.entries,
     payload.records,
     payload.curated,
     payload.editorsPicks,
     payload.editorPicks,
-    payload.data && payload.data.stories,
+    payload.results,
+    payload.feed,
+    payload.entries,
     payload.data && payload.data.items,
+    payload.data && payload.data.stories,
     payload.data && payload.data.articles,
     payload.data && payload.data.slides,
     payload.data && payload.data.panels,
     payload.data && payload.data.assets,
-    payload.payload && payload.payload.stories,
+    payload.data && payload.data.curated,
     payload.payload && payload.payload.items,
+    payload.payload && payload.payload.stories,
     payload.payload && payload.payload.articles,
     payload.payload && payload.payload.slides,
     payload.payload && payload.payload.panels,
-    payload.payload && payload.payload.assets
+    payload.payload && payload.payload.assets,
+    payload.payload && payload.payload.curated
   ];
 
   for (const bucket of buckets) {
-    if (Array.isArray(bucket) && bucket.length) return bucket;
+    if (Array.isArray(bucket)) return bucket;
   }
 
   if (isObj(payload.data)) {
@@ -1359,26 +1361,48 @@ function bootstrapNewsCanadaFeed() {
 
 const FALLBACK_URL = "https://www.newscanada.com/home";
 const FALLBACK_IMAGE = "";
+const NEWS_CANADA_STATIC_FALLBACK_STORIES = [
+  {
+    id: "fallback-financial-wellness",
+    title: "A working woman’s guide to financial wellness",
+    summary: "A practical guide to building financial wellness through goal setting, protecting savings and simplifying money management.",
+    body: "A practical overview of financial wellness steps, including setting priorities, protecting savings and using simple tools to stay organized.",
+    url: "https://www.newscanada.com/en/a-working-woman-e2-80-99s-guide-to-financial-wellness-141322",
+    issue: "March 2026",
+    categories: ["Finance - Home & Household"],
+    image: "https://www.newscanada.com/Data/Posts/65d17a43-4ddf-4334-a81a-5e174ed0c191/57038e66-c7e9-4aa1-9d2c-240377029b52_fi_t.jpg",
+    publishedAt: "2026-03-25T18:26:25.604Z",
+    author: "News Canada"
+  },
+  {
+    id: "fallback-family-movie-night",
+    title: "New ways to enjoy family movie nights this winter",
+    summary: "Simple ideas for making family movie nights feel new again without adding much cost.",
+    body: "A family-focused entertainment piece about refreshing movie night with themes, snacks and simple at-home setup ideas.",
+    url: "https://www.newscanada.com/en/new-ways-to-enjoy-family-movie-nights-this-winter-141171",
+    issue: "February 2026",
+    categories: ["Travel & Leisure", "Technology & Science", "Family & Parenting", "Home & Garden"],
+    image: "https://www.newscanada.com/Data/Posts/086596b7-dcc6-4f92-b206-13103e87d2ff/7cfe91c2-326d-4bf4-a2f6-1f98b0fe4a07_fi_t.jpg",
+    publishedAt: "2026-03-25T18:26:26.192Z",
+    author: "News Canada"
+  }
+];
+let newsCanadaLastKnownGoodStories = [];
 
 function ensureNewsCanadaReady(forceReload) {
   const shouldReload = !!forceReload || !Array.isArray(app.locals.newsCanadaEditorsPicks) || !app.locals.newsCanadaEditorsPicks.length;
   if (shouldReload) {
     return loadNewsCanadaEditorsPicksFromDisk();
   }
-  const resilient = getNewsCanadaResilientStories();
   return {
-    ok: resilient.stories.length > 0,
+    ok: Array.isArray(app.locals.newsCanadaEditorsPicks) && app.locals.newsCanadaEditorsPicks.length > 0,
     degraded: !!app.locals.newsCanadaEditorsPicksMeta?.degraded,
-    source: cleanText(app.locals.newsCanadaEditorsPicksMeta?.source || resilient.source || "live"),
-    contractVersion: NEWS_CANADA_CONTRACT_VERSION,
+    source: cleanText(app.locals.newsCanadaEditorsPicksMeta?.source || "memory"),
     file: app.locals.newsCanadaEditorsPicksMeta?.file || resolveNewsCanadaDataFile(),
-    count: resilient.stories.length,
-    stories: resilient.stories,
+    count: Array.isArray(app.locals.newsCanadaEditorsPicks) ? app.locals.newsCanadaEditorsPicks.length : 0,
+    stories: Array.isArray(app.locals.newsCanadaEditorsPicks) ? app.locals.newsCanadaEditorsPicks : [],
     rawShape: app.locals.newsCanadaEditorsPicksMeta?.sourceShape || "",
-    rawKeys: app.locals.newsCanadaEditorsPicksMeta?.rawKeys || [],
-    rawFeedCount: Number(app.locals.newsCanadaEditorsPicksMeta?.rawFeedCount || 0),
-    normalizedCount: Number(app.locals.newsCanadaEditorsPicksMeta?.normalizedCount || resilient.stories.length),
-    usingFallback: !!app.locals.newsCanadaEditorsPicksMeta?.usingFallback
+    rawKeys: app.locals.newsCanadaEditorsPicksMeta?.rawKeys || []
   };
 }
 
@@ -1584,17 +1608,17 @@ app.get(["/api/newscanada/editors-picks", "/newscanada/editors-picks"], (req, re
   return res.status(200).json(out);
 });
 
+app.get(["/api/newscanada/editors-picks/meta", "/newscanada/editors-picks/meta"], (req, res) => {
+  applyCors(req, res);
+  res.setHeader("x-sb-newscanada-shape", "object");
+  return res.status(200).json(buildNewsCanadaEditorsPicksResponse(req));
+});
+
 app.get(["/api/newscanada/slides", "/newscanada/slides"], (req, res) => {
   applyCors(req, res);
   const out = buildNewsCanadaEditorsPicksResponse(req);
   res.setHeader("x-sb-newscanada-shape", "array");
   return res.status(200).json(out.slides || out.stories || []);
-});
-
-app.get(["/api/newscanada/editors-picks/meta", "/newscanada/editors-picks/meta"], (req, res) => {
-  applyCors(req, res);
-  res.setHeader("x-sb-newscanada-shape", "object");
-  return res.status(200).json(buildNewsCanadaEditorsPicksResponse(req));
 });
 
 app.get(["/api/newscanada/story", "/newscanada/story"], (req, res) => {
@@ -1668,7 +1692,8 @@ app.get("/api/health", (req, res) => {
       stableRoutes: {
         editorsPicks: "/api/newscanada/editors-picks",
         editorsPicksMeta: "/api/newscanada/editors-picks/meta",
-        story: "/api/newscanada/story"
+        story: "/api/newscanada/story",
+        slides: "/api/newscanada/slides"
       }
     }
   });
