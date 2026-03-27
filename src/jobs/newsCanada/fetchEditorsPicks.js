@@ -36,6 +36,12 @@ function createStats() {
       negativeContext: 0,
       negativeAnchorContext: 0,
       lowScore: 0
+    },
+    scoreHistogram: {
+      gte12: 0,
+      gte10: 0,
+      gte8: 0,
+      lt8: 0
     }
   };
 }
@@ -43,6 +49,14 @@ function createStats() {
 function bump(stats, key) {
   if (!stats || !stats.rejected) return;
   stats.rejected[key] = (stats.rejected[key] || 0) + 1;
+}
+
+function noteScore(stats, score) {
+  if (!stats || !stats.scoreHistogram) return;
+  if (score >= 12) stats.scoreHistogram.gte12 += 1;
+  else if (score >= 10) stats.scoreHistogram.gte10 += 1;
+  else if (score >= 8) stats.scoreHistogram.gte8 += 1;
+  else stats.scoreHistogram.lt8 += 1;
 }
 
 function getHeadingText($, node) {
@@ -119,14 +133,16 @@ function hasNegativeTitle(title, urlInfo) {
   return false;
 }
 
-function scoreCandidate(title, containerText, anchorText, href) {
+function scoreCandidate(title, containerText, anchorText, href, options = {}) {
   let score = 0;
   const titleLc = String(title || "").toLowerCase();
   const containerLc = String(containerText || "").toLowerCase();
   const anchorLc = String(anchorText || "").toLowerCase();
   const hrefLc = String(href || "").toLowerCase();
   const urlInfo = inspectUrlShape(href);
+  const withinEditorsPicks = !!options.withinEditorsPicks;
 
+  if (withinEditorsPicks) score += 4;
   if (EDITORS_PICKS_RE.test(containerLc)) score += 8;
   if (anchorLc && anchorLc === titleLc) score += 1;
   if (title.length >= 24) score += 2;
@@ -138,6 +154,7 @@ function scoreCandidate(title, containerText, anchorText, href) {
   if (anchorLc && anchorLc.includes("read more")) score -= 2;
   if (SOFT_NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 2;
   if (NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 3;
+  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(anchorLc)) score -= 2;
   if (urlInfo.listing) score -= 4;
   if (urlInfo.sectionLanding) score -= 8;
   if (urlInfo.negative) score -= 8;
@@ -147,7 +164,7 @@ function scoreCandidate(title, containerText, anchorText, href) {
   return score;
 }
 
-function shouldRejectCandidate({ title, url, contextText, stats }) {
+function shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass }) {
   stats && (stats.candidatesSeen += 1);
 
   if (!title || !url) {
@@ -177,13 +194,14 @@ function shouldRejectCandidate({ title, url, contextText, stats }) {
     bump(stats, "sectionLandingPath");
     return true;
   }
-  if (!urlInfo.strong && !urlInfo.moderate) {
+  if (!allowSoftPass && !urlInfo.strong && !urlInfo.moderate) {
     bump(stats, "weakUrlShape");
     return true;
   }
 
   const titleLc = String(title).toLowerCase();
   const contextLc = String(contextText || "").toLowerCase();
+  const anchorContextLc = String(anchorContextText || "").toLowerCase();
   if (NEGATIVE_CONTEXT_RE.test(titleLc)) {
     bump(stats, "negativeContext");
     return true;
@@ -192,37 +210,65 @@ function shouldRejectCandidate({ title, url, contextText, stats }) {
     bump(stats, "negativeContext");
     return true;
   }
+  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(anchorContextLc) && !allowSoftPass) {
+    bump(stats, "negativeAnchorContext");
+    return true;
+  }
 
   return false;
 }
 
-function pushCandidate($, a, contextText, items, stats) {
+function pushCandidate($, a, contextText, items, stats, options = {}) {
   const title = getAnchorTitle($, a);
   const href = cleanText($(a).attr("href"));
   const rawUrl = toAbsoluteUrl(href, NEWS_CANADA_CONFIG.baseUrl || NEWS_CANADA_CONFIG.baseURL);
   const url = normalizeUrl(rawUrl);
+  const anchorContextText = cleanText($(a).parent().text());
+  const withinEditorsPicks = !!options.withinEditorsPicks;
+  const allowSoftPass = withinEditorsPicks;
 
-  if (shouldRejectCandidate({ title, url, contextText, stats })) return;
+  if (shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass })) return;
+
+  const score = scoreCandidate(title, contextText, cleanText($(a).text()), url, { withinEditorsPicks });
+  noteScore(stats, score);
 
   items.push({
     title,
     url,
-    score: scoreCandidate(title, contextText, cleanText($(a).text()), url),
-    context: String(contextText || "").slice(0, 400)
+    score,
+    context: String(contextText || "").slice(0, 400),
+    withinEditorsPicks,
+    allowSoftPass
   });
   stats && (stats.candidatesAccepted += 1);
 }
 
-function collectAnchorsFromContainer($, container, items, stats) {
+function collectAnchorsFromContainer($, container, items, stats, options = {}) {
   if (!container || !container.length) return;
 
   const anchors = $(container).find("a");
   if (anchors.length === 0 || anchors.length > 36) return;
 
   const contextText = cleanText($(container).text());
-  if (!EDITORS_PICKS_RE.test(contextText) && anchors.length > 16) return;
+  if (!options.withinEditorsPicks && !EDITORS_PICKS_RE.test(contextText) && anchors.length > 16) return;
 
-  anchors.each((_, a) => pushCandidate($, a, contextText, items, stats));
+  anchors.each((_, a) => pushCandidate($, a, contextText, items, stats, options));
+}
+
+function collectDirectEditorsPicksCandidates($, el, items, stats) {
+  const headingScope = getHeadingText($, el);
+  const section = $(el).closest("section, article, div, main");
+  const containers = [$(el).parent(), section];
+
+  containers.forEach((container) => {
+    if (!container || !container.length) return;
+    collectAnchorsFromContainer($, container, items, stats, { withinEditorsPicks: true });
+
+    container.find("a").each((_, a) => {
+      const contextualText = `${headingScope} ${cleanText($(a).closest('li,article,div').text())}`.trim();
+      pushCandidate($, a, contextualText, items, stats, { withinEditorsPicks: true });
+    });
+  });
 }
 
 function collectAroundHeading($, el, items, stats) {
@@ -232,6 +278,7 @@ function collectAroundHeading($, el, items, stats) {
 
   collectAnchorsFromContainer($, parent, items, stats);
   collectAnchorsFromContainer($, section, items, stats);
+  collectDirectEditorsPicksCandidates($, el, items, stats);
 
   let cursor = $(el).next();
   let hops = 0;
@@ -240,7 +287,7 @@ function collectAroundHeading($, el, items, stats) {
     const blockText = `${headingScope} ${cleanText(cursor.text())}`.trim();
     const anchorCount = cursor.find("a").length;
     if (anchorCount > 0 && anchorCount <= 24) {
-      cursor.find("a").each((_, a) => pushCandidate($, a, blockText, items, stats));
+      cursor.find("a").each((_, a) => pushCandidate($, a, blockText, items, stats, { withinEditorsPicks: EDITORS_PICKS_RE.test(blockText) }));
     }
     cursor = cursor.next();
     hops += 1;
@@ -259,9 +306,10 @@ function collectPageFallback($, items, stats) {
     const context = `${parentText} ${grandParentText}`.trim();
 
     if (!context) return;
-    if (shouldRejectCandidate({ title, url, contextText: context, stats })) return;
+    if (shouldRejectCandidate({ title, url, contextText: context, anchorContextText: parentText, stats })) return;
 
     const score = scoreCandidate(title, context, cleanText($(a).text()), url);
+    noteScore(stats, score);
     if (score < 7) {
       bump(stats, "lowScore");
       return;
@@ -271,23 +319,29 @@ function collectPageFallback($, items, stats) {
       title,
       url,
       score,
-      context: context.slice(0, 400)
+      context: context.slice(0, 400),
+      withinEditorsPicks: false,
+      allowSoftPass: false
     });
     stats && (stats.candidatesAccepted += 1);
   });
 }
 
 function buildRescueCandidates(items, stats) {
-  if (items.length > 0) return items;
-
   const rescued = [];
   const seen = new Set();
 
-  for (const item of items) {
-    if (seen.has(item.url)) continue;
-    if (item.score < 6) continue;
-    seen.add(item.url);
-    rescued.push({ ...item, rescued: true });
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!item || !item.url || seen.has(item.url)) continue;
+    if (item.withinEditorsPicks && item.score >= 6) {
+      seen.add(item.url);
+      rescued.push({ ...item, rescued: true });
+      continue;
+    }
+    if (item.allowSoftPass && item.score >= 7) {
+      seen.add(item.url);
+      rescued.push({ ...item, rescued: true });
+    }
   }
 
   if (stats) {
@@ -321,13 +375,13 @@ function extractEditorsPicksLinks(html, logger) {
   }
 
   const filtered = Array.from(byUrl.values());
-  const resultsPool = buildRescueCandidates(filtered, stats);
-  const lowScoreDropped = resultsPool.filter((item) => item.score < 8).length;
+  const rescuedPool = buildRescueCandidates(filtered, stats);
+  const lowScoreDropped = filtered.filter((item) => item.score < 8).length;
   if (lowScoreDropped) {
     stats.rejected.lowScore += lowScoreDropped;
   }
 
-  let results = resultsPool
+  let results = filtered
     .filter((item) => item.score >= 8)
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, NEWS_CANADA_CONFIG.maxEditorsPickLinks)
@@ -340,8 +394,8 @@ function extractEditorsPicksLinks(html, logger) {
       position: index + 1
     }));
 
-  if (results.length === 0 && filtered.length > 0) {
-    results = filtered
+  if (results.length === 0 && rescuedPool.length > 0) {
+    results = rescuedPool
       .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
       .slice(0, Math.min(6, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
       .map(({ title, url, score, context }, index) => ({
@@ -352,7 +406,6 @@ function extractEditorsPicksLinks(html, logger) {
         rescued: true,
         position: index + 1
       }));
-    stats.rescuedCandidates = results.length;
   }
 
   if (logger && typeof logger.debug === "function") {
@@ -360,6 +413,12 @@ function extractEditorsPicksLinks(html, logger) {
       candidatesFound: items.length,
       uniqueCandidates: byUrl.size,
       returned: results.length,
+      topScores: filtered.slice().sort((a, b) => b.score - a.score).slice(0, 10).map((item) => ({
+        title: item.title,
+        url: item.url,
+        score: item.score,
+        withinEditorsPicks: !!item.withinEditorsPicks
+      })),
       stats
     });
   }
