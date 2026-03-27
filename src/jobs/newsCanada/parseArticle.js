@@ -196,12 +196,19 @@ function selectBestBodyRoot($) {
   return $("body").first();
 }
 
-function shouldSkipBlock(text) {
+function shouldSkipBlock(text, tagName) {
   if (!text) return true;
-  if (text.length < 40) return true;
   if (isStopMarker(text)) return true;
   if (/^(search|menu|faq|contact us|about us)$/i.test(text)) return true;
+  if ((tagName === 'p' || tagName === 'li' || tagName === 'div') && text.length < 25) return true;
   return false;
+}
+
+function pushBodyPart(parts, seen, text) {
+  const cleaned = cleanText(text);
+  if (!cleaned || seen.has(cleaned)) return;
+  seen.add(cleaned);
+  parts.push(cleaned);
 }
 
 function extractBody($, title) {
@@ -216,7 +223,11 @@ function extractBody($, title) {
     "h2",
     "h3",
     "p",
-    "li"
+    "li",
+    ".wp-block-paragraph",
+    ".textwidget",
+    "div[class*='content'] > div",
+    "div[class*='article'] > div"
   ];
 
   root.find(selectors.join(",")).each((_, el) => {
@@ -224,21 +235,32 @@ function extractBody($, title) {
     scanned += 1;
 
     const text = cleanText($(el).text());
-    if (shouldSkipBlock(text)) return;
+    const tagName = String(el.tagName || el.name || '').toLowerCase();
+    if (shouldSkipBlock(text, tagName)) return;
     if (title && text === title) return;
     if (seen.has(text)) return;
 
     if (/^image:?$/i.test(text)) return;
     if (/^www\.newscanada\.com$/i.test(text)) return;
 
-    seen.add(text);
-    parts.push(text);
+    pushBodyPart(parts, seen, text);
   });
 
   const body = cleanMultilineText(parts.join("\n\n"));
-  if (body) return body;
+  if (body && body.length >= 140) return body;
 
-  const fallback = cleanMultilineText(cleanText(root.text()));
+  const fallbackParts = [];
+  const fallbackSeen = new Set();
+  root.find("p, li, h2, h3, h4, div").each((_, el) => {
+    const text = cleanText($(el).text());
+    if (!text || isStopMarker(text)) return;
+    if (title && text === title) return;
+    if (/^image:?$/i.test(text) || /^www\.newscanada\.com$/i.test(text)) return;
+    if (String(el.tagName || el.name || '').toLowerCase() === 'div' && text.length < 40) return;
+    pushBodyPart(fallbackParts, fallbackSeen, text);
+  });
+
+  const fallback = cleanMultilineText(fallbackParts.join("\n\n")) || cleanMultilineText(cleanText(root.text()));
   return isStopMarker(fallback) ? "" : fallback;
 }
 
@@ -293,8 +315,9 @@ function extractImages($, articleUrl, title) {
 function extractMediaAttachments($, articleUrl) {
   const mediaAttachments = [];
   const seen = new Set();
+  const root = selectBestBodyRoot($);
 
-  $("a").each((_, a) => {
+  root.find("a").each((_, a) => {
     const label = cleanText($(a).text());
     const rawHref = cleanText($(a).attr("href") || "");
     const href = rawHref ? toAbsoluteUrl(rawHref, articleUrl) : "";
@@ -343,7 +366,13 @@ function parseArticle(html, url) {
     images,
     mediaAttachments,
     author,
-    publishedAt
+    publishedAt,
+    diagnostics: {
+      bodyLength: String(body || '').length,
+      imageCount: images.length,
+      attachmentCount: mediaAttachments.length,
+      categoryCount: categories.length
+    }
   };
 }
 
