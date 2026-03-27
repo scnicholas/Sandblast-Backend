@@ -1,384 +1,275 @@
-const cheerio = require("cheerio");
-const { NEWS_CANADA_CONFIG } = require("./config");
-const { fetchWithRetry } = require("./http");
-const { cleanText, cleanMultilineText, toAbsoluteUrl } = require("./utils");
+const { NEWS_CANADA_CONFIG } = require('./config');
+const { fetchWithRetry } = require('./http');
+const { createLogger } = require('./logger');
 
-const STOP_MARKERS = [
-  "media attachments",
-  "related posts",
-  "terms of use",
-  "editor's picks",
-  "editors picks",
-  "posting instructions",
-  "contact us at",
-  "audio preview",
-  "related audio",
-  "related video",
-  "image view",
-  "currently online",
-  "newsletter sign-up"
-];
+function stripTags(value) {
+  return String(value || '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-const CATEGORY_ALLOWLIST = /^(55\+|automotive|business|education|family|finance|food|food & nutrition|health|home|lifestyle|technology|travel|multimedia|government|safety|parenting|pets|money|environment|real estate|housing|consumer|careers?)/i;
+function decodeHtml(value) {
+  return stripTags(String(value || ''));
+}
 
-function fetchArticlePage(url, logger) {
-  return fetchWithRetry(url, {
+function absolutizeUrl(url, baseUrl) {
+  const value = String(url || '').trim();
+  if (!value) return '';
+
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch (_) {
+    return value;
+  }
+}
+
+function firstMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (match && match[1]) {
+      return decodeHtml(match[1]);
+    }
+  }
+  return '';
+}
+
+function collectMatches(text, pattern) {
+  const results = [];
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match[1]) {
+      results.push(match[1]);
+    }
+  }
+  return results;
+}
+
+function extractJsonLdObjects(html) {
+  const blocks = collectMatches(html, /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  const objects = [];
+
+  for (const block of blocks) {
+    const text = String(block || '').trim();
+    if (!text) continue;
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        objects.push(...parsed);
+      } else {
+        objects.push(parsed);
+      }
+    } catch (_) {
+      // Ignore malformed JSON-LD blocks and continue with fallback parsing.
+    }
+  }
+
+  return objects;
+}
+
+function pickArticleJsonLd(objects) {
+  const queue = Array.isArray(objects) ? [...objects] : [];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+
+    const type = current['@type'];
+    const types = Array.isArray(type) ? type : [type];
+    if (types.some((entry) => typeof entry === 'string' && /article|newsarticle|reportage/i.test(entry))) {
+      return current;
+    }
+
+    if (Array.isArray(current['@graph'])) {
+      queue.push(...current['@graph']);
+    }
+  }
+
+  return null;
+}
+
+function extractMeta(html, attribute, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`<meta[^>]+${attribute}=["']${escapedName}["'][^>]+content=["']([^"']*)["'][^>]*>`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+${attribute}=["']${escapedName}["'][^>]*>`, 'i')
+  ];
+
+  return firstMatch(html, patterns);
+}
+
+function extractTitle(html, articleJsonLd) {
+  return (
+    decodeHtml(articleJsonLd?.headline) ||
+    extractMeta(html, 'property', 'og:title') ||
+    extractMeta(html, 'name', 'twitter:title') ||
+    firstMatch(html, [/<title[^>]*>([\s\S]*?)<\/title>/i])
+  );
+}
+
+function extractSummary(html, articleJsonLd) {
+  return (
+    decodeHtml(articleJsonLd?.description) ||
+    extractMeta(html, 'property', 'og:description') ||
+    extractMeta(html, 'name', 'description') ||
+    extractMeta(html, 'name', 'twitter:description')
+  );
+}
+
+function extractPublishedAt(html, articleJsonLd) {
+  return (
+    decodeHtml(articleJsonLd?.datePublished) ||
+    extractMeta(html, 'property', 'article:published_time') ||
+    extractMeta(html, 'name', 'pubdate') ||
+    extractMeta(html, 'itemprop', 'datePublished')
+  );
+}
+
+function extractAuthor(html, articleJsonLd) {
+  const author = articleJsonLd?.author;
+  if (typeof author === 'string') return decodeHtml(author);
+  if (Array.isArray(author)) {
+    const names = author
+      .map((entry) => (typeof entry === 'string' ? entry : entry?.name))
+      .filter(Boolean)
+      .map((entry) => decodeHtml(entry));
+    if (names.length) return names.join(', ');
+  }
+  if (author && typeof author === 'object' && author.name) {
+    return decodeHtml(author.name);
+  }
+
+  return (
+    extractMeta(html, 'name', 'author') ||
+    extractMeta(html, 'property', 'article:author')
+  );
+}
+
+function extractImages(html, articleJsonLd, baseUrl) {
+  const candidates = [];
+
+  const jsonImages = articleJsonLd?.image;
+  if (Array.isArray(jsonImages)) {
+    for (const image of jsonImages) {
+      if (typeof image === 'string') candidates.push(image);
+      else if (image?.url) candidates.push(image.url);
+    }
+  } else if (typeof jsonImages === 'string') {
+    candidates.push(jsonImages);
+  } else if (jsonImages?.url) {
+    candidates.push(jsonImages.url);
+  }
+
+  const ogImage = extractMeta(html, 'property', 'og:image');
+  if (ogImage) candidates.push(ogImage);
+
+  const srcMatches = collectMatches(html, /<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+  candidates.push(...srcMatches.slice(0, 12));
+
+  return [...new Set(candidates.map((url) => absolutizeUrl(url, baseUrl)).filter(Boolean))].map((url) => ({ url }));
+}
+
+function extractCategories(html, articleJsonLd) {
+  const categories = [];
+
+  const jsonSection = articleJsonLd?.articleSection;
+  if (Array.isArray(jsonSection)) categories.push(...jsonSection);
+  else if (jsonSection) categories.push(jsonSection);
+
+  const articleTag = extractMeta(html, 'property', 'article:tag');
+  if (articleTag) categories.push(articleTag);
+
+  return [...new Set(categories.map((entry) => decodeHtml(entry)).filter(Boolean))];
+}
+
+function extractBodyFromArticleTag(html) {
+  const articleMatch = /<article\b[^>]*>([\s\S]*?)<\/article>/i.exec(html);
+  if (!articleMatch) return '';
+
+  const articleHtml = articleMatch[1];
+  const paragraphMatches = collectMatches(articleHtml, /<p\b[^>]*>([\s\S]*?)<\/p>/gi)
+    .map((entry) => stripTags(entry))
+    .filter(Boolean);
+
+  if (paragraphMatches.length) {
+    return paragraphMatches.join('\n\n');
+  }
+
+  return stripTags(articleHtml);
+}
+
+function extractBodyFromMain(html) {
+  const mainMatch = /<main\b[^>]*>([\s\S]*?)<\/main>/i.exec(html);
+  if (!mainMatch) return '';
+
+  const mainHtml = mainMatch[1];
+  const paragraphMatches = collectMatches(mainHtml, /<p\b[^>]*>([\s\S]*?)<\/p>/gi)
+    .map((entry) => stripTags(entry))
+    .filter((entry) => entry.length > 40);
+
+  if (paragraphMatches.length >= 2) {
+    return paragraphMatches.join('\n\n');
+  }
+
+  return '';
+}
+
+function buildBodyFallback(html) {
+  return (
+    extractBodyFromArticleTag(html) ||
+    extractBodyFromMain(html) ||
+    stripTags(html).slice(0, 12000)
+  );
+}
+
+async function fetchArticlePage(url, logger = createLogger('[news-canada-article]')) {
+  const response = await fetchWithRetry(url, {
     retries: NEWS_CANADA_CONFIG.retries,
     retryDelayMs: NEWS_CANADA_CONFIG.retryDelayMs,
     timeoutMs: NEWS_CANADA_CONFIG.timeoutMs,
     userAgent: NEWS_CANADA_CONFIG.userAgent,
     logger
-  }).then((response) => response.data);
-}
-
-function textFromMeta($, names) {
-  for (const name of names) {
-    const value = cleanText($(name).attr("content"));
-    if (value) return value;
-  }
-  return "";
-}
-
-function extractTitle($) {
-  return (
-    cleanText($("article h1").first().text()) ||
-    cleanText($("main h1").first().text()) ||
-    cleanText($("h1").first().text()) ||
-    textFromMeta($, [
-      "meta[property='og:title']",
-      "meta[name='twitter:title']",
-      "meta[name='title']"
-    ]) ||
-    cleanText($("title").text())
-  );
-}
-
-function extractIssue($) {
-  const labelNodes = ["[class*='issue']", "[id*='issue']", "dt", "strong", "b"];
-
-  for (const selector of labelNodes) {
-    const nodes = $(selector).toArray();
-    for (const node of nodes) {
-      const label = cleanText($(node).text()).toLowerCase();
-      if (label !== "issue") continue;
-
-      const sibling = cleanText($(node).next().text());
-      const parentText = cleanText($(node).parent().text()).replace(/^Issue\s*/i, "").trim();
-
-      if (sibling) return sibling;
-      if (parentText && parentText.toLowerCase() !== "issue") return parentText;
-    }
-  }
-
-  const pageText = cleanText($("body").text());
-  const match = pageText.match(/\bIssue\s+([A-Za-z]+\s+\d{4})\b/i);
-  return match ? cleanText(match[1]) : "";
-}
-
-function extractPublishedAt($) {
-  return (
-    textFromMeta($, [
-      "meta[property='article:published_time']",
-      "meta[name='pubdate']",
-      "meta[name='publish-date']",
-      "meta[name='date']"
-    ]) ||
-    cleanText($("time").first().attr("datetime")) ||
-    cleanText($("time").first().text())
-  );
-}
-
-function extractAuthor($) {
-  return (
-    textFromMeta($, [
-      "meta[name='author']",
-      "meta[property='article:author']"
-    ]) ||
-    cleanText($("[rel='author']").first().text()) ||
-    cleanText($("[class*='author']").first().text())
-  );
-}
-
-function extractKeywords($) {
-  const keywords = new Set();
-  const metaKeywords = cleanText($("meta[name='keywords']").attr("content"));
-
-  if (metaKeywords) {
-    metaKeywords.split(",").forEach((entry) => {
-      const value = cleanText(entry);
-      if (value) keywords.add(value);
-    });
-  }
-
-  $("a[rel='tag'], .tags a, [class*='tag'] a").each((_, el) => {
-    const value = cleanText($(el).text());
-    if (value) keywords.add(value);
   });
 
-  return Array.from(keywords).slice(0, 12);
-}
-
-function extractCategories($) {
-  const categories = new Set();
-  const ignore = new Set([
-    "home",
-    "articles",
-    "radio",
-    "video",
-    "editor's picks",
-    "editors picks",
-    "media attachments",
-    "related posts",
-    "terms of use",
-    "read more",
-    "français",
-    "search",
-    "menu"
-  ]);
-
-  const candidateSelectors = [
-    "nav[aria-label*='breadcrumb' i] a",
-    "[class*='category'] a",
-    "[class*='category'] span",
-    "[class*='categories'] a",
-    "[class*='categories'] span",
-    "article a",
-    "main a"
-  ];
-
-  candidateSelectors.forEach((selector) => {
-    $(selector).each((_, el) => {
-      const text = cleanText($(el).text());
-      const lower = text.toLowerCase();
-      if (!text || ignore.has(lower)) return;
-      if (text.length > 40) return;
-      if (!/^[A-Za-z0-9+&'’*(),\-\/\s]+$/.test(text)) return;
-      if (!CATEGORY_ALLOWLIST.test(text)) return;
-      categories.add(text);
-    });
-  });
-
-  return Array.from(categories).slice(0, 8);
-}
-
-function isStopMarker(text) {
-  const value = String(text || "").toLowerCase();
-  return STOP_MARKERS.some((marker) => value.includes(marker));
-}
-
-function selectBestBodyRoot($) {
-  const candidates = [
-    "article",
-    "[role='main'] article",
-    "[role='main']",
-    "main article",
-    "main",
-    ".entry-content",
-    ".post-content",
-    ".article-content",
-    ".content",
-    "body"
-  ];
-
-  for (const selector of candidates) {
-    const root = $(selector).first();
-    if (root.length) return root;
-  }
-
-  return $("body").first();
-}
-
-function shouldSkipBlock(text) {
-  if (!text) return true;
-  if (isStopMarker(text)) return true;
-  if (/^(search|menu|faq|contact us|about us)$/i.test(text)) return true;
-  if (/^image:?$/i.test(text)) return true;
-  if (/^www\.newscanada\.com$/i.test(text)) return true;
-  return false;
-}
-
-function isThinUsefulText(text) {
-  if (!text) return false;
-  if (text.length >= 40) return true;
-  return /[.?!:;]/.test(text) || /\d/.test(text) || text.split(/\s+/).length >= 6;
-}
-
-function buildBodyDiagnostics(body, parts, scanned) {
-  return {
-    scannedNodes: scanned,
-    partCount: parts.length,
-    bodyLength: String(body || "").length,
-    thinBody: String(body || "").length > 0 && String(body || "").length < 280
-  };
-}
-
-function extractBody($, title) {
-  const root = selectBestBodyRoot($).clone();
-  root.find("script, style, nav, header, footer, form, noscript, iframe, button, .share, .social, .related, .newsletter, .advertisement").remove();
-
-  const parts = [];
-  const seen = new Set();
-  let scanned = 0;
-
-  root.find("h2,h3,p,li").each((_, el) => {
-    if (scanned >= NEWS_CANADA_CONFIG.maxBodyNodesToScan) return false;
-    scanned += 1;
-
-    const text = cleanText($(el).text());
-    if (shouldSkipBlock(text)) return;
-    if (title && text === title) return;
-    if (seen.has(text)) return;
-    if (!isThinUsefulText(text)) return;
-
-    seen.add(text);
-    parts.push(text);
-  });
-
-  let body = cleanMultilineText(parts.join("\n\n"));
-
-  if (!body || body.length < 160) {
-    const fallbackParts = [];
-    root.find("p,li").each((_, el) => {
-      const text = cleanText($(el).text());
-      if (!text || shouldSkipBlock(text)) return;
-      if (title && text === title) return;
-      if (seen.has(text)) return;
-      if (text.length < 20) return;
-      seen.add(text);
-      fallbackParts.push(text);
-    });
-
-    const fallbackJoined = cleanMultilineText(fallbackParts.join("\n\n"));
-    if (fallbackJoined && fallbackJoined.length > body.length) {
-      body = fallbackJoined;
-    }
-  }
-
-  if (!body) {
-    const fallback = cleanMultilineText(cleanText(root.text()));
-    body = isStopMarker(fallback) ? "" : fallback;
-  }
-
-  return {
-    body,
-    diagnostics: buildBodyDiagnostics(body, parts, scanned)
-  };
-}
-
-function pushImage(images, seen, src, alt, caption) {
-  if (!src || !/^https?:\/\//i.test(src)) return;
-  if (/\.(svg)$/i.test(src)) return;
-  if (/data:image\//i.test(src)) return;
-  if (/logo|icon|sprite|avatar/i.test(src)) return;
-
-  const key = `${src}::${caption || ""}`;
-  if (seen.has(key)) return;
-  seen.add(key);
-
-  images.push({ url: src, alt: alt || "", caption: caption || "" });
-}
-
-function extractImages($, articleUrl, title) {
-  const images = [];
-  const seen = new Set();
-  const root = selectBestBodyRoot($);
-
-  root.find("figure img, article img, main img, img").each((_, img) => {
-    const rawSrc = cleanText(
-      $(img).attr("src") ||
-      $(img).attr("data-src") ||
-      $(img).attr("data-lazy-src") ||
-      $(img).attr("data-original")
-    );
-    const src = rawSrc ? toAbsoluteUrl(rawSrc, articleUrl) : "";
-    const alt = cleanText($(img).attr("alt")) || title || "";
-    const caption = cleanText($(img).closest("figure").find("figcaption").first().text());
-    pushImage(images, seen, src, alt, caption);
-  });
-
-  if (!images.length) {
-    const ogImage = textFromMeta($, ["meta[property='og:image']", "meta[name='twitter:image']"]);
-    const src = ogImage ? toAbsoluteUrl(ogImage, articleUrl) : "";
-    pushImage(images, seen, src, title || "", "");
-  }
-
-  return images;
-}
-
-function extractMediaAttachments($, articleUrl) {
-  const mediaAttachments = [];
-  const seen = new Set();
-  const root = selectBestBodyRoot($);
-
-  root.find("a").each((_, a) => {
-    const label = cleanText($(a).text());
-    const rawHref = cleanText($(a).attr("href") || "");
-    const href = rawHref ? toAbsoluteUrl(rawHref, articleUrl) : "";
-    const lowerLabel = label.toLowerCase();
-    const lowerHref = href.toLowerCase();
-
-    if (!label && !href) return;
-    if (
-      lowerLabel.includes("audio") ||
-      lowerLabel.includes("preview") ||
-      lowerLabel.includes("download") ||
-      lowerLabel.includes("segment") ||
-      lowerLabel.includes("video") ||
-      /\.(mp3|wav|jpg|jpeg|png|mp4|pdf)$/i.test(lowerHref)
-    ) {
-      const key = `${label}::${href}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      mediaAttachments.push({ label, href });
-    }
-  });
-
-  return mediaAttachments;
+  return typeof response?.data === 'string' ? response.data : '';
 }
 
 function parseArticle(html, url) {
-  const $ = cheerio.load(html);
-  const title = extractTitle($);
-  const issue = extractIssue($);
-  const categories = extractCategories($);
-  const keywords = extractKeywords($);
-  const bodyResult = extractBody($, title);
-  const images = extractImages($, url, title);
-  const mediaAttachments = extractMediaAttachments($, url);
-  const author = extractAuthor($);
-  const publishedAt = extractPublishedAt($);
+  const text = typeof html === 'string' ? html : '';
+  const jsonLdObjects = extractJsonLdObjects(text);
+  const articleJsonLd = pickArticleJsonLd(jsonLdObjects);
+
+  const title = extractTitle(text, articleJsonLd);
+  const summary = extractSummary(text, articleJsonLd);
+  const publishedAt = extractPublishedAt(text, articleJsonLd);
+  const author = extractAuthor(text, articleJsonLd);
+  const images = extractImages(text, articleJsonLd, url);
+  const categories = extractCategories(text, articleJsonLd);
+  const body = buildBodyFallback(text);
 
   return {
     title,
-    url,
-    issue,
-    categories,
-    keywords,
-    body: bodyResult.body,
+    summary,
+    body,
     images,
-    mediaAttachments,
-    author,
+    categories,
+    mediaAttachments: [],
     publishedAt,
-    diagnostics: {
-      body: bodyResult.diagnostics,
-      imageCount: images.length,
-      attachmentCount: mediaAttachments.length,
-      hasPublishedAt: !!publishedAt,
-      hasAuthor: !!author
-    }
+    author,
+    canonicalUrl: extractMeta(text, 'property', 'og:url') || absolutizeUrl(url, url)
   };
 }
 
 module.exports = {
   fetchArticlePage,
-  parseArticle,
-  extractTitle,
-  extractIssue,
-  extractCategories,
-  extractKeywords,
-  extractBody,
-  extractImages,
-  extractMediaAttachments,
-  extractAuthor,
-  extractPublishedAt
+  parseArticle
 };
