@@ -1,6 +1,6 @@
 const path = require("path");
 
-const BASE_URL = "https://www.newscanada.com";
+const BASE_URL = "https://www.newscanada.com/home";
 const HOME_PATH = "/home";
 const HOME_URL = new URL(HOME_PATH, BASE_URL).toString();
 
