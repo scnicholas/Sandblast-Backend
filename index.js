@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.1sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-CONTRACT-ALIGNMENT";
+const INDEX_VERSION = "index.js v2.13.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-STORY-TRACE";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -1508,6 +1508,88 @@ function normalizeStoryLookupUrl(v) {
   }
 }
 
+
+function buildNewsCanadaStoryTrace(selectors, list) {
+  const safeSelectors = buildNewsCanadaStorySelectors(selectors);
+  const stories = Array.isArray(list) ? list : [];
+  const trace = {
+    selectors: safeSelectors,
+    selectorOrder: ["id", "storyId", "slideId", "slug", "url", "title"],
+    availableStories: stories.length,
+    exactMatchedBy: "",
+    broadMatchedBy: "",
+    sample: stories.slice(0, 5).map((story, index) => ({
+      index,
+      id: cleanText(story && story.id || ""),
+      storyId: cleanText(story && story.storyId || ""),
+      slideId: cleanText(story && story.slideId || ""),
+      slug: cleanText(story && story.slug || ""),
+      title: cleanText(story && story.title || ""),
+      url: cleanText(story && (story.url || story.storyUrl || story.canonicalUrl) || "")
+    }))
+  };
+  const exactChecks = [
+    ["id", safeSelectors.id, (story) => [story && story.id, story && story.storyId]],
+    ["storyId", safeSelectors.storyId, (story) => [story && story.storyId, story && story.id]],
+    ["slideId", safeSelectors.slideId, (story) => [story && story.slideId]],
+    ["slug", safeSelectors.slug, (story) => [story && story.slug]],
+    ["title", safeSelectors.title, (story) => [story && story.title]],
+    ["url", safeSelectors.url, (story) => [story && story.url, story && story.storyUrl, story && story.canonicalUrl]]
+  ];
+  for (const [label, needle, values] of exactChecks) {
+    const normalizedNeedle = label === "url" ? normalizeStoryLookupUrl(needle) : normalizeStoryLookupValue(needle);
+    if (!normalizedNeedle) continue;
+    for (const story of stories) {
+      const hay = values(story);
+      for (const entry of hay) {
+        const normalizedEntry = label === "url" ? normalizeStoryLookupUrl(entry) : normalizeStoryLookupValue(entry);
+        if (normalizedEntry && normalizedEntry === normalizedNeedle) {
+          trace.exactMatchedBy = label;
+          return trace;
+        }
+      }
+    }
+  }
+  const broadChecks = [
+    ["lookup_text", cleanText(safeSelectors.id || safeSelectors.storyId || safeSelectors.slideId || safeSelectors.slug || safeSelectors.title || "")],
+    ["url", safeSelectors.url]
+  ];
+  for (const [label, rawNeedle] of broadChecks) {
+    const normalizedNeedle = label === "url" ? normalizeStoryLookupUrl(rawNeedle) : normalizeStoryLookupValue(rawNeedle);
+    if (!normalizedNeedle) continue;
+    for (const story of stories) {
+      if (label === "url") {
+        const urls = [story && story.url, story && story.storyUrl, story && story.canonicalUrl].map(normalizeStoryLookupUrl).filter(Boolean);
+        if (urls.includes(normalizedNeedle)) {
+          trace.broadMatchedBy = label;
+          return trace;
+        }
+      } else {
+        const hay = [
+          story && story.id,
+          story && story.storyId,
+          story && story.slideId,
+          story && story.slug,
+          story && story.title,
+          story && story.summary,
+          story && story.body,
+          story && story.url,
+          story && story.storyUrl,
+          story && story.canonicalUrl,
+          story && story.issue,
+          ...(Array.isArray(story && story.categories) ? story.categories : []),
+          ...(Array.isArray(story && story.keywords) ? story.keywords : [])
+        ].map((entry) => normalizeStoryLookupValue(entry)).join(" ");
+        if (hay.includes(normalizedNeedle)) {
+          trace.broadMatchedBy = label;
+          return trace;
+        }
+      }
+    }
+  }
+  return trace;
+}
+
 function buildNewsCanadaStorySelectors(input) {
   const src = isObj(input) ? input : {};
   return {
@@ -1544,47 +1626,73 @@ function exactNewsCanadaStoryMatch(story, selectors) {
   return false;
 }
 
-function findNewsCanadaStory(queryOrSelectors) {
+function findNewsCanadaStory(queryOrSelectors, opts) {
   const selectors = isObj(queryOrSelectors)
     ? buildNewsCanadaStorySelectors(queryOrSelectors)
     : buildNewsCanadaStorySelectors({ title: queryOrSelectors, url: queryOrSelectors, slug: queryOrSelectors, id: queryOrSelectors, storyId: queryOrSelectors });
+  const options = isObj(opts) ? opts : {};
   const list = Array.isArray(app.locals.newsCanadaEditorsPicks) ? app.locals.newsCanadaEditorsPicks : [];
   const lookup = cleanText(selectors.id || selectors.storyId || selectors.slideId || selectors.slug || selectors.url || selectors.title || "");
-  if (!lookup) return list[0] || null;
+  const trace = buildNewsCanadaStoryTrace(selectors, list);
+  let story = null;
+  let foundBy = "";
 
-  for (const story of list) {
-    if (exactNewsCanadaStoryMatch(story, selectors)) return story;
+  if (!lookup) {
+    story = list[0] || null;
+    foundBy = story ? "default_first_story" : "";
   }
 
-  const q = normalizeStoryLookupValue(lookup);
-  for (const story of list) {
-    const hay = [
-      story.id,
-      story.storyId,
-      story.slideId,
-      story.slug,
-      story.title,
-      story.summary,
-      story.body,
-      story.url,
-      story.storyUrl,
-      story.canonicalUrl,
-      story.issue,
-      ...(Array.isArray(story.categories) ? story.categories : []),
-      ...(Array.isArray(story.keywords) ? story.keywords : [])
-    ].map((entry) => normalizeStoryLookupValue(entry)).join(" ");
-    if (q && hay.includes(q)) return story;
-  }
-
-  if (selectors.url) {
-    const urlNeedle = normalizeStoryLookupUrl(selectors.url);
-    for (const story of list) {
-      const urls = [story.url, story.storyUrl, story.canonicalUrl].map(normalizeStoryLookupUrl).filter(Boolean);
-      if (urlNeedle && urls.includes(urlNeedle)) return story;
+  if (!story) {
+    for (const candidate of list) {
+      if (exactNewsCanadaStoryMatch(candidate, selectors)) {
+        story = candidate;
+        foundBy = trace.exactMatchedBy || "exact_match";
+        break;
+      }
     }
   }
 
-  return null;
+  if (!story) {
+    const q = normalizeStoryLookupValue(lookup);
+    for (const candidate of list) {
+      const hay = [
+        candidate.id,
+        candidate.storyId,
+        candidate.slideId,
+        candidate.slug,
+        candidate.title,
+        candidate.summary,
+        candidate.body,
+        candidate.url,
+        candidate.storyUrl,
+        candidate.canonicalUrl,
+        candidate.issue,
+        ...(Array.isArray(candidate.categories) ? candidate.categories : []),
+        ...(Array.isArray(candidate.keywords) ? candidate.keywords : [])
+      ].map((entry) => normalizeStoryLookupValue(entry)).join(" ");
+      if (q && hay.includes(q)) {
+        story = candidate;
+        foundBy = trace.broadMatchedBy || "lookup_text";
+        break;
+      }
+    }
+  }
+
+  if (!story && selectors.url) {
+    const urlNeedle = normalizeStoryLookupUrl(selectors.url);
+    for (const candidate of list) {
+      const urls = [candidate.url, candidate.storyUrl, candidate.canonicalUrl].map(normalizeStoryLookupUrl).filter(Boolean);
+      if (urlNeedle && urls.includes(urlNeedle)) {
+        story = candidate;
+        foundBy = trace.broadMatchedBy || "url";
+        break;
+      }
+    }
+  }
+
+  const result = { story: story || null, trace: { ...trace, lookup, foundBy, matched: !!story } };
+  if (options.withTrace) return result;
+  return result.story;
 }
 
 function buildNewsCanadaStoryPayload(story, index) {
@@ -1729,35 +1837,57 @@ function buildNewsCanadaEditorsPicksResponse(req) {
 }
 
 function buildNewsCanadaStoryResponse(req) {
-  ensureNewsCanadaReady(req.query && req.query.refresh === "1");
+  const refreshRequested = !!(req && req.query && req.query.refresh === "1");
+  ensureNewsCanadaReady(refreshRequested);
   const selectors = buildNewsCanadaStorySelectors(isObj(req && req.query) ? req.query : {});
   const lookup = cleanText(selectors.id || selectors.storyId || selectors.slideId || selectors.slug || selectors.url || selectors.title || "");
-  const story = findNewsCanadaStory(selectors);
-  if (!story) {
+  let resolved = findNewsCanadaStory(selectors, { withTrace: true });
+  if (!resolved.story && !refreshRequested) {
+    ensureNewsCanadaReady(true);
+    resolved = findNewsCanadaStory(selectors, { withTrace: true });
+    resolved.trace.refreshed = true;
+  }
+  const traceId = cleanText(req && req.headers && req.headers["x-sb-trace-id"] || makeTraceId("newscanada_story"));
+  const traceMeta = {
+    v: INDEX_VERSION,
+    t: now(),
+    traceId,
+    selectorOrder: ["id", "storyId", "slideId", "slug", "url", "title"],
+    source: cleanText(app.locals.newsCanadaEditorsPicksMeta && app.locals.newsCanadaEditorsPicksMeta.source || "runtime") || "runtime",
+    degraded: !!(app.locals.newsCanadaEditorsPicksMeta && app.locals.newsCanadaEditorsPicksMeta.degraded),
+    diagnostics: resolved.trace
+  };
+  if (!resolved.story) {
+    console.log("[Sandblast][newscanada:story:not_found]", { traceId, lookup, selectors, diagnostics: resolved.trace });
     return {
       ok: false,
       error: "story_not_found",
       route: "/api/newscanada/story",
       lookup,
       selectors,
-      meta: { v: INDEX_VERSION, t: now() }
+      meta: traceMeta
     };
   }
-  const payload = buildNewsCanadaStoryPayload(story, 0);
+  const payload = buildNewsCanadaStoryPayload(resolved.story, 0);
+  const popup = {
+    title: payload.title,
+    body: payload.popupBody,
+    image: payload.popupImage,
+    summary: payload.summary,
+    url: payload.url,
+    categories: payload.categories,
+    issue: payload.issue
+  };
+  console.log("[Sandblast][newscanada:story:found]", { traceId, lookup, selectors, foundBy: resolved.trace.foundBy, title: payload.title, hasPopupContent: payload.hasPopupContent, bodyLength: cleanText(payload.popupBody).length });
   return {
     ok: true,
     route: "/api/newscanada/story",
     lookup,
     selectors,
     story: payload,
-    popup: {
-      title: payload.title,
-      body: payload.popupBody,
-      image: payload.popupImage,
-      summary: payload.summary,
-      url: payload.url
-    },
-    meta: { v: INDEX_VERSION, t: now(), selectorOrder: ["id", "storyId", "slideId", "slug", "url", "title"] }
+    article: payload,
+    popup,
+    meta: traceMeta
   };
 }
 
@@ -1783,6 +1913,10 @@ app.get(["/api/newscanada/editors-picks/meta", "/newscanada/editors-picks/meta"]
 app.get(["/api/newscanada/story", "/newscanada/story"], (req, res) => {
   applyCors(req, res);
   const out = buildNewsCanadaStoryResponse(req);
+  const traceId = cleanText(out && out.meta && out.meta.traceId || req.headers["x-sb-trace-id"] || makeTraceId("newscanada_story"));
+  res.setHeader("x-sb-trace-id", traceId);
+  res.setHeader("x-sb-newscanada-story-found", out.ok ? "1" : "0");
+  res.setHeader("x-sb-newscanada-story-found-by", cleanText(out && out.meta && out.meta.diagnostics && out.meta.diagnostics.foundBy || "") || "none");
   return res.status(out.ok ? 200 : 404).json(out);
 });
 
