@@ -85,9 +85,10 @@ async function fetchWithRetry(url, options = {}) {
           },
           headers.Accept
         ),
-        validateStatus: typeof validateStatus === "function"
-          ? validateStatus
-          : (status) => status >= 200 && status < 400
+        validateStatus:
+          typeof validateStatus === "function"
+            ? validateStatus
+            : (status) => status >= 200 && status < 400
       });
 
       const finalUrl =
