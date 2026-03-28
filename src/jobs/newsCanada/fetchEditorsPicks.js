@@ -265,7 +265,7 @@ function collectDirectEditorsPicksCandidates($, el, items, stats) {
     collectAnchorsFromContainer($, container, items, stats, { withinEditorsPicks: true });
 
     container.find("a").each((_, a) => {
-      const contextualText = `${headingScope} ${cleanText($(a).closest('li,article,div').text())}`.trim();
+      const contextualText = `${headingScope} ${cleanText($(a).closest("li,article,div").text())}`.trim();
       pushCandidate($, a, contextualText, items, stats, { withinEditorsPicks: true });
     });
   });
@@ -287,7 +287,11 @@ function collectAroundHeading($, el, items, stats) {
     const blockText = `${headingScope} ${cleanText(cursor.text())}`.trim();
     const anchorCount = cursor.find("a").length;
     if (anchorCount > 0 && anchorCount <= 24) {
-      cursor.find("a").each((_, a) => pushCandidate($, a, blockText, items, stats, { withinEditorsPicks: EDITORS_PICKS_RE.test(blockText) }));
+      cursor.find("a").each((_, a) => {
+        pushCandidate($, a, blockText, items, stats, {
+          withinEditorsPicks: EDITORS_PICKS_RE.test(blockText)
+        });
+      });
     }
     cursor = cursor.next();
     hops += 1;
@@ -413,12 +417,16 @@ function extractEditorsPicksLinks(html, logger) {
       candidatesFound: items.length,
       uniqueCandidates: byUrl.size,
       returned: results.length,
-      topScores: filtered.slice().sort((a, b) => b.score - a.score).slice(0, 10).map((item) => ({
-        title: item.title,
-        url: item.url,
-        score: item.score,
-        withinEditorsPicks: !!item.withinEditorsPicks
-      })),
+      topScores: filtered
+        .slice()
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+        .map((item) => ({
+          title: item.title,
+          url: item.url,
+          score: item.score,
+          withinEditorsPicks: !!item.withinEditorsPicks
+        })),
       stats
     });
   }
