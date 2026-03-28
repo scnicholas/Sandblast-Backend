@@ -3,6 +3,9 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
 
+const NEWS_CANADA_ORIGIN = "https://www.newscanada.com";
+const NEWS_CANADA_HOME_URL = `${NEWS_CANADA_ORIGIN}/home`;
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -32,16 +35,21 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function toAbsoluteUrl(href, baseUrl) {
+function toAbsoluteUrl(href, baseUrl = NEWS_CANADA_HOME_URL) {
+  const value = cleanText(href || "");
+  if (!value) return "";
   try {
-    return new URL(href, baseUrl).href;
+    return new URL(value, baseUrl || NEWS_CANADA_HOME_URL).href;
   } catch {
     return "";
   }
 }
 
 function isLikelyArticleUrl(url) {
-  return /^https:\/\/www\.newscanada\.com\/[a-z]{2}\/.+/.test(String(url || ""));
+  const value = cleanText(url || "");
+  if (!/^https:\/\/(?:www\.)?newscanada\.com\//i.test(value)) return false;
+  if (/\/home(?:[/?#]|$)/i.test(value)) return false;
+  return /^https:\/\/(?:www\.)?newscanada\.com\/[a-z]{2}\/.+/i.test(value);
 }
 
 function summarize(text, maxLength = 260) {
@@ -76,5 +84,7 @@ module.exports = {
   isLikelyArticleUrl,
   summarize,
   safeFileName,
-  writeJson
+  writeJson,
+  NEWS_CANADA_ORIGIN,
+  NEWS_CANADA_HOME_URL
 };
