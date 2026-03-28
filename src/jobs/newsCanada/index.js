@@ -1,332 +1,2151 @@
+"use strict";
+
+/**
+ * Sandblast Backend — index.js
+ *
+ * index.js v2.12.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MOUNT-FIX
+ * ------------------------------------------------------------
+ * PURPOSE
+ * - Tightened backend shell
+ * - Removes duplicate replay authority from index layer
+ * - Keeps Chat Engine as the semantic turn authority
+ * - Uses TTS as the single synthesis authority
+ * - Preserves frontend voice route contract without provider-side dispatch authority
+ * - Keeps fail-open rendering contract
+ * - Hardens TTS route error handling and response finalization
+ * - Adds affect/stabilize/fail-safe unification
+ * - Adds loop suppression / stale-UI wipe discipline
+ * - Adds TTS response normalization so playable audio always streams when available
+ * - Strengthens News Canada file mount / hydration into app.locals
+ */
+
+const express = require("express");
 const path = require("path");
-const { NEWS_CANADA_CONFIG } = require("./config");
-const { createLogger } = require("./logger");
-const { fetchHomePage } = require("./fetchHome");
-const { extractEditorsPicksLinks } = require("./fetchEditorsPicks");
-const { fetchArticlePage, parseArticle } = require("./parseArticle");
-const { normalizeArticle } = require("./normalizeArticle");
-const { validateArticle } = require("./validateArticle");
-const { saveArticles } = require("./saveArticles");
-const { saveHtmlSnapshot } = require("./snapshot");
-const { ensureDir, hashString } = require("./utils");
+const fs = require("fs");
 
-const FEED_VERSION = "editors-picks.v2.stable-feed";
-const FEED_SOURCE = "News Canada";
-const FEED_TYPE = "editors-picks";
-
-function safeText(value) {
-  return typeof value === "string" ? value.trim() : "";
+let compression = null;
+try {
+  compression = require("compression");
+} catch (_) {
+  compression = null;
 }
 
-function firstNonEmpty(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
+const INDEX_VERSION = "index.js v2.13.0sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-PRODUCTION-HARDENING";
+const SERVER_BOOT_AT = Date.now();
+
+process.on("unhandledRejection", (reason) => {
+  console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
+});
+
+process.on("uncaughtException", (err) => {
+  console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
+  try {
+    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
+  } catch (_) {}
+});
+
+function tryRequireMany(paths) {
+  for (const p of paths) {
+    try {
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_) {}
   }
-  return "";
+  return null;
 }
 
-function cleanArray(values) {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-
-  return values
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean);
-}
-
-function pickPrimaryImage(article) {
-  return firstNonEmpty(
-    article.image,
-    article.heroImage && article.heroImage.url,
-    Array.isArray(article.images) && article.images[0] && article.images[0].url
-  );
-}
-
-function ensureStoryBody(article) {
-  return firstNonEmpty(
-    article.fullText,
-    article.content,
-    article.body,
-    article.summary,
-    article.excerpt
-  );
-}
-
-function ensureStorySummary(article) {
-  return firstNonEmpty(
-    article.summary,
-    article.excerpt,
-    article.body,
-    article.content,
-    article.fullText
-  );
-}
-
-function computeWordCount(text, fallback) {
-  if (Number.isFinite(fallback) && fallback > 0) {
-    return fallback;
-  }
-
-  if (!text) {
-    return 0;
-  }
-
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
-function buildStableArticleId(article) {
-  return firstNonEmpty(
-    article.id,
-    article.url ? hashString(article.url) : "",
-    article.title ? hashString(article.title) : ""
-  );
-}
-
-function isRenderableStableArticle(article) {
-  if (!article || typeof article !== "object") {
+function moduleAvailable(name) {
+  try {
+    require.resolve(name);
+    return true;
+  } catch (_) {
     return false;
   }
+}
 
-  return Boolean(
-    safeText(article.id) &&
-    safeText(article.title) &&
-    safeText(article.url) &&
-    ensureStorySummary(article)
+const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
+if (envLoader && typeof envLoader.config === "function") {
+  try { envLoader.config(); } catch (_) {}
+}
+
+const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", true);
+app.locals.newsCanadaEditorsPicks = [];
+app.locals.newsCanadaStories = [];
+app.locals.newsCanadaFeed = [];
+app.locals.newsCanadaPayload = null;
+app.locals.newsCanadaData = null;
+app.locals.newsCanadaEditorsPicksMeta = { ok: false, file: "", count: 0, loadedAt: 0, sourceShape: "", rawKeys: [], source: "empty", degraded: false };
+app.locals.newsCanadaLastGood = [];
+app.locals.newsCanadaContractVersion = "newscanada-contract-v2";
+
+if (compression) {
+  app.use(compression());
+}
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+
+const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_DIR = path.join(__dirname, "public");
+const NEWS_CANADA_ORIGIN = "https://www.newscanada.com";
+const NEWS_CANADA_HOME_URL = `${NEWS_CANADA_ORIGIN}/home`;
+const NEWS_CANADA_DATA_DIR = path.join(__dirname, "data", "newscanada");
+
+const NEWS_CANADA_DATA_FILE_CANDIDATES = [
+  process.env.NEWS_CANADA_DATA_FILE,
+  process.env.SB_NEWSCANADA_DATA_FILE,
+  path.join(__dirname, "src", "data", "newscanada", "editors-picks.v2.json"),
+  path.join(__dirname, "data", "newscanada", "editors-picks.v2.json"),
+  path.join(__dirname, "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json"),
+  path.join(process.cwd(), "src", "data", "newscanada", "editors-picks.v2.json"),
+  path.join(process.cwd(), "data", "newscanada", "editors-picks.v2.json"),
+  path.join(process.cwd(), "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json")
+].map((candidate) => cleanText(candidate)).filter(Boolean);
+
+const NEWS_CANADA_REFRESH_MS = Math.max(15000, Number(process.env.NEWS_CANADA_REFRESH_MS || 60000));
+
+function safeStr(v) {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function now() {
+  return Date.now();
+}
+
+function lower(v) {
+  return safeStr(v).toLowerCase();
+}
+
+function clamp(n, min, max) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function uniq(arr) {
+  return Array.from(new Set(Array.isArray(arr) ? arr.filter(Boolean) : []));
+}
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function cleanText(v) {
+  return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function clipText(v, max) {
+  const s = cleanText(v);
+  const n = clamp(Number(max || 280), 32, 4000);
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function maskSecret(v) {
+  const s = cleanText(v);
+  if (!s) return "";
+  if (s.length <= 8) return "********";
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+function cleanReplyForUser(v) {
+  let t = cleanText(v);
+  if (!t) return "";
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
+  t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
+  t = t.replace(/\bbackend\b/ig, "system");
+  t = t.replace(/\s+([,.!?])/g, "$1").trim();
+  return t;
+}
+
+function replyHash(v) {
+  const s = cleanText(v).toLowerCase();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return String(h);
+}
+
+function makeTraceId(prefix) {
+  return `${prefix || "trace"}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function boolEnv(name, fallback) {
+  const raw = lower(process.env[name]);
+  if (!raw) return !!fallback;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return !!fallback;
+}
+
+function parseOrigins(raw) {
+  return uniq(
+    cleanText(raw || "")
+      .split(",")
+      .map((s) => cleanText(s))
+      .filter(Boolean)
   );
 }
 
-function extractStableFeedArticles(payload) {
-  if (Array.isArray(payload)) {
-    return payload.filter(Boolean);
+function sameHost(a, b) {
+  try {
+    return new URL(a).host === new URL(b).host;
+  } catch (_) {
+    return false;
+  }
+}
+
+function getBackendPublicBase() {
+  return cleanText(
+    process.env.SB_BACKEND_PUBLIC_BASE_URL ||
+    process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    "https://sandblast-backend.onrender.com"
+  ).replace(/\/$/, "");
+}
+
+function routeUrl(pathname) {
+  const base = getBackendPublicBase();
+  const p = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${base}${p}`;
+}
+
+const CFG = {
+  apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
+  apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
+  requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
+  voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
+  preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
+  corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
+  corsAllowedOrigins: parseOrigins(
+    process.env.SB_CORS_ALLOWED_ORIGINS ||
+    "https://www.sandblast.channel,https://sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
+  ),
+  quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
+  loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
+  duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
+  requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
+  port: PORT
+};
+
+function isAllowedOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return true;
+  if (CFG.corsAllowedOrigins.includes("*")) return true;
+  return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
+}
+
+function applyCors(req, res) {
+  const origin = cleanText(req.headers.origin || "");
+  const reqHeaders = cleanText(req.headers["access-control-request-headers"] || "");
+  const allowHeaders = uniq([
+    "Content-Type",
+    "Authorization",
+    "x-sb-trace-id",
+    CFG.apiTokenHeader,
+    ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
+  ]);
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Vary", "Origin");
+    if (CFG.corsAllowCredentials) {
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
   }
 
-  if (!payload || typeof payload !== "object") {
-    return [];
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  return origin;
+}
+
+app.use((req, res, next) => {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  return next();
+});
+
+const chatEngineMod = tryRequireMany([
+  "./chatEngine",
+  "./chatEngine.js",
+  "./ChatEngine",
+  "./ChatEngine.js",
+  "./utils/chatEngine",
+  "./utils/chatEngine.js",
+  "./Utils/chatEngine",
+  "./Utils/chatEngine.js"
+]);
+
+const supportResponseMod = tryRequireMany([
+  "./supportResponse",
+  "./supportResponse.js",
+  "./utils/supportResponse",
+  "./utils/supportResponse.js",
+  "./Utils/supportResponse",
+  "./Utils/supportResponse.js"
+]);
+
+const voiceRouteMod = tryRequireMany([
+  "./utils/voiceRoute",
+  "./utils/voiceRoute.js",
+  "./Utils/voiceRoute",
+  "./Utils/voiceRoute.js"
+]);
+
+const ttsMod = tryRequireMany([
+  "./tts",
+  "./tts.js",
+  "./utils/tts",
+  "./utils/tts.js",
+  "./Utils/tts",
+  "./Utils/tts.js"
+]);
+
+const newsCanadaRouter = tryRequireMany([
+  "./routes/newscanada",
+  "./routes/newscanada.js",
+  "./routes/newsCanada",
+  "./routes/newsCanada.js",
+  "./Routes/newscanada",
+  "./Routes/newscanada.js"
+]);
+
+const marionBridgeMod = tryRequireMany([
+  "./marionBridge",
+  "./marionBridge.js",
+  "./utils/marionBridge",
+  "./utils/marionBridge.js",
+  "./Utils/marionBridge",
+  "./Utils/marionBridge.js",
+  "./runtime/marionBridge",
+  "./runtime/marionBridge.js"
+]);
+
+const affectEngineMod = tryRequireMany([
+  "./affectEngine",
+  "./affectEngine.js",
+  "./utils/affectEngine",
+  "./utils/affectEngine.js",
+  "./Utils/affectEngine",
+  "./Utils/affectEngine.js"
+]);
+
+const knowledgeRuntimeMod = tryRequireMany([
+  "./Utils/knowledgeRuntime",
+  "./Utils/knowledgeRuntime.js",
+  "./utils/knowledgeRuntime",
+  "./utils/knowledgeRuntime.js"
+]);
+
+const knowledgeRuntime = {
+  available: !!knowledgeRuntimeMod,
+  extract(query, opts) {
+    try {
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.extract === "function") {
+        return knowledgeRuntimeMod.extract(query, opts || {});
+      }
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.retrieve === "function") {
+        return knowledgeRuntimeMod.retrieve(query, opts || {});
+      }
+    } catch (_) {}
+    return { ok: false, loaded: false, source: "index_fallback", extracted: true };
+  }
+};
+
+const memory = {
+  lastBySession: new Map(),
+  supportBySession: new Map(),
+  transportBySession: new Map()
+};
+
+function getSessionId(req) {
+  return cleanText(
+    req.headers["x-session-id"] ||
+    req.headers["x-sb-session-id"] ||
+    req.body?.sessionId ||
+    req.body?.payload?.sessionId ||
+    req.ip ||
+    "anon"
+  ).slice(0, 120);
+}
+
+function readBearerToken(req) {
+  const auth = cleanText((req.headers && req.headers.authorization) || req.get?.("Authorization") || "");
+  if (!auth) return "";
+  if (!/^bearer\s+/i.test(auth)) return "";
+  return cleanText(auth.replace(/^bearer\s+/i, ""));
+}
+
+function readToken(req) {
+  const header = lower(CFG.apiTokenHeader || "x-sb-widget-token");
+  const byHeader = cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
+  if (byHeader) return byHeader;
+  return readBearerToken(req);
+}
+
+function denyUnauthorized(res) {
+  return res.status(401).json({
+    ok: false,
+    error: "unauthorized",
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+}
+
+function enforceToken(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (!CFG.apiToken) return next();
+  const got = readToken(req);
+  if (got && got === CFG.apiToken) return next();
+  return denyUnauthorized(res);
+}
+
+function enforceVoiceRouteAccess(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (!CFG.requireVoiceRouteToken) return next();
+  return enforceToken(req, res, next);
+}
+
+function getLastTurn(sessionId) {
+  return memory.lastBySession.get(sessionId) || null;
+}
+
+function setLastTurn(sessionId, data) {
+  memory.lastBySession.set(sessionId, {
+    ...(getLastTurn(sessionId) || {}),
+    ...(isObj(data) ? data : {}),
+    at: now()
+  });
+}
+
+function getSupportState(sessionId) {
+  return memory.supportBySession.get(sessionId) || {
+    hold: 0,
+    active: false,
+    replyHash: "",
+    lastUserHash: "",
+    updatedAt: 0
+  };
+}
+
+function setSupportState(sessionId, patch) {
+  const prev = getSupportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    updatedAt: now()
+  };
+  memory.supportBySession.set(sessionId, next);
+  return next;
+}
+
+function getTransportState(sessionId) {
+  return memory.transportBySession.get(sessionId) || {
+    key: "",
+    at: 0,
+    count: 0
+  };
+}
+
+function setTransportState(sessionId, patch) {
+  const prev = getTransportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    at: now()
+  };
+  memory.transportBySession.set(sessionId, next);
+  return next;
+}
+
+function normalizePayload(req) {
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
+  const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
+  return {
+    text,
+    guidedPrompt,
+    domainHint: cleanText(body.domainHint || payload.domainHint || (guidedPrompt && guidedPrompt.domainHint) || ""),
+    intentHint: cleanText(body.intentHint || payload.intentHint || (guidedPrompt && guidedPrompt.intentHint) || ""),
+    emotionalHint: cleanText(body.emotionalHint || payload.emotionalHint || (guidedPrompt && guidedPrompt.emotionalHint) || ""),
+    body,
+    payload,
+    lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
+    year: cleanText(payload.year || body.year || ""),
+    mode: cleanText(payload.mode || body.mode || ""),
+    turnId: payload.turnId || body.turnId || null,
+    traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
+    client: isObj(body.client) ? body.client : {}
+  };
+}
+
+function normalizeEmotion(raw, inputText) {
+  const out = {
+    ok: false,
+    label: "",
+    intensity: 0,
+    distress: false,
+    stabilize: false,
+    sensitive: false,
+    positive: false,
+    technical: false
+  };
+
+  const baseText = `${safeStr(inputText)} ${safeStr(raw && raw.label)} ${safeStr(raw && raw.name)} ${safeStr(raw && raw.primary)} ${safeStr(raw && raw.mode)} ${safeStr(raw && raw.intent)}`;
+  const txt = lower(baseText);
+
+  if (isObj(raw)) {
+    out.ok = true;
+    out.label = cleanText(raw.label || raw.name || raw.primary || "");
+    const n = Number(raw.intensity ?? raw.score ?? raw.weight ?? 0);
+    out.intensity = Number.isFinite(n) ? clamp(n, 0, 1) : 0;
+    out.distress = !!(raw.distress || raw.support || raw.overwhelmed || raw.anxious || raw.negative);
+    out.stabilize = !!(raw.stabilize || raw.regulate || raw.deescalate);
+    out.sensitive = !!(raw.sensitive || raw.crisis || raw.selfHarm);
+    out.positive = !!(raw.positive || raw.upbeat);
+    out.technical = !!raw.technical;
   }
 
-  const candidateArrays = [
-    payload.articles,
+  const rawText = txt;
+  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning)/.test(rawText);
+  out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
+  out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
+  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
+  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(rawText);
+
+  if (!out.label) {
+    if (out.sensitive) out.label = "crisis";
+    else if (out.distress) out.label = "distress";
+    else if (out.technical) out.label = "technical";
+    else if (out.positive) out.label = "positive";
+    else out.label = "neutral";
+  }
+
+  if (!out.ok) out.ok = out.distress || out.sensitive || out.positive || out.technical || !!out.label;
+  return out;
+}
+
+function inferEmotion(text, reqCtx) {
+  const raw = cleanText(text);
+  let engineResult = null;
+
+  try {
+    if (affectEngineMod && typeof affectEngineMod.detect === "function") {
+      engineResult = affectEngineMod.detect(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod.analyze === "function") {
+      engineResult = affectEngineMod.analyze(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod === "function") {
+      engineResult = affectEngineMod(raw, reqCtx || {});
+    }
+  } catch (err) {
+    console.log("[Sandblast][affectEngine:error]", err && (err.stack || err.message || err));
+    engineResult = null;
+  }
+
+  return normalizeEmotion(engineResult, raw);
+}
+
+function normalizeSupportReply(text) {
+  const cleaned = cleanReplyForUser(text);
+  if (cleaned) return cleaned;
+  return "I am here with you. We can take this one step at a time.";
+}
+
+function buildSafeSupportReply(inputText, emotion, extras) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, inputText);
+  const opts = isObj(extras) ? extras : {};
+  const base = cleanText(inputText);
+
+  if (emo.sensitive) {
+    return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988. Tell me: did something happen today, or has this been building for a while?";
+  }
+
+  let externalReply = "";
+  try {
+    if (supportResponseMod && typeof supportResponseMod.buildSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.buildSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (supportResponseMod && typeof supportResponseMod.getSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.getSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (typeof supportResponseMod === "function") {
+      externalReply = safeStr(supportResponseMod({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    }
+  } catch (err) {
+    console.log("[Sandblast][supportResponse:error]", err && (err.stack || err.message || err));
+  }
+
+  if (externalReply) return normalizeSupportReply(externalReply);
+
+  if (emo.distress) {
+    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
+  }
+
+  return "I am here with you. Tell me what happened, and we will steady this together.";
+}
+
+function buildQuietUiPatch(reason, holdActive) {
+  const quiet = {
+    mode: "quiet",
+    chips: [],
+    allowMic: true,
+    replace: true,
+    clearStale: true,
+    revision: now()
+  };
+
+  return {
+    ui: quiet,
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {
+      supportLock: holdActive ? { active: true } : {}
+    },
+    metaPatch: {
+      clearStaleUi: true,
+      suppressMenus: true,
+      failSafe: reason === "failsafe",
+      supportHold: !!holdActive
+    }
+  };
+}
+
+function shouldEnterSupportHold(text, emotion, engineResult) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const intent = lower(engineResult && engineResult.intent);
+  const mode = lower(engineResult && engineResult.mode);
+  return !!(
+    emo.sensitive ||
+    emo.distress ||
+    emo.stabilize ||
+    intent === "stabilize" ||
+    mode === "transitional" ||
+    mode === "support" ||
+    mode === "quiet"
+  );
+}
+
+function buildSupportSessionPatch(existing, active, release) {
+  const prev = isObj(existing) ? existing : {};
+  const lock = {};
+  if (active) lock.active = true;
+  if (release) lock.release = true;
+  return {
+    ...prev,
+    supportLock: lock
+  };
+}
+
+function shouldSuppressMenus(engineOut, supportActive) {
+  const ui = isObj(engineOut?.ui) ? engineOut.ui : {};
+  const meta = isObj(engineOut?.meta) ? engineOut.meta : {};
+  if (supportActive) return true;
+  return !!(
+    ui.replace ||
+    ui.clearStale ||
+    ui.menuSuppressed ||
+    ui.degradedSupport ||
+    ui.failSafe ||
+    meta.clearStaleUi ||
+    meta.suppressMenus ||
+    meta.failSafe
+  );
+}
+
+function enforceQuietUiIfNeeded(base, opts) {
+  const out = isObj(base) ? { ...base } : {};
+  const o = isObj(opts) ? opts : {};
+  const supportActive = !!o.supportActive;
+  const failSafe = !!o.failSafe;
+  const forceQuiet = !!o.forceQuiet;
+
+  if (!(supportActive || failSafe || forceQuiet)) return out;
+
+  const patch = buildQuietUiPatch(failSafe ? "failsafe" : "support", supportActive);
+  out.ui = patch.ui;
+  out.directives = patch.directives;
+  out.followUps = patch.followUps;
+  out.followUpsStrings = patch.followUpsStrings;
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {})
+  };
+  out.meta = {
+    ...(isObj(out.meta) ? out.meta : {}),
+    ...(isObj(patch.metaPatch) ? patch.metaPatch : {})
+  };
+  return out;
+}
+
+function mergeMeta(base, patch) {
+  return {
+    ...(isObj(base) ? base : {}),
+    ...(isObj(patch) ? patch : {})
+  };
+}
+
+function buildTransportKey(ctx, text, req) {
+  const msg = safeStr(text).trim().toLowerCase();
+  return [
+    getSessionId(req),
+    safeStr(ctx?.lane || ""),
+    safeStr(ctx?.mode || ""),
+    safeStr(ctx?.year || ""),
+    msg
+  ].join("|");
+}
+
+function detectLoop(sessionId, reply, userText) {
+  const prev = getLastTurn(sessionId);
+  const curHash = replyHash(reply);
+  const userHash = replyHash(userText);
+  const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
+  const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
+  const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
+  return {
+    sameReply,
+    sameUser,
+    repeated: sameReply && sameUser,
+    curHash,
+    userHash
+  };
+}
+
+function applyAffectBridge(base, affectInput) {
+  const shaped = isObj(base) ? { ...base } : {};
+  if (!affectEngineMod || typeof affectEngineMod.runAffectEngine !== "function") return shaped;
+  const input = isObj(affectInput) ? affectInput : {};
+  try {
+    const lockedEmotion = isObj(input.lockedEmotion) ? input.lockedEmotion : null;
+    const strategy = isObj(input.strategy) ? input.strategy : null;
+    if (!lockedEmotion || !lockedEmotion.locked || !strategy) return shaped;
+    const affectOut = affectEngineMod.runAffectEngine({
+      assistantDraft: cleanText(shaped.reply || shaped.payload?.reply || ""),
+      lockedEmotion,
+      strategy,
+      lane: cleanText(shaped.lane || "Default") || "Default",
+      memory: isObj(input.memory) ? input.memory : {}
+    });
+    if (!isObj(affectOut) || affectOut.ok === false) return shaped;
+    const spokenText = cleanText(affectOut.spokenText || "");
+    if (!spokenText) return shaped;
+    shaped.reply = spokenText;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply: spokenText, spokenText };
+    shaped.ttsProfile = isObj(affectOut.ttsProfile) ? affectOut.ttsProfile : shaped.ttsProfile;
+    shaped.audio = isObj(shaped.audio) ? shaped.audio : {};
+    shaped.audio.textToSynth = spokenText;
+    shaped.audio.enabled = true;
+    shaped.meta = mergeMeta(shaped.meta, { affectApplied: true, linkedDatasets: Array.isArray(affectOut.expressionBridge?.linkedDatasets) ? affectOut.expressionBridge.linkedDatasets.slice(0, 12) : [] });
+  } catch (err) {
+    console.log("[Sandblast][affectBridge:error]", err && (err.stack || err.message || err));
+  }
+  return shaped;
+}
+
+function buildAffectInputFromMarion(marion) {
+  const src = isObj(marion) ? marion : {};
+  const layer2 = isObj(src.layer2) ? src.layer2 : {};
+  const emotion = isObj(layer2.emotion) ? layer2.emotion : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const lockedEmotion = isObj(meta.lockedEmotion) ? meta.lockedEmotion : (emotion.primaryEmotion ? {
+    locked: true,
+    primaryEmotion: cleanText(emotion.primaryEmotion || "neutral") || "neutral",
+    secondaryEmotion: cleanText(emotion.secondaryEmotion || ""),
+    intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+    valence: Number.isFinite(Number(emotion.valence)) ? Number(emotion.valence) : 0,
+    valenceLabel: cleanText(emotion.valenceLabel || ""),
+    confidence: Number.isFinite(Number(emotion.confidence)) ? Number(emotion.confidence) : 0,
+    needs: Array.isArray(emotion.needs) ? emotion.needs : [],
+    cues: Array.isArray(emotion.cues) ? emotion.cues : [],
+    supportFlags: isObj(emotion.supportFlags) ? emotion.supportFlags : {},
+    evidenceMatches: Array.isArray(emotion.evidenceMatches) ? emotion.evidenceMatches : [],
+    meta: { linkedDatasets: Array.isArray(meta.linkedDatasets) ? meta.linkedDatasets : [] }
+  } : null);
+  const strategy = isObj(meta.strategy) ? meta.strategy : null;
+  return { lockedEmotion, strategy, guidedPrompt: src.guidedPrompt || meta.guidedPrompt || null };
+}
+
+function shapeEngineReply(raw) {
+  if (!isObj(raw)) return {};
+  const payload = isObj(raw.payload) ? raw.payload : {};
+  return {
+    ok: raw.ok !== false,
+    reply: cleanText(raw.spokenText || payload.spokenText || raw.reply || payload.reply || raw.message || raw.text || ""),
+    payload: isObj(payload) ? payload : {},
+    lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
+    laneId: cleanText(raw.laneId || raw.lane || ""),
+    sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
+    bridge: raw.bridge || null,
+    ctx: isObj(raw.ctx) ? raw.ctx : {},
+    ui: isObj(raw.ui) ? raw.ui : {},
+    directives: Array.isArray(raw.directives) ? raw.directives : [],
+    followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
+    followUpsStrings: Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : [],
+    sessionPatch: isObj(raw.sessionPatch) ? raw.sessionPatch : {},
+    cog: isObj(raw.cog) ? raw.cog : {},
+    meta: isObj(raw.meta) ? raw.meta : {},
+    audio: isObj(raw.audio) ? raw.audio : null,
+    ttsProfile: isObj(raw.ttsProfile) ? raw.ttsProfile : null,
+    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null
+  };
+}
+
+async function callChatEngine(input) {
+  if (!chatEngineMod) return null;
+  try {
+    if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
+    if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
+    if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
+    if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    if (typeof chatEngineMod === "function") return await chatEngineMod(input);
+  } catch (err) {
+    console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
+    return { __engineError: err };
+  }
+  return null;
+}
+
+async function callMarionBridge(input) {
+  if (!marionBridgeMod) return null;
+  try {
+    if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
+    if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
+    if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
+    if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
+  } catch (err) {
+    console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
+  }
+  return null;
+}
+
+function callWithTimeout(promiseOrValue, ms, label) {
+  const timeoutMs = clamp(Number(ms || CFG.requestTimeoutMs || 18000), 1000, 60000);
+  return Promise.race([
+    Promise.resolve(promiseOrValue),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label || "operation"}_timeout`)), timeoutMs))
+  ]);
+}
+
+function ttsHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleTts === "function") return mod.handleTts.bind(mod);
+  if (typeof mod.ttsHandler === "function") return mod.ttsHandler.bind(mod);
+  if (typeof mod.handler === "function") return mod.handler.bind(mod);
+  if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod.delegateTts === "function") return mod.delegateTts.bind(mod);
+  if (typeof mod.generateSpeech === "function") return mod.generateSpeech.bind(mod);
+  if (typeof mod.speak === "function") return mod.speak.bind(mod);
+  if (typeof mod.run === "function") return mod.run.bind(mod);
+  if (typeof mod.generate === "function") return mod.generate.bind(mod);
+  if (typeof mod.tts === "function") return mod.tts.bind(mod);
+  if (typeof mod.synthesize === "function") return mod.synthesize.bind(mod);
+  if (typeof mod.default === "function") return mod.default.bind(mod);
+  if (typeof mod === "function") return mod;
+  return null;
+}
+
+function voiceRouteHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleVoiceRoute === "function") return mod.handleVoiceRoute.bind(mod);
+  if (typeof mod.voiceRouteHandler === "function") return mod.voiceRouteHandler.bind(mod);
+  if (typeof mod.handler === "function") return mod.handler.bind(mod);
+  if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod === "function") return mod;
+  return null;
+}
+
+function voiceHealthFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.health === "function") return mod.health.bind(mod);
+  if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  return null;
+}
+
+function ttsHealthFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.health === "function") return mod.health.bind(mod);
+  if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  if (typeof mod.status === "function") return mod.status.bind(mod);
+  return null;
+}
+
+function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
+  const code = clamp(Number(statusCode || 503), 400, 599);
+  const traceId = cleanText((req && req.headers && req.headers["x-sb-trace-id"]) || makeTraceId("tts"));
+  const payload = {
+    ok: false,
+    spokenUnavailable: true,
+    error: cleanText(error || "tts_route_failure") || "tts_route_failure",
+    detail: cleanText(detail || "TTS route failed") || "TTS route failed",
+    traceId,
+    meta: { v: INDEX_VERSION, t: now() },
+    payload: { spokenUnavailable: true }
+  };
+  if (isObj(extra)) Object.assign(payload, extra);
+  return res.status(code).json(payload);
+}
+
+async function dispatchTts(req, res) {
+  const moduleHandler = ttsHandlerFromModule(ttsMod);
+  console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase() });
+  if (!moduleHandler) {
+    throw new Error("tts_handler_unavailable");
+  }
+  return moduleHandler(req, res);
+}
+
+function attachVoiceRoute(base) {
+  const shaped = isObj(base) ? { ...base } : {};
+  const existing = isObj(shaped.voiceRoute) ? shaped.voiceRoute : {};
+  const routeEnabled = !!CFG.voiceRouteEnabled;
+  const route = {
+    enabled: routeEnabled,
+    endpoint: routeUrl("/api/tts"),
+    healthEndpoint: routeUrl("/api/tts/health"),
+    method: "POST",
+    requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
+    preserveMixerVoice: !!CFG.preserveMixerVoice,
+    jsonAudioSupported: true,
+    streamAudioSupported: true,
+    contractVersion: "audio-first-v1",
+    deterministicAudio: true,
+    failOpenChat: true,
+    traceHeader: "x-sb-trace-id"
+  };
+
+  if (routeEnabled && shaped.reply && !shaped.audio) {
+    shaped.voiceRoute = { ...route, ...existing };
+  } else if (existing && Object.keys(existing).length) {
+    shaped.voiceRoute = { ...route, ...existing };
+  }
+
+  return shaped;
+}
+
+function normalizeVoiceRouteResponse(out) {
+  if (!isObj(out)) return null;
+  return {
+    enabled: out.enabled !== false,
+    endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
+    healthEndpoint: cleanText(out.healthEndpoint || "/api/tts/health") || "/api/tts/health",
+    method: cleanText(out.method || "POST") || "POST",
+    requiresToken: !!out.requiresToken,
+    preserveMixerVoice: !!out.preserveMixerVoice,
+    jsonAudioSupported: out.jsonAudioSupported !== false,
+    streamAudioSupported: out.streamAudioSupported !== false,
+    contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
+    deterministicAudio: out.deterministicAudio !== false,
+    failOpenChat: out.failOpenChat !== false,
+    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
+  };
+}
+
+function buildSpeechContract(shaped, norm) {
+  const payload = isObj(shaped && shaped.payload) ? shaped.payload : {};
+  const voiceRoute = isObj(shaped && shaped.voiceRoute) ? shaped.voiceRoute : {};
+  const reply = cleanReplyForUser(
+    shaped && shaped.reply || payload.reply || payload.text || voiceRoute.text || norm && norm.text || ""
+  );
+  const textDisplay = cleanReplyForUser(
+    payload.textDisplay || voiceRoute.textDisplay || shaped && shaped.textDisplay || reply
+  ) || reply;
+  const textSpeak = cleanReplyForUser(
+    payload.textSpeak || voiceRoute.textSpeak || shaped && shaped.textSpeak || reply
+  ) || reply;
+  const routeKind = cleanText(
+    payload.routeKind || voiceRoute.routeKind || shaped && shaped.routeKind || (norm && norm.mode === "intro" ? "intro" : "main")
+  ) || "main";
+  const intro = voiceRoute.intro === true || payload.intro === true || routeKind === "intro";
+  const source = cleanText(payload.source || voiceRoute.source || "chat");
+  const speechHints = isObj(payload.speechHints) ? payload.speechHints : (isObj(voiceRoute.speechHints) ? voiceRoute.speechHints : {});
+  const speech = {
+    text: reply,
+    textDisplay,
+    textSpeak,
+    routeKind,
+    intro,
+    source: source || (intro ? "intro" : "chat"),
+    speechHints,
+    alignmentVersion: "speech-contract-v1"
+  };
+  return speech;
+}
+
+function normalizeImageLike(entry, title) {
+  if (!entry) return null;
+  if (typeof entry === "string") {
+    const url = cleanText(entry);
+    if (!url) return null;
+    return { url, alt: title || "", caption: "" };
+  }
+  if (!isObj(entry)) return null;
+  const url = cleanText(entry.url || entry.src || entry.image || entry.href || "");
+  if (!url) return null;
+  return {
+    url,
+    alt: cleanText(entry.alt || entry.title || title || ""),
+    caption: cleanText(entry.caption || "")
+  };
+}
+
+const FALLBACK_URL = NEWS_CANADA_HOME_URL;
+const FALLBACK_IMAGE = "";
+
+function hasNewsCanadaProvenance(parsed, normalizedStories) {
+  const payload = isObj(parsed) ? parsed : {};
+  const source = cleanText(payload.source || payload.provider || payload.name || "");
+  const listingUrl = cleanText(payload.listingUrl || payload.url || payload.sourceUrl || "");
+  const stories = Array.isArray(normalizedStories) ? normalizedStories : [];
+  const trustedStoryCount = stories.filter((story) => {
+    const candidates = [story && story.url, story && story.storyUrl, story && story.canonicalUrl].filter(Boolean);
+    return candidates.some((value) => /https?:\/\/(?:www\.)?newscanada\.com\//i.test(cleanText(value)));
+  }).length;
+  if (/^news canada$/i.test(source)) return true;
+  if (/https?:\/\/(?:www\.)?newscanada\.com\/home/i.test(listingUrl)) return true;
+  return trustedStoryCount > 0;
+}
+
+function normalizeNewsCanadaStory(item, index) {
+  if (!item || typeof item !== "object") return null;
+
+  const title = cleanText(
+    item.title ||
+    item.headline ||
+    item.name ||
+    item.label ||
+    item.storyTitle ||
+    item.storyHeadline ||
+    item.shortTitle ||
+    item.longTitle ||
+    item.assetTitle ||
+    ""
+  );
+
+  const body = typeof item.body === "string"
+    ? item.body.trim()
+    : (
+      typeof item.content === "string" ? item.content.trim()
+      : typeof item.fullText === "string" ? item.fullText.trim()
+      : typeof item.text === "string" ? item.text.trim()
+      : typeof item.longDescription === "string" ? item.longDescription.trim()
+      : typeof item.description === "string" ? item.description.trim()
+      : typeof item.storyBody === "string" ? item.storyBody.trim()
+      : ""
+    );
+
+  const summary = cleanText(
+    item.summary ||
+    item.description ||
+    item.excerpt ||
+    item.deck ||
+    item.shortDescription ||
+    item.synopsis ||
+    item.teaser ||
+    body
+  );
+
+  const url = cleanText(
+    item.url ||
+    item.link ||
+    item.href ||
+    item.storyUrl ||
+    item.canonicalUrl ||
+    item.permalink ||
+    item.sourceUrl ||
+    item.ctaUrl ||
+    item.targetUrl ||
+    item.assetUrl ||
+    FALLBACK_URL
+  );
+
+  if (!title) return null;
+
+  const rawImages = [];
+  if (Array.isArray(item.images)) rawImages.push(...item.images);
+  if (Array.isArray(item.media)) rawImages.push(...item.media);
+  if (Array.isArray(item.gallery)) rawImages.push(...item.gallery);
+  if (item.image) rawImages.push(item.image);
+  if (item.heroImage) rawImages.push(item.heroImage);
+  if (item.thumbnail) rawImages.push(item.thumbnail);
+  if (item.poster) rawImages.push(item.poster);
+  if (item.artwork) rawImages.push(item.artwork);
+
+  const seenImages = new Set();
+  const images = rawImages
+    .map((entry) => normalizeImageLike(entry, title))
+    .filter((entry) => {
+      if (!entry || !entry.url) return false;
+      const key = entry.url.toLowerCase();
+      if (seenImages.has(key)) return false;
+      seenImages.add(key);
+      return true;
+    });
+
+  const categoriesSource = Array.isArray(item.categories)
+    ? item.categories
+    : Array.isArray(item.tags)
+      ? item.tags
+      : Array.isArray(item.topics)
+        ? item.topics
+        : Array.isArray(item.sections)
+          ? item.sections
+          : Array.isArray(item.lanes)
+            ? item.lanes
+            : [];
+
+  const categories = categoriesSource.map(cleanText).filter(Boolean).slice(0, 6);
+  const primaryImage = images[0] && images[0].url ? images[0].url : "";
+  const resolvedSummary = summary || clipText(body, 280) || "News Canada story";
+  const resolvedBody = body || resolvedSummary;
+
+  return {
+    id: cleanText(item.id || item.storyId || item.slug || item.guid || item.assetId || url || `story-${index || 0}`),
+    slug: cleanText(item.slug || item.id || item.storyId || ""),
+    title,
+    summary: resolvedSummary,
+    body: resolvedBody,
+    content: cleanText(item.content || resolvedBody) || resolvedBody,
+    fullText: cleanText(item.fullText || resolvedBody) || resolvedBody,
+    url,
+    issue: cleanText(item.issue || item.kicker || item.section || item.categoryLabel || item.label || "Editor's Pick"),
+    categories,
+    images,
+    image: primaryImage,
+    heroImage: primaryImage ? { url: primaryImage, alt: title, caption: "" } : null,
+    publishedAt: cleanText(item.publishedAt || item.publishDate || item.date || item.scrapedAt || item.updatedAt || ""),
+    author: cleanText(item.author || item.byline || item.creator || item.source || item.publisher || ""),
+    storyUrl: cleanText(item.storyUrl || item.url || ""),
+    canonicalUrl: cleanText(item.canonicalUrl || item.url || item.storyUrl || ""),
+    feedSource: cleanText(item.feedSource || item.source || ""),
+    keywords: Array.isArray(item.keywords) ? item.keywords.map(cleanText).filter(Boolean).slice(0, 10) : []
+  };
+}
+
+function extractNewsCanadaFeedList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+
+  const buckets = [
+    payload.assets,
     payload.items,
     payload.stories,
-    payload.data && payload.data.articles,
+    payload.articles,
+    payload.results,
+    payload.feed,
+    payload.entries,
+    payload.movies,
+    payload.slides,
+    payload.panels,
+    payload.chips,
+    payload.editorsPicks,
+    payload.editorPicks,
+    payload.curated,
+    payload.records,
+    payload.data && payload.data.assets,
     payload.data && payload.data.items,
-    payload.data && payload.data.stories
+    payload.data && payload.data.stories,
+    payload.data && payload.data.articles,
+    payload.data && payload.data.movies,
+    payload.data && payload.data.slides,
+    payload.data && payload.data.panels,
+    payload.data && payload.data.editorsPicks,
+    payload.payload && payload.payload.assets,
+    payload.payload && payload.payload.items,
+    payload.payload && payload.payload.stories,
+    payload.payload && payload.payload.articles,
+    payload.payload && payload.payload.movies,
+    payload.payload && payload.payload.slides,
+    payload.payload && payload.payload.panels,
+    payload.payload && payload.payload.editorsPicks
   ];
 
-  for (const candidate of candidateArrays) {
-    if (Array.isArray(candidate)) {
-      return candidate.filter(Boolean);
-    }
+  for (const bucket of buckets) {
+    if (Array.isArray(bucket) && bucket.length) return bucket;
+  }
+
+  if (isObj(payload.data)) {
+    const nested = extractNewsCanadaFeedList(payload.data);
+    if (nested.length) return nested;
+  }
+
+  if (isObj(payload.payload)) {
+    const nested = extractNewsCanadaFeedList(payload.payload);
+    if (nested.length) return nested;
   }
 
   return [];
 }
 
-function normalizeForStableFeed(article) {
-  const categories = cleanArray(article.categories);
-  const keywords = cleanArray(article.keywords);
-  const body = ensureStoryBody(article);
-  const summary = ensureStorySummary(article);
-  const image = pickPrimaryImage(article);
-  const publishedAt = safeText(article.publishedAt) || safeText(article.scrapedAt) || new Date().toISOString();
-  const title = safeText(article.title) || "Untitled story";
-  const id = buildStableArticleId(article);
-
-  return {
-    id,
-    type: safeText(article.type) || "article",
-    source: safeText(article.source) || FEED_SOURCE,
-    title,
-    url: safeText(article.url),
-    issue: safeText(article.issue),
-    categories,
-    keywords,
-    body,
-    content: firstNonEmpty(article.content, body),
-    fullText: firstNonEmpty(article.fullText, body),
-    summary,
-    excerpt: firstNonEmpty(article.excerpt, summary),
-    images: Array.isArray(article.images)
-      ? article.images.filter((entry) => entry && safeText(entry.url))
-      : image
-        ? [{ url: image, alt: title, caption: "" }]
-        : [],
-    mediaAttachments: Array.isArray(article.mediaAttachments) ? article.mediaAttachments : [],
-    author: safeText(article.author) || FEED_SOURCE,
-    publishedAt,
-    heroImage: article.heroImage && article.heroImage.url
-      ? article.heroImage
-      : image
-        ? { url: image, alt: title, caption: "" }
-        : null,
-    image,
-    wordCount: computeWordCount(body, article.wordCount),
-    attribution: safeText(article.attribution) || "(NC) / www.newscanada.com / News Canada",
-    scrapedAt: safeText(article.scrapedAt) || new Date().toISOString(),
-    validation: article.validation || {
-      ok: true,
-      errors: [],
-      warnings: [],
-      metrics: {
-        titleLength: title.length,
-        bodyLength: body.length,
-        summaryLength: summary.length,
-        categoryCount: categories.length,
-        keywordCount: keywords.length,
-        imageCount: image ? 1 : 0
-      }
-    }
-  };
+function normalizeNewsCanadaFeed(payload) {
+  return uniq(
+    extractNewsCanadaFeedList(payload)
+      .map((item, index) => normalizeNewsCanadaStory(item, index))
+      .filter((item) => item && item.title && item.url && (item.summary || item.body || item.content))
+      .map((item) => JSON.stringify(item))
+  ).map((item) => {
+    try { return JSON.parse(item); } catch (_) { return null; }
+  }).filter(Boolean);
 }
 
-async function runNewsCanadaEditorsPicksIngest() {
-  const logger = createLogger(NEWS_CANADA_CONFIG.logPrefix);
-  ensureDir(NEWS_CANADA_CONFIG.outputDir);
-  ensureDir(NEWS_CANADA_CONFIG.snapshotDir);
+function resolveNewsCanadaDataFile() {
+  for (const candidate of NEWS_CANADA_DATA_FILE_CANDIDATES) {
+    const clean = cleanText(candidate);
+    if (!clean) continue;
+    try {
+      if (fs.existsSync(clean)) return clean;
+    } catch (_) {}
+  }
+  return cleanText(NEWS_CANADA_DATA_FILE_CANDIDATES[0] || "");
+}
 
-  logger.info("Starting ingest");
+function hydrateNewsCanadaLocals(parsed, file) {
+  const normalizedStories = normalizeNewsCanadaFeed(parsed);
+  const hasProvenance = hasNewsCanadaProvenance(parsed, normalizedStories);
+  const usableDiskFeed = normalizedStories.length > 0 && hasProvenance;
+  const storiesToUse = usableDiskFeed ? normalizedStories : getNewsCanadaFallbackStories();
 
-  const home = await fetchHomePage(logger);
-  const homeSnapshot = saveHtmlSnapshot({
-    snapshotDir: NEWS_CANADA_CONFIG.snapshotDir,
-    label: "home",
-    url: home.url,
-    html: home.html
+  app.locals.newsCanadaPayload = parsed;
+  app.locals.newsCanadaData = parsed;
+
+  promoteNewsCanadaStories(storiesToUse, usableDiskFeed ? "disk_feed" : "fallback_feed", {
+    file,
+    sourceShape: Array.isArray(parsed) ? "array" : typeof parsed,
+    rawKeys: isObj(parsed) ? Object.keys(parsed).slice(0, 20) : [],
+    degraded: !usableDiskFeed,
+    provenanceOk: hasProvenance
   });
 
-  logger.info("Saved homepage snapshot", homeSnapshot);
+  return storiesToUse;
+}
 
-  const links = extractEditorsPicksLinks(home.html);
-  logger.info(`Found ${links.length} Editor's Picks candidates`);
-
-  const articles = [];
-  const failures = [];
-  const seenArticleIds = new Set();
-
-  for (const link of links) {
-    try {
-      logger.info("Fetching article", link.url);
-      const articleHtml = await fetchArticlePage(link.url, logger);
-
-      const articleSnapshot = saveHtmlSnapshot({
-        snapshotDir: NEWS_CANADA_CONFIG.snapshotDir,
-        label: `article-${link.title}`,
-        url: link.url,
-        html: articleHtml
-      });
-
-      logger.debug("Saved article snapshot", articleSnapshot);
-
-      const parsed = parseArticle(articleHtml, link.url);
-      const normalized = normalizeArticle(parsed);
-      const validation = validateArticle(normalized);
-
-      if (!validation.ok) {
-        logger.warn("Skipping invalid article", link.url, validation.errors.join(","));
-        failures.push({
-          url: link.url,
-          title: link.title,
-          reason: validation.errors
-        });
-        continue;
-      }
-
-      const stableArticle = normalizeForStableFeed({
-        ...normalized,
-        validation
-      });
-
-      if (!isRenderableStableArticle(stableArticle)) {
-        logger.warn("Skipping incomplete normalized article", link.url);
-        failures.push({
-          url: link.url,
-          title: link.title,
-          reason: ["incomplete_normalized_article"]
-        });
-        continue;
-      }
-
-      if (seenArticleIds.has(stableArticle.id)) {
-        logger.warn("Skipping duplicate article", link.url);
-        continue;
-      }
-
-      seenArticleIds.add(stableArticle.id);
-      articles.push(stableArticle);
-    } catch (error) {
-      logger.error("Article ingest failed", link.url, error.message);
-      failures.push({
-        url: link.url,
-        title: link.title,
-        reason: [error.message]
-      });
-    }
+function loadNewsCanadaEditorsPicksFromDisk() {
+  const file = resolveNewsCanadaDataFile();
+  if (!file) {
+    const fallbackStories = getNewsCanadaFallbackStories();
+    promoteNewsCanadaStories(fallbackStories, "missing_file_fallback", {
+      file: "",
+      sourceShape: "",
+      rawKeys: [],
+      degraded: true,
+      error: "news_canada_data_file_missing"
+    });
+    return { ok: fallbackStories.length > 0, file: "", count: fallbackStories.length, stories: fallbackStories, error: "news_canada_data_file_missing", degraded: true };
   }
 
-  const generatedAt = new Date().toISOString();
-  const listingUrl = safeText(home.url) || "https://www.newscanada.com/home";
-  const renderableArticles = articles.filter(isRenderableStableArticle);
+  try {
+    const raw = fs.readFileSync(file, "utf8");
+    const parsed = JSON.parse(raw);
+    const normalizedStories = normalizeNewsCanadaFeed(parsed);
+    const provenanceOk = hasNewsCanadaProvenance(parsed, normalizedStories);
+    const stories = normalizedStories.length && provenanceOk ? hydrateNewsCanadaLocals(parsed, file) : getNewsCanadaFallbackStories();
 
-  const payload = {
-    source: FEED_SOURCE,
-    listingUrl,
-    generatedAt,
-    version: FEED_VERSION,
-    count: articles.length,
-    availableStories: renderableArticles.length,
-    rejectedCount: failures.length,
-    type: FEED_TYPE,
-    runId: hashString(`${Date.now()}-${Math.random()}`),
-    counts: {
-      candidates: links.length,
-      saved: articles.length,
-      failed: failures.length,
-      renderable: renderableArticles.length
-    },
-    paths: {
-      snapshotDir: path.relative(process.cwd(), NEWS_CANADA_CONFIG.snapshotDir)
-    },
-    failures,
-    articles,
-    items: articles,
-    stories: articles,
-    diagnostics: {
-      hasArticlesArray: Array.isArray(articles),
-      renderableCount: renderableArticles.length,
-      extractedCount: extractStableFeedArticles({ articles }).length
+    if (!normalizedStories.length || !provenanceOk) {
+      promoteNewsCanadaStories(stories, !normalizedStories.length ? "empty_disk_feed_fallback" : "provenance_fallback", {
+        file,
+        sourceShape: Array.isArray(parsed) ? "array" : typeof parsed,
+        rawKeys: isObj(parsed) ? Object.keys(parsed).slice(0, 20) : [],
+        degraded: true,
+        provenanceOk,
+        error: !normalizedStories.length ? "news_canada_feed_empty_after_normalization" : "news_canada_feed_failed_provenance_check"
+      });
     }
+
+    return {
+      ok: stories.length > 0,
+      file,
+      count: stories.length,
+      stories,
+      rawShape: Array.isArray(parsed) ? "array" : typeof parsed,
+      rawKeys: isObj(parsed) ? Object.keys(parsed).slice(0, 20) : [],
+      degraded: !normalizedStories.length || !provenanceOk,
+      provenanceOk
+    };
+  } catch (err) {
+    const fallbackStories = getNewsCanadaFallbackStories();
+    promoteNewsCanadaStories(fallbackStories, "load_error_fallback", {
+      file,
+      sourceShape: "",
+      rawKeys: [],
+      degraded: true,
+      error: cleanText(err && (err.message || err) || "news canada load failed")
+    });
+    return {
+      ok: fallbackStories.length > 0,
+      file,
+      count: fallbackStories.length,
+      stories: fallbackStories,
+      error: cleanText(err && (err.message || err) || "news canada load failed"),
+      degraded: true
+    };
+  }
+}
+
+let newsCanadaBootstrapStarted = false;
+
+function bootstrapNewsCanadaFeed() {
+  const result = loadNewsCanadaEditorsPicksFromDisk();
+  console.log("[Sandblast][newsCanada:bootstrap]", {
+    ok: !!result.ok,
+    file: result.file,
+    count: result.count,
+    rawShape: result.rawShape || "",
+    rawKeys: result.rawKeys || [],
+    firstStory: result.stories && result.stories[0] ? { id: result.stories[0].id, title: result.stories[0].title } : null,
+    degraded: !!result.degraded,
+    provenanceOk: result.provenanceOk !== false,
+    error: result.error || ""
+  });
+
+  if (!newsCanadaBootstrapStarted && NEWS_CANADA_REFRESH_MS > 0) {
+    newsCanadaBootstrapStarted = true;
+    setInterval(() => {
+      const refreshed = loadNewsCanadaEditorsPicksFromDisk();
+      console.log("[Sandblast][newsCanada:refresh]", {
+        ok: !!refreshed.ok,
+        file: refreshed.file,
+        count: refreshed.count,
+        rawShape: refreshed.rawShape || "",
+        rawKeys: refreshed.rawKeys || [],
+        firstStory: refreshed.stories && refreshed.stories[0] ? { id: refreshed.stories[0].id, title: refreshed.stories[0].title } : null,
+        degraded: !!refreshed.degraded,
+        provenanceOk: refreshed.provenanceOk !== false,
+        error: refreshed.error || ""
+      });
+    }, NEWS_CANADA_REFRESH_MS).unref();
+  }
+
+  return result;
+}
+
+function buildStaticNewsCanadaFallbackStories() {
+  return [
+    {
+      id: "fallback-news-canada-1",
+      title: "News Canada Feature One",
+      summary: "Fallback editor’s pick payload so the carousel stays visible while upstream feed work is stabilized.",
+      body: "This fallback story keeps the News Canada surface alive while the upstream feed is being refreshed. The delivery contract remains stable, so slides and story popups can still render end to end.",
+      content: "This fallback story keeps the News Canada surface alive while the upstream feed is being refreshed. The delivery contract remains stable, so slides and story popups can still render end to end.",
+      fullText: "This fallback story keeps the News Canada surface alive while the upstream feed is being refreshed. The delivery contract remains stable, so slides and story popups can still render end to end.",
+      url: FALLBACK_URL,
+      issue: "Editor's Pick",
+      categories: ["Canada", "News"],
+      images: [],
+      image: FALLBACK_IMAGE,
+      heroImage: FALLBACK_IMAGE ? { url: FALLBACK_IMAGE, alt: "News Canada Feature One", caption: "" } : null,
+      publishedAt: "",
+      author: "Sandblast",
+      storyUrl: FALLBACK_URL,
+      canonicalUrl: FALLBACK_URL,
+      keywords: ["fallback", "news canada", "editors picks"]
+    },
+    {
+      id: "fallback-news-canada-2",
+      title: "News Canada Feature Two",
+      summary: "This controller preserves a clean frontend contract by always returning an array of usable story objects.",
+      body: "The News Canada controller now favors resiliency over emptiness. If the disk feed changes shape or a refresh fails, the route can still return a stable payload for the carousel and popup layer.",
+      content: "The News Canada controller now favors resiliency over emptiness. If the disk feed changes shape or a refresh fails, the route can still return a stable payload for the carousel and popup layer.",
+      fullText: "The News Canada controller now favors resiliency over emptiness. If the disk feed changes shape or a refresh fails, the route can still return a stable payload for the carousel and popup layer.",
+      url: FALLBACK_URL,
+      issue: "Top Story",
+      categories: ["Features", "Editorial"],
+      images: [],
+      image: FALLBACK_IMAGE,
+      heroImage: FALLBACK_IMAGE ? { url: FALLBACK_IMAGE, alt: "News Canada Feature Two", caption: "" } : null,
+      publishedAt: "",
+      author: "Sandblast",
+      storyUrl: FALLBACK_URL,
+      canonicalUrl: FALLBACK_URL,
+      keywords: ["contract", "fallback", "slides"]
+    }
+  ].map((item, index) => normalizeNewsCanadaStory(item, index)).filter(Boolean);
+}
+
+function getNewsCanadaFallbackStories() {
+  if (Array.isArray(app.locals.newsCanadaLastGood) && app.locals.newsCanadaLastGood.length) {
+    return app.locals.newsCanadaLastGood.slice();
+  }
+  return buildStaticNewsCanadaFallbackStories();
+}
+
+function promoteNewsCanadaStories(stories, source, extraMeta) {
+  const list = Array.isArray(stories) ? stories.filter(Boolean) : [];
+  const metaPatch = isObj(extraMeta) ? extraMeta : {};
+
+  app.locals.newsCanadaEditorsPicks = list;
+  app.locals.newsCanadaStories = list;
+  app.locals.newsCanadaFeed = list;
+
+  if (list.length) {
+    app.locals.newsCanadaLastGood = list.slice();
+  }
+
+  app.locals.newsCanadaEditorsPicksMeta = {
+    ...(isObj(app.locals.newsCanadaEditorsPicksMeta) ? app.locals.newsCanadaEditorsPicksMeta : {}),
+    ...metaPatch,
+    ok: list.length > 0,
+    count: list.length,
+    loadedAt: now(),
+    source: cleanText(source || metaPatch.source || "unknown") || "unknown",
+    degraded: !!metaPatch.degraded
   };
 
-  const outFile = saveArticles(payload);
-  logger.info(`Saved ${articles.length} articles`, outFile);
-  logger.info("Renderable stories", renderableArticles.length);
+  return list;
+}
+
+
+function ensureNewsCanadaReady(forceReload) {
+  const shouldReload = !!forceReload || !Array.isArray(app.locals.newsCanadaEditorsPicks) || !app.locals.newsCanadaEditorsPicks.length;
+  if (shouldReload) {
+    const loaded = loadNewsCanadaEditorsPicksFromDisk();
+    if (loaded && Array.isArray(loaded.stories) && loaded.stories.length) return loaded;
+  }
+
+  const liveStories = Array.isArray(app.locals.newsCanadaEditorsPicks) && app.locals.newsCanadaEditorsPicks.length
+    ? app.locals.newsCanadaEditorsPicks
+    : getNewsCanadaFallbackStories();
+
+  if (!Array.isArray(app.locals.newsCanadaEditorsPicks) || !app.locals.newsCanadaEditorsPicks.length) {
+    promoteNewsCanadaStories(liveStories, "runtime_fallback", {
+      file: app.locals.newsCanadaEditorsPicksMeta?.file || resolveNewsCanadaDataFile(),
+      sourceShape: app.locals.newsCanadaEditorsPicksMeta?.sourceShape || "",
+      rawKeys: app.locals.newsCanadaEditorsPicksMeta?.rawKeys || [],
+      degraded: true
+    });
+  }
 
   return {
-    outFile,
-    payload
+    ok: liveStories.length > 0,
+    file: app.locals.newsCanadaEditorsPicksMeta?.file || resolveNewsCanadaDataFile(),
+    count: liveStories.length,
+    stories: liveStories,
+    rawShape: app.locals.newsCanadaEditorsPicksMeta?.sourceShape || "",
+    rawKeys: app.locals.newsCanadaEditorsPicksMeta?.rawKeys || [],
+    degraded: !!app.locals.newsCanadaEditorsPicksMeta?.degraded,
+    source: app.locals.newsCanadaEditorsPicksMeta?.source || "runtime"
   };
 }
 
-if (require.main === module) {
-  runNewsCanadaEditorsPicksIngest()
-    .then(({ outFile, payload }) => {
-      console.log("\\nDone:", outFile);
-      console.log("Saved:", payload.counts.saved, "Failed:", payload.counts.failed, "Renderable:", payload.counts.renderable);
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error("Fatal ingest failure");
-      console.error(error);
-      process.exit(1);
-    });
+function firstUsableNewsCanadaImage(story) {
+  const raw = isObj(story) ? story : {};
+  if (Array.isArray(raw.images)) {
+    for (const img of raw.images) {
+      const normalized = normalizeImageLike(img, raw.title || "");
+      if (normalized && normalized.url) return normalized;
+    }
+  }
+  if (raw.heroImage && raw.heroImage.url) return raw.heroImage;
+  if (cleanText(raw.image)) return { url: cleanText(raw.image), alt: cleanText(raw.title || ""), caption: "" };
+  return FALLBACK_IMAGE ? { url: FALLBACK_IMAGE, alt: cleanText(raw.title || ""), caption: "" } : null;
 }
 
+function normalizeStoryLookupValue(v) {
+  return lower(cleanText(v)).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function findNewsCanadaStory(query) {
+  const q = normalizeStoryLookupValue(query);
+  const list = Array.isArray(app.locals.newsCanadaEditorsPicks) ? app.locals.newsCanadaEditorsPicks : [];
+  if (!q) return list[0] || null;
+  for (const story of list) {
+    const candidates = [
+      story.id,
+      story.slug,
+      story.title,
+      story.url,
+      story.storyUrl,
+      story.canonicalUrl,
+      story.issue,
+      ...(Array.isArray(story.categories) ? story.categories : [])
+    ];
+    if (candidates.some((entry) => normalizeStoryLookupValue(entry) === q)) return story;
+  }
+  for (const story of list) {
+    const hay = [
+      story.id,
+      story.slug,
+      story.title,
+      story.summary,
+      story.body,
+      story.url,
+      story.storyUrl,
+      story.canonicalUrl,
+      story.issue,
+      ...(Array.isArray(story.categories) ? story.categories : []),
+      ...(Array.isArray(story.keywords) ? story.keywords : [])
+    ].map((entry) => normalizeStoryLookupValue(entry)).join(" ");
+    if (hay.includes(q)) return story;
+  }
+  return null;
+}
+
+function buildNewsCanadaStoryPayload(story, index) {
+  const raw = isObj(story) ? story : {};
+  const imageObj = firstUsableNewsCanadaImage(raw);
+  const images = [];
+  if (Array.isArray(raw.images)) {
+    for (const entry of raw.images) {
+      const normalized = normalizeImageLike(entry, raw.title || "");
+      if (normalized && normalized.url && !images.some((img) => lower(img.url) === lower(normalized.url))) {
+        images.push(normalized);
+      }
+    }
+  }
+  if (imageObj && imageObj.url && !images.some((img) => lower(img.url) === lower(imageObj.url))) {
+    images.unshift(imageObj);
+  }
+
+  const body = cleanText(raw.body || raw.content || raw.fullText || raw.summary || "");
+  const summary = cleanText(raw.summary || clipText(body, 280) || raw.title || "News Canada story");
+  const popupBody = body || summary;
+  const popupImage = imageObj && imageObj.url ? imageObj.url : "";
+
+  return {
+    id: cleanText(raw.id || `story-${index || 0}`),
+    slug: cleanText(raw.slug || raw.id || ""),
+    title: cleanText(raw.title || "News Canada story"),
+    summary,
+    body: popupBody,
+    content: popupBody,
+    fullText: popupBody,
+    popupBody,
+    excerpt: summary,
+    description: summary,
+    issue: cleanText(raw.issue || "Editor's Pick"),
+    url: cleanText(raw.url || raw.storyUrl || raw.canonicalUrl || FALLBACK_URL),
+    storyUrl: cleanText(raw.storyUrl || raw.url || raw.canonicalUrl || FALLBACK_URL),
+    canonicalUrl: cleanText(raw.canonicalUrl || raw.url || raw.storyUrl || FALLBACK_URL),
+    categories: Array.isArray(raw.categories) ? raw.categories.map(cleanText).filter(Boolean).slice(0, 6) : [],
+    keywords: Array.isArray(raw.keywords) ? raw.keywords.map(cleanText).filter(Boolean).slice(0, 10) : [],
+    author: cleanText(raw.author || ""),
+    publishedAt: cleanText(raw.publishedAt || ""),
+    image: popupImage,
+    heroImage: imageObj || null,
+    popupImage,
+    images,
+    hasPopupContent: !!(popupBody && cleanText(raw.title || "")),
+    popupReady: !!(popupBody && cleanText(raw.title || "")),
+    lane: "newscanada",
+    source: cleanText(raw.feedSource || app.locals.newsCanadaEditorsPicksMeta?.source || "news_canada_runtime") || "news_canada_runtime"
+  };
+}
+
+function wantsNewsCanadaLegacyArray(req) {
+  const q = isObj(req && req.query) ? req.query : {};
+  const format = lower(q.format || q.shape || q.view || "");
+  if (format === "object" || format === "full" || format === "meta") return false;
+  if (format === "array" || format === "legacy" || format === "slides") return true;
+  const accept = lower(req && req.headers && req.headers.accept || "");
+  if (accept.includes("application/vnd.sandblast.newscanada+json")) return false;
+  return true;
+}
+
+function buildNewsCanadaEditorsPicksResponse(req) {
+  const state = ensureNewsCanadaReady(req.query && req.query.refresh === "1");
+  const stories = (state.stories || []).map((story, index) => buildNewsCanadaStoryPayload(story, index));
+  const slides = stories.map((story, index) => ({
+    ...story,
+    slideId: story.id || `slide-${index}`,
+    storyId: story.id || `story-${index}`,
+    chipLabel: story.issue || "Editor's Pick",
+    panelIndex: index,
+    hasImage: !!story.image
+  }));
+  const degraded = !!state.degraded;
+  return {
+    ok: stories.length > 0,
+    route: "/api/newscanada/editors-picks",
+    storyRoute: "/api/newscanada/story",
+    fallbackStories: degraded ? stories.length : 0,
+    availableStories: stories.length,
+    storyCount: stories.length,
+    stories,
+    items: stories,
+    slides,
+    panels: slides,
+    chips: slides.map((slide) => ({
+      id: slide.id,
+      title: slide.title,
+      label: slide.chipLabel,
+      summary: slide.summary,
+      image: slide.image,
+      url: slide.url
+    })),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      file: state.file || resolveNewsCanadaDataFile(),
+      rawShape: state.rawShape || "",
+      rawKeys: state.rawKeys || [],
+      source: cleanText(state.source || app.locals.newsCanadaEditorsPicksMeta?.source || "unknown") || "unknown",
+      degraded,
+      contractVersion: app.locals.newsCanadaContractVersion,
+      compatibility: {
+        defaultShape: "array",
+        objectQuery: "?format=object",
+        stableRoutes: {
+          editorsPicks: "/api/newscanada/editors-picks",
+          story: "/api/newscanada/story"
+        }
+      }
+    }
+  };
+}
+
+function buildNewsCanadaStoryResponse(req) {
+  ensureNewsCanadaReady(req.query && req.query.refresh === "1");
+  const lookup = cleanText(req.query.id || req.query.storyId || req.query.slug || req.query.title || req.query.url || "");
+  const story = findNewsCanadaStory(lookup);
+  if (!story) {
+    return {
+      ok: false,
+      error: "story_not_found",
+      route: "/api/newscanada/story",
+      lookup,
+      meta: { v: INDEX_VERSION, t: now() }
+    };
+  }
+  const payload = buildNewsCanadaStoryPayload(story, 0);
+  return {
+    ok: true,
+    route: "/api/newscanada/story",
+    story: payload,
+    popup: {
+      title: payload.title,
+      body: payload.popupBody,
+      image: payload.popupImage,
+      summary: payload.summary,
+      url: payload.url
+    },
+    meta: { v: INDEX_VERSION, t: now() }
+  };
+}
+
+app.get(["/api/newscanada/editors-picks", "/newscanada/editors-picks"], (req, res) => {
+  applyCors(req, res);
+  const out = buildNewsCanadaEditorsPicksResponse(req);
+  if (wantsNewsCanadaLegacyArray(req)) {
+    res.setHeader("x-sb-newscanada-shape", "array");
+    return res.status(200).json(out.slides || out.stories || []);
+  }
+  res.setHeader("x-sb-newscanada-shape", "object");
+  return res.status(200).json(out);
+});
+
+app.get(["/api/newscanada/editors-picks/meta", "/newscanada/editors-picks/meta"], (req, res) => {
+  applyCors(req, res);
+  res.setHeader("x-sb-newscanada-shape", "object");
+  return res.status(200).json(buildNewsCanadaEditorsPicksResponse(req));
+});
+
+app.get(["/api/newscanada/story", "/newscanada/story"], (req, res) => {
+  applyCors(req, res);
+  const out = buildNewsCanadaStoryResponse(req);
+  return res.status(out.ok ? 200 : 404).json(out);
+});
+
+
+app.get("/health", (req, res) => {
+  applyCors(req, res);
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  let tts = null;
+  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    upMs: now() - SERVER_BOOT_AT,
+    bootAt: SERVER_BOOT_AT,
+    modules: {
+      chatEngine: !!chatEngineMod,
+      marionBridge: !!marionBridgeMod,
+      supportResponse: !!supportResponseMod,
+      affectEngine: !!affectEngineMod,
+      voiceRoute: !!voiceRouteMod,
+      tts: !!ttsMod
+    },
+    runtimeDeps: {
+      express: moduleAvailable("express"),
+      compression: moduleAvailable("compression"),
+      dotenv: moduleAvailable("dotenv")
+    },
+    bindings: {
+      voiceRouteHandler: false,
+      voiceRouteHealth: false,
+      ttsHandler: !!ttsHandlerFromModule(ttsMod),
+      ttsHealth: !!ttsHealthFromModule(ttsMod)
+    },
+    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
+    preserveMixerVoice: !!CFG.preserveMixerVoice,
+    tts
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  applyCors(req, res);
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  let tts = null;
+  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("health")),
+    upMs: now() - SERVER_BOOT_AT,
+    tts,
+    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
+    requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
+    backendPublicBase: getBackendPublicBase(),
+    audioContract: {
+      version: "audio-first-v1",
+      endpoint: routeUrl("/api/tts"),
+      healthEndpoint: routeUrl("/api/tts/health"),
+      deterministicAudio: true
+    },
+    newsCanada: {
+      file: app.locals.newsCanadaEditorsPicksMeta?.file || resolveNewsCanadaDataFile(),
+      availableStories: Array.isArray(app.locals.newsCanadaEditorsPicks) ? app.locals.newsCanadaEditorsPicks.length : 0,
+      loadedAt: app.locals.newsCanadaEditorsPicksMeta?.loadedAt || 0,
+      sourceShape: app.locals.newsCanadaEditorsPicksMeta?.sourceShape || "",
+      rawKeys: app.locals.newsCanadaEditorsPicksMeta?.rawKeys || [],
+      source: app.locals.newsCanadaEditorsPicksMeta?.source || "unknown",
+      degraded: !!app.locals.newsCanadaEditorsPicksMeta?.degraded,
+      contractVersion: app.locals.newsCanadaContractVersion,
+      stableRoutes: {
+        editorsPicks: "/api/newscanada/editors-picks",
+        editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+        story: "/api/newscanada/story"
+      }
+    }
+  });
+});
+
+app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
+  applyCors(req, res);
+  const handler = ttsHealthFromModule(ttsMod);
+  if (!handler) {
+    return res.status(200).json({
+      ok: false,
+      enabled: false,
+      error: "tts_health_unavailable",
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+  try {
+    const health = await Promise.resolve(handler());
+    return res.status(200).json({
+      ok: !!(health && health.ok !== false),
+      enabled: true,
+      health,
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  } catch (err) {
+    return res.status(503).json({
+      ok: false,
+      enabled: true,
+      error: "tts_health_failed",
+      detail: cleanText(err && (err.message || err) || "tts health failed"),
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+});
+
+app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
+  applyCors(req, res);
+  try {
+    return await dispatchTts(req, res);
+  } catch (err) {
+    console.log("[Sandblast][ttsRoute:error]", err && (err.stack || err.message || err));
+    if (res.headersSent) return;
+    return sendTtsJsonError(req, res, 503, "tts_route_failure", cleanText(err && (err.message || err) || "tts route failed"), {
+      configSource: ttsHandlerFromModule(ttsMod) ? "tts_module" : "unavailable",
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+    });
+  }
+});
+
+app.post("/api/chat", enforceToken, async (req, res) => {
+  applyCors(req, res);
+  const startedAt = now();
+  const norm = normalizePayload(req);
+  const sessionId = getSessionId(req);
+  const priorSupport = getSupportState(sessionId);
+  let supportHold = clamp(Number(priorSupport.hold || 0), 0, CFG.quietSupportHoldTurns);
+  let supportActive = !!priorSupport.active && supportHold > 0;
+  if (supportHold > 0) supportHold -= 1;
+  let failSafe = false;
+
+  const emotion = inferEmotion(norm.text, {
+    lane: norm.lane,
+    mode: norm.mode,
+    sessionId,
+    traceId: norm.traceId
+  });
+
+  const transportKey = buildTransportKey(norm, norm.text, req);
+  const transportState = getTransportState(sessionId);
+  if (transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.loopSuppressionWindowMs)) {
+    setTransportState(sessionId, { key: transportKey, count: Number(transportState.count || 0) + 1 });
+    return res.status(200).json({
+      ok: true,
+      reply: normalizeSupportReply("I am here with you. We can take this one step at a time."),
+      payload: { reply: normalizeSupportReply("I am here with you. We can take this one step at a time.") },
+      lane: norm.lane || "general",
+      laneId: norm.lane || "general",
+      sessionLane: norm.lane || "general",
+      bridge: null,
+      ctx: {},
+      ui: buildQuietUiPatch("loop", true).ui,
+      directives: [],
+      followUps: [],
+      followUpsStrings: [],
+      sessionPatch: buildSupportSessionPatch({}, true, false),
+      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+      requestId: makeTraceId("req"),
+      traceId: norm.traceId,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        transportDuplicateSuppressed: true,
+        supportHold: Math.max(supportHold, 1),
+        latencyMs: now() - startedAt
+      },
+      voiceRoute: normalizeVoiceRouteResponse(attachVoiceRoute({ reply: norm.text || "" }).voiceRoute)
+    });
+  }
+  setTransportState(sessionId, { key: transportKey, count: 1 });
+
+  const marionInput = {
+    text: norm.text,
+    lane: norm.lane,
+    year: norm.year,
+    mode: norm.mode,
+    traceId: norm.traceId,
+    sessionId,
+    turnId: norm.turnId,
+    payload: norm.payload,
+    emotion,
+    guidedPrompt: norm.guidedPrompt,
+    domainHint: norm.domainHint,
+    intentHint: norm.intentHint,
+    emotionalHint: norm.emotionalHint
+  };
+
+  let marion = null;
+  try {
+    marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
+  } catch (err) {
+    console.log("[Sandblast][marionBridge:timeout]", err && (err.stack || err.message || err));
+    marion = null;
+  }
+
+  const engineInput = {
+    text: norm.text,
+    payload: norm.payload,
+    body: norm.body,
+    lane: norm.lane,
+    year: norm.year,
+    mode: norm.mode,
+    turnId: norm.turnId,
+    traceId: norm.traceId,
+    sessionId,
+    client: norm.client,
+    marion,
+    emotion,
+    guidedPrompt: norm.guidedPrompt,
+    domainHint: norm.domainHint,
+    intentHint: norm.intentHint,
+    emotionalHint: norm.emotionalHint,
+    knowledge: knowledgeRuntime.extract(norm.text, { marion, guidedPrompt: norm.guidedPrompt })
+  };
+
+  let engineRaw = null;
+  let engineError = null;
+  try {
+    engineRaw = await callWithTimeout(callChatEngine(engineInput), CFG.requestTimeoutMs, "chat_engine");
+    if (engineRaw && engineRaw.__engineError) {
+      engineError = engineRaw.__engineError;
+      engineRaw = null;
+    }
+  } catch (err) {
+    engineError = err;
+  }
+
+  let shaped = shapeEngineReply(engineRaw);
+  if (!shaped.lane) shaped.lane = norm.lane || "general";
+  if (!shaped.laneId) shaped.laneId = shaped.lane;
+  if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
+  if (!shaped.bridge && marion) shaped.bridge = marion;
+  shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
+
+  if (shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {})) {
+    supportActive = true;
+    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+  }
+
+  if (engineError) {
+    failSafe = true;
+    const supportReply = buildSafeSupportReply(norm.text, emotion, {
+      traceId: norm.traceId,
+      sessionId,
+      source: "engine_error"
+    });
+
+    shaped = {
+      ok: false,
+      reply: supportReply,
+      payload: { reply: supportReply },
+      lane: norm.lane || "general",
+      laneId: norm.lane || "general",
+      sessionLane: norm.lane || "general",
+      bridge: marion || null,
+      ctx: {},
+      ui: {},
+      directives: [],
+      followUps: [],
+      followUpsStrings: [],
+      sessionPatch: {},
+      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        engineVersion: "chatEngine failure contained",
+        knowledge: knowledgeRuntime.extract(norm.text, { marion }),
+        clearStaleUi: true,
+        suppressMenus: true,
+        failSafe: true,
+        error: cleanText(engineError && engineError.message || engineError || "engine failure")
+      }
+    };
+  }
+
+  let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
+  if (!reply) {
+    reply = buildSafeSupportReply(norm.text, emotion, {
+      traceId: norm.traceId,
+      sessionId,
+      source: "empty_reply"
+    });
+    shaped.reply = reply;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+    supportActive = true;
+    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+  }
+
+  reply = cleanReplyForUser(reply);
+  shaped.reply = reply;
+  shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+
+  const loop = detectLoop(sessionId, reply, norm.text);
+  if (loop.repeated) {
+    failSafe = false;
+    supportActive = true;
+    supportHold = Math.max(supportHold, 1);
+    reply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
+    shaped.reply = reply;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+    shaped.cog = {
+      ...(isObj(shaped.cog) ? shaped.cog : {}),
+      intent: "STABILIZE",
+      mode: "transitional",
+      publicMode: true
+    };
+    shaped.meta = mergeMeta(shaped.meta, {
+      duplicateReplySuppressed: true
+    });
+  }
+
+  const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
+  if (suppressMenus) {
+    supportActive = true;
+    supportHold = Math.max(supportHold, 1);
+  }
+
+  setSupportState(sessionId, {
+    active: supportActive,
+    hold: supportHold,
+    replyHash: replyHash(reply),
+    lastUserHash: replyHash(norm.text)
+  });
+
+  const sessionPatch = buildSupportSessionPatch(shaped.sessionPatch, supportActive, !supportActive);
+  shaped.sessionPatch = sessionPatch;
+
+  shaped.meta = mergeMeta(shaped.meta, {
+    v: INDEX_VERSION,
+    t: now(),
+    knowledge: shaped.meta?.knowledge || knowledgeRuntime.extract(norm.text, { marion }),
+    clearStaleUi: suppressMenus,
+    suppressMenus,
+    failSafe: !!failSafe,
+    error: shaped.meta?.error || "",
+    indexLoopGuard: true,
+    supportHold,
+    traceId: norm.traceId,
+    latencyMs: now() - startedAt
+  });
+
+  shaped.cog = {
+    ...(isObj(shaped.cog) ? shaped.cog : {}),
+    intent: shaped.cog?.intent || (supportActive ? "STABILIZE" : ""),
+    mode: shaped.cog?.mode || (supportActive ? "transitional" : ""),
+    publicMode: shaped.cog?.publicMode !== false
+  };
+
+  shaped = attachVoiceRoute(shaped);
+  const speech = buildSpeechContract(shaped, norm);
+  shaped.payload = {
+    ...(isObj(shaped.payload) ? shaped.payload : {}),
+    text: speech.text,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    speechHints: speech.speechHints
+  };
+  shaped.voiceRoute = {
+    ...(isObj(shaped.voiceRoute) ? shaped.voiceRoute : {}),
+    text: speech.text,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    speechHints: speech.speechHints
+  };
+  shaped = enforceQuietUiIfNeeded(shaped, {
+    supportActive,
+    failSafe,
+    forceQuiet: suppressMenus
+  });
+
+  shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
+  shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
+  shaped.traceId = cleanText(shaped.traceId || norm.traceId);
+
+  setLastTurn(sessionId, {
+    replyHash: replyHash(reply),
+    userHash: replyHash(norm.text),
+    lane: shaped.lane || norm.lane
+  });
+
+  return res.status(200).json({
+    ok: shaped.ok !== false,
+    reply: shaped.reply,
+    payload: shaped.payload,
+    lane: shaped.lane || norm.lane || "general",
+    laneId: shaped.laneId || shaped.lane || norm.lane || "general",
+    sessionLane: shaped.sessionLane || shaped.lane || norm.lane || "general",
+    bridge: shaped.bridge || marion || null,
+    ctx: shaped.ctx || {},
+    ui: shaped.ui || {},
+    directives: Array.isArray(shaped.directives) ? shaped.directives : [],
+    followUps: Array.isArray(shaped.followUps) ? shaped.followUps : [],
+    followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings : [],
+    sessionPatch: shaped.sessionPatch || {},
+    cog: shaped.cog || {},
+    requestId: shaped.requestId,
+    traceId: shaped.traceId,
+    meta: {
+      ...(shaped.meta || {}),
+      audioContract: {
+        version: "audio-first-v1",
+        endpoint: routeUrl("/api/tts"),
+        healthEndpoint: routeUrl("/api/tts/health"),
+        deterministicAudio: true,
+        failOpenChat: true
+      }
+    },
+    speech,
+    audio: shaped.audio || undefined,
+    ttsProfile: shaped.ttsProfile || undefined,
+    voiceRoute: shaped.voiceRoute || undefined
+  });
+});
+
+bootstrapNewsCanadaFeed();
+
+if (newsCanadaRouter) {
+  app.use("/api/newscanada", newsCanadaRouter);
+  app.use("/newscanada", newsCanadaRouter);
+  console.log("[Sandblast][newsCanada] mounted", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    stableContract: true,
+    legacySlidesDefault: true
+  });
+} else {
+  console.log("[Sandblast][newsCanada] router_missing", {
+    stableContract: true,
+    legacySlidesDefault: true
+  });
+}
+
+app.use("/api", (req, res) => {
+  applyCors(req, res);
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: req.path,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.use((err, req, res, _next) => {
+  console.log("[Sandblast][express:error]", err && (err.stack || err.message || err));
+  applyCors(req, res);
+  return res.status(500).json({
+    ok: false,
+    error: "server_error",
+    detail: cleanText(err && (err.message || err) || "server error"),
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
+}
+
+app.get("*", (req, res, next) => {
+  const p = path.join(PUBLIC_DIR, "index.html");
+  if (fs.existsSync(p)) return res.sendFile(p);
+  return next();
+});
+
+const server = app.listen(PORT, () => {
+  console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
+});
+
 module.exports = {
-  runNewsCanadaEditorsPicksIngest,
-  normalizeForStableFeed,
-  extractStableFeedArticles,
-  isRenderableStableArticle
+  app,
+  server,
+  INDEX_VERSION,
+  loadNewsCanadaEditorsPicksFromDisk,
+  resolveNewsCanadaDataFile,
+  normalizeNewsCanadaFeed,
+  hydrateNewsCanadaLocals
 };
