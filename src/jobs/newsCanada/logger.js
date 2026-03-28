@@ -59,7 +59,7 @@ function createLogger(prefix = "[log]") {
     info: (...args) => emit("log", "INFO", args),
     warn: (...args) => emit("warn", "WARN", args),
     error: (...args) => emit("error", "ERROR", args),
-    debug: (...args) => emit("debug", "DEBUG", args),
+    debug: (...args) => emit(typeof console.debug === "function" ? "debug" : "log", "DEBUG", args),
     child: (suffix = "") => createLogger(joinPrefix(prefix, suffix))
   };
 }
