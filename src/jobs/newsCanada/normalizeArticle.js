@@ -1,7 +1,8 @@
-const { hashString, summarize } = require("./utils");
+const { hashString, summarize, toAbsoluteUrl, cleanText: cleanUtilText, isLikelyArticleUrl } = require("./utils");
+const NEWS_CANADA_HOME_URL = "https://www.newscanada.com/home";
 
 function normalizeText(value) {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string" ? cleanUtilText(value) : "";
 }
 
 function uniqueStrings(values, limit) {
@@ -67,24 +68,25 @@ function normalizeMediaAttachments(parsed) {
 function normalizeArticle(parsed) {
   const body = normalizeText(parsed.body || parsed.content || parsed.story || parsed.fullText);
   const title = normalizeText(parsed.title);
-  const url = normalizeText(parsed.url);
+  const url = normalizeText(toAbsoluteUrl(parsed.url || "", NEWS_CANADA_HOME_URL));
   const images = normalizeImages(parsed);
   const mediaAttachments = normalizeMediaAttachments(parsed);
   const categories = uniqueStrings(parsed.categories, 8);
   const keywords = uniqueStrings(parsed.keywords || parsed.tags, 12);
   const summarySeed = body || normalizeText(parsed.summary) || title;
   const summary = normalizeText(parsed.summary) || summarize(summarySeed);
+  const safeUrl = isLikelyArticleUrl(url) ? url : "";
   const heroImage = images[0] || null;
   const publishedAt = normalizeText(parsed.publishedAt || parsed.publishDate);
   const author = normalizeText(parsed.author);
   const issue = normalizeText(parsed.issue || parsed.section || parsed.kicker);
 
   return {
-    id: hashString(url || `${title}::${publishedAt}`),
+    id: hashString(safeUrl || `${title}::${publishedAt}`),
     type: "article",
     source: "News Canada",
     title,
-    url,
+    url: safeUrl,
     issue,
     categories,
     keywords,
