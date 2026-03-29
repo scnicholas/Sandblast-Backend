@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-CHOKEPOINT-HOTFIX";
+const INDEX_VERSION = "index.js v2.13.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -306,6 +306,13 @@ const ttsMod = tryRequireMany([
   "./utils/tts.js",
   "./Utils/tts",
   "./Utils/tts.js"
+]);
+
+const manualNewsCanadaRoutes = tryRequireMany([
+  "./routes/manualNewsCanadaRoutes",
+  "./routes/manualNewsCanadaRoutes.js",
+  "./Routes/manualNewsCanadaRoutes",
+  "./Routes/manualNewsCanadaRoutes.js"
 ]);
 
 const marionBridgeMod = tryRequireMany([
@@ -1417,63 +1424,6 @@ function buildNewsCanadaStoryResponse(req) {
   };
 }
 
-app.get(["/api/newscanada/manual", "/newscanada/manual"], (req, res) => {
-  applyCors(req, res);
-  const store = loadNewsCanadaManualStore(req.query && req.query.refresh === "1");
-  return res.status(200).json({
-    ok: true,
-    mode: "manual",
-    slots: app.locals.newsCanadaSlots,
-    order: NEWS_CANADA_SLOT_ORDER.slice(),
-    store,
-    meta: {
-      v: INDEX_VERSION,
-      t: now(),
-      file: NEWS_CANADA_MANUAL_DATA_FILE,
-      source: "manual",
-      contractVersion: app.locals.newsCanadaContractVersion
-    }
-  });
-});
-
-app.post(["/api/newscanada/manual/save", "/newscanada/manual/save"], (req, res) => {
-  applyCors(req, res);
-  try {
-    const saved = saveNewsCanadaManualStory(req.body);
-    return res.status(200).json({
-      ok: true,
-      savedSlotId: saved.slotId,
-      story: buildNewsCanadaStoryPayload(saved, NEWS_CANADA_SLOT_ORDER.indexOf(saved.slotId)),
-      meta: { v: INDEX_VERSION, t: now(), file: NEWS_CANADA_MANUAL_DATA_FILE, source: "manual" }
-    });
-  } catch (err) {
-    return res.status(400).json({
-      ok: false,
-      error: cleanText(err && (err.code || err.message) || "manual_save_failed") || "manual_save_failed",
-      meta: { v: INDEX_VERSION, t: now() }
-    });
-  }
-});
-
-app.post(["/api/newscanada/manual/clear", "/newscanada/manual/clear"], (req, res) => {
-  applyCors(req, res);
-  try {
-    const slotId = cleanText(req.body && req.body.slotId || "");
-    const cleared = clearNewsCanadaManualStory(slotId);
-    return res.status(200).json({
-      ok: true,
-      clearedSlotId: cleared.slotId,
-      story: buildNewsCanadaStoryPayload(cleared, NEWS_CANADA_SLOT_ORDER.indexOf(cleared.slotId)),
-      meta: { v: INDEX_VERSION, t: now(), file: NEWS_CANADA_MANUAL_DATA_FILE, source: "manual" }
-    });
-  } catch (err) {
-    return res.status(400).json({
-      ok: false,
-      error: cleanText(err && (err.code || err.message) || "manual_clear_failed") || "manual_clear_failed",
-      meta: { v: INDEX_VERSION, t: now() }
-    });
-  }
-});
 
 app.get(["/api/newscanada/editors-picks", "/newscanada/editors-picks"], (req, res) => {
   applyCors(req, res);
@@ -2033,6 +1983,25 @@ app.post("/api/chat", enforceToken, async (req, res) => {
 });
 
 loadNewsCanadaManualStore(true);
+
+if (manualNewsCanadaRoutes) {
+  app.use(["/api/newscanada", "/newscanada"], manualNewsCanadaRoutes);
+  console.log("[Sandblast][newsCanada] manual_routes_mounted", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    source: "manual-route-file",
+    compatibility: {
+      editorsPicks: "/api/newscanada/editors-picks",
+      story: "/api/newscanada/story"
+    }
+  });
+} else {
+  console.log("[Sandblast][newsCanada] manual_routes_missing", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    source: "manual-route-file"
+  });
+}
 
 app.use("/api", (req, res) => {
   applyCors(req, res);
