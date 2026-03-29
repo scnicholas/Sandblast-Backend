@@ -107,51 +107,58 @@ function extractMeta(html, attribute, name) {
   return firstMatch(html, patterns);
 }
 
+function chooseFirst(candidates) {
+  for (const candidate of candidates) {
+    if (candidate && candidate.value) return candidate;
+  }
+  return { value: '', source: '' };
+}
+
 function extractTitle(html, articleJsonLd) {
-  return (
-    decodeHtml(articleJsonLd?.headline) ||
-    extractMeta(html, 'property', 'og:title') ||
-    extractMeta(html, 'name', 'twitter:title') ||
-    firstMatch(html, [/<title[^>]*>([\s\S]*?)<\/title>/i])
-  );
+  return chooseFirst([
+    { value: decodeHtml(articleJsonLd?.headline), source: 'jsonld.headline' },
+    { value: extractMeta(html, 'property', 'og:title'), source: 'meta.og:title' },
+    { value: extractMeta(html, 'name', 'twitter:title'), source: 'meta.twitter:title' },
+    { value: firstMatch(html, [/<title[^>]*>([\s\S]*?)<\/title>/i]), source: 'html.title' }
+  ]);
 }
 
 function extractSummary(html, articleJsonLd) {
-  return (
-    decodeHtml(articleJsonLd?.description) ||
-    extractMeta(html, 'property', 'og:description') ||
-    extractMeta(html, 'name', 'description') ||
-    extractMeta(html, 'name', 'twitter:description')
-  );
+  return chooseFirst([
+    { value: decodeHtml(articleJsonLd?.description), source: 'jsonld.description' },
+    { value: extractMeta(html, 'property', 'og:description'), source: 'meta.og:description' },
+    { value: extractMeta(html, 'name', 'description'), source: 'meta.description' },
+    { value: extractMeta(html, 'name', 'twitter:description'), source: 'meta.twitter:description' }
+  ]);
 }
 
 function extractPublishedAt(html, articleJsonLd) {
-  return (
-    decodeHtml(articleJsonLd?.datePublished) ||
-    extractMeta(html, 'property', 'article:published_time') ||
-    extractMeta(html, 'name', 'pubdate') ||
-    extractMeta(html, 'itemprop', 'datePublished')
-  );
+  return chooseFirst([
+    { value: decodeHtml(articleJsonLd?.datePublished), source: 'jsonld.datePublished' },
+    { value: extractMeta(html, 'property', 'article:published_time'), source: 'meta.article:published_time' },
+    { value: extractMeta(html, 'name', 'pubdate'), source: 'meta.pubdate' },
+    { value: extractMeta(html, 'itemprop', 'datePublished'), source: 'meta.itemprop.datePublished' }
+  ]);
 }
 
 function extractAuthor(html, articleJsonLd) {
   const author = articleJsonLd?.author;
-  if (typeof author === 'string') return decodeHtml(author);
+  if (typeof author === 'string') return { value: decodeHtml(author), source: 'jsonld.author' };
   if (Array.isArray(author)) {
     const names = author
       .map((entry) => (typeof entry === 'string' ? entry : entry?.name))
       .filter(Boolean)
       .map((entry) => decodeHtml(entry));
-    if (names.length) return names.join(', ');
+    if (names.length) return { value: names.join(', '), source: 'jsonld.author[]' };
   }
   if (author && typeof author === 'object' && author.name) {
-    return decodeHtml(author.name);
+    return { value: decodeHtml(author.name), source: 'jsonld.author.name' };
   }
 
-  return (
-    extractMeta(html, 'name', 'author') ||
-    extractMeta(html, 'property', 'article:author')
-  );
+  return chooseFirst([
+    { value: extractMeta(html, 'name', 'author'), source: 'meta.author' },
+    { value: extractMeta(html, 'property', 'article:author'), source: 'meta.article:author' }
+  ]);
 }
 
 function extractImages(html, articleJsonLd, baseUrl) {
@@ -224,11 +231,35 @@ function extractBodyFromMain(html) {
 }
 
 function buildBodyFallback(html) {
-  return (
-    extractBodyFromArticleTag(html) ||
-    extractBodyFromMain(html) ||
-    stripTags(html).slice(0, 12000)
-  );
+  const articleBody = extractBodyFromArticleTag(html);
+  if (articleBody) return { value: articleBody, source: 'article-tag' };
+
+  const mainBody = extractBodyFromMain(html);
+  if (mainBody) return { value: mainBody, source: 'main-tag' };
+
+  return {
+    value: stripTags(html).slice(0, 12000),
+    source: 'document-text-fallback'
+  };
+}
+
+function summarizeDiagnostics(diagnostics) {
+  return {
+    htmlLength: diagnostics.htmlLength,
+    jsonLdObjectCount: diagnostics.jsonLdObjectCount,
+    hasArticleJsonLd: diagnostics.hasArticleJsonLd,
+    titleSource: diagnostics.titleSource,
+    titleLength: diagnostics.titleLength,
+    summarySource: diagnostics.summarySource,
+    summaryLength: diagnostics.summaryLength,
+    publishedAtSource: diagnostics.publishedAtSource,
+    authorSource: diagnostics.authorSource,
+    bodySource: diagnostics.bodySource,
+    bodyLength: diagnostics.bodyLength,
+    imageCount: diagnostics.imageCount,
+    categoryCount: diagnostics.categoryCount,
+    canonicalUrlSource: diagnostics.canonicalUrlSource
+  };
 }
 
 async function fetchArticlePage(url, logger = createLogger('[news-canada-article]')) {
@@ -248,24 +279,46 @@ function parseArticle(html, url) {
   const jsonLdObjects = extractJsonLdObjects(text);
   const articleJsonLd = pickArticleJsonLd(jsonLdObjects);
 
-  const title = extractTitle(text, articleJsonLd);
-  const summary = extractSummary(text, articleJsonLd);
-  const publishedAt = extractPublishedAt(text, articleJsonLd);
-  const author = extractAuthor(text, articleJsonLd);
+  const titleMeta = extractTitle(text, articleJsonLd);
+  const summaryMeta = extractSummary(text, articleJsonLd);
+  const publishedAtMeta = extractPublishedAt(text, articleJsonLd);
+  const authorMeta = extractAuthor(text, articleJsonLd);
   const images = extractImages(text, articleJsonLd, url);
   const categories = extractCategories(text, articleJsonLd);
-  const body = buildBodyFallback(text);
+  const bodyMeta = buildBodyFallback(text);
+  const canonicalMeta = chooseFirst([
+    { value: extractMeta(text, 'property', 'og:url'), source: 'meta.og:url' },
+    { value: absolutizeUrl(url, url), source: 'request.url' }
+  ]);
+
+  const diagnostics = summarizeDiagnostics({
+    htmlLength: text.length,
+    jsonLdObjectCount: jsonLdObjects.length,
+    hasArticleJsonLd: Boolean(articleJsonLd),
+    titleSource: titleMeta.source,
+    titleLength: titleMeta.value.length,
+    summarySource: summaryMeta.source,
+    summaryLength: summaryMeta.value.length,
+    publishedAtSource: publishedAtMeta.source,
+    authorSource: authorMeta.source,
+    bodySource: bodyMeta.source,
+    bodyLength: bodyMeta.value.length,
+    imageCount: images.length,
+    categoryCount: categories.length,
+    canonicalUrlSource: canonicalMeta.source
+  });
 
   return {
-    title,
-    summary,
-    body,
+    title: titleMeta.value,
+    summary: summaryMeta.value,
+    body: bodyMeta.value,
     images,
     categories,
     mediaAttachments: [],
-    publishedAt,
-    author,
-    canonicalUrl: extractMeta(text, 'property', 'og:url') || absolutizeUrl(url, url)
+    publishedAt: publishedAtMeta.value,
+    author: authorMeta.value,
+    canonicalUrl: canonicalMeta.value,
+    diagnostics
   };
 }
 
