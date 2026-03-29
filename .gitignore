@@ -133,6 +133,24 @@ Data/wikipedia/**
 !Data/contracts/**
 
 # =========================
+# News Canada production data contract
+# Narrow allowlist so committed seed/runtime-facing JSON is never filtered out
+# Covers both common path variants seen in the project: Data/... and data/...
+# =========================
+!Data/NewsCanada/
+!Data/NewsCanada/**
+!Data/NewsCanada/*.json
+!Data/NewsCanada/snapshots/**
+!data/NewsCanada/
+!data/NewsCanada/**
+!data/NewsCanada/*.json
+!data/NewsCanada/snapshots/**
+!data/News Canada/
+!data/News Canada/**
+!data/News Canada/*.json
+!data/News Canada/snapshots/**
+
+# =========================
 # RAW DATASETS / LARGE MEDIA
 # Keep out of normal Git history
 # =========================
