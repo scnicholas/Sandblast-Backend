@@ -64,6 +64,45 @@ function buildListingUrls(options = {}) {
   ]);
 }
 
+function getSourceType(listingUrl) {
+  return listingUrl === NEWS_CANADA_CONFIG.editorsPicksUrl ? 'editors-picks' : 'category';
+}
+
+function validateExtractedPick(pick) {
+  const title = String(pick?.title || '').trim();
+  const url = String(pick?.url || '').trim();
+  const sourceUrl = String(pick?.sourceUrl || '').trim();
+
+  if (!title || title.length < 12) {
+    return { ok: false, reason: 'title_too_short_or_missing' };
+  }
+  if (!url) {
+    return { ok: false, reason: 'url_missing' };
+  }
+
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname || '';
+    if (!/(^|\.)newscanada\.com$/i.test(parsed.hostname)) {
+      return { ok: false, reason: 'wrong_host' };
+    }
+    if (/\/(home|editor-picks(?:\/content)?)(?:[/?#]|$)/i.test(pathname)) {
+      return { ok: false, reason: 'listing_path' };
+    }
+    if (/\/(?:[a-z]{2}\/)?[a-z0-9-]+\/content(?:[/?#]|$)/i.test(pathname)) {
+      return { ok: false, reason: 'section_landing_path' };
+    }
+  } catch (_) {
+    return { ok: false, reason: 'invalid_url' };
+  }
+
+  if (sourceUrl && sourceUrl === url) {
+    return { ok: false, reason: 'self_referential_listing_url' };
+  }
+
+  return { ok: true };
+}
+
 async function fetchListingPage(listingUrl, logger) {
   logger.info('Fetching listing page', { url: listingUrl });
 
@@ -92,19 +131,47 @@ async function fetchListingPage(listingUrl, logger) {
 
 function extractPicksFromListing(listing, logger) {
   const sourceLabel = toSourceLabel(listing.url);
-  const extracted = extractEditorsPicksLinks(listing.html, logger).map((pick, index) => ({
+  const sourceType = getSourceType(listing.url);
+
+  const extracted = extractEditorsPicksLinks(listing.html, logger, {
+    listingUrl: listing.url,
+    sourceType,
+    categoryListing: sourceType === 'category'
+  }).map((pick, index) => ({
     ...pick,
     sourceUrl: listing.url,
     sourceLabel,
-    sourceType: listing.url === NEWS_CANADA_CONFIG.editorsPicksUrl ? 'editors-picks' : 'category',
+    sourceType,
     position: pick.position || index + 1
   }));
+
+  const valid = [];
+  const invalid = [];
+
+  for (const pick of extracted) {
+    const validation = validateExtractedPick(pick);
+    if (!validation.ok) {
+      invalid.push({
+        title: pick.title,
+        url: pick.url,
+        sourceUrl: pick.sourceUrl,
+        sourceLabel: pick.sourceLabel,
+        sourceType: pick.sourceType,
+        reason: validation.reason
+      });
+      continue;
+    }
+    valid.push(pick);
+  }
 
   logger.info('Listing links extracted', {
     url: listing.url,
     sourceLabel,
-    count: extracted.length,
-    picks: extracted.map((pick) => ({
+    sourceType,
+    count: valid.length,
+    invalidCount: invalid.length,
+    invalid,
+    picks: valid.map((pick) => ({
       position: pick.position,
       title: pick.title,
       url: pick.url,
@@ -114,7 +181,7 @@ function extractPicksFromListing(listing, logger) {
     }))
   });
 
-  return extracted;
+  return valid;
 }
 
 async function scrapeNewsCanada(options = {}) {
@@ -141,6 +208,7 @@ async function scrapeNewsCanada(options = {}) {
       listingsDiagnostics.push({
         url: listing.url,
         sourceLabel: toSourceLabel(listing.url),
+        sourceType: getSourceType(listing.url),
         status: listing.status,
         htmlLength: listing.html.length,
         extractedCount: extracted.length
@@ -151,13 +219,15 @@ async function scrapeNewsCanada(options = {}) {
       if (extracted.length === 0) {
         listingLogger.warn('No links survived extraction for listing page', {
           url: listing.url,
-          htmlLength: listing.html.length
+          htmlLength: listing.html.length,
+          sourceType: getSourceType(listing.url)
         });
       }
     } catch (error) {
       listingsDiagnostics.push({
         url: listingUrl,
         sourceLabel: toSourceLabel(listingUrl),
+        sourceType: getSourceType(listingUrl),
         error: { message: error.message, code: error.code || '' }
       });
 
@@ -380,5 +450,6 @@ if (require.main === module) {
 
 module.exports = {
   scrapeNewsCanada,
-  DEFAULT_SECTION_URLS
+  DEFAULT_SECTION_URLS,
+  validateExtractedPick
 };
