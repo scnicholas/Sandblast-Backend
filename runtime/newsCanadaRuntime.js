@@ -1,274 +1,164 @@
-// runtime/newsCanadaRuntime.js
-const fs = require('fs');
-const path = require('path');
 
-const TRACE_PREFIX = '[Sandblast][NewsCanada]';
+"use strict";
 
-function log(stage, payload = {}) {
+const fs = require("fs");
+const path = require("path");
+
+function safeStr(v) {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function cleanText(v) {
+  return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function uniq(arr) {
+  return Array.from(new Set(Array.isArray(arr) ? arr.filter(Boolean) : []));
+}
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function traceLifecycle(stage, payload) {
   try {
-    console.log(`${TRACE_PREFIX} ${stage}`, payload);
-  } catch (_) {
-    console.log(`${TRACE_PREFIX} ${stage}`);
-  }
+    console.log(`[Sandblast][NewsCanada][${cleanText(stage || "trace") || "trace"}]`, isObj(payload) ? payload : payload || {});
+  } catch (_) {}
 }
 
-function normalizeStory(raw = {}, index = 0) {
-  const id =
-    raw.id ||
-    raw.slug ||
-    raw.storyId ||
-    `news-canada-${index + 1}`;
+function normalizeCandidateList(ctx) {
+  const env = isObj(ctx && ctx.env) ? ctx.env : {};
+  const processCwd = cleanText(ctx && ctx.processCwd || process.cwd()) || process.cwd();
+  const dirname = cleanText(ctx && ctx.dirname || process.cwd()) || process.cwd();
+  const pinnedFile = cleanText(ctx && ctx.pinnedFile || "data/newscanada/editors-picks.v2.json") || "data/newscanada/editors-picks.v2.json";
+  const rawCandidates = uniq([
+    ...(Array.isArray(ctx && ctx.candidates) ? ctx.candidates : []),
+    env.NEWS_CANADA_DATA_FILE,
+    env.SB_NEWSCANADA_DATA_FILE,
+    path.join(processCwd, pinnedFile),
+    path.join(dirname, pinnedFile),
+    path.join(processCwd, "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(processCwd, "data", "newscanada", "editors-picks.v2.json"),
+    path.join(dirname, "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(dirname, "data", "newscanada", "editors-picks.v2.json"),
+    path.join(processCwd, "src", "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(processCwd, "src", "data", "newscanada", "editors-picks.v2.json"),
+    path.join(dirname, "src", "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(dirname, "src", "data", "newscanada", "editors-picks.v2.json"),
+    path.join(processCwd, "jobs", "news-canada", "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(processCwd, "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json"),
+    path.join(dirname, "jobs", "news-canada", "data", "NewsCanada", "editors-picks.v2.json"),
+    path.join(dirname, "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json")
+  ].map(cleanText).filter(Boolean));
+  return rawCandidates;
+}
 
-  const title =
-    typeof raw.title === 'string' && raw.title.trim()
-      ? raw.title.trim()
-      : 'Untitled Story';
+function resolveNewsCanadaPaths(ctx) {
+  const candidates = normalizeCandidateList(ctx);
+  const diagnostics = candidates.map((candidate) => {
+    let exists = false;
+    try { exists = !!fs.existsSync(candidate); } catch (_) { exists = false; }
+    return { file: candidate, exists };
+  });
 
-  const summary =
-    typeof raw.summary === 'string' && raw.summary.trim()
-      ? raw.summary.trim()
-      : '';
-
-  const body =
-    typeof raw.body === 'string' && raw.body.trim()
-      ? raw.body.trim()
-      : summary || '';
-
-  const url =
-    typeof raw.url === 'string' && raw.url.trim()
-      ? raw.url.trim()
-      : 'https://www.newscanada.com/home';
-
-  const image =
-    typeof raw.image === 'string' && raw.image.trim()
-      ? raw.image.trim()
-      : '';
-
-  const issue =
-    typeof raw.issue === 'string' && raw.issue.trim()
-      ? raw.issue.trim()
-      : 'Editor’s Pick';
-
-  const categories = Array.isArray(raw.categories)
-    ? raw.categories.filter(Boolean)
-    : ['Canada', 'News'];
-
-  const publishedAt =
-    typeof raw.publishedAt === 'string' && raw.publishedAt.trim()
-      ? raw.publishedAt.trim()
-      : new Date().toISOString();
+  const foundFile = diagnostics.find((entry) => entry.exists && cleanText(entry.file));
+  const file = cleanText(foundFile && foundFile.file || diagnostics[0] && diagnostics[0].file || "");
+  const chosenDir = file ? path.dirname(file) : "";
 
   return {
-    id,
-    title,
-    summary,
-    body,
-    url,
-    image,
-    issue,
-    categories,
-    publishedAt
-  };
-}
-
-function getFallbackStories() {
-  return [
-    normalizeStory({
-      id: 'fallback-news-canada-1',
-      title: 'News Canada Feature One',
-      summary:
-        'Fallback editor’s pick payload so the carousel stays visible while upstream feed work is stabilized.',
-      body:
-        'This fallback story keeps the Sandblast News Canada surface alive while the upstream feed is being refreshed. The pipeline expects a stable full-story contract rather than a thin payload.',
-      url: 'https://www.newscanada.com/home',
-      issue: 'Editor’s Pick',
-      categories: ['Canada', 'News']
-    }, 0),
-    normalizeStory({
-      id: 'fallback-news-canada-2',
-      title: 'News Canada Feature Two',
-      summary:
-        'This controller preserves a clean frontend contract by always returning an array of usable story objects.',
-      body:
-        'The News Canada runtime now guarantees a readable editors-picks file and a usable fallback so the frontend does not collapse when upstream content is temporarily unavailable.',
-      url: 'https://www.newscanada.com/home',
-      issue: 'Top Story',
-      categories: ['Features', 'Editorial']
-    }, 1)
-  ];
-}
-
-function resolveProjectRoot() {
-  const cwd = process.cwd();
-  const candidates = [
-    cwd,
-    path.resolve(__dirname, '..'),
-    path.resolve(__dirname, '../..')
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return cwd;
-}
-
-function resolveNewsCanadaPaths() {
-  const root = resolveProjectRoot();
-
-  const dataDirCandidates = [
-    path.join(root, 'data', 'NewsCanada'),
-    path.join(root, 'data', 'newscanada'),
-    path.join(root, 'src', 'data', 'NewsCanada'),
-    path.join(root, 'src', 'data', 'newscanada'),
-    path.join(root, 'jobs', 'newsCanada', 'data', 'NewsCanada'),
-    path.join(root, 'jobs', 'newsCanada', 'data', 'newscanada')
-  ];
-
-  let chosenDir = dataDirCandidates[0];
-
-  for (const dir of dataDirCandidates) {
-    if (fs.existsSync(dir)) {
-      chosenDir = dir;
-      break;
-    }
-  }
-
-  const editorsPicksPath = path.join(chosenDir, 'editors-picks.v2.json');
-
-  return {
-    root,
+    file,
+    editorsPicksPath: file,
     chosenDir,
-    editorsPicksPath,
-    candidates: dataDirCandidates
+    candidates,
+    attemptedFiles: diagnostics
   };
 }
 
-function ensureDirectory(dirPath) {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-    log('directory_created', { dirPath });
-  }
-}
+function ensureEditorsPicksFile(ctx) {
+  const resolved = resolveNewsCanadaPaths(ctx);
+  const file = cleanText(resolved.file || resolved.editorsPicksPath || "");
+  const chosenDir = cleanText(resolved.chosenDir || "");
+  const fallbackStories = Array.isArray(ctx && ctx.fallbackStories) ? ctx.fallbackStories : [];
+  let createdFallback = false;
 
-function safeReadJson(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-}
-
-function safeWriteJson(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-}
-
-function ensureEditorsPicksFile() {
-  const paths = resolveNewsCanadaPaths();
-
-  log('resolver_boot', {
-    root: paths.root,
-    chosenDir: paths.chosenDir,
-    editorsPicksPath: paths.editorsPicksPath,
-    candidates: paths.candidates
-  });
-
-  ensureDirectory(paths.chosenDir);
-
-  if (!fs.existsSync(paths.editorsPicksPath)) {
-    const fallbackStories = getFallbackStories();
-    safeWriteJson(paths.editorsPicksPath, fallbackStories);
-    log('fallback_file_created', {
-      editorsPicksPath: paths.editorsPicksPath,
-      stories: fallbackStories.length
-    });
+  if (chosenDir && !fs.existsSync(chosenDir)) {
+    fs.mkdirSync(chosenDir, { recursive: true });
+    traceLifecycle("directory_created", { chosenDir });
   }
 
-  return paths;
-}
-
-function readEditorsPicks() {
-  const { editorsPicksPath } = ensureEditorsPicksFile();
-
-  try {
-    const parsed = safeReadJson(editorsPicksPath);
-    const list = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed.stories)
-        ? parsed.stories
-        : [];
-
-    const normalized = list.map(normalizeStory).filter(Boolean);
-
-    log('read_success', {
-      editorsPicksPath,
-      count: normalized.length,
-      firstStory: normalized[0]
-        ? { id: normalized[0].id, title: normalized[0].title }
-        : null
-    });
-
-    if (!normalized.length) {
-      const fallbackStories = getFallbackStories();
-      safeWriteJson(editorsPicksPath, fallbackStories);
-      log('read_empty_repaired_with_fallback', {
-        editorsPicksPath,
-        stories: fallbackStories.length
-      });
-      return fallbackStories;
-    }
-
-    return normalized;
-  } catch (error) {
-    log('read_failure', {
-      editorsPicksPath,
-      error: error.message
-    });
-
-    const fallbackStories = getFallbackStories();
-    safeWriteJson(editorsPicksPath, fallbackStories);
-
-    log('read_failure_repaired_with_fallback', {
-      editorsPicksPath,
-      stories: fallbackStories.length
-    });
-
-    return fallbackStories;
+  if (file && !fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(fallbackStories, null, 2), "utf8");
+    createdFallback = true;
+    traceLifecycle("fallback_file_created", { file, stories: fallbackStories.length });
   }
+
+  return {
+    ...resolved,
+    createdFallback
+  };
 }
 
-function writeEditorsPicks(stories = [], meta = {}) {
-  const { editorsPicksPath } = ensureEditorsPicksFile();
+function readEditorsPicksFromDisk(ctx) {
+  const ensured = ensureEditorsPicksFile(ctx);
+  const file = cleanText(ensured.file || ensured.editorsPicksPath || "");
+  const strict = cleanText(isObj(ctx && ctx.env) ? ctx.env.DEBUG_NEWS_CANADA_STRICT : "").toLowerCase() === "true";
 
-  const normalized = Array.isArray(stories)
-    ? stories.map(normalizeStory).filter(Boolean)
-    : [];
+  if (!file) {
+    return {
+      ok: false,
+      file: "",
+      parsed: undefined,
+      attemptedFiles: ensured.attemptedFiles,
+      error: "news_canada_data_file_missing"
+    };
+  }
 
-  const payload = normalized.length ? normalized : getFallbackStories();
+  if (strict && !fs.existsSync(file)) {
+    throw new Error(`STRICT MODE: editors-picks file missing at ${file}`);
+  }
 
-  safeWriteJson(editorsPicksPath, payload);
+  const raw = fs.readFileSync(file, "utf8");
+  const parsed = JSON.parse(raw);
+  return {
+    ok: true,
+    file,
+    editorsPicksPath: file,
+    parsed,
+    source: createdSourceLabel(parsed),
+    attemptedFiles: ensured.attemptedFiles,
+    createdFallback: ensured.createdFallback
+  };
+}
 
-  log('write_success', {
-    editorsPicksPath,
+function createdSourceLabel(parsed) {
+  if (Array.isArray(parsed)) return "runtime_array";
+  if (parsed && typeof parsed === "object") return "runtime_object";
+  return "runtime_unknown";
+}
+
+function writeEditorsPicksToDisk(ctx, stories, meta) {
+  const ensured = ensureEditorsPicksFile(ctx);
+  const file = cleanText(ensured.file || ensured.editorsPicksPath || "");
+  const payload = Array.isArray(stories) ? stories : [];
+  fs.writeFileSync(file, JSON.stringify(payload, null, 2), "utf8");
+  traceLifecycle("write_success", {
+    file,
     count: payload.length,
-    source: meta.source || 'unknown',
-    firstStory: payload[0]
-      ? { id: payload[0].id, title: payload[0].title }
-      : null
+    source: cleanText(meta && meta.source || "unknown") || "unknown",
+    firstStory: payload[0] ? { id: payload[0].id, title: payload[0].title } : null
   });
-
-  return payload;
-}
-
-function traceLifecycle(stage, payload = {}) {
-  log(`trace_${stage}`, payload);
+  return {
+    ok: true,
+    file,
+    count: payload.length,
+    attemptedFiles: ensured.attemptedFiles
+  };
 }
 
 module.exports = {
   resolveNewsCanadaPaths,
   ensureEditorsPicksFile,
-  readEditorsPicks,
-  writeEditorsPicks,
-  traceLifecycle,
-  getFallbackStories,
-  normalizeStory
+  readEditorsPicksFromDisk,
+  writeEditorsPicksToDisk,
+  traceLifecycle
 };
