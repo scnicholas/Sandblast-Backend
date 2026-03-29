@@ -92,7 +92,7 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
-const NEWS_CANADA_PINNED_DATA_FILE = "src/data/newscanada/editors-picks.v2.json";
+const NEWS_CANADA_PINNED_DATA_FILE = "data/newscanada/editors-picks.v2.json";
 const NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES = [
   path.join(process.cwd(), NEWS_CANADA_PINNED_DATA_FILE),
   path.join(__dirname, NEWS_CANADA_PINNED_DATA_FILE)
