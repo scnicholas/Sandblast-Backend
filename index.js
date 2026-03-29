@@ -93,6 +93,14 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_NEWSCANADA_DIR = path.join(__dirname, "public newscanada");
+const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir) => {
+  try {
+    return fs.existsSync(dir);
+  } catch (_) {
+    return false;
+  }
+});
 const NEWS_CANADA_MANUAL_DATA_FILE = cleanText(
   process.env.NEWS_CANADA_MANUAL_DATA_FILE ||
   process.env.SB_NEWSCANADA_MANUAL_DATA_FILE ||
@@ -2024,13 +2032,15 @@ app.use((err, req, res, _next) => {
   });
 });
 
-if (fs.existsSync(PUBLIC_DIR)) {
-  app.use(express.static(PUBLIC_DIR));
-}
+STATIC_PUBLIC_DIRS.forEach((dir) => {
+  app.use(express.static(dir));
+});
 
 app.get("*", (req, res, next) => {
-  const p = path.join(PUBLIC_DIR, "index.html");
-  if (fs.existsSync(p)) return res.sendFile(p);
+  for (const dir of STATIC_PUBLIC_DIRS) {
+    const p = path.join(dir, "index.html");
+    if (fs.existsSync(p)) return res.sendFile(p);
+  }
   return next();
 });
 
