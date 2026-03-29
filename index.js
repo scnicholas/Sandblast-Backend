@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.1sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-CONTRACT-ALIGNMENT";
+const INDEX_VERSION = "index.js v2.13.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-CHOKEPOINT-HOTFIX";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -98,18 +98,56 @@ const NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES = [
   path.join(__dirname, NEWS_CANADA_PINNED_DATA_FILE)
 ];
 
-const NEWS_CANADA_DATA_FILE_CANDIDATES = uniq([
-  ...NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES,
-  process.env.NEWS_CANADA_DATA_FILE,
-  process.env.SB_NEWSCANADA_DATA_FILE,
-  NEWS_CANADA_PINNED_DATA_FILE,
-  path.join(process.cwd(), "data", "newscanada", "editors-picks.v2.json"),
-  path.join(__dirname, "data", "newscanada", "editors-picks.v2.json"),
-  path.join(process.cwd(), "src", "data", "newscanada", "editors-picks.v2.json"),
-  path.join(__dirname, "src", "data", "newscanada", "editors-picks.v2.json"),
-  path.join(process.cwd(), "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json"),
-  path.join(__dirname, "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json")
-].filter(Boolean));
+function buildNewsCanadaDataFileCandidates() {
+  const rootDirs = uniq([
+    process.cwd(),
+    __dirname,
+    path.join(process.cwd(), "src"),
+    path.join(__dirname, "src"),
+    path.join(process.cwd(), "jobs", "news-canada"),
+    path.join(__dirname, "jobs", "news-canada")
+  ]);
+
+  const dirVariants = [
+    ["data", "newscanada"],
+    ["data", "news-canada"],
+    ["data", "News Canada"],
+    ["data", "newsCanada"],
+    ["data", "news_canada"],
+    ["News Canada"],
+    ["newscanada"],
+    ["news-canada"]
+  ];
+
+  const fileVariants = [
+    "editors-picks.v2.json",
+    "editors-picks.json",
+    "editors-take.v2.json",
+    "editors-take.json",
+    "editors-fixed.version2.json",
+    "editors-fixed.v2.json",
+    "editors-fixed.json"
+  ];
+
+  const generated = [];
+  for (const root of rootDirs) {
+    for (const dirParts of dirVariants) {
+      for (const filename of fileVariants) {
+        generated.push(path.join(root, ...dirParts, filename));
+      }
+    }
+  }
+
+  return uniq([
+    ...NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES,
+    process.env.NEWS_CANADA_DATA_FILE,
+    process.env.SB_NEWSCANADA_DATA_FILE,
+    NEWS_CANADA_PINNED_DATA_FILE,
+    ...generated
+  ].filter(Boolean));
+}
+
+const NEWS_CANADA_DATA_FILE_CANDIDATES = buildNewsCanadaDataFileCandidates();
 
 const NEWS_CANADA_REFRESH_MS = Math.max(15000, Number(process.env.NEWS_CANADA_REFRESH_MS || 1800000));
 
@@ -1031,22 +1069,32 @@ function normalizeNewsCanadaStory(item, index) {
   const nestedStory = isObj(item.story) ? item.story : null;
   const nestedArticle = isObj(item.article) ? item.article : null;
   const nestedPopup = isObj(item.popup) ? item.popup : null;
-  const primary = nestedStory || nestedArticle || item;
-  const secondary = nestedPopup || nestedArticle || nestedStory || {};
+  const nestedContent = isObj(item.content) ? item.content : null;
+  const nestedData = isObj(item.data) ? item.data : null;
+  const nestedMeta = isObj(item.meta) ? item.meta : null;
+  const primary = nestedStory || nestedArticle || nestedContent || nestedData || item;
+  const secondary = nestedPopup || nestedArticle || nestedStory || nestedContent || nestedData || nestedMeta || {};
 
-  const title = cleanText(
+  let title = cleanText(
     item.title ||
     primary.title ||
     secondary.title ||
     item.headline ||
     primary.headline ||
+    secondary.headline ||
     item.name ||
+    primary.name ||
     item.label ||
+    primary.label ||
     item.storyTitle ||
     item.storyHeadline ||
     item.shortTitle ||
     item.longTitle ||
     item.assetTitle ||
+    item.metaTitle ||
+    item.seoTitle ||
+    primary.metaTitle ||
+    primary.seoTitle ||
     ""
   );
 
@@ -1110,7 +1158,12 @@ function normalizeNewsCanadaStory(item, index) {
     FALLBACK_URL
   );
 
-  if (!title) return null;
+  if (!title) {
+    const urlHint = cleanText(item.url || primary.url || secondary.url || item.href || primary.href || secondary.href || item.storyUrl || primary.storyUrl || secondary.storyUrl || "");
+    const textHint = cleanText(item.summary || primary.summary || secondary.summary || item.excerpt || primary.excerpt || secondary.excerpt || item.body || primary.body || secondary.body || item.content || primary.content || secondary.content || "");
+    if (!urlHint && !textHint) return null;
+    title = textHint ? clipText(textHint, 96) : "News Canada Story";
+  }
 
   const rawImages = [];
   const imageSources = [item, primary, secondary, nestedStory || {}, nestedArticle || {}, nestedPopup || {}];
@@ -1203,7 +1256,7 @@ function extractNewsCanadaFeedList(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") return [];
 
-  const buckets = [
+  const directBuckets = [
     payload.assets,
     payload.items,
     payload.stories,
@@ -1219,6 +1272,17 @@ function extractNewsCanadaFeedList(payload) {
     payload.editorPicks,
     payload.curated,
     payload.records,
+    payload.cards,
+    payload.posts,
+    payload.content,
+    payload.upcoming,
+    payload.features,
+    payload.technology,
+    payload.recipes,
+    payload.business,
+    payload["fraud-cybersecurity"],
+    payload.fraudCybersecurity,
+    payload.fraud_cybersecurity,
     payload.data && payload.data.assets,
     payload.data && payload.data.items,
     payload.data && payload.data.stories,
@@ -1227,6 +1291,9 @@ function extractNewsCanadaFeedList(payload) {
     payload.data && payload.data.slides,
     payload.data && payload.data.panels,
     payload.data && payload.data.editorsPicks,
+    payload.data && payload.data.editorPicks,
+    payload.data && payload.data.content,
+    payload.data && payload.data.results,
     payload.payload && payload.payload.assets,
     payload.payload && payload.payload.items,
     payload.payload && payload.payload.stories,
@@ -1234,22 +1301,52 @@ function extractNewsCanadaFeedList(payload) {
     payload.payload && payload.payload.movies,
     payload.payload && payload.payload.slides,
     payload.payload && payload.payload.panels,
-    payload.payload && payload.payload.editorsPicks
+    payload.payload && payload.payload.editorsPicks,
+    payload.payload && payload.payload.editorPicks,
+    payload.payload && payload.payload.content,
+    payload.payload && payload.payload.results
   ];
 
-  for (const bucket of buckets) {
+  for (const bucket of directBuckets) {
     if (Array.isArray(bucket) && bucket.length) return bucket;
   }
 
-  if (isObj(payload.data)) {
-    const nested = extractNewsCanadaFeedList(payload.data);
-    if (nested.length) return nested;
+  const nestedObjectBuckets = [
+    payload.sections,
+    payload.categories,
+    payload.feeds,
+    payload.collections,
+    payload.lanes,
+    payload.groups,
+    payload.buckets,
+    payload.channels,
+    payload.data,
+    payload.payload,
+    payload.response,
+    payload.result
+  ].filter(isObj);
+
+  for (const bucket of nestedObjectBuckets) {
+    const values = Object.values(bucket);
+    for (const value of values) {
+      if (Array.isArray(value) && value.length) return value;
+    }
+    for (const value of values) {
+      if (isObj(value)) {
+        const nested = extractNewsCanadaFeedList(value);
+        if (nested.length) return nested;
+      }
+    }
   }
 
-  if (isObj(payload.payload)) {
-    const nested = extractNewsCanadaFeedList(payload.payload);
-    if (nested.length) return nested;
+  const objectValues = Object.values(payload);
+  const flattenedArrays = [];
+  for (const value of objectValues) {
+    if (Array.isArray(value) && value.length && value.some((entry) => isObj(entry) || Array.isArray(entry))) {
+      flattenedArrays.push(...value);
+    }
   }
+  if (flattenedArrays.length) return flattenedArrays;
 
   return [];
 }
