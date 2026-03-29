@@ -92,19 +92,24 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
-const NEWS_CANADA_PINNED_DATA_FILE = "/opt/render/project/src/data/newscanada/editors-picks.v2.json";
+const NEWS_CANADA_PINNED_DATA_FILE = "src/data/newscanada/editors-picks.v2.json";
+const NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES = [
+  path.join(process.cwd(), NEWS_CANADA_PINNED_DATA_FILE),
+  path.join(__dirname, NEWS_CANADA_PINNED_DATA_FILE)
+];
 
-const NEWS_CANADA_DATA_FILE_CANDIDATES = [
-  NEWS_CANADA_PINNED_DATA_FILE,
+const NEWS_CANADA_DATA_FILE_CANDIDATES = uniq([
+  ...NEWS_CANADA_PINNED_DATA_FILE_ABSOLUTE_CANDIDATES,
   process.env.NEWS_CANADA_DATA_FILE,
   process.env.SB_NEWSCANADA_DATA_FILE,
+  NEWS_CANADA_PINNED_DATA_FILE,
   path.join(process.cwd(), "data", "newscanada", "editors-picks.v2.json"),
   path.join(__dirname, "data", "newscanada", "editors-picks.v2.json"),
   path.join(process.cwd(), "src", "data", "newscanada", "editors-picks.v2.json"),
   path.join(__dirname, "src", "data", "newscanada", "editors-picks.v2.json"),
   path.join(process.cwd(), "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json"),
   path.join(__dirname, "jobs", "news-canada", "data", "newscanada", "editors-picks.v2.json")
-].filter(Boolean);
+].filter(Boolean));
 
 const NEWS_CANADA_REFRESH_MS = Math.max(15000, Number(process.env.NEWS_CANADA_REFRESH_MS || 1800000));
 
@@ -1266,7 +1271,7 @@ function resolveNewsCanadaDataFile() {
   const diagnostics = getNewsCanadaCandidateDiagnostics();
   const found = diagnostics.find((entry) => entry.exists);
   if (found && found.file) return found.file;
-  return cleanText(process.env.NEWS_CANADA_DATA_FILE || process.env.SB_NEWSCANADA_DATA_FILE || NEWS_CANADA_PINNED_DATA_FILE || NEWS_CANADA_DATA_FILE_CANDIDATES[0] || "");
+  return cleanText(process.env.NEWS_CANADA_DATA_FILE || process.env.SB_NEWSCANADA_DATA_FILE || NEWS_CANADA_DATA_FILE_CANDIDATES[0] || NEWS_CANADA_PINNED_DATA_FILE || "");
 }
 
 function hydrateNewsCanadaLocals(parsed, file) {
