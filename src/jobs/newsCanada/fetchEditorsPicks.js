@@ -137,6 +137,17 @@ function getAnchorTitle($, a) {
   );
 }
 
+function isCategoryListingUrl(url) {
+  const clean = String(url || "").trim();
+  if (!clean) return false;
+  try {
+    const parsed = new URL(clean);
+    return SECTION_LANDING_PATH_RE.test(parsed.pathname || "");
+  } catch {
+    return false;
+  }
+}
+
 function inspectUrlShape(url) {
   if (!url) {
     return {
@@ -202,8 +213,10 @@ function scoreCandidate(title, containerText, anchorText, href, options = {}) {
   const hrefLc = String(href || "").toLowerCase();
   const urlInfo = inspectUrlShape(href);
   const withinEditorsPicks = !!options.withinEditorsPicks;
+  const categoryListing = !!options.categoryListing;
 
   if (withinEditorsPicks) score += 4;
+  if (categoryListing) score += 2;
   if (EDITORS_PICKS_RE.test(containerLc)) score += 8;
   if (anchorLc && anchorLc === titleLc) score += 1;
   if (title.length >= 24) score += 2;
@@ -211,7 +224,7 @@ function scoreCandidate(title, containerText, anchorText, href, options = {}) {
   if (!NEGATIVE_CONTEXT_RE.test(titleLc) && !NEGATIVE_CONTEXT_RE.test(containerLc)) score += 2;
   if (urlInfo.strong) score += 6;
   else if (urlInfo.moderate) score += 3;
-  if (/\b(news|canada|health|finance|food|travel|family|market|study|report|launch|guide|tips|new)\b/i.test(title)) score += 1;
+  if (/\b(news|canada|health|finance|food|travel|family|market|study|report|launch|guide|tips|new|technology|recipe|business|fraud|cybersecurity|upcoming)\b/i.test(title)) score += 1;
   if (anchorLc && anchorLc.includes("read more")) score -= 2;
   if (SOFT_NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 2;
   if (NEGATIVE_CONTEXT_RE.test(containerLc)) score -= 3;
@@ -231,7 +244,7 @@ function rejectCandidate(stats, reason, detail) {
   return { rejected: true, reason };
 }
 
-function shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass }) {
+function shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass, categoryListing }) {
   stats && (stats.candidatesSeen += 1);
 
   if (!title || !url) {
@@ -255,7 +268,7 @@ function shouldRejectCandidate({ title, url, contextText, anchorContextText, sta
   if (urlInfo.sectionLanding) {
     return rejectCandidate(stats, "sectionLandingPath", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
-  if (!allowSoftPass && !urlInfo.strong && !urlInfo.moderate) {
+  if (!allowSoftPass && !categoryListing && !urlInfo.strong && !urlInfo.moderate) {
     return rejectCandidate(stats, "weakUrlShape", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
 
@@ -265,10 +278,10 @@ function shouldRejectCandidate({ title, url, contextText, anchorContextText, sta
   if (NEGATIVE_CONTEXT_RE.test(titleLc)) {
     return rejectCandidate(stats, "negativeContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
-  if (NEGATIVE_CONTEXT_RE.test(contextLc) && !EDITORS_PICKS_RE.test(contextLc)) {
+  if (NEGATIVE_CONTEXT_RE.test(contextLc) && !EDITORS_PICKS_RE.test(contextLc) && !categoryListing) {
     return rejectCandidate(stats, "negativeContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
-  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(anchorContextLc) && !allowSoftPass) {
+  if (NEGATIVE_ANCHOR_CONTEXT_RE.test(anchorContextLc) && !allowSoftPass && !categoryListing) {
     return rejectCandidate(stats, "negativeAnchorContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
 
@@ -282,12 +295,13 @@ function pushCandidate($, a, contextText, items, stats, options = {}) {
   const url = normalizeUrl(rawUrl);
   const anchorContextText = cleanText($(a).parent().text());
   const withinEditorsPicks = !!options.withinEditorsPicks;
-  const allowSoftPass = withinEditorsPicks;
+  const categoryListing = !!options.categoryListing;
+  const allowSoftPass = withinEditorsPicks || categoryListing;
 
-  const rejection = shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass });
+  const rejection = shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass, categoryListing });
   if (rejection.rejected) return;
 
-  const score = scoreCandidate(title, contextText, cleanText($(a).text()), url, { withinEditorsPicks });
+  const score = scoreCandidate(title, contextText, cleanText($(a).text()), url, { withinEditorsPicks, categoryListing });
   noteScore(stats, score);
 
   const acceptedItem = {
@@ -296,7 +310,8 @@ function pushCandidate($, a, contextText, items, stats, options = {}) {
     score,
     context: String(contextText || "").slice(0, 400),
     withinEditorsPicks,
-    allowSoftPass
+    allowSoftPass,
+    categoryListing
   };
 
   items.push(acceptedItem);
@@ -310,10 +325,10 @@ function collectAnchorsFromContainer($, container, items, stats, options = {}) {
   if (!container || !container.length) return;
 
   const anchors = $(container).find("a");
-  if (anchors.length === 0 || anchors.length > 36) return;
+  if (anchors.length === 0 || anchors.length > 48) return;
 
   const contextText = cleanText($(container).text());
-  if (!options.withinEditorsPicks && !EDITORS_PICKS_RE.test(contextText) && anchors.length > 16) return;
+  if (!options.withinEditorsPicks && !options.categoryListing && !EDITORS_PICKS_RE.test(contextText) && anchors.length > 16) return;
 
   anchors.each((_, a) => pushCandidate($, a, contextText, items, stats, options));
 }
@@ -361,7 +376,46 @@ function collectAroundHeading($, el, items, stats) {
   }
 }
 
-function collectPageFallback($, items, stats) {
+function collectCategoryListingCandidates($, items, stats) {
+  const selectors = [
+    "article",
+    ".views-row",
+    ".view-content .views-row",
+    ".node",
+    ".card",
+    ".content",
+    "main a"
+  ];
+
+  const seenContainers = new Set();
+
+  selectors.forEach((selector) => {
+    $(selector).each((_, el) => {
+      const key = `${selector}:${_}`;
+      if (seenContainers.has(key)) return;
+      seenContainers.add(key);
+
+      const container = $(el);
+      const contextText = cleanText(container.text());
+      const anchors = container.is("a") ? container : container.find("a");
+      if (!anchors.length || anchors.length > 24) return;
+      if (!contextText) return;
+
+      anchors.each((__, a) => {
+        pushCandidate($, a, contextText, items, stats, { categoryListing: true });
+      });
+    });
+  });
+
+  $("a").each((_, a) => {
+    const container = $(a).closest("article, li, .views-row, .node, .card, .item, .teaser, .content");
+    const contextText = cleanText(container.text()) || cleanText($(a).parent().text()) || cleanText($(a).text());
+    if (!contextText) return;
+    pushCandidate($, a, contextText, items, stats, { categoryListing: true });
+  });
+}
+
+function collectPageFallback($, items, stats, options = {}) {
   $("a").each((_, a) => {
     const title = getAnchorTitle($, a);
     const href = cleanText($(a).attr("href"));
@@ -371,14 +425,16 @@ function collectPageFallback($, items, stats) {
     const parentText = cleanText($(a).parent().text());
     const grandParentText = cleanText($(a).parent().parent().text());
     const context = `${parentText} ${grandParentText}`.trim();
+    const categoryListing = !!options.categoryListing;
 
     if (!context) return;
-    const rejection = shouldRejectCandidate({ title, url, contextText: context, anchorContextText: parentText, stats });
+    const rejection = shouldRejectCandidate({ title, url, contextText: context, anchorContextText: parentText, stats, allowSoftPass: categoryListing, categoryListing });
     if (rejection.rejected) return;
 
-    const score = scoreCandidate(title, context, cleanText($(a).text()), url);
+    const score = scoreCandidate(title, context, cleanText($(a).text()), url, { categoryListing });
     noteScore(stats, score);
-    if (score < 7) {
+    const minScore = categoryListing ? 6 : 7;
+    if (score < minScore) {
       bump(stats, "lowScore");
       recordLowScoreSample(stats, { title, url, score, context });
       return;
@@ -390,7 +446,8 @@ function collectPageFallback($, items, stats) {
       score,
       context: context.slice(0, 400),
       withinEditorsPicks: false,
-      allowSoftPass: false
+      allowSoftPass: categoryListing,
+      categoryListing
     };
 
     items.push(acceptedItem);
@@ -414,7 +471,7 @@ function buildRescueCandidates(items, stats) {
       recordRescuedSample(stats, rescuedItem);
       continue;
     }
-    if (item.allowSoftPass && item.score >= 7) {
+    if ((item.allowSoftPass || item.categoryListing) && item.score >= 6) {
       seen.add(item.url);
       const rescuedItem = { ...item, rescued: true };
       rescued.push(rescuedItem);
@@ -429,10 +486,11 @@ function buildRescueCandidates(items, stats) {
   return rescued;
 }
 
-function extractEditorsPicksLinks(html, logger) {
+function extractEditorsPicksLinks(html, logger, options = {}) {
   const $ = cheerio.load(html);
   const items = [];
   const stats = createStats();
+  const categoryListing = !!options.categoryListing || isCategoryListingUrl(options.listingUrl) || options.sourceType === "category";
 
   $("h1,h2,h3,h4,strong,p,span,div").each((_, el) => {
     const text = cleanText($(el).text()).toLowerCase();
@@ -441,9 +499,13 @@ function extractEditorsPicksLinks(html, logger) {
     collectAroundHeading($, el, items, stats);
   });
 
+  if (categoryListing) {
+    collectCategoryListingCandidates($, items, stats);
+  }
+
   if (items.length === 0) {
     stats.fallbackUsed = true;
-    collectPageFallback($, items, stats);
+    collectPageFallback($, items, stats, { categoryListing });
   }
 
   const byUrl = new Map();
@@ -456,13 +518,14 @@ function extractEditorsPicksLinks(html, logger) {
 
   const filtered = Array.from(byUrl.values());
   const rescuedPool = buildRescueCandidates(filtered, stats);
-  const lowScoreDropped = filtered.filter((item) => item.score < 8).length;
+  const minimumScore = categoryListing ? 6 : 8;
+  const lowScoreDropped = filtered.filter((item) => item.score < minimumScore).length;
   if (lowScoreDropped) {
     stats.rejected.lowScore += lowScoreDropped;
   }
 
   let results = filtered
-    .filter((item) => item.score >= 8)
+    .filter((item) => item.score >= minimumScore)
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, NEWS_CANADA_CONFIG.maxEditorsPickLinks)
     .map(({ title, url, score, context, rescued }, index) => ({
@@ -477,7 +540,7 @@ function extractEditorsPicksLinks(html, logger) {
   if (results.length === 0 && rescuedPool.length > 0) {
     results = rescuedPool
       .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
-      .slice(0, Math.min(6, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
+      .slice(0, Math.min(categoryListing ? 10 : 6, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
       .map(({ title, url, score, context }, index) => ({
         title,
         url,
@@ -490,6 +553,9 @@ function extractEditorsPicksLinks(html, logger) {
 
   if (logger && typeof logger.debug === "function") {
     logger.debug("[fetchEditorsPicks] extraction summary", {
+      listingUrl: options.listingUrl || "",
+      sourceType: options.sourceType || (categoryListing ? "category" : "editors-picks"),
+      categoryListing,
       headingsMatched: stats.headingsMatched,
       fallbackUsed: stats.fallbackUsed,
       candidatesFound: items.length,
@@ -505,7 +571,8 @@ function extractEditorsPicksLinks(html, logger) {
           title: item.title,
           url: item.url,
           score: item.score,
-          withinEditorsPicks: !!item.withinEditorsPicks
+          withinEditorsPicks: !!item.withinEditorsPicks,
+          categoryListing: !!item.categoryListing
         })),
       acceptedSamples: stats.samples.accepted,
       rejectedSamples: stats.samples.rejected,
@@ -517,6 +584,9 @@ function extractEditorsPicksLinks(html, logger) {
 
   if (logger && typeof logger.warn === "function" && results.length === 0) {
     logger.warn("[fetchEditorsPicks] no picks returned", {
+      listingUrl: options.listingUrl || "",
+      sourceType: options.sourceType || (categoryListing ? "category" : "editors-picks"),
+      categoryListing,
       headingsMatched: stats.headingsMatched,
       fallbackUsed: stats.fallbackUsed,
       rejected: stats.rejected,
