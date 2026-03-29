@@ -1,0 +1,62 @@
+{
+  "mode": "manual",
+  "updatedAt": 0,
+  "slots": {
+    "editors_pick": {
+      "slotId": "editors_pick",
+      "chipLabel": "Editor's Pick",
+      "title": "",
+      "summary": "",
+      "body": "",
+      "image": "",
+      "category": "",
+      "publishedAt": "",
+      "sourceName": "News Canada",
+      "sourceUrl": "",
+      "ctaText": "See more stories at sandblastchannel.com",
+      "isActive": false
+    },
+    "top_story": {
+      "slotId": "top_story",
+      "chipLabel": "Top Story",
+      "title": "",
+      "summary": "",
+      "body": "",
+      "image": "",
+      "category": "",
+      "publishedAt": "",
+      "sourceName": "News Canada",
+      "sourceUrl": "",
+      "ctaText": "See more stories at sandblastchannel.com",
+      "isActive": false
+    },
+    "news_canada_1": {
+      "slotId": "news_canada_1",
+      "chipLabel": "News Canada",
+      "title": "",
+      "summary": "",
+      "body": "",
+      "image": "",
+      "category": "",
+      "publishedAt": "",
+      "sourceName": "News Canada",
+      "sourceUrl": "",
+      "ctaText": "See more stories at sandblastchannel.com",
+      "isActive": false
+    },
+    "news_canada_2": {
+      "slotId": "news_canada_2",
+      "chipLabel": "News Canada",
+      "title": "",
+      "summary": "",
+      "body": "",
+      "image": "",
+      "category": "",
+      "publishedAt": "",
+      "sourceName": "News Canada",
+      "sourceUrl": "",
+      "ctaText": "See more stories at sandblastchannel.com",
+      "isActive": false
+    }
+  }
+}
