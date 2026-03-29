@@ -22,6 +22,8 @@ function normalizeUrl(url) {
 
 function createStats() {
   return {
+    headingsMatched: 0,
+    fallbackUsed: false,
     candidatesSeen: 0,
     candidatesAccepted: 0,
     rescuedCandidates: 0,
@@ -42,8 +44,67 @@ function createStats() {
       gte10: 0,
       gte8: 0,
       lt8: 0
+    },
+    samples: {
+      accepted: [],
+      rejected: [],
+      lowScore: [],
+      rescued: []
     }
   };
+}
+
+function pushSample(bucket, value, limit = 15) {
+  if (!Array.isArray(bucket) || bucket.length >= limit) return;
+  bucket.push(value);
+}
+
+function sampleText(value, max = 180) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function recordAcceptedSample(stats, detail) {
+  if (!stats?.samples?.accepted) return;
+  pushSample(stats.samples.accepted, {
+    title: sampleText(detail.title, 140),
+    url: detail.url,
+    score: detail.score,
+    withinEditorsPicks: Boolean(detail.withinEditorsPicks),
+    context: sampleText(detail.context, 180)
+  });
+}
+
+function recordRejectedSample(stats, detail) {
+  if (!stats?.samples?.rejected) return;
+  pushSample(stats.samples.rejected, {
+    reason: detail.reason,
+    title: sampleText(detail.title, 140),
+    url: detail.url || "",
+    allowSoftPass: Boolean(detail.allowSoftPass),
+    context: sampleText(detail.contextText, 180),
+    anchorContext: sampleText(detail.anchorContextText, 140),
+    pathname: detail.urlInfo?.pathname || ""
+  });
+}
+
+function recordLowScoreSample(stats, detail) {
+  if (!stats?.samples?.lowScore) return;
+  pushSample(stats.samples.lowScore, {
+    title: sampleText(detail.title, 140),
+    url: detail.url,
+    score: detail.score,
+    context: sampleText(detail.context, 180)
+  });
+}
+
+function recordRescuedSample(stats, detail) {
+  if (!stats?.samples?.rescued) return;
+  pushSample(stats.samples.rescued, {
+    title: sampleText(detail.title, 140),
+    url: detail.url,
+    score: detail.score,
+    withinEditorsPicks: Boolean(detail.withinEditorsPicks)
+  });
 }
 
 function bump(stats, key) {
@@ -164,58 +225,54 @@ function scoreCandidate(title, containerText, anchorText, href, options = {}) {
   return score;
 }
 
+function rejectCandidate(stats, reason, detail) {
+  bump(stats, reason);
+  recordRejectedSample(stats, { ...detail, reason });
+  return { rejected: true, reason };
+}
+
 function shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass }) {
   stats && (stats.candidatesSeen += 1);
 
   if (!title || !url) {
-    bump(stats, "missingTitleOrUrl");
-    return true;
+    return rejectCandidate(stats, "missingTitleOrUrl", { title, url, contextText, anchorContextText, allowSoftPass });
   }
 
   const urlInfo = inspectUrlShape(url);
 
   if (hasNegativeTitle(title, urlInfo)) {
-    bump(stats, "negativeTitle");
-    return true;
+    return rejectCandidate(stats, "negativeTitle", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (!isLikelyArticleUrl(url)) {
-    bump(stats, "unlikelyArticleUrl");
-    return true;
+    return rejectCandidate(stats, "unlikelyArticleUrl", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (!urlInfo.valid) {
-    bump(stats, "invalidUrl");
-    return true;
+    return rejectCandidate(stats, "invalidUrl", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (urlInfo.negative || urlInfo.listing) {
-    bump(stats, "negativeOrListingPath");
-    return true;
+    return rejectCandidate(stats, "negativeOrListingPath", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (urlInfo.sectionLanding) {
-    bump(stats, "sectionLandingPath");
-    return true;
+    return rejectCandidate(stats, "sectionLandingPath", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (!allowSoftPass && !urlInfo.strong && !urlInfo.moderate) {
-    bump(stats, "weakUrlShape");
-    return true;
+    return rejectCandidate(stats, "weakUrlShape", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
 
   const titleLc = String(title).toLowerCase();
   const contextLc = String(contextText || "").toLowerCase();
   const anchorContextLc = String(anchorContextText || "").toLowerCase();
   if (NEGATIVE_CONTEXT_RE.test(titleLc)) {
-    bump(stats, "negativeContext");
-    return true;
+    return rejectCandidate(stats, "negativeContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (NEGATIVE_CONTEXT_RE.test(contextLc) && !EDITORS_PICKS_RE.test(contextLc)) {
-    bump(stats, "negativeContext");
-    return true;
+    return rejectCandidate(stats, "negativeContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (NEGATIVE_ANCHOR_CONTEXT_RE.test(anchorContextLc) && !allowSoftPass) {
-    bump(stats, "negativeAnchorContext");
-    return true;
+    return rejectCandidate(stats, "negativeAnchorContext", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
 
-  return false;
+  return { rejected: false, reason: "" };
 }
 
 function pushCandidate($, a, contextText, items, stats, options = {}) {
@@ -227,20 +284,26 @@ function pushCandidate($, a, contextText, items, stats, options = {}) {
   const withinEditorsPicks = !!options.withinEditorsPicks;
   const allowSoftPass = withinEditorsPicks;
 
-  if (shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass })) return;
+  const rejection = shouldRejectCandidate({ title, url, contextText, anchorContextText, stats, allowSoftPass });
+  if (rejection.rejected) return;
 
   const score = scoreCandidate(title, contextText, cleanText($(a).text()), url, { withinEditorsPicks });
   noteScore(stats, score);
 
-  items.push({
+  const acceptedItem = {
     title,
     url,
     score,
     context: String(contextText || "").slice(0, 400),
     withinEditorsPicks,
     allowSoftPass
-  });
-  stats && (stats.candidatesAccepted += 1);
+  };
+
+  items.push(acceptedItem);
+  if (stats) {
+    stats.candidatesAccepted += 1;
+    recordAcceptedSample(stats, acceptedItem);
+  }
 }
 
 function collectAnchorsFromContainer($, container, items, stats, options = {}) {
@@ -310,24 +373,31 @@ function collectPageFallback($, items, stats) {
     const context = `${parentText} ${grandParentText}`.trim();
 
     if (!context) return;
-    if (shouldRejectCandidate({ title, url, contextText: context, anchorContextText: parentText, stats })) return;
+    const rejection = shouldRejectCandidate({ title, url, contextText: context, anchorContextText: parentText, stats });
+    if (rejection.rejected) return;
 
     const score = scoreCandidate(title, context, cleanText($(a).text()), url);
     noteScore(stats, score);
     if (score < 7) {
       bump(stats, "lowScore");
+      recordLowScoreSample(stats, { title, url, score, context });
       return;
     }
 
-    items.push({
+    const acceptedItem = {
       title,
       url,
       score,
       context: context.slice(0, 400),
       withinEditorsPicks: false,
       allowSoftPass: false
-    });
-    stats && (stats.candidatesAccepted += 1);
+    };
+
+    items.push(acceptedItem);
+    if (stats) {
+      stats.candidatesAccepted += 1;
+      recordAcceptedSample(stats, acceptedItem);
+    }
   });
 }
 
@@ -339,12 +409,16 @@ function buildRescueCandidates(items, stats) {
     if (!item || !item.url || seen.has(item.url)) continue;
     if (item.withinEditorsPicks && item.score >= 6) {
       seen.add(item.url);
-      rescued.push({ ...item, rescued: true });
+      const rescuedItem = { ...item, rescued: true };
+      rescued.push(rescuedItem);
+      recordRescuedSample(stats, rescuedItem);
       continue;
     }
     if (item.allowSoftPass && item.score >= 7) {
       seen.add(item.url);
-      rescued.push({ ...item, rescued: true });
+      const rescuedItem = { ...item, rescued: true };
+      rescued.push(rescuedItem);
+      recordRescuedSample(stats, rescuedItem);
     }
   }
 
@@ -363,10 +437,12 @@ function extractEditorsPicksLinks(html, logger) {
   $("h1,h2,h3,h4,strong,p,span,div").each((_, el) => {
     const text = cleanText($(el).text()).toLowerCase();
     if (!EDITORS_PICKS_RE.test(text)) return;
+    stats.headingsMatched += 1;
     collectAroundHeading($, el, items, stats);
   });
 
   if (items.length === 0) {
+    stats.fallbackUsed = true;
     collectPageFallback($, items, stats);
   }
 
@@ -414,9 +490,13 @@ function extractEditorsPicksLinks(html, logger) {
 
   if (logger && typeof logger.debug === "function") {
     logger.debug("[fetchEditorsPicks] extraction summary", {
+      headingsMatched: stats.headingsMatched,
+      fallbackUsed: stats.fallbackUsed,
       candidatesFound: items.length,
       uniqueCandidates: byUrl.size,
       returned: results.length,
+      lowScoreDropped,
+      rescuePoolSize: rescuedPool.length,
       topScores: filtered
         .slice()
         .sort((a, b) => b.score - a.score)
@@ -427,7 +507,21 @@ function extractEditorsPicksLinks(html, logger) {
           score: item.score,
           withinEditorsPicks: !!item.withinEditorsPicks
         })),
+      acceptedSamples: stats.samples.accepted,
+      rejectedSamples: stats.samples.rejected,
+      lowScoreSamples: stats.samples.lowScore,
+      rescuedSamples: stats.samples.rescued,
       stats
+    });
+  }
+
+  if (logger && typeof logger.warn === "function" && results.length === 0) {
+    logger.warn("[fetchEditorsPicks] no picks returned", {
+      headingsMatched: stats.headingsMatched,
+      fallbackUsed: stats.fallbackUsed,
+      rejected: stats.rejected,
+      rejectedSamples: stats.samples.rejected,
+      lowScoreSamples: stats.samples.lowScore
     });
   }
 
