@@ -8,8 +8,8 @@ const NEGATIVE_PATH_RE = /\/(about(?:-us)?|contact(?:-us)?|privacy(?:-policy)?|t
 const LISTING_PATH_RE = /\/(home|editor-picks(?:\/content)?)(?:[/?#]|$)/i;
 const SECTION_LANDING_PATH_RE = /\/(?:[a-z]{2}\/)?[a-z0-9-]+\/content(?:[/?#]|$)/i;
 const EDITORS_PICKS_RE = /editor'?s picks/i;
-const STRONG_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?[^/?#]*-[0-9]{4,}(?:[/?#]|$)/i;
-const MODERATE_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?(?:[a-z0-9-]{18,}|[a-z0-9-]+\/[a-z0-9-]{18,})(?:[/?#]|$)/i;
+const STRONG_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?(?:[^/?#]*-[0-9]{4,}|[a-z0-9-]{24,}|[a-z0-9-]+\/[a-z0-9-]{24,})(?:[/?#]|$)/i;
+const MODERATE_ARTICLE_PATH_RE = /\/(?:[a-z]{2}\/)?(?:[a-z0-9-]{16,}|[a-z0-9-]+\/[a-z0-9-]{16,})(?:[/?#]|$)/i;
 const NEGATIVE_ANCHOR_CONTEXT_RE = /(footer|header|navigation|menu|breadcrumb|social|follow us|share|copyright|all rights reserved)/i;
 const GENERIC_SECTION_TITLE_RE = /^(fraud\s*&\s*cybersecurity|health|finance|travel|family|food|business|lifestyle|technology|news canada content solutions)$/i;
 const SOFT_NEGATIVE_CONTEXT_RE = /(footer|header|navigation|menu|breadcrumb|social|follow us|share)/i;
@@ -201,7 +201,7 @@ function hasNegativeTitle(title, urlInfo) {
   if (!text) return true;
   if (NEGATIVE_TITLE_RE.test(text)) return true;
   if (HARD_NEGATIVE_TITLE_KEYWORDS_RE.test(text)) return true;
-  if (text.length < 12 && !(urlInfo?.strong || urlInfo?.moderate)) return true;
+  if (text.length < 8 && !(urlInfo?.strong || urlInfo?.moderate)) return true;
   return false;
 }
 
@@ -216,10 +216,10 @@ function scoreCandidate(title, containerText, anchorText, href, options = {}) {
   const categoryListing = !!options.categoryListing;
 
   if (withinEditorsPicks) score += 4;
-  if (categoryListing) score += 2;
+  if (categoryListing) score += 3;
   if (EDITORS_PICKS_RE.test(containerLc)) score += 8;
   if (anchorLc && anchorLc === titleLc) score += 1;
-  if (title.length >= 24) score += 2;
+  if (title.length >= 20) score += 2;
   if (!hasNegativeTitle(title, urlInfo)) score += 2;
   if (!NEGATIVE_CONTEXT_RE.test(titleLc) && !NEGATIVE_CONTEXT_RE.test(containerLc)) score += 2;
   if (urlInfo.strong) score += 6;
@@ -269,7 +269,10 @@ function shouldRejectCandidate({ title, url, contextText, anchorContextText, sta
     return rejectCandidate(stats, "sectionLandingPath", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
   }
   if (!allowSoftPass && !categoryListing && !urlInfo.strong && !urlInfo.moderate) {
-    return rejectCandidate(stats, "weakUrlShape", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
+    const looksArticleLike = String(title || '').trim().length >= 18 && !NEGATIVE_CONTEXT_RE.test(String(contextText || '').toLowerCase());
+    if (!looksArticleLike) {
+      return rejectCandidate(stats, "weakUrlShape", { title, url, contextText, anchorContextText, allowSoftPass, urlInfo });
+    }
   }
 
   const titleLc = String(title).toLowerCase();
@@ -518,7 +521,7 @@ function extractEditorsPicksLinks(html, logger, options = {}) {
 
   const filtered = Array.from(byUrl.values());
   const rescuedPool = buildRescueCandidates(filtered, stats);
-  const minimumScore = categoryListing ? 6 : 8;
+  const minimumScore = categoryListing ? 5 : 7;
   const lowScoreDropped = filtered.filter((item) => item.score < minimumScore).length;
   if (lowScoreDropped) {
     stats.rejected.lowScore += lowScoreDropped;
@@ -540,7 +543,7 @@ function extractEditorsPicksLinks(html, logger, options = {}) {
   if (results.length === 0 && rescuedPool.length > 0) {
     results = rescuedPool
       .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
-      .slice(0, Math.min(categoryListing ? 10 : 6, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
+      .slice(0, Math.min(categoryListing ? 12 : 8, NEWS_CANADA_CONFIG.maxEditorsPickLinks))
       .map(({ title, url, score, context }, index) => ({
         title,
         url,
