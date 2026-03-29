@@ -8,6 +8,7 @@ const { validateArticle } = require('./validateArticle');
 const { saveArticles } = require('./saveArticles');
 
 const DEFAULT_SECTION_URLS = [
+  'https://www.newscanada.com/home',
   'https://www.newscanada.com/en/articles/content',
   'https://www.newscanada.com/en/upcoming/content',
   'https://www.newscanada.com/en/Technology/content',
@@ -26,15 +27,59 @@ function uniqueStrings(values = []) {
   );
 }
 
+function countBy(items = [], keySelector) {
+  const counts = {};
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = String(typeof keySelector === 'function' ? keySelector(item) : item || '').trim() || 'unknown';
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+
+function canonicalizeUrl(input, baseUrl = 'https://www.newscanada.com') {
+  const clean = String(input || '').trim();
+  if (!clean) return '';
+
+  try {
+    const parsed = new URL(clean, baseUrl);
+    parsed.hash = '';
+
+    const marketingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'fbclid',
+      'gclid'
+    ];
+
+    for (const key of marketingParams) {
+      parsed.searchParams.delete(key);
+    }
+
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    parsed.pathname = pathname;
+
+    return parsed.toString();
+  } catch (_) {
+    return clean;
+  }
+}
+
 function uniquePicksByUrl(picks = []) {
   const seen = new Set();
   const deduped = [];
 
   for (const pick of Array.isArray(picks) ? picks : []) {
-    const url = String(pick?.url || '').trim();
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    deduped.push(pick);
+    const canonicalUrl = canonicalizeUrl(pick?.canonicalUrl || pick?.url);
+    if (!canonicalUrl || seen.has(canonicalUrl)) continue;
+    seen.add(canonicalUrl);
+    deduped.push({
+      ...pick,
+      url: canonicalUrl,
+      canonicalUrl
+    });
   }
 
   return deduped;
@@ -56,24 +101,33 @@ function toSourceLabel(url) {
 }
 
 function buildListingUrls(options = {}) {
+  const homeUrl = NEWS_CANADA_CONFIG.homeUrl || 'https://www.newscanada.com/home';
+
   return uniqueStrings([
+    homeUrl,
     NEWS_CANADA_CONFIG.editorsPicksUrl,
     ...(Array.isArray(options.sectionUrls) ? options.sectionUrls : []),
     ...DEFAULT_SECTION_URLS,
     ...(Array.isArray(NEWS_CANADA_CONFIG.sectionUrls) ? NEWS_CANADA_CONFIG.sectionUrls : [])
-  ]);
+  ]).map((url) => canonicalizeUrl(url));
 }
 
 function getSourceType(listingUrl) {
-  return listingUrl === NEWS_CANADA_CONFIG.editorsPicksUrl ? 'editors-picks' : 'category';
+  const cleanListingUrl = canonicalizeUrl(listingUrl);
+  const cleanEditorsPicksUrl = canonicalizeUrl(NEWS_CANADA_CONFIG.editorsPicksUrl);
+  const cleanHomeUrl = canonicalizeUrl(NEWS_CANADA_CONFIG.homeUrl || 'https://www.newscanada.com/home');
+
+  if (cleanListingUrl === cleanEditorsPicksUrl) return 'editors-picks';
+  if (cleanListingUrl === cleanHomeUrl) return 'home';
+  return 'category';
 }
 
 function validateExtractedPick(pick) {
   const title = String(pick?.title || '').trim();
-  const url = String(pick?.url || '').trim();
-  const sourceUrl = String(pick?.sourceUrl || '').trim();
+  const url = canonicalizeUrl(pick?.url);
+  const sourceUrl = canonicalizeUrl(pick?.sourceUrl);
 
-  if (!title || title.length < 12) {
+  if (!title || title.length < 6) {
     return { ok: false, reason: 'title_too_short_or_missing' };
   }
   if (!url) {
@@ -83,14 +137,21 @@ function validateExtractedPick(pick) {
   try {
     const parsed = new URL(url);
     const pathname = parsed.pathname || '';
+
     if (!/(^|\.)newscanada\.com$/i.test(parsed.hostname)) {
       return { ok: false, reason: 'wrong_host' };
     }
+
     if (/\/(home|editor-picks(?:\/content)?)(?:[/?#]|$)/i.test(pathname)) {
       return { ok: false, reason: 'listing_path' };
     }
+
     if (/\/(?:[a-z]{2}\/)?[a-z0-9-]+\/content(?:[/?#]|$)/i.test(pathname)) {
       return { ok: false, reason: 'section_landing_path' };
+    }
+
+    if (/\/(?:en\/)?(?:articles|upcoming|technology|recipes|business|fraud-cybersecurity)(?:[/?#]|$)/i.test(pathname)) {
+      return { ok: false, reason: 'section_root_path' };
     }
   } catch (_) {
     return { ok: false, reason: 'invalid_url' };
@@ -123,7 +184,7 @@ async function fetchListingPage(listingUrl, logger) {
   });
 
   return {
-    url: listingUrl,
+    url: canonicalizeUrl(listingUrl),
     html,
     status: response?.status || undefined
   };
@@ -139,7 +200,9 @@ function extractPicksFromListing(listing, logger) {
     categoryListing: sourceType === 'category'
   }).map((pick, index) => ({
     ...pick,
-    sourceUrl: listing.url,
+    url: canonicalizeUrl(pick?.url, listing.url),
+    canonicalUrl: canonicalizeUrl(pick?.canonicalUrl || pick?.url, listing.url),
+    sourceUrl: canonicalizeUrl(listing.url),
     sourceLabel,
     sourceType,
     position: pick.position || index + 1
@@ -154,6 +217,7 @@ function extractPicksFromListing(listing, logger) {
       invalid.push({
         title: pick.title,
         url: pick.url,
+        canonicalUrl: pick.canonicalUrl,
         sourceUrl: pick.sourceUrl,
         sourceLabel: pick.sourceLabel,
         sourceType: pick.sourceType,
@@ -168,25 +232,34 @@ function extractPicksFromListing(listing, logger) {
     url: listing.url,
     sourceLabel,
     sourceType,
+    extractedCount: extracted.length,
     count: valid.length,
     invalidCount: invalid.length,
+    invalidReasonCounts: countBy(invalid, (item) => item.reason),
     invalid,
     picks: valid.map((pick) => ({
       position: pick.position,
       title: pick.title,
       url: pick.url,
+      canonicalUrl: pick.canonicalUrl,
       score: pick.score,
       rescued: Boolean(pick.rescued),
       sourceType: pick.sourceType
     }))
   });
 
-  return valid;
+  return {
+    valid,
+    invalid
+  };
 }
 
 async function scrapeNewsCanada(options = {}) {
   const logger = options.logger || createLogger('[news-canada-scrape]');
-  const maxStories = Number.isFinite(options.maxStories) ? options.maxStories : NEWS_CANADA_CONFIG.maxStories;
+  const configuredMaxStories = Number.isFinite(options.maxStories)
+    ? options.maxStories
+    : NEWS_CANADA_CONFIG.maxStories;
+  const maxStories = Math.max(1, Number(configuredMaxStories) || 1);
   const listingUrls = buildListingUrls(options);
 
   logger.info('Starting News Canada scrape', {
@@ -197,13 +270,14 @@ async function scrapeNewsCanada(options = {}) {
 
   const listingsDiagnostics = [];
   const allExtractedPicks = [];
+  const listingRejections = [];
 
   for (const listingUrl of listingUrls) {
     const listingLogger = logger.child(`[listing:${toSourceLabel(listingUrl)}]`);
 
     try {
       const listing = await fetchListingPage(listingUrl, listingLogger);
-      const extracted = extractPicksFromListing(listing, listingLogger);
+      const { valid: extracted, invalid } = extractPicksFromListing(listing, listingLogger);
 
       listingsDiagnostics.push({
         url: listing.url,
@@ -211,16 +285,20 @@ async function scrapeNewsCanada(options = {}) {
         sourceType: getSourceType(listing.url),
         status: listing.status,
         htmlLength: listing.html.length,
-        extractedCount: extracted.length
+        extractedCount: extracted.length,
+        invalidCount: invalid.length,
+        invalidReasonCounts: countBy(invalid, (item) => item.reason)
       });
 
+      listingRejections.push(...invalid);
       allExtractedPicks.push(...extracted);
 
       if (extracted.length === 0) {
         listingLogger.warn('No links survived extraction for listing page', {
           url: listing.url,
           htmlLength: listing.html.length,
-          sourceType: getSourceType(listing.url)
+          sourceType: getSourceType(listing.url),
+          invalidReasonCounts: countBy(invalid, (item) => item.reason)
         });
       }
     } catch (error) {
@@ -242,6 +320,7 @@ async function scrapeNewsCanada(options = {}) {
 
   logger.info('Combined listing extraction complete', {
     totalExtractedCount: allExtractedPicks.length,
+    listingRejectedCount: listingRejections.length,
     uniquePickCount: picks.length,
     requestedMaxStories: maxStories,
     listingsDiagnostics,
@@ -249,6 +328,7 @@ async function scrapeNewsCanada(options = {}) {
       position: pick.position,
       title: pick.title,
       url: pick.url,
+      canonicalUrl: pick.canonicalUrl,
       score: pick.score,
       rescued: Boolean(pick.rescued),
       sourceUrl: pick.sourceUrl,
@@ -267,6 +347,7 @@ async function scrapeNewsCanada(options = {}) {
       articleLogger.info('Fetching article', {
         title: pick.title,
         url: pick.url,
+        canonicalUrl: pick.canonicalUrl,
         score: pick.score,
         rescued: Boolean(pick.rescued),
         sourceUrl: pick.sourceUrl,
@@ -293,6 +374,7 @@ async function scrapeNewsCanada(options = {}) {
         ...pick,
         ...parsedArticle,
         url: pick.url,
+        canonicalUrl: pick.canonicalUrl || pick.url,
         title: parsedArticle.title || pick.title,
         sourceUrl: pick.sourceUrl,
         sourceLabel: pick.sourceLabel,
@@ -327,6 +409,7 @@ async function scrapeNewsCanada(options = {}) {
       if (!validation.ok) {
         rejected.push({
           url: pick.url,
+          canonicalUrl: pick.canonicalUrl,
           title: pick.title,
           validation,
           diagnostics,
@@ -371,6 +454,7 @@ async function scrapeNewsCanada(options = {}) {
     } catch (error) {
       rejected.push({
         url: pick.url,
+        canonicalUrl: pick.canonicalUrl,
         title: pick.title,
         error: { message: error.message, code: error.code || '' },
         extraction: {
@@ -429,6 +513,8 @@ async function scrapeNewsCanada(options = {}) {
       requestedMaxStories: maxStories,
       extractedPickCount: allExtractedPicks.length,
       uniquePickCount: picks.length,
+      listingRejectedCount: listingRejections.length,
+      listingRejectedReasonCounts: countBy(listingRejections, (item) => item.reason),
       listingsDiagnostics
     }
   };
@@ -451,5 +537,6 @@ if (require.main === module) {
 module.exports = {
   scrapeNewsCanada,
   DEFAULT_SECTION_URLS,
-  validateExtractedPick
+  validateExtractedPick,
+  canonicalizeUrl
 };
