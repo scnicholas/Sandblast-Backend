@@ -230,6 +230,41 @@ function extractBodyFromMain(html) {
   return '';
 }
 
+
+function extractKeywords(html, articleJsonLd) {
+  const keywords = [];
+
+  const jsonKeywords = articleJsonLd?.keywords;
+  if (Array.isArray(jsonKeywords)) keywords.push(...jsonKeywords);
+  else if (typeof jsonKeywords === 'string') keywords.push(...jsonKeywords.split(/[,|]/g));
+
+  const newsKeywords = extractMeta(html, 'name', 'news_keywords');
+  if (newsKeywords) keywords.push(...newsKeywords.split(/[,|]/g));
+
+  const articleTag = extractMeta(html, 'property', 'article:tag');
+  if (articleTag) keywords.push(articleTag);
+
+  return [...new Set(keywords.map((entry) => decodeHtml(entry)).filter(Boolean))].slice(0, 15);
+}
+
+function cleanTitle(value) {
+  return decodeHtml(String(value || ''))
+    .replace(/\s*[|\-–—]\s*News Canada.*$/i, '')
+    .replace(/\s*[|\-–—]\s*Latest.*$/i, '')
+    .trim();
+}
+
+function cleanSummary(value) {
+  return decodeHtml(String(value || ''))
+    .replace(/^\s*share\s+/i, '')
+    .trim();
+}
+
+function choosePrimaryImage(images) {
+  const first = Array.isArray(images) ? images.find((entry) => entry && entry.url) : null;
+  return first ? first.url : '';
+}
+
 function buildBodyFallback(html) {
   const articleBody = extractBodyFromArticleTag(html);
   if (articleBody) return { value: articleBody, source: 'article-tag' };
@@ -258,6 +293,7 @@ function summarizeDiagnostics(diagnostics) {
     bodyLength: diagnostics.bodyLength,
     imageCount: diagnostics.imageCount,
     categoryCount: diagnostics.categoryCount,
+    keywordCount: diagnostics.keywordCount,
     canonicalUrlSource: diagnostics.canonicalUrlSource
   };
 }
@@ -276,6 +312,7 @@ async function fetchArticlePage(url, logger = createLogger('[news-canada-article
 
 function parseArticle(html, url) {
   const text = typeof html === 'string' ? html : '';
+  const requestUrl = absolutizeUrl(url, NEWS_CANADA_CONFIG.baseUrl || NEWS_CANADA_CONFIG.baseURL || url);
   const jsonLdObjects = extractJsonLdObjects(text);
   const articleJsonLd = pickArticleJsonLd(jsonLdObjects);
 
@@ -283,41 +320,56 @@ function parseArticle(html, url) {
   const summaryMeta = extractSummary(text, articleJsonLd);
   const publishedAtMeta = extractPublishedAt(text, articleJsonLd);
   const authorMeta = extractAuthor(text, articleJsonLd);
-  const images = extractImages(text, articleJsonLd, url);
+  const images = extractImages(text, articleJsonLd, requestUrl);
   const categories = extractCategories(text, articleJsonLd);
+  const keywords = extractKeywords(text, articleJsonLd);
   const bodyMeta = buildBodyFallback(text);
   const canonicalMeta = chooseFirst([
     { value: extractMeta(text, 'property', 'og:url'), source: 'meta.og:url' },
-    { value: absolutizeUrl(url, url), source: 'request.url' }
+    { value: requestUrl, source: 'request.url' }
   ]);
+
+  const resolvedTitle = cleanTitle(titleMeta.value);
+  const resolvedSummary = cleanSummary(summaryMeta.value);
+  const resolvedBody = bodyMeta.value;
+  const primaryImage = choosePrimaryImage(images);
 
   const diagnostics = summarizeDiagnostics({
     htmlLength: text.length,
     jsonLdObjectCount: jsonLdObjects.length,
     hasArticleJsonLd: Boolean(articleJsonLd),
     titleSource: titleMeta.source,
-    titleLength: titleMeta.value.length,
+    titleLength: resolvedTitle.length,
     summarySource: summaryMeta.source,
-    summaryLength: summaryMeta.value.length,
+    summaryLength: resolvedSummary.length,
     publishedAtSource: publishedAtMeta.source,
     authorSource: authorMeta.source,
     bodySource: bodyMeta.source,
-    bodyLength: bodyMeta.value.length,
+    bodyLength: resolvedBody.length,
     imageCount: images.length,
     categoryCount: categories.length,
+    keywordCount: keywords.length,
     canonicalUrlSource: canonicalMeta.source
   });
 
   return {
-    title: titleMeta.value,
-    summary: summaryMeta.value,
-    body: bodyMeta.value,
+    url: requestUrl,
+    storyUrl: requestUrl,
+    title: resolvedTitle,
+    summary: resolvedSummary,
+    excerpt: resolvedSummary,
+    body: resolvedBody,
+    content: resolvedBody,
+    fullText: resolvedBody,
     images,
+    image: primaryImage,
+    heroImage: primaryImage ? { url: primaryImage } : null,
     categories,
+    keywords,
     mediaAttachments: [],
     publishedAt: publishedAtMeta.value,
     author: authorMeta.value,
-    canonicalUrl: canonicalMeta.value,
+    canonicalUrl: canonicalMeta.value || requestUrl,
     diagnostics
   };
 }
