@@ -92,8 +92,10 @@ app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const NEWS_CANADA_PINNED_DATA_FILE = "/opt/render/project/src/data/newscanada/editors-picks.v2.json";
 
 const NEWS_CANADA_DATA_FILE_CANDIDATES = [
+  NEWS_CANADA_PINNED_DATA_FILE,
   process.env.NEWS_CANADA_DATA_FILE,
   process.env.SB_NEWSCANADA_DATA_FILE,
   path.join(process.cwd(), "data", "newscanada", "editors-picks.v2.json"),
@@ -1244,22 +1246,27 @@ function normalizeNewsCanadaFeed(payload) {
   return uniq(
     extractNewsCanadaFeedList(payload)
       .map((item, index) => normalizeNewsCanadaStory(item, index))
-      .filter((item) => item && item.title && item.url && (item.summary || item.body || item.content))
+      .filter((item) => item && item.title && (item.url || item.storyUrl || item.canonicalUrl) && (item.summary || item.body || item.content || item.fullText))
       .map((item) => JSON.stringify(item))
   ).map((item) => {
     try { return JSON.parse(item); } catch (_) { return null; }
   }).filter(Boolean);
 }
 
-function resolveNewsCanadaDataFile() {
-  for (const candidate of NEWS_CANADA_DATA_FILE_CANDIDATES) {
+function getNewsCanadaCandidateDiagnostics() {
+  return NEWS_CANADA_DATA_FILE_CANDIDATES.map((candidate) => {
     const clean = cleanText(candidate);
-    if (!clean) continue;
-    try {
-      if (fs.existsSync(clean)) return clean;
-    } catch (_) {}
-  }
-  return cleanText(NEWS_CANADA_DATA_FILE_CANDIDATES[0] || "");
+    let exists = false;
+    try { exists = !!(clean && fs.existsSync(clean)); } catch (_) { exists = false; }
+    return { file: clean, exists };
+  }).filter((entry) => entry.file);
+}
+
+function resolveNewsCanadaDataFile() {
+  const diagnostics = getNewsCanadaCandidateDiagnostics();
+  const found = diagnostics.find((entry) => entry.exists);
+  if (found && found.file) return found.file;
+  return cleanText(process.env.NEWS_CANADA_DATA_FILE || process.env.SB_NEWSCANADA_DATA_FILE || NEWS_CANADA_PINNED_DATA_FILE || NEWS_CANADA_DATA_FILE_CANDIDATES[0] || "");
 }
 
 function hydrateNewsCanadaLocals(parsed, file) {
@@ -1288,9 +1295,10 @@ function loadNewsCanadaEditorsPicksFromDisk() {
       sourceShape: "",
       rawKeys: [],
       degraded: true,
-      error: "news_canada_data_file_missing"
+      error: "news_canada_data_file_missing",
+      attemptedFiles: getNewsCanadaCandidateDiagnostics()
     });
-    return { ok: fallbackStories.length > 0, file: "", count: fallbackStories.length, stories: fallbackStories, error: "news_canada_data_file_missing", degraded: true };
+    return { ok: fallbackStories.length > 0, file: "", count: fallbackStories.length, stories: fallbackStories, error: "news_canada_data_file_missing", degraded: true, attemptedFiles: getNewsCanadaCandidateDiagnostics() };
   }
 
   try {
@@ -1325,7 +1333,8 @@ function loadNewsCanadaEditorsPicksFromDisk() {
       sourceShape: "",
       rawKeys: [],
       degraded: true,
-      error: cleanText(err && (err.message || err) || "news canada load failed")
+      error: cleanText(err && (err.message || err) || "news canada load failed"),
+      attemptedFiles: getNewsCanadaCandidateDiagnostics()
     });
     return {
       ok: fallbackStories.length > 0,
@@ -1333,7 +1342,8 @@ function loadNewsCanadaEditorsPicksFromDisk() {
       count: fallbackStories.length,
       stories: fallbackStories,
       error: cleanText(err && (err.message || err) || "news canada load failed"),
-      degraded: true
+      degraded: true,
+      attemptedFiles: getNewsCanadaCandidateDiagnostics()
     };
   }
 }
@@ -1657,6 +1667,7 @@ function buildNewsCanadaEditorsPicksResponse(req) {
       rawShape: state.rawShape || "",
       rawKeys: state.rawKeys || [],
       source: cleanText(state.source || app.locals.newsCanadaEditorsPicksMeta?.source || "unknown") || "unknown",
+      attemptedFiles: Array.isArray(state.attemptedFiles) ? state.attemptedFiles : (Array.isArray(app.locals.newsCanadaEditorsPicksMeta?.attemptedFiles) ? app.locals.newsCanadaEditorsPicksMeta.attemptedFiles : getNewsCanadaCandidateDiagnostics()),
       degraded,
       liveHealthy: !!(app.locals.newsCanadaEditorsPicksMeta?.liveHealthy),
       liveLastError: cleanText(app.locals.newsCanadaEditorsPicksMeta?.liveLastError || "") || "",
@@ -2326,6 +2337,7 @@ module.exports = {
   resolveNewsCanadaDataFile,
   normalizeNewsCanadaFeed,
   hydrateNewsCanadaLocals,
+  getNewsCanadaCandidateDiagnostics,
   resolveMusicDataFile,
   loadMusicFromDisk
 };
