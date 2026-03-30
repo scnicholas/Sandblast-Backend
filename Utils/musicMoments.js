@@ -398,7 +398,7 @@ function parse(text, session) {
 
   const isYes = /^(yes|yep|yeah|yup|sure|ok|okay)$/i.test(raw);
 
-  const yearMatch = t.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
+  const yearMatch = t.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
   const year = yearMatch ? toInt(yearMatch[1]) : null;
 
   const wantsTop10 = /top\s*(10|ten)/.test(t);
@@ -430,7 +430,11 @@ function parse(text, session) {
 // Canonical Top 10/#1 via musicKnowledge.handleChat()
 // ---------------------------------------------------------
 function mkAsk(message, session) {
-  const res = musicKnowledge.handleChat({ text: message, session: session || {} });
+  const res = typeof musicKnowledge.handleChat === "function"
+    ? musicKnowledge.handleChat({ text: message, session: session || {} })
+    : (typeof musicKnowledge.handleMusicTurn === "function"
+        ? musicKnowledge.handleMusicTurn({ norm: {}, session: session || {}, year: null, action: "", opts: {} })
+        : null);
   return res && typeof res === "object" ? res : null;
 }
 
@@ -557,14 +561,14 @@ function handle(text, session = {}) {
     if (!y) {
       return {
         ok: true,
-        reply: `Say “top 10 1988” (pick a year 1950–2024) and I’ll pull the list instantly.`,
+        reply: `Say “top 10 1988” (pick a year 1950–2025) and I’ll pull the list instantly.`,
         followUp: { kind: "ask_year" },
         sessionPatch: sessionPatchBase(session),
       };
     }
 
     const res = mkTop10(y, session);
-    const reply = cleanText(res?.reply || "");
+    const reply = String(res?.reply || "").trim();
 
     const patch = sessionPatchBase(session, {
       ...(res?.sessionPatch || {}),
@@ -604,7 +608,7 @@ function handle(text, session = {}) {
     }
 
     const res = mkNumber1(session);
-    const reply = cleanText(res?.reply || "");
+    const reply = String(res?.reply || "").trim();
     const patch = sessionPatchBase(session, {
       ...(res?.sessionPatch || {}),
       pendingMicroYear: null,
@@ -624,7 +628,7 @@ function handle(text, session = {}) {
     if (!y) {
       return {
         ok: true,
-        reply: `Tell me a year (1950–2024) for a micro-moment — for example: “micro 1957”.`,
+        reply: `Tell me a year (1950–2025) for a micro-moment — for example: “micro 1957”.`,
         followUp: { kind: "ask_year" },
         sessionPatch: sessionPatchBase(session),
       };
@@ -673,7 +677,7 @@ function handle(text, session = {}) {
     if (!y) {
       return {
         ok: true,
-        reply: `Give me a year (1950–2024) or say “top 10 1988,” then tell me “story moment” or “#2 moment.”`,
+        reply: `Give me a year (1950–2025) or say “top 10 1988,” then tell me “story moment” or “#2 moment.”`,
         followUp: { kind: "ask_year_or_top10" },
         sessionPatch: sessionPatchBase(session),
       };
@@ -785,7 +789,7 @@ function handle(text, session = {}) {
   // Absolute default: nudge
   return {
     ok: true,
-    reply: `Give me a year (1950–2024) and I’ll deliver a story moment — or say “top 10 1988”.`,
+    reply: `Give me a year (1950–2025) and I’ll deliver a story moment — or say “top 10 1988”.`,
     followUp: { kind: "ask_year" },
     sessionPatch: sessionPatchBase(session),
   };
@@ -807,4 +811,5 @@ module.exports = {
 
   // handler
   handle,
+  handleChat: handle,
 };
