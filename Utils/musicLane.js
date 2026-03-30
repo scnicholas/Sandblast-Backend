@@ -8,29 +8,44 @@
  *  - Deterministic
  *  - Never throws
  *  - Output normalized to:
- *      { reply, followUpsStrings: string[], followUps: [{label,send}], sessionPatch, meta? }
+ *      {
+ *        reply,
+ *        followUpsStrings: string[],
+ *        followUps: [{ id, type, label, send, payload }],
+ *        sessionPatch,
+ *        bridge,
+ *        meta?
+ *      }
  *
- * v1.4c (RANGE 2025 + KILL TOP40 GHOST + CHART NORMALIZE)
- *  ✅ Updates clampYear + prompts to 1950–2025 (aligns with musicKnowledge v2.77)
- *  ✅ Updates safeNextYear fallback ceiling to 2025
- *  ✅ NEW: Normalizes/blocks legacy chart tokens ("Top40", "top 40", etc.) from session + patches
- *     - If session.activeMusicChart or session.lastMusicChart contains "top40/top 40/top forty"
- *       we remap to "Billboard Hot 100"
- *     - Same guard applied to outbound sessionPatch keys: activeMusicChart/lastMusicChart
- *  ✅ Leaves deeper behavior + continuity reconstruction unchanged
+ * v1.5.0 (UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
+ *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
+ *  ✅ Preserves structural behavior; no mutation of inbound session
+ *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
+ *  ✅ Builds payload-bearing chips for UI bridges instead of text-only follow-ups
+ *  ✅ Adds deterministic bridge envelope for shell / widget integration
+ *  ✅ Maintains string follow-ups for legacy chatEngine compatibility
  *
  * Exports:
- *  - handleChat({text, session, visitorId, debug})
+ *  - handleChat({ text, session, visitorId, debug })
  *  - function export: await musicLane(text, session, opts?)
  */
 
 let musicKnowledge = null;
 try {
   musicKnowledge = require("./musicKnowledge");
-  if (!musicKnowledge || (typeof musicKnowledge.handleChat !== "function" && typeof musicKnowledge.handleMusicTurn !== "function")) musicKnowledge = null;
+  if (
+    !musicKnowledge ||
+    (typeof musicKnowledge.handleChat !== "function" &&
+      typeof musicKnowledge.handleMusicTurn !== "function")
+  ) {
+    musicKnowledge = null;
+  }
 } catch (_) {
   musicKnowledge = null;
 }
+
+const LANE_NAME = "music";
+const CHART_DEFAULT = "Billboard Hot 100";
 
 function norm(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -52,8 +67,6 @@ function extractYearFromText(text) {
 /* ======================================================
    Chart normalization (legacy kill-switch)
 ====================================================== */
-
-const CHART_DEFAULT = "Billboard Hot 100";
 
 function isLegacyTop40Chart(x) {
   const t = norm(x);
@@ -80,11 +93,8 @@ function scrubLegacyChartsInSession(session) {
   const s = session && typeof session === "object" ? session : {};
   const out = { ...s };
 
-  // only touch chart fields; do NOT mutate caller session object (we return a copy)
   if (isLegacyTop40Chart(out.activeMusicChart)) out.activeMusicChart = CHART_DEFAULT;
   if (isLegacyTop40Chart(out.lastMusicChart)) out.lastMusicChart = CHART_DEFAULT;
-
-  // some old builds might have these
   if (isLegacyTop40Chart(out.activeChart)) out.activeChart = CHART_DEFAULT;
   if (isLegacyTop40Chart(out.lastChart)) out.lastChart = CHART_DEFAULT;
 
@@ -97,8 +107,6 @@ function scrubLegacyChartsInPatch(patch) {
 
   if (isLegacyTop40Chart(p.activeMusicChart)) p.activeMusicChart = CHART_DEFAULT;
   if (isLegacyTop40Chart(p.lastMusicChart)) p.lastMusicChart = CHART_DEFAULT;
-
-  // be defensive if other names are used
   if (isLegacyTop40Chart(p.activeChart)) p.activeChart = CHART_DEFAULT;
   if (isLegacyTop40Chart(p.lastChart)) p.lastChart = CHART_DEFAULT;
 
@@ -131,11 +139,14 @@ function inferModeFromReply(reply) {
     r.includes("year end hot 100") ||
     /\btop\s*100\b/.test(r) ||
     r.includes("hot 100")
-  )
+  ) {
     return "top100";
+  }
   if (r.includes("story moment")) return "story";
   if (r.includes("micro moment")) return "micro";
-  if (/\b#\s*1\b/.test(r) || r.includes("number 1") || r.includes("no. 1") || r.includes("no 1")) return "number1";
+  if (/\b#\s*1\b/.test(r) || r.includes("number 1") || r.includes("no. 1") || r.includes("no 1")) {
+    return "number1";
+  }
 
   return null;
 }
@@ -145,25 +156,17 @@ function safeStrings(list, max = 10) {
   const out = [];
   const seen = new Set();
   for (const x of list) {
-    const s = String(x || "").replace(/\s+/g, " ").trim();
-    if (!s) continue;
-    const k = s.toLowerCase();
+    const s =
+      typeof x === "string"
+        ? x
+        : String((x && (x.send || x.label || x.text)) || "");
+    const cleaned = s.replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    const k = cleaned.toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k);
-    out.push(s.slice(0, 80));
+    out.push(cleaned.slice(0, 80));
     if (out.length >= max) break;
-  }
-  return out;
-}
-
-function chipsFromStrings(list) {
-  const strings = safeStrings(list, 10);
-  const out = [];
-  for (const s of strings) {
-    out.push({
-      label: s.length > 48 ? s.slice(0, 48) : s,
-      send: s,
-    });
   }
   return out;
 }
@@ -183,7 +186,9 @@ function ensureContinuity({ patch, userMode, replyMode, userYear, replyYear, ses
   );
 
   p = p || {};
-  p.pendingLane = p.pendingLane || "music";
+  p.pendingLane = p.pendingLane || LANE_NAME;
+  p.activeLane = p.activeLane || LANE_NAME;
+  p.lane = p.lane || LANE_NAME;
 
   if (mode) {
     p.mode = p.mode || mode;
@@ -197,15 +202,18 @@ function ensureContinuity({ patch, userMode, replyMode, userYear, replyYear, ses
     p.pendingYear = p.pendingYear || y;
   }
 
-  // Normalize chart fields defensively (kill Top40 if it sneaks in)
-  if (p.activeMusicChart != null) p.activeMusicChart = normalizeChartForLane(p.activeMusicChart);
-  if (p.lastMusicChart != null) p.lastMusicChart = normalizeChartForLane(p.lastMusicChart);
+  p.activeMusicChart = normalizeChartForLane(
+    p.activeMusicChart != null ? p.activeMusicChart : s && (s.activeMusicChart || s.lastMusicChart)
+  );
+  p.lastMusicChart = normalizeChartForLane(
+    p.lastMusicChart != null ? p.lastMusicChart : p.activeMusicChart
+  );
 
   return p;
 }
 
 /* ======================================================
-   DEEPER SUPPORT (deterministic, non-breaking)
+   Deeper support (deterministic, non-breaking)
 ====================================================== */
 
 function isDeeperToken(text) {
@@ -244,8 +252,8 @@ function modeToPrompt(mode, year) {
 
 function reconstructPromptFromSession(session) {
   const s = session && typeof session === "object" ? session : {};
-  const y = clampYear(s.lastMusicYear || s.year || s.lastYear);
-  const m = String(s.activeMusicMode || s.mode || s.lastMode || "top10");
+  const y = clampYear(s.lastMusicYear || s.year || s.lastYear || s.pendingYear);
+  const m = String(s.activeMusicMode || s.mode || s.lastMode || s.pendingMode || "top10");
   if (!y) return null;
   return modeToPrompt(m, y);
 }
@@ -255,6 +263,7 @@ function safeNextYear(y) {
   if (!n) return null;
   return clampYear(n + 1) || 2025;
 }
+
 function safePrevYear(y) {
   const n = clampYear(y);
   if (!n) return null;
@@ -265,7 +274,6 @@ function deeperExpansion({ mode, year }) {
   const y = clampYear(year);
   const m = String(mode || "").toLowerCase();
 
-  // Deterministic texture only — no new facts.
   if (!y) {
     return "\n\nIf you tell me a year (1950–2025), I can go deeper with real context.";
   }
@@ -275,47 +283,181 @@ function deeperExpansion({ mode, year }) {
 
   if (m === "story" || m === "story_moment") {
     return (
-      `\n\nDeeper:\n` +
-      `• Anchor it to the moment: where you were, what you were doing.\n` +
-      `• The “why it stuck”: production choices + cultural mood.\n` +
+      "\n\nDeeper:\n" +
+      "• Anchor it to the moment: where you were, what you were doing.\n" +
+      "• The “why it stuck”: production choices + cultural mood.\n" +
       `• Want next year (${ny}) or stay in ${y}?`
     );
   }
 
   if (m === "micro" || m === "micro_moment") {
     return (
-      `\n\nDeeper:\n` +
-      `• Sensory cue: a sound/scene that makes the year feel real.\n` +
-      `• One cultural anchor (movie/TV vibe or headline-level theme).\n` +
+      "\n\nDeeper:\n" +
+      "• Sensory cue: a sound/scene that makes the year feel real.\n" +
+      "• One cultural anchor (movie/TV vibe or headline-level theme).\n" +
       `• Next (${ny}) or previous (${py})?`
     );
   }
 
   if (m === "number1" || m === "number_1") {
     return (
-      `\n\nDeeper:\n` +
-      `• Why #1 happened: timing + audience appetite.\n` +
-      `• What it replaced (the vibe shift).\n` +
+      "\n\nDeeper:\n" +
+      "• Why #1 happened: timing + audience appetite.\n" +
+      "• What it replaced (the vibe shift).\n" +
       `• Want the #1 for ${ny} next?`
     );
   }
 
   if (m === "top100") {
     return (
-      `\n\nDeeper:\n` +
-      `• Big picture: what dominated the year and what was emerging.\n` +
-      `• If you want, I can zoom into the Top 10 inside the Top 100.\n` +
+      "\n\nDeeper:\n" +
+      "• Big picture: what dominated the year and what was emerging.\n" +
+      "• If you want, I can zoom into the Top 10 inside the Top 100.\n" +
       `• Next year (${ny})?`
     );
   }
 
-  // default top10
   return (
-    `\n\nDeeper:\n` +
+    "\n\nDeeper:\n" +
     `• Pattern check: what styles kept repeating in ${y}.\n` +
-    `• One standout “contrast” track (different energy).\n` +
+    "• One standout “contrast” track (different energy).\n" +
     `• Next (${ny}) or previous (${py})?`
   );
+}
+
+/* ======================================================
+   UI bridge helpers
+====================================================== */
+
+function normalizeActionName(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (m === "top10") return "top10";
+  if (m === "top100") return "yearend_hot100";
+  if (m === "story" || m === "story_moment") return "story_moment";
+  if (m === "micro" || m === "micro_moment") return "micro_moment";
+  if (m === "number1" || m === "number_1") return "number_one";
+  return "top10";
+}
+
+function inferActionFromLabel(label) {
+  const t = norm(label);
+  if (!t) return "top10";
+  if (/\btop\s*10\b|\btop10\b|\btop\s*ten\b/.test(t)) return "top10";
+  if (/\btop\s*100\b|\btop100\b|\bhot\s*100\b|\byear[-\s]*end\s*hot\s*100\b/.test(t)) return "yearend_hot100";
+  if (/\bstory\b/.test(t)) return "story_moment";
+  if (/\bmicro\b/.test(t)) return "micro_moment";
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number_one";
+  if (/^\d{4}$/.test(t)) return "top10";
+  if (t === "another year") return "year_pick";
+  return "top10";
+}
+
+function buildChipPayload({ label, send, action, year, sessionPatch }) {
+  const y = clampYear(year || extractYearFromText(send || label) || (sessionPatch && (sessionPatch.lastMusicYear || sessionPatch.year)));
+  const a = action || inferActionFromLabel(send || label);
+  const payload = {
+    lane: LANE_NAME,
+    route: LANE_NAME,
+    action: a,
+  };
+  if (y) payload.year = y;
+  if (sessionPatch && sessionPatch.activeMusicMode) payload.mode = sessionPatch.activeMusicMode;
+  if (sessionPatch && sessionPatch.activeMusicChart) payload.chart = sessionPatch.activeMusicChart;
+  return payload;
+}
+
+function chipIdFromLabel(label) {
+  return `music_${String(label || "chip")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "chip"}`;
+}
+
+function normalizeFollowUps(rawList, sessionPatch) {
+  const raw = Array.isArray(rawList) ? rawList : [];
+  const objects = [];
+  const seen = new Set();
+
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    const label =
+      typeof item === "string"
+        ? item
+        : String((item && (item.label || item.send || item.text)) || "");
+    const cleanedLabel = label.replace(/\s+/g, " ").trim();
+    if (!cleanedLabel) continue;
+
+    const dedupeKey = cleanedLabel.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    const send =
+      typeof item === "object" && item && item.send
+        ? String(item.send).trim()
+        : cleanedLabel;
+
+    const payload =
+      typeof item === "object" && item && item.payload && typeof item.payload === "object"
+        ? {
+            ...item.payload,
+            lane: item.payload.lane || LANE_NAME,
+            route: item.payload.route || LANE_NAME,
+          }
+        : buildChipPayload({
+            label: cleanedLabel,
+            send,
+            action: typeof item === "object" && item ? item.action : null,
+            year: typeof item === "object" && item ? item.year : null,
+            sessionPatch,
+          });
+
+    const chip = {
+      id:
+        typeof item === "object" && item && item.id
+          ? String(item.id)
+          : chipIdFromLabel(cleanedLabel),
+      type:
+        typeof item === "object" && item && item.type
+          ? String(item.type)
+          : "chip",
+      label: cleanedLabel.length > 48 ? cleanedLabel.slice(0, 48) : cleanedLabel,
+      send,
+      payload,
+    };
+
+    objects.push(chip);
+    if (objects.length >= 10) break;
+  }
+
+  return {
+    followUpsStrings: objects.map((x) => x.send).slice(0, 10),
+    followUps: objects.slice(0, 10),
+  };
+}
+
+function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
+  const patch = sessionPatch && typeof sessionPatch === "object" ? sessionPatch : {};
+  const mode = patch.activeMusicMode || patch.mode || null;
+  const year = clampYear(patch.lastMusicYear || patch.year || patch.pendingYear);
+  const chart = normalizeChartForLane(patch.activeMusicChart || patch.lastMusicChart);
+
+  return {
+    lane: LANE_NAME,
+    route: LANE_NAME,
+    ready: !!reply,
+    year,
+    mode,
+    chart,
+    chips: Array.isArray(followUps) ? followUps : [],
+    session: {
+      lane: LANE_NAME,
+      year,
+      mode,
+      chart,
+      depthLevel: Number(patch.depthLevel || 0),
+    },
+  };
 }
 
 /* ======================================================
@@ -324,33 +466,35 @@ function deeperExpansion({ mode, year }) {
 
 async function handleChat({ text, session, visitorId, debug }) {
   try {
-    // scrub legacy chart values without mutating inbound session
     const s0 = session && typeof session === "object" ? session : {};
     const s = scrubLegacyChartsInSession(s0);
 
     const rawText = String(text || "");
-
-    // Detect deeper requests
     let deep = false;
     let baseText = rawText;
 
     if (isDeeperToken(rawText)) {
-      // Pure "deeper" -> reconstruct last prompt
       const recon = reconstructPromptFromSession(s);
       if (!recon) {
         const fallback = "Tell me a year (1950–2025) — then I can go deeper.";
-        const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
+        const normalized = normalizeFollowUps(["1956", "1988", "top 10 1988"], null);
+        const sessionPatch = ensureContinuity({
+          session: s,
+          patch: scrubLegacyChartsInPatch(null),
+          userMode: null,
+          replyMode: null,
+          userYear: null,
+          replyYear: null,
+        });
         return {
           reply: fallback,
-          followUpsStrings,
-          followUps: chipsFromStrings(followUpsStrings),
-          sessionPatch: ensureContinuity({
-            session: s,
-            patch: scrubLegacyChartsInPatch(null),
-            userMode: null,
-            replyMode: null,
-            userYear: null,
-            replyYear: null,
+          followUpsStrings: normalized.followUpsStrings,
+          followUps: normalized.followUps,
+          sessionPatch,
+          bridge: buildBridgeEnvelope({
+            reply: fallback,
+            followUps: normalized.followUps,
+            sessionPatch,
           }),
           meta: debug ? { ok: false, reason: "deeper_no_context" } : null,
         };
@@ -370,22 +514,31 @@ async function handleChat({ text, session, visitorId, debug }) {
 
     if (!musicKnowledge) {
       const fallback = "Music is warming up. Give me a year (1950–2025).";
-      const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
+      const sessionPatch = ensureContinuity({
+        session: s,
+        patch: scrubLegacyChartsInPatch(null),
+        userMode: normalizeModeFromText(cleanText),
+        replyMode: null,
+        userYear: extractYearFromText(cleanText),
+        replyYear: null,
+      });
+      const normalized = normalizeFollowUps(["1956", "1988", "top 10 1988"], sessionPatch);
       return {
         reply: fallback,
-        followUpsStrings,
-        followUps: chipsFromStrings(followUpsStrings),
-        sessionPatch: ensureContinuity({
-          session: s,
-          patch: scrubLegacyChartsInPatch(null),
-          userMode: normalizeModeFromText(cleanText),
-          replyMode: null,
-          userYear: extractYearFromText(cleanText),
-          replyYear: null,
+        followUpsStrings: normalized.followUpsStrings,
+        followUps: normalized.followUps,
+        sessionPatch,
+        bridge: buildBridgeEnvelope({
+          reply: fallback,
+          followUps: normalized.followUps,
+          sessionPatch,
         }),
         meta: debug ? { ok: false, reason: "musicKnowledge_missing" } : null,
       };
     }
+
+    const inferredMode = normalizeModeFromText(cleanText);
+    const inferredYear = extractYearFromText(cleanText);
 
     const raw = await Promise.resolve(
       typeof musicKnowledge.handleChat === "function"
@@ -398,36 +551,32 @@ async function handleChat({ text, session, visitorId, debug }) {
         : musicKnowledge.handleMusicTurn({
             norm: {},
             session: s,
-            year: extractYearFromText(cleanText),
-            action: normalizeModeFromText(cleanText) === "top100" ? "yearend_hot100" : (normalizeModeFromText(cleanText) || ""),
+            year: inferredYear,
+            action: inferredMode === "top100" ? "yearend_hot100" : (inferredMode || ""),
             opts: { meta: !!debug },
           })
     );
 
-    let reply = String(raw && raw.reply ? raw.reply : "").trim();
+    let reply = String(raw && raw.reply ? raw.reply : raw && raw.replyRaw ? raw.replyRaw : "").trim();
     if (!reply) reply = "Tell me a year (1950–2025), or say “top 10 1988”.";
 
-    const fuRaw = Array.isArray(raw && raw.followUps) ? raw.followUps : [];
-    let followUpsStrings = safeStrings(fuRaw, 10);
-
-    // ✅ never empty chips
-    if (!followUpsStrings.length) followUpsStrings = safeStrings(["1956", "top 10 1988", "story moment 1955"], 10);
-
-    // continuity inference
-    const userMode = normalizeModeFromText(cleanText);
+    const userMode = inferredMode;
     const replyMode = inferModeFromReply(reply);
-
-    const userYear = extractYearFromText(cleanText);
+    const userYear = inferredYear;
     const replyYear = null;
 
     let sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
     sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
-    sessionPatch = ensureContinuity({ session: s, patch: sessionPatch, userMode, replyMode, userYear, replyYear });
-
-    // Final defensive kill-switch: ensure no Top40 values leak out
+    sessionPatch = ensureContinuity({
+      session: s,
+      patch: sessionPatch,
+      userMode,
+      replyMode,
+      userYear,
+      replyYear,
+    });
     sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
 
-    // Apply deterministic deeper expansion (non-factual, texture only)
     if (deep) {
       const appliedMode =
         (sessionPatch && (sessionPatch.activeMusicMode || sessionPatch.mode)) ||
@@ -442,7 +591,6 @@ async function handleChat({ text, session, visitorId, debug }) {
 
       reply = `${reply}${deeperExpansion({ mode: appliedMode, year: appliedYear })}`;
 
-      // Mark depth level gently (chatEngine can decide what to do with it)
       if (sessionPatch && typeof sessionPatch === "object") {
         const prev = Number(sessionPatch.depthLevel || 0);
         sessionPatch.depthLevel = prev + 1;
@@ -451,13 +599,26 @@ async function handleChat({ text, session, visitorId, debug }) {
       }
     }
 
-    const followUps = chipsFromStrings(followUpsStrings);
+    const rawFollowUps =
+      Array.isArray(raw && raw.followUps) && raw.followUps.length
+        ? raw.followUps
+        : Array.isArray(raw && raw.followUpsStrings) && raw.followUpsStrings.length
+          ? raw.followUpsStrings
+          : ["1956", "top 10 1988", "story moment 1955"];
+
+    const normalized = normalizeFollowUps(rawFollowUps, sessionPatch);
+    const bridge = buildBridgeEnvelope({
+      reply,
+      followUps: normalized.followUps,
+      sessionPatch,
+    });
 
     return {
       reply,
-      followUpsStrings,
-      followUps,
+      followUpsStrings: normalized.followUpsStrings,
+      followUps: normalized.followUps,
       sessionPatch,
+      bridge,
       meta: debug
         ? {
             ok: !!reply,
@@ -466,7 +627,7 @@ async function handleChat({ text, session, visitorId, debug }) {
               musicKnowledge.MK_VERSION && typeof musicKnowledge.MK_VERSION === "function"
                 ? musicKnowledge.MK_VERSION()
                 : null,
-            followUps: followUpsStrings.length,
+            followUps: normalized.followUpsStrings.length,
             hasPatch: !!sessionPatch,
             deep,
             chart: {
@@ -489,17 +650,29 @@ async function handleChat({ text, session, visitorId, debug }) {
                   ? sessionPatch.year || sessionPatch.lastMusicYear
                   : null,
             },
+            bridge: {
+              ready: bridge.ready,
+              year: bridge.year,
+              mode: bridge.mode,
+              chart: bridge.chart,
+              chips: bridge.chips.length,
+            },
           }
         : null,
     };
   } catch (e) {
     const fallback = "Music lane hit a snag. Give me a year (1950–2025) and try again.";
-    const followUpsStrings = safeStrings(["1956", "1988", "top 10 1988"], 10);
+    const normalized = normalizeFollowUps(["1956", "1988", "top 10 1988"], null);
     return {
       reply: fallback,
-      followUpsStrings,
-      followUps: chipsFromStrings(followUpsStrings),
+      followUpsStrings: normalized.followUpsStrings,
+      followUps: normalized.followUps,
       sessionPatch: null,
+      bridge: buildBridgeEnvelope({
+        reply: fallback,
+        followUps: normalized.followUps,
+        sessionPatch: null,
+      }),
       meta: debug ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) } : null,
     };
   }
@@ -513,11 +686,12 @@ async function musicLaneFn(text, session, opts) {
     debug: !!(opts && opts.debug),
   });
 
-  // chatEngine expects { reply, followUps, sessionPatch }
   return {
     reply: res.reply,
     followUps: res.followUpsStrings,
+    followUpObjects: res.followUps,
     sessionPatch: res.sessionPatch,
+    bridge: res.bridge,
     meta: res.meta,
   };
 }
@@ -525,3 +699,6 @@ async function musicLaneFn(text, session, opts) {
 module.exports = musicLaneFn;
 module.exports.musicLane = musicLaneFn;
 module.exports.handleChat = handleChat;
+module.exports.normalizeChartForLane = normalizeChartForLane;
+module.exports.normalizeModeFromText = normalizeModeFromText;
+module.exports.LANE_NAME = LANE_NAME;
