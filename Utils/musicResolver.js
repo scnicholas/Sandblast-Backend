@@ -9,15 +9,15 @@
  */
 
 const RESOLVER_VERSION = "musicResolver v1.1.0";
-const YEAR_MIN = 1940;
-const YEAR_MAX = 2029;
+const YEAR_MIN = 1950;
+const YEAR_MAX = 2025;
 
 function safeStr(v){ return v == null ? "" : String(v); }
 function lower(v){ return safeStr(v).trim().toLowerCase(); }
 function isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
 function arr(v){ return Array.isArray(v) ? v : []; }
 function normYear(v){
-  const m = typeof v === "number" ? String(v) : safeStr(v).match(/\b(19[4-9]\d|20[0-2]\d)\b/);
+  const m = typeof v === "number" ? String(v) : safeStr(v).match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
   const y = typeof v === "number" ? v : (m ? Number(m[1]) : NaN);
   return Number.isFinite(y) && y >= YEAR_MIN && y <= YEAR_MAX ? Math.trunc(y) : null;
 }
@@ -52,7 +52,7 @@ function makeContext(input = {}){
   const session = isObj(input.session) ? input.session : {};
   const policy = isObj(input.policy) ? input.policy : {};
   const inferred = isObj(input.inferredSlots) ? input.inferredSlots : {};
-  const year = normYear(inferred.year) || normYear(policy?.inferredSlots?.year) || normYear(session.lockedYear) || normYear(text);
+  const year = normYear(inferred.year) || normYear(policy?.inferredSlots?.year) || normYear(session.lastMusicYear) || normYear(session.lockedYear) || normYear(text);
   const activeLane = safeStr(input.activeLane || session.activeLane || session.lane || "general") || "general";
   return { text, textLower: lower(text), session, policy, inferred, year, activeLane, sourceData: isObj(input.sourceData) ? input.sourceData : {} };
 }
@@ -62,7 +62,7 @@ function buildFollowUps(year){
   const next = year && year + 1 <= YEAR_MAX ? { id: `year_${year+1}`, type: "action", label: String(year + 1), payload: { lane: "music", year: year + 1, action: "top10" } } : null;
   return uniqFollowUps([
     { id: "top10", type: "action", label: "Top 10", payload: { lane: "music", action: "top10" } },
-    { id: "number1", type: "action", label: "#1 Song", payload: { lane: "music", action: "number_one" } },
+    { id: "number1", type: "action", label: "#1 Song", payload: { lane: "music", action: "number1" } },
     { id: "story", type: "action", label: "Story moment", payload: { lane: "music", action: "story_moment" } },
     { id: "micro", type: "action", label: "Micro moment", payload: { lane: "music", action: "micro_moment" } },
     prev,
@@ -138,7 +138,7 @@ async function resolveMusicIntent(input = {}){
       action,
       reply: [`Here is your Top 10 for ${year}.`, ...items.map((x, i) => `${i+1}. ${x.title} — ${x.artist}`)].join("\n"),
       followUps: buildFollowUps(year),
-      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "top10" },
+      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "top10", lastMusicYear: year },
       meta: { resolverMode: "top10" },
       year
     });
@@ -149,7 +149,7 @@ async function resolveMusicIntent(input = {}){
       action,
       reply: `The #1 song for ${year} is ${item.title} — ${item.artist}.${item.note ? ` ${item.note}` : ""}`.trim(),
       followUps: buildFollowUps(year),
-      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "numberOne" },
+      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "number1", lastMusicYear: year },
       meta: { resolverMode: "numberOne" },
       year
     });
@@ -160,7 +160,7 @@ async function resolveMusicIntent(input = {}){
       action,
       reply: `Story moment for ${year}: ${item.headline}. ${item.body}`.trim(),
       followUps: buildFollowUps(year),
-      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "storyMoment" },
+      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "story_moment", lastMusicYear: year },
       meta: { resolverMode: "storyMoment" },
       year
     });
@@ -171,7 +171,7 @@ async function resolveMusicIntent(input = {}){
       action,
       reply: `Micro moment for ${year}: ${item.body}`.trim(),
       followUps: buildFollowUps(year),
-      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "microMoment" },
+      sessionPatch: { activeLane: "music", lane: "music", lockedYear: year, activeMusicMode: "micro_moment", lastMusicYear: year },
       meta: { resolverMode: "microMoment" },
       year
     });
