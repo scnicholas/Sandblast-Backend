@@ -957,6 +957,98 @@ function getMusicDiag(sampleYear) {
   }
 }
 
+
+// =========================
+// Compatibility adapter (musicLane / musicMoments)
+// =========================
+function handleChat(args) {
+  const input = isObject(args) ? args : {};
+  const text = cleanText(input.text || input.message || '');
+  const session = isObject(input.session) ? input.session : {};
+  const t = text.toLowerCase();
+  const yearMatch = text.match(/\b(19\d{2}|20\d{2}|2025)\b/);
+  const year = yearMatch ? Number(yearMatch[1]) : (toIntYear(session.lastMusicYear) || null);
+
+  let res = null;
+  if (/\btop\s*(10|ten)\b/.test(t)) res = handleTop10(year, { meta: !!input.debug });
+  else if (/\b(year[-\s]*end\s*hot\s*100|hot\s*100|top\s*100)\b/.test(t)) res = handleYearEndHot100(year, { meta: !!input.debug });
+  else if (/\bstory\s*moment\b|\bcinematic\b/.test(t)) res = handleStoryMoment(year);
+  else if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) res = handleMicroMoment(year);
+  else if (/\b(custom\s*story|romantic|rebellious|nostalgic)\b/.test(t)) {
+    const vibe = /\bromantic\b/.test(t) ? 'romantic' : /\brebellious\b/.test(t) ? 'rebellious' : 'nostalgic';
+    res = handleCustomStory(year, vibe);
+  } else if (/^\s*(#1|1|number\s*1|number\s*one)\s*$/i.test(text)) {
+    const y = year || toIntYear(session.lastMusicYear);
+    const top10 = y ? getTop10ByYear(y, { meta: !!input.debug }) : null;
+    if (!y || !top10 || !Array.isArray(top10.items) || !top10.items.length) {
+      res = {
+        ok: true,
+        replyRaw: 'Give me a year (1950–2025).',
+        route: 'number1',
+        actionTaken: 'need_year',
+        sessionPatch: { lane: 'music' },
+        pendingAsk: pendingAskObj('need_year', 'clarify', 'Give me a year (1950–2025).', true),
+        followUps: yearFollowUps('top10', y || 1988),
+        followUpsStrings: yearFollowUps('top10', y || 1988).map((x) => x.label),
+        meta: { code: 'NEED_YEAR' },
+      };
+    } else {
+      const top = top10.items[0] || { title: '—', artist: '' };
+      const title = cleanText(top.title) || '—';
+      const artist = cleanText(top.artist);
+      res = {
+        ok: true,
+        replyRaw: `#1 — ${artist || 'Unknown Artist'} — ${title}`,
+        route: 'number1',
+        actionTaken: 'served_number1',
+        sessionPatch: {
+          lane: 'music',
+          lastYear: Number(y),
+          lastMusicYear: Number(y),
+          lastMode: 'number1',
+          lastAction: 'number1',
+          activeMusicChart: cleanText(top10.chart) || '',
+          lastMusicChart: cleanText(top10.chart) || '',
+        },
+        pendingAsk: null,
+        followUps: modeFollowUps(y),
+        followUpsStrings: modeFollowUps(y).map((x) => x.label),
+        meta: {},
+      };
+    }
+  } else if (year != null) {
+    res = handleTop10(year, { meta: !!input.debug });
+  } else {
+    res = {
+      ok: true,
+      replyRaw: 'Give me a year (1950–2025). I’ll start with Top 10.',
+      route: 'ask_year',
+      actionTaken: 'asked_year',
+      sessionPatch: { lane: 'music' },
+      pendingAsk: pendingAskObj('need_year', 'clarify', 'Give me a year (1950–2025).', true),
+      followUps: yearFollowUps('top10', 1988),
+      followUpsStrings: yearFollowUps('top10', 1988).map((x) => x.label),
+      meta: { code: 'ASK_YEAR' },
+    };
+  }
+
+  return {
+    ok: !!res?.ok,
+    reply: cleanText(res?.replyRaw || ''),
+    followUps: Array.isArray(res?.followUpsStrings) ? res.followUpsStrings : [],
+    followUpsRich: Array.isArray(res?.followUps) ? res.followUps : [],
+    sessionPatch: isObject(res?.sessionPatch) ? res.sessionPatch : {},
+    pendingAsk: res?.pendingAsk || null,
+    meta: isObject(res?.meta) ? res.meta : {},
+    route: cleanText(res?.route || ''),
+    actionTaken: cleanText(res?.actionTaken || ''),
+  };
+}
+
+function MK_VERSION() {
+  return 'musicKnowledge v1.3.1';
+}
+
 // =========================
 // Exports
 // =========================
@@ -967,6 +1059,8 @@ module.exports = {
 
   // chatEngine entrypoint
   handleMusicTurn,
+  handleChat,
+  MK_VERSION,
 
   // diagnostics
   getMusicDiag,
