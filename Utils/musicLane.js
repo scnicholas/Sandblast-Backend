@@ -27,7 +27,7 @@
 let musicKnowledge = null;
 try {
   musicKnowledge = require("./musicKnowledge");
-  if (!musicKnowledge || typeof musicKnowledge.handleChat !== "function") musicKnowledge = null;
+  if (!musicKnowledge || (typeof musicKnowledge.handleChat !== "function" && typeof musicKnowledge.handleMusicTurn !== "function")) musicKnowledge = null;
 } catch (_) {
   musicKnowledge = null;
 }
@@ -388,12 +388,20 @@ async function handleChat({ text, session, visitorId, debug }) {
     }
 
     const raw = await Promise.resolve(
-      musicKnowledge.handleChat({
-        text: cleanText,
-        session: s,
-        visitorId,
-        debug: !!debug,
-      })
+      typeof musicKnowledge.handleChat === "function"
+        ? musicKnowledge.handleChat({
+            text: cleanText,
+            session: s,
+            visitorId,
+            debug: !!debug,
+          })
+        : musicKnowledge.handleMusicTurn({
+            norm: {},
+            session: s,
+            year: extractYearFromText(cleanText),
+            action: normalizeModeFromText(cleanText) === "top100" ? "yearend_hot100" : (normalizeModeFromText(cleanText) || ""),
+            opts: { meta: !!debug },
+          })
     );
 
     let reply = String(raw && raw.reply ? raw.reply : "").trim();
