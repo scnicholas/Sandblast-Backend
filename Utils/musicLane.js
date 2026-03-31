@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.5.1 (HTTP BRIDGE EXPORT + UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
+ * v1.5.2 (HTTP BRIDGE CONTRACT ALIGN + UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -692,15 +692,19 @@ function normalizeBridgeInput(body) {
 async function handleBridgeRequest(body) {
   const input = normalizeBridgeInput(body);
   const res = await handleChat(input);
+  const bridge = res && res.bridge ? res.bridge : null;
   return {
     ok: !!(res && res.reply),
+    status: res && res.reply ? "ready" : "degraded",
+    source: LANE_NAME,
     reply: res.reply,
     text: res.reply,
+    content: { text: res.reply || "", year: bridge && bridge.year || null, mode: bridge && bridge.mode || null, chart: bridge && bridge.chart || null },
     followUps: res.followUps,
     followUpsStrings: res.followUpsStrings,
     followUpObjects: res.followUps,
     sessionPatch: res.sessionPatch,
-    bridge: res.bridge,
+    bridge,
     meta: res.meta || null,
   };
 }
