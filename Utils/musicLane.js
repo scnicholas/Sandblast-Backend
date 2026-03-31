@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.5.0 (UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
+ * v1.5.1 (HTTP BRIDGE EXPORT + UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -678,6 +678,33 @@ async function handleChat({ text, session, visitorId, debug }) {
   }
 }
 
+
+function normalizeBridgeInput(body) {
+  const b = body && typeof body === "object" ? body : {};
+  return {
+    text: String(b.text || b.message || ""),
+    session: b.session && typeof b.session === "object" ? b.session : {},
+    visitorId: b.visitorId || b.visitor_id || undefined,
+    debug: !!b.debug,
+  };
+}
+
+async function handleBridgeRequest(body) {
+  const input = normalizeBridgeInput(body);
+  const res = await handleChat(input);
+  return {
+    ok: !!(res && res.reply),
+    reply: res.reply,
+    text: res.reply,
+    followUps: res.followUps,
+    followUpsStrings: res.followUpsStrings,
+    followUpObjects: res.followUps,
+    sessionPatch: res.sessionPatch,
+    bridge: res.bridge,
+    meta: res.meta || null,
+  };
+}
+
 async function musicLaneFn(text, session, opts) {
   const res = await handleChat({
     text,
@@ -702,3 +729,6 @@ module.exports.handleChat = handleChat;
 module.exports.normalizeChartForLane = normalizeChartForLane;
 module.exports.normalizeModeFromText = normalizeModeFromText;
 module.exports.LANE_NAME = LANE_NAME;
+
+module.exports.handleBridgeRequest = handleBridgeRequest;
+module.exports.normalizeBridgeInput = normalizeBridgeInput;
