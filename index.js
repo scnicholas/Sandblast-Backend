@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT";
+const INDEX_VERSION = "index.js v2.13.3sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-MOUNT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -349,6 +349,15 @@ const knowledgeRuntimeMod = tryRequireMany([
   "./Utils/knowledgeRuntime.js",
   "./utils/knowledgeRuntime",
   "./utils/knowledgeRuntime.js"
+]);
+
+const musicLaneMod = tryRequireMany([
+  "./musicLane",
+  "./musicLane.js",
+  "./utils/musicLane",
+  "./utils/musicLane.js",
+  "./Utils/musicLane",
+  "./Utils/musicLane.js"
 ]);
 
 const knowledgeRuntime = {
@@ -1555,6 +1564,139 @@ app.get(["/api/music/sources", "/music/sources"], (req, res) => {
   return res.status(200).json({ ok: true, sources: out.sources, count: out.sources.length, meta: out.meta });
 });
 
+function musicBridgeHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleBridgeRequest === "function") return mod.handleBridgeRequest.bind(mod);
+  if (typeof mod.handleChat === "function") {
+    return async function bridgeFromHandleChat(body) {
+      const src = isObj(body) ? body : {};
+      const out = await Promise.resolve(mod.handleChat({
+        text: cleanText(src.text || ""),
+        session: isObj(src.session) ? src.session : {},
+        visitorId: cleanText(src.visitorId || ""),
+        debug: !!src.debug
+      }));
+      return isObj(out) ? out : { ok: false, error: "music_bridge_invalid_response" };
+    };
+  }
+  return null;
+}
+
+function normalizeMusicBridgeInput(req) {
+  const norm = normalizePayload(req);
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const session = isObj(body.session) ? body.session : (isObj(payload.session) ? payload.session : {});
+  return {
+    text: cleanText(body.text || payload.text || norm.text || ""),
+    session,
+    visitorId: cleanText(body.visitorId || payload.visitorId || getSessionId(req)),
+    debug: body.debug === true || payload.debug === true || String((req.query && req.query.debug) || "") === "1",
+    traceId: norm.traceId,
+    lane: "music",
+    year: cleanText(body.year || payload.year || norm.year || ""),
+    mode: cleanText(body.mode || payload.mode || norm.mode || "")
+  };
+}
+
+function normalizeMusicBridgeResponse(result, req, startedAt) {
+  const raw = isObj(result) ? result : {};
+  const text = cleanText(raw.reply || raw.text || raw.message || "");
+  const followUps = Array.isArray(raw.followUps) ? raw.followUps : [];
+  const followUpObjects = Array.isArray(raw.followUpObjects)
+    ? raw.followUpObjects
+    : followUps.map((it, idx) => {
+        if (typeof it === "string") {
+          return { id: `fu_${idx + 1}`, type: "action", label: it, send: it, payload: { action: it, lane: "music" } };
+        }
+        const label = cleanText(it.label || it.send || it.text || "");
+        return {
+          id: cleanText(it.id || `fu_${idx + 1}`) || `fu_${idx + 1}`,
+          type: cleanText(it.type || "action") || "action",
+          label,
+          send: cleanText(it.send || label) || label,
+          payload: isObj(it.payload) ? it.payload : { action: cleanText(it.send || label) || label, lane: "music" }
+        };
+      }).filter((it) => cleanText(it.label));
+  const followUpsStrings = Array.isArray(raw.followUpsStrings)
+    ? raw.followUpsStrings
+    : followUpObjects.map((it) => cleanText(it.send || it.label)).filter(Boolean);
+  const sessionPatch = isObj(raw.sessionPatch) ? raw.sessionPatch : {};
+  const bridge = isObj(raw.bridge) ? raw.bridge : {
+    lane: "music",
+    year: sessionPatch.lastMusicYear || sessionPatch.year || null,
+    mode: sessionPatch.activeMusicMode || sessionPatch.mode || null,
+    endpoint: "/api/music/bridge"
+  };
+  const ok = raw.ok !== false && !!text;
+  return {
+    ok,
+    reply: text,
+    text,
+    followUps,
+    followUpsStrings,
+    followUpObjects,
+    sessionPatch,
+    bridge,
+    traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      latencyMs: now() - Number(startedAt || now()),
+      source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
+      degraded: !!raw.degraded,
+      bridgeMounted: !!musicBridgeHandlerFromModule(musicLaneMod),
+      endpoint: "/api/music/bridge"
+    }
+  };
+}
+
+async function dispatchMusicBridge(req, res) {
+  const handler = musicBridgeHandlerFromModule(musicLaneMod);
+  if (!handler) {
+    return res.status(503).json({
+      ok: false,
+      error: "music_bridge_unavailable",
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
+      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: false }
+    });
+  }
+
+  const startedAt = now();
+  const input = normalizeMusicBridgeInput(req);
+  try {
+    const result = await callWithTimeout(Promise.resolve(handler(input)), CFG.requestTimeoutMs, "music_bridge");
+    const out = normalizeMusicBridgeResponse(result, req, startedAt);
+    return res.status(out.ok ? 200 : 503).json(out);
+  } catch (err) {
+    console.log("[Sandblast][musicBridge:error]", err && (err.stack || err.message || err));
+    return res.status(503).json({
+      ok: false,
+      error: "music_bridge_failed",
+      detail: cleanText(err && (err.message || err) || "music bridge failed"),
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
+      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: true }
+    });
+  }
+}
+
+app.get(["/api/music/bridge/health", "/music/bridge/health"], enforceToken, (req, res) => {
+  applyCors(req, res);
+  return res.status(200).json({
+    ok: !!musicBridgeHandlerFromModule(musicLaneMod),
+    enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
+    endpoint: routeUrl("/api/music/bridge"),
+    moduleBound: !!musicLaneMod,
+    version: INDEX_VERSION,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.post(["/api/music/bridge", "/music/bridge"], enforceToken, async (req, res) => {
+  applyCors(req, res);
+  return dispatchMusicBridge(req, res);
+});
+
 app.get("/health", (req, res) => {
   applyCors(req, res);
   const ttsHealth = ttsHealthFromModule(ttsMod);
@@ -1637,7 +1779,14 @@ app.get("/api/health", (req, res) => {
       degraded: !!app.locals.musicMeta?.degraded,
       stableRoutes: {
         topMoments: "/api/music/top-moments",
-        sources: "/api/music/sources"
+        sources: "/api/music/sources",
+        bridge: "/api/music/bridge",
+        bridgeHealth: "/api/music/bridge/health"
+      },
+      bridge: {
+        enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
+        endpoint: routeUrl("/api/music/bridge"),
+        healthEndpoint: routeUrl("/api/music/bridge/health")
       }
     }
   });
@@ -2058,5 +2207,8 @@ module.exports = {
   hydrateNewsCanadaLocals,
   getNewsCanadaCandidateDiagnostics,
   resolveMusicDataFile,
-  loadMusicFromDisk
+  loadMusicFromDisk,
+  dispatchMusicBridge,
+  normalizeMusicBridgeInput,
+  normalizeMusicBridgeResponse
 };
