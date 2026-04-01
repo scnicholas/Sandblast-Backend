@@ -12,6 +12,12 @@ const DEFAULTS = {
   maxSentenceLenForSplit: 150,
   injectAcknowledgement: true,
   injectAcknowledgementMaxChars: 240,
+  conversationalNoContractions: true,
+  speechHints: {
+    pauses: { commaMs: 130, periodMs: 360, questionMs: 410, exclaimMs: 360, colonMs: 230, semicolonMs: 280, ellipsisMs: 560 },
+    pacing: { mode: "fluid", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
+  },
+  pronunciationMap: { Nyx: "Nix", Nix: "Nix", Nick: "Nix", Sandblast: "Sand-blast", Roku: "Roh-koo", Marion: "Marry-in" },
   laneBias: {
     JustTalk: { warmth: 0.08, dominance: -0.03, arousal: -0.03 },
     Roku: { warmth: 0.02, dominance: 0.08, arousal: 0.03 },
@@ -313,10 +319,12 @@ function needsAcknowledgement({ text, strategy, lockedEmotion, opts }) {
     low.startsWith("i can hear")
   ) return false;
 
+  const supportFlags = lockedEmotion && lockedEmotion.supportFlags && typeof lockedEmotion.supportFlags === "object" ? lockedEmotion.supportFlags : {};
+  const needs = Array.isArray(lockedEmotion && lockedEmotion.needs) ? lockedEmotion.needs : [];
   return (
     lockedEmotion.valenceLabel === "negative" ||
-    lockedEmotion.supportFlags.needsStabilization ||
-    lockedEmotion.needs.includes("connection") ||
+    !!supportFlags.needsStabilization ||
+    needs.includes("connection") ||
     strategy.supportModeCandidate.includes("soothe") ||
     strategy.supportModeCandidate.includes("stabilize")
   );
@@ -361,6 +369,8 @@ function applyProsodyMarkup({ text, affectState, strategy, styleKey, opts }) {
     if (ack) t = `${ack} ${t}`;
   }
 
+  if (opts.conversationalNoContractions) t = expandCoreContractions(t);
+
   if (strategy.expressionContract && strategy.questionPressure === "none") {
     t = t.replace(/\?/g, ".");
   }
@@ -376,7 +386,55 @@ function applyProsodyMarkup({ text, affectState, strategy, styleKey, opts }) {
     t = t.replace(/\.\s+/g, ". ");
   }
 
+  t = t
+    .replace(/\s*—\s*/g, ". ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\b(Nyx|Nick)\b/g, "Nix");
+
+  return t.trim();
+}
+
+function expandCoreContractions(text) {
+  let t = safeStr(text);
+  const replacements = [
+    [/\bI\'m\b/gi, "I am"], [/\bI\'ll\b/gi, "I will"], [/\bI\'ve\b/gi, "I have"], [/\bI\'d\b/gi, "I would"],
+    [/\byou\'re\b/gi, "you are"], [/\byou\'ll\b/gi, "you will"], [/\byou\'ve\b/gi, "you have"], [/\byou\'d\b/gi, "you would"],
+    [/\bwe\'re\b/gi, "we are"], [/\bwe\'ll\b/gi, "we will"], [/\bthey\'re\b/gi, "they are"],
+    [/\bit\'s\b/gi, "it is"], [/\bthat\'s\b/gi, "that is"], [/\bthere\'s\b/gi, "there is"], [/\bhere\'s\b/gi, "here is"],
+    [/\bcan\'t\b/gi, "cannot"], [/\bwon\'t\b/gi, "will not"], [/\bdon\'t\b/gi, "do not"], [/\bdoesn\'t\b/gi, "does not"],
+    [/\bdidn\'t\b/gi, "did not"], [/\baren\'t\b/gi, "are not"], [/\bisn\'t\b/gi, "is not"], [/\bwasn\'t\b/gi, "was not"],
+    [/\bweren\'t\b/gi, "were not"], [/\bshouldn\'t\b/gi, "should not"], [/\bcouldn\'t\b/gi, "could not"], [/\bwouldn\'t\b/gi, "would not"]
+  ];
+  for (const [pattern, replacement] of replacements) t = t.replace(pattern, replacement);
   return t;
+}
+
+function buildSpeechHints({ styleKey, lane, affectState, strategy, opts }) {
+  const base = mergeDeep({}, opts.speechHints || DEFAULTS.speechHints);
+  if (["compassionate_concern", "calm_support", "boundary_safety"].includes(styleKey)) {
+    base.pauses.commaMs = Math.max(num(base.pauses.commaMs, 130), 135);
+    base.pauses.periodMs = Math.max(num(base.pauses.periodMs, 360), 380);
+    base.pauses.questionMs = Math.max(num(base.pauses.questionMs, 410), 430);
+    base.pacing.mode = "gentle";
+  }
+  if (strategy.archetype === "channel" || safeStr(lane) === "Music") {
+    base.pauses.commaMs = Math.min(num(base.pauses.commaMs, 130), 120);
+    base.pauses.periodMs = Math.min(num(base.pauses.periodMs, 360), 320);
+    base.pacing.mode = "steady";
+  }
+  if (affectState.primaryEmotion === "panic" || affectState.primaryEmotion === "fear" || affectState.primaryEmotion === "overwhelm") {
+    base.pauses.commaMs = Math.max(num(base.pauses.commaMs, 130), 150);
+    base.pauses.periodMs = Math.max(num(base.pauses.periodMs, 360), 430);
+    base.pacing.mode = "grounded";
+  }
+  base.pacing.preservePunctuation = true;
+  base.pacing.sentenceBreath = true;
+  base.pacing.noRunOns = true;
+  return base;
+}
+
+function buildPronunciationMap({ opts }) {
+  return mergeDeep({}, DEFAULTS.pronunciationMap, opts.pronunciationMap || {});
 }
 
 function updateAffectMemory({ memory, affectState, ttsProfile, presetKey }) {
@@ -397,7 +455,7 @@ function updateAffectMemory({ memory, affectState, ttsProfile, presetKey }) {
   };
 }
 
-function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt }) {
+function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt, speechHints, pronunciationMap, spokenText }) {
   return {
     version: VERSION,
     emotionLocked: true,
@@ -417,6 +475,9 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
     styleKey,
     styleName: styleProfile.styleName,
     ttsProfile,
+    speechHints,
+    pronunciationMap,
+    spokenText,
     affectState
   };
 }
@@ -584,6 +645,8 @@ function runAffectEngine(input = {}) {
   affectState.presetKey = styleKey;
 
   const spokenText = applyProsodyMarkup({ text: assistantDraft, affectState, strategy, styleKey, opts });
+  const speechHints = buildSpeechHints({ styleKey, lane, affectState, strategy, opts });
+  const pronunciationMap = buildPronunciationMap({ opts });
   const unifiedTurn = buildUnifiedTurn({ affectState, strategy, guidedPrompt, memory, lane });
   const nextMemory = updateAffectMemory({ memory, affectState, ttsProfile, presetKey: styleKey });
   nextMemory.prevUnifiedTurn = unifiedTurn;
@@ -596,9 +659,11 @@ function runAffectEngine(input = {}) {
     styleProfile,
     ttsProfile,
     spokenText,
+    speechHints,
+    pronunciationMap,
     memory: nextMemory,
     unifiedTurn,
-    expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt }),
+    expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt, speechHints, pronunciationMap, spokenText }),
     debug: affectState.debug
   };
 }
@@ -612,5 +677,8 @@ module.exports = {
   resolveInputs,
   derivePrimaryState,
   buildUnifiedTurn,
-  placeholderForState
+  placeholderForState,
+  buildSpeechHints,
+  buildPronunciationMap,
+  expandCoreContractions
 };
