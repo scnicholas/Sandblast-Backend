@@ -36,11 +36,33 @@
 const fs = require("fs");
 const path = require("path");
 
+function firstExistingFile(candidates) {
+  for (const file of candidates) {
+    try {
+      const st = fs.statSync(file);
+      if (st && st.isFile()) return file;
+    } catch (_) {}
+  }
+  return candidates[0];
+}
+
+function resolveTop10File() {
+  const dirs = [
+    path.resolve(__dirname, "Data"),
+    path.resolve(__dirname, "..", "Data"),
+    path.resolve(process.cwd(), "Data"),
+    path.resolve(process.cwd(), "src", "Data"),
+    path.resolve(process.cwd(), "utils", "Data"),
+  ];
+  const candidates = dirs.map((dir) => path.join(dir, "top10_by_year_v1.json"));
+  return firstExistingFile(candidates);
+}
+
 // =========================
 // Constants
 // =========================
-const DATA_DIR = path.resolve(__dirname, "..", "Data");
-const TOP10_FILE = path.join(DATA_DIR, "top10_by_year_v1.json");
+const TOP10_FILE = resolveTop10File();
+const DATA_DIR = path.dirname(TOP10_FILE);
 const TOP10_REQUIRED_COUNT = 10;
 
 // Guardrails (chatEngine also enforces; we keep local safety)
@@ -317,6 +339,21 @@ function getTop10ByYear(year, opts) {
 // =========================
 // Render (Legacy Compatibility)
 // =========================
+function getNumberOneByYear(year, opts) {
+  const top10 = getTop10ByYear(year, opts);
+  if (!top10 || !Array.isArray(top10.items) || !top10.items.length) return null;
+  const first = top10.items[0] || null;
+  if (!first) return null;
+  return {
+    year: top10.year,
+    chart: top10.chart,
+    pos: Number.isFinite(first.pos) ? first.pos : 1,
+    title: cleanText(first.title) || "—",
+    artist: cleanText(first.artist) || "",
+    ...(opts && opts.meta === true && top10.meta ? { meta: top10.meta } : {}),
+  };
+}
+
 function renderTop10Text(top10) {
   try {
     if (!top10 || !Array.isArray(top10.items)) return "";
@@ -435,9 +472,13 @@ function handleTop10(year, opts) {
   const replyRaw = `${header}\n\n${body}`;
 
   const sessionPatch = {
+    activeLane: "music",
     lane: "music",
+    year: Number(y),
     lastYear: Number(y),
     lastMusicYear: Number(y),
+    mode: "top10",
+    activeMusicMode: "top10",
     lastMode: "top10",
     lastAction: "top10",
     activeMusicChart: cleanText(top10.chart) || "",
@@ -511,9 +552,13 @@ function handleStoryMoment(year) {
     `Want the scene to feel romantic, rebellious, or nostalgic?`;
 
   const sessionPatch = {
+    activeLane: "music",
     lane: "music",
+    year: Number(y),
     lastYear: Number(y),
     lastMusicYear: Number(y),
+    mode: "story_moment",
+    activeMusicMode: "story_moment",
     lastMode: "story_moment",
     lastAction: "story_moment",
     activeMusicChart: cleanText(top10.chart) || "",
@@ -598,9 +643,13 @@ function handleMicroMoment(year) {
     `Want it: softer, sharper, or more cinematic?`;
 
   const sessionPatch = {
+    activeLane: "music",
     lane: "music",
+    year: Number(y),
     lastYear: Number(y),
     lastMusicYear: Number(y),
+    mode: "micro_moment",
+    activeMusicMode: "micro_moment",
     lastMode: "micro_moment",
     lastAction: "micro_moment",
     activeMusicChart: cleanText(top10.chart) || "",
@@ -680,9 +729,13 @@ function handleCustomStory(year, vibe) {
     `Give me one detail: night-drive, dance-floor, or bedroom-radio — and I’ll write the scene in 3 beats.`;
 
   const sessionPatch = {
+    activeLane: "music",
     lane: "music",
+    year: Number(y),
     lastYear: Number(y),
     lastMusicYear: Number(y),
+    mode: "custom_story",
+    activeMusicMode: "custom_story",
     lastMode: "custom_story",
     lastAction: "custom_story",
     activeMusicChart: cleanText(top10.chart) || "",
@@ -757,9 +810,13 @@ function handleYearEndHot100(year, opts) {
   const replyRaw = `${header}\n\n${body}`;
 
   const sessionPatch = {
+    activeLane: "music",
     lane: "music",
+    year: Number(y),
     lastYear: Number(y),
     lastMusicYear: Number(y),
+    mode: "yearend_hot100",
+    activeMusicMode: "yearend_hot100",
     lastMode: "yearend_hot100",
     lastAction: "yearend_hot100",
     activeMusicChart: cleanText(top10.chart) || "",
@@ -827,7 +884,7 @@ async function handleMusicTurn(args) {
         actionTaken: "need_year",
         topic: "music",
         spineStage: "clarify",
-        sessionPatch: { lane: "music" },
+        sessionPatch: { activeLane: "music", lane: "music" },
         pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${minY}–${maxY}).`, true),
         followUps: [
           { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: a, year: 1973, route: a } },
@@ -849,7 +906,7 @@ async function handleMusicTurn(args) {
         actionTaken: "year_out_of_range",
         topic: "music",
         spineStage: "clarify",
-        sessionPatch: { lane: "music" },
+        sessionPatch: { activeLane: "music", lane: "music" },
         pendingAsk: pendingAskObj("need_year", "clarify", `Use a year in ${minY}–${maxY}.`, true),
         followUps: fu,
         followUpsStrings: fu.map((x) => x.label),
@@ -882,7 +939,7 @@ async function handleMusicTurn(args) {
       actionTaken: "asked_year",
       topic: "music",
       spineStage: "clarify",
-      sessionPatch: { lane: "music" },
+      sessionPatch: { activeLane: "music", lane: "music" },
       pendingAsk: pendingAskObj("need_year", "clarify", `Give me a year (${minY}–${maxY}).`, true),
       followUps: [
         { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
@@ -901,7 +958,7 @@ async function handleMusicTurn(args) {
       actionTaken: "exception_failopen",
       topic: "music",
       spineStage: "clarify",
-      sessionPatch: { lane: "music" },
+      sessionPatch: { activeLane: "music", lane: "music" },
       pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (1950–2025).", true),
       followUps: [
         { id: "fu_1973", type: "chip", label: "1973", payload: { lane: "music", action: "top10", year: 1973, route: "top10" } },
@@ -1055,6 +1112,7 @@ function MK_VERSION() {
 module.exports = {
   // core store API
   getTop10ByYear,
+  getNumberOneByYear,
   renderTop10Text,
 
   // chatEngine entrypoint
