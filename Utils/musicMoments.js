@@ -72,8 +72,20 @@ function toInt(x) {
 }
 
 function resolveRepoPath(rel) {
-  // Match your musicKnowledge behavior (process.cwd()) so Render + local are aligned.
-  return path.resolve(process.cwd(), rel);
+  const clean = String(rel || "").replace(/^[/\\]+/, "");
+  const candidates = [
+    path.resolve(__dirname, clean),
+    path.resolve(__dirname, "..", clean),
+    path.resolve(process.cwd(), clean),
+    path.resolve(process.cwd(), "src", clean),
+    path.resolve(process.cwd(), "utils", clean),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch (_) {}
+  }
+  return candidates[0];
 }
 
 function getMtimeMs(absPath) {
@@ -444,6 +456,19 @@ function mkTop10(year, session) {
 }
 
 function mkNumber1(session) {
+  const y = toInt(session && session.lastMusicYear);
+  if (typeof musicKnowledge.getNumberOneByYear === "function" && y) {
+    const n1 = musicKnowledge.getNumberOneByYear(y, { meta: false });
+    if (n1) {
+      return {
+        reply: `#1 — ${n1.artist} — ${n1.title}`,
+        sessionPatch: {
+          activeMusicChart: n1.chart || session?.activeMusicChart || "Billboard Hot 100",
+          lastMusicYear: y,
+        },
+      };
+    }
+  }
   const res = mkAsk(`#1`, session);
   return res;
 }
@@ -489,11 +514,16 @@ function pickSong(session, year, rank) {
 // ---------------------------------------------------------
 function sessionPatchBase(session, extra = {}) {
   const s = session || {};
+  const mode = extra.activeMusicMode || extra.mode || s.activeMusicMode || s.mode || null;
   const patch = {
+    activeLane: "music",
+    lane: "music",
     activeMusicChart: s.activeMusicChart || "Billboard Hot 100",
     lastMusicYear: s.lastMusicYear ?? null,
+    year: s.lastMusicYear ?? null,
     lastMusicChart: s.lastMusicChart || s.activeMusicChart || "Billboard Hot 100",
     pendingMicroYear: s.pendingMicroYear ?? null,
+    ...(mode ? { activeMusicMode: mode, mode } : {}),
     ...extra,
   };
   if (!patch.lastMusicYear) delete patch.lastMusicYear;
