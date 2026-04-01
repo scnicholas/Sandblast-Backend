@@ -310,6 +310,38 @@ function _normalizeText(text){
     .replace(/\.{4,}/g, "...")
     .trim();
 }
+function _yearToSpeech(y){
+  const year = Number(y);
+  if (!Number.isFinite(year)) return _str(y);
+
+  const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+  const teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+  function words(n){
+    if (n < 10) return ones[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+    return String(n);
+  }
+
+  if (year >= 1900 && year <= 1999){
+    return words(Math.floor(year / 100)) + " " + (year % 100 ? words(year % 100) : "hundred");
+  }
+
+  if (year >= 2000 && year <= 2009){
+    return "two thousand" + (year % 2000 ? " " + words(year % 2000) : "");
+  }
+
+  if (year >= 2010 && year <= 2099){
+    return words(Math.floor(year / 100)) + " " + (year % 100 ? words(year % 100) : "hundred");
+  }
+
+  return String(year);
+}
+function _convertYearTokens(text){
+  return _str(text).replace(/\b(19\d{2}|20\d{2})\b/g, (match) => _yearToSpeech(Number(match)));
+}
 function _splitSpeechChunks(text){
   return _normalizeText(text)
     .split(/(?<=[.!?])\s+/)
@@ -344,17 +376,18 @@ function _buildSpeechEnvelope(opts){
         )));
 
   const textDisplay = _normalizeText(_pickFirst(opts && opts.textDisplay, opts && opts.plainText, opts && opts.text));
-  const textSpeak = _normalizeText(_pickFirst(
+  let textSpeak = _normalizeText(_pickFirst(
     opts && opts.textSpeak,
     opts && opts.ssmlSourceText,
     opts && opts.plainText,
     opts && opts.textDisplay,
     opts && opts.text
   ));
+  textSpeak = _convertYearTokens(textSpeak);
   const plainText = _normalizeText(_pickFirst(opts && opts.plainText, textSpeak, textDisplay));
 
   let ssmlText = _trim(opts && opts.ssmlText);
-  if (!ssmlText && _enableProsodyShaping()) ssmlText = _sanitizeSsmlText(textSpeak || plainText);
+  if (!ssmlText && _enableProsodyShaping()) ssmlText = _sanitizeSsmlText(_convertYearTokens(textSpeak || plainText));
 
   return {
     textDisplay,
@@ -1599,7 +1632,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.9.1 RESEMBLE-CONVERSATIONAL-FLUIDITY-PATCH";
+const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1636,14 +1669,13 @@ const VOICE_NAME_ENV_KEYS = Object.freeze([
 
 
 const DEFAULT_SPEECH_HINTS = Object.freeze({
-  pauses: { commaMs: 130, periodMs: 360, questionMs: 400, exclaimMs: 350, colonMs: 220, semicolonMs: 260, ellipsisMs: 560 },
+  pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
   pacing: { mode: "natural", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
 });
 
 const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
   Nyx: "Nix",
   Nix: "Nix",
-  Nick: "Nix",
   Sandblast: "Sand-blast",
   Roku: "Roh-koo",
   Marion: "Marry-in",
@@ -2164,36 +2196,26 @@ function _mergePronunciationMap(extra) {
 }
 
 function _parseSpeechHints(body) {
-  const src = body && typeof body === "object" ? body : {};
-  const inputHints = src && typeof src.speechHints === "object" ? src.speechHints : {};
+  const inputHints = body && typeof body.speechHints === "object" ? body.speechHints : {};
   const inputPauses = inputHints && typeof inputHints.pauses === "object" ? inputHints.pauses : {};
   const inputPacing = inputHints && typeof inputHints.pacing === "object" ? inputHints.pacing : {};
-  const introMode = _bool(src.intro, false) || _lower(src.routeKind) === "intro" || _lower(src.mode) === "intro";
-  const hints = {
+  return {
     pauses: {
-      commaMs: Number(inputPauses.commaMs || src.commaMs || DEFAULT_SPEECH_HINTS.pauses.commaMs) || DEFAULT_SPEECH_HINTS.pauses.commaMs,
-      periodMs: Number(inputPauses.periodMs || src.periodMs || DEFAULT_SPEECH_HINTS.pauses.periodMs) || DEFAULT_SPEECH_HINTS.pauses.periodMs,
-      questionMs: Number(inputPauses.questionMs || src.questionMs || DEFAULT_SPEECH_HINTS.pauses.questionMs) || DEFAULT_SPEECH_HINTS.pauses.questionMs,
-      exclaimMs: Number(inputPauses.exclaimMs || src.exclaimMs || DEFAULT_SPEECH_HINTS.pauses.exclaimMs) || DEFAULT_SPEECH_HINTS.pauses.exclaimMs,
-      colonMs: Number(inputPauses.colonMs || src.colonMs || DEFAULT_SPEECH_HINTS.pauses.colonMs) || DEFAULT_SPEECH_HINTS.pauses.colonMs,
-      semicolonMs: Number(inputPauses.semicolonMs || src.semicolonMs || DEFAULT_SPEECH_HINTS.pauses.semicolonMs) || DEFAULT_SPEECH_HINTS.pauses.semicolonMs,
-      ellipsisMs: Number(inputPauses.ellipsisMs || src.ellipsisMs || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs) || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs
+      commaMs: Number(inputPauses.commaMs || body.commaMs || DEFAULT_SPEECH_HINTS.pauses.commaMs) || DEFAULT_SPEECH_HINTS.pauses.commaMs,
+      periodMs: Number(inputPauses.periodMs || body.periodMs || DEFAULT_SPEECH_HINTS.pauses.periodMs) || DEFAULT_SPEECH_HINTS.pauses.periodMs,
+      questionMs: Number(inputPauses.questionMs || body.questionMs || DEFAULT_SPEECH_HINTS.pauses.questionMs) || DEFAULT_SPEECH_HINTS.pauses.questionMs,
+      exclaimMs: Number(inputPauses.exclaimMs || body.exclaimMs || DEFAULT_SPEECH_HINTS.pauses.exclaimMs) || DEFAULT_SPEECH_HINTS.pauses.exclaimMs,
+      colonMs: Number(inputPauses.colonMs || body.colonMs || DEFAULT_SPEECH_HINTS.pauses.colonMs) || DEFAULT_SPEECH_HINTS.pauses.colonMs,
+      semicolonMs: Number(inputPauses.semicolonMs || body.semicolonMs || DEFAULT_SPEECH_HINTS.pauses.semicolonMs) || DEFAULT_SPEECH_HINTS.pauses.semicolonMs,
+      ellipsisMs: Number(inputPauses.ellipsisMs || body.ellipsisMs || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs) || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs
     },
     pacing: {
-      mode: _pickFirst(inputPacing.mode, src.pacingMode, DEFAULT_SPEECH_HINTS.pacing.mode),
-      preservePunctuation: _bool(inputPacing.preservePunctuation, _bool(src.preservePunctuation, DEFAULT_SPEECH_HINTS.pacing.preservePunctuation)),
-      sentenceBreath: _bool(inputPacing.sentenceBreath, _bool(src.sentenceBreath, DEFAULT_SPEECH_HINTS.pacing.sentenceBreath)),
-      noRunOns: _bool(inputPacing.noRunOns, _bool(src.noRunOns, DEFAULT_SPEECH_HINTS.pacing.noRunOns))
+      mode: _pickFirst(inputPacing.mode, body.pacingMode, DEFAULT_SPEECH_HINTS.pacing.mode),
+      preservePunctuation: _bool(inputPacing.preservePunctuation, _bool(body.preservePunctuation, DEFAULT_SPEECH_HINTS.pacing.preservePunctuation)),
+      sentenceBreath: _bool(inputPacing.sentenceBreath, _bool(body.sentenceBreath, DEFAULT_SPEECH_HINTS.pacing.sentenceBreath)),
+      noRunOns: _bool(inputPacing.noRunOns, _bool(body.noRunOns, DEFAULT_SPEECH_HINTS.pacing.noRunOns))
     }
   };
-  if (introMode) {
-    hints.pauses.commaMs = Math.max(hints.pauses.commaMs, 145);
-    hints.pauses.periodMs = Math.max(hints.pauses.periodMs, 430);
-    hints.pauses.questionMs = Math.max(hints.pauses.questionMs, 460);
-    hints.pauses.ellipsisMs = Math.max(hints.pauses.ellipsisMs, 620);
-    hints.pacing.mode = _pickFirst(inputPacing.mode, "intro_gentle");
-  }
-  return hints;
 }
 
 function _normalizeWhitespace(text) {
@@ -2251,9 +2273,7 @@ function _applySpeakOptimizations(text) {
   out = out
     .replace(/\bI will help\b/gi, "I can help")
     .replace(/\bI will guide you\b/gi, "I can guide you")
-    .replace(/\bI will walk you through\b/gi, "I can walk you through")
-    .replace(/\bWelcome to Sand-blast\b/gi, "Welcome to Sand-blast")
-    .replace(/\bI am here to help you explore\b/gi, "I am here to help you explore");
+    .replace(/\bI will walk you through\b/gi, "I can walk you through");
   return out;
 }
 
@@ -2843,7 +2863,7 @@ function _normalizePayloadLikeInput(payload, req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(merged.textDisplay, merged.text, merged.reply, merged.textSpeak)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(merged.textDisplay, merged.text, merged.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(merged.voiceName, merged.mixerVoiceName)),
@@ -2913,7 +2933,7 @@ function _resolveInput(req) {
 
   return {
     text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay, mergedBody.text, mergedBody.reply, mergedBody.textSpeak, query.textSpeak)).slice(0, MAX_TEXT),
+    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay, mergedBody.text, mergedBody.reply)).slice(0, MAX_TEXT),
     requestedVoiceUuid: _trim(requestedVoiceUuid),
     voiceUuid,
     voiceName: _resolvePreferredVoiceName(_pickFirst(mergedBody.voiceName, query.voiceName)),
