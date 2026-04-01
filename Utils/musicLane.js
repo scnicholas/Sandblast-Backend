@@ -44,6 +44,22 @@ try {
   musicKnowledge = null;
 }
 
+let musicMoments = null;
+try {
+  musicMoments = require("./musicMoments");
+  if (!musicMoments || typeof musicMoments.handle !== "function") musicMoments = null;
+} catch (_) {
+  musicMoments = null;
+}
+
+let musicResolver = null;
+try {
+  musicResolver = require("./musicResolver");
+  if (!musicResolver || typeof musicResolver.resolveMusicIntent !== "function") musicResolver = null;
+} catch (_) {
+  musicResolver = null;
+}
+
 const LANE_NAME = "music";
 const CHART_DEFAULT = "Billboard Hot 100";
 
@@ -62,6 +78,44 @@ function extractYearFromText(text) {
   const m = String(text || "").match(/\b(19\d{2}|20\d{2})\b/);
   if (!m) return null;
   return clampYear(m[1]);
+}
+
+function numberToWords(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return String(n || "");
+
+  const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+  const teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+  if (num < 10) return ones[num];
+  if (num < 20) return teens[num - 10];
+  if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? `-${ones[num % 10]}` : "");
+  return String(num);
+}
+
+function formatYearForSpeech(year) {
+  const y = clampYear(year);
+  if (!y) return "";
+
+  if (y >= 1900 && y <= 1999) {
+    const first = Math.floor(y / 100);
+    const second = y % 100;
+    return `${numberToWords(first)} ${second ? numberToWords(second) : "hundred"}`.trim();
+  }
+
+  if (y >= 2000 && y <= 2009) {
+    const tail = y % 2000;
+    return tail ? `two thousand ${numberToWords(tail)}` : "two thousand";
+  }
+
+  if (y >= 2010 && y <= 2099) {
+    const first = Math.floor(y / 100);
+    const second = y % 100;
+    return `${numberToWords(first)} ${second ? numberToWords(second) : "hundred"}`.trim();
+  }
+
+  return String(y);
 }
 
 /* ======================================================
@@ -447,6 +501,7 @@ function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
     route: LANE_NAME,
     ready: !!reply,
     year,
+    yearSpoken: year ? formatYearForSpeech(year) : null,
     mode,
     chart,
     chips: Array.isArray(followUps) ? followUps : [],
@@ -458,6 +513,60 @@ function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
       depthLevel: Number(patch.depthLevel || 0),
     },
   };
+}
+
+/* ======================================================
+   Canonical dispatch helpers
+====================================================== */
+
+function normalizeResolverAction(action) {
+  const t = String(action || "").toLowerCase();
+  if (t === "number1" || t === "number_one") return "number_one";
+  return t;
+}
+
+function buildMomentFollowUps(result, year) {
+  if (result && result.followUp && result.followUp.kind === "ask_year") {
+    return ["1956", "1988", "top 10 1988"];
+  }
+  const y = clampYear(year || (result && result.sessionPatch && (result.sessionPatch.lastMusicYear || result.sessionPatch.year)));
+  if (!y) return ["1956", "1988", "top 10 1988"];
+  return [`top 10 ${y}`, "#1", `story moment ${y}`, `micro moment ${y}`];
+}
+
+function normalizeMomentResult(result, session, userYear) {
+  const reply = String(result && result.reply || "").trim();
+  const patch = ensureContinuity({
+    session,
+    patch: scrubLegacyChartsInPatch(safeSessionPatch(result && result.sessionPatch) || {}),
+    userMode: normalizeModeFromText(reply),
+    replyMode: normalizeModeFromText(reply),
+    userYear,
+    replyYear: clampYear(result && result.sessionPatch && (result.sessionPatch.lastMusicYear || result.sessionPatch.year)),
+  });
+  const normalized = normalizeFollowUps(buildMomentFollowUps(result, userYear), patch);
+  return { reply, sessionPatch: patch, normalized };
+}
+
+async function runCanonicalMusicAction({ action, text, session, visitorId, debug, year }) {
+  const a = normalizeResolverAction(action || inferActionFromLabel(text));
+  if ((a === "story_moment" || a === "micro_moment") && musicMoments && typeof musicMoments.handle === "function") {
+    const out = await Promise.resolve(musicMoments.handle(text, session || {}));
+    return { source: "musicMoments", raw: out };
+  }
+  if (!musicKnowledge) return { source: "fallback", raw: null };
+  const out = await Promise.resolve(
+    typeof musicKnowledge.handleChat === "function"
+      ? musicKnowledge.handleChat({ text, session: session || {}, visitorId, debug: !!debug })
+      : musicKnowledge.handleMusicTurn({
+          norm: {},
+          session: session || {},
+          year,
+          action: a === "number_one" ? "number_one" : a,
+          opts: { meta: !!debug },
+        })
+  );
+  return { source: "musicKnowledge", raw: out };
 }
 
 /* ======================================================
@@ -491,11 +600,7 @@ async function handleChat({ text, session, visitorId, debug }) {
           followUpsStrings: normalized.followUpsStrings,
           followUps: normalized.followUps,
           sessionPatch,
-          bridge: buildBridgeEnvelope({
-            reply: fallback,
-            followUps: normalized.followUps,
-            sessionPatch,
-          }),
+          bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch }),
           meta: debug ? { ok: false, reason: "deeper_no_context" } : null,
         };
       }
@@ -510,16 +615,36 @@ async function handleChat({ text, session, visitorId, debug }) {
       }
     }
 
-    const cleanText = String(baseText || "");
+    const cleanPrompt = String(baseText || "").trim();
+    const inferredMode = normalizeModeFromText(cleanPrompt);
+    const inferredYear = extractYearFromText(cleanPrompt);
 
-    if (!musicKnowledge) {
+    const resolver = musicResolver && typeof musicResolver.resolveMusicIntent === "function"
+      ? await Promise.resolve(musicResolver.resolveMusicIntent({
+          text: cleanPrompt,
+          session: s,
+          activeLane: s.activeLane || s.lane || LANE_NAME,
+          action: inferredMode,
+          year: inferredYear,
+        }))
+      : null;
+
+    const resolvedAction = resolver && resolver.action
+      ? normalizeResolverAction(resolver.action)
+      : (inferredMode === "number1" ? "number_one" : (inferredMode === "story" ? "story_moment" : (inferredMode === "micro" ? "micro_moment" : (inferredMode || inferActionFromLabel(cleanPrompt)))));
+
+    const resolvedYear = clampYear(
+      (resolver && resolver.year) || inferredYear || s.lastMusicYear || s.year || s.pendingYear
+    );
+
+    if (!musicKnowledge && !musicMoments) {
       const fallback = "Music is warming up. Give me a year (1950–2025).";
       const sessionPatch = ensureContinuity({
         session: s,
-        patch: scrubLegacyChartsInPatch(null),
-        userMode: normalizeModeFromText(cleanText),
+        patch: scrubLegacyChartsInPatch(resolver && resolver.sessionPatch ? resolver.sessionPatch : null),
+        userMode: inferredMode,
         replyMode: null,
-        userYear: extractYearFromText(cleanText),
+        userYear: resolvedYear,
         replyYear: null,
       });
       const normalized = normalizeFollowUps(["1956", "1988", "top 10 1988"], sessionPatch);
@@ -528,69 +653,95 @@ async function handleChat({ text, session, visitorId, debug }) {
         followUpsStrings: normalized.followUpsStrings,
         followUps: normalized.followUps,
         sessionPatch,
-        bridge: buildBridgeEnvelope({
-          reply: fallback,
-          followUps: normalized.followUps,
-          sessionPatch,
-        }),
-        meta: debug ? { ok: false, reason: "musicKnowledge_missing" } : null,
+        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch }),
+        meta: debug ? { ok: false, reason: "music_modules_missing" } : null,
       };
     }
 
-    const inferredMode = normalizeModeFromText(cleanText);
-    const inferredYear = extractYearFromText(cleanText);
+    if (resolver && resolver.needsYear) {
+      const fallback = String(resolver.reply || "Give me the year and I will run it.");
+      const sessionPatch = ensureContinuity({
+        session: s,
+        patch: scrubLegacyChartsInPatch(resolver.sessionPatch || {}),
+        userMode: inferredMode,
+        replyMode: null,
+        userYear: null,
+        replyYear: null,
+      });
+      const normalized = normalizeFollowUps(resolver.followUps || ["1956", "1988", "top 10 1988"], sessionPatch);
+      return {
+        reply: fallback,
+        followUpsStrings: normalized.followUpsStrings,
+        followUps: normalized.followUps,
+        sessionPatch,
+        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch }),
+        meta: debug ? { ok: true, source: "musicResolver", reason: "needs_year" } : null,
+      };
+    }
 
-    const raw = await Promise.resolve(
-      typeof musicKnowledge.handleChat === "function"
-        ? musicKnowledge.handleChat({
-            text: cleanText,
-            session: s,
-            visitorId,
-            debug: !!debug,
-          })
-        : musicKnowledge.handleMusicTurn({
-            norm: {},
-            session: s,
-            year: inferredYear,
-            action: inferredMode === "top100" ? "yearend_hot100" : (inferredMode || ""),
-            opts: { meta: !!debug },
-          })
-    );
+    const canonicalText = resolvedAction === "year_pick"
+      ? cleanPrompt
+      : (() => {
+          const y = resolvedYear ? ` ${resolvedYear}` : "";
+          if (resolvedAction === "top10") return `top 10${y}`.trim();
+          if (resolvedAction === "yearend_hot100") return `year-end hot 100${y}`.trim();
+          if (resolvedAction === "number_one") return `#1${y}`.trim();
+          if (resolvedAction === "story_moment") return `story moment${y}`.trim();
+          if (resolvedAction === "micro_moment") return `micro moment${y}`.trim();
+          return cleanPrompt;
+        })();
 
-    let reply = String(raw && raw.reply ? raw.reply : raw && raw.replyRaw ? raw.replyRaw : "").trim();
-    if (!reply) reply = "Tell me a year (1950–2025), or say “top 10 1988”.";
-
-    const userMode = inferredMode;
-    const replyMode = inferModeFromReply(reply);
-    const userYear = inferredYear;
-    const replyYear = null;
-
-    let sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
-    sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
-    sessionPatch = ensureContinuity({
+    const executed = await runCanonicalMusicAction({
+      action: resolvedAction,
+      text: canonicalText,
       session: s,
-      patch: sessionPatch,
-      userMode,
-      replyMode,
-      userYear,
-      replyYear,
+      visitorId,
+      debug,
+      year: resolvedYear,
     });
-    sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
+
+    let reply = "";
+    let sessionPatch = null;
+    let normalized = null;
+
+    if (executed.source === "musicMoments") {
+      const moment = normalizeMomentResult(executed.raw, s, resolvedYear);
+      reply = moment.reply || "Give me a year (1950–2025) and I’ll run the music lane.";
+      sessionPatch = moment.sessionPatch;
+      normalized = moment.normalized;
+    } else {
+      const raw = executed.raw;
+      reply = String(raw && raw.reply ? raw.reply : raw && raw.replyRaw ? raw.replyRaw : "").trim();
+      if (!reply) reply = "Tell me a year (1950–2025), or say “top 10 1988”.";
+
+      const replyMode = inferModeFromReply(reply);
+      sessionPatch = safeSessionPatch(raw && raw.sessionPatch);
+      sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
+      if (resolver && resolver.sessionPatch) {
+        sessionPatch = { ...(resolver.sessionPatch || {}), ...(sessionPatch || {}) };
+      }
+      sessionPatch = ensureContinuity({
+        session: s,
+        patch: sessionPatch,
+        userMode: inferredMode,
+        replyMode,
+        userYear: resolvedYear,
+        replyYear: null,
+      });
+      sessionPatch = scrubLegacyChartsInPatch(sessionPatch);
+
+      const rawFollowUps = Array.isArray(raw && raw.followUps) && raw.followUps.length
+        ? raw.followUps
+        : Array.isArray(raw && raw.followUpsStrings) && raw.followUpsStrings.length
+          ? raw.followUpsStrings
+          : (resolver && Array.isArray(resolver.followUps) && resolver.followUps.length ? resolver.followUps : ["1956", "top 10 1988", "story moment 1955"]);
+      normalized = normalizeFollowUps(rawFollowUps, sessionPatch);
+    }
 
     if (deep) {
-      const appliedMode =
-        (sessionPatch && (sessionPatch.activeMusicMode || sessionPatch.mode)) ||
-        userMode ||
-        replyMode ||
-        "top10";
-
-      const appliedYear =
-        (sessionPatch && (sessionPatch.lastMusicYear || sessionPatch.year)) ||
-        userYear ||
-        null;
-
+      const appliedMode = (sessionPatch && (sessionPatch.activeMusicMode || sessionPatch.mode)) || inferredMode || "top10";
+      const appliedYear = (sessionPatch && (sessionPatch.lastMusicYear || sessionPatch.year)) || resolvedYear || null;
       reply = `${reply}${deeperExpansion({ mode: appliedMode, year: appliedYear })}`;
-
       if (sessionPatch && typeof sessionPatch === "object") {
         const prev = Number(sessionPatch.depthLevel || 0);
         sessionPatch.depthLevel = prev + 1;
@@ -599,19 +750,7 @@ async function handleChat({ text, session, visitorId, debug }) {
       }
     }
 
-    const rawFollowUps =
-      Array.isArray(raw && raw.followUps) && raw.followUps.length
-        ? raw.followUps
-        : Array.isArray(raw && raw.followUpsStrings) && raw.followUpsStrings.length
-          ? raw.followUpsStrings
-          : ["1956", "top 10 1988", "story moment 1955"];
-
-    const normalized = normalizeFollowUps(rawFollowUps, sessionPatch);
-    const bridge = buildBridgeEnvelope({
-      reply,
-      followUps: normalized.followUps,
-      sessionPatch,
-    });
+    const bridge = buildBridgeEnvelope({ reply, followUps: normalized.followUps, sessionPatch });
 
     return {
       reply,
@@ -619,46 +758,34 @@ async function handleChat({ text, session, visitorId, debug }) {
       followUps: normalized.followUps,
       sessionPatch,
       bridge,
-      meta: debug
-        ? {
-            ok: !!reply,
-            source: "musicKnowledge",
-            mkVersion:
-              musicKnowledge.MK_VERSION && typeof musicKnowledge.MK_VERSION === "function"
-                ? musicKnowledge.MK_VERSION()
-                : null,
-            followUps: normalized.followUpsStrings.length,
-            hasPatch: !!sessionPatch,
-            deep,
-            chart: {
-              inboundActiveMusicChart: s0 && typeof s0 === "object" ? s0.activeMusicChart || null : null,
-              inboundLastMusicChart: s0 && typeof s0 === "object" ? s0.lastMusicChart || null : null,
-              scrubbedActiveMusicChart: s.activeMusicChart || null,
-              scrubbedLastMusicChart: s.lastMusicChart || null,
-              outboundActiveMusicChart: sessionPatch ? sessionPatch.activeMusicChart || null : null,
-              outboundLastMusicChart: sessionPatch ? sessionPatch.lastMusicChart || null : null,
-            },
-            inferred: {
-              userMode: userMode || null,
-              replyMode: replyMode || null,
-              appliedMode:
-                sessionPatch && (sessionPatch.mode || sessionPatch.activeMusicMode)
-                  ? sessionPatch.mode || sessionPatch.activeMusicMode
-                  : null,
-              appliedYear:
-                sessionPatch && (sessionPatch.year || sessionPatch.lastMusicYear)
-                  ? sessionPatch.year || sessionPatch.lastMusicYear
-                  : null,
-            },
-            bridge: {
-              ready: bridge.ready,
-              year: bridge.year,
-              mode: bridge.mode,
-              chart: bridge.chart,
-              chips: bridge.chips.length,
-            },
-          }
-        : null,
+      meta: debug ? {
+        ok: !!reply,
+        source: executed.source,
+        resolver: resolver ? { action: resolver.action || null, year: resolver.year || null } : null,
+        followUps: normalized.followUpsStrings.length,
+        hasPatch: !!sessionPatch,
+        deep,
+        chart: {
+          inboundActiveMusicChart: s0 && typeof s0 === "object" ? s0.activeMusicChart || null : null,
+          inboundLastMusicChart: s0 && typeof s0 === "object" ? s0.lastMusicChart || null : null,
+          scrubbedActiveMusicChart: s.activeMusicChart || null,
+          scrubbedLastMusicChart: s.lastMusicChart || null,
+          outboundActiveMusicChart: sessionPatch ? sessionPatch.activeMusicChart || null : null,
+          outboundLastMusicChart: sessionPatch ? sessionPatch.lastMusicChart || null : null,
+        },
+        inferred: {
+          userMode: inferredMode || null,
+          appliedAction: resolvedAction || null,
+          appliedYear: resolvedYear || null,
+        },
+        bridge: {
+          ready: bridge.ready,
+          year: bridge.year,
+          mode: bridge.mode,
+          chart: bridge.chart,
+          chips: bridge.chips.length,
+        },
+      } : null,
     };
   } catch (e) {
     const fallback = "Music lane hit a snag. Give me a year (1950–2025) and try again.";
@@ -668,11 +795,7 @@ async function handleChat({ text, session, visitorId, debug }) {
       followUpsStrings: normalized.followUpsStrings,
       followUps: normalized.followUps,
       sessionPatch: null,
-      bridge: buildBridgeEnvelope({
-        reply: fallback,
-        followUps: normalized.followUps,
-        sessionPatch: null,
-      }),
+      bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch: null }),
       meta: debug ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) } : null,
     };
   }
@@ -699,7 +822,7 @@ async function handleBridgeRequest(body) {
     source: LANE_NAME,
     reply: res.reply,
     text: res.reply,
-    content: { text: res.reply || "", year: bridge && bridge.year || null, mode: bridge && bridge.mode || null, chart: bridge && bridge.chart || null },
+    content: { text: res.reply || "", year: bridge && bridge.year || null, yearSpoken: bridge && bridge.yearSpoken || null, mode: bridge && bridge.mode || null, chart: bridge && bridge.chart || null },
     followUps: res.followUps,
     followUpsStrings: res.followUpsStrings,
     followUpObjects: res.followUps,
