@@ -377,9 +377,9 @@ function renderTop10Text(top10) {
 // FollowUps helper (simple, predictable)
 // =========================
 function yearFollowUps(baseAction, year) {
-  const y = toIntYear(year);
-  const y2 = y ? y - 1 : 1987;
-  const y3 = y ? y + 1 : 1989;
+  const y = toIntYear(year) || 1988;
+  const prev = Math.max(DEFAULT_PUBLIC_MIN_YEAR, y - 1);
+  const next = Math.min(DEFAULT_PUBLIC_MAX_YEAR, y + 1);
 
   const make = (yy) => ({
     id: `fu_${baseAction}_${yy}`,
@@ -388,8 +388,7 @@ function yearFollowUps(baseAction, year) {
     payload: { lane: "music", action: baseAction, year: yy, route: baseAction },
   });
 
-  // Keep exactly 3, stable
-  return [make(y2), make(y || 1988), make(y3)];
+  return [make(prev), make(y), make(next)];
 }
 
 function modeFollowUps(year) {
@@ -1029,7 +1028,7 @@ function handleChat(args) {
   let res = null;
   if (/\btop\s*(10|ten)\b/.test(t)) res = handleTop10(year, { meta: !!input.debug });
   else if (/\b(year[-\s]*end\s*hot\s*100|hot\s*100|top\s*100)\b/.test(t)) res = handleYearEndHot100(year, { meta: !!input.debug });
-  else if (/\bstory\s*moment\b|\bcinematic\b/.test(t)) res = handleStoryMoment(year);
+  else if (/\bstory\s*moment\b|\bcinematic\b|\bstory\b|\bmoment\b/.test(t)) res = handleStoryMoment(year);
   else if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) res = handleMicroMoment(year);
   else if (/\b(custom\s*story|romantic|rebellious|nostalgic)\b/.test(t)) {
     const vibe = /\bromantic\b/.test(t) ? 'romantic' : /\brebellious\b/.test(t) ? 'rebellious' : 'nostalgic';
