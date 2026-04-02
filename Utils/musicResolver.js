@@ -83,10 +83,10 @@ function makeContext(input = {}) {
   const year = normYear(inferred.year)
     || normYear(policy?.inferredSlots?.year)
     || normYear(input.year)
+    || normYear(text)
     || normYear(session.lastMusicYear)
     || normYear(session.lockedYear)
-    || normYear(session.year)
-    || normYear(text);
+    || normYear(session.year);
   const activeLane = safeStr(input.activeLane || session.activeLane || session.lane || "general") || "general";
   return {
     text,
@@ -139,7 +139,7 @@ async function resolveMusicIntent(input = {}) {
   const ctx = makeContext(input);
   let action = ctx.action;
 
-  if (!action && ctx.activeLane === LANE && ctx.year) action = "top10";
+  if (!action && ctx.year) action = "top10";
 
   if (!action) {
     return finalize({
