@@ -304,11 +304,69 @@ function _escapeXml(s){
 }
 function _normalizeText(text){
   return _str(text)
+    .replace(/\b((?:19|20)\d{2})([A-Za-z])/g, "$1 $2")
+    .replace(/([A-Za-z])((?:19|20)\d{2})\b/g, "$1 $2")
+    .replace(/\b(\d{1,3}),(\d{3})(?=\b)/g, "$1$2")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/([,.;:!?])([A-Za-z])/g, "$1 $2")
     .replace(/\.{4,}/g, "...")
     .trim();
+}
+
+function _speechCacheKey(input){
+  const src = input && typeof input === "object" ? input : {};
+  const introFlag = src.intro ? "intro" : "main";
+  const routeKind = _lower(src.routeKind || src.mode || "main");
+  const sessionish = _pickFirst(src.sessionId, src.turnId, src.requestId, src.traceId, "global");
+  const voiceish = _pickFirst(src.voiceUuid, _getVoiceUuid(), "voice");
+  const textish = _normalizeText(_pickFirst(src.textSpeak, src.textDisplay, src.text, "")).toLowerCase();
+  return [sessionish, voiceish, introFlag, routeKind, _hash(textish)].join("::");
+}
+
+function _pruneRecentSpeech(now){
+  const t = Number(now) || Date.now();
+  for (const [key, value] of recentSpeechCache.entries()){
+    if (!value || !value.expiresAt || value.expiresAt <= t) recentSpeechCache.delete(key);
+  }
+  while (recentSpeechCache.size > RECENT_SPEECH_MAX){
+    const firstKey = recentSpeechCache.keys().next().value;
+    if (!firstKey) break;
+    recentSpeechCache.delete(firstKey);
+  }
+}
+
+function _readRecentSpeech(input, now){
+  _pruneRecentSpeech(now);
+  const hit = recentSpeechCache.get(_speechCacheKey(input));
+  if (!hit || !Buffer.isBuffer(hit.buffer) || !hit.buffer.length) return null;
+  if (hit.expiresAt <= (Number(now) || Date.now())){
+    recentSpeechCache.delete(_speechCacheKey(input));
+    return null;
+  }
+  return hit;
+}
+
+function _writeRecentSpeech(input, result, now){
+  const buffer = result && Buffer.isBuffer(result.buffer) ? result.buffer : null;
+  if (!buffer || !buffer.length) return;
+  const t = Number(now) || Date.now();
+  const key = _speechCacheKey(input);
+  recentSpeechCache.set(key, {
+    expiresAt: t + RECENT_SPEECH_TTL_MS,
+    buffer: Buffer.from(buffer),
+    mimeType: _pickFirst(result && result.mimeType, "audio/mpeg"),
+    providerStatus: Number((result && result.providerStatus) || 200) || 200,
+    requestId: _pickFirst(result && result.requestId, input && input.requestId),
+    voiceUuid: _pickFirst(result && result.voiceUuid, input && input.voiceUuid),
+    textDisplay: _pickFirst(result && result.textDisplay, input && input.textDisplay, input && input.text),
+    textSpeak: _pickFirst(result && result.textSpeak, input && input.text),
+    speechChunks: Array.isArray(result && result.speechChunks) ? result.speechChunks.slice(0, 24) : [],
+    routeKind: _pickFirst(result && result.routeKind, input && input.routeKind, input && input.mode, "main"),
+    intro: !!_pickFirst(result && result.intro, input && input.intro, false),
+    source: _pickFirst(result && result.source, input && input.source, "tts")
+  });
+  _pruneRecentSpeech(t);
 }
 function _yearToSpeech(y){
   const year = Number(y);
@@ -1632,7 +1690,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
+const TTS_VERSION = "tts.js v2.9.1 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT + YEAR-JAM-FIX + INTRO-DEDUPE";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1687,6 +1745,9 @@ const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
 let activeRequests = 0;
 let failCount = 0;
 let circuitOpenUntil = 0;
+const RECENT_SPEECH_TTL_MS = _clampInt(process.env.SB_TTS_RECENT_SPEECH_TTL_MS, 2200, 250, 10000);
+const RECENT_SPEECH_MAX = _clampInt(process.env.SB_TTS_RECENT_SPEECH_MAX, 24, 4, 128);
+const recentSpeechCache = new Map();
 let lastError = "";
 let lastOkAt = 0;
 let lastFailAt = 0;
@@ -2726,6 +2787,46 @@ async function generate(text, options) {
     speakPreview: _preview(providerInput.textSpeak || "")
   });
 
+  const recentSpeech = _readRecentSpeech(providerInput, startedAt);
+  if (recentSpeech) {
+    _log("generate_recent_speech_reuse", {
+      ...snapshot,
+      providerStatus: recentSpeech.providerStatus || 200,
+      bytes: recentSpeech.buffer.length,
+      elapsedMs: _now() - startedAt,
+      cacheTtlMs: RECENT_SPEECH_TTL_MS
+    });
+    return {
+      ok: true,
+      provider: "resemble",
+      buffer: Buffer.from(recentSpeech.buffer),
+      mimeType: recentSpeech.mimeType || "audio/mpeg",
+      elapsedMs: _now() - startedAt,
+      bytes: recentSpeech.buffer.length,
+      audioVerification: "recent-speech-reuse",
+      requestId: recentSpeech.requestId || input.requestId,
+      providerStatus: recentSpeech.providerStatus || 200,
+      providerEndpoint: "recent_speech_cache",
+      authMode: "cache",
+      failoverKind: "cache",
+      shapeElapsedMs: shaped.shapeElapsedMs,
+      segmentCount: shaped.segmentCount,
+      textDisplay: recentSpeech.textDisplay || providerInput.textDisplay,
+      textSpeak: recentSpeech.textSpeak || providerInput.textSpeak,
+      ssmlText: providerInput.ssmlText,
+      speechChunks: recentSpeech.speechChunks && recentSpeech.speechChunks.length ? recentSpeech.speechChunks : providerInput.speechChunks,
+      voiceUuid: recentSpeech.voiceUuid || input.voiceUuid,
+      traceId: input.traceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      intro: recentSpeech.intro,
+      routeKind: recentSpeech.routeKind || input.routeKind || "main",
+      source: recentSpeech.source || input.source || "tts",
+      ttsFailure: _normalizeRecoveryContract(input),
+      audioFailure: _normalizeRecoveryContract(input)
+    };
+  }
+
   activeRequests += 1;
   try {
     _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, timeoutMs: PROVIDER_TIMEOUT_MS });
@@ -2785,6 +2886,20 @@ async function generate(text, options) {
         bytes: audioVerified.bytes
       };
     }
+
+    _writeRecentSpeech(providerInput, {
+      buffer: audioVerified.buffer,
+      mimeType: audioVerified.mimeType || "audio/mpeg",
+      providerStatus: normalizedOut.providerStatus || 200,
+      requestId: normalizedOut.requestId || input.requestId,
+      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
+      textDisplay: providerInput.textDisplay,
+      textSpeak: providerInput.textSpeak,
+      speechChunks: providerInput.speechChunks,
+      routeKind: input.routeKind || "main",
+      intro: !!input.intro,
+      source: input.source || "tts"
+    }, _now());
 
     _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs, snapshot);
     return {
