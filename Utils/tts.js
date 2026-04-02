@@ -304,7 +304,8 @@ function _escapeXml(s){
 }
 function _normalizeText(text){
   return _str(text)
-    .replace(/\b(\d{1,2}),(\d{3})(?=\b)/g, "$1$2")
+    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
+    .replace(/\b((?:19|20)\d{2})(?=in\b)/gi, "$1 ")
     .replace(/\b((?:19|20)\d{2})([A-Za-z])/g, "$1 $2")
     .replace(/([A-Za-z])((?:19|20)\d{2})\b/g, "$1 $2")
     .replace(/\s+/g, " ")
@@ -343,7 +344,10 @@ function _yearToSpeech(y){
   return String(year);
 }
 function _convertYearTokens(text){
-  return _str(text).replace(/\b(19\d{2}|20\d{2})\b/g, (match) => _yearToSpeech(Number(match)));
+  return _str(text)
+    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
+    .replace(/\b((?:19|20)\d{2})(?=in\b)/gi, "$1 ")
+    .replace(/\b(19\d{2}|20\d{2})\b/g, (match) => _yearToSpeech(Number(match)));
 }
 function _splitSpeechChunks(text){
   return _normalizeText(text)
