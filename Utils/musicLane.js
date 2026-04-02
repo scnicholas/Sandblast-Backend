@@ -634,7 +634,7 @@ async function handleChat({ text, session, visitorId, debug }) {
       : (inferredMode === "number1" ? "number_one" : (inferredMode === "story" ? "story_moment" : (inferredMode === "micro" ? "micro_moment" : (inferredMode || inferActionFromLabel(cleanPrompt)))));
 
     const resolvedYear = clampYear(
-      (resolver && resolver.year) || inferredYear || s.lastMusicYear || s.year || s.pendingYear
+      inferredYear || (resolver && resolver.year) || s.lastMusicYear || s.year || s.pendingYear
     );
 
     if (!musicKnowledge && !musicMoments) {
