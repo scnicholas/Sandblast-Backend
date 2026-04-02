@@ -304,6 +304,9 @@ function _escapeXml(s){
 }
 function _normalizeText(text){
   return _str(text)
+    .replace(/(\d{1,2}),(\d{3})(?=)/g, "$1$2")
+    .replace(/((?:19|20)\d{2})([A-Za-z])/g, "$1 $2")
+    .replace(/([A-Za-z])((?:19|20)\d{2})/g, "$1 $2")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/([,.;:!?])([A-Za-z])/g, "$1 $2")
