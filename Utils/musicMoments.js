@@ -502,7 +502,7 @@ function pickSong(session, year, rank) {
       rank: 1,
       artist: at.artist,
       title: at.title,
-      chart: normalizeArtistTitle ? (n1?.sessionPatch?.activeMusicChart || session.activeMusicChart) : session.activeMusicChart,
+      chart: n1?.sessionPatch?.activeMusicChart || session.activeMusicChart,
     };
   }
 
@@ -519,10 +519,10 @@ function sessionPatchBase(session, extra = {}) {
     activeLane: "music",
     lane: "music",
     activeMusicChart: s.activeMusicChart || "Billboard Hot 100",
-    lastMusicYear: s.lastMusicYear ?? null,
-    year: s.lastMusicYear ?? null,
+    lastMusicYear: extra.lastMusicYear ?? extra.year ?? s.lastMusicYear ?? null,
+    year: extra.year ?? extra.lastMusicYear ?? s.lastMusicYear ?? null,
     lastMusicChart: s.lastMusicChart || s.activeMusicChart || "Billboard Hot 100",
-    pendingMicroYear: s.pendingMicroYear ?? null,
+    pendingMicroYear: extra.pendingMicroYear ?? s.pendingMicroYear ?? null,
     ...(mode ? { activeMusicMode: mode, mode } : {}),
     ...extra,
   };
