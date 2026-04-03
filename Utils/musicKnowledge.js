@@ -3,7 +3,7 @@
 /**
  * Utils/musicKnowledge.js
  *
- * v1.3.2 (FAIL-OPEN GUARANTEE++++ + DISPATCH HARDEN++++ + NUMBER1 YEAR PARSE FIX++++ + DIAG SAFETY++++)
+ * v1.4.0 (NUMBER1 DISPATCH FIX + MOMENTS DELEGATION + 2025 ALIGN + FAIL-OPEN HARDEN)
  *
  * Guarantees:
  *  - Top10 returns exactly 10 items (1..10 deterministic selection)
@@ -35,6 +35,18 @@
 
 const fs = require("fs");
 const path = require("path");
+
+let _musicMomentsMod = undefined;
+function getMusicMomentsMod() {
+  if (_musicMomentsMod !== undefined) return _musicMomentsMod;
+  try {
+    const mod = require("./musicMoments");
+    _musicMomentsMod = mod && typeof mod.getMoment === "function" ? mod : null;
+  } catch (_) {
+    _musicMomentsMod = null;
+  }
+  return _musicMomentsMod;
+}
 
 function firstExistingFile(candidates) {
   for (const file of candidates) {
@@ -512,6 +524,69 @@ function handleTop10(year, opts) {
  * They work by anchoring on Top10 and applying an internal template.
  * If you later add richer story assets, slot them in here safely.
  */
+function handleNumberOne(year, opts) {
+  const y = normalizeYear(year);
+  if (!y) {
+    const fu = yearFollowUps("top10", 1988);
+    return {
+      ok: false,
+      replyRaw: "Give me a year (YYYY) for the #1 song.",
+      route: "number1",
+      actionTaken: "need_year",
+      pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
+      meta: { code: "BAD_YEAR" },
+    };
+  }
+
+  const top = getNumberOneByYear(y, { meta: !!(opts && opts.meta) });
+  if (!top) {
+    const fu = yearFollowUps("top10", y);
+    return {
+      ok: false,
+      replyRaw: `I don’t have #1 data loaded for ${y}. Pick another year.`,
+      route: "number1",
+      actionTaken: "year_not_found",
+      pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true),
+      followUps: fu,
+      followUpsStrings: fu.map((x) => x.label),
+      meta: { code: "YEAR_NOT_FOUND", year: y },
+    };
+  }
+
+  const title = cleanText(top.title) || "—";
+  const artist = cleanText(top.artist);
+  const replyRaw = `#1 song — ${y}\n\n1. "${title}"${artist ? " — " + artist : ""}`;
+  const sessionPatch = {
+    activeLane: "music",
+    lane: "music",
+    year: Number(y),
+    lastYear: Number(y),
+    lastMusicYear: Number(y),
+    mode: "number1",
+    activeMusicMode: "number1",
+    lastMode: "number1",
+    lastAction: "number1",
+    activeMusicChart: cleanText(top.chart) || "",
+    lastMusicChart: cleanText(top.chart) || "",
+  };
+  const fu = modeFollowUps(y);
+  return {
+    ok: true,
+    replyRaw,
+    route: "number1",
+    actionTaken: "served_number1",
+    topic: "music",
+    spineStage: "deliver",
+    sessionPatch,
+    pendingAsk: null,
+    followUps: fu,
+    followUpsStrings: fu.map((x) => x.label),
+    meta: opts && opts.meta === true && top.meta ? { top10Meta: top.meta } : {},
+  };
+}
+
 function handleStoryMoment(year) {
   const y = normalizeYear(year);
   if (!y) {
@@ -541,6 +616,46 @@ function handleStoryMoment(year) {
       followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
+  }
+
+  const musicMoments = getMusicMomentsMod();
+  if (musicMoments && typeof musicMoments.getMoment === "function") {
+    try {
+      const delegated = cleanText(musicMoments.getMoment({ year: Number(y), chart: cleanText(top10.chart) || "", kind: "story" }));
+      if (delegated) {
+        const sessionPatch = {
+          activeLane: "music",
+          lane: "music",
+          year: Number(y),
+          lastYear: Number(y),
+          lastMusicYear: Number(y),
+          mode: "story_moment",
+          activeMusicMode: "story_moment",
+          lastMode: "story_moment",
+          lastAction: "story_moment",
+          activeMusicChart: cleanText(top10.chart) || "",
+          lastMusicChart: cleanText(top10.chart) || "",
+        };
+        const fu = [
+          { id: `fu_story_top10_${y}`, type: "chip", label: "Top 10", payload: { lane: "music", action: "top10", year: Number(y), route: "top10" } },
+          { id: `fu_story_micro_${y}`, type: "chip", label: "Micro moment", payload: { lane: "music", action: "micro_moment", year: Number(y), route: "micro_moment" } },
+          { id: `fu_story_next_${y}`, type: "chip", label: "Next year", payload: { lane: "music", action: "story_moment", year: Math.min(DEFAULT_PUBLIC_MAX_YEAR, Number(y) + 1), route: "story_moment" } },
+        ];
+        return {
+          ok: true,
+          replyRaw: delegated,
+          route: "story_moment",
+          actionTaken: "served_story_moment_delegated",
+          topic: "music",
+          spineStage: "deliver",
+          sessionPatch,
+          pendingAsk: null,
+          followUps: fu,
+          followUpsStrings: fu.map((x) => x.label),
+          meta: { source: "musicMoments.getMoment" },
+        };
+      }
+    } catch (_) {}
   }
 
   // Anchor on #1 for the "cinematic" opening.
@@ -634,6 +749,46 @@ function handleMicroMoment(year) {
       followUpsStrings: fu.map((x) => x.label),
       meta: { code: "YEAR_NOT_FOUND", year: y },
     };
+  }
+
+  const musicMoments = getMusicMomentsMod();
+  if (musicMoments && typeof musicMoments.getMoment === "function") {
+    try {
+      const delegated = cleanText(musicMoments.getMoment({ year: Number(y), chart: cleanText(top10.chart) || "", kind: "micro" }));
+      if (delegated) {
+        const sessionPatch = {
+          activeLane: "music",
+          lane: "music",
+          year: Number(y),
+          lastYear: Number(y),
+          lastMusicYear: Number(y),
+          mode: "micro_moment",
+          activeMusicMode: "micro_moment",
+          lastMode: "micro_moment",
+          lastAction: "micro_moment",
+          activeMusicChart: cleanText(top10.chart) || "",
+          lastMusicChart: cleanText(top10.chart) || "",
+        };
+        const fu = [
+          { id: `fu_micro_story_${y}`, type: "chip", label: "Story moment", payload: { lane: "music", action: "story_moment", year: Number(y), route: "story_moment" } },
+          { id: `fu_micro_top10_${y}`, type: "chip", label: "Top 10", payload: { lane: "music", action: "top10", year: Number(y), route: "top10" } },
+          { id: `fu_micro_next_${y}`, type: "chip", label: "Next year", payload: { lane: "music", action: "micro_moment", year: Math.min(DEFAULT_PUBLIC_MAX_YEAR, Number(y) + 1), route: "micro_moment" } },
+        ];
+        return {
+          ok: true,
+          replyRaw: delegated,
+          route: "micro_moment",
+          actionTaken: "served_micro_moment_delegated",
+          topic: "music",
+          spineStage: "deliver",
+          sessionPatch,
+          pendingAsk: null,
+          followUps: fu,
+          followUpsStrings: fu.map((x) => x.label),
+          meta: { source: "musicMoments.getMoment" },
+        };
+      }
+    } catch (_) {}
   }
 
   const pick = top10.items && top10.items[2] ? top10.items[2] : top10.items[0];
@@ -873,6 +1028,7 @@ async function handleMusicTurn(args) {
     // If action implies year but year missing, return a clean pendingAsk bundle
     const requiresYear = new Set([
       "top10",
+      "number1",
       "story_moment",
       "micro_moment",
       "yearend_hot100",
@@ -923,6 +1079,7 @@ async function handleMusicTurn(args) {
 
     // Dispatch (never throw)
     if (act === "top10") return handleTop10(yInt, { meta: !!opts.meta });
+    if (act === "number1") return handleNumberOne(yInt, { meta: !!opts.meta });
     if (act === "story_moment") return handleStoryMoment(yInt);
     if (act === "micro_moment") return handleMicroMoment(yInt);
     if (act === "yearend_hot100") return handleYearEndHot100(yInt, { meta: !!opts.meta });
@@ -1038,45 +1195,8 @@ function handleChat(args) {
   else if (/\b(custom\s*story|romantic|rebellious|nostalgic)\b/.test(t)) {
     const vibe = /\bromantic\b/.test(t) ? 'romantic' : /\brebellious\b/.test(t) ? 'rebellious' : 'nostalgic';
     res = handleCustomStory(year, vibe);
-  } else if (/^\s*(#1|1|number\s*1|number\s*one)\s*$/i.test(text)) {
-    const y = year || toIntYear(session.lastMusicYear);
-    const top10 = y ? getTop10ByYear(y, { meta: !!input.debug }) : null;
-    if (!y || !top10 || !Array.isArray(top10.items) || !top10.items.length) {
-      res = {
-        ok: true,
-        replyRaw: 'Give me a year (1950–2025).',
-        route: 'number1',
-        actionTaken: 'need_year',
-        sessionPatch: { lane: 'music' },
-        pendingAsk: pendingAskObj('need_year', 'clarify', 'Give me a year (1950–2025).', true),
-        followUps: yearFollowUps('top10', y || 1988),
-        followUpsStrings: yearFollowUps('top10', y || 1988).map((x) => x.label),
-        meta: { code: 'NEED_YEAR' },
-      };
-    } else {
-      const top = top10.items[0] || { title: '—', artist: '' };
-      const title = cleanText(top.title) || '—';
-      const artist = cleanText(top.artist);
-      res = {
-        ok: true,
-        replyRaw: `#1 — ${artist || 'Unknown Artist'} — ${title}`,
-        route: 'number1',
-        actionTaken: 'served_number1',
-        sessionPatch: {
-          lane: 'music',
-          lastYear: Number(y),
-          lastMusicYear: Number(y),
-          lastMode: 'number1',
-          lastAction: 'number1',
-          activeMusicChart: cleanText(top10.chart) || '',
-          lastMusicChart: cleanText(top10.chart) || '',
-        },
-        pendingAsk: null,
-        followUps: modeFollowUps(y),
-        followUpsStrings: modeFollowUps(y).map((x) => x.label),
-        meta: {},
-      };
-    }
+  } else if (isNumberOneRequest(text)) {
+    res = handleNumberOne(year, { meta: !!input.debug });
   } else if (year != null) {
     res = handleTop10(year, { meta: !!input.debug });
   } else {
@@ -1107,7 +1227,7 @@ function handleChat(args) {
 }
 
 function MK_VERSION() {
-  return 'musicKnowledge v1.3.2';
+  return 'musicKnowledge v1.4.0';
 }
 
 // =========================
