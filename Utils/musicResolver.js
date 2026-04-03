@@ -11,7 +11,7 @@
  *  - Never fabricate chart/story content; execution belongs to musicKnowledge/musicMoments.
  */
 
-const RESOLVER_VERSION = "musicResolver v1.2.1";
+const RESOLVER_VERSION = "musicResolver v1.2.2";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
 const LANE = "music";
@@ -53,6 +53,7 @@ function uniqFollowUps(items) {
 function normalizeActionName(x) {
   const t = lower(x);
   if (!t) return null;
+  if (["pick a year", "choose a year", "another year", "year", "select year"].includes(t)) return "year_pick";
   if (["music_top10_by_year", "top10", "top_10", "top ten"].includes(t)) return "top10";
   if (["music_number_one_by_year", "number1", "number_1", "#1", "number one", "no 1", "no. 1", "number_one"].includes(t)) return "number1";
   if (["music_story_moment_by_year", "story", "story_moment", "moment"].includes(t)) return "story_moment";
@@ -64,6 +65,7 @@ function normalizeActionName(x) {
 
 function inferActionFromText(textLower) {
   if (!textLower) return null;
+  if (/\b(pick|choose|select)\s+a?\s*year\b|\banother\s+year\b/.test(textLower)) return "year_pick";
   if (/\btop\s*10\b|\btop\s*ten\b/.test(textLower)) return "top10";
   if (/\byear[-\s]*end\s*hot\s*100\b|\btop\s*100\b|\bhot\s*100\b/.test(textLower)) return "yearend_hot100";
   if (/\b#\s*1\b|\bnumber\s*one\b|\bnumber\s*1\b|\bno\.?\s*1\b/.test(textLower)) return "number1";
