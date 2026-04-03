@@ -32,13 +32,18 @@
 const fs = require("fs");
 const path = require("path");
 
-const musicKnowledge = require("./musicKnowledge");
+let musicKnowledge = null;
+try {
+  musicKnowledge = require("./musicKnowledge");
+} catch (_) {
+  musicKnowledge = null;
+}
 
 // ---------------------------------------------------------
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.7 (sessionPatch + musicKnowledge.handleChat integration + getMoment API + no-loop fallbacks)";
+  "musicMoments v1.7.1 (safe require + year-context lenient read + chart normalization + no-loop fallbacks)";
 
 // ---------------------------------------------------------
 // Canonical moments + year context files
@@ -119,6 +124,10 @@ function normalizeArtistTitle(artist, title) {
   return { artist: cleanText(artist), title: cleanText(title) };
 }
 
+function normalizeChart(chart, session) {
+  return cleanText(chart || session?.activeMusicChart || session?.lastMusicChart || "Billboard Hot 100") || "Billboard Hot 100";
+}
+
 function makeStoryKey(year, artist, title) {
   return `${year}|${normKey(artist)}|${normKey(title)}`;
 }
@@ -185,7 +194,7 @@ function loadYearContext({ force = false } = {}) {
 
   try {
     const raw = fs.readFileSync(file, "utf8");
-    const doc = JSON.parse(raw);
+    const doc = JSON.parse(stripJsonComments(raw));
     const years = doc?.years && typeof doc.years === "object" ? doc.years : {};
     YEAR_CONTEXT_CACHE = { ok: true, file, mtimeMs, years };
     return YEAR_CONTEXT_CACHE;
@@ -442,9 +451,9 @@ function parse(text, session) {
 // Canonical Top 10/#1 via musicKnowledge.handleChat()
 // ---------------------------------------------------------
 function mkAsk(message, session) {
-  const res = typeof musicKnowledge.handleChat === "function"
+  const res = musicKnowledge && typeof musicKnowledge.handleChat === "function"
     ? musicKnowledge.handleChat({ text: message, session: session || {} })
-    : (typeof musicKnowledge.handleMusicTurn === "function"
+    : (musicKnowledge && typeof musicKnowledge.handleMusicTurn === "function"
         ? musicKnowledge.handleMusicTurn({ norm: {}, session: session || {}, year: null, action: "", opts: {} })
         : null);
   return res && typeof res === "object" ? res : null;
@@ -457,7 +466,7 @@ function mkTop10(year, session) {
 
 function mkNumber1(session) {
   const y = toInt(session && session.lastMusicYear);
-  if (typeof musicKnowledge.getNumberOneByYear === "function" && y) {
+  if (musicKnowledge && typeof musicKnowledge.getNumberOneByYear === "function" && y) {
     const n1 = musicKnowledge.getNumberOneByYear(y, { meta: false });
     if (n1) {
       return {
@@ -518,10 +527,10 @@ function sessionPatchBase(session, extra = {}) {
   const patch = {
     activeLane: "music",
     lane: "music",
-    activeMusicChart: s.activeMusicChart || "Billboard Hot 100",
+    activeMusicChart: normalizeChart(extra.activeMusicChart, s),
     lastMusicYear: extra.lastMusicYear ?? extra.year ?? s.lastMusicYear ?? null,
     year: extra.year ?? extra.lastMusicYear ?? s.lastMusicYear ?? null,
-    lastMusicChart: s.lastMusicChart || s.activeMusicChart || "Billboard Hot 100",
+    lastMusicChart: normalizeChart(extra.lastMusicChart, s),
     pendingMicroYear: extra.pendingMicroYear ?? s.pendingMicroYear ?? null,
     ...(mode ? { activeMusicMode: mode, mode } : {}),
     ...extra,
