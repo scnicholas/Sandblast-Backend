@@ -3,7 +3,7 @@
 /**
  * Utils/musicKnowledge.js
  *
- * v1.3.1 (FAIL-OPEN GUARANTEE++++ + DISPATCH HARDEN++++ + VIBE/PAYLOAD READ FIX++++ + DIAG SAFETY++++)
+ * v1.3.2 (FAIL-OPEN GUARANTEE++++ + DISPATCH HARDEN++++ + NUMBER1 YEAR PARSE FIX++++ + DIAG SAFETY++++)
  *
  * Guarantees:
  *  - Top10 returns exactly 10 items (1..10 deterministic selection)
@@ -136,6 +136,11 @@ function toIntYear(year) {
   if (!y) return null;
   const n = Number(y);
   return Number.isFinite(n) ? n : null;
+}
+function isNumberOneRequest(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+  return /(^|\s)(#\s*1|number\s*1|number\s*one|no\.?\s*1|#1\s+song|number\s*one\s+song)(\s|$)/i.test(t);
 }
 
 /**
@@ -1102,7 +1107,7 @@ function handleChat(args) {
 }
 
 function MK_VERSION() {
-  return 'musicKnowledge v1.3.1';
+  return 'musicKnowledge v1.3.2';
 }
 
 // =========================
