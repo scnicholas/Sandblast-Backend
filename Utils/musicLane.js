@@ -17,11 +17,13 @@
  *        meta?
  *      }
  *
- * v1.5.3 (HTTP BRIDGE CONTRACT ALIGN + UI BRIDGE HARDEN + YEAR-PICK NORMALIZE + SESSION SPINE NORMALIZE)
+ * v1.6.0 (CANONICAL ACTION ALIGN + BRIDGE INPUT HARDEN + FOLLOW-UP PAYLOAD NORMALIZE + SESSION SPINE HARDEN)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
+ *  ✅ Canonicalizes lane actions and mode aliases for shell/widget alignment
  *  ✅ Builds payload-bearing chips for UI bridges instead of text-only follow-ups
+ *  ✅ Hardens bridge input so payload-based UI actions can pass through safely
  *  ✅ Adds deterministic bridge envelope for shell / widget integration
  *  ✅ Maintains string follow-ups for legacy chatEngine compatibility
  *
@@ -65,6 +67,37 @@ const CHART_DEFAULT = "Billboard Hot 100";
 
 function norm(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+
+function canonicalMusicAction(x) {
+  const t = norm(x);
+  if (!t) return null;
+  if (t === "year_pick" || t === "year picker" || t === "year_picker" || t === "pick a year" || t === "another year") return "year_pick";
+  if (t === "top10" || t === "top 10" || t === "top ten") return "top10";
+  if (
+    t === "top100" ||
+    t === "top 100" ||
+    t === "hot 100" ||
+    t === "yearend_hot100" ||
+    t === "year-end hot 100" ||
+    t === "year end hot 100"
+  ) return "yearend_hot100";
+  if (t === "story" || t === "story moment" || t === "story_moment") return "story_moment";
+  if (t === "micro" || t === "micro moment" || t === "micro_moment") return "micro_moment";
+  if (t === "number1" || t === "number 1" || t === "number_one" || t === "#1" || t === "no 1" || t === "no. 1") return "number_one";
+  return t;
+}
+
+function canonicalMusicMode(x) {
+  const a = canonicalMusicAction(x);
+  if (!a) return null;
+  if (a === "yearend_hot100") return "top100";
+  if (a === "story_moment") return "story";
+  if (a === "micro_moment") return "micro";
+  if (a === "number_one") return "number1";
+  if (a === "year_pick") return "year_pick";
+  return a;
 }
 
 function clampYear(y) {
@@ -174,11 +207,11 @@ function scrubLegacyChartsInPatch(patch) {
 function normalizeModeFromText(text) {
   const t = norm(text);
 
-  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return "top10";
-  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return "top100";
-  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return "story";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro";
-  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number1";
+  if (/\b(top\s*10|top10|top\s*ten)\b/.test(t)) return canonicalMusicMode("top10");
+  if (/\b(top\s*100|top100|hot\s*100|year[-\s]*end\s*hot\s*100)\b/.test(t)) return canonicalMusicMode("yearend_hot100");
+  if (/\bstory\s*moment\b|\bstory\b/.test(t)) return canonicalMusicMode("story_moment");
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return canonicalMusicMode("micro_moment");
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return canonicalMusicMode("number_one");
 
   return null;
 }
@@ -187,19 +220,19 @@ function inferModeFromReply(reply) {
   const r = norm(reply);
   if (!r) return null;
 
-  if (r.startsWith("top 10") || /\btop\s*10\b/.test(r)) return "top10";
+  if (r.startsWith("top 10") || /\btop\s*10\b/.test(r)) return canonicalMusicMode("top10");
   if (
     r.includes("year-end hot 100") ||
     r.includes("year end hot 100") ||
     /\btop\s*100\b/.test(r) ||
     r.includes("hot 100")
   ) {
-    return "top100";
+    return canonicalMusicMode("yearend_hot100");
   }
-  if (r.includes("story moment")) return "story";
-  if (r.includes("micro moment")) return "micro";
+  if (r.includes("story moment")) return canonicalMusicMode("story_moment");
+  if (r.includes("micro moment")) return canonicalMusicMode("micro_moment");
   if (/\b#\s*1\b/.test(r) || r.includes("number 1") || r.includes("no. 1") || r.includes("no 1")) {
-    return "number1";
+    return canonicalMusicMode("number_one");
   }
 
   return null;
@@ -233,7 +266,7 @@ function ensureContinuity({ patch, userMode, replyMode, userYear, replyYear, ses
   const s = session && typeof session === "object" ? session : null;
   let p = patch && typeof patch === "object" ? patch : null;
 
-  const mode = userMode || replyMode || null;
+  const mode = canonicalMusicMode(userMode || replyMode || null) || null;
 
   const y = clampYear(
     (p && (p.year || p.lastMusicYear)) || userYear || replyYear || (s && s.lastMusicYear) || null
@@ -295,19 +328,19 @@ function stripDeeperSuffix(text) {
 function modeToPrompt(mode, year) {
   const y = clampYear(year);
   if (!y) return null;
-  const m = String(mode || "").toLowerCase();
+  const m = canonicalMusicAction(mode) || String(mode || "").toLowerCase();
   if (m === "top10") return `top 10 ${y}`;
-  if (m === "top100") return `top 100 ${y}`;
+  if (m === "top100" || m === "yearend_hot100") return `top 100 ${y}`;
   if (m === "story" || m === "story_moment") return `story moment ${y}`;
   if (m === "micro" || m === "micro_moment") return `micro moment ${y}`;
-  if (m === "number1" || m === "number_1") return `#1 ${y}`;
+  if (m === "number1" || m === "number_1" || m === "number_one") return `#1 ${y}`;
   return `top 10 ${y}`;
 }
 
 function reconstructPromptFromSession(session) {
   const s = session && typeof session === "object" ? session : {};
   const y = clampYear(s.lastMusicYear || s.year || s.lastYear || s.pendingYear);
-  const m = String(s.activeMusicMode || s.mode || s.lastMode || s.pendingMode || "top10");
+  const m = canonicalMusicAction(s.activeMusicMode || s.mode || s.lastMode || s.pendingMode || "top10") || "top10";
   if (!y) return null;
   return modeToPrompt(m, y);
 }
@@ -326,7 +359,7 @@ function safePrevYear(y) {
 
 function deeperExpansion({ mode, year }) {
   const y = clampYear(year);
-  const m = String(mode || "").toLowerCase();
+  const m = canonicalMusicAction(mode) || String(mode || "").toLowerCase();
 
   if (!y) {
     return "\n\nIf you tell me a year (1950–2025), I can go deeper with real context.";
@@ -384,7 +417,7 @@ function deeperExpansion({ mode, year }) {
 ====================================================== */
 
 function normalizeActionName(mode) {
-  const m = String(mode || "").toLowerCase();
+  const m = canonicalMusicAction(mode) || String(mode || "").toLowerCase();
   if (m === "top10") return "top10";
   if (m === "top100") return "yearend_hot100";
   if (m === "story" || m === "story_moment") return "story_moment";
@@ -396,26 +429,26 @@ function normalizeActionName(mode) {
 function inferActionFromLabel(label) {
   const t = norm(label);
   if (!t) return "top10";
-  if (/\btop\s*10\b|\btop10\b|\btop\s*ten\b/.test(t)) return "top10";
-  if (/\btop\s*100\b|\btop100\b|\bhot\s*100\b|\byear[-\s]*end\s*hot\s*100\b/.test(t)) return "yearend_hot100";
-  if (/\bstory\b/.test(t)) return "story_moment";
-  if (/\bmicro\b/.test(t)) return "micro_moment";
-  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return "number_one";
-  if (/^\d{4}$/.test(t)) return "top10";
-  if (t === "another year") return "year_pick";
-  return "top10";
+  if (/\btop\s*10\b|\btop10\b|\btop\s*ten\b/.test(t)) return canonicalMusicAction("top10");
+  if (/\btop\s*100\b|\btop100\b|\bhot\s*100\b|\byear[-\s]*end\s*hot\s*100\b/.test(t)) return canonicalMusicAction("yearend_hot100");
+  if (/\bstory\b/.test(t)) return canonicalMusicAction("story_moment");
+  if (/\bmicro\b/.test(t)) return canonicalMusicAction("micro_moment");
+  if (/\b#\s*1\b|\bnumber\s*1\b|\bno\.?\s*1\b|\bno\s*1\b/.test(t)) return canonicalMusicAction("number_one");
+  if (/^\d{4}$/.test(t)) return canonicalMusicAction("top10");
+  if (t === "another year") return canonicalMusicAction("year_pick");
+  return canonicalMusicAction(t) || "top10";
 }
 
 function buildChipPayload({ label, send, action, year, sessionPatch }) {
   const y = clampYear(year || extractYearFromText(send || label) || (sessionPatch && (sessionPatch.lastMusicYear || sessionPatch.year)));
-  const a = action || inferActionFromLabel(send || label);
+  const a = canonicalMusicAction(action || inferActionFromLabel(send || label)) || "top10";
   const payload = {
     lane: LANE_NAME,
     route: LANE_NAME,
     action: a,
   };
   if (y) payload.year = y;
-  if (sessionPatch && sessionPatch.activeMusicMode) payload.mode = sessionPatch.activeMusicMode;
+  if (sessionPatch && sessionPatch.activeMusicMode) payload.mode = canonicalMusicAction(sessionPatch.activeMusicMode) || sessionPatch.activeMusicMode;
   if (sessionPatch && sessionPatch.activeMusicChart) payload.chart = sessionPatch.activeMusicChart;
   return payload;
 }
@@ -492,7 +525,7 @@ function normalizeFollowUps(rawList, sessionPatch) {
 
 function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
   const patch = sessionPatch && typeof sessionPatch === "object" ? sessionPatch : {};
-  const mode = patch.activeMusicMode || patch.mode || null;
+  const mode = canonicalMusicAction(patch.activeMusicMode || patch.mode || null) || null;
   const year = clampYear(patch.lastMusicYear || patch.year || patch.pendingYear);
   const chart = normalizeChartForLane(patch.activeMusicChart || patch.lastMusicChart);
 
@@ -509,6 +542,7 @@ function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
       lane: LANE_NAME,
       year,
       mode,
+      action: mode,
       chart,
       depthLevel: Number(patch.depthLevel || 0),
     },
@@ -520,9 +554,7 @@ function buildBridgeEnvelope({ reply, followUps, sessionPatch }) {
 ====================================================== */
 
 function normalizeResolverAction(action) {
-  const t = String(action || "").toLowerCase();
-  if (t === "number1" || t === "number_one") return "number_one";
-  return t;
+  return canonicalMusicAction(action) || String(action || "").toLowerCase();
 }
 
 function buildMomentFollowUps(result, year) {
@@ -531,7 +563,7 @@ function buildMomentFollowUps(result, year) {
   }
   const y = clampYear(year || (result && result.sessionPatch && (result.sessionPatch.lastMusicYear || result.sessionPatch.year)));
   if (!y) return ["1956", "1988", "top 10 1988"];
-  return [`top 10 ${y}`, "#1", `story moment ${y}`, `micro moment ${y}`];
+  return [`top 10 ${y}`, `#1 ${y}`, `story moment ${y}`, `micro moment ${y}`];
 }
 
 function normalizeMomentResult(result, session, userYear) {
@@ -805,8 +837,24 @@ async function handleChat({ text, session, visitorId, debug }) {
 
 function normalizeBridgeInput(body) {
   const b = body && typeof body === "object" ? body : {};
+  const payload = b.payload && typeof b.payload === "object" ? b.payload : {};
+  const action = canonicalMusicAction(b.action || payload.action || payload.mode);
+  const year = clampYear(b.year || payload.year || (b.session && b.session.lastMusicYear) || (b.session && b.session.year));
+  const fallbackText = action
+    ? (() => {
+        const y = year ? ` ${year}` : "";
+        if (action === "year_pick") return "pick a year";
+        if (action === "top10") return `top 10${y}`.trim();
+        if (action === "yearend_hot100") return `year-end hot 100${y}`.trim();
+        if (action === "number_one") return `#1${y}`.trim();
+        if (action === "story_moment") return `story moment${y}`.trim();
+        if (action === "micro_moment") return `micro moment${y}`.trim();
+        return "";
+      })()
+    : "";
+
   return {
-    text: String(b.text || b.message || ""),
+    text: String(b.text || b.message || fallbackText || ""),
     session: b.session && typeof b.session === "object" ? b.session : {},
     visitorId: b.visitorId || b.visitor_id || undefined,
     debug: !!b.debug,
@@ -856,6 +904,8 @@ module.exports.musicLane = musicLaneFn;
 module.exports.handleChat = handleChat;
 module.exports.normalizeChartForLane = normalizeChartForLane;
 module.exports.normalizeModeFromText = normalizeModeFromText;
+module.exports.canonicalMusicAction = canonicalMusicAction;
+module.exports.canonicalMusicMode = canonicalMusicMode;
 module.exports.LANE_NAME = LANE_NAME;
 
 module.exports.handleBridgeRequest = handleBridgeRequest;
