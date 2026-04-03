@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.5.2 (HTTP BRIDGE CONTRACT ALIGN + UI BRIDGE HARDEN + PAYLOAD CHIPS + SESSION SPINE NORMALIZE)
+ * v1.5.3 (HTTP BRIDGE CONTRACT ALIGN + UI BRIDGE HARDEN + YEAR-PICK NORMALIZE + SESSION SPINE NORMALIZE)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -616,6 +616,7 @@ async function handleChat({ text, session, visitorId, debug }) {
     }
 
     const cleanPrompt = String(baseText || "").trim();
+    const isYearPickerPrompt = /^\s*(pick|choose|select)\s+a?\s*year\s*$/i.test(cleanPrompt) || /^\s*another\s+year\s*$/i.test(cleanPrompt);
     const inferredMode = normalizeModeFromText(cleanPrompt);
     const inferredYear = extractYearFromText(cleanPrompt);
 
@@ -624,14 +625,14 @@ async function handleChat({ text, session, visitorId, debug }) {
           text: cleanPrompt,
           session: s,
           activeLane: s.activeLane || s.lane || LANE_NAME,
-          action: inferredMode,
+          action: isYearPickerPrompt ? "year_pick" : inferredMode,
           year: inferredYear,
         }))
       : null;
 
     const resolvedAction = resolver && resolver.action
       ? normalizeResolverAction(resolver.action)
-      : (inferredMode === "number1" ? "number_one" : (inferredMode === "story" ? "story_moment" : (inferredMode === "micro" ? "micro_moment" : (inferredMode || inferActionFromLabel(cleanPrompt)))));
+      : (isYearPickerPrompt ? "year_pick" : (inferredMode === "number1" ? "number_one" : (inferredMode === "story" ? "story_moment" : (inferredMode === "micro" ? "micro_moment" : (inferredMode || inferActionFromLabel(cleanPrompt))))));
 
     const resolvedYear = clampYear(
       inferredYear || (resolver && resolver.year) || s.lastMusicYear || s.year || s.pendingYear
