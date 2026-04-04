@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.6.0 (CANONICAL ACTION ALIGN + BRIDGE INPUT HARDEN + FOLLOW-UP PAYLOAD NORMALIZE + SESSION SPINE HARDEN)
+ * v1.6.1 (CANONICAL ACTION ALIGN + BRIDGE INPUT HARDEN + FOLLOW-UP PAYLOAD NORMALIZE + SESSION SPINE HARDEN + WIKIPEDIA-CHARTS-PATH PASS-THROUGH)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
