@@ -3,8 +3,8 @@
 /**
  * Utils/musicKnowledge.js
  *
- * v1.5.0
- * SOURCE-EXPLICIT + CAPABILITY SNAPSHOT + MOMENTS DELEGATION + FAIL-OPEN HARDEN
+ * v1.5.1
+ * SOURCE-EXPLICIT + CAPABILITY SNAPSHOT + MOMENTS DELEGATION + FAIL-OPEN HARDEN + WIKIPEDIA-CHARTS-PATH
  */
 
 const fs = require("fs");
@@ -33,14 +33,68 @@ function firstExistingFile(candidates) {
 }
 
 function resolveDataFile(filename) {
+  const explicitRoot = cleanText(
+    process.env.SB_MUSIC_DATA_ROOT ||
+    process.env.SB_WIKIPEDIA_CHARTS_DIR ||
+    process.env.SB_MUSIC_WIKIPEDIA_CHARTS_DIR ||
+    ""
+  );
+
   const dirs = [
+    explicitRoot,
+    path.resolve(__dirname, "Data", "wikipedia", "charts"),
+    path.resolve(__dirname, "..", "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "src", "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "utils", "Data", "wikipedia", "charts"),
     path.resolve(__dirname, "Data"),
     path.resolve(__dirname, "..", "Data"),
     path.resolve(process.cwd(), "Data"),
     path.resolve(process.cwd(), "src", "Data"),
     path.resolve(process.cwd(), "utils", "Data"),
-  ];
+  ].filter(Boolean);
+
   return firstExistingFile(dirs.map((dir) => path.join(dir, filename)));
+}
+
+function resolveYearEndFileForYear(year) {
+  const y = normalizeYear(year);
+  if (!y) return "";
+  return resolveDataFile(`year_end_hot100_${y}.json`);
+}
+
+function discoverAvailableYearEndFiles() {
+  const roots = [
+    cleanText(
+      process.env.SB_MUSIC_DATA_ROOT ||
+      process.env.SB_WIKIPEDIA_CHARTS_DIR ||
+      process.env.SB_MUSIC_WIKIPEDIA_CHARTS_DIR ||
+      ""
+    ),
+    path.resolve(__dirname, "Data", "wikipedia", "charts"),
+    path.resolve(__dirname, "..", "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "src", "Data", "wikipedia", "charts"),
+    path.resolve(process.cwd(), "utils", "Data", "wikipedia", "charts"),
+  ].filter(Boolean);
+
+  const years = [];
+  const seen = new Set();
+  for (const root of roots) {
+    try {
+      for (const name of fs.readdirSync(root)) {
+        const m = String(name).match(/^year_end_hot100_(19[5-9]\d|20[0-2]\d|2025)\.json$/);
+        if (!m) continue;
+        const y = Number(m[1]);
+        if (Number.isFinite(y) && !seen.has(y)) {
+          seen.add(y);
+          years.push(y);
+        }
+      }
+    } catch (_) {}
+  }
+  years.sort((a, b) => a - b);
+  return years;
 }
 
 const TOP10_FILE = resolveDataFile("top10_by_year_v1.json");
@@ -189,6 +243,7 @@ function top10StoreSnapshot() {
 }
 function getCapabilities() {
   const top10 = top10StoreSnapshot();
+  const availableYearEndYears = discoverAvailableYearEndFiles();
   const momentsAvailable = !!(getMusicMomentsMod() && typeof getMusicMomentsMod().getMoment === "function");
   return {
     ok: true,
@@ -198,22 +253,63 @@ function getCapabilities() {
       number1: { truthType: "derived_from_top10", loaded: top10.exists && top10.yearsCount > 0, dependsOn: "top10" },
       storyMoment: { truthType: momentsAvailable ? "musicMoments.getMoment" : "template_fallback", loaded: true, dependsOn: momentsAvailable ? "musicMoments" : "top10" },
       microMoment: { truthType: momentsAvailable ? "musicMoments.getMoment" : "template_fallback", loaded: true, dependsOn: momentsAvailable ? "musicMoments" : "top10" },
-      yearendHot100: { truthType: "top10_excerpt_from_top10_by_year_v1_json", loaded: top10.exists && top10.yearsCount > 0, mode: YEAREND_MODE, dependsOn: "top10" },
+      yearendHot100: { truthType: availableYearEndYears.length ? "Data/wikipedia/charts/year_end_hot100_YYYY.json" : "top10_excerpt_from_top10_by_year_v1_json", loaded: availableYearEndYears.length > 0 || (top10.exists && top10.yearsCount > 0), mode: availableYearEndYears.length ? "full" : YEAREND_MODE, dependsOn: availableYearEndYears.length ? "wikipedia/charts" : "top10", yearsCount: availableYearEndYears.length, minYear: availableYearEndYears.length ? availableYearEndYears[0] : null, maxYear: availableYearEndYears.length ? availableYearEndYears[availableYearEndYears.length - 1] : null },
     },
     routes: {
       top10: { executable: top10.exists && top10.yearsCount > 0 },
       number1: { executable: top10.exists && top10.yearsCount > 0 },
       story_moment: { executable: top10.exists && top10.yearsCount > 0, delegated: momentsAvailable },
       micro_moment: { executable: top10.exists && top10.yearsCount > 0, delegated: momentsAvailable },
-      yearend_hot100: { executable: top10.exists && top10.yearsCount > 0, mode: YEAREND_MODE },
+      yearend_hot100: { executable: availableYearEndYears.length > 0 || (top10.exists && top10.yearsCount > 0), mode: availableYearEndYears.length ? "full" : YEAREND_MODE },
     },
     provenance: {
-      sourceOfMusicTruth: "top10_by_year_v1.json",
+      sourceOfMusicTruth: availableYearEndYears.length ? "Data/wikipedia/charts/year_end_hot100_YYYY.json + top10_by_year_v1.json" : "top10_by_year_v1.json",
       storyMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
       microMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
     },
   };
 }
+function getYearEndHot100ByYear(year, opts) {
+  try {
+    const y = normalizeYear(year);
+    if (!y) return null;
+    const file = resolveYearEndFileForYear(y);
+    const doc = safeReadJSON(file);
+    if (!doc || !Array.isArray(doc.rows)) return null;
+
+    const wantMeta = !!(opts && opts.meta === true);
+    const meta = wantMeta ? {
+      sourceFile: file,
+      sourceTruth: "Data/wikipedia/charts/year_end_hot100_YYYY.json",
+      year: y,
+      warnings: [],
+    } : null;
+
+    const filtered = doc.rows
+      .filter((r) => isObject(r))
+      .filter((r) => {
+        const pos = Number(r.pos);
+        const title = cleanText(r.title);
+        const artist = cleanText(r.artist);
+        if (!Number.isFinite(pos)) return false;
+        if (title.toLowerCase() === "title") return false;
+        if (artist.toLowerCase() === "artist(s)") return false;
+        return true;
+      });
+
+    const items = filtered.map(normalizeItem);
+    return {
+      year: y,
+      chart: cleanText(doc.chart) || "Billboard Year-End (Wikipedia)",
+      count: items.length,
+      items,
+      ...(wantMeta ? { meta } : {}),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 function getTop10ByYear(year, opts) {
   try {
     const y = normalizeYear(year);
