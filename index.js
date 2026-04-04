@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.3sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-MOUNT";
+const INDEX_VERSION = "index.js v2.13.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -358,6 +358,24 @@ const musicLaneMod = tryRequireMany([
   "./utils/musicLane.js",
   "./Utils/musicLane",
   "./Utils/musicLane.js"
+]);
+
+const musicResolverMod = tryRequireMany([
+  "./musicResolver",
+  "./musicResolver.js",
+  "./utils/musicResolver",
+  "./utils/musicResolver.js",
+  "./Utils/musicResolver",
+  "./Utils/musicResolver.js"
+]);
+
+const musicKnowledgeMod = tryRequireMany([
+  "./musicKnowledge",
+  "./musicKnowledge.js",
+  "./utils/musicKnowledge",
+  "./utils/musicKnowledge.js",
+  "./Utils/musicKnowledge",
+  "./Utils/musicKnowledge.js"
 ]);
 
 const knowledgeRuntime = {
@@ -1564,6 +1582,7 @@ app.get(["/api/music/sources", "/music/sources"], (req, res) => {
   return res.status(200).json({ ok: true, sources: out.sources, count: out.sources.length, meta: out.meta });
 });
 
+
 function musicBridgeHandlerFromModule(mod) {
   if (!mod) return null;
   if (typeof mod.handleBridgeRequest === "function") return mod.handleBridgeRequest.bind(mod);
@@ -1574,11 +1593,33 @@ function musicBridgeHandlerFromModule(mod) {
         text: cleanText(src.text || ""),
         session: isObj(src.session) ? src.session : {},
         visitorId: cleanText(src.visitorId || ""),
-        debug: !!src.debug
+        debug: !!src.debug,
+        year: cleanText(src.year || ""),
+        mode: cleanText(src.mode || ""),
+        action: cleanText(src.action || ""),
+        payload: isObj(src.payload) ? src.payload : {}
       }));
       return isObj(out) ? out : { ok: false, error: "music_bridge_invalid_response" };
     };
   }
+  return null;
+}
+
+function musicResolverHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.resolveMusicIntent === "function") return mod.resolveMusicIntent.bind(mod);
+  if (typeof mod.resolve === "function") return mod.resolve.bind(mod);
+  return null;
+}
+
+function musicKnowledgeCapabilitiesFromModule(mod) {
+  if (!mod) return null;
+  try {
+    if (typeof mod.getCapabilities === "function") {
+      const out = mod.getCapabilities();
+      return isObj(out) ? out : null;
+    }
+  } catch (_) {}
   return null;
 }
 
@@ -1594,48 +1635,159 @@ function normalizeMusicBridgeInput(req) {
     debug: body.debug === true || payload.debug === true || String((req.query && req.query.debug) || "") === "1",
     traceId: norm.traceId,
     lane: "music",
+    route: cleanText(body.route || payload.route || "music"),
+    action: cleanText(body.action || payload.action || ""),
     year: cleanText(body.year || payload.year || norm.year || ""),
-    mode: cleanText(body.mode || payload.mode || norm.mode || "")
+    mode: cleanText(body.mode || payload.mode || norm.mode || ""),
+    chart: cleanText(body.chart || payload.chart || ""),
+    payload
   };
 }
 
-function normalizeMusicBridgeResponse(result, req, startedAt) {
+function normalizeMusicFollowUps(rawFollowUps) {
+  const followUps = Array.isArray(rawFollowUps) ? rawFollowUps : [];
+  const followUpObjects = followUps.map((it, idx) => {
+    if (typeof it === "string") {
+      return {
+        id: `fu_${idx + 1}`,
+        type: "action",
+        label: it,
+        send: it,
+        payload: { action: it, lane: "music", route: "music" }
+      };
+    }
+    const label = cleanText(it && (it.label || it.send || it.text) || "");
+    return {
+      id: cleanText(it && it.id || `fu_${idx + 1}`) || `fu_${idx + 1}`,
+      type: cleanText(it && it.type || "action") || "action",
+      label,
+      send: cleanText(it && (it.send || label) || label) || label,
+      payload: isObj(it && it.payload) ? it.payload : {
+        action: cleanText(it && (it.send || label) || label) || label,
+        lane: "music",
+        route: "music"
+      }
+    };
+  }).filter((it) => cleanText(it.label));
+  return {
+    followUps,
+    followUpObjects,
+    followUpsStrings: followUpObjects.map((it) => cleanText(it.send || it.label)).filter(Boolean)
+  };
+}
+
+function buildMusicBridgeFailure(input, opts) {
+  const o = isObj(opts) ? opts : {};
+  const sessionPatch = isObj(o.sessionPatch) ? o.sessionPatch : {};
+  const year = cleanText(o.year || input.year || sessionPatch.lastMusicYear || sessionPatch.year || "") || null;
+  const mode = cleanText(o.mode || input.mode || input.action || sessionPatch.activeMusicMode || sessionPatch.mode || "") || null;
+  const reason = cleanText(o.reason || "music_bridge_invalid_contract") || "music_bridge_invalid_contract";
+  const status = cleanText(o.status || "blocked") || "blocked";
+  const executable = !!o.executable;
+  const needsYear = !!o.needsYear;
+  const follow = normalizeMusicFollowUps(o.followUps || []);
+  return {
+    ok: false,
+    reply: cleanReplyForUser(o.reply || "I could not retrieve verified music data for that request."),
+    text: cleanReplyForUser(o.reply || "I could not retrieve verified music data for that request."),
+    status,
+    executable,
+    needsYear,
+    followUps: follow.followUps,
+    followUpsStrings: follow.followUpsStrings,
+    followUpObjects: follow.followUpObjects,
+    sessionPatch,
+    bridge: {
+      ready: status === "execute",
+      valid: status === "execute" || status === "clarify",
+      lane: "music",
+      year,
+      mode,
+      endpoint: "/api/music/bridge",
+      capabilityMode: cleanText(o.capabilityMode || "none") || "none",
+      sourceTruth: cleanText(o.sourceTruth || "unknown") || "unknown",
+      routeSource: cleanText(o.routeSource || "unknown") || "unknown",
+      executable,
+      reason
+    }
+  };
+}
+
+function normalizeMusicBridgeResponse(result, req, startedAt, input) {
   const raw = isObj(result) ? result : {};
   const text = cleanText(raw.reply || raw.text || raw.message || "");
-  const followUps = Array.isArray(raw.followUps) ? raw.followUps : [];
-  const followUpObjects = Array.isArray(raw.followUpObjects)
-    ? raw.followUpObjects
-    : followUps.map((it, idx) => {
-        if (typeof it === "string") {
-          return { id: `fu_${idx + 1}`, type: "action", label: it, send: it, payload: { action: it, lane: "music" } };
-        }
-        const label = cleanText(it.label || it.send || it.text || "");
-        return {
-          id: cleanText(it.id || `fu_${idx + 1}`) || `fu_${idx + 1}`,
-          type: cleanText(it.type || "action") || "action",
-          label,
-          send: cleanText(it.send || label) || label,
-          payload: isObj(it.payload) ? it.payload : { action: cleanText(it.send || label) || label, lane: "music" }
-        };
-      }).filter((it) => cleanText(it.label));
-  const followUpsStrings = Array.isArray(raw.followUpsStrings)
-    ? raw.followUpsStrings
-    : followUpObjects.map((it) => cleanText(it.send || it.label)).filter(Boolean);
   const sessionPatch = isObj(raw.sessionPatch) ? raw.sessionPatch : {};
-  const bridge = isObj(raw.bridge) ? raw.bridge : {
+  const status = cleanText(raw.status || (raw.bridge && raw.bridge.ready === true ? "execute" : "")) || "blocked";
+  const executable = raw.executable === true || (status === "execute" && raw.ok !== false);
+  const needsYear = raw.needsYear === true;
+  const follow = normalizeMusicFollowUps(raw.followUpObjects || raw.followUps || raw.followUpsStrings || []);
+  const bridge = isObj(raw.bridge) ? {
+    ready: raw.bridge.ready === true,
+    valid: raw.bridge.valid === true,
+    lane: cleanText(raw.bridge.lane || "music") || "music",
+    year: raw.bridge.year != null ? raw.bridge.year : (sessionPatch.lastMusicYear || sessionPatch.year || input.year || null),
+    mode: cleanText(raw.bridge.mode || sessionPatch.activeMusicMode || sessionPatch.mode || input.mode || input.action || "") || null,
+    endpoint: "/api/music/bridge",
+    capabilityMode: cleanText(raw.bridge.capabilityMode || "none") || "none",
+    sourceTruth: cleanText(raw.bridge.sourceTruth || "unknown") || "unknown",
+    routeSource: cleanText(raw.bridge.routeSource || "unknown") || "unknown",
+    executable: raw.bridge.executable === true || executable,
+    reason: cleanText(raw.bridge.reason || "")
+  } : {
+    ready: status === "execute",
+    valid: status === "execute" || status === "clarify",
     lane: "music",
-    year: sessionPatch.lastMusicYear || sessionPatch.year || null,
-    mode: sessionPatch.activeMusicMode || sessionPatch.mode || null,
-    endpoint: "/api/music/bridge"
+    year: sessionPatch.lastMusicYear || sessionPatch.year || input.year || null,
+    mode: cleanText(sessionPatch.activeMusicMode || sessionPatch.mode || input.mode || input.action || "") || null,
+    endpoint: "/api/music/bridge",
+    capabilityMode: cleanText(raw.capabilityMode || "none") || "none",
+    sourceTruth: cleanText(raw.sourceTruth || "unknown") || "unknown",
+    routeSource: cleanText(raw.routeSource || "unknown") || "unknown",
+    executable,
+    reason: cleanText(raw.reason || "")
   };
-  const ok = raw.ok !== false && !!text;
+
+  const strictExecute = !!(bridge.valid === true && bridge.ready === true && status === "execute" && executable === true && text);
+  if (!strictExecute) {
+    const failed = buildMusicBridgeFailure(input, {
+      reply: raw.reply || raw.text || raw.message || "I could not retrieve verified music data for that request.",
+      status: needsYear ? "clarify" : status,
+      executable,
+      needsYear,
+      followUps: follow.followUps,
+      sessionPatch,
+      year: bridge.year,
+      mode: bridge.mode,
+      capabilityMode: bridge.capabilityMode,
+      sourceTruth: bridge.sourceTruth,
+      routeSource: bridge.routeSource,
+      reason: bridge.reason || (needsYear ? "missing_year" : "invalid_execute_contract")
+    });
+    return {
+      ...failed,
+      traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        latencyMs: now() - Number(startedAt || now()),
+        source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
+        degraded: true,
+        bridgeMounted: !!musicBridgeHandlerFromModule(musicLaneMod),
+        endpoint: "/api/music/bridge"
+      }
+    };
+  }
+
   return {
-    ok,
+    ok: true,
     reply: text,
     text,
-    followUps,
-    followUpsStrings,
-    followUpObjects,
+    status,
+    executable: true,
+    needsYear: false,
+    followUps: follow.followUps,
+    followUpsStrings: follow.followUpsStrings,
+    followUpObjects: follow.followUpObjects,
     sessionPatch,
     bridge,
     traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
@@ -1653,7 +1805,9 @@ function normalizeMusicBridgeResponse(result, req, startedAt) {
 
 async function dispatchMusicBridge(req, res) {
   const handler = musicBridgeHandlerFromModule(musicLaneMod);
-  if (!handler) {
+  const resolver = musicResolverHandlerFromModule(musicResolverMod);
+  const capabilities = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
+  if (!handler && !resolver) {
     return res.status(503).json({
       ok: false,
       error: "music_bridge_unavailable",
@@ -1665,15 +1819,84 @@ async function dispatchMusicBridge(req, res) {
   const startedAt = now();
   const input = normalizeMusicBridgeInput(req);
   try {
-    const result = await callWithTimeout(Promise.resolve(handler(input)), CFG.requestTimeoutMs, "music_bridge");
-    const out = normalizeMusicBridgeResponse(result, req, startedAt);
-    return res.status(out.ok ? 200 : 503).json(out);
+    let resolverOut = null;
+    if (resolver) {
+      resolverOut = await callWithTimeout(Promise.resolve(resolver({
+        text: input.text,
+        action: input.action,
+        payload: isObj(input.payload) ? input.payload : {},
+        session: isObj(input.session) ? input.session : {},
+        year: input.year ? Number(input.year) : null,
+        capabilities,
+        route: input.route,
+        lane: "music"
+      })), CFG.requestTimeoutMs, "music_resolver");
+    }
+
+    if (isObj(resolverOut)) {
+      const normalizedResolver = normalizeMusicBridgeResponse(resolverOut, req, startedAt, input);
+      if (cleanText(normalizedResolver.status) === "clarify" || cleanText(normalizedResolver.status) === "blocked") {
+        return res.status(200).json(normalizedResolver);
+      }
+      if (!(normalizedResolver.bridge && normalizedResolver.bridge.ready === true && normalizedResolver.bridge.valid === true && normalizedResolver.status === "execute")) {
+        return res.status(200).json(buildMusicBridgeFailure(input, {
+          reply: "Music route was resolved, but no valid execute contract was produced.",
+          status: "blocked",
+          executable: false,
+          needsYear: false,
+          followUps: normalizedResolver.followUpObjects,
+          sessionPatch: normalizedResolver.sessionPatch,
+          year: normalizedResolver.bridge && normalizedResolver.bridge.year,
+          mode: normalizedResolver.bridge && normalizedResolver.bridge.mode,
+          capabilityMode: normalizedResolver.bridge && normalizedResolver.bridge.capabilityMode,
+          sourceTruth: normalizedResolver.bridge && normalizedResolver.bridge.sourceTruth,
+          routeSource: normalizedResolver.bridge && normalizedResolver.bridge.routeSource,
+          reason: "resolver_missing_execute_contract"
+        }));
+      }
+      input.action = cleanText(resolverOut.action || input.action || "");
+      input.year = cleanText(resolverOut.year || input.year || "");
+      input.mode = cleanText((resolverOut.bridge && resolverOut.bridge.mode) || resolverOut.action || input.mode || "");
+      input.session = {
+        ...(isObj(input.session) ? input.session : {}),
+        ...(isObj(resolverOut.sessionPatch) ? resolverOut.sessionPatch : {})
+      };
+    }
+
+    if (!handler) {
+      return res.status(200).json(buildMusicBridgeFailure(input, {
+        reply: "Music resolver is present, but no execution handler is mounted.",
+        status: "blocked",
+        executable: false,
+        needsYear: false,
+        sessionPatch: isObj(resolverOut && resolverOut.sessionPatch) ? resolverOut.sessionPatch : {},
+        year: resolverOut && resolverOut.year,
+        mode: resolverOut && resolverOut.action,
+        sourceTruth: resolverOut && resolverOut.bridge && resolverOut.bridge.sourceTruth,
+        routeSource: resolverOut && resolverOut.bridge && resolverOut.bridge.routeSource,
+        capabilityMode: resolverOut && resolverOut.bridge && resolverOut.bridge.capabilityMode,
+        reason: "execution_handler_missing"
+      }));
+    }
+
+    const result = await callWithTimeout(Promise.resolve(handler({
+      ...input,
+      resolver: isObj(resolverOut) ? resolverOut : null,
+      capabilities
+    })), CFG.requestTimeoutMs, "music_bridge");
+    const out = normalizeMusicBridgeResponse(result, req, startedAt, input);
+    return res.status(out.ok ? 200 : 200).json(out);
   } catch (err) {
     console.log("[Sandblast][musicBridge:error]", err && (err.stack || err.message || err));
-    return res.status(503).json({
-      ok: false,
-      error: "music_bridge_failed",
-      detail: cleanText(err && (err.message || err) || "music bridge failed"),
+    const fail = buildMusicBridgeFailure(normalizeMusicBridgeInput(req), {
+      reply: "I could not retrieve verified music data for that request.",
+      status: "blocked",
+      executable: false,
+      needsYear: false,
+      reason: cleanText(err && (err.message || err) || "music_bridge_failed")
+    });
+    return res.status(200).json({
+      ...fail,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
       meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: true }
     });
@@ -1682,11 +1905,15 @@ async function dispatchMusicBridge(req, res) {
 
 app.get(["/api/music/bridge/health", "/music/bridge/health"], enforceToken, (req, res) => {
   applyCors(req, res);
+  const caps = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
   return res.status(200).json({
     ok: !!musicBridgeHandlerFromModule(musicLaneMod),
     enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
     endpoint: routeUrl("/api/music/bridge"),
     moduleBound: !!musicLaneMod,
+    resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
+    knowledgeBound: !!musicKnowledgeMod,
+    capabilities: caps || null,
     version: INDEX_VERSION,
     meta: { v: INDEX_VERSION, t: now() }
   });
