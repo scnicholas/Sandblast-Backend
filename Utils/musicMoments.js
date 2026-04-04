@@ -43,7 +43,7 @@ try {
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.7.1 (safe require + year-context lenient read + chart normalization + no-loop fallbacks)";
+  "musicMoments v1.7.2 (safe require + year-context lenient read + chart normalization + no-loop fallbacks + knowledge-path compatible)";
 
 // ---------------------------------------------------------
 // Canonical moments + year context files
