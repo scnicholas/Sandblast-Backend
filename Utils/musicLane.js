@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.7.1 (BRIDGE ITEMS ENVELOPE + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + SESSION SPINE HARDEN + WIKIPEDIA-CHARTS-PATH PASS-THROUGH)
+ * v1.8.0 (EXECUTE-CONTRACT ALIGNMENT + STRICT BRIDGE NORMALIZATION + RESOLVER/KNOWLEDGE FORENSIC HARDEN)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -29,6 +29,9 @@
  *  ✅ Replaces weak year-only follow-up drift with action-aware chips
  *  ✅ Normalizes failure states so the shell can distinguish ready vs needs_attention
  *  ✅ Maintains string follow-ups for legacy chatEngine compatibility
+ *  ✅ Aligns bridge status with index.js strict execute contract
+ *  ✅ Adds bridge.valid / executable / provenance fields for /api/music/bridge
+ *  ✅ Preserves year speech formatting while preventing digit-by-digit drift
  *
  * Exports:
  *  - handleChat({ text, session, visitorId, debug })
@@ -267,6 +270,62 @@ function safeArray(list) {
 
 function cleanTextValue(value) {
   return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+
+function bridgeReasonFromReply(text) {
+  const t = norm(text);
+  if (!t) return "empty_reply";
+  if (t.includes("give me the year") || t.includes("valid year")) return "missing_year";
+  if (t.includes("warming up")) return "warming_up";
+  if (t.includes("i don’t have") || t.includes("i don't have") || t.includes("not loaded")) return "year_not_found";
+  if (t.includes("hit a snag")) return "exception";
+  return "";
+}
+
+function bridgeStatusFromReply(text, hasItems, explicitStatus) {
+  const forced = cleanTextValue(explicitStatus).toLowerCase();
+  if (forced === "execute" || forced === "clarify" || forced === "blocked") return forced;
+  const t = norm(text);
+  if (!t && !hasItems) return "blocked";
+  if (t.includes("give me the year") || t.includes("valid year")) return "clarify";
+  if (t.includes("pick another year") || t.includes("i don’t have") || t.includes("i don't have") || t.includes("not loaded") || t.includes("warming up") || t.includes("hit a snag")) return "blocked";
+  if (hasItems || t) return "execute";
+  return "blocked";
+}
+
+function resolveBridgeProvenance(action, raw, source) {
+  const a = canonicalMusicAction(action) || null;
+  const meta = raw && typeof raw === "object" && raw.meta && typeof raw.meta === "object" ? raw.meta : {};
+  const provenance = meta.provenance && typeof meta.provenance === "object" ? meta.provenance : {};
+  let sourceTruth = cleanTextValue((provenance && provenance.sourceTruth) || meta.sourceTruth || "");
+  let routeSource = cleanTextValue((provenance && provenance.routeSource) || meta.routeSource || "");
+  let capabilityMode = cleanTextValue(meta.mode || (provenance && provenance.mode) || "");
+
+  if (!routeSource) {
+    if (a === "top10") routeSource = "top10";
+    else if (a === "number_one") routeSource = "number1";
+    else if (a === "story_moment") routeSource = "story_moment";
+    else if (a === "micro_moment") routeSource = "micro_moment";
+    else if (a === "yearend_hot100") routeSource = "yearend_hot100";
+    else if (a === "year_pick") routeSource = "year_pick";
+  }
+
+  if (!sourceTruth) {
+    if (a === "top10") sourceTruth = "top10_by_year_v1.json";
+    else if (a === "number_one") sourceTruth = "derived_from_top10";
+    else if (a === "story_moment") sourceTruth = source === "musicMoments" ? "musicMoments.getMoment" : "top10_chart_template_fallback";
+    else if (a === "micro_moment") sourceTruth = source === "musicMoments" ? "musicMoments.getMoment" : "top10_chart_template_fallback";
+    else if (a === "yearend_hot100") sourceTruth = "top10_excerpt_from_top10_by_year_v1.json";
+    else sourceTruth = source || "music_lane";
+  }
+
+  if (!capabilityMode) {
+    if (a === "year_pick") capabilityMode = "clarify";
+    else if (a === "yearend_hot100") capabilityMode = "excerpt";
+    else capabilityMode = "full";
+  }
+
+  return { sourceTruth, routeSource, capabilityMode };
 }
 
 function looksUnavailableReply(text) {
@@ -619,21 +678,26 @@ function normalizeFollowUps(rawList, sessionPatch) {
   };
 }
 
-function buildBridgeEnvelope({ reply, followUps, sessionPatch, items, detailText, title, sub, links, status }) {
+function buildBridgeEnvelope({ reply, followUps, sessionPatch, items, detailText, title, sub, links, status, action, raw, source }) {
   const patch = sessionPatch && typeof sessionPatch === "object" ? sessionPatch : {};
-  const mode = canonicalMusicAction(patch.activeMusicMode || patch.mode || null) || null;
+  const mode = canonicalMusicAction(action || patch.activeMusicMode || patch.mode || null) || null;
   const year = clampYear(patch.lastMusicYear || patch.year || patch.pendingYear);
   const chart = normalizeChartForLane(patch.activeMusicChart || patch.lastMusicChart);
   const normalizedItems = safeArray(items).map((item, idx) => normalizeBridgeItem(item, idx + 1)).filter((item) => item.title || item.detail);
   const normalizedLinks = safeArray(links).filter((x) => x && x.url && x.label).slice(0, 8);
   const detail = cleanTextValue(detailText || "");
-  const bridgeStatus = status || (reply && (normalizedItems.length || detail) ? "ready" : reply ? "needs_attention" : "degraded");
+  const derivedStatus = bridgeStatusFromReply(reply, normalizedItems.length > 0 || !!detail, status);
+  const reason = bridgeReasonFromReply(reply);
+  const provenance = resolveBridgeProvenance(mode, raw, source);
+  const isExecute = derivedStatus === "execute";
 
   return {
+    ready: isExecute,
+    valid: derivedStatus === "execute" || derivedStatus === "clarify",
     lane: LANE_NAME,
     route: LANE_NAME,
-    ready: bridgeStatus === "ready",
-    status: bridgeStatus,
+    status: derivedStatus,
+    executable: isExecute,
     year,
     yearSpoken: year ? formatYearForSpeech(year) : null,
     mode,
@@ -644,6 +708,10 @@ function buildBridgeEnvelope({ reply, followUps, sessionPatch, items, detailText
     items: normalizedItems,
     links: normalizedLinks,
     chips: Array.isArray(followUps) ? followUps : [],
+    capabilityMode: provenance.capabilityMode,
+    sourceTruth: provenance.sourceTruth,
+    routeSource: provenance.routeSource,
+    reason,
     session: {
       lane: LANE_NAME,
       year,
@@ -884,7 +952,7 @@ async function handleChat({ text, session, visitorId, debug }) {
           followUpsStrings: normalized.followUpsStrings,
           followUps: normalized.followUps,
           sessionPatch,
-          bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch, detailText: fallback, title: "Music detail", sub: "Warmup", status: "needs_attention" }),
+          bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch, detailText: fallback, title: "Music detail", sub: "Warmup", status: "blocked", action: "year_pick", raw: null, source: "musicLane" }),
           meta: debug ? { ok: false, reason: "deeper_no_context" } : null,
         };
       }
@@ -938,7 +1006,7 @@ async function handleChat({ text, session, visitorId, debug }) {
         followUpsStrings: normalized.followUpsStrings,
         followUps: normalized.followUps,
         sessionPatch,
-        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch, detailText: fallback, title: "Music year", sub: "Choose a route", status: "ready" }),
+        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch, detailText: fallback, title: "Music year", sub: "Choose a route", status: "blocked", action: "year_pick", raw: null, source: "musicLane" }),
         meta: debug ? { ok: false, reason: "music_modules_missing" } : null,
       };
     }
@@ -959,7 +1027,7 @@ async function handleChat({ text, session, visitorId, debug }) {
         followUpsStrings: normalized.followUpsStrings,
         followUps: normalized.followUps,
         sessionPatch,
-        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch }),
+        bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch, action: resolvedAction || inferredMode || "year_pick", raw: resolver || null, source: "musicResolver" }),
         meta: debug ? { ok: true, source: "musicResolver", reason: "needs_year" } : null,
       };
     }
@@ -1050,6 +1118,9 @@ async function handleChat({ text, session, visitorId, debug }) {
       sub: bridgeContent.sub,
       links: bridgeContent.links,
       status: bridgeContent.status,
+      action: resolvedAction,
+      raw: executed.raw,
+      source: executed.source,
     });
 
     return {
@@ -1095,7 +1166,7 @@ async function handleChat({ text, session, visitorId, debug }) {
       followUpsStrings: normalized.followUpsStrings,
       followUps: normalized.followUps,
       sessionPatch: null,
-      bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch: null, detailText: fallback, title: "Music detail", sub: "Recovery", status: "needs_attention" }),
+      bridge: buildBridgeEnvelope({ reply: fallback, followUps: normalized.followUps, sessionPatch: null, detailText: fallback, title: "Music detail", sub: "Recovery", status: "blocked", action: "year_pick", raw: null, source: "musicLane" }),
       meta: debug ? { ok: false, reason: "exception", error: String(e && e.message ? e.message : e) } : null,
     };
   }
@@ -1132,12 +1203,15 @@ async function handleBridgeRequest(body) {
   const input = normalizeBridgeInput(body);
   const res = await handleChat(input);
   const bridge = res && res.bridge ? res.bridge : null;
+  const bridgeStatus = bridge && bridge.status ? bridge.status : (res && res.reply ? "execute" : "blocked");
   return {
     ok: !!(bridge && bridge.ready),
-    status: bridge && bridge.status ? bridge.status : (res && res.reply ? "ready" : "degraded"),
+    status: bridgeStatus,
     source: LANE_NAME,
     reply: res.reply,
     text: res.reply,
+    executable: !!(bridge && bridge.executable),
+    needsYear: bridgeStatus === "clarify",
     content: {
       text: res.reply || "",
       year: bridge && bridge.year || null,
