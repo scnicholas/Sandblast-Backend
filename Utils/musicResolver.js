@@ -1,6 +1,6 @@
 "use strict";
 
-const RESOLVER_VERSION = "musicResolver v2.0.0";
+const RESOLVER_VERSION = "musicResolver v2.1.0";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
 const LANE = "music";
@@ -19,25 +19,15 @@ function getMusicKnowledge() {
   return _musicKnowledge;
 }
 
-function safeStr(v) {
-  return v == null ? "" : String(v);
-}
-
-function lower(v) {
-  return safeStr(v).trim().toLowerCase();
-}
-
-function isObj(v) {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-function arr(v) {
-  return Array.isArray(v) ? v : [];
-}
+function safeStr(v) { return v == null ? "" : String(v); }
+function lower(v) { return safeStr(v).trim().toLowerCase(); }
+function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+function arr(v) { return Array.isArray(v) ? v : []; }
 
 function normYear(v) {
-  const m = typeof v === "number" ? String(v) : safeStr(v).match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
-  const y = typeof v === "number" ? v : m ? Number(m[1]) : NaN;
+  const digits = typeof v === "number" ? String(v) : safeStr(v).replace(/[^\d]/g, "");
+  if (digits.length !== 4) return null;
+  const y = Number(digits);
   return Number.isFinite(y) && y >= YEAR_MIN && y <= YEAR_MAX ? Math.trunc(y) : null;
 }
 
@@ -130,17 +120,7 @@ function makeContext(input = {}) {
     normYear(session.lockedYear) ||
     normYear(session.year);
   const activeLane = safeStr(input.activeLane || session.activeLane || session.lane || "general") || "general";
-  return {
-    text,
-    textLower,
-    payload,
-    session,
-    policy,
-    inferred,
-    year,
-    activeLane,
-    action: explicitAction || policyAction || inferActionFromText(textLower),
-  };
+  return { text, textLower, payload, session, policy, inferred, year, activeLane, action: explicitAction || policyAction || inferActionFromText(textLower) };
 }
 
 function routeCapability(action, capabilities) {
@@ -152,31 +132,13 @@ function routeCapability(action, capabilities) {
   if (action === "story_moment") routeSource = prov.storyMomentSource || routeSource;
   if (action === "micro_moment") routeSource = prov.microMomentSource || routeSource;
   if (action === "number1") routeSource = "derived_from_top10";
-  if (action === "yearend_hot100") {
-    routeSource = prov.sourceOfMusicTruth && String(prov.sourceOfMusicTruth).includes("wikipedia/charts")
-      ? "Data/wikipedia/charts/year_end_hot100_YYYY.json"
-      : "top10_excerpt_from_top10_by_year_v1.json";
-  }
-  return {
-    executable: !!route.executable,
-    mode: safeStr(route.mode || (route.delegated ? "delegated" : route.executable ? "full" : "none")) || "none",
-    sourceTruth,
-    routeSource,
-  };
+  if (action === "yearend_hot100") routeSource = sourceTruth.includes("year_end_hot100") ? "Data/chart/year_end_hot100_YYYY.json" : "top10_excerpt_from_top100_json";
+  if (action === "top10") routeSource = sourceTruth.includes("year_end_hot100") ? "top10_derived_from_Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json";
+  return { executable: !!route.executable, mode: safeStr(route.mode || (route.delegated ? "delegated" : route.executable ? "full" : "none")) || "none", sourceTruth, routeSource };
 }
 
 function sessionPatchFor(ctx, action) {
-  return {
-    activeLane: LANE,
-    lane: LANE,
-    activeMusicMode: action === "year_pick" ? ctx.session.activeMusicMode || "top10" : action,
-    lastMusicYear: ctx.year || null,
-    year: ctx.year || null,
-    lockedYear: ctx.year || null,
-    activeMusicChart: CHART_DEFAULT,
-    lastMusicChart: CHART_DEFAULT,
-    resolverVersion: RESOLVER_VERSION,
-  };
+  return { activeLane: LANE, lane: LANE, activeMusicMode: action === "year_pick" ? ctx.session.activeMusicMode || "top10" : action, lastMusicYear: ctx.year || null, year: ctx.year || null, lockedYear: ctx.year || null, activeMusicChart: CHART_DEFAULT, lastMusicChart: CHART_DEFAULT, resolverVersion: RESOLVER_VERSION };
 }
 
 function buildFollowUps(year, capabilities) {
@@ -196,35 +158,32 @@ function buildFollowUps(year, capabilities) {
 }
 
 function bridgeBlock(status, action, ctx, capability, reason) {
+  return { ready: status === "execute", valid: status === "execute" || status === "clarify", lane: LANE, mode: action || null, year: ctx.year || null, sourceTruth: capability.sourceTruth || "unknown", routeSource: capability.routeSource || "unknown", capabilityMode: capability.mode || "none", executable: !!capability.executable, reason: safeStr(reason || "") };
+}
+
+function finalize(payload) {
   return {
-    ready: status === "execute",
-    valid: status === "execute" || status === "clarify",
+    ok: payload.ok !== false,
+    source: "musicResolver",
+    version: RESOLVER_VERSION,
     lane: LANE,
-    mode: action || null,
-    year: ctx.year || null,
-    sourceTruth: capability.sourceTruth || "unknown",
-    routeSource: capability.routeSource || "unknown",
-    capabilityMode: capability.mode || "none",
-    executable: !!capability.executable,
-    reason: safeStr(reason || ""),
+    action: payload.action || null,
+    year: payload.year || null,
+    status: safeStr(payload.status || "clarify") || "clarify",
+    executable: !!payload.executable,
+    needsYear: !!payload.needsYear,
+    requiresExecution: payload.requiresExecution !== false,
+    followUps: uniqFollowUps(payload.followUps),
+    sessionPatch: isObj(payload.sessionPatch) ? payload.sessionPatch : {},
+    bridge: isObj(payload.bridge) ? payload.bridge : bridgeBlock("blocked", payload.action || null, { year: payload.year || null }, { executable: false, mode: "none", sourceTruth: "unknown", routeSource: "unknown" }, "missing_bridge"),
+    meta: isObj(payload.meta) ? payload.meta : {},
+    reply: safeStr(payload.reply || "").trim(),
   };
 }
 
 function normalizeExecutionPlan(action, ctx, capability) {
   const y = ctx.year || null;
-  const plan = {
-    action,
-    year: y,
-    mode: action,
-    lane: LANE,
-    chart: CHART_DEFAULT,
-    executable: !!capability.executable,
-    capabilityMode: capability.mode || "none",
-    routeSource: capability.routeSource || "unknown",
-    sourceTruth: capability.sourceTruth || "unknown",
-    dataMethod: null,
-    handlerMethod: "handleMusicTurn",
-  };
+  const plan = { action, year: y, mode: action, lane: LANE, chart: CHART_DEFAULT, executable: !!capability.executable, capabilityMode: capability.mode || "none", routeSource: capability.routeSource || "unknown", sourceTruth: capability.sourceTruth || "unknown", dataMethod: null, handlerMethod: "handleMusicTurn" };
   if (action === "top10") plan.dataMethod = "getTop10ByYear";
   else if (action === "number1") plan.dataMethod = "getNumberOneByYear";
   else if (action === "story_moment") plan.dataMethod = "handleStoryMoment";
@@ -243,34 +202,8 @@ function executeKnowledge(action, year, meta) {
     if (action === "yearend_hot100" && typeof knowledge.getYearEndHot100ByYear === "function") return knowledge.getYearEndHot100ByYear(year, wantMeta);
     if (action === "story_moment" && typeof knowledge.handleStoryMoment === "function") return knowledge.handleStoryMoment(year, wantMeta);
     if (action === "micro_moment" && typeof knowledge.handleMicroMoment === "function") return knowledge.handleMicroMoment(year, wantMeta);
-  } catch (error) {
-    return { __resolverExecutionError: safeStr(error && error.message ? error.message : error) };
-  }
+  } catch (_) {}
   return null;
-}
-
-function finalize(payload) {
-  return {
-    ok: payload.ok !== false,
-    source: "musicResolver",
-    version: RESOLVER_VERSION,
-    lane: LANE,
-    action: payload.action || null,
-    year: payload.year || null,
-    status: safeStr(payload.status || "clarify") || "clarify",
-    executable: !!payload.executable,
-    needsYear: !!payload.needsYear,
-    requiresExecution: payload.requiresExecution !== false,
-    followUps: uniqFollowUps(payload.followUps),
-    sessionPatch: isObj(payload.sessionPatch) ? payload.sessionPatch : {},
-    bridge: isObj(payload.bridge)
-      ? payload.bridge
-      : bridgeBlock("blocked", payload.action || null, { year: payload.year || null }, { executable: false, mode: "none", sourceTruth: "unknown", routeSource: "unknown" }, "missing_bridge"),
-    executionPlan: isObj(payload.executionPlan) ? payload.executionPlan : null,
-    dataPreview: payload.dataPreview == null ? null : payload.dataPreview,
-    meta: isObj(payload.meta) ? payload.meta : {},
-    reply: safeStr(payload.reply || "").trim(),
-  };
 }
 
 async function resolveMusicIntent(input = {}) {
@@ -281,84 +214,23 @@ async function resolveMusicIntent(input = {}) {
   const capability = routeCapability(action, capabilities);
 
   if (!action) {
-    return finalize({
-      action: null,
-      year: ctx.year,
-      status: "clarify",
-      executable: false,
-      needsYear: false,
-      followUps: buildFollowUps(ctx.year, capabilities),
-      sessionPatch: { activeLane: LANE, lane: LANE, activeMusicChart: CHART_DEFAULT, lastMusicChart: CHART_DEFAULT },
-      bridge: bridgeBlock("clarify", null, ctx, capability, "missing_action"),
-      meta: { resolverMode: "clarify", capabilities },
-      reply: "Give me the music target and year and I will run it.",
-    });
+    return finalize({ action: null, year: ctx.year, status: "clarify", executable: false, needsYear: false, followUps: buildFollowUps(ctx.year, capabilities), sessionPatch: { activeLane: LANE, lane: LANE, activeMusicChart: CHART_DEFAULT, lastMusicChart: CHART_DEFAULT }, bridge: bridgeBlock("clarify", null, ctx, capability, "missing_action"), meta: { resolverMode: "clarify", capabilities }, reply: "Give me the music target and year and I will run it." });
   }
-
   if (action !== "year_pick" && !ctx.year) {
-    return finalize({
-      action,
-      year: null,
-      status: "clarify",
-      executable: false,
-      needsYear: true,
-      followUps: buildFollowUps(null, capabilities),
-      sessionPatch: sessionPatchFor(ctx, action),
-      bridge: bridgeBlock("clarify", action, ctx, capability, "missing_year"),
-      meta: { resolverMode: "clarify_missing_year", capabilities },
-      reply: "Give me the year and I will run it.",
-    });
+    return finalize({ action, year: null, status: "clarify", executable: false, needsYear: true, followUps: buildFollowUps(null, capabilities), sessionPatch: sessionPatchFor(ctx, action), bridge: bridgeBlock("clarify", action, ctx, capability, "missing_year"), meta: { resolverMode: "clarify_missing_year", capabilities }, reply: "Give me the year and I will run it." });
   }
-
   if (action === "year_pick") {
-    return finalize({
-      action,
-      year: ctx.year,
-      status: "clarify",
-      executable: false,
-      needsYear: true,
-      followUps: buildFollowUps(ctx.year, capabilities),
-      sessionPatch: sessionPatchFor(ctx, action),
-      bridge: bridgeBlock("clarify", action, ctx, capability, "year_picker"),
-      meta: { resolverMode: "year_picker", capabilities },
-      reply: "Choose a year and I will run the lane.",
-    });
+    return finalize({ action, year: ctx.year, status: "clarify", executable: false, needsYear: true, followUps: buildFollowUps(ctx.year, capabilities), sessionPatch: sessionPatchFor(ctx, action), bridge: bridgeBlock("clarify", action, ctx, capability, "year_picker"), meta: { resolverMode: "year_picker", capabilities }, reply: "Choose a year and I will run the lane." });
   }
-
   if (!capability.executable) {
-    return finalize({
-      ok: false,
-      action,
-      year: ctx.year,
-      status: "blocked",
-      executable: false,
-      needsYear: false,
-      requiresExecution: false,
-      followUps: buildFollowUps(ctx.year, capabilities),
-      sessionPatch: sessionPatchFor(ctx, action),
-      bridge: bridgeBlock("blocked", action, ctx, capability, "route_not_executable"),
-      meta: { resolverMode: "capability_block", capabilities, requestedAction: action },
-      reply: "That music path is not currently executable from the loaded sources.",
-    });
+    return finalize({ ok: false, action, year: ctx.year, status: "blocked", executable: false, needsYear: false, requiresExecution: false, followUps: buildFollowUps(ctx.year, capabilities), sessionPatch: sessionPatchFor(ctx, action), bridge: bridgeBlock("blocked", action, ctx, capability, "route_not_executable"), meta: { resolverMode: "capability_block", capabilities, requestedAction: action }, reply: "That music path is not currently executable from the loaded sources." });
   }
 
-  const executionPlan = normalizeExecutionPlan(action, ctx, capability);
+  const plan = normalizeExecutionPlan(action, ctx, capability);
   const preview = executeKnowledge(action, ctx.year, true);
-  const previewMeta = isObj(preview) && !preview.__resolverExecutionError
-    ? {
-        hasData: true,
-        previewType: Array.isArray(preview.items) ? "items" : isObj(preview) ? "object" : typeof preview,
-        itemCount: Array.isArray(preview.items) ? preview.items.length : null,
-      }
-    : {
-        hasData: false,
-        executionError: preview && preview.__resolverExecutionError ? preview.__resolverExecutionError : "preview_unavailable",
-      };
-
+  const previewOk = !!(preview && ((Array.isArray(preview.items) && preview.items.length) || preview.title || preview.replyRaw || preview.reply || preview.text));
   let reply = "Music target locked. Running the lane now.";
-  if (action === "yearend_hot100" && capability.mode === "excerpt") {
-    reply = "Year-End Hot 100 is available in excerpt mode from the Top 10 source.";
-  }
+  if (action === "yearend_hot100" && capability.mode === "excerpt") reply = "Year-End Hot 100 is available in excerpt mode from the chart source.";
 
   return finalize({
     action,
@@ -368,23 +240,10 @@ async function resolveMusicIntent(input = {}) {
     needsYear: false,
     followUps: buildFollowUps(ctx.year, capabilities),
     sessionPatch: sessionPatchFor(ctx, action),
-    bridge: bridgeBlock("execute", action, ctx, capability, ""),
-    executionPlan,
-    dataPreview: preview && !preview.__resolverExecutionError ? preview : null,
-    meta: {
-      resolverMode: "execute",
-      capabilities,
-      requestedAction: action,
-      routeCapability: capability,
-      provenance: capabilities.provenance || {},
-      executionPlan,
-      preview: previewMeta,
-    },
+    bridge: bridgeBlock("execute", action, ctx, capability, previewOk ? "" : "preview_empty"),
+    meta: { resolverMode: "execute", capabilities, requestedAction: action, routeCapability: capability, executionPlan: plan, previewOk, previewMeta: preview && preview.meta ? preview.meta : null, provenance: capabilities.provenance || {} },
     reply,
   });
 }
 
-module.exports = {
-  RESOLVER_VERSION,
-  resolveMusicIntent,
-};
+module.exports = { resolveMusicIntent };
