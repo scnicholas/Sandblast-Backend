@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.5sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-PUBLIC-READ-FIX";
+const INDEX_VERSION = "index.js v2.13.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
