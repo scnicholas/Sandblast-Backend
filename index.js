@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.6sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-ROOT-MOUNT-PRECISION-FIX";
+const INDEX_VERSION = "index.js v2.13.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -226,7 +226,6 @@ const CFG = {
   apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
   apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
   requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
-  publicMusicBridge: boolEnv("SB_PUBLIC_MUSIC_BRIDGE", true),
   voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
   preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
   corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
@@ -444,12 +443,6 @@ function enforceToken(req, res, next) {
 function enforceVoiceRouteAccess(req, res, next) {
   if (req.method === "OPTIONS") return next();
   if (!CFG.requireVoiceRouteToken) return next();
-  return enforceToken(req, res, next);
-}
-
-function enforceMusicBridgeAccess(req, res, next) {
-  if (req.method === "OPTIONS") return next();
-  if (CFG.publicMusicBridge) return next();
   return enforceToken(req, res, next);
 }
 
@@ -1635,18 +1628,12 @@ function normalizeMusicBridgeInput(req) {
   const body = isObj(req.body) ? req.body : {};
   const query = isObj(req.query) ? req.query : {};
   const payload = isObj(body.payload) ? body.payload : {};
-  const session = isObj(body.session)
-    ? body.session
-    : (isObj(payload.session) ? payload.session : {});
+  const session = isObj(body.session) ? body.session : (isObj(payload.session) ? payload.session : {});
   return {
     text: cleanText(body.text || query.text || payload.text || norm.text || ""),
     session,
-    visitorId: cleanText(body.visitorId || query.visitorId || payload.visitorId || getSessionId(req)),
-    debug:
-      body.debug === true ||
-      payload.debug === true ||
-      String(query.debug || "") === "1" ||
-      String(query.debug || "").toLowerCase() === "true",
+    visitorId: cleanText(body.visitorId || payload.visitorId || getSessionId(req)),
+    debug: body.debug === true || payload.debug === true || String((req.query && req.query.debug) || "") === "1",
     traceId: norm.traceId,
     lane: "music",
     route: cleanText(body.route || query.route || payload.route || "music"),
@@ -1917,32 +1904,23 @@ async function dispatchMusicBridge(req, res) {
   }
 }
 
-const MUSIC_BRIDGE_ROUTES = ["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bridge/"];
-const MUSIC_BRIDGE_HEALTH_ROUTES = ["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/health/", "/music/bridge/health/"];
-
-app.get(MUSIC_BRIDGE_HEALTH_ROUTES, enforceMusicBridgeAccess, (req, res) => {
+app.get(["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/health/", "/music/bridge/health/"], enforceMusicBridgeAccess, (req, res) => {
   applyCors(req, res);
   const caps = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
   return res.status(200).json({
     ok: !!musicBridgeHandlerFromModule(musicLaneMod),
     enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
     endpoint: routeUrl("/api/music/bridge"),
-    aliases: MUSIC_BRIDGE_ROUTES.slice(),
     moduleBound: !!musicLaneMod,
     resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
     knowledgeBound: !!musicKnowledgeMod,
     capabilities: caps || null,
-    auth: {
-      publicBridgeRead: !!CFG.publicMusicBridge,
-      tokenHeader: CFG.apiTokenHeader,
-      tokenRequired: !!(!CFG.publicMusicBridge && CFG.apiToken)
-    },
     version: INDEX_VERSION,
     meta: { v: INDEX_VERSION, t: now() }
   });
 });
 
-app.all(MUSIC_BRIDGE_ROUTES, enforceMusicBridgeAccess, async (req, res) => {
+app.all(["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bridge/"], enforceMusicBridgeAccess, async (req, res) => {
   applyCors(req, res);
   return dispatchMusicBridge(req, res);
 });
@@ -1995,7 +1973,6 @@ app.get("/api/health", (req, res) => {
     tts,
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
-    publicMusicBridge: !!CFG.publicMusicBridge,
     backendPublicBase: getBackendPublicBase(),
     audioContract: {
       version: "audio-first-v1",
@@ -2033,11 +2010,6 @@ app.get("/api/health", (req, res) => {
         sources: "/api/music/sources",
         bridge: "/api/music/bridge",
         bridgeHealth: "/api/music/bridge/health"
-      },
-      auth: {
-        publicBridgeRead: !!CFG.publicMusicBridge,
-        tokenHeader: CFG.apiTokenHeader,
-        tokenRequiredWhenPublicDisabled: !!(!CFG.publicMusicBridge && CFG.apiToken)
       },
       bridge: {
         enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
