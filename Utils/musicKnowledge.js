@@ -10,7 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const KNOWLEDGE_VERSION = "musicKnowledge v2.3.1";
+const KNOWLEDGE_VERSION = "musicKnowledge v2.3.0";
 const LANE = "music";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
@@ -166,22 +166,15 @@ function buildTop10(rawItems, meta) {
 }
 
 function preferredChartRoot() {
-  const raw = cleanText(process.env.SB_MUSIC_CHART_ROOT || process.env.SB_MUSIC_DATA_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
-  if (!raw) return DEFAULT_WINDOWS_CHART_ROOT;
-  if (/[\\/]Data$/i.test(raw)) return path.join(raw, "chart");
-  return raw;
+  return cleanText(process.env.SB_MUSIC_CHART_ROOT || process.env.SB_MUSIC_DATA_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
 }
 
 function chartRoots() {
   if (_chartRootsCache) return _chartRootsCache.slice();
   const cwd = process.cwd();
   const local = __dirname;
-  const preferred = preferredChartRoot();
-  const preferredDataRoot = /[\\/]chart$/i.test(preferred) ? path.resolve(preferred, "..") : preferred;
   const roots = uniq([
-    preferred,
-    path.join(preferredDataRoot, "chart"),
-    preferredDataRoot,
+    preferredChartRoot(),
     path.resolve(cwd, "Data", "chart"),
     path.resolve(local, "Data", "chart"),
     path.resolve(local, "..", "Data", "chart"),
@@ -675,7 +668,11 @@ function normalizeKnowledgeResponse(base) {
 
 function handleMusicTurn(input = {}) {
   try {
-    const action = cleanText(input.action || (input.norm && input.norm.action) || "").toLowerCase() || inferActionFromText(input.text || "");
+    let action = cleanText(input.action || (input.norm && input.norm.action) || "").toLowerCase() || inferActionFromText(input.text || "");
+    if (action === "number_one") action = "number1";
+    if (action === "story") action = "story_moment";
+    if (action === "micro") action = "micro_moment";
+    if (action === "top100" || action === "hot100") action = "yearend_hot100";
     const year = input.year != null ? Number(safeStr(input.year).replace(/[^\d]/g, "")) : inferYearFromText(input.text || "", input.session || {});
     const opts = input.opts || {};
     if (action === "top10") return handleTop10(year, opts);
@@ -693,7 +690,24 @@ async function handleChat({ text, session, visitorId, debug } = {}) {
   const action = inferActionFromText(text || "");
   const year = inferYearFromText(text || "", session || {});
   const out = handleMusicTurn({ text, session, visitorId, year, action, opts: { meta: !!debug } });
-  return { ok: !!out.ok, reply: out.replyRaw, replyRaw: out.replyRaw, followUps: out.followUps || [], followUpsStrings: out.followUpsStrings || [], sessionPatch: out.sessionPatch || {}, meta: { route: out.route || "", actionTaken: out.actionTaken || "", capabilities: getCapabilities(), ...(isObject(out.meta) ? out.meta : {}) } };
+  return {
+    ok: !!out.ok,
+    reply: out.replyRaw,
+    replyRaw: out.replyRaw,
+    followUps: out.followUps || [],
+    followUpsStrings: out.followUpsStrings || [],
+    sessionPatch: out.sessionPatch || {},
+    data: out.data || null,
+    route: out.route || "",
+    actionTaken: out.actionTaken || "",
+    pendingAsk: out.pendingAsk || null,
+    meta: {
+      route: out.route || "",
+      actionTaken: out.actionTaken || "",
+      capabilities: getCapabilities(),
+      ...(isObject(out.meta) ? out.meta : {}),
+    },
+  };
 }
 
 module.exports = {
