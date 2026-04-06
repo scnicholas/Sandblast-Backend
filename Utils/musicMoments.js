@@ -43,14 +43,14 @@ try {
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.7.2 (safe require + year-context lenient read + chart normalization + no-loop fallbacks + knowledge-path compatible)";
+  "musicMoments v1.8.0 (data-chart-root normalized + no-loop fallbacks + knowledge-path compatible)";
 
 // ---------------------------------------------------------
 // Canonical moments + year context files
 // ---------------------------------------------------------
-const DEFAULT_WINDOWS_CHART_ROOT = String.raw`C:\Users\User\Desktop\sandblast backend\Data\charts`;
-const MOMENTS_FILE = "music_moments_v1.json";
-const YEAR_CONTEXT_FILE = "music_year_context_1950_1989.json";
+const DEFAULT_WINDOWS_CHART_ROOT = String.raw`C:\Users\User\Desktop\sandblast backend\Data\chart`;
+const MOMENTS_FILE = path.join("Data", "music_moments_v1.json");
+const YEAR_CONTEXT_FILE = path.join("Data", "music_year_context_1950_1989.json");
 
 // ---------------------------------------------------------
 // Cache
@@ -78,20 +78,23 @@ function toInt(x) {
 }
 
 function resolveRepoPath(rel) {
-  const clean = String(rel || "").replace(/^[/\\]+/, "");
+  const clean = String(rel || "").replace(/^[/\]+/, "");
+  const chartRoot = cleanText(process.env.SB_MUSIC_CHART_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
+  const dataRoot = chartRoot ? path.resolve(chartRoot, "..") : "";
   const candidates = [
+    dataRoot ? path.resolve(dataRoot, clean) : "",
     path.resolve(__dirname, clean),
     path.resolve(__dirname, "..", clean),
     path.resolve(process.cwd(), clean),
     path.resolve(process.cwd(), "src", clean),
     path.resolve(process.cwd(), "utils", clean),
-  ];
+  ].filter(Boolean);
   for (const candidate of candidates) {
     try {
       if (fs.existsSync(candidate)) return candidate;
     } catch (_) {}
   }
-  return candidates[0];
+  return candidates[0] || path.resolve(process.cwd(), clean);
 }
 
 function getMtimeMs(absPath) {
