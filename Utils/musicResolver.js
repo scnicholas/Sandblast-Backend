@@ -132,8 +132,8 @@ function routeCapability(action, capabilities) {
   if (action === "story_moment") routeSource = prov.storyMomentSource || routeSource;
   if (action === "micro_moment") routeSource = prov.microMomentSource || routeSource;
   if (action === "number1") routeSource = "derived_from_top10";
-  if (action === "yearend_hot100") routeSource = sourceTruth.includes("year_end_hot100") ? "Data/chart/year_end_hot100_YYYY.json" : "top10_excerpt_from_top100_json";
-  if (action === "top10") routeSource = sourceTruth.includes("year_end_hot100") ? "top10_derived_from_Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json";
+  if (action === "yearend_hot100") routeSource = sourceTruth.includes("year_end_hot100") ? "Data/wikipedia/charts/year_end_hot100_YYYY.json" : "top10_excerpt_from_top100_json";
+  if (action === "top10") routeSource = sourceTruth.includes("year_end_hot100") ? "top10_derived_from_Data/wikipedia/charts/year_end_hot100_YYYY.json" : "top10_by_year_v1.json";
   return { executable: !!route.executable, mode: safeStr(route.mode || (route.delegated ? "delegated" : route.executable ? "full" : "none")) || "none", sourceTruth, routeSource };
 }
 
