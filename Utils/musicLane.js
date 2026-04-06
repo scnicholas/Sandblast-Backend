@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.8.1 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + CHART-ROOT-COMPATIBLE)
+ * v1.8.2 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + DATA-CHART-PATH PASS-THROUGH)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -29,8 +29,6 @@
  *  ✅ Replaces weak year-only follow-up drift with action-aware chips
  *  ✅ Normalizes failure states so the shell can distinguish ready vs needs_attention
  *  ✅ Maintains string follow-ups for legacy chatEngine compatibility
- *  ✅ Keeps lane aligned with chart-root-locked musicKnowledge
- *  ✅ Returns execute/clarify/blocked semantics for index.js
  *
  * Exports:
  *  - handleChat({ text, session, visitorId, debug })
@@ -1134,15 +1132,9 @@ async function handleBridgeRequest(body) {
   const input = normalizeBridgeInput(body);
   const res = await handleChat(input);
   const bridge = res && res.bridge ? res.bridge : null;
-  const rawStatus = bridge && bridge.status ? String(bridge.status) : (res && res.reply ? "ready" : "needs_attention");
-  const reason = bridge && bridge.reason ? String(bridge.reason) : "";
-  const status = bridge && bridge.ready ? "execute" : ((reason === "missing_year" || reason === "year_picker") ? "clarify" : (rawStatus === "ready" ? "execute" : "blocked"));
-  const executable = !!(bridge && (bridge.executable || bridge.ready));
-  const valid = !!(bridge && (bridge.valid || bridge.ready || status === "clarify"));
   return {
     ok: !!(bridge && bridge.ready),
-    status,
-    executable,
+    status: bridge && bridge.status ? bridge.status : (res && res.reply ? "ready" : "degraded"),
     source: LANE_NAME,
     reply: res.reply,
     text: res.reply,
@@ -1163,7 +1155,7 @@ async function handleBridgeRequest(body) {
     followUpsStrings: res.followUpsStrings,
     followUpObjects: res.followUps,
     sessionPatch: res.sessionPatch,
-    bridge: bridge ? { ...bridge, valid, executable } : null,
+    bridge,
     meta: res.meta || null,
   };
 }
