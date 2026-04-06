@@ -446,6 +446,11 @@ function enforceVoiceRouteAccess(req, res, next) {
   return enforceToken(req, res, next);
 }
 
+function enforceMusicBridgeAccess(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  return next();
+}
+
 function getLastTurn(sessionId) {
   return memory.lastBySession.get(sessionId) || null;
 }
