@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.8.2 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + DATA-CHART-PATH PASS-THROUGH)
+ * v1.8.3 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + DATA-CHART-PATH COHESION)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
