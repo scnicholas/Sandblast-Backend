@@ -10,7 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const KNOWLEDGE_VERSION = "musicKnowledge v2.1.0";
+const KNOWLEDGE_VERSION = "musicKnowledge v2.2.0";
 const LANE = "music";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
@@ -194,6 +194,89 @@ function findExistingFile(filename) {
   return { file: checked[0] || "", checked, root: "" };
 }
 
+function listRootFiles(root) {
+  try {
+    const st = fs.statSync(root);
+    if (!st || !st.isDirectory()) return [];
+    return fs.readdirSync(root).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
+function candidateYearEndFilenames(year) {
+  const y = normalizeYear(year);
+  if (!y) return [];
+  return uniq([
+    `year_end_hot100_${y}.json`,
+    `year-end-hot100-${y}.json`,
+    `year_end_hot_100_${y}.json`,
+    `hot100_${y}.json`,
+    `hot_100_${y}.json`,
+    `top100_${y}.json`,
+    `top_100_${y}.json`,
+    `billboard_hot100_${y}.json`,
+    `billboard_hot_100_${y}.json`,
+    `billboard_${y}.json`,
+    `${y}.json`,
+  ]);
+}
+
+function rankYearEndFilename(name, year) {
+  const y = normalizeYear(year);
+  const n = lower(name);
+  if (!y || !n.endsWith(".json")) return -1;
+  let score = 0;
+  if (n === `year_end_hot100_${y}.json`) score += 1000;
+  if (n === `hot100_${y}.json`) score += 900;
+  if (n === `top100_${y}.json`) score += 850;
+  if (n === `${y}.json`) score += 700;
+  if (n.includes(y)) score += 100;
+  if (n.includes("year_end")) score += 120;
+  if (n.includes("hot100") || n.includes("hot_100")) score += 110;
+  if (n.includes("top100") || n.includes("top_100")) score += 90;
+  if (n.includes("billboard")) score += 40;
+  return score;
+}
+
+function resolveYearEndFileMetaForYear(year) {
+  const y = normalizeYear(year);
+  if (!y) return { file: "", checked: [], root: "", match: "" };
+  const checked = [];
+  const exactNames = candidateYearEndFilenames(y);
+
+  for (const root of chartRoots()) {
+    for (const filename of exactNames) {
+      const file = path.join(root, filename);
+      checked.push(file);
+      try {
+        const st = fs.statSync(file);
+        if (st && st.isFile()) return { file, checked, root, match: filename };
+      } catch (_) {}
+    }
+  }
+
+  let best = null;
+  for (const root of chartRoots()) {
+    const files = listRootFiles(root);
+    for (const name of files) {
+      const file = path.join(root, name);
+      checked.push(file);
+      const score = rankYearEndFilename(name, y);
+      if (score < 0) continue;
+      try {
+        const st = fs.statSync(file);
+        if (!st || !st.isFile()) continue;
+        if (!best || score > best.score) {
+          best = { file, root, match: name, score };
+        }
+      } catch (_) {}
+    }
+  }
+
+  return best ? { file: best.file, checked, root: best.root, match: best.match } : { file: "", checked, root: "", match: "" };
+}
+
 function resolveDataFile(filename) {
   return findExistingFile(filename).file;
 }
@@ -205,28 +288,25 @@ function resolveTop10File() {
 }
 
 function resolveYearEndFileForYear(year) {
-  const y = normalizeYear(year);
-  if (!y) return "";
-  return resolveDataFile(`year_end_hot100_${y}.json`);
+  const meta = resolveYearEndFileMetaForYear(year);
+  return meta.file || "";
 }
 
 function discoverAvailableYearEndFiles() {
   const years = [];
   const seen = new Set();
   for (const root of chartRoots()) {
-    try {
-      const st = fs.statSync(root);
-      if (!st || !st.isDirectory()) continue;
-      for (const name of fs.readdirSync(root)) {
-        const m = String(name).match(/^year_end_hot100_(19[5-9]\d|20[0-2]\d|2025)\.json$/);
-        if (!m) continue;
-        const y = Number(m[1]);
-        if (Number.isFinite(y) && !seen.has(y)) {
-          seen.add(y);
-          years.push(y);
-        }
+    const files = listRootFiles(root);
+    for (const name of files) {
+      if (!/\.json$/i.test(String(name))) continue;
+      const m = String(name).match(/(19[5-9]\d|20[0-2]\d|2025)/);
+      if (!m) continue;
+      const y = Number(m[1]);
+      if (Number.isFinite(y) && y >= YEAR_MIN && y <= YEAR_MAX && !seen.has(y)) {
+        seen.add(y);
+        years.push(y);
       }
-    } catch (_) {}
+    }
   }
   years.sort((a, b) => a - b);
   return years;
@@ -300,7 +380,7 @@ function getCapabilities() {
       yearend_hot100: { executable: yearEndYears.length > 0 || top10Diag.exists, mode: yearEndYears.length > 0 ? "full" : YEAREND_MODE },
     },
     provenance: {
-      sourceOfMusicTruth: yearEndYears.length > 0 ? "Data/wikipedia/charts/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
+      sourceOfMusicTruth: yearEndYears.length > 0 ? "Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
       storyMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
       microMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
     },
@@ -308,21 +388,44 @@ function getCapabilities() {
   };
 }
 
+function extractRowsFromYearEndDoc(doc) {
+  if (Array.isArray(doc)) return doc;
+  if (!isObject(doc)) return [];
+  const pools = [
+    doc.rows,
+    doc.data,
+    doc.items,
+    doc.songs,
+    doc.results,
+    doc.entries,
+    isObject(doc.data) ? doc.data.rows : null,
+    isObject(doc.data) ? doc.data.items : null,
+    isObject(doc.payload) ? doc.payload.rows : null,
+    isObject(doc.payload) ? doc.payload.items : null,
+  ];
+  for (const pool of pools) {
+    if (Array.isArray(pool) && pool.length) return pool;
+  }
+  return [];
+}
+
 function getYearEndHot100ByYear(year, opts = {}) {
   try {
     const y = normalizeYear(year);
     if (!y) return null;
-    const file = resolveYearEndFileForYear(y);
+    const fileMeta = resolveYearEndFileMetaForYear(y);
+    const file = fileMeta.file || "";
     const doc = safeReadJSON(file);
-    if (!doc || !Array.isArray(doc.rows)) return null;
+    const rows = extractRowsFromYearEndDoc(doc);
+    if (!doc || !rows.length) return null;
     const wantMeta = !!opts.meta;
-    const meta = wantMeta ? { sourceFile: file, sourceTruth: "Data/wikipedia/charts/year_end_hot100_YYYY.json", year: y, warnings: [] } : null;
-    const filtered = doc.rows
+    const meta = wantMeta ? { sourceFile: file, sourceTruth: "Data/chart/year_end_hot100_YYYY.json", year: y, warnings: [], matchedFile: fileMeta.match || "" } : null;
+    const filtered = rows
       .filter((row) => isObject(row))
       .filter((row) => {
-        const pos = Number(row.pos);
-        const title = cleanText(row.title);
-        const artist = cleanText(row.artist);
+        const pos = Number(row.pos ?? row.rank ?? row.position ?? row.number);
+        const title = cleanText(row.title ?? row.song ?? row.name);
+        const artist = cleanText(row.artist ?? row.artists ?? row.performer ?? row.by);
         if (!Number.isFinite(pos)) return false;
         if (lower(title) === "title") return false;
         if (lower(artist) === "artist(s)") return false;
@@ -331,7 +434,7 @@ function getYearEndHot100ByYear(year, opts = {}) {
     const items = filtered.map(normalizeItem);
     return {
       year: y,
-      chart: cleanText(doc.chart) || CHART_DEFAULT,
+      chart: cleanText((isObject(doc) && (doc.chartTitle || doc.chart || doc.name)) || "") || CHART_DEFAULT,
       count: items.length,
       items,
       ...(wantMeta ? { meta } : {}),
@@ -369,7 +472,7 @@ function getTop10ByYear(year, opts = {}) {
     const items = buildTop10(yearEnd.items.slice(0, TOP10_REQUIRED_COUNT), wantMeta ? (yearEnd.meta || { warnings: [] }) : null);
     const meta = wantMeta ? {
       sourceFile: (yearEnd.meta && yearEnd.meta.sourceFile) || resolveYearEndFileForYear(y),
-      sourceTruth: "Data/wikipedia/charts/year_end_hot100_YYYY.json",
+      sourceTruth: "Data/chart/year_end_hot100_YYYY.json",
       storeVersion: "",
       storeChart: cleanText(yearEnd.chart) || CHART_DEFAULT,
       year: y,
@@ -697,4 +800,5 @@ module.exports = {
   normalizeYear,
   resolveDataFile,
   resolveYearEndFileForYear,
+  resolveYearEndFileMetaForYear,
 };
