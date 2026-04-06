@@ -3,14 +3,14 @@
 /**
  * Utils/musicKnowledge.js
  *
- * v2.1.0
- * PATH-LOCKED-CHART-ROOT + TOP10-FROM-TOP100-FALLBACK + DIAGNOSTIC-HARDEN
+ * v2.3.0
+ * CHART-ROOT-SINGLE-SOURCE + FLEXIBLE-YEAR-FILE-RESOLUTION + TOP10-FROM-TOP100 + FORENSIC-NORMALIZATION
  */
 
 const fs = require("fs");
 const path = require("path");
 
-const KNOWLEDGE_VERSION = "musicKnowledge v2.2.0";
+const KNOWLEDGE_VERSION = "musicKnowledge v2.3.0";
 const LANE = "music";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
@@ -21,8 +21,8 @@ const DEFAULT_WINDOWS_CHART_ROOT = String.raw`C:\Users\User\Desktop\sandblast ba
 
 let _musicMomentsMod;
 let _chartRootsCache = null;
-let _top10FileCache = null;
-let _storeCache = { mtimeMs: 0, store: null, file: "" };
+let _top10FileMetaCache = null;
+let _top10StoreCache = { mtimeMs: 0, store: null, file: "" };
 
 function getMusicMomentsMod() {
   if (_musicMomentsMod !== undefined) return _musicMomentsMod;
@@ -66,7 +66,33 @@ function toIntYear(year) {
 
 function spokenYear(year) {
   const y = toIntYear(year);
-  return y == null ? "that year" : String(y);
+  if (y == null) return "that year";
+  if (y >= 1900 && y <= 1999) {
+    const tail = y % 100;
+    const head = 19;
+    return tail === 0 ? "nineteen hundred" : `nineteen ${numberBelow100ToWords(tail)}`;
+  }
+  if (y >= 2000 && y <= 2009) {
+    const tail = y % 2000;
+    return tail === 0 ? "two thousand" : `two thousand ${numberBelow100ToWords(tail)}`;
+  }
+  if (y >= 2010 && y <= 2099) {
+    const tail = y % 100;
+    return tail === 0 ? "twenty hundred" : `twenty ${numberBelow100ToWords(tail)}`;
+  }
+  return String(y);
+}
+
+function numberBelow100ToWords(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return safeStr(n);
+  const ones = ["zero","one","two","three","four","five","six","seven","eight","nine"];
+  const teens = ["ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+  const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+  if (num < 10) return ones[num];
+  if (num < 20) return teens[num - 10];
+  if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? `-${ones[num % 10]}` : "");
+  return safeStr(num);
 }
 
 function cleanTitleArtifacts(v) {
@@ -91,9 +117,9 @@ function coercePos(rawPos, fallback) {
 function normalizeItem(raw, index) {
   const row = isObject(raw) ? raw : {};
   return {
-    pos: coercePos(row.pos ?? row.rank ?? row.position ?? row.number, index + 1),
-    title: cleanTitleArtifacts(row.title ?? row.song ?? row.name),
-    artist: cleanArtistArtifacts(row.artist ?? row.artists ?? row.performer ?? row.by),
+    pos: coercePos(row.pos ?? row.rank ?? row.position ?? row.number ?? row.index, index + 1),
+    title: cleanTitleArtifacts(row.title ?? row.song ?? row.name ?? row.track ?? row.label),
+    artist: cleanArtistArtifacts(row.artist ?? row.artists ?? row.performer ?? row.by ?? row.band ?? row.act),
   };
 }
 
@@ -105,14 +131,9 @@ function dedupeExactSongs(items, meta) {
   const out = [];
   for (const item of Array.isArray(items) ? items : []) {
     const key = keySong(item && item.title, item && item.artist);
-    if (!key || key === "||") {
-      out.push(item);
-      continue;
-    }
+    if (!key || key === "||") { out.push(item); continue; }
     if (seen.has(key)) {
-      if (meta && Array.isArray(meta.warnings)) {
-        meta.warnings.push({ code: "DUPLICATE_SONG_IGNORED", title: item.title || "", artist: item.artist || "" });
-      }
+      if (meta && Array.isArray(meta.warnings)) meta.warnings.push({ code: "DUPLICATE_SONG_IGNORED", title: item.title || "", artist: item.artist || "" });
       continue;
     }
     seen.add(key);
@@ -125,14 +146,12 @@ function buildTop10(rawItems, meta) {
   const normalized = Array.isArray(rawItems) ? rawItems.map(normalizeItem) : [];
   const cleaned = dedupeExactSongs(normalized, meta);
   const byPos = new Map();
-
   for (let i = 0; i < cleaned.length; i += 1) {
     const item = cleaned[i];
     const pos = coercePos(item.pos, i + 1);
     if (!byPos.has(pos)) byPos.set(pos, { pos, title: item.title || "", artist: item.artist || "" });
     else if (meta && Array.isArray(meta.warnings)) meta.warnings.push({ code: "DUPLICATE_POSITION", pos });
   }
-
   const items = [];
   for (let pos = 1; pos <= TOP10_REQUIRED_COUNT; pos += 1) {
     const found = byPos.get(pos);
@@ -147,35 +166,23 @@ function buildTop10(rawItems, meta) {
 }
 
 function preferredChartRoot() {
-  return cleanText(
-    process.env.SB_MUSIC_CHART_ROOT ||
-    process.env.SB_MUSIC_DATA_ROOT ||
-    process.env.SB_WIKIPEDIA_CHARTS_DIR ||
-    process.env.SB_MUSIC_WIKIPEDIA_CHARTS_DIR ||
-    DEFAULT_WINDOWS_CHART_ROOT
-  );
+  return cleanText(process.env.SB_MUSIC_CHART_ROOT || process.env.SB_MUSIC_DATA_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
 }
 
 function chartRoots() {
   if (_chartRootsCache) return _chartRootsCache.slice();
   const cwd = process.cwd();
   const local = __dirname;
-  const explicit = preferredChartRoot();
   const roots = uniq([
-    explicit,
+    preferredChartRoot(),
     path.resolve(cwd, "Data", "chart"),
     path.resolve(local, "Data", "chart"),
     path.resolve(local, "..", "Data", "chart"),
     path.resolve(cwd, "src", "Data", "chart"),
     path.resolve(cwd, "utils", "Data", "chart"),
-    path.resolve(cwd, "Data", "wikipedia", "charts"),
-    path.resolve(local, "Data", "wikipedia", "charts"),
-    path.resolve(local, "..", "Data", "wikipedia", "charts"),
-    path.resolve(cwd, "src", "Data", "wikipedia", "charts"),
-    path.resolve(cwd, "utils", "Data", "wikipedia", "charts"),
     path.resolve(cwd, "Data"),
     path.resolve(local, "Data"),
-    path.resolve(local, "..", "Data"),
+    path.resolve(local, "..", "Data")
   ]);
   _chartRootsCache = roots;
   return roots.slice();
@@ -194,136 +201,93 @@ function findExistingFile(filename) {
   return { file: checked[0] || "", checked, root: "" };
 }
 
-function listRootFiles(root) {
-  try {
-    const st = fs.statSync(root);
-    if (!st || !st.isDirectory()) return [];
-    return fs.readdirSync(root).filter(Boolean);
-  } catch (_) {
-    return [];
-  }
+function resolveTop10FileMeta() {
+  if (_top10FileMetaCache) return _top10FileMetaCache;
+  _top10FileMetaCache = findExistingFile("top10_by_year_v1.json");
+  return _top10FileMetaCache;
 }
 
-function candidateYearEndFilenames(year) {
+function resolveTop10File() {
+  return resolveTop10FileMeta().file;
+}
+
+function rankedYearFileCandidates(year) {
   const y = normalizeYear(year);
   if (!y) return [];
-  return uniq([
+  return [
     `year_end_hot100_${y}.json`,
-    `year-end-hot100-${y}.json`,
-    `year_end_hot_100_${y}.json`,
+    `yearend_hot100_${y}.json`,
     `hot100_${y}.json`,
-    `hot_100_${y}.json`,
     `top100_${y}.json`,
-    `top_100_${y}.json`,
-    `billboard_hot100_${y}.json`,
-    `billboard_hot_100_${y}.json`,
     `billboard_${y}.json`,
-    `${y}.json`,
-  ]);
-}
-
-function rankYearEndFilename(name, year) {
-  const y = normalizeYear(year);
-  const n = lower(name);
-  if (!y || !n.endsWith(".json")) return -1;
-  let score = 0;
-  if (n === `year_end_hot100_${y}.json`) score += 1000;
-  if (n === `hot100_${y}.json`) score += 900;
-  if (n === `top100_${y}.json`) score += 850;
-  if (n === `${y}.json`) score += 700;
-  if (n.includes(y)) score += 100;
-  if (n.includes("year_end")) score += 120;
-  if (n.includes("hot100") || n.includes("hot_100")) score += 110;
-  if (n.includes("top100") || n.includes("top_100")) score += 90;
-  if (n.includes("billboard")) score += 40;
-  return score;
+    `${y}.json`
+  ];
 }
 
 function resolveYearEndFileMetaForYear(year) {
   const y = normalizeYear(year);
-  if (!y) return { file: "", checked: [], root: "", match: "" };
+  if (!y) return { file: "", checked: [], root: "", matchedName: "" };
   const checked = [];
-  const exactNames = candidateYearEndFilenames(y);
-
   for (const root of chartRoots()) {
-    for (const filename of exactNames) {
-      const file = path.join(root, filename);
-      checked.push(file);
-      try {
-        const st = fs.statSync(file);
-        if (st && st.isFile()) return { file, checked, root, match: filename };
-      } catch (_) {}
+    let names = [];
+    try {
+      const st = fs.statSync(root);
+      if (!st || !st.isDirectory()) continue;
+      names = fs.readdirSync(root);
+    } catch (_) { continue; }
+    for (const candidate of rankedYearFileCandidates(y)) {
+      const full = path.join(root, candidate);
+      checked.push(full);
+      if (names.includes(candidate)) return { file: full, checked, root, matchedName: candidate };
+    }
+    const dynamic = names
+      .filter((name) => /\.json$/i.test(name))
+      .filter((name) => name.includes(y))
+      .sort((a, b) => a.length - b.length)[0];
+    if (dynamic) {
+      const full = path.join(root, dynamic);
+      checked.push(full);
+      return { file: full, checked, root, matchedName: dynamic };
     }
   }
-
-  let best = null;
-  for (const root of chartRoots()) {
-    const files = listRootFiles(root);
-    for (const name of files) {
-      const file = path.join(root, name);
-      checked.push(file);
-      const score = rankYearEndFilename(name, y);
-      if (score < 0) continue;
-      try {
-        const st = fs.statSync(file);
-        if (!st || !st.isFile()) continue;
-        if (!best || score > best.score) {
-          best = { file, root, match: name, score };
-        }
-      } catch (_) {}
-    }
-  }
-
-  return best ? { file: best.file, checked, root: best.root, match: best.match } : { file: "", checked, root: "", match: "" };
-}
-
-function resolveDataFile(filename) {
-  return findExistingFile(filename).file;
-}
-
-function resolveTop10File() {
-  if (_top10FileCache) return _top10FileCache;
-  _top10FileCache = findExistingFile("top10_by_year_v1.json");
-  return _top10FileCache;
+  return { file: "", checked, root: "", matchedName: "" };
 }
 
 function resolveYearEndFileForYear(year) {
-  const meta = resolveYearEndFileMetaForYear(year);
-  return meta.file || "";
+  return resolveYearEndFileMetaForYear(year).file;
 }
 
 function discoverAvailableYearEndFiles() {
   const years = [];
   const seen = new Set();
   for (const root of chartRoots()) {
-    const files = listRootFiles(root);
-    for (const name of files) {
-      if (!/\.json$/i.test(String(name))) continue;
-      const m = String(name).match(/(19[5-9]\d|20[0-2]\d|2025)/);
-      if (!m) continue;
-      const y = Number(m[1]);
-      if (Number.isFinite(y) && y >= YEAR_MIN && y <= YEAR_MAX && !seen.has(y)) {
-        seen.add(y);
-        years.push(y);
+    try {
+      const st = fs.statSync(root);
+      if (!st || !st.isDirectory()) continue;
+      for (const name of fs.readdirSync(root)) {
+        const m = String(name).match(/(19[5-9]\d|20[0-2]\d|2025)/);
+        if (!m || !/\.json$/i.test(name)) continue;
+        const y = Number(m[1]);
+        if (Number.isFinite(y) && !seen.has(y)) { seen.add(y); years.push(y); }
       }
-    }
+    } catch (_) {}
   }
-  years.sort((a, b) => a - b);
+  years.sort((a,b)=>a-b);
   return years;
 }
 
-function loadStore() {
-  const top10Resolved = resolveTop10File();
-  const st = safeStat(top10Resolved.file);
+function loadTop10Store() {
+  const file = resolveTop10File();
+  const st = safeStat(file);
   if (!st || !st.isFile()) {
-    _storeCache = { mtimeMs: 0, store: null, file: top10Resolved.file };
+    _top10StoreCache = { mtimeMs: 0, store: null, file };
     return null;
   }
   const mtimeMs = Number(st.mtimeMs || 0);
-  if (_storeCache.store && _storeCache.mtimeMs === mtimeMs && _storeCache.file === top10Resolved.file) return _storeCache.store;
-  const store = safeReadJSON(top10Resolved.file);
-  _storeCache = { mtimeMs, store: store || null, file: top10Resolved.file };
-  return _storeCache.store;
+  if (_top10StoreCache.store && _top10StoreCache.mtimeMs === mtimeMs && _top10StoreCache.file === file) return _top10StoreCache.store;
+  const store = safeReadJSON(file);
+  _top10StoreCache = { mtimeMs, store: store || null, file };
+  return _top10StoreCache.store;
 }
 
 function getYearBucket(store, y) {
@@ -335,13 +299,29 @@ function getYearBucket(store, y) {
   return null;
 }
 
+function extractYearEndRows(doc) {
+  if (Array.isArray(doc)) return doc;
+  const pools = [
+    doc && doc.rows,
+    doc && doc.items,
+    doc && doc.data,
+    doc && doc.songs,
+    doc && doc.results,
+    doc && doc.payload && doc.payload.rows,
+    doc && doc.payload && doc.payload.items,
+    doc && doc.data && doc.data.rows,
+    doc && doc.data && doc.data.items,
+    doc && doc.data && doc.data.results
+  ];
+  for (const pool of pools) if (Array.isArray(pool)) return pool;
+  return [];
+}
+
 function diagnostics() {
-  const top10Resolved = resolveTop10File();
-  const top10Stat = safeStat(top10Resolved.file);
-  const store = loadStore();
-  const years = isObject(store && store.years)
-    ? Object.keys(store.years).map((y) => Number(y)).filter(Number.isFinite).sort((a, b) => a - b)
-    : [];
+  const top10Meta = resolveTop10FileMeta();
+  const top10Stat = safeStat(top10Meta.file);
+  const store = loadTop10Store();
+  const years = isObject(store && store.years) ? Object.keys(store.years).map(Number).filter(Number.isFinite).sort((a,b)=>a-b) : [];
   const yearEndYears = discoverAvailableYearEndFiles();
   return {
     version: KNOWLEDGE_VERSION,
@@ -349,9 +329,9 @@ function diagnostics() {
     preferredChartRoot: preferredChartRoot(),
     chartRoots: chartRoots(),
     top10: {
-      file: top10Resolved.file,
+      file: top10Meta.file,
       exists: !!(top10Stat && top10Stat.isFile()),
-      checked: top10Resolved.checked,
+      checked: top10Meta.checked,
       yearsCount: years.length,
       minYear: years.length ? years[0] : null,
       maxYear: years.length ? years[years.length - 1] : null,
@@ -360,81 +340,62 @@ function diagnostics() {
       yearsCount: yearEndYears.length,
       minYear: yearEndYears.length ? yearEndYears[0] : null,
       maxYear: yearEndYears.length ? yearEndYears[yearEndYears.length - 1] : null,
-    },
+    }
   };
 }
 
 function getCapabilities() {
-  const top10Diag = diagnostics().top10;
-  const yearEndYears = discoverAvailableYearEndFiles();
+  const diag = diagnostics();
   const momentsAvailable = !!(getMusicMomentsMod() && typeof getMusicMomentsMod().getMoment === "function");
-  const top10Loaded = top10Diag.exists || yearEndYears.length > 0;
+  const top10Loaded = diag.top10.exists || diag.yearEnd.yearsCount > 0;
   return {
     ok: true,
     lane: LANE,
     routes: {
-      top10: { executable: top10Loaded, mode: top10Diag.exists ? "full" : "derived_from_yearend" },
-      number1: { executable: top10Loaded, mode: top10Diag.exists ? "full" : "derived_from_yearend" },
+      top10: { executable: top10Loaded, mode: diag.top10.exists ? "full" : "derived_from_yearend" },
+      number1: { executable: top10Loaded, mode: diag.top10.exists ? "full" : "derived_from_yearend" },
       story_moment: { executable: top10Loaded, delegated: momentsAvailable, mode: momentsAvailable ? "delegated" : "template" },
       micro_moment: { executable: top10Loaded, delegated: momentsAvailable, mode: momentsAvailable ? "delegated" : "template" },
-      yearend_hot100: { executable: yearEndYears.length > 0 || top10Diag.exists, mode: yearEndYears.length > 0 ? "full" : YEAREND_MODE },
+      yearend_hot100: { executable: diag.yearEnd.yearsCount > 0 || diag.top10.exists, mode: diag.yearEnd.yearsCount > 0 ? "full" : YEAREND_MODE },
     },
     provenance: {
-      sourceOfMusicTruth: yearEndYears.length > 0 ? "Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
+      sourceOfMusicTruth: diag.yearEnd.yearsCount > 0 ? "Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
       storyMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
       microMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
     },
-    diagnostics: diagnostics(),
+    diagnostics: diag,
   };
-}
-
-function extractRowsFromYearEndDoc(doc) {
-  if (Array.isArray(doc)) return doc;
-  if (!isObject(doc)) return [];
-  const pools = [
-    doc.rows,
-    doc.data,
-    doc.items,
-    doc.songs,
-    doc.results,
-    doc.entries,
-    isObject(doc.data) ? doc.data.rows : null,
-    isObject(doc.data) ? doc.data.items : null,
-    isObject(doc.payload) ? doc.payload.rows : null,
-    isObject(doc.payload) ? doc.payload.items : null,
-  ];
-  for (const pool of pools) {
-    if (Array.isArray(pool) && pool.length) return pool;
-  }
-  return [];
 }
 
 function getYearEndHot100ByYear(year, opts = {}) {
   try {
     const y = normalizeYear(year);
     if (!y) return null;
-    const fileMeta = resolveYearEndFileMetaForYear(y);
-    const file = fileMeta.file || "";
-    const doc = safeReadJSON(file);
-    const rows = extractRowsFromYearEndDoc(doc);
-    if (!doc || !rows.length) return null;
+    const metaFile = resolveYearEndFileMetaForYear(y);
+    const doc = safeReadJSON(metaFile.file);
+    const rows = extractYearEndRows(doc).filter((row) => isObject(row));
+    if (!rows.length) return null;
     const wantMeta = !!opts.meta;
-    const meta = wantMeta ? { sourceFile: file, sourceTruth: "Data/chart/year_end_hot100_YYYY.json", year: y, warnings: [], matchedFile: fileMeta.match || "" } : null;
-    const filtered = rows
-      .filter((row) => isObject(row))
-      .filter((row) => {
-        const pos = Number(row.pos ?? row.rank ?? row.position ?? row.number);
-        const title = cleanText(row.title ?? row.song ?? row.name);
-        const artist = cleanText(row.artist ?? row.artists ?? row.performer ?? row.by);
-        if (!Number.isFinite(pos)) return false;
-        if (lower(title) === "title") return false;
-        if (lower(artist) === "artist(s)") return false;
-        return true;
-      });
+    const meta = wantMeta ? {
+      sourceFile: metaFile.file,
+      sourceTruth: "Data/chart/year_end_hot100_YYYY.json",
+      matchedName: metaFile.matchedName || path.basename(metaFile.file || ""),
+      year: y,
+      warnings: [],
+    } : null;
+    const filtered = rows.filter((row) => {
+      const pos = Number(row.pos ?? row.rank ?? row.position ?? row.number ?? row.index);
+      const title = cleanText(row.title ?? row.song ?? row.name ?? row.track);
+      const artist = cleanText(row.artist ?? row.artists ?? row.performer ?? row.by);
+      if (!Number.isFinite(pos)) return false;
+      if (lower(title) === "title") return false;
+      if (lower(artist) === "artist(s)") return false;
+      return true;
+    });
     const items = filtered.map(normalizeItem);
     return {
       year: y,
-      chart: cleanText((isObject(doc) && (doc.chartTitle || doc.chart || doc.name)) || "") || CHART_DEFAULT,
+      chart: cleanText(doc && doc.chart) || CHART_DEFAULT,
       count: items.length,
       items,
       ...(wantMeta ? { meta } : {}),
@@ -448,13 +409,12 @@ function getTop10ByYear(year, opts = {}) {
   try {
     const y = normalizeYear(year);
     if (!y) return null;
-    const store = loadStore();
+    const store = loadTop10Store();
     const bucket = getYearBucket(store, y);
     const wantMeta = !!opts.meta;
     if (bucket) {
-      const top10Resolved = resolveTop10File();
       const meta = wantMeta ? {
-        sourceFile: top10Resolved.file,
+        sourceFile: resolveTop10File(),
         sourceTruth: "top10_by_year_v1.json",
         storeVersion: cleanText(store && store.version) || "",
         storeChart: cleanText(store && store.chart) || "",
@@ -466,7 +426,6 @@ function getTop10ByYear(year, opts = {}) {
       const resolvedChart = cleanText(bucket.chart) || cleanText(store && store.chart) || CHART_DEFAULT;
       return { year: y, chart: resolvedChart, count: TOP10_REQUIRED_COUNT, items, ...(wantMeta ? { meta } : {}) };
     }
-
     const yearEnd = getYearEndHot100ByYear(y, { meta: wantMeta });
     if (!yearEnd || !Array.isArray(yearEnd.items) || !yearEnd.items.length) return null;
     const items = buildTop10(yearEnd.items.slice(0, TOP10_REQUIRED_COUNT), wantMeta ? (yearEnd.meta || { warnings: [] }) : null);
@@ -479,13 +438,7 @@ function getTop10ByYear(year, opts = {}) {
       warnings: (yearEnd.meta && Array.isArray(yearEnd.meta.warnings) ? yearEnd.meta.warnings : []),
       derivedFromYearEnd: true,
     } : null;
-    return {
-      year: y,
-      chart: cleanText(yearEnd.chart) || CHART_DEFAULT,
-      count: TOP10_REQUIRED_COUNT,
-      items,
-      ...(wantMeta ? { meta } : {}),
-    };
+    return { year: y, chart: cleanText(yearEnd.chart) || CHART_DEFAULT, count: TOP10_REQUIRED_COUNT, items, ...(wantMeta ? { meta } : {}) };
   } catch (_) {
     return null;
   }
@@ -509,9 +462,7 @@ function getNumberOneByYear(year, opts = {}) {
 function renderTop10Text(top10) {
   try {
     if (!top10 || !Array.isArray(top10.items)) return "";
-    return top10.items
-      .map((item, i) => `${Number.isFinite(item && item.pos) ? item.pos : i + 1}. "${cleanText(item && item.title) || "—"}"${cleanText(item && item.artist) ? " — " + cleanText(item && item.artist) : ""}`)
-      .join("\n");
+    return top10.items.map((item, i) => `${Number.isFinite(item && item.pos) ? item.pos : i + 1}. \"${cleanText(item && item.title) || "—"}\"${cleanText(item && item.artist) ? " — " + cleanText(item && item.artist) : ""}`).join("\n");
   } catch (_) { return ""; }
 }
 
@@ -557,11 +508,7 @@ function baseSessionPatch(year, mode, chart, sourceFile) {
 function delegatedMoment(kind, y, top10) {
   const mod = getMusicMomentsMod();
   if (!mod || typeof mod.getMoment !== "function") return "";
-  try {
-    return cleanText(mod.getMoment({ year: Number(y), chart: cleanText(top10 && top10.chart) || CHART_DEFAULT, kind, top10 }));
-  } catch (_) {
-    return "";
-  }
+  try { return cleanText(mod.getMoment({ year: Number(y), chart: cleanText(top10 && top10.chart) || CHART_DEFAULT, kind, top10 })); } catch (_) { return ""; }
 }
 
 function defaultMomentText(kind, year, top10) {
@@ -574,45 +521,29 @@ function defaultMomentText(kind, year, top10) {
   return `Story moment — ${y}\n\n${anchor} This year sits inside a wider story about what listeners were choosing, repeating, and carrying forward.`;
 }
 
-function normalizeKnowledgeResponse(base) {
-  const raw = isObject(base) ? base : {};
-  const route = cleanText(raw.route || raw.actionTaken || raw.mode || "");
-  const year = toIntYear(raw.year || (raw.sessionPatch && (raw.sessionPatch.lastMusicYear || raw.sessionPatch.year)));
-  const replyRaw = cleanText(raw.replyRaw || raw.reply || raw.text || raw.message || "");
-  const sessionPatch = isObject(raw.sessionPatch) ? raw.sessionPatch : {};
-  const followUps = Array.isArray(raw.followUps) ? raw.followUps : [];
-  const followUpsStrings = Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : followUps.map((x) => cleanText(x && x.label)).filter(Boolean);
-  const meta = isObject(raw.meta) ? raw.meta : {};
-  return {
-    ok: raw.ok !== false,
-    lane: LANE,
-    route,
-    actionTaken: cleanText(raw.actionTaken || route),
-    year,
-    replyRaw,
-    reply: replyRaw,
-    text: replyRaw,
-    status: raw.ok === false ? "blocked" : "execute",
-    executable: raw.ok !== false,
-    needsYear: false,
-    followUps,
-    followUpsStrings,
-    sessionPatch,
-    pendingAsk: raw.pendingAsk || null,
-    data: raw.data,
-    meta: {
-      source: "musicKnowledge",
-      version: KNOWLEDGE_VERSION,
-      ...(meta || {}),
-    },
-  };
+function inferActionFromText(text) {
+  const t = lower(text);
+  if (!t) return null;
+  if (/\byear[-\s]*end\s*hot\s*100\b|\btop\s*100\b|\bhot\s*100\b/.test(t)) return "yearend_hot100";
+  if (/\b#\s*1\b|\bnumber\s*one\b|\bnumber\s*1\b|\bno\.?\s*1\b/.test(t)) return "number1";
+  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro_moment";
+  if (/\bstory\s*moment\b|\bstory\b|\bmoment\b/.test(t)) return "story_moment";
+  if (/\btop\s*10\b|\btop\s*ten\b/.test(t)) return "top10";
+  return null;
+}
+
+function inferYearFromText(text, session) {
+  const digits = safeStr(text).replace(/[^\d]/g, " ");
+  const m = digits.match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
+  if (m) return Number(m[1]);
+  return toIntYear(session && (session.lastMusicYear || session.year || session.lockedYear));
 }
 
 function handleTop10(year, opts = {}) {
   const y = normalizeYear(year);
   if (!y) {
     const fu = yearFollowUps("top10", 1988);
-    return { ok: false, replyRaw: "Give me a valid year (YYYY).", route: "top10", actionTaken: "need_year", pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true), followUps: fu, followUpsStrings: fu.map((x) => x.label), meta: { code: "BAD_YEAR", provenance: { sourceTruth: "top10_by_year_v1.json" } } };
+    return { ok: false, replyRaw: "Give me a valid year (YYYY).", route: "top10", actionTaken: "need_year", pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true), followUps: fu, followUpsStrings: fu.map((x) => x.label), meta: { code: "BAD_YEAR" } };
   }
   const top10 = getTop10ByYear(y, { meta: !!opts.meta });
   if (!top10) {
@@ -629,14 +560,14 @@ function handleNumberOne(year, opts = {}) {
   const y = normalizeYear(year);
   if (!y) {
     const fu = yearFollowUps("top10", 1988);
-    return { ok: false, replyRaw: "Give me a year (YYYY) for the #1 song.", route: "number1", actionTaken: "need_year", pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true), followUps: fu, followUpsStrings: fu.map((x) => x.label), meta: { code: "BAD_YEAR", provenance: { sourceTruth: "derived_from_top10" } } };
+    return { ok: false, replyRaw: "Give me a year (YYYY) for the #1 song.", route: "number1", actionTaken: "need_year", pendingAsk: pendingAskObj("need_year", "clarify", "Give me a year (YYYY).", true), followUps: fu, followUpsStrings: fu.map((x) => x.label), meta: { code: "BAD_YEAR" } };
   }
   const top = getNumberOneByYear(y, { meta: !!opts.meta });
   if (!top) {
     const fu = yearFollowUps("top10", y);
     return { ok: false, replyRaw: `I don’t have #1 data loaded for ${y}. Pick another year.`, route: "number1", actionTaken: "year_not_found", pendingAsk: pendingAskObj("need_other_year", "clarify", "Pick another year.", true), followUps: fu, followUpsStrings: fu.map((x) => x.label), meta: { code: "YEAR_NOT_FOUND", year: y } };
   }
-  const replyRaw = `#1 song — ${y}\n\n1. "${cleanText(top.title) || "—"}"${cleanText(top.artist) ? " — " + cleanText(top.artist) : ""}`;
+  const replyRaw = `#1 song — ${y}\n\n1. \"${cleanText(top.title) || "—"}\"${cleanText(top.artist) ? " — " + cleanText(top.artist) : ""}`;
   const sessionPatch = baseSessionPatch(y, "number1", top.chart, top.meta && top.meta.sourceFile);
   const fu = modeFollowUps(y);
   return { ok: true, replyRaw, route: "number1", actionTaken: "served_number1", topic: LANE, spineStage: "deliver", sessionPatch, pendingAsk: null, followUps: fu, followUpsStrings: fu.map((x) => x.label), data: top, meta: { provenance: { sourceTruth: "derived_from_top10", sourceFile: (top.meta && top.meta.sourceFile) || "", routeSource: "number1" } } };
@@ -705,57 +636,49 @@ function handleYearEndHot100(year, opts = {}) {
   return { ok: true, replyRaw, route: "yearend_hot100", actionTaken: mode === YEAREND_MODE ? "served_yearend_excerpt" : "served_yearend_full", topic: LANE, spineStage: "deliver", sessionPatch, pendingAsk: null, followUps: fu, followUpsStrings: fu.map((x) => x.label), data: { ...yearEnd, mode }, meta: { yearendMode: mode, provenance: { sourceTruth: "Data/chart/year_end_hot100_YYYY.json", sourceFile: (yearEnd.meta && yearEnd.meta.sourceFile) || resolveYearEndFileForYear(y), routeSource: "yearend_hot100" } } };
 }
 
-function inferActionFromText(text) {
-  const t = lower(text);
-  if (!t) return null;
-  if (/\byear[-\s]*end\s*hot\s*100\b|\btop\s*100\b|\bhot\s*100\b/.test(t)) return "yearend_hot100";
-  if (/\b#\s*1\b|\bnumber\s*one\b|\bnumber\s*1\b|\bno\.?\s*1\b/.test(t)) return "number1";
-  if (/\bmicro\s*moment\b|\bmicro\b/.test(t)) return "micro_moment";
-  if (/\bstory\s*moment\b|\bstory\b|\bmoment\b/.test(t)) return "story_moment";
-  if (/\btop\s*10\b|\btop\s*ten\b/.test(t)) return "top10";
-  return null;
-}
-
-function inferYearFromText(text, session) {
-  const m = safeStr(text).match(/\b(19[5-9]\d|20[0-2]\d|2025)\b/);
-  if (m) return Number(m[1]);
-  return toIntYear(session && (session.lastMusicYear || session.year || session.lockedYear));
+function normalizeKnowledgeResponse(base) {
+  const raw = isObject(base) ? base : {};
+  const route = cleanText(raw.route || raw.actionTaken || raw.mode || "");
+  const year = toIntYear(raw.year || (raw.sessionPatch && (raw.sessionPatch.lastMusicYear || raw.sessionPatch.year)));
+  const replyRaw = cleanText(raw.replyRaw || raw.reply || raw.text || raw.message || "");
+  const sessionPatch = isObject(raw.sessionPatch) ? raw.sessionPatch : {};
+  const followUps = Array.isArray(raw.followUps) ? raw.followUps : [];
+  const followUpsStrings = Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : followUps.map((x) => cleanText(x && x.label)).filter(Boolean);
+  const meta = isObject(raw.meta) ? raw.meta : {};
+  return {
+    ok: raw.ok !== false,
+    lane: LANE,
+    route,
+    actionTaken: cleanText(raw.actionTaken || route),
+    year,
+    replyRaw,
+    reply: replyRaw,
+    text: replyRaw,
+    status: raw.ok === false ? "blocked" : "execute",
+    executable: raw.ok !== false,
+    needsYear: false,
+    followUps,
+    followUpsStrings,
+    sessionPatch,
+    pendingAsk: raw.pendingAsk || null,
+    data: raw.data,
+    meta: { source: "musicKnowledge", version: KNOWLEDGE_VERSION, ...(meta || {}) },
+  };
 }
 
 function handleMusicTurn(input = {}) {
   try {
     const action = cleanText(input.action || (input.norm && input.norm.action) || "").toLowerCase() || inferActionFromText(input.text || "");
-    const year = input.year != null ? Number(String(input.year).replace(/[^\d]/g, "")) : inferYearFromText(input.text || "", input.session || {});
+    const year = input.year != null ? Number(safeStr(input.year).replace(/[^\d]/g, "")) : inferYearFromText(input.text || "", input.session || {});
     const opts = input.opts || {};
-    if (action === "top10") return normalizeKnowledgeResponse({ ...handleTop10(year, opts), year });
-    if (action === "number1") return normalizeKnowledgeResponse({ ...handleNumberOne(year, opts), year });
-    if (action === "story_moment") return normalizeKnowledgeResponse({ ...handleStoryMoment(year, opts), year });
-    if (action === "micro_moment") return normalizeKnowledgeResponse({ ...handleMicroMoment(year, opts), year });
-    if (action === "yearend_hot100") return normalizeKnowledgeResponse({ ...handleYearEndHot100(year, opts), year });
-
-    const fallbackFollowUps = modeFollowUps(year || 1988);
-    return {
-      ok: false,
-      replyRaw: "Give me the music action and year and I will run it.",
-      route: "clarify",
-      actionTaken: "clarify",
-      pendingAsk: pendingAskObj("need_action", "clarify", "Give me the music action and year.", true),
-      followUps: fallbackFollowUps,
-      followUpsStrings: fallbackFollowUps.map((x) => x.label),
-      meta: { capabilities: getCapabilities(), diagnostics: diagnostics() },
-    };
+    if (action === "top10") return handleTop10(year, opts);
+    if (action === "number1") return handleNumberOne(year, opts);
+    if (action === "story_moment") return handleStoryMoment(year, opts);
+    if (action === "micro_moment") return handleMicroMoment(year, opts);
+    if (action === "yearend_hot100") return handleYearEndHot100(year, opts);
+    return { ok: false, replyRaw: "Give me the music action and year and I will run it.", route: "clarify", actionTaken: "clarify", pendingAsk: pendingAskObj("need_action", "clarify", "Give me the music action and year.", true), followUps: modeFollowUps(year || 1988), followUpsStrings: modeFollowUps(year || 1988).map((x) => x.label), meta: { capabilities: getCapabilities() } };
   } catch (e) {
-    const retries = yearFollowUps("top10", 1988);
-    return {
-      ok: false,
-      replyRaw: "Music knowledge hit a snag. Give me a year and try again.",
-      route: "error",
-      actionTaken: "exception",
-      pendingAsk: pendingAskObj("retry", "clarify", "Give me a year and try again.", true),
-      followUps: retries,
-      followUpsStrings: retries.map((x) => x.label),
-      meta: { error: safeStr(e && e.message ? e.message : e), diagnostics: diagnostics() },
-    };
+    return { ok: false, replyRaw: "Music knowledge hit a snag. Give me a year and try again.", route: "error", actionTaken: "exception", pendingAsk: pendingAskObj("retry", "clarify", "Give me a year and try again.", true), followUps: yearFollowUps("top10", 1988), followUpsStrings: yearFollowUps("top10", 1988).map((x) => x.label), meta: { error: safeStr(e && e.message ? e.message : e), diagnostics: diagnostics() } };
   }
 }
 
@@ -763,31 +686,19 @@ async function handleChat({ text, session, visitorId, debug } = {}) {
   const action = inferActionFromText(text || "");
   const year = inferYearFromText(text || "", session || {});
   const out = handleMusicTurn({ text, session, visitorId, year, action, opts: { meta: !!debug } });
-  return {
-    ok: !!out.ok,
-    reply: out.replyRaw || out.reply || "",
-    replyRaw: out.replyRaw || out.reply || "",
-    text: out.replyRaw || out.reply || "",
-    followUps: out.followUps || [],
-    followUpsStrings: out.followUpsStrings || [],
-    sessionPatch: out.sessionPatch || {},
-    data: out.data,
-    meta: {
-      route: out.route || "",
-      actionTaken: out.actionTaken || "",
-      capabilities: getCapabilities(),
-      ...(isObject(out.meta) ? out.meta : {}),
-    },
-  };
+  return { ok: !!out.ok, reply: out.replyRaw, replyRaw: out.replyRaw, followUps: out.followUps || [], followUpsStrings: out.followUpsStrings || [], sessionPatch: out.sessionPatch || {}, meta: { route: out.route || "", actionTaken: out.actionTaken || "", capabilities: getCapabilities(), ...(isObject(out.meta) ? out.meta : {}) } };
 }
 
 module.exports = {
-  KNOWLEDGE_VERSION,
-  diagnostics,
   getCapabilities,
+  diagnostics,
+  preferredChartRoot,
+  chartRoots,
+  resolveYearEndFileForYear,
+  resolveYearEndFileMetaForYear,
+  getYearEndHot100ByYear,
   getTop10ByYear,
   getNumberOneByYear,
-  getYearEndHot100ByYear,
   handleTop10,
   handleNumberOne,
   handleStoryMoment,
@@ -795,10 +706,4 @@ module.exports = {
   handleYearEndHot100,
   handleMusicTurn,
   handleChat,
-  inferActionFromText,
-  inferYearFromText,
-  normalizeYear,
-  resolveDataFile,
-  resolveYearEndFileForYear,
-  resolveYearEndFileMetaForYear,
 };
