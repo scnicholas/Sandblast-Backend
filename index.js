@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
+const INDEX_VERSION = "index.js v2.13.6sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-ROOT-MOUNT-PRECISION-FIX";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -1633,20 +1633,27 @@ function musicKnowledgeCapabilitiesFromModule(mod) {
 function normalizeMusicBridgeInput(req) {
   const norm = normalizePayload(req);
   const body = isObj(req.body) ? req.body : {};
+  const query = isObj(req.query) ? req.query : {};
   const payload = isObj(body.payload) ? body.payload : {};
-  const session = isObj(body.session) ? body.session : (isObj(payload.session) ? payload.session : {});
+  const session = isObj(body.session)
+    ? body.session
+    : (isObj(payload.session) ? payload.session : {});
   return {
-    text: cleanText(body.text || payload.text || norm.text || ""),
+    text: cleanText(body.text || query.text || payload.text || norm.text || ""),
     session,
-    visitorId: cleanText(body.visitorId || payload.visitorId || getSessionId(req)),
-    debug: body.debug === true || payload.debug === true || String((req.query && req.query.debug) || "") === "1",
+    visitorId: cleanText(body.visitorId || query.visitorId || payload.visitorId || getSessionId(req)),
+    debug:
+      body.debug === true ||
+      payload.debug === true ||
+      String(query.debug || "") === "1" ||
+      String(query.debug || "").toLowerCase() === "true",
     traceId: norm.traceId,
     lane: "music",
-    route: cleanText(body.route || payload.route || "music"),
-    action: cleanText(body.action || payload.action || ""),
-    year: cleanText(body.year || payload.year || norm.year || ""),
-    mode: cleanText(body.mode || payload.mode || norm.mode || ""),
-    chart: cleanText(body.chart || payload.chart || ""),
+    route: cleanText(body.route || query.route || payload.route || "music"),
+    action: cleanText(body.action || query.action || payload.action || ""),
+    year: cleanText(body.year || query.year || payload.year || norm.year || ""),
+    mode: cleanText(body.mode || query.mode || payload.mode || norm.mode || ""),
+    chart: cleanText(body.chart || query.chart || payload.chart || ""),
     payload
   };
 }
@@ -1910,13 +1917,17 @@ async function dispatchMusicBridge(req, res) {
   }
 }
 
-app.get(["/api/music/bridge/health", "/music/bridge/health"], enforceMusicBridgeAccess, (req, res) => {
+const MUSIC_BRIDGE_ROUTES = ["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bridge/"];
+const MUSIC_BRIDGE_HEALTH_ROUTES = ["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/health/", "/music/bridge/health/"];
+
+app.get(MUSIC_BRIDGE_HEALTH_ROUTES, enforceMusicBridgeAccess, (req, res) => {
   applyCors(req, res);
   const caps = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
   return res.status(200).json({
     ok: !!musicBridgeHandlerFromModule(musicLaneMod),
     enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
     endpoint: routeUrl("/api/music/bridge"),
+    aliases: MUSIC_BRIDGE_ROUTES.slice(),
     moduleBound: !!musicLaneMod,
     resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
     knowledgeBound: !!musicKnowledgeMod,
@@ -1931,7 +1942,7 @@ app.get(["/api/music/bridge/health", "/music/bridge/health"], enforceMusicBridge
   });
 });
 
-app.post(["/api/music/bridge", "/music/bridge"], enforceMusicBridgeAccess, async (req, res) => {
+app.all(MUSIC_BRIDGE_ROUTES, enforceMusicBridgeAccess, async (req, res) => {
   applyCors(req, res);
   return dispatchMusicBridge(req, res);
 });
