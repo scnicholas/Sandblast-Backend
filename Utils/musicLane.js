@@ -17,7 +17,7 @@
  *        meta?
  *      }
  *
- * v1.8.3 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + DATA-CHART-PATH COHESION)
+ * v1.8.2 (EXECUTE-CONTRACT ALIGNMENT + ACTION FOLLOW-UPS + FORENSIC NORMALIZATION + DATA-CHART-PATH PASS-THROUGH)
  *  ✅ Keeps 1950–2025 public range aligned with musicKnowledge
  *  ✅ Preserves structural behavior; no mutation of inbound session
  *  ✅ Normalizes legacy Top40 chart tokens out of inbound + outbound state
@@ -352,6 +352,27 @@ function extractBridgeDetail(raw) {
     (r.payload && r.payload.detailText) ||
     ""
   );
+}
+
+function parseRankedReplyItems(reply) {
+  const text = String(reply || "");
+  if (!text) return [];
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const out = [];
+  for (const line of lines) {
+    const m = line.match(/^(\d{1,3})\.\s*["“]?([^"”—-]+?)["”]?\s*(?:—|-+)\s*(.+)?$/);
+    if (!m) continue;
+    out.push({ rank: Number(m[1]), title: cleanTextValue(m[2]), artist: cleanTextValue(m[3] || "") });
+    if (out.length >= 100) break;
+  }
+  return out;
+}
+
+function hasUsableBridgeItems(items) {
+  return safeArray(items).some((item) => {
+    const normalized = normalizeBridgeItem(item, 0);
+    return !!(normalized.title || normalized.detail);
+  });
 }
 
 function safeSessionPatch(patch) {
@@ -750,10 +771,11 @@ function lookupBridgeContent(action, year, reply, raw, source) {
   const a = canonicalMusicAction(action) || null;
   const y = clampYear(year);
   const rawItems = safeArray(extractBridgeItems(raw));
+  const replyItems = parseRankedReplyItems(reply);
   const rawLinks = safeArray(extractBridgeLinks(raw));
   const rawDetail = extractBridgeDetail(raw);
   const content = {
-    items: [],
+    items: hasUsableBridgeItems(rawItems) ? rawItems : replyItems,
     detailText: rawDetail || cleanTextValue(reply || ""),
     title: "",
     sub: "",
@@ -769,6 +791,14 @@ function lookupBridgeContent(action, year, reply, raw, source) {
       content.sub = cleanTextValue(top10.chart || "Music detail") || "Music detail";
       content.detailText = rawDetail || cleanTextValue(reply || "");
       content.status = (raw && raw.ok === false) || looksUnavailableReply(reply) ? "needs_attention" : "ready";
+      return content;
+    }
+    if (replyItems.length) {
+      content.items = replyItems;
+      content.title = `Top 10 · ${y}`;
+      content.sub = cleanTextValue((raw && raw.sessionPatch && (raw.sessionPatch.activeMusicChart || raw.sessionPatch.lastMusicChart)) || "Music detail") || "Music detail";
+      content.detailText = rawDetail || cleanTextValue(reply || "");
+      content.status = "ready";
       return content;
     }
   }
@@ -803,8 +833,8 @@ function lookupBridgeContent(action, year, reply, raw, source) {
     return content;
   }
 
-  if (rawItems.length) {
-    content.items = rawItems;
+  if (hasUsableBridgeItems(rawItems) || replyItems.length) {
+    content.items = hasUsableBridgeItems(rawItems) ? rawItems : replyItems;
     content.title = y ? `Music detail · ${y}` : "Music detail";
     content.sub = source === "musicMoments" ? "Music Moments detail" : "Music detail";
     content.status = "ready";
@@ -1132,9 +1162,13 @@ async function handleBridgeRequest(body) {
   const input = normalizeBridgeInput(body);
   const res = await handleChat(input);
   const bridge = res && res.bridge ? res.bridge : null;
+  const parsedReplyItems = parseRankedReplyItems(res && res.reply);
+  const effectiveItems = hasUsableBridgeItems(bridge && bridge.items) ? bridge.items : parsedReplyItems;
+  const effectiveStatus = bridge && bridge.status ? bridge.status : (res && res.reply ? "ready" : "degraded");
+  const effectiveReady = !!((bridge && bridge.ready) || effectiveItems.length || (bridge && bridge.detailText));
   return {
-    ok: !!(bridge && bridge.ready),
-    status: bridge && bridge.status ? bridge.status : (res && res.reply ? "ready" : "degraded"),
+    ok: effectiveReady,
+    status: effectiveReady ? (effectiveStatus === "degraded" ? "ready" : effectiveStatus) : effectiveStatus,
     source: LANE_NAME,
     reply: res.reply,
     text: res.reply,
@@ -1146,11 +1180,11 @@ async function handleBridgeRequest(body) {
       chart: bridge && bridge.chart || null,
       title: bridge && bridge.title || null,
       sub: bridge && bridge.sub || null,
-      detailText: bridge && bridge.detailText || null,
-      items: bridge && bridge.items || [],
+      detailText: bridge && bridge.detailText || cleanTextValue(res && res.reply || "") || null,
+      items: effectiveItems,
       links: bridge && bridge.links || [],
     },
-    items: bridge && bridge.items || [],
+    items: effectiveItems,
     followUps: res.followUps,
     followUpsStrings: res.followUpsStrings,
     followUpObjects: res.followUps,
