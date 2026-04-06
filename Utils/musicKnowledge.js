@@ -10,7 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const KNOWLEDGE_VERSION = "musicKnowledge v2.3.0";
+const KNOWLEDGE_VERSION = "musicKnowledge v2.3.1";
 const LANE = "music";
 const YEAR_MIN = 1950;
 const YEAR_MAX = 2025;
@@ -166,15 +166,22 @@ function buildTop10(rawItems, meta) {
 }
 
 function preferredChartRoot() {
-  return cleanText(process.env.SB_MUSIC_CHART_ROOT || process.env.SB_MUSIC_DATA_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
+  const raw = cleanText(process.env.SB_MUSIC_CHART_ROOT || process.env.SB_MUSIC_DATA_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
+  if (!raw) return DEFAULT_WINDOWS_CHART_ROOT;
+  if (/[\\/]Data$/i.test(raw)) return path.join(raw, "chart");
+  return raw;
 }
 
 function chartRoots() {
   if (_chartRootsCache) return _chartRootsCache.slice();
   const cwd = process.cwd();
   const local = __dirname;
+  const preferred = preferredChartRoot();
+  const preferredDataRoot = /[\\/]chart$/i.test(preferred) ? path.resolve(preferred, "..") : preferred;
   const roots = uniq([
-    preferredChartRoot(),
+    preferred,
+    path.join(preferredDataRoot, "chart"),
+    preferredDataRoot,
     path.resolve(cwd, "Data", "chart"),
     path.resolve(local, "Data", "chart"),
     path.resolve(local, "..", "Data", "chart"),
