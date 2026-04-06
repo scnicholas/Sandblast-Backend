@@ -43,7 +43,7 @@ try {
 // Version
 // ---------------------------------------------------------
 const VERSION =
-  "musicMoments v1.8.0 (data-chart-root normalized + no-loop fallbacks + knowledge-path compatible)";
+  "musicMoments v1.8.1 (data-chart-root normalized + no-loop fallbacks + knowledge-path compatible + knowledge-alias cohesion)";
 
 // ---------------------------------------------------------
 // Canonical moments + year context files
@@ -78,7 +78,7 @@ function toInt(x) {
 }
 
 function resolveRepoPath(rel) {
-  const clean = String(rel || "").replace(/^[/\]+/, "");
+  const clean = String(rel || "").replace(/^[/\\]+/, "");
   const chartRoot = cleanText(process.env.SB_MUSIC_CHART_ROOT || DEFAULT_WINDOWS_CHART_ROOT);
   const dataRoot = chartRoot ? path.resolve(chartRoot, "..") : "";
   const candidates = [
