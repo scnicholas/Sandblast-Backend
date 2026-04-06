@@ -300,7 +300,7 @@ function getCapabilities() {
       yearend_hot100: { executable: yearEndYears.length > 0 || top10Diag.exists, mode: yearEndYears.length > 0 ? "full" : YEAREND_MODE },
     },
     provenance: {
-      sourceOfMusicTruth: yearEndYears.length > 0 ? "Data/chart/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
+      sourceOfMusicTruth: yearEndYears.length > 0 ? "Data/wikipedia/charts/year_end_hot100_YYYY.json" : "top10_by_year_v1.json",
       storyMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
       microMomentSource: momentsAvailable ? "musicMoments.getMoment" : "musicKnowledge template fallback",
     },
@@ -316,7 +316,7 @@ function getYearEndHot100ByYear(year, opts = {}) {
     const doc = safeReadJSON(file);
     if (!doc || !Array.isArray(doc.rows)) return null;
     const wantMeta = !!opts.meta;
-    const meta = wantMeta ? { sourceFile: file, sourceTruth: "Data/chart/year_end_hot100_YYYY.json", year: y, warnings: [] } : null;
+    const meta = wantMeta ? { sourceFile: file, sourceTruth: "Data/wikipedia/charts/year_end_hot100_YYYY.json", year: y, warnings: [] } : null;
     const filtered = doc.rows
       .filter((row) => isObject(row))
       .filter((row) => {
@@ -369,7 +369,7 @@ function getTop10ByYear(year, opts = {}) {
     const items = buildTop10(yearEnd.items.slice(0, TOP10_REQUIRED_COUNT), wantMeta ? (yearEnd.meta || { warnings: [] }) : null);
     const meta = wantMeta ? {
       sourceFile: (yearEnd.meta && yearEnd.meta.sourceFile) || resolveYearEndFileForYear(y),
-      sourceTruth: "Data/chart/year_end_hot100_YYYY.json",
+      sourceTruth: "Data/wikipedia/charts/year_end_hot100_YYYY.json",
       storeVersion: "",
       storeChart: cleanText(yearEnd.chart) || CHART_DEFAULT,
       year: y,
