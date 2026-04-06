@@ -48,7 +48,7 @@ const VERSION =
 // ---------------------------------------------------------
 // Canonical moments + year context files
 // ---------------------------------------------------------
-const DEFAULT_WINDOWS_CHART_ROOT = String.raw`C:\Users\User\Desktop\sandblastbackend\Data\charts`;
+const DEFAULT_WINDOWS_CHART_ROOT = String.raw`C:\Users\User\Desktop\sandblast backend\Data\charts`;
 const MOMENTS_FILE = "music_moments_v1.json";
 const YEAR_CONTEXT_FILE = "music_year_context_1950_1989.json";
 
