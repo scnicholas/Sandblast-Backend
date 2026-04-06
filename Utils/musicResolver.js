@@ -1,5 +1,5 @@
 "use strict";
-const RESOLVER_VERSION="musicResolver v2.2.0",YEAR_MIN=1950,YEAR_MAX=2025,LANE="music",CHART_DEFAULT="Billboard Hot 100";
+const RESOLVER_VERSION="musicResolver v2.2.1",YEAR_MIN=1950,YEAR_MAX=2025,LANE="music",CHART_DEFAULT="Billboard Hot 100";
 let _musicKnowledge=undefined;
 function getMusicKnowledge(){if(_musicKnowledge!==undefined)return _musicKnowledge;try{const mod=require("./musicKnowledge");_musicKnowledge=mod&&typeof mod.getCapabilities==="function"?mod:null}catch(_){_musicKnowledge=null}return _musicKnowledge}
 function safeStr(v){return v==null?"":String(v)} function lower(v){return safeStr(v).trim().toLowerCase()} function isObj(v){return !!v&&typeof v==="object"&&!Array.isArray(v)} function arr(v){return Array.isArray(v)?v:[]}
