@@ -46,26 +46,31 @@ function smallNumberToWords(n) {
   if (x < 20) return ones[Math.max(0, x)] || String(x);
   const t = Math.trunc(x / 10);
   const r = x % 10;
-  return r ? `${tens[t]}-${ones[r]}` : tens[t];
+  return r ? `${tens[t]} ${ones[r]}` : tens[t];
 }
 function yearToSpeech(year) {
   const y = Number(year);
   if (!Number.isInteger(y)) return safeStr(year);
+  if (y < 1000 || y > 2099) return String(y);
   if (y === 2000) return "two thousand";
-  if (y > 2000 && y < 2010) return `two thousand ${smallNumberToWords(y % 100)}`;
-  if (y >= 2010 && y <= 2099) return `twenty ${smallNumberToWords(y % 100)}`;
+  if (y > 2000 && y < 2010) return `two thousand ${smallNumberToWords(y % 100)}`.trim();
+  if (y >= 2010 && y <= 2099) return `twenty ${smallNumberToWords(y % 100)}`.trim();
   if (y >= 1900 && y <= 1999) {
-    const first = Math.trunc(y / 100);
     const last = y % 100;
-    if (last === 0) return `${smallNumberToWords(first)} hundred`;
-    return `${smallNumberToWords(first)} ${smallNumberToWords(last)}`;
+    if (last === 0) return "nineteen hundred";
+    if (last < 10) return `nineteen oh ${smallNumberToWords(last)}`;
+    return `nineteen ${smallNumberToWords(last)}`;
   }
-  return String(y);
+  const first = Math.trunc(y / 100);
+  const last = y % 100;
+  if (last === 0) return `${smallNumberToWords(first)} hundred`;
+  if (last < 10) return `${smallNumberToWords(first)} oh ${smallNumberToWords(last)}`;
+  return `${smallNumberToWords(first)} ${smallNumberToWords(last)}`;
 }
 function normalizeSpeechText(text) {
   const raw = safeStr(text);
   if (!raw) return "";
-  return raw.replace(/\b(19\d{2}|20\d{2})\b/g, (m) => yearToSpeech(m));
+  return raw.replace(/(^|[^\d])(19\d{2}|20\d{2})(?!\d)/g, (full, lead, year) => `${lead}${yearToSpeech(year)}`);
 }
 function buildSpeechPacket(reply, lane, intent, emo, session) {
   const cleanReply = sanitizeUserFacingReply(reply || "");
@@ -77,7 +82,9 @@ function buildSpeechPacket(reply, lane, intent, emo, session) {
     enabled,
     speak: enabled,
     text: enabled ? spoken : "",
+    normalizedText: spoken,
     displayText: cleanReply,
+    normalizedDisplayText: normalizeSpeechText(cleanReply),
     speakOnceKey,
     interrupt: !!(emo && emo.supportFlags && (emo.supportFlags.highDistress || emo.supportFlags.needsContainment)),
     priority: !!(emo && emo.supportFlags && (emo.supportFlags.highDistress || emo.supportFlags.needsContainment)) ? "high" : "normal",
