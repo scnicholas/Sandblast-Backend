@@ -421,7 +421,7 @@ function normalizeRuntimePayload(p) {
     speaking: !!p.speaking,
     amplitude: clamp01(p.amplitude),
     lane: safeStr(p.lane || "general").toLowerCase() || "general",
-    topic: safeStr(p.topic || "unknown"),
+    topic: normalizeSpeechText(safeStr(p.topic || "unknown")),
     mode: safeStr(p.mode || "general").toLowerCase() || "general",
     confidence: clamp01(p.confidence),
     motion: clamp01(p.motion),
@@ -495,6 +495,49 @@ function resolveVisualPresence(runtime, audioPlaying) {
         const safeStr = (x) => x == null ? "" : String(x);
         const oneOf = (x, arr, fallback) => arr.indexOf(x) >= 0 ? x : fallback;
 
+        function smallNumberToWords(n) {
+          const ones = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+          const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+          const x = Math.trunc(Number(n) || 0);
+          if (x < 20) return ones[Math.max(0, x)] || String(x);
+          const t = Math.trunc(x / 10);
+          const r = x % 10;
+          return r ? tens[t] + " " + ones[r] : tens[t];
+        }
+
+        function yearToSpeech(year) {
+          const y = Number(year);
+          if (!Number.isInteger(y)) return safeStr(year);
+          if (y < 1000 || y > 2099) return String(y);
+          if (y === 2000) return "two thousand";
+          if (y > 2000 && y < 2010) return ("two thousand " + smallNumberToWords(y % 100)).trim();
+          if (y >= 2010 && y <= 2099) return ("twenty " + smallNumberToWords(y % 100)).trim();
+          if (y >= 1900 && y <= 1999) {
+            const last = y % 100;
+            if (last === 0) return "nineteen hundred";
+            if (last < 10) return "nineteen oh " + smallNumberToWords(last);
+            return "nineteen " + smallNumberToWords(last);
+          }
+          const first = Math.trunc(y / 100);
+          const last = y % 100;
+          if (last === 0) return smallNumberToWords(first) + " hundred";
+          if (last < 10) return smallNumberToWords(first) + " oh " + smallNumberToWords(last);
+          return smallNumberToWords(first) + " " + smallNumberToWords(last);
+        }
+
+        function normalizeSpeechText(text) {
+          const raw = safeStr(text);
+          if (!raw) return "";
+          return raw.replace(/(^|[^\d])(19\d{2}|20\d{2})(?!\d)/g, function (full, lead, year) {
+            return lead + yearToSpeech(year);
+          });
+        }
+
+        window.NyxYearSpeech = {
+          normalizeSpeechText,
+          yearToSpeech
+        };
+
         const toMs = (v) => {
           const s = String(v || "").trim();
           if (!s) return 0;
@@ -515,7 +558,7 @@ function resolveVisualPresence(runtime, audioPlaying) {
             speaking: !!p.speaking,
             amplitude: clamp01(p.amplitude),
             lane: safeStr(p.lane || "general").toLowerCase() || "general",
-            topic: safeStr(p.topic || "unknown"),
+            topic: normalizeSpeechText(safeStr(p.topic || "unknown")),
             mode: safeStr(p.mode || "general").toLowerCase() || "general",
             confidence: clamp01(p.confidence),
             motion: clamp01(p.motion),
