@@ -34,6 +34,44 @@
     return str.slice(0, maxLen) + "…";
   }
 
+  function smallNumberToWords(n) {
+    const ones = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    const x = Math.trunc(Number(n) || 0);
+    if (x < 20) return ones[Math.max(0, x)] || String(x);
+    const t = Math.trunc(x / 10);
+    const r = x % 10;
+    return r ? tens[t] + " " + ones[r] : tens[t];
+  }
+
+  function yearToSpeech(year) {
+    const y = Number(year);
+    if (!Number.isInteger(y)) return safeStr(year);
+    if (y < 1000 || y > 2099) return String(y);
+    if (y === 2000) return "two thousand";
+    if (y > 2000 && y < 2010) return ("two thousand " + smallNumberToWords(y % 100)).trim();
+    if (y >= 2010 && y <= 2099) return ("twenty " + smallNumberToWords(y % 100)).trim();
+    if (y >= 1900 && y <= 1999) {
+      const last = y % 100;
+      if (last === 0) return "nineteen hundred";
+      if (last < 10) return "nineteen oh " + smallNumberToWords(last);
+      return "nineteen " + smallNumberToWords(last);
+    }
+    const first = Math.trunc(y / 100);
+    const last = y % 100;
+    if (last === 0) return smallNumberToWords(first) + " hundred";
+    if (last < 10) return smallNumberToWords(first) + " oh " + smallNumberToWords(last);
+    return smallNumberToWords(first) + " " + smallNumberToWords(last);
+  }
+
+  function normalizeSpeechText(text) {
+    const raw = safeStr(text);
+    if (!raw) return "";
+    return raw.replace(/(^|[^\d])(19\d{2}|20\d{2})(?!\d)/g, function (full, lead, year) {
+      return lead + yearToSpeech(year);
+    });
+  }
+
   function normPresence(p) {
     const s = safeStr(p).trim().toLowerCase();
     if (s === "idle" || s === "listening" || s === "speaking") return s;
@@ -143,7 +181,13 @@
     );
 
     // Optional: derive a short caption from reply (OFF by default in makePacket)
-    const replyText = safeStr(r.reply || "").trim();
+    const speech = isPlainObject(r.speech)
+      ? r.speech
+      : isPlainObject(r.payload) && isPlainObject(r.payload.speech)
+      ? r.payload.speech
+      : null;
+    const replyText = normalizeSpeechText(safeStr(r.reply || "").trim());
+    const speechText = normalizeSpeechText(safeStr((speech && (speech.normalizedText || speech.text)) || "").trim());
 
     return {
       lane: lane || "general",
@@ -155,6 +199,7 @@
       cog: shrinkCog(cog),
       sessionPatch: shrinkSessionPatch(sp),
       replyText, // keep internally; caller decides whether to forward
+      speechText,
     };
   }
 
@@ -189,7 +234,13 @@
 
     if (o.includeCaption) {
       const maxLen = Number.isFinite(o.captionMaxLen) ? o.captionMaxLen : 140;
-      packet.caption = clampStr(n.replyText, maxLen);
+      packet.caption = clampStr(n.speechText || n.replyText, maxLen);
+    }
+
+    if (o.includeSpeechText) {
+      const maxLen = Number.isFinite(o.speechTextMaxLen) ? o.speechTextMaxLen : 240;
+      packet.speechText = clampStr(n.speechText || n.replyText, maxLen);
+      packet.yearNormalization = true;
     }
 
     return { type: "NYX_CONSCIOUSNESS", payload: packet };
@@ -216,5 +267,7 @@
     normalizeNyxReply,
     makePacket,
     postToAvatar,
+    normalizeSpeechText,
+    yearToSpeech,
   };
 })();
