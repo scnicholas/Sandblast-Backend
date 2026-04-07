@@ -1,10 +1,9 @@
-<!-- avatar.html -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Nyx Avatar (Iframe Host)</title>
+    <title>Nyx Avatar (Unified Runtime Host)</title>
     <style>
       :root{
         --bg:#0f0f12;
@@ -15,21 +14,18 @@
         --accent:#8c0023;
         --radius:18px;
         --gap:10px;
-        --hudW:280px;
+        --hudW:320px;
         --zHud:2147483000;
         --zRoot:2147482990;
         --font:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 
-        /* =========================
-           AUTHORITY ALIGNMENT PASS (vA1)
-           Quiet dominance: stillness + deliberate transitions
-           ========================= */
+        /* Authority alignment */
         --nyx-ease: cubic-bezier(.2,.9,.2,1);
         --nyx-dur: 760ms;
 
         --nyx-breathDur: 5.6s;
-        --nyx-breathAmp: 1.0%;   /* tiny */
-        --nyx-breathLift: 0.08;  /* multiplier for translateY lift */
+        --nyx-breathAmp: 1.0%;
+        --nyx-breathLift: 0.08;
 
         --nyx-blinkMin: 5500ms;
         --nyx-blinkMax: 9500ms;
@@ -44,24 +40,21 @@
         --nyx-focusThink: saturate(.98) contrast(1.05);
         --nyx-focusSpeak: saturate(1.0) contrast(1.03);
 
-        /* =========================
-           STATE ENGINE (vS1)
-           Deterministic presence driven by cognition + reality signals
-           ========================= */
-        --nyx-holdMs: 420; /* anti-flicker minimum hold */
+        /* Stabilizer */
+        --nyx-holdMs: 420;
       }
       html,body{height:100%}
       body{
         margin:0;
         font-family:var(--font);
-        background: radial-gradient(1200px 800px at 50% 25%, rgba(140,0,35,.18), transparent 55%),
-                    radial-gradient(900px 700px at 50% 85%, rgba(255,255,255,.08), transparent 60%),
-                    var(--bg);
+        background:
+          radial-gradient(1200px 800px at 50% 25%, rgba(140,0,35,.18), transparent 55%),
+          radial-gradient(900px 700px at 50% 85%, rgba(255,255,255,.08), transparent 60%),
+          var(--bg);
         color:var(--text);
         overflow:hidden;
       }
 
-      /* Avatar stage */
       #stage{
         position:fixed;
         inset:0;
@@ -72,7 +65,6 @@
         box-sizing:border-box;
       }
 
-      /* The avatar root is where NyxAvatarShell mounts */
       #avatarRoot{
         position:relative;
         width:min(520px, 92vw);
@@ -83,8 +75,6 @@
         box-shadow: 0 18px 60px rgba(0,0,0,.45);
         overflow:hidden;
         z-index:var(--zRoot);
-
-        /* Authority: deliberate transitions; not twitchy */
         transition: transform var(--nyx-dur) var(--nyx-ease),
                     filter var(--nyx-dur) var(--nyx-ease),
                     box-shadow var(--nyx-dur) var(--nyx-ease);
@@ -92,7 +82,6 @@
         filter: var(--nyx-focusIdle);
       }
 
-      /* Subtle presence overlay (composure, not animation) */
       #avatarRoot::before{
         content:"";
         position:absolute;
@@ -105,7 +94,6 @@
         filter: blur(0px);
       }
 
-      /* Presence state classes (wired by state engine; safe if bridge also changes DOM) */
       #avatarRoot.nyx-idle{
         transform: translate3d(0,0,0) scale(1);
         filter: var(--nyx-focusIdle);
@@ -115,7 +103,6 @@
         opacity:.9;
       }
 
-      /* Listening: subtle attention lock, not a lean-fest */
       #avatarRoot.nyx-listening{
         transform: translate3d(0,-1px,0) scale(1.01);
         filter: var(--nyx-focusIdle);
@@ -125,7 +112,6 @@
         opacity:1;
       }
 
-      /* Thinking: authority = stillness + a touch of contrast */
       #avatarRoot.nyx-thinking{
         transform: translate3d(0,0,0) scale(1);
         filter: var(--nyx-focusThink);
@@ -135,7 +121,6 @@
         opacity:.85;
       }
 
-      /* Speaking: tiny engagement; breath gets slightly more present */
       #avatarRoot.nyx-speaking{
         transform: translate3d(0,-0.5px,0) scale(1.005);
         filter: var(--nyx-focusSpeak);
@@ -145,14 +130,12 @@
         opacity:1;
       }
 
-      /* Error / stalled: controlled warning */
       #avatarRoot.nyx-error{
         transform: translate3d(0,0,0) scale(1);
         filter: saturate(.92) contrast(1.06);
         box-shadow: 0 18px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,80,80,.18) inset;
       }
 
-      /* Breath layer (optional; we wrap shell content without modifying shell) */
       .nyx-breathWrap{
         position:absolute;
         inset:0;
@@ -170,7 +153,6 @@
         }
       }
 
-      /* Blink overlay (generic; does not assume eyelids exist) */
       .nyx-blinkOverlay{
         position:absolute;
         inset:0;
@@ -184,12 +166,10 @@
       }
       #avatarRoot.nyx-blinking .nyx-blinkOverlay{ opacity:.28; }
 
-      /* Velvet subtlety (kept restrained; bridge may already do velvet elsewhere) */
       #avatarRoot.nyx-velvet{
         box-shadow: 0 18px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(140,0,35,.22) inset;
       }
 
-      /* HUD */
       #hud{
         position:fixed;
         top:12px;
@@ -221,7 +201,7 @@
       }
       .kv{
         display:grid;
-        grid-template-columns: 102px 1fr;
+        grid-template-columns: 112px 1fr;
         gap:6px 10px;
         font-size:12px;
         line-height:1.15;
@@ -249,7 +229,6 @@
       .dot.speaking{ background: rgba(255,255,255,.78); }
       .dot.err{ background: rgba(255,80,80,.75); }
 
-      /* Controls */
       #controls{
         margin-top:10px;
         display:flex;
@@ -281,33 +260,35 @@
         border-color: rgba(140,0,35,.55);
       }
 
-      /* Small footer hint */
       #hint{
         position:fixed;
         left:12px;
         bottom:12px;
-        max-width:min(680px, 92vw);
+        max-width:min(760px, 92vw);
         padding:10px 12px;
         border-radius:var(--radius);
         background: rgba(0,0,0,.25);
         border:1px solid rgba(255,255,255,.08);
         color:rgba(255,255,255,.75);
         font-size:12px;
-        line-height:1.35;
+        line-height:1.38;
         z-index:var(--zHud);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
       }
-      code{
+      code, pre{
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         font-size:11px;
         color: rgba(255,255,255,.82);
       }
+      pre{
+        margin:8px 0 0;
+        white-space:pre-wrap;
+        word-break:break-word;
+      }
 
-      /* Hidden audio element (bridge uses it) */
       #nyxAudio{ display:none; }
 
-      /* Audio unlock veil (shown when bridge detects play blocked) */
       html.audio-locked #nyxAudioUnlock{ display:flex; }
       #nyxAudioUnlock{
         position:fixed; inset:0; display:none;
@@ -334,14 +315,12 @@
       #nyxAudioUnlock .b{ width:100%; box-sizing:border-box; padding: 9px 12px; border-radius: 12px;
         background: rgba(140,0,35,.28); border: 1px solid rgba(140,0,35,.55); font-weight:700; font-size:12.5px;
         display:inline-flex; align-items:center; justify-content:center; }
-
     </style>
   </head>
 
   <body>
     <div id="stage">
       <div id="avatarRoot" class="nyx-idle" aria-label="Nyx Avatar Root">
-        <!-- Breath wrap to add authority “life” without touching shell internals -->
         <div class="nyx-breathWrap" id="nyxBreathWrap">
           <div class="nyx-blinkOverlay" aria-hidden="true"></div>
           <div id="nyxShellMount" style="position:absolute; inset:0;"></div>
@@ -349,11 +328,10 @@
       </div>
     </div>
 
-    <!-- HUD (bridge expects these IDs) -->
     <aside id="hud" aria-label="Nyx Avatar HUD">
       <h1>
         Nyx Avatar
-        <span id="hudSub">bridge host</span>
+        <span id="hudSub">unified runtime</span>
       </h1>
 
       <div class="kv" role="list">
@@ -366,24 +344,27 @@
         <div class="k">Stage</div><div class="v" id="hudStage">—</div>
         <div class="k">Dominance</div><div class="v" id="hudDom">—</div>
         <div class="k">Velvet</div><div class="v" id="hudVelvet">—</div>
+        <div class="k">Mode</div><div class="v" id="hudMode">—</div>
+        <div class="k">Lane</div><div class="v" id="hudLane">—</div>
+        <div class="k">Topic</div><div class="v" id="hudTopic">—</div>
         <div class="k">AnimSet</div><div class="v" id="hudAnim">—</div>
         <div class="k">Amp</div><div class="v" id="hudAmp">0.00</div>
+        <div class="k">Motion</div><div class="v" id="hudMotion">0.00</div>
+        <div class="k">Confidence</div><div class="v" id="hudConfidence">0.00</div>
 
-        <!-- State Engine (optional visibility) -->
         <div class="k">Audio</div><div class="v" id="hudAudio">—</div>
         <div class="k">Latency</div><div class="v" id="hudLatency">—</div>
         <div class="k">StateSig</div><div class="v" id="hudStateSig">—</div>
 
-        <!-- New (optional but recommended) HUD nodes for patched bridge -->
         <div class="k">PresenceHint</div><div class="v" id="hudPresenceHint">—</div>
         <div class="k">NetPending</div><div class="v" id="hudNet">0</div>
         <div class="k">Handshake</div><div class="v" id="hudHandshake">—</div>
         <div class="k">Origin</div><div class="v" id="hudOrigin">—</div>
         <div class="k">Token</div><div class="v" id="hudToken">—</div>
+        <div class="k">Trace</div><div class="v" id="hudTrace">—</div>
       </div>
 
       <div id="controls" aria-label="Debug Controls">
-        <!-- avatar-bridge.js listens for button[data-act] -->
         <button class="primary" data-act="armAudio" title="Required once by browser autoplay policy">Arm Audio</button>
         <button data-act="idle">Idle</button>
         <button data-act="listen">Listening</button>
@@ -395,8 +376,6 @@
       </div>
     </aside>
 
-
-    <!-- Audio unlock veil (autoplay policy) -->
     <div id="nyxAudioUnlock" role="button" tabindex="0" aria-label="Enable audio">
       <div class="unlockCard">
         <div class="t">Audio needs a tap</div>
@@ -405,82 +384,116 @@
       </div>
     </div>
 
-
     <div id="hint">
-      <div style="margin-bottom:6px;">
-        <strong>Iframe host ready.</strong> This page is the avatar “body.” Your parent harness should embed it and drive consciousness over <code>postMessage</code>.
-      </div>
-
-      <div style="margin-top:6px;">
-        Parent → iframe:
-        <code>
-          iframe.contentWindow.postMessage({type:"NYX_CONSCIOUSNESS",payload:{token:"dev-token-change-me",lane:"music",sessionPatch:{__spine:{topic:"top10_by_year"}}}}, ORIGIN)
-        </code>
-      </div>
-
-      <div style="margin-top:6px;">
-        Handshake (parent should ping):
-        <code>
-          iframe.contentWindow.postMessage({type:"NYX_PING",payload:{token:"dev-token-change-me"}}, ORIGIN)
-        </code>
-        then listen for <code>NYX_PONG</code>.
-      </div>
-
-      <div style="margin-top:6px;">
-        If you want TTS playback + visemes, click <strong>Arm Audio</strong> once.
-      </div>
+      <div><strong>Unified runtime ready.</strong> Nexus is the authority, the bridge normalizes, and this page resolves visual state.</div>
+      <pre id="contractExample"></pre>
     </div>
 
-    <!-- Hidden audio element (bridge drives this) -->
     <audio id="nyxAudio" preload="auto" crossorigin="anonymous"></audio>
 
-    <!-- =========================
-         Script load order matters
-         ========================= -->
-    <!-- 1) Shell (visual / DOM rendering) -->
     <script src="./nyx-avatar-shell.js"></script>
-
-    <!-- 2) Controller (directive computation) -->
     <script src="./avatar-controller.js"></script>
-
-    <!-- 3) Bridge (your updated file) -->
     <script src="./avatar-bridge.js"></script>
+
+    <script id="nyx-runtime-contract-template" type="text/plain">
+/* NEXUS EMITTER */
+function emitNyxRuntime(iframe, ORIGIN, runtimeState) {
+  if (!iframe || !iframe.contentWindow) return;
+  iframe.contentWindow.postMessage({
+    type: "NYX_RUNTIME",
+    v: 1,
+    payload: runtimeState
+  }, ORIGIN);
+}
+
+/* BRIDGE NORMALIZER */
+function normalizeRuntimePayload(p) {
+  p = (p && typeof p === "object") ? p : {};
+  const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+  const safeStr = (x) => x == null ? "" : String(x);
+  const oneOf = (x, arr, fallback) => arr.indexOf(x) >= 0 ? x : fallback;
+  return {
+    presence: oneOf(safeStr(p.presence).toLowerCase(), ["idle","listening","thinking","speaking"], "idle"),
+    presenceHint: oneOf(safeStr(p.presenceHint).toLowerCase(), ["","idle","listening","thinking","speaking"], ""),
+    stage: oneOf(safeStr(p.stage).toLowerCase(), ["boot","warm","engaged"], "warm"),
+    dominance: oneOf(safeStr(p.dominance).toLowerCase(), ["soft","neutral","firm"], "neutral"),
+    velvet: !!p.velvet,
+    speaking: !!p.speaking,
+    amplitude: clamp01(p.amplitude),
+    lane: safeStr(p.lane || "general").toLowerCase() || "general",
+    topic: safeStr(p.topic || "unknown"),
+    mode: safeStr(p.mode || "general").toLowerCase() || "general",
+    confidence: clamp01(p.confidence),
+    motion: clamp01(p.motion),
+    settleHint: !!p.settleHint,
+    netPending: Math.max(0, Number(p.netPending) || 0),
+    tts: {
+      armed: !!(p.tts && p.tts.armed),
+      locked: !!(p.tts && p.tts.locked),
+      playing: !!(p.tts && p.tts.playing)
+    },
+    meta: {
+      source: "nexus",
+      ts: Date.now(),
+      traceId: safeStr(p.meta && p.meta.traceId)
+    }
+  };
+}
+
+/* AVATAR.HTML RESOLVER */
+function resolveVisualPresence(runtime, audioPlaying) {
+  if (!runtime || typeof runtime !== "object") return "idle";
+  if (audioPlaying || (runtime.tts && runtime.tts.playing)) return "speaking";
+  if (runtime.presenceHint === "listening") return "listening";
+  if (runtime.netPending > 0) return "thinking";
+  return runtime.presence || "idle";
+}
+    </script>
 
     <script>
       (function () {
+        "use strict";
+
         const missing = [];
         if (!window.NyxAvatarShell || typeof window.NyxAvatarShell.mount !== "function") missing.push("NyxAvatarShell.mount");
         if (!window.AvatarController || typeof window.AvatarController.computeDirective !== "function") missing.push("AvatarController.computeDirective");
         if (!window.NyxAvatarBridge) missing.push("NyxAvatarBridge");
 
-        const elSub = document.getElementById("hudSub");
-        const elHs = document.getElementById("hudHandshake");
-        const elOrigin = document.getElementById("hudOrigin");
-        const elToken = document.getElementById("hudToken");
-
-        // show what this iframe thinks the allowed origin/token are (dev visibility)
-        try {
-          const sec = window.NyxAvatarBridge && window.NyxAvatarBridge.__security;
-          if (elOrigin) elOrigin.textContent = (sec && sec.allowedOrigins && sec.allowedOrigins.length) ? sec.allowedOrigins[0] : "—";
-          if (elToken) elToken.textContent = (sec && sec.expectedToken) ? "set" : "—";
-        } catch (_) {}
-
         const avatarRoot = document.getElementById("avatarRoot");
         const shellMount = document.getElementById("nyxShellMount");
         const breathWrap = document.getElementById("nyxBreathWrap");
         const audioEl = document.getElementById("nyxAudio");
+        const contractExampleEl = document.getElementById("contractExample");
 
-        const hudPresence = document.getElementById("hudPresence");
-        const dot = document.getElementById("presenceDot");
+        const elSub = document.getElementById("hudSub");
+        const elHs = document.getElementById("hudHandshake");
+        const elOrigin = document.getElementById("hudOrigin");
+        const elToken = document.getElementById("hudToken");
+        const elStage = document.getElementById("hudStage");
+        const elDom = document.getElementById("hudDom");
+        const elVelvet = document.getElementById("hudVelvet");
+        const elMode = document.getElementById("hudMode");
+        const elLane = document.getElementById("hudLane");
+        const elTopic = document.getElementById("hudTopic");
+        const elAnim = document.getElementById("hudAnim");
+        const elAmp = document.getElementById("hudAmp");
+        const elMotion = document.getElementById("hudMotion");
+        const elConfidence = document.getElementById("hudConfidence");
         const elHint = document.getElementById("hudPresenceHint");
         const elNet = document.getElementById("hudNet");
         const elAudio = document.getElementById("hudAudio");
         const elLatency = document.getElementById("hudLatency");
         const elStateSig = document.getElementById("hudStateSig");
+        const elTrace = document.getElementById("hudTrace");
+        const hudPresence = document.getElementById("hudPresence");
+        const dot = document.getElementById("presenceDot");
 
         const now = () => Date.now();
-        const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+        const clamp = (n, a, b) => Math.max(a, Math.min(b, Number(n) || 0));
+        const clamp01 = (n) => clamp(n, 0, 1);
         const rand = (a, b) => a + Math.random() * (b - a);
+        const safeStr = (x) => x == null ? "" : String(x);
+        const oneOf = (x, arr, fallback) => arr.indexOf(x) >= 0 ? x : fallback;
 
         const toMs = (v) => {
           const s = String(v || "").trim();
@@ -491,7 +504,99 @@
           return Number.isFinite(n) ? n : 0;
         };
 
-        // Mount shell into our dedicated mount node (keeps overlay wrappers intact)
+        function normalizeRuntimePayload(p) {
+          p = (p && typeof p === "object") ? p : {};
+          return {
+            presence: oneOf(safeStr(p.presence).toLowerCase(), ["idle","listening","thinking","speaking"], "idle"),
+            presenceHint: oneOf(safeStr(p.presenceHint).toLowerCase(), ["","idle","listening","thinking","speaking"], ""),
+            stage: oneOf(safeStr(p.stage).toLowerCase(), ["boot","warm","engaged"], "warm"),
+            dominance: oneOf(safeStr(p.dominance).toLowerCase(), ["soft","neutral","firm"], "neutral"),
+            velvet: !!p.velvet,
+            speaking: !!p.speaking,
+            amplitude: clamp01(p.amplitude),
+            lane: safeStr(p.lane || "general").toLowerCase() || "general",
+            topic: safeStr(p.topic || "unknown"),
+            mode: safeStr(p.mode || "general").toLowerCase() || "general",
+            confidence: clamp01(p.confidence),
+            motion: clamp01(p.motion),
+            settleHint: !!p.settleHint,
+            netPending: Math.max(0, Number(p.netPending) || 0),
+            tts: {
+              armed: !!(p.tts && p.tts.armed),
+              locked: !!(p.tts && p.tts.locked),
+              playing: !!(p.tts && p.tts.playing)
+            },
+            meta: {
+              source: "nexus",
+              ts: Date.now(),
+              traceId: safeStr(p.meta && p.meta.traceId)
+            }
+          };
+        }
+
+        function ensureBridgeContract() {
+          if (!window.NyxAvatarBridge) return null;
+          const bridge = window.NyxAvatarBridge;
+          const current = bridge.state && typeof bridge.state === "object" ? bridge.state : {};
+          bridge.state = Object.assign(normalizeRuntimePayload({}), current);
+
+          if (typeof bridge.normalizeRuntimePayload !== "function") {
+            bridge.normalizeRuntimePayload = normalizeRuntimePayload;
+          }
+
+          if (typeof bridge.applyRuntimePayload !== "function") {
+            bridge.applyRuntimePayload = function (payload) {
+              const normalized = bridge.normalizeRuntimePayload(payload);
+              const prev = bridge.state && typeof bridge.state === "object" ? bridge.state : {};
+              bridge.state = Object.assign({}, prev, normalized, {
+                tts: Object.assign({}, prev.tts || {}, normalized.tts || {}),
+                meta: Object.assign({}, prev.meta || {}, normalized.meta || {})
+              });
+
+              try {
+                window.dispatchEvent(new CustomEvent("nyx:runtime", { detail: bridge.state }));
+              } catch (_) {}
+              return bridge.state;
+            };
+          }
+
+          return bridge;
+        }
+
+        const bridge = ensureBridgeContract();
+
+        if (contractExampleEl) {
+          contractExampleEl.textContent =
+`iframe.contentWindow.postMessage({
+  type: "NYX_RUNTIME",
+  v: 1,
+  payload: {
+    presence: "thinking",
+    presenceHint: "",
+    stage: "engaged",
+    dominance: "firm",
+    velvet: false,
+    speaking: false,
+    amplitude: 0,
+    lane: "music",
+    topic: "top10_by_year",
+    mode: "general",
+    confidence: 0.82,
+    motion: 0.34,
+    settleHint: false,
+    netPending: 1,
+    tts: { armed: true, locked: false, playing: false },
+    meta: { traceId: "nyx_turn_001" }
+  }
+}, ORIGIN);`;
+        }
+
+        try {
+          const sec = window.NyxAvatarBridge && window.NyxAvatarBridge.__security;
+          if (elOrigin) elOrigin.textContent = (sec && sec.allowedOrigins && sec.allowedOrigins.length) ? sec.allowedOrigins[0] : "—";
+          if (elToken) elToken.textContent = (sec && sec.expectedToken) ? "set" : "—";
+        } catch (_) {}
+
         function mountShell() {
           try {
             if (!shellMount) return;
@@ -502,14 +607,12 @@
           }
         }
 
-        // Presence dot helper
         function setDot(p) {
           if (!dot) return;
           dot.classList.remove("idle","listening","speaking","err");
           dot.classList.add(p === "speaking" ? "speaking" : p === "listening" ? "listening" : p === "idle" ? "idle" : "err");
         }
 
-        // Authority: blink scheduling (generic overlay, non-invasive)
         let blinkTimer = null;
         function scheduleBlink() {
           clearTimeout(blinkTimer);
@@ -528,23 +631,23 @@
           }, rand(dMin, dMax));
         }
 
-        // Breath tuning by presence (tiny deltas; stillness remains king)
-        function setBreathByPresence(presence) {
+        function setBreathByPresence(presence, motion) {
           if (!breathWrap) return;
           const rootStyle = document.documentElement.style;
 
-          let dur = 5.6; // seconds
-          let amp = 1.0; // %
-          if (presence === "speaking") { dur = 5.0; amp = 1.25; }
-          else if (presence === "listening") { dur = 5.4; amp = 1.05; }
-          else if (presence === "thinking") { dur = 6.0; amp = 0.90; }
+          let dur = 5.6;
+          let amp = 1.0 + (clamp01(motion) * 0.25);
+
+          if (presence === "speaking") { dur = 5.0; amp = 1.20 + (clamp01(motion) * 0.25); }
+          else if (presence === "listening") { dur = 5.4; amp = 1.00 + (clamp01(motion) * 0.12); }
+          else if (presence === "thinking") { dur = 6.0; amp = 0.88 + (clamp01(motion) * 0.08); }
           else if (presence === "error") { dur = 4.8; amp = 0.80; }
 
           rootStyle.setProperty("--nyx-breathDur", clamp(dur, 4.6, 6.2) + "s");
           rootStyle.setProperty("--nyx-breathAmp", clamp(amp, 0.6, 1.4) + "%");
         }
 
-        function setPresenceClass(p) {
+        function setPresenceClass(p, motion) {
           if (!avatarRoot) return;
           const cls = ["nyx-idle","nyx-listening","nyx-thinking","nyx-speaking","nyx-error"];
           cls.forEach(c => avatarRoot.classList.remove(c));
@@ -557,18 +660,15 @@
             "nyx-error";
 
           avatarRoot.classList.add(norm);
-          setBreathByPresence(p);
+          setBreathByPresence(p, motion);
         }
 
-        // =========================
-        // STATE ENGINE vS1
-        // =========================
         const engine = {
           lastInboundAt: 0,
           lastPongAt: 0,
           lastPresenceAt: 0,
           lastPresence: "idle",
-          lastBridgePresence: "",
+          lastRuntimePresence: "",
           lastNetPending: 0,
           lastNetActiveAt: 0,
           lastAudioChangeAt: 0,
@@ -580,10 +680,8 @@
         function audioIsPlaying() {
           try {
             if (!audioEl) return false;
-            // if src empty, consider not playing
             const hasSrc = !!(audioEl.currentSrc || audioEl.src);
             if (!hasSrc) return false;
-            // paused=false and not ended implies active
             return !audioEl.paused && !audioEl.ended;
           } catch (_) { return false; }
         }
@@ -597,62 +695,31 @@
           if (elAudio) elAudio.textContent = playing ? "playing" : "—";
         }
 
-        // Wire audio events (reality signal beats reported state)
         if (audioEl) {
           ["play","playing","pause","ended","stalled","waiting","error","emptied"].forEach((evt) => {
             audioEl.addEventListener(evt, () => updateAudioFlags(), { passive:true });
           });
         }
 
-        // Message listener (for handshake + useful timing)
-        window.addEventListener("message", (ev) => {
-          const d = ev && ev.data;
-          if (!d || typeof d !== "object") return;
-
-          if (d.type === "NYX_PONG") {
-            engine.lastPongAt = now();
-            if (elHs) elHs.textContent = "pong@" + new Date().toLocaleTimeString();
-          }
-
-          // Track inbound consciousness as "activity" even if bridge state lags
-          if (d.type === "NYX_CONSCIOUSNESS") {
-            engine.lastInboundAt = now();
-          }
-
-          if (d.type === "NYX_BRIDGE_DEBUG") {
-            if (elHs && d.payload && d.payload.msg) elHs.textContent = String(d.payload.msg).slice(0, 38);
-          }
-        });
-
-        // Deterministic presence computation with hysteresis
-        function computePresence(s) {
+        function resolveVisualPresence(runtime) {
           const t = now();
+          const r = (runtime && typeof runtime === "object") ? runtime : normalizeRuntimePayload({});
+          const explicitPresence = safeStr(r.presence).toLowerCase();
+          const hintPresence = safeStr(r.presenceHint).toLowerCase();
+          const netPending = typeof r.netPending === "number" ? r.netPending : 0;
 
-          const bridgePresence = (s && s.presence) ? String(s.presence) : "";
-          const hintPresence = (s && s.inlet && s.inlet.hintPresence) ? String(s.inlet.hintPresence) : "";
-          const netPending = (s && typeof s.netPending === "number") ? s.netPending : 0;
-
-          // Track net activity window
           if (netPending > 0) engine.lastNetActiveAt = t;
           engine.lastNetPending = netPending;
 
-          // Latency heuristic: time since last inbound consciousness to now if net pending cleared
-          // (best-effort; harmless if unused)
           if (engine.lastInboundAt > 0 && netPending === 0) {
             const ms = t - engine.lastInboundAt;
-            // only treat as "latency" if it looks plausible (<30s)
             engine.lastLatencyMs = (ms > 0 && ms < 30000) ? ms : engine.lastLatencyMs;
           }
 
-          // Audio reality signal
           updateAudioFlags();
-          const playing = engine.audioPlaying;
+          const playing = engine.audioPlaying || !!(r.tts && r.tts.playing);
+          const hasError = !!(runtime && (runtime.error || runtime.err));
 
-          // Error signal (bridge may expose error-ish flags)
-          const hasError =
-            !!(s && (s.error || s.err || (s.inlet && (s.inlet.error || s.inlet.err))));
-
-          // Stall detection: netPending stuck >0 for too long
           if (netPending > 0) {
             if (!engine.stallSinceAt) engine.stallSinceAt = t;
           } else {
@@ -660,51 +727,48 @@
           }
           const stalled = !!(engine.stallSinceAt && (t - engine.stallSinceAt) > 12000);
 
-          // Priority order (truth table)
           let desired =
             hasError || stalled ? "error" :
             playing ? "speaking" :
-            hintPresence === "listening" || bridgePresence === "listening" ? "listening" :
+            hintPresence === "listening" ? "listening" :
             netPending > 0 ? "thinking" :
-            // recent inbound activity without netPending can still be “thinking” briefly
             (engine.lastInboundAt && (t - engine.lastInboundAt) < 900) ? "thinking" :
-            // bridge can request thinking explicitly
-            bridgePresence === "thinking" ? "thinking" :
-            bridgePresence === "speaking" ? "speaking" :
-            bridgePresence === "idle" ? "idle" :
+            explicitPresence === "thinking" ? "thinking" :
+            explicitPresence === "speaking" ? "speaking" :
+            explicitPresence === "listening" ? "listening" :
+            explicitPresence === "idle" ? "idle" :
             "idle";
 
-          // Anti-flicker hold
           const holdMs = toMs(getComputedStyle(document.documentElement).getPropertyValue("--nyx-holdMs")) || 420;
           if (engine.lastPresence && desired !== engine.lastPresence) {
             const since = t - (engine.lastPresenceAt || 0);
             if (since < holdMs) desired = engine.lastPresence;
           }
 
-          // Commit
           if (desired !== engine.lastPresence) {
             engine.lastPresence = desired;
             engine.lastPresenceAt = t;
           }
 
-          engine.lastBridgePresence = bridgePresence;
+          engine.lastRuntimePresence = explicitPresence;
           return desired;
         }
 
-        function updateVelvet(s) {
+        function updateVelvet(runtime) {
           try {
-            const velvetOn = !!(s && (s.velvet || (s.inlet && s.inlet.velvet)));
+            const velvetOn = !!(runtime && runtime.velvet);
             if (avatarRoot) avatarRoot.classList.toggle("nyx-velvet", velvetOn);
           } catch (_) {}
         }
 
-        function stateSig(s, presence) {
+        function stateSig(runtime, presence) {
           try {
-            const lane = (s && (s.lane || (s.inlet && s.inlet.lane))) ? (s.lane || s.inlet.lane) : "";
-            const net = (s && typeof s.netPending === "number") ? s.netPending : 0;
-            const dom = (s && (s.dom || s.dominance || (s.inlet && (s.inlet.dom || s.inlet.dominance)))) || "";
-            const vel = !!(s && (s.velvet || (s.inlet && s.inlet.velvet)));
-            return [presence, lane ? "lane:"+lane : "", net ? "net:"+net : "net:0", dom ? "dom:"+dom : "", vel ? "velvet" : ""]
+            const lane = runtime && runtime.lane ? runtime.lane : "";
+            const net = runtime && typeof runtime.netPending === "number" ? runtime.netPending : 0;
+            const dom = runtime && runtime.dominance ? runtime.dominance : "";
+            const vel = !!(runtime && runtime.velvet);
+            const trace = runtime && runtime.meta && runtime.meta.traceId ? runtime.meta.traceId : "";
+            return [presence, lane ? "lane:"+lane : "", net ? "net:"+net : "net:0", dom ? "dom:"+dom : "", vel ? "velvet" : "", trace ? "trace:"+trace : ""]
               .filter(Boolean).join(" | ");
           } catch (_) { return String(presence || "—"); }
         }
@@ -715,11 +779,8 @@
           return;
         }
 
-        // Mount after globals present
         mountShell();
 
-
-        // Audio unlock veil bindings (keeps parity with widget voice button)
         (function bindAudioUnlockVeil(){
           const veil = document.getElementById("nyxAudioUnlock");
           if(!veil) return;
@@ -735,30 +796,83 @@
           veil.addEventListener("keydown", (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }, true);
         })();
 
+        window.addEventListener("message", (ev) => {
+          const d = ev && ev.data;
+          if (!d || typeof d !== "object") return;
 
-        // Start blink loop; stillness + rare blink = authority
+          if (d.type === "NYX_PONG") {
+            engine.lastPongAt = now();
+            if (elHs) elHs.textContent = "pong@" + new Date().toLocaleTimeString();
+          }
+
+          if (d.type === "NYX_RUNTIME" && Number(d.v) === 1) {
+            engine.lastInboundAt = now();
+            if (bridge && typeof bridge.applyRuntimePayload === "function") {
+              bridge.applyRuntimePayload(d.payload || {});
+            }
+          }
+
+          if (d.type === "NYX_BRIDGE_DEBUG") {
+            if (elHs && d.payload && d.payload.msg) elHs.textContent = String(d.payload.msg).slice(0, 38);
+          }
+        });
+
+        window.addEventListener("nyx:runtime", (e) => {
+          const runtime = (e && e.detail) || (window.NyxAvatarBridge && window.NyxAvatarBridge.state) || normalizeRuntimePayload({});
+          if (window.AvatarController && typeof window.AvatarController.computeDirective === "function") {
+            try {
+              const directive = window.AvatarController.computeDirective({
+                presence: runtime.presence,
+                stage: runtime.stage,
+                dominance: runtime.dominance,
+                velvet: runtime.velvet,
+                speaking: runtime.speaking || !!(runtime.tts && runtime.tts.playing),
+                amplitude: runtime.amplitude,
+                lane: runtime.lane,
+                topic: runtime.topic,
+                t: runtime.meta && runtime.meta.ts ? runtime.meta.ts : now(),
+                settleHint: runtime.settleHint
+              });
+              if (directive && bridge && typeof bridge.applyDirective === "function") {
+                bridge.applyDirective(directive);
+              } else if (directive && window.NyxAvatarShell && typeof window.NyxAvatarShell.applyDirective === "function") {
+                window.NyxAvatarShell.applyDirective(directive);
+              }
+              if (elAnim && directive && directive.animSet) elAnim.textContent = String(directive.animSet);
+            } catch (_) {}
+          }
+        });
+
         scheduleBlink();
 
-        // Main loop (reads state safely; computes deterministic presence; updates HUD + avatar)
         function refresh() {
           try {
-            const s = window.NyxAvatarBridge && window.NyxAvatarBridge.state;
-            const p = computePresence(s);
+            const runtime = (window.NyxAvatarBridge && window.NyxAvatarBridge.state) || normalizeRuntimePayload({});
+            const visualPresence = resolveVisualPresence(runtime);
 
-            if (hudPresence) hudPresence.textContent = p || "—";
-            setDot(p);
-            setPresenceClass(p);
-            updateVelvet(s);
+            if (hudPresence) hudPresence.textContent = visualPresence || "—";
+            setDot(visualPresence);
+            setPresenceClass(visualPresence, runtime.motion);
+            updateVelvet(runtime);
 
-            if (elHint) elHint.textContent = (s && s.inlet && s.inlet.hintPresence) ? String(s.inlet.hintPresence) : "—";
-            if (elNet) elNet.textContent = String((s && typeof s.netPending === "number") ? s.netPending : 0);
+            if (elStage) elStage.textContent = runtime.stage || "—";
+            if (elDom) elDom.textContent = runtime.dominance || "—";
+            if (elVelvet) elVelvet.textContent = runtime.velvet ? "on" : "off";
+            if (elMode) elMode.textContent = runtime.mode || "—";
+            if (elLane) elLane.textContent = runtime.lane || "—";
+            if (elTopic) elTopic.textContent = runtime.topic || "—";
+            if (elAmp) elAmp.textContent = Number(runtime.amplitude || 0).toFixed(2);
+            if (elMotion) elMotion.textContent = Number(runtime.motion || 0).toFixed(2);
+            if (elConfidence) elConfidence.textContent = Number(runtime.confidence || 0).toFixed(2);
+            if (elHint) elHint.textContent = runtime.presenceHint || "—";
+            if (elNet) elNet.textContent = String(runtime.netPending || 0);
+            if (elTrace) elTrace.textContent = (runtime.meta && runtime.meta.traceId) ? runtime.meta.traceId : "—";
 
             if (elLatency) {
               if (engine.lastLatencyMs != null) elLatency.textContent = engine.lastLatencyMs + "ms";
               else elLatency.textContent = "—";
             }
-            if (elStateSig) elStateSig.textContent = stateSig(s, p);
-
+            if (elStateSig) elStateSig.textContent = stateSig(runtime, visualPresence);
           } catch (_) {}
           requestAnimationFrame(refresh);
         }
