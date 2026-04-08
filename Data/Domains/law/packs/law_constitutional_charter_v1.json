@@ -24,8 +24,14 @@
         "Ignoring division-of-powers analysis before Charter analysis."
       ],
       "retrievalHints": {
-        "keywords": ["constitutional supremacy", "section 52", "invalid law"],
-        "intentSignals": ["is this law constitutional"]
+        "keywords": [
+          "constitutional supremacy",
+          "section 52",
+          "invalid law"
+        ],
+        "intentSignals": [
+          "is this law constitutional"
+        ]
       }
     },
     {
@@ -46,8 +52,16 @@
         "Ignoring cooperative federalism principles."
       ],
       "retrievalHints": {
-        "keywords": ["division of powers", "section 91", "section 92", "federal jurisdiction"],
-        "intentSignals": ["who has authority", "can province do this"]
+        "keywords": [
+          "division of powers",
+          "section 91",
+          "section 92",
+          "federal jurisdiction"
+        ],
+        "intentSignals": [
+          "who has authority",
+          "can province do this"
+        ]
       }
     },
     {
@@ -69,8 +83,15 @@
         "Skipping state action requirement."
       ],
       "retrievalHints": {
-        "keywords": ["charter rights", "section 2", "section 7", "freedom of expression"],
-        "intentSignals": ["are my rights violated"]
+        "keywords": [
+          "charter rights",
+          "section 2",
+          "section 7",
+          "freedom of expression"
+        ],
+        "intentSignals": [
+          "are my rights violated"
+        ]
       }
     },
     {
@@ -91,8 +112,15 @@
         "Ignoring proportionality analysis."
       ],
       "retrievalHints": {
-        "keywords": ["section 1", "oakes test", "minimal impairment", "proportionality"],
-        "intentSignals": ["can government limit"]
+        "keywords": [
+          "section 1",
+          "oakes test",
+          "minimal impairment",
+          "proportionality"
+        ],
+        "intentSignals": [
+          "can government limit"
+        ]
       }
     },
     {
@@ -112,8 +140,14 @@
         "Ignoring judicial discretion."
       ],
       "retrievalHints": {
-        "keywords": ["section 24", "remedy", "exclude evidence"],
-        "intentSignals": ["what happens if rights violated"]
+        "keywords": [
+          "section 24",
+          "remedy",
+          "exclude evidence"
+        ],
+        "intentSignals": [
+          "what happens if rights violated"
+        ]
       }
     },
     {
@@ -133,8 +167,14 @@
         "Believing all rights can be overridden."
       ],
       "retrievalHints": {
-        "keywords": ["notwithstanding clause", "section 33", "override"],
-        "intentSignals": ["can government override"]
+        "keywords": [
+          "notwithstanding clause",
+          "section 33",
+          "override"
+        ],
+        "intentSignals": [
+          "can government override"
+        ]
       }
     }
   ],
@@ -144,6 +184,48 @@
       "Supports high-level Charter and constitutional analysis.",
       "Requires state action to engage Charter rights.",
       "Encourage consultation with qualified counsel for case-specific matters."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "constitutional_charter_v1",
+      "law_constitutional_charter",
+      "law_constitutional_charter_v1"
+    ],
+    "sourceFile": "law_constitutional_charter_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_foundations_v1",
+      "law_research_methods_v1",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
+    ],
+    "sourceIntegrity": "moderate"
+  },
+  "packType": "framework",
+  "retrievalHints": {
+    "keywords": [
+      "charter rights",
+      "constitutional supremacy",
+      "division of powers",
+      "invalid law",
+      "section 2",
+      "section 52",
+      "section 7",
+      "section 91",
+      "section 92"
+    ],
+    "intentSignals": [
+      "are my rights violated",
+      "can province do this",
+      "is this law constitutional",
+      "who has authority"
     ]
   }
 }
