@@ -171,7 +171,7 @@
   "referenceArchitecture": {
     "textbooks_and_open_learning": [
       {
-        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "title": "Corporate Finance Institute — Capital Markets Overview",
         "type": "open_learning",
         "authority": "professional_education",
         "use": [
@@ -567,5 +567,22 @@
         "flag primary source to verify"
       ]
     }
-  ]
+  ],
+  "runtimeMetadata": {
+    "domain": "finance",
+    "canonicalPackId": "fin_capital_markets_v1",
+    "retrievalAliases": [
+      "capital markets",
+      "debt",
+      "equity",
+      "runway",
+      "cost of capital"
+    ],
+    "crossPackHints": [
+      "fin_macro_principles_v1",
+      "fin_risk_management_v1"
+    ],
+    "marionPriority": 5,
+    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  }
 }
