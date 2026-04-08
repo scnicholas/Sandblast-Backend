@@ -198,5 +198,61 @@
         "accessibility-minded style"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_eap_canada_case_studies_v2",
+  "normalizedFrom": {
+    "filename": "eng_eap_canada_case_studies_v1.json",
+    "id": "eng_eap_canada_case_studies_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "canadian_eap_case_studies",
+    "eng_eap_canada_case_studies_v1",
+    "eng_eap_canada_case_studies_v2"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "canadian_eap_case_studies",
+    "keywords": [
+      "applied",
+      "canadian",
+      "case",
+      "collection",
+      "design",
+      "english-for-academic-purposes",
+      "evidence",
+      "higher-education",
+      "interventions",
+      "language-support",
+      "studies",
+      "workflows"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 3,
+    "referenceCount": 4,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "modules": 2,
+    "caseStudies": 3,
+    "projects": 1,
+    "portableTemplates": 2,
+    "referenceTextsUsed": 4
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
