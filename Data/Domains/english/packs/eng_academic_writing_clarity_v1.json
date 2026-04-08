@@ -245,5 +245,68 @@
         "general revision support"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_academic_writing_clarity_v2",
+  "normalizedFrom": {
+    "filename": "eng_academic_writing_clarity_v1.json",
+    "id": "eng_academic_writing_clarity_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "academic_writing_clarity_and_revision",
+    "eng_academic_writing_clarity_v1",
+    "eng_academic_writing_clarity_v2"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "academic_writing_clarity_and_revision",
+    "keywords": [
+      "academic",
+      "argument",
+      "clarity",
+      "cohesion",
+      "control",
+      "decision",
+      "deterministic",
+      "emphasis",
+      "experience",
+      "flow",
+      "making",
+      "protocol",
+      "reader",
+      "reader-centered",
+      "revision",
+      "sentence-level",
+      "with",
+      "workflow",
+      "writing"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 3,
+    "referenceCount": 6,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 3,
+    "modules": 3,
+    "caseStudies": 2,
+    "projects": 2,
+    "referenceTextsUsed": 6
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
