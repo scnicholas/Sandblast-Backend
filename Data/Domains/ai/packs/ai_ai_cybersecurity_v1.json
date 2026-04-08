@@ -336,5 +336,65 @@
     "Use this file as the AI security trunk for later cross-links into agents, governance, privacy, compliance, and infrastructure reliability.",
     "Prioritize institutional guidance and canonical references before vendor or blog-style material.",
     "Map future entries to training, deployment, monitoring, and incident response stages so Marion can reason in lifecycle terms."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_ai_cybersecurity",
+  "manifestPackKey": "aiCybersecurity",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "ai_cybersecurity",
+    "routeAliases": [
+      "cybersecurity",
+      "ai_security",
+      "defensive_ai_security",
+      "prompt_injection"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "foundations",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "secure_ai_system_development_lifecycle",
+      "threat_modeling_for_ai_systems",
+      "adversarial_machine_learning",
+      "data_poisoning",
+      "evasion_and_inference_attacks",
+      "model_extraction_and_model_theft",
+      "backdoor_and_trojan_detection",
+      "prompt_injection_and_indirect_prompt_injection"
+    ],
+    "ingestionPriority": [
+      "NIST AI 100-2e2025 Adversarial Machine Learning",
+      "AI Risk Management Framework (AI RMF 1.0)",
+      "OWASP Top 10 for LLM Applications",
+      "MITRE ATLAS",
+      "Guidelines for Secure AI System Development",
+      "Adversarial Machine Learning",
+      "Machine Learning and Security: Protecting Systems with Data and Algorithms",
+      "ENISA Securing Machine Learning Algorithms"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Good defensive posture and threat taxonomy for production hardening."
+    ],
+    "issues": [
+      "Manifest pack version for aiCybersecurity is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
