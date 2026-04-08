@@ -1,6 +1,6 @@
 {
   "domain": "artificial_intelligence",
-  "domainVersion": "1.0.0",
+  "domainVersion": "1.2.0-normalized",
   "updatedAt": "2026-02-12",
   "defaultLoadOrder": [
     "ai_foundations_v1.json",
@@ -162,5 +162,158 @@
     "Folder name should be 'ai' (Data/ai/).",
     "Manifest keys are stable; pack filenames match defaultLoadOrder.",
     "Designed for Marion hinting + lane routing without storing raw user text."
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packRegistry": [
+    {
+      "packKey": "foundations",
+      "file": "ai_foundations_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "foundations",
+      "routeAliases": [
+        "foundations",
+        "core_ai",
+        "fundamentals"
+      ],
+      "crossLinks": [
+        "agents_systems",
+        "ethics_law",
+        "ai_psychology",
+        "ai_cybersecurity",
+        "ai_marketing",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "agentsSystems",
+      "file": "ai_agents_systems_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "agents_systems",
+      "routeAliases": [
+        "agents",
+        "systems",
+        "orchestration",
+        "multi_agent",
+        "planning"
+      ],
+      "crossLinks": [
+        "foundations",
+        "ai_cybersecurity",
+        "ai_psychology",
+        "ethics_law",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "ethicsLaw",
+      "file": "ai_ethics_law_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "ethics_law",
+      "routeAliases": [
+        "ethics",
+        "law",
+        "governance",
+        "policy",
+        "compliance"
+      ],
+      "crossLinks": [
+        "agents_systems",
+        "ai_psychology",
+        "ai_marketing",
+        "ai_cybersecurity",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "aiPsychology",
+      "file": "ai_ai_psychology_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "ai_psychology",
+      "routeAliases": [
+        "psychology",
+        "cognitive_science",
+        "hai",
+        "trust",
+        "behavior"
+      ],
+      "crossLinks": [
+        "agents_systems",
+        "ethics_law",
+        "ai_marketing",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "aiCybersecurity",
+      "file": "ai_ai_cybersecurity_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "ai_cybersecurity",
+      "routeAliases": [
+        "cybersecurity",
+        "ai_security",
+        "defensive_ai_security",
+        "prompt_injection"
+      ],
+      "crossLinks": [
+        "agents_systems",
+        "ethics_law",
+        "foundations",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "aiMarketing",
+      "file": "ai_ai_marketing_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "ai_marketing",
+      "routeAliases": [
+        "marketing",
+        "growth",
+        "personalization",
+        "attribution",
+        "crm"
+      ],
+      "crossLinks": [
+        "ai_psychology",
+        "ethics_law",
+        "foundations",
+        "case_studies"
+      ]
+    },
+    {
+      "packKey": "caseStudies",
+      "file": "ai_case_studies_v1.json",
+      "presentInUpload": true,
+      "packVersion": "1.1.0",
+      "layer": "case_studies",
+      "routeAliases": [
+        "cases",
+        "applied_cases",
+        "examples"
+      ],
+      "crossLinks": [
+        "foundations",
+        "agents_systems",
+        "ethics_law",
+        "ai_psychology",
+        "ai_cybersecurity",
+        "ai_marketing"
+      ]
+    }
+  ],
+  "missingDependencies": [
+    "ai_face_examples_v1.json",
+    "ai_dialogue_snippets_v1.json"
+  ],
+  "normalizationNotes": [
+    "Manifest versions were out of sync with uploaded pack versions; uploaded packs are 1.1.0 while manifest references 1.0.0.",
+    "Case-study domain labels were mapped to runtime layer aliases for safer retrieval.",
+    "Direct source links were not attached in the uploaded packs; bibliographic metadata remains but link completeness is pending."
   ]
 }
