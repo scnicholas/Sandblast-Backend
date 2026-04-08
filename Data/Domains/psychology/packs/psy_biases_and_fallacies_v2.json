@@ -534,5 +534,43 @@
         "public-facing critical-thinking resources where appropriate"
       ]
     }
-  ]
+  ],
+  "runtimeMetadata": {
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalPriority": "standard",
+    "canonicalPackId": "psy_biases_and_fallacies_v2",
+    "sourceFilename": "psy_biases_and_fallacies_v2.json",
+    "aliases": [
+      "psy_biases_and_fallacies_v1",
+      "psy_biases_and_fallacies_v2"
+    ],
+    "pathwayRole": "reasoning_core"
+  },
+  "crossPackLinks": [
+    "psy_clinical_safety_v2",
+    "psy_sources_index_v2",
+    "psy_foundations_v2",
+    "psy_cognitive_v2"
+  ],
+  "marionPathway": {
+    "entryConditions": [
+      "route through clinical safety first for crisis, diagnosis, self-harm, mania/psychosis, eating-disorder, or overdose language"
+    ],
+    "defaultCompanionPacks": [
+      "psy_clinical_safety_v2",
+      "psy_sources_index_v2",
+      "psy_foundations_v2",
+      "psy_cognitive_v2"
+    ],
+    "responseMode": "educational_nonclinical",
+    "notes": [
+      "Prefer bounded explanation over diagnostic certainty.",
+      "Escalate to safety-first handling when risk signals are present.",
+      "Use source index for trust weighting and bibliographic routing."
+    ]
+  }
 }
