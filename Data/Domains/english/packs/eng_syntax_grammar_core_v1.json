@@ -1,8 +1,26 @@
 {
-  "id": "eng_syntax_grammar_core_v1",
-  "version": "1.0.0",
-  "description": "Core syntax and grammar: clause structure, complementation, subordination, coordination, information structure.",
-  "anchors": ["S_QUARK_CGEL", "S_BIBER_LGSWE", "S_SWAN_PEU"],
+  "id": "eng_syntax_grammar_core_v2",
+  "version": "2.0.0",
+  "title": "Syntax and Grammar Core",
+  "description": "Clause structure, constituency, grammatical functions, subordination, coordination, complementation, and information structure.",
+  "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
+  "assistantApplication": {
+    "forNyx": [
+      "Prefer precise, grammatical phrasing that sounds natural rather than stiff.",
+      "Use register-sensitive wording so conversational output and formal output do not collapse into one style.",
+      "When uncertain, preserve meaning first, then improve form through revision rather than over-correcting."
+    ],
+    "forMarion": [
+      "Use the pack to explain why a wording choice works, not just whether it is 'right' or 'wrong'.",
+      "Ground revision advice in form-function reasoning, register, audience, and evidence.",
+      "Support coaching, diagnostics, and portfolio-style improvement tracking."
+    ]
+  },
+  "anchors": [
+    "S_QUARK_CGEL",
+    "S_BIBER_LGSWE",
+    "S_SWAN_PEU"
+  ],
   "topics": [
     {
       "name": "Constituency and Functions",
@@ -51,5 +69,221 @@
         "Write a brief usage note: what patterns are acceptable in academic register."
       ]
     }
-  ]
+  ],
+  "modules": [
+    {
+      "moduleId": "ENG_SGC_M01",
+      "name": "Constituency and Function",
+      "outcomes": [
+        "Bracket clauses into plausible phrase units.",
+        "Separate form labels from syntactic functions."
+      ]
+    },
+    {
+      "moduleId": "ENG_SGC_M02",
+      "name": "Clause Linking",
+      "outcomes": [
+        "Distinguish independent and dependent clauses.",
+        "Classify subordinate clauses by role."
+      ]
+    },
+    {
+      "moduleId": "ENG_SGC_M03",
+      "name": "Complement Frames",
+      "outcomes": [
+        "Match verbs and adjectives to acceptable complement patterns.",
+        "Notice meaning shifts across complement choices."
+      ]
+    },
+    {
+      "moduleId": "ENG_SGC_M04",
+      "name": "Parallelism and Processing",
+      "outcomes": [
+        "Repair coordination mismatches.",
+        "Explain why parallelism aids readability and rhetoric."
+      ]
+    }
+  ],
+  "caseStudies": [
+    {
+      "caseId": "ENG_SGC_CS01",
+      "title": "Nyx Produces a Grammatical Tangle",
+      "scenario": "The sentence is locally correct but globally hard to parse because embedding, coordination, or complement choice becomes overloaded.",
+      "intervention": [
+        "Reduce depth of embedding.",
+        "Separate parallel units cleanly.",
+        "Prefer explicit subordination when ambiguity rises."
+      ]
+    },
+    {
+      "caseId": "ENG_SGC_CS02",
+      "title": "Marion Gives Accurate Advice but Uses Fragile Sentence Frames",
+      "scenario": "The explanation depends on unstable clause chaining that increases misread risk.",
+      "intervention": [
+        "Use shorter clause stacks.",
+        "Expose the logical relation with overt connectives.",
+        "Test with substitution or movement diagnostics where helpful."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "projectId": "ENG_SGC_P01",
+      "name": "Sentence Frame Library",
+      "goal": "Build reliable sentence templates for explanation, caution, contrast, evidence, and concession across registers."
+    }
+  ],
+  "referenceTextsUsed": [
+    {
+      "key": "S_QUARK_CGEL",
+      "type": "reference_grammar",
+      "access": "book",
+      "title": "A Comprehensive Grammar of the English Language",
+      "authors": [
+        "Randolph Quirk",
+        "Sidney Greenbaum",
+        "Geoffrey Leech",
+        "Jan Svartvik"
+      ],
+      "year": 1985,
+      "publisher": "Longman",
+      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
+      "useInLayer": [
+        "syntax",
+        "morphology",
+        "clause structure",
+        "complementation",
+        "coordination",
+        "subordination"
+      ]
+    },
+    {
+      "key": "S_BIBER_LGSWE",
+      "type": "corpus_grammar",
+      "access": "book",
+      "title": "Longman Grammar of Spoken and Written English",
+      "authors": [
+        "Douglas Biber",
+        "Stig Johansson",
+        "Geoffrey Leech",
+        "Susan Conrad",
+        "Edward Finegan"
+      ],
+      "year": 1999,
+      "publisher": "Longman",
+      "citationAPA": "Biber, D., Johansson, S., Leech, G., Conrad, S., & Finegan, E. (1999). Longman grammar of spoken and written English. Longman.",
+      "useInLayer": [
+        "register",
+        "corpus usage",
+        "spoken vs written comparison",
+        "frequency-driven grammar choices"
+      ]
+    },
+    {
+      "key": "S_SWAN_PEU",
+      "type": "usage_reference",
+      "access": "book",
+      "title": "Practical English Usage",
+      "authors": [
+        "Michael Swan"
+      ],
+      "year": 2016,
+      "edition": "4th",
+      "publisher": "Oxford University Press",
+      "citationAPA": "Swan, M. (2016). Practical English usage (4th ed.). Oxford University Press.",
+      "useInLayer": [
+        "usage diagnostics",
+        "learner confusions",
+        "articles",
+        "prepositions",
+        "complement frames",
+        "tense/aspect"
+      ]
+    },
+    {
+      "key": "S_Purdue_OWL_Grammar",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Grammar Introduction",
+      "organization": "Purdue OWL",
+      "url": "https://owl.purdue.edu/owl/general_writing/grammar/index.html",
+      "useInLayer": [
+        "public grammar support",
+        "micro-exercises",
+        "quick reference lookup",
+        "student-facing support"
+      ]
+    },
+    {
+      "key": "S_UofT_HitParade",
+      "type": "open_reference",
+      "access": "web",
+      "title": "Hit Parade of Errors in Grammar, Punctuation, and Style",
+      "organization": "University of Toronto",
+      "url": "https://advice.writing.utoronto.ca/revising/hit-parade-of-errors/",
+      "useInLayer": [
+        "error logs",
+        "grammar debugging",
+        "editing checklists"
+      ]
+    }
+  ],
+  "domain": "english",
+  "packId": "eng_syntax_grammar_core_v2",
+  "normalizedFrom": {
+    "filename": "eng_syntax_grammar_core_v1.json",
+    "id": "eng_syntax_grammar_core_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_syntax_grammar_core_v1",
+    "eng_syntax_grammar_core_v2",
+    "syntax_and_grammar_core"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "syntax_and_grammar_core",
+    "keywords": [
+      "clause",
+      "complementation",
+      "constituency",
+      "coordination",
+      "core",
+      "functions",
+      "grammar",
+      "grammatical",
+      "information",
+      "parallelism",
+      "structure",
+      "subordination",
+      "syntax",
+      "types"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 3,
+    "referenceCount": 5,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 4,
+    "modules": 4,
+    "caseStudies": 2,
+    "projects": 1,
+    "referenceTextsUsed": 5
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
