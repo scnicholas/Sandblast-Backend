@@ -24,8 +24,17 @@
         "Confusing motive with intent."
       ],
       "retrievalHints": {
-        "keywords": ["actus reus", "mens rea", "intent", "criminal element", "beyond reasonable doubt"],
-        "intentSignals": ["what do they have to prove", "what are the elements"]
+        "keywords": [
+          "actus reus",
+          "mens rea",
+          "intent",
+          "criminal element",
+          "beyond reasonable doubt"
+        ],
+        "intentSignals": [
+          "what do they have to prove",
+          "what are the elements"
+        ]
       }
     },
     {
@@ -46,8 +55,14 @@
         "Confusing strict with absolute liability."
       ],
       "retrievalHints": {
-        "keywords": ["strict liability", "absolute liability", "due diligence"],
-        "intentSignals": ["do they need intent"]
+        "keywords": [
+          "strict liability",
+          "absolute liability",
+          "due diligence"
+        ],
+        "intentSignals": [
+          "do they need intent"
+        ]
       }
     },
     {
@@ -68,8 +83,16 @@
         "Overgeneralizing intoxication as a universal defence."
       ],
       "retrievalHints": {
-        "keywords": ["defence", "self defence", "duress", "necessity"],
-        "intentSignals": ["can I claim", "is there a defence"]
+        "keywords": [
+          "defence",
+          "self defence",
+          "duress",
+          "necessity"
+        ],
+        "intentSignals": [
+          "can I claim",
+          "is there a defence"
+        ]
       }
     },
     {
@@ -90,8 +113,15 @@
         "Ignoring requirement of state action."
       ],
       "retrievalHints": {
-        "keywords": ["charter breach", "section 8", "section 10", "search and seizure"],
-        "intentSignals": ["were my rights violated"]
+        "keywords": [
+          "charter breach",
+          "section 8",
+          "section 10",
+          "search and seizure"
+        ],
+        "intentSignals": [
+          "were my rights violated"
+        ]
       }
     },
     {
@@ -114,8 +144,17 @@
         "Ignoring procedural deadlines."
       ],
       "retrievalHints": {
-        "keywords": ["bail", "trial", "jury", "indictable", "summary conviction"],
-        "intentSignals": ["what happens next", "what is the process"]
+        "keywords": [
+          "bail",
+          "trial",
+          "jury",
+          "indictable",
+          "summary conviction"
+        ],
+        "intentSignals": [
+          "what happens next",
+          "what is the process"
+        ]
       }
     },
     {
@@ -137,8 +176,16 @@
         "Ignoring judicial discretion."
       ],
       "retrievalHints": {
-        "keywords": ["sentence", "penalty", "probation", "jail time"],
-        "intentSignals": ["what sentence could", "how much time"]
+        "keywords": [
+          "sentence",
+          "penalty",
+          "probation",
+          "jail time"
+        ],
+        "intentSignals": [
+          "what sentence could",
+          "how much time"
+        ]
       }
     }
   ],
@@ -148,6 +195,49 @@
       "This pack supports high-level explanations of criminal law concepts.",
       "Avoid providing case-specific advice or strategic guidance.",
       "Encourage consultation with qualified counsel for individual matters."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "criminal_v1",
+      "law_criminal",
+      "law_criminal_v1"
+    ],
+    "sourceFile": "law_criminal_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_foundations_v1",
+      "law_research_methods_v1",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
+    ],
+    "sourceIntegrity": "moderate"
+  },
+  "packType": "framework",
+  "retrievalHints": {
+    "keywords": [
+      "absolute liability",
+      "actus reus",
+      "defence",
+      "due diligence",
+      "duress",
+      "intent",
+      "mens rea",
+      "self defence",
+      "strict liability"
+    ],
+    "intentSignals": [
+      "can I claim",
+      "do they need intent",
+      "is there a defence",
+      "what are the elements",
+      "what do they have to prove"
     ]
   }
 }
