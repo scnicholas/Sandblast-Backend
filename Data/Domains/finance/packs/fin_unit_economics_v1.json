@@ -159,7 +159,7 @@
   "referenceArchitecture": {
     "textbooks_and_open_learning": [
       {
-        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "title": "Corporate Finance Institute — Capital Markets Overview",
         "type": "open_learning",
         "authority": "professional_education",
         "use": [
@@ -514,5 +514,23 @@
         "explains retention math simply"
       ]
     }
-  ]
+  ],
+  "runtimeMetadata": {
+    "domain": "finance",
+    "canonicalPackId": "fin_unit_economics_v1",
+    "retrievalAliases": [
+      "unit economics",
+      "ltv",
+      "cac",
+      "payback",
+      "retention"
+    ],
+    "crossPackHints": [
+      "fin_pricing_models_v1",
+      "fin_micro_foundations_v1",
+      "fin_capital_markets_v1"
+    ],
+    "marionPriority": 3,
+    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  }
 }
