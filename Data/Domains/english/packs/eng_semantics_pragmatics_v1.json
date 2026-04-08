@@ -16,7 +16,11 @@
       "Support coaching, diagnostics, and portfolio-style improvement tracking."
     ]
   },
-  "anchors": [],
+  "anchors": [
+    "S_NCTE_QAGrammar",
+    "S_UofT_WritingAdvice",
+    "S_WILLIAMS_STYLE"
+  ],
   "topics": [
     {
       "name": "Semantic Relations",
@@ -147,5 +151,63 @@
         "teaching orientation"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_semantics_pragmatics_v2",
+  "normalizedFrom": {
+    "filename": "eng_semantics_pragmatics_v1.json",
+    "id": "eng_semantics_pragmatics_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_semantics_pragmatics_v1",
+    "eng_semantics_pragmatics_v2",
+    "semantics_and_pragmatics"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "semantics_and_pragmatics",
+    "keywords": [
+      "ambiguity",
+      "contextual",
+      "discourse",
+      "encoded",
+      "implicature",
+      "inference",
+      "interpretation",
+      "meaning",
+      "politeness",
+      "pragmatics",
+      "relations",
+      "semantic",
+      "semantics",
+      "stance"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 3,
+    "referenceCount": 3,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 2,
+    "modules": 3,
+    "caseStudies": 2,
+    "projects": 1,
+    "referenceTextsUsed": 3
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
