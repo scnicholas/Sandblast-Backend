@@ -1,7 +1,7 @@
 {
-  "packId": "psy_social_v1",
+  "packId": "psy_social_v2",
   "domain": "psychology",
-  "version": 1,
+  "version": 2,
   "description": "Social psychology foundations: how people think, feel, and act in social contexts—attitudes, influence, groups, identity, prejudice, relationships, and prosocial/antisocial behavior. Built for Marion to answer 'why people do that' questions with clean caveats and practical, non-clinical insights.",
   "updatedAt": "2026-02-13",
   "scope": [
@@ -15,7 +15,6 @@
     "prosocial-antisocial",
     "culture"
   ],
-
   "coreConcepts": [
     {
       "id": "social_cognition",
@@ -31,8 +30,18 @@
         "Behavior always reflects personality more than context."
       ],
       "retrievalHints": {
-        "keywords": ["schema", "heuristic", "attribution", "social cognition", "interpretation"],
-        "intentSignals": ["why did they", "what were they thinking", "how do people judge"]
+        "keywords": [
+          "schema",
+          "heuristic",
+          "attribution",
+          "social cognition",
+          "interpretation"
+        ],
+        "intentSignals": [
+          "why did they",
+          "what were they thinking",
+          "how do people judge"
+        ]
       }
     },
     {
@@ -49,8 +58,17 @@
         "If someone did it, they wanted to."
       ],
       "retrievalHints": {
-        "keywords": ["fundamental attribution error", "actor observer", "disposition", "situation"],
-        "intentSignals": ["they're just like that", "they must be", "why are people so"]
+        "keywords": [
+          "fundamental attribution error",
+          "actor observer",
+          "disposition",
+          "situation"
+        ],
+        "intentSignals": [
+          "they're just like that",
+          "they must be",
+          "why are people so"
+        ]
       }
     },
     {
@@ -67,8 +85,17 @@
         "Group identity is always irrational."
       ],
       "retrievalHints": {
-        "keywords": ["self concept", "social identity", "self-esteem", "belonging"],
-        "intentSignals": ["who am I", "why do groups matter", "identity"]
+        "keywords": [
+          "self concept",
+          "social identity",
+          "self-esteem",
+          "belonging"
+        ],
+        "intentSignals": [
+          "who am I",
+          "why do groups matter",
+          "identity"
+        ]
       }
     },
     {
@@ -85,8 +112,16 @@
         "Implicit measures are perfect lie detectors."
       ],
       "retrievalHints": {
-        "keywords": ["attitudes", "implicit", "explicit", "ABC model"],
-        "intentSignals": ["why did they change their mind", "do attitudes predict"]
+        "keywords": [
+          "attitudes",
+          "implicit",
+          "explicit",
+          "ABC model"
+        ],
+        "intentSignals": [
+          "why did they change their mind",
+          "do attitudes predict"
+        ]
       }
     },
     {
@@ -103,8 +138,16 @@
         "Dissonance always causes immediate belief change."
       ],
       "retrievalHints": {
-        "keywords": ["dissonance", "rationalize", "justify", "escalation of commitment"],
-        "intentSignals": ["why do people double down", "why won't they admit they're wrong"]
+        "keywords": [
+          "dissonance",
+          "rationalize",
+          "justify",
+          "escalation of commitment"
+        ],
+        "intentSignals": [
+          "why do people double down",
+          "why won't they admit they're wrong"
+        ]
       }
     },
     {
@@ -121,8 +164,18 @@
         "Charisma beats evidence in all contexts."
       ],
       "retrievalHints": {
-        "keywords": ["persuasion", "central route", "peripheral route", "credibility", "social proof"],
-        "intentSignals": ["how do I convince", "why didn't evidence work", "persuasive messaging"]
+        "keywords": [
+          "persuasion",
+          "central route",
+          "peripheral route",
+          "credibility",
+          "social proof"
+        ],
+        "intentSignals": [
+          "how do I convince",
+          "why didn't evidence work",
+          "persuasive messaging"
+        ]
       }
     },
     {
@@ -139,8 +192,19 @@
         "If many people do it, it must be correct."
       ],
       "retrievalHints": {
-        "keywords": ["norms", "conformity", "normative", "informational", "descriptive", "injunctive"],
-        "intentSignals": ["peer pressure", "everyone is doing it", "why did I go along"]
+        "keywords": [
+          "norms",
+          "conformity",
+          "normative",
+          "informational",
+          "descriptive",
+          "injunctive"
+        ],
+        "intentSignals": [
+          "peer pressure",
+          "everyone is doing it",
+          "why did I go along"
+        ]
       }
     },
     {
@@ -157,8 +221,18 @@
         "Obedience is purely a personality trait."
       ],
       "retrievalHints": {
-        "keywords": ["obedience", "authority", "compliance", "foot in the door", "accountability"],
-        "intentSignals": ["why would someone follow", "how did this happen", "authority pressure"]
+        "keywords": [
+          "obedience",
+          "authority",
+          "compliance",
+          "foot in the door",
+          "accountability"
+        ],
+        "intentSignals": [
+          "why would someone follow",
+          "how did this happen",
+          "authority pressure"
+        ]
       }
     },
     {
@@ -175,8 +249,18 @@
         "Strong leaders automatically improve decisions."
       ],
       "retrievalHints": {
-        "keywords": ["groupthink", "polarization", "roles", "norms", "cohesion"],
-        "intentSignals": ["why did the group decide", "mob mentality", "team dynamics"]
+        "keywords": [
+          "groupthink",
+          "polarization",
+          "roles",
+          "norms",
+          "cohesion"
+        ],
+        "intentSignals": [
+          "why did the group decide",
+          "mob mentality",
+          "team dynamics"
+        ]
       }
     },
     {
@@ -193,8 +277,17 @@
         "Deindividuation equals 'loss of self' in all cases."
       ],
       "retrievalHints": {
-        "keywords": ["deindividuation", "anonymity", "disinhibition", "crowds"],
-        "intentSignals": ["online behavior", "crowd behavior", "why people act different in groups"]
+        "keywords": [
+          "deindividuation",
+          "anonymity",
+          "disinhibition",
+          "crowds"
+        ],
+        "intentSignals": [
+          "online behavior",
+          "crowd behavior",
+          "why people act different in groups"
+        ]
       }
     },
     {
@@ -211,8 +304,20 @@
         "Prejudice is only an individual moral failure (structures matter too)."
       ],
       "retrievalHints": {
-        "keywords": ["prejudice", "discrimination", "stereotype", "ingroup", "outgroup", "implicit bias"],
-        "intentSignals": ["why are people racist", "bias", "stereotypes", "discrimination"]
+        "keywords": [
+          "prejudice",
+          "discrimination",
+          "stereotype",
+          "ingroup",
+          "outgroup",
+          "implicit bias"
+        ],
+        "intentSignals": [
+          "why are people racist",
+          "bias",
+          "stereotypes",
+          "discrimination"
+        ]
       }
     },
     {
@@ -229,8 +334,16 @@
         "It explains all achievement gaps by itself."
       ],
       "retrievalHints": {
-        "keywords": ["stereotype threat", "identity salience", "belonging cues"],
-        "intentSignals": ["why do I blank out", "test anxiety because of identity", "pressure to represent"]
+        "keywords": [
+          "stereotype threat",
+          "identity salience",
+          "belonging cues"
+        ],
+        "intentSignals": [
+          "why do I blank out",
+          "test anxiety because of identity",
+          "pressure to represent"
+        ]
       }
     },
     {
@@ -247,8 +360,17 @@
         "Vent/‘catharsis’ reliably reduces aggression (often not)."
       ],
       "retrievalHints": {
-        "keywords": ["aggression", "provocation", "social learning", "self-control"],
-        "intentSignals": ["why do I get angry", "why do people lash out", "rage"]
+        "keywords": [
+          "aggression",
+          "provocation",
+          "social learning",
+          "self-control"
+        ],
+        "intentSignals": [
+          "why do I get angry",
+          "why do people lash out",
+          "rage"
+        ]
       }
     },
     {
@@ -265,8 +387,17 @@
         "Helping is always altruistic (often mixed motives)."
       ],
       "retrievalHints": {
-        "keywords": ["bystander effect", "helping", "empathy", "diffusion of responsibility"],
-        "intentSignals": ["why didn't anyone help", "why did I freeze", "how to encourage helping"]
+        "keywords": [
+          "bystander effect",
+          "helping",
+          "empathy",
+          "diffusion of responsibility"
+        ],
+        "intentSignals": [
+          "why didn't anyone help",
+          "why did I freeze",
+          "how to encourage helping"
+        ]
       }
     },
     {
@@ -283,8 +414,18 @@
         "Jealousy equals love."
       ],
       "retrievalHints": {
-        "keywords": ["relationships", "trust", "responsiveness", "attachment", "conflict patterns"],
-        "intentSignals": ["why do relationships fail", "trust issues", "communication"]
+        "keywords": [
+          "relationships",
+          "trust",
+          "responsiveness",
+          "attachment",
+          "conflict patterns"
+        ],
+        "intentSignals": [
+          "why do relationships fail",
+          "trust issues",
+          "communication"
+        ]
       }
     },
     {
@@ -301,12 +442,21 @@
         "One culture explanation fits everyone in that group."
       ],
       "retrievalHints": {
-        "keywords": ["culture", "collectivist", "individualist", "norms", "tightness"],
-        "intentSignals": ["is this cultural", "why is it different there", "cross-cultural"]
+        "keywords": [
+          "culture",
+          "collectivist",
+          "individualist",
+          "norms",
+          "tightness"
+        ],
+        "intentSignals": [
+          "is this cultural",
+          "why is it different there",
+          "cross-cultural"
+        ]
       }
     }
   ],
-
   "frameworks": [
     {
       "id": "attribution_matrix",
@@ -318,7 +468,11 @@
         "Check for base rate neglect (how common is this generally?).",
         "Choose a balanced explanation with uncertainty."
       ],
-      "useCases": ["conflict interpretation", "team behavior", "customer reactions"]
+      "useCases": [
+        "conflict interpretation",
+        "team behavior",
+        "customer reactions"
+      ]
     },
     {
       "id": "persuasion_planner",
@@ -330,7 +484,11 @@
         "Credibility: expertise + trust + alignment with values.",
         "Friction: preempt objections, reduce cognitive load."
       ],
-      "useCases": ["marketing copy", "negotiation", "internal comms"]
+      "useCases": [
+        "marketing copy",
+        "negotiation",
+        "internal comms"
+      ]
     },
     {
       "id": "group_decision_guardrails",
@@ -342,10 +500,13 @@
         "Separate brainstorming from evaluation.",
         "Use pre-mortems: 'How could this fail?'"
       ],
-      "useCases": ["strategy decisions", "launch readiness", "risk planning"]
+      "useCases": [
+        "strategy decisions",
+        "launch readiness",
+        "risk planning"
+      ]
     }
   ],
-
   "examples": [
     {
       "id": "bystander_example",
@@ -357,7 +518,11 @@
         "Pluralistic ignorance: everyone watches everyone else for cues.",
         "Diffusion of responsibility: 'someone else will act.'"
       ],
-      "whatHelps": ["Direct assignment: 'You in the blue jacket—call 911.'", "Clear emergency cues", "Role clarity"]
+      "whatHelps": [
+        "Direct assignment: 'You in the blue jacket—call 911.'",
+        "Clear emergency cues",
+        "Role clarity"
+      ]
     },
     {
       "id": "dissonance_example",
@@ -368,7 +533,11 @@
         "Escalation of commitment reduces the pain of admitting loss.",
         "Justification shifts from outcomes to identity ('I’m not a quitter')."
       ],
-      "whatHelps": ["Predefined stop-loss criteria", "External review", "Separate identity from decision"]
+      "whatHelps": [
+        "Predefined stop-loss criteria",
+        "External review",
+        "Separate identity from decision"
+      ]
     },
     {
       "id": "norms_example",
@@ -379,10 +548,13 @@
         "Descriptive norms: learning what’s typical.",
         "Injunctive norms: learning what gets approval."
       ],
-      "whatHelps": ["Explicit norms", "Onboarding clarity", "Modeling desired behavior"]
+      "whatHelps": [
+        "Explicit norms",
+        "Onboarding clarity",
+        "Modeling desired behavior"
+      ]
     }
   ],
-
   "applicationRules": [
     {
       "id": "non_clinical_guard",
@@ -401,7 +573,6 @@
       "instruction": "Use probabilistic language for motives ('likely', 'may') unless the user provides direct evidence; avoid mind-reading."
     }
   ],
-
   "responseTemplates": [
     {
       "id": "why_they_did_that",
@@ -436,11 +607,58 @@
       ]
     }
   ],
-
   "meta": {
     "intendedUse": "Marion psychology domain pack: social psychology explanations + practical interpersonal insight.",
-    "compatibleWith": ["psychologyKnowledge.js", "MarionSO"],
+    "compatibleWith": [
+      "psychologyKnowledge.js",
+      "MarionSO"
+    ],
     "safetyProfile": "non-clinical, non-coercive; bias-humility; de-escalation aware",
     "confidenceLevel": "foundational_social_psych"
+  },
+  "runtimeMetadata": {
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalPriority": "standard",
+    "canonicalPackId": "psy_social_v2",
+    "sourceFilename": "psy_social_v2.json",
+    "aliases": [
+      "psy_social",
+      "psy_social_v1",
+      "psy_social_v2",
+      "social",
+      "social_psychology"
+    ],
+    "pathwayRole": "reasoning_core"
+  },
+  "crossPackLinks": [
+    "psy_clinical_safety_v2",
+    "psy_sources_index_v2",
+    "psy_foundations_v2",
+    "psy_cognitive_v2",
+    "psy_development_v2",
+    "psy_biases_and_fallacies_v2"
+  ],
+  "marionPathway": {
+    "entryConditions": [
+      "route through clinical safety first for crisis, diagnosis, self-harm, mania/psychosis, eating-disorder, or overdose language"
+    ],
+    "defaultCompanionPacks": [
+      "psy_clinical_safety_v2",
+      "psy_sources_index_v2",
+      "psy_foundations_v2",
+      "psy_cognitive_v2",
+      "psy_development_v2",
+      "psy_biases_and_fallacies_v2"
+    ],
+    "responseMode": "educational_nonclinical",
+    "notes": [
+      "Prefer bounded explanation over diagnostic certainty.",
+      "Escalate to safety-first handling when risk signals are present.",
+      "Use source index for trust weighting and bibliographic routing."
+    ]
   }
 }
