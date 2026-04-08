@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.2.0 BRIDGE-HARDENED";
+const VERSION = "affectEngine v3.2.1 BRIDGE-HARDENED + YEAR-SPEECH";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -14,8 +14,9 @@ const DEFAULTS = {
   injectAcknowledgementMaxChars: 240,
   conversationalNoContractions: true,
   speechHints: {
-    pauses: { commaMs: 130, periodMs: 360, questionMs: 410, exclaimMs: 360, colonMs: 230, semicolonMs: 280, ellipsisMs: 560 },
-    pacing: { mode: "fluid", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
+    pauses: { commaMs: 130, periodMs: 360, questionMs: 410, exclaimMs: 360, colonMs: 230, semicolonMs: 280, ellipsisMs: 560, yearMs: 70 },
+    pacing: { mode: "fluid", preservePunctuation: true, sentenceBreath: true, noRunOns: true },
+    years: { normalize: true, style: "spoken" }
   },
   pronunciationMap: { Nyx: "Nix", Nix: "Nix", Nick: "Nix", Sandblast: "Sand-blast", Roku: "Roh-koo", Marion: "Marry-in" },
   laneBias: {
@@ -430,11 +431,16 @@ function buildSpeechHints({ styleKey, lane, affectState, strategy, opts }) {
   base.pacing.preservePunctuation = true;
   base.pacing.sentenceBreath = true;
   base.pacing.noRunOns = true;
+  if (!base.years || typeof base.years !== "object") base.years = {};
+  base.years.normalize = base.years.normalize !== false;
+  base.years.style = safeStr(base.years.style || "spoken").toLowerCase() || "spoken";
   return base;
 }
 
 function buildPronunciationMap({ opts }) {
-  return mergeDeep({}, DEFAULTS.pronunciationMap, opts.pronunciationMap || {});
+  const merged = mergeDeep({}, DEFAULTS.pronunciationMap, opts.pronunciationMap || {});
+  merged.NYX = merged.NYX || "Nix";
+  return merged;
 }
 
 function updateAffectMemory({ memory, affectState, ttsProfile, presetKey }) {
