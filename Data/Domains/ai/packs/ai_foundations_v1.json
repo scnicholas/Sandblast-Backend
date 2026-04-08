@@ -124,5 +124,62 @@
     "Keep this layer conceptual and explanatory rather than overloaded with fast-moving product news.",
     "Use this file as the trunk for later connections into agents, ethics, cybersecurity, and psychology layers.",
     "Prefer canonical texts and primary educational sources over blog-style summaries."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_foundations",
+  "manifestPackKey": "foundations",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "foundations",
+    "routeAliases": [
+      "foundations",
+      "core_ai",
+      "fundamentals"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "ai_psychology",
+      "ai_cybersecurity",
+      "ai_marketing",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "intelligent_agents",
+      "search_and_optimization",
+      "constraint_satisfaction",
+      "adversarial_search",
+      "probability_and_bayesian_reasoning",
+      "decision_theory",
+      "machine_learning_basics",
+      "statistical_learning"
+    ],
+    "ingestionPriority": [
+      "Artificial Intelligence: A Modern Approach",
+      "Pattern Recognition and Machine Learning",
+      "Deep Learning",
+      "Reinforcement Learning: An Introduction"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Compact trunk pack with clean conceptual scope and low schema noise."
+    ],
+    "issues": [
+      "Manifest pack version for foundations is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
