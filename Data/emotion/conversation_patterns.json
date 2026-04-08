@@ -2,39 +2,146 @@
   "patterns": [
     {
       "match_type": "contains",
-      "phrases": ["i feel alone", "nobody gets me", "i feel unseen"],
+      "phrases": [
+        "i feel alone",
+        "nobody gets me",
+        "i feel unseen"
+      ],
       "emotion_bias": "sadness",
-      "nuance_bias": "loneliness"
+      "nuance_bias": "loneliness",
+      "weight": 0.78,
+      "suppression_signal": null
     },
     {
       "match_type": "contains",
-      "phrases": ["i can't do this", "i'm overwhelmed", "too much right now"],
+      "phrases": [
+        "i can't do this",
+        "i'm overwhelmed",
+        "too much right now"
+      ],
       "emotion_bias": "fear",
-      "nuance_bias": "overwhelm"
+      "nuance_bias": "overwhelm",
+      "weight": 0.82,
+      "suppression_signal": null
     },
     {
       "match_type": "contains",
-      "phrases": ["i'm so angry", "this is ridiculous", "i'm pissed"],
+      "phrases": [
+        "i'm so angry",
+        "this is ridiculous",
+        "i'm pissed"
+      ],
       "emotion_bias": "anger",
-      "nuance_bias": "frustration"
+      "nuance_bias": "frustration",
+      "weight": 0.84,
+      "suppression_signal": null
     },
     {
       "match_type": "contains",
-      "phrases": ["i'm okay", "it's fine", "whatever"],
+      "phrases": [
+        "i'm okay",
+        "it's fine",
+        "whatever"
+      ],
       "emotion_bias": "neutral",
-      "nuance_bias": "guarded"
+      "nuance_bias": "guarded",
+      "weight": 0.52,
+      "suppression_signal": "minimization"
     },
     {
       "match_type": "contains",
-      "phrases": ["i'm scared", "i'm worried", "what if this goes wrong"],
+      "phrases": [
+        "i'm scared",
+        "i'm worried",
+        "what if this goes wrong"
+      ],
       "emotion_bias": "fear",
-      "nuance_bias": "anxiety"
+      "nuance_bias": "anxiety",
+      "weight": 0.81,
+      "suppression_signal": null
     },
     {
       "match_type": "contains",
-      "phrases": ["thank god", "i'm so relieved", "that's amazing"],
+      "phrases": [
+        "thank god",
+        "i'm so relieved",
+        "that's amazing"
+      ],
       "emotion_bias": "joy",
-      "nuance_bias": "relief"
+      "nuance_bias": "relief",
+      "weight": 0.74,
+      "suppression_signal": null
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
+        "yeah i'm good",
+        "all good",
+        "i'm fine really",
+        "don't worry about it"
+      ],
+      "emotion_bias": "neutral",
+      "nuance_bias": "guarded",
+      "weight": 0.44,
+      "suppression_signal": "forced_positivity"
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
+        "i'm tired of this",
+        "i'm exhausted by all of it",
+        "same thing every day"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "emotional_numbness",
+      "weight": 0.71,
+      "suppression_signal": "detachment"
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
+        "leave me alone",
+        "back off",
+        "stop pushing me"
+      ],
+      "emotion_bias": "anger",
+      "nuance_bias": "boundary_activation",
+      "weight": 0.79,
+      "suppression_signal": null
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
+        "i don't even know anymore",
+        "nothing makes sense",
+        "what is happening"
+      ],
+      "emotion_bias": "surprise",
+      "nuance_bias": "confusion",
+      "weight": 0.76,
+      "suppression_signal": null
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
+        "that's disgusting",
+        "i hate that",
+        "that makes me sick"
+      ],
+      "emotion_bias": "disgust",
+      "nuance_bias": "moral_disgust",
+      "weight": 0.77,
+      "suppression_signal": null
     }
-  ]
+  ],
+  "interpreter_rules": {
+    "suppression_signal_lowers_neutral_confidence_by": 0.18,
+    "repeat_pattern_escalation_after_hits": 2,
+    "trajectory_detection_window": 3,
+    "high_intensity_caps_advice_level_to": "low",
+    "risk_flag_forces_care_sequence_openers": [
+      "validate",
+      "stabilize"
+    ]
+  }
 }
