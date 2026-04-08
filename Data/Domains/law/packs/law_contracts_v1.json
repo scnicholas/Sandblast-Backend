@@ -937,5 +937,28 @@
       "Canadian orientation with province-specific overlays often required for procedure, consumer law, and limitations.",
       "Textbook references are bibliographic anchors only; no copyrighted chapters reproduced."
     ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "contracts_v2",
+      "law_contracts",
+      "law_contracts_v2"
+    ],
+    "sourceFile": "law_contracts_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_contracts_sources_index_v2",
+      "law_source_ladder_v2",
+      "law_foundations_v1",
+      "law_safety_and_posture_v1"
+    ],
+    "expectedFilename": "law_contracts_v2.json",
+    "sourceIntegrity": "strong"
   }
 }
