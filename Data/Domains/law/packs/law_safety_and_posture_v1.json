@@ -289,5 +289,29 @@
       "Use as a first-pass filter to decide response mode and whether to request jurisdiction/dates.",
       "Keep the system non-deceptive: do not claim to be a lawyer."
     ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "law_safety_and_posture",
+      "law_safety_and_posture_v1",
+      "safety_and_posture_v1"
+    ],
+    "sourceFile": "law_safety_and_posture_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_foundations_v1",
+      "law_research_methods_v1",
+      "law_constitutional_charter_v1",
+      "law_contracts_v2",
+      "law_criminal_v1",
+      "law_torts_v1"
+    ],
+    "sourceIntegrity": "moderate"
   }
 }
