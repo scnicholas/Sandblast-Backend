@@ -374,5 +374,77 @@
       "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
       "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "privacy_data_protection",
+    "packId": "cyber_privacy_data_protection_v2",
+    "aliases": [
+      "cyber_privacy_data_protection",
+      "cyber_privacy_data_protection_v2",
+      "privacy_data_protection"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "access control",
+      "anonymize",
+      "audit log",
+      "compliance",
+      "consent",
+      "data at rest",
+      "data classification",
+      "data governance",
+      "data lifecycle",
+      "data minimization",
+      "data protection",
+      "encryption",
+      "pii",
+      "privacy",
+      "privacy notice",
+      "rbac",
+      "retention",
+      "retention policy",
+      "sensitive data",
+      "tls",
+      "transparency"
+    ],
+    "intentSignals": [
+      "categorize",
+      "compliance",
+      "governance",
+      "legal compliance",
+      "monitor access",
+      "policy",
+      "privacy policy",
+      "process",
+      "protect",
+      "protect data",
+      "protect information",
+      "reduce risk",
+      "secure data",
+      "secure transmission"
+    ],
+    "keywordCount": 21,
+    "intentSignalCount": 14
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_source_ladder_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_privacy_data_protection_v2.json"
   }
 }
