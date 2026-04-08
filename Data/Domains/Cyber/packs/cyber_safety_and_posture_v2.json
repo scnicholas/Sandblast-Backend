@@ -379,5 +379,53 @@
         "priority": "low"
       }
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "safety_posture",
+    "packId": "cyber_safety_and_posture_v2",
+    "aliases": [
+      "cyber_safety_and_posture",
+      "cyber_safety_and_posture_v2",
+      "safety_posture"
+    ],
+    "priority": "high",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "break into account",
+      "bypass",
+      "credential theft",
+      "evade edr",
+      "exploit",
+      "hack",
+      "illegal access",
+      "malware",
+      "payload",
+      "phish"
+    ],
+    "intentSignals": [
+      "break into",
+      "deploy ransomware",
+      "disable detection",
+      "get into account",
+      "steal password",
+      "write exploit"
+    ],
+    "keywordCount": 10,
+    "intentSignalCount": 6
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_safety_and_posture_v2.json"
   }
 }
