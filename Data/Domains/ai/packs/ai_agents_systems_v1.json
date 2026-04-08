@@ -344,5 +344,69 @@
     "Keep agent analysis architecture-first: state, memory, planning, tools, control boundaries, and evaluation.",
     "Do not confuse fluent text generation with competent agency. Real agents require planning, environment interaction, memory discipline, and safe execution controls.",
     "Cross-link this pack later into ethics/law for accountability and into cybersecurity for tool-use and autonomy risk."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_agents_systems",
+  "manifestPackKey": "agentsSystems",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "agents_systems",
+    "routeAliases": [
+      "agents",
+      "systems",
+      "orchestration",
+      "multi_agent",
+      "planning"
+    ],
+    "crossLinks": [
+      "foundations",
+      "ai_cybersecurity",
+      "ai_psychology",
+      "ethics_law",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "agent_architecture",
+      "rational_agent_model",
+      "goal_planning",
+      "state_management",
+      "memory_systems",
+      "tool_use_and_api_orchestration",
+      "reasoning_acting_loops",
+      "task_decomposition"
+    ],
+    "ingestionPriority": [
+      "Artificial Intelligence: A Modern Approach",
+      "Reinforcement Learning: An Introduction",
+      "An Introduction to MultiAgent Systems",
+      "Multiagent Systems, Second Edition",
+      "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "Toolformer: Language Models Can Teach Themselves to Use Tools",
+      "A Survey on Large Language Model based Autonomous Agents",
+      "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation",
+      "Generative Agents: Interactive Simulacra of Human Behavior",
+      "Voyager: An Open-Ended Embodied Agent with Large Language Models"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Best operational pack for Marion orchestration because it includes failure modes, benchmarking, and safety controls."
+    ],
+    "issues": [
+      "Manifest pack version for agentsSystems is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
