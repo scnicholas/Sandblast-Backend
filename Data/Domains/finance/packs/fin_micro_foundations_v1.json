@@ -148,7 +148,7 @@
   "referenceArchitecture": {
     "textbooks_and_open_learning": [
       {
-        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "title": "Corporate Finance Institute — Capital Markets Overview",
         "type": "open_learning",
         "authority": "professional_education",
         "use": [
@@ -502,5 +502,22 @@
         "pricing-power notes"
       ]
     }
-  ]
+  ],
+  "runtimeMetadata": {
+    "domain": "finance",
+    "canonicalPackId": "fin_micro_foundations_v1",
+    "retrievalAliases": [
+      "micro",
+      "microeconomics",
+      "demand",
+      "elasticity",
+      "market structure"
+    ],
+    "crossPackHints": [
+      "fin_pricing_models_v1",
+      "fin_unit_economics_v1"
+    ],
+    "marionPriority": 1,
+    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  }
 }
