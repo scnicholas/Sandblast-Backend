@@ -643,5 +643,123 @@
         "priority": "low"
       }
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "identity_access",
+    "packId": "cyber_identity_access_v2",
+    "aliases": [
+      "cyber_identity_access",
+      "cyber_identity_access_v2",
+      "identity_access"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "aal",
+      "abac",
+      "access certification",
+      "access drift",
+      "anomaly detection",
+      "api key",
+      "authentication",
+      "authentication assurance",
+      "authorization",
+      "break glass",
+      "certificate",
+      "cloud identity",
+      "conditional access",
+      "continuous verification",
+      "device posture",
+      "entitlement",
+      "federation",
+      "fido",
+      "iam",
+      "identity access management",
+      "identity control plane",
+      "identity monitoring",
+      "identity proofing",
+      "impossible travel",
+      "jit",
+      "joiner mover leaver",
+      "least privilege",
+      "machine identity",
+      "mfa",
+      "offboarding",
+      "orphaned account",
+      "pam",
+      "passkeys",
+      "phishing resistant mfa",
+      "privileged access",
+      "provisioning",
+      "rbac",
+      "recovery",
+      "reset",
+      "separation of duties",
+      "service account",
+      "session risk",
+      "session trust",
+      "sso",
+      "strong authentication",
+      "token",
+      "token theft",
+      "ueba",
+      "vault",
+      "zero trust"
+    ],
+    "intentSignals": [
+      "access review",
+      "account protection",
+      "adaptive access",
+      "admin",
+      "admin access",
+      "admin controls",
+      "alert",
+      "architecture",
+      "assurance",
+      "authenticate",
+      "authentication",
+      "automation",
+      "cloud",
+      "credential",
+      "critical systems",
+      "detect",
+      "elevated access",
+      "governance",
+      "identity governance",
+      "login security",
+      "monitor",
+      "permissions",
+      "policy",
+      "policy design",
+      "privilege",
+      "process",
+      "remote access",
+      "review",
+      "secure login",
+      "workload",
+      "zero trust"
+    ],
+    "keywordCount": 50,
+    "intentSignalCount": 31
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_foundations_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_identity_access_v2.json"
   }
 }
