@@ -6,7 +6,7 @@
   "categories": {
     "textbooks_and_open_learning": [
       {
-        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "title": "Corporate Finance Institute — Capital Markets Overview",
         "type": "open_learning",
         "authority": "professional_education",
         "use": [
@@ -236,5 +236,21 @@
     "For company-specific claims, verify with filings or official releases.",
     "For current market levels, use current data pages rather than static articles.",
     "For teaching, prefer durable textbooks or open educational resources."
-  ]
+  ],
+  "runtimeMetadata": {
+    "domain": "finance",
+    "canonicalPackId": "fin_sources_index_v2",
+    "retrievalAliases": [],
+    "crossPackHints": [],
+    "marionPriority": 999,
+    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  },
+  "assistantApplication": {
+    "forNyx": [
+      "Use this pack to explain finance concepts clearly and with assumptions made explicit."
+    ],
+    "forMarion": [
+      "Use this pack for scenario-based reasoning, not deterministic prediction."
+    ]
+  }
 }
