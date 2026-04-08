@@ -28,14 +28,16 @@ function getTtsConfig(env=process.env){
   const cacheTtlMs = n(env.TTS_CACHE_TTL_MS, 24*60*60*1000);
   const cacheMaxTextChars = n(env.TTS_CACHE_MAX_TEXT_CHARS, 800);
 
-  const maxTextChars = n(env.TTS_MAX_TEXT_CHARS, 2000); // Resemble stream max in docs citeturn0search5
+  const maxTextChars = n(env.TTS_MAX_TEXT_CHARS, 2000);
   const normalizeWhitespace = b(env.TTS_NORMALIZE_WHITESPACE, true);
+  const normalizeYears = b(env.TTS_NORMALIZE_YEARS, true);
+  const yearStyle = s(env.TTS_YEAR_STYLE || "spoken").trim().toLowerCase() || "spoken";
 
   const resembleToken = s(env.RESEMBLE_API_KEY || env.RESEMBLE_API_TOKEN || "");
   const resembleProject = s(env.RESEMBLE_PROJECT_UUID || "");
   const resembleVoice = s(env.RESEMBLE_VOICE_UUID || env.SBNYX_RESEMBLE_VOICE_UUID || env.SB_RESEMBLE_VOICE_UUID || "");
 
-  const resembleStreamUrl = s(env.RESEMBLE_STREAM_URL || "https://f.cluster.resemble.ai/stream"); // citeturn0search5
+  const resembleStreamUrl = s(env.RESEMBLE_STREAM_URL || "https://f.cluster.resemble.ai/stream");
   const resembleModel = s(env.RESEMBLE_MODEL || "chatterbox-turbo");
   const resembleOutputFormat = s(env.RESEMBLE_OUTPUT_FORMAT || "wav");
   const resemblePrecision = s(env.RESEMBLE_PRECISION || "PCM_16");
@@ -59,6 +61,8 @@ function getTtsConfig(env=process.env){
     cacheMaxTextChars,
     maxTextChars,
     normalizeWhitespace,
+    normalizeYears,
+    yearStyle,
 
     resemble: {
       token: resembleToken,
