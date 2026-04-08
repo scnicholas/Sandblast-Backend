@@ -318,19 +318,22 @@ function _yearToSpeech(y){
   const year = Number(y);
   if (!Number.isFinite(year)) return _str(y);
 
-  const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-  const teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
   const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
 
   function words(n){
-    if (n < 10) return ones[n];
-    if (n < 20) return teens[n - 10];
+    if (n < 20) return ones[Math.max(0, n)] || String(n);
     if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
     return String(n);
   }
 
+  if (year < 1000 || year > 2099) return String(year);
+
   if (year >= 1900 && year <= 1999){
-    return words(Math.floor(year / 100)) + " " + (year % 100 ? words(year % 100) : "hundred");
+    const last = year % 100;
+    if (last === 0) return "nineteen hundred";
+    if (last < 10) return "nineteen oh " + words(last);
+    return "nineteen " + words(last);
   }
 
   if (year >= 2000 && year <= 2009){
@@ -338,7 +341,7 @@ function _yearToSpeech(y){
   }
 
   if (year >= 2010 && year <= 2099){
-    return words(Math.floor(year / 100)) + " " + (year % 100 ? words(year % 100) : "hundred");
+    return "twenty" + (year % 100 ? " " + words(year % 100) : "");
   }
 
   return String(year);
@@ -1639,7 +1642,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.9.0 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT";
+const TTS_VERSION = "tts.js v2.9.1 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT + YEAR-SPEECH";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -2284,6 +2287,49 @@ function _applySpeakOptimizations(text) {
   return out;
 }
 
+function _smallNumberWords(n) {
+  const x = Math.trunc(Number(n) || 0);
+  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  if (x < 20) return ones[Math.max(0, x)] || String(x);
+  const t = Math.trunc(x / 10);
+  const r = x % 10;
+  return r ? `${tens[t]} ${ones[r]}` : tens[t];
+}
+
+function _yearTokenToSpeech(value, style) {
+  const year = Number(value);
+  if (!Number.isFinite(year)) return _str(value);
+  const mode = _lower(style || "spoken") || "spoken";
+  if (mode === "digits" || year < 1000 || year > 2099) return String(year);
+
+  if (year === 2000) return "two thousand";
+  if (year > 2000 && year < 2010) return `two thousand ${_smallNumberWords(year % 100)}`.trim();
+  if (year >= 2010 && year <= 2099) return `twenty ${_smallNumberWords(year % 100)}`.trim();
+
+  if (year >= 1900 && year <= 1999) {
+    const last = year % 100;
+    if (last === 0) return "nineteen hundred";
+    if (last < 10) return `nineteen oh ${_smallNumberWords(last)}`;
+    return `nineteen ${_smallNumberWords(last)}`;
+  }
+
+  const first = Math.trunc(year / 100);
+  const last = year % 100;
+  if (last === 0) return `${_smallNumberWords(first)} hundred`;
+  if (last < 10) return `${_smallNumberWords(first)} oh ${_smallNumberWords(last)}`;
+  return `${_smallNumberWords(first)} ${_smallNumberWords(last)}`;
+}
+
+function _normalizeYearSpeech(text, options) {
+  const cfg = options && typeof options === "object" ? options : {};
+  if (cfg.normalizeYears === false) return _str(text);
+  const style = cfg.yearStyle || "spoken";
+  return _str(text)
+    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
+    .replace(/(^|[^\d])(19\d{2}|20\d{2})(?!\d)/g, (full, lead, year) => `${lead}${_yearTokenToSpeech(year, style)}`);
+}
+
 const _collapseJoiners = (text) => _str(text)
   .replace(/\s+,/g, ",")
   .replace(/\s+;/g, ";")
@@ -2377,7 +2423,8 @@ function _shapeSpeechText(rawText, options) {
   const displayText = _normalizeWhitespace(rawText);
   const expandedText = _expandContractions(displayText);
   const speakBase = _applySpeakOptimizations(expandedText);
-  const pronouncedText = _applyPronunciationMap(speakBase, pronunciationMap);
+  const yearNormalizedText = _normalizeYearSpeech(speakBase, options);
+  const pronouncedText = _applyPronunciationMap(yearNormalizedText, pronunciationMap);
   const segments = _segmentSentences(pronouncedText, speechHints);
   const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
   const joinPause = _pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65)));
@@ -2390,6 +2437,7 @@ function _shapeSpeechText(rawText, options) {
     displayText,
     textSpeak: pronouncedText,
     text: pronouncedText,
+    yearNormalizedText,
     ssmlText,
     plainText: _stripMarkup(ssmlText),
     segments,
@@ -2709,7 +2757,7 @@ async function generate(text, options) {
     return _normalizeFailureContract("circuit_open", "TTS is temporarily cooling down.", 503, true, input);
   }
 
-  const shaped = _shapeSpeechText(input.text, { speechHints: input.speechHints, pronunciationMap: input.pronunciationMap });
+  const shaped = _shapeSpeechText(input.text, { speechHints: input.speechHints, pronunciationMap: input.pronunciationMap, normalizeYears: input.normalizeYears !== false, yearStyle: input.yearStyle || "spoken" });
 
   const providerInput = {
     ...input,
