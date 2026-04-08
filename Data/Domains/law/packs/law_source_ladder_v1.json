@@ -382,5 +382,32 @@
     ],
     "barAndCurriculumRule": "Use licensing and NCA materials to shape modules and issue-spotting, but confirm substantive propositions against primary law and leading cases.",
     "copyrightGuardrail": "Do not reproduce lengthy copyrighted textbook passages. Store bibliographic anchors, summaries, and retrieval notes instead."
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "law_source_ladder",
+      "law_source_ladder_v2",
+      "source_ladder_v2"
+    ],
+    "sourceFile": "law_source_ladder_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "Canada",
+    "crossLinks": [
+      "law_research_methods_v1",
+      "law_foundations_v1",
+      "law_contracts_sources_index_v2"
+    ],
+    "expectedFilename": "law_source_ladder_v2.json",
+    "sourceIntegrity": "strong"
+  },
+  "packType": "sources",
+  "retrievalHints": {
+    "keywords": [],
+    "intentSignals": []
   }
 }
