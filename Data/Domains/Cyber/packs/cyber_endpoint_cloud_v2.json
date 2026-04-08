@@ -424,5 +424,90 @@
       "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
       "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "infrastructure",
+    "packId": "cyber_endpoint_cloud_v2",
+    "aliases": [
+      "cyber_endpoint_cloud",
+      "cyber_endpoint_cloud_v2",
+      "infrastructure"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "access token",
+      "allowlisting",
+      "antivirus",
+      "api key",
+      "audit trail",
+      "aws",
+      "azure",
+      "cloud identity",
+      "cloud logs",
+      "cloud security",
+      "configuration",
+      "container security",
+      "device security",
+      "docker",
+      "edr",
+      "endpoint",
+      "endpoint security",
+      "firewall",
+      "gcp",
+      "hardening",
+      "iam",
+      "image scan",
+      "kubernetes",
+      "macros",
+      "monitoring",
+      "security groups",
+      "segmentation",
+      "shared responsibility",
+      "siem",
+      "vpc",
+      "workstation"
+    ],
+    "intentSignals": [
+      "architecture",
+      "baseline",
+      "cloud",
+      "cloud native",
+      "compliance",
+      "credentials",
+      "deploy",
+      "design",
+      "detect",
+      "harden",
+      "infrastructure",
+      "investigate",
+      "monitor",
+      "permissions",
+      "protect",
+      "secure",
+      "secure setup"
+    ],
+    "keywordCount": 31,
+    "intentSignalCount": 17
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_identity_access_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_endpoint_cloud_v2.json"
   }
 }
