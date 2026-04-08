@@ -319,5 +319,68 @@
     "Treat emotion detection and behavioral prediction as measurement problems, not just capability claims.",
     "Separate supportive conversational design from clinical psychology claims unless the evidence base is explicit and strong.",
     "Cross-link this pack later into agents, ethics/law, education, and decision-support systems."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_ai_psychology",
+  "manifestPackKey": "aiPsychology",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "ai_psychology",
+    "routeAliases": [
+      "psychology",
+      "cognitive_science",
+      "hai",
+      "trust",
+      "behavior"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "ai_marketing",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "computational_cognitive_modeling",
+      "cognitive_architectures",
+      "human_ai_interaction",
+      "human_ai_collaboration",
+      "trust_in_automation_and_ai",
+      "reliance_calibration_and_overreliance",
+      "behavioral_prediction",
+      "decision_support_and_judgment"
+    ],
+    "ingestionPriority": [
+      "The Cambridge Handbook of Computational Psychology",
+      "The Oxford Handbook of Cognitive Science",
+      "Cognitive Modeling",
+      "Introduction to Modeling Cognitive Processes",
+      "Trust in Human-Robot Interaction",
+      "Affective Computing",
+      "Integrating Empirical Evidence on Factors That Influence Trust in Automation",
+      "From Automation to Autonomy: The Importance of Trust Repair in Human-Machine Interaction",
+      "Understanding Human-Centred AI: A Review of Its Defining Characteristics",
+      "APA guidance on AI and psychological practice"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Clear bridge into human-centered AI, trust calibration, and conversational design."
+    ],
+    "issues": [
+      "Manifest pack version for aiPsychology is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
