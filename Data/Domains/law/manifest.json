@@ -1,112 +1,131 @@
 {
   "domain": "law",
-  "domainVersion": "1.0.0",
-  "updatedAt": "2026-02-12",
+  "normalizedAt": "2026-04-08",
+  "jurisdiction": "Canada",
   "defaultLoadOrder": [
     "law_safety_and_posture_v1.json",
     "law_foundations_v1.json",
+    "law_research_methods_v1.json",
     "law_constitutional_charter_v1.json",
-    "law_criminal_v1.json",
     "law_contracts_v1.json",
     "law_torts_v1.json",
-    "law_research_methods_v1.json"
+    "law_criminal_v1.json",
+    "law_source_ladder_v1.json",
+    "law_contracts_sources_index_v1.json"
+  ],
+  "runtimeNotes": [
+    "Load safety_and_posture first as refusal/gating spine.",
+    "Load foundations and research_methods early for jurisdiction and source routing.",
+    "Contracts/source ladder files carry internal v2 lineage and need alias compatibility.",
+    "Keep educational-only and non-advice posture explicit across the domain."
   ],
   "packs": [
     {
       "file": "law_safety_and_posture_v1.json",
-      "version": 1,
-      "tags": [
-        "safety",
-        "posture",
-        "non-advice",
-        "boundaries"
-      ],
-      "priority": 100
+      "packId": "law_safety_and_posture_v1",
+      "packType": "policy",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "law_safety_and_posture",
+        "law_safety_and_posture_v1",
+        "safety_and_posture_v1"
+      ]
     },
     {
       "file": "law_foundations_v1.json",
-      "version": 1,
-      "tags": [
-        "intro",
-        "legal-system",
-        "core"
-      ],
-      "priority": 85
-    },
-    {
-      "file": "law_constitutional_charter_v1.json",
-      "version": 1,
-      "tags": [
-        "constitutional",
-        "charter",
-        "rights"
-      ],
-      "priority": 80
-    },
-    {
-      "file": "law_criminal_v1.json",
-      "version": 1,
-      "tags": [
-        "criminal",
-        "liability",
-        "procedure"
-      ],
-      "priority": 75
-    },
-    {
-      "file": "law_contracts_v1.json",
-      "version": 1,
-      "tags": [
-        "contracts",
-        "agreements",
-        "obligations"
-      ],
-      "priority": 75
-    },
-    {
-      "file": "law_torts_v1.json",
-      "version": 1,
-      "tags": [
-        "torts",
-        "negligence",
-        "civil-liability"
-      ],
-      "priority": 70
+      "packId": "law_foundations_v1",
+      "packType": "framework",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "foundations_v1",
+        "law_foundations",
+        "law_foundations_v1"
+      ]
     },
     {
       "file": "law_research_methods_v1.json",
-      "version": 1,
-      "tags": [
-        "research",
-        "case-law",
-        "precedent"
-      ],
-      "priority": 65
-    }
-  ],
-  "examples": [
-    {
-      "file": "law_face_examples_v1.json",
-      "version": 1
+      "packId": "law_research_methods_v1",
+      "packType": "methods",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "law_research_methods",
+        "law_research_methods_v1",
+        "research_methods_v1"
+      ]
     },
     {
-      "file": "law_dialogue_snippets_v1.json",
-      "version": 1
-    }
-  ],
-  "upgradeBundles": [
+      "file": "law_constitutional_charter_v1.json",
+      "packId": "law_constitutional_charter_v1",
+      "packType": "framework",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "constitutional_charter_v1",
+        "law_constitutional_charter",
+        "law_constitutional_charter_v1"
+      ]
+    },
     {
-      "bundleName": "law_contracts_upgrade_v2",
-      "updatedAt": "2026-03-15",
-      "files": [
-        "law_contracts_v2.json",
-        "law_source_ladder_v2.json",
-        "law_contracts_sources_index_v2.json"
-      ],
-      "notes": [
-        "Contracts pack expanded with modules, case studies, contract archetypes, projects, assistant application guidance, and case bank.",
-        "Source ladder expanded for official law, treatises, library materials, and licensing/NCA scaffolds.",
-        "No copyrighted textbook chapters or full paywalled content reproduced."
+      "file": "law_contracts_v1.json",
+      "packId": "law_contracts_v2",
+      "packType": "curriculum_and_retrieval",
+      "version": "2.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "contracts_v2",
+        "law_contracts",
+        "law_contracts_v2"
+      ]
+    },
+    {
+      "file": "law_torts_v1.json",
+      "packId": "law_torts_v1",
+      "packType": "theories",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "law_torts",
+        "law_torts_v1",
+        "torts_v1"
+      ]
+    },
+    {
+      "file": "law_criminal_v1.json",
+      "packId": "law_criminal_v1",
+      "packType": "framework",
+      "version": "1.0.0",
+      "jurisdiction": "CA",
+      "aliases": [
+        "criminal_v1",
+        "law_criminal",
+        "law_criminal_v1"
+      ]
+    },
+    {
+      "file": "law_source_ladder_v1.json",
+      "packId": "law_source_ladder_v2",
+      "packType": "sources",
+      "version": "2.0.0",
+      "jurisdiction": "Canada",
+      "aliases": [
+        "law_source_ladder",
+        "law_source_ladder_v2",
+        "source_ladder_v2"
+      ]
+    },
+    {
+      "file": "law_contracts_sources_index_v1.json",
+      "packId": "law_contracts_sources_index_v2",
+      "packType": "sources",
+      "version": "2.0.0",
+      "jurisdiction": "Canada",
+      "aliases": [
+        "contracts_sources_index_v2",
+        "law_contracts_sources_index",
+        "law_contracts_sources_index_v2"
       ]
     }
   ]
