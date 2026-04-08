@@ -5,7 +5,8 @@
       "grief",
       "disappointment",
       "hopelessness",
-      "hurt"
+      "hurt",
+      "emotional_numbness"
     ],
     "social_patterns": [
       "feeling unseen",
@@ -19,10 +20,29 @@
       "warmth",
       "gentle_followup"
     ],
+    "care_sequence_defaults": [
+      "validate",
+      "stabilize",
+      "explore"
+    ],
+    "timing_profile": {
+      "pause_before_response": true,
+      "response_length": "short",
+      "followup_delay": "soft",
+      "pacing": "slow"
+    },
+    "suppression_markers": [
+      "minimization",
+      "detachment",
+      "understatement"
+    ],
     "risk_flags": [
       "withdrawal",
       "despair",
       "isolation"
+    ],
+    "blend_axes": [
+      "emotional_loss"
     ]
   },
   "fear": {
@@ -44,10 +64,28 @@
       "reassurance",
       "slow_pacing"
     ],
+    "care_sequence_defaults": [
+      "stabilize",
+      "orient",
+      "explore"
+    ],
+    "timing_profile": {
+      "pause_before_response": false,
+      "response_length": "short",
+      "followup_delay": "immediate_soft",
+      "pacing": "slow_and_structured"
+    },
+    "suppression_markers": [
+      "forced_positivity",
+      "topic_shift"
+    ],
     "risk_flags": [
       "spiraling",
       "panic_escalation",
       "freeze_response"
+    ],
+    "blend_axes": [
+      "threat_response"
     ]
   },
   "anger": {
@@ -55,7 +93,8 @@
       "frustration",
       "resentment",
       "hurt",
-      "moral_injury"
+      "moral_injury",
+      "boundary_activation"
     ],
     "social_patterns": [
       "defensiveness",
@@ -68,10 +107,28 @@
       "clarity",
       "deescalation"
     ],
+    "care_sequence_defaults": [
+      "contain",
+      "clarify",
+      "deescalate"
+    ],
+    "timing_profile": {
+      "pause_before_response": false,
+      "response_length": "short",
+      "followup_delay": "measured",
+      "pacing": "steady"
+    },
+    "suppression_markers": [
+      "dry_humor_under_strain",
+      "detachment"
+    ],
     "risk_flags": [
       "agitation",
       "impulsivity",
       "verbal_escalation"
+    ],
+    "blend_axes": [
+      "boundary_activation"
     ]
   },
   "joy": {
@@ -91,7 +148,22 @@
       "shared_positive_tone",
       "light_followup"
     ],
-    "risk_flags": []
+    "care_sequence_defaults": [
+      "affirm",
+      "join",
+      "expand"
+    ],
+    "timing_profile": {
+      "pause_before_response": false,
+      "response_length": "short_to_medium",
+      "followup_delay": "light",
+      "pacing": "natural"
+    },
+    "suppression_markers": [],
+    "risk_flags": [],
+    "blend_axes": [
+      "positive_release"
+    ]
   },
   "surprise": {
     "subtypes": [
@@ -108,8 +180,25 @@
       "clarification",
       "stabilization"
     ],
+    "care_sequence_defaults": [
+      "orient",
+      "clarify",
+      "stabilize"
+    ],
+    "timing_profile": {
+      "pause_before_response": true,
+      "response_length": "short",
+      "followup_delay": "immediate_soft",
+      "pacing": "measured"
+    },
+    "suppression_markers": [
+      "topic_shift"
+    ],
     "risk_flags": [
       "disorientation"
+    ],
+    "blend_axes": [
+      "orientation_shift"
     ]
   },
   "disgust": {
@@ -127,16 +216,34 @@
       "containment",
       "careful_validation"
     ],
+    "care_sequence_defaults": [
+      "validate",
+      "contain",
+      "clarify"
+    ],
+    "timing_profile": {
+      "pause_before_response": false,
+      "response_length": "short",
+      "followup_delay": "measured",
+      "pacing": "contained"
+    },
+    "suppression_markers": [
+      "understatement"
+    ],
     "risk_flags": [
       "hard_rejection",
       "shutdown"
+    ],
+    "blend_axes": [
+      "aversion_response"
     ]
   },
   "neutral": {
     "subtypes": [
       "flat",
       "informational",
-      "unclear"
+      "unclear",
+      "guarded"
     ],
     "social_patterns": [
       "low_signal",
@@ -147,6 +254,68 @@
       "gentle_probe",
       "clarity"
     ],
-    "risk_flags": []
+    "care_sequence_defaults": [
+      "observe",
+      "probe_lightly",
+      "clarify"
+    ],
+    "timing_profile": {
+      "pause_before_response": false,
+      "response_length": "short",
+      "followup_delay": "light",
+      "pacing": "natural"
+    },
+    "suppression_markers": [
+      "minimization",
+      "forced_positivity",
+      "topic_shift"
+    ],
+    "risk_flags": [],
+    "blend_axes": [
+      "low_signal_state"
+    ]
+  },
+  "blend_resolution_rules": {
+    "sadness+fear": {
+      "dominant_axis": "emotional_loss",
+      "preferred_openers": [
+        "validate",
+        "stabilize"
+      ],
+      "avoid": [
+        "premature_solutioning",
+        "bright_silver_lining_reframes"
+      ]
+    },
+    "anger+sadness": {
+      "dominant_axis": "boundary_activation",
+      "preferred_openers": [
+        "contain",
+        "validate"
+      ],
+      "avoid": [
+        "argumentative_mirroring"
+      ]
+    },
+    "fear+surprise": {
+      "dominant_axis": "orientation_shift",
+      "preferred_openers": [
+        "orient",
+        "stabilize"
+      ],
+      "avoid": [
+        "information_overload"
+      ]
+    },
+    "joy+relief": {
+      "dominant_axis": "positive_release",
+      "preferred_openers": [
+        "affirm",
+        "join"
+      ],
+      "avoid": [
+        "flattening_the_moment"
+      ]
+    }
   }
 }
