@@ -375,5 +375,81 @@
       "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
       "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "incident_response",
+    "packId": "cyber_incident_response_v2",
+    "aliases": [
+      "cyber_incident_response",
+      "cyber_incident_response_v2",
+      "incident_response"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "alert",
+      "analysis",
+      "backup",
+      "block access",
+      "breach",
+      "contain",
+      "containment",
+      "detect",
+      "eradicate",
+      "incident plan",
+      "incident response",
+      "investigate",
+      "ir plan",
+      "isolate",
+      "lessons learned",
+      "postmortem",
+      "preparedness",
+      "recover",
+      "recovery",
+      "restore",
+      "root cause",
+      "tabletop"
+    ],
+    "intentSignals": [
+      "active breach",
+      "attack",
+      "breach",
+      "cleanup",
+      "compromised",
+      "data leak",
+      "fix",
+      "improve",
+      "incident",
+      "plan",
+      "policy",
+      "post-breach",
+      "prepare",
+      "review",
+      "security incident",
+      "suspicious",
+      "urgent"
+    ],
+    "keywordCount": 22,
+    "intentSignalCount": 17
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_safety_and_posture_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_incident_response_v2.json"
   }
 }
