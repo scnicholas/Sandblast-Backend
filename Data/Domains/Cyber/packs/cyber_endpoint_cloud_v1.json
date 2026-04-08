@@ -23,8 +23,18 @@
         "Lateral movement from a compromised workstation."
       ],
       "retrievalHints": {
-        "keywords": ["endpoint", "edr", "antivirus", "workstation", "device security"],
-        "intentSignals": ["harden", "protect", "monitor"]
+        "keywords": [
+          "endpoint",
+          "edr",
+          "antivirus",
+          "workstation",
+          "device security"
+        ],
+        "intentSignals": [
+          "harden",
+          "protect",
+          "monitor"
+        ]
       }
     },
     {
@@ -39,8 +49,16 @@
         "Monitor privilege escalation attempts."
       ],
       "retrievalHints": {
-        "keywords": ["hardening", "configuration", "allowlisting", "macros"],
-        "intentSignals": ["secure setup", "baseline"]
+        "keywords": [
+          "hardening",
+          "configuration",
+          "allowlisting",
+          "macros"
+        ],
+        "intentSignals": [
+          "secure setup",
+          "baseline"
+        ]
       }
     },
     {
@@ -53,8 +71,18 @@
         "Identity is the new perimeter in cloud environments."
       ],
       "retrievalHints": {
-        "keywords": ["shared responsibility", "cloud security", "aws", "azure", "gcp"],
-        "intentSignals": ["cloud", "infrastructure", "compliance"]
+        "keywords": [
+          "shared responsibility",
+          "cloud security",
+          "aws",
+          "azure",
+          "gcp"
+        ],
+        "intentSignals": [
+          "cloud",
+          "infrastructure",
+          "compliance"
+        ]
       }
     },
     {
@@ -73,8 +101,16 @@
         "Stale credentials remaining active."
       ],
       "retrievalHints": {
-        "keywords": ["iam", "api key", "access token", "cloud identity"],
-        "intentSignals": ["credentials", "permissions"]
+        "keywords": [
+          "iam",
+          "api key",
+          "access token",
+          "cloud identity"
+        ],
+        "intentSignals": [
+          "credentials",
+          "permissions"
+        ]
       }
     },
     {
@@ -88,8 +124,16 @@
         "Log and monitor network flow data."
       ],
       "retrievalHints": {
-        "keywords": ["segmentation", "security groups", "vpc", "firewall"],
-        "intentSignals": ["architecture", "design"]
+        "keywords": [
+          "segmentation",
+          "security groups",
+          "vpc",
+          "firewall"
+        ],
+        "intentSignals": [
+          "architecture",
+          "design"
+        ]
       }
     },
     {
@@ -103,8 +147,16 @@
         "Monitor runtime behavior for anomalies."
       ],
       "retrievalHints": {
-        "keywords": ["docker", "kubernetes", "container security", "image scan"],
-        "intentSignals": ["deploy", "cloud native"]
+        "keywords": [
+          "docker",
+          "kubernetes",
+          "container security",
+          "image scan"
+        ],
+        "intentSignals": [
+          "deploy",
+          "cloud native"
+        ]
       }
     },
     {
@@ -118,8 +170,16 @@
         "Monitor failed login attempts and anomalous API calls."
       ],
       "retrievalHints": {
-        "keywords": ["cloud logs", "audit trail", "siem", "monitoring"],
-        "intentSignals": ["detect", "investigate"]
+        "keywords": [
+          "cloud logs",
+          "audit trail",
+          "siem",
+          "monitoring"
+        ],
+        "intentSignals": [
+          "detect",
+          "investigate"
+        ]
       }
     }
   ],
@@ -152,5 +212,90 @@
       "deploy",
       "architecture"
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "infrastructure",
+    "packId": "cyber_endpoint_cloud_v1",
+    "aliases": [
+      "cyber_endpoint_cloud",
+      "cyber_endpoint_cloud_v1",
+      "infrastructure"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "access token",
+      "allowlisting",
+      "antivirus",
+      "api key",
+      "audit trail",
+      "aws",
+      "azure",
+      "cloud identity",
+      "cloud logs",
+      "cloud security",
+      "configuration",
+      "container security",
+      "device security",
+      "docker",
+      "edr",
+      "endpoint",
+      "endpoint security",
+      "firewall",
+      "gcp",
+      "hardening",
+      "iam",
+      "image scan",
+      "kubernetes",
+      "macros",
+      "monitoring",
+      "security groups",
+      "segmentation",
+      "shared responsibility",
+      "siem",
+      "vpc",
+      "workstation"
+    ],
+    "intentSignals": [
+      "architecture",
+      "baseline",
+      "cloud",
+      "cloud native",
+      "compliance",
+      "credentials",
+      "deploy",
+      "design",
+      "detect",
+      "harden",
+      "infrastructure",
+      "investigate",
+      "monitor",
+      "permissions",
+      "protect",
+      "secure",
+      "secure setup"
+    ],
+    "keywordCount": 31,
+    "intentSignalCount": 17
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Legacy v1 pack retained for comparison only; prefer v2 in runtime load order."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_endpoint_cloud_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_endpoint_cloud_v1.json"
   }
 }
