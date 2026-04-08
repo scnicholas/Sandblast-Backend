@@ -271,5 +271,64 @@
     "Keep measurement central. Marketing claims are weak without incrementality, retention, and revenue linkage.",
     "Treat personalization, targeting, and content generation as governance-sensitive areas because privacy, fairness, and deceptive-claims risk are always present.",
     "Cross-link this pack later into ethics_law for privacy and consumer protection, and into psychology for persuasion, trust, and behavioral influence."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_ai_marketing",
+  "manifestPackKey": "aiMarketing",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "ai_marketing",
+    "routeAliases": [
+      "marketing",
+      "growth",
+      "personalization",
+      "attribution",
+      "crm"
+    ],
+    "crossLinks": [
+      "ai_psychology",
+      "ethics_law",
+      "foundations",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "predictive_analytics",
+      "recommendation_systems",
+      "customer_segmentation",
+      "conversion_optimization",
+      "marketing_automation",
+      "personalization_and_next_best_action",
+      "customer_lifetime_value_modeling",
+      "attribution_modeling"
+    ],
+    "ingestionPriority": [
+      "Machine learning and artificial intelligence use in marketing: a general taxonomy",
+      "How generative AI is shaping the future of marketing",
+      "Marketing Artificial Intelligence: AI, Marketing, and the Future of Business",
+      "Marketing Analytics: Data-Driven Techniques with Microsoft Excel",
+      "Digital Marketing Analytics: In Theory And In Practice",
+      "Marketing Data Science: Modeling Techniques in Predictive Analytics with R and Python"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Commercially useful pack with metrics and governance kept in view."
+    ],
+    "issues": [
+      "Manifest pack version for aiMarketing is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
