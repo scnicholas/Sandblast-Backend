@@ -16,7 +16,13 @@
       "Support coaching, diagnostics, and portfolio-style improvement tracking."
     ]
   },
-  "anchors": [],
+  "anchors": [
+    "S_BIBER_LGSWE",
+    "S_EAP_CANADA_SURVEY",
+    "S_QUARK_CGEL",
+    "S_SWAN_PEU",
+    "S_WILLIAMS_STYLE"
+  ],
   "sequenceModel": {
     "principles": [
       "Year 1 builds metalanguage + observation skills (what to notice, how to label it).",
@@ -34,10 +40,10 @@
           "intro academic writing"
         ],
         "packs": [
-          "eng_foundations_language_science_v1",
-          "eng_syntax_grammar_core_v1",
-          "eng_academic_writing_clarity_v1",
-          "eng_eap_canada_case_studies_v1"
+          "eng_foundations_language_science_v2",
+          "eng_syntax_grammar_core_v2",
+          "eng_academic_writing_clarity_v2",
+          "eng_eap_canada_case_studies_v2"
         ],
         "milestones": [
           "Build a personal glossary of 150 core terms (clause, constituent, register, pragmatics).",
@@ -54,10 +60,10 @@
           "usage diagnostics"
         ],
         "packs": [
-          "eng_phonetics_phonology_v1",
-          "eng_morphology_word_formation_v1",
-          "eng_syntax_grammar_core_v1",
-          "eng_register_corpus_usage_v1"
+          "eng_phonetics_phonology_v2",
+          "eng_morphology_word_formation_v2",
+          "eng_syntax_grammar_core_v2",
+          "eng_register_corpus_usage_v2"
         ],
         "milestones": [
           "Do 10 phonological transcriptions + 3 minimal-pair analyses.",
@@ -74,10 +80,10 @@
           "applied analysis"
         ],
         "packs": [
-          "eng_semantics_pragmatics_v1",
-          "eng_register_corpus_usage_v1",
-          "eng_academic_writing_clarity_v1",
-          "eng_eap_canada_case_studies_v1"
+          "eng_semantics_pragmatics_v2",
+          "eng_register_corpus_usage_v2",
+          "eng_academic_writing_clarity_v2",
+          "eng_eap_canada_case_studies_v2"
         ],
         "milestones": [
           "Complete a small corpus snapshot (e.g., 50 headlines vs 50 academic sentences) and compare features.",
@@ -93,10 +99,10 @@
           "professional output"
         ],
         "packs": [
-          "eng_sources_index_v1",
-          "eng_register_corpus_usage_v1",
-          "eng_academic_writing_clarity_v1",
-          "eng_eap_canada_case_studies_v1"
+          "eng_sources_index_v2",
+          "eng_register_corpus_usage_v2",
+          "eng_academic_writing_clarity_v2",
+          "eng_eap_canada_case_studies_v2"
         ],
         "milestones": [
           "Capstone option A: Applied linguistics case write-up + intervention design.",
@@ -166,7 +172,8 @@
   },
   "deploymentGuidance": {
     "forNyx": "Use earlier-year modules for stable grammar and later-year modules for audience calibration, style shift, and pragmatic control.",
-    "forMarion": "Use the full sequence as a scaffold for explanation depth, error analysis, and teaching-oriented follow-up."
+    "forMarion": "Use the full sequence as a scaffold for explanation depth, error analysis, and teaching-oriented follow-up.",
+    "normalizedNotes": "Pack references upgraded from _v1 labels to _v2 labels for internal consistency with the current file IDs."
   },
   "referenceTextsUsed": [
     {
@@ -318,5 +325,59 @@
         "grammar support"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_curriculum_sequence_v2",
+  "normalizedFrom": {
+    "filename": "eng_curriculum_sequence_v1.json",
+    "id": "eng_curriculum_sequence_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_curriculum_sequence_v1",
+    "eng_curriculum_sequence_v2",
+    "english_linguistics_curriculum_sequence"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "english_linguistics_curriculum_sequence",
+    "keywords": [
+      "academic",
+      "analysis",
+      "applied",
+      "curriculum",
+      "degree-style",
+      "english",
+      "grammar",
+      "language",
+      "linguistics",
+      "pathway",
+      "register",
+      "sequence",
+      "sequenced",
+      "writing"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 5,
+    "referenceCount": 8,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "referenceTextsUsed": 8
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
