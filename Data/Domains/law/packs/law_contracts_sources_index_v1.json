@@ -190,5 +190,32 @@
       "Suitable for Nyx / Marion reference routing and curriculum planning.",
       "Use official / primary sources for any live legal proposition."
     ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "contracts_sources_index_v2",
+      "law_contracts_sources_index",
+      "law_contracts_sources_index_v2"
+    ],
+    "sourceFile": "law_contracts_sources_index_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "Canada",
+    "crossLinks": [
+      "law_contracts_v2",
+      "law_source_ladder_v2",
+      "law_research_methods_v1"
+    ],
+    "expectedFilename": "law_contracts_sources_index_v2.json",
+    "sourceIntegrity": "strong"
+  },
+  "packType": "sources",
+  "retrievalHints": {
+    "keywords": [],
+    "intentSignals": []
   }
 }
