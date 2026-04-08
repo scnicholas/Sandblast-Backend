@@ -351,5 +351,73 @@
     "Keep ethics and law linked but distinct. Ethics can inform governance, but legal analysis must remain source- and jurisdiction-specific.",
     "Treat AI law as an overlap field touching constitutional law, administrative law, IP, privacy, antidiscrimination, torts, contracts, and evidence.",
     "Do not present unresolved policy debates as settled law. Mark contested areas such as AI training fair use, liability allocation, and autonomous decision accountability as legally dynamic."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_ethics_law",
+  "manifestPackKey": "ethicsLaw",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "ethics_law",
+    "routeAliases": [
+      "ethics",
+      "law",
+      "governance",
+      "policy",
+      "compliance"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ai_psychology",
+      "ai_marketing",
+      "ai_cybersecurity",
+      "case_studies"
+    ],
+    "preferredQueryTerms": [
+      "algorithmic_bias_and_discrimination",
+      "explainability_and_due_process",
+      "accountability_and_liability",
+      "data_governance_and_information_fiduciaries",
+      "ai_regulation_and_administrative_governance",
+      "privacy_surveillance_and_biometric_governance",
+      "alignment_safety_and_human_oversight",
+      "intellectual_property_and_authorship"
+    ],
+    "ingestionPriority": [
+      "EU Artificial Intelligence Act",
+      "NIST AI Risk Management Framework",
+      "OECD AI Principles",
+      "UNESCO Recommendation on the Ethics of Artificial Intelligence",
+      "U.S. Copyright Office Copyright and Artificial Intelligence Reports",
+      "USPTO Inventorship Guidance for AI-Assisted Inventions",
+      "FTC AI enforcement and guidance materials",
+      "The Cambridge Handbook of the Law, Ethics and Policy of Artificial Intelligence",
+      "Artificial Intelligence and Human Rights",
+      "Artificial Intelligence and Intellectual Property",
+      "Law and Technology: A Methodical Approach",
+      "Information Technology Law: The Law and Society",
+      "New Laws of Robotics",
+      "The Black Box Society"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Strong doctrinal coverage and better source stack than the other packs."
+    ],
+    "issues": [
+      "Manifest pack version for ethicsLaw is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
