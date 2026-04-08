@@ -16,7 +16,10 @@
       "Support coaching, diagnostics, and portfolio-style improvement tracking."
     ]
   },
-  "anchors": [],
+  "anchors": [
+    "S_NCTE_QAGrammar",
+    "S_Purdue_OWL_GeneralWriting"
+  ],
   "topics": [
     {
       "name": "Phonetics Essentials",
@@ -114,5 +117,62 @@
         "teaching orientation"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_phonetics_phonology_v2",
+  "normalizedFrom": {
+    "filename": "eng_phonetics_phonology_v1.json",
+    "id": "eng_phonetics_phonology_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_phonetics_phonology_v1",
+    "eng_phonetics_phonology_v2",
+    "phonetics_and_phonology"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "phonetics_and_phonology",
+    "keywords": [
+      "contrast",
+      "essentials",
+      "explanation",
+      "intelligibility",
+      "patterning",
+      "patterns",
+      "phonetics",
+      "phonology",
+      "production",
+      "pronunciation-aware",
+      "rhythm",
+      "sound",
+      "speech"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 2,
+    "referenceCount": 2,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 2,
+    "modules": 3,
+    "caseStudies": 1,
+    "projects": 1,
+    "referenceTextsUsed": 2
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
