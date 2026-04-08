@@ -384,5 +384,83 @@
       "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
       "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "network_web",
+    "packId": "cyber_network_web_v2",
+    "aliases": [
+      "cyber_network_web",
+      "cyber_network_web_v2",
+      "network_web"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "api security",
+      "broken access control",
+      "cdn",
+      "certificate",
+      "csrf",
+      "ddos",
+      "encryption",
+      "firewall",
+      "firewall rules",
+      "gateway",
+      "https",
+      "ingress",
+      "injection",
+      "input validation",
+      "lateral movement",
+      "network security",
+      "owasp",
+      "port exposure",
+      "rate limit",
+      "segmentation",
+      "ssl",
+      "tls",
+      "traffic spike",
+      "vlan",
+      "web security",
+      "xss"
+    ],
+    "intentSignals": [
+      "architecture",
+      "availability",
+      "data protection",
+      "design",
+      "harden",
+      "protect",
+      "protect website",
+      "reduce risk",
+      "resilience",
+      "secure",
+      "secure app",
+      "secure coding",
+      "secure communication",
+      "secure perimeter",
+      "vulnerability"
+    ],
+    "keywordCount": 26,
+    "intentSignalCount": 15
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_privacy_data_protection_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_network_web_v2.json"
   }
 }
