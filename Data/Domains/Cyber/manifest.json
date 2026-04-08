@@ -1,26 +1,115 @@
 {
-  "bundle": "cybersecurity_upgrade_bundle_v2",
-  "updatedAt": "2026-03-15",
-  "files": [
-    "cyber_foundations_v2.json",
-    "cyber_endpoint_cloud_v2.json",
-    "cyber_incident_response_v2.json",
-    "cyber_network_web_v2.json",
-    "cyber_privacy_data_protection_v2.json",
-    "cyber_security_culture_v2.json",
-    "cyber_source_ladder_v2.json"
+  "bundle": "cybersecurity_runtime_bundle_v2_1_normalized",
+  "updatedAt": "2026-04-07",
+  "runtimePreference": [
+    "cyber_safety_and_posture_v2_normalized.json",
+    "cyber_foundations_v2_normalized.json",
+    "cyber_source_ladder_v2_normalized.json",
+    "cyber_identity_access_v2_normalized.json",
+    "cyber_endpoint_cloud_v2_normalized.json",
+    "cyber_network_web_v2_normalized.json",
+    "cyber_privacy_data_protection_v2_normalized.json",
+    "cyber_incident_response_v2_normalized.json",
+    "cyber_security_culture_v2_normalized.json"
   ],
-  "designGoals": [
-    "Bring all cybersecurity packs to a consistent v2 schema.",
-    "Add modules, case studies, software-project ideas, and source-governance fields.",
-    "Refresh authoritative references around NIST CSF 2.0 and NIST SP 800-61 Rev. 3.",
-    "Keep content defensive and suitable for Nyx/Marion retrieval and reasoning."
+  "legacyComparison": [
+    "cyber_endpoint_cloud_v1_normalized.json"
   ],
-  "schemaAdditions": [
-    "learningModules/programModules/governanceModules",
-    "caseStudies",
-    "softwareProjects/recommendedProjects",
-    "sourceStack/source governance",
-    "framework refresh and CSF 2.0 alignment"
+  "notes": [
+    "Normalized for Marion retrieval, safety-first routing, and cross-pack discoverability.",
+    "Identity access and safety posture were added to the effective runtime registry because they are structurally important even though they were not listed in the earlier upgrade manifest.",
+    "Direct source links remain incomplete and should be added in a future source-hardening pass."
+  ],
+  "packs": [
+    {
+      "file": "cyber_endpoint_cloud_v1_normalized.json",
+      "originalFile": "cyber_endpoint_cloud_v1.json",
+      "packId": "cyber_endpoint_cloud_v1",
+      "packType": "infrastructure",
+      "version": 1,
+      "keywordCount": 31,
+      "intentSignalCount": 17
+    },
+    {
+      "file": "cyber_endpoint_cloud_v2_normalized.json",
+      "originalFile": "cyber_endpoint_cloud_v2.json",
+      "packId": "cyber_endpoint_cloud_v2",
+      "packType": "infrastructure",
+      "version": 2,
+      "keywordCount": 31,
+      "intentSignalCount": 17
+    },
+    {
+      "file": "cyber_foundations_v2_normalized.json",
+      "originalFile": "cyber_foundations_v2.json",
+      "packId": "cyber_foundations_v2",
+      "packType": "foundations",
+      "version": 2,
+      "keywordCount": 65,
+      "intentSignalCount": 38
+    },
+    {
+      "file": "cyber_identity_access_v2_normalized.json",
+      "originalFile": "cyber_identity_access_v2.json",
+      "packId": "cyber_identity_access_v2",
+      "packType": "identity_access",
+      "version": 2,
+      "keywordCount": 50,
+      "intentSignalCount": 31
+    },
+    {
+      "file": "cyber_incident_response_v2_normalized.json",
+      "originalFile": "cyber_incident_response_v2.json",
+      "packId": "cyber_incident_response_v2",
+      "packType": "incident_response",
+      "version": 2,
+      "keywordCount": 22,
+      "intentSignalCount": 17
+    },
+    {
+      "file": "cyber_network_web_v2_normalized.json",
+      "originalFile": "cyber_network_web_v2.json",
+      "packId": "cyber_network_web_v2",
+      "packType": "network_web",
+      "version": 2,
+      "keywordCount": 26,
+      "intentSignalCount": 15
+    },
+    {
+      "file": "cyber_privacy_data_protection_v2_normalized.json",
+      "originalFile": "cyber_privacy_data_protection_v2.json",
+      "packId": "cyber_privacy_data_protection_v2",
+      "packType": "privacy_data_protection",
+      "version": 2,
+      "keywordCount": 21,
+      "intentSignalCount": 14
+    },
+    {
+      "file": "cyber_safety_and_posture_v2_normalized.json",
+      "originalFile": "cyber_safety_and_posture_v2.json",
+      "packId": "cyber_safety_and_posture_v2",
+      "packType": "safety_posture",
+      "version": 2,
+      "keywordCount": 10,
+      "intentSignalCount": 6
+    },
+    {
+      "file": "cyber_security_culture_v2_normalized.json",
+      "originalFile": "cyber_security_culture_v2.json",
+      "packId": "cyber_security_culture_v2",
+      "packType": "security_culture",
+      "version": 2,
+      "keywordCount": 15,
+      "intentSignalCount": 13
+    },
+    {
+      "file": "cyber_source_ladder_v2_normalized.json",
+      "originalFile": "cyber_source_ladder_v2.json",
+      "packId": "cyber_source_ladder_v2",
+      "packType": "source_ladder",
+      "version": 2,
+      "keywordCount": 71,
+      "intentSignalCount": 55
+    }
   ]
 }
