@@ -208,5 +208,69 @@
         "grammar support"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_register_corpus_usage_v2",
+  "normalizedFrom": {
+    "filename": "eng_register_corpus_usage_v1.json",
+    "id": "eng_register_corpus_usage_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_register_corpus_usage_v1",
+    "eng_register_corpus_usage_v2",
+    "register_and_corpus_informed_usage"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "register_and_corpus_informed_usage",
+    "keywords": [
+      "academic",
+      "across",
+      "choices",
+      "communication",
+      "conversation",
+      "corpus-informed",
+      "diagnostic",
+      "differences",
+      "english",
+      "frequency-driven",
+      "high-level",
+      "information",
+      "professional",
+      "prose",
+      "public",
+      "reasoning",
+      "register",
+      "shift",
+      "usage",
+      "workflow"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 3,
+    "referenceCount": 6,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 3,
+    "modules": 3,
+    "caseStudies": 2,
+    "projects": 1,
+    "referenceTextsUsed": 6
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
