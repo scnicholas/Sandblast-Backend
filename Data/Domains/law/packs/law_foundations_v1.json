@@ -24,8 +24,16 @@
         "Ignoring tribunal-specific jurisdiction limits."
       ],
       "retrievalHints": {
-        "keywords": ["jurisdiction", "federal or provincial", "which court", "authority"],
-        "intentSignals": ["who has authority", "which law applies"]
+        "keywords": [
+          "jurisdiction",
+          "federal or provincial",
+          "which court",
+          "authority"
+        ],
+        "intentSignals": [
+          "who has authority",
+          "which law applies"
+        ]
       }
     },
     {
@@ -47,8 +55,15 @@
         "Ignoring hierarchy of courts."
       ],
       "retrievalHints": {
-        "keywords": ["source of law", "primary authority", "statute", "precedent"],
-        "intentSignals": ["where does this law come from"]
+        "keywords": [
+          "source of law",
+          "primary authority",
+          "statute",
+          "precedent"
+        ],
+        "intentSignals": [
+          "where does this law come from"
+        ]
       }
     },
     {
@@ -69,8 +84,16 @@
         "Assuming equal evidentiary thresholds."
       ],
       "retrievalHints": {
-        "keywords": ["burden of proof", "standard of proof", "reasonable doubt", "balance of probabilities"],
-        "intentSignals": ["how much proof", "what do they need to prove"]
+        "keywords": [
+          "burden of proof",
+          "standard of proof",
+          "reasonable doubt",
+          "balance of probabilities"
+        ],
+        "intentSignals": [
+          "how much proof",
+          "what do they need to prove"
+        ]
       }
     },
     {
@@ -92,8 +115,15 @@
         "Ignoring legislative purpose."
       ],
       "retrievalHints": {
-        "keywords": ["interpretation", "meaning of section", "legislative intent", "modern principle"],
-        "intentSignals": ["what does this section mean"]
+        "keywords": [
+          "interpretation",
+          "meaning of section",
+          "legislative intent",
+          "modern principle"
+        ],
+        "intentSignals": [
+          "what does this section mean"
+        ]
       }
     },
     {
@@ -114,8 +144,16 @@
         "Ignoring mitigation duty."
       ],
       "retrievalHints": {
-        "keywords": ["remedy", "damages", "injunction", "compensation"],
-        "intentSignals": ["what can I get", "what happens if"]
+        "keywords": [
+          "remedy",
+          "damages",
+          "injunction",
+          "compensation"
+        ],
+        "intentSignals": [
+          "what can I get",
+          "what happens if"
+        ]
       }
     },
     {
@@ -136,8 +174,16 @@
         "Ignoring procedural timelines."
       ],
       "retrievalHints": {
-        "keywords": ["appeal", "motion", "trial stage", "procedure"],
-        "intentSignals": ["can I appeal", "what happens next"]
+        "keywords": [
+          "appeal",
+          "motion",
+          "trial stage",
+          "procedure"
+        ],
+        "intentSignals": [
+          "can I appeal",
+          "what happens next"
+        ]
       }
     }
   ],
@@ -147,6 +193,52 @@
       "This pack supports structural explanations across most legal domains.",
       "Always require jurisdiction clarification when uncertainty exists.",
       "Designed for framework-level educational guidance, not case-specific advice."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "foundations_v1",
+      "law_foundations",
+      "law_foundations_v1"
+    ],
+    "sourceFile": "law_foundations_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_research_methods_v1",
+      "law_constitutional_charter_v1",
+      "law_contracts_v2",
+      "law_torts_v1",
+      "law_criminal_v1",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
+    ],
+    "sourceIntegrity": "moderate"
+  },
+  "packType": "framework",
+  "retrievalHints": {
+    "keywords": [
+      "burden of proof",
+      "federal or provincial",
+      "jurisdiction",
+      "primary authority",
+      "reasonable doubt",
+      "source of law",
+      "standard of proof",
+      "statute",
+      "which court"
+    ],
+    "intentSignals": [
+      "how much proof",
+      "what do they need to prove",
+      "where does this law come from",
+      "which law applies",
+      "who has authority"
     ]
   }
 }
