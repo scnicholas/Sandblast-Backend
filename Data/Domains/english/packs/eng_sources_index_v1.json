@@ -16,7 +16,13 @@
       "Support coaching, diagnostics, and portfolio-style improvement tracking."
     ]
   },
-  "anchors": [],
+  "anchors": [
+    "S_BIBER_LGSWE",
+    "S_EAP_CANADA_SURVEY",
+    "S_QUARK_CGEL",
+    "S_SWAN_PEU",
+    "S_WILLIAMS_STYLE"
+  ],
   "sourcePolicy": {
     "principles": [
       "Prioritize foundational grammars and usage references for stable structural claims.",
@@ -287,5 +293,63 @@
         "Accessibility Standards Canada plain language guidance"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_sources_index_v2",
+  "normalizedFrom": {
+    "filename": "eng_sources_index_v1.json",
+    "id": "eng_sources_index_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_sources_index_v1",
+    "eng_sources_index_v2",
+    "english_sources_index"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "english_sources_index",
+    "keywords": [
+      "across",
+      "canada",
+      "comprehensive",
+      "corpus",
+      "domain",
+      "english",
+      "grammar",
+      "guidance",
+      "index",
+      "layer",
+      "open",
+      "plain language",
+      "reference",
+      "resources",
+      "sources",
+      "style",
+      "texts",
+      "used"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 5,
+    "referenceCount": 14,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "sources": 14
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
