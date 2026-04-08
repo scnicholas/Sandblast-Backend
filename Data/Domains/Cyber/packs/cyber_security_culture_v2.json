@@ -339,5 +339,70 @@
       "Treat library textbooks and peer-reviewed reviews as secondary sources that support—not replace—official standards and government guidance.",
       "For compliance and operational claims, anchor final answers to primary sources before citing teaching materials."
     ]
+  },
+  "marionRetrievalProfile": {
+    "domain": "cybersecurity",
+    "packType": "security_culture",
+    "packId": "cyber_security_culture_v2",
+    "aliases": [
+      "cyber_security_culture",
+      "cyber_security_culture_v2",
+      "security_culture"
+    ],
+    "priority": "medium",
+    "readiness": "normalized_for_marion",
+    "defensiveOnly": true
+  },
+  "retrievalIndex": {
+    "keywords": [
+      "board",
+      "education",
+      "executive support",
+      "fear of reporting",
+      "governance",
+      "human risk",
+      "insider threat",
+      "leadership",
+      "phishing awareness",
+      "phishing training",
+      "report incident",
+      "security culture",
+      "security training",
+      "shared responsibility",
+      "whistleblowing"
+    ],
+    "intentSignals": [
+      "culture",
+      "educate",
+      "governance",
+      "improve awareness",
+      "improve culture",
+      "improve reporting",
+      "investment",
+      "organization",
+      "organizational security",
+      "policy",
+      "reduce human risk",
+      "strategy",
+      "train"
+    ],
+    "keywordCount": 15,
+    "intentSignalCount": 13
+  },
+  "governanceNotes": [
+    "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
+    "Normalize retrieval through packId, packType, aliases, and aggregated retrievalIndex.",
+    "Source metadata is present, but direct URLs/DOIs/ISBNs are not consistently attached."
+  ],
+  "crossPackLinks": [
+    {
+      "relatedPackId": "cyber_incident_response_v2",
+      "relationship": "recommended_runtime_neighbor"
+    }
+  ],
+  "_normalization": {
+    "normalizedAt": "2026-04-07",
+    "normalizationPass": "cyber_pack_marion_readiness_v1",
+    "originalFilename": "cyber_security_culture_v2.json"
   }
 }
