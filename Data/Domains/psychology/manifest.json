@@ -1,21 +1,77 @@
 {
-  "bundle": "psychology_domain_upgrade_v2",
   "domain": "psychology",
-  "updatedAt": "2026-03-15",
-  "files": [
-    "psy_biases_and_fallacies_v2.json",
-    "psy_clinical_safety_v2.json",
-    "psy_cognitive_v2.json",
-    "psy_development_v2.json",
-    "psy_foundations_v2.json",
-    "psy_interventions_skills_v2.json",
-    "psy_research_methods_v2.json",
-    "psy_social_v2.json",
-    "psy_sources_index_v2.json"
+  "manifestVersion": "2.1.0-normalized",
+  "updatedAt": "2026-04-08",
+  "defaultLoadOrder": [
+    "psy_clinical_safety_v2",
+    "psy_foundations_v2",
+    "psy_cognitive_v2",
+    "psy_biases_and_fallacies_v2",
+    "psy_social_v2",
+    "psy_development_v2",
+    "psy_interventions_skills_v2",
+    "psy_research_methods_v2",
+    "psy_sources_index_v2"
   ],
-  "notes": [
-    "All original psychology v1 packs were upgraded to v2 with doctoral-level source metadata, case studies, projects, and exam scaffolds.",
-    "Texts and test families are referenced bibliographically; full copyrighted chapters and proprietary test items are not embedded.",
-    "Clinical-safety boundaries remain explicit to prevent diagnostic overreach."
+  "routing": {
+    "primaryLane": "psychology",
+    "secondaryLanes": [
+      "english",
+      "strategy",
+      "ai",
+      "law"
+    ],
+    "safetyFirst": true,
+    "notes": [
+      "Always check clinical safety before interpretive or self-improvement guidance.",
+      "Use sources index for bibliographic confidence and trust ordering."
+    ]
+  },
+  "packs": [
+    {
+      "packId": "psy_clinical_safety_v2",
+      "file": "psy_clinical_safety_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_foundations_v2",
+      "file": "psy_foundations_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_cognitive_v2",
+      "file": "psy_cognitive_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_biases_and_fallacies_v2",
+      "file": "psy_biases_and_fallacies_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_social_v2",
+      "file": "psy_social_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_development_v2",
+      "file": "psy_development_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_interventions_skills_v2",
+      "file": "psy_interventions_skills_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_research_methods_v2",
+      "file": "psy_research_methods_v2.json",
+      "normalized": true
+    },
+    {
+      "packId": "psy_sources_index_v2",
+      "file": "psy_sources_index_v2.json",
+      "normalized": true
+    }
   ]
 }
