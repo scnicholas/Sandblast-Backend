@@ -219,5 +219,57 @@
     "Keep case studies as reasoning anchors rather than isolated anecdotes.",
     "Tie each case to a domain trunk so Marion can generalize lessons across theory, systems, governance, psychology, cybersecurity, and commercial application.",
     "Prefer cases with clear operational lessons over hype-heavy narratives."
-  ]
+  ],
+  "schemaVersion": "1.2.0-normalized",
+  "packId": "ai_case_studies",
+  "manifestPackKey": "caseStudies",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "layer": "case_studies",
+    "routeAliases": [
+      "cases",
+      "applied_cases",
+      "examples"
+    ],
+    "crossLinks": [
+      "foundations",
+      "agents_systems",
+      "ethics_law",
+      "ai_psychology",
+      "ai_cybersecurity",
+      "ai_marketing"
+    ],
+    "preferredQueryTerms": [],
+    "ingestionPriority": [],
+    "sourceCoverage": {
+      "hasBibliographicReferences": false,
+      "hasDirectUrlsOrPersistentIds": false
+    },
+    "caseDomainRuntimeMap": {
+      "foundations": "foundations",
+      "agents_and_systems": "agents_systems",
+      "ethics_and_law": "ethics_law",
+      "psychology": "ai_psychology",
+      "cybersecurity": "ai_cybersecurity",
+      "marketing": "ai_marketing"
+    }
+  },
+  "qualityAudit": {
+    "status": "needs_source_attachment",
+    "strengths": [
+      "Valid JSON and coherent top-level object structure.",
+      "Important retrieval accelerator because it links theory to concrete precedent and deployment patterns."
+    ],
+    "issues": [
+      "Manifest pack version for caseStudies is 1.0.0 while file version is 1.1.0.",
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file.",
+      "case_studies uses domain labels that do not exactly match runtime layer names; alias mapping is needed for retrieval."
+    ],
+    "recommendedActions": [
+      "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
+      "Keep manifest and pack versions synchronized.",
+      "Use alias routing when layer labels differ from case-study domain labels.",
+      "Preserve bibliographic references without embedding copyrighted chapters."
+    ]
+  }
 }
