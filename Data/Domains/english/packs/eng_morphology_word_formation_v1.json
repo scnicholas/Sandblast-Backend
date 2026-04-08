@@ -147,5 +147,61 @@
         "student-facing support"
       ]
     }
-  ]
+  ],
+  "domain": "english",
+  "packId": "eng_morphology_word_formation_v2",
+  "normalizedFrom": {
+    "filename": "eng_morphology_word_formation_v1.json",
+    "id": "eng_morphology_word_formation_v2",
+    "version": "2.0.0"
+  },
+  "normalizationMeta": {
+    "normalizedAt": "2026-04-07",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
+  },
+  "aliases": [
+    "eng_morphology_word_formation_v1",
+    "eng_morphology_word_formation_v2",
+    "morphology_and_word_formation"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "morphology_and_word_formation",
+    "keywords": [
+      "compounding",
+      "derivation",
+      "formation",
+      "inflection",
+      "lexical",
+      "morphemes",
+      "morphology",
+      "pattern",
+      "productivity",
+      "reasoning",
+      "structure",
+      "word"
+    ]
+  },
+  "sourceCoverage": {
+    "anchorCount": 2,
+    "referenceCount": 3,
+    "anchorsResolved": true,
+    "missingAnchorKeys": []
+  },
+  "retrievalFacets": {
+    "topics": 2,
+    "modules": 3,
+    "caseStudies": 1,
+    "projects": 1,
+    "referenceTextsUsed": 3
+  },
+  "auditSummary": {
+    "gradeBeforeNormalization": null,
+    "issuesFlagged": [
+      "filename_version_mismatch"
+    ],
+    "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  }
 }
