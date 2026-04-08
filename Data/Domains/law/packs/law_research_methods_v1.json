@@ -25,8 +25,18 @@
         "Confusing persuasive authority with binding authority."
       ],
       "retrievalHints": {
-        "keywords": ["where do i find", "research", "source", "authority", "canlii", "statute"],
-        "intentSignals": ["how do i research", "where can i read the law"]
+        "keywords": [
+          "where do i find",
+          "research",
+          "source",
+          "authority",
+          "canlii",
+          "statute"
+        ],
+        "intentSignals": [
+          "how do i research",
+          "where can i read the law"
+        ]
       }
     },
     {
@@ -48,8 +58,17 @@
         "Not checking if the section has been amended."
       ],
       "retrievalHints": {
-        "keywords": ["statute", "regulation", "act", "section", "amended"],
-        "intentSignals": ["what does the law say", "what section covers"]
+        "keywords": [
+          "statute",
+          "regulation",
+          "act",
+          "section",
+          "amended"
+        ],
+        "intentSignals": [
+          "what does the law say",
+          "what section covers"
+        ]
       }
     },
     {
@@ -71,8 +90,16 @@
         "Not verifying whether a case is still good law."
       ],
       "retrievalHints": {
-        "keywords": ["case law", "precedent", "supreme court", "appeal"],
-        "intentSignals": ["what case says", "leading case"]
+        "keywords": [
+          "case law",
+          "precedent",
+          "supreme court",
+          "appeal"
+        ],
+        "intentSignals": [
+          "what case says",
+          "leading case"
+        ]
       }
     },
     {
@@ -95,8 +122,15 @@
         "Treating obiter dicta as binding."
       ],
       "retrievalHints": {
-        "keywords": ["ratio", "obiter", "holding", "reasoning"],
-        "intentSignals": ["how do i read a case"]
+        "keywords": [
+          "ratio",
+          "obiter",
+          "holding",
+          "reasoning"
+        ],
+        "intentSignals": [
+          "how do i read a case"
+        ]
       }
     },
     {
@@ -117,8 +151,14 @@
         "Ignoring appellate history."
       ],
       "retrievalHints": {
-        "keywords": ["noted up", "overruled", "cited by"],
-        "intentSignals": ["is this still valid law"]
+        "keywords": [
+          "noted up",
+          "overruled",
+          "cited by"
+        ],
+        "intentSignals": [
+          "is this still valid law"
+        ]
       }
     },
     {
@@ -139,8 +179,16 @@
         "Ignoring primary authority verification."
       ],
       "retrievalHints": {
-        "keywords": ["textbook", "article", "journal", "encyclopedia"],
-        "intentSignals": ["overview of", "background on"]
+        "keywords": [
+          "textbook",
+          "article",
+          "journal",
+          "encyclopedia"
+        ],
+        "intentSignals": [
+          "overview of",
+          "background on"
+        ]
       }
     },
     {
@@ -161,8 +209,14 @@
         "Assuming federal rules apply provincially."
       ],
       "retrievalHints": {
-        "keywords": ["limitation", "deadline", "statute of limitations"],
-        "intentSignals": ["am i too late to sue"]
+        "keywords": [
+          "limitation",
+          "deadline",
+          "statute of limitations"
+        ],
+        "intentSignals": [
+          "am i too late to sue"
+        ]
       }
     }
   ],
@@ -172,6 +226,49 @@
       "This pack supports structured responses when users ask how to research or verify legal information.",
       "Always require jurisdiction when discussing procedure or limitation periods.",
       "Encourage consulting official sources and legal professionals for confirmation."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "law_research_methods",
+      "law_research_methods_v1",
+      "research_methods_v1"
+    ],
+    "sourceFile": "law_research_methods_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_foundations_v1",
+      "law_source_ladder_v2",
+      "law_safety_and_posture_v1"
+    ],
+    "sourceIntegrity": "moderate"
+  },
+  "packType": "methods",
+  "retrievalHints": {
+    "keywords": [
+      "act",
+      "case law",
+      "precedent",
+      "regulation",
+      "research",
+      "source",
+      "statute",
+      "supreme court",
+      "where do i find"
+    ],
+    "intentSignals": [
+      "how do i research",
+      "leading case",
+      "what case says",
+      "what does the law say",
+      "what section covers",
+      "where can i read the law"
     ]
   }
 }
