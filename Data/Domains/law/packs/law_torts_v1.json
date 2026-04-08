@@ -84,8 +84,21 @@
         "Conflating moral blame with legal causation/remoteness"
       ],
       "retrievalHints": {
-        "keywords": ["negligence", "careless", "accident", "injury", "fault", "liable", "sue"],
-        "intentSignals": ["do i have a case", "can i sue", "who is responsible", "what can i claim"]
+        "keywords": [
+          "negligence",
+          "careless",
+          "accident",
+          "injury",
+          "fault",
+          "liable",
+          "sue"
+        ],
+        "intentSignals": [
+          "do i have a case",
+          "can i sue",
+          "who is responsible",
+          "what can i claim"
+        ]
       }
     },
     {
@@ -113,8 +126,17 @@
         "Over-relying on 'it was obvious' without details that show foreseeability"
       ],
       "retrievalHints": {
-        "keywords": ["duty of care", "foreseeable", "should have known", "responsibility"],
-        "intentSignals": ["do they owe me", "were they required", "should they have prevented"]
+        "keywords": [
+          "duty of care",
+          "foreseeable",
+          "should have known",
+          "responsibility"
+        ],
+        "intentSignals": [
+          "do they owe me",
+          "were they required",
+          "should they have prevented"
+        ]
       }
     },
     {
@@ -142,8 +164,18 @@
         "Assuming a policy/handbook equals the legal standard in all cases"
       ],
       "retrievalHints": {
-        "keywords": ["standard of care", "reasonable", "should have", "precautions", "warning sign"],
-        "intentSignals": ["were they negligent", "did they breach", "did they do enough"]
+        "keywords": [
+          "standard of care",
+          "reasonable",
+          "should have",
+          "precautions",
+          "warning sign"
+        ],
+        "intentSignals": [
+          "were they negligent",
+          "did they breach",
+          "did they do enough"
+        ]
       }
     },
     {
@@ -171,8 +203,18 @@
         "Assuming all downstream harm is recoverable"
       ],
       "retrievalHints": {
-        "keywords": ["caused", "because of", "chain", "resulted in", "remote"],
-        "intentSignals": ["is that their fault", "can i prove", "they started it"]
+        "keywords": [
+          "caused",
+          "because of",
+          "chain",
+          "resulted in",
+          "remote"
+        ],
+        "intentSignals": [
+          "is that their fault",
+          "can i prove",
+          "they started it"
+        ]
       }
     },
     {
@@ -200,8 +242,18 @@
         "Ignoring mitigation expectations"
       ],
       "retrievalHints": {
-        "keywords": ["damages", "compensation", "how much", "settlement", "pain and suffering"],
-        "intentSignals": ["what can i claim", "what is it worth", "how do i calculate"]
+        "keywords": [
+          "damages",
+          "compensation",
+          "how much",
+          "settlement",
+          "pain and suffering"
+        ],
+        "intentSignals": [
+          "what can i claim",
+          "what is it worth",
+          "how do i calculate"
+        ]
       }
     },
     {
@@ -229,8 +281,18 @@
         "Treating a waiver as automatic immunity"
       ],
       "retrievalHints": {
-        "keywords": ["contributory negligence", "shared fault", "partial fault", "waiver", "assumption of risk"],
-        "intentSignals": ["is it my fault too", "does this reduce", "can they blame me"]
+        "keywords": [
+          "contributory negligence",
+          "shared fault",
+          "partial fault",
+          "waiver",
+          "assumption of risk"
+        ],
+        "intentSignals": [
+          "is it my fault too",
+          "does this reduce",
+          "can they blame me"
+        ]
       }
     },
     {
@@ -258,8 +320,19 @@
         "Skipping the evidence timeline (who/what/when/where)"
       ],
       "retrievalHints": {
-        "keywords": ["assault", "battery", "hit", "grabbed", "detained", "wouldn't let me leave"],
-        "intentSignals": ["can i sue", "is that allowed", "what are my rights"]
+        "keywords": [
+          "assault",
+          "battery",
+          "hit",
+          "grabbed",
+          "detained",
+          "wouldn't let me leave"
+        ],
+        "intentSignals": [
+          "can i sue",
+          "is that allowed",
+          "what are my rights"
+        ]
       }
     },
     {
@@ -296,8 +369,20 @@
         "Assuming 'mean' equals defamatory—opinion vs fact distinction matters"
       ],
       "retrievalHints": {
-        "keywords": ["defamation", "libel", "slander", "false", "posted", "review", "accused"],
-        "intentSignals": ["can i sue them", "is this defamation", "can i get it removed"]
+        "keywords": [
+          "defamation",
+          "libel",
+          "slander",
+          "false",
+          "posted",
+          "review",
+          "accused"
+        ],
+        "intentSignals": [
+          "can i sue them",
+          "is this defamation",
+          "can i get it removed"
+        ]
       }
     },
     {
@@ -325,8 +410,20 @@
         "Skipping the most efficient administrative route"
       ],
       "retrievalHints": {
-        "keywords": ["nuisance", "noise", "smell", "odour", "vibration", "runoff", "neighbour"],
-        "intentSignals": ["what can i do", "can i force them", "is it illegal"]
+        "keywords": [
+          "nuisance",
+          "noise",
+          "smell",
+          "odour",
+          "vibration",
+          "runoff",
+          "neighbour"
+        ],
+        "intentSignals": [
+          "what can i do",
+          "can i force them",
+          "is it illegal"
+        ]
       }
     },
     {
@@ -353,8 +450,18 @@
         "Assuming criminal enforcement when it’s primarily civil"
       ],
       "retrievalHints": {
-        "keywords": ["trespass", "on my property", "entered", "won't stay off", "boundary"],
-        "intentSignals": ["can i stop them", "can i call police", "what are my options"]
+        "keywords": [
+          "trespass",
+          "on my property",
+          "entered",
+          "won't stay off",
+          "boundary"
+        ],
+        "intentSignals": [
+          "can i stop them",
+          "can i call police",
+          "what are my options"
+        ]
       }
     },
     {
@@ -381,8 +488,19 @@
         "Assuming any fall equals liability"
       ],
       "retrievalHints": {
-        "keywords": ["slip and fall", "premises", "occupier", "store", "ice", "wet floor"],
-        "intentSignals": ["are they liable", "can i claim", "what do i do next"]
+        "keywords": [
+          "slip and fall",
+          "premises",
+          "occupier",
+          "store",
+          "ice",
+          "wet floor"
+        ],
+        "intentSignals": [
+          "are they liable",
+          "can i claim",
+          "what do i do next"
+        ]
       }
     },
     {
@@ -410,8 +528,19 @@
         "No proof of purchase or usage context"
       ],
       "retrievalHints": {
-        "keywords": ["defective", "product liability", "recall", "faulty", "broke", "injured me"],
-        "intentSignals": ["can i sue the manufacturer", "who is responsible", "what should i keep"]
+        "keywords": [
+          "defective",
+          "product liability",
+          "recall",
+          "faulty",
+          "broke",
+          "injured me"
+        ],
+        "intentSignals": [
+          "can i sue the manufacturer",
+          "who is responsible",
+          "what should i keep"
+        ]
       }
     },
     {
@@ -439,8 +568,19 @@
         "Weak documentation of reliance and loss"
       ],
       "retrievalHints": {
-        "keywords": ["misrepresentation", "lied", "told me", "guaranteed", "promised", "relied on"],
-        "intentSignals": ["can i sue", "they misled me", "false claims"]
+        "keywords": [
+          "misrepresentation",
+          "lied",
+          "told me",
+          "guaranteed",
+          "promised",
+          "relied on"
+        ],
+        "intentSignals": [
+          "can i sue",
+          "they misled me",
+          "false claims"
+        ]
       }
     },
     {
@@ -468,8 +608,18 @@
         "Ignoring safety planning when threats are present"
       ],
       "retrievalHints": {
-        "keywords": ["emotional distress", "mental suffering", "harassment", "threats", "traumatized"],
-        "intentSignals": ["can i sue", "what are my options", "how do i stop this"]
+        "keywords": [
+          "emotional distress",
+          "mental suffering",
+          "harassment",
+          "threats",
+          "traumatized"
+        ],
+        "intentSignals": [
+          "can i sue",
+          "what are my options",
+          "how do i stop this"
+        ]
       }
     },
     {
@@ -497,8 +647,18 @@
         "Not identifying the correct defendant(s)"
       ],
       "retrievalHints": {
-        "keywords": ["employer liable", "employee", "staff", "security", "company responsible"],
-        "intentSignals": ["can i sue the company", "who do i go after", "is the employer responsible"]
+        "keywords": [
+          "employer liable",
+          "employee",
+          "staff",
+          "security",
+          "company responsible"
+        ],
+        "intentSignals": [
+          "can i sue the company",
+          "who do i go after",
+          "is the employer responsible"
+        ]
       }
     },
     {
@@ -526,8 +686,18 @@
         "Delaying evidence preservation"
       ],
       "retrievalHints": {
-        "keywords": ["limitation", "too late", "time limit", "deadline", "years ago"],
-        "intentSignals": ["can i still sue", "is it expired", "how long do i have"]
+        "keywords": [
+          "limitation",
+          "too late",
+          "time limit",
+          "deadline",
+          "years ago"
+        ],
+        "intentSignals": [
+          "can i still sue",
+          "is it expired",
+          "how long do i have"
+        ]
       }
     },
     {
@@ -555,8 +725,18 @@
         "Trying to force takedowns without evidence trail"
       ],
       "retrievalHints": {
-        "keywords": ["injunction", "make them stop", "ongoing", "cease and desist", "remove it"],
-        "intentSignals": ["how do i stop", "can a court order", "what is the remedy"]
+        "keywords": [
+          "injunction",
+          "make them stop",
+          "ongoing",
+          "cease and desist",
+          "remove it"
+        ],
+        "intentSignals": [
+          "how do i stop",
+          "can a court order",
+          "what is the remedy"
+        ]
       }
     }
   ],
@@ -603,6 +783,49 @@
       "This pack is designed for retrieval and explanation, not for generating legal advice or filling court forms.",
       "For procedural specifics, always route to jurisdiction-specific official sources.",
       "Prefer: clarify → framework → evidence packet → options."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-04-08",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "retrievalAliases": [
+      "law_torts",
+      "law_torts_v1",
+      "torts_v1"
+    ],
+    "sourceFile": "law_torts_v1.json",
+    "pipelineRole": "knowledge_pack",
+    "jurisdictionDefault": "CA",
+    "crossLinks": [
+      "law_foundations_v1",
+      "law_research_methods_v1",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
+    ],
+    "sourceIntegrity": "moderate"
+  },
+  "retrievalHints": {
+    "keywords": [
+      "accident",
+      "careless",
+      "duty of care",
+      "foreseeable",
+      "negligence",
+      "reasonable",
+      "should have",
+      "should have known",
+      "standard of care"
+    ],
+    "intentSignals": [
+      "can i sue",
+      "did they breach",
+      "do i have a case",
+      "do they owe me",
+      "were they negligent",
+      "were they required"
     ]
   }
 }
