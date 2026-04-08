@@ -13,26 +13,99 @@
     "grief",
     "disappointment",
     "hopelessness",
+    "hurt",
     "anxiety",
     "panic",
     "uncertainty",
     "hypervigilance",
+    "overwhelm",
     "frustration",
     "resentment",
-    "shame",
-    "emotional_numbness",
+    "moral_injury",
     "relief",
+    "gratitude",
+    "excitement",
+    "contentment",
     "confusion",
-    "overwhelm",
-    "hurt"
+    "amazement",
+    "shock",
+    "revulsion",
+    "rejection",
+    "moral_disgust",
+    "flat",
+    "informational",
+    "guarded",
+    "emotional_numbness",
+    "shame"
   ],
   "intensity_scale": {
     "min": 0,
     "max": 1,
     "bands": {
-      "low": [0, 0.33],
-      "moderate": [0.34, 0.66],
-      "high": [0.67, 1]
+      "low": [
+        0.0,
+        0.33
+      ],
+      "moderate": [
+        0.34,
+        0.66
+      ],
+      "high": [
+        0.67,
+        1.0
+      ]
+    },
+    "behavioral_modifiers": {
+      "low": {
+        "response_length": "short_to_medium",
+        "followup_depth": "light",
+        "pacing": "normal"
+      },
+      "moderate": {
+        "response_length": "short",
+        "followup_depth": "targeted",
+        "pacing": "slowed"
+      },
+      "high": {
+        "response_length": "short",
+        "followup_depth": "minimal_first",
+        "pacing": "slow_and_containing"
+      }
+    }
+  },
+  "blend_axes": [
+    "threat_response",
+    "emotional_loss",
+    "boundary_activation",
+    "positive_release",
+    "orientation_shift",
+    "aversion_response",
+    "low_signal_state"
+  ],
+  "suppression_signals": [
+    "deflection",
+    "minimization",
+    "forced_positivity",
+    "detachment",
+    "dry_humor_under_strain",
+    "topic_shift",
+    "understatement"
+  ],
+  "state_tracking": {
+    "rolling_window_size": 3,
+    "stability_thresholds": {
+      "stable": [
+        0.67,
+        1.0
+      ],
+      "variable": [
+        0.34,
+        0.66
+      ],
+      "volatile": [
+        0.0,
+        0.33
+      ]
     }
   }
 }
