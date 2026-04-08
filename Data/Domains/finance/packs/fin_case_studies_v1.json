@@ -30,7 +30,7 @@
   "referenceArchitecture": {
     "textbooks_and_open_learning": [
       {
-        "title": "Corporate Finance Institute \u2014 Capital Markets Overview",
+        "title": "Corporate Finance Institute — Capital Markets Overview",
         "type": "open_learning",
         "authority": "professional_education",
         "use": [
@@ -574,5 +574,26 @@
         "disconfirming evidence section"
       ]
     }
-  ]
+  ],
+  "runtimeMetadata": {
+    "domain": "finance",
+    "canonicalPackId": "fin_case_studies_v1",
+    "retrievalAliases": [
+      "cases",
+      "case studies",
+      "diagnostics",
+      "patterns"
+    ],
+    "crossPackHints": [
+      "fin_micro_foundations_v1",
+      "fin_macro_principles_v1",
+      "fin_unit_economics_v1",
+      "fin_pricing_models_v1",
+      "fin_capital_markets_v1",
+      "fin_risk_management_v1",
+      "fin_public_policy_links_v1"
+    ],
+    "marionPriority": 8,
+    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  }
 }
