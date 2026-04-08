@@ -5,24 +5,81 @@
     "confidence": 0.83,
     "intensity": 0.69
   },
+  "blend_profile": {
+    "weights": {
+      "sadness": 0.61,
+      "fear": 0.39
+    },
+    "dominant_axis": "emotional_loss",
+    "interaction_note": "loss-colored apprehension with withdrawal risk"
+  },
   "nuance": {
     "subtype": "loneliness",
     "social_pattern": "feeling unseen",
-    "risk_flags": ["withdrawal"]
+    "suppression_signal": null,
+    "risk_flags": [
+      "withdrawal"
+    ]
+  },
+  "state_drift": {
+    "previous_emotion": "fear",
+    "current_emotion": "sadness",
+    "trend": "settling_after_activation",
+    "stability": 0.58,
+    "volatility": 0.42,
+    "rolling_window": [
+      {
+        "primary": "fear",
+        "intensity": 0.74
+      },
+      {
+        "primary": "fear",
+        "secondary": "sadness",
+        "intensity": 0.71
+      },
+      {
+        "primary": "sadness",
+        "secondary": "fear",
+        "intensity": 0.69
+      }
+    ],
+    "dominant_pattern": "withdrawal"
   },
   "psychology": {
-    "interpretation": "possible emotional disconnection",
-    "care_mode": "validation_first"
+    "interpretation": "possible emotional disconnection with apprehension about further hurt",
+    "care_mode": "validation_first",
+    "care_sequence": [
+      "validate",
+      "stabilize",
+      "explore",
+      "guide"
+    ]
   },
   "support": {
     "tone": "gentle",
     "followup": true,
-    "advice_level": "low"
+    "advice_level": "low",
+    "timing_profile": {
+      "pause_before_response": true,
+      "response_length": "short",
+      "followup_delay": "soft",
+      "pacing": "slow_and_containing"
+    }
   },
   "guard": {
     "diagnosis_block": true,
     "safe_to_continue": true,
     "escalation_needed": false,
-    "detected_flags": []
+    "detected_flags": [],
+    "action_mode": "supportive_monitoring"
+  },
+  "marion_handoff": {
+    "interpreter_summary": "User likely needs recognition before solutions; avoid sudden reframing or heavy advice.",
+    "nyx_expression_goal": "sound present, warm, and steady without over-talking",
+    "response_constraints": [
+      "no diagnosis",
+      "no cheerleading overreach",
+      "keep first response under three sentences"
+    ]
   }
 }
