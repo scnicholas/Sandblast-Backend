@@ -118,7 +118,8 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.5.0-opintel-emotion-sync";
+const BRIDGE_VERSION = "1.5.1-opintel-emotion-sync-pipeline-normalized";
+const SITEBRIDGE_PIPELINE_SCHEMA = "nyx.marion.sitebridge/1.5";
 
 const OPINTEL_SCHEMA = "oi:1.0";
 const OPINTEL_TRACE_SCHEMA = "trace:1.0";
@@ -1742,6 +1743,7 @@ function build(input) {
       opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, __stateHints),
       opUpgrade,
       emotion,
+      pipelineSchema: SITEBRIDGE_PIPELINE_SCHEMA,
     });
   } catch (e) {
     return failOpenPsyche(e, input);
@@ -1960,6 +1962,7 @@ async function buildAsync(input) {
       opIntel: resolveOpIntelEnvelope(input, { intent, mode, regulation, stance, queryKey, sessionKey }, domains, confidence, diag, social, __stateHints),
       opUpgrade,
       emotion,
+      pipelineSchema: SITEBRIDGE_PIPELINE_SCHEMA,
     });
   } catch (e) {
     return failOpenPsyche(e, input);
@@ -1973,6 +1976,7 @@ function buildPsyche(input) {
 }
 
 module.exports = {
+  SITEBRIDGE_PIPELINE_SCHEMA,
   BRIDGE_VERSION,
   PHASE15_PLAN,
   build,
