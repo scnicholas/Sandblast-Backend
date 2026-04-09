@@ -1,4 +1,5 @@
 // nyx_state_controller.js
+// Pipeline normalized build: adds CommonJS compatibility without changing browser behavior
 // Nyx state controller v1
 // Purpose:
 // - Manage face state transitions: neutral, warm, engaged, curious
@@ -479,3 +480,13 @@ export class NyxStateController {
 }
 
 export default NyxStateController;
+
+
+const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.0.1 PIPELINE-NORMALIZED";
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = NyxStateController;
+  module.exports.default = NyxStateController;
+  module.exports.NYX_STATES = NYX_STATES;
+  module.exports.NYX_STATE_CONTROLLER_VERSION = NYX_STATE_CONTROLLER_VERSION;
+}
