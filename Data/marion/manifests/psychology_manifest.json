@@ -1,14 +1,18 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "domain": "psychology",
-  "manifestId": "marion_psychology_manifest_v1",
-  "description": "Canonical manifest for psychology ingestion into Marion. Declares source files, compile order, validation policy, routing dependencies, and deployment intent.",
+  "manifestId": "marion_psychology_manifest_v1_1",
+  "description": "Canonical manifest for hardened psychology ingestion into Marion. Declares source files, compile order, validation policy, routing dependencies, deployment intent, and formatter/continuity compatibility.",
   "ingestionPolicy": {
     "enabled": true,
     "compileStrategy": "merge_normalize_index",
     "dedupeStrategy": "id_first_then_topic",
     "validationMode": "strict_required_fields",
-    "failOnMissingCriticalSource": true
+    "failOnMissingCriticalSource": true,
+    "normalizeSupportFlags": true,
+    "normalizeToneProfile": true,
+    "attachFormatterDirectives": true,
+    "attachContinuityProfile": true
   },
   "requiredFields": [
     "id",
@@ -19,7 +23,8 @@
     "summary",
     "supportMode",
     "routeBias",
-    "tags"
+    "tags",
+    "riskLevel"
   ],
   "optionalFields": [
     "signals",
@@ -31,7 +36,12 @@
     "toneProfile",
     "contraindications",
     "triggers",
-    "responsePattern"
+    "responsePattern",
+    "retrievalHints",
+    "formatterDirectives",
+    "continuityProfile",
+    "suppressionProfile",
+    "blendCompatibility"
   ],
   "sources": [
     {
@@ -114,13 +124,20 @@
     "queryMode": "subdomain_priority_then_semantic_match",
     "maxMatches": 3,
     "preferCrisisGate": true,
-    "preferSupportStrategyAsFormatter": true
+    "preferSupportStrategyAsFormatter": true,
+    "supportsContinuityHints": true,
+    "supportsSuppressionAwareFormatting": true,
+    "supportsBlendCompatibility": true
   },
   "compatibility": {
     "supportsKnowledgeSections": true,
     "supportsSupportModeCandidate": true,
     "supportsRouteBias": true,
     "supportsToneProfile": true,
-    "supportsSupportFlags": true
+    "supportsSupportFlags": true,
+    "supportsFormatterDirectives": true,
+    "supportsContinuityProfile": true,
+    "supportsSuppressionProfile": true,
+    "supportsBlendCompatibility": true
   }
 }
