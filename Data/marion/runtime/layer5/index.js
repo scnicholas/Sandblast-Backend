@@ -1,14 +1,16 @@
-const { buildContinuityState } = require('./ContinuityStateBuilder');
-const { extractMemorySignals } = require('./MemorySignalExtractor');
-const { classifyPersistence } = require('./PersistenceClassifier');
-const { buildEmotionalContinuity } = require('./EmotionalContinuityEngine');
-const { buildDomainContinuity } = require('./DomainContinuityEngine');
-const { buildTopicThread } = require('./TopicThreadTracker');
-const { buildResetGuard } = require('./ResetGuard');
-const { assembleTurnMemory } = require('./TurnMemoryAssembler');
+"use strict";
+
+const { buildContinuityState } = require("./ContinuityStateBuilder");
+const { extractMemorySignals } = require("./MemorySignalExtractor");
+const { classifyPersistence } = require("./PersistenceClassifier");
+const { buildEmotionalContinuity } = require("./EmotionalContinuityEngine");
+const { buildDomainContinuity } = require("./DomainContinuityEngine");
+const { buildTopicThread } = require("./TopicThreadTracker");
+const { buildResetGuard } = require("./ResetGuard");
+const { assembleTurnMemory } = require("./TurnMemoryAssembler");
 
 async function runLayer5({
-  userQuery = '',
+  userQuery = "",
   fusionPacket = {},
   assembledResponse = {},
   previousMemory = {}
