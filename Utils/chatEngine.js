@@ -30,7 +30,8 @@ try { telemetryAdapter = require("./chatTelemetryAdapter"); } catch (_e) { telem
 
 const { buildResponseContract, sanitizeUserFacingReply } = require("./conversationalResponseSystem");
 
-const VERSION = "chatEngine v1.1.0 MARION-FIRST-HARDENED";
+const VERSION = "chatEngine v1.1.1 MARION-FIRST-HARDENED-PIPELINE-NORMALIZED";
+const PIPELINE_SCHEMA = "nyx.marion.chatEngine/1.1";
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "english", "cybersecurity", "ai", "strategy", "marketing", "general"];
 const DUP_WINDOW_MS = 6000;
 const CACHE_WINDOW_MS = 12000;
@@ -254,13 +255,15 @@ function normalizeInbound(input = {}) {
   const payload = isObj(input.payload) ? input.payload : {};
   const ctx = isObj(input.ctx) ? input.ctx : {};
   const rawText = input.text || body.text || payload.text || input.message || body.message || "";
-  const text = oneLine(rawText).slice(0, MAX_TEXT_LEN);
+  const rawTextNormalized = oneLine(rawText);
+  const text = rawTextNormalized.slice(0, MAX_TEXT_LEN);
   return {
     raw: input,
     body,
     payload,
     ctx,
     text,
+    rawTextLength: rawTextNormalized.length,
     lane: safeStr(input.lane || payload.lane || body.lane || ctx.lane || "general").toLowerCase() || "general",
     action: safeStr(input.action || payload.action || body.action || "").toLowerCase(),
     publicMode: input.publicMode ?? payload.publicMode ?? body.publicMode ?? ctx.publicMode,
@@ -272,7 +275,7 @@ function validateInboundContract(rawInput, norm) {
   const issues = [];
   if (!isObj(rawInput)) issues.push("input_not_object");
   if (!safeStr(norm.lane)) issues.push("lane_missing");
-  if (safeStr(norm.text).length > MAX_TEXT_LEN) issues.push("text_trimmed");
+  if (Number(norm.rawTextLength || 0) > MAX_TEXT_LEN) issues.push("text_trimmed");
   const publicMode = toBool(norm.publicMode, true);
   return {
     ok: true,
@@ -633,7 +636,7 @@ async function handleChat(input) {
         followUps: presentation.followUps,
         cog: presentation.cog,
         requestId,
-        meta: { ...meta, speechEnabled: !!speech.enabled, speechYearNormalization: true }
+        meta: { ...meta, speechEnabled: !!speech.enabled, speechYearNormalization: true, pipelineSchema: PIPELINE_SCHEMA }
       });
 
       const memoryContext = buildMemoryContext({ norm, session, contract, emotion: emo, bridge: contract.bridge, continuity });
@@ -647,7 +650,8 @@ async function handleChat(input) {
         ...buildSessionPatchFromContract(contract, session, inSig, speech),
         __spineState: nextState,
         __lastRequestId: requestId,
-        __lastTurnId: turnId
+        __lastTurnId: turnId,
+        __pipelineSchema: PIPELINE_SCHEMA
       };
 
       logDiag("turn_ok", { requestId: shortId(requestId), turnId: shortId(turnId), lane, marion: !!meta.marionBridgeUsed, ms: nowMs() - started });
@@ -686,7 +690,8 @@ async function handleChat(input) {
           continuityLevel: continuity.continuityLevel,
           t: nowMs(),
           speechEnabled: !!speech.enabled,
-          speechYearNormalization: true
+          speechYearNormalization: true,
+          pipelineSchema: PIPELINE_SCHEMA
         }
       });
       contract.sessionPatch = {
@@ -728,5 +733,6 @@ module.exports = {
   normalizeSpeechText,
   yearToSpeech,
   buildSpeechPacket,
+  PIPELINE_SCHEMA,
   default: handleChat
 };
