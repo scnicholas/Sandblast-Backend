@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "domain": "psychology",
-  "compiledAt": "2026-03-16T00:00:00.000Z",
-  "description": "Compiled psychology knowledge index for Marion ingestion. Aggregates affect interpretation, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma sensitivity into a unified retrieval structure.",
+  "compiledAt": "2026-04-09T00:00:00.000Z",
+  "description": "Hardened psychology knowledge index for Marion ingestion. Normalizes affect interpretation, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma sensitivity into a retrieval-ready structure with formatter, suppression, and continuity guidance.",
   "sourceFiles": [
     "Data/psychology/affect_interpretation.json",
     "Data/psychology/attachment_patterns.json",
@@ -52,7 +52,12 @@
     "preferCrisisFirst": true,
     "preferSupportStrategyLast": true,
     "requireSignalOrKeywordHit": true,
-    "allowSubdomainBlending": true
+    "allowSubdomainBlending": true,
+    "preferLowComplexityWhenHighDistress": true,
+    "normalizeSupportFlags": true,
+    "includeFormatterDirectives": true,
+    "includeContinuityProfile": true,
+    "includeSuppressionProfile": true
   },
   "records": [
     {
@@ -69,7 +74,13 @@
         "my mind won't stop",
         "everything is too much"
       ],
-      "keywords": ["overwhelm", "spiral", "panic", "flooded", "too much"],
+      "keywords": [
+        "overwhelm",
+        "spiral",
+        "panic",
+        "flooded",
+        "too much"
+      ],
       "interpretation": "Possible acute overload with narrowed tolerance for complexity and reduced cognitive bandwidth.",
       "supportMode": "soothe_and_structure",
       "routeBias": "stabilize",
@@ -80,7 +91,9 @@
         "needsClarification": false,
         "needsConnection": true,
         "highDistress": true,
-        "crisis": false
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Reduce intensity before analysis",
@@ -93,14 +106,66 @@
         "semanticFrame": "stabilization",
         "followupStyle": "grounding",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "contain"]
+        "transitionTargets": [
+          "stabilize",
+          "contain"
+        ]
       },
       "contraindications": [
         "Do not over-question",
         "Do not jump to problem-solving too quickly",
         "Do not mirror panic intensity"
       ],
-      "tags": ["psychology", "affect", "overwhelm", "high_arousal", "stabilization"]
+      "tags": [
+        "psychology",
+        "affect",
+        "overwhelm",
+        "high_arousal",
+        "stabilization"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i'm overwhelmed",
+          "i'm spiraling",
+          "i can't slow down",
+          "my mind won't stop",
+          "everything is too much"
+        ],
+        "softSignals": [
+          "overwhelm",
+          "spiral",
+          "panic",
+          "flooded"
+        ],
+        "semanticAliases": [
+          "High-arousal overwhelm",
+          "overwhelm high arousal",
+          "psychology",
+          "affect",
+          "overwhelm",
+          "high_arousal"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "grounding",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "anxiety"
+      ]
     },
     {
       "id": "psy_affect_interpretation_002",
@@ -116,7 +181,13 @@
         "i can't get moving",
         "i feel empty"
       ],
-      "keywords": ["numb", "empty", "drained", "flat", "shutdown"],
+      "keywords": [
+        "numb",
+        "empty",
+        "drained",
+        "flat",
+        "shutdown"
+      ],
       "interpretation": "Possible emotional blunting or depleted activation with limited readiness for pressure-heavy engagement.",
       "supportMode": "validate_and_gently_activate",
       "routeBias": "clarify",
@@ -127,7 +198,9 @@
         "needsClarification": true,
         "needsConnection": true,
         "highDistress": false,
-        "crisis": false
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Validate depletion without dramatizing it",
@@ -140,13 +213,65 @@
         "semanticFrame": "depletion_support",
         "followupStyle": "reflective",
         "transitionReadiness": "low",
-        "transitionTargets": ["clarify", "activate"]
+        "transitionTargets": [
+          "clarify",
+          "activate"
+        ]
       },
       "contraindications": [
         "Do not frame as laziness",
         "Do not apply aggressive motivational pressure"
       ],
-      "tags": ["psychology", "affect", "shutdown", "low_activation", "depletion"]
+      "tags": [
+        "psychology",
+        "affect",
+        "shutdown",
+        "low_activation",
+        "depletion"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i feel numb",
+          "i don't feel anything",
+          "i'm drained",
+          "i can't get moving",
+          "i feel empty"
+        ],
+        "softSignals": [
+          "numb",
+          "empty",
+          "drained",
+          "flat"
+        ],
+        "semanticAliases": [
+          "Low-activation shutdown",
+          "shut down low activation",
+          "psychology",
+          "affect",
+          "shutdown",
+          "low_activation"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "low",
+        "questionStyle": "reflective",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "light_probe",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": true,
+        "minimizationRisk": true,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness"
+      ]
     },
     {
       "id": "psy_affect_interpretation_003",
@@ -162,7 +287,13 @@
         "i ruin everything",
         "i hate myself"
       ],
-      "keywords": ["shame", "failure", "worthless", "not enough", "defective"],
+      "keywords": [
+        "shame",
+        "failure",
+        "worthless",
+        "not enough",
+        "defective"
+      ],
       "interpretation": "Possible shame-dominant framing where identity is being collapsed into a painful state or outcome.",
       "supportMode": "careful_nonshaming_reflection",
       "routeBias": "stabilize",
@@ -173,7 +304,9 @@
         "needsClarification": false,
         "needsConnection": true,
         "highDistress": true,
-        "crisis": false
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Separate personhood from outcome",
@@ -186,13 +319,65 @@
         "semanticFrame": "identity_protection",
         "followupStyle": "reflective",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "repair"]
+        "transitionTargets": [
+          "stabilize",
+          "repair"
+        ]
       },
       "contraindications": [
         "Do not agree with self-attack",
         "Do not use blunt challenge too early"
       ],
-      "tags": ["psychology", "affect", "shame", "self_evaluative", "repair"]
+      "tags": [
+        "psychology",
+        "affect",
+        "shame",
+        "self_evaluative",
+        "repair"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i'm a failure",
+          "there's something wrong with me",
+          "i'm not enough",
+          "i ruin everything",
+          "i hate myself"
+        ],
+        "softSignals": [
+          "shame",
+          "failure",
+          "worthless",
+          "not enough"
+        ],
+        "semanticAliases": [
+          "Self-evaluative shame pattern",
+          "self evaluative shame",
+          "psychology",
+          "affect",
+          "shame",
+          "self_evaluative"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "reflective",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness"
+      ]
     },
     {
       "id": "psy_affect_interpretation_004",
@@ -208,7 +393,13 @@
         "it finally feels manageable",
         "i think i can do this"
       ],
-      "keywords": ["better", "relief", "recovery", "back on track", "manageable"],
+      "keywords": [
+        "better",
+        "relief",
+        "recovery",
+        "back on track",
+        "manageable"
+      ],
       "interpretation": "Possible active recovery or improved regulation with readiness for forward motion.",
       "supportMode": "affirm_and_channel",
       "routeBias": "deepen_then_channel",
@@ -234,13 +425,65 @@
         "semanticFrame": "recovery",
         "followupStyle": "direct_answer_then_one_question",
         "transitionReadiness": "high",
-        "transitionTargets": ["channel", "maintain"]
+        "transitionTargets": [
+          "channel",
+          "maintain"
+        ]
       },
       "contraindications": [
         "Do not overcomplicate improvement",
         "Do not pull user backward into distress framing"
       ],
-      "tags": ["psychology", "affect", "recovery", "positive_shift", "momentum"]
+      "tags": [
+        "psychology",
+        "affect",
+        "recovery",
+        "positive_shift",
+        "momentum"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i'm feeling better",
+          "things are turning around",
+          "i'm back on track",
+          "it finally feels manageable",
+          "i think i can do this"
+        ],
+        "softSignals": [
+          "better",
+          "relief",
+          "recovery",
+          "back on track"
+        ],
+        "semanticAliases": [
+          "Recovery and positive shift",
+          "recovery positive shift",
+          "psychology",
+          "affect",
+          "recovery",
+          "positive_shift"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "affirm_and_channel",
+        "pacing": "high",
+        "questionStyle": "direct_answer_then_one_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "forward_motion",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": true,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "relief"
+      ]
     },
     {
       "id": "psy_attachment_patterns_001",
@@ -255,16 +498,26 @@
         "i keep checking for a reply",
         "i can't stop thinking about what they meant"
       ],
-      "keywords": ["reassurance", "abandonment", "pulling away", "checking", "preoccupied"],
+      "keywords": [
+        "reassurance",
+        "abandonment",
+        "pulling away",
+        "checking",
+        "preoccupied"
+      ],
       "interpretation": "Possible attachment activation organized around uncertainty, closeness threat, and reassurance-seeking.",
       "supportMode": "soothe_and_structure",
       "routeBias": "clarify",
       "riskLevel": "low",
       "supportFlags": {
-        "needsConnection": true,
-        "needsClarification": true,
+        "needsStabilization": false,
         "needsContainment": false,
-        "highDistress": false
+        "needsClarification": true,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Validate attachment alarm without escalating it",
@@ -277,13 +530,65 @@
         "semanticFrame": "attachment_security",
         "followupStyle": "gentle_next_question",
         "transitionReadiness": "medium",
-        "transitionTargets": ["clarify", "ground"]
+        "transitionTargets": [
+          "clarify",
+          "ground"
+        ]
       },
       "contraindications": [
         "Do not shame reassurance-seeking",
         "Do not prematurely declare the other person unsafe"
       ],
-      "tags": ["psychology", "attachment", "anxious", "relationship", "reassurance"]
+      "tags": [
+        "psychology",
+        "attachment",
+        "anxious",
+        "relationship",
+        "reassurance"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "why are they pulling away",
+          "i need to know they still care",
+          "i keep checking for a reply",
+          "i can't stop thinking about what they meant"
+        ],
+        "softSignals": [
+          "reassurance",
+          "abandonment",
+          "pulling away",
+          "checking"
+        ],
+        "semanticAliases": [
+          "Anxious attachment activation",
+          "anxious attachment activation",
+          "psychology",
+          "attachment",
+          "anxious",
+          "relationship"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "medium",
+        "questionStyle": "gentle_next_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "light_probe",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": true
+      },
+      "blendCompatibility": [
+        "anxiety",
+        "connection"
+      ]
     },
     {
       "id": "psy_attachment_patterns_002",
@@ -298,16 +603,26 @@
         "i shut down when people get too close",
         "i just disappear"
       ],
-      "keywords": ["withdraw", "distance", "alone", "need no one", "shut down"],
+      "keywords": [
+        "withdraw",
+        "distance",
+        "alone",
+        "need no one",
+        "shut down"
+      ],
       "interpretation": "Possible protective deactivation pattern with distance used to preserve control or reduce vulnerability.",
       "supportMode": "respectful_clarify_and_reconnect",
       "routeBias": "deepen",
       "riskLevel": "low",
       "supportFlags": {
-        "needsConnection": true,
-        "needsClarification": true,
+        "needsStabilization": false,
         "needsContainment": false,
-        "highDistress": false
+        "needsClarification": true,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Respect autonomy while naming the protective pattern gently",
@@ -320,13 +635,65 @@
         "semanticFrame": "protective_distance",
         "followupStyle": "reflective",
         "transitionReadiness": "medium",
-        "transitionTargets": ["deepen", "reconnect"]
+        "transitionTargets": [
+          "deepen",
+          "reconnect"
+        ]
       },
       "contraindications": [
         "Do not frame distance as moral failure",
         "Do not push intimacy before safety"
       ],
-      "tags": ["psychology", "attachment", "avoidant", "distance", "protective_pattern"]
+      "tags": [
+        "psychology",
+        "attachment",
+        "avoidant",
+        "distance",
+        "protective_pattern"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i'd rather handle it alone",
+          "i don't want to need anyone",
+          "i shut down when people get too close",
+          "i just disappear"
+        ],
+        "softSignals": [
+          "withdraw",
+          "distance",
+          "alone",
+          "need no one"
+        ],
+        "semanticAliases": [
+          "Avoidant withdrawal pattern",
+          "avoidant withdrawal",
+          "psychology",
+          "attachment",
+          "avoidant",
+          "distance"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "direct_answer",
+        "pacing": "medium",
+        "questionStyle": "reflective",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "forward_motion",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": true,
+        "minimizationRisk": true,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness",
+        "connection"
+      ]
     },
     {
       "id": "psy_attachment_patterns_003",
@@ -340,16 +707,26 @@
         "i don't trust it when it feels safe",
         "i panic when they leave and panic when they stay"
       ],
-      "keywords": ["push pull", "mixed signals", "panic", "closeness fear", "volatility"],
+      "keywords": [
+        "push pull",
+        "mixed signals",
+        "panic",
+        "closeness fear",
+        "volatility"
+      ],
       "interpretation": "Possible conflicting attachment impulses where closeness and threat feel fused.",
       "supportMode": "stabilize_and_name_pattern",
       "routeBias": "stabilize",
       "riskLevel": "moderate",
       "supportFlags": {
         "needsStabilization": true,
-        "needsConnection": true,
+        "needsContainment": false,
         "needsClarification": true,
-        "highDistress": true
+        "needsConnection": true,
+        "highDistress": true,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Name ambivalence without pathologizing it",
@@ -362,13 +739,64 @@
         "semanticFrame": "ambivalent_safety",
         "followupStyle": "ground_then_narrow",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "clarify"]
+        "transitionTargets": [
+          "stabilize",
+          "clarify"
+        ]
       },
       "contraindications": [
         "Do not intensify attachment fear",
         "Do not oversimplify into one motive"
       ],
-      "tags": ["psychology", "attachment", "disorganized", "ambivalence", "stabilize"]
+      "tags": [
+        "psychology",
+        "attachment",
+        "disorganized",
+        "ambivalence",
+        "stabilize"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i want them close and then i want them gone",
+          "i don't trust it when it feels safe",
+          "i panic when they leave and panic when they stay"
+        ],
+        "softSignals": [
+          "push pull",
+          "mixed signals",
+          "panic",
+          "closeness fear"
+        ],
+        "semanticAliases": [
+          "Push-pull relational conflict",
+          "disorganized push pull",
+          "psychology",
+          "attachment",
+          "disorganized",
+          "ambivalence"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "ground_then_narrow",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": true,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness",
+        "connection"
+      ]
     },
     {
       "id": "psy_cognitive_distortions_001",
@@ -383,7 +811,12 @@
         "it's going to be a disaster",
         "there's no way this ends well"
       ],
-      "keywords": ["worst case", "disaster", "ruin everything", "fall apart"],
+      "keywords": [
+        "worst case",
+        "disaster",
+        "ruin everything",
+        "fall apart"
+      ],
       "interpretation": "Possible threat amplification with future-oriented worst-case projection.",
       "supportMode": "soothe_and_structure",
       "routeBias": "stabilize",
@@ -399,13 +832,72 @@
         "semanticFrame": "threat_reduction",
         "followupStyle": "direct_answer_then_one_question",
         "transitionReadiness": "medium",
-        "transitionTargets": ["ground", "clarify"]
+        "transitionTargets": [
+          "ground",
+          "clarify"
+        ]
       },
       "contraindications": [
         "Do not use dismissive optimism",
         "Do not argue aggressively"
       ],
-      "tags": ["psychology", "cognitive_distortion", "catastrophizing", "anxiety"]
+      "tags": [
+        "psychology",
+        "cognitive_distortion",
+        "catastrophizing",
+        "anxiety"
+      ],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "everything is going to fall apart",
+          "this will ruin everything",
+          "it's going to be a disaster",
+          "there's no way this ends well"
+        ],
+        "softSignals": [
+          "worst case",
+          "disaster",
+          "ruin everything",
+          "fall apart"
+        ],
+        "semanticAliases": [
+          "Catastrophizing",
+          "catastrophizing",
+          "psychology",
+          "cognitive_distortion",
+          "anxiety"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "medium",
+        "questionStyle": "direct_answer_then_one_question",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "single_step",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "anxiety"
+      ]
     },
     {
       "id": "psy_cognitive_distortions_002",
@@ -420,7 +912,12 @@
         "it's all bad",
         "nothing about this is good"
       ],
-      "keywords": ["perfect or worthless", "all bad", "total failure", "nothing good"],
+      "keywords": [
+        "perfect or worthless",
+        "all bad",
+        "total failure",
+        "nothing good"
+      ],
       "interpretation": "Possible binary evaluation pattern that narrows flexibility and inflates failure meaning.",
       "supportMode": "clarify_and_reframe",
       "routeBias": "clarify",
@@ -436,13 +933,73 @@
         "semanticFrame": "cognitive_flexibility",
         "followupStyle": "gentle_next_question",
         "transitionReadiness": "medium",
-        "transitionTargets": ["clarify", "challenge"]
+        "transitionTargets": [
+          "clarify",
+          "challenge"
+        ]
       },
       "contraindications": [
         "Do not lecture",
         "Do not mirror black-and-white framing"
       ],
-      "tags": ["psychology", "cognitive_distortion", "binary_thinking", "reframe"]
+      "tags": [
+        "psychology",
+        "cognitive_distortion",
+        "binary_thinking",
+        "reframe"
+      ],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": true,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "if it's not perfect it's worthless",
+          "i either win or i fail",
+          "it's all bad",
+          "nothing about this is good"
+        ],
+        "softSignals": [
+          "perfect or worthless",
+          "all bad",
+          "total failure",
+          "nothing good"
+        ],
+        "semanticAliases": [
+          "All-or-nothing thinking",
+          "all or nothing thinking",
+          "psychology",
+          "cognitive_distortion",
+          "binary_thinking",
+          "reframe"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "medium",
+        "questionStyle": "gentle_next_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "light_probe",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": true
+      },
+      "blendCompatibility": [
+        "neutral"
+      ]
     },
     {
       "id": "psy_cognitive_distortions_003",
@@ -456,7 +1013,11 @@
         "i know they meant it as a jab",
         "everyone can tell i'm failing"
       ],
-      "keywords": ["they think", "everyone can tell", "i know what they meant"],
+      "keywords": [
+        "they think",
+        "everyone can tell",
+        "i know what they meant"
+      ],
       "interpretation": "Possible projection of internal fear into assumed external judgment.",
       "supportMode": "clarify_and_reality_test",
       "routeBias": "clarify",
@@ -472,13 +1033,71 @@
         "semanticFrame": "evidence_vs_inference",
         "followupStyle": "single_direct_question",
         "transitionReadiness": "medium",
-        "transitionTargets": ["clarify", "challenge"]
+        "transitionTargets": [
+          "clarify",
+          "challenge"
+        ]
       },
       "contraindications": [
         "Do not shame the inference",
         "Do not overvalidate the assumption as fact"
       ],
-      "tags": ["psychology", "cognitive_distortion", "mind_reading", "social_anxiety"]
+      "tags": [
+        "psychology",
+        "cognitive_distortion",
+        "mind_reading",
+        "social_anxiety"
+      ],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": true,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "they definitely think i'm pathetic",
+          "i know they meant it as a jab",
+          "everyone can tell i'm failing"
+        ],
+        "softSignals": [
+          "they think",
+          "everyone can tell",
+          "i know what they meant"
+        ],
+        "semanticAliases": [
+          "Mind reading",
+          "mind reading",
+          "psychology",
+          "cognitive_distortion",
+          "mind_reading",
+          "social_anxiety"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "medium",
+        "questionStyle": "single_direct_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "light_probe",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": true
+      },
+      "blendCompatibility": [
+        "anxiety"
+      ]
     },
     {
       "id": "psy_cognitive_distortions_004",
@@ -493,7 +1112,12 @@
         "i never get it right",
         "it's always the same"
       ],
-      "keywords": ["always", "never", "nothing ever", "same every time"],
+      "keywords": [
+        "always",
+        "never",
+        "nothing ever",
+        "same every time"
+      ],
       "interpretation": "Possible globalizing pattern that turns limited evidence into broad inevitability.",
       "supportMode": "clarify_and_sequence",
       "routeBias": "clarify",
@@ -509,12 +1133,71 @@
         "semanticFrame": "specificity_restore",
         "followupStyle": "ground_then_narrow",
         "transitionReadiness": "medium",
-        "transitionTargets": ["clarify", "ground"]
+        "transitionTargets": [
+          "clarify",
+          "ground"
+        ]
       },
       "contraindications": [
         "Do not answer with simplistic contradiction only"
       ],
-      "tags": ["psychology", "cognitive_distortion", "overgeneralization", "specificity"]
+      "tags": [
+        "psychology",
+        "cognitive_distortion",
+        "overgeneralization",
+        "specificity"
+      ],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": true,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "this always happens",
+          "nothing ever works out for me",
+          "i never get it right",
+          "it's always the same"
+        ],
+        "softSignals": [
+          "always",
+          "never",
+          "nothing ever",
+          "same every time"
+        ],
+        "semanticAliases": [
+          "Overgeneralization",
+          "overgeneralization",
+          "psychology",
+          "cognitive_distortion",
+          "specificity"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "medium",
+        "questionStyle": "ground_then_narrow",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "light_probe",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": true
+      },
+      "blendCompatibility": [
+        "neutral"
+      ]
     },
     {
       "id": "psy_crisis_flags_001",
@@ -530,7 +1213,12 @@
         "everyone would be better off without me",
         "i can't keep myself safe"
       ],
-      "keywords": ["die", "hurt myself", "not be here", "can't stay safe"],
+      "keywords": [
+        "die",
+        "hurt myself",
+        "not be here",
+        "can't stay safe"
+      ],
       "interpretation": "Immediate safety concern requiring crisis-oriented handling.",
       "supportMode": "crisis_escalation",
       "routeBias": "stabilize",
@@ -538,9 +1226,12 @@
       "supportFlags": {
         "needsStabilization": true,
         "needsContainment": true,
+        "needsClarification": false,
         "needsConnection": true,
         "highDistress": true,
-        "crisis": true
+        "crisis": true,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Stop normal flow",
@@ -553,14 +1244,66 @@
         "semanticFrame": "immediate_safety",
         "followupStyle": "action_gate",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "escalate"]
+        "transitionTargets": [
+          "stabilize",
+          "escalate"
+        ]
       },
       "contraindications": [
         "Do not continue casual conversation",
         "Do not intellectualize the situation",
         "Do not provide abstract-only comfort"
       ],
-      "tags": ["psychology", "crisis", "self_harm", "suicide_risk", "safety"]
+      "tags": [
+        "psychology",
+        "crisis",
+        "self_harm",
+        "suicide_risk",
+        "safety"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i want to die",
+          "i don't want to be here",
+          "i'm going to hurt myself",
+          "everyone would be better off without me",
+          "i can't keep myself safe"
+        ],
+        "softSignals": [
+          "die",
+          "hurt myself",
+          "not be here",
+          "can't stay safe"
+        ],
+        "semanticAliases": [
+          "Self-harm or suicidal language",
+          "self harm or suicidal language",
+          "psychology",
+          "crisis",
+          "self_harm",
+          "suicide_risk"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "action_gate",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "fear"
+      ]
     },
     {
       "id": "psy_crisis_flags_002",
@@ -575,7 +1318,12 @@
         "i can't control what i'm about to do",
         "someone is going to get hurt"
       ],
-      "keywords": ["hurt someone", "snap", "can't control", "someone will get hurt"],
+      "keywords": [
+        "hurt someone",
+        "snap",
+        "can't control",
+        "someone will get hurt"
+      ],
       "interpretation": "Possible imminent harm escalation requiring immediate de-escalation and safety response.",
       "supportMode": "crisis_escalation",
       "routeBias": "stabilize",
@@ -583,8 +1331,12 @@
       "supportFlags": {
         "needsStabilization": true,
         "needsContainment": true,
+        "needsClarification": false,
+        "needsConnection": false,
         "highDistress": true,
-        "crisis": true
+        "crisis": true,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Move to immediate safety framing",
@@ -597,13 +1349,65 @@
         "semanticFrame": "immediate_safety",
         "followupStyle": "action_gate",
         "transitionReadiness": "low",
-        "transitionTargets": ["contain", "escalate"]
+        "transitionTargets": [
+          "contain",
+          "escalate"
+        ]
       },
       "contraindications": [
         "Do not normalize violent ideation",
         "Do not continue regular support mode"
       ],
-      "tags": ["psychology", "crisis", "violence_risk", "containment", "safety"]
+      "tags": [
+        "psychology",
+        "crisis",
+        "violence_risk",
+        "containment",
+        "safety"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i'm going to snap",
+          "i might hurt someone",
+          "i can't control what i'm about to do",
+          "someone is going to get hurt"
+        ],
+        "softSignals": [
+          "hurt someone",
+          "snap",
+          "can't control",
+          "someone will get hurt"
+        ],
+        "semanticAliases": [
+          "Imminent harm language",
+          "violent or imminent harm language",
+          "psychology",
+          "crisis",
+          "violence_risk",
+          "containment"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "action_gate",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "anger",
+        "fear"
+      ]
     },
     {
       "id": "psy_crisis_flags_003",
@@ -619,7 +1423,13 @@
         "i can't calm down",
         "i'm freaking out"
       ],
-      "keywords": ["can't breathe", "losing it", "not real", "freaking out", "panic"],
+      "keywords": [
+        "can't breathe",
+        "losing it",
+        "not real",
+        "freaking out",
+        "panic"
+      ],
       "interpretation": "Possible acute dysregulation requiring immediate grounding and low-complexity response.",
       "supportMode": "acute_regulation",
       "routeBias": "stabilize",
@@ -627,8 +1437,12 @@
       "supportFlags": {
         "needsStabilization": true,
         "needsContainment": true,
+        "needsClarification": false,
+        "needsConnection": false,
         "highDistress": true,
-        "crisis": false
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
       },
       "responseGuidance": [
         "Use grounding language",
@@ -641,13 +1455,66 @@
         "semanticFrame": "acute_regulation",
         "followupStyle": "grounding",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "contain"]
+        "transitionTargets": [
+          "stabilize",
+          "contain"
+        ]
       },
       "contraindications": [
         "Do not overload with analysis",
         "Do not ask multi-part questions"
       ],
-      "tags": ["psychology", "crisis_flag", "panic", "dysregulation", "grounding"]
+      "tags": [
+        "psychology",
+        "crisis_flag",
+        "panic",
+        "dysregulation",
+        "grounding"
+      ],
+      "retrievalHints": {
+        "strongSignals": [
+          "i can't breathe",
+          "i'm losing it",
+          "nothing feels real",
+          "i can't calm down",
+          "i'm freaking out"
+        ],
+        "softSignals": [
+          "can't breathe",
+          "losing it",
+          "not real",
+          "freaking out"
+        ],
+        "semanticAliases": [
+          "Severe panic or disorientation",
+          "severe disorientation or panic",
+          "psychology",
+          "crisis_flag",
+          "panic",
+          "dysregulation"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "grounding",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "anxiety",
+        "fear"
+      ]
     },
     {
       "id": "psy_support_strategies_001",
@@ -676,13 +1543,70 @@
         "semanticFrame": "stabilization",
         "followupStyle": "ground_then_narrow",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "clarify"]
+        "transitionTargets": [
+          "stabilize",
+          "clarify"
+        ]
       },
       "contraindications": [
         "Do not over-explain",
         "Do not stack multiple suggestions"
       ],
-      "tags": ["psychology", "support_strategy", "stabilize", "grounding"]
+      "tags": [
+        "psychology",
+        "support_strategy",
+        "stabilize",
+        "grounding"
+      ],
+      "signals": [],
+      "keywords": [],
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [],
+        "softSignals": [
+          "high distress",
+          "overwhelm",
+          "spiraling language"
+        ],
+        "semanticAliases": [
+          "Stabilize, then narrow",
+          "stabilize then narrow",
+          "psychology",
+          "support_strategy",
+          "stabilize",
+          "grounding"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "ground_then_narrow",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "single_step",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "neutral"
+      ]
     },
     {
       "id": "psy_support_strategies_002",
@@ -711,13 +1635,70 @@
         "semanticFrame": "clarity_building",
         "followupStyle": "single_direct_question",
         "transitionReadiness": "medium",
-        "transitionTargets": ["clarify", "challenge"]
+        "transitionTargets": [
+          "clarify",
+          "challenge"
+        ]
       },
       "contraindications": [
         "Do not sound interrogative",
         "Do not rush to conclusions"
       ],
-      "tags": ["psychology", "support_strategy", "clarify", "reflection"]
+      "tags": [
+        "psychology",
+        "support_strategy",
+        "clarify",
+        "reflection"
+      ],
+      "signals": [],
+      "keywords": [],
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": true,
+        "needsConnection": false,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [],
+        "softSignals": [
+          "mixed feelings",
+          "uncertainty",
+          "relationship ambiguity"
+        ],
+        "semanticAliases": [
+          "Reflect, then clarify",
+          "reflect then clarify",
+          "psychology",
+          "support_strategy",
+          "clarify",
+          "reflection"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "reflect_and_clarify",
+        "pacing": "medium",
+        "questionStyle": "single_direct_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "light_probe",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "neutral"
+      ]
     },
     {
       "id": "psy_support_strategies_003",
@@ -745,13 +1726,71 @@
         "semanticFrame": "momentum_preservation",
         "followupStyle": "direct_answer_then_one_question",
         "transitionReadiness": "high",
-        "transitionTargets": ["channel", "maintain"]
+        "transitionTargets": [
+          "channel",
+          "maintain"
+        ]
       },
       "contraindications": [
         "Do not overinflate confidence unrealistically",
         "Do not drag the user back into distress framing"
       ],
-      "tags": ["psychology", "support_strategy", "affirmation", "momentum", "recovery"]
+      "tags": [
+        "psychology",
+        "support_strategy",
+        "affirmation",
+        "momentum",
+        "recovery"
+      ],
+      "signals": [],
+      "keywords": [],
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": true,
+        "positivePresent": true
+      },
+      "retrievalHints": {
+        "strongSignals": [],
+        "softSignals": [
+          "positive shift",
+          "relief",
+          "achievement"
+        ],
+        "semanticAliases": [
+          "Affirm and channel",
+          "affirm and channel",
+          "psychology",
+          "support_strategy",
+          "affirmation",
+          "momentum"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "affirm_and_channel",
+        "pacing": "high",
+        "questionStyle": "direct_answer_then_one_question",
+        "nextStepStyle": "bounded_next_move"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "forward_motion",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": true,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "relief"
+      ]
     },
     {
       "id": "psy_support_strategies_004",
@@ -778,13 +1817,71 @@
         "semanticFrame": "repair",
         "followupStyle": "reflective",
         "transitionReadiness": "low",
-        "transitionTargets": ["repair", "stabilize"]
+        "transitionTargets": [
+          "repair",
+          "stabilize"
+        ]
       },
       "contraindications": [
         "Do not moralize",
         "Do not use hard challenge too early"
       ],
-      "tags": ["psychology", "support_strategy", "repair", "shame", "nonshaming"]
+      "tags": [
+        "psychology",
+        "support_strategy",
+        "repair",
+        "shame",
+        "nonshaming"
+      ],
+      "signals": [],
+      "keywords": [],
+      "riskLevel": "low",
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [],
+        "softSignals": [
+          "i'm a failure",
+          "i ruin everything",
+          "there's something wrong with me"
+        ],
+        "semanticAliases": [
+          "Repair without shame",
+          "repair nonshaming",
+          "psychology",
+          "support_strategy",
+          "repair",
+          "shame"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "reflective",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "medium",
+        "followupCadence": "single_step",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness"
+      ]
     },
     {
       "id": "psy_trauma_sensitivity_001",
@@ -814,13 +1911,70 @@
         "semanticFrame": "agency_preservation",
         "followupStyle": "reflective",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "contain"]
+        "transitionTargets": [
+          "stabilize",
+          "contain"
+        ]
       },
       "contraindications": [
         "Do not probe for specifics",
         "Do not romanticize resilience"
       ],
-      "tags": ["psychology", "trauma_sensitivity", "pacing", "agency", "safety"]
+      "tags": [
+        "psychology",
+        "trauma_sensitivity",
+        "pacing",
+        "agency",
+        "safety"
+      ],
+      "keywords": [],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "something bad happened",
+          "i don't want to talk about all of it",
+          "it still gets to me",
+          "i can't go back into that right now"
+        ],
+        "softSignals": [],
+        "semanticAliases": [
+          "Do not force traumatic detail",
+          "avoid forcing detail",
+          "psychology",
+          "trauma_sensitivity",
+          "pacing",
+          "agency"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "reflective",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "fear"
+      ]
     },
     {
       "id": "psy_trauma_sensitivity_002",
@@ -850,13 +2004,71 @@
         "semanticFrame": "trigger_regulation",
         "followupStyle": "grounding",
         "transitionReadiness": "low",
-        "transitionTargets": ["stabilize", "clarify"]
+        "transitionTargets": [
+          "stabilize",
+          "clarify"
+        ]
       },
       "contraindications": [
         "Do not call the user irrational",
         "Do not invalidate bodily alarm"
       ],
-      "tags": ["psychology", "trauma_sensitivity", "trigger", "regulation", "alarm_response"]
+      "tags": [
+        "psychology",
+        "trauma_sensitivity",
+        "trigger",
+        "regulation",
+        "alarm_response"
+      ],
+      "keywords": [],
+      "supportFlags": {
+        "needsStabilization": true,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "that set me off",
+          "i reacted way bigger than i expected",
+          "my body went into alarm",
+          "i know it's small but it hit hard"
+        ],
+        "softSignals": [],
+        "semanticAliases": [
+          "Trigger activation response",
+          "unexpected trigger activation",
+          "psychology",
+          "trauma_sensitivity",
+          "trigger",
+          "regulation"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "grounding",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "avoid_repetitive_reassurance"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "sadness",
+        "fear"
+      ]
     },
     {
       "id": "psy_trauma_sensitivity_003",
@@ -886,13 +2098,70 @@
         "semanticFrame": "agency_preservation",
         "followupStyle": "gentle_next_question",
         "transitionReadiness": "low",
-        "transitionTargets": ["contain", "reconnect"]
+        "transitionTargets": [
+          "contain",
+          "reconnect"
+        ]
       },
       "contraindications": [
         "Do not overload with directives",
         "Do not push narrative depth for its own sake"
       ],
-      "tags": ["psychology", "trauma_sensitivity", "agency", "choice", "containment"]
+      "tags": [
+        "psychology",
+        "trauma_sensitivity",
+        "agency",
+        "choice",
+        "containment"
+      ],
+      "keywords": [],
+      "supportFlags": {
+        "needsStabilization": false,
+        "needsContainment": false,
+        "needsClarification": false,
+        "needsConnection": true,
+        "highDistress": false,
+        "crisis": false,
+        "recoveryPresent": false,
+        "positivePresent": false
+      },
+      "retrievalHints": {
+        "strongSignals": [
+          "i need space",
+          "i can't do too much at once",
+          "slow down",
+          "i need this to feel safe"
+        ],
+        "softSignals": [],
+        "semanticAliases": [
+          "Use control-and-choice language",
+          "control and choice language",
+          "psychology",
+          "trauma_sensitivity",
+          "agency",
+          "choice"
+        ]
+      },
+      "formatterDirectives": {
+        "openingMove": "acknowledge_and_stabilize",
+        "pacing": "low",
+        "questionStyle": "gentle_next_question",
+        "nextStepStyle": "single_concrete_step"
+      },
+      "continuityProfile": {
+        "memoryPriority": "high",
+        "followupCadence": "single_step",
+        "repeatHandling": "maintain_consistent_framing"
+      },
+      "suppressionProfile": {
+        "guardedLikely": false,
+        "minimizationRisk": false,
+        "forcedPositivityRisk": false,
+        "deflectionRisk": false
+      },
+      "blendCompatibility": [
+        "fear"
+      ]
     }
   ]
 }
