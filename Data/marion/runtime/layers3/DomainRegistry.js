@@ -1,68 +1,102 @@
 // runtime/layer3/DomainRegistry.js
+"use strict";
 
 const DOMAIN_REGISTRY = {
-  psychology: {
-    aliases: ['psych', 'mental health', 'emotion', 'mood', 'therapy', 'behavior'],
+  general: {
     priority: 1.0,
-    styleHints: ['empathetic', 'stabilizing', 'human-aware'],
-    datasets: ['meld', 'emotion-lines', 'psych-core', 'psych-cases']
+    evidenceBias: 1.0,
+    explanationStyle: "balanced",
+    preferredSources: ["domain", "dataset", "memory", "general"],
+    riskTolerance: 0.45,
+    defaultBudget: { maxTokensApprox: 900, maxItems: 8 }
+  },
+  psychology: {
+    priority: 1.05,
+    evidenceBias: 0.97,
+    explanationStyle: "supportive-structured",
+    preferredSources: ["memory", "domain", "dataset", "general"],
+    riskTolerance: 0.24,
+    defaultBudget: { maxTokensApprox: 760, maxItems: 6 }
   },
   finance: {
-    aliases: ['money', 'markets', 'stocks', 'investing', 'economics', 'capital markets'],
-    priority: 0.92,
-    styleHints: ['analytical', 'risk-aware', 'structured'],
-    datasets: ['finance-core', 'markets-news', 'case-studies', 'textbooks']
+    priority: 1.08,
+    evidenceBias: 1.08,
+    explanationStyle: "decision-grade",
+    preferredSources: ["dataset", "domain", "general", "memory"],
+    riskTolerance: 0.22,
+    defaultBudget: { maxTokensApprox: 1050, maxItems: 9 }
   },
   law: {
-    aliases: ['contracts', 'legal', 'court', 'case law', 'bar', 'statute'],
-    priority: 0.94,
-    styleHints: ['precise', 'qualified', 'risk-aware'],
-    datasets: ['law-core', 'contracts', 'cases', 'bar-material']
+    priority: 1.1,
+    evidenceBias: 1.1,
+    explanationStyle: "qualified-precise",
+    preferredSources: ["domain", "dataset", "general", "memory"],
+    riskTolerance: 0.18,
+    defaultBudget: { maxTokensApprox: 1050, maxItems: 9 }
   },
   english: {
-    aliases: ['writing', 'literature', 'essay', 'grammar', 'rhetoric'],
-    priority: 0.82,
-    styleHints: ['clear', 'expressive', 'contextual'],
-    datasets: ['english-core', 'lit-texts', 'writing-guides']
+    priority: 1.02,
+    evidenceBias: 1.0,
+    explanationStyle: "analytic-clear",
+    preferredSources: ["domain", "dataset", "general", "memory"],
+    riskTolerance: 0.35,
+    defaultBudget: { maxTokensApprox: 920, maxItems: 8 }
   },
   cybersecurity: {
-    aliases: ['security', 'cyber', 'infosec', 'threat', 'network'],
-    priority: 0.9,
-    styleHints: ['defensive', 'technical', 'cautious'],
-    datasets: ['cyber-core', 'security-cases', 'threat-notes']
+    priority: 1.08,
+    evidenceBias: 1.08,
+    explanationStyle: "threat-aware",
+    preferredSources: ["domain", "dataset", "general", "memory"],
+    riskTolerance: 0.2,
+    defaultBudget: { maxTokensApprox: 1050, maxItems: 9 }
   },
   marketing: {
-    aliases: ['branding', 'ads', 'copywriting', 'growth', 'audience'],
-    priority: 0.84,
-    styleHints: ['persuasive', 'audience-aware', 'commercial'],
-    datasets: ['marketing-core', 'campaign-cases', 'brand-guides']
+    priority: 1.04,
+    evidenceBias: 1.03,
+    explanationStyle: "audience-strategic",
+    preferredSources: ["dataset", "domain", "general", "memory"],
+    riskTolerance: 0.3,
+    defaultBudget: { maxTokensApprox: 940, maxItems: 8 }
   },
-  general: {
-    aliases: ['general', 'misc', 'default'],
-    priority: 0.7,
-    styleHints: ['balanced', 'clear'],
-    datasets: ['general-core']
+  ai: {
+    priority: 1.06,
+    evidenceBias: 1.06,
+    explanationStyle: "systems-technical",
+    preferredSources: ["domain", "dataset", "general", "memory"],
+    riskTolerance: 0.28,
+    defaultBudget: { maxTokensApprox: 980, maxItems: 8 }
+  },
+  strategy: {
+    priority: 1.05,
+    evidenceBias: 1.04,
+    explanationStyle: "operational-strategic",
+    preferredSources: ["domain", "dataset", "memory", "general"],
+    riskTolerance: 0.3,
+    defaultBudget: { maxTokensApprox: 980, maxItems: 8 }
   }
 };
 
-function resolveDomain(input) {
-  if (!input) return 'general';
-  const q = String(input).toLowerCase().trim();
+function _trim(v) { return v == null ? "" : String(v).trim(); }
 
-  for (const [domain, meta] of Object.entries(DOMAIN_REGISTRY)) {
-    if (domain === q) return domain;
-    if (meta.aliases.some(alias => q.includes(alias))) return domain;
-  }
-
-  return 'general';
+function getDomainMeta(domain = "general") {
+  return DOMAIN_REGISTRY[_trim(domain)] || DOMAIN_REGISTRY.general;
 }
 
-function getDomainMeta(domain) {
-  return DOMAIN_REGISTRY[domain] || DOMAIN_REGISTRY.general;
+function getPreferredSourceRank(domain = "general") {
+  const meta = getDomainMeta(domain);
+  return meta.preferredSources.reduce((acc, source, idx) => {
+    acc[source] = idx + 1;
+    return acc;
+  }, {});
+}
+
+function listDomains() {
+  return Object.keys(DOMAIN_REGISTRY);
 }
 
 module.exports = {
   DOMAIN_REGISTRY,
-  resolveDomain,
-  getDomainMeta
+  getDomainMeta,
+  getPreferredSourceRank,
+  listDomains
 };
