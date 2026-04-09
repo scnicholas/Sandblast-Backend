@@ -1,15 +1,17 @@
 {
-  "version": "1.0.0",
+  "version": "1.2.0",
   "domain": "psychology",
-  "description": "Routing map for Marion psychology retrieval. Determines which subdomain to consult first based on detected signals, support flags, affect states, and user language patterns.",
+  "description": "Routing map for Marion psychology retrieval. Updated for suppression-aware interpretation, continuity pressure, blend-state handling, and Nyx-ready support formatting.",
   "defaultRoute": {
     "primarySubdomain": "affect_interpretation",
     "secondarySubdomains": [
       "cognitive_distortions",
-      "support_strategies"
+      "support_strategies",
+      "trauma_sensitivity"
     ],
     "supportModeFallback": "clarify_and_sequence",
-    "routeBiasFallback": "clarify"
+    "routeBiasFallback": "clarify",
+    "formatterModeFallback": "balanced_support"
   },
   "routingRules": [
     {
@@ -27,14 +29,18 @@
           "trauma_sensitivity"
         ],
         "supportMode": "crisis_escalation",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "safety_first"
       }
     },
     {
       "id": "psy_route_002",
       "priority": 2,
       "when": {
-        "riskLevel": ["critical", "high"],
+        "riskLevel": [
+          "critical",
+          "high"
+        ],
         "keywordsAny": [
           "die",
           "hurt myself",
@@ -50,7 +56,8 @@
           "affect_interpretation"
         ],
         "supportMode": "acute_regulation",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "safety_first"
       }
     },
     {
@@ -72,7 +79,8 @@
           "cognitive_distortions"
         ],
         "supportMode": "soothe_and_structure",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "stabilizing_support"
       }
     },
     {
@@ -93,7 +101,8 @@
           "support_strategies"
         ],
         "supportMode": "validate_and_gently_activate",
-        "routeBias": "clarify"
+        "routeBias": "clarify",
+        "formatterMode": "balanced_support"
       }
     },
     {
@@ -115,7 +124,8 @@
           "cognitive_distortions"
         ],
         "supportMode": "careful_nonshaming_reflection",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "nonshaming_support"
       }
     },
     {
@@ -137,7 +147,8 @@
           "affect_interpretation"
         ],
         "supportMode": "soothe_and_structure",
-        "routeBias": "clarify"
+        "routeBias": "clarify",
+        "formatterMode": "stabilizing_support"
       }
     },
     {
@@ -157,7 +168,8 @@
           "support_strategies"
         ],
         "supportMode": "respectful_clarify_and_reconnect",
-        "routeBias": "deepen"
+        "routeBias": "deepen",
+        "formatterMode": "balanced_support"
       }
     },
     {
@@ -178,7 +190,8 @@
           "affect_interpretation"
         ],
         "supportMode": "soothe_and_structure",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "stabilizing_support"
       }
     },
     {
@@ -199,7 +212,8 @@
           "support_strategies"
         ],
         "supportMode": "clarify_and_reframe",
-        "routeBias": "clarify"
+        "routeBias": "clarify",
+        "formatterMode": "clarifying_support"
       }
     },
     {
@@ -221,7 +235,82 @@
           "support_strategies"
         ],
         "supportMode": "stabilize_and_respect_pacing",
-        "routeBias": "stabilize"
+        "routeBias": "stabilize",
+        "formatterMode": "stabilizing_support"
+      }
+    },
+    {
+      "id": "psy_route_010b",
+      "priority": 10.5,
+      "when": {
+        "suppressionSignalsAny": [
+          "minimization",
+          "forced_positivity",
+          "guardedness",
+          "deflection"
+        ],
+        "continuityHealthAny": [
+          "watch",
+          "fragile",
+          "critical"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "trauma_sensitivity",
+          "support_strategies"
+        ],
+        "supportMode": "soft_probe_first",
+        "routeBias": "clarify",
+        "formatterMode": "guarded_support"
+      }
+    },
+    {
+      "id": "psy_route_010c",
+      "priority": 10.6,
+      "when": {
+        "continuityFlagsAny": [
+          "repeat-risk",
+          "fallback-streak",
+          "emotional-continuity"
+        ],
+        "supportFlags": {
+          "highDistress": true
+        }
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies",
+          "trauma_sensitivity"
+        ],
+        "supportMode": "stabilize_then_gently_clarify",
+        "routeBias": "stabilize",
+        "formatterMode": "recovery_guarded"
+      }
+    },
+    {
+      "id": "psy_route_010d",
+      "priority": 10.7,
+      "when": {
+        "blendStatesAny": [
+          "sadness+fear",
+          "anxiety+shame",
+          "overwhelm+confusion",
+          "anger+hurt"
+        ]
+      },
+      "routeTo": {
+        "primarySubdomain": "affect_interpretation",
+        "secondarySubdomains": [
+          "support_strategies",
+          "cognitive_distortions",
+          "trauma_sensitivity"
+        ],
+        "supportMode": "blend_sensitive_reflection",
+        "routeBias": "stabilize",
+        "formatterMode": "blend_attuned"
       }
     },
     {
@@ -238,8 +327,16 @@
           "support_strategies"
         ],
         "supportMode": "affirm_and_channel",
-        "routeBias": "deepen_then_channel"
+        "routeBias": "deepen_then_channel",
+        "formatterMode": "momentum_support"
       }
     }
-  ]
+  ],
+  "routingPolicy": {
+    "preferSuppressionAwareRouting": true,
+    "preferContinuityAwareRouting": true,
+    "allowBlendSensitiveRouting": true,
+    "preferSupportStrategyFormatter": true,
+    "respectRecoveryMode": true
+  }
 }
