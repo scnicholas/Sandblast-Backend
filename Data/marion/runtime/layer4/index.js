@@ -1,10 +1,12 @@
-const { resolveResponseMode } = require('./ResponseModeResolver');
-const { buildToneEnvelope } = require('./ToneEnvelopeBuilder');
-const { composeDomainResponse } = require('./DomainResponseComposer');
-const { buildSafetyEnvelope } = require('./SafetyEnvelope');
-const { buildFallbackResponse } = require('./FallbackResponseBuilder');
-const { assembleResponse } = require('./ResponseAssembler');
-const { adaptForNyx } = require('./NyxOutputAdapter');
+"use strict";
+
+const { resolveResponseMode } = require("./ResponseModeResolver");
+const { buildToneEnvelope } = require("./ToneEnvelopeBuilder");
+const { composeDomainResponse } = require("./DomainResponseComposer");
+const { buildSafetyEnvelope } = require("./SafetyEnvelope");
+const { buildFallbackResponse } = require("./FallbackResponseBuilder");
+const { assembleResponse } = require("./ResponseAssembler");
+const { adaptForNyx } = require("./NyxOutputAdapter");
 
 async function runLayer4({
   fusionPacket = {},
