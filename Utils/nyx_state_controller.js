@@ -84,6 +84,44 @@ const NYX_STATES = {
     hairTightness: 0.15,
     preSpeechDelayMs: 300,
   },
+  receptive: {
+    eyeGlow: 1.045,
+    eyeDriftX: 0.6,
+    eyeDriftY: 0.45,
+    eyeLock: false,
+    blinkMinMs: 4300,
+    blinkMaxMs: 6400,
+    browLeft: 1.8,
+    browRight: 1.1,
+    mouthLeft: 1.1,
+    mouthRight: 0.6,
+    mouthOpen: 0,
+    cheekGlow: 1.02,
+    headTiltDeg: 1.3,
+    headDriftPx: 0.75,
+    hairMotion: 0.78,
+    hairTightness: 0.18,
+    preSpeechDelayMs: 180,
+  },
+  supportive: {
+    eyeGlow: 1.055,
+    eyeDriftX: 0.35,
+    eyeDriftY: 0.3,
+    eyeLock: true,
+    blinkMinMs: 4700,
+    blinkMaxMs: 6800,
+    browLeft: 1.2,
+    browRight: 0.9,
+    mouthLeft: 1.9,
+    mouthRight: 1.4,
+    mouthOpen: 0,
+    cheekGlow: 1.035,
+    headTiltDeg: 1.6,
+    headDriftPx: 0.55,
+    hairMotion: 0.55,
+    hairTightness: 0.28,
+    preSpeechDelayMs: 120,
+  },
 };
 
 const DEFAULT_OPTIONS = {
@@ -98,6 +136,8 @@ const DEFAULT_OPTIONS = {
     onBlink: null,         // function()
     onSpeechCue: null,     // function(stage)
   },
+  breathMotionPct: 0.08,
+  responseLingerMs: 260,
 };
 
 function lerp(a, b, t) {
@@ -196,6 +236,8 @@ export class NyxStateController {
   setWarm() { return this.safeSetState('warm'); }
   setEngaged() { return this.safeSetState('engaged'); }
   setCurious() { return this.safeSetState('curious'); }
+  setReceptive() { return this.safeSetState('receptive'); }
+  setSupportive() { return this.safeSetState('supportive'); }
 
   mapEventToState(eventName) {
     switch (eventName) {
@@ -207,6 +249,14 @@ export class NyxStateController {
       case 'clarification_needed':
       case 'thinking':
         return 'curious';
+      case 'listening':
+      case 'user_emotion':
+      case 'reassure':
+        return 'receptive';
+      case 'distress':
+      case 'comfort':
+      case 'support':
+        return 'supportive';
       case 'response_start':
       case 'guide_user':
       case 'deliver_information':
@@ -260,7 +310,7 @@ export class NyxStateController {
     setTimeout(() => this.#emitSpeechCue('eyes_soften'), 260);
 
     if (returnToNeutral) {
-      setTimeout(() => this.safeSetState('neutral'), 320);
+      setTimeout(() => this.safeSetState('neutral'), this.options.responseLingerMs);
     }
   }
 
@@ -354,7 +404,8 @@ export class NyxStateController {
     const rightEyeDy = Math.cos(eyePhaseB * 0.8) * base.eyeDriftY * 0.88 * driftScaleY;
 
     const headPhase = time * 0.28 + this.idleSeed * 0.2;
-    const headY = Math.sin(headPhase) * base.headDriftPx;
+    const breath = Math.sin(time * 0.18 + this.idleSeed * 0.1) * this.options.breathMotionPct;
+    const headY = Math.sin(headPhase) * base.headDriftPx + breath;
     const headX = Math.cos(headPhase * 0.9) * Math.min(1, base.headDriftPx);
     const headTilt = base.headTiltDeg + Math.sin(headPhase * 0.75) * 0.18;
 
@@ -364,7 +415,7 @@ export class NyxStateController {
 
     const glowPulse = 1 + (Math.sin(time * 0.95 + this.idleSeed) * 0.02);
     const eyeGlow = base.eyeGlow * glowPulse * (this.isSpeechActive ? 1.08 : 1);
-    const cheekGlow = base.cheekGlow * (1 + Math.sin(time * 0.65 + this.idleSeed + 0.4) * 0.01);
+    const cheekGlow = base.cheekGlow * (1 + Math.sin(time * 0.65 + this.idleSeed + 0.4) * 0.01) * (1 + breath * 0.2);
 
     const blink = this.#getBlinkAmount(timestamp);
 
