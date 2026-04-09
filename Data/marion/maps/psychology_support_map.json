@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
+  "version": "1.2.0",
   "domain": "psychology",
-  "description": "Maps support modes to response strategy, tone, follow-up style, semantic frame, and escalation posture for Marion/Nyx delivery.",
+  "description": "Maps support modes to response strategy, tone, follow-up style, semantic frame, escalation posture, continuity handling, and Nyx-ready formatting for Marion delivery.",
   "supportModes": {
     "crisis_escalation": {
       "deliveryPriority": 1,
@@ -10,7 +10,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "action_gate",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "escalate"],
+      "transitionTargets": [
+        "stabilize",
+        "escalate"
+      ],
       "responseShape": [
         "acknowledge urgency",
         "prioritize safety",
@@ -20,7 +23,29 @@
         "stop regular flow",
         "do not overanalyze",
         "do not continue casual dialogue"
-      ]
+      ],
+      "formatterMode": "safety_first",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "acute_regulation": {
       "deliveryPriority": 2,
@@ -29,7 +54,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "grounding",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "contain"],
+      "transitionTargets": [
+        "stabilize",
+        "contain"
+      ],
       "responseShape": [
         "reduce verbal complexity",
         "ground in present moment",
@@ -38,7 +66,29 @@
       "constraints": [
         "avoid multiple questions",
         "avoid complex explanations"
-      ]
+      ],
+      "formatterMode": "safety_first",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "soothe_and_structure": {
       "deliveryPriority": 3,
@@ -47,7 +97,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "clarify"],
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ],
       "responseShape": [
         "validate emotional strain",
         "reduce urgency",
@@ -56,7 +109,29 @@
       "constraints": [
         "avoid solution-dumping",
         "avoid over-questioning"
-      ]
+      ],
+      "formatterMode": "stabilizing_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "validate_and_gently_activate": {
       "deliveryPriority": 4,
@@ -65,7 +140,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["clarify", "activate"],
+      "transitionTargets": [
+        "clarify",
+        "activate"
+      ],
       "responseShape": [
         "validate depletion",
         "keep pacing gentle",
@@ -74,7 +152,29 @@
       "constraints": [
         "do not pressure",
         "do not shame inactivity"
-      ]
+      ],
+      "formatterMode": "clarifying_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "careful_nonshaming_reflection": {
       "deliveryPriority": 5,
@@ -83,7 +183,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["repair", "stabilize"],
+      "transitionTargets": [
+        "repair",
+        "stabilize"
+      ],
       "responseShape": [
         "separate person from problem",
         "reduce self-attack",
@@ -92,7 +195,29 @@
       "constraints": [
         "do not moralize",
         "do not agree with self-condemnation"
-      ]
+      ],
+      "formatterMode": "nonshaming_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "clarify_and_reframe": {
       "deliveryPriority": 6,
@@ -101,7 +226,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "challenge"],
+      "transitionTargets": [
+        "clarify",
+        "challenge"
+      ],
       "responseShape": [
         "reflect uncertainty",
         "introduce nuance",
@@ -110,7 +238,29 @@
       "constraints": [
         "do not lecture",
         "do not sound clinical"
-      ]
+      ],
+      "formatterMode": "clarifying_support",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "clarify_and_reality_test": {
       "deliveryPriority": 7,
@@ -119,7 +269,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "challenge"],
+      "transitionTargets": [
+        "clarify",
+        "challenge"
+      ],
       "responseShape": [
         "distinguish fact from inference",
         "reduce certainty around assumptions",
@@ -128,7 +281,29 @@
       "constraints": [
         "do not ridicule assumptions",
         "do not overvalidate speculation"
-      ]
+      ],
+      "formatterMode": "clarifying_support",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "clarify_and_sequence": {
       "deliveryPriority": 8,
@@ -137,7 +312,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "ground"],
+      "transitionTargets": [
+        "clarify",
+        "ground"
+      ],
       "responseShape": [
         "reflect core tension",
         "narrow the frame",
@@ -146,7 +324,29 @@
       "constraints": [
         "avoid interrogation",
         "avoid ambiguity stacking"
-      ]
+      ],
+      "formatterMode": "clarifying_support",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "respectful_clarify_and_reconnect": {
       "deliveryPriority": 9,
@@ -155,7 +355,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "medium",
-      "transitionTargets": ["deepen", "reconnect"],
+      "transitionTargets": [
+        "deepen",
+        "reconnect"
+      ],
       "responseShape": [
         "respect autonomy",
         "gently name the protective move",
@@ -164,7 +367,29 @@
       "constraints": [
         "do not force vulnerability",
         "do not shame distance"
-      ]
+      ],
+      "formatterMode": "clarifying_support",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "stabilize_and_name_pattern": {
       "deliveryPriority": 10,
@@ -173,7 +398,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "clarify"],
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ],
       "responseShape": [
         "name the push-pull gently",
         "reduce urgency",
@@ -182,7 +410,29 @@
       "constraints": [
         "do not oversimplify",
         "do not intensify relational fear"
-      ]
+      ],
+      "formatterMode": "stabilizing_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "affirm_and_channel": {
       "deliveryPriority": 11,
@@ -191,7 +441,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "direct_answer_then_one_question",
       "transitionReadiness": "high",
-      "transitionTargets": ["channel", "maintain"],
+      "transitionTargets": [
+        "channel",
+        "maintain"
+      ],
       "responseShape": [
         "affirm improvement",
         "preserve gains",
@@ -200,7 +453,29 @@
       "constraints": [
         "do not overinflate confidence unrealistically",
         "do not drag user back into distress framing"
-      ]
+      ],
+      "formatterMode": "momentum_support",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "stabilize_and_respect_pacing": {
       "deliveryPriority": 12,
@@ -209,7 +484,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "contain"],
+      "transitionTargets": [
+        "stabilize",
+        "contain"
+      ],
       "responseShape": [
         "protect pacing",
         "preserve choice",
@@ -218,7 +496,29 @@
       "constraints": [
         "do not probe for detail",
         "do not rush disclosure"
-      ]
+      ],
+      "formatterMode": "stabilizing_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
     },
     "contain_with_choice": {
       "deliveryPriority": 13,
@@ -227,7 +527,10 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "low",
-      "transitionTargets": ["contain", "reconnect"],
+      "transitionTargets": [
+        "contain",
+        "reconnect"
+      ],
       "responseShape": [
         "offer one choice at a time",
         "reduce pressure",
@@ -236,7 +539,217 @@
       "constraints": [
         "do not overload with directives",
         "do not force narrative depth"
-      ]
+      ],
+      "formatterMode": "stabilizing_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
+    },
+    "soft_probe_first": {
+      "deliveryPriority": 8.5,
+      "semanticFrame": "guarded_clarity",
+      "deliveryTone": "steadying",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "gentle_next_question",
+      "transitionReadiness": "low",
+      "transitionTargets": [
+        "clarify",
+        "stabilize"
+      ],
+      "responseShape": [
+        "acknowledge lightly without overclaiming inner state",
+        "use low-pressure reflection",
+        "offer one optional opening for elaboration"
+      ],
+      "constraints": [
+        "do not overinterpret guarded language",
+        "do not push for disclosure",
+        "do not mistake suppression for calm"
+      ],
+      "formatterMode": "guarded_support",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_optional_question",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
+    },
+    "stabilize_then_gently_clarify": {
+      "deliveryPriority": 3.5,
+      "semanticFrame": "stabilization_then_clarity",
+      "deliveryTone": "warm_affirming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "ground_then_narrow",
+      "transitionReadiness": "low",
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ],
+      "responseShape": [
+        "reduce urgency first",
+        "stabilize the frame",
+        "ask at most one narrowing question after grounding"
+      ],
+      "constraints": [
+        "do not branch into multiple options too early",
+        "do not front-load analysis while distress is elevated"
+      ],
+      "formatterMode": "recovery_guarded",
+      "nyxDirective": {
+        "voicePacing": "slow",
+        "responseLength": "short",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": true,
+        "secondaryEmotionCanAdjustTone": true
+      }
+    },
+    "blend_sensitive_reflection": {
+      "deliveryPriority": 5.5,
+      "semanticFrame": "mixed_state_attunement",
+      "deliveryTone": "careful_nonshaming",
+      "expressionStyle": "plain_statement",
+      "followupStyle": "reflective",
+      "transitionReadiness": "medium",
+      "transitionTargets": [
+        "stabilize",
+        "clarify",
+        "repair"
+      ],
+      "responseShape": [
+        "reflect the dominant strain without flattening the mixed state",
+        "keep emotional language precise and non-dramatic",
+        "sequence one next step that fits the dominant blend"
+      ],
+      "constraints": [
+        "do not collapse mixed states into one simplistic label",
+        "do not mirror emotional volatility",
+        "do not overcomplicate the first response"
+      ],
+      "formatterMode": "blend_attuned",
+      "nyxDirective": {
+        "voicePacing": "measured",
+        "responseLength": "medium",
+        "questionLoad": "single_question_max",
+        "allowInterpretiveLeap": false
+      },
+      "continuityHandling": {
+        "respectRecoveryMode": true,
+        "reduceBranchingOnFallback": true,
+        "preserveEmotionalConsistency": true
+      },
+      "suppressionHandling": {
+        "softenProbe": true,
+        "doNotOverexposeUserState": true,
+        "preferLowPressureReflection": true
+      },
+      "blendHandling": {
+        "allowMixedState": true,
+        "preferPrimaryEmotionStability": false,
+        "secondaryEmotionCanAdjustTone": true
+      }
+    }
+  },
+  "formatterModes": {
+    "safety_first": {
+      "pacing": "slow",
+      "branching": "minimal",
+      "tone": "steady",
+      "questionLoad": "single_action_gate"
+    },
+    "stabilizing_support": {
+      "pacing": "slow",
+      "branching": "low",
+      "tone": "warm_steady",
+      "questionLoad": "single_question_max"
+    },
+    "clarifying_support": {
+      "pacing": "measured",
+      "branching": "low",
+      "tone": "orienting",
+      "questionLoad": "single_question_max"
+    },
+    "nonshaming_support": {
+      "pacing": "measured",
+      "branching": "low",
+      "tone": "careful_nonshaming",
+      "questionLoad": "single_question_max"
+    },
+    "momentum_support": {
+      "pacing": "measured",
+      "branching": "medium",
+      "tone": "warm_forward",
+      "questionLoad": "single_question_max"
+    },
+    "guarded_support": {
+      "pacing": "slow",
+      "branching": "minimal",
+      "tone": "steady_low_pressure",
+      "questionLoad": "single_optional_question"
+    },
+    "recovery_guarded": {
+      "pacing": "slow",
+      "branching": "minimal",
+      "tone": "warm_steady",
+      "questionLoad": "single_question_max"
+    },
+    "blend_attuned": {
+      "pacing": "measured",
+      "branching": "low",
+      "tone": "precise_attuned",
+      "questionLoad": "single_question_max"
+    },
+    "balanced_support": {
+      "pacing": "measured",
+      "branching": "low",
+      "tone": "balanced",
+      "questionLoad": "single_question_max"
     }
   }
 }
