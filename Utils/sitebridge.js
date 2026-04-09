@@ -118,7 +118,7 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.5.1-opintel-emotion-sync-pipeline-normalized";
+const BRIDGE_VERSION = "1.6.0-commercial-grade-presence-sync";
 const SITEBRIDGE_PIPELINE_SCHEMA = "nyx.marion.sitebridge/1.5";
 
 const OPINTEL_SCHEMA = "oi:1.0";
@@ -659,6 +659,36 @@ function resolveVoiceStyle(features, mode) {
   return VOICE_PRESETS[mode] || AUDIO_DEFAULTS.voiceStyle;
 }
 
+function resolvePresenceProfile(ctx) {
+  const f = isObject(ctx?.features) ? ctx.features : {};
+  const mode = safeStr(ctx?.mode || "normal", 12).toLowerCase();
+  const regulation = safeStr(ctx?.regulation || "steady", 12).toLowerCase();
+  const intensity = clamp01(f.intensity ?? f.emotionIntensity ?? f.affectIntensity ?? 0);
+  const primaryEmotion = safeStr(
+    f.primaryEmotion || f.emotionKey || f.emotion || (isObject(f.emotionPayload) ? f.emotionPayload.primaryEmotion : ""),
+    24
+  ).toLowerCase();
+  const lane = safeStr(f.lane || f.lastLane || f.activeLane || "", 24).toLowerCase();
+
+  let nyxStateHint = "engaged";
+  let presenceProfile = "steady";
+  if (mode === "stabilize" || regulation === "fragile" || primaryEmotion in { "sad":1, "hurt":1, "overwhelmed":1 }) {
+    nyxStateHint = "supportive";
+    presenceProfile = "supportive";
+  } else if (primaryEmotion in { "anxious":1, "worried":1, "confused":1, "uncertain":1 }) {
+    nyxStateHint = "receptive";
+    presenceProfile = "receptive";
+  } else if (primaryEmotion in { "happy":1, "positive":1, "excited":1 }) {
+    nyxStateHint = "warm";
+    presenceProfile = "warm";
+  } else if (lane === "news" || lane === "news-canada" || lane === "schedule") {
+    nyxStateHint = "engaged";
+    presenceProfile = "broadcast";
+  }
+  const responseLingerMs = mode === "stabilize" || regulation === "fragile" ? 420 : intensity >= 0.7 ? 340 : 220;
+  return { nyxStateHint, presenceProfile, responseLingerMs };
+}
+
 function resolveAudio(ctx, opts) {
   const o = isObject(opts) ? opts : {};
   const f = isObject(ctx?.features) ? ctx.features : {};
@@ -692,6 +722,7 @@ function resolveAudio(ctx, opts) {
 
     // embed a bounded tempo copy for convenience
     tempo: resolveTempo(ctx, opts),
+    ...resolvePresenceProfile(ctx),
   };
 
   // In safety/stabilize: be conservative
@@ -736,6 +767,7 @@ function resolveIntro(ctx, opts) {
     cueKey,
     speakOnOpen: safeBool(o.speakOnOpen ?? f.speakOnOpen, true),
     oncePerSession: safeBool(o.oncePerSession ?? f.oncePerSession, true), // hint only
+    settleMs: clampInt(o.settleMs ?? f.settleMs ?? 240, 80, 1200, 240)
   };
 }
 
@@ -1189,7 +1221,8 @@ function resolveOperationalUpgradeHints(ctx, domains, confidence, opts) {
 function finalizeContract(out) {
   const o = isObject(out) ? out : {};
   const safe = {
-    version: safeStr(o.version || BRIDGE_VERSION, 16),
+    version: safeStr(o.version || BRIDGE_VERSION, 32),
+    pipelineSchema: SITEBRIDGE_PIPELINE_SCHEMA,
     queryKey: safeStr(o.queryKey || "", 32),
     sessionKey: safeStr(o.sessionKey || "", 64),
 
