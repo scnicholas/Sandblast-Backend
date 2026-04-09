@@ -1,6 +1,7 @@
 // runtime/layer3/DomainWeightEngine.js
+"use strict";
 
-const { getDomainMeta } = require('./DomainRegistry');
+const { getDomainMeta } = require("./DomainRegistry");
 
 function clamp(n, min = 0, max = 1) {
   const value = Number(n);
@@ -33,10 +34,11 @@ function normalizeWeights(weights = {}) {
 }
 
 function buildDomainWeights({
-  domain = 'general',
+  domain = "general",
   emotion = {},
   psychology = {},
-  intent = 'general'
+  intent = "general",
+  conversationState = {}
 } = {}) {
   const meta = getDomainMeta(domain);
 
@@ -48,6 +50,9 @@ function buildDomainWeights({
   const intensity = clamp(emotion.intensity, 0, 1);
   const emotionConfidence = clamp(emotion.confidence, 0, 1);
   const psychConfidence = clamp(psychology.confidence, 0, 1);
+  const supportFlags = emotion.supportFlags || {};
+  const suppressionSignals = Array.isArray(emotion.suppressionSignals) ? emotion.suppressionSignals : [];
+  const stateDrift = emotion.stateDrift || {};
 
   if (intensity > 0.65) {
     emotionWeight += 0.08;
@@ -68,18 +73,46 @@ function buildDomainWeights({
     datasetWeight -= 0.02;
   }
 
-  if (intent === 'analysis' || intent === 'strategy' || intent === 'research' || intent === 'debug' || intent === 'build') {
+  if (supportFlags.needsContainment || supportFlags.highDistress) {
+    emotionWeight += 0.05;
+    psychologyWeight += 0.03;
+    domainWeight -= 0.04;
+    datasetWeight -= 0.04;
+  }
+
+  if (suppressionSignals.length) {
+    psychologyWeight += 0.04;
+    emotionWeight += 0.02;
+    domainWeight -= 0.03;
+    datasetWeight -= 0.03;
+  }
+
+  if (String(stateDrift.trend || "") === "escalating") {
+    emotionWeight += 0.03;
+    psychologyWeight += 0.03;
+    domainWeight -= 0.03;
+    datasetWeight -= 0.03;
+  }
+
+  if (["analysis", "strategy", "research", "debug", "build", "planning"].includes(intent)) {
     domainWeight += 0.08;
     datasetWeight += 0.05;
     emotionWeight -= 0.05;
     psychologyWeight -= 0.08;
   }
 
-  if (intent === 'support' || intent === 'care') {
+  if (["support", "care"].includes(intent)) {
     emotionWeight += 0.04;
     psychologyWeight += 0.04;
     domainWeight -= 0.04;
     datasetWeight -= 0.04;
+  }
+
+  if (String(conversationState.recoveryMode || "") === "guided-recovery") {
+    emotionWeight += 0.03;
+    psychologyWeight += 0.02;
+    domainWeight -= 0.03;
+    datasetWeight -= 0.02;
   }
 
   domainWeight *= meta.priority || 1;
@@ -94,5 +127,6 @@ function buildDomainWeights({
 }
 
 module.exports = {
-  buildDomainWeights
+  buildDomainWeights,
+  normalizeWeights
 };
