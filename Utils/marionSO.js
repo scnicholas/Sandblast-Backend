@@ -23,8 +23,8 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.3.3-opintel+++++supportfix+++++bridge-role-guard+++++pipeline-normalized";
-const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.3";
+const MARION_VERSION = "marionSO v1.4.0-commercial-grade-phase15-lock";
+const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
@@ -4133,6 +4133,7 @@ module.exports = {
   MARION_VERSION,
   SO_VERSION,
   version,
+  MARION_PIPELINE_SCHEMA,
   PHASE10_PLAN,
   PHASE15_PLAN,
   LATENT_DESIRE,
