@@ -1,3 +1,5 @@
+"use strict";
+
 function normalizeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
@@ -18,17 +20,19 @@ function assembleResponse({
   const evidenceKept = Number(diagnostics.evidenceKept || evidence.length || 0);
   const lowEvidence = evidenceKept < 2;
   const thinReasoning = Boolean(domainResponse?.gapSignals?.thinReasoning);
-  const recoveryMode = turnMemory.recoveryMode || continuityState.recoveryMode || 'normal';
+  const suppressionActive = Boolean(domainResponse?.gapSignals?.suppressionActive);
+  const driftTrend = domainResponse?.emotionLens?.stateDrift?.trend || "steady";
+  const recoveryMode = turnMemory.recoveryMode || continuityState.recoveryMode || "normal";
   const fallbackStreak = Number(turnMemory.fallbackStreak || 0);
   const repeatQueryStreak = Number(turnMemory.repeatQueryStreak || 0);
-  const partial = lowEvidence || thinReasoning || responseMode.mode === 'recovery';
+  const partial = lowEvidence || thinReasoning || responseMode.mode === "recovery";
 
   return {
     ok: true,
     partial,
-    status: partial ? 'degraded-but-usable' : 'healthy',
-    domain: fusionPacket.domain || 'general',
-    intent: fusionPacket.intent || 'general',
+    status: partial ? "degraded-but-usable" : "healthy",
+    domain: fusionPacket.domain || "general",
+    intent: fusionPacket.intent || "general",
     responseMode,
     toneEnvelope,
     domainResponse,
@@ -46,10 +50,12 @@ function assembleResponse({
       evidenceKept,
       lowEvidence,
       thinReasoning,
+      suppressionActive,
+      driftTrend,
       recoveryMode,
       fallbackStreak,
       repeatQueryStreak,
-      continuityHealth: turnMemory.continuityHealth || continuityState.continuityHealth || 'watch'
+      continuityHealth: turnMemory.continuityHealth || continuityState.continuityHealth || "watch"
     }
   };
 }
