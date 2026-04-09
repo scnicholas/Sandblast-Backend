@@ -1,3 +1,5 @@
+"use strict";
+
 function clamp(n, min = 0, max = 1) {
   const num = Number(n);
   if (!Number.isFinite(num)) return min;
@@ -11,13 +13,15 @@ function uniq(arr = []) {
 function buildToneEnvelope({ fusionPacket = {}, responseMode = {}, turnMemory = {} } = {}) {
   const emotion = fusionPacket.emotion || {};
   const psychology = fusionPacket.psychology || {};
-  const domain = fusionPacket.domain || 'general';
+  const domain = fusionPacket.domain || "general";
 
   const intensity = clamp(emotion.intensity || 0);
-  const primaryEmotion = emotion.primaryEmotion || 'neutral';
+  const primaryEmotion = emotion.primaryEmotion || "neutral";
   const fallbackStreak = Number(turnMemory.fallbackStreak || 0);
   const repeatQueryStreak = Number(turnMemory.repeatQueryStreak || 0);
-  const recoveryMode = turnMemory.recoveryMode || 'normal';
+  const recoveryMode = turnMemory.recoveryMode || "normal";
+  const suppressionSignals = Array.isArray(emotion.suppressionSignals) ? emotion.suppressionSignals.filter(Boolean) : [];
+  const guardedness = clamp(emotion.blendProfile && emotion.blendProfile.guardedness || 0);
 
   const directives = [];
   const forbidden = [];
@@ -25,61 +29,80 @@ function buildToneEnvelope({ fusionPacket = {}, responseMode = {}, turnMemory = 
   let precision = 0.72;
   let directness = 0.66;
 
-  if (primaryEmotion !== 'neutral') {
+  if (primaryEmotion !== "neutral") {
     directives.push(`Acknowledge ${primaryEmotion} without melodrama or mimicry.`);
     warmth += 0.1;
   }
 
   if (intensity > 0.7) {
-    directives.push('Keep pacing calm, grounded, and emotionally steady.');
-    directives.push('Lead with steadiness before complexity.');
-    forbidden.push('abruptness', 'cold detachment');
+    directives.push("Keep pacing calm, grounded, and emotionally steady.");
+    directives.push("Lead with steadiness before complexity.");
+    forbidden.push("abruptness", "cold detachment");
     warmth += 0.08;
     directness -= 0.08;
   }
 
-  if ((psychology.recommendedApproach || '').includes('directive')) {
-    directives.push('Be guiding and clear without sounding controlling.');
+  if (suppressionSignals.length) {
+    directives.push("Use low-pressure language and avoid interrogative intensity.");
+    forbidden.push("forced intimacy", "pressure-heavy probing");
+    warmth += 0.04;
+    directness -= 0.03;
+  }
+
+  if ((psychology.recommendedApproach || "").includes("directive")) {
+    directives.push("Be guiding and clear without sounding controlling.");
     directness += 0.06;
   }
 
   if (
-    responseMode.mode === 'analytical' ||
-    responseMode.mode === 'evidence-led' ||
-    responseMode.mode === 'bounded-analytical'
+    responseMode.mode === "analytical" ||
+    responseMode.mode === "evidence-led" ||
+    responseMode.mode === "bounded-analytical"
   ) {
-    directives.push('Prioritize clarity, structure, and bounded claims.');
+    directives.push("Prioritize clarity, structure, and bounded claims.");
     precision += 0.12;
   }
 
-  if (responseMode.mode === 'strategic') {
-    directives.push('Frame the answer in operational steps with forward motion.');
+  if (responseMode.mode === "strategic") {
+    directives.push("Frame the answer in operational steps with forward motion.");
     precision += 0.08;
     directness += 0.06;
   }
 
-  if (responseMode.mode === 'recovery') {
-    directives.push('Break repetition. Do not restate the same reassurance in new clothes.');
-    directives.push('Use one clear next move, not a spiral of options.');
+  if (responseMode.mode === "soft-probe") {
+    directives.push("Keep the tone gentle, clear, and non-intrusive.");
+    directness -= 0.04;
+    warmth += 0.04;
+  }
+
+  if (responseMode.mode === "recovery") {
+    directives.push("Break repetition. Do not restate the same reassurance in new clothes.");
+    directives.push("Use one clear next move, not a spiral of options.");
     precision += 0.06;
     directness += 0.04;
-    forbidden.push('repetitive reassurance', 'circular phrasing');
+    forbidden.push("repetitive reassurance", "circular phrasing");
   }
 
-  if (domain === 'law' || domain === 'finance' || domain === 'cybersecurity') {
+  if (domain === "law" || domain === "finance" || domain === "cybersecurity") {
     directives.push(`Maintain disciplined ${domain} framing.`);
     precision += 0.08;
-    forbidden.push('overclaiming');
+    forbidden.push("overclaiming");
   }
 
-  if (domain === 'psychology') {
-    directives.push('Be supportive, stable, and human-aware.');
-    forbidden.push('clinical coldness');
+  if (domain === "psychology") {
+    directives.push("Be supportive, stable, and human-aware.");
+    forbidden.push("clinical coldness");
   }
 
-  if (fallbackStreak >= 2 || repeatQueryStreak >= 2 || recoveryMode === 'guided-recovery') {
-    directives.push('Tighten the answer and reduce ornamental language.');
-    forbidden.push('generic filler');
+  if (guardedness >= 0.7) {
+    directives.push("Keep the answer compact and avoid emotional overreach.");
+    precision += 0.04;
+    forbidden.push("performative empathy");
+  }
+
+  if (fallbackStreak >= 2 || repeatQueryStreak >= 2 || recoveryMode === "guided-recovery") {
+    directives.push("Tighten the answer and reduce ornamental language.");
+    forbidden.push("generic filler");
     precision += 0.05;
     directness += 0.04;
   }
