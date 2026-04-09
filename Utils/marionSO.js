@@ -23,7 +23,8 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.3.2-opintel+++++supportfix+++++bridge-role-guard";
+const MARION_VERSION = "marionSO v1.3.3-opintel+++++supportfix+++++bridge-role-guard+++++pipeline-normalized";
+const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.3";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
   "P5: Bridge envelope clamps (psyche/siteBridge size caps + domain drop-on-overflow)",
@@ -96,7 +97,7 @@ function safeRequire(relPath) {
 let PsychologyK = safeRequire("./psychologyKnowledge");
 let CyberK = safeRequire("./cyberKnowledge");
 let EnglishK = safeRequire("./englishKnowledge");
-let FinanceK = safeRequire("./FinanceKnowledge"); // FIX++++ (capital F) for Linux/Render
+let FinanceK = safeRequire("./FinanceKnowledge") || safeRequire("./financeKnowledge"); // FIX++++ normalized for case-sensitive runtimes
 let AIK = safeRequire("./aiKnowledge");
 
 // -------------------------
@@ -4128,6 +4129,7 @@ try {
 }
 
 module.exports = {
+  MARION_PIPELINE_SCHEMA,
   MARION_VERSION,
   SO_VERSION,
   version,
