@@ -18,6 +18,9 @@
 
 const crypto = require("crypto");
 
+const S2S_VERSION = "s2s v1.0.2 OPINTEL LOOP-FIX PIPELINE-NORMALIZED";
+const MAX_INPUT_CHARS = 5000;
+
 let ChatEngine = null;
 try { ChatEngine = require("./chatEngine"); } catch (_) {
   try { ChatEngine = require("./Utils/chatEngine"); } catch (_e) { ChatEngine = null; }
@@ -72,6 +75,7 @@ function _softSpeak(text){
   return t;
 }
 function _asArr(v){ return Array.isArray(v) ? v : []; }
+function _capText(v, max = MAX_INPUT_CHARS){ return _trim(v).slice(0, max); }
 
 function createChatPayload(promptOrInput, context){
   if (_isObj(promptOrInput)) {
@@ -81,8 +85,10 @@ function createChatPayload(promptOrInput, context){
     const session = _isObj(input.session) ? { ...input.session } : (_isObj(body.session) ? { ...body.session } : {});
 
     if (!input.requestId) input.requestId = _trim(body.requestId) || _traceId();
-    if (!input.text) input.text = _trim(input.prompt) || _trim(body.prompt) || _trim(body.text) || "";
+    if (!input.text) input.text = _capText(input.prompt) || _capText(body.prompt) || _capText(body.text) || "";
+    else input.text = _capText(input.text);
     if (!input.prompt) input.prompt = input.text;
+    else input.prompt = _capText(input.prompt);
     if (!input.ctx) input.ctx = ctx;
     if (!input.body) input.body = body;
     if (!input.body.prompt) input.body.prompt = input.text;
@@ -97,7 +103,7 @@ function createChatPayload(promptOrInput, context){
     return input;
   }
 
-  const prompt = _trim(promptOrInput);
+  const prompt = _capText(promptOrInput);
   const ctx = _isObj(context) ? { ...context } : {};
   const session = _isObj(ctx.session) ? { ...ctx.session } : {};
 
@@ -169,7 +175,7 @@ function applyBridgeRefinements(out, input){
 
   if (_isObj(input && input.guidedPrompt)) base.meta.guidedPrompt = { ...input.guidedPrompt };
   base.meta.s2s = {
-    v: "s2s v1.0.1 OPINTEL LOOP-FIX",
+    v: S2S_VERSION,
     routeHash,
     audio: {
       enabled: audioPlan.enabled,
@@ -301,7 +307,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_MISSING" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "CHATENGINE_MISSING" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, error: "CHATENGINE_MISSING" } },
       requestId: input.requestId,
     };
   }
@@ -320,7 +326,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_INVALID" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "CHATENGINE_INVALID" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, error: "CHATENGINE_INVALID" } },
       requestId: input.requestId,
     };
   }
@@ -342,7 +348,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: { __s2sErrorAt: Date.now() },
       bridge: { opIntel: false, error: "S2S_RUN_FAILED" },
-      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: "s2s v1.0.1 OPINTEL LOOP-FIX", error: "S2S_RUN_FAILED" } },
+      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: S2S_VERSION, error: "S2S_RUN_FAILED" } },
       requestId: input.requestId,
     };
   }
@@ -390,6 +396,8 @@ function health(){
 }
 
 module.exports = {
+  S2S_VERSION,
+  MAX_INPUT_CHARS,
   runLocalChat,
   createChatPayload,
   handleChatRoute,
