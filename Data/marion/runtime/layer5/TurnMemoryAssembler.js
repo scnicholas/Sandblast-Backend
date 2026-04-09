@@ -1,3 +1,7 @@
+"use strict";
+
+function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+
 function assembleTurnMemory({
   continuityState = {},
   extractedSignals = {},
@@ -9,27 +13,30 @@ function assembleTurnMemory({
   previousMemory = {}
 } = {}) {
   const continuityHealth = resetGuard.shouldForceRecoveryMode
-    ? 'fragile'
-    : continuityState.continuityHealth || 'watch';
+    ? "fragile"
+    : continuityState.continuityHealth || "watch";
 
   const recoveryMode = resetGuard.shouldForceRecoveryMode
-    ? 'guided-recovery'
-    : 'normal';
+    ? "guided-recovery"
+    : (extractedSignals.recoveryMode || "normal");
 
   const fallbackApplied = Boolean(continuityState.fallbackApplied || extractedSignals.fallbackApplied);
   const lastStableMode = !fallbackApplied
-    ? (continuityState.responseMode || previousMemory.lastStableMode || 'balanced')
-    : (previousMemory.lastStableMode || continuityState.responseMode || 'balanced');
+    ? (continuityState.responseMode || previousMemory.lastStableMode || "balanced")
+    : (previousMemory.lastStableMode || continuityState.responseMode || "balanced");
 
   return {
-    lastQuery: continuityState.activeQuery || '',
-    normalizedQuery: continuityState.normalizedQuery || '',
-    queryFingerprint: continuityState.queryFingerprint || '',
-    domain: continuityState.activeDomain || 'general',
-    intent: continuityState.activeIntent || 'general',
+    lastQuery: continuityState.activeQuery || "",
+    normalizedQuery: continuityState.normalizedQuery || "",
+    queryFingerprint: continuityState.queryFingerprint || "",
+    domain: continuityState.activeDomain || "general",
+    intent: continuityState.activeIntent || "general",
     emotion: {
-      primaryEmotion: continuityState.activeEmotion || 'neutral',
-      intensity: continuityState.emotionalIntensity || 0
+      primaryEmotion: continuityState.activeEmotion || "neutral",
+      intensity: continuityState.emotionalIntensity || 0,
+      blendProfile: _safeObj(continuityState.blendProfile),
+      stateDrift: _safeObj(continuityState.stateDrift),
+      suppressionSignals: Array.isArray(continuityState.suppressionSignals) ? continuityState.suppressionSignals : []
     },
     persistent: persistence.persistent || {},
     transient: persistence.transient || {},
