@@ -21,7 +21,7 @@ function splitWords(t){ return norm(t).replace(/[^a-z0-9\s]/g," ").split(/\s+/).
 
 function extractYear(t) {
   if (!t) return null;
-  const m = t.match(/\b(19[5-9]\d|20[0-2]\d|202[0-6])\b/);
+  const m = t.match(/\b(19\d{2}|20\d{2})\b/);
   if (!m) return null;
   const y = Number(m[1]);
   return Number.isFinite(y) ? y : null;
@@ -281,4 +281,6 @@ function classify(message, context) {
   };
 }
 
-module.exports = { classifyIntent, classify };
+const INTENT_CLASSIFIER_VERSION = "intentClassifier v1.0.1 YEAR-WIDENED-PIPELINE-NORMALIZED";
+
+module.exports = { classifyIntent, classify, extractYear, INTENT_CLASSIFIER_VERSION };
