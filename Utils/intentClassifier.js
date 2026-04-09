@@ -5,6 +5,8 @@
 
 "use strict";
 
+const INTENT_CLASSIFIER_SCHEMA = "nyx.marion.intentClassifier/1.1";
+
 function norm(message) {
   if (!message || typeof message !== "string") return "";
   return message.trim().toLowerCase();
