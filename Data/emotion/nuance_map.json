@@ -6,14 +6,17 @@
       "disappointment",
       "hopelessness",
       "hurt",
-      "emotional_numbness"
+      "emotional_numbness",
+      "depressed"
     ],
     "social_patterns": [
       "feeling unseen",
       "disconnected",
       "withdrawn",
       "mourning",
-      "discouraged"
+      "discouraged",
+      "low energy",
+      "empty"
     ],
     "response_style": [
       "validation",
@@ -39,7 +42,8 @@
     "risk_flags": [
       "withdrawal",
       "despair",
-      "isolation"
+      "isolation",
+      "shutdown"
     ],
     "blend_axes": [
       "emotional_loss"
