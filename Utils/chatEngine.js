@@ -337,27 +337,60 @@ function stableContract(base = {}) {
   const ui = isObj(base.ui) ? { ...base.ui } : quietUi("focused");
   ui.actions = dedupeFollowUps(ui.actions || followUps);
   ui.chips = arr(ui.chips).slice(0, MAX_FOLLOWUPS);
-  const payload = isObj(base.payload) ? { ...base.payload, reply, text: reply, output: reply, message: reply } : { reply, text: reply, output: reply, message: reply };
-  if (base.speech && isObj(base.speech)) payload.speech = { ...base.speech };
+
+  const speech = base.speech && isObj(base.speech)
+    ? { ...base.speech }
+    : (isObj(base.payload?.speech) ? { ...base.payload.speech } : null);
+
+  const payload = isObj(base.payload)
+    ? { ...base.payload, reply, text: reply, output: reply, message: reply }
+    : { reply, text: reply, output: reply, message: reply };
+
+  if (speech) payload.speech = speech;
+
   return {
     ok: base.ok !== false,
     reply,
     payload,
+    speech,
     lane,
     laneId: safeStr(base.laneId || lane),
     sessionLane: safeStr(base.sessionLane || lane),
     bridge: isObj(base.bridge) ? base.bridge : null,
-    ctx: isObj(base.ctx) ? base.ctx : {},
+    ctx: isObj(base.ctx) ? { ...base.ctx } : {},
     ui,
     emotionalTurn: isObj(base.emotionalTurn) ? base.emotionalTurn : null,
     directives: arr(base.directives).slice(0, 8),
     followUps,
     followUpsStrings: followUps.map((x) => safeStr(x.label || "").trim()).filter(Boolean),
-    sessionPatch: isObj(base.sessionPatch) ? base.sessionPatch : {},
-    cog: isObj(base.cog) ? base.cog : {},
+    sessionPatch: isObj(base.sessionPatch) ? { ...base.sessionPatch } : {},
+    cog: isObj(base.cog) ? { ...base.cog } : {},
     requestId: safeStr(base.requestId || ""),
     meta: { ...(isObj(base.meta) ? base.meta : {}), pipelineSchema: PIPELINE_SCHEMA, engineVersion: VERSION }
   };
+}
+function contractIntegrityCheck(contract) {
+  const issues = [];
+  if (!isObj(contract)) return { ok: false, issues: ["contract_not_object"] };
+  if (!safeStr(contract.reply)) issues.push("reply_missing");
+  if (!isObj(contract.payload)) issues.push("payload_missing");
+  if (safeStr(contract.payload?.reply || "") !== safeStr(contract.reply || "")) issues.push("payload_reply_mismatch");
+  if (safeStr(contract.payload?.text || "") !== safeStr(contract.reply || "")) issues.push("payload_text_mismatch");
+  if (!safeStr(contract.lane)) issues.push("lane_missing");
+  if (!isObj(contract.meta)) issues.push("meta_missing");
+  if (contract.speech && !isObj(contract.payload?.speech)) issues.push("speech_not_mirrored_to_payload");
+  return { ok: issues.length === 0, issues };
+}
+function repairContract(contract, fallback = {}) {
+  const base = stableContract({
+    ...(isObj(contract) ? contract : {}),
+    reply: safeStr(contract?.reply || fallback.reply || contract?.payload?.reply || ""),
+    lane: safeStr(contract?.lane || fallback.lane || "general").toLowerCase() || "general",
+    speech: isObj(contract?.speech) ? contract.speech : (isObj(contract?.payload?.speech) ? contract.payload.speech : fallback.speech || null),
+    meta: { ...(isObj(fallback.meta) ? fallback.meta : {}), ...(isObj(contract?.meta) ? contract.meta : {}) }
+  });
+  base.meta.contractIntegrity = contractIntegrityCheck(base);
+  return base;
 }
 function makeFallbackReply(norm, emo) {
   if (emo?.primaryEmotion === "sad") return "I am here with you.\nTell me what feels heaviest right now, and I will stay with that thread.";
@@ -575,7 +608,7 @@ async function handleChat(input) {
 
   if (INFLIGHT.has(inflightKey)) {
     const inflight = INFLIGHT.get(inflightKey);
-    if (isObj(inflight?.promise)) return inflight.promise;
+    if (inflight && typeof inflight.promise?.then === "function") return inflight.promise;
   }
 
   session.__pendingText = norm.text;
@@ -625,7 +658,7 @@ async function handleChat(input) {
       const nextState = Spine.finalizeTurn({ prevState, lane });
       const speech = buildSpeechPacket(presentation.reply, lane, presentation.bridge?.intent || "general", emo, session);
 
-      const contract = stableContract({
+      let contract = stableContract({
         ok: true,
         reply: presentation.reply,
         payload: { reply: presentation.reply, text: presentation.reply, output: presentation.reply, message: presentation.reply },
@@ -641,6 +674,7 @@ async function handleChat(input) {
         requestId,
         meta: { ...meta, speechEnabled: !!speech.enabled, speechYearNormalization: true, pipelineSchema: PIPELINE_SCHEMA }
       });
+      contract = repairContract(contract, { reply: presentation.reply, lane, speech, meta: { ...meta, repaired: true } });
 
       const memoryContext = buildMemoryContext({ norm, session, contract, emotion: emo, bridge: contract.bridge, continuity });
       try {
@@ -648,7 +682,7 @@ async function handleChat(input) {
       } catch (_e) {}
 
       const telemetry = buildTelemetry({ phase: "turn", requestId, lane, publicMode, norm, bridge: contract.bridge, emotion: emo, continuity });
-      contract.ctx = { telemetry };
+      contract.ctx = { ...(isObj(contract.ctx) ? contract.ctx : {}), telemetry };
       contract.sessionPatch = {
         ...buildSessionPatchFromContract(contract, session, inSig, speech),
         __spineState: nextState,
@@ -664,7 +698,7 @@ async function handleChat(input) {
       const continuity = continuityBandFromEmotion(emo);
       const reply = makeFallbackReply(norm, emo);
       const speech = buildSpeechPacket(reply, inboundValidation.lane || norm.lane || "general", "general", emo, session);
-      const contract = stableContract({
+      let contract = stableContract({
         ok: true,
         reply,
         payload: { reply, text: reply, output: reply, message: reply },
@@ -697,13 +731,18 @@ async function handleChat(input) {
           pipelineSchema: PIPELINE_SCHEMA
         }
       });
+      contract = repairContract(contract, {
+        reply,
+        lane: inboundValidation.lane || norm.lane || "general",
+        speech,
+        meta: { failSafe: true, repaired: true }
+      });
       contract.sessionPatch = {
-        __cacheInSig: inSig,
-        __cacheAt: nowMs(),
-        __cacheContract: contract,
-        __lastHandledAt: nowMs(),
-        __lastInboundSig: inSig,
-        __lastSpeechKey: safeStr(speech.speakOnceKey || "")
+        ...buildSessionPatchFromContract(contract, session, inSig, speech),
+        __lastRequestId: requestId,
+        __lastTurnId: turnId,
+        __pipelineSchema: PIPELINE_SCHEMA,
+        __spineState: Spine.finalizeTurn({ prevState: Spine.coerceState(session.__spineState || {}), lane: inboundValidation.lane || norm.lane || "general" })
       };
       logDiag("turn_fail", { requestId: shortId(requestId), turnId: shortId(turnId), err: safeStr(err?.message || err).slice(0, 180), ms: nowMs() - started });
       return contract;
@@ -736,6 +775,8 @@ module.exports = {
   normalizeSpeechText,
   yearToSpeech,
   buildSpeechPacket,
+  contractIntegrityCheck,
+  repairContract,
   PIPELINE_SCHEMA,
   default: handleChat
 };
