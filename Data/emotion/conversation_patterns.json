@@ -3,6 +3,20 @@
     {
       "match_type": "contains",
       "phrases": [
+        "i am depressed",
+        "i'm depressed",
+        "feeling depressed",
+        "i feel depressed",
+        "everything feels empty"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "hopelessness",
+      "weight": 0.9,
+      "suppression_signal": null
+    },
+    {
+      "match_type": "contains",
+      "phrases": [
         "i feel alone",
         "nobody gets me",
         "i feel unseen"
@@ -142,6 +156,13 @@
     "risk_flag_forces_care_sequence_openers": [
       "validate",
       "stabilize"
+    ],
+    "depression_aliases": [
+      "depressed",
+      "empty",
+      "numb",
+      "hopeless",
+      "no energy"
     ]
   }
 }
