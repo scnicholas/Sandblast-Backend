@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.13.4sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
+const INDEX_VERSION = "index.js v2.14.0sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -831,6 +831,7 @@ function buildAffectInputFromMarion(marion) {
 function shapeEngineReply(raw) {
   if (!isObj(raw)) return {};
   const payload = isObj(raw.payload) ? raw.payload : {};
+  const speech = isObj(raw.speech) ? raw.speech : (isObj(payload.speech) ? payload.speech : null);
   return {
     ok: raw.ok !== false,
     reply: cleanText(raw.spokenText || payload.spokenText || raw.reply || payload.reply || raw.message || raw.text || ""),
@@ -838,24 +839,89 @@ function shapeEngineReply(raw) {
     lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
     laneId: cleanText(raw.laneId || raw.lane || ""),
     sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
-    bridge: raw.bridge || null,
+    bridge: isObj(raw.bridge) ? raw.bridge : null,
     ctx: isObj(raw.ctx) ? raw.ctx : {},
     ui: isObj(raw.ui) ? raw.ui : {},
+    emotionalTurn: isObj(raw.emotionalTurn) ? raw.emotionalTurn : null,
     directives: Array.isArray(raw.directives) ? raw.directives : [],
     followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
     followUpsStrings: Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : [],
     sessionPatch: isObj(raw.sessionPatch) ? raw.sessionPatch : {},
     cog: isObj(raw.cog) ? raw.cog : {},
     meta: isObj(raw.meta) ? raw.meta : {},
+    speech,
     audio: isObj(raw.audio) ? raw.audio : null,
     ttsProfile: isObj(raw.ttsProfile) ? raw.ttsProfile : null,
-    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null
+    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null,
+    requestId: cleanText(raw.requestId || payload.requestId || ""),
+    traceId: cleanText(raw.traceId || payload.traceId || "")
+  };
+}
+
+function repairBridgeEnvelope(bridge, marion, lane) {
+  const candidate = isObj(bridge) ? { ...bridge } : (isObj(marion) ? { ...marion } : {});
+  if (!isObj(candidate)) return null;
+  const out = {
+    ...candidate,
+    v: cleanText(candidate.v || candidate.version || "bridge.v3") || "bridge.v3",
+    authority: cleanText(candidate.authority || candidate.mode || "bridge_primary") || "bridge_primary",
+    domain: cleanText(candidate.domain || lane || "general") || "general",
+    intent: cleanText(candidate.intent || candidate.routeIntent || candidate.mode || "general") || "general",
+    confidence: Number.isFinite(Number(candidate.confidence)) ? clamp(Number(candidate.confidence), 0, 1) : 0.82,
+    source: cleanText(candidate.source || "marion") || "marion"
+  };
+  return out;
+}
+
+function repairEngineContract(shaped, marion, norm) {
+  const base = isObj(shaped) ? { ...shaped } : {};
+  const lane = cleanText(base.lane || base.laneId || base.sessionLane || norm?.lane || "general") || "general";
+  const laneId = cleanText(base.laneId || lane) || lane;
+  const sessionLane = cleanText(base.sessionLane || lane) || lane;
+  const payload = isObj(base.payload) ? { ...base.payload } : {};
+  const reply = cleanReplyForUser(base.reply || payload.reply || payload.text || payload.message || "");
+  const bridge = repairBridgeEnvelope(base.bridge, marion, lane);
+  const speech = isObj(base.speech) ? { ...base.speech } : (isObj(payload.speech) ? { ...payload.speech } : null);
+  const followUps = Array.isArray(base.followUps) ? base.followUps : [];
+  const followUpsStrings = Array.isArray(base.followUpsStrings) && base.followUpsStrings.length
+    ? base.followUpsStrings
+    : followUps.map((item) => cleanText((item && (item.label || item.title || item.text)) || item || "")).filter(Boolean).slice(0, 4);
+
+  payload.reply = reply;
+  payload.text = cleanText(payload.text || reply) || reply;
+  payload.message = cleanText(payload.message || reply) || reply;
+  if (speech) payload.speech = { ...speech };
+
+  return {
+    ok: base.ok !== false,
+    reply,
+    payload,
+    lane,
+    laneId,
+    sessionLane,
+    bridge,
+    ctx: isObj(base.ctx) ? base.ctx : {},
+    ui: isObj(base.ui) ? base.ui : {},
+    emotionalTurn: isObj(base.emotionalTurn) ? base.emotionalTurn : null,
+    directives: Array.isArray(base.directives) ? base.directives : [],
+    followUps,
+    followUpsStrings,
+    sessionPatch: isObj(base.sessionPatch) ? base.sessionPatch : {},
+    cog: isObj(base.cog) ? base.cog : {},
+    meta: isObj(base.meta) ? base.meta : {},
+    speech,
+    audio: isObj(base.audio) ? base.audio : null,
+    ttsProfile: isObj(base.ttsProfile) ? base.ttsProfile : null,
+    voiceRoute: isObj(base.voiceRoute) ? base.voiceRoute : null,
+    requestId: cleanText(base.requestId || ""),
+    traceId: cleanText(base.traceId || norm?.traceId || "")
   };
 }
 
 async function callChatEngine(input) {
   if (!chatEngineMod) return null;
   try {
+    if (typeof chatEngineMod.handleChat === "function") return await chatEngineMod.handleChat(input);
     if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
     if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
     if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
@@ -1006,22 +1072,25 @@ function normalizeVoiceRouteResponse(out) {
 function buildSpeechContract(shaped, norm) {
   const payload = isObj(shaped && shaped.payload) ? shaped.payload : {};
   const voiceRoute = isObj(shaped && shaped.voiceRoute) ? shaped.voiceRoute : {};
+  const incomingSpeech = isObj(shaped && shaped.speech) ? shaped.speech : (isObj(payload.speech) ? payload.speech : {});
   const reply = cleanReplyForUser(
-    shaped && shaped.reply || payload.reply || payload.text || voiceRoute.text || norm && norm.text || ""
+    (incomingSpeech.displayText || incomingSpeech.text || shaped && shaped.reply || payload.reply || payload.text || voiceRoute.text || norm && norm.text || "")
   );
   const textDisplay = cleanReplyForUser(
-    payload.textDisplay || voiceRoute.textDisplay || shaped && shaped.textDisplay || reply
+    incomingSpeech.displayText || payload.textDisplay || voiceRoute.textDisplay || shaped && shaped.textDisplay || reply
   ) || reply;
   const textSpeak = cleanReplyForUser(
-    payload.textSpeak || voiceRoute.textSpeak || shaped && shaped.textSpeak || reply
+    incomingSpeech.normalizedText || incomingSpeech.text || payload.textSpeak || voiceRoute.textSpeak || shaped && shaped.textSpeak || reply
   ) || reply;
   const routeKind = cleanText(
     payload.routeKind || voiceRoute.routeKind || shaped && shaped.routeKind || (norm && norm.mode === "intro" ? "intro" : "main")
   ) || "main";
   const intro = voiceRoute.intro === true || payload.intro === true || routeKind === "intro";
-  const source = cleanText(payload.source || voiceRoute.source || "chat");
+  const source = cleanText(payload.source || voiceRoute.source || (intro ? "intro" : "chat"));
   const speechHints = isObj(payload.speechHints) ? payload.speechHints : (isObj(voiceRoute.speechHints) ? voiceRoute.speechHints : {});
-  const speech = {
+  return {
+    enabled: incomingSpeech.enabled !== false,
+    speak: incomingSpeech.speak !== false,
     text: reply,
     textDisplay,
     textSpeak,
@@ -1029,28 +1098,12 @@ function buildSpeechContract(shaped, norm) {
     intro,
     source: source || (intro ? "intro" : "chat"),
     speechHints,
-    alignmentVersion: "speech-contract-v1"
-  };
-  return speech;
-}
-
-function normalizeImageLike(entry, title) {
-  if (!entry) return null;
-  if (typeof entry === "string") {
-    const url = cleanText(entry);
-    if (!url) return null;
-    return { url, alt: title || "", caption: "" };
-  }
-  if (!isObj(entry)) return null;
-  const url = cleanText(entry.url || entry.src || entry.image || entry.href || "");
-  if (!url) return null;
-  return {
-    url,
-    alt: cleanText(entry.alt || entry.title || title || ""),
-    caption: cleanText(entry.caption || "")
+    presenceProfile: cleanText(incomingSpeech.presenceProfile || payload.presenceProfile || "") || undefined,
+    voiceStyle: cleanText(incomingSpeech.voiceStyle || payload.voiceStyle || "") || undefined,
+    nyxStateHint: cleanText(incomingSpeech.nyxStateHint || payload.nyxStateHint || "") || undefined,
+    alignmentVersion: "speech-contract-v2"
   };
 }
-
 
 function normalizeImageLike(entry, title) {
   if (!entry) return null;
@@ -2179,7 +2232,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     engineError = err;
   }
 
-  let shaped = shapeEngineReply(engineRaw);
+  let shaped = repairEngineContract(shapeEngineReply(engineRaw), marion, norm);
   if (!shaped.lane) shaped.lane = norm.lane || "general";
   if (!shaped.laneId) shaped.laneId = shaped.lane;
   if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
@@ -2222,8 +2275,10 @@ app.post("/api/chat", enforceToken, async (req, res) => {
         clearStaleUi: true,
         suppressMenus: true,
         failSafe: true,
+        marionAvailable: !!marion,
         error: cleanText(engineError && engineError.message || engineError || "engine failure")
-      }
+      },
+      speech: null
     };
   }
 
@@ -2286,6 +2341,8 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     clearStaleUi: suppressMenus,
     suppressMenus,
     failSafe: !!failSafe,
+    marionBridgePresent: !!marion,
+    mixerVoicePreserved: !!CFG.preserveMixerVoice,
     error: shaped.meta?.error || "",
     indexLoopGuard: true,
     supportHold,
@@ -2302,6 +2359,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
 
   shaped = attachVoiceRoute(shaped);
   const speech = buildSpeechContract(shaped, norm);
+  shaped.speech = speech;
   shaped.payload = {
     ...(isObj(shaped.payload) ? shaped.payload : {}),
     text: speech.text,
@@ -2310,7 +2368,8 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     routeKind: speech.routeKind,
     intro: speech.intro,
     source: speech.source,
-    speechHints: speech.speechHints
+    speechHints: speech.speechHints,
+    speech
   };
   shaped.voiceRoute = {
     ...(isObj(shaped.voiceRoute) ? shaped.voiceRoute : {}),
@@ -2320,7 +2379,10 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     routeKind: speech.routeKind,
     intro: speech.intro,
     source: speech.source,
-    speechHints: speech.speechHints
+    speechHints: speech.speechHints,
+    presenceProfile: speech.presenceProfile,
+    voiceStyle: speech.voiceStyle,
+    nyxStateHint: speech.nyxStateHint
   };
   shaped = enforceQuietUiIfNeeded(shaped, {
     supportActive,
@@ -2351,6 +2413,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     directives: Array.isArray(shaped.directives) ? shaped.directives : [],
     followUps: Array.isArray(shaped.followUps) ? shaped.followUps : [],
     followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings : [],
+    emotionalTurn: shaped.emotionalTurn || undefined,
     sessionPatch: shaped.sessionPatch || {},
     cog: shaped.cog || {},
     requestId: shaped.requestId,
@@ -2443,5 +2506,11 @@ module.exports = {
   loadMusicFromDisk,
   dispatchMusicBridge,
   normalizeMusicBridgeInput,
-  normalizeMusicBridgeResponse
+  normalizeMusicBridgeResponse,
+  shapeEngineReply,
+  repairBridgeEnvelope,
+  repairEngineContract,
+  buildSpeechContract,
+  normalizeVoiceRouteResponse,
+  attachVoiceRoute
 };
