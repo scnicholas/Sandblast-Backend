@@ -1,4 +1,10 @@
+
 "use strict";
+
+/**
+ * composeMarionResponse.js
+ * Cohesive Marion composition layer.
+ */
 
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
@@ -26,28 +32,32 @@ function _pickSupportMode(routed = {}, psychology = {}, emotion = {}, supportFla
   if (_safeObj(supportFlags).crisis) return "crisis_escalation";
   if (_safeObj(supportFlags).needsContainment && _safeObj(supportFlags).highDistress) return "acute_regulation";
   if (_safeObj(supportFlags).suppressed || _safeObj(supportFlags).guardedness) return "soft_probe_first";
-  if (_safeObj(supportFlags).needsStabilization) return "soothe_and_structure";
   return _trim(record.supportMode || route.supportMode || routed.supportMode || "");
 }
-function _resolveModePlan(mode) { return _safeObj(MODE_DEFAULTS[mode]) || _safeObj(MODE_DEFAULTS.clarify_and_sequence); }
+
+function _resolveModePlan(mode) {
+  return _safeObj(MODE_DEFAULTS[mode]) || _safeObj(MODE_DEFAULTS.clarify_and_sequence);
+}
+
 function _resolveBlendProfile(emotion = {}) {
   const primary = _safeObj(emotion.primary);
   const raw = _safeObj(emotion.blendProfile || emotion.blend_profile || {});
   const out = {};
-  for (const [key, value] of Object.entries(raw)) {
+  for (const [key, value] of Object.entries(raw.weights || raw)) {
     const k = _lower(key);
     const v = _clamp(value, 0, 1);
     if (k && v > 0) out[k] = Number(v.toFixed(3));
   }
-  if (!Object.keys(out).length) {
-    const p = _lower(primary.emotion || emotion.primaryEmotion || "neutral") || "neutral";
+  if (!Object.keys(out).length && _trim(primary.emotion || emotion.primaryEmotion)) {
+    const p = _lower(primary.emotion || emotion.primaryEmotion);
     const s = _lower(primary.secondaryEmotion || emotion.secondaryEmotion || "");
-    out[p] = Number(_clamp(primary.weight || primary.intensity || emotion.intensity || 0.7, 0.45, 1).toFixed(3));
+    out[p] = Number(_clamp(primary.weight || 0.7, 0.45, 1).toFixed(3));
     if (s && s !== p) out[s] = Number((1 - out[p]).toFixed(3));
   }
   const sorted = Object.entries(out).sort((a, b) => b[1] - a[1]);
-  return { weights: out, dominantAxis: sorted[0] ? sorted[0][0] : "neutral" };
+  return { weights: out, dominantAxis: sorted[0] ? sorted[0][0] : (_lower(primary.emotion || emotion.primaryEmotion) || "neutral") };
 }
+
 function _resolveStateDrift(routed = {}, emotion = {}) {
   const drift = _safeObj(routed.stateDrift || emotion.stateDrift || emotion.state_drift);
   if (Object.keys(drift).length) {
@@ -59,17 +69,14 @@ function _resolveStateDrift(routed = {}, emotion = {}) {
     };
   }
   const primary = _safeObj(emotion.primary);
-  const previous = _safeObj(_safeObj(routed.previousTurn).emotion);
-  const currentEmotion = _lower(primary.emotion || emotion.primaryEmotion || routed.primaryEmotion || "neutral");
-  const previousEmotion = _lower(previous.primaryEmotion || previous.emotion || "");
-  const intensity = _clamp(primary.intensity != null ? primary.intensity : emotion.intensity, 0, 1);
-  const previousIntensity = _clamp(previous.intensity, intensity, intensity);
-  let trend = "stable";
-  if (previousEmotion && previousEmotion !== currentEmotion) trend = "shifting";
-  if (intensity - previousIntensity >= 0.18) trend = "escalating";
-  if (previousIntensity - intensity >= 0.18) trend = "deescalating";
-  return { previousEmotion, currentEmotion, trend, stability: Number((1 - Math.abs(intensity - previousIntensity)).toFixed(3)) };
+  return {
+    previousEmotion: _lower(_safeObj(_safeObj(routed.previousTurn).emotion).primaryEmotion || ""),
+    currentEmotion: _lower(primary.emotion || emotion.primaryEmotion || "neutral"),
+    trend: "stable",
+    stability: 0.75
+  };
 }
+
 function _resolveRiskLevel(supportFlags = {}, psychology = {}, primaryEmotion = {}) {
   if (_safeObj(supportFlags).crisis) return "critical";
   const primary = _safeObj(psychology.primary);
@@ -79,30 +86,32 @@ function _resolveRiskLevel(supportFlags = {}, psychology = {}, primaryEmotion = 
   if (declared) return declared;
   return _clamp(primaryEmotion.intensity, 0, 1) >= 0.82 || _safeObj(supportFlags).highDistress ? "high" : "low";
 }
+
 function _buildGuidance(modePlan, psychology = {}, routed = {}, supportFlags = {}) {
   const primary = _safeObj(psychology.primary);
   const record = _safeObj(primary.record);
   const supportProfile = _safeObj(primary.supportProfile);
-  return _uniq([]
+  return _uniq([])
     .concat(_safeArray(record.responseGuidance))
     .concat(_safeArray(supportProfile.responseShape))
     .concat(_safeArray(routed.guidance))
     .concat(_safeObj(supportFlags).suppressed ? ["Do not overinterpret guarded language."] : [])
     .concat(_safeObj(supportFlags).needsContainment ? ["Keep the next move singular and bounded."] : [])
     .concat(modePlan.shouldAskFollowup ? ["Ask at most one follow-up unless the user clearly opens the door further."] : [])
-    .concat(["Keep Marion as the sole interpreter and let Nyx express the resolved state only."]));
+    .concat(["Keep Marion as the sole interpreter and let Nyx express the resolved state only."]);
 }
+
 function _buildGuardrails(modePlan, psychology = {}, routed = {}, supportFlags = {}) {
   const primary = _safeObj(psychology.primary);
   const record = _safeObj(primary.record);
   const supportProfile = _safeObj(primary.supportProfile);
-  return _uniq([]
+  return _uniq([])
     .concat(_safeArray(record.contraindications))
     .concat(_safeArray(supportProfile.constraints))
     .concat(_safeArray(routed.guardrails))
     .concat(_safeObj(supportFlags).suppressed ? ["Do not force disclosure."] : [])
     .concat(_safeObj(supportFlags).crisis ? ["Stop normal flow and prioritize safety language."] : [])
-    .concat(["Do not allow bridge-level improvisation to override the response contract."]));
+    .concat(["Do not allow bridge-level improvisation to override the response contract."]);
 }
 
 function composeMarionResponse(routed = {}, input = {}) {
