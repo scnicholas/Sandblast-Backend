@@ -1,6 +1,8 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.2.0 EMOTIONAL-ROUTE-PRESERVE";
+const VERSION = "conversationalResponseSystem v2.2.1 EMOTIONAL-ROUTE-PRESERVE DEBUG";
+const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
+try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
 function safeStr(v) { return v == null ? "" : String(v); }
 function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -149,6 +151,16 @@ function buildResponseContract(result = {}, packet = {}) {
   const ui = buildUi(context, state);
   const emotionalTurn = buildEmotionalTurn(context, state);
   const followUps = uniq(arr(result.followUps || packet?.synthesis?.followUps || [])).slice(0, 4);
+  try {
+    console.log("[MARION] conversationalResponseSystem route", {
+      domain: context.domain,
+      intent: context.intent,
+      state,
+      supportMode: context.supportMode,
+      replyPreview: safeStr(reply).slice(0, 120),
+      preservedEmotionalRoute: true
+    });
+  } catch (_e) {}
   return {
     ok: true,
     reply,
