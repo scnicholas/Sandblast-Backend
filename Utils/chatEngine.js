@@ -30,7 +30,8 @@ try { telemetryAdapter = require("./chatTelemetryAdapter"); } catch (_e) { telem
 
 const { buildResponseContract, sanitizeUserFacingReply } = require("./conversationalResponseSystem");
 
-const VERSION = "chatEngine v1.1.0 MARION-FIRST-HARDENED";
+const VERSION = "chatEngine v1.2.0 MARION-FIRST-HARDENED-COMMERCIAL-GRADE";
+const PIPELINE_SCHEMA = "nyx.marion.chatEngine/1.2";
 const KNOWLEDGE_DOMAINS = ["psychology", "law", "finance", "english", "cybersecurity", "ai", "strategy", "marketing", "general"];
 const DUP_WINDOW_MS = 6000;
 const CACHE_WINDOW_MS = 12000;
@@ -88,7 +89,9 @@ function buildSpeechPacket(reply, lane, intent, emo, session) {
     speakOnceKey,
     interrupt: !!(emo && emo.supportFlags && (emo.supportFlags.highDistress || emo.supportFlags.needsContainment)),
     priority: !!(emo && emo.supportFlags && (emo.supportFlags.highDistress || emo.supportFlags.needsContainment)) ? "high" : "normal",
-    voiceStyle: emo && emo.primaryEmotion === "anxious" ? "grounded" : emo && emo.primaryEmotion === "sad" ? "soft" : "neutral",
+    voiceStyle: emo && emo.primaryEmotion === "anxious" ? "grounded" : emo && emo.primaryEmotion === "sad" ? "soft" : emo && emo.primaryEmotion === "positive" ? "warm" : "neutral",
+    presenceProfile: emo && emo.primaryEmotion === "sad" ? "supportive" : emo && emo.primaryEmotion === "anxious" ? "receptive" : emo && emo.primaryEmotion === "positive" ? "warm" : "steady",
+    nyxStateHint: emo && emo.primaryEmotion === "sad" ? "supportive" : emo && emo.primaryEmotion === "anxious" ? "receptive" : "engaged",
     lane: safeStr(lane || "general").toLowerCase() || "general",
     intent: safeStr(intent || "general"),
     yearNormalization: true,
@@ -254,12 +257,15 @@ function normalizeInbound(input = {}) {
   const payload = isObj(input.payload) ? input.payload : {};
   const ctx = isObj(input.ctx) ? input.ctx : {};
   const rawText = input.text || body.text || payload.text || input.message || body.message || "";
-  const text = oneLine(rawText).slice(0, MAX_TEXT_LEN);
+  const rawTextOneLine = oneLine(rawText);
+  const text = rawTextOneLine.slice(0, MAX_TEXT_LEN);
   return {
     raw: input,
     body,
     payload,
     ctx,
+    rawText: rawTextOneLine,
+    rawTextLength: rawTextOneLine.length,
     text,
     lane: safeStr(input.lane || payload.lane || body.lane || ctx.lane || "general").toLowerCase() || "general",
     action: safeStr(input.action || payload.action || body.action || "").toLowerCase(),
@@ -272,7 +278,7 @@ function validateInboundContract(rawInput, norm) {
   const issues = [];
   if (!isObj(rawInput)) issues.push("input_not_object");
   if (!safeStr(norm.lane)) issues.push("lane_missing");
-  if (safeStr(norm.text).length > MAX_TEXT_LEN) issues.push("text_trimmed");
+  if (Number(norm.rawTextLength || 0) > MAX_TEXT_LEN) issues.push("text_trimmed");
   const publicMode = toBool(norm.publicMode, true);
   return {
     ok: true,
@@ -350,7 +356,7 @@ function stableContract(base = {}) {
     sessionPatch: isObj(base.sessionPatch) ? base.sessionPatch : {},
     cog: isObj(base.cog) ? base.cog : {},
     requestId: safeStr(base.requestId || ""),
-    meta: isObj(base.meta) ? base.meta : {}
+    meta: { ...(isObj(base.meta) ? base.meta : {}), pipelineSchema: PIPELINE_SCHEMA, engineVersion: VERSION }
   };
 }
 function makeFallbackReply(norm, emo) {
@@ -633,7 +639,7 @@ async function handleChat(input) {
         followUps: presentation.followUps,
         cog: presentation.cog,
         requestId,
-        meta: { ...meta, speechEnabled: !!speech.enabled, speechYearNormalization: true }
+        meta: { ...meta, speechEnabled: !!speech.enabled, speechYearNormalization: true, pipelineSchema: PIPELINE_SCHEMA }
       });
 
       const memoryContext = buildMemoryContext({ norm, session, contract, emotion: emo, bridge: contract.bridge, continuity });
@@ -647,7 +653,8 @@ async function handleChat(input) {
         ...buildSessionPatchFromContract(contract, session, inSig, speech),
         __spineState: nextState,
         __lastRequestId: requestId,
-        __lastTurnId: turnId
+        __lastTurnId: turnId,
+        __pipelineSchema: PIPELINE_SCHEMA
       };
 
       logDiag("turn_ok", { requestId: shortId(requestId), turnId: shortId(turnId), lane, marion: !!meta.marionBridgeUsed, ms: nowMs() - started });
@@ -686,7 +693,8 @@ async function handleChat(input) {
           continuityLevel: continuity.continuityLevel,
           t: nowMs(),
           speechEnabled: !!speech.enabled,
-          speechYearNormalization: true
+          speechYearNormalization: true,
+          pipelineSchema: PIPELINE_SCHEMA
         }
       });
       contract.sessionPatch = {
@@ -728,5 +736,6 @@ module.exports = {
   normalizeSpeechText,
   yearToSpeech,
   buildSpeechPacket,
+  PIPELINE_SCHEMA,
   default: handleChat
 };
