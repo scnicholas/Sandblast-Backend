@@ -5,6 +5,10 @@
  * Cohesive Marion composition layer.
  */
 
+const VERSION = "composeMarionResponse v1.0.1 DEBUG-EXECUTION";
+const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
+try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
+
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _trim(v) { return v == null ? "" : String(v).trim(); }
@@ -193,6 +197,17 @@ function composeMarionResponse(routed = {}, input = {}) {
 
   const reply = _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
   const followUps = _buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags);
+
+  try {
+    console.log("[MARION] composeMarionResponse resolve", {
+      domain: primaryDomain,
+      emotion: normalizedPrimaryEmotion,
+      supportMode,
+      riskLevel,
+      replyPreview: _trim(reply).slice(0, 120),
+      forcedEmotionalExecution: true
+    });
+  } catch (_e) {}
 
   return {
     ok: true,
