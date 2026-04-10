@@ -36,7 +36,8 @@
     "informational",
     "guarded",
     "emotional_numbness",
-    "shame"
+    "shame",
+    "depressed"
   ],
   "intensity_scale": {
     "min": 0,
@@ -106,6 +107,13 @@
         0.0,
         0.33
       ]
+    },
+    "salience_rules": {
+      "depression_language_bias": {
+        "emotion_bias": "sadness",
+        "secondary_bias": "hopelessness",
+        "min_intensity": 0.7
+      }
     }
   }
 }
