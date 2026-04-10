@@ -1,0 +1,5 @@
+"use strict";
+const VERSION = "marionPrivateChannel v1.0.0 PHASE2-PRIVATE-CHANNEL";
+function safeStr(v) { return v == null ? "" : String(v).trim(); }
+function resolvePrivateChannel(input = {}) { const trustState = input.trustState || {}; const relationship = input.relationship || {}; const requestedMode = safeStr(input.requestedMode || input.mode || "").toLowerCase(); const requested = requestedMode === "private" || requestedMode === "private_channel" || !!input.privateChannelRequested; const allowed = !!trustState.allowsPrivateDialogue; const active = allowed && requested; return { requested, allowed, active, mode: active ? "private_channel" : (safeStr(relationship.channelEntitlement || "") || trustState.effectiveChannel || "relay_to_nyx"), target: active ? "marion_direct" : "nyx", relayPolicy: active ? "direct_private" : "resolved_state_only", reason: active ? "trusted_principal" : (allowed ? "not_requested" : "trust_denied"), version: VERSION }; }
+module.exports = { VERSION, resolvePrivateChannel };
