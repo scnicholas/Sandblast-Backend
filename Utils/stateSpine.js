@@ -14,8 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.5.0 SUPPORT-LOCK LOOP-HARDEN PRESENCE-SYNC";
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.5";
+const SPINE_VERSION = "stateSpine v1.4.0 SUPPORT-LOCK LOOP-HARDEN";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
@@ -113,9 +112,7 @@ function createState(seed = {}) {
       continuityScore: 0.35,
       stateStreak: 0,
       placeholder: "Ask Nyx anything about Sandblast…",
-      lastActionLabels: [],
-      presenceState: "receptive",
-      listenerMode: "attuned"
+      lastActionLabels: []
     },
     lastUpdatedAt: 0
   };
@@ -534,7 +531,6 @@ function assertTurnUpdated(prevState, nextState) {
 }
 
 module.exports = {
-  STATE_SPINE_SCHEMA,
   SPINE_VERSION,
   TERMINAL_AUDIO_STOP_MS,
   createState,
