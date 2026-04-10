@@ -1,4 +1,3 @@
-
 "use strict";
 
 /**
@@ -18,11 +17,11 @@ const MODE_DEFAULTS = Object.freeze({
   crisis_escalation: { semanticFrame: "immediate_safety", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "action_gate", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "escalate"], careSequence: ["acknowledge", "stabilize", "escalate"], adviceLevel: "minimal", shouldAskFollowup: false, shouldOfferNextStep: true },
   acute_regulation: { semanticFrame: "acute_regulation", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "ground_then_narrow", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "contain"], careSequence: ["acknowledge", "ground", "narrow"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: true },
   soothe_and_structure: { semanticFrame: "stabilization", deliveryTone: "warm_affirming", expressionStyle: "plain_statement", followupStyle: "ground_then_narrow", responseLength: "short", pacing: "steady", transitionReadiness: "low", transitionTargets: ["stabilize", "clarify"], careSequence: ["validate", "stabilize", "sequence"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  careful_nonshaming_reflection: { semanticFrame: "identity_decompression", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "steady", transitionReadiness: "low", transitionTargets: ["stabilize", "clarify"], careSequence: ["validate", "de-shame", "reflect"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: false },
-  validate_and_gently_activate: { semanticFrame: "depletion_support", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["clarify", "activate"], careSequence: ["validate", "soft_probe", "activate"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  affirm_and_channel: { semanticFrame: "momentum_preservation", deliveryTone: "warm_affirming", expressionStyle: "plain_statement", followupStyle: "direct_answer_then_one_question", responseLength: "short", pacing: "steady", transitionReadiness: "high", transitionTargets: ["maintain", "channel"], careSequence: ["affirm", "anchor", "channel"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  soft_probe_first: { semanticFrame: "guarded_attunement", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "soft_probe", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["validate", "clarify"], careSequence: ["acknowledge", "soft_probe", "hold_open"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: false },
-  clarify_and_sequence: { semanticFrame: "clarity_building", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "medium", pacing: "steady", transitionReadiness: "medium", transitionTargets: ["clarify"], careSequence: ["clarify", "sequence"], adviceLevel: "medium", shouldAskFollowup: true, shouldOfferNextStep: true }
+  careful_nonshaming_reflection: { semanticFrame: "identity_decompression", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "steady", transitionReadiness: "low", transitionTargets: ["stabilize", "clarify"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: false },
+  validate_and_gently_activate: { semanticFrame: "depletion_support", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["clarify", "activate"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
+  affirm_and_channel: { semanticFrame: "momentum_preservation", deliveryTone: "warm_affirming", expressionStyle: "plain_statement", followupStyle: "direct_answer_then_one_question", responseLength: "short", pacing: "steady", transitionReadiness: "high", transitionTargets: ["maintain", "channel"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
+  soft_probe_first: { semanticFrame: "guarded_attunement", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "soft_probe", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["validate", "clarify"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: false },
+  clarify_and_sequence: { semanticFrame: "clarity_building", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "medium", pacing: "steady", transitionReadiness: "medium", transitionTargets: ["clarify"], adviceLevel: "medium", shouldAskFollowup: true, shouldOfferNextStep: true }
 });
 
 function _pickSupportMode(routed = {}, psychology = {}, emotion = {}, supportFlags = {}) {
@@ -32,7 +31,12 @@ function _pickSupportMode(routed = {}, psychology = {}, emotion = {}, supportFla
   if (_safeObj(supportFlags).crisis) return "crisis_escalation";
   if (_safeObj(supportFlags).needsContainment && _safeObj(supportFlags).highDistress) return "acute_regulation";
   if (_safeObj(supportFlags).suppressed || _safeObj(supportFlags).guardedness) return "soft_probe_first";
-  return _trim(record.supportMode || route.supportMode || routed.supportMode || "");
+  const resolved = _trim(record.supportMode || route.supportMode || routed.supportMode || "");
+  if (resolved) return resolved;
+  const primaryEmotion = _lower(_safeObj(emotion.primary).emotion || emotion.primaryEmotion || "");
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(primaryEmotion)) return "soothe_and_structure";
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(primaryEmotion)) return "acute_regulation";
+  return "clarify_and_sequence";
 }
 
 function _resolveModePlan(mode) {
@@ -114,6 +118,38 @@ function _buildGuardrails(modePlan, psychology = {}, routed = {}, supportFlags =
     .concat(["Do not allow bridge-level improvisation to override the response contract."]);
 }
 
+function _makeSupportReply(primaryEmotion, supportMode, intensity) {
+  const emo = _lower(primaryEmotion || "neutral");
+  if (supportMode === "crisis_escalation") {
+    return "I am here with you. Your safety comes first right now. If you are in immediate danger or might act on this, call emergency services or a crisis line right now.";
+  }
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+    return intensity >= 0.8
+      ? "I hear how heavy this feels. You do not have to hold all of it at once. What feels heaviest right now?"
+      : "I hear the weight in that. You do not have to carry it alone in this moment. What has been sitting on you the most?";
+  }
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+    return "I am with you. Let us slow this down and take the most urgent piece first. What feels hardest right now?";
+  }
+  if (["anger", "frustration"].includes(emo)) {
+    return "I can feel the pressure in that. Let us keep it steady and look at the part that needs attention first.";
+  }
+  return "I am with you. Tell me what feels most important right now.";
+}
+
+function _buildFollowUps(modePlan, primaryEmotion, supportFlags = {}) {
+  if (supportFlags.crisis) return [];
+  if (!modePlan.shouldAskFollowup) return [];
+  const emo = _lower(primaryEmotion || "neutral");
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+    return ["What has been sitting on you the most?"];
+  }
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+    return ["What feels hardest right now?"];
+  }
+  return ["What feels most important right now?"];
+}
+
 function composeMarionResponse(routed = {}, input = {}) {
   const primaryDomain = _trim(routed.primaryDomain || routed.domain || input.requestedDomain || input.domain || "general") || "general";
   const domains = _safeObj(routed.domains);
@@ -127,6 +163,7 @@ function composeMarionResponse(routed = {}, input = {}) {
   };
 
   const primaryEmotion = _safeObj(emotion.primary || emotion);
+  const normalizedPrimaryEmotion = _trim(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral";
   const supportMode = _pickSupportMode(routed, psychology, emotion, supportFlags) || "clarify_and_sequence";
   const modePlan = _resolveModePlan(supportMode);
   const blendProfile = _resolveBlendProfile(emotion);
@@ -152,13 +189,19 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(record.interpretation) ||
     _trim(record.summary) ||
     _trim(routed.interpretation) ||
-    (_trim(primaryEmotion.emotion || emotion.primaryEmotion) ? `Resolved emotional posture: ${_trim(primaryEmotion.emotion || emotion.primaryEmotion)}.` : "Resolved posture held.");
+    (_trim(normalizedPrimaryEmotion) ? `Resolved emotional posture: ${normalizedPrimaryEmotion}.` : "Resolved posture held.");
+
+  const reply = _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
+  const followUps = _buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags);
 
   return {
     ok: true,
     matched: !!(psychology.matched || emotion.matched || _safeArray(sourcePrimary.matches).length),
     domain: primaryDomain,
     interpretation,
+    reply,
+    output: reply,
+    followUps,
     supportMode,
     routeBias: _trim(record.routeBias || _safeObj(psychology.route).routeBias || routed.routeBias || "clarify") || "clarify",
     riskLevel,
@@ -184,7 +227,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       topic: _trim(record.topic) || null,
       recordId: _trim(record.id) || null,
       routeRuleId: _trim(_safeObj(psychology.route).ruleId) || null,
-      emotion: _trim(primaryEmotion.emotion || emotion.primaryEmotion) || null,
+      emotion: normalizedPrimaryEmotion || null,
       emotionIntensity: _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
       matchScore: _num(sourcePrimary.score, 0)
     },
@@ -192,7 +235,8 @@ function composeMarionResponse(routed = {}, input = {}) {
       classifier: classified.classifications || {},
       psychologyMatched: !!psychology.matched,
       emotionMatched: !!emotion.matched,
-      supportFlagCount: Object.keys(_safeObj(supportFlags)).length
+      supportFlagCount: Object.keys(_safeObj(supportFlags)).length,
+      forcedEmotionalExecution: true
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
