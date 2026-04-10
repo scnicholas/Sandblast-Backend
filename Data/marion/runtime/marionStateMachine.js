@@ -1,0 +1,6 @@
+"use strict";
+const VERSION = "marionStateMachine v1.0.0 PHASE2-STATE-MACHINE";
+function safeStr(v) { return v == null ? "" : String(v).trim(); }
+function clamp01(v) { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0; }
+function evaluateState(input = {}) { const emotion = input.emotion || {}; const trustState = input.trustState || {}; const continuity = input.continuityState || {}; const intensity = clamp01(emotion.intensity); const primaryEmotion = safeStr(emotion.primaryEmotion || "neutral").toLowerCase(); const intent = safeStr(input.intent || "general").toLowerCase(); let state = "receptive"; if (trustState.effectiveChannel === "private_channel") state = "private_channel"; else if (["sadness","fear","anxious","sad"].includes(primaryEmotion) || intensity >= 0.74) state = "supportive"; else if (["analysis","strategy","debug"].includes(intent)) state = "analytical"; else if (intent === "research") state = "strategic"; return { current: state, previous: safeStr(continuity.currentState || continuity.responseMode || "receptive") || "receptive", reason: trustState.effectiveChannel === "private_channel" ? "private_trust_entitlement" : (state === "supportive" ? "emotional_load" : "intent_weight"), stability: intensity >= 0.8 ? 0.7 : 0.86, version: VERSION }; }
+module.exports = { VERSION, evaluateState };
