@@ -1,5 +1,8 @@
+
 "use strict";
-const VERSION = "conversationalResponseSystem v2.0.0 CONSCIOUSNESS-COMPATIBLE";
+
+const VERSION = "conversationalResponseSystem v2.1.0 PERSONA-COHESION";
+
 function safeStr(v) { return v == null ? "" : String(v); }
 function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
 function arr(v) { return Array.isArray(v) ? v : []; }
@@ -8,17 +11,120 @@ function clamp(v, min, max, fallback = min) { const n = toFiniteNumber(v, fallba
 function clamp01(v, fallback = 0) { return clamp(v, 0, 1, fallback); }
 function firstNonEmpty() { for (const value of arguments) { const s = safeStr(value).trim(); if (s) return s; } return ""; }
 function uniq(items) { const out = []; const seen = new Set(); for (const item of arr(items)) { const key = typeof item === "string" ? item.trim().toLowerCase() : JSON.stringify(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
-function normalizeSupportFlags(raw) { const src = isObj(raw) ? raw : {}; return { highDistress: !!src.highDistress, needsContainment: !!src.needsContainment, needsGrounding: !!src.needsGrounding, vulnerable: !!src.vulnerable }; }
-function normalizeEmotion(raw) { const src = isObj(raw) ? raw : {}; return { primaryEmotion: firstNonEmpty(src.primaryEmotion, src.emotion, "neutral").toLowerCase(), secondaryEmotion: firstNonEmpty(src.secondaryEmotion, "").toLowerCase(), intensity: clamp01(src.intensity, 0), valence: clamp(src.valence, -1, 1, 0), supportFlags: normalizeSupportFlags(src.supportFlags) }; }
-function sanitizeUserFacingReply(reply) { let out = safeStr(reply).trim(); if (!out) return ""; for (const rx of [/\b(shell is active|guiding properly)\b/ig,/\broute[_ ]?guard\b/ig,/\bturn lifecycle\b/ig,/\btelemetry\b/ig,/\bruntime(?:-|\s)?trace\b/ig,/\binternal(?:-|\s)?pipeline\b/ig]) out = out.replace(rx, ""); return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").replace(/\s+([,.;:!?])/g, "$1").trim(); }
-function normalizeContext(result, packet) { const domain = firstNonEmpty(result?.domain, packet?.routing?.domain, "general").toLowerCase(); const requestedMode = firstNonEmpty(result?.mode, packet?.synthesis?.mode, "balanced").toLowerCase(); const intent = firstNonEmpty(result?.intent, packet?.routing?.intent, "general").toLowerCase(); const emotion = normalizeEmotion(result?.emotion || packet?.emotion?.lockedEmotion || {}); const evidenceCount = Math.max(0, toFiniteNumber(packet?.evidence?.count, arr(packet?.evidence).length)); const privateChannel = isObj(packet?.privateChannel) ? packet.privateChannel : (isObj(result?.privateChannel) ? result.privateChannel : {}); const trustState = isObj(packet?.trustState) ? packet.trustState : (isObj(result?.trustState) ? result.trustState : {}); const consciousness = isObj(packet?.consciousness) ? packet.consciousness : (isObj(result?.consciousness) ? result.consciousness : {}); return { domain, requestedMode, intent, emotion, evidenceCount, privateChannel, trustState, consciousness }; }
-function inferState(context) { if (context.privateChannel?.active) return "private"; if (context.domain === "psychology") return "supportive"; if (context.requestedMode === "recovery") return "clarifying"; if (context.emotion.supportFlags.highDistress || context.emotion.supportFlags.needsContainment) return "supportive"; return "focused"; }
-function buildFallbackReply(context) { if (context.privateChannel?.active) return "Private channel is open. I can keep this direct and clean."; if (context.domain === "psychology") return context.emotion.supportFlags.highDistress || context.emotion.intensity >= 0.75 ? "I am here with you. We can take this one step at a time." : "I am with you. Tell me what feels most important right now."; return "I have the thread. Give me one more clean beat and I will tighten the next move."; }
-function resolveReply(result, packet, context) { const rawReply = firstNonEmpty(result?.reply, packet?.synthesis?.answer, packet?.synthesis?.reply, ""); const sanitized = sanitizeUserFacingReply(rawReply); return sanitized || buildFallbackReply(context); }
-function action(label, payload, role = "advance") { const clean = safeStr(label).trim(); if (!clean) return null; return { label: clean, role, payload: isObj(payload) ? payload : { text: clean } }; }
-function buildSuggestedActions(context) { const actions = []; if (context.privateChannel?.active) { actions.push(action("Continue private channel")); actions.push(action("Hold public shell")); return uniq(actions).filter(Boolean).slice(0, 4); } if (context.domain === "psychology") { actions.push(action("Keep talking")); actions.push(action("What happened?")); actions.push(action("What do you need right now?")); } else if (["finance","law","strategy","ai"].includes(context.domain)) { actions.push(action("Break it down")); actions.push(action("Key risk")); actions.push(action("Next move")); } else { actions.push(action("Tell me more")); actions.push(action("Next step")); } if (context.evidenceCount > 0) actions.push(action("Evidence")); return uniq(actions).filter(Boolean).slice(0, 4); }
-function domainPlaceholder(domain) { switch (safeStr(domain).toLowerCase()) { case "psychology": return "Tell Nyx what feels heavy…"; case "finance": return "Ask Nyx to break down the numbers…"; case "law": return "Ask Nyx what applies and where the risk is…"; default: return "Ask Nyx anything about Sandblast…"; } }
-function buildUi(result, packet) { const context = normalizeContext(result, packet); const state = inferState(context); const actions = buildSuggestedActions(context); const text = resolveReply(result, packet, context); return { text, chips: actions.map((x) => x.label), allowMic: true, mode: state, state, domain: context.domain, intent: context.intent, placeholder: domainPlaceholder(context.domain), bridgeLine: context.privateChannel?.active ? "Private channel active." : "", actions, privateChannel: context.privateChannel, trustState: context.trustState }; }
-function buildEmotionalTurn(result, packet, ui) { const context = normalizeContext(result, packet); const reply = resolveReply(result, packet, context); return { primaryState: safeStr(ui?.state || "focused").toLowerCase(), secondaryState: context.emotion.intensity >= 0.7 ? "intense" : "steady", continuityScore: context.emotion.intensity >= 0.8 ? 0.86 : 0.74, continuityLevel: context.emotion.intensity >= 0.8 ? "high" : "steady", placeholder: ui?.placeholder || domainPlaceholder(context.domain), bridgeLine: safeStr(ui?.bridgeLine || "").trim(), actions: arr(ui?.actions).slice(0, 4), lane: context.domain, replyText: reply, responseText: reply, text: reply, spokenText: reply, emotion: context.emotion, privateChannel: context.privateChannel, trustState: context.trustState, consciousness: context.consciousness }; }
-function buildResponseContract(result = {}, packet = {}) { const ui = buildUi(result, packet); const emotionalTurn = buildEmotionalTurn(result, packet, ui); const reply = resolveReply(result, packet, normalizeContext(result, packet)); const followUps = arr(ui.actions).slice(0, 4); const context = normalizeContext(result, packet); return { version: VERSION, reply, ui, emotionalTurn, followUps, followUpsStrings: followUps.map((x) => safeStr(x?.label).trim()).filter(Boolean), payload: { reply, text: reply, message: reply, output: reply, privateChannel: context.privateChannel, trustState: context.trustState } }; }
-module.exports = { VERSION, buildResponseContract, buildUi, buildEmotionalTurn, sanitizeUserFacingReply };
+
+function normalizeSupportFlags(raw) {
+  const src = isObj(raw) ? raw : {};
+  return {
+    highDistress: !!src.highDistress,
+    needsContainment: !!src.needsContainment,
+    needsGrounding: !!src.needsGrounding,
+    needsStabilization: !!src.needsStabilization,
+    vulnerable: !!src.vulnerable
+  };
+}
+function normalizeEmotion(raw) {
+  const src = isObj(raw) ? raw : {};
+  return {
+    primaryEmotion: firstNonEmpty(src.primaryEmotion, src.emotion, "neutral").toLowerCase(),
+    secondaryEmotion: firstNonEmpty(src.secondaryEmotion, "").toLowerCase(),
+    intensity: clamp01(src.intensity, 0),
+    valence: clamp(src.valence, -1, 1, 0),
+    supportFlags: normalizeSupportFlags(src.supportFlags)
+  };
+}
+function sanitizeUserFacingReply(reply) {
+  let out = safeStr(reply).trim();
+  if (!out) return "";
+  for (const rx of [/\b(shell is active|guiding properly)\b/ig,/\broute[_ ]?guard\b/ig,/\bturn lifecycle\b/ig,/\btelemetry\b/ig,/\bruntime(?:-|\s)?trace\b/ig,/\binternal(?:-|\s)?pipeline\b/ig]) out = out.replace(rx, "");
+  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").replace(/\s+([,.;:!?])/g, "$1").trim();
+}
+function normalizeContext(result, packet) {
+  const domain = firstNonEmpty(result?.domain, packet?.routing?.domain, "general").toLowerCase();
+  const requestedMode = firstNonEmpty(result?.mode, packet?.synthesis?.mode, "balanced").toLowerCase();
+  const intent = firstNonEmpty(result?.intent, packet?.routing?.intent, "general").toLowerCase();
+  const emotion = normalizeEmotion(result?.emotion || packet?.emotion?.lockedEmotion || {});
+  const evidenceCount = Math.max(0, toFiniteNumber(packet?.evidence?.count, arr(packet?.evidence).length));
+  const privateChannel = isObj(packet?.privateChannel) ? packet.privateChannel : (isObj(result?.privateChannel) ? result.privateChannel : {});
+  const trustState = isObj(packet?.trustState) ? packet.trustState : (isObj(result?.trustState) ? result.trustState : {});
+  const consciousness = isObj(packet?.consciousness) ? packet.consciousness : (isObj(result?.consciousness) ? result.consciousness : {});
+  return { domain, requestedMode, intent, emotion, evidenceCount, privateChannel, trustState, consciousness };
+}
+function inferState(domain, emotion, requestedMode) {
+  const d = safeStr(domain).toLowerCase();
+  const m = safeStr(requestedMode).toLowerCase();
+  if (d === "psychology") return "supportive";
+  if (m === "recovery") return "clarifying";
+  if (emotion.supportFlags.highDistress || emotion.supportFlags.needsContainment) return "supportive";
+  if (["sad","sadness","anxious","anxiety","overwhelmed","depressed","fear"].includes(emotion.primaryEmotion)) return "supportive";
+  return "focused";
+}
+function buildFallbackReply(context) {
+  if (context.domain === "psychology") {
+    return context.emotion.supportFlags.highDistress || context.emotion.intensity >= 0.75
+      ? "I am here with you. We can take this one step at a time."
+      : "I am with you. Tell me what feels most important right now.";
+  }
+  return "I am with you. Give me a little more, and I will help tighten the next move.";
+}
+function domainPlaceholder(domain, state) {
+  switch (safeStr(domain).toLowerCase()) {
+    case "psychology": return state === "supportive" ? "Tell Nyx what feels heavy…" : "Tell Nyx what matters most right now…";
+    case "finance": return "Ask Nyx to break down the numbers…";
+    case "law": return "Ask Nyx what applies and where the risk is…";
+    default: return "Ask Nyx anything about Sandblast…";
+  }
+}
+function buildUi(context, state) {
+  return {
+    chips: [],
+    allowMic: true,
+    mode: state,
+    state,
+    emotionalState: state,
+    promptPlacement: "attached",
+    replace: state === "supportive",
+    clearStale: state === "supportive",
+    placeholder: domainPlaceholder(context.domain, state)
+  };
+}
+function buildEmotionalTurn(context, state) {
+  return {
+    state,
+    domain: context.domain,
+    intent: context.intent,
+    mode: context.requestedMode,
+    emotion: context.emotion,
+    privateChannel: context.privateChannel,
+    trustState: context.trustState,
+    consciousness: context.consciousness
+  };
+}
+function buildResponseContract(result = {}, packet = {}) {
+  const context = normalizeContext(result, packet);
+  const state = inferState(context.domain, context.emotion, context.requestedMode);
+  const reply = sanitizeUserFacingReply(
+    firstNonEmpty(result.reply, result.interpretation, packet?.synthesis?.reply, packet?.synthesis?.answer, buildFallbackReply(context))
+  );
+  const ui = buildUi(context, state);
+  const emotionalTurn = buildEmotionalTurn(context, state);
+  const followUps = uniq(arr(result.followUps || packet?.synthesis?.followUps || [])).slice(0, 4);
+  return {
+    ok: true,
+    reply,
+    ui,
+    emotionalTurn,
+    followUps,
+    meta: {
+      version: VERSION,
+      domain: context.domain,
+      intent: context.intent,
+      state,
+      evidenceCount: context.evidenceCount,
+      privateChannelActive: !!context.privateChannel?.active,
+      trustTier: safeStr(context.trustState?.tier || ""),
+      consciousnessLevel: safeStr(context.consciousness?.level || "")
+    }
+  };
+}
+
+module.exports = { VERSION, buildResponseContract, sanitizeUserFacingReply };
