@@ -358,6 +358,8 @@ function stableContract(base = {}) {
     sessionLane: safeStr(base.sessionLane || lane),
     bridge: isObj(base.bridge) ? base.bridge : null,
     ctx: isObj(base.ctx) ? { ...base.ctx } : {},
+    consciousness: isObj(base.consciousness) ? { ...base.consciousness } : null,
+    privateChannel: isObj(base.privateChannel) ? { ...base.privateChannel } : null,
     ui,
     emotionalTurn: isObj(base.emotionalTurn) ? base.emotionalTurn : null,
     directives: arr(base.directives).slice(0, 8),
@@ -526,9 +528,16 @@ function buildPresentationFromMarion(marion, lane, norm, emo) {
 
   return {
     reply: presentation.reply,
+    ctx: {
+      marionConsciousness: isObj(marion.result?.consciousness) ? marion.result.consciousness : (isObj(marion.packet?.consciousness) ? marion.packet.consciousness : null),
+      marionPrivateChannel: isObj(marion.result?.privateChannel) ? marion.result.privateChannel : (isObj(marion.packet?.privateChannel) ? marion.packet.privateChannel : null),
+      marionMemorySignals: isObj(marion.result?.memorySignals) ? marion.result.memorySignals : (isObj(marion.packet?.memorySignals) ? marion.packet.memorySignals : null)
+    },
     ui: { ...(isObj(marion.ui) ? marion.ui : {}), ...presentation.ui },
     emotionalTurn: isObj(marion.emotionalTurn) ? marion.emotionalTurn : presentation.emotionalTurn,
     followUps: dedupeFollowUps(marion.followUps || presentation.followUps),
+    consciousness: isObj(marion.result?.consciousness) ? marion.result.consciousness : (isObj(marion.packet?.consciousness) ? marion.packet.consciousness : null),
+    privateChannel: isObj(marion.result?.privateChannel) ? marion.result.privateChannel : (isObj(marion.packet?.privateChannel) ? marion.packet.privateChannel : null),
     lane: safeStr(marion.domain || lane || norm.lane || "general").toLowerCase() || "general",
     bridge: {
       v: "bridge.v3",
