@@ -64,6 +64,11 @@
       "response_length": "short",
       "followup_delay": "soft",
       "pacing": "slow_and_containing"
+    },
+    "depression_hint": {
+      "tone": "gentle",
+      "response_length": "short",
+      "prompt_shape": "validation_then_small_question"
     }
   },
   "guard": {
@@ -80,6 +85,17 @@
       "no diagnosis",
       "no cheerleading overreach",
       "keep first response under three sentences"
-    ]
+    ],
+    "required_fields": [
+      "emotion.primary",
+      "nuance.subtype",
+      "support.timing_profile",
+      "guard.safe_to_continue"
+    ],
+    "nyx_contract": {
+      "reply_mode": "resolved_state_only",
+      "followup_cap": 1,
+      "pacing_source": "support.timing_profile"
+    }
   }
 }
