@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.14.0sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT";
+const INDEX_VERSION = "index.js v2.14.1sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -237,6 +237,11 @@ const CFG = {
   loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
   requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
+  httpLogEnabled: boolEnv("SB_HTTP_LOG_ENABLED", false),
+  httpLogSlowMs: clamp(Number(process.env.SB_HTTP_LOG_SLOW_MS || 2500), 250, 30000),
+  logHealthCalls: boolEnv("SB_LOG_HEALTH_CALLS", false),
+  memoryTtlMs: clamp(Number(process.env.SB_MEMORY_TTL_MS || 30 * 60 * 1000), 60000, 24 * 60 * 60 * 1000),
+  memorySweepEveryMs: clamp(Number(process.env.SB_MEMORY_SWEEP_EVERY_MS || 60 * 1000), 10000, 10 * 60 * 1000),
   port: PORT
 };
 
@@ -277,6 +282,55 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
+  return next();
+});
+
+let lastMemorySweepAt = 0;
+
+function maybeSweepMemory() {
+  const current = now();
+  if (current - lastMemorySweepAt < CFG.memorySweepEveryMs) return;
+  lastMemorySweepAt = current;
+  const ttl = CFG.memoryTtlMs;
+  const prune = (mapObj) => {
+    if (!mapObj || typeof mapObj.forEach !== "function") return;
+    for (const [key, value] of mapObj.entries()) {
+      const at = Number((value && value.at) || (value && value.updatedAt) || 0);
+      if (!at || current - at > ttl) mapObj.delete(key);
+    }
+  };
+  prune(memory.lastBySession);
+  prune(memory.supportBySession);
+  prune(memory.transportBySession);
+}
+
+function shouldLogRequest(req, statusCode, durationMs) {
+  const url = cleanText(req.originalUrl || req.url || req.path || "");
+  if (CFG.httpLogEnabled) return true;
+  if (Number(durationMs || 0) >= CFG.httpLogSlowMs) return true;
+  if (Number(statusCode || 0) >= 500) return true;
+  if (CFG.logHealthCalls && /\/health(?:$|\/|\?)/i.test(url)) return true;
+  return false;
+}
+
+app.use((req, res, next) => {
+  maybeSweepMemory();
+  const startedAt = now();
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || makeTraceId("http"));
+  req.sbTraceId = traceId;
+  res.setHeader("x-sb-trace-id", traceId);
+  res.on("finish", () => {
+    const durationMs = now() - startedAt;
+    if (!shouldLogRequest(req, res.statusCode, durationMs)) return;
+    console.log("[Sandblast][http]", {
+      traceId,
+      method: req.method,
+      path: req.originalUrl || req.url || req.path || "",
+      status: res.statusCode,
+      durationMs,
+      sessionId: getSessionId(req)
+    });
+  });
   return next();
 });
 
@@ -1000,7 +1054,7 @@ function ttsHealthFromModule(mod) {
 
 function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
   const code = clamp(Number(statusCode || 503), 400, 599);
-  const traceId = cleanText((req && req.headers && req.headers["x-sb-trace-id"]) || makeTraceId("tts"));
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("tts"));
   const payload = {
     ok: false,
     spokenUnavailable: true,
@@ -1016,7 +1070,9 @@ function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
 
 async function dispatchTts(req, res) {
   const moduleHandler = ttsHandlerFromModule(ttsMod);
-  console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase() });
+  if (CFG.httpLogEnabled) {
+    console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase(), traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || "") });
+  }
   if (!moduleHandler) {
     throw new Error("tts_handler_unavailable");
   }
@@ -2007,8 +2063,8 @@ app.get("/health", (req, res) => {
       dotenv: moduleAvailable("dotenv")
     },
     bindings: {
-      voiceRouteHandler: false,
-      voiceRouteHealth: false,
+      voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
+      voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
       ttsHandler: !!ttsHandlerFromModule(ttsMod),
       ttsHealth: !!ttsHealthFromModule(ttsMod)
     },
@@ -2026,7 +2082,7 @@ app.get("/api/health", (req, res) => {
   return res.status(200).json({
     ok: true,
     version: INDEX_VERSION,
-    traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("health")),
+    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("health")),
     upMs: now() - SERVER_BOOT_AT,
     tts,
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
@@ -2056,6 +2112,12 @@ app.get("/api/health", (req, res) => {
         editorsPicksMeta: "/api/newscanada/editors-picks/meta",
         story: "/api/newscanada/story"
       }
+    },
+    memory: {
+      sessionsTracked: memory.lastBySession.size,
+      supportLocks: memory.supportBySession.size,
+      transportEntries: memory.transportBySession.size,
+      ttlMs: CFG.memoryTtlMs
     },
     music: {
       file: app.locals.musicMeta?.file || resolveMusicDataFile(),
@@ -2467,12 +2529,31 @@ app.use("/api", (req, res) => {
 });
 
 app.use((err, req, res, _next) => {
-  console.log("[Sandblast][express:error]", err && (err.stack || err.message || err));
   applyCors(req, res);
-  return res.status(500).json({
+  if (res.headersSent) return;
+
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("error"));
+  const isBodySyntax = !!(err && (err.type === "entity.parse.failed" || err instanceof SyntaxError));
+  const isTooLarge = !!(err && err.type === "entity.too.large");
+  const statusCode = isBodySyntax ? 400 : (isTooLarge ? 413 : clamp(Number((err && (err.statusCode || err.status)) || 500), 400, 599));
+  const errorCode = isBodySyntax ? "invalid_json" : (isTooLarge ? "payload_too_large" : "server_error");
+  const detail = isBodySyntax
+    ? "Request body contains invalid JSON."
+    : (isTooLarge ? "Request body exceeded the allowed size limit." : cleanText(err && (err.message || err) || "server error"));
+
+  console.log("[Sandblast][express:error]", {
+    traceId,
+    statusCode,
+    errorCode,
+    path: req && (req.originalUrl || req.url || req.path || ""),
+    detail
+  });
+
+  return res.status(statusCode).json({
     ok: false,
-    error: "server_error",
-    detail: cleanText(err && (err.message || err) || "server error"),
+    error: errorCode,
+    detail,
+    traceId,
     meta: { v: INDEX_VERSION, t: now() }
   });
 });
@@ -2524,6 +2605,19 @@ function getNewsCanadaCandidateDiagnostics() {
 const server = app.listen(PORT, () => {
   console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
 });
+
+function gracefulShutdown(signal) {
+  try {
+    console.log(`[Sandblast][shutdown] ${signal}`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  } catch (_) {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 module.exports = {
   app,
