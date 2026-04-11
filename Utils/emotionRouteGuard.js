@@ -78,7 +78,7 @@ function basePayload() {
   return {
     ok: true, version: VERSION, mode: "REGULATED", source: "emotionRouteGuard", consumesLockedEmotion: true, strategyLocked: true,
     primaryEmotion: "neutral", secondaryEmotion: null, intensity: 0, valence: "mixed", confidence: 0,
-    supportModeCandidate: "steady_assist", routeBias: "maintain", archetype: "clarify",
+    supportModeCandidate: "steady_assist", routeBias: "maintain", archetype: "clarify", emotionCluster: "informational",
     nuanceProfile: { arousal: "medium", socialDirection: "mixed", timeOrientation: "present", controlState: "uncertain", conversationNeed: "clarify", followupStyle: "reflective", transitionReadiness: "medium", loopRisk: "medium", questionPressure: "medium", mirrorDepth: "medium" },
     conversationPlan: { openingStyle: "orienting", questionStyle: "narrowing", allowsActionShift: true, recommendedNextMove: "clarify" },
     supportFlags: {}, routeHints: [], deliveryTone: "neutral_warm", downstream: {}, expressionContract: {}, input: {}
@@ -108,6 +108,17 @@ function deriveConversationNeed(primaryEmotion) {
   if (["joy", "gratitude", "excitement", "hope"].includes(e)) return "channel";
   return "clarify";
 }
+
+function deriveEmotionCluster(primaryEmotion) {
+  const e = lower(primaryEmotion);
+  if (["depressed", "sadness", "grief", "loneliness"].includes(e)) return "withdrawal";
+  if (["anxiety", "fear", "panic", "overwhelm"].includes(e)) return "activation";
+  if (["anger", "frustration"].includes(e)) return "defense";
+  if (["joy", "gratitude", "relief", "excitement"].includes(e)) return "approach";
+  if (["shame", "guilt"].includes(e)) return "repair";
+  return "informational";
+}
+
 function buildExpressionContract(strategy, lockedEmotion) {
   return {
     pacingBias: strategy.supportModeCandidate.includes("ground") || strategy.supportModeCandidate.includes("hold") ? "slow" : "steady",
@@ -132,6 +143,7 @@ function buildStrategyFromEmotion(lockedEmotion, signals, priorState, guidedProm
     supportModeCandidate: template.supportMode,
     routeBias: template.routeBias,
     archetype: template.archetype,
+    emotionCluster: deriveEmotionCluster(primaryEmotion),
     deliveryTone: template.expressionTone,
     nuanceProfile: {
       arousal: intensity >= 0.75 ? "high" : intensity >= 0.4 ? "medium" : "low",
@@ -161,15 +173,23 @@ function normalizeLockedEmotion(input = {}) {
   if (!primary) {
     if (/\b(depressed|empty|numb|hopeless)\b/.test(text)) primary = "depressed";
     else if (/\b(sad|grief|heartbroken|down)\b/.test(text)) primary = "sadness";
-    else if (/\b(anxious|panic|worried|afraid|overwhelmed)\b/.test(text)) primary = "anxiety";
+    else if (/\b(panic|panicking)\b/.test(text)) primary = "panic";
+    else if (/\b(anxious|worried|overwhelmed)\b/.test(text)) primary = "anxiety";
+    else if (/\b(afraid|terrified|scared)\b/.test(text)) primary = "fear";
     else if (/\b(angry|furious|frustrated|pissed)\b/.test(text)) primary = "anger";
     else if (/\b(happy|great|excited|relieved|grateful)\b/.test(text)) primary = "joy";
     else primary = "neutral";
   }
   const supportFlags = isObj(src.supportFlags) ? { ...src.supportFlags } : {};
   if (["depressed","sadness","grief"].includes(primary)) {
-    supportFlags.needsContainment = supportFlags.needsContainment || /\b(depressed|hopeless|empty|can't go on)\b/.test(text);
+    supportFlags.needsContainment = supportFlags.needsContainment || /\b(depressed|hopeless|empty|can't go on|cannot go on)\b/.test(text);
     supportFlags.highDistress = supportFlags.highDistress || /\b(depressed|hopeless|empty)\b/.test(text);
+  }
+  if (/\b(can't go on|cannot go on|want to die|kill myself|hurt myself|suicide|self harm)\b/.test(text)) {
+    supportFlags.crisis = true;
+    supportFlags.highDistress = true;
+    supportFlags.needsContainment = true;
+    supportFlags.needsStabilization = true;
   }
   if (["anxiety","fear","panic","overwhelm"].includes(primary)) supportFlags.needsStabilization = true;
   return {
@@ -198,6 +218,7 @@ function analyzeEmotionRoute(input = {}) {
   payload.supportModeCandidate = strategy.supportModeCandidate;
   payload.routeBias = strategy.routeBias;
   payload.archetype = strategy.archetype;
+  payload.emotionCluster = strategy.emotionCluster;
   payload.nuanceProfile = strategy.nuanceProfile;
   payload.conversationPlan = strategy.conversationPlan;
   payload.supportFlags = lockedEmotion.supportFlags || {};
@@ -207,8 +228,17 @@ function analyzeEmotionRoute(input = {}) {
   payload.input = { textLength: text.length, hasPriorState: !!priorState && Object.keys(priorState || {}).length > 0, consumedLockedEmotion: true };
   payload.presentationSignals = signals;
   payload.downstream = {
-    affect: { useLockedEmotion: true, useStrategy: true, allowEmotionOverride: false, archetype: strategy.archetype, deliveryTone: strategy.deliveryTone },
-    tts: { pacingBias: payload.expressionContract.pacingBias, caution: payload.supportFlags.needsContainment || payload.supportFlags.needsStabilization || false }
+    affect: { useLockedEmotion: true, useStrategy: true, allowEmotionOverride: false, archetype: strategy.archetype, deliveryTone: strategy.deliveryTone, emotionCluster: strategy.emotionCluster },
+    tts: { pacingBias: payload.expressionContract.pacingBias, caution: payload.supportFlags.needsContainment || payload.supportFlags.needsStabilization || false },
+    stateSpine: {
+      emotionPrimary: payload.primaryEmotion,
+      emotionCluster: payload.emotionCluster,
+      emotionSupportMode: payload.supportModeCandidate,
+      emotionArchetype: payload.archetype,
+      emotionNeedSoft: !!payload.supportFlags.highDistress,
+      emotionNeedCrisis: !!payload.supportFlags.crisis,
+      emotionShouldSuppressMenus: !!(payload.supportFlags.needsContainment || payload.supportFlags.crisis)
+    }
   };
   payload.mode = payload.supportFlags.highDistress ? "VULNERABLE" : strategy.valence === "positive" ? "POSITIVE" : "REGULATED";
   return payload;
