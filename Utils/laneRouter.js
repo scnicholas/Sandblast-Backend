@@ -246,9 +246,20 @@ function buildFollowUpsForLane(lane, emo, norm) {
   return buildEmotionalActionsForLane(lane, emo, norm);
 }
 
+
+function looksGreeting(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /^(hi|hello|hey|good morning|good afternoon|good evening)(\b|[!.?])/.test(s);
+}
+
 function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
-  if (!text) return "I’m here. Tell me what you want to work on, and I’ll keep it clean and intentional.";
+  if (!text) return "I am here. How can I help you today?";
+
+  if (looksGreeting(text) && !isSupportiveEmotion(emo)) {
+    return "I am here. How can I help you today?";
+  }
 
   if (isSupportiveEmotion(emo) || /\b(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)\b/i.test(text)) {
     return "Okay. We can slow this down. Tell me what feels heaviest, and I’ll help you carry it one clean step at a time.";
