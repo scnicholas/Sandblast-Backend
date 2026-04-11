@@ -23,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.3.0 UI-RESPECTS-BRAIN";
+const LR_VERSION = "laneRouter v1.4.0 CONVERSATIONAL-CONTINUITY";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -253,31 +253,62 @@ function looksGreeting(text) {
   return /^(hi|hello|hey|good morning|good afternoon|good evening)(\b|[!.?])/.test(s);
 }
 
+function looksHowAreYou(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /^(how are you|how are you doing|how have you been)(\b|[!.?])/.test(s);
+}
+
+function looksIdentityPing(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /^(hi|hello|hey)(\s+(nyx|nix))?(\b|[!.?])/.test(s);
+}
+
+function looksDirectiveAsk(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /\b(help|show|tell|guide|find|explain|build|fix|patch|update|walk me through)\b/.test(s);
+}
+
 function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
-  if (!text) return "I am here. How can I help you today?";
+  const state = mapEmotionalState(emo);
+  if (!text) return "I am here and ready. Tell me what you want to explore, fix, or understand.";
 
-  if (looksGreeting(text) && !isSupportiveEmotion(emo)) {
-    return "I am here. How can I help you today?";
+  if ((looksGreeting(text) || looksIdentityPing(text)) && !isSupportiveEmotion(emo)) {
+    return "Hey. I am here and fully with you. Tell me what you want to explore, and I’ll keep the thread moving.";
+  }
+
+  if (looksHowAreYou(text) && !isSupportiveEmotion(emo)) {
+    return "I am steady and ready to help. What do you want to get into first?";
   }
 
   if (isSupportiveEmotion(emo) || /\b(lonely|alone|isolated|abandoned|unseen|hurt|hurting|sad|hopeless|overwhelmed|anxious|panic)\b/i.test(text)) {
-    return "Okay. We can slow this down. Tell me what feels heaviest, and I’ll help you carry it one clean step at a time.";
+    return "Okay. We can slow this down and keep it human. Tell me what feels heaviest, and I’ll help you work through it one clear step at a time.";
   }
 
   if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
-    return "Understood. We’re going after the loop directly. Give me the exact layer, and I’ll stay locked to that target.";
+    return "Understood. We are going after the loop directly. Give me the exact layer that is replaying, and I’ll stay locked to that target.";
   }
 
   if (emo && safeStr(emo.valence || "") === "mixed" && Number(emo?.contradictions?.count || 0) > 0) {
-    return "I’m seeing mixed pressure here. We can isolate the main point first and move without clutter.";
+    return "I’m seeing mixed pressure here. Let’s isolate the main point first, then move forward without clutter.";
   }
 
-  if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx)\b/i.test(text)) {
-    return "Got it. We can work this as an architecture problem: keep the turn logic coherent, preserve state continuity, and remove any UI drift from the response path.";
+  if (/\b(chat\s*engine|emotion\s*route\s*guard|state\s*spine|marion|nyx|support\s*response|lane\s*router)\b/i.test(text)) {
+    return "Got it. We can work this as an architecture problem: hold the conversational thread, preserve state continuity, and make the output sound like Nyx instead of a system note.";
   }
 
-  return "Give me the exact target, and I’ll stay with that path without bouncing you into filler.";
+  if (looksDirectiveAsk(text)) {
+    return "Understood. Give me the exact target, and I’ll answer it directly while keeping the conversation alive.";
+  }
+
+  if (state === "clarifying") {
+    return "I have the thread. Give me one clean beat more, and I’ll narrow this without losing momentum.";
+  }
+
+  return "I have the thread. Tell me the exact target, and I’ll move it forward without dropping into filler.";
 }
 
 function normalizeLaneOutput(out, fallbackLane, emo, norm) {
@@ -285,7 +316,7 @@ function normalizeLaneOutput(out, fallbackLane, emo, norm) {
     safeStr(out?.lane || fallbackLane || "general") || "general"
   );
 
-  const reply = safeStr(out?.reply || "").trim();
+  const reply = safeStr(out?.reply || simpleGeneralReply(norm, emo)).trim();
   const directives = Array.isArray(out?.directives) ? out.directives : [];
   const followUps = Array.isArray(out?.followUps) ? out.followUps : buildFollowUpsForLane(lane, emo, norm);
   const ui = isPlainObject(out?.ui) ? out.ui : buildUiForLane(lane, emo);
