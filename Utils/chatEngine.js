@@ -42,6 +42,8 @@ const MAX_SPEECH_CHARS = 520;
 const GREETING_RE = /^(?:\s)*(?:hi|hello|hey|yo|good\s+(?:morning|afternoon|evening)|greetings)(?:\s+(?:nyx|nix|vera))?(?:[!,.?\s]*)$/i;
 const LIGHT_OPEN_RE = /\b(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|welcome\s+back)\b/i;
 const GRATITUDE_RE = /^(?:\s)*(?:thanks|thank\s+you|appreciate\s+it)(?:[!,.?\s]*)$/i;
+const HOW_ARE_YOU_RE = /^(?:\s)*(?:how\s+are\s+you|how\s+are\s+you\s+doing|how's\s+it\s+going|how\s+is\s+it\s+going)(?:\s+(?:nyx|nix|vera))?(?:[!,.?\s]*)$/i;
+const DETAIL_LEAK_RE = /(nyx\s+stays\s+concise\s+in\s+chat|opens\s+heavier\s+detail\s+separately)/i;
 
 function smallNumberToWords(n) {
   const ones = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
@@ -155,6 +157,51 @@ function shortId(v, keep = 6) {
   if (s.length <= keep * 2) return s;
   return `${s.slice(0, keep)}…${s.slice(-keep)}`;
 }
+function hashSeed(seed) {
+  const s = safeStr(seed || "nyx");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h >>> 0;
+}
+function pickVariant(items, seed) {
+  const variants = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!variants.length) return "";
+  return safeStr(variants[hashSeed(seed) % variants.length] || "");
+}
+function looksLikeHowAreYou(text) {
+  return HOW_ARE_YOU_RE.test(safeStr(text));
+}
+function hasDetailLeak(text) {
+  return DETAIL_LEAK_RE.test(safeStr(text));
+}
+function sanitizeLiveReply(text, fallback = "") {
+  const clean = sanitizeUserFacingReply(text || "").replace(/\s+/g, " ").trim();
+  const safeFallback = sanitizeUserFacingReply(fallback || "").replace(/\s+/g, " ").trim();
+  if (!clean) return safeFallback;
+  if (hasDetailLeak(clean)) return safeFallback;
+  if (/^(?:structured|detail|no links)$/i.test(clean)) return safeFallback;
+  return clean;
+}
+function hasTerminalPunctuation(text) {
+  return /[.!?]$/.test(safeStr(text).trim());
+}
+function buildDetailPayload(reply, lane, followUps) {
+  const cleanReply = sanitizeLiveReply(reply, "I am here. Tell me what you want to explore, and I will stay with it.");
+  return {
+    title: "Detail",
+    type: "structured",
+    lane: safeStr(lane || "general").toLowerCase() || "general",
+    summary: cleanReply,
+    body: cleanReply,
+    content: cleanReply,
+    links: [],
+    followUps: dedupeFollowUps(followUps || []).map((item) => ({
+      label: safeStr(item?.label || "").trim(),
+      role: safeStr(item?.role || "advance").trim() || "advance",
+      payload: isObj(item?.payload) ? item.payload : {}
+    })).filter((item) => item.label)
+  };
+}
 function looksLikeGreeting(text) {
   return GREETING_RE.test(safeStr(text));
 }
@@ -168,6 +215,7 @@ function classifyTurnIntent(text) {
   const clean = oneLine(text).toLowerCase();
   if (!clean) return "empty";
   if (looksLikeGreeting(clean)) return "greeting";
+  if (looksLikeHowAreYou(clean)) return "social_checkin";
   if (looksLikeGratitude(clean)) return "gratitude";
   if (/\b(help|fix|debug|repair|update|patch|audit)\b/.test(clean)) return "task";
   if (/\?$/.test(clean) || /^(?:what|why|how|when|where|who|can|could|would|should|do|does|is|are)\b/.test(clean)) return "question";
@@ -176,9 +224,31 @@ function classifyTurnIntent(text) {
 }
 function buildGreetingReply(session, lane) {
   const lastLane = safeStr(session && (session.__lastLane || session.lane) || lane || "general").toLowerCase();
-  if (lastLane === "music") return "Hello. I am Nix. Do you want a Top 10, a year pick, or a music story?";
-  if (lastLane === "news") return "Hello. I am Nix. Do you want today's headlines, an editor's pick, or a deeper story?";
-  return "Hello. I am Nix. What do you want to explore right now?";
+  const seed = `${lastLane}|${safeStr(session && session.__lastInboundSig || "greet")}`;
+  if (lastLane === "music") return pickVariant([
+    "Hello. I am Nix. Do you want a Top 10, a year pick, or a music story?",
+    "Hey. I am Nix. We can go straight into music. Do you want a chart, a year, or a story?",
+    "Welcome back. I am Nix. Want me to open with a Top 10, a year, or a music moment?"
+  ], seed);
+  if (lastLane === "news") return pickVariant([
+    "Hello. I am Nix. Do you want today's headlines, an editor's pick, or a deeper story?",
+    "Hey. I am Nix. We can start with headlines, an editor's pick, or one deeper article.",
+    "Welcome back. I am Nix. Do you want the latest headlines or a deeper news read?"
+  ], seed);
+  return pickVariant([
+    "Hello. I am Nix. What do you want to explore right now?",
+    "Hey. I am Nix. What are we getting into today?",
+    "Welcome back. I am Nix. Do you want to continue where you left off, or open something new?"
+  ], seed);
+}
+function buildCheckInReply(session, lane) {
+  const lastLane = safeStr(session && (session.__lastLane || session.lane) || lane || "general").toLowerCase();
+  const seed = `${lastLane}|${safeStr(session && session.__lastReply || "checkin")}`;
+  return pickVariant([
+    "I am here and ready. What do you want to work through together?",
+    "I am doing well and I am with you. What do you want to get into?",
+    "I am here, focused, and ready. What is the next thread you want to open?"
+  ], seed);
 }
 function buildGreetingFollowUps(session, lane) {
   const lastLane = safeStr(session && (session.__lastLane || session.lane) || lane || "general").toLowerCase();
@@ -212,7 +282,7 @@ function pruneInflight(now = nowMs()) {
 function continuityBandFromEmotion(emo = {}, turnIntent = "statement") {
   const intensity = clamp(emo.intensity, 0, 1);
   const primary = safeStr(emo.primaryEmotion || "neutral").toLowerCase();
-  if (turnIntent === "greeting" || turnIntent === "gratitude") return { continuityHealth: "open", continuityLevel: "welcoming", recoveryMode: "normal" };
+  if (turnIntent === "greeting" || turnIntent === "gratitude" || turnIntent === "social_checkin") return { continuityHealth: "open", continuityLevel: "welcoming", recoveryMode: "normal" };
   if (emo.supportFlags?.highDistress || intensity >= 0.86) return { continuityHealth: "contain", continuityLevel: "high_hold", recoveryMode: "containment" };
   if (emo.supportFlags?.needsStabilization || primary === "anxious" || intensity >= 0.72) return { continuityHealth: "stabilize", continuityLevel: "stabilizing", recoveryMode: "paced" };
   if (primary === "sad" || primary === "angry" || intensity >= 0.56) return { continuityHealth: "watch", continuityLevel: "attuned", recoveryMode: "supportive" };
@@ -399,6 +469,10 @@ function stableContract(base = {}) {
     ? { ...base.payload, reply, text: reply, output: reply, message: reply }
     : { reply, text: reply, output: reply, message: reply };
 
+  payload.detail = buildDetailPayload(reply, lane, followUps);
+  payload.detailText = payload.detail.body;
+  payload.structured = { summary: payload.detail.summary, body: payload.detail.body, links: [] };
+
   if (speech) payload.speech = speech;
 
   return {
@@ -450,11 +524,16 @@ function repairContract(contract, fallback = {}) {
 function makeFallbackReply(norm, emo, session = {}) {
   const turnIntent = classifyTurnIntent(norm.text);
   if (turnIntent === "greeting") return buildGreetingReply(session, norm.lane);
+  if (turnIntent === "social_checkin") return buildCheckInReply(session, norm.lane);
   if (turnIntent === "gratitude") return "You are welcome. Tell me where you want to go next, and I will stay on it.";
-  if (/^(?:sad|sadness|depressed|grief|lonely|loneliness)$/.test(safeStr(emo?.primaryEmotion))) return "I am here with you.\nTell me what feels heaviest right now, and I will stay with that thread.";
-  if (/^(?:anxious|anxiety|panic|fear|overwhelm)$/.test(safeStr(emo?.primaryEmotion))) return "I can feel the pressure in this.\nGive me the most urgent piece first, and we will handle it one step at a time.";
-  if (safeStr(norm.text)) return "I have the thread.\nGive me one clean beat more, and I will answer directly.";
-  return "I am here.\nTell me what you want help with.";
+  if (/^(?:sad|sadness|depressed|grief|lonely|loneliness)$/.test(safeStr(emo?.primaryEmotion))) return "I am here with you. Tell me what feels heaviest right now, and I will stay with that thread.";
+  if (/^(?:anxious|anxiety|panic|fear|overwhelm)$/.test(safeStr(emo?.primaryEmotion))) return "I can feel the pressure in this. Give me the most urgent piece first, and we will handle it one step at a time.";
+  if (safeStr(norm.text)) return pickVariant([
+    "I have the thread. Give me one clean beat more, and I will answer directly.",
+    "I am with you on the thread. Give me one more clear beat, and I will take it forward.",
+    "I have the line of motion. Give me the next clean piece, and I will keep it moving."
+  ], `${safeStr(norm.text)}|fallback`);
+  return "I am here. Tell me what you want help with.";
 }
 function validateMarionResolution(out, emo) {
   if (!isObj(out)) return { ok: false, issues: ["bridge_result_not_object"], value: null };
@@ -492,6 +571,52 @@ function validateMarionResolution(out, emo) {
     }
   };
 }
+function shouldUseSupportReply(norm, emo) {
+  const text = oneLine(norm?.text || "").toLowerCase();
+  if (!text) return false;
+  if (looksLikeGreeting(text) || looksLikeHowAreYou(text) || looksLikeGratitude(text)) return false;
+  if (emo?.supportFlags?.highDistress || emo?.supportFlags?.needsContainment || emo?.supportFlags?.needsStabilization) return true;
+  if (/^(?:sad|sadness|depressed|grief|lonely|loneliness|anxious|anxiety|panic|fear|overwhelm)$/.test(safeStr(emo?.primaryEmotion))) return true;
+  return /\b(sad|depressed|hopeless|empty|numb|grief|grieving|anxious|panic|overwhelmed|scared|afraid|alone|lonely|hurt)\b/i.test(text);
+}
+function buildContinuationTail(turnIntent, lane, session, emo, reply) {
+  const cleanReply = sanitizeLiveReply(reply, "");
+  if (!cleanReply) return "";
+  if (/\?$/.test(cleanReply)) return "";
+  if (/\b(?:tell me|what do you|what feels|do you want|which piece|where do you|what thread)\b/i.test(cleanReply)) return "";
+  const laneKey = safeStr(lane || session?.__lastLane || "general").toLowerCase();
+  const seed = `${turnIntent}|${laneKey}|${safeStr(session && session.__lastEmotion || "neutral")}|${cleanReply}`;
+  if (turnIntent === "greeting" || turnIntent === "social_checkin" || turnIntent === "open") return pickVariant([
+    "What do you want to explore first?",
+    "Where do you want to go next?",
+    "What thread do you want me to open?"
+  ], seed);
+  if (turnIntent === "task") return pickVariant([
+    "Give me the exact failure point and I will stay locked to it.",
+    "Point me at the exact layer and I will keep the fix tight.",
+    "Show me the exact break and I will stay on the critical path."
+  ], seed);
+  if (/^(?:sad|sadness|depressed|grief|lonely|loneliness|anxious|anxiety|panic|fear|overwhelm)$/.test(safeStr(emo?.primaryEmotion))) return pickVariant([
+    "What feels heaviest right now?",
+    "Which piece feels most immediate?",
+    "Tell me the next honest piece and I will stay with it."
+  ], seed);
+  return pickVariant([
+    "What do you want me to pull forward next?",
+    "Give me one clean beat more and I will take it further.",
+    "What is the next piece you want to open?"
+  ], seed);
+}
+function ensureContinuity(reply, turnIntent, lane, session, emo) {
+  const cleanReply = sanitizeLiveReply(reply, makeFallbackReply({ text: "", lane }, emo, session));
+  if (!cleanReply) return makeFallbackReply({ text: "", lane }, emo, session);
+  const tail = buildContinuationTail(turnIntent, lane, session, emo, cleanReply);
+  if (!tail) return cleanReply;
+  if (/\?$/.test(cleanReply.trim())) return cleanReply;
+  const base = hasTerminalPunctuation(cleanReply) ? cleanReply : `${cleanReply}.`;
+  return `${base} ${tail}`.trim();
+}
+
 async function maybeResolveMarion(rawInput, norm, session, emo, requestId, turnId, publicMode) {
   const bridge = getMarionBridge();
   const knowledgeSections = extractKnowledgeSections(rawInput, norm, session);
@@ -521,17 +646,36 @@ async function maybeResolveMarion(rawInput, norm, session, emo, requestId, turnI
     return { usedBridge: false, packet: null, reply: "", sections: knowledgeSections, validation: { ok: false, issues: ["bridge_exception"] } };
   }
 }
-function routeNonMarion(norm, session) {
+function routeNonMarion(norm, session, emo) {
   const lane = safeStr(norm.lane || session.lane || "general").toLowerCase() || "general";
   const turnIntent = classifyTurnIntent(norm.text);
-  const routeOut = routeLane ? routeLane({ text: norm.text, lane, session, payload: norm.payload, turnIntent }) : null;
-  const rawReply = safeStr(routeOut?.reply || routeOut?.text || "").trim();
-  const reply = sanitizeUserFacingReply(rawReply || makeFallbackReply(norm, normalizeEmotionGuard(norm.text, session), session));
-  const uiBase = turnIntent === "greeting" ? quietUi("welcoming") : buildUiForLane(lane);
+
+  let rawReply = "";
+  let routeOut = null;
+
+  if (turnIntent === "greeting") {
+    rawReply = buildGreetingReply(session, lane);
+  } else if (turnIntent === "social_checkin") {
+    rawReply = buildCheckInReply(session, lane);
+  } else if (turnIntent === "gratitude") {
+    rawReply = "You are welcome. I am here with you. Where do you want to go next?";
+  } else if (shouldUseSupportReply(norm, emo) && Support && typeof Support.buildSupportReply === "function") {
+    rawReply = Support.buildSupportReply({ text: norm.text, emo, session });
+  } else {
+    routeOut = routeLane ? routeLane({ text: norm.text, lane, session, payload: norm.payload, turnIntent, emo }) : null;
+    rawReply = safeStr(routeOut?.reply || routeOut?.text || "").trim();
+  }
+
+  const emoBag = emo || normalizeEmotionGuard(norm.text, session);
+  const fallbackReply = makeFallbackReply(norm, emoBag, session);
+  const reply = ensureContinuity(rawReply || fallbackReply, turnIntent, lane, session, emoBag);
+  const uiBase = turnIntent === "greeting" || turnIntent === "social_checkin" ? quietUi("welcoming") : buildUiForLane(lane);
   const ui = isObj(routeOut?.ui) ? { ...uiBase, ...routeOut.ui } : uiBase;
-  const fallbackFollowUps = turnIntent === "greeting" ? buildGreetingFollowUps(session, lane) : buildFollowUpsForLane(lane, { text: norm.text, session, turnIntent });
+  const fallbackFollowUps = (turnIntent === "greeting" || turnIntent === "social_checkin")
+    ? buildGreetingFollowUps(session, lane)
+    : buildFollowUpsForLane(lane, emoBag, { text: norm.text, session, turnIntent });
   const followUps = dedupeFollowUps(routeOut?.followUps || fallbackFollowUps);
-  if (turnIntent === "greeting") ui.actions = dedupeFollowUps((Array.isArray(ui.actions) && ui.actions.length ? ui.actions : followUps));
+  if (turnIntent === "greeting" || turnIntent === "social_checkin") ui.actions = dedupeFollowUps((Array.isArray(ui.actions) && ui.actions.length ? ui.actions : followUps));
   return { reply, ui, followUps, routeOut, turnIntent };
 }
 function computeInboundSig(norm) {
@@ -612,7 +756,7 @@ function buildPresentationFromMarion(marion, lane, norm, emo) {
   };
 }
 function buildFallbackPresentation(norm, session, lane, emo) {
-  const routed = routeNonMarion(norm, session);
+  const routed = routeNonMarion(norm, session, emo);
   const turnIntent = safeStr(routed.turnIntent || classifyTurnIntent(norm.text) || "general");
   const emotionalTurn = buildResponseContract({
     reply: routed.reply,
@@ -633,6 +777,22 @@ function buildFallbackPresentation(norm, session, lane, emo) {
     meta: { marionBridgeUsed: false, turnIntent }
   };
 }
+function normalizePresentation(presentation, norm, session, lane, emo) {
+  const current = isObj(presentation) ? { ...presentation } : {};
+  const turnIntent = safeStr(current.meta?.turnIntent || classifyTurnIntent(norm?.text || "") || "statement");
+  const fallbackReply = makeFallbackReply(norm || { text: "", lane }, emo || {}, session || {});
+  current.reply = ensureContinuity(current.reply || fallbackReply, turnIntent, lane || current.lane || norm?.lane || "general", session || {}, emo || {});
+  current.followUps = dedupeFollowUps(current.followUps || []);
+  current.lane = safeStr(current.lane || lane || norm?.lane || "general").toLowerCase() || "general";
+  current.ui = isObj(current.ui) ? { ...current.ui } : quietUi("focused");
+  current.ui.detail = buildDetailPayload(current.reply, current.lane, current.followUps);
+  current.ui.detailText = current.ui.detail.body;
+  current.ctx = isObj(current.ctx) ? { ...current.ctx } : {};
+  current.ctx.detail = current.ui.detail;
+  current.meta = { ...(isObj(current.meta) ? current.meta : {}), turnIntent };
+  return current;
+}
+
 function runDomainContractTests() {
   const failures = [];
   for (const domain of KNOWLEDGE_DOMAINS) {
@@ -717,8 +877,10 @@ async function handleChat(input) {
         presentation.cog.publicMode = !!publicMode;
       }
 
+      presentation = normalizePresentation(presentation, norm, session, lane, emo);
+
       if (!presentation.reply) {
-        presentation.reply = makeFallbackReply(norm, emo);
+        presentation.reply = makeFallbackReply(norm, emo, session);
         presentation.ui = quietUi(emo.primaryEmotion === "neutral" ? "focused" : "supportive");
       }
 
@@ -735,6 +897,9 @@ async function handleChat(input) {
         laneId: lane,
         sessionLane: lane,
         bridge: presentation.bridge,
+        ctx: presentation.ctx,
+        consciousness: presentation.consciousness,
+        privateChannel: presentation.privateChannel,
         ui: presentation.ui,
         emotionalTurn: presentation.emotionalTurn,
         followUps: presentation.followUps,
