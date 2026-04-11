@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.2.1 BRIDGE-HARDENED + YEAR-SPEECH";
+const VERSION = "affectEngine v3.3.0 BRIDGE-HARDENED RESPONSE-PATH-TIGHTENED + YEAR-SPEECH";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -84,6 +84,9 @@ function num(v, fallback = 0) { const n = Number(v); return Number.isFinite(n) ?
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 function uniq(arr) { return [...new Set((Array.isArray(arr) ? arr : []).map((x) => safeStr(x).trim()).filter(Boolean))]; }
 function lower(v) { return safeStr(v).toLowerCase(); }
+function looksLikeLightGreeting(text) {
+  return /^(?:\s)*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|welcome\s+back)(?:\s+(?:nyx|nix|vera))?(?:[!,.?\s]*)$/i.test(safeStr(text));
+}
 
 function mergeDeep(target, ...sources) {
   for (const src of sources) {
@@ -307,6 +310,7 @@ function smoothTtsProfile({ ttsProfile, memory, presetKey }) {
 function needsAcknowledgement({ text, strategy, lockedEmotion, opts }) {
   if (!opts.injectAcknowledgement) return false;
   const trimmed = safeStr(text).trim();
+  if (looksLikeLightGreeting(trimmed)) return false;
   if (!trimmed) return false;
   if (trimmed.length > opts.injectAcknowledgementMaxChars) return false;
   if (strategy.acknowledgementMode === "never") return false;
@@ -490,8 +494,12 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
 
 
 
-function derivePrimaryState({ affectState, strategy, continuity }) {
+function derivePrimaryState({ affectState, strategy, continuity, guidedPrompt }) {
   const continuityBand = continuity && typeof continuity === "object" ? safeStr(continuity.stateBand || continuity.level || "") : "";
+  const gp = guidedPrompt && typeof guidedPrompt === "object" ? `${safeStr(guidedPrompt.label)} ${safeStr(guidedPrompt.text)}`.trim().toLowerCase() : "";
+  const freshTurn = !(continuity && typeof continuity === "object" && safeStr(continuity.primaryState || ""));
+  const greetingLike = /\b(?:welcome|hello|hi|start|begin|open)\b/.test(gp);
+  if (freshTurn && affectState.risk_flag === "none" && affectState.valenceLabel !== "negative" && (greetingLike || strategy.supportModeCandidate === "steady_assist")) return "welcoming";
   if (affectState.risk_flag !== "none") return "reassuring";
   if (affectState.valenceLabel === "negative") return "supportive";
   if (strategy.archetype === "clarify") return continuityBand === "deep" ? "focused" : "clarifying";
@@ -500,7 +508,9 @@ function derivePrimaryState({ affectState, strategy, continuity }) {
   return continuityBand === "deep" ? "focused" : "curious";
 }
 
-function deriveSecondaryState({ affectState, strategy }) {
+function deriveSecondaryState({ affectState, strategy, guidedPrompt }) {
+  const gp = guidedPrompt && typeof guidedPrompt === "object" ? `${safeStr(guidedPrompt.label)} ${safeStr(guidedPrompt.text)}`.trim().toLowerCase() : "";
+  if (/\b(?:welcome|hello|hi|start|begin|open)\b/.test(gp) && affectState.risk_flag === "none") return "receptive";
   if (affectState.risk_flag !== "none") return "holding";
   if (strategy.supportModeCandidate.includes("stabilize") || strategy.supportModeCandidate.includes("soothe")) return "reassuring";
   if (strategy.supportModeCandidate.includes("clarify") || strategy.archetype === "clarify") return "narrowing";
@@ -530,6 +540,7 @@ function placeholderForState(state) {
     case "decisive": return "Tell me what you want done…";
     case "celebratory": return "Tell me what you want to build on…";
     case "focused": return "Pick the next move…";
+    case "welcoming": return "Say hello or tell me where to take you…";
     default: return "Ask Nyx anything about Sandblast…";
   }
 }
@@ -541,7 +552,11 @@ function buildActionCluster({ primaryState, lane, guidedPrompt }) {
   const items = [];
   const add = (label, role, payload) => items.push({ label, role, payload: payload || {} });
 
-  if (primaryState === "supportive" || primaryState === "reassuring") {
+  if (primaryState === "welcoming") {
+    add("Guide me", "advance", { action: "guide_me", lane: resolvedLane });
+    add("Show me options", "explore", { action: "explore_options", lane: resolvedLane });
+    add("Keep it focused", "confirm", { action: "focus_mode", lane: resolvedLane });
+  } else if (primaryState === "supportive" || primaryState === "reassuring") {
     add("Break it down for me", "stabilize", { action: "support_break_down", lane: resolvedLane });
     add("Show the easiest next step", "advance", { action: "next_step", lane: resolvedLane });
     add("Stay with this and guide me", "confirm", { action: "guided_mode_on", lane: resolvedLane });
@@ -576,12 +591,12 @@ function buildUnifiedTurn({ affectState, strategy, guidedPrompt, memory, lane })
   const continuity = memory.prevUnifiedTurn && typeof memory.prevUnifiedTurn === "object" ? memory.prevUnifiedTurn : {};
   const weight = continuityWeight(memory);
   const primaryState = smoothStateLabel(
-    derivePrimaryState({ affectState, strategy, continuity }),
+    derivePrimaryState({ affectState, strategy, continuity, guidedPrompt }),
     safeStr(continuity.primaryState || ""),
     weight
   );
   const secondaryState = smoothStateLabel(
-    deriveSecondaryState({ affectState, strategy }),
+    deriveSecondaryState({ affectState, strategy, guidedPrompt }),
     safeStr(continuity.secondaryState || ""),
     Math.max(0.25, weight * 0.85)
   );
