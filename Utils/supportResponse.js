@@ -35,6 +35,13 @@ function pick(arr, seed) { if (!Array.isArray(arr) || !arr.length) return ""; co
 function pickN(arr, seed, maxCount) { const a = Array.isArray(arr) ? arr.slice() : []; const out = []; if (!a.length || maxCount <= 0) return out; let h = hashSeed(seed); const seen = new Set(); for (let i = 0; i < a.length && out.length < maxCount; i++) { const idx = (h + i) % a.length; const val = safeStr(a[idx] || "").trim(); if (!val || seen.has(val)) continue; seen.add(val); out.push(val); } return out; }
 function joinSentences(parts) { return (Array.isArray(parts) ? parts : []).map((p) => oneLine(p)).filter(Boolean).join(" ").replace(/\s+/g, " ").trim(); }
 
+
+function looksGreeting(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /^(hi|hello|hey|good morning|good afternoon|good evening)(\b|[!.?])/.test(s);
+}
+
 function looksTechnicalRequest(text) {
   const s = safeStr(text).toLowerCase();
   if (!s) return false;
@@ -99,6 +106,10 @@ function buildSupportReply(input = {}) {
   const audioFailure = normalizeAudioFailure(input);
   const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}`;
 
+  if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm"])) {
+    return "I am here. How can I help you today?";
+  }
+
   if (looksTechnicalRequest(text)) {
     return joinSentences([
       buildAudioFailureLine(audioFailure, seed),
@@ -107,7 +118,7 @@ function buildSupportReply(input = {}) {
     ]);
   }
 
-  if (emo.supportFlags?.crisis) {
+  if (emo.supportFlags?.crisis || emo.escalation_required === true || emo?.guard?.escalation_required === true) {
     return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988.";
   }
 
