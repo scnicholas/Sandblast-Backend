@@ -33,7 +33,25 @@ const path = require("path");
 // CONFIG
 // =========================
 
-const DOMAIN_DIR = path.resolve(__dirname, "..", "Data", "Domains", "psychology", "packs");
+const DOMAIN_DIR_CANDIDATES = [
+  process.env.NYX_PSYCHOLOGY_PACK_DIR,
+  path.resolve(__dirname, "..", "Data", "Domains", "psychology", "packs"),
+  path.resolve(__dirname, "..", "data", "domains", "psychology", "packs"),
+  path.resolve(__dirname, "..", "data", "Domains", "psychology", "packs"),
+  path.resolve(__dirname, "Data", "Domains", "psychology", "packs"),
+  path.resolve(__dirname, "data", "domains", "psychology", "packs")
+].filter(Boolean);
+
+function resolveDomainDir() {
+  for (const candidate of DOMAIN_DIR_CANDIDATES) {
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    } catch (_e) {}
+  }
+  return DOMAIN_DIR_CANDIDATES[0];
+}
+
+const DOMAIN_DIR = resolveDomainDir();
 
 // Pack weights let you bias retrieval across packs (domain-level calibration).
 // Higher weight = more likely to surface when scores tie.
