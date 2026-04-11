@@ -6,7 +6,7 @@
  * Deterministic supportive response generator.
  */
 
-const VERSION = "supportResponse v1.8.0 PERSONA-COHESION";
+const VERSION = "supportResponse v1.9.0 CONVERSATIONAL-CONTINUITY";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -40,6 +40,12 @@ function looksGreeting(text) {
   const s = safeStr(text).trim().toLowerCase();
   if (!s) return false;
   return /^(hi|hello|hey|good morning|good afternoon|good evening)(\b|[!.?])/.test(s);
+}
+
+function looksHowAreYou(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /^(how are you|how are you doing|how have you been)(\b|[!.?])/.test(s);
 }
 
 function looksTechnicalRequest(text) {
@@ -107,14 +113,18 @@ function buildSupportReply(input = {}) {
   const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}`;
 
   if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm"])) {
-    return "I am here. How can I help you today?";
+    return "Hey. I am here and ready. Tell me what you want to explore, fix, or understand.";
+  }
+
+  if (looksHowAreYou(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm"])) {
+    return "I am steady and ready to help. What do you want to get into first?";
   }
 
   if (looksTechnicalRequest(text)) {
     return joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       "I have the technical thread.",
-      "Give me the exact failure point and I will keep the next move tight."
+      "Give me the exact failure point, and I will keep the next move tight and concrete."
     ]);
   }
 
@@ -166,7 +176,7 @@ function buildSupportReply(input = {}) {
   }
 
   if (looksNeutralInformational(text)) {
-    return "I have the thread. Give me one clean beat more, and I will answer directly.";
+    return "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation.";
   }
 
   return joinSentences([
