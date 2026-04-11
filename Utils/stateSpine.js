@@ -234,11 +234,12 @@ function normalizeAudioSignal(inbound) {
 
 function normalizeEmotionSignals(inbound, prevState) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
+  const direct = isPlainObject(inbound?.emotion) ? inbound.emotion : (isPlainObject(inbound?.emo) ? inbound.emo : (isPlainObject(inbound?.emotionPayload) ? inbound.emotionPayload : {}));
   const prev = coerceState(prevState);
-  const supportMode = safeStr(sig.emotionSupportMode || prev.support.supportMode || "").toLowerCase();
-  const emotionKey = safeStr(sig.emotionPrimary || sig.emotionDominant || prev.support.emotionKey || "").toLowerCase();
-  const emotionCluster = safeStr(sig.emotionCluster || prev.support.emotionCluster || "").toLowerCase();
-  const questionStyle = safeStr(sig.questionStyle || prev.support.questionStyle || "").toLowerCase();
+  const supportMode = safeStr(sig.emotionSupportMode || direct.supportModeCandidate || prev.support.supportMode || "").toLowerCase();
+  const emotionKey = safeStr(sig.emotionPrimary || sig.emotionDominant || direct.primaryEmotion || prev.support.emotionKey || "").toLowerCase();
+  const emotionCluster = safeStr(sig.emotionCluster || direct.emotionCluster || prev.support.emotionCluster || "").toLowerCase();
+  const questionStyle = safeStr(sig.questionStyle || direct?.conversationPlan?.questionStyle || prev.support.questionStyle || "").toLowerCase();
   const supportLockSignal = !!(
     sig.supportLockActive ||
     sig.emotionSupportLock ||
@@ -246,7 +247,9 @@ function normalizeEmotionSignals(inbound, prevState) {
     sig.emotionNeedSoft ||
     sig.emotionNeedCrisis ||
     sig.emotionFallbackSuppression ||
-    sig.emotionRouteExhaustion
+    sig.emotionRouteExhaustion ||
+    direct?.supportFlags?.crisis ||
+    direct?.supportFlags?.highDistress
   );
   const sameEmotionCount = clampInt(sig.emotionSameEmotionCount, prev.repetition.sameEmotionCount, 0, 999999);
   const sameSupportModeCount = clampInt(sig.emotionSameSupportModeCount, prev.repetition.sameSupportModeCount, 0, 999999);
@@ -265,9 +268,11 @@ function normalizeEmotionSignals(inbound, prevState) {
       sig.clearStaleUi ||
       sig.suppressMenus ||
       sig.emotionFallbackSuppression ||
-      sig.emotionRouteExhaustion
+      sig.emotionRouteExhaustion ||
+      direct?.supportFlags?.needsContainment ||
+      direct?.supportFlags?.crisis
     ),
-    highDistress: !!(sig.emotionNeedCrisis || sig.emotionNeedSoft),
+    highDistress: !!(sig.emotionNeedCrisis || sig.emotionNeedSoft || direct?.supportFlags?.highDistress || direct?.supportFlags?.crisis),
     mentionsLooping: !!(
       sig.emotionRouteExhaustion ||
       sig.emotionFallbackSuppression ||
@@ -399,10 +404,10 @@ function finalizeTurn(params = {}) {
   const inbound = isPlainObject(params.inbound) ? params.inbound : {};
   const decision = isPlainObject(params.decision) ? params.decision : {};
   const lane = safeStr(params.lane || inbound.lane || prev.lane || "general") || "general";
-  const stage = safeStr(decision.stage || prev.stage || "deliver").toLowerCase() || "deliver";
+  const stage = safeStr(decision.stage || params.stage || prev.stage || "deliver").toLowerCase() || "deliver";
   const intent = safeStr(params.marionCog?.intent || decision.move || extractIntent(inbound)).toUpperCase();
   const actionTaken = safeStr(params.actionTaken || inbound.action || inbound?.payload?.action || "");
-  const speak = oneLine(safeStr(decision.speak || params.assistantSummary || ""));
+  const speak = oneLine(safeStr(decision.speak || params.assistantSummary || params.assistantText || params.reply || ""));
   const userHash = hashText(oneLine(inbound.text || "").toLowerCase());
   const assistantHash = hashText(speak.toLowerCase());
   const sameLane = lane === prev.lane;
