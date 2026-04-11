@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.14.1sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING";
+const INDEX_VERSION = "index.js v2.14.2sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -607,7 +607,7 @@ function normalizeEmotion(raw, inputText) {
   }
 
   const rawText = txt;
-  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning)/.test(rawText);
+  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning|depressed|depression|i am depressed|i'm depressed|hopeless|empty|numb|can't go on|cannot go on)/.test(rawText);
   out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
   out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
   out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
@@ -2301,9 +2301,62 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   if (!shaped.bridge && marion) shaped.bridge = marion;
   shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
 
-  if (shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {})) {
+  const supportTriggered = shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
+  if (supportTriggered) {
     supportActive = true;
     supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+
+    const supportReply = buildSafeSupportReply(norm.text, emotion, {
+      traceId: norm.traceId,
+      sessionId,
+      source: "support_override"
+    });
+
+    const quietPatch = buildQuietUiPatch("support", true);
+    shaped = {
+      ...shaped,
+      ok: true,
+      reply: supportReply,
+      payload: {
+        ...(isObj(shaped.payload) ? shaped.payload : {}),
+        reply: supportReply,
+        text: supportReply,
+        message: supportReply
+      },
+      ui: {
+        ...(isObj(shaped.ui) ? shaped.ui : {}),
+        ...quietPatch.ui
+      },
+      directives: [],
+      followUps: [],
+      followUpsStrings: [],
+      sessionPatch: {
+        ...(isObj(shaped.sessionPatch) ? shaped.sessionPatch : {}),
+        ...(isObj(quietPatch.sessionPatch) ? quietPatch.sessionPatch : {})
+      },
+      cog: {
+        ...(isObj(shaped.cog) ? shaped.cog : {}),
+        intent: "STABILIZE",
+        mode: "transitional",
+        publicMode: true
+      },
+      meta: mergeMeta(shaped.meta, {
+        supportOverride: true,
+        supportTriggeredByEmotion: true,
+        clearStaleUi: true,
+        suppressMenus: true,
+        supportHold: true
+      })
+    };
+
+    console.log("[Sandblast][supportOverride]", {
+      traceId: norm.traceId,
+      sessionId,
+      text: norm.text,
+      emotion,
+      supportTriggered,
+      reply: supportReply
+    });
   }
 
   if (engineError) {
@@ -2346,11 +2399,11 @@ app.post("/api/chat", enforceToken, async (req, res) => {
 
   let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
   if (!reply) {
-    reply = buildSafeSupportReply(norm.text, emotion, {
+    reply = normalizeSupportReply(buildSafeSupportReply(norm.text, emotion, {
       traceId: norm.traceId,
       sessionId,
       source: "empty_reply"
-    });
+    }) || "I am here with you. Talk to me.");
     shaped.reply = reply;
     shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
     supportActive = true;
@@ -2418,6 +2471,18 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     mode: shaped.cog?.mode || (supportActive ? "transitional" : ""),
     publicMode: shaped.cog?.publicMode !== false
   };
+
+  console.log("[Sandblast][chatRoute:final]", {
+    traceId: norm.traceId,
+    sessionId,
+    supportActive,
+    failSafe: !!failSafe,
+    supportHold,
+    emotionLabel: emotion && emotion.label || "",
+    emotionDistress: !!(emotion && emotion.distress),
+    emotionSensitive: !!(emotion && emotion.sensitive),
+    reply: shaped.reply
+  });
 
   shaped = attachVoiceRoute(shaped);
   const speech = buildSpeechContract(shaped, norm);
