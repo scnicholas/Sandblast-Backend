@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.0.1 DEBUG-EXECUTION";
+const VERSION = "composeMarionResponse v1.1.0 PIPELINE-TRACE NORMALIZED-HANDOFF";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -16,6 +16,87 @@ function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _uniq(arr) { return [...new Set(_safeArray(arr).map(_trim).filter(Boolean))]; }
+
+
+function _normalizeSupportFlags() {
+  const merged = {};
+  for (const src of arguments) {
+    const obj = _safeObj(src);
+    for (const [key, value] of Object.entries(obj)) {
+      merged[_trim(key)] = !!value;
+    }
+  }
+  return merged;
+}
+
+function _buildEmotionPayload(primaryEmotion = {}, emotion = {}, supportFlags = {}) {
+  const primary = _safeObj(primaryEmotion);
+  const blended = _safeObj(emotion);
+  return {
+    locked: true,
+    primaryEmotion: _lower(primary.emotion || blended.primaryEmotion || "neutral") || "neutral",
+    secondaryEmotion: _lower(primary.secondaryEmotion || blended.secondaryEmotion || "") || null,
+    intensity: Number(_clamp(primary.intensity != null ? primary.intensity : blended.intensity, 0, 1).toFixed(3)),
+    valence: Number(_clamp(primary.valence != null ? primary.valence : blended.valence, -1, 1).toFixed(3)),
+    confidence: Number(_clamp(primary.confidence != null ? primary.confidence : blended.confidence != null ? blended.confidence : 0.82, 0, 1).toFixed(3)),
+    supportFlags: _normalizeSupportFlags(supportFlags),
+    needs: _uniq(_safeArray(blended.needs).concat(_safeArray(primary.needs))),
+    cues: _uniq(_safeArray(blended.cues).concat(_safeArray(primary.cues))),
+    blendProfile: _resolveBlendProfile(blended),
+    stateDrift: _resolveStateDrift({}, blended)
+  };
+}
+
+function _buildStrategyPayload(supportMode, modePlan, routed = {}, psychology = {}) {
+  const route = _safeObj(psychology.route);
+  const record = _safeObj(_safeObj(psychology.primary).record);
+  const routeBias = _trim(record.routeBias || route.routeBias || routed.routeBias || "clarify") || "clarify";
+  const deliveryTone = _trim(modePlan.deliveryTone || route.deliveryTone || routed.deliveryTone || "steadying") || "steadying";
+  let archetype = _trim(route.archetype || record.archetype || routed.archetype || "");
+  if (!archetype) {
+    if (/crisis|acute|soothe|stabilize|ground/.test(supportMode)) archetype = "ground";
+    else if (/affirm|channel/.test(supportMode)) archetype = "channel";
+    else if (/celebrate/.test(supportMode)) archetype = "celebrate";
+    else archetype = "clarify";
+  }
+  return {
+    archetype,
+    supportModeCandidate: supportMode,
+    routeBias,
+    deliveryTone,
+    questionPressure: modePlan.shouldAskFollowup ? "medium" : "low",
+    transitionReadiness: _trim(modePlan.transitionReadiness || "medium") || "medium",
+    acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportMode) ? "auto" : "light",
+    expressionContract: {
+      questionPressure: modePlan.shouldAskFollowup ? "medium" : "low",
+      transitionReadiness: _trim(modePlan.transitionReadiness || "medium") || "medium",
+      acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportMode) ? "auto" : "light"
+    }
+  };
+}
+
+function _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategyPayload, reply, followUps) {
+  return {
+    stage: "composeMarionResponse",
+    version: VERSION,
+    domain: primaryDomain,
+    supportMode,
+    riskLevel,
+    emotion: {
+      primaryEmotion: emotionPayload.primaryEmotion,
+      intensity: emotionPayload.intensity,
+      valence: emotionPayload.valence
+    },
+    strategy: {
+      archetype: strategyPayload.archetype,
+      routeBias: strategyPayload.routeBias,
+      deliveryTone: strategyPayload.deliveryTone
+    },
+    replyPreview: _trim(reply).slice(0, 160),
+    followUpCount: _safeArray(followUps).length,
+    resolvedAt: Date.now()
+  };
+}
 
 const MODE_DEFAULTS = Object.freeze({
   crisis_escalation: { semanticFrame: "immediate_safety", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "action_gate", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "escalate"], careSequence: ["acknowledge", "stabilize", "escalate"], adviceLevel: "minimal", shouldAskFollowup: false, shouldOfferNextStep: true },
@@ -160,11 +241,11 @@ function composeMarionResponse(routed = {}, input = {}) {
   const psychology = _safeObj(domains.psychology || routed.psychology);
   const emotion = _safeObj(domains.emotion || routed.emotion);
   const classified = _safeObj(routed.classified);
-  const supportFlags = {
-    ..._safeObj(routed.supportFlags),
-    ..._safeObj(emotion.supportFlags),
-    ..._safeObj(_safeObj(_safeObj(psychology.primary).record).supportFlags)
-  };
+  const supportFlags = _normalizeSupportFlags(
+    routed.supportFlags,
+    emotion.supportFlags,
+    _safeObj(_safeObj(_safeObj(psychology.primary).record).supportFlags)
+  );
 
   const primaryEmotion = _safeObj(emotion.primary || emotion);
   const normalizedPrimaryEmotion = _trim(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral";
@@ -173,6 +254,7 @@ function composeMarionResponse(routed = {}, input = {}) {
   const blendProfile = _resolveBlendProfile(emotion);
   const stateDrift = _resolveStateDrift(routed, emotion);
   const riskLevel = _resolveRiskLevel(supportFlags, psychology, primaryEmotion);
+  const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
 
   const responsePlan = {
     semanticFrame: modePlan.semanticFrame,
@@ -195,8 +277,14 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(routed.interpretation) ||
     (_trim(normalizedPrimaryEmotion) ? `Resolved emotional posture: ${normalizedPrimaryEmotion}.` : "Resolved posture held.");
 
-  const reply = _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
+  const reply =
+    _trim(_safeObj(input).assistantDraft) ||
+    _trim(_safeObj(input).reply) ||
+    _trim(_safeObj(routed).reply) ||
+    _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
   const followUps = _buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags);
+  const strategy = _buildStrategyPayload(supportMode, modePlan, routed, psychology);
+  const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
   try {
     console.log("[MARION] composeMarionResponse resolve", {
@@ -221,6 +309,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     routeBias: _trim(record.routeBias || _safeObj(psychology.route).routeBias || routed.routeBias || "clarify") || "clarify",
     riskLevel,
     supportFlags,
+    mode: modePlan.semanticFrame,
+    intent: _trim(routed.intent || _safeObj(routed.classified).intent || _safeObj(input).intent || "general").toLowerCase() || "general",
+    emotion: emotionPayload,
+    strategy,
     responsePlan,
     blendProfile,
     stateDrift,
@@ -251,7 +343,28 @@ function composeMarionResponse(routed = {}, input = {}) {
       psychologyMatched: !!psychology.matched,
       emotionMatched: !!emotion.matched,
       supportFlagCount: Object.keys(_safeObj(supportFlags)).length,
-      forcedEmotionalExecution: true
+      forcedEmotionalExecution: true,
+      responsePlanResolved: !!Object.keys(responsePlan).length,
+      handoffNormalized: true
+    },
+    pipelineTrace,
+    synthesis: {
+      reply,
+      followUps,
+      supportMode,
+      responsePlan,
+      nyxDirective: {
+        tonePosture: modePlan.deliveryTone,
+        pacing: modePlan.pacing,
+        responseLength: modePlan.responseLength,
+        followupStyle: modePlan.followupStyle,
+        askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
+        shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
+        shouldMirrorIntensity: false,
+        expressiveRole: "express_resolved_state_only"
+      },
+      emotion: emotionPayload,
+      strategy
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
