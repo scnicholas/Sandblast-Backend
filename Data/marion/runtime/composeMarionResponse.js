@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.3.0 STATE-AWARE-DEEPENING-HANDOFF";
+const VERSION = "composeMarionResponse v1.4.0 AUTHORITY-ESCALATION-OVERRIDE";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -181,6 +181,68 @@ function _resolveEscalationProfile(routed = {}, input = {}, supportFlags = {}, c
   };
 }
 
+function _normalizeEmotionAlias(value = "") {
+  const emo = _lower(value);
+  if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken"].includes(emo)) return "sadness";
+  if (["anxious", "panic", "overwhelmed", "overwhelm", "fear", "afraid"].includes(emo)) return "fear";
+  if (["angry", "frustrated", "frustration", "mad"].includes(emo)) return "anger";
+  return emo || "neutral";
+}
+
+function _isGenericLoopReply(reply = "") {
+  const text = _lower(reply).replace(/\s+/g, " ").trim();
+  if (!text) return true;
+  return [
+    "i have the thread.",
+    "give me one clean beat more",
+    "i will answer directly without flattening the conversation",
+    "tell me the next piece",
+    "stay with the next honest piece only"
+  ].some((snippet) => text.includes(snippet));
+}
+
+function _looksEmotionSpecific(reply = "", primaryEmotion = "", conversationState = {}) {
+  const text = _lower(reply);
+  const emo = _normalizeEmotionAlias(primaryEmotion);
+  const signals = _safeArray(conversationState.unresolvedSignals).map(_lower);
+  if (emo && emo !== "neutral") {
+      }
+  const emotionHints = {
+    sadness: ["missing", "lost", "grief", "lonely", "heavy", "hurt", "connection", "unfinished"],
+    fear: ["pressure", "control", "urgent", "stacking", "signal", "controllable", "pressure point"],
+    anger: ["boundary", "confront", "change", "pressure", "unfinished", "decision"]
+  };
+  const hints = emotionHints[emo] || [];
+  const emotionHit = hints.some((hint) => text.includes(hint));
+  const stateHit = signals.some((signal) => !!signal && text.includes(signal)) || _safeArray(conversationState.lastTopics).some((topic) => text.includes(_lower(topic)));
+  return emotionHit || stateHit;
+}
+
+function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, primaryEmotion = "", conversationState = {}) {
+  const reply = _trim(candidateReply);
+  if (!reply) return false;
+  if (!_safeObj(escalationProfile).shouldDeepen) return true;
+  if (_isGenericLoopReply(reply)) return false;
+  return _looksEmotionSpecific(reply, primaryEmotion, conversationState);
+}
+
+function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}) {
+  const generated = _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState, escalationProfile);
+  const assistantDraft = _trim(_safeObj(input).assistantDraft);
+  if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState)) {
+    return { reply: assistantDraft, source: "assistantDraft" };
+  }
+  const inputReply = _trim(_safeObj(input).reply);
+  if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState)) {
+    return { reply: inputReply, source: "input.reply" };
+  }
+  const routedReply = _trim(_safeObj(routed).reply);
+  if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState)) {
+    return { reply: routedReply, source: "routed.reply" };
+  }
+  return { reply: generated, source: "escalation_override" };
+}
+
 function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}) {
   const emo = _lower(primaryEmotion || "neutral");
   const state = _safeObj(conversationState);
@@ -193,7 +255,7 @@ function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversatio
   const lead = _buildStateLead(state, primaryEmotion) || "I can feel this thread continuing.";
   if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
     if (shouldSolve) {
-      return `${lead} This feels persistent, not passing. Let us name whether this is asking for relief, connection, or a concrete change, so we can move toward something useful.`;
+      return `${lead} This feels persistent, not passing. Let us name whether this is asking for relief, connection, or a concrete change, so we can move toward something that actually helps.`;
     }
     return `${lead} This has some history to it. I do not want to skim the surface of it. Does this feel more like a slow build that has worn you down, or something specific that keeps reopening it?`;
   }
@@ -425,12 +487,17 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(routed.interpretation) ||
     (_trim(normalizedPrimaryEmotion) ? `Resolved emotional posture: ${normalizedPrimaryEmotion}.` : "Resolved posture held.");
 
-  const reply =
-    _trim(_safeObj(input).assistantDraft) ||
-    _trim(_safeObj(input).reply) ||
-    _trim(_safeObj(routed).reply) ||
-    _makeEscalatedReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1), conversationState, escalationProfile);
-  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState, escalationProfile));
+  const resolvedReply = _resolveFinalReply(
+    routed,
+    input,
+    normalizedPrimaryEmotion,
+    supportMode,
+    _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
+    conversationState,
+    escalationProfile
+  );
+  const reply = resolvedReply.reply;
+  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState, escalationProfile)).filter((item) => _lower(item) !== _lower(reply));
   const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
@@ -469,10 +536,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     guidance: _buildGuidance(modePlan, psychology, routed, supportFlags),
     guardrails: _buildGuardrails(modePlan, psychology, routed, supportFlags),
     nyxDirective: {
-      tonePosture: modePlan.deliveryTone,
-      pacing: modePlan.pacing,
-      responseLength: modePlan.responseLength,
-      followupStyle: modePlan.followupStyle,
+      tonePosture: responsePlan.deliveryTone,
+      pacing: responsePlan.pacing,
+      responseLength: responsePlan.responseLength,
+      followupStyle: responsePlan.followupStyle,
       askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
       shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
       shouldMirrorIntensity: false,
@@ -501,7 +568,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       escalationShouldDeepen: !!escalationProfile.shouldDeepen,
       escalationShouldSolve: !!escalationProfile.shouldSolve,
       handoffNormalized: true,
-      replyResolvedFrom: _trim(_safeObj(input).assistantDraft) ? "assistantDraft" : (_trim(_safeObj(input).reply) ? "input.reply" : (_trim(_safeObj(routed).reply) ? "routed.reply" : "support_fallback"))
+      replyResolvedFrom: resolvedReply.source
     },
     pipelineTrace,
     synthesis: {
@@ -510,10 +577,10 @@ function composeMarionResponse(routed = {}, input = {}) {
       supportMode,
       responsePlan,
       nyxDirective: {
-        tonePosture: modePlan.deliveryTone,
-        pacing: modePlan.pacing,
-        responseLength: modePlan.responseLength,
-        followupStyle: modePlan.followupStyle,
+        tonePosture: responsePlan.deliveryTone,
+        pacing: responsePlan.pacing,
+        responseLength: responsePlan.responseLength,
+        followupStyle: responsePlan.followupStyle,
         askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
         shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
         shouldMirrorIntensity: false,
