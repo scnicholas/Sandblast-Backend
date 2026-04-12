@@ -226,10 +226,11 @@ function _looksEmotionSpecific(reply = "", primaryEmotion = "", conversationStat
   return emotionHit || stateHit;
 }
 
-function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, primaryEmotion = "", conversationState = {}) {
+function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, primaryEmotion = "", conversationState = {}, input = {}) {
   const reply = _trim(candidateReply);
   if (!reply) return false;
-  if (!_safeObj(escalationProfile).shouldDeepen) return true;
+  if (_safeObj(input).allowExternalDraftOverride !== true) return false;
+  if (_safeObj(escalationProfile).shouldDeepen) return false;
   if (_isGenericLoopReply(reply)) return false;
   return _looksEmotionSpecific(reply, primaryEmotion, conversationState);
 }
@@ -341,17 +342,27 @@ function _responseFunctionBanks() {
 }
 
 function _selectResponseFunction(primaryEmotion = "", escalationProfile = {}, conversationState = {}, input = {}) {
-  const family = _emotionFamily(primaryEmotion);
   const prev = _safeObj(input.previousMemory || {});
-  const lastFn = _lower(conversationState.lastResponseFunction || prev.lastResponseFunction || prev.responseFunction || "");
+  const memoryPatch = _safeObj(prev.memoryPatch);
+  const lastFn = _lower(
+    conversationState.lastResponseFunction ||
+    memoryPatch.lastResponseFunction ||
+    prev.lastResponseFunction ||
+    prev.responseFunction ||
+    ""
+  );
+  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
+  const repetition = Math.max(0, _num(conversationState.repetitionCount, 0));
   let pool = [];
-  if (_safeObj(escalationProfile).shouldSolve) pool = ["interpret", "differentiate", "solve"];
-  else if (_safeObj(escalationProfile).shouldDeepen) pool = ["trace", "differentiate", "interpret"];
-  else pool = ["clarify"];
-  const available = pool.filter((name) => name !== lastFn);
-  const effectivePool = available.length ? available : pool;
-  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${conversationState.repetitionCount || 0}|${conversationState.depthLevel || 0}|${primaryEmotion}|${lastFn}`);
-  return effectivePool[seed % effectivePool.length] || effectivePool[0] || "clarify";
+  if (_safeObj(escalationProfile).shouldSolve) pool = ["differentiate", "interpret", "solve"];
+  else if (_safeObj(escalationProfile).shouldDeepen && depth >= 5) pool = ["interpret", "differentiate", "trace", "solve"];
+  else if (_safeObj(escalationProfile).shouldDeepen && depth >= 3) pool = repetition >= 2 ? ["trace", "differentiate", "interpret"] : ["differentiate", "trace", "interpret"];
+  else if (lastFn === "clarify") pool = ["trace", "differentiate"];
+  else pool = ["clarify", "trace"];
+  const effectivePool = pool.filter((name) => name !== lastFn);
+  const finalPool = effectivePool.length ? effectivePool : pool;
+  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${conversationState.repetitionCount || 0}|${conversationState.depthLevel || 0}|${primaryEmotion}|${lastFn}|${_trim(conversationState.previousEmotion || "")}`);
+  return finalPool[seed % finalPool.length] || finalPool[0] || "clarify";
 }
 
 function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", conversationState = {}, escalationProfile = {}) {
@@ -365,40 +376,40 @@ function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", 
 }
 
 function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarify", escalationProfile = {}, conversationState = {}) {
-  const family = _emotionFamily(primaryEmotion);
   const nextMap = {
     clarify: ["trace", "differentiate"],
     trace: ["differentiate", "interpret"],
-    differentiate: [_safeObj(escalationProfile).shouldSolve ? "solve" : "interpret"],
-    interpret: [_safeObj(escalationProfile).shouldSolve ? "solve" : "differentiate"],
-    solve: ["solve"]
+    differentiate: [_safeObj(escalationProfile).shouldSolve ? "solve" : "interpret", "trace"],
+    interpret: [_safeObj(escalationProfile).shouldSolve ? "solve" : "differentiate", "trace"],
+    solve: ["differentiate", "solve"]
   };
-  const nextFn = _safeArray(nextMap[selectedFunction])[0] || "differentiate";
+  const options = _safeArray(nextMap[selectedFunction]);
+  const nextFn = options.length > 1
+    ? options[_functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|follow`) % options.length]
+    : (options[0] || "differentiate");
   const prompt = _buildFunctionReply(primaryEmotion, nextFn, conversationState, escalationProfile);
   return prompt ? [prompt] : [];
 }
 
 function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}) {
   const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, input);
-  const generated = _safeObj(escalationProfile).shouldDeepen
-    ? _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile)
-    : _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile);
+  const generated = _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile);
   if (_safeObj(escalationProfile).shouldDeepen) {
-    return { reply: generated, source: "forced_escalation_override", selectedFunction };
+    return { reply: generated, source: "forced_escalation_override", selectedFunction, authority: "marion" };
   }
   const assistantDraft = _trim(_safeObj(input).assistantDraft);
-  if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: assistantDraft, source: "assistantDraft", selectedFunction };
+  if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState, input)) {
+    return { reply: assistantDraft, source: "assistantDraft", selectedFunction, authority: "external_override" };
   }
   const inputReply = _trim(_safeObj(input).reply);
-  if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: inputReply, source: "input.reply", selectedFunction };
+  if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState, input)) {
+    return { reply: inputReply, source: "input.reply", selectedFunction, authority: "external_override" };
   }
   const routedReply = _trim(_safeObj(routed).reply);
-  if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: routedReply, source: "routed.reply", selectedFunction };
+  if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState, input)) {
+    return { reply: routedReply, source: "routed.reply", selectedFunction, authority: "external_override" };
   }
-  return { reply: generated, source: "escalation_override", selectedFunction };
+  return { reply: generated, source: "marion_generated", selectedFunction, authority: "marion" };
 }
 
 function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}) {
@@ -623,9 +634,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     conversationState,
     escalationProfile
   );
-  const reply = resolvedReply.reply;
+  const reply = _trim(resolvedReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
   const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
-  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, { ...conversationState, selectedFunction }, escalationProfile)).filter((item) => _lower(item) !== _lower(reply));
+  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, { ...conversationState, selectedFunction }, escalationProfile)).filter((item) => _lower(item) !== _lower(reply) && !_isGenericLoopReply(item));
   const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
@@ -647,6 +658,8 @@ function composeMarionResponse(routed = {}, input = {}) {
     interpretation,
     reply,
     output: reply,
+    displayReply: reply,
+    spokenText: reply,
     followUps,
     supportMode,
     routeBias: _trim(record.routeBias || _safeObj(psychology.route).routeBias || routed.routeBias || "clarify") || "clarify",
@@ -658,7 +671,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     strategy,
     conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
     escalationProfile,
-    memoryPatch: { lastResponseFunction: selectedFunction },
+    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" },
     responsePlan,
     blendProfile,
     stateDrift,
@@ -698,10 +711,11 @@ function composeMarionResponse(routed = {}, input = {}) {
       escalationShouldSolve: !!escalationProfile.shouldSolve,
       handoffNormalized: true,
       replyResolvedFrom: resolvedReply.source,
+      replyAuthority: _trim(resolvedReply.authority || "marion") || "marion",
       selectedFunction
     },
     pipelineTrace,
-    memoryPatch: { lastResponseFunction: selectedFunction },
+    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" },
     synthesis: {
       reply,
       followUps,
