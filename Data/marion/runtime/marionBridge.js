@@ -303,6 +303,55 @@ function _resolveEscalationProfileForBridge(layer2 = {}) {
   };
 }
 
+function _isLegacyLeakReply(reply = "") {
+  const text = _lower(reply).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return [
+    "i have the thread",
+    "give me one clean beat more",
+    "tell me the next piece",
+    "stay with the next honest piece",
+    "i will answer directly without flattening the conversation",
+    "continue the thread",
+    "give me one more",
+    "the real thread"
+  ].some((snippet) => text.includes(snippet));
+}
+
+function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}) {
+  const candidates = [
+    ["contract.reply", _trim(contract.reply)],
+    ["contract.output", _trim(contract.output)],
+    ["contract.synthesis.reply", _trim(_safeObj(contract.synthesis).reply)],
+    ["contract.interpretation", _trim(contract.interpretation)]
+  ];
+
+  const blockedSources = [];
+  for (const [source, value] of candidates) {
+    if (!value) continue;
+    if (_safeObj(escalationProfile).shouldDeepen && _isLegacyLeakReply(value)) {
+      blockedSources.push(source);
+      continue;
+    }
+    return { reply: value, source, blockedSources };
+  }
+
+  return { reply: FALLBACK_REPLY, source: "bridge_fallback", blockedSources };
+}
+
+function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "", followUpsStrings = []) {
+  if (!_safeObj(payload)) return payload;
+  const reply = _trim(authoritativeReply) || FALLBACK_REPLY;
+  const synced = { ...payload };
+  if ("reply" in synced || !Object.keys(synced).length) synced.reply = reply;
+  synced.text = reply;
+  synced.answer = reply;
+  synced.output = reply;
+  synced.spokenText = reply.replace(/\n+/g, " ").trim();
+  if (_safeArray(followUpsStrings).length) synced.followUpsStrings = _safeArray(followUpsStrings).map((item) => _trim(item)).filter(Boolean);
+  return synced;
+}
+
 async function processWithMarion(input = {}) {
   const layer2 = await retrieveLayer2Signals(input);
   const identityState = typeof getPublicIdentitySnapshot === "function" ? getPublicIdentitySnapshot() : { name: "Marion", role: "private interpreter" };
@@ -320,17 +369,107 @@ async function processWithMarion(input = {}) {
   const contract = typeof composeMarionResponse === "function"
     ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, previousMemory: input.previousMemory || {} })
     : { interpretation: FALLBACK_REPLY, supportMode: "clarify_and_sequence", responsePlan: { pacing: "steady", followupStyle: "reflective" }, nyxDirective: { followupStyle: "reflective", pacing: "steady", responseLength: "medium" }, supportFlags: layer2.supportFlags };
-  const reply = _trim(contract.reply || contract.output || contract.interpretation || FALLBACK_REPLY) || FALLBACK_REPLY;
-  const turnMemory = { lastQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity }, lastEmotion: layer2.conversationState.lastEmotion, lastTopics: layer2.conversationState.lastTopics, emotionTrend: layer2.conversationState.emotionTrend, repetitionCount: layer2.conversationState.repetitionCount, depthLevel: layer2.conversationState.depthLevel, unresolvedSignals: layer2.conversationState.unresolvedSignals, escalationProfile, behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits }, repeatQueryStreak: layer2.behavior.repeatQueryStreak, updatedAt: Date.now(), trustTier: trustState.tier, state: stateTransition.current };
-  const result = { ok: true, partial: layer2.diagnostics.inputIssues.length > 0, status: "ok", endpoint: layer2.endpoint, userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, psychology: layer2.psychology, evidence: layer2.evidence, contract, reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), continuityState, turnMemory, identityState, relationshipState, trustState, privateChannel, memorySignals, consciousness, diagnostics: layer2.diagnostics, meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode }, layer2 };
+
+  const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile);
+  const reply = _trim(authoritativeReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
+  const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
+  const memoryPatch = _safeObj(contract.memoryPatch);
+  const turnMemory = {
+    lastQuery: layer2.userQuery,
+    domain: layer2.domain,
+    intent: layer2.intent,
+    emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity },
+    lastEmotion: layer2.conversationState.lastEmotion,
+    lastTopics: layer2.conversationState.lastTopics,
+    emotionTrend: layer2.conversationState.emotionTrend,
+    repetitionCount: layer2.conversationState.repetitionCount,
+    depthLevel: layer2.conversationState.depthLevel,
+    unresolvedSignals: layer2.conversationState.unresolvedSignals,
+    escalationProfile,
+    behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits },
+    repeatQueryStreak: layer2.behavior.repeatQueryStreak,
+    updatedAt: Date.now(),
+    trustTier: trustState.tier,
+    state: stateTransition.current,
+    ...memoryPatch
+  };
+
+  const contractLocked = {
+    ...contract,
+    reply,
+    output: reply,
+    synthesis: { ..._safeObj(contract.synthesis), reply, output: reply, answer: reply },
+    diagnostics: {
+      ..._safeObj(contract.diagnostics),
+      authoritativeReplySource: authoritativeReply.source,
+      blockedLegacyReplySources: authoritativeReply.blockedSources,
+      marionSingleSourceOfTruth: true
+    }
+  };
+
+  const result = {
+    ok: true,
+    partial: layer2.diagnostics.inputIssues.length > 0,
+    status: "ok",
+    endpoint: layer2.endpoint,
+    userQuery: layer2.userQuery,
+    domain: layer2.domain,
+    intent: layer2.intent,
+    emotion: layer2.emotion,
+    behavior: layer2.behavior,
+    psychology: layer2.psychology,
+    evidence: layer2.evidence,
+    contract: contractLocked,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    spokenText: reply.replace(/\n+/g, " ").trim(),
+    continuityState,
+    turnMemory,
+    identityState,
+    relationshipState,
+    trustState,
+    privateChannel,
+    memorySignals,
+    consciousness,
+    diagnostics: {
+      ...layer2.diagnostics,
+      marionReplyAuthority: {
+        source: authoritativeReply.source,
+        blockedLegacyReplySources: authoritativeReply.blockedSources,
+        escalationMode: escalationProfile.mode,
+        singleSourceOfTruth: true
+      }
+    },
+    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode },
+    layer2
+  };
+
   const packet = _buildPacket(result, layer2.evidence);
-  let ui = null; let emotionalTurn = null; let followUps = _safeArray(contract.followUps); let followUpsStrings = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean); let payload = null;
+  let ui = null;
+  let emotionalTurn = null;
+  let followUps = contractFollowUps;
+  let followUpsStrings = contractFollowUps.slice();
+  let payload = null;
+
   if (typeof buildResponseContract === "function") {
     try {
       const presentation = buildResponseContract(result, packet);
-      ui = presentation.ui; emotionalTurn = presentation.emotionalTurn; followUps = presentation.followUps; followUpsStrings = presentation.followUpsStrings; payload = presentation.payload;
-    } catch (_e) {}
+      ui = presentation.ui;
+      emotionalTurn = presentation.emotionalTurn;
+      const presentationFollowUps = _safeArray(presentation.followUps).map((item) => _trim(item)).filter(Boolean);
+      const presentationFollowUpStrings = _safeArray(presentation.followUpsStrings).map((item) => _trim(item)).filter(Boolean);
+      followUps = presentationFollowUps.length ? presentationFollowUps : contractFollowUps;
+      followUpsStrings = presentationFollowUpStrings.length ? presentationFollowUpStrings : followUps.map((item) => _trim(item)).filter(Boolean);
+      payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings);
+    } catch (_e) {
+      payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings);
+    }
+  } else {
+    payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings);
   }
+
   return { ...result, packet, ui, emotionalTurn, followUps, followUpsStrings, payload };
 }
 
@@ -347,7 +486,7 @@ function createMarionBridge(options = {}) {
       const knowledgeSections = _safeObj(meta.knowledgeSections || meta.knowledge || {});
       const datasets = _extractDatasets(meta.datasets, knowledgeSections);
       const result = await processWithMarion({ userQuery: req.text || req.query || "", requestedDomain: meta.preferredDomain || req.domain || "", conversationState: _safeObj(meta.session), previousMemory, datasets, knowledgeSections, domainEvidence: _safeArray(collectedEvidence), datasetEvidence: _safeArray(meta.datasetEvidence), memoryEvidence: _safeArray(meta.memoryEvidence), generalEvidence: _safeArray(meta.generalEvidence), mode: _trim(meta.mode || req.mode || ""), privateChannelRequested: !!meta.privateChannelRequested, principalId: _trim(meta.principalId || req.sessionId || "public"), sessionId: _trim(req.sessionId || meta.sessionId || "public") });
-      return { usedBridge: !!_trim(result.reply), packet: result.packet, reply: result.reply, domain: result.domain, intent: result.intent, endpoint: result.endpoint, meta: result.meta, diagnostics: result.diagnostics, ui: result.ui, emotionalTurn: result.emotionalTurn, followUps: result.followUps, followUpsStrings: result.followUpsStrings, result, privateChannel: result.privateChannel, trustState: result.trustState, consciousness: result.consciousness };
+      return { usedBridge: !!_trim(result.reply), packet: result.packet, reply: result.reply, text: result.reply, output: result.reply, spokenText: result.spokenText, domain: result.domain, intent: result.intent, endpoint: result.endpoint, meta: result.meta, diagnostics: result.diagnostics, ui: result.ui, emotionalTurn: result.emotionalTurn, followUps: result.followUps, followUpsStrings: result.followUpsStrings, payload: result.payload, result, privateChannel: result.privateChannel, trustState: result.trustState, consciousness: result.consciousness };
     }
   };
 }
