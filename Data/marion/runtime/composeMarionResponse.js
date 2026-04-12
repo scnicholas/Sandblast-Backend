@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.2.0 PIPELINE-TRACE NORMALIZED-HANDOFF";
+const VERSION = "composeMarionResponse v1.3.0 STATE-AWARE-DEEPENING-HANDOFF";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -96,6 +96,68 @@ function _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPaylo
     followUpCount: _safeArray(followUps).length,
     resolvedAt: Date.now()
   };
+}
+
+function _resolveConversationState(routed = {}, input = {}) {
+  const state = _safeObj(routed.conversationState || input.conversationState);
+  return {
+    previousEmotion: _lower(state.previousEmotion || _safeObj(state.lastEmotion).previousEmotion || ""),
+    currentEmotion: _lower(_safeObj(state.lastEmotion).primaryEmotion || ""),
+    emotionTrend: _lower(state.emotionTrend || "stable") || "stable",
+    lastTopics: _uniq(_safeArray(state.lastTopics)).slice(0, 6),
+    repetitionCount: Math.max(0, _num(state.repetitionCount, 0)),
+    depthLevel: Math.max(1, Math.min(5, _num(state.depthLevel, 1))),
+    unresolvedSignals: _uniq(_safeArray(state.unresolvedSignals)).slice(0, 6),
+    threadContinuation: !!state.threadContinuation,
+    continuityMode: _trim(state.continuityMode || "stabilize") || "stabilize"
+  };
+}
+
+function _buildStateLead(conversationState = {}, primaryEmotion = "") {
+  const state = _safeObj(conversationState);
+  const previousEmotion = _lower(state.previousEmotion || "");
+  const currentEmotion = _lower(primaryEmotion || state.currentEmotion || "neutral");
+  if (!state.threadContinuation && _num(state.depthLevel, 1) <= 1) return "";
+  if (previousEmotion && previousEmotion !== currentEmotion) {
+    return `Earlier this felt closer to ${previousEmotion}, and now it seems heavier.`;
+  }
+  if (state.threadContinuation && currentEmotion) {
+    return `I can see this thread is still carrying ${currentEmotion}.`;
+  }
+  return "I can feel this thread continuing.";
+}
+
+function _makeStateAwareReply(primaryEmotion, supportMode, intensity, conversationState = {}) {
+  const base = _makeSupportReply(primaryEmotion, supportMode, intensity);
+  const lead = _buildStateLead(conversationState, primaryEmotion);
+  if (!lead) return base;
+  if (_num(conversationState.depthLevel, 1) >= 3) {
+    if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(_lower(primaryEmotion))) {
+      return `${lead} I am still with you in it. Does this feel like something that has been building, or did something make it sharper today?`;
+    }
+    if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(_lower(primaryEmotion))) {
+      return `${lead} Let us keep this narrow and honest. Is the pressure coming more from what might happen, or from what is already happening?`;
+    }
+    return `${lead} ${base}`;
+  }
+  return `${lead} ${base}`.trim();
+}
+
+function _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}) {
+  if (supportFlags.crisis) return [];
+  if (!modePlan.shouldAskFollowup) return [];
+  const state = _safeObj(conversationState);
+  const emo = _lower(primaryEmotion || "neutral");
+  if (_num(state.depthLevel, 1) >= 3 || state.threadContinuation) {
+    if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+      return ["Has this been building over time, or did something trigger it today?"];
+    }
+    if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+      return ["Is the pressure coming from one clear source, or from everything stacking at once?"];
+    }
+    return ["What keeps this thread active for you right now?"];
+  }
+  return _buildFollowUps(modePlan, primaryEmotion, supportFlags);
 }
 
 const MODE_DEFAULTS = Object.freeze({
@@ -246,6 +308,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     emotion.supportFlags,
     _safeObj(_safeObj(_safeObj(psychology.primary).record).supportFlags)
   );
+  const conversationState = _resolveConversationState(routed, input);
 
   const primaryEmotion = _safeObj(emotion.primary || emotion);
   const normalizedPrimaryEmotion = _trim(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral";
@@ -281,8 +344,8 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(_safeObj(input).assistantDraft) ||
     _trim(_safeObj(input).reply) ||
     _trim(_safeObj(routed).reply) ||
-    _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
-  const followUps = _uniq(_buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags));
+    _makeStateAwareReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1), conversationState);
+  const followUps = _uniq(_buildStateAwareFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState));
   const strategy = _buildStrategyPayload(supportMode, modePlan, routed, psychology);
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
@@ -313,6 +376,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     intent: _trim(routed.intent || _safeObj(routed.classified).intent || _safeObj(input).intent || "general").toLowerCase() || "general",
     emotion: emotionPayload,
     strategy,
+    conversationState,
     responsePlan,
     blendProfile,
     stateDrift,
@@ -345,6 +409,8 @@ function composeMarionResponse(routed = {}, input = {}) {
       supportFlagCount: Object.keys(_safeObj(supportFlags)).length,
       forcedEmotionalExecution: true,
       responsePlanResolved: !!Object.keys(responsePlan).length,
+      continuityDepth: _num(conversationState.depthLevel, 1),
+      threadContinuation: !!conversationState.threadContinuation,
       handoffNormalized: true,
       replyResolvedFrom: _trim(_safeObj(input).assistantDraft) ? "assistantDraft" : (_trim(_safeObj(input).reply) ? "input.reply" : (_trim(_safeObj(routed).reply) ? "routed.reply" : "support_fallback"))
     },
@@ -365,7 +431,8 @@ function composeMarionResponse(routed = {}, input = {}) {
         expressiveRole: "express_resolved_state_only"
       },
       emotion: emotionPayload,
-      strategy
+      strategy,
+      conversationState
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
