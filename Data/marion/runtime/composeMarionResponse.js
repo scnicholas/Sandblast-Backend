@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.1.0 PIPELINE-TRACE NORMALIZED-HANDOFF";
+const VERSION = "composeMarionResponse v1.2.0 PIPELINE-TRACE NORMALIZED-HANDOFF";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -282,7 +282,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(_safeObj(input).reply) ||
     _trim(_safeObj(routed).reply) ||
     _makeSupportReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1));
-  const followUps = _buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags);
+  const followUps = _uniq(_buildFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags));
   const strategy = _buildStrategyPayload(supportMode, modePlan, routed, psychology);
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
@@ -345,7 +345,8 @@ function composeMarionResponse(routed = {}, input = {}) {
       supportFlagCount: Object.keys(_safeObj(supportFlags)).length,
       forcedEmotionalExecution: true,
       responsePlanResolved: !!Object.keys(responsePlan).length,
-      handoffNormalized: true
+      handoffNormalized: true,
+      replyResolvedFrom: _trim(_safeObj(input).assistantDraft) ? "assistantDraft" : (_trim(_safeObj(input).reply) ? "input.reply" : (_trim(_safeObj(routed).reply) ? "routed.reply" : "support_fallback"))
     },
     pipelineTrace,
     synthesis: {
