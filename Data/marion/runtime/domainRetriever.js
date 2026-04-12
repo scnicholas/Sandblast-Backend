@@ -234,6 +234,36 @@ function _loadDomainRecords(domain) {
     }
   }
 
+  if (!records.length && compiledFiles.length) {
+    const scannedFiles = _walkJsonFiles(config.root).filter((filePath) => {
+      const base = path.basename(filePath).toLowerCase();
+      return !base.includes("manifest") && !base.includes("index");
+    });
+
+    diagnostics.sourceMode = "scan_fallback";
+    diagnostics.filesAttempted = scannedFiles.length;
+    diagnostics.filesLoaded = 0;
+
+    for (const filePath of scannedFiles) {
+      try {
+        const payload = _loadPayloadFromFile(filePath);
+        const extracted = _extractRecordsFromPayload(payload);
+        diagnostics.filesLoaded += 1;
+
+        extracted.forEach((record, idx) => {
+          records.push({
+            __file: filePath,
+            __index: idx,
+            __sourceMode: diagnostics.sourceMode,
+            ..._safeObj(record)
+          });
+        });
+      } catch {
+        // Graceful skip during scan fallback.
+      }
+    }
+  }
+
   return { records, diagnostics };
 }
 
@@ -369,7 +399,13 @@ function _scoreRecord(query, record, requestedDomain, context = {}) {
   return {
     score: Number(Math.max(0, score).toFixed(4)),
     reasons,
-    overlap
+    overlap,
+    diagnostics: {
+      recoveryMode,
+      continuityHealth,
+      recordDomain,
+      hasMeaningfulText
+    }
   };
 }
 
@@ -425,7 +461,8 @@ function _normalizeEvidence(record, domain, scoreBundle, idx) {
       file: normalizedRecord.__file || null,
       fileIndex: Number.isFinite(Number(normalizedRecord.__index)) ? normalizedRecord.__index : null,
       sourceMode: normalizedRecord.__sourceMode || "compiled",
-      originalRecord: normalizedRecord
+      originalRecord: normalizedRecord,
+      diagnostics: _safeObj(scoreBundle.diagnostics)
     }
   };
 }
