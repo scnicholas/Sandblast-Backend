@@ -34,7 +34,7 @@ try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { eval
 try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
 try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
 
-const VERSION = "marionBridge v5.1.0 PIPELINE-HARDENED-CONSCIOUSNESS-SPINE";
+const VERSION = "marionBridge v5.2.0 DEEP-CONTINUITY-CONSCIOUSNESS-SPINE";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const MAX_EVIDENCE = 16;
@@ -49,6 +49,48 @@ function _clamp01(v, d = 0) { return Math.max(0, Math.min(1, _num(v, d))); }
 function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return mod[name]; if (mod && typeof mod.retrieve === "function") return mod.retrieve; if (typeof mod === "function") return mod; return null; }
 function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
 function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
+
+function _extractTopicHints(text = "", limit = 4) {
+  return [...new Set(_lower(text).split(/[^a-z0-9_'-]+/).map((t) => t.trim()).filter((t) => t.length > 3))].slice(0, limit);
+}
+
+function _buildConversationState(text = "", previousMemory = {}, existingState = {}, emotion = {}, behavior = {}, domain = "general", intent = "general") {
+  const prevMem = _safeObj(previousMemory);
+  const prevState = _safeObj(existingState);
+  const previousEmotion = _lower(
+    _safeObj(prevState.lastEmotion).primaryEmotion ||
+    _safeObj(_safeObj(prevMem.emotion)).primaryEmotion ||
+    _safeObj(prevMem.lastEmotion).primaryEmotion ||
+    ""
+  );
+  const currentEmotion = _lower(_safeObj(emotion).primaryEmotion || "neutral");
+  const previousTopics = _safeArray(prevState.lastTopics).concat(_safeArray(prevMem.lastTopics));
+  const currentTopics = _extractTopicHints(text, 5);
+  const repeatedEmotion = !!previousEmotion && previousEmotion === currentEmotion;
+  const repeatedTopic = currentTopics.some((topic) => previousTopics.includes(topic));
+  const emotionTrend = !previousEmotion ? "initial" : (previousEmotion === currentEmotion ? "stable" : "shifted");
+  const unresolvedSignals = _uniqBy([].concat(_safeArray(prevState.unresolvedSignals)).concat(_safeArray(prevMem.unresolvedSignals)).concat(repeatedEmotion ? [currentEmotion] : []).concat(repeatedTopic ? currentTopics.slice(0, 2) : []), (v) => _trim(v));
+  const depthLevel = Math.max(1, Math.min(5, _num(prevState.depthLevel || prevMem.depthLevel, 1) + ((repeatedEmotion || repeatedTopic || behavior.repeatQuery) ? 1 : 0)));
+  return {
+    lastQuery: _trim(text),
+    lastDomain: _trim(domain || prevState.lastDomain || prevMem.domain || "general") || "general",
+    lastIntent: _trim(intent || prevState.lastIntent || prevMem.intent || "general") || "general",
+    lastEmotion: {
+      primaryEmotion: currentEmotion || "neutral",
+      intensity: _clamp01(_safeObj(emotion).intensity, 0),
+      previousEmotion: previousEmotion || null
+    },
+    previousEmotion: previousEmotion || null,
+    emotionTrend,
+    lastTopics: _uniqBy([].concat(currentTopics).concat(previousTopics), (v) => _trim(v)).slice(0, 6),
+    repetitionCount: behavior.repeatQuery ? Math.max(2, _num(prevState.repetitionCount || prevMem.repetitionCount, 1) + 1) : ((repeatedEmotion || repeatedTopic) ? Math.max(1, _num(prevState.repetitionCount || prevMem.repetitionCount, 0) + 1) : 0),
+    depthLevel,
+    unresolvedSignals: unresolvedSignals.slice(0, 6),
+    continuityMode: repeatedEmotion || repeatedTopic || behavior.repeatQuery ? "deepen" : "stabilize",
+    threadContinuation: repeatedEmotion || repeatedTopic || behavior.repeatQuery,
+    updatedAt: Date.now()
+  };
+}
 
 function _canonicalDomain(v) {
   const raw = _lower(v || "general");
@@ -199,8 +241,9 @@ async function retrieveLayer2Signals(input = {}) {
   const domain = _canonicalDomain(routing.primaryDomain || requestedDomain || "general");
   const datasets = _extractDatasets(normalized.datasets, normalized.knowledgeSections);
   const psychology = _safeObj(_safeObj(routing.domains).psychology).matched ? _safeObj(_safeObj(routing.domains).psychology) : _safeObj(await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, supportFlags, riskLevel: supportFlags.crisis ? "critical" : (supportFlags.highDistress ? "high" : "low"), maxMatches: 3 }));
-  const directDomainEvidence = _safeArray(await _callRetriever(DomainRetriever, "retrieve", { text, query: text, userQuery: text, domain, conversationState: normalized.conversationState, maxMatches: 5 }));
-  const directDatasetEvidence = _safeArray(await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, intent, conversationState: normalized.conversationState, datasets, emotion: { primaryEmotion: emotion.primaryEmotion, intensity: emotion.intensity }, psychology: { supportMode: _trim(_safeObj(_safeObj(psychology.primary).record).supportMode || _safeObj(psychology.route).supportMode || "") }, maxMatches: 6 }));
+  const conversationState = _buildConversationState(text, previousMemory, normalized.conversationState, emotion, behavior, domain, intent);
+  const directDomainEvidence = _safeArray(await _callRetriever(DomainRetriever, "retrieve", { text, query: text, userQuery: text, domain, conversationState, maxMatches: 5 }));
+  const directDatasetEvidence = _safeArray(await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, intent, conversationState, datasets, emotion: { primaryEmotion: emotion.primaryEmotion, intensity: emotion.intensity }, psychology: { supportMode: _trim(_safeObj(_safeObj(psychology.primary).record).supportMode || _safeObj(psychology.route).supportMode || "") }, maxMatches: 6 }));
   const evidence = _normalizeEvidence([].concat(normalized.memoryEvidence).concat(normalized.generalEvidence).concat(normalized.domainEvidence).concat(normalized.datasetEvidence).concat(directDomainEvidence).concat(directDatasetEvidence).concat(_safeArray(normalized.knowledgeSections[domain])).concat(_safeArray(normalized.knowledgeSections.general)), domain, "bridge").slice(0, MAX_EVIDENCE);
   return {
     endpoint: CANONICAL_ENDPOINT,
@@ -213,6 +256,7 @@ async function retrieveLayer2Signals(input = {}) {
     psychology,
     supportFlags,
     datasets,
+    conversationState,
     evidence,
     diagnostics: {
       inputIssues: validated.issues,
@@ -223,6 +267,7 @@ async function retrieveLayer2Signals(input = {}) {
         domainAvailable: !!_pickFn(DomainRetriever, "retrieve"),
         datasetAvailable: !!_pickFn(DatasetRetriever, "retrieveDataset")
       },
+      continuity: { depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emotionTrend: _trim(conversationState.emotionTrend || "stable") || "stable" },
       layer2EvidenceCounts: {
         total: evidence.length,
         memory: _safeArray(normalized.memoryEvidence).length,
@@ -241,17 +286,17 @@ async function processWithMarion(input = {}) {
   const relationshipState = typeof getRelationship === "function" ? getRelationship({ principalId: input?.principalId || input?.sessionId || input?.actor || "public" }) : { principalId: "public", trustTier: "public", channelEntitlement: "public_filtered" };
   const trustState = typeof resolveTrustState === "function" ? resolveTrustState(relationshipState, { requestedMode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { tier: relationshipState.trustTier || "public", level: 1, effectiveChannel: "relay_to_nyx" };
   const memorySignals = typeof buildMemorySignals === "function" ? buildMemorySignals({ previousMemory: input.previousMemory || {}, emotion: layer2.emotion, relationship: relationshipState, trustState, identity: identityState, intent: layer2.intent }) : { retentionClass: "hold", privatePartition: "public_filtered" };
-  const continuityState = { activeQuery: layer2.userQuery, activeDomain: layer2.domain, activeIntent: layer2.intent, activeEmotion: layer2.emotion.primaryEmotion, emotionalIntensity: layer2.emotion.intensity, responseMode: "clarify_and_sequence", continuityHealth: layer2.behavior.repeatQuery ? "stressed" : "stable", currentState: "receptive", timestamp: Date.now() };
+  const continuityState = { activeQuery: layer2.userQuery, activeDomain: layer2.domain, activeIntent: layer2.intent, activeEmotion: layer2.emotion.primaryEmotion, emotionalIntensity: layer2.emotion.intensity, responseMode: "clarify_and_sequence", continuityHealth: layer2.conversationState.threadContinuation ? "engaged" : (layer2.behavior.repeatQuery ? "stressed" : "stable"), currentState: "receptive", depthLevel: _num(layer2.conversationState.depthLevel, 1), emotionTrend: _trim(layer2.conversationState.emotionTrend || "stable") || "stable", unresolvedSignals: _safeArray(layer2.conversationState.unresolvedSignals), lastTopics: _safeArray(layer2.conversationState.lastTopics), threadContinuation: !!layer2.conversationState.threadContinuation, timestamp: Date.now() };
   const stateTransition = typeof evaluateState === "function" ? evaluateState({ emotion: layer2.emotion, trustState, continuityState, intent: layer2.intent }) : { current: "receptive", previous: "receptive", reason: "fallback", stability: 0.8 };
   continuityState.currentState = stateTransition.current;
   continuityState.responseMode = stateTransition.current;
   const privateChannel = typeof resolvePrivateChannel === "function" ? resolvePrivateChannel({ trustState, relationship: relationshipState, mode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { active: false, mode: "relay_to_nyx", target: "nyx" };
   const consciousness = typeof buildConsciousnessContext === "function" ? buildConsciousnessContext({ identity: identityState, relationship: relationshipState, trustState, memorySignals }) : { trustState, memorySignals };
   const contract = typeof composeMarionResponse === "function"
-    ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || "") }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals })
+    ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, previousMemory: input.previousMemory || {} })
     : { interpretation: FALLBACK_REPLY, supportMode: "clarify_and_sequence", responsePlan: { pacing: "steady", followupStyle: "reflective" }, nyxDirective: { followupStyle: "reflective", pacing: "steady", responseLength: "medium" }, supportFlags: layer2.supportFlags };
   const reply = _trim(contract.reply || contract.output || contract.interpretation || FALLBACK_REPLY) || FALLBACK_REPLY;
-  const turnMemory = { lastQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity }, behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits }, repeatQueryStreak: layer2.behavior.repeatQueryStreak, updatedAt: Date.now(), trustTier: trustState.tier, state: stateTransition.current };
+  const turnMemory = { lastQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity }, lastEmotion: layer2.conversationState.lastEmotion, lastTopics: layer2.conversationState.lastTopics, emotionTrend: layer2.conversationState.emotionTrend, repetitionCount: layer2.conversationState.repetitionCount, depthLevel: layer2.conversationState.depthLevel, unresolvedSignals: layer2.conversationState.unresolvedSignals, behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits }, repeatQueryStreak: layer2.behavior.repeatQueryStreak, updatedAt: Date.now(), trustTier: trustState.tier, state: stateTransition.current };
   const result = { ok: true, partial: layer2.diagnostics.inputIssues.length > 0, status: "ok", endpoint: layer2.endpoint, userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, psychology: layer2.psychology, evidence: layer2.evidence, contract, reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), continuityState, turnMemory, identityState, relationshipState, trustState, privateChannel, memorySignals, consciousness, diagnostics: layer2.diagnostics, meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode }, layer2 };
   const packet = _buildPacket(result, layer2.evidence);
   let ui = null; let emotionalTurn = null; let followUps = _safeArray(contract.followUps); let followUpsStrings = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean); let payload = null;
