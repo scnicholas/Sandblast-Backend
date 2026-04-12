@@ -15,6 +15,7 @@ const DATASET_ROOTS = [
 
 const _cache = new Map();
 let _indexedFiles = null;
+const MAX_WALK_DEPTH = 6;
 
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
@@ -59,17 +60,24 @@ function _discoverJsonFiles() {
   if (_indexedFiles) return _indexedFiles;
   const files = [];
   function walk(dir, depth = 0) {
-    if (!_exists(dir) || depth > 6) return;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    if (!_exists(dir) || depth > MAX_WALK_DEPTH) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full, depth + 1);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".json")) files.push(full);
+      if (entry.isDirectory()) {
+        if (entry.name.toLowerCase() === "node_modules") continue;
+        walk(full, depth + 1);
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".json")) files.push(full);
     }
   }
   for (const root of DATASET_ROOTS) walk(root, 0);
-  _indexedFiles = files;
-  return files;
+  _indexedFiles = [...new Set(files)];
+  return _indexedFiles;
 }
 
 function _extractItems(payload, datasetName, file) {
@@ -164,6 +172,7 @@ function _scoreDatasetItem(query, item, context = {}) {
   }
 
   const itemTokens = new Set(_tokenize(JSON.stringify(item)));
+  const hasMeaningfulText = !!_trim(item.summary || item.description || item.content || item.text || item.body);
   let overlap = 0;
   for (const token of queryTokens) if (itemTokens.has(token)) overlap += 1;
   if (overlap > 0) {
@@ -192,6 +201,11 @@ function _scoreDatasetItem(query, item, context = {}) {
       score += 2;
       reasons.push({ type: "support_mode", value: supportMode, weight: 2 });
     }
+  }
+
+  if (!hasMeaningfulText && overlap < 2) {
+    score = Math.max(0, score - 1);
+    reasons.push({ type: "thin_record_penalty", value: "limited_text", weight: -1 });
   }
 
   return { score, reasons };
