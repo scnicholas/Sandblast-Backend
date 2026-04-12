@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.2.1 EMOTIONAL-ROUTE-PRESERVE DEBUG";
+const VERSION = "conversationalResponseSystem v2.3.0 HANDOFF-NORMALIZED PIPELINE-TRACE";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -12,6 +12,34 @@ function clamp(v, min, max, fallback = min) { const n = toFiniteNumber(v, fallba
 function clamp01(v, fallback = 0) { return clamp(v, 0, 1, fallback); }
 function firstNonEmpty() { for (const value of arguments) { const s = safeStr(value).trim(); if (s) return s; } return ""; }
 function uniq(items) { const out = []; const seen = new Set(); for (const item of arr(items)) { const key = typeof item === "string" ? item.trim().toLowerCase() : JSON.stringify(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
+
+
+function normalizePipelineTrace(raw) {
+  const src = isObj(raw) ? raw : {};
+  return {
+    stage: safeStr(src.stage || "unknown"),
+    version: safeStr(src.version || ""),
+    domain: safeStr(src.domain || ""),
+    supportMode: safeStr(src.supportMode || ""),
+    riskLevel: safeStr(src.riskLevel || ""),
+    resolvedAt: toFiniteNumber(src.resolvedAt, Date.now())
+  };
+}
+
+function normalizeStrategy(raw) {
+  const src = isObj(raw) ? raw : {};
+  const expressionContract = isObj(src.expressionContract) ? src.expressionContract : {};
+  return {
+    archetype: safeStr(src.archetype || "clarify").toLowerCase(),
+    supportModeCandidate: safeStr(src.supportModeCandidate || src.supportMode || "steady_assist").toLowerCase(),
+    routeBias: safeStr(src.routeBias || "maintain").toLowerCase(),
+    deliveryTone: safeStr(src.deliveryTone || "steadying").toLowerCase(),
+    questionPressure: safeStr(src.questionPressure || expressionContract.questionPressure || "medium").toLowerCase(),
+    transitionReadiness: safeStr(src.transitionReadiness || expressionContract.transitionReadiness || "medium").toLowerCase(),
+    acknowledgementMode: safeStr(src.acknowledgementMode || expressionContract.acknowledgementMode || "auto").toLowerCase(),
+    expressionContract
+  };
+}
 
 function normalizeSupportFlags(raw) {
   const src = isObj(raw) ? raw : {};
@@ -27,11 +55,15 @@ function normalizeSupportFlags(raw) {
 function normalizeEmotion(raw) {
   const src = isObj(raw) ? raw : {};
   return {
-    primaryEmotion: firstNonEmpty(src.primaryEmotion, src.emotion, "neutral").toLowerCase(),
+    locked: src.locked !== false,
+    primaryEmotion: firstNonEmpty(src.primaryEmotion, src.emotion, src.source?.emotion, "neutral").toLowerCase(),
     secondaryEmotion: firstNonEmpty(src.secondaryEmotion, "").toLowerCase(),
     intensity: clamp01(src.intensity, 0),
     valence: clamp(src.valence, -1, 1, 0),
-    supportFlags: normalizeSupportFlags(src.supportFlags)
+    confidence: clamp01(src.confidence, 0.82),
+    supportFlags: normalizeSupportFlags(src.supportFlags),
+    needs: uniq(arr(src.needs || [])),
+    cues: uniq(arr(src.cues || []))
   };
 }
 
@@ -50,25 +82,44 @@ function sanitizeUserFacingReply(reply) {
 }
 
 function normalizeContext(result, packet) {
-  const domain = firstNonEmpty(result?.domain, packet?.routing?.domain, "general").toLowerCase();
-  const requestedMode = firstNonEmpty(result?.mode, packet?.synthesis?.mode, result?.responsePlan?.semanticFrame, "balanced").toLowerCase();
-  const intent = firstNonEmpty(result?.intent, packet?.routing?.intent, "general").toLowerCase();
-  const emotion = normalizeEmotion(result?.emotion || packet?.emotion?.lockedEmotion || result?.emotionalTurn?.emotion || {});
+  const domain = firstNonEmpty(result?.domain, packet?.routing?.domain, result?.source?.domain, "general").toLowerCase();
+  const responsePlan = isObj(result?.responsePlan) ? result.responsePlan : (isObj(packet?.synthesis?.responsePlan) ? packet.synthesis.responsePlan : {});
+  const nyxDirective = isObj(result?.nyxDirective) ? result.nyxDirective : (isObj(packet?.synthesis?.nyxDirective) ? packet.synthesis.nyxDirective : {});
+  const requestedMode = firstNonEmpty(result?.mode, packet?.synthesis?.mode, responsePlan?.semanticFrame, "balanced").toLowerCase();
+  const intent = firstNonEmpty(result?.intent, packet?.routing?.intent, result?.meta?.intent, "general").toLowerCase();
+  const emotion = normalizeEmotion(
+    result?.emotion ||
+    packet?.emotion?.lockedEmotion ||
+    packet?.emotion ||
+    result?.emotionalTurn?.emotion ||
+    result?.synthesis?.emotion ||
+    {}
+  );
+  const strategy = normalizeStrategy(result?.strategy || result?.synthesis?.strategy || packet?.strategy || {});
   const evidenceCount = Math.max(0, toFiniteNumber(packet?.evidence?.count, arr(packet?.evidence).length));
   const privateChannel = isObj(packet?.privateChannel) ? packet.privateChannel : (isObj(result?.privateChannel) ? result.privateChannel : {});
   const trustState = isObj(packet?.trustState) ? packet.trustState : (isObj(result?.trustState) ? result.trustState : {});
   const consciousness = isObj(packet?.consciousness) ? packet.consciousness : (isObj(result?.consciousness) ? result.consciousness : {});
-  const responsePlan = isObj(result?.responsePlan) ? result.responsePlan : (isObj(packet?.synthesis?.responsePlan) ? packet.synthesis.responsePlan : {});
-  const nyxDirective = isObj(result?.nyxDirective) ? result.nyxDirective : (isObj(packet?.synthesis?.nyxDirective) ? packet.synthesis.nyxDirective : {});
-  const supportMode = firstNonEmpty(result?.supportMode, packet?.synthesis?.supportMode, "").toLowerCase();
-  return { domain, requestedMode, intent, emotion, evidenceCount, privateChannel, trustState, consciousness, responsePlan, nyxDirective, supportMode };
+  const supportMode = firstNonEmpty(result?.supportMode, result?.synthesis?.supportMode, packet?.synthesis?.supportMode, strategy.supportModeCandidate, "").toLowerCase();
+  const guidance = uniq(arr(result?.guidance || packet?.synthesis?.guidance || []));
+  const guardrails = uniq(arr(result?.guardrails || packet?.synthesis?.guardrails || []));
+  const source = isObj(result?.source) ? result.source : {};
+  const diagnostics = isObj(result?.diagnostics) ? result.diagnostics : {};
+  const pipelineTrace = normalizePipelineTrace(result?.pipelineTrace || {});
+  return {
+    domain, requestedMode, intent, emotion, strategy, evidenceCount,
+    privateChannel, trustState, consciousness, responsePlan, nyxDirective,
+    supportMode, guidance, guardrails, source, diagnostics, pipelineTrace
+  };
 }
 
-function inferState(domain, emotion, requestedMode) {
+function inferState(domain, emotion, requestedMode, supportMode) {
   const d = safeStr(domain).toLowerCase();
   const m = safeStr(requestedMode).toLowerCase();
+  const s = safeStr(supportMode).toLowerCase();
   if (d === "psychology") return "supportive";
-  if (m === "recovery") return "clarifying";
+  if (/crisis|acute|soothe|stabilize|ground/.test(s)) return "supportive";
+  if (m === "recovery" || m === "clarity_building") return "clarifying";
   if (emotion.supportFlags.highDistress || emotion.supportFlags.needsContainment || emotion.supportFlags.needsStabilization) return "supportive";
   if (["sad","sadness","anxious","anxiety","overwhelmed","depressed","fear","grief","loneliness","panic"].includes(emotion.primaryEmotion)) return "supportive";
   return "focused";
@@ -120,12 +171,18 @@ function buildEmotionalTurn(context, state) {
     intent: context.intent,
     mode: context.requestedMode,
     emotion: context.emotion,
+    strategy: context.strategy,
     privateChannel: context.privateChannel,
     trustState: context.trustState,
     consciousness: context.consciousness,
     supportMode: context.supportMode,
     responsePlan: context.responsePlan,
-    nyxDirective: context.nyxDirective
+    nyxDirective: context.nyxDirective,
+    guidance: context.guidance,
+    guardrails: context.guardrails,
+    source: context.source,
+    diagnostics: context.diagnostics,
+    pipelineTrace: context.pipelineTrace
   };
 }
 
@@ -133,11 +190,11 @@ function resolveReply(result, packet, context) {
   const emotionalCandidate = firstNonEmpty(
     result.reply,
     result.output,
-    result.interpretation,
     packet?.synthesis?.reply,
     packet?.synthesis?.answer,
     packet?.reply,
-    packet?.answer
+    packet?.answer,
+    result.interpretation
   );
   const cleaned = sanitizeUserFacingReply(emotionalCandidate);
   if (cleaned && !/^done\.?$/i.test(cleaned)) return cleaned;
@@ -146,7 +203,7 @@ function resolveReply(result, packet, context) {
 
 function buildResponseContract(result = {}, packet = {}) {
   const context = normalizeContext(result, packet);
-  const state = inferState(context.domain, context.emotion, context.requestedMode);
+  const state = inferState(context.domain, context.emotion, context.requestedMode, context.supportMode);
   const reply = resolveReply(result, packet, context);
   const ui = buildUi(context, state);
   const emotionalTurn = buildEmotionalTurn(context, state);
@@ -177,6 +234,8 @@ function buildResponseContract(result = {}, packet = {}) {
       trustTier: safeStr(context.trustState?.tier || ""),
       consciousnessLevel: safeStr(context.consciousness?.level || ""),
       supportMode: safeStr(context.supportMode || ""),
+      strategyArchetype: safeStr(context.strategy?.archetype || ""),
+      pipelineStage: safeStr(context.pipelineTrace?.stage || ""),
       preservedEmotionalRoute: true
     }
   };
