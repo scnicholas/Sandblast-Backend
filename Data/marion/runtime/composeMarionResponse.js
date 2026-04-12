@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.5.0 FUNCTION-RESOLVER-NONREDUNDANT";
+const VERSION = "composeMarionResponse v1.4.1 LOCKED-ESCALATION-DOMINANCE";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -181,189 +181,6 @@ function _resolveEscalationProfile(routed = {}, input = {}, supportFlags = {}, c
   };
 }
 
-const RESPONSE_FUNCTION_ORDER = Object.freeze(["empathize", "trace", "differentiate", "interpret", "clarify", "solve"]);
-const RESPONSE_TEMPLATE_BANK = Object.freeze({
-  sadness: {
-    trace: [
-      "When did this start feeling heavier instead of just present?",
-      "Was there a point where this shifted from background pain into something you could not ignore?"
-    ],
-    differentiate: [
-      "Is this more about missing the person, missing the bond, or missing how life felt around them?",
-      "Does this feel more like loneliness itself, or like one specific absence keeps reopening it?"
-    ],
-    interpret: [
-      "This sounds less like a passing mood and more like something unresolved keeps echoing underneath the day.",
-      "This does not read like a random low point. It reads like an absence that keeps finding its way back in."
-    ],
-    clarify: [
-      "What part of this is the sharpest right now: the ache, the memory, or the emptiness after it?",
-      "What is the exact part of this that feels hardest to carry right now?"
-    ],
-    solve: [
-      "What would make tonight feel even ten percent less heavy in a real way?",
-      "What would help most right now: comfort, contact, or one concrete change in what happens next?"
-    ]
-  },
-  fear: {
-    trace: [
-      "When do you usually notice this pressure beginning to rise?",
-      "What is the first sign that tells you this is building again?"
-    ],
-    differentiate: [
-      "Is this pressure coming from one real threat, or from too many smaller things stacking together?",
-      "Does this feel more like fear of what might happen, or strain from what is already happening?"
-    ],
-    interpret: [
-      "This sounds less like one isolated worry and more like your system has been holding too much for too long.",
-      "This reads like accumulated pressure, not just a single anxious moment."
-    ],
-    clarify: [
-      "What part of this is actually urgent, and what part is loud but not immediate?",
-      "What is the clearest pressure point inside this right now?"
-    ],
-    solve: [
-      "What is the next controllable move here, even if it is small?",
-      "If we strip this down to one move you can make today, what would it be?"
-    ]
-  },
-  anger: {
-    trace: [
-      "When did this stop feeling frustrating and start feeling personal?",
-      "How long has this been grinding at you before it got this sharp?"
-    ],
-    differentiate: [
-      "Is this more about what happened, what keeps happening, or what never got addressed?",
-      "Are you reacting more to the event itself, or to the pattern behind it?"
-    ],
-    interpret: [
-      "This sounds like a pressure point that keeps getting hit, not a one-off irritation.",
-      "This feels like unresolved pressure more than simple anger."
-    ],
-    clarify: [
-      "What is the exact part of this that feels unacceptable to you?",
-      "What feels most unfinished or unaddressed in this?"
-    ],
-    solve: [
-      "What boundary, decision, or confrontation would actually reduce this pressure?",
-      "What needs to change for this to stop costing you energy like this?"
-    ]
-  },
-  general: {
-    trace: [
-      "When did this start feeling heavier than it looked on the surface?",
-      "At what point did this become something you could not just brush off?"
-    ],
-    differentiate: [
-      "Is this about the situation itself, or about what it has come to represent for you?",
-      "What feels more true here: this is painful, or this keeps pointing at something deeper?"
-    ],
-    interpret: [
-      "This feels like a pattern trying to be understood, not just a moment asking to be soothed.",
-      "This reads like something with continuity, not a feeling that appeared out of nowhere."
-    ],
-    clarify: [
-      "What is the real center of this for you?",
-      "What part of this most needs to be understood right now?"
-    ],
-    solve: [
-      "What outcome would actually make this feel more resolved, not just more discussed?",
-      "What next step would make this situation meaningfully easier to live with?"
-    ]
-  }
-});
-
-function _resolveEmotionBucket(primaryEmotion = "") {
-  const emo = _normalizeEmotionAlias(primaryEmotion);
-  if (emo === "sadness") return "sadness";
-  if (emo === "fear") return "fear";
-  if (emo === "anger") return "anger";
-  return "general";
-}
-
-function _hashSeed() {
-  const parts = Array.from(arguments).map((value) => _trim(value)).join("|");
-  let hash = 0;
-  for (let i = 0; i < parts.length; i += 1) hash = ((hash << 5) - hash) + parts.charCodeAt(i);
-  return Math.abs(hash >>> 0);
-}
-
-function _pickVariant(list = [], seed = 0) {
-  const items = _safeArray(list).filter(Boolean);
-  if (!items.length) return "";
-  return items[seed % items.length];
-}
-
-function _rotateFunction(baseFunction = "clarify", previousFunction = "") {
-  const order = RESPONSE_FUNCTION_ORDER;
-  const baseIndex = Math.max(0, order.indexOf(baseFunction));
-  if (!previousFunction || previousFunction !== baseFunction) return baseFunction;
-  for (let offset = 1; offset < order.length; offset += 1) {
-    const candidate = order[(baseIndex + offset) % order.length];
-    if (candidate !== previousFunction) return candidate;
-  }
-  return baseFunction;
-}
-
-function _resolveResponseFunction(routed = {}, input = {}, supportFlags = {}, conversationState = {}, escalationProfile = {}, primaryEmotion = "") {
-  const prevMem = _safeObj(input.previousMemory);
-  const previousFunction = _trim(prevMem.lastResponseFunction || prevMem.responseFunction || _safeObj(conversationState).lastResponseFunction || "");
-  const state = _safeObj(conversationState);
-  const profile = _safeObj(escalationProfile);
-  const highDistress = !!_safeObj(supportFlags).highDistress || !!_safeObj(supportFlags).needsContainment;
-  let baseFunction = "clarify";
-  if (!profile.shouldDeepen) baseFunction = "empathize";
-  else if (highDistress && _num(state.repetitionCount, 0) <= 1) baseFunction = "clarify";
-  else if (_num(state.repetitionCount, 0) <= 1 && _num(state.depthLevel, 1) <= 2) baseFunction = "trace";
-  else if (_num(state.repetitionCount, 0) === 2 || _safeArray(state.unresolvedSignals).length === 2) baseFunction = "differentiate";
-  else if (profile.shouldSolve) baseFunction = "solve";
-  else if (_num(state.depthLevel, 1) >= 4 || _safeArray(state.unresolvedSignals).length >= 3) baseFunction = "interpret";
-  else baseFunction = "clarify";
-  if (previousFunction === "empathize" && baseFunction === "empathize") baseFunction = profile.shouldDeepen ? "trace" : "clarify";
-  const selectedFunction = _rotateFunction(baseFunction, previousFunction);
-  return {
-    previousFunction: previousFunction || null,
-    baseFunction,
-    selectedFunction,
-    emotionBucket: _resolveEmotionBucket(primaryEmotion),
-    empathyCapReached: previousFunction === "empathize",
-    shouldBypassEmpathy: previousFunction === "empathize" || profile.shouldDeepen,
-    highDistress
-  };
-}
-
-function _composeFunctionDrivenReply(primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}, responseFunctionProfile = {}) {
-  const profile = _safeObj(responseFunctionProfile);
-  const selectedFunction = _trim(profile.selectedFunction || "clarify") || "clarify";
-  const bucket = _trim(profile.emotionBucket || _resolveEmotionBucket(primaryEmotion)) || "general";
-  const seed = _hashSeed(primaryEmotion, conversationState.previousEmotion, _safeArray(conversationState.lastTopics).join(","), selectedFunction, conversationState.repetitionCount, conversationState.depthLevel);
-  const lead = _buildStateLead(conversationState, primaryEmotion);
-  if (selectedFunction === "empathize") {
-    return _makeSupportReply(primaryEmotion, supportMode, intensity);
-  }
-  const bank = _safeObj(RESPONSE_TEMPLATE_BANK[bucket]);
-  const line = _pickVariant(bank[selectedFunction], seed) || _pickVariant(_safeObj(RESPONSE_TEMPLATE_BANK.general)[selectedFunction], seed) || _makeSupportReply(primaryEmotion, supportMode, intensity);
-  if (!lead) return line;
-  if (selectedFunction === "interpret") return `${lead} ${line}`.trim();
-  return `${lead} ${line}`.trim();
-}
-
-function _buildFunctionFollowUps(modePlan, primaryEmotion = "", supportFlags = {}, conversationState = {}, escalationProfile = {}, responseFunctionProfile = {}, reply = "") {
-  if (supportFlags.crisis) return [];
-  if (!modePlan.shouldAskFollowup) return [];
-  const profile = _safeObj(responseFunctionProfile);
-  const bucket = _trim(profile.emotionBucket || _resolveEmotionBucket(primaryEmotion)) || "general";
-  const selectedFunction = _trim(profile.selectedFunction || "clarify") || "clarify";
-  const nextMap = { empathize: "trace", trace: "differentiate", differentiate: "interpret", interpret: _safeObj(escalationProfile).shouldSolve ? "solve" : "clarify", clarify: _safeObj(escalationProfile).shouldSolve ? "solve" : "differentiate", solve: "clarify" };
-  let nextFunction = nextMap[selectedFunction] || "clarify";
-  if (nextFunction === profile.previousFunction) nextFunction = "clarify";
-  const bank = _safeObj(RESPONSE_TEMPLATE_BANK[bucket]);
-  const options = _safeArray(bank[nextFunction]).concat(_safeArray(_safeObj(RESPONSE_TEMPLATE_BANK.general)[nextFunction]));
-  const seed = _hashSeed(reply, nextFunction, _safeArray(conversationState.unresolvedSignals).join(","), conversationState.repetitionCount, conversationState.depthLevel);
-  const picked = _pickVariant(options, seed);
-  return picked ? [picked] : [];
-}
-
 function _normalizeEmotionAlias(value = "") {
   const emo = _lower(value);
   if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken"].includes(emo)) return "sadness";
@@ -375,19 +192,29 @@ function _normalizeEmotionAlias(value = "") {
 function _isGenericLoopReply(reply = "") {
   const text = _lower(reply).replace(/\s+/g, " ").trim();
   if (!text) return true;
-  return [
-    "i have the thread.",
+  const bannedPatterns = [
+    "i have the thread",
     "give me one clean beat more",
-    "i will answer directly without flattening the conversation",
+    "i will answer directly without flattening",
     "tell me the next piece",
-    "stay with the next honest piece only"
-  ].some((snippet) => text.includes(snippet));
+    "stay with the next honest piece",
+    "continue the thread",
+    "give me one more",
+    "one clean beat more",
+    "the real thread",
+    "answer directly without flattening",
+    "tell me one more",
+    "stay with this thread"
+  ];
+  return bannedPatterns.some((snippet) => text.includes(snippet));
 }
 
 function _looksEmotionSpecific(reply = "", primaryEmotion = "", conversationState = {}) {
   const text = _lower(reply);
   const emo = _normalizeEmotionAlias(primaryEmotion);
   const signals = _safeArray(conversationState.unresolvedSignals).map(_lower);
+  if (emo && emo !== "neutral") {
+      }
   const emotionHints = {
     sadness: ["missing", "lost", "grief", "lonely", "heavy", "hurt", "connection", "unfinished"],
     fear: ["pressure", "control", "urgent", "stacking", "signal", "controllable", "pressure point"],
@@ -407,21 +234,203 @@ function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, pri
   return _looksEmotionSpecific(reply, primaryEmotion, conversationState);
 }
 
-function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}, responseFunctionProfile = {}) {
-  const generated = _composeFunctionDrivenReply(primaryEmotion, supportMode, intensity, conversationState, escalationProfile, responseFunctionProfile);
+function _functionSeed(text = "") {
+  const s = _trim(text);
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h >>> 0);
+}
+
+function _emotionFamily(primaryEmotion = "") {
+  const emo = _normalizeEmotionAlias(primaryEmotion);
+  if (["sadness", "fear", "anger"].includes(emo)) return emo;
+  return "general";
+}
+
+function _responseFunctionBanks() {
+  return {
+    sadness: {
+      trace: [
+        "When did this start feeling heavier instead of just sad?",
+        "What changed between missing them and feeling pulled under by it?",
+        "When do you notice this loneliness hit the hardest?"
+      ],
+      differentiate: [
+        "Is this more about missing Cait, or about missing how you felt when that connection was alive?",
+        "Does this feel more like absence, rejection, or something unfinished that keeps reopening?",
+        "Is the pain coming more from who is missing, or from what that absence says to you about your life now?"
+      ],
+      interpret: [
+        "This does not sound like a passing mood. It sounds like an absence that keeps echoing after the moment itself is over.",
+        "This feels less like one bad moment and more like something unresolved that keeps finding its way back in.",
+        "There is grief-like weight in this, even if you are not naming it that way."
+      ],
+      solve: [
+        "What would make tonight feel even ten percent less heavy in a real way?",
+        "What do you need most here: comfort, contact, clarity, or a concrete shift in what happens next?",
+        "What would actually help this feel less stuck instead of just more described?"
+      ]
+    },
+    fear: {
+      trace: [
+        "When did this shift from stress into something that started running you?",
+        "What is usually happening right before this pressure spikes again?",
+        "When do you first notice the strain move from manageable to too much?"
+      ],
+      differentiate: [
+        "Is this fear about one real risk, or about too many open loops stacking together?",
+        "Does this feel more like urgency, uncertainty, or loss of control?",
+        "Is the pressure coming from what is actually happening, or from what your mind keeps preparing for?"
+      ],
+      interpret: [
+        "This sounds like your system staying braced, not just your thoughts running fast.",
+        "There is a pattern of anticipatory pressure here, not just a single hard moment.",
+        "This feels like accumulation more than randomness."
+      ],
+      solve: [
+        "What is the next controllable move here, even if it is small?",
+        "Which part of this actually needs action first, and which part only needs to stop getting fed?",
+        "What would reduce the pressure fastest without making the rest worse?"
+      ]
+    },
+    anger: {
+      trace: [
+        "When did this stop being irritating and start feeling personal?",
+        "What keeps bringing you back to the same pressure point?",
+        "At what point did this start feeling like too much rather than just frustrating?"
+      ],
+      differentiate: [
+        "Is this more about disrespect, blockage, or having to carry what should not be yours?",
+        "Are you angrier about what happened, or about what keeps not changing?",
+        "Does this feel more like crossed boundaries or accumulated pressure?"
+      ],
+      interpret: [
+        "This feels like a pattern your system is tired of tolerating.",
+        "There is more than irritation here. There is a sense that something keeps staying unresolved.",
+        "This sounds like repeated friction, not just a single flare-up."
+      ],
+      solve: [
+        "What specifically needs to stop, change, or be confronted for this to ease?",
+        "What boundary or decision would actually reduce this pressure?",
+        "What action would move this from circular to resolved?"
+      ]
+    },
+    general: {
+      trace: [
+        "When did this start feeling heavier than you expected?",
+        "What has been building underneath this that keeps bringing it back?",
+        "Where do you feel the shift from surface stress into something deeper?"
+      ],
+      differentiate: [
+        "What is this really about underneath the latest sentence?",
+        "Is this more about the event itself, or what it means to you?",
+        "Which part of this is immediate, and which part goes deeper than today?"
+      ],
+      interpret: [
+        "This feels like a recurring pattern, not an isolated moment.",
+        "There is more continuity here than your last line alone would suggest.",
+        "This sounds like something that keeps returning because it has not actually resolved."
+      ],
+      solve: [
+        "What would make this feel more resolved, not just more discussed?",
+        "What next move would create real relief here?",
+        "What would help this situation shift in a meaningful way today?"
+      ]
+    }
+  };
+}
+
+function _selectResponseFunction(primaryEmotion = "", escalationProfile = {}, conversationState = {}, input = {}) {
+  const family = _emotionFamily(primaryEmotion);
+  const prev = _safeObj(input.previousMemory || {});
+  const lastFn = _lower(conversationState.lastResponseFunction || prev.lastResponseFunction || prev.responseFunction || "");
+  let pool = [];
+  if (_safeObj(escalationProfile).shouldSolve) pool = ["interpret", "differentiate", "solve"];
+  else if (_safeObj(escalationProfile).shouldDeepen) pool = ["trace", "differentiate", "interpret"];
+  else pool = ["clarify"];
+  const available = pool.filter((name) => name !== lastFn);
+  const effectivePool = available.length ? available : pool;
+  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${conversationState.repetitionCount || 0}|${conversationState.depthLevel || 0}|${primaryEmotion}|${lastFn}`);
+  return effectivePool[seed % effectivePool.length] || effectivePool[0] || "clarify";
+}
+
+function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", conversationState = {}, escalationProfile = {}) {
+  const family = _emotionFamily(primaryEmotion);
+  const banks = _responseFunctionBanks();
+  if (selectedFunction === "clarify") return "I am with you. Tell me what feels most important right now.";
+  const choices = _safeArray(_safeObj(banks[family])[selectedFunction] || _safeObj(banks.general)[selectedFunction]);
+  if (!choices.length) return "I am with you. Tell me what feels most important right now.";
+  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|${conversationState.depthLevel || 0}|${conversationState.repetitionCount || 0}`);
+  return choices[seed % choices.length];
+}
+
+function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarify", escalationProfile = {}, conversationState = {}) {
+  const family = _emotionFamily(primaryEmotion);
+  const nextMap = {
+    clarify: ["trace", "differentiate"],
+    trace: ["differentiate", "interpret"],
+    differentiate: [_safeObj(escalationProfile).shouldSolve ? "solve" : "interpret"],
+    interpret: [_safeObj(escalationProfile).shouldSolve ? "solve" : "differentiate"],
+    solve: ["solve"]
+  };
+  const nextFn = _safeArray(nextMap[selectedFunction])[0] || "differentiate";
+  const prompt = _buildFunctionReply(primaryEmotion, nextFn, conversationState, escalationProfile);
+  return prompt ? [prompt] : [];
+}
+
+function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}) {
+  const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, input);
+  const generated = _safeObj(escalationProfile).shouldDeepen
+    ? _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile)
+    : _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile);
+  if (_safeObj(escalationProfile).shouldDeepen) {
+    return { reply: generated, source: "forced_escalation_override", selectedFunction };
+  }
   const assistantDraft = _trim(_safeObj(input).assistantDraft);
   if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: assistantDraft, source: "assistantDraft" };
+    return { reply: assistantDraft, source: "assistantDraft", selectedFunction };
   }
   const inputReply = _trim(_safeObj(input).reply);
   if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: inputReply, source: "input.reply" };
+    return { reply: inputReply, source: "input.reply", selectedFunction };
   }
   const routedReply = _trim(_safeObj(routed).reply);
   if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState)) {
-    return { reply: routedReply, source: "routed.reply" };
+    return { reply: routedReply, source: "routed.reply", selectedFunction };
   }
-  return { reply: generated, source: "function_resolver" };
+  return { reply: generated, source: "escalation_override", selectedFunction };
+}
+
+function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}) {
+  const emo = _lower(primaryEmotion || "neutral");
+  const state = _safeObj(conversationState);
+  const profile = _safeObj(escalationProfile);
+  const shouldDeepen = !!profile.shouldDeepen;
+  const shouldSolve = !!profile.shouldSolve;
+  if (!shouldDeepen) {
+    return _makeStateAwareReply(primaryEmotion, supportMode, intensity, conversationState);
+  }
+  const lead = _buildStateLead(state, primaryEmotion) || "I can feel this thread continuing.";
+  const selectedFunction = _trim(state.selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, state, {});
+  const functionalReply = _buildFunctionReply(primaryEmotion, selectedFunction, state, profile);
+  if (shouldSolve && selectedFunction === "solve") {
+    return `${lead} ${functionalReply}`;
+  }
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo) && selectedFunction === "interpret") {
+    return `${lead} ${functionalReply}`;
+  }
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo) && selectedFunction === "interpret") {
+    return `${lead} ${functionalReply}`;
+  }
+  return `${lead} ${functionalReply}`.trim();
+}
+
+function _buildEscalatedFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}, escalationProfile = {}) {
+  if (supportFlags.crisis) return [];
+  const profile = _safeObj(escalationProfile);
+  if (!profile.shouldDeepen) return _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags, conversationState);
+  const selectedFunction = _trim(_safeObj(conversationState).selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, {});
+  return _buildFunctionFollowUps(primaryEmotion, selectedFunction, escalationProfile, conversationState);
 }
 
 const MODE_DEFAULTS = Object.freeze({
@@ -584,7 +593,6 @@ function composeMarionResponse(routed = {}, input = {}) {
   const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
 
   const escalationProfile = _resolveEscalationProfile(routed, input, supportFlags, conversationState, primaryEmotion);
-  const responseFunctionProfile = _resolveResponseFunction(routed, input, supportFlags, conversationState, escalationProfile, normalizedPrimaryEmotion);
   const responsePlan = {
     semanticFrame: modePlan.semanticFrame,
     deliveryTone: escalationProfile.shouldSolve ? "steadying_directive" : modePlan.deliveryTone,
@@ -613,12 +621,12 @@ function composeMarionResponse(routed = {}, input = {}) {
     supportMode,
     _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
     conversationState,
-    escalationProfile,
-    responseFunctionProfile
+    escalationProfile
   );
   const reply = resolvedReply.reply;
-  const followUps = _uniq(_buildFunctionFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState, escalationProfile, responseFunctionProfile, reply)).filter((item) => _lower(item) !== _lower(reply));
-  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, responseFunction: responseFunctionProfile.selectedFunction };
+  const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
+  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, { ...conversationState, selectedFunction }, escalationProfile)).filter((item) => _lower(item) !== _lower(reply));
+  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
   try {
@@ -648,9 +656,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     intent: _trim(routed.intent || _safeObj(routed.classified).intent || _safeObj(input).intent || "general").toLowerCase() || "general",
     emotion: emotionPayload,
     strategy,
-    conversationState,
+    conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
     escalationProfile,
-    responseFunctionProfile,
+    memoryPatch: { lastResponseFunction: selectedFunction },
     responsePlan,
     blendProfile,
     stateDrift,
@@ -688,12 +696,12 @@ function composeMarionResponse(routed = {}, input = {}) {
       escalationMode: escalationProfile.mode,
       escalationShouldDeepen: !!escalationProfile.shouldDeepen,
       escalationShouldSolve: !!escalationProfile.shouldSolve,
-      responseFunction: responseFunctionProfile.selectedFunction,
-      previousResponseFunction: responseFunctionProfile.previousFunction,
       handoffNormalized: true,
-      replyResolvedFrom: resolvedReply.source
+      replyResolvedFrom: resolvedReply.source,
+      selectedFunction
     },
     pipelineTrace,
+    memoryPatch: { lastResponseFunction: selectedFunction },
     synthesis: {
       reply,
       followUps,
@@ -711,13 +719,9 @@ function composeMarionResponse(routed = {}, input = {}) {
       },
       emotion: emotionPayload,
       strategy,
-      conversationState,
+      conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
       escalationProfile,
-      responseFunctionProfile
-    },
-    memoryPatch: {
-      lastResponseFunction: responseFunctionProfile.selectedFunction,
-      previousResponseFunction: responseFunctionProfile.previousFunction || null
+      memoryPatch: { lastResponseFunction: selectedFunction }
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
