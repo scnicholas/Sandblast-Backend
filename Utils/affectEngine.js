@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.3.0 BRIDGE-HARDENED RESPONSE-PATH-TIGHTENED + YEAR-SPEECH";
+const VERSION = "affectEngine v3.4.0 BRIDGE-HARDENED NORMALIZED-HANDOFF + YEAR-SPEECH";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -161,17 +161,75 @@ function normalizeStrategy(strategy = {}) {
   };
 }
 
+
+function deriveLockedEmotionFromEnvelope(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const supportFlags = source.supportFlags && typeof source.supportFlags === "object" ? source.supportFlags : {};
+  const emotion = source.emotion && typeof source.emotion === "object" ? source.emotion : {};
+  const sourceMeta = source.source && typeof source.source === "object" ? source.source : {};
+  if (!Object.keys(emotion).length && !sourceMeta.emotion) return {};
+  return {
+    locked: emotion.locked !== false,
+    primaryEmotion: safeStr(emotion.primaryEmotion || emotion.emotion || sourceMeta.emotion || "neutral") || "neutral",
+    secondaryEmotion: safeStr(emotion.secondaryEmotion || "") || null,
+    intensity: clamp(num(emotion.intensity != null ? emotion.intensity : sourceMeta.emotionIntensity, 0), 0, 1),
+    valence: clamp(num(emotion.valence, 0), -1, 1),
+    valenceLabel: toValenceLabel(emotion.valenceLabel || emotion.valence),
+    confidence: clamp(num(emotion.confidence, 0.82), 0, 1),
+    supportFlags,
+    needs: uniq(emotion.needs),
+    cues: uniq(emotion.cues),
+    evidenceMatches: Array.isArray(emotion.evidenceMatches) ? emotion.evidenceMatches : [],
+    meta: {
+      linkedDatasets: uniq((emotion.meta && emotion.meta.linkedDatasets) || source.linkedDatasets || []),
+      sourceRecordId: safeStr(sourceMeta.recordId || "")
+    },
+    signature: safeStr(emotion.signature || `${safeStr(sourceMeta.recordId || "no_record")}::${safeStr(emotion.primaryEmotion || sourceMeta.emotion || "neutral")}`)
+  };
+}
+
+function deriveStrategyFromEnvelope(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const base = source.strategy && typeof source.strategy === "object" ? source.strategy : {};
+  if (Object.keys(base).length) return base;
+  const responsePlan = source.responsePlan && typeof source.responsePlan === "object" ? source.responsePlan : {};
+  const nyxDirective = source.nyxDirective && typeof source.nyxDirective === "object" ? source.nyxDirective : {};
+  const supportModeCandidate = safeStr(source.supportMode || source.mode || "").toLowerCase();
+  if (!supportModeCandidate && !Object.keys(responsePlan).length && !Object.keys(nyxDirective).length) return {};
+  let archetype = "clarify";
+  if (/crisis|acute|soothe|stabilize|ground/.test(supportModeCandidate)) archetype = "ground";
+  else if (/affirm|channel/.test(supportModeCandidate)) archetype = "channel";
+  else if (/celebrate/.test(supportModeCandidate)) archetype = "celebrate";
+  return {
+    archetype,
+    supportModeCandidate: supportModeCandidate || "steady_assist",
+    routeBias: safeStr(source.routeBias || "clarify") || "clarify",
+    deliveryTone: safeStr((responsePlan.deliveryTone || nyxDirective.tonePosture || source.deliveryTone || "neutral_warm")) || "neutral_warm",
+    questionPressure: num(nyxDirective.askAtMost, 1) <= 0 ? "low" : "medium",
+    transitionReadiness: safeStr(responsePlan.transitionReadiness || "medium") || "medium",
+    acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportModeCandidate) ? "auto" : "light",
+    expressionContract: {
+      questionPressure: num(nyxDirective.askAtMost, 1) <= 0 ? "low" : "medium",
+      transitionReadiness: safeStr(responsePlan.transitionReadiness || "medium") || "medium",
+      acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportModeCandidate) ? "auto" : "light"
+    }
+  };
+}
+
 function resolveInputs(input = {}) {
+  const fallbackLockedEmotion = deriveLockedEmotionFromEnvelope(input);
   const lockedEmotion = normalizeLockedEmotion(
     (input.lockedEmotion && input.lockedEmotion.locked) ? input.lockedEmotion :
     (input.emotion && input.emotion.locked) ? input.emotion :
     (input.retrieverResult && input.retrieverResult.lockedEmotion) ? input.retrieverResult.lockedEmotion :
-    {}
+    fallbackLockedEmotion
   );
+  const derivedStrategy = deriveStrategyFromEnvelope(input);
   const strategy = normalizeStrategy(
     input.strategy ||
     input.routeGuardResult ||
     input.route ||
+    derivedStrategy ||
     {}
   );
   const guidedPrompt = input && typeof input === "object" ? (input.guidedPrompt || input.payload?.guidedPrompt || input.body?.guidedPrompt || null) : null;
@@ -652,7 +710,9 @@ function runAffectEngine(input = {}) {
       memory,
       debug: {
         hasLockedEmotion: !!lockedEmotion.locked,
-        hasStrategy: !!strategy.supportModeCandidate
+        hasStrategy: !!strategy.supportModeCandidate,
+        hasEmotionEnvelope: !!(input && input.emotion),
+        hasStrategyEnvelope: !!(input && (input.strategy || input.supportMode || input.responsePlan))
       }
     };
   }
@@ -675,6 +735,7 @@ function runAffectEngine(input = {}) {
   return {
     ok: true,
     source: "affectEngine",
+    handoffNormalized: true,
     affectState,
     styleKey,
     styleProfile,
@@ -685,7 +746,11 @@ function runAffectEngine(input = {}) {
     memory: nextMemory,
     unifiedTurn,
     expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt, speechHints, pronunciationMap, spokenText }),
-    debug: affectState.debug
+    debug: {
+      ...affectState.debug,
+      handoffNormalized: true,
+      supportMode: strategy.supportModeCandidate
+    }
   };
 }
 
