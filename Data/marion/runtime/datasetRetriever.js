@@ -16,6 +16,7 @@ const DATASET_ROOTS = [
 const _cache = new Map();
 let _indexedFiles = null;
 const MAX_WALK_DEPTH = 6;
+const DEFAULT_MULTI_SIGNAL_LIMIT = 3;
 
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
@@ -55,6 +56,45 @@ function _flattenStrings(value, out = []) {
   return out;
 }
 function _uniqStrings(arr) { return [...new Set(_safeArray(arr).map((x) => _trim(x)).filter(Boolean))]; }
+
+function _conversationSignalTerms(context = {}) {
+  const state = _safeObj(context.conversationState);
+  return _uniqStrings([
+    state.previousEmotion,
+    state.emotionTrend,
+    ..._safeArray(state.lastTopics),
+    ..._safeArray(state.unresolvedSignals)
+  ]).map(_lower).filter(Boolean);
+}
+
+function _scoreConversationSignals(item = {}, context = {}) {
+  const reasons = [];
+  let score = 0;
+  const signalTerms = _conversationSignalTerms(context);
+  if (!signalTerms.length) return { score, reasons };
+  const searchable = _uniqStrings([
+    item.title, item.label, item.topic, item.name, item.pattern, item.subdomain, item.category, item.domain,
+    item.summary, item.description, item.supportMode, item.routeBias, item.emotion,
+    ..._flattenStrings(item.keywords), ..._flattenStrings(item.signals), ..._flattenStrings(item.tags),
+    ..._flattenStrings(item.aliases), ..._flattenStrings(item.examples), ..._flattenStrings(item.triggers),
+    ..._flattenStrings(item.responseShape), ..._flattenStrings(item.transitionTargets)
+  ]).map(_lower);
+  for (const term of signalTerms.slice(0, DEFAULT_MULTI_SIGNAL_LIMIT)) {
+    if (searchable.some((value) => value.includes(term))) {
+      score += 2;
+      reasons.push({ type: "continuity_signal", value: term, weight: 2 });
+    }
+  }
+  const state = _safeObj(context.conversationState);
+  if (!!state.threadContinuation && _num(state.depthLevel, 1) >= 2) {
+    const targets = _uniqStrings([item.supportMode, item.routeBias, ..._flattenStrings(item.transitionTargets)]).map(_lower);
+    if (targets.some((value) => /(clarify|reflect|sequence|ground|stabilize|activate)/.test(value))) {
+      score += 1;
+      reasons.push({ type: "depth_alignment", value: state.depthLevel, weight: 1 });
+    }
+  }
+  return { score, reasons };
+}
 
 function _discoverJsonFiles() {
   if (_indexedFiles) return _indexedFiles;
@@ -203,7 +243,13 @@ function _scoreDatasetItem(query, item, context = {}) {
     }
   }
 
-  if (!hasMeaningfulText && overlap < 2) {
+  const continuity = _scoreConversationSignals(item, context);
+  if (continuity.score > 0) {
+    score += continuity.score;
+    reasons.push(...continuity.reasons);
+  }
+
+  if (!hasMeaningfulText && overlap < 2 && continuity.score < 2) {
     score = Math.max(0, score - 1);
     reasons.push({ type: "thin_record_penalty", value: "limited_text", weight: -1 });
   }
@@ -230,7 +276,9 @@ function _normalizeEvidence(item, datasetName, file, score, reasons, rank, input
     metadata: {
       supportMode: src.supportMode || null,
       routeBias: src.routeBias || null,
-      subdomain: src.subdomain || null
+      subdomain: src.subdomain || null,
+      continuityDepth: _num(_safeObj(input.conversationState).depthLevel, 1),
+      threadContinuation: !!_safeObj(input.conversationState).threadContinuation
     },
     originalItem: src
   };
