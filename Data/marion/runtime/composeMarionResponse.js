@@ -160,6 +160,90 @@ function _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags = {}, 
   return _buildFollowUps(modePlan, primaryEmotion, supportFlags);
 }
 
+function _resolveEscalationProfile(routed = {}, input = {}, supportFlags = {}, conversationState = {}, primaryEmotion = {}) {
+  const routedProfile = _safeObj(routed.escalationProfile || input.escalationProfile);
+  const depthLevel = Math.max(1, _num(conversationState.depthLevel, routedProfile.depthLevel || 1));
+  const repetitionCount = Math.max(0, _num(conversationState.repetitionCount, routedProfile.repetitionCount || 0));
+  const unresolvedSignals = _uniq(_safeArray(conversationState.unresolvedSignals).concat(_safeArray(routedProfile.unresolvedSignals))).slice(0, 6);
+  const intensity = _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : routedProfile.intensity, 0, 1);
+  const highDistress = !!_safeObj(supportFlags).highDistress || !!_safeObj(supportFlags).needsContainment;
+  const shouldDeepen = !!routedProfile.shouldDeepen || depthLevel >= 3 || repetitionCount >= 2 || unresolvedSignals.length >= 2 || intensity >= 0.74 || !!conversationState.threadContinuation;
+  return {
+    shouldDeepen,
+    shouldSolve: !!routedProfile.shouldSolve || (!highDistress && (depthLevel >= 4 || repetitionCount >= 3 || unresolvedSignals.length >= 3) && intensity < 0.82),
+    mode: _trim(routedProfile.mode || (shouldDeepen ? "deep_reflection" : "standard")) || "standard",
+    depthLevel,
+    repetitionCount,
+    unresolvedSignals,
+    intensity,
+    threadContinuation: !!conversationState.threadContinuation,
+    emotionTrend: _trim(conversationState.emotionTrend || routedProfile.emotionTrend || "stable") || "stable"
+  };
+}
+
+function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}) {
+  const emo = _lower(primaryEmotion || "neutral");
+  const state = _safeObj(conversationState);
+  const profile = _safeObj(escalationProfile);
+  const shouldDeepen = !!profile.shouldDeepen;
+  const shouldSolve = !!profile.shouldSolve;
+  if (!shouldDeepen) {
+    return _makeStateAwareReply(primaryEmotion, supportMode, intensity, conversationState);
+  }
+  const lead = _buildStateLead(state, primaryEmotion) || "I can feel this thread continuing.";
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+    if (shouldSolve) {
+      return `${lead} This feels persistent, not passing. Let us name whether this is asking for relief, connection, or a concrete change, so we can move toward something useful.`;
+    }
+    return `${lead} This has some history to it. I do not want to skim the surface of it. Does this feel more like a slow build that has worn you down, or something specific that keeps reopening it?`;
+  }
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+    if (shouldSolve) {
+      return `${lead} We may be past simple reassurance here. Let us separate what is actually urgent from what is emotionally loud, then choose the next controllable move.`;
+    }
+    return `${lead} I do not want to blur this into one big feeling. Is the strain coming from one repeating pressure point, or from several things stacking without relief?`;
+  }
+  if (["anger", "frustration"].includes(emo)) {
+    if (shouldSolve) {
+      return `${lead} There is enough pattern here that we should stop circling it. What specifically needs to change, stop, or be confronted for this to ease?`;
+    }
+    return `${lead} This feels less like a moment and more like a pattern. What keeps pushing you back to the same pressure point?`;
+  }
+  if (shouldSolve) {
+    return `${lead} There is enough continuity here to move from reflection into direction. What outcome would actually make this feel more resolved, not just more discussed?`;
+  }
+  return `${lead} I want to stay with the pattern, not just the latest sentence. What keeps this thread alive for you underneath the surface?`;
+}
+
+function _buildEscalatedFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}, escalationProfile = {}) {
+  if (supportFlags.crisis) return [];
+  const profile = _safeObj(escalationProfile);
+  if (!profile.shouldDeepen) return _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags, conversationState);
+  const emo = _lower(primaryEmotion || "neutral");
+  if (profile.shouldSolve) {
+    if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+      return ["What would bring real relief here: being understood, being supported, or changing something concrete?"];
+    }
+    if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+      return ["What is the next thing you can actually control in this, even if it is small?"];
+    }
+    if (["anger", "frustration"].includes(emo)) {
+      return ["What boundary, decision, or action would reduce this pressure in a real way?"];
+    }
+    return ["What next move would make this situation meaningfully better, not just more manageable?"];
+  }
+  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+    return ["Does this feel rooted in something missing, something lost, or something unresolved?"];
+  }
+  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
+    return ["When this starts rising, what is the first signal that tells you it is happening again?"];
+  }
+  if (["anger", "frustration"].includes(emo)) {
+    return ["What keeps making this feel unfinished or unaddressed for you?"];
+  }
+  return ["What pattern do you think this is exposing for you now that it has shown up more than once?"];
+}
+
 const MODE_DEFAULTS = Object.freeze({
   crisis_escalation: { semanticFrame: "immediate_safety", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "action_gate", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "escalate"], careSequence: ["acknowledge", "stabilize", "escalate"], adviceLevel: "minimal", shouldAskFollowup: false, shouldOfferNextStep: true },
   acute_regulation: { semanticFrame: "acute_regulation", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "ground_then_narrow", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "contain"], careSequence: ["acknowledge", "ground", "narrow"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: true },
@@ -319,17 +403,18 @@ function composeMarionResponse(routed = {}, input = {}) {
   const riskLevel = _resolveRiskLevel(supportFlags, psychology, primaryEmotion);
   const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
 
+  const escalationProfile = _resolveEscalationProfile(routed, input, supportFlags, conversationState, primaryEmotion);
   const responsePlan = {
     semanticFrame: modePlan.semanticFrame,
-    deliveryTone: modePlan.deliveryTone,
-    expressionStyle: modePlan.expressionStyle,
-    followupStyle: modePlan.followupStyle,
-    responseLength: modePlan.responseLength,
+    deliveryTone: escalationProfile.shouldSolve ? "steadying_directive" : modePlan.deliveryTone,
+    expressionStyle: escalationProfile.shouldDeepen ? "state_aware_reflection" : modePlan.expressionStyle,
+    followupStyle: escalationProfile.shouldSolve ? "explore_then_direct" : (escalationProfile.shouldDeepen ? "deep_reflection" : modePlan.followupStyle),
+    responseLength: escalationProfile.shouldDeepen ? "medium" : modePlan.responseLength,
     pacing: modePlan.pacing,
-    transitionReadiness: modePlan.transitionReadiness,
+    transitionReadiness: escalationProfile.shouldSolve ? "high" : modePlan.transitionReadiness,
     transitionTargets: modePlan.transitionTargets,
     careSequence: modePlan.careSequence,
-    adviceLevel: modePlan.adviceLevel
+    adviceLevel: escalationProfile.shouldSolve ? "medium" : modePlan.adviceLevel
   };
 
   const sourcePrimary = _safeObj(psychology.primary);
@@ -344,9 +429,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     _trim(_safeObj(input).assistantDraft) ||
     _trim(_safeObj(input).reply) ||
     _trim(_safeObj(routed).reply) ||
-    _makeStateAwareReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1), conversationState);
-  const followUps = _uniq(_buildStateAwareFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState));
-  const strategy = _buildStrategyPayload(supportMode, modePlan, routed, psychology);
+    _makeEscalatedReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1), conversationState, escalationProfile);
+  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, conversationState, escalationProfile));
+  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
   try {
@@ -377,6 +462,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     emotion: emotionPayload,
     strategy,
     conversationState,
+    escalationProfile,
     responsePlan,
     blendProfile,
     stateDrift,
@@ -411,6 +497,9 @@ function composeMarionResponse(routed = {}, input = {}) {
       responsePlanResolved: !!Object.keys(responsePlan).length,
       continuityDepth: _num(conversationState.depthLevel, 1),
       threadContinuation: !!conversationState.threadContinuation,
+      escalationMode: escalationProfile.mode,
+      escalationShouldDeepen: !!escalationProfile.shouldDeepen,
+      escalationShouldSolve: !!escalationProfile.shouldSolve,
       handoffNormalized: true,
       replyResolvedFrom: _trim(_safeObj(input).assistantDraft) ? "assistantDraft" : (_trim(_safeObj(input).reply) ? "input.reply" : (_trim(_safeObj(routed).reply) ? "routed.reply" : "support_fallback"))
     },
@@ -432,7 +521,8 @@ function composeMarionResponse(routed = {}, input = {}) {
       },
       emotion: emotionPayload,
       strategy,
-      conversationState
+      conversationState,
+      escalationProfile
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
