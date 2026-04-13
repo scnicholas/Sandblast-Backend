@@ -181,6 +181,95 @@ function _resolveEscalationProfile(routed = {}, input = {}, supportFlags = {}, c
   };
 }
 
+
+function _resolveArcState(routed = {}, input = {}, primaryEmotion = "", conversationState = {}, escalationProfile = {}) {
+  const prevMemory = _safeObj(input.previousMemory);
+  const prevPatch = _safeObj(prevMemory.memoryPatch);
+  const prev = _safeObj(prevMemory.arcState || prevPatch.arcState);
+  const currentEmotion = _normalizeEmotionAlias(primaryEmotion || conversationState.currentEmotion || "");
+  const topics = _safeArray(conversationState.lastTopics).slice(0, 6);
+  const anchorTopic = _trim(topics[0] || prev.anchorTopic || currentEmotion || "general") || "general";
+  const anchorPerson = topics.find((t) => ["cait"].includes(_lower(t))) || _trim(prev.anchorPerson || "");
+  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
+  const arcState = _safeObj(input.arcState || _safeObj(_safeObj(input.previousMemory).memoryPatch).arcState || input.arcState);
+  const engagementState = _safeObj(input.engagementState || _safeObj(_safeObj(input.previousMemory).memoryPatch).engagementState || input.engagementState);
+  const highSolve = !!_safeObj(escalationProfile).shouldSolve;
+  let arcType = _trim(prev.arcType || "");
+  if (!arcType) arcType = highSolve ? "problem_solving" : (currentEmotion === "sadness" ? "connection_building" : "emotional_processing");
+  let stage = "opening";
+  if (highSolve) stage = "resolution";
+  else if (depth >= 5) stage = "reframing";
+  else if (depth >= 4) stage = "differentiation";
+  else if (depth >= 3) stage = "deepening";
+  const objectiveMap = {
+    emotional_processing: "help the user name the real pressure under the feeling",
+    problem_solving: "turn recurring pressure into one useful next move",
+    identity_reflection: "surface the meaning beneath the immediate sentence",
+    connection_building: "increase trust and felt understanding without overreaching"
+  };
+  return {
+    arcType,
+    stage,
+    objective: objectiveMap[arcType] || objectiveMap.identity_reflection,
+    tension: Number(_clamp((_num(conversationState.repetitionCount, 0) * 0.18) + _num(_safeObj(escalationProfile).intensity, 0), 0, 1).toFixed(3)),
+    resolved: highSolve && _num(conversationState.repetitionCount, 0) <= 1,
+    anchorTopic,
+    anchorPerson: anchorPerson || null,
+    lastShiftAt: Date.now()
+  };
+}
+
+function _resolveEngagementState(input = {}, conversationState = {}, escalationProfile = {}) {
+  const behavior = _safeObj(input.behavior || input.userBehavior);
+  const prevMemory = _safeObj(input.previousMemory);
+  const prevPatch = _safeObj(prevMemory.memoryPatch);
+  const previous = _safeObj(prevMemory.engagementState || prevPatch.engagementState);
+  const messageLength = Math.max(0, _num(behavior.messageLength, 0));
+  const openness = Number(_clamp(
+    (previous.openness || 0.35)
+    + (messageLength > 140 ? 0.22 : messageLength > 60 ? 0.12 : 0)
+    + (_safeArray(conversationState.unresolvedSignals).length ? 0.08 : 0),
+    0, 1).toFixed(3));
+  const brevity = Number(_clamp(messageLength ? 1 - (messageLength / 220) : (previous.brevity || 0.75), 0, 1).toFixed(3));
+  const volatility = Number(_clamp(_num(behavior.volatility, previous.volatility || 0.2), 0, 1).toFixed(3));
+  const receptivity = Number(_clamp((openness * 0.65) + ((1 - volatility) * 0.35), 0, 1).toFixed(3));
+  const engagementLevel = receptivity >= 0.72 ? "high" : receptivity >= 0.48 ? "medium" : "low";
+  const preferredCadence = _safeObj(escalationProfile).shouldSolve ? "directive" : (engagementLevel === "high" ? "deepening" : "tight");
+  return { engagementLevel, openness, brevity, volatility, receptivity, preferredCadence };
+}
+
+function _resolveRelationalStyle(input = {}, conversationState = {}, engagementState = {}, escalationProfile = {}) {
+  const prevMemory = _safeObj(input.previousMemory);
+  const prevPatch = _safeObj(prevMemory.memoryPatch);
+  const previous = _safeObj(prevMemory.relationalStyle || prevPatch.relationalStyle);
+  const gravity = Number(_clamp(previous.gravity || (_num(conversationState.depthLevel, 1) * 0.12), 0.35, 0.85).toFixed(3));
+  const warmth = Number(_clamp(previous.warmth || (engagementState.engagementLevel === "high" ? 0.76 : 0.62), 0.45, 0.9).toFixed(3));
+  const directness = Number(_clamp(previous.directness || (_safeObj(escalationProfile).shouldSolve ? 0.72 : 0.56), 0.35, 0.88).toFixed(3));
+  return {
+    warmth,
+    gravity,
+    directness,
+    invitationStyle: engagementState.engagementLevel === "high" ? "soft_magnetic" : "clean_direct",
+    intimacyCeiling: _safeObj(escalationProfile).shouldDeepen ? "measured_warm" : "measured",
+    validationDensity: _num(conversationState.depthLevel, 1) <= 2 ? "light" : "minimal"
+  };
+}
+
+function _applyRelationalPhrasing(reply = "", relationalStyle = {}, engagementState = {}, arcState = {}) {
+  const base = _trim(reply);
+  if (!base) return "";
+  const lowerBase = _lower(base);
+  if (lowerBase.startsWith("stay with me for a second.") || lowerBase.startsWith("let us get precise for a second.") || lowerBase.startsWith("there is a little more under that.")) return base;
+  const style = _safeObj(relationalStyle);
+  const engagement = _safeObj(engagementState);
+  const arc = _safeObj(arcState);
+  let opener = "";
+  if (engagement.preferredCadence === "directive" && style.directness >= 0.68) opener = "Let us get precise for a second.";
+  else if (/deepening|differentiation|reframing/.test(_trim(arc.stage)) && style.gravity >= 0.55) opener = "Stay with me for a second.";
+  else if (engagement.engagementLevel === "high" && style.invitationStyle === "soft_magnetic") opener = "There is a little more under that.";
+  return opener ? `${opener} ${base}` : base;
+}
+
 function _normalizeEmotionAlias(value = "") {
   const emo = _lower(value);
   if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken"].includes(emo)) return "sadness";
@@ -352,9 +441,13 @@ function _selectResponseFunction(primaryEmotion = "", escalationProfile = {}, co
     ""
   );
   const depth = Math.max(1, _num(conversationState.depthLevel, 1));
+  const arcState = _safeObj(input.arcState || _safeObj(_safeObj(input.previousMemory).memoryPatch).arcState || input.arcState);
+  const engagementState = _safeObj(input.engagementState || _safeObj(_safeObj(input.previousMemory).memoryPatch).engagementState || input.engagementState);
   const repetition = Math.max(0, _num(conversationState.repetitionCount, 0));
   let pool = [];
-  if (_safeObj(escalationProfile).shouldSolve) pool = ["differentiate", "interpret", "solve"];
+  if (_trim(arcState.stage) === "resolution" || _safeObj(escalationProfile).shouldSolve) pool = ["differentiate", "interpret", "solve"];
+  else if (_trim(arcState.stage) === "reframing") pool = ["interpret", "differentiate", "solve"];
+  else if (_trim(engagementState.preferredCadence) === "tight" && !_safeObj(escalationProfile).shouldDeepen) pool = ["clarify", "trace"];
   else if (_safeObj(escalationProfile).shouldDeepen && depth >= 5) pool = ["interpret", "differentiate", "trace", "solve"];
   else if (_safeObj(escalationProfile).shouldDeepen && depth >= 3) pool = repetition >= 2 ? ["trace", "differentiate", "interpret"] : ["differentiate", "trace", "interpret"];
   else if (lastFn === "clarify") pool = ["trace", "differentiate"];
@@ -365,17 +458,21 @@ function _selectResponseFunction(primaryEmotion = "", escalationProfile = {}, co
   return finalPool[seed % finalPool.length] || finalPool[0] || "clarify";
 }
 
-function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", conversationState = {}, escalationProfile = {}) {
+function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
   const family = _emotionFamily(primaryEmotion);
   const banks = _responseFunctionBanks();
-  if (selectedFunction === "clarify") return "I am with you. Tell me what feels most important right now.";
+  if (selectedFunction === "clarify") {
+    return _trim(_safeObj(engagementState).engagementLevel) === "low"
+      ? "Keep it simple for me. What part of this matters most right now?"
+      : "I am with you. Tell me what feels most important right now.";
+  }
   const choices = _safeArray(_safeObj(banks[family])[selectedFunction] || _safeObj(banks.general)[selectedFunction]);
   if (!choices.length) return "I am with you. Tell me what feels most important right now.";
-  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|${conversationState.depthLevel || 0}|${conversationState.repetitionCount || 0}`);
+  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|${conversationState.depthLevel || 0}|${conversationState.repetitionCount || 0}|${_trim(_safeObj(arcState).stage)}|${_trim(_safeObj(engagementState).engagementLevel)}`);
   return choices[seed % choices.length];
 }
 
-function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarify", escalationProfile = {}, conversationState = {}) {
+function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarify", escalationProfile = {}, conversationState = {}, arcState = {}, engagementState = {}) {
   const nextMap = {
     clarify: ["trace", "differentiate"],
     trace: ["differentiate", "interpret"],
@@ -387,13 +484,14 @@ function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarif
   const nextFn = options.length > 1
     ? options[_functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|follow`) % options.length]
     : (options[0] || "differentiate");
-  const prompt = _buildFunctionReply(primaryEmotion, nextFn, conversationState, escalationProfile);
+  const prompt = _buildFunctionReply(primaryEmotion, nextFn, conversationState, escalationProfile, arcState, engagementState);
   return prompt ? [prompt] : [];
 }
 
-function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}) {
-  const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, input);
-  const generated = _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile);
+function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}, relationalStyle = {}) {
+  const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, { ...input, arcState, engagementState });
+  const generatedBase = _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile, arcState, engagementState);
+  const generated = _applyRelationalPhrasing(generatedBase, relationalStyle, engagementState, arcState);
   if (_safeObj(escalationProfile).shouldDeepen) {
     return { reply: generated, source: "forced_escalation_override", selectedFunction, authority: "marion" };
   }
@@ -412,7 +510,7 @@ function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", suppor
   return { reply: generated, source: "marion_generated", selectedFunction, authority: "marion" };
 }
 
-function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}) {
+function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
   const emo = _lower(primaryEmotion || "neutral");
   const state = _safeObj(conversationState);
   const profile = _safeObj(escalationProfile);
@@ -423,7 +521,7 @@ function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversatio
   }
   const lead = _buildStateLead(state, primaryEmotion) || "I can feel this thread continuing.";
   const selectedFunction = _trim(state.selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, state, {});
-  const functionalReply = _buildFunctionReply(primaryEmotion, selectedFunction, state, profile);
+  const functionalReply = _buildFunctionReply(primaryEmotion, selectedFunction, state, profile, arcState, engagementState);
   if (shouldSolve && selectedFunction === "solve") {
     return `${lead} ${functionalReply}`;
   }
@@ -436,12 +534,12 @@ function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversatio
   return `${lead} ${functionalReply}`.trim();
 }
 
-function _buildEscalatedFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}, escalationProfile = {}) {
+function _buildEscalatedFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
   if (supportFlags.crisis) return [];
   const profile = _safeObj(escalationProfile);
   if (!profile.shouldDeepen) return _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags, conversationState);
   const selectedFunction = _trim(_safeObj(conversationState).selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, {});
-  return _buildFunctionFollowUps(primaryEmotion, selectedFunction, escalationProfile, conversationState);
+  return _buildFunctionFollowUps(primaryEmotion, selectedFunction, escalationProfile, conversationState, arcState, engagementState);
 }
 
 const MODE_DEFAULTS = Object.freeze({
@@ -604,13 +702,16 @@ function composeMarionResponse(routed = {}, input = {}) {
   const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
 
   const escalationProfile = _resolveEscalationProfile(routed, input, supportFlags, conversationState, primaryEmotion);
+  const arcState = _resolveArcState(routed, input, normalizedPrimaryEmotion, conversationState, escalationProfile);
+  const engagementState = _resolveEngagementState(input, conversationState, escalationProfile);
+  const relationalStyle = _resolveRelationalStyle(input, conversationState, engagementState, escalationProfile);
   const responsePlan = {
     semanticFrame: modePlan.semanticFrame,
-    deliveryTone: escalationProfile.shouldSolve ? "steadying_directive" : modePlan.deliveryTone,
+    deliveryTone: escalationProfile.shouldSolve ? "steadying_directive" : (engagementState.engagementLevel === "high" ? "warm_gravity" : modePlan.deliveryTone),
     expressionStyle: escalationProfile.shouldDeepen ? "state_aware_reflection" : modePlan.expressionStyle,
     followupStyle: escalationProfile.shouldSolve ? "explore_then_direct" : (escalationProfile.shouldDeepen ? "deep_reflection" : modePlan.followupStyle),
-    responseLength: escalationProfile.shouldDeepen ? "medium" : modePlan.responseLength,
-    pacing: modePlan.pacing,
+    responseLength: engagementState.engagementLevel === "high" ? "medium" : (escalationProfile.shouldDeepen ? "medium" : modePlan.responseLength),
+    pacing: engagementState.preferredCadence === "tight" ? "tight" : modePlan.pacing,
     transitionReadiness: escalationProfile.shouldSolve ? "high" : modePlan.transitionReadiness,
     transitionTargets: modePlan.transitionTargets,
     careSequence: modePlan.careSequence,
@@ -632,12 +733,15 @@ function composeMarionResponse(routed = {}, input = {}) {
     supportMode,
     _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
     conversationState,
-    escalationProfile
+    escalationProfile,
+    arcState,
+    engagementState,
+    relationalStyle
   );
   const reply = _trim(resolvedReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
   const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
   const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, { ...conversationState, selectedFunction }, escalationProfile)).filter((item) => _lower(item) !== _lower(reply) && !_isGenericLoopReply(item));
-  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve };
+  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, arcStage: arcState.stage, engagementLevel: engagementState.engagementLevel };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
   try {
@@ -671,7 +775,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     strategy,
     conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
     escalationProfile,
-    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" },
+    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle },
     responsePlan,
     blendProfile,
     stateDrift,
@@ -712,10 +816,14 @@ function composeMarionResponse(routed = {}, input = {}) {
       handoffNormalized: true,
       replyResolvedFrom: resolvedReply.source,
       replyAuthority: _trim(resolvedReply.authority || "marion") || "marion",
-      selectedFunction
+      selectedFunction,
+      arcStage: arcState.stage,
+      arcType: arcState.arcType,
+      engagementLevel: engagementState.engagementLevel,
+      engagementCadence: engagementState.preferredCadence
     },
     pipelineTrace,
-    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" },
+    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle },
     synthesis: {
       reply,
       followUps,
@@ -733,9 +841,12 @@ function composeMarionResponse(routed = {}, input = {}) {
       },
       emotion: emotionPayload,
       strategy,
+      arcState,
+      engagementState,
+      relationalStyle,
       conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
       escalationProfile,
-      memoryPatch: { lastResponseFunction: selectedFunction }
+      memoryPatch: { lastResponseFunction: selectedFunction, arcState, engagementState, relationalStyle }
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
