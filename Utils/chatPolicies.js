@@ -10,7 +10,7 @@
  * - preserve strict precedence and stop clarification from overpowering fulfillment
  */
 
-const POLICY_VERSION = "ChatPolicies v1.1.0";
+const POLICY_VERSION = "ChatPolicies v1.2.0";
 
 /* ------------------------------------------------------------------ */
 /* Utilities                                                          */
@@ -98,6 +98,8 @@ const DEFAULT_POLICY_RESULT = Object.freeze({
   shouldUseEmotionFirst: false,
   shouldUseGreeting: false,
   shouldUseBridge: false,
+  shouldRouteToMarion: true,
+  decisionAuthority: "marion",
   shouldSanitizePublic: false,
   shouldSuppressFollowUps: false,
   shouldSuppressAutoplay: false,
@@ -719,6 +721,7 @@ function buildPolicyEnvelope(context = {}) {
       shouldUseEmotionFirst: !!policy.shouldUseEmotionFirst,
       shouldUseGreeting: !!policy.shouldUseGreeting,
       shouldUseBridge: !!policy.shouldUseBridge,
+      shouldRouteToMarion: policy.shouldRouteToMarion !== false,
       shouldSanitizePublic: !!policy.shouldSanitizePublic,
       shouldSuppressFollowUps: !!policy.shouldSuppressFollowUps,
       shouldSuppressAutoplay: !!policy.shouldSuppressAutoplay,
@@ -728,7 +731,21 @@ function buildPolicyEnvelope(context = {}) {
     chipRoute: policy.chipRoute || null,
     stop: !!policy.stop,
     reason: policy.reason || "",
+    decisionAuthority: policy.decisionAuthority || "marion",
     notes: arr(policy.notes)
+  };
+}
+
+function shouldDeferToMarion(context = {}) {
+  const envelope = buildPolicyEnvelope(context);
+  return {
+    ok: true,
+    version: POLICY_VERSION,
+    shouldRouteToMarion: envelope.flags.shouldRouteToMarion !== false,
+    decisionAuthority: envelope.decisionAuthority || "marion",
+    lane: envelope.lane,
+    stop: envelope.stop,
+    reason: envelope.reason
   };
 }
 
@@ -747,5 +764,6 @@ module.exports = {
   normalizeYear,
   inferChipRoute,
   resolveDeterministicLane,
+  shouldDeferToMarion,
   LANE_PATTERNS
 };
