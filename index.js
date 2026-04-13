@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.14.2sb MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.15.0sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-MANUAL-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -1061,6 +1061,18 @@ function validateMarionContract(contract) {
   return { ok: errors.length === 0, errors };
 }
 
+function shouldForceMarionReply(contract, norm) {
+  const c = isObj(contract) ? contract : null;
+  if (!c) return false;
+  const checked = validateMarionContract(c);
+  if (!checked.ok) return false;
+  const text = lower(norm && norm.text || "");
+  if (!text) return true;
+  if (/(one\s+direct\s+answer|answer\s+this\s+in\s+one\s+sentence|answer\s+directly|direct\s+answer|just\s+answer|give\s+me\s+the\s+answer|what\s+is|what\s+are|how\s+do|how\s+does|why\s+is|define|explain\s+briefly)/.test(text)) return true;
+  if (cleanText(c.intent || "") && /^(direct_answer|answer|definition|explain|brief_answer)$/i.test(cleanText(c.intent || ""))) return true;
+  return true;
+}
+
 function enforceMarionContract(shaped, contract, norm) {
   const out = isObj(shaped) ? { ...shaped } : {};
   const c = isObj(contract) ? contract : null;
@@ -1208,6 +1220,24 @@ function enforceMarionAuthority(shaped, marion, opts) {
   return out;
 }
 
+let chatEngineRuntime = null;
+
+function getChatEngineRuntime() {
+  if (chatEngineRuntime) return chatEngineRuntime;
+  if (!chatEngineMod || !isObj(chatEngineMod) || typeof chatEngineMod.ChatEngine !== "function") return null;
+  try {
+    const options = {};
+    if (typeof chatEngineMod.BasicEffectEngine === "function") {
+      options.effectEngine = new chatEngineMod.BasicEffectEngine();
+    }
+    chatEngineRuntime = new chatEngineMod.ChatEngine(options);
+    return chatEngineRuntime;
+  } catch (err) {
+    console.log("[Sandblast][chatEngine:runtime_init_error]", err && (err.stack || err.message || err));
+    return null;
+  }
+}
+
 async function callChatEngine(input) {
   if (!chatEngineMod) return null;
   try {
@@ -1216,6 +1246,27 @@ async function callChatEngine(input) {
     if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
     if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
     if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    const runtime = getChatEngineRuntime();
+    if (runtime && typeof runtime.processInput === "function") {
+      const response = await Promise.resolve(runtime.processInput(cleanText(input && input.text || ""), input || {}));
+      return {
+        ok: true,
+        reply: cleanReplyForUser(response),
+        payload: { reply: cleanReplyForUser(response) },
+        lane: cleanText(input && input.lane || "general") || "general",
+        laneId: cleanText(input && input.lane || "general") || "general",
+        sessionLane: cleanText(input && input.lane || "general") || "general",
+        bridge: isObj(input && input.marion) ? input.marion : null,
+        ctx: {},
+        ui: {},
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch: {},
+        cog: { intent: cleanText(input && input.intentHint || "general") || "general", mode: "runtime", publicMode: true },
+        meta: { replyAuthority: "chat_engine_runtime", engineVersion: INDEX_VERSION }
+      };
+    }
     if (typeof chatEngineMod === "function") return await chatEngineMod(input);
   } catch (err) {
     console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
@@ -2529,12 +2580,26 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     sessionId,
     client: norm.client,
     marion,
+    marionContract,
     emotion,
+    previousTurn: priorTurn,
+    continuity: marionContract && marionContract.continuity || buildMarionContinuity(priorTurn, norm, emotion),
+    forceDirect: shouldForceMarionReply(marionContract, norm),
+    overrideReply: shouldForceMarionReply(marionContract, norm) ? cleanText(marionContract && marionContract.response || "") : "",
+    forcedIntent: cleanText(marionContract && marionContract.intent || norm.intentHint || ""),
+    forcedEmotion: cleanText(marionContract && marionContract.emotional_state || norm.emotionalHint || ""),
     guidedPrompt: norm.guidedPrompt,
     domainHint: norm.domainHint,
     intentHint: norm.intentHint,
     emotionalHint: norm.emotionalHint,
     knowledge: knowledgeRuntime.extract(norm.text, { marion, guidedPrompt: norm.guidedPrompt })
+  };
+
+  trace.engine_input = {
+    forceDirect: !!engineInput.forceDirect,
+    forcedIntent: cleanText(engineInput.forcedIntent || ""),
+    forcedEmotion: cleanText(engineInput.forcedEmotion || ""),
+    overrideReplyPresent: !!cleanText(engineInput.overrideReply || "")
   };
 
   let engineRaw = null;
@@ -2554,6 +2619,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   trace.normalized = {
     marionContractOk: marionContractCheck.ok,
+    marionForceDirect: !!engineInput.forceDirect,
     replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
     lane: cleanText(shaped.lane || norm.lane || "general")
   };
