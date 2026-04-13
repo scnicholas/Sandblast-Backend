@@ -509,12 +509,24 @@ function getLastTurn(sessionId) {
   return memory.lastBySession.get(sessionId) || null;
 }
 
-function setLastTurn(sessionId, data) {
-  memory.lastBySession.set(sessionId, {
-    ...(getLastTurn(sessionId) || {}),
-    ...(isObj(data) ? data : {}),
+function summarizeTurnForMemory(prev, patch) {
+  const base = isObj(prev) ? prev : {};
+  const next = isObj(patch) ? patch : {};
+  return {
+    replyHash: cleanText(next.replyHash || base.replyHash || ""),
+    userHash: cleanText(next.userHash || base.userHash || ""),
+    lane: cleanText(next.lane || base.lane || ""),
+    replyAuthority: cleanText(next.replyAuthority || base.replyAuthority || ""),
+    userText: cleanText(next.userText || base.userText || "").slice(0, 280),
+    reply: cleanText(next.reply || base.reply || "").slice(0, 280),
+    emotionLabel: cleanText(next.emotionLabel || base.emotionLabel || "").slice(0, 80),
+    continuity: isObj(next.continuity) ? next.continuity : (isObj(base.continuity) ? base.continuity : {}),
     at: now()
-  });
+  };
+}
+
+function setLastTurn(sessionId, data) {
+  memory.lastBySession.set(sessionId, summarizeTurnForMemory(getLastTurn(sessionId), data));
 }
 
 function getSupportState(sessionId) {
@@ -969,6 +981,173 @@ function repairEngineContract(shaped, marion, norm) {
     voiceRoute: isObj(base.voiceRoute) ? base.voiceRoute : null,
     requestId: cleanText(base.requestId || ""),
     traceId: cleanText(base.traceId || norm?.traceId || "")
+  };
+}
+
+function normalizeMarionEmotionState(value, fallback) {
+  const raw = lower(value || fallback || "");
+  if (["calm", "intense", "playful", "serious", "supportive"].includes(raw)) return raw;
+  if (/(crisis|distress|support|care|gentle|soft|warm)/.test(raw)) return "supportive";
+  if (/(technical|focus|grounded|serious)/.test(raw)) return "serious";
+  if (/(joy|upbeat|light|fun|playful)/.test(raw)) return "playful";
+  if (/(urgent|intense|sharp|escalat)/.test(raw)) return "intense";
+  return "calm";
+}
+
+function buildMarionContinuity(prev, norm, emotion) {
+  const previous = isObj(prev) ? prev : {};
+  const refs = uniq([
+    cleanText(previous.lane || ""),
+    cleanText(previous.emotionLabel || ""),
+    cleanText(previous.userText || "").split(/\s+/).slice(0, 8).join(" "),
+    cleanText(norm && norm.intentHint || ""),
+    cleanText(norm && norm.domainHint || "")
+  ].filter(Boolean)).slice(0, 4);
+  return {
+    references: refs,
+    memory_thread: cleanText(previous.userText || previous.reply || "").slice(0, 180),
+    last_user_text: cleanText(previous.userText || "").slice(0, 220),
+    last_reply: cleanText(previous.reply || "").slice(0, 220),
+    emotional_carry: normalizeMarionEmotionState(previous.emotionLabel || (emotion && emotion.label) || "calm")
+  };
+}
+
+function normalizeMarionContract(raw, norm, emotion, prevTurn) {
+  const src = isObj(raw) ? raw : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const packet = isObj(src.packet) ? src.packet : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const continuitySrc = isObj(src.continuity) ? src.continuity : {};
+  const metaSrc = isObj(src.meta) ? src.meta : {};
+  const response = cleanReplyForUser(
+    src.response || src.reply || src.text || src.output || src.answer || src.spokenText ||
+    payload.reply || payload.text || payload.message || payload.spokenText ||
+    synthesis.reply || synthesis.answer || ""
+  );
+  const followUp = cleanText(src.follow_up || src.followUp || metaSrc.follow_up || payload.follow_up || payload.followUp || "");
+  const normalizedEmotion = normalizeMarionEmotionState(
+    src.emotional_state || src.emotionalState || metaSrc.emotional_state || metaSrc.emotion || "",
+    emotion && emotion.label || "calm"
+  );
+  const continuity = {
+    ...buildMarionContinuity(prevTurn, norm, emotion),
+    ...(isObj(continuitySrc) ? continuitySrc : {})
+  };
+  return {
+    status: cleanText(src.status || (src.ok === false ? "error" : "success")) || "success",
+    intent: cleanText(src.intent || src.routeIntent || metaSrc.intent || norm && norm.intentHint || "general") || "general",
+    emotional_state: normalizedEmotion,
+    response,
+    follow_up: followUp,
+    continuity,
+    meta: {
+      confidence: Number.isFinite(Number(metaSrc.confidence ?? src.confidence)) ? clamp(Number(metaSrc.confidence ?? src.confidence), 0, 1) : 0.82,
+      fallback: !!(metaSrc.fallback || src.fallback || src.ok === false || !response),
+      source: cleanText(metaSrc.source || src.source || "marion") || "marion",
+      traceId: cleanText(metaSrc.traceId || src.traceId || norm && norm.traceId || "")
+    }
+  };
+}
+
+function validateMarionContract(contract) {
+  const c = isObj(contract) ? contract : {};
+  const errors = [];
+  if (cleanText(c.status || "") !== "success") errors.push("status_not_success");
+  if (!cleanText(c.intent || "")) errors.push("missing_intent");
+  if (!cleanText(c.emotional_state || "")) errors.push("missing_emotional_state");
+  if (!cleanText(c.response || "")) errors.push("missing_response");
+  if (!isObj(c.continuity)) errors.push("missing_continuity");
+  if (!isObj(c.meta)) errors.push("missing_meta");
+  return { ok: errors.length === 0, errors };
+}
+
+function enforceMarionContract(shaped, contract, norm) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const c = isObj(contract) ? contract : null;
+  const checked = validateMarionContract(c);
+  out.meta = mergeMeta(out.meta, {
+    marionContractVersion: "marion-nyx-v1",
+    marionContractOk: checked.ok,
+    marionContractErrors: checked.errors
+  });
+  if (!c || !checked.ok) return out;
+  const locked = cleanReplyForUser(c.response || "");
+  if (!locked) return out;
+  out.reply = locked;
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    reply: locked,
+    text: locked,
+    message: locked,
+    spokenText: locked,
+    marionContract: c,
+    continuity: c.continuity
+  };
+  out.bridge = {
+    ...(isObj(out.bridge) ? out.bridge : {}),
+    marionContract: c,
+    continuity: c.continuity,
+    intent: c.intent,
+    emotional_state: c.emotional_state,
+    confidence: c.meta && c.meta.confidence
+  };
+  out.cog = {
+    ...(isObj(out.cog) ? out.cog : {}),
+    intent: cleanText(out.cog && out.cog.intent || c.intent || ""),
+    mode: cleanText(out.cog && out.cog.mode || "authoritative"),
+    publicMode: out.cog && out.cog.publicMode !== false
+  };
+  out.meta = mergeMeta(out.meta, {
+    replyAuthority: "marion_contract_locked",
+    semanticAuthority: "marion",
+    marionIntent: c.intent,
+    marionEmotionalState: c.emotional_state,
+    marionConfidence: c.meta && c.meta.confidence,
+    marionFallback: !!(c.meta && c.meta.fallback)
+  });
+  return out;
+}
+
+function applyContinuityStitch(shaped, prevTurn, contract, norm, emotion) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const prev = isObj(prevTurn) ? prevTurn : {};
+  const continuity = isObj(contract && contract.continuity) ? { ...contract.continuity } : buildMarionContinuity(prev, norm, emotion);
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    continuity
+  };
+  out.bridge = {
+    ...(isObj(out.bridge) ? out.bridge : {}),
+    continuity
+  };
+  const follow = cleanText(contract && contract.follow_up || "");
+  const existing = Array.isArray(out.followUpsStrings) ? out.followUpsStrings.filter(Boolean) : [];
+  const stitched = [];
+  if (follow) stitched.push(follow);
+  const prevUser = cleanText(prev.userText || "");
+  if (prevUser && !stitched.length) stitched.push(`Do you want to keep building from what you said about ${clipText(prevUser, 72)}?`);
+  out.followUpsStrings = uniq([...existing, ...stitched].map((v) => cleanText(v)).filter(Boolean)).slice(0, 4);
+  out.meta = mergeMeta(out.meta, {
+    continuityStitchApplied: true,
+    continuityReferences: Array.isArray(continuity.references) ? continuity.references.slice(0, 4) : [],
+    continuityMemoryThread: cleanText(continuity.memory_thread || "").slice(0, 180)
+  });
+  return out;
+}
+
+function buildLoggingSpine(trace) {
+  const src = isObj(trace) ? trace : {};
+  return {
+    traceId: cleanText(src.traceId || ""),
+    sessionId: cleanText(src.sessionId || ""),
+    startedAt: Number(src.startedAt || now()),
+    request: isObj(src.request) ? src.request : {},
+    marion_raw: src.marion_raw || null,
+    marion_contract: src.marion_contract || null,
+    normalized: src.normalized || null,
+    stitched: src.stitched || null,
+    rendered: src.rendered || null,
+    errors: Array.isArray(src.errors) ? src.errors : []
   };
 }
 
@@ -2250,6 +2429,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   const norm = normalizePayload(req);
   const sessionId = getSessionId(req);
   const priorSupport = getSupportState(sessionId);
+  const priorTurn = getLastTurn(sessionId);
   let supportHold = clamp(Number(priorSupport.hold || 0), 0, CFG.quietSupportHoldTurns);
   let supportActive = !!priorSupport.active && supportHold > 0;
   if (supportHold > 0) supportHold -= 1;
@@ -2319,6 +2499,24 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     marion = null;
   }
 
+  const marionContract = normalizeMarionContract(marion, norm, emotion, priorTurn);
+  const marionContractCheck = validateMarionContract(marionContract);
+  const trace = buildLoggingSpine({
+    traceId: norm.traceId,
+    sessionId,
+    startedAt,
+    request: {
+      text: clipText(norm.text, 220),
+      lane: norm.lane,
+      mode: norm.mode,
+      year: norm.year,
+      turnId: norm.turnId
+    },
+    marion_raw: marion,
+    marion_contract: marionContract,
+    errors: marionContractCheck.ok ? [] : marionContractCheck.errors.slice()
+  });
+
   const engineInput = {
     text: norm.text,
     payload: norm.payload,
@@ -2352,6 +2550,13 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   }
 
   let shaped = repairEngineContract(shapeEngineReply(engineRaw), marion, norm);
+  shaped = enforceMarionContract(shaped, marionContract, norm);
+  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
+  trace.normalized = {
+    marionContractOk: marionContractCheck.ok,
+    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    lane: cleanText(shaped.lane || norm.lane || "general")
+  };
   if (!shaped.lane) shaped.lane = norm.lane || "general";
   if (!shaped.laneId) shaped.laneId = shaped.lane;
   if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
@@ -2466,6 +2671,8 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   }
 
   shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  shaped = enforceMarionContract(shaped, marionContract, norm);
+  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
   if (!reply) {
     if (shouldLockMarionAuthority(marion)) {
@@ -2490,6 +2697,8 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   shaped.reply = reply;
   shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: shaped.payload?.text || reply, message: shaped.payload?.message || reply };
   shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  shaped = enforceMarionContract(shaped, marionContract, norm);
+  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
 
   const loop = detectLoop(sessionId, reply, norm.text);
@@ -2605,20 +2814,32 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     forceQuiet: suppressMenus
   });
   shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  shaped = enforceMarionContract(shaped, marionContract, norm);
+  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
 
   shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
   shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
   shaped.traceId = cleanText(shaped.traceId || norm.traceId);
 
+  trace.stitched = {
+    continuity: isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : null,
+    followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : []
+  };
+
   setLastTurn(sessionId, {
     replyHash: replyHash(cleanText(shaped.reply || reply)),
     userHash: replyHash(norm.text),
     lane: shaped.lane || norm.lane,
-    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || "")
+    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    userText: norm.text,
+    reply: cleanText(shaped.reply || reply),
+    emotionLabel: cleanText((marionContract && marionContract.emotional_state) || (emotion && emotion.label) || ""),
+    continuity: isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : {}
   });
 
   shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  shaped = enforceMarionContract(shaped, marionContract, norm);
   shaped.payload = {
     ...(isObj(shaped.payload) ? shaped.payload : {}),
     reply: cleanText(shaped.reply || shaped.payload?.reply || ""),
@@ -2626,6 +2847,15 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     message: cleanText(shaped.reply || shaped.payload?.message || shaped.payload?.reply || ""),
     spokenText: cleanText(shaped.reply || shaped.payload?.spokenText || shaped.payload?.reply || "")
   };
+
+  trace.rendered = {
+    ok: shaped.ok !== false,
+    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    marionContractOk: !!(shaped.meta && shaped.meta.marionContractOk),
+    latencyMs: now() - startedAt
+  };
+
+  console.log("[Sandblast][loggingSpine]", trace);
 
   return res.status(200).json({
     ok: shaped.ok !== false,
@@ -2647,6 +2877,16 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     traceId: shaped.traceId,
     meta: {
       ...(shaped.meta || {}),
+      marionContract: marionContract,
+      loggingSpine: {
+        traceId: trace.traceId,
+        sessionId: trace.sessionId,
+        request: trace.request,
+        normalized: trace.normalized,
+        stitched: trace.stitched,
+        rendered: trace.rendered,
+        errors: trace.errors
+      },
       audioContract: {
         version: "audio-first-v1",
         endpoint: routeUrl("/api/tts"),
@@ -2803,5 +3043,10 @@ module.exports = {
   repairEngineContract,
   buildSpeechContract,
   normalizeVoiceRouteResponse,
-  attachVoiceRoute
+  attachVoiceRoute,
+  normalizeMarionContract,
+  validateMarionContract,
+  enforceMarionContract,
+  applyContinuityStitch,
+  buildLoggingSpine
 };
