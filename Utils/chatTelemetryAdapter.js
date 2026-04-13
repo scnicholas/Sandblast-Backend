@@ -3,40 +3,18 @@
 /**
  * utils/chatTelemetryAdapter.js
  *
- * chatTelemetryAdapter v1.0.0
+ * chatTelemetryAdapter v1.1.0
  * ------------------------------------------------------------
  * PURPOSE
- * - Extract dataset/telemetry helpers out of chatEngine.js
- * - Keep telemetry fail-open
- * - Provide one clean adapter surface for:
- *   - getDatasetStats()
- *   - searchDataset(query, opts)
- *   - buildTelemetry(...)
- * - Preserve structural integrity if Dataset is missing
- *
- * 15 PHASE COVERAGE
- * ------------------------------------------------------------
- * Phase 01: Safe dependency loading
- * Phase 02: Query normalization
- * Phase 03: Options normalization
- * Phase 04: Dataset stats delegation
- * Phase 05: Dataset search delegation
- * Phase 06: Fail-open stats fallback
- * Phase 07: Fail-open search fallback
- * Phase 08: Emotion packet normalization
- * Phase 09: Lane normalization
- * Phase 10: Request metadata shaping
- * Phase 11: Public-mode telemetry shaping
- * Phase 12: Phase-tag support
- * Phase 13: Safe numeric coercion
- * Phase 14: Defensive return contracts
- * Phase 15: Stable export surface
+ * - Keep dataset and runtime telemetry outside chatEngine.js
+ * - Preserve fail-open behavior if Dataset is unavailable
+ * - Emit bridge-safe telemetry without adding cognitive logic
  */
 
 let Dataset = null;
 try { Dataset = require("./datasetLoader"); } catch (_e) { Dataset = null; }
 
-const CTA_VERSION = "chatTelemetryAdapter v1.0.0";
+const CTA_VERSION = "chatTelemetryAdapter v1.1.0";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -148,16 +126,23 @@ function buildTelemetry(params) {
   const lane =
     oneLine(src.lane || norm.lane || norm?.payload?.lane || "general").slice(0, 40) || "general";
   const requestId = oneLine(src.requestId || "").slice(0, 100);
+  const traceId = oneLine(src.traceId || "").slice(0, 100);
   const publicMode = !!src.publicMode;
   const phase = oneLine(src.phase || "turn").slice(0, 60) || "turn";
+  const replyAuthority = oneLine(src.replyAuthority || "").slice(0, 40);
+  const marionAuthorityLock = !!src.marionAuthorityLock;
 
   return {
     phase,
     requestId,
+    traceId,
     lane,
     publicMode,
     version: CTA_VERSION,
     t: nowMs(),
+    decisionAuthority: "marion",
+    replyAuthority,
+    marionAuthorityLock,
     emotion: emo.mode || emo.valence || emo.dominantEmotion
       ? {
           mode: emo.mode,
@@ -179,7 +164,8 @@ function getTelemetryStatus() {
     version: CTA_VERSION,
     datasetLoaded: !!Dataset,
     canStats: !!(Dataset && typeof Dataset.stats === "function"),
-    canSearch: !!(Dataset && typeof Dataset.search === "function")
+    canSearch: !!(Dataset && typeof Dataset.search === "function"),
+    decisionAuthority: "marion"
   };
 }
 
