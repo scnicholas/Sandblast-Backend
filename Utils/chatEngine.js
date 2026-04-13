@@ -1,12 +1,16 @@
 "use strict";
 
-// Chat Engine vFinal++
-// Marion authority-compatible build
-// Added:
-// 1) Structured handleChat/run/chat/handle/reply exports for index.js compatibility
-// 2) Marion authority lock and direct-answer obedience
-// 3) Continuity stitching with previous-turn + contract continuity support
-// 4) Safe effect modulation that never rewrites locked Marion replies
+/**
+ * chatEngine.js
+ *
+ * Chat Engine vMarion-Coordinator
+ * ------------------------------------------------------------
+ * PURPOSE
+ * - Act as a traffic coordinator only
+ * - Preserve Marion as the sole cognitive authority
+ * - Normalize inbound payloads, continuity, and diagnostics
+ * - Never invent, elaborate, or emotionally rewrite replies
+ */
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -28,19 +32,22 @@ function clipText(value, max = 220) {
 }
 
 function uniqueStrings(items) {
-  return Array.from(new Set((Array.isArray(items) ? items : []).map((item) => cleanText(item)).filter(Boolean)));
+  return Array.from(
+    new Set((Array.isArray(items) ? items : []).map((item) => cleanText(item)).filter(Boolean))
+  );
 }
 
-function marionReplyFromSource(src) {
+function extractMarionFields(src) {
   const source = isPlainObject(src) ? src : {};
-  const contract = isPlainObject(source.marionContract) ? source.marionContract : {};
+  const marionContract = isPlainObject(source.marionContract) ? source.marionContract : {};
   const marion = isPlainObject(source.marion) ? source.marion : {};
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   const packet = isPlainObject(marion.packet) ? marion.packet : {};
   const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
-  return cleanText(
+
+  const reply = cleanText(
     source.overrideReply ||
-    contract.response ||
+    marionContract.response ||
     marion.reply ||
     marion.text ||
     marion.output ||
@@ -54,14 +61,42 @@ function marionReplyFromSource(src) {
     synthesis.answer ||
     ""
   );
+
+  const intent = cleanText(
+    source.forcedIntent ||
+    marionContract.intent ||
+    marion.intent ||
+    payload.intent ||
+    source.intentHint ||
+    ""
+  );
+
+  const emotionalState = cleanText(
+    source.forcedEmotion ||
+    marionContract.emotional_state ||
+    marion.emotional_state ||
+    payload.emotional_state ||
+    source.emotionalHint ||
+    ""
+  );
+
+  return {
+    marionContract,
+    marion,
+    reply,
+    intent,
+    emotionalState
+  };
 }
 
 function shouldLockMarionAuthority(source) {
   const src = isPlainObject(source) ? source : {};
-  if (src.forceDirect === true && marionReplyFromSource(src)) return true;
-  const contract = isPlainObject(src.marionContract) ? src.marionContract : null;
-  if (contract && cleanText(contract.status || "success") === "success" && cleanText(contract.response || "")) return true;
-  return !!marionReplyFromSource(src);
+  const fields = extractMarionFields(src);
+  if (src.forceDirect === true && fields.reply) return true;
+  if (fields.marionContract && cleanText(fields.marionContract.status || "success") === "success" && fields.reply) {
+    return true;
+  }
+  return !!fields.reply;
 }
 
 class ChatEngine {
@@ -78,14 +113,9 @@ class ChatEngine {
     this.config = {
       maxMemory: Number.isInteger(options.maxMemory) ? options.maxMemory : 12,
       continuityWindow: Number.isInteger(options.continuityWindow) ? options.continuityWindow : 3,
-      maxRejectionLog: Number.isInteger(options.maxRejectionLog) ? options.maxRejectionLog : 200
+      maxRejectionLog: Number.isInteger(options.maxRejectionLog) ? options.maxRejectionLog : 200,
+      maxPipelineTrace: Number.isInteger(options.maxPipelineTrace) ? options.maxPipelineTrace : 100
     };
-
-    this.effectEngine = options.effectEngine || null;
-  }
-
-  setEffectEngine(effectEngine) {
-    this.effectEngine = effectEngine || null;
   }
 
   processInput(input, meta = {}) {
@@ -96,6 +126,8 @@ class ChatEngine {
       stages: [],
       accepted: false,
       responsePreview: "",
+      marionAuthorityLock: !!meta.marionAuthorityLock,
+      marionPresent: !!cleanText(meta.overrideReply || ""),
       errors: []
     };
 
@@ -111,16 +143,10 @@ class ChatEngine {
         return rejected;
       }
 
-      const normalized = this.normalize(input);
-      trace.stages.push({ stage: "normalize", value: normalized });
+      const normalizedInput = this.normalize(input);
+      trace.stages.push({ stage: "normalize", value: clipText(normalizedInput, 160) });
 
-      const intent = this.detectIntent(normalized, meta);
-      trace.stages.push({ stage: "detectIntent", value: intent });
-
-      const emotion = this.detectEmotion(normalized, meta);
-      trace.stages.push({ stage: "detectEmotion", value: emotion });
-
-      const continuity = this.buildContinuityContext(normalized, intent, emotion, meta);
+      const continuity = this.buildContinuityContext(normalizedInput, meta);
       trace.stages.push({
         stage: "buildContinuityContext",
         value: {
@@ -131,42 +157,34 @@ class ChatEngine {
         }
       });
 
-      this.updateState(normalized, intent, emotion, meta);
-
-      let response = this.generateResponse({
-        input: normalized,
-        intent,
-        emotion,
-        continuity,
-        meta
+      const resolution = this.resolveResponse(normalizedInput, continuity, meta);
+      trace.stages.push({
+        stage: "resolveResponse",
+        value: {
+          authority: resolution.replyAuthority,
+          awaitingMarion: resolution.awaitingMarion,
+          replyPreview: clipText(resolution.reply, 160)
+        }
       });
 
-      response = this.applyEffectTone({
-        response,
-        emotion,
-        intent,
-        continuity,
-        meta
-      });
+      this.updateState(normalizedInput, meta, continuity, resolution);
 
       trace.accepted = true;
-      trace.responsePreview = response.slice(0, 160);
+      trace.responsePreview = resolution.reply.slice(0, 160);
 
       this.logPipeline({
-        input: normalized,
-        intent,
-        emotion,
+        input: normalizedInput,
         continuity,
-        response
+        resolution
       });
 
       this.pushPipelineTrace(trace);
-      return response;
+      return resolution.reply;
     } catch (err) {
       trace.errors.push(this.safeError(err));
       this.pushPipelineTrace(trace);
       console.error("ChatEngine Error:", err);
-      return "Something went wrong in the response pipeline. Give me that again and I’ll recover cleanly.";
+      return "I hit a routing fault before Marion could complete the turn.";
     }
   }
 
@@ -192,7 +210,7 @@ class ChatEngine {
       },
       {
         field: "meta",
-        check: (value) => value === undefined || value === null || this.isPlainObject(value),
+        check: (value) => value === undefined || value === null || isPlainObject(value),
         code: "meta_invalid",
         message: "Meta must be an object when provided."
       }
@@ -226,7 +244,7 @@ class ChatEngine {
       return "The request did not pass validation.";
     }
     const primary = validation.failures[0];
-    return `I couldn’t process that cleanly because ${primary.message}`;
+    return `I couldn’t route that cleanly because ${primary.message}`;
   }
 
   normalize(input) {
@@ -238,51 +256,28 @@ class ChatEngine {
       .trim();
   }
 
-  detectIntent(input, meta = {}) {
-    if (meta && typeof meta.forcedIntent === "string" && meta.forcedIntent.trim()) {
-      return meta.forcedIntent.trim();
-    }
-
-    const text = lower(input);
-    if (!text) return "general";
-    if (/(one\s+direct\s+answer|answer\s+this\s+in\s+one\s+sentence|answer\s+directly|just\s+answer|direct\s+answer|give\s+me\s+the\s+answer)/.test(text)) return "direct_answer";
-    if (/(define|what\s+is|what\s+are|explain\s+briefly)/.test(text)) return "direct_answer";
-    if (/(hi|hello|hey|good morning|good evening)/.test(text)) return "greeting";
-    if (/(help|assist|support|fix|repair)/.test(text)) return "help";
-    if (/(music|song|radio|playlist|artist)/.test(text)) return "music";
-    if (/(feel|feeling|sad|depressed|happy|angry|upset|anxious)/.test(text)) return "emotional_checkin";
-    if (/(continue|again|next|keep going|follow up)/.test(text)) return "continuation";
-    return "general";
-  }
-
-  detectEmotion(input, meta = {}) {
-    if (meta && typeof meta.forcedEmotion === "string" && meta.forcedEmotion.trim()) {
-      return meta.forcedEmotion.trim();
-    }
-
-    const text = lower(input);
-    if (!text) return "neutral";
-    if (/(sad|depressed|down|hurt|lonely|tired|broken)/.test(text)) return "low";
-    if (/(angry|mad|furious|annoyed|frustrated)/.test(text)) return "agitated";
-    if (/(happy|great|good|excited|amazing|strong)/.test(text)) return "high";
-    if (/(anxious|nervous|worried|uneasy)/.test(text)) return "anxious";
-    return "neutral";
-  }
-
-  buildContinuityContext(input, intent, emotion, meta = {}) {
+  buildContinuityContext(input, meta = {}) {
     const previousTurns = this.state.memory.slice(-this.config.continuityWindow);
     const priorIntents = previousTurns.map((entry) => entry.intent).filter(Boolean);
     const priorEmotions = previousTurns.map((entry) => entry.emotion).filter(Boolean);
     const priorInputs = previousTurns.map((entry) => entry.input).filter(Boolean);
 
-    const explicitPrevious = this.isPlainObject(meta.previousTurn) ? meta.previousTurn : null;
+    const explicitPrevious = isPlainObject(meta.previousTurn) ? meta.previousTurn : null;
     if (explicitPrevious) {
       previousTurns.push({
         input: cleanText(explicitPrevious.userText || ""),
-        intent: cleanText((meta.marionContract && meta.marionContract.intent) || explicitPrevious.replyAuthority || "general") || "general",
+        intent: cleanText(
+          (meta.marionContract && meta.marionContract.intent) ||
+          explicitPrevious.replyAuthority ||
+          "general"
+        ) || "general",
         emotion: cleanText(explicitPrevious.emotionLabel || "neutral") || "neutral"
       });
-      priorIntents.push(cleanText((meta.marionContract && meta.marionContract.intent) || explicitPrevious.replyAuthority || ""));
+      priorIntents.push(cleanText(
+        (meta.marionContract && meta.marionContract.intent) ||
+        explicitPrevious.replyAuthority ||
+        ""
+      ));
       priorEmotions.push(cleanText(explicitPrevious.emotionLabel || ""));
       priorInputs.push(cleanText(explicitPrevious.userText || explicitPrevious.reply || ""));
     }
@@ -292,24 +287,59 @@ class ChatEngine {
 
     const currentTokens = this.extractTopicTokens(input);
     const priorTokens = priorInputs.flatMap((entry) => this.extractTopicTokens(entry));
-    const contractRefs = Array.isArray(meta.continuity && meta.continuity.references) ? meta.continuity.references.flatMap((entry) => this.extractTopicTokens(entry)) : [];
-    const topicEchoes = uniqueStrings(currentTokens.filter((token) => priorTokens.includes(token)).concat(contractRefs)).slice(0, 6);
+    const contractRefs =
+      Array.isArray(meta.continuity && meta.continuity.references)
+        ? meta.continuity.references.flatMap((entry) => this.extractTopicTokens(entry))
+        : [];
 
-    const continuingSameIntent = !!(carryIntent && carryIntent === intent);
-    const emotionalDrift = carryEmotion && carryEmotion !== emotion ? `${carryEmotion}_to_${emotion}` : null;
+    const topicEchoes = uniqueStrings(
+      currentTokens.filter((token) => priorTokens.includes(token)).concat(contractRefs)
+    ).slice(0, 6);
 
     return {
       previousTurns: previousTurns.slice(-this.config.continuityWindow),
       carryIntent: carryIntent || null,
       carryEmotion: carryEmotion || null,
       topicEchoes,
-      continuingSameIntent,
-      emotionalDrift,
+      continuingSameIntent: !!(
+        carryIntent &&
+        cleanText(meta.forcedIntent || meta.marionIntent || "") &&
+        carryIntent === cleanText(meta.forcedIntent || meta.marionIntent || "")
+      ),
       memoryThread: cleanText(meta.continuity && meta.continuity.memory_thread || "")
     };
   }
 
-  updateState(input, intent, emotion, meta = {}) {
+  resolveResponse(input, continuity, meta = {}) {
+    const marionReply = cleanText(meta.overrideReply || "");
+    const forcedIntent = cleanText(meta.forcedIntent || meta.marionIntent || "");
+    const forcedEmotion = cleanText(meta.forcedEmotion || meta.marionEmotionalState || "");
+
+    if (meta.marionAuthorityLock && marionReply) {
+      return {
+        reply: marionReply,
+        replyAuthority: "marion_locked",
+        awaitingMarion: false,
+        intent: forcedIntent || "general",
+        emotion: forcedEmotion || "neutral"
+      };
+    }
+
+    const fallbackReply = cleanText(meta.fallbackReply || "");
+    const reply = fallbackReply || "Marion input required before reply emission.";
+    return {
+      reply,
+      replyAuthority: fallbackReply ? "bridge_fallback" : "awaiting_marion",
+      awaitingMarion: !fallbackReply,
+      intent: forcedIntent || "general",
+      emotion: forcedEmotion || "neutral"
+    };
+  }
+
+  updateState(input, meta = {}, continuity = {}, resolution = {}) {
+    const intent = cleanText(resolution.intent || meta.forcedIntent || "general") || "general";
+    const emotion = cleanText(resolution.emotion || meta.forcedEmotion || "neutral") || "neutral";
+
     this.state.lastUserInput = input;
     this.state.lastIntent = intent;
     this.state.emotionalState = emotion;
@@ -319,6 +349,12 @@ class ChatEngine {
       intent,
       emotion,
       meta: this.sanitizeMeta(meta),
+      continuity: {
+        topicEchoes: Array.isArray(continuity.topicEchoes) ? continuity.topicEchoes.slice(0, 6) : [],
+        carryIntent: continuity.carryIntent || null,
+        carryEmotion: continuity.carryEmotion || null
+      },
+      replyAuthority: resolution.replyAuthority || "unknown",
       timestamp: Date.now()
     });
 
@@ -327,202 +363,28 @@ class ChatEngine {
     }
   }
 
-  generateResponse({ input, intent, emotion, continuity, meta }) {
-    if (meta && meta.marionAuthorityLock && cleanText(meta.overrideReply || "")) {
-      return cleanText(meta.overrideReply);
-    }
-
-    let response = "";
-    response += this.buildEmotionPrefix(emotion, continuity, intent, meta);
-    response += this.buildIntentResponse(input, intent, continuity, meta);
-    response += this.buildContinuitySuffix(intent, continuity, meta);
-    return this.cleanResponse(response);
-  }
-
-  buildEmotionPrefix(emotion, continuity, intent, meta) {
-    if (meta && meta.marionAuthorityLock) return "";
-    if (intent === "direct_answer") return "";
-    switch (emotion) {
-      case "low":
-        return continuity.carryEmotion === "low"
-          ? "I’m with you, and I can feel this has been sitting with you for more than a single turn. "
-          : "I hear the weight in that. ";
-      case "agitated":
-        return "There’s friction in that, and I’m tracking it. ";
-      case "anxious":
-        return "I can feel the tension underneath that. ";
-      case "high":
-        return "That energy is alive. ";
-      default:
-        return "";
-    }
-  }
-
-  buildIntentResponse(input, intent, continuity, meta) {
-    switch (intent) {
-      case "direct_answer":
-        return this.directAnswerResponse(input, meta);
-      case "greeting":
-        return this.dynamicGreeting(continuity);
-      case "help":
-        return "Tell me the exact obstacle, and I’ll help you break it down cleanly.";
-      case "music":
-        return continuity.topicEchoes.includes("music") || continuity.topicEchoes.includes("radio")
-          ? "We’re still in that sound lane, so let’s tighten it instead of starting over."
-          : "Let’s find something that fits the mood and the moment.";
-      case "emotional_checkin":
-        return this.emotionalCheckInResponse(this.emotionFromContext(continuity, input));
-      case "continuation":
-        return this.continuationResponse(continuity, meta);
-      default:
-        return this.contextualResponse(input, continuity, meta);
-    }
-  }
-
-  directAnswerResponse(input, meta = {}) {
-    const locked = cleanText(meta.overrideReply || marionReplyFromSource(meta) || "");
-    if (locked) return locked;
-    const cleaned = cleanText(input);
-    if (!cleaned) return "I need the exact question to answer directly.";
-    return `Direct answer mode is on, but Marion did not provide a resolved reply for: ${clipText(cleaned, 120)}`;
-  }
-
-  emotionFromContext(ctx, text) {
-    if (ctx && ctx.carryEmotion) return ctx.carryEmotion;
-    if (/(sad|depressed|down|hurt)/.test(lower(text))) return "low";
-    if (/(angry|mad|furious|annoyed)/.test(lower(text))) return "agitated";
-    if (/(anxious|nervous|worried)/.test(lower(text))) return "anxious";
-    if (/(happy|great|good|excited)/.test(lower(text))) return "high";
-    return "neutral";
-  }
-
-  dynamicGreeting(continuity) {
-    const greetings = continuity && continuity.previousTurns.length > 0
-      ? [
-          "Good to see you again. Let’s pick up where we left off.",
-          "Hey. We’ve already got momentum, so let’s keep it moving.",
-          "Hi. I’m with you. Where are we taking this next?"
-        ]
-      : [
-          "Good to see you. What are we exploring today?",
-          "Hey. Let’s make something interesting happen.",
-          "Hi. Where do you want to go with this?"
-        ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
-  }
-
-  emotionalCheckInResponse(contextEmotion) {
-    switch (contextEmotion) {
-      case "low":
-        return "You don’t have to force your way through it all at once. Give me the sharpest part of it.";
-      case "agitated":
-        return "Let’s isolate what actually triggered the spike so we can answer the real problem.";
-      case "anxious":
-        return "Let’s slow the noise down and deal with the next decision, not the whole storm.";
-      case "high":
-        return "That’s a strong current. Let’s point it somewhere useful.";
-      default:
-        return "Tell me what the feeling is tied to, and I’ll work from there.";
-    }
-  }
-
-  continuationResponse(continuity, meta = {}) {
-    const locked = cleanText(meta.overrideReply || "");
-    if (locked) return locked;
-    if (!continuity || continuity.previousTurns.length === 0) {
-      return "There’s nothing active in memory yet, so give me the thread you want continued.";
-    }
-    const lastTurn = continuity.previousTurns[continuity.previousTurns.length - 1];
-    return `We can continue from the last thread: intent was ${lastTurn.intent || "general"} and the emotional tone was ${lastTurn.emotion || "neutral"}.`;
-  }
-
-  contextualResponse(input, continuity, meta = {}) {
-    const locked = cleanText(meta.overrideReply || "");
-    if (locked) return locked;
-    const text = lower(input);
-    const hasQuestion = /\?$/.test(text) || /(what|why|how|when|where|who|can|should|would|could)/.test(text);
-
-    if (continuity && continuity.continuingSameIntent) {
-      return "I’m following the thread, so push the next layer instead of restating the surface.";
-    }
-
-    if (continuity && continuity.topicEchoes.length > 0) {
-      return `I can see the thread carrying through around ${continuity.topicEchoes.join(", ")}. Push a little deeper.`;
-    }
-
-    if (hasQuestion) {
-      return "Ask the exact question you want answered, and I’ll stay direct.";
-    }
-
-    return "Expand on that a bit. I want to understand exactly where you're going.";
-  }
-
-  buildContinuitySuffix(intent, continuity, meta = {}) {
-    if (meta && meta.marionAuthorityLock) return "";
-    if (!continuity || continuity.previousTurns.length === 0) return "";
-    if (intent === "greeting" || intent === "direct_answer") return "";
-
-    const parts = [];
-    if (continuity.continuingSameIntent) {
-      parts.push("We’re not starting cold here.");
-    }
-    if (continuity.emotionalDrift) {
-      parts.push(`I also see the emotional shift: ${continuity.emotionalDrift.replace(/_/g, " ")}.`);
-    }
-    return parts.length ? ` ${parts.join(" ")}` : "";
-  }
-
-  applyEffectTone({ response, emotion, intent, continuity, meta }) {
-    if (meta && meta.marionAuthorityLock) return response;
-    if (!this.effectEngine || typeof this.effectEngine.modulate !== "function") {
-      return response;
-    }
-
-    try {
-      const modulated = this.effectEngine.modulate({
-        text: response,
-        state: {
-          emotion,
-          intent,
-          continuity,
-          lastIntent: this.state.lastIntent,
-          emotionalState: this.state.emotionalState
-        },
-        meta: this.sanitizeMeta(meta)
-      });
-      return typeof modulated === "string" && modulated.trim() ? modulated : response;
-    } catch (err) {
-      const rejection = {
-        at: Date.now(),
-        field: "effectEngine.modulate",
-        code: "effect_engine_failure",
-        message: "Effect engine modulation failed.",
-        valuePreview: this.safeError(err)
-      };
-      this.pushRejectionLog(rejection);
-      console.warn("Effect engine hook failed:", err);
-      return response;
-    }
-  }
-
   logPipeline(payload) {
     console.log("PIPELINE TRACE:", {
       input: payload.input,
-      intent: payload.intent,
-      emotion: payload.emotion,
       continuity: {
         previousTurns: payload.continuity.previousTurns.length,
         carryIntent: payload.continuity.carryIntent,
         carryEmotion: payload.continuity.carryEmotion,
         topicEchoes: payload.continuity.topicEchoes
       },
-      response: payload.response
+      resolution: {
+        replyAuthority: payload.resolution.replyAuthority,
+        awaitingMarion: payload.resolution.awaitingMarion,
+        intent: payload.resolution.intent,
+        emotion: payload.resolution.emotion,
+        reply: payload.resolution.reply
+      }
     });
   }
 
   pushPipelineTrace(trace) {
     this.state.pipelineTrace.push(trace);
-    if (this.state.pipelineTrace.length > 100) {
+    if (this.state.pipelineTrace.length > this.config.maxPipelineTrace) {
       this.state.pipelineTrace.shift();
     }
   }
@@ -604,10 +466,6 @@ class ChatEngine {
     return current;
   }
 
-  isPlainObject(value) {
-    return isPlainObject(value);
-  }
-
   previewValue(value) {
     if (typeof value === "string") return value.slice(0, 100);
     if (value === undefined) return "undefined";
@@ -620,10 +478,15 @@ class ChatEngine {
   }
 
   sanitizeMeta(meta) {
-    if (!this.isPlainObject(meta)) return {};
+    if (!isPlainObject(meta)) return {};
     const clean = {};
     for (const [key, value] of Object.entries(meta)) {
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        value === null
+      ) {
         clean[key] = value;
       }
     }
@@ -640,53 +503,39 @@ class ChatEngine {
       return String(err);
     }
   }
-
-  cleanResponse(response) {
-    return String(response || "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-}
-
-class BasicEffectEngine {
-  modulate({ text, state }) {
-    if (!text || typeof text !== "string") return text;
-    if (state && state.intent === "direct_answer") return text;
-    if (state && state.emotion === "agitated") {
-      return text.replace("Push a little deeper.", "Let’s get precise and cut through the noise.");
-    }
-    return text;
-  }
 }
 
 let runtime = null;
 
 function getRuntime() {
   if (!runtime) {
-    runtime = new ChatEngine({
-      effectEngine: new BasicEffectEngine()
-    });
+    runtime = new ChatEngine();
   }
   return runtime;
 }
 
 function buildHandleMeta(input) {
   const src = isPlainObject(input) ? input : {};
-  const marionContract = isPlainObject(src.marionContract) ? src.marionContract : {};
-  const overrideReply = marionReplyFromSource(src);
+  const fields = extractMarionFields(src);
   const authority = shouldLockMarionAuthority(src);
+
   return {
     channel: "index",
     userId: cleanText(src.sessionId || ""),
-    forcedIntent: cleanText(src.forcedIntent || marionContract.intent || src.intentHint || ""),
-    forcedEmotion: cleanText(src.forcedEmotion || marionContract.emotional_state || src.emotionalHint || ""),
-    overrideReply,
+    forcedIntent: fields.intent,
+    forcedEmotion: fields.emotionalState,
+    marionIntent: cleanText(fields.marionContract.intent || fields.intent || ""),
+    marionEmotionalState: cleanText(fields.marionContract.emotional_state || fields.emotionalState || ""),
+    overrideReply: fields.reply,
     marionAuthorityLock: authority,
-    marionContract,
-    marion: isPlainObject(src.marion) ? src.marion : {},
-    continuity: isPlainObject(src.continuity) ? src.continuity : (isPlainObject(marionContract.continuity) ? marionContract.continuity : {}),
+    marionContract: fields.marionContract,
+    marion: fields.marion,
+    continuity: isPlainObject(src.continuity)
+      ? src.continuity
+      : (isPlainObject(fields.marionContract.continuity) ? fields.marionContract.continuity : {}),
     previousTurn: isPlainObject(src.previousTurn) ? src.previousTurn : null,
-    traceId: cleanText(src.traceId || "")
+    traceId: cleanText(src.traceId || ""),
+    fallbackReply: cleanText(src.fallbackReply || "")
   };
 }
 
@@ -695,6 +544,7 @@ function buildFollowUps(meta) {
   const followUpsStrings = uniqueStrings([
     cleanText(contract.follow_up || "")
   ]).slice(0, 4);
+
   return {
     followUps: followUpsStrings.map((text) => ({ label: text, text })),
     followUpsStrings
@@ -706,6 +556,8 @@ function buildStructuredEngineReply(response, input, meta) {
   const reply = cleanText(response);
   const lane = cleanText(src.lane || "general") || "general";
   const follow = buildFollowUps(meta);
+  const awaitingMarion = !meta.marionAuthorityLock;
+
   return {
     ok: true,
     reply,
@@ -730,16 +582,18 @@ function buildStructuredEngineReply(response, input, meta) {
     sessionPatch: {},
     cog: {
       intent: cleanText(meta.forcedIntent || "general") || "general",
-      mode: meta.marionAuthorityLock ? "authoritative" : "engine",
-      publicMode: true
+      mode: meta.marionAuthorityLock ? "authoritative" : "routing_only",
+      publicMode: true,
+      decisionAuthority: "marion"
     },
     meta: {
-      engineVersion: "Chat Engine vFinal++ Marion Authority Locked",
-      replyAuthority: meta.marionAuthorityLock ? "marion_locked" : "chat_engine",
+      engineVersion: "Chat Engine vMarion-Coordinator",
+      replyAuthority: meta.marionAuthorityLock ? "marion_locked" : "awaiting_marion",
       marionAuthorityLock: !!meta.marionAuthorityLock,
-      marionIntent: cleanText(meta.marionContract && meta.marionContract.intent || ""),
-      marionEmotionalState: cleanText(meta.marionContract && meta.marionContract.emotional_state || ""),
-      traceId: cleanText(meta.traceId || "")
+      marionIntent: cleanText((meta.marionContract && meta.marionContract.intent) || ""),
+      marionEmotionalState: cleanText((meta.marionContract && meta.marionContract.emotional_state) || ""),
+      traceId: cleanText(meta.traceId || ""),
+      awaitingMarion
     },
     speech: null
   };
@@ -749,7 +603,8 @@ async function handleChat(input = {}) {
   const src = isPlainObject(input) ? input : { text: typeof input === "string" ? input : "" };
   const meta = buildHandleMeta(src);
   const runtimeInstance = getRuntime();
-  const response = runtimeInstance.processInput(cleanText(src.text || src.payload && src.payload.text || ""), meta);
+  const normalizedText = cleanText(src.text || (src.payload && src.payload.text) || "");
+  const response = runtimeInstance.processInput(normalizedText, meta);
   return buildStructuredEngineReply(response, src, meta);
 }
 
@@ -772,11 +627,12 @@ async function reply(input = {}) {
 if (typeof module !== "undefined") {
   module.exports = {
     ChatEngine,
-    BasicEffectEngine,
     handleChat,
     run,
     chat,
     handle,
-    reply
+    reply,
+    extractMarionFields,
+    shouldLockMarionAuthority
   };
 }
