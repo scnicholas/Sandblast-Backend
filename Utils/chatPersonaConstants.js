@@ -3,34 +3,14 @@
 /**
  * utils/chatPersonaConstants.js
  *
- * chatPersonaConstants v1.0.0
+ * chatPersonaConstants v1.1.0
  * ------------------------------------------------------------
  * PURPOSE
- * - Extract persona/tone constants out of chatEngine.js
- * - Keep runtime turn execution lean
- * - Preserve reusable identity/style constants in one place
- * - Provide a stable export surface for optional downstream use
- *
- * 15 PHASE COVERAGE
- * ------------------------------------------------------------
- * Phase 01: Constant isolation
- * Phase 02: Immutable export shaping
- * Phase 03: Latent desire taxonomy
- * Phase 04: Signature transition set
- * Phase 05: Safe string normalization
- * Phase 06: Read-only access helpers
- * Phase 07: Seeded pick helper
- * Phase 08: Optional lookup by key
- * Phase 09: Fail-open fallback values
- * Phase 10: Minimal diagnostics metadata
- * Phase 11: Structural stability
- * Phase 12: No runtime side effects
- * Phase 13: Lightweight reuse surface
- * Phase 14: Version tagging
- * Phase 15: Export hardening
+ * - Keep persona constants separate from ChatEngine runtime
+ * - Preserve optional tone assets without granting decision authority
  */
 
-const CPC_VERSION = "chatPersonaConstants v1.0.0";
+const CPC_VERSION = "chatPersonaConstants v1.1.0";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -96,11 +76,12 @@ function getPersonaStatus() {
     ok: true,
     version: CPC_VERSION,
     latentDesireCount: Object.keys(LATENT_DESIRE).length,
-    signatureTransitionCount: SIGNATURE_TRANSITIONS.length
+    signatureTransitionCount: SIGNATURE_TRANSITIONS.length,
+    decisionAuthority: "marion"
   };
 }
 
-module.exports = {
+module.exports = Object.freeze({
   CPC_VERSION,
   LATENT_DESIRE,
   SIGNATURE_TRANSITIONS,
@@ -110,4 +91,4 @@ module.exports = {
   getSignatureTransitions,
   pickSignatureTransition,
   getPersonaStatus
-};
+});
