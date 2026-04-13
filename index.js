@@ -972,6 +972,63 @@ function repairEngineContract(shaped, marion, norm) {
   };
 }
 
+function getMarionAuthorityReply(marion) {
+  if (!isObj(marion)) return "";
+  return cleanReplyForUser(
+    marion.reply ||
+    marion.text ||
+    marion.output ||
+    marion.answer ||
+    marion.spokenText ||
+    (isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.spokenText || "") : "") ||
+    (isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || "") : "") ||
+    ""
+  );
+}
+
+function shouldLockMarionAuthority(marion) {
+  const reply = getMarionAuthorityReply(marion);
+  if (!reply) return false;
+  if (!isObj(marion)) return false;
+  const ok = marion.ok !== false;
+  return !!ok;
+}
+
+function enforceMarionAuthority(shaped, marion, opts) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const options = isObj(opts) ? opts : {};
+  const marionReply = getMarionAuthorityReply(marion);
+  const hasAuthority = shouldLockMarionAuthority(marion);
+  out.meta = mergeMeta(out.meta, {
+    marionAuthorityCandidate: hasAuthority,
+    marionAuthorityReplyPresent: !!marionReply
+  });
+  if (!hasAuthority) return out;
+
+  const locked = marionReply;
+  const payload = isObj(out.payload) ? { ...out.payload } : {};
+  payload.reply = locked;
+  payload.text = locked;
+  payload.message = locked;
+  payload.spokenText = locked;
+
+  out.ok = out.ok !== false;
+  out.reply = locked;
+  out.text = locked;
+  out.output = locked;
+  out.answer = locked;
+  out.spokenText = locked;
+  out.payload = payload;
+  out.bridge = repairBridgeEnvelope(out.bridge, marion, out.lane || out.laneId || out.sessionLane || options.lane || "general");
+  out.meta = mergeMeta(out.meta, {
+    replyAuthority: "marion_locked",
+    semanticAuthority: "marion",
+    authorityLock: true,
+    marionReplyHash: replyHash(locked)
+  });
+  return out;
+}
+
 async function callChatEngine(input) {
   if (!chatEngineMod) return null;
   try {
@@ -2306,131 +2363,162 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     supportActive = true;
     supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
 
-    const supportReply = buildSafeSupportReply(norm.text, emotion, {
-      traceId: norm.traceId,
-      sessionId,
-      source: "support_override"
-    });
-
     const quietPatch = buildQuietUiPatch("support", true);
     shaped = {
       ...shaped,
       ok: true,
-      reply: supportReply,
-      payload: {
-        ...(isObj(shaped.payload) ? shaped.payload : {}),
-        reply: supportReply,
-        text: supportReply,
-        message: supportReply
-      },
       ui: {
         ...(isObj(shaped.ui) ? shaped.ui : {}),
         ...quietPatch.ui
       },
-      directives: [],
-      followUps: [],
-      followUpsStrings: [],
       sessionPatch: {
         ...(isObj(shaped.sessionPatch) ? shaped.sessionPatch : {}),
         ...(isObj(quietPatch.sessionPatch) ? quietPatch.sessionPatch : {})
       },
-      cog: {
-        ...(isObj(shaped.cog) ? shaped.cog : {}),
-        intent: "STABILIZE",
-        mode: "transitional",
-        publicMode: true
-      },
       meta: mergeMeta(shaped.meta, {
-        supportOverride: true,
+        supportOverride: false,
         supportTriggeredByEmotion: true,
         clearStaleUi: true,
         suppressMenus: true,
-        supportHold: true
+        supportHold: true,
+        supportUiOnly: true
       })
     };
 
-    console.log("[Sandblast][supportOverride]", {
+    console.log("[Sandblast][supportHold]", {
       traceId: norm.traceId,
       sessionId,
       text: norm.text,
       emotion,
       supportTriggered,
-      reply: supportReply
+      marionReplyPresent: !!getMarionAuthorityReply(marion)
     });
   }
 
   if (engineError) {
     failSafe = true;
-    const supportReply = buildSafeSupportReply(norm.text, emotion, {
-      traceId: norm.traceId,
-      sessionId,
-      source: "engine_error"
-    });
+    if (shouldLockMarionAuthority(marion)) {
+      shaped = repairEngineContract(shapeEngineReply({
+        ok: true,
+        reply: getMarionAuthorityReply(marion),
+        payload: { reply: getMarionAuthorityReply(marion) },
+        lane: norm.lane || "general",
+        laneId: norm.lane || "general",
+        sessionLane: norm.lane || "general",
+        bridge: marion || null,
+        ctx: {},
+        ui: {},
+        directives: Array.isArray(marion.followUps) ? [] : [],
+        followUps: Array.isArray(marion.followUps) ? marion.followUps : [],
+        followUpsStrings: Array.isArray(marion.followUpsStrings) ? marion.followUpsStrings : [],
+        sessionPatch: {},
+        cog: { intent: "MARION", mode: "authoritative", publicMode: true },
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          engineVersion: "chatEngine failure contained; marion authority preserved",
+          knowledge: knowledgeRuntime.extract(norm.text, { marion }),
+          clearStaleUi: true,
+          suppressMenus: true,
+          failSafe: true,
+          marionAvailable: true,
+          replyAuthority: "marion_locked",
+          error: cleanText(engineError && engineError.message || engineError || "engine failure")
+        },
+        speech: null
+      }), marion, norm);
+    } else {
+      const supportReply = buildSafeSupportReply(norm.text, emotion, {
+        traceId: norm.traceId,
+        sessionId,
+        source: "engine_error"
+      });
 
-    shaped = {
-      ok: false,
-      reply: supportReply,
-      payload: { reply: supportReply },
-      lane: norm.lane || "general",
-      laneId: norm.lane || "general",
-      sessionLane: norm.lane || "general",
-      bridge: marion || null,
-      ctx: {},
-      ui: {},
-      directives: [],
-      followUps: [],
-      followUpsStrings: [],
-      sessionPatch: {},
-      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-      meta: {
-        v: INDEX_VERSION,
-        t: now(),
-        engineVersion: "chatEngine failure contained",
-        knowledge: knowledgeRuntime.extract(norm.text, { marion }),
-        clearStaleUi: true,
-        suppressMenus: true,
-        failSafe: true,
-        marionAvailable: !!marion,
-        error: cleanText(engineError && engineError.message || engineError || "engine failure")
-      },
-      speech: null
-    };
+      shaped = {
+        ok: false,
+        reply: supportReply,
+        payload: { reply: supportReply },
+        lane: norm.lane || "general",
+        laneId: norm.lane || "general",
+        sessionLane: norm.lane || "general",
+        bridge: marion || null,
+        ctx: {},
+        ui: {},
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch: {},
+        cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          engineVersion: "chatEngine failure contained",
+          knowledge: knowledgeRuntime.extract(norm.text, { marion }),
+          clearStaleUi: true,
+          suppressMenus: true,
+          failSafe: true,
+          marionAvailable: !!marion,
+          error: cleanText(engineError && engineError.message || engineError || "engine failure")
+        },
+        speech: null
+      };
+    }
   }
 
+  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
   let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
   if (!reply) {
-    reply = normalizeSupportReply(buildSafeSupportReply(norm.text, emotion, {
-      traceId: norm.traceId,
-      sessionId,
-      source: "empty_reply"
-    }) || "I am here with you. Talk to me.");
-    shaped.reply = reply;
-    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
-    supportActive = true;
-    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+    if (shouldLockMarionAuthority(marion)) {
+      reply = getMarionAuthorityReply(marion);
+      shaped.reply = reply;
+      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
+      shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+    } else {
+      reply = normalizeSupportReply(buildSafeSupportReply(norm.text, emotion, {
+        traceId: norm.traceId,
+        sessionId,
+        source: "empty_reply"
+      }) || "I am here with you. Talk to me.");
+      shaped.reply = reply;
+      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+      supportActive = true;
+      supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+    }
   }
 
   reply = cleanReplyForUser(reply);
   shaped.reply = reply;
-  shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+  shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: shaped.payload?.text || reply, message: shaped.payload?.message || reply };
+  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
 
   const loop = detectLoop(sessionId, reply, norm.text);
   if (loop.repeated) {
-    failSafe = false;
-    supportActive = true;
-    supportHold = Math.max(supportHold, 1);
-    reply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
-    shaped.reply = reply;
-    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
-    shaped.cog = {
-      ...(isObj(shaped.cog) ? shaped.cog : {}),
-      intent: "STABILIZE",
-      mode: "transitional",
-      publicMode: true
-    };
-    shaped.meta = mergeMeta(shaped.meta, {
-      duplicateReplySuppressed: true
-    });
+    if (shouldLockMarionAuthority(marion)) {
+      shaped.meta = mergeMeta(shaped.meta, {
+        duplicateReplyObserved: true,
+        duplicateReplySuppressed: true,
+        duplicateReplyStrategy: "transport_only"
+      });
+      shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+      reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
+    } else {
+      failSafe = false;
+      supportActive = true;
+      supportHold = Math.max(supportHold, 1);
+      reply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
+      shaped.reply = reply;
+      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
+      shaped.cog = {
+        ...(isObj(shaped.cog) ? shaped.cog : {}),
+        intent: "STABILIZE",
+        mode: "transitional",
+        publicMode: true
+      };
+      shaped.meta = mergeMeta(shaped.meta, {
+        duplicateReplySuppressed: true
+      });
+    }
   }
 
   const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
@@ -2516,16 +2604,28 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     failSafe,
     forceQuiet: suppressMenus
   });
+  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
 
   shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
   shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
   shaped.traceId = cleanText(shaped.traceId || norm.traceId);
 
   setLastTurn(sessionId, {
-    replyHash: replyHash(reply),
+    replyHash: replyHash(cleanText(shaped.reply || reply)),
     userHash: replyHash(norm.text),
-    lane: shaped.lane || norm.lane
+    lane: shaped.lane || norm.lane,
+    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || "")
   });
+
+  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
+  shaped.payload = {
+    ...(isObj(shaped.payload) ? shaped.payload : {}),
+    reply: cleanText(shaped.reply || shaped.payload?.reply || ""),
+    text: cleanText(shaped.reply || shaped.payload?.text || shaped.payload?.reply || ""),
+    message: cleanText(shaped.reply || shaped.payload?.message || shaped.payload?.reply || ""),
+    spokenText: cleanText(shaped.reply || shaped.payload?.spokenText || shaped.payload?.reply || "")
+  };
 
   return res.status(200).json({
     ok: shaped.ok !== false,
