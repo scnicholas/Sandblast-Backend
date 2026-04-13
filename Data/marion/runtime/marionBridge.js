@@ -71,6 +71,7 @@ function _buildConversationState(text = "", previousMemory = {}, existingState =
   const emotionTrend = !previousEmotion ? "initial" : (previousEmotion === currentEmotion ? "stable" : "shifted");
   const unresolvedSignals = _uniqBy([].concat(_safeArray(prevState.unresolvedSignals)).concat(_safeArray(prevMem.unresolvedSignals)).concat(repeatedEmotion ? [currentEmotion] : []).concat(repeatedTopic ? currentTopics.slice(0, 2) : []), (v) => _trim(v));
   const depthLevel = Math.max(1, Math.min(5, _num(prevState.depthLevel || prevMem.depthLevel, 1) + ((repeatedEmotion || repeatedTopic || behavior.repeatQuery) ? 1 : 0)));
+  const prevPatch = _safeObj(prevMem.memoryPatch);
   return {
     lastQuery: _trim(text),
     lastDomain: _trim(domain || prevState.lastDomain || prevMem.domain || "general") || "general",
@@ -88,6 +89,10 @@ function _buildConversationState(text = "", previousMemory = {}, existingState =
     unresolvedSignals: unresolvedSignals.slice(0, 6),
     continuityMode: repeatedEmotion || repeatedTopic || behavior.repeatQuery ? "deepen" : "stabilize",
     threadContinuation: repeatedEmotion || repeatedTopic || behavior.repeatQuery,
+    lastResponseFunction: _trim(prevPatch.lastResponseFunction || prevMem.lastResponseFunction || prevState.lastResponseFunction || ""),
+    arcState: _safeObj(prevPatch.arcState || prevMem.arcState || prevState.arcState),
+    engagementState: _safeObj(prevPatch.engagementState || prevMem.engagementState || prevState.engagementState),
+    relationalStyle: _safeObj(prevPatch.relationalStyle || prevMem.relationalStyle || prevState.relationalStyle),
     updatedAt: Date.now()
   };
 }
@@ -280,6 +285,54 @@ async function retrieveLayer2Signals(input = {}) {
   };
 }
 
+
+function _resolveEngagementProfileForBridge(layer2 = {}, input = {}) {
+  const state = _safeObj(layer2.conversationState);
+  const previousMemory = _safeObj(input.previousMemory);
+  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).engagementState || previousMemory.engagementState);
+  const behavior = _safeObj(layer2.behavior);
+  const messageLength = Math.max(0, _num(behavior.messageLength, 0));
+  const openness = Number(_clamp((previous.openness || 0.35) + (messageLength > 120 ? 0.18 : messageLength > 60 ? 0.09 : 0) + (_safeArray(state.unresolvedSignals).length ? 0.06 : 0), 0, 1).toFixed(3));
+  const volatility = Number(_clamp(_num(behavior.volatility, previous.volatility || 0.2), 0, 1).toFixed(3));
+  const receptivity = Number(_clamp((openness * 0.6) + ((1 - volatility) * 0.4), 0, 1).toFixed(3));
+  const engagementLevel = receptivity >= 0.72 ? "high" : receptivity >= 0.48 ? "medium" : "low";
+  return { engagementLevel, openness, volatility, receptivity, preferredCadence: engagementLevel === "high" ? "deepening" : "tight" };
+}
+
+function _resolveArcStateForBridge(layer2 = {}, escalationProfile = {}, input = {}) {
+  const state = _safeObj(layer2.conversationState);
+  const previousMemory = _safeObj(input.previousMemory);
+  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).arcState || previousMemory.arcState);
+  const topics = _safeArray(state.lastTopics);
+  let stage = "opening";
+  if (_safeObj(escalationProfile).shouldSolve) stage = "resolution";
+  else if (_num(state.depthLevel,1) >= 5) stage = "reframing";
+  else if (_num(state.depthLevel,1) >= 4) stage = "differentiation";
+  else if (_num(state.depthLevel,1) >= 3) stage = "deepening";
+  return {
+    arcType: _trim(previous.arcType || "") || (_safeObj(escalationProfile).shouldSolve ? "problem_solving" : "emotional_processing"),
+    stage,
+    anchorTopic: _trim(topics[0] || previous.anchorTopic || layer2.emotion.primaryEmotion || "general") || "general",
+    anchorPerson: topics.find((t) => ["cait"].includes(_lower(t))) || _trim(previous.anchorPerson || "") || null,
+    tension: Number(_clamp((_num(state.repetitionCount,0) * 0.18) + _num(layer2.emotion.intensity,0), 0, 1).toFixed(3)),
+    resolved: _safeObj(escalationProfile).shouldSolve && _num(state.repetitionCount,0) <= 1,
+    lastShiftAt: Date.now()
+  };
+}
+
+function _resolveRelationalStyleForBridge(layer2 = {}, engagementState = {}, escalationProfile = {}, input = {}) {
+  const previousMemory = _safeObj(input.previousMemory);
+  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).relationalStyle || previousMemory.relationalStyle);
+  return {
+    warmth: Number(_clamp(previous.warmth || (engagementState.engagementLevel === "high" ? 0.76 : 0.62), 0.45, 0.9).toFixed(3)),
+    gravity: Number(_clamp(previous.gravity || (_num(_safeObj(layer2.conversationState).depthLevel,1) * 0.12), 0.35, 0.85).toFixed(3)),
+    directness: Number(_clamp(previous.directness || (_safeObj(escalationProfile).shouldSolve ? 0.72 : 0.56), 0.35, 0.88).toFixed(3)),
+    invitationStyle: engagementState.engagementLevel === "high" ? "soft_magnetic" : "clean_direct",
+    intimacyCeiling: _safeObj(escalationProfile).shouldDeepen ? "measured_warm" : "measured",
+    validationDensity: _num(_safeObj(layer2.conversationState).depthLevel,1) <= 2 ? "light" : "minimal"
+  };
+}
+
 function _resolveEscalationProfileForBridge(layer2 = {}) {
   const state = _safeObj(layer2.conversationState);
   const supportFlags = _safeObj(layer2.supportFlags);
@@ -365,9 +418,12 @@ async function processWithMarion(input = {}) {
   const privateChannel = typeof resolvePrivateChannel === "function" ? resolvePrivateChannel({ trustState, relationship: relationshipState, mode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { active: false, mode: "relay_to_nyx", target: "nyx" };
   const consciousness = typeof buildConsciousnessContext === "function" ? buildConsciousnessContext({ identity: identityState, relationship: relationshipState, trustState, memorySignals }) : { trustState, memorySignals };
   const escalationProfile = _resolveEscalationProfileForBridge(layer2);
+  const engagementState = _resolveEngagementProfileForBridge(layer2, input);
+  const arcState = _resolveArcStateForBridge(layer2, escalationProfile, input);
+  const relationalStyle = _resolveRelationalStyleForBridge(layer2, engagementState, escalationProfile, input);
   continuityState.responseMode = escalationProfile.mode;
   const contract = typeof composeMarionResponse === "function"
-    ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, previousMemory: input.previousMemory || {} })
+    ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} })
     : { interpretation: FALLBACK_REPLY, supportMode: "clarify_and_sequence", responsePlan: { pacing: "steady", followupStyle: "reflective" }, nyxDirective: { followupStyle: "reflective", pacing: "steady", responseLength: "medium" }, supportFlags: layer2.supportFlags };
 
   const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile);
@@ -386,7 +442,10 @@ async function processWithMarion(input = {}) {
     depthLevel: layer2.conversationState.depthLevel,
     unresolvedSignals: layer2.conversationState.unresolvedSignals,
     escalationProfile,
-    behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits },
+    arcState,
+    engagementState,
+    relationalStyle,
+    behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits, messageLength: layer2.behavior.messageLength },
     repeatQueryStreak: layer2.behavior.repeatQueryStreak,
     updatedAt: Date.now(),
     trustTier: trustState.tier,
@@ -403,7 +462,9 @@ async function processWithMarion(input = {}) {
       ..._safeObj(contract.diagnostics),
       authoritativeReplySource: authoritativeReply.source,
       blockedLegacyReplySources: authoritativeReply.blockedSources,
-      marionSingleSourceOfTruth: true
+      marionSingleSourceOfTruth: true,
+      arcStage: _trim(_safeObj(arcState).stage || ""),
+      engagementLevel: _trim(_safeObj(engagementState).engagementLevel || "")
     }
   };
 
