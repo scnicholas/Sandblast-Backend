@@ -270,6 +270,51 @@ function _applyRelationalPhrasing(reply = "", relationalStyle = {}, engagementSt
   return opener ? `${opener} ${base}` : base;
 }
 
+function _isMetaResponse(reply = "") {
+  const text = _lower(reply).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  const patterns = [
+    "i'm following the thread",
+    "i am following the thread",
+    "push the next layer",
+    "continue the thread",
+    "stay with the thread",
+    "not starting cold",
+    "next layer instead of",
+    "restating the surface",
+    "expand on that a bit",
+    "so push the next layer"
+  ];
+  return patterns.some((pattern) => text.includes(pattern));
+}
+
+function _rewriteMetaToHuman(reply = "", primaryEmotion = "", conversationState = {}) {
+  const emo = _normalizeEmotionAlias(primaryEmotion || _safeObj(conversationState).currentEmotion || "");
+  if (emo === "sadness") {
+    return "You do not have to push anything forward right now. Just tell me what part of this is still sitting with you.";
+  }
+  if (emo === "fear") {
+    return "Let us slow this down for a second. What feels like it is pressing on you the most right now?";
+  }
+  if (emo === "anger") {
+    return "Something here clearly is not sitting right. What part of it is actually crossing the line for you?";
+  }
+  return "Stay with me here. What feels most real in this for you right now?";
+}
+
+function _humanizeMetaReply(reply = "", primaryEmotion = "", conversationState = {}, relationalStyle = {}, engagementState = {}, arcState = {}) {
+  const cleaned = _trim(reply);
+  if (!cleaned) return "";
+  if (!_isMetaResponse(cleaned)) return cleaned;
+  return _applyRelationalPhrasing(
+    _rewriteMetaToHuman(cleaned, primaryEmotion, conversationState),
+    relationalStyle,
+    engagementState,
+    arcState
+  );
+}
+
+
 function _normalizeEmotionAlias(value = "") {
   const emo = _lower(value);
   if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken"].includes(emo)) return "sadness";
@@ -491,23 +536,30 @@ function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarif
 function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}, relationalStyle = {}) {
   const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, { ...input, arcState, engagementState });
   const generatedBase = _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile, arcState, engagementState);
-  const generated = _applyRelationalPhrasing(generatedBase, relationalStyle, engagementState, arcState);
+  const generated = _humanizeMetaReply(
+    _applyRelationalPhrasing(generatedBase, relationalStyle, engagementState, arcState),
+    primaryEmotion,
+    conversationState,
+    relationalStyle,
+    engagementState,
+    arcState
+  );
   if (_safeObj(escalationProfile).shouldDeepen) {
-    return { reply: generated, source: "forced_escalation_override", selectedFunction, authority: "marion" };
+    return { reply: generated, source: _isMetaResponse(generatedBase) ? "forced_meta_rewrite" : "forced_escalation_override", selectedFunction, authority: "marion" };
   }
   const assistantDraft = _trim(_safeObj(input).assistantDraft);
   if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: assistantDraft, source: "assistantDraft", selectedFunction, authority: "external_override" };
+    return { reply: _humanizeMetaReply(assistantDraft, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "assistantDraft", selectedFunction, authority: "external_override" };
   }
   const inputReply = _trim(_safeObj(input).reply);
   if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: inputReply, source: "input.reply", selectedFunction, authority: "external_override" };
+    return { reply: _humanizeMetaReply(inputReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "input.reply", selectedFunction, authority: "external_override" };
   }
   const routedReply = _trim(_safeObj(routed).reply);
   if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: routedReply, source: "routed.reply", selectedFunction, authority: "external_override" };
+    return { reply: _humanizeMetaReply(routedReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "routed.reply", selectedFunction, authority: "external_override" };
   }
-  return { reply: generated, source: "marion_generated", selectedFunction, authority: "marion" };
+  return { reply: _humanizeMetaReply(generated, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "marion_generated", selectedFunction, authority: "marion" };
 }
 
 function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
