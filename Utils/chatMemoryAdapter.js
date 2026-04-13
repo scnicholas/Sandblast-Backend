@@ -3,39 +3,18 @@
 /**
  * utils/chatMemoryAdapter.js
  *
- * chatMemoryAdapter v1.0.0
+ * chatMemoryAdapter v1.1.0
  * ------------------------------------------------------------
  * PURPOSE
- * - Extract MemorySpine plumbing out of chatEngine.js
- * - Keep memory operations fail-open
- * - Provide one clean adapter surface for:
- *   - buildMemoryContext(sessionId)
- *   - storeMemoryTurn(sessionId, turn)
- * - Preserve structural integrity even if MemorySpine is missing
- *
- * 15 PHASE COVERAGE
- * ------------------------------------------------------------
- * Phase 01: Safe dependency loading
- * Phase 02: Session id normalization
- * Phase 03: Turn payload normalization
- * Phase 04: Context build delegation
- * Phase 05: Turn storage delegation
- * Phase 06: Memory disable fail-open
- * Phase 07: Oversize string trimming
- * Phase 08: Safe object coercion
- * Phase 09: Timestamp normalization
- * Phase 10: Emotion packet normalization
- * Phase 11: Lane normalization
- * Phase 12: Assistant/user text shaping
- * Phase 13: Defensive return contracts
- * Phase 14: Diagnostics metadata
- * Phase 15: Stable export surface
+ * - Keep memory plumbing outside chatEngine.js
+ * - Preserve fail-open behavior when MemorySpine is absent
+ * - Normalize session and turn packets for Marion-safe continuity only
  */
 
 let MemorySpine = null;
 try { MemorySpine = require("./memorySpine"); } catch (_e) { MemorySpine = null; }
 
-const CMA_VERSION = "chatMemoryAdapter v1.0.0";
+const CMA_VERSION = "chatMemoryAdapter v1.1.0";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -96,6 +75,8 @@ function normalizeTurn(turn) {
     emotion: normalizeEmotion(t.emotion),
     requestId: oneLine(t.requestId || "").slice(0, 100),
     traceId: oneLine(t.traceId || "").slice(0, 100),
+    replyAuthority: oneLine(t.replyAuthority || "").slice(0, 40),
+    decisionAuthority: "marion",
     meta: isPlainObject(t.meta) ? t.meta : {}
   };
 }
@@ -113,36 +94,95 @@ function isMemoryAvailable() {
 function buildMemoryContext(sessionId) {
   const sid = normalizeSessionId(sessionId);
   if (!sid) return null;
-  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") return null;
+  if (!MemorySpine || typeof MemorySpine.buildContext !== "function") {
+    return {
+      ok: true,
+      version: CMA_VERSION,
+      sessionId: sid,
+      available: false,
+      failedOpen: true,
+      memoryThread: "",
+      references: []
+    };
+  }
 
   try {
     const out = MemorySpine.buildContext(sid);
-    return isPlainObject(out) || Array.isArray(out) ? out : null;
+    if (isPlainObject(out)) {
+      return {
+        ...out,
+        version: CMA_VERSION,
+        sessionId: sid,
+        available: true
+      };
+    }
+    return {
+      ok: true,
+      version: CMA_VERSION,
+      sessionId: sid,
+      available: true,
+      raw: out
+    };
   } catch (_e) {
-    return null;
+    return {
+      ok: true,
+      version: CMA_VERSION,
+      sessionId: sid,
+      available: false,
+      failedOpen: true,
+      memoryThread: "",
+      references: []
+    };
   }
 }
 
 function storeMemoryTurn(sessionId, turn) {
   const sid = normalizeSessionId(sessionId);
-  if (!sid) return false;
-  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") return false;
+  const normalizedTurn = normalizeTurn(turn);
 
-  const normalized = normalizeTurn(turn);
+  if (!sid) {
+    return {
+      ok: false,
+      version: CMA_VERSION,
+      stored: false,
+      reason: "missing_session_id",
+      turn: normalizedTurn
+    };
+  }
+
+  if (!MemorySpine || typeof MemorySpine.storeTurn !== "function") {
+    return {
+      ok: true,
+      version: CMA_VERSION,
+      stored: false,
+      failedOpen: true,
+      sessionId: sid,
+      turn: normalizedTurn
+    };
+  }
 
   try {
-    MemorySpine.storeTurn(sid, normalized);
-    return true;
+    const out = MemorySpine.storeTurn(sid, normalizedTurn);
+    return isPlainObject(out)
+      ? { ...out, version: CMA_VERSION, sessionId: sid, turn: normalizedTurn }
+      : { ok: true, version: CMA_VERSION, stored: true, sessionId: sid, turn: normalizedTurn, raw: out };
   } catch (_e) {
-    return false;
+    return {
+      ok: true,
+      version: CMA_VERSION,
+      stored: false,
+      failedOpen: true,
+      sessionId: sid,
+      turn: normalizedTurn
+    };
   }
 }
 
 function getMemoryStatus() {
   return {
-    ok: isMemoryAvailable(),
+    ok: true,
     version: CMA_VERSION,
-    memorySpineLoaded: !!MemorySpine,
+    memoryLoaded: !!MemorySpine,
     canBuildContext: !!(MemorySpine && typeof MemorySpine.buildContext === "function"),
     canStoreTurn: !!(MemorySpine && typeof MemorySpine.storeTurn === "function")
   };
@@ -152,7 +192,9 @@ module.exports = {
   CMA_VERSION,
   buildMemoryContext,
   storeMemoryTurn,
-  normalizeTurn,
   normalizeSessionId,
+  normalizeEmotion,
+  normalizeTurn,
+  isMemoryAvailable,
   getMemoryStatus
 };
