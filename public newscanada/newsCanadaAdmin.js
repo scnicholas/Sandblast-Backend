@@ -1,9 +1,12 @@
 (function () {
   "use strict";
 
-  const SAVE_URL = "https://sandblast-backend.onrender.com/api/newscanada/manual/save";
-  const CLEAR_URL = "https://sandblast-backend.onrender.com/api/newscanada/manual/clear";
-  const LOAD_URL = "https://sandblast-backend.onrender.com/api/newscanada/manual";
+  const MANUAL_BASE = "https://sandblast-backend.onrender.com/api/newscanada/manual";
+  const RSS_CANDIDATE_URLS = [
+    "https://sandblast-backend.onrender.com/api/newscanada/rss",
+    "https://sandblast-backend.onrender.com/api/news-canada",
+    "https://sandblast-backend.onrender.com/api/newscanada/feed"
+  ];
 
   const SLOT_OPTIONS = [
     { value: "editors_pick", label: "Editor's Pick" },
@@ -35,6 +38,7 @@
   };
 
   let currentSlots = {};
+  let rssItems = [];
 
   function qs(selector, scope) {
     return (scope || document).querySelector(selector);
@@ -56,20 +60,110 @@
     return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
   }
 
-  async function loadSlots() {
-    const res = await fetch(LOAD_URL, {
-      method: "GET",
-      cache: "no-store",
-      headers: { "Accept": "application/json" }
-    });
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
-    if (!res.ok) {
-      throw new Error("Failed to load slots");
+  async function request(url, options) {
+    const res = await fetch(url, Object.assign({
+      cache: "no-store",
+      headers: {
+        "Accept": "application/json"
+      }
+    }, options || {}));
+
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch (_) {
+      payload = null;
     }
 
-    const payload = await res.json();
+    if (!res.ok) {
+      const message = payload && (payload.error || payload.message) ? (payload.error || payload.message) : ("Request failed: " + res.status);
+      throw new Error(message);
+    }
+
+    return payload || {};
+  }
+
+  function formatPublishedAt(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return clean(value);
+    return d.toLocaleString();
+  }
+
+  function normalizeRssItem(item, index) {
+    const title = clean(item.title || item.headline);
+    const description = clean(item.description || item.summary || item.contentSnippet || "");
+    const body = clean(item.body || item.content || item.contentSnippet || item.summary || "");
+    const link = clean(item.link || item.sourceUrl || item.guid || "");
+    const imageUrl = clean(
+      item.imageUrl ||
+      item.image ||
+      (item.enclosure && item.enclosure.url) ||
+      ""
+    );
+
+    return {
+      id: clean(item.id || item.guid || link || ("rss-" + index)),
+      headline: title,
+      summary: description,
+      body: body,
+      imageUrl: imageUrl,
+      imageAlt: clean(item.imageAlt || title || "News Canada story image"),
+      category: clean(item.category || item.categories && item.categories[0] || "News Canada"),
+      publishedAt: formatPublishedAt(item.publishedAt || item.pubDate || item.isoDate || ""),
+      sourceName: clean(item.sourceName || item.source || "News Canada"),
+      sourceUrl: link,
+      ctaText: clean(item.ctaText || "Read full story"),
+      chipLabel: clean(item.chipLabel || item.source || "News Canada"),
+      isActive: true,
+      origin: "rss"
+    };
+  }
+
+  async function loadSlots() {
+    const payload = await request(MANUAL_BASE, { method: "GET" });
     currentSlots = payload.slots || {};
     return currentSlots;
+  }
+
+  async function loadRssItems() {
+    let lastError = null;
+
+    for (let i = 0; i < RSS_CANDIDATE_URLS.length; i += 1) {
+      const url = RSS_CANDIDATE_URLS[i];
+
+      try {
+        const payload = await request(url, { method: "GET" });
+        const rawItems = Array.isArray(payload.items)
+          ? payload.items
+          : Array.isArray(payload.stories)
+            ? payload.stories
+            : Array.isArray(payload.feed)
+              ? payload.feed
+              : [];
+
+        rssItems = rawItems.map(normalizeRssItem).filter(function (item) {
+          return item.headline;
+        });
+
+        return rssItems;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    console.warn("[newsCanadaAdmin] RSS load failed:", lastError ? lastError.message : "No RSS endpoint available");
+    rssItems = [];
+    return rssItems;
   }
 
   function updateImagePreview() {
@@ -84,7 +178,7 @@
       return;
     }
 
-    preview.innerHTML = `<img src="${imageUrl}" alt="Story preview image">`;
+    preview.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="Story preview image">';
   }
 
   function fillForm(story) {
@@ -102,7 +196,7 @@
     qs(SELECTORS.sourceName, form).value = story.sourceName || "News Canada";
     qs(SELECTORS.sourceUrl, form).value = story.sourceUrl || "";
     qs(SELECTORS.ctaText, form).value = story.ctaText || "See more stories at sandblastchannel.com";
-    qs(SELECTORS.isActive, form).checked = Boolean(story.isActive);
+    qs(SELECTORS.isActive, form).checked = story.isActive !== false;
 
     updateImagePreview();
   }
@@ -129,7 +223,7 @@
   async function saveStory() {
     const payload = serializeForm();
 
-    const res = await fetch(SAVE_URL, {
+    const result = await request(MANUAL_BASE + "/save", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -138,9 +232,7 @@
       body: JSON.stringify(payload)
     });
 
-    const result = await res.json();
-
-    if (!res.ok || !result.ok) {
+    if (!result.ok) {
       throw new Error(result.error || "Save failed");
     }
 
@@ -161,18 +253,16 @@
       throw new Error("Select a slot first");
     }
 
-    const res = await fetch(CLEAR_URL, {
+    const result = await request(MANUAL_BASE + "/clear", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: JSON.stringify({ slotId })
+      body: JSON.stringify({ slotId: slotId })
     });
 
-    const result = await res.json();
-
-    if (!res.ok || !result.ok) {
+    if (!result.ok) {
       throw new Error(result.error || "Clear failed");
     }
 
@@ -182,6 +272,19 @@
     if (window.SandblastNewsCanadaWidget && typeof window.SandblastNewsCanadaWidget.refresh === "function") {
       window.SandblastNewsCanadaWidget.refresh();
     }
+  }
+
+  function importLatestRssStoryIntoForm() {
+    if (!rssItems.length) {
+      alert("No RSS stories are currently available.");
+      return;
+    }
+
+    const currentSlotId = clean(qs(SELECTORS.slotId, getForm()).value);
+    const sourceStory = rssItems[0];
+    fillForm(Object.assign({}, sourceStory, {
+      id: currentSlotId || sourceStory.id
+    }));
   }
 
   function openModal(slotId) {
@@ -218,7 +321,7 @@
       button.addEventListener("click", async function () {
         const slotId = button.getAttribute("data-slot-id") || "";
         try {
-          await loadSlots();
+          await Promise.all([loadSlots(), loadRssItems()]);
           openModal(slotId);
         } catch (err) {
           console.error("[newsCanadaAdmin] open failed:", err);
@@ -266,6 +369,28 @@
         }
       });
     }
+
+    if (!qs('[data-news-canada-import-rss]', form)) {
+      const importButton = document.createElement("button");
+      importButton.type = "button";
+      importButton.setAttribute("data-news-canada-import-rss", "true");
+      importButton.className = "nc-admin-import-rss";
+      importButton.textContent = "Import latest RSS story";
+      importButton.addEventListener("click", async function (event) {
+        event.preventDefault();
+        try {
+          if (!rssItems.length) {
+            await loadRssItems();
+          }
+          importLatestRssStoryIntoForm();
+        } catch (err) {
+          alert(err.message || "RSS import failed");
+        }
+      });
+
+      const controlsAnchor = clearButton && clearButton.parentNode ? clearButton.parentNode : form;
+      controlsAnchor.appendChild(importButton);
+    }
   }
 
   function populateSlotSelect() {
@@ -290,17 +415,22 @@
     bindFormEvents();
 
     try {
-      await loadSlots();
+      await Promise.all([loadSlots(), loadRssItems()]);
     } catch (err) {
       console.error("[newsCanadaAdmin] init failed:", err);
     }
   }
 
   window.SandblastNewsCanadaAdmin = {
-    init,
+    init: init,
     open: openModal,
     close: closeModal,
-    reload: loadSlots
+    reload: loadSlots,
+    reloadRss: loadRssItems,
+    getRssItems: function () {
+      return rssItems.slice();
+    },
+    importLatestRssStoryIntoForm: importLatestRssStoryIntoForm
   };
 
   document.addEventListener("DOMContentLoaded", init);
