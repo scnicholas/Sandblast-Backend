@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.16.0sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-SERVICE-MODULARIZED + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.16.0sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -359,6 +359,30 @@ const newsCanadaFeedServiceMod = tryRequireMany([
   "./Utils/newsCanadaFeedService",
   "./Utils/newsCanadaFeedService.js"
 ]);
+
+
+const newsCanadaRoutesMod = tryRequireMany([
+  "./routes/newscanada.routes",
+  "./routes/newscanada.routes.js",
+  "./routes/manualNewsCanadaRoutes",
+  "./routes/manualNewsCanadaRoutes.js",
+  "./routes/newscanadaRoutes",
+  "./routes/newscanadaRoutes.js"
+]);
+
+function resolveExpressRouterFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod === "function" && typeof mod.use === "function") return mod;
+  if (mod.default && typeof mod.default === "function" && typeof mod.default.use === "function") return mod.default;
+  if (mod.router && typeof mod.router === "function" && typeof mod.router.use === "function") return mod.router;
+  if (typeof mod.createRouter === "function") {
+    try {
+      const built = mod.createRouter();
+      if (built && typeof built.use === "function") return built;
+    } catch (_) {}
+  }
+  return null;
+}
 
 const marionBridgeMod = tryRequireMany([
 
@@ -2688,6 +2712,24 @@ console.log("[Sandblast][newsCanada] rss_service_ready", {
     story: "/api/newscanada/story"
   }
 });
+
+
+const newsCanadaRoutes = resolveExpressRouterFromModule(newsCanadaRoutesMod);
+if (newsCanadaRoutes) {
+  app.use("/api/newscanada", newsCanadaRoutes);
+  app.use("/newscanada", newsCanadaRoutes);
+  console.log("[Sandblast][newsCanada] manual_rss_routes_mounted", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    router: true
+  });
+} else {
+  console.log("[Sandblast][newsCanada] manual_rss_routes_unavailable", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    router: false
+  });
+}
 
 app.use("/api", (req, res) => {
   applyCors(req, res);
