@@ -30,9 +30,28 @@
     return qs(SELECTORS.modal);
   }
 
+  function normalizeStory(story) {
+    if (!story) return null;
+
+    return {
+      imageUrl: story.imageUrl || story.image || "",
+      imageAlt: story.imageAlt || story.title || story.headline || "Story image",
+      chipLabel: story.chipLabel || story.sourceName || story.source || "News Canada",
+      headline: story.headline || story.title || "",
+      summary: story.summary || story.description || "",
+      body: story.body || story.content || story.description || "",
+      category: story.category || "",
+      publishedAt: story.publishedAt || story.pubDate || story.isoDate || "",
+      sourceUrl: story.sourceUrl || story.link || "",
+      ctaText: story.ctaText || "Read full story"
+    };
+  }
+
   function open(story) {
     const modal = getModal();
-    if (!modal || !story) return;
+    const normalized = normalizeStory(story);
+
+    if (!modal || !normalized) return;
 
     const imageEl = qs(SELECTORS.image, modal);
     const chipEl = qs(SELECTORS.chip, modal);
@@ -43,28 +62,28 @@
     const ctaEl = qs(SELECTORS.cta, modal);
 
     if (imageEl) {
-      imageEl.innerHTML = story.imageUrl
-        ? `<img src="${escapeHtml(story.imageUrl)}" alt="${escapeHtml(story.imageAlt || story.headline || "Story image")}">`
-        : `<div class="nc-modal-image-placeholder">No Image</div>`;
+      imageEl.innerHTML = normalized.imageUrl
+        ? '<img src="' + escapeHtml(normalized.imageUrl) + '" alt="' + escapeHtml(normalized.imageAlt) + '">'
+        : '<div class="nc-modal-image-placeholder">No Image</div>';
     }
 
-    if (chipEl) chipEl.textContent = story.chipLabel || "News Canada";
-    if (titleEl) titleEl.textContent = story.headline || "";
-    if (summaryEl) summaryEl.textContent = story.summary || "";
-    if (bodyEl) bodyEl.textContent = story.body || "";
+    if (chipEl) chipEl.textContent = normalized.chipLabel;
+    if (titleEl) titleEl.textContent = normalized.headline;
+    if (summaryEl) summaryEl.textContent = normalized.summary;
+    if (bodyEl) bodyEl.textContent = normalized.body;
 
     if (metaEl) {
       const parts = [];
-      if (story.category) parts.push(story.category);
-      if (story.publishedAt) parts.push(story.publishedAt);
+      if (normalized.category) parts.push(normalized.category);
+      if (normalized.publishedAt) parts.push(normalized.publishedAt);
       metaEl.textContent = parts.join(" • ");
     }
 
     if (ctaEl) {
-      if (story.sourceUrl) {
-        ctaEl.innerHTML = `<a href="${escapeHtml(story.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(story.ctaText || "See more stories at sandblastchannel.com")}</a>`;
+      if (normalized.sourceUrl) {
+        ctaEl.innerHTML = '<a href="' + escapeHtml(normalized.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(normalized.ctaText) + '</a>';
       } else {
-        ctaEl.textContent = story.ctaText || "See more stories at sandblastchannel.com";
+        ctaEl.textContent = normalized.ctaText;
       }
     }
 
@@ -88,9 +107,9 @@
   }
 
   window.SandblastNewsCanadaModal = {
-    init,
-    open,
-    close
+    init: init,
+    open: open,
+    close: close
   };
 
   document.addEventListener("DOMContentLoaded", init);
