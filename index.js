@@ -458,19 +458,148 @@ const knowledgeRuntime = {
   }
 };
 
-const createNewsCanadaFeedService = (
-  newsCanadaFeedServiceMod &&
-  typeof newsCanadaFeedServiceMod.createNewsCanadaFeedService === "function"
-)
-  ? newsCanadaFeedServiceMod.createNewsCanadaFeedService
-  : null;
+function normalizeNewsCanadaFeedService(mod) {
+  if (!mod) return null;
 
-const newsCanadaFeedService = createNewsCanadaFeedService
-  ? createNewsCanadaFeedService({
-      fetchImpl: typeof fetch === "function" ? fetch.bind(globalThis) : null,
-      logger: (...args) => console.log(...args)
-    })
-  : null;
+  const logger = (...args) => console.log(...args);
+  const factoryOptions = {
+    fetchImpl: typeof fetch === "function" ? fetch.bind(globalThis) : null,
+    logger
+  };
+
+  try {
+    if (typeof mod.createNewsCanadaFeedService === "function") {
+      const built = mod.createNewsCanadaFeedService(factoryOptions);
+      if (built) return built;
+    }
+
+    if (mod.default && typeof mod.default.createNewsCanadaFeedService === "function") {
+      const built = mod.default.createNewsCanadaFeedService(factoryOptions);
+      if (built) return built;
+    }
+
+    if (
+      typeof mod.fetchRSS === "function" ||
+      typeof mod.getEditorsPicks === "function" ||
+      typeof mod.getStory === "function"
+    ) {
+      const directService = {
+        fetchRSS: typeof mod.fetchRSS === "function" ? mod.fetchRSS.bind(mod) : null,
+        getEditorsPicks: typeof mod.getEditorsPicks === "function" ? mod.getEditorsPicks.bind(mod) : null,
+        getStory: typeof mod.getStory === "function" ? mod.getStory.bind(mod) : null,
+        prime: typeof mod.prime === "function" ? mod.prime.bind(mod) : null,
+        health: typeof mod.health === "function" ? mod.health.bind(mod) : null
+      };
+
+      if (!directService.fetchRSS && typeof mod.default?.fetchRSS === "function") {
+        directService.fetchRSS = mod.default.fetchRSS.bind(mod.default);
+      }
+      if (!directService.getEditorsPicks && typeof mod.default?.getEditorsPicks === "function") {
+        directService.getEditorsPicks = mod.default.getEditorsPicks.bind(mod.default);
+      }
+      if (!directService.getStory && typeof mod.default?.getStory === "function") {
+        directService.getStory = mod.default.getStory.bind(mod.default);
+      }
+      if (!directService.prime && typeof mod.default?.prime === "function") {
+        directService.prime = mod.default.prime.bind(mod.default);
+      }
+      if (!directService.health && typeof mod.default?.health === "function") {
+        directService.health = mod.default.health.bind(mod.default);
+      }
+
+      if (!directService.getEditorsPicks && directService.fetchRSS) {
+        directService.getEditorsPicks = async function getEditorsPicksFallback(opts = {}) {
+          const rss = await directService.fetchRSS(opts);
+          const stories = Array.isArray(rss && (rss.stories || rss.items))
+            ? (rss.stories || rss.items)
+            : [];
+          return {
+            ok: rss && rss.ok !== false,
+            stories,
+            slides: stories,
+            chips: [],
+            meta: {
+              source: cleanText(rss && rss.meta && rss.meta.source || "rss_service") || "rss_service",
+              feedUrl: cleanText(rss && rss.meta && rss.meta.feedUrl || process.env.NEWS_CANADA_FEED_URL || process.env.NEWS_CANADA_RSS_FEED_URL || process.env.SB_NEWSCANADA_RSS_FEED_URL || ""),
+              fetchedAt: Number(rss && rss.meta && rss.meta.fetchedAt || now()),
+              storyCount: stories.length,
+              degraded: !!(rss && rss.meta && rss.meta.degraded),
+              mode: cleanText(rss && rss.meta && rss.meta.mode || "rss") || "rss"
+            }
+          };
+        };
+      }
+
+      if (!directService.getStory && directService.getEditorsPicks) {
+        directService.getStory = async function getStoryFallback(lookup, opts = {}) {
+          const result = await directService.getEditorsPicks(opts);
+          const key = cleanText(lookup).toLowerCase();
+          const stories = Array.isArray(result && result.stories) ? result.stories : [];
+          const story = stories.find((item) => {
+            return [
+              cleanText(item && item.id).toLowerCase(),
+              cleanText(item && item.slug).toLowerCase(),
+              cleanText(item && item.title).toLowerCase(),
+              cleanText(item && (item.url || item.link)).toLowerCase()
+            ].includes(key);
+          });
+
+          if (!story) {
+            return {
+              ok: false,
+              error: "story_not_found",
+              meta: {
+                source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
+                degraded: !!(result && result.meta && result.meta.degraded)
+              }
+            };
+          }
+
+          return {
+            ok: true,
+            story,
+            meta: {
+              source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
+              degraded: !!(result && result.meta && result.meta.degraded)
+            }
+          };
+        };
+      }
+
+      if (!directService.prime && directService.fetchRSS) {
+        directService.prime = async function primeFallback() {
+          try {
+            await directService.fetchRSS({ refresh: true });
+            return { ok: true };
+          } catch (err) {
+            logger("[Sandblast][newscanada:primeFallback:error]", err && (err.stack || err.message || err));
+            return { ok: false, error: cleanText(err && (err.message || err)) || "prime_failed" };
+          }
+        };
+      }
+
+      if (!directService.health) {
+        directService.health = async function healthFallback() {
+          return {
+            ok: true,
+            source: "rss_service",
+            degraded: false
+          };
+        };
+      }
+
+      if (directService.fetchRSS || directService.getEditorsPicks || directService.getStory) {
+        return directService;
+      }
+    }
+  } catch (err) {
+    logger("[Sandblast][newscanada:serviceNormalize:error]", err && (err.stack || err.message || err));
+  }
+
+  return null;
+}
+
+const newsCanadaFeedService = normalizeNewsCanadaFeedService(newsCanadaFeedServiceMod);
 
 const memory = {
   lastBySession: new Map(),
