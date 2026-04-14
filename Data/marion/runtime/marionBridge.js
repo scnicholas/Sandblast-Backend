@@ -34,11 +34,14 @@ try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { eval
 try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
 try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
 
-const VERSION = "marionBridge v5.2.0 DEEP-CONTINUITY-CONSCIOUSNESS-SPINE";
+const VERSION = "marionBridge v5.4.0 NEWS-CANADA-STRUCTURED-CONTENT-PRESERVE";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
+const NEWS_FALLBACK_REPLY = "Here is the News Canada handoff, preserved for page rendering.";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const MAX_EVIDENCE = 16;
 const MAX_RANKED_EVIDENCE = 8;
+const STRICT_REJECTION_STATUS = "bridge_rejected";
+const STRICT_REJECTION_REPLY = "Bridge rejected malformed Marion output before Nyx handoff.";
 
 function _safeObj(v) { return !!v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
@@ -46,9 +49,123 @@ function _trim(v) { return v == null ? "" : String(v).trim(); }
 function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp01(v, d = 0) { return Math.max(0, Math.min(1, _num(v, d))); }
+function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return mod[name]; if (mod && typeof mod.retrieve === "function") return mod.retrieve; if (typeof mod === "function") return mod; return null; }
 function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
 function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
+
+function _firstNonEmpty(...values) {
+  for (const value of values) {
+    const s = _trim(value);
+    if (s) return s;
+  }
+  return "";
+}
+
+function _extractRenderableContent(source = {}) {
+  const src = _safeObj(source);
+  const payload = _safeObj(src.payload);
+  const synthesis = _safeObj(src.synthesis);
+  const content = {
+    newsItems: _safeArray(src.newsItems).concat(_safeArray(payload.newsItems)).concat(_safeArray(synthesis.newsItems)),
+    stories: _safeArray(src.stories).concat(_safeArray(payload.stories)).concat(_safeArray(synthesis.stories)),
+    articles: _safeArray(src.articles).concat(_safeArray(payload.articles)).concat(_safeArray(synthesis.articles)),
+    cards: _safeArray(src.cards).concat(_safeArray(payload.cards)).concat(_safeArray(synthesis.cards)),
+    carouselItems: _safeArray(src.carouselItems).concat(_safeArray(payload.carouselItems)).concat(_safeArray(synthesis.carouselItems)),
+    contentBlocks: _safeArray(src.contentBlocks).concat(_safeArray(payload.contentBlocks)).concat(_safeArray(synthesis.contentBlocks)),
+    sections: _safeArray(src.sections).concat(_safeArray(payload.sections)).concat(_safeArray(synthesis.sections)),
+    pageData: _safeObj(src.pageData),
+    page: _safeObj(src.page),
+    newsPage: _safeObj(src.newsPage),
+    render: _safeObj(src.render)
+  };
+  return content;
+}
+
+function _hasStructuredRenderableContent(source = {}) {
+  const content = _extractRenderableContent(source);
+  return !!(
+    content.newsItems.length ||
+    content.stories.length ||
+    content.articles.length ||
+    content.cards.length ||
+    content.carouselItems.length ||
+    content.contentBlocks.length ||
+    content.sections.length ||
+    Object.keys(content.pageData).length ||
+    Object.keys(content.page).length ||
+    Object.keys(content.newsPage).length ||
+    Object.keys(content.render).length
+  );
+}
+
+function _mergeRenderableContent(...sources) {
+  const merged = {
+    newsItems: [],
+    stories: [],
+    articles: [],
+    cards: [],
+    carouselItems: [],
+    contentBlocks: [],
+    sections: [],
+    pageData: {},
+    page: {},
+    newsPage: {},
+    render: {}
+  };
+  for (const source of sources) {
+    const content = _extractRenderableContent(source);
+    merged.newsItems = merged.newsItems.concat(content.newsItems);
+    merged.stories = merged.stories.concat(content.stories);
+    merged.articles = merged.articles.concat(content.articles);
+    merged.cards = merged.cards.concat(content.cards);
+    merged.carouselItems = merged.carouselItems.concat(content.carouselItems);
+    merged.contentBlocks = merged.contentBlocks.concat(content.contentBlocks);
+    merged.sections = merged.sections.concat(content.sections);
+    merged.pageData = { ...merged.pageData, ...content.pageData };
+    merged.page = { ...merged.page, ...content.page };
+    merged.newsPage = { ...merged.newsPage, ...content.newsPage };
+    merged.render = { ...merged.render, ...content.render };
+  }
+  merged.newsItems = _uniqBy(merged.newsItems, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
+  merged.stories = _uniqBy(merged.stories, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
+  merged.articles = _uniqBy(merged.articles, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
+  merged.cards = _uniqBy(merged.cards, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
+  merged.carouselItems = _uniqBy(merged.carouselItems, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
+  merged.contentBlocks = _uniqBy(merged.contentBlocks, (item) => _trim(_safeObj(item).id || _safeObj(item).key || _safeObj(item).title || JSON.stringify(item)));
+  merged.sections = _uniqBy(merged.sections, (item) => _trim(_safeObj(item).id || _safeObj(item).key || _safeObj(item).title || JSON.stringify(item)));
+  return merged;
+}
+
+function _synthesizeReplyFromStructuredContent(source = {}, domain = "general") {
+  const content = _extractRenderableContent(source);
+  const leadItem =
+    _safeObj(content.newsItems[0]) ||
+    _safeObj(content.stories[0]) ||
+    _safeObj(content.articles[0]) ||
+    _safeObj(content.cards[0]) ||
+    _safeObj(content.carouselItems[0]) ||
+    _safeObj(content.contentBlocks[0]);
+
+  const leadTitle = _firstNonEmpty(
+    leadItem.title,
+    leadItem.headline,
+    leadItem.label,
+    _safeObj(content.newsPage).title,
+    _safeObj(content.pageData).title,
+    _safeObj(content.page).title
+  );
+
+  if (_lower(domain).includes("news")) {
+    return leadTitle ? `News Canada content is ready: ${leadTitle}` : NEWS_FALLBACK_REPLY;
+  }
+
+  return leadTitle || FALLBACK_REPLY;
+}
+
+function _isNewsDomain(domain = "") {
+  return /(news|canada_news|news_canada|newscanada)/.test(_lower(domain));
+}
 
 function _extractTopicHints(text = "", limit = 4) {
   return [...new Set(_lower(text).split(/[^a-z0-9_'-]+/).map((t) => t.trim()).filter((t) => t.length > 3))].slice(0, limit);
@@ -105,7 +222,7 @@ function _canonicalDomain(v) {
       if (mapped) return mapped === "core" ? "general" : mapped;
     } catch (_e) {}
   }
-  const map = { psych: "psychology", psychology: "psychology", finance: "finance", law: "law", legal: "law", english: "english", cyber: "cybersecurity", cybersecurity: "cybersecurity", ai: "ai", strategy: "strategy", marketing: "marketing", core: "general", general: "general" };
+  const map = { psych: "psychology", psychology: "psychology", finance: "finance", law: "law", legal: "law", english: "english", cyber: "cybersecurity", cybersecurity: "cybersecurity", ai: "ai", strategy: "strategy", marketing: "marketing", news: "news_canada", newscanada: "news_canada", newscanadapage: "news_canada", canada_news: "news_canada", news_canada: "news_canada", core: "general", general: "general" };
   return map[raw] || "general";
 }
 
@@ -115,6 +232,7 @@ function _inferIntent(text) {
   if (/(fix|debug|repair|stability|loop|bridge|error|bug|broken|issue|failure)/.test(q)) return "debug";
   if (/(plan|roadmap|strategy|architecture|design|build|scale|execution)/.test(q)) return "strategy";
   if (/(analysis|assess|evaluate|compare|break down|audit|critical)/.test(q)) return "analysis";
+  if (/(news|headline|headlines|article|articles|story|stories|carousel|page render|publish|published)/.test(q)) return "news";
   if (/(research|dataset|evidence|source|reference|study|signal)/.test(q)) return "research";
   return "general";
 }
@@ -197,7 +315,7 @@ function _validateInputShape(input = {}) {
   const normalized = { userQuery, requestedDomain, previousMemory: _safeObj(src.previousMemory), datasets: [...new Set(_safeArray(src.datasets).map(_trim).filter(Boolean))], knowledgeSections, conversationState: _safeObj(src.conversationState), domainEvidence: _safeArray(src.domainEvidence), datasetEvidence: _safeArray(src.datasetEvidence), memoryEvidence: _safeArray(src.memoryEvidence), generalEvidence: _safeArray(src.generalEvidence), intent: _trim(src.intent || src.intentHint || "") };
   const issues = [];
   if (!userQuery) issues.push("user_query_missing");
-  return { ok: true, issues, normalized };
+  return { ok: issues.length === 0, issues, normalized };
 }
 
 async function _callRetriever(mod, name, payload) { const fn = _pickFn(mod, name); if (!fn) return null; try { return await Promise.resolve(fn(payload)); } catch (_e) { return null; } }
@@ -212,11 +330,142 @@ function _extractDatasets(inputDatasets = [], sections = {}) {
 }
 function _resolveCanonicalRoute(text, requestedDomain, previousMemory = {}) { if (typeof routeMarion === "function") { try { return _safeObj(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain, previousMemory })); } catch (_e) {} } return { ok: true, primaryDomain: _canonicalDomain(requestedDomain), supportFlags: {}, domains: { emotion: {}, psychology: { matched: false, matches: [] } }, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, classified: { classifications: {}, supportFlags: {}, domainCandidates: [_canonicalDomain(requestedDomain)] }, diagnostics: { domainCandidates: [_canonicalDomain(requestedDomain)], usedPsychology: false } }; }
 
+function _makeRejectionResult(reason, detail = {}, context = {}) {
+  const userQuery = _trim(context.userQuery || context.text || "");
+  const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
+  const intent = _trim(context.intent || "general") || "general";
+  const diagnostics = {
+    rejection: {
+      reason: _trim(reason || "bridge_rejected") || "bridge_rejected",
+      detail: _safeObj(detail)
+    }
+  };
+
+  const packet = {
+    routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
+    synthesis: {
+      domain,
+      intent,
+      mode: STRICT_REJECTION_STATUS,
+      answer: "",
+      reply: "",
+      interpretation: "",
+      supportMode: STRICT_REJECTION_STATUS,
+      routeBias: intent,
+      riskLevel: "unknown",
+      responsePlan: { pacing: "halted", followupStyle: "none" },
+      nyxDirective: {
+        presentationMode: "halt",
+        allowNyxRewrite: false,
+        allowReplySynthesis: false,
+        singleSourceOfTruth: true,
+        bridgeRejected: true
+      }
+    },
+    evidence: [],
+    meta: {
+      version: VERSION,
+      endpoint: CANONICAL_ENDPOINT,
+      bridgeRejected: true,
+      rejectionReason: diagnostics.rejection.reason,
+      packetSignature: _hashText(`${domain}|${intent}|${diagnostics.rejection.reason}`)
+    }
+  };
+
+  return {
+    ok: false,
+    partial: false,
+    rejected: true,
+    status: STRICT_REJECTION_STATUS,
+    endpoint: CANONICAL_ENDPOINT,
+    userQuery,
+    domain,
+    intent,
+    reply: "",
+    text: "",
+    answer: "",
+    output: "",
+    spokenText: "",
+    diagnostics,
+    meta: packet.meta,
+    packet,
+    ui: null,
+    emotionalTurn: null,
+    followUps: [],
+    followUpsStrings: [],
+    payload: null
+  };
+}
+
+function _validateContractShape(contract = {}) {
+  const src = _safeObj(contract);
+  const synthesis = _safeObj(src.synthesis);
+  const candidates = [
+    _trim(src.reply),
+    _trim(src.output),
+    _trim(synthesis.reply),
+    _trim(src.interpretation)
+  ].filter(Boolean);
+
+  const hasStructuredContent = _hasStructuredRenderableContent(src) || _hasStructuredRenderableContent(synthesis);
+  const issues = [];
+  if (!Object.keys(src).length) issues.push("contract_missing");
+  if (!candidates.length && !hasStructuredContent) issues.push("authoritative_reply_missing");
+  if (_safeObj(src.responsePlan) && typeof _safeObj(src.responsePlan).pacing !== "undefined" && !_trim(_safeObj(src.responsePlan).pacing)) issues.push("response_plan_pacing_invalid");
+  if (_safeObj(src.nyxDirective) && src.nyxDirective.allowNyxRewrite === true) issues.push("nyx_rewrite_not_allowed");
+
+  return { ok: issues.length === 0, issues, authoritativeCandidates: candidates.length, hasStructuredContent };
+}
+
+function _validatePacketShape(packet = {}) {
+  const src = _safeObj(packet);
+  const routing = _safeObj(src.routing);
+  const synthesis = _safeObj(src.synthesis);
+  const issues = [];
+  const hasStructuredContent = _hasStructuredRenderableContent(src) || _hasStructuredRenderableContent(synthesis);
+
+  if (!Object.keys(src).length) issues.push("packet_missing");
+  if (!_trim(routing.domain)) issues.push("packet_routing_domain_missing");
+  if (!_trim(routing.intent)) issues.push("packet_routing_intent_missing");
+  if (!_trim(routing.endpoint)) issues.push("packet_routing_endpoint_missing");
+  if (!_trim(synthesis.reply || synthesis.answer || synthesis.interpretation) && !hasStructuredContent) issues.push("packet_synthesis_reply_missing");
+
+  return { ok: issues.length === 0, issues, hasStructuredContent };
+}
+
+function _validatePresentationShape(presentation = {}, reply = "") {
+  const src = _safeObj(presentation);
+  const issues = [];
+  if (!Object.keys(src).length) return { ok: true, issues: [] };
+  if ("payload" in src && src.payload != null) {
+    const payload = _safeObj(src.payload);
+    const candidate = _trim(payload.reply || payload.text || payload.answer || payload.output || "");
+    const hasStructuredContent = _hasStructuredRenderableContent(payload);
+    if (candidate && candidate !== _trim(reply)) issues.push("presentation_payload_desynced");
+    if (!candidate && !hasStructuredContent && !_trim(reply)) issues.push("presentation_payload_empty");
+  }
+  return { ok: issues.length === 0, issues };
+}
+
 function _buildPacket(result, evidence) {
+  const renderableContent = _mergeRenderableContent(result.contract, _safeObj(result.payload), _safeObj(result.ui), _safeObj(result.emotionalTurn));
   const packet = {
     routing: { domain: result.domain, intent: result.intent, endpoint: result.endpoint },
     emotion: { lockedEmotion: result.emotion },
-    synthesis: { domain: result.domain, intent: result.intent, mode: result.contract.supportMode, answer: result.reply, reply: result.reply, interpretation: result.contract.interpretation, supportMode: result.contract.supportMode, routeBias: result.contract.routeBias, riskLevel: result.contract.riskLevel, responsePlan: result.contract.responsePlan, nyxDirective: result.contract.nyxDirective },
+    synthesis: {
+      domain: result.domain,
+      intent: result.intent,
+      mode: result.contract.supportMode,
+      answer: result.reply,
+      reply: result.reply,
+      interpretation: result.contract.interpretation,
+      supportMode: result.contract.supportMode,
+      routeBias: result.contract.routeBias,
+      riskLevel: result.contract.riskLevel,
+      responsePlan: result.contract.responsePlan,
+      nyxDirective: result.contract.nyxDirective,
+      ...renderableContent
+    },
     evidence: _safeArray(evidence).slice(0, MAX_RANKED_EVIDENCE),
     continuityState: result.continuityState,
     turnMemory: result.turnMemory,
@@ -226,7 +475,8 @@ function _buildPacket(result, evidence) {
     privateChannel: result.privateChannel,
     memorySignals: result.memorySignals,
     consciousness: result.consciousness,
-    meta: result.meta
+    meta: result.meta,
+    ...renderableContent
   };
   return typeof normalizeMarionPacket === "function" ? normalizeMarionPacket({ ...result, packet }) : packet;
 }
@@ -371,7 +621,7 @@ function _isLegacyLeakReply(reply = "") {
   ].some((snippet) => text.includes(snippet));
 }
 
-function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}) {
+function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}, domain = "general") {
   const candidates = [
     ["contract.reply", _trim(contract.reply)],
     ["contract.output", _trim(contract.output)],
@@ -389,24 +639,33 @@ function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}) {
     return { reply: value, source, blockedSources };
   }
 
-  return { reply: FALLBACK_REPLY, source: "bridge_fallback", blockedSources };
+  if (_hasStructuredRenderableContent(contract)) {
+    return { reply: _synthesizeReplyFromStructuredContent(contract, domain), source: "contract_structured_content", blockedSources };
+  }
+
+  return { reply: _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY, source: "bridge_fallback", blockedSources };
 }
 
-function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "", followUpsStrings = []) {
-  if (!_safeObj(payload)) return payload;
-  const reply = _trim(authoritativeReply) || FALLBACK_REPLY;
-  const synced = { ...payload };
+function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "", followUpsStrings = [], contract = {}, domain = "general") {
+  const reply = _trim(authoritativeReply) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
+  const renderableContent = _mergeRenderableContent(payload, contract);
+  const synced = _safeObj(payload) ? { ...payload } : {};
   if ("reply" in synced || !Object.keys(synced).length) synced.reply = reply;
   synced.text = reply;
   synced.answer = reply;
   synced.output = reply;
   synced.spokenText = reply.replace(/\n+/g, " ").trim();
+  Object.assign(synced, renderableContent);
   if (_safeArray(followUpsStrings).length) synced.followUpsStrings = _safeArray(followUpsStrings).map((item) => _trim(item)).filter(Boolean);
   return synced;
 }
 
 async function processWithMarion(input = {}) {
-  const layer2 = await retrieveLayer2Signals(input);
+  const inputValidation = _validateInputShape(input);
+  if (!inputValidation.ok) {
+    return _makeRejectionResult("input_invalid", { issues: inputValidation.issues }, { userQuery: inputValidation.normalized.userQuery, requestedDomain: inputValidation.normalized.requestedDomain, intent: _trim(inputValidation.normalized.intent || "general") || "general" });
+  }
+  const layer2 = await retrieveLayer2Signals(inputValidation.normalized);
   const identityState = typeof getPublicIdentitySnapshot === "function" ? getPublicIdentitySnapshot() : { name: "Marion", role: "private interpreter" };
   const relationshipState = typeof getRelationship === "function" ? getRelationship({ principalId: input?.principalId || input?.sessionId || input?.actor || "public" }) : { principalId: "public", trustTier: "public", channelEntitlement: "public_filtered" };
   const trustState = typeof resolveTrustState === "function" ? resolveTrustState(relationshipState, { requestedMode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { tier: relationshipState.trustTier || "public", level: 1, effectiveChannel: "relay_to_nyx" };
@@ -422,11 +681,22 @@ async function processWithMarion(input = {}) {
   const arcState = _resolveArcStateForBridge(layer2, escalationProfile, input);
   const relationalStyle = _resolveRelationalStyleForBridge(layer2, engagementState, escalationProfile, input);
   continuityState.responseMode = escalationProfile.mode;
-  const contract = typeof composeMarionResponse === "function"
-    ? composeMarionResponse({ primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle }, { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} })
-    : { interpretation: FALLBACK_REPLY, supportMode: "clarify_and_sequence", responsePlan: { pacing: "steady", followupStyle: "reflective" }, nyxDirective: { followupStyle: "reflective", pacing: "steady", responseLength: "medium" }, supportFlags: layer2.supportFlags };
+  let contract = null;
+  if (typeof composeMarionResponse === "function") {
+    contract = composeMarionResponse(
+      { primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle },
+      { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} }
+    );
+  } else {
+    return _makeRejectionResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+  }
 
-  const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile);
+  const contractValidation = _validateContractShape(contract);
+  if (!contractValidation.ok) {
+    return _makeRejectionResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+  }
+
+  const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
   const reply = _trim(authoritativeReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
   const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
   const memoryPatch = _safeObj(contract.memoryPatch);
@@ -453,16 +723,19 @@ async function processWithMarion(input = {}) {
     ...memoryPatch
   };
 
+  const contractRenderableContent = _mergeRenderableContent(contract);
   const contractLocked = {
     ...contract,
+    ...contractRenderableContent,
     reply,
     output: reply,
-    synthesis: { ..._safeObj(contract.synthesis), reply, output: reply, answer: reply },
+    synthesis: { ..._safeObj(contract.synthesis), ...contractRenderableContent, reply, output: reply, answer: reply },
     diagnostics: {
       ..._safeObj(contract.diagnostics),
       authoritativeReplySource: authoritativeReply.source,
       blockedLegacyReplySources: authoritativeReply.blockedSources,
       marionSingleSourceOfTruth: true,
+      structuredRenderableContent: _hasStructuredRenderableContent(contractRenderableContent),
       arcStage: _trim(_safeObj(arcState).stage || ""),
       engagementLevel: _trim(_safeObj(engagementState).engagementLevel || "")
     }
@@ -503,11 +776,10 @@ async function processWithMarion(input = {}) {
         singleSourceOfTruth: true
       }
     },
-    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode },
+    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode, structuredRenderableContent: _hasStructuredRenderableContent(contractLocked) },
     layer2
   };
 
-  const packet = _buildPacket(result, layer2.evidence);
   let ui = null;
   let emotionalTurn = null;
   let followUps = contractFollowUps;
@@ -523,15 +795,26 @@ async function processWithMarion(input = {}) {
       const presentationFollowUpStrings = _safeArray(presentation.followUpsStrings).map((item) => _trim(item)).filter(Boolean);
       followUps = presentationFollowUps.length ? presentationFollowUps : contractFollowUps;
       followUpsStrings = presentationFollowUpStrings.length ? presentationFollowUpStrings : followUps.map((item) => _trim(item)).filter(Boolean);
-      payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings);
+      const presentationValidation = _validatePresentationShape(presentation, reply);
+      if (!presentationValidation.ok) {
+        return _makeRejectionResult("presentation_invalid", { issues: presentationValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+      }
+      payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings, contractLocked, layer2.domain);
     } catch (_e) {
-      payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings);
+      return _makeRejectionResult("presentation_contract_exception", { message: _trim(_e && _e.message) }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
     }
   } else {
-    payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings);
+    payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings, contractLocked, layer2.domain);
   }
 
-  return { ...result, packet, ui, emotionalTurn, followUps, followUpsStrings, payload };
+  const finalizedResult = { ...result, ui, emotionalTurn, followUps, followUpsStrings, payload };
+  const packet = _buildPacket(finalizedResult, layer2.evidence);
+  const packetValidation = _validatePacketShape(packet);
+  if (!packetValidation.ok) {
+    return _makeRejectionResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+  }
+
+  return { ...finalizedResult, packet };
 }
 
 function createMarionBridge(options = {}) {
@@ -546,8 +829,47 @@ function createMarionBridge(options = {}) {
       const collectedEvidence = evidenceEngine && typeof evidenceEngine.collect === "function" ? await Promise.resolve(evidenceEngine.collect(req)) : [];
       const knowledgeSections = _safeObj(meta.knowledgeSections || meta.knowledge || {});
       const datasets = _extractDatasets(meta.datasets, knowledgeSections);
-      const result = await processWithMarion({ userQuery: req.text || req.query || "", requestedDomain: meta.preferredDomain || req.domain || "", conversationState: _safeObj(meta.session), previousMemory, datasets, knowledgeSections, domainEvidence: _safeArray(collectedEvidence), datasetEvidence: _safeArray(meta.datasetEvidence), memoryEvidence: _safeArray(meta.memoryEvidence), generalEvidence: _safeArray(meta.generalEvidence), mode: _trim(meta.mode || req.mode || ""), privateChannelRequested: !!meta.privateChannelRequested, principalId: _trim(meta.principalId || req.sessionId || "public"), sessionId: _trim(req.sessionId || meta.sessionId || "public") });
-      return { usedBridge: !!_trim(result.reply), packet: result.packet, reply: result.reply, text: result.reply, output: result.reply, spokenText: result.spokenText, domain: result.domain, intent: result.intent, endpoint: result.endpoint, meta: result.meta, diagnostics: result.diagnostics, ui: result.ui, emotionalTurn: result.emotionalTurn, followUps: result.followUps, followUpsStrings: result.followUpsStrings, payload: result.payload, result, privateChannel: result.privateChannel, trustState: result.trustState, consciousness: result.consciousness };
+      const result = await processWithMarion({
+        userQuery: req.userQuery || req.text || req.query || _trim(_safeObj(req.body).text || _safeObj(req.body).query || ""),
+        requestedDomain: meta.preferredDomain || meta.domain || req.domain || req.requestedDomain || "",
+        conversationState: _safeObj(meta.session || req.session || req.conversationState),
+        previousMemory,
+        datasets,
+        knowledgeSections,
+        domainEvidence: _safeArray(collectedEvidence),
+        datasetEvidence: _safeArray(meta.datasetEvidence),
+        memoryEvidence: _safeArray(meta.memoryEvidence),
+        generalEvidence: _safeArray(meta.generalEvidence),
+        mode: _trim(meta.mode || req.mode || ""),
+        privateChannelRequested: !!meta.privateChannelRequested,
+        principalId: _trim(meta.principalId || req.principalId || req.sessionId || "public"),
+        sessionId: _trim(req.sessionId || meta.sessionId || "public"),
+        intent: _trim(meta.intent || req.intent || "")
+      });
+      const renderableContent = _mergeRenderableContent(result.packet, result.payload, result.ui, result.emotionalTurn, result.contract);
+      return {
+        usedBridge: !!result.ok && (!!_trim(result.reply) || _hasStructuredRenderableContent(renderableContent)),
+        packet: result.packet,
+        reply: result.reply,
+        text: result.reply,
+        output: result.reply,
+        spokenText: result.spokenText,
+        domain: result.domain,
+        intent: result.intent,
+        endpoint: result.endpoint,
+        meta: result.meta,
+        diagnostics: result.diagnostics,
+        ui: result.ui,
+        emotionalTurn: result.emotionalTurn,
+        followUps: result.followUps,
+        followUpsStrings: result.followUpsStrings,
+        payload: result.payload,
+        result,
+        privateChannel: result.privateChannel,
+        trustState: result.trustState,
+        consciousness: result.consciousness,
+        ...renderableContent
+      };
     }
   };
 }
