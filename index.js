@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.16.2sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.16.3sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -478,19 +478,29 @@ function decodeXmlEntities(value) {
     .replace(/&#8230;/gi, "…")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
+    .replace(/&gt;/gi, ">")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
 }
 
 function stripTags(value) {
   return cleanText(decodeXmlEntities(value).replace(/<[^>]+>/g, " "));
 }
 
+function normalizeWhitespace(value) {
+  return cleanText(safeStr(value).replace(/[\u0000-\u001F\u007F]+/g, " "));
+}
+
+function escapeRegexToken(value) {
+  return cleanText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function firstXmlTagValue(block, tagNames) {
   const names = Array.isArray(tagNames) ? tagNames : [tagNames];
   for (const tagName of names) {
-    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const safeTag = escapeRegexToken(tagName);
     if (!safeTag) continue;
-    const match = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
+    const match = new RegExp(`<${safeTag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
     if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
   }
   return "";
@@ -498,14 +508,78 @@ function firstXmlTagValue(block, tagNames) {
 
 function firstXmlAttrValue(block, tagNames, attrName) {
   const names = Array.isArray(tagNames) ? tagNames : [tagNames];
-  const attr = cleanText(attrName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const attr = escapeRegexToken(attrName);
   for (const tagName of names) {
-    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const safeTag = escapeRegexToken(tagName);
     if (!safeTag || !attr) continue;
-    const match = new RegExp(`<${safeTag}\\b[^>]*\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
+    const match = new RegExp(`<${safeTag}(?:\\s[^>]*)?\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
     if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
   }
   return "";
+}
+
+function extractHtmlAnchorsAsStories(htmlText, feedUrl) {
+  const html = safeStr(htmlText);
+  if (!html) return [];
+  const origin = (() => {
+    try {
+      return new URL(feedUrl || resolveNewsCanadaFeedUrl()).origin;
+    } catch (_) {
+      return "https://foryourlife.ca";
+    }
+  })();
+  const seen = new Set();
+  const out = [];
+  const anchorMatches = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
+
+  for (const block of anchorMatches) {
+    const hrefRaw = firstXmlAttrValue(block, ["a"], "href");
+    const href = cleanText(hrefRaw);
+    if (!href || href === "#" || /^javascript:/i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href)) continue;
+    const url = /^https?:/i.test(href) ? href : `${origin}${href.startsWith("/") ? "" : "/"}${href}`;
+    if (seen.has(url)) continue;
+
+    const title = stripTags(block);
+    if (!title || title.length < 12) continue;
+    if (/^(home|about|contact|menu|read more|continue reading)$/i.test(title)) continue;
+
+    seen.add(url);
+    const slug = cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `html-${out.length}`;
+    out.push({
+      id: url || slug,
+      guid: url || slug,
+      slug,
+      title: clipText(title, 160),
+      headline: clipText(title, 160),
+      description: "",
+      summary: "",
+      body: "",
+      content: "",
+      link: url,
+      url,
+      sourceUrl: url,
+      canonicalUrl: url,
+      pubDate: "",
+      publishedAt: "",
+      image: "",
+      popupImage: "",
+      popupBody: "",
+      byline: "",
+      author: "",
+      category: "For Your Life",
+      chipLabel: "RSS Feed",
+      ctaText: "Read full story",
+      source: "For Your Life",
+      sourceName: "For Your Life",
+      feedUrl: cleanText(feedUrl || resolveNewsCanadaFeedUrl()),
+      isActive: true,
+      degradedHtmlFallback: true
+    });
+
+    if (out.length >= 8) break;
+  }
+
+  return out;
 }
 
 function parseNewsCanadaRssXml(xmlText, feedUrl) {
@@ -513,29 +587,29 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
   const sourceName = "For Your Life";
   const items = [];
   if (!xml) return items;
-  const itemBlocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
-  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || []);
+
+  const normalizedXml = normalizeWhitespace(xml);
+  const itemBlocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry(?:\s[^>]*)?>[\s\S]*?<\/entry>/gi) || []);
   const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
 
   blocks.forEach((block, index) => {
     const title = stripTags(firstXmlTagValue(block, ["title"])) || `Story ${index + 1}`;
-    const descriptionRaw = firstXmlTagValue(block, ["description", "content:encoded", "content", "summary"]);
+    const descriptionRaw = firstXmlTagValue(block, ["description", "content:encoded", "content", "summary", "excerpt:encoded"]);
     const description = stripTags(descriptionRaw);
     const url = cleanText(
       firstXmlTagValue(block, ["link"]) ||
       firstXmlAttrValue(block, ["link"], "href") ||
       firstXmlTagValue(block, ["guid"])
     );
-    const pubDate = cleanText(firstXmlTagValue(block, ["pubDate", "published", "updated"]));
+    const pubDate = cleanText(firstXmlTagValue(block, ["pubDate", "published", "updated", "dc:date"]));
     const author = stripTags(firstXmlTagValue(block, ["dc:creator", "author", "creator"]));
     const category = stripTags(firstXmlTagValue(block, ["category"])) || sourceName;
     const image = cleanText(
       firstXmlAttrValue(block, ["media:content", "enclosure", "media:thumbnail"], "url") ||
       firstXmlTagValue(block, ["image"])
     );
-    const slug = cleanText(
-      title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-    ) || `rss-${index}`;
+    const slug = cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `rss-${index}`;
     items.push({
       id: cleanText(firstXmlTagValue(block, ["guid", "id"])) || url || slug || `rss-${index}`,
       guid: cleanText(firstXmlTagValue(block, ["guid", "id"])) || url || slug || `rss-${index}`,
@@ -567,7 +641,12 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
     });
   });
 
-  return items.filter((item) => item && (item.title || item.summary || item.url));
+  const usable = items.filter((item) => item && (item.title || item.summary || item.url));
+  if (usable.length) return usable;
+  if (!/(<rss\b|<feed\b|<rdf:RDF\b)/i.test(normalizedXml) || /<html\b/i.test(normalizedXml)) {
+    return extractHtmlAnchorsAsStories(xml, feedUrl);
+  }
+  return [];
 }
 
 async function fetchNewsCanadaRssDirect(opts) {
@@ -613,7 +692,8 @@ async function fetchNewsCanadaRssDirect(opts) {
         feedUrl,
         fetchedAt: Date.now(),
         itemCount: items.length,
-        storyCount: items.length
+        storyCount: items.length,
+        parserMode: items.some((item) => item && item.degradedHtmlFallback) ? "html_anchor_fallback" : "xml_item_parser"
       }
     };
   } finally {
