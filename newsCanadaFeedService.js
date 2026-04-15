@@ -27,13 +27,18 @@ function firstImageFromItem(item) {
   );
 }
 
+function stripHtml(v) {
+  return cleanText(String(v || "").replace(/<[^>]*>/g, " "));
+}
+
 function normalizeItem(item, index) {
-  const title = cleanText(item && item.title);
+  const title = stripHtml(item && item.title);
   const link = cleanText(item && item.link);
-  const description = cleanText(
+  const description = stripHtml(
     (item && item.contentSnippet) ||
     (item && item.content) ||
     (item && item.summary) ||
+    (item && item.contentEncoded) ||
     ""
   );
   const pubDate = cleanText(
@@ -78,10 +83,33 @@ function sanitizeXml(xml) {
   let out = String(xml || "");
 
   out = out.replace(/^\uFEFF/, "");
+  out = out.replace(/<!--[\s\S]*?-->/g, "");
+  out = out.replace(/<!\[CDATA\[/g, "");
+  out = out.replace(/\]\]>/g, "");
+  out = out.replace(/<br\s*\/?>/gi, " ");
+  out = out.replace(/<script[\s\S]*?<\/script>/gi, "");
+  out = out.replace(/<style[\s\S]*?<\/style>/gi, "");
   out = out.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
   out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  out = out.trim();
+
+  const rssStart = out.search(/<(rss|feed)\b/i);
+  if (rssStart >= 0) out = out.slice(rssStart);
 
   return out;
+}
+
+function buildErrorDetail(err) {
+  return cleanText(
+    err &&
+      (
+        err.response?.data?.message ||
+        err.response?.statusText ||
+        err.message ||
+        err.code ||
+        "rss_fetch_failed"
+      )
+  ) || "rss_fetch_failed";
 }
 
 function createNewsCanadaFeedService(options = {}) {
@@ -128,6 +156,7 @@ function createNewsCanadaFeedService(options = {}) {
         timeout: 15000,
         maxRedirects: 5,
         responseType: "text",
+        validateStatus: (status) => status >= 200 && status < 400,
         headers: {
           "User-Agent": "Sandblast-NewsCanada/1.0",
           "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
@@ -141,8 +170,14 @@ function createNewsCanadaFeedService(options = {}) {
       const safeXml = sanitizeXml(rawXml);
       feed = await parser.parseString(safeXml);
     } catch (err) {
-      logger("[Sandblast][newsCanada] fetch_or_parse_error", err && (err.stack || err.message || err));
-      throw new Error(cleanText(err && (err.message || err.code || "rss_fetch_failed")));
+      const detail = buildErrorDetail(err);
+      logger("[Sandblast][newsCanada] fetch_or_parse_error", {
+        detail,
+        feedUrl,
+        status: err && err.response && err.response.status,
+        code: err && err.code
+      });
+      throw new Error(detail);
     }
 
     const stories = (feed.items || [])
