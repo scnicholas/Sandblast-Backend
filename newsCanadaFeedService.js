@@ -1,5 +1,9 @@
 "use strict";
 
+// newsCanadaFeedService v2.0.0sb
+// Updated: 2026-04-14
+// Changes: 30s timeout, retry/backoff, stale-cache fallback, tighter diagnostics
+
 const axios = require("axios");
 const Parser = require("rss-parser");
 
