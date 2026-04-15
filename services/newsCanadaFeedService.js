@@ -16,7 +16,6 @@ function slugify(v) {
 
 function firstImageFromItem(item) {
   if (!item || typeof item !== "object") return "";
-
   return cleanText(
     (item.enclosure && item.enclosure.url) ||
     item.image ||
@@ -74,6 +73,18 @@ function normalizeItem(item, index) {
   };
 }
 
+function sanitizeXml(xml) {
+  let out = String(xml || "");
+
+  out = out.replace(/^\uFEFF/, "");
+
+  out = out.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
+
+  out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+
+  return out;
+}
+
 function createNewsCanadaFeedService(options = {}) {
   const parser = new Parser({
     timeout: 10000,
@@ -84,6 +95,10 @@ function createNewsCanadaFeedService(options = {}) {
     typeof options.logger === "function"
       ? options.logger
       : (...args) => console.log(...args);
+
+  const fetchImpl =
+    options.fetchImpl ||
+    (typeof fetch === "function" ? fetch.bind(globalThis) : null);
 
   let cache = {
     ok: false,
@@ -110,7 +125,31 @@ function createNewsCanadaFeedService(options = {}) {
       throw new Error("Missing NEWS_CANADA_FEED_URL");
     }
 
-    const feed = await parser.parseURL(feedUrl);
+    if (!fetchImpl) {
+      throw new Error("Fetch implementation unavailable");
+    }
+
+    const response = await fetchImpl(feedUrl, {
+      headers: {
+        "user-agent": "Sandblast-NewsCanada/1.0",
+        "accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Feed request failed with status ${response.status}`);
+    }
+
+    const rawXml = await response.text();
+    const safeXml = sanitizeXml(rawXml);
+
+    let feed;
+    try {
+      feed = await parser.parseString(safeXml);
+    } catch (err) {
+      logger("[Sandblast][newsCanada] parse_error", err && (err.stack || err.message || err));
+      throw new Error(`RSS parse failed: ${cleanText(err && err.message) || "unknown_parse_error"}`);
+    }
 
     const stories = (feed.items || [])
       .map(normalizeItem)
@@ -176,14 +215,14 @@ function createNewsCanadaFeedService(options = {}) {
 
     const key = cleanText(lookup).toLowerCase();
 
-    const story = cache.stories.find((item) => {
-      return [
+    const story = cache.stories.find((item) =>
+      [
         cleanText(item.id).toLowerCase(),
         cleanText(item.slug).toLowerCase(),
         cleanText(item.title).toLowerCase(),
         cleanText(item.url).toLowerCase()
-      ].includes(key);
-    });
+      ].includes(key)
+    );
 
     if (!story) {
       return {
@@ -215,10 +254,7 @@ function createNewsCanadaFeedService(options = {}) {
       await fetchRSS();
       return { ok: true };
     } catch (err) {
-      logger(
-        "[Sandblast][newsCanada] prime_error",
-        err && (err.stack || err.message || err)
-      );
+      logger("[Sandblast][newsCanada] prime_error", err && (err.stack || err.message || err));
       return {
         ok: false,
         error: cleanText(err && err.message) || "prime_failed"
