@@ -1,0 +1,14 @@
+{
+  "ok": false,
+  "items": [],
+  "meta": {
+    "source": "cache",
+    "mode": "cache_first",
+    "fetchedAt": 0,
+    "lastSuccessAt": 0,
+    "itemCount": 0,
+    "cacheVersion": "newscanada-cache-v1",
+    "stale": true,
+    "detail": "cache_bootstrap_empty"
+  }
+}
