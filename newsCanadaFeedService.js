@@ -1,5 +1,6 @@
 "use strict";
 
+const axios = require("axios");
 const Parser = require("rss-parser");
 
 function cleanText(v) {
@@ -77,9 +78,7 @@ function sanitizeXml(xml) {
   let out = String(xml || "");
 
   out = out.replace(/^\uFEFF/, "");
-
   out = out.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
-
   out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
 
   return out;
@@ -95,10 +94,6 @@ function createNewsCanadaFeedService(options = {}) {
     typeof options.logger === "function"
       ? options.logger
       : (...args) => console.log(...args);
-
-  const fetchImpl =
-    options.fetchImpl ||
-    (typeof fetch === "function" ? fetch.bind(globalThis) : null);
 
   let cache = {
     ok: false,
@@ -125,30 +120,29 @@ function createNewsCanadaFeedService(options = {}) {
       throw new Error("Missing NEWS_CANADA_FEED_URL");
     }
 
-    if (!fetchImpl) {
-      throw new Error("Fetch implementation unavailable");
-    }
-
-    const response = await fetchImpl(feedUrl, {
-      headers: {
-        "user-agent": "Sandblast-NewsCanada/1.0",
-        "accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Feed request failed with status ${response.status}`);
-    }
-
-    const rawXml = await response.text();
-    const safeXml = sanitizeXml(rawXml);
-
+    let rawXml = "";
     let feed;
+
     try {
+      const response = await axios.get(feedUrl, {
+        timeout: 15000,
+        maxRedirects: 5,
+        responseType: "text",
+        headers: {
+          "User-Agent": "Sandblast-NewsCanada/1.0",
+          "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
+        }
+      });
+
+      rawXml = typeof response.data === "string"
+        ? response.data
+        : String(response.data || "");
+
+      const safeXml = sanitizeXml(rawXml);
       feed = await parser.parseString(safeXml);
     } catch (err) {
-      logger("[Sandblast][newsCanada] parse_error", err && (err.stack || err.message || err));
-      throw new Error(`RSS parse failed: ${cleanText(err && err.message) || "unknown_parse_error"}`);
+      logger("[Sandblast][newsCanada] fetch_or_parse_error", err && (err.stack || err.message || err));
+      throw new Error(cleanText(err && (err.message || err.code || "rss_fetch_failed")));
     }
 
     const stories = (feed.items || [])
