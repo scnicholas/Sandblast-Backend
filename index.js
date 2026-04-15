@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.16.3sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.16.4sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -467,6 +467,28 @@ function resolveNewsCanadaFeedUrl() {
   );
 }
 
+function resolveNewsCanadaFeedCandidates() {
+  const primary = resolveNewsCanadaFeedUrl();
+  const configured = uniq([
+    primary,
+    cleanText(process.env.NEWS_CANADA_FEED_URL_ALT || ""),
+    cleanText(process.env.NEWS_CANADA_RSS_FEED_URL_ALT || ""),
+    cleanText(process.env.SB_NEWSCANADA_RSS_FEED_URL_ALT || "")
+  ].filter(Boolean));
+
+  const derived = [];
+  const seed = primary || "https://foryourlife.ca/feed/";
+  try {
+    const base = new URL(seed);
+    derived.push(`${base.origin}/feed/`);
+    derived.push(`${base.origin}/?feed=rss2`);
+    derived.push(`${base.origin}/index.php?feed=rss2`);
+    derived.push(`${base.origin}/feed/rss2/`);
+  } catch (_) {}
+
+  return uniq([...configured, ...derived].map((v) => cleanText(v)).filter(Boolean));
+}
+
 function decodeXmlEntities(value) {
   return safeStr(value)
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -479,147 +501,148 @@ function decodeXmlEntities(value) {
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      try { return String.fromCodePoint(parseInt(hex, 16)); } catch (_) { return ""; }
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try { return String.fromCodePoint(parseInt(dec, 10)); } catch (_) { return ""; }
+    });
 }
 
 function stripTags(value) {
   return cleanText(decodeXmlEntities(value).replace(/<[^>]+>/g, " "));
 }
 
-function normalizeWhitespace(value) {
-  return cleanText(safeStr(value).replace(/[\u0000-\u001F\u007F]+/g, " "));
-}
-
-function escapeRegexToken(value) {
-  return cleanText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function firstXmlTagValue(block, tagNames) {
   const names = Array.isArray(tagNames) ? tagNames : [tagNames];
   for (const tagName of names) {
-    const safeTag = escapeRegexToken(tagName);
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (!safeTag) continue;
-    const match = new RegExp(`<${safeTag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
+    const match = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
     if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
   }
   return "";
+}
+
+function allXmlTagValues(block, tagNames) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  const out = [];
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag) continue;
+    const re = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "ig");
+    let match;
+    while ((match = re.exec(block))) {
+      const value = decodeXmlEntities(match[1]);
+      if (cleanText(value)) out.push(value);
+    }
+  }
+  return out;
 }
 
 function firstXmlAttrValue(block, tagNames, attrName) {
   const names = Array.isArray(tagNames) ? tagNames : [tagNames];
-  const attr = escapeRegexToken(attrName);
+  const attr = cleanText(attrName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   for (const tagName of names) {
-    const safeTag = escapeRegexToken(tagName);
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (!safeTag || !attr) continue;
-    const match = new RegExp(`<${safeTag}(?:\\s[^>]*)?\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
+    const match = new RegExp(`<${safeTag}\\b[^>]*\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
     if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
   }
   return "";
 }
 
-function extractHtmlAnchorsAsStories(htmlText, feedUrl) {
-  const html = safeStr(htmlText);
-  if (!html) return [];
-  const origin = (() => {
-    try {
-      return new URL(feedUrl || resolveNewsCanadaFeedUrl()).origin;
-    } catch (_) {
-      return "https://foryourlife.ca";
-    }
-  })();
-  const seen = new Set();
-  const out = [];
-  const anchorMatches = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
+function truncateForMeta(value, max) {
+  return clipText(stripTags(value), clamp(Number(max || 240), 40, 2000));
+}
 
-  for (const block of anchorMatches) {
-    const hrefRaw = firstXmlAttrValue(block, ["a"], "href");
-    const href = cleanText(hrefRaw);
-    if (!href || href === "#" || /^javascript:/i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href)) continue;
-    const url = /^https?:/i.test(href) ? href : `${origin}${href.startsWith("/") ? "" : "/"}${href}`;
-    if (seen.has(url)) continue;
+function htmlDecodeForFeed(value) {
+  return stripTags(value).replace(/\s+/g, " ").trim();
+}
 
-    const title = stripTags(block);
-    if (!title || title.length < 12) continue;
-    if (/^(home|about|contact|menu|read more|continue reading)$/i.test(title)) continue;
-
-    seen.add(url);
-    const slug = cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `html-${out.length}`;
-    out.push({
-      id: url || slug,
-      guid: url || slug,
-      slug,
-      title: clipText(title, 160),
-      headline: clipText(title, 160),
-      description: "",
-      summary: "",
-      body: "",
-      content: "",
-      link: url,
-      url,
-      sourceUrl: url,
-      canonicalUrl: url,
-      pubDate: "",
-      publishedAt: "",
-      image: "",
-      popupImage: "",
-      popupBody: "",
-      byline: "",
-      author: "",
-      category: "For Your Life",
-      chipLabel: "RSS Feed",
-      ctaText: "Read full story",
-      source: "For Your Life",
-      sourceName: "For Your Life",
-      feedUrl: cleanText(feedUrl || resolveNewsCanadaFeedUrl()),
-      isActive: true,
-      degradedHtmlFallback: true
-    });
-
-    if (out.length >= 8) break;
-  }
-
-  return out;
+function buildNewsCanadaItem(entry, index, feedUrl, parserMode) {
+  const sourceName = "For Your Life";
+  const base = isObj(entry) ? { ...entry } : {};
+  const title = cleanText(base.title || base.headline || `Story ${index + 1}`) || `Story ${index + 1}`;
+  const description = cleanText(base.description || base.summary || base.body || base.content || "");
+  const url = cleanText(base.url || base.link || base.sourceUrl || base.guid || "");
+  const pubDate = cleanText(base.pubDate || base.publishedAt || base.date || "");
+  const image = cleanText(base.image || base.popupImage || base.thumbnail || "");
+  const author = cleanText(base.author || base.byline || "");
+  const category = cleanText(base.category || sourceName) || sourceName;
+  const slug = cleanText(base.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `rss-${index}`;
+  return {
+    id: cleanText(base.id || base.guid || url || slug || `rss-${index}`) || `rss-${index}`,
+    guid: cleanText(base.guid || base.id || url || slug || `rss-${index}`) || `rss-${index}`,
+    slug,
+    title,
+    headline: title,
+    description,
+    summary: cleanText(base.summary || description),
+    body: cleanText(base.body || description),
+    content: cleanText(base.content || description),
+    link: url,
+    url,
+    sourceUrl: cleanText(base.sourceUrl || url),
+    canonicalUrl: cleanText(base.canonicalUrl || url),
+    pubDate,
+    publishedAt: cleanText(base.publishedAt || pubDate),
+    image,
+    popupImage: cleanText(base.popupImage || image),
+    popupBody: cleanText(base.popupBody || description),
+    byline: author,
+    author,
+    category,
+    chipLabel: cleanText(base.chipLabel || "RSS Feed") || "RSS Feed",
+    ctaText: cleanText(base.ctaText || "Read full story") || "Read full story",
+    source: cleanText(base.source || sourceName) || sourceName,
+    sourceName: cleanText(base.sourceName || sourceName) || sourceName,
+    feedUrl: cleanText(feedUrl || resolveNewsCanadaFeedUrl()),
+    parserMode: cleanText(base.parserMode || parserMode || "rss_parser") || "rss_parser",
+    isActive: base.isActive !== false
+  };
 }
 
 function parseNewsCanadaRssXml(xmlText, feedUrl) {
   const xml = safeStr(xmlText);
-  const sourceName = "For Your Life";
   const items = [];
-  if (!xml) return items;
+  let parserMode = "no_items";
+  if (!xml) return { items, parserMode };
 
-  const normalizedXml = normalizeWhitespace(xml);
-  const itemBlocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
-  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry(?:\s[^>]*)?>[\s\S]*?<\/entry>/gi) || []);
+  const itemBlocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || []);
   const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
+
+  if (blocks.length) {
+    parserMode = itemBlocks.length ? "xml_item_parser" : "atom_entry_parser";
+  }
 
   blocks.forEach((block, index) => {
     const title = stripTags(firstXmlTagValue(block, ["title"])) || `Story ${index + 1}`;
-    const descriptionRaw = firstXmlTagValue(block, ["description", "content:encoded", "content", "summary", "excerpt:encoded"]);
+    const descriptionRaw = firstXmlTagValue(block, ["description", "content:encoded", "excerpt:encoded", "content", "summary"]);
     const description = stripTags(descriptionRaw);
     const url = cleanText(
-      firstXmlTagValue(block, ["link"]) ||
       firstXmlAttrValue(block, ["link"], "href") ||
+      firstXmlTagValue(block, ["link"]) ||
       firstXmlTagValue(block, ["guid"])
     );
     const pubDate = cleanText(firstXmlTagValue(block, ["pubDate", "published", "updated", "dc:date"]));
     const author = stripTags(firstXmlTagValue(block, ["dc:creator", "author", "creator"]));
-    const category = stripTags(firstXmlTagValue(block, ["category"])) || sourceName;
+    const category = stripTags(firstXmlTagValue(block, ["category"])) || "For Your Life";
     const image = cleanText(
-      firstXmlAttrValue(block, ["media:content", "enclosure", "media:thumbnail"], "url") ||
+      firstXmlAttrValue(block, ["media:content", "media:thumbnail", "enclosure"], "url") ||
       firstXmlTagValue(block, ["image"])
     );
-    const slug = cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `rss-${index}`;
-    items.push({
-      id: cleanText(firstXmlTagValue(block, ["guid", "id"])) || url || slug || `rss-${index}`,
-      guid: cleanText(firstXmlTagValue(block, ["guid", "id"])) || url || slug || `rss-${index}`,
-      slug: slug || `rss-${index}`,
+    const allCategories = allXmlTagValues(block, ["category"]).map((v) => stripTags(v)).filter(Boolean);
+    items.push(buildNewsCanadaItem({
+      id: cleanText(firstXmlTagValue(block, ["guid", "id"])),
+      guid: cleanText(firstXmlTagValue(block, ["guid", "id"])),
       title,
       headline: title,
       description,
-      summary: cleanText(description),
-      body: cleanText(description),
-      content: cleanText(description),
+      summary: description,
+      body: description,
+      content: description,
       link: url,
       url,
       sourceUrl: url,
@@ -628,77 +651,176 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
       publishedAt: pubDate,
       image,
       popupImage: image,
-      popupBody: cleanText(description),
+      popupBody: description,
       byline: author,
       author,
-      category,
-      chipLabel: "RSS Feed",
-      ctaText: "Read full story",
-      source: sourceName,
-      sourceName,
-      feedUrl: cleanText(feedUrl || resolveNewsCanadaFeedUrl()),
-      isActive: true
-    });
+      category: category || firstString(allCategories),
+      parserMode
+    }, index, feedUrl, parserMode));
   });
 
-  const usable = items.filter((item) => item && (item.title || item.summary || item.url));
-  if (usable.length) return usable;
-  if (!/(<rss\b|<feed\b|<rdf:RDF\b)/i.test(normalizedXml) || /<html\b/i.test(normalizedXml)) {
-    return extractHtmlAnchorsAsStories(xml, feedUrl);
+  return {
+    items: items.filter((item) => item && (item.title || item.summary || item.url)),
+    parserMode
+  };
+}
+
+function parseNewsCanadaFeedHtml(htmlText, feedUrl) {
+  const html = safeStr(htmlText);
+  const items = [];
+  if (!html) return { items, parserMode: "html_empty" };
+  const parserMode = "html_anchor_fallback";
+  const anchorRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const seen = new Set();
+  let match;
+  while ((match = anchorRe.exec(html)) && items.length < 12) {
+    const href = cleanText(decodeXmlEntities(match[1] || ""));
+    const anchorText = htmlDecodeForFeed(match[2] || "");
+    if (!href || !anchorText) continue;
+    if (!/^https?:\/\//i.test(href)) continue;
+    if (/\/wp-content\/|\/wp-json\/|\/feed\/|\/tag\/|\/category\//i.test(href)) continue;
+    if (anchorText.length < 12) continue;
+    const dedupeKey = `${href}|${anchorText.toLowerCase()}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const slice = html.slice(Math.max(0, match.index - 800), Math.min(html.length, match.index + 2200));
+    const summary = truncateForMeta(slice, 260) || anchorText;
+    items.push(buildNewsCanadaItem({
+      title: anchorText,
+      headline: anchorText,
+      description: summary,
+      summary,
+      body: summary,
+      content: summary,
+      link: href,
+      url: href,
+      sourceUrl: href,
+      canonicalUrl: href,
+      parserMode
+    }, items.length, feedUrl, parserMode));
   }
-  return [];
+  return { items, parserMode };
+}
+
+function parseNewsCanadaFeedContent(rawText, feedUrl, contentType) {
+  const text = safeStr(rawText);
+  const normalizedContentType = lower(contentType || "");
+  const looksLikeXml = /<(rss|feed|rdf:rdf)\b/i.test(text) || /<item\b/i.test(text) || /<entry\b/i.test(text) || /xml/i.test(normalizedContentType);
+  const xmlParsed = parseNewsCanadaRssXml(text, feedUrl);
+  if (xmlParsed.items.length) {
+    return { items: xmlParsed.items, parserMode: xmlParsed.parserMode, contentType: normalizedContentType || "unknown" };
+  }
+  if (!looksLikeXml || /text\/html|application\/xhtml\+xml/i.test(normalizedContentType) || /<html\b/i.test(text)) {
+    const htmlParsed = parseNewsCanadaFeedHtml(text, feedUrl);
+    if (htmlParsed.items.length) {
+      return { items: htmlParsed.items, parserMode: htmlParsed.parserMode, contentType: normalizedContentType || "text/html" };
+    }
+    return { items: [], parserMode: htmlParsed.parserMode || "html_no_items", contentType: normalizedContentType || "text/html" };
+  }
+  return { items: [], parserMode: xmlParsed.parserMode || "xml_no_items", contentType: normalizedContentType || "unknown" };
 }
 
 async function fetchNewsCanadaRssDirect(opts) {
   const options = isObj(opts) ? opts : {};
-  const feedUrl = cleanText(options.feedUrl || resolveNewsCanadaFeedUrl());
-  if (!feedUrl) {
-    throw new Error("news_canada_feed_url_missing");
-  }
   if (typeof fetch !== "function") {
     throw new Error("fetch_unavailable");
   }
 
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const candidates = uniq([
+    cleanText(options.feedUrl || ""),
+    ...resolveNewsCanadaFeedCandidates()
+  ].filter(Boolean));
+
   const timeoutMs = clamp(Number(options.timeoutMs || process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000);
-  const timer = controller ? setTimeout(() => {
-    try { controller.abort(); } catch (_) {}
-  }, timeoutMs) : null;
+  const diagnostics = { attemptedUrls: [], parserMode: "uninitialized", contentType: "", resolvedUrl: "", sample: "", itemCount: 0 };
+  let lastError = null;
 
-  try {
-    const res = await fetch(feedUrl, {
-      method: "GET",
-      headers: {
-        "accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-        "user-agent": "Sandblast-NewsCanada-RSS/1.0"
-      },
-      signal: controller ? controller.signal : undefined
-    });
+  for (const feedUrl of candidates) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => {
+      try { controller.abort(); } catch (_) {}
+    }, timeoutMs) : null;
 
-    if (!res || !res.ok) {
-      throw new Error(`rss_http_${res ? res.status : "failed"}`);
-    }
+    try {
+      const res = await fetch(feedUrl, {
+        method: "GET",
+        redirect: "follow",
+        headers: {
+          "accept": "application/rss+xml, application/xml, text/xml;q=0.95, application/atom+xml;q=0.95, text/html;q=0.7, */*;q=0.6",
+          "cache-control": "no-cache",
+          "pragma": "no-cache",
+          "user-agent": "Mozilla/5.0 (compatible; Sandblast-NewsCanada-RSS/1.0; +https://sandblast-backend.onrender.com)"
+        },
+        signal: controller ? controller.signal : undefined
+      });
 
-    const xmlText = await res.text();
-    const items = parseNewsCanadaRssXml(xmlText, feedUrl);
-    return {
-      ok: true,
-      items,
-      stories: items,
-      meta: {
-        source: "rss_direct_fallback",
-        degraded: false,
-        mode: "rss",
-        feedUrl,
-        fetchedAt: Date.now(),
-        itemCount: items.length,
-        storyCount: items.length,
-        parserMode: items.some((item) => item && item.degradedHtmlFallback) ? "html_anchor_fallback" : "xml_item_parser"
+      const finalUrl = cleanText((res && res.url) || feedUrl) || feedUrl;
+      const contentType = cleanText(res && res.headers && typeof res.headers.get === "function" ? (res.headers.get("content-type") || "") : "");
+      diagnostics.attemptedUrls.push({ url: feedUrl, status: Number(res && res.status || 0), ok: !!(res && res.ok), finalUrl, contentType });
+
+      if (!res || !res.ok) {
+        throw new Error(`rss_http_${res ? res.status : "failed"}`);
       }
-    };
-  } finally {
-    if (timer) clearTimeout(timer);
+
+      const rawText = await res.text();
+      diagnostics.sample = truncateForMeta(rawText, 320);
+      const parsed = parseNewsCanadaFeedContent(rawText, finalUrl || feedUrl, contentType);
+      diagnostics.parserMode = cleanText(parsed.parserMode || "no_items") || "no_items";
+      diagnostics.contentType = cleanText(parsed.contentType || contentType || "unknown") || "unknown";
+      diagnostics.resolvedUrl = finalUrl || feedUrl;
+      diagnostics.itemCount = Array.isArray(parsed.items) ? parsed.items.length : 0;
+
+      if (parsed.items.length) {
+        return {
+          ok: true,
+          items: parsed.items,
+          stories: parsed.items,
+          meta: {
+            source: "rss_direct_fallback",
+            degraded: false,
+            mode: "rss",
+            parserMode: diagnostics.parserMode,
+            contentType: diagnostics.contentType,
+            resolvedUrl: diagnostics.resolvedUrl,
+            attemptedUrls: diagnostics.attemptedUrls,
+            sample: diagnostics.sample,
+            feedUrl: feedUrl,
+            fetchedAt: Date.now(),
+            itemCount: parsed.items.length,
+            storyCount: parsed.items.length
+          }
+        };
+      }
+
+      lastError = new Error(`rss_no_items_${diagnostics.parserMode}`);
+    } catch (err) {
+      lastError = err;
+      diagnostics.attemptedUrls.push({ url: feedUrl, ok: false, error: cleanText(err && (err.message || err) || "rss_fetch_failed") });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
+
+  return {
+    ok: false,
+    items: [],
+    stories: [],
+    meta: {
+      source: "rss_direct_fallback",
+      degraded: true,
+      mode: "rss",
+      parserMode: cleanText(diagnostics.parserMode || "no_items") || "no_items",
+      contentType: cleanText(diagnostics.contentType || "unknown") || "unknown",
+      resolvedUrl: cleanText(diagnostics.resolvedUrl || "") || "",
+      attemptedUrls: diagnostics.attemptedUrls,
+      sample: diagnostics.sample,
+      detail: cleanText(lastError && (lastError.message || lastError) || "rss_no_items"),
+      feedUrl: cleanText((diagnostics.attemptedUrls[0] && diagnostics.attemptedUrls[0].url) || resolveNewsCanadaFeedUrl()),
+      fetchedAt: Date.now(),
+      itemCount: 0,
+      storyCount: 0
+    }
+  };
 }
 
 function buildNewsCanadaDirectFallbackService(logger) {
@@ -710,7 +832,13 @@ function buildNewsCanadaDirectFallbackService(logger) {
     fetchedAt: 0,
     feedUrl: resolveNewsCanadaFeedUrl(),
     degraded: false,
-    source: "rss_direct_fallback"
+    source: "rss_direct_fallback",
+    parserMode: "uninitialized",
+    contentType: "",
+    resolvedUrl: "",
+    attemptedUrls: [],
+    sample: "",
+    detail: ""
   };
 
   async function refresh(opts) {
@@ -722,7 +850,13 @@ function buildNewsCanadaDirectFallbackService(logger) {
       fetchedAt: Number(result && result.meta && result.meta.fetchedAt || Date.now()),
       feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
       degraded: !!(result && result.meta && result.meta.degraded),
-      source: cleanText(result && result.meta && result.meta.source || "rss_direct_fallback") || "rss_direct_fallback"
+      source: cleanText(result && result.meta && result.meta.source || "rss_direct_fallback") || "rss_direct_fallback",
+      parserMode: cleanText(result && result.meta && result.meta.parserMode || "unknown") || "unknown",
+      contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
+      resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
+      attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
+      sample: cleanText(result && result.meta && result.meta.sample || ""),
+      detail: cleanText(result && result.meta && result.meta.detail || "")
     };
     return result;
   }
@@ -741,11 +875,16 @@ function buildNewsCanadaDirectFallbackService(logger) {
             source: cache.stories.length ? "rss_direct_fallback_cache" : "rss_direct_fallback",
             degraded: true,
             mode: "rss",
+            parserMode: cache.parserMode || "error",
+            contentType: cache.contentType || "",
+            resolvedUrl: cache.resolvedUrl || "",
+            attemptedUrls: cache.attemptedUrls.slice(0, 12),
+            sample: cache.sample,
             feedUrl: cache.feedUrl || resolveNewsCanadaFeedUrl(),
             fetchedAt: cache.fetchedAt,
             itemCount: cache.items.length,
             storyCount: cache.stories.length,
-            detail: cleanText(err && (err.message || err) || "rss_direct_fallback_failed")
+            detail: cleanText(err && (err.message || err) || cache.detail || "rss_direct_fallback_failed")
           }
         };
       }
@@ -766,6 +905,12 @@ function buildNewsCanadaDirectFallbackService(logger) {
           source: cache.source,
           degraded: !!cache.degraded,
           mode: "rss",
+          parserMode: cache.parserMode,
+          contentType: cache.contentType,
+          resolvedUrl: cache.resolvedUrl,
+          attemptedUrls: cache.attemptedUrls.slice(0, 12),
+          sample: cache.sample,
+          detail: cache.detail,
           feedUrl: cache.feedUrl,
           fetchedAt: cache.fetchedAt,
           storyCount: stories.length
@@ -794,6 +939,12 @@ function buildNewsCanadaDirectFallbackService(logger) {
               source: cache.source,
               degraded: !!cache.degraded,
               mode: "rss",
+              parserMode: cache.parserMode,
+              contentType: cache.contentType,
+              resolvedUrl: cache.resolvedUrl,
+              attemptedUrls: cache.attemptedUrls.slice(0, 12),
+              sample: cache.sample,
+              detail: cache.detail,
               feedUrl: cache.feedUrl,
               fetchedAt: cache.fetchedAt
             }
@@ -805,6 +956,12 @@ function buildNewsCanadaDirectFallbackService(logger) {
               source: cache.source,
               degraded: !!cache.degraded,
               mode: "rss",
+              parserMode: cache.parserMode,
+              contentType: cache.contentType,
+              resolvedUrl: cache.resolvedUrl,
+              attemptedUrls: cache.attemptedUrls.slice(0, 12),
+              sample: cache.sample,
+              detail: cache.detail,
               feedUrl: cache.feedUrl,
               fetchedAt: cache.fetchedAt
             }
@@ -820,6 +977,12 @@ function buildNewsCanadaDirectFallbackService(logger) {
         source: cache.source,
         degraded: !!cache.degraded,
         mode: "rss",
+        parserMode: cache.parserMode,
+        contentType: cache.contentType,
+        resolvedUrl: cache.resolvedUrl,
+        attemptedUrls: cache.attemptedUrls.slice(0, 12),
+        sample: cache.sample,
+        detail: cache.detail,
         feedUrl: cache.feedUrl || resolveNewsCanadaFeedUrl(),
         fetchedAt: cache.fetchedAt,
         storyCount: Array.isArray(cache.stories) ? cache.stories.length : 0,
@@ -2248,6 +2411,12 @@ async function getNewsCanadaRssResponse(req) {
         source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
         degraded: !!(result && result.meta && result.meta.degraded),
         mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || "unknown") || "unknown",
+        contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
+        resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
+        attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
+        sample: cleanText(result && result.meta && result.meta.sample || ""),
+        detail: cleanText(result && result.meta && result.meta.detail || ""),
         feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
         fetchedAt: Number(result && result.meta && result.meta.fetchedAt || 0),
         itemCount: Array.isArray(result && result.items) ? result.items.length : 0,
