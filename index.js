@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.16.6sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.16.7sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -355,6 +355,28 @@ const ttsMod = tryRequireMany([
   "./utils/tts.js",
   "./Utils/tts",
   "./Utils/tts.js"
+]);
+
+const newscanadaCacheServiceMod = tryRequireMany([
+  "./services/newscanadaCacheService",
+  "./services/newscanadaCacheService.js",
+  "./Services/newscanadaCacheService",
+  "./Services/newscanadaCacheService.js",
+  "./utils/newscanadaCacheService",
+  "./utils/newscanadaCacheService.js",
+  "./Utils/newscanadaCacheService",
+  "./Utils/newscanadaCacheService.js"
+]);
+
+const newscanadaCacheJobMod = tryRequireMany([
+  "./services/newscanadaCacheJob",
+  "./services/newscanadaCacheJob.js",
+  "./Services/newscanadaCacheJob",
+  "./Services/newscanadaCacheJob.js",
+  "./utils/newscanadaCacheJob",
+  "./utils/newscanadaCacheJob.js",
+  "./Utils/newscanadaCacheJob",
+  "./Utils/newscanadaCacheJob.js"
 ]);
 
 const newsCanadaFeedServiceMod = tryRequireMany([
@@ -1474,6 +1496,146 @@ const newsCanadaFeedService = (() => {
   };
 })();
 
+
+function buildNewsCanadaCacheBackedService(cacheMod, fallbackService) {
+  const cacheSvc = cacheMod && cacheMod.default && typeof cacheMod.default === "object" ? cacheMod.default : cacheMod;
+  const hasGetCachedOrRefresh = !!(cacheSvc && typeof cacheSvc.getCachedOrRefresh === "function");
+  if (!hasGetCachedOrRefresh) return fallbackService;
+
+  const getCachedOrRefresh = cacheSvc.getCachedOrRefresh.bind(cacheSvc);
+  const readCache = typeof cacheSvc.readCache === "function" ? cacheSvc.readCache.bind(cacheSvc) : null;
+  const refreshCache = typeof cacheSvc.refreshCache === "function" ? cacheSvc.refreshCache.bind(cacheSvc) : null;
+
+  async function resolvePayload(opts) {
+    const forceRefresh = !!(opts && opts.refresh);
+    const payload = await Promise.resolve(getCachedOrRefresh({
+      forceRefresh,
+      timeoutMs: clamp(Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000)
+    }));
+    return isObj(payload) ? payload : { ok: false, items: [], meta: { source: "cache_service_invalid", degraded: true } };
+  }
+
+  return {
+    async fetchRSS(opts) {
+      const payload = await resolvePayload(opts);
+      const items = Array.isArray(payload && payload.items) ? payload.items : [];
+      return {
+        ok: payload && payload.ok !== false && items.length > 0,
+        items,
+        stories: items,
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "newscanada_cache") || "newscanada_cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(payload && payload.meta && payload.meta.parserMode || "cache_contract") || "cache_contract",
+          contentType: cleanText(payload && payload.meta && payload.meta.contentType || "application/json") || "application/json",
+          resolvedUrl: cleanText(payload && payload.meta && payload.meta.resolvedUrl || "") || "",
+          attemptedUrls: Array.isArray(payload && payload.meta && payload.meta.attemptedUrls) ? payload.meta.attemptedUrls.slice(0, 12) : [],
+          sample: cleanText(payload && payload.meta && payload.meta.sample || ""),
+          detail: cleanText(payload && payload.meta && payload.meta.detail || ""),
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+          itemCount: items.length,
+          storyCount: items.length,
+          cacheVersion: cleanText(payload && payload.meta && payload.meta.cacheVersion || "newscanada-cache-v1") || "newscanada-cache-v1",
+          contractVersion: "newscanada-cache-contract-v1"
+        }
+      };
+    },
+    async getEditorsPicks(opts) {
+      const payload = await resolvePayload(opts);
+      const stories = Array.isArray(payload && payload.items) ? payload.items : [];
+      return {
+        ok: stories.length > 0,
+        stories,
+        slides: stories,
+        chips: [],
+        meta: {
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "newscanada_cache") || "newscanada_cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(payload && payload.meta && payload.meta.parserMode || "cache_contract") || "cache_contract",
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+          storyCount: stories.length,
+          attemptedUrls: Array.isArray(payload && payload.meta && payload.meta.attemptedUrls) ? payload.meta.attemptedUrls.slice(0, 12) : [],
+          detail: cleanText(payload && payload.meta && payload.meta.detail || "")
+        }
+      };
+    },
+    async getStory(lookup, opts) {
+      const payload = await resolvePayload(opts);
+      const stories = Array.isArray(payload && payload.items) ? payload.items : [];
+      const key = cleanText(lookup).toLowerCase();
+      const story = stories.find((item) => [
+        cleanText(item && item.id).toLowerCase(),
+        cleanText(item && item.guid).toLowerCase(),
+        cleanText(item && item.slug).toLowerCase(),
+        cleanText(item && item.title).toLowerCase(),
+        cleanText(item && item.url).toLowerCase(),
+        cleanText(item && item.link).toLowerCase()
+      ].includes(key));
+      if (!story) {
+        return {
+          ok: false,
+          error: "story_not_found",
+          meta: {
+            source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "newscanada_cache") || "newscanada_cache",
+            degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+            mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+            feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+            fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0)
+          }
+        };
+      }
+      return {
+        ok: true,
+        story,
+        meta: {
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "newscanada_cache") || "newscanada_cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0)
+        }
+      };
+    },
+    async prime() {
+      if (refreshCache) {
+        const out = await Promise.resolve(refreshCache({ timeoutMs: clamp(Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000) }));
+        return { ok: !!(out && out.ok !== false && Array.isArray(out.items) && out.items.length) };
+      }
+      if (readCache) {
+        const cached = await Promise.resolve(readCache());
+        return { ok: !!(cached && cached.ok !== false && Array.isArray(cached.items) && cached.items.length) };
+      }
+      return { ok: false };
+    },
+    health() {
+      try {
+        const cached = readCache ? readCache() : null;
+        return {
+          ok: !!(cached && cached.ok !== false && Array.isArray(cached.items) && cached.items.length),
+          source: cleanText(cached && cached.meta && (cached.meta.servedFrom || cached.meta.source) || "newscanada_cache") || "newscanada_cache",
+          degraded: !!(cached && cached.meta && (cached.meta.degraded || cached.meta.stale || cached.meta.refreshFailed)),
+          mode: cleanText(cached && cached.meta && cached.meta.mode || "cache_first") || "cache_first",
+          feedUrl: cleanText(cached && cached.meta && cached.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(cached && cached.meta && (cached.meta.fetchedAt || cached.meta.lastSuccessAt) || 0),
+          storyCount: Array.isArray(cached && cached.items) ? cached.items.length : 0,
+          itemCount: Array.isArray(cached && cached.items) ? cached.items.length : 0,
+          cacheVersion: cleanText(cached && cached.meta && cached.meta.cacheVersion || "newscanada-cache-v1") || "newscanada-cache-v1"
+        };
+      } catch (_) {
+        return fallbackService && typeof fallbackService.health === "function" ? fallbackService.health() : { ok: false, source: "newscanada_cache_unavailable", degraded: true, mode: "cache_first" };
+      }
+    }
+  };
+}
+
+const newsCanadaPrimaryService = buildNewsCanadaCacheBackedService(newscanadaCacheServiceMod, newsCanadaFeedService);
+
 const memory = {
   lastBySession: new Map(),
   supportBySession: new Map(),
@@ -2493,7 +2655,7 @@ function normalizeImageLike(entry, title) {
 }
 
 function getNewsCanadaService() {
-  return newsCanadaFeedService;
+  return newsCanadaPrimaryService || newsCanadaFeedService;
 }
 
 async function getNewsCanadaEditorsPicksResponse(req) {
@@ -4039,6 +4201,14 @@ function getNewsCanadaCandidateDiagnostics() {
         mode: "rss",
         feedUrl: resolveNewsCanadaDataFile()
       };
+}
+
+if (newscanadaCacheJobMod && typeof newscanadaCacheJobMod.startNewsCanadaCacheJob === "function") {
+  try {
+    newscanadaCacheJobMod.startNewsCanadaCacheJob({ intervalMs: clamp(Number(process.env.NEWS_CANADA_CACHE_REFRESH_MS || 10 * 60 * 1000), 60 * 1000, 60 * 60 * 1000) });
+  } catch (err) {
+    console.log("[Sandblast][newscanadaCacheJob:start_error]", err && (err.stack || err.message || err));
+  }
 }
 
 const server = app.listen(PORT, () => {
