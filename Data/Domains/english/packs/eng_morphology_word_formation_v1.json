@@ -1,8 +1,8 @@
 {
-  "id": "eng_morphology_word_formation_v2",
+  "id": "eng_phonetics_phonology_v2",
   "version": "2.0.0",
-  "title": "Morphology and Word Formation",
-  "description": "Word structure, inflection, derivation, compounding, productivity, and lexical pattern reasoning.",
+  "title": "Phonetics and Phonology",
+  "description": "Speech sound production and patterning for intelligibility, rhythm, contrast, and pronunciation-aware explanation.",
   "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
   "assistantApplication": {
     "forNyx": [
@@ -17,142 +17,119 @@
     ]
   },
   "anchors": [
-    "S_QUARK_CGEL",
-    "S_SWAN_PEU"
+    "S_NCTE_QAGrammar",
+    "S_Purdue_OWL_GeneralWriting"
   ],
   "topics": [
     {
-      "name": "Morphemes and Productivity",
+      "name": "Phonetics Essentials",
       "coreClaims": [
-        "Morphemes are meaning-bearing units (free vs bound).",
-        "Productive processes generate new forms (compounding, affixation, conversion)."
+        "Articulatory features explain how consonants and vowels are produced (place/manner/voicing).",
+        "Transcription is a tool for precision and pattern discovery."
       ],
       "practice": [
-        "Segment words into morphemes and justify boundaries.",
-        "Explain why a coinage feels 'natural' or 'awkward' (productivity constraints)."
+        "Minimal pairs: identify contrastive phonemes.",
+        "Allophones: identify predictable variants in context."
       ]
     },
     {
-      "name": "Inflection vs Derivation",
+      "name": "Phonology Patterns",
       "coreClaims": [
-        "Inflection encodes grammatical features (tense, number) without changing lexical category.",
-        "Derivation often changes meaning and/or category (e.g., verb → noun)."
+        "Phonological rules describe systematic alternations (e.g., assimilation) without treating them as errors.",
+        "Stress and rhythm affect intelligibility and perceived fluency."
       ],
       "practice": [
-        "Classify affixes and predict category output.",
-        "Map derivational families (decide → decision → decisive)."
+        "Mark stress patterns in multisyllabic words.",
+        "Explain a reduction pattern in fast speech vs careful speech."
       ]
     }
   ],
   "modules": [
     {
-      "moduleId": "ENG_MWF_M01",
-      "name": "Morpheme Segmentation",
+      "moduleId": "ENG_PP_M01",
+      "name": "Consonants and Vowels",
       "outcomes": [
-        "Segment words plausibly and justify boundaries.",
-        "Distinguish folk etymology from current morphological analysis."
+        "Use place, manner, and voicing to describe consonants.",
+        "Use height, backness, and rounding to describe vowels."
       ]
     },
     {
-      "moduleId": "ENG_MWF_M02",
-      "name": "Inflection vs Derivation",
+      "moduleId": "ENG_PP_M02",
+      "name": "Phonemic Contrast and Allophony",
       "outcomes": [
-        "Classify affixes and predict category output.",
-        "Explain how derivation shifts meaning or discourse role."
+        "Find minimal pairs.",
+        "Explain predictable sound variants without calling them errors."
       ]
     },
     {
-      "moduleId": "ENG_MWF_M03",
-      "name": "Productivity and Neologisms",
+      "moduleId": "ENG_PP_M03",
+      "name": "Stress, Rhythm, and Intelligibility",
       "outcomes": [
-        "Judge why a new formation feels natural, awkward, humorous, or domain-bound."
+        "Mark lexical stress.",
+        "Explain how stress and reduction affect perceived fluency and clarity."
       ]
     }
   ],
   "caseStudies": [
     {
-      "caseId": "ENG_MWF_CS01",
-      "title": "Nyx Invents Terms That Feel Off",
-      "scenario": "The assistant creates understandable but unnatural forms because it applies productive patterns without regard to frequency, register, or lexicalization.",
+      "caseId": "ENG_PP_CS01",
+      "title": "Pronunciation Feedback Without Shaming",
+      "scenario": "A learner needs help with intelligibility, but correction risks becoming overly prescriptive or accent-policing.",
       "intervention": [
-        "Check whether a coinage already exists.",
-        "Test whether the derivational pattern is productive in that semantic field.",
-        "Prefer transparent paraphrase when the coined form feels forced."
+        "Focus on intelligibility-impacting contrasts.",
+        "Separate accent difference from communication breakdown.",
+        "Use contrastive examples rather than generic correction."
       ]
     }
   ],
   "projects": [
     {
-      "projectId": "ENG_MWF_P01",
-      "name": "Word Family Atlas",
-      "goal": "Map roots, derivations, category shifts, and register notes for high-value vocabulary families used by Nyx and Marion."
+      "projectId": "ENG_PP_P01",
+      "name": "Intelligibility Priority Map",
+      "goal": "Identify which sound contrasts and stress patterns matter most for understandable spoken output in assistant scenarios."
     }
   ],
   "referenceTextsUsed": [
     {
-      "key": "S_QUARK_CGEL",
-      "type": "reference_grammar",
-      "access": "book",
-      "title": "A Comprehensive Grammar of the English Language",
-      "authors": [
-        "Randolph Quirk",
-        "Sidney Greenbaum",
-        "Geoffrey Leech",
-        "Jan Svartvik"
-      ],
-      "year": 1985,
-      "publisher": "Longman",
-      "citationAPA": "Quirk, R., Greenbaum, S., Leech, G., & Svartvik, J. (1985). A comprehensive grammar of the English language. Longman.",
-      "useInLayer": [
-        "syntax",
-        "morphology",
-        "clause structure",
-        "complementation",
-        "coordination",
-        "subordination"
-      ]
-    },
-    {
-      "key": "S_SWAN_PEU",
-      "type": "usage_reference",
-      "access": "book",
-      "title": "Practical English Usage",
-      "authors": [
-        "Michael Swan"
-      ],
-      "year": 2016,
-      "edition": "4th",
-      "publisher": "Oxford University Press",
-      "citationAPA": "Swan, M. (2016). Practical English usage (4th ed.). Oxford University Press.",
-      "useInLayer": [
-        "usage diagnostics",
-        "learner confusions",
-        "articles",
-        "prepositions",
-        "complement frames",
-        "tense/aspect"
-      ]
-    },
-    {
-      "key": "S_Purdue_OWL_Grammar",
+      "key": "S_Purdue_OWL_GeneralWriting",
       "type": "open_reference",
       "access": "web",
-      "title": "Grammar Introduction",
+      "title": "General Writing",
       "organization": "Purdue OWL",
-      "url": "https://owl.purdue.edu/owl/general_writing/grammar/index.html",
+      "url": "https://owl.purdue.edu/owl/general_writing/index.html",
       "useInLayer": [
-        "public grammar support",
-        "micro-exercises",
-        "quick reference lookup",
-        "student-facing support"
+        "style",
+        "mechanics",
+        "transitions",
+        "general revision support"
+      ]
+    },
+    {
+      "key": "S_NCTE_QAGrammar",
+      "type": "professional_guidance",
+      "access": "web",
+      "title": "Some Questions and Answers about Grammar",
+      "organization": "National Council of Teachers of English",
+      "url": "https://ncte.org/statement/qandaaboutgrammar/",
+      "useInLayer": [
+        "metalanguage",
+        "grammar as description",
+        "teaching orientation"
       ]
     }
   ],
   "domain": "english",
+<<<<<<< HEAD
   "packId": "eng_morphology_word_formation_v2",
   "normalizedFrom": {
     "filename": "eng_morphology_word_formation_v1.json",
     "id": "eng_morphology_word_formation_v2",
+=======
+  "packId": "eng_phonetics_phonology_v2",
+  "normalizedFrom": {
+    "filename": "eng_phonetics_phonology_v1.json",
+    "id": "eng_phonetics_phonology_v2",
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     "version": "2.0.0"
   },
   "normalizationMeta": {
@@ -162,6 +139,7 @@
     "preservedStructuralIntegrity": true
   },
   "aliases": [
+<<<<<<< HEAD
     "eng_morphology_word_formation_v1",
     "eng_morphology_word_formation_v2",
     "morphology_and_word_formation"
@@ -182,11 +160,38 @@
       "reasoning",
       "structure",
       "word"
+=======
+    "eng_phonetics_phonology_v1",
+    "eng_phonetics_phonology_v2",
+    "phonetics_and_phonology"
+  ],
+  "pathwayHints": {
+    "domain": "english",
+    "primaryIntent": "phonetics_and_phonology",
+    "keywords": [
+      "contrast",
+      "essentials",
+      "explanation",
+      "intelligibility",
+      "patterning",
+      "patterns",
+      "phonetics",
+      "phonology",
+      "production",
+      "pronunciation-aware",
+      "rhythm",
+      "sound",
+      "speech"
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     ]
   },
   "sourceCoverage": {
     "anchorCount": 2,
+<<<<<<< HEAD
     "referenceCount": 3,
+=======
+    "referenceCount": 2,
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     "anchorsResolved": true,
     "missingAnchorKeys": []
   },
@@ -195,7 +200,11 @@
     "modules": 3,
     "caseStudies": 1,
     "projects": 1,
+<<<<<<< HEAD
     "referenceTextsUsed": 3
+=======
+    "referenceTextsUsed": 2
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
   },
   "auditSummary": {
     "gradeBeforeNormalization": null,
@@ -204,4 +213,8 @@
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

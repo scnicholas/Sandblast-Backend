@@ -422,4 +422,8 @@ try {
 } catch (err) {
   console.error("[validate_marion_psychology_index] ERROR:", err && err.message ? err.message : err);
   process.exit(1);
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

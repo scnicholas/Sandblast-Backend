@@ -1,7 +1,7 @@
 {
   "version": "top10_by_year_source_v1",
   "chart": "Billboard Year-End Hot 100",
-  "range": { "minYear": 1950, "maxYear": 2024 },
+  "range": { "minYear": 1950, "maxYear": 2025 },
   "notes": "Editable source input. Build script normalizes and outputs Data/top10_by_year_v1.json",
   "years": {
     "1964": [

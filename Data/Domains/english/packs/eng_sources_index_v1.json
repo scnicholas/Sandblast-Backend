@@ -352,4 +352,8 @@
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

@@ -68,4 +68,8 @@ module.exports = {
   getSlots,
   saveSlot,
   clearSlot
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

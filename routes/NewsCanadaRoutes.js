@@ -216,4 +216,8 @@ router.post("/manual/clear", (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 module.exports = router;
+=======
+module.exports = router;
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

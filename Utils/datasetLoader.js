@@ -1,167 +1,270 @@
 "use strict";
 
 /**
- * Utils/datasetLoader.js  (OPINTEL DATASETS v1)
- * - Fail-open loader for small/medium JSON datasets stored under Utils/datasets
- * - Supports: array-of-records, or {items:[...]} wrappers
- * - Provides: loadAll(), search(query, opts), stats()
+ * Utils/englishKnowledge.js
  *
- * Dataset record shape (recommended):
- *  { id?, topic?, tags?, question?, answer?, text?, source?, updatedAt? }
+ * English Knowledge Layer (v1.0.0)
+ * Deterministic, mediator-safe, bounded hint engine.
  *
- * NOTE: This is NOT training. It is retrieval from your curated datasets.
+ * Purpose:
+ * - Provide structural + pedagogical hints to Marion/chatEngine
+ * - Aligned with english manifest v2.0.0
+ * - No raw user text storage
+ * - No file IO
+ * - No mutation
+ *
+ * API:
+ *   getMarionHints({ features, tokens, queryKey }, ctx?) -> hints
+ *   query(...) alias
+ *
+ * Contract:
+ *   {
+ *     enabled: true,
+ *     queryKey,
+ *     focus,
+ *     stance,
+ *     packs,
+ *     principles[],
+ *     frameworks[],
+ *     guardrails[],
+ *     exampleTypes[],
+ *     responseCues[],
+ *     confidence,
+ *     reason
+ *   }
  */
 
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+const ENGLISH_K_VERSION = "englishKnowledge v1.0.0";
 
-function safeStr(x){ return x === null || x === undefined ? "" : String(x); }
-function isPlainObject(x){
-  return !!x && typeof x === "object" && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
-}
-function clampInt(v, def, min, max){
-  const n = Number(v);
-  if (!Number.isFinite(n)) return def;
-  const t = Math.trunc(n);
-  if (t < min) return min;
-  if (t > max) return max;
-  return t;
-}
-function sha1(s){ return crypto.createHash("sha1").update(String(s||"")).digest("hex"); }
+// Manifest-aligned pack names (must match manifest)
+const PACK_FILES = Object.freeze({
+  curriculum: "eng_curriculum_sequence_v1.json",
+  sources: "eng_sources_index_v1.json",
+  foundations: "eng_foundations_language_science_v1.json",
+  phonology: "eng_phonetics_phonology_v1.json",
+  morphology: "eng_morphology_word_formation_v1.json",
+  syntax: "eng_syntax_grammar_core_v1.json",
+  semantics: "eng_semantics_pragmatics_v1.json",
+  corpus: "eng_register_corpus_usage_v1.json",
+  writing: "eng_academic_writing_clarity_v1.json",
+  eap: "eng_eap_canada_case_studies_v1.json",
+  faces: "eng_face_examples_v1.json",
+  dialogue: "eng_dialogue_snippets_v1.json"
+});
 
-const DEFAULT_DIR = path.join(__dirname, "datasets");
-
-let __loadedAt = 0;
-let __items = [];
-let __files = [];
-
-function coerceItems(parsed){
-  if (Array.isArray(parsed)) return parsed;
-  if (isPlainObject(parsed) && Array.isArray(parsed.items)) return parsed.items;
-  if (isPlainObject(parsed) && Array.isArray(parsed.data)) return parsed.data;
-  return [];
+// -------------------------
+// helpers (bounded, deterministic)
+// -------------------------
+function safeStr(x, max = 60) {
+  if (x === null || x === undefined) return "";
+  const s = String(x);
+  return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-function listJsonFiles(dirAbs){
+function uniq(arr, max = 8) {
+  const out = [];
+  const seen = new Set();
+  for (const v of Array.isArray(arr) ? arr : []) {
+    const s = safeStr(v, 60);
+    if (!s) continue;
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+
+// -------------------------
+// classification logic
+// -------------------------
+function classifyFocus(tokens) {
+  const t = tokens || [];
+
+  if (t.includes("phonology") || t.includes("pronunciation"))
+    return { focus: "phonology", pack: PACK_FILES.phonology };
+
+  if (t.includes("morphology") || t.includes("word formation"))
+    return { focus: "morphology", pack: PACK_FILES.morphology };
+
+  if (t.includes("syntax") || t.includes("grammar"))
+    return { focus: "syntax", pack: PACK_FILES.syntax };
+
+  if (t.includes("semantics") || t.includes("pragmatics"))
+    return { focus: "semantics_pragmatics", pack: PACK_FILES.semantics };
+
+  if (t.includes("corpus") || t.includes("register"))
+    return { focus: "register_usage", pack: PACK_FILES.corpus };
+
+  if (t.includes("academic") || t.includes("writing") || t.includes("clarity"))
+    return { focus: "academic_writing", pack: PACK_FILES.writing };
+
+  if (t.includes("eap") || t.includes("case_study"))
+    return { focus: "eap_case_studies", pack: PACK_FILES.eap };
+
+  if (t.includes("dialogue"))
+    return { focus: "dialogue_modeling", pack: PACK_FILES.dialogue };
+
+  if (t.includes("face"))
+    return { focus: "face_examples", pack: PACK_FILES.faces };
+
+  return { focus: "foundations", pack: PACK_FILES.foundations };
+}
+
+function derivePrinciples(focus) {
+  switch (focus) {
+    case "syntax":
+      return [
+        "phrase_structure",
+        "hierarchical_constituency",
+        "agreement_features",
+        "movement_constraints"
+      ];
+    case "phonology":
+      return [
+        "phoneme_inventory",
+        "minimal_pairs",
+        "stress_patterns",
+        "phonological_rules"
+      ];
+    case "morphology":
+      return [
+        "derivation_vs_inflection",
+        "morpheme_segmentation",
+        "productivity",
+        "word_class_shift"
+      ];
+    case "semantics_pragmatics":
+      return [
+        "reference_and_deixis",
+        "implicature",
+        "presupposition",
+        "speech_acts"
+      ];
+    case "academic_writing":
+      return [
+        "thesis_clarity",
+        "cohesion_devices",
+        "paragraph_unity",
+        "audience_awareness"
+      ];
+    case "register_usage":
+      return [
+        "spoken_vs_written_register",
+        "frequency_patterns",
+        "disciplinary_lexis"
+      ];
+    case "eap_case_studies":
+      return [
+        "scaffolded_instruction",
+        "portfolio_assessment",
+        "language_support_models"
+      ];
+    default:
+      return [
+        "language_as_system",
+        "form_meaning_mapping",
+        "descriptive_not_prescriptive"
+      ];
+  }
+}
+
+function deriveFrameworks(focus) {
+  switch (focus) {
+    case "syntax":
+      return ["xbar_theory", "dependency_grammar"];
+    case "phonology":
+      return ["distinctive_features", "prosodic_hierarchy"];
+    case "morphology":
+      return ["morphological_tree_model"];
+    case "semantics_pragmatics":
+      return ["truth_conditions", "gricean_maxims"];
+    case "academic_writing":
+      return ["imrad_structure", "rhetorical_moves_model"];
+    case "eap_case_studies":
+      return ["content_based_instruction"];
+    default:
+      return ["structural_linguistics"];
+  }
+}
+
+function deriveGuardrails(focus) {
+  if (focus === "academic_writing")
+    return ["avoid_passive_overuse", "define_terms_early"];
+  if (focus === "syntax")
+    return ["avoid_rule_without_example"];
+  if (focus === "semantics_pragmatics")
+    return ["distinguish_semantics_from_pragmatics"];
+  return ["no_prescriptive_bias"];
+}
+
+function deriveResponseCues(focus) {
+  if (focus === "academic_writing")
+    return ["use_examples", "offer_revision_model"];
+  if (focus === "syntax")
+    return ["show_tree_structure", "contrast_examples"];
+  if (focus === "phonology")
+    return ["include_ipa", "minimal_pair_example"];
+  return ["define_term", "provide_example"];
+}
+
+// -------------------------
+// Main Hint Engine
+// -------------------------
+function getMarionHints(input = {}, ctx = {}) {
   try {
-    const entries = fs.readdirSync(dirAbs, { withFileTypes: true });
-    return entries
-      .filter((e) => e && e.isFile() && /\.json$/i.test(String(e.name||"")))
-      .map((e) => path.join(dirAbs, e.name));
-  } catch (_e) {
-    return [];
+    const features = input.features || {};
+    const tokens = Array.isArray(input.tokens) ? input.tokens : [];
+    const queryKey = safeStr(input.queryKey || "", 18);
+
+    const { focus, pack } = classifyFocus(tokens);
+
+    const principles = derivePrinciples(focus);
+    const frameworks = deriveFrameworks(focus);
+    const guardrails = deriveGuardrails(focus);
+    const responseCues = deriveResponseCues(focus);
+
+    return {
+      enabled: true,
+      queryKey,
+      focus,
+      stance: "academic_structural",
+      packs: {
+        primary: pack,
+        curriculum: PACK_FILES.curriculum,
+        sources: PACK_FILES.sources
+      },
+      principles: uniq(principles, 8),
+      frameworks: uniq(frameworks, 6),
+      guardrails: uniq(guardrails, 6),
+      exampleTypes: uniq(["worked_example", "contrast_pair", "micro_analysis"], 6),
+      responseCues: uniq(responseCues, 6),
+      confidence: clamp01(0.75),
+      reason: "focus_classified"
+    };
+  } catch (e) {
+    return {
+      enabled: false,
+      reason: "english_hint_fail"
+    };
   }
 }
 
-function normalizeRecord(rec, file, idx){
-  const r = isPlainObject(rec) ? rec : {};
-  const topic = safeStr(r.topic || r.domain || r.lane || "");
-  const q = safeStr(r.question || r.q || "");
-  const a = safeStr(r.answer || r.a || r.reply || "");
-  const text = safeStr(r.text || r.content || "").trim();
-  const tags = Array.isArray(r.tags) ? r.tags.slice(0, 12).map(safeStr) : [];
-  const id = safeStr(r.id || r._id || r.key || "").trim() || `ds_${sha1(file + "|" + idx).slice(0, 12)}`;
-
-  const searchText = (q + "\n" + a + "\n" + text + "\n" + topic + "\n" + tags.join(" ")).toLowerCase();
-
-  return {
-    id,
-    topic,
-    tags,
-    question: q,
-    answer: a,
-    text,
-    source: safeStr(r.source || path.basename(file)),
-    updatedAt: safeStr(r.updatedAt || r.updated || ""),
-    __file: safeStr(file),
-    __idx: idx,
-    __search: searchText,
-  };
-}
-
-function loadAll(opts){
-  const o = isPlainObject(opts) ? opts : {};
-  const dirAbs = path.resolve(safeStr(o.dir || process.env.SB_DATASETS_DIR || DEFAULT_DIR));
-  const maxFiles = clampInt(o.maxFiles || process.env.SB_DATASETS_MAX_FILES, 32, 1, 500);
-  const maxTotalItems = clampInt(o.maxTotalItems || process.env.SB_DATASETS_MAX_ITEMS, 20000, 100, 200000);
-
-  const files = listJsonFiles(dirAbs).slice(0, maxFiles);
-  const items = [];
-  for (const f of files) {
-    try {
-      const raw = fs.readFileSync(f, "utf8");
-      const parsed = JSON.parse(raw);
-      const arr = coerceItems(parsed);
-      for (let i = 0; i < arr.length; i++) {
-        items.push(normalizeRecord(arr[i], f, i));
-        if (items.length >= maxTotalItems) break;
-      }
-    } catch (_e) {}
-    if (items.length >= maxTotalItems) break;
-  }
-
-  __items = items;
-  __files = files;
-  __loadedAt = Date.now();
-
-  return { ok: true, dirAbs, files: files.length, items: items.length, loadedAt: __loadedAt };
-}
-
-function scoreHit(item, qLower){
-  const t = safeStr(item.__search || "");
-  if (!t || !qLower) return 0;
-  const toks = qLower.split(/\s+/).filter(Boolean).slice(0, 10);
-  let s = 0;
-  for (const tok of toks) {
-    if (tok.length < 2) continue;
-    if (t.includes(tok)) s += 1;
-  }
-  if (safeStr(item.question||"").toLowerCase().includes(qLower)) s += 2;
-  if (safeStr(item.topic||"").toLowerCase().includes(qLower)) s += 1;
-  return s;
-}
-
-function search(query, opts){
-  const q = safeStr(query).trim();
-  if (!q) return { ok: true, hit: null, hits: [] };
-
-  const o = isPlainObject(opts) ? opts : {};
-  const limit = clampInt(o.limit, 3, 1, 10);
-  const topic = safeStr(o.topic || "").trim().toLowerCase();
-
-  const qLower = q.toLowerCase();
-
-  const candidates = topic
-    ? __items.filter((it) => safeStr(it.topic||"").toLowerCase() === topic)
-    : __items;
-
-  const scored = candidates
-    .map((it) => ({ it, s: scoreHit(it, qLower) }))
-    .filter((x) => x.s > 0)
-    .sort((a,b) => b.s - a.s)
-    .slice(0, limit);
-
-  const hits = scored.map((x) => ({
-    id: x.it.id,
-    topic: x.it.topic,
-    tags: x.it.tags,
-    question: x.it.question,
-    answer: x.it.answer,
-    text: x.it.text,
-    source: x.it.source,
-    score: x.s,
-  }));
-
-  return { ok: true, hit: hits[0] || null, hits };
-}
-
-function stats(){
-  return { ok: true, loadedAt: __loadedAt, items: __items.length, files: __files.length };
+function query(input) {
+  return getMarionHints(input);
 }
 
 module.exports = {
-  loadAll,
-  search,
-  stats,
+  ENGLISH_K_VERSION,
+  PACK_FILES,
+  getMarionHints,
+  query
 };

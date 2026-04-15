@@ -901,4 +901,8 @@
     "normalizationPass": "cyber_pack_marion_readiness_v1",
     "originalFilename": "cyber_source_ladder_v2.json"
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

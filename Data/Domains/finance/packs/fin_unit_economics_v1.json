@@ -533,4 +533,8 @@
     "marionPriority": 3,
     "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

@@ -509,4 +509,8 @@ async function retrieveDomain(input = {}) {
 module.exports = {
   retrieveDomain,
   retrieve: retrieveDomain
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

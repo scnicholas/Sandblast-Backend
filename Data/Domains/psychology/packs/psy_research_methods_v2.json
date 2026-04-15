@@ -808,4 +808,8 @@
       "Use source index for trust weighting and bibliographic routing."
     ]
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

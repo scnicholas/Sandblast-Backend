@@ -3,6 +3,7 @@ const path = require("path");
 const { NEWS_CANADA_CONFIG } = require("./config");
 const { ensureDir, writeJson } = require("./utils");
 
+<<<<<<< HEAD
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -74,6 +75,25 @@ function buildPayloadEnvelope(payload) {
     slides: articles,
     panels: articles
   };
+=======
+function buildPayloadEnvelope(payload) {
+  const articles = Array.isArray(payload) ? payload : Array.isArray(payload?.articles) ? payload.articles : [];
+
+  return Array.isArray(payload)
+    ? {
+        source: "News Canada",
+        generatedAt: new Date().toISOString(),
+        count: articles.length,
+        articles
+      }
+    : {
+        ...(payload && typeof payload === "object" ? payload : {}),
+        source: (payload && payload.source) || "News Canada",
+        generatedAt: new Date().toISOString(),
+        count: articles.length,
+        articles
+      };
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
 }
 
 function saveArticles(payload) {
@@ -89,4 +109,8 @@ function saveArticles(payload) {
   return outFile;
 }
 
+<<<<<<< HEAD
 module.exports = { saveArticles, buildPayloadEnvelope };
+=======
+module.exports = { saveArticles };
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

@@ -1,7 +1,13 @@
 {
+<<<<<<< HEAD
   "version": "1.2.0",
   "domain": "psychology",
   "description": "Maps support modes to response strategy, tone, follow-up style, semantic frame, escalation posture, continuity handling, and Nyx-ready formatting for Marion delivery.",
+=======
+  "version": "1.0.0",
+  "domain": "psychology",
+  "description": "Maps support modes to response strategy, tone, follow-up style, semantic frame, and escalation posture for Marion/Nyx delivery.",
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
   "supportModes": {
     "crisis_escalation": {
       "deliveryPriority": 1,
@@ -10,10 +16,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "action_gate",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "stabilize",
         "escalate"
       ],
+=======
+      "transitionTargets": ["stabilize", "escalate"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "acknowledge urgency",
         "prioritize safety",
@@ -23,6 +33,7 @@
         "stop regular flow",
         "do not overanalyze",
         "do not continue casual dialogue"
+<<<<<<< HEAD
       ],
       "formatterMode": "safety_first",
       "nyxDirective": {
@@ -46,6 +57,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "acute_regulation": {
       "deliveryPriority": 2,
@@ -54,10 +68,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "grounding",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "stabilize",
         "contain"
       ],
+=======
+      "transitionTargets": ["stabilize", "contain"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "reduce verbal complexity",
         "ground in present moment",
@@ -66,6 +84,7 @@
       "constraints": [
         "avoid multiple questions",
         "avoid complex explanations"
+<<<<<<< HEAD
       ],
       "formatterMode": "safety_first",
       "nyxDirective": {
@@ -89,6 +108,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "soothe_and_structure": {
       "deliveryPriority": 3,
@@ -97,10 +119,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "stabilize",
         "clarify"
       ],
+=======
+      "transitionTargets": ["stabilize", "clarify"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "validate emotional strain",
         "reduce urgency",
@@ -109,6 +135,7 @@
       "constraints": [
         "avoid solution-dumping",
         "avoid over-questioning"
+<<<<<<< HEAD
       ],
       "formatterMode": "stabilizing_support",
       "nyxDirective": {
@@ -132,6 +159,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "validate_and_gently_activate": {
       "deliveryPriority": 4,
@@ -140,10 +170,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "clarify",
         "activate"
       ],
+=======
+      "transitionTargets": ["clarify", "activate"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "validate depletion",
         "keep pacing gentle",
@@ -152,6 +186,7 @@
       "constraints": [
         "do not pressure",
         "do not shame inactivity"
+<<<<<<< HEAD
       ],
       "formatterMode": "clarifying_support",
       "nyxDirective": {
@@ -175,6 +210,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "careful_nonshaming_reflection": {
       "deliveryPriority": 5,
@@ -183,10 +221,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "repair",
         "stabilize"
       ],
+=======
+      "transitionTargets": ["repair", "stabilize"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "separate person from problem",
         "reduce self-attack",
@@ -195,6 +237,7 @@
       "constraints": [
         "do not moralize",
         "do not agree with self-condemnation"
+<<<<<<< HEAD
       ],
       "formatterMode": "nonshaming_support",
       "nyxDirective": {
@@ -218,6 +261,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "clarify_and_reframe": {
       "deliveryPriority": 6,
@@ -226,10 +272,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "medium",
+<<<<<<< HEAD
       "transitionTargets": [
         "clarify",
         "challenge"
       ],
+=======
+      "transitionTargets": ["clarify", "challenge"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "reflect uncertainty",
         "introduce nuance",
@@ -238,6 +288,7 @@
       "constraints": [
         "do not lecture",
         "do not sound clinical"
+<<<<<<< HEAD
       ],
       "formatterMode": "clarifying_support",
       "nyxDirective": {
@@ -261,6 +312,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "clarify_and_reality_test": {
       "deliveryPriority": 7,
@@ -269,10 +323,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
+<<<<<<< HEAD
       "transitionTargets": [
         "clarify",
         "challenge"
       ],
+=======
+      "transitionTargets": ["clarify", "challenge"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "distinguish fact from inference",
         "reduce certainty around assumptions",
@@ -281,6 +339,7 @@
       "constraints": [
         "do not ridicule assumptions",
         "do not overvalidate speculation"
+<<<<<<< HEAD
       ],
       "formatterMode": "clarifying_support",
       "nyxDirective": {
@@ -304,6 +363,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "clarify_and_sequence": {
       "deliveryPriority": 8,
@@ -312,10 +374,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
+<<<<<<< HEAD
       "transitionTargets": [
         "clarify",
         "ground"
       ],
+=======
+      "transitionTargets": ["clarify", "ground"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "reflect core tension",
         "narrow the frame",
@@ -324,6 +390,7 @@
       "constraints": [
         "avoid interrogation",
         "avoid ambiguity stacking"
+<<<<<<< HEAD
       ],
       "formatterMode": "clarifying_support",
       "nyxDirective": {
@@ -347,6 +414,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "respectful_clarify_and_reconnect": {
       "deliveryPriority": 9,
@@ -355,10 +425,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "medium",
+<<<<<<< HEAD
       "transitionTargets": [
         "deepen",
         "reconnect"
       ],
+=======
+      "transitionTargets": ["deepen", "reconnect"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "respect autonomy",
         "gently name the protective move",
@@ -367,6 +441,7 @@
       "constraints": [
         "do not force vulnerability",
         "do not shame distance"
+<<<<<<< HEAD
       ],
       "formatterMode": "clarifying_support",
       "nyxDirective": {
@@ -390,6 +465,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "stabilize_and_name_pattern": {
       "deliveryPriority": 10,
@@ -398,10 +476,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "stabilize",
         "clarify"
       ],
+=======
+      "transitionTargets": ["stabilize", "clarify"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "name the push-pull gently",
         "reduce urgency",
@@ -410,6 +492,7 @@
       "constraints": [
         "do not oversimplify",
         "do not intensify relational fear"
+<<<<<<< HEAD
       ],
       "formatterMode": "stabilizing_support",
       "nyxDirective": {
@@ -433,6 +516,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "affirm_and_channel": {
       "deliveryPriority": 11,
@@ -441,10 +527,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "direct_answer_then_one_question",
       "transitionReadiness": "high",
+<<<<<<< HEAD
       "transitionTargets": [
         "channel",
         "maintain"
       ],
+=======
+      "transitionTargets": ["channel", "maintain"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "affirm improvement",
         "preserve gains",
@@ -453,6 +543,7 @@
       "constraints": [
         "do not overinflate confidence unrealistically",
         "do not drag user back into distress framing"
+<<<<<<< HEAD
       ],
       "formatterMode": "momentum_support",
       "nyxDirective": {
@@ -476,6 +567,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "stabilize_and_respect_pacing": {
       "deliveryPriority": 12,
@@ -484,10 +578,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "stabilize",
         "contain"
       ],
+=======
+      "transitionTargets": ["stabilize", "contain"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "protect pacing",
         "preserve choice",
@@ -496,6 +594,7 @@
       "constraints": [
         "do not probe for detail",
         "do not rush disclosure"
+<<<<<<< HEAD
       ],
       "formatterMode": "stabilizing_support",
       "nyxDirective": {
@@ -519,6 +618,9 @@
         "preferPrimaryEmotionStability": true,
         "secondaryEmotionCanAdjustTone": true
       }
+=======
+      ]
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
     },
     "contain_with_choice": {
       "deliveryPriority": 13,
@@ -527,10 +629,14 @@
       "expressionStyle": "plain_statement",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "low",
+<<<<<<< HEAD
       "transitionTargets": [
         "contain",
         "reconnect"
       ],
+=======
+      "transitionTargets": ["contain", "reconnect"],
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
       "responseShape": [
         "offer one choice at a time",
         "reduce pressure",
@@ -539,6 +645,7 @@
       "constraints": [
         "do not overload with directives",
         "do not force narrative depth"
+<<<<<<< HEAD
       ],
       "formatterMode": "stabilizing_support",
       "nyxDirective": {
@@ -753,3 +860,9 @@
     }
   }
 }
+=======
+      ]
+    }
+  }
+}
+>>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)

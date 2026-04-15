@@ -1,0 +1,22 @@
+[
+  {
+    "id": "sample-1",
+    "title": "News Canada Feature One",
+    "summary": "This is a fallback story to confirm pipeline delivery.",
+    "body": "Full story content is now available. This confirms backend-to-frontend delivery is working correctly.",
+    "url": "https://www.newscanada.com/",
+    "issue": "Editor’s Pick",
+    "categories": ["Canada", "News"],
+    "image": ""
+  },
+  {
+    "id": "sample-2",
+    "title": "News Canada Feature Two",
+    "summary": "Second fallback story for validation.",
+    "body": "If you see this, the normalization and route are functioning.",
+    "url": "https://www.newscanada.com/",
+    "issue": "Top Story",
+    "categories": ["Features"],
+    "image": ""
+  }
+]
