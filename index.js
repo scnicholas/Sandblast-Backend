@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.16.8sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
+const INDEX_VERSION = "index.js v2.16.9sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + ROUTE-DIAGNOSTIC-HINTS + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -835,8 +835,11 @@ const NEWS_CANADA_CACHE_FILE = path.join(__dirname, ".newscanada-feed-cache.json
 const NEWS_CANADA_CACHE_CONTRACT_CANDIDATES = uniq([
   cleanText(process.env.NEWSCANADA_CACHE_FILE || process.env.NEWS_CANADA_CACHE_FILE || ""),
   path.join(__dirname, "data", "newscanada", "newscanada.cache.json"),
+  path.join(__dirname, "Data", "newscanada", "newscanada.cache.json"),
   path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
-  path.join(process.cwd(), "backend", "data", "newscanada", "newscanada.cache.json")
+  path.join(process.cwd(), "Data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "backend", "data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "backend", "Data", "newscanada", "newscanada.cache.json")
 ].filter(Boolean));
 
 function getNewsCanadaCacheContractPaths() {
