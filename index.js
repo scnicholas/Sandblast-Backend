@@ -85,24 +85,6 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PUBLIC_NEWSCANADA_DIR = path.join(__dirname, "public newscanada");
-const AVATAR_PUBLIC_DIR = path.join(PUBLIC_DIR, "avatar");
-const AVATAR_ASSETS_DIR = path.join(AVATAR_PUBLIC_DIR, "assets");
-const AVATAR_ROUTE_PREFIX = "/avatar";
-const AVATAR_ROUTE_ALIASES = ["/public/avatar", "/avatar/assets", "/public/avatar/assets"];
-const AVATAR_VIDEO_BASENAME = cleanEnvAvatarBasename(
-  process.env.SB_NYX_AVATAR_VIDEO ||
-  process.env.SB_AVATAR_VIDEO ||
-  process.env.SB_NYX_AVATAR_FILE ||
-  process.env.SB_AVATAR_FILE ||
-  "avatar5.mp4"
-);
-const AVATAR_FALLBACK_BASENAME = cleanEnvAvatarBasename(
-  process.env.SB_NYX_AVATAR_FALLBACK ||
-  process.env.SB_AVATAR_FALLBACK ||
-  process.env.SB_NYX_AVATAR_POSTER ||
-  process.env.SB_AVATAR_POSTER ||
-  "nyx-hero.png"
-);
 const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir) => {
   try {
     return fs.existsSync(dir);
@@ -112,163 +94,130 @@ const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir
 });
 
 
+const AVATAR_PUBLIC_DIR = path.join(PUBLIC_DIR, "avatar");
+const AVATAR_ASSETS_DIR = path.join(AVATAR_PUBLIC_DIR, "assets");
+const AVATAR_FALLBACK_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_FILE ||
+  process.env.SB_AVATAR_FILE ||
+  process.env.NYX_AVATAR_FILE ||
+  "avatar5.mp4"
+);
+const AVATAR_IMAGE_FALLBACK_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_FALLBACK_FILE ||
+  process.env.SB_AVATAR_FALLBACK_FILE ||
+  process.env.NYX_AVATAR_FALLBACK_FILE ||
+  "nyx-hero.png"
+);
+
 function cleanEnvAvatarBasename(value) {
-  const raw = String(value == null ? "" : value).trim();
-  if (!raw) return "";
-  return path.basename(raw.split(/[?#]/)[0]).trim();
+  const base = path.basename(cleanText(value || ""));
+  return cleanText(base);
 }
 
-function avatarUrlFor(fileName) {
-  const base = getBackendPublicBase();
-  const name = cleanEnvAvatarBasename(fileName);
-  return name ? `${base}${AVATAR_ROUTE_PREFIX}/assets/${encodeURIComponent(name)}` : "";
+function avatarAssetBaseUrl() {
+  return routeUrl("/avatar/assets");
 }
 
-function avatarStaticOptions() {
-  return {
-    fallthrough: true,
-    extensions: false,
-    index: false,
-    maxAge: "1h",
-    immutable: false,
-    setHeaders(res, filePath) {
-      const ext = lower(path.extname(filePath || ""));
-      if (ext === ".mp4") {
-        res.setHeader("Content-Type", "video/mp4");
-        res.setHeader("Accept-Ranges", "bytes");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      } else if (ext === ".png") {
-        res.setHeader("Content-Type", "image/png");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      } else if (ext === ".jpg" || ext === ".jpeg") {
-        res.setHeader("Content-Type", "image/jpeg");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      } else if (ext === ".webp") {
-        res.setHeader("Content-Type", "image/webp");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      }
+function avatarStaticCandidateDirs() {
+  return uniq([
+    AVATAR_ASSETS_DIR,
+    AVATAR_PUBLIC_DIR,
+    path.join(PUBLIC_DIR, "assets"),
+    path.join(PUBLIC_DIR, "media"),
+    path.join(PUBLIC_DIR, "media", "avatar"),
+    path.join(PUBLIC_DIR, "videos"),
+    path.join(PUBLIC_DIR, "video")
+  ]).filter((dir) => {
+    try {
+      return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+    } catch (_) {
+      return false;
     }
-  };
+  });
 }
 
-function listAvatarFiles(dirPath) {
-  try {
-    if (!dirPath || !fs.existsSync(dirPath)) return [];
-    return fs.readdirSync(dirPath).filter(Boolean).sort();
-  } catch (_) {
-    return [];
+function avatarStaticCandidateFiles(fileName) {
+  const base = cleanEnvAvatarBasename(fileName);
+  if (!base) return [];
+  const dirs = avatarStaticCandidateDirs();
+  return uniq([
+    path.join(AVATAR_ASSETS_DIR, base),
+    path.join(AVATAR_PUBLIC_DIR, base),
+    ...dirs.map((dir) => path.join(dir, base))
+  ]);
+}
+
+function resolveAvatarAssetFile(fileName) {
+  const base = cleanEnvAvatarBasename(fileName);
+  if (!base) return "";
+  for (const candidate of avatarStaticCandidateFiles(base)) {
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    } catch (_) {}
   }
+  const lowerName = base.toLowerCase();
+  for (const dir of avatarStaticCandidateDirs()) {
+    try {
+      const hits = fs.readdirSync(dir);
+      for (const entry of hits) {
+        const full = path.join(dir, entry);
+        if (entry.toLowerCase() === lowerName && fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+      }
+    } catch (_) {}
+  }
+  return "";
 }
 
-function fileExists(p) {
+function avatarVideoFile() {
+  return resolveAvatarAssetFile(AVATAR_FALLBACK_BASENAME);
+}
+
+function avatarFallbackImageFile() {
+  return resolveAvatarAssetFile(AVATAR_IMAGE_FALLBACK_BASENAME);
+}
+
+function avatarMimeType(filePath) {
+  const ext = lower(path.extname(filePath || ""));
+  if (ext === ".mp4") return "video/mp4";
+  if (ext === ".webm") return "video/webm";
+  if (ext === ".ogg" || ext === ".ogv") return "video/ogg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return "application/octet-stream";
+}
+
+function sendAvatarFile(res, filePath) {
+  if (!filePath) return false;
   try {
-    return !!(p && fs.existsSync(p));
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.type(avatarMimeType(filePath));
+    res.sendFile(filePath);
+    return true;
   } catch (_) {
     return false;
   }
 }
 
-function resolveAvatarAssetFile(preferredName, allowedExts) {
-  const pref = cleanEnvAvatarBasename(preferredName);
-  const exts = Array.isArray(allowedExts) && allowedExts.length ? allowedExts : [""];
-  const searchDirs = uniq([
-    AVATAR_ASSETS_DIR,
-    AVATAR_PUBLIC_DIR,
-    path.join(PUBLIC_DIR, "assets"),
-    PUBLIC_DIR
-  ]);
-
-  for (const dir of searchDirs) {
-    if (!fileExists(dir)) continue;
-    if (pref) {
-      const direct = path.join(dir, pref);
-      if (fileExists(direct)) return { file: direct, routeName: path.basename(direct), dir };
-      const parsed = path.parse(pref);
-      if (!parsed.ext) {
-        for (const ext of exts) {
-          const candidate = path.join(dir, `${parsed.name}${ext}`);
-          if (fileExists(candidate)) return { file: candidate, routeName: path.basename(candidate), dir };
-        }
-      }
-    }
-  }
-
-  for (const dir of searchDirs) {
-    if (!fileExists(dir)) continue;
-    const files = listAvatarFiles(dir);
-    for (const fileName of files) {
-      const ext = lower(path.extname(fileName));
-      if (exts.includes(ext)) {
-        return { file: path.join(dir, fileName), routeName: fileName, dir };
-      }
-    }
-  }
-
-  return null;
-}
-
-function getAvatarAssetSnapshot() {
-  const video = resolveAvatarAssetFile(AVATAR_VIDEO_BASENAME, [".mp4", ".webm", ".mov", ".m4v"]);
-  const fallback = resolveAvatarAssetFile(AVATAR_FALLBACK_BASENAME, [".png", ".jpg", ".jpeg", ".webp"]);
-  const assetDir = fileExists(AVATAR_ASSETS_DIR) ? AVATAR_ASSETS_DIR : (video && video.dir) || AVATAR_PUBLIC_DIR;
+function avatarConfigPayload() {
+  const videoFile = avatarVideoFile();
+  const imageFile = avatarFallbackImageFile();
+  const videoName = cleanEnvAvatarBasename(videoFile ? path.basename(videoFile) : AVATAR_FALLBACK_BASENAME) || AVATAR_FALLBACK_BASENAME;
+  const imageName = cleanEnvAvatarBasename(imageFile ? path.basename(imageFile) : AVATAR_IMAGE_FALLBACK_BASENAME) || AVATAR_IMAGE_FALLBACK_BASENAME;
   return {
-    routePrefix: AVATAR_ROUTE_PREFIX,
-    aliases: AVATAR_ROUTE_ALIASES.slice(),
-    assetDir,
-    assetDirExists: fileExists(assetDir),
-    avatarDirExists: fileExists(AVATAR_PUBLIC_DIR),
-    video,
-    fallback,
-    files: listAvatarFiles(assetDir),
-    configured: {
-      video: AVATAR_VIDEO_BASENAME,
-      fallback: AVATAR_FALLBACK_BASENAME
-    },
-    urls: {
-      video: video ? avatarUrlFor(video.routeName) : "",
-      fallback: fallback ? avatarUrlFor(fallback.routeName) : ""
-    }
+    ok: !!videoFile,
+    base: getBackendPublicBase(),
+    assetBaseUrl: avatarAssetBaseUrl(),
+    videoFile: videoName,
+    imageFile: imageName,
+    avatarSrc: routeUrl(`/avatar/assets/${videoName}`),
+    fallbackSrc: routeUrl(`/avatar/assets/${imageName}`),
+    directVideo: routeUrl("/avatar/video"),
+    statusUrl: routeUrl("/avatar/status"),
+    scriptVersion: INDEX_VERSION,
+    searchedDirs: avatarStaticCandidateDirs()
   };
-}
-
-function sendAvatarAsset(req, res, type) {
-  const snap = getAvatarAssetSnapshot();
-  const hit = type === "fallback" ? snap.fallback : snap.video;
-  if (!hit || !hit.file) {
-    return res.status(404).json({
-      ok: false,
-      error: "not_found",
-      path: cleanText(req.originalUrl || req.path || ""),
-      meta: {
-        v: INDEX_VERSION,
-        t: now(),
-        assetType: type,
-        avatar: {
-          configured: snap.configured,
-          routePrefix: snap.routePrefix,
-          aliases: snap.aliases,
-          assetDir: snap.assetDir,
-          files: snap.files,
-          urls: snap.urls
-        },
-        likelyNewsCanadaMiss: false
-      }
-    });
-  }
-  return res.sendFile(hit.file);
-}
-
-function buildAvatarClientScript() {
-  const snap = getAvatarAssetSnapshot();
-  return [
-    "(function(){",
-    `window.SB_NYX_AVATAR_SRC=${JSON.stringify(snap.urls.video || "")};`,
-    `window.SB_NYX_AVATAR_FALLBACK_SRC=${JSON.stringify(snap.urls.fallback || "")};`,
-    `window.SB_NYX_AVATAR_ROUTE_PREFIX=${JSON.stringify(snap.routePrefix)};`,
-    `window.SB_NYX_AVATAR_ROUTE_ALIASES=${JSON.stringify(snap.aliases)};`,
-    `window.SB_NYX_AVATAR_FILES=${JSON.stringify(snap.files)};`,
-    "})();"
-  ].join("\n");
 }
 
 function safeStr(v) {
@@ -4516,6 +4465,81 @@ if (newsCanadaRoutes) {
   });
 }
 
+
+STATIC_PUBLIC_DIRS.forEach((dir) => {
+  app.use(express.static(dir));
+});
+
+if (fs.existsSync(AVATAR_PUBLIC_DIR)) {
+  app.use("/avatar", express.static(AVATAR_PUBLIC_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+  app.use("/public/avatar", express.static(AVATAR_PUBLIC_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+}
+if (fs.existsSync(AVATAR_ASSETS_DIR)) {
+  app.use("/avatar/assets", express.static(AVATAR_ASSETS_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+  app.use("/public/avatar/assets", express.static(AVATAR_ASSETS_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+}
+
+app.get(["/avatar/status", "/api/avatar/status"], (req, res) => {
+  applyCors(req, res);
+  const payload = avatarConfigPayload();
+  return res.status(payload.ok ? 200 : 404).json({
+    ok: payload.ok,
+    avatar: payload,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      route: req.originalUrl || req.path || "",
+      videoResolved: !!avatarVideoFile(),
+      fallbackResolved: !!avatarFallbackImageFile()
+    }
+  });
+});
+
+app.get(["/avatar/video", "/api/avatar/video"], (req, res) => {
+  applyCors(req, res);
+  const filePath = avatarVideoFile();
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+});
+
+app.get(["/avatar/fallback", "/api/avatar/fallback"], (req, res) => {
+  applyCors(req, res);
+  const filePath = avatarFallbackImageFile();
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+});
+
+app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName", "/api/avatar/assets/:fileName"], (req, res) => {
+  applyCors(req, res);
+  const requested = cleanEnvAvatarBasename(req.params && req.params.fileName);
+  const filePath = resolveAvatarAssetFile(requested);
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: req.path,
+    requested,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      avatar: avatarConfigPayload()
+    }
+  });
+});
+
+app.get(["/api/avatar/config.js", "/avatar/config.js", "/avatar/script.js"], (req, res) => {
+  applyCors(req, res);
+  const payload = avatarConfigPayload();
+  res.type("application/javascript; charset=utf-8");
+  return res.send(
+    `window.SB_NYX_AVATAR_SRC=${JSON.stringify(payload.avatarSrc)};\n` +
+    `window.SB_NYX_AVATAR_FALLBACK_SRC=${JSON.stringify(payload.fallbackSrc)};\n` +
+    `window.SB_NYX_AVATAR_STATUS=${JSON.stringify(payload.statusUrl)};\n` +
+    `window.SB_NYX_AVATAR_DIRECT_VIDEO=${JSON.stringify(payload.directVideo)};\n` +
+    `window.SB_NYX_AVATAR_CONFIG=${JSON.stringify(payload)};\n`
+  );
+});
+
 app.use("/api", (req, res) => {
   applyCors(req, res);
   const requestPath = cleanText(req.originalUrl || req.path || "");
@@ -4579,50 +4603,6 @@ app.use((err, req, res, _next) => {
     traceId,
     meta: { v: INDEX_VERSION, t: now() }
   });
-});
-
-if (fileExists(AVATAR_ASSETS_DIR)) {
-  app.use(AVATAR_ROUTE_PREFIX, express.static(AVATAR_PUBLIC_DIR, avatarStaticOptions()));
-  AVATAR_ROUTE_ALIASES.forEach((alias) => {
-    app.use(alias, express.static(AVATAR_PUBLIC_DIR, avatarStaticOptions()));
-  });
-}
-
-app.get(["/api/avatar/config.js", "/avatar/config.js", "/avatar/script.js"], (req, res) => {
-  applyCors(req, res);
-  res.type("application/javascript; charset=utf-8");
-  return res.status(200).send(buildAvatarClientScript());
-});
-
-app.get(["/api/avatar/status", "/avatar/status"], (req, res) => {
-  applyCors(req, res);
-  const snap = getAvatarAssetSnapshot();
-  return res.status(snap.video ? 200 : 404).json({
-    ok: !!snap.video,
-    assetDir: snap.assetDir,
-    assetDirExists: snap.assetDirExists,
-    avatarDirExists: snap.avatarDirExists,
-    configured: snap.configured,
-    files: snap.files,
-    urls: snap.urls,
-    aliases: snap.aliases,
-    meta: { v: INDEX_VERSION, t: now() }
-  });
-});
-
-app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName"], (req, res, next) => {
-  const requested = cleanEnvAvatarBasename(req.params && req.params.fileName);
-  if (!requested) return next();
-  const candidate = resolveAvatarAssetFile(requested, [lower(path.extname(requested)) || ".mp4", ".mp4", ".webm", ".mov", ".m4v", ".png", ".jpg", ".jpeg", ".webp"]);
-  if (!candidate || !candidate.file) return next();
-  return res.sendFile(candidate.file);
-});
-
-app.get("/avatar/video", (req, res) => sendAvatarAsset(req, res, "video"));
-app.get("/avatar/fallback", (req, res) => sendAvatarAsset(req, res, "fallback"));
-
-STATIC_PUBLIC_DIRS.forEach((dir) => {
-  app.use(express.static(dir));
 });
 
 app.get("*", (req, res, next) => {
