@@ -1,478 +1,278 @@
 "use strict";
 
-// newsCanadaFeedService v2.1.0sb
-// Rebuilt from uploaded source with explicit resilience changes:
-// - 30s request timeout
-// - 30s parser timeout
-// - retry with backoff
-// - stale-cache fallback (30 min default)
-// - tighter diagnostics and health state
+ // newsCanadaFeedService v2.2.0sb
+ // DEMOTED-TO-CACHE-BRIDGE
+ // Purpose:
+ // - remove live-origin authority from this service
+ // - delegate News Canada delivery to the cache-first contract when available
+ // - return quickly from local cache/snapshot instead of blocking on upstream timeouts
 
-const axios = require("axios");
-const Parser = require("rss-parser");
+ const fs = require("fs");
+ const path = require("path");
 
-const DEFAULTS = {
-  parserTimeoutMs: 30000,
-  requestTimeoutMs: 30000,
-  maxRedirects: 5,
-  retryAttempts: 3,
-  retryDelayMs: 1250,
-  staleTtlMs: 30 * 60 * 1000,
-  source: "rss_service"
-};
+ function safeStr(v) {
+   return typeof v === "string" ? v : v == null ? "" : String(v);
+ }
 
-function cleanText(v) {
-  return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
-}
+ function cleanText(v) {
+   return safeStr(v).replace(/\s+/g, " ").trim();
+ }
 
-function stripHtml(v) {
-  return cleanText(String(v || "").replace(/<[^>]*>/g, " "));
-}
+ function isObj(v) {
+   return !!v && typeof v === "object" && !Array.isArray(v);
+ }
 
-function slugify(v) {
-  return cleanText(v)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-}
+ function clipText(v, max) {
+   const s = cleanText(v);
+   const n = Number.isFinite(Number(max)) ? Number(max) : 240;
+   if (!s) return "";
+   return s.length > n ? `${s.slice(0, n).trim()}…` : s;
+ }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+ function tryRequireMany(paths) {
+   for (const p of paths) {
+     try {
+       const mod = require(p);
+       if (mod) return mod;
+     } catch (_) {}
+   }
+   return null;
+ }
 
-function extractMediaUrl(value) {
-  if (!value) return "";
-  if (typeof value === "string") return cleanText(value);
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const candidate = extractMediaUrl(item);
-      if (candidate) return candidate;
-    }
-    return "";
-  }
-  if (typeof value === "object") {
-    return cleanText(
-      value.url || value.$?.url || value.href || value.src || value["media:content"] || ""
-    );
-  }
-  return "";
-}
+ const CACHE_SERVICE_MOD = tryRequireMany([
+   "./newscanadaCacheService",
+   "./newscanadaCacheService.js",
+   "../services/newscanadaCacheService",
+   "../services/newscanadaCacheService.js"
+ ]);
 
-function firstImageFromItem(item) {
-  if (!item || typeof item !== "object") return "";
-  return cleanText(
-    extractMediaUrl(item.enclosure) ||
-    extractMediaUrl(item.image) ||
-    extractMediaUrl(item.thumbnail) ||
-    extractMediaUrl(item.mediaThumbnail) ||
-    extractMediaUrl(item.mediaContent) ||
-    ""
-  );
-}
+ const CACHE_JSON_CANDIDATES = [
+   path.join(__dirname, "..", "data", "newscanada", "newscanada.cache.json"),
+   path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
+   path.join(process.cwd(), ".newscanada-feed-cache.json")
+ ];
 
-function sanitizeXml(xml) {
-  let out = String(xml || "");
-  out = out.replace(/^\uFEFF/, "");
-  out = out.replace(/<!--[\s\S]*?-->/g, "");
-  out = out.replace(/<!\[CDATA\[/g, "");
-  out = out.replace(/\]\]>/g, "");
-  out = out.replace(/<br\s*\/?>/gi, " ");
-  out = out.replace(/<script[\s\S]*?<\/script>/gi, "");
-  out = out.replace(/<style[\s\S]*?<\/style>/gi, "");
-  out = out.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
-  out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-  out = out.trim();
+ const DEFAULTS = {
+   source: "news_canada_cache_bridge",
+   mode: "cache_first",
+   maxStories: 24
+ };
 
-  const rssStart = out.search(/<(rss|feed)\b/i);
-  if (rssStart >= 0) out = out.slice(rssStart);
+ function readJsonFile(filePath) {
+   try {
+     if (!fs.existsSync(filePath)) return null;
+     return JSON.parse(fs.readFileSync(filePath, "utf8"));
+   } catch (_) {
+     return null;
+   }
+ }
 
-  return out;
-}
+ function readCacheSnapshot() {
+   for (const candidate of CACHE_JSON_CANDIDATES) {
+     const parsed = readJsonFile(candidate);
+     const items = Array.isArray(parsed && (parsed.items || parsed.stories)) ? (parsed.items || parsed.stories) : [];
+     if (items.length) {
+       return {
+         ok: true,
+         items,
+         stories: items,
+         meta: {
+           source: DEFAULTS.source,
+           mode: DEFAULTS.mode,
+           fallback: "snapshot_file",
+           snapshotPath: candidate,
+           fetchedAt: Number(parsed && parsed.meta && parsed.meta.fetchedAt || parsed && parsed.writtenAt || Date.now()),
+           storyCount: items.length,
+           itemCount: items.length,
+           degraded: true,
+           stale: !!(parsed && parsed.meta && parsed.meta.stale)
+         }
+       };
+     }
+   }
+   return null;
+ }
 
-function normalizeItem(item, index) {
-  const title = stripHtml(item && item.title);
-  const link = cleanText(item && item.link);
-  const description = stripHtml(
-    (item && item.contentSnippet) ||
-    (item && item.content) ||
-    (item && item.summary) ||
-    (item && item.contentEncoded) ||
-    ""
-  );
-  const pubDate = cleanText((item && item.pubDate) || (item && item.isoDate) || "");
-  const id = cleanText(item && item.guid) || link || `rss-${index}`;
-  const slug = slugify(title) || slugify(link) || `rss-${index}`;
-  const image = firstImageFromItem(item);
+ function normalizePayload(payload) {
+   const src = isObj(payload) ? payload : {};
+   const items = Array.isArray(src.items) ? src.items
+     : (Array.isArray(src.stories) ? src.stories : []);
+   return {
+     ok: src.ok !== false && items.length > 0,
+     items: items.slice(0, DEFAULTS.maxStories),
+     stories: items.slice(0, DEFAULTS.maxStories),
+     meta: {
+       source: cleanText(src.meta && src.meta.source || DEFAULTS.source) || DEFAULTS.source,
+       mode: cleanText(src.meta && src.meta.mode || DEFAULTS.mode) || DEFAULTS.mode,
+       fetchedAt: Number(src.meta && src.meta.fetchedAt || Date.now()),
+       storyCount: items.length,
+       itemCount: items.length,
+       degraded: !!(src.meta && src.meta.degraded),
+       stale: !!(src.meta && src.meta.stale),
+       servedFrom: cleanText(src.meta && src.meta.servedFrom || "cache_contract")
+     }
+   };
+ }
 
-  return {
-    id,
-    slug,
-    title,
-    description,
-    summary: description,
-    body: description,
-    content: description,
-    link,
-    url: link,
-    pubDate,
-    image,
-    popupImage: image,
-    popupBody: description,
-    ctaText: "Read more",
-    source: "News Canada",
-    isActive: true
-  };
-}
+ function createNewsCanadaFeedService(options = {}) {
+   const logger = typeof options.logger === "function"
+     ? options.logger
+     : (...args) => console.log(...args);
 
-function buildErrorDetail(err) {
-  return cleanText(
-    err &&
-      (
-        err.response?.data?.message ||
-        err.response?.statusText ||
-        err.message ||
-        err.code ||
-        "rss_fetch_failed"
-      )
-  ) || "rss_fetch_failed";
-}
+   async function getViaCacheService(opts = {}) {
+     if (!CACHE_SERVICE_MOD) return null;
 
-function createNewsCanadaFeedService(options = {}) {
-  const config = {
-    parserTimeoutMs: Number(options.parserTimeoutMs) > 0 ? Number(options.parserTimeoutMs) : DEFAULTS.parserTimeoutMs,
-    requestTimeoutMs: Number(options.requestTimeoutMs) > 0 ? Number(options.requestTimeoutMs) : DEFAULTS.requestTimeoutMs,
-    maxRedirects: Number(options.maxRedirects) >= 0 ? Number(options.maxRedirects) : DEFAULTS.maxRedirects,
-    retryAttempts: Number(options.retryAttempts) > 0 ? Number(options.retryAttempts) : DEFAULTS.retryAttempts,
-    retryDelayMs: Number(options.retryDelayMs) > 0 ? Number(options.retryDelayMs) : DEFAULTS.retryDelayMs,
-    staleTtlMs: Number(options.staleTtlMs) > 0 ? Number(options.staleTtlMs) : DEFAULTS.staleTtlMs,
-    source: cleanText(options.source) || DEFAULTS.source,
-    parserOptions: options.parserOptions || {}
-  };
+     try {
+       if (typeof CACHE_SERVICE_MOD.getCachedOrRefresh === "function") {
+         const payload = await CACHE_SERVICE_MOD.getCachedOrRefresh({
+           forceRefresh: !!opts.refresh,
+           timeoutMs: Number(opts.timeoutMs || 30000)
+         });
+         return normalizePayload(payload);
+       }
 
-  const parser = new Parser({
-    timeout: config.parserTimeoutMs,
-    ...config.parserOptions
-  });
+       if (typeof CACHE_SERVICE_MOD.readCache === "function") {
+         const payload = CACHE_SERVICE_MOD.readCache();
+         return normalizePayload(payload);
+       }
+     } catch (err) {
+       logger("[Sandblast][newsCanada] cache_bridge_error", err && (err.stack || err.message || err));
+     }
 
-  const logger = typeof options.logger === "function"
-    ? options.logger
-    : (...args) => console.log(...args);
+     return null;
+   }
 
-  let cache = {
-    ok: false,
-    stories: [],
-    fetchedAt: 0,
-    feedUrl: "",
-    degraded: false,
-    stale: false,
-    source: config.source,
-    lastError: "",
-    lastErrorAt: 0,
-    lastDiagnostics: null
-  };
+   async function fetchRSS(opts = {}) {
+     const fromCacheService = await getViaCacheService(opts);
+     if (fromCacheService && fromCacheService.items.length) {
+       return fromCacheService;
+     }
 
-  function getFeedUrl() {
-    return cleanText(
-      process.env.NEWS_CANADA_FEED_URL ||
-      process.env.NEWS_CANADA_RSS_FEED_URL ||
-      process.env.SB_NEWSCANADA_RSS_FEED_URL ||
-      ""
-    );
-  }
+     const snapshot = readCacheSnapshot();
+     if (snapshot && snapshot.items.length) {
+       return snapshot;
+     }
 
-  function getDiagnosticsBase(feedUrl) {
-    return {
-      source: config.source,
-      feedUrl,
-      requestTimeoutMs: config.requestTimeoutMs,
-      parserTimeoutMs: config.parserTimeoutMs,
-      retryAttempts: config.retryAttempts,
-      retryDelayMs: config.retryDelayMs,
-      staleTtlMs: config.staleTtlMs
-    };
-  }
+     return {
+       ok: false,
+       items: [],
+       stories: [],
+       meta: {
+         source: DEFAULTS.source,
+         mode: DEFAULTS.mode,
+         fetchedAt: Date.now(),
+         storyCount: 0,
+         itemCount: 0,
+         degraded: true,
+         stale: true,
+         detail: "cache_unavailable_no_snapshot"
+       }
+     };
+   }
 
-  function canServeStale() {
-    return cache.ok && cache.fetchedAt > 0 && (Date.now() - cache.fetchedAt) <= config.staleTtlMs && Array.isArray(cache.stories) && cache.stories.length > 0;
-  }
+   async function getEditorsPicks(opts = {}) {
+     const payload = await fetchRSS(opts);
+     const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 0;
+     const stories = limit > 0 ? payload.stories.slice(0, limit) : payload.stories.slice();
 
-  async function attemptFetch(feedUrl, attempt) {
-    const response = await axios.get(feedUrl, {
-      timeout: config.requestTimeoutMs,
-      maxRedirects: config.maxRedirects,
-      responseType: "text",
-      validateStatus: (status) => status >= 200 && status < 400,
-      headers: {
-        "User-Agent": "Sandblast-NewsCanada/2.1",
-        "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
-      }
-    });
+     return {
+       ok: stories.length > 0,
+       stories,
+       slides: stories,
+       chips: [],
+       meta: {
+         ...payload.meta,
+         storyCount: stories.length
+       }
+     };
+   }
 
-    const rawXml = typeof response.data === "string" ? response.data : String(response.data || "");
-    const safeXml = sanitizeXml(rawXml);
-    const feed = await parser.parseString(safeXml);
-    const stories = (feed.items || []).map(normalizeItem).filter((x) => x && x.title);
+   async function getStory(lookup, opts = {}) {
+     const payload = await fetchRSS(opts);
+     const key = cleanText(lookup).toLowerCase();
 
-    cache = {
-      ok: true,
-      stories,
-      fetchedAt: Date.now(),
-      feedUrl,
-      degraded: false,
-      stale: false,
-      source: config.source,
-      lastError: "",
-      lastErrorAt: 0,
-      lastDiagnostics: {
-        ...getDiagnosticsBase(feedUrl),
-        phase: "success",
-        attempt,
-        storyCount: stories.length,
-        fetchedAt: Date.now()
-      }
-    };
+     const story = payload.stories.find((item) => [
+       cleanText(item && item.id).toLowerCase(),
+       cleanText(item && item.guid).toLowerCase(),
+       cleanText(item && item.slug).toLowerCase(),
+       cleanText(item && item.title).toLowerCase(),
+       cleanText(item && item.url).toLowerCase(),
+       cleanText(item && item.link).toLowerCase()
+     ].includes(key));
 
-    return {
-      ok: true,
-      items: stories,
-      stories,
-      meta: {
-        source: config.source,
-        feedUrl,
-        fetchedAt: cache.fetchedAt,
-        storyCount: stories.length,
-        degraded: false,
-        stale: false,
-        mode: "rss",
-        attempt
-      }
-    };
-  }
+     if (!story) {
+       return {
+         ok: false,
+         error: "story_not_found",
+         meta: payload.meta
+       };
+     }
 
-  async function fetchRSS() {
-    const feedUrl = getFeedUrl();
-    if (!feedUrl) {
-      const message = "Missing NEWS_CANADA_FEED_URL";
-      cache.lastError = message;
-      cache.lastErrorAt = Date.now();
-      cache.lastDiagnostics = {
-        ...getDiagnosticsBase(feedUrl),
-        phase: "config",
-        detail: message,
-        at: cache.lastErrorAt
-      };
-      throw new Error(message);
-    }
+     return {
+       ok: true,
+       story,
+       meta: payload.meta
+     };
+   }
 
-    let lastErr = null;
+   async function prime() {
+     try {
+       if (CACHE_SERVICE_MOD && typeof CACHE_SERVICE_MOD.refreshCache === "function") {
+         const payload = await CACHE_SERVICE_MOD.refreshCache({ timeoutMs: 30000 });
+         return {
+           ok: !!(payload && Array.isArray(payload.items) && payload.items.length),
+           meta: normalizePayload(payload).meta
+         };
+       }
 
-    for (let attempt = 1; attempt <= config.retryAttempts; attempt += 1) {
-      try {
-        return await attemptFetch(feedUrl, attempt);
-      } catch (err) {
-        lastErr = err;
-        const detail = buildErrorDetail(err);
-        cache.lastError = detail;
-        cache.lastErrorAt = Date.now();
-        cache.lastDiagnostics = {
-          ...getDiagnosticsBase(feedUrl),
-          phase: "fetch_or_parse_error",
-          attempt,
-          detail,
-          status: err && err.response && err.response.status,
-          code: err && err.code,
-          at: cache.lastErrorAt
-        };
+       const snapshot = readCacheSnapshot();
+       return {
+         ok: !!(snapshot && snapshot.items.length),
+         meta: snapshot ? snapshot.meta : {
+           source: DEFAULTS.source,
+           mode: DEFAULTS.mode,
+           detail: "no_snapshot_available"
+         }
+       };
+     } catch (err) {
+       logger("[Sandblast][newsCanada] prime_error", err && (err.stack || err.message || err));
+       return {
+         ok: false,
+         error: cleanText(err && err.message) || "prime_failed",
+         meta: {
+           source: DEFAULTS.source,
+           mode: DEFAULTS.mode
+         }
+       };
+     }
+   }
 
-        logger("[Sandblast][newsCanada] fetch_or_parse_error", cache.lastDiagnostics);
+   async function health() {
+     const payload = await fetchRSS({});
+     return {
+       ok: payload.ok,
+       source: DEFAULTS.source,
+       mode: DEFAULTS.mode,
+       storyCount: Array.isArray(payload.stories) ? payload.stories.length : 0,
+       degraded: !!(payload.meta && payload.meta.degraded),
+       stale: !!(payload.meta && payload.meta.stale),
+       diagnostics: payload.meta
+     };
+   }
 
-        if (attempt < config.retryAttempts) {
-          await sleep(config.retryDelayMs * attempt);
-        }
-      }
-    }
+   return {
+     fetchRSS,
+     getEditorsPicks,
+     getStory,
+     prime,
+     health
+   };
+ }
 
-    if (canServeStale()) {
-      cache.degraded = true;
-      cache.stale = true;
-      cache.lastDiagnostics = {
-        ...getDiagnosticsBase(feedUrl),
-        phase: "stale_cache_fallback",
-        detail: cache.lastError,
-        fallbackFetchedAt: cache.fetchedAt,
-        ageMs: Date.now() - cache.fetchedAt,
-        storyCount: cache.stories.length,
-        at: Date.now()
-      };
-
-      logger("[Sandblast][newsCanada] stale_cache_fallback", cache.lastDiagnostics);
-
-      return {
-        ok: true,
-        items: cache.stories.slice(),
-        stories: cache.stories.slice(),
-        meta: {
-          source: cache.source,
-          feedUrl: cache.feedUrl || feedUrl,
-          fetchedAt: cache.fetchedAt,
-          storyCount: cache.stories.length,
-          degraded: true,
-          stale: true,
-          mode: "rss",
-          fallback: "stale_cache"
-        }
-      };
-    }
-
-    throw new Error(buildErrorDetail(lastErr));
-  }
-
-  async function getEditorsPicks(opts = {}) {
-    const refresh = !!opts.refresh;
-    const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 0;
-
-    if (!cache.ok || refresh) {
-      await fetchRSS();
-    }
-
-    const stories = limit > 0 ? cache.stories.slice(0, limit) : cache.stories.slice();
-
-    return {
-      ok: true,
-      stories,
-      slides: stories,
-      chips: [],
-      meta: {
-        source: cache.source,
-        feedUrl: cache.feedUrl,
-        fetchedAt: cache.fetchedAt,
-        storyCount: stories.length,
-        degraded: !!cache.degraded,
-        stale: !!cache.stale,
-        mode: "rss",
-        diagnostics: cache.lastDiagnostics
-      }
-    };
-  }
-
-  async function getStory(lookup, opts = {}) {
-    const refresh = !!opts.refresh;
-
-    if (!cache.ok || refresh) {
-      await fetchRSS();
-    }
-
-    const key = cleanText(lookup).toLowerCase();
-    const story = cache.stories.find((item) =>
-      [
-        cleanText(item.id).toLowerCase(),
-        cleanText(item.slug).toLowerCase(),
-        cleanText(item.title).toLowerCase(),
-        cleanText(item.url).toLowerCase()
-      ].includes(key)
-    );
-
-    if (!story) {
-      return {
-        ok: false,
-        error: "story_not_found",
-        meta: {
-          source: cache.source,
-          feedUrl: cache.feedUrl,
-          fetchedAt: cache.fetchedAt,
-          degraded: !!cache.degraded,
-          stale: !!cache.stale,
-          diagnostics: cache.lastDiagnostics
-        }
-      };
-    }
-
-    return {
-      ok: true,
-      story,
-      meta: {
-        source: cache.source,
-        feedUrl: cache.feedUrl,
-        fetchedAt: cache.fetchedAt,
-        degraded: !!cache.degraded,
-        stale: !!cache.stale,
-        diagnostics: cache.lastDiagnostics
-      }
-    };
-  }
-
-  async function prime() {
-    try {
-      await fetchRSS();
-      return {
-        ok: true,
-        meta: {
-          source: cache.source,
-          feedUrl: cache.feedUrl,
-          fetchedAt: cache.fetchedAt,
-          storyCount: cache.stories.length,
-          degraded: !!cache.degraded,
-          stale: !!cache.stale
-        }
-      };
-    } catch (err) {
-      logger("[Sandblast][newsCanada] prime_error", {
-        error: err && (err.stack || err.message || err),
-        diagnostics: cache.lastDiagnostics
-      });
-      return {
-        ok: false,
-        error: cleanText(err && err.message) || "prime_failed",
-        meta: {
-          source: cache.source,
-          feedUrl: cache.feedUrl || getFeedUrl(),
-          fetchedAt: cache.fetchedAt || 0,
-          storyCount: Array.isArray(cache.stories) ? cache.stories.length : 0,
-          degraded: !!cache.degraded,
-          stale: !!cache.stale,
-          diagnostics: cache.lastDiagnostics
-        }
-      };
-    }
-  }
-
-  async function health() {
-    return {
-      ok: true,
-      source: cache.source,
-      feedUrl: cache.feedUrl || getFeedUrl(),
-      fetchedAt: cache.fetchedAt || 0,
-      storyCount: Array.isArray(cache.stories) ? cache.stories.length : 0,
-      degraded: !!cache.degraded,
-      stale: !!cache.stale,
-      lastError: cache.lastError || "",
-      lastErrorAt: cache.lastErrorAt || 0,
-      config: {
-        requestTimeoutMs: config.requestTimeoutMs,
-        parserTimeoutMs: config.parserTimeoutMs,
-        retryAttempts: config.retryAttempts,
-        retryDelayMs: config.retryDelayMs,
-        staleTtlMs: config.staleTtlMs,
-        maxRedirects: config.maxRedirects
-      },
-      diagnostics: cache.lastDiagnostics
-    };
-  }
-
-  return {
-    fetchRSS,
-    getEditorsPicks,
-    getStory,
-    prime,
-    health
-  };
-}
-
-module.exports = {
-  createNewsCanadaFeedService,
-  fetchRSS: async function fetchRSSCompat() {
-    const service = createNewsCanadaFeedService();
-    return service.fetchRSS();
-  }
-};
+ module.exports = {
+   createNewsCanadaFeedService,
+   fetchRSS: async function fetchRSSCompat(opts = {}) {
+     const service = createNewsCanadaFeedService();
+     return service.fetchRSS(opts);
+   }
+ };
