@@ -85,6 +85,24 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PUBLIC_NEWSCANADA_DIR = path.join(__dirname, "public newscanada");
+const AVATAR_PUBLIC_DIR = path.join(PUBLIC_DIR, "avatar");
+const AVATAR_ASSETS_DIR = path.join(AVATAR_PUBLIC_DIR, "assets");
+const AVATAR_ROUTE_PREFIX = "/avatar";
+const AVATAR_ROUTE_ALIASES = ["/public/avatar", "/avatar/assets", "/public/avatar/assets"];
+const AVATAR_VIDEO_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_VIDEO ||
+  process.env.SB_AVATAR_VIDEO ||
+  process.env.SB_NYX_AVATAR_FILE ||
+  process.env.SB_AVATAR_FILE ||
+  "avatar5.mp4"
+);
+const AVATAR_FALLBACK_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_FALLBACK ||
+  process.env.SB_AVATAR_FALLBACK ||
+  process.env.SB_NYX_AVATAR_POSTER ||
+  process.env.SB_AVATAR_POSTER ||
+  "nyx-hero.png"
+);
 const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir) => {
   try {
     return fs.existsSync(dir);
@@ -92,6 +110,166 @@ const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir
     return false;
   }
 });
+
+
+function cleanEnvAvatarBasename(value) {
+  const raw = String(value == null ? "" : value).trim();
+  if (!raw) return "";
+  return path.basename(raw.split(/[?#]/)[0]).trim();
+}
+
+function avatarUrlFor(fileName) {
+  const base = getBackendPublicBase();
+  const name = cleanEnvAvatarBasename(fileName);
+  return name ? `${base}${AVATAR_ROUTE_PREFIX}/assets/${encodeURIComponent(name)}` : "";
+}
+
+function avatarStaticOptions() {
+  return {
+    fallthrough: true,
+    extensions: false,
+    index: false,
+    maxAge: "1h",
+    immutable: false,
+    setHeaders(res, filePath) {
+      const ext = lower(path.extname(filePath || ""));
+      if (ext === ".mp4") {
+        res.setHeader("Content-Type", "video/mp4");
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      } else if (ext === ".png") {
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      } else if (ext === ".jpg" || ext === ".jpeg") {
+        res.setHeader("Content-Type", "image/jpeg");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      } else if (ext === ".webp") {
+        res.setHeader("Content-Type", "image/webp");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      }
+    }
+  };
+}
+
+function listAvatarFiles(dirPath) {
+  try {
+    if (!dirPath || !fs.existsSync(dirPath)) return [];
+    return fs.readdirSync(dirPath).filter(Boolean).sort();
+  } catch (_) {
+    return [];
+  }
+}
+
+function fileExists(p) {
+  try {
+    return !!(p && fs.existsSync(p));
+  } catch (_) {
+    return false;
+  }
+}
+
+function resolveAvatarAssetFile(preferredName, allowedExts) {
+  const pref = cleanEnvAvatarBasename(preferredName);
+  const exts = Array.isArray(allowedExts) && allowedExts.length ? allowedExts : [""];
+  const searchDirs = uniq([
+    AVATAR_ASSETS_DIR,
+    AVATAR_PUBLIC_DIR,
+    path.join(PUBLIC_DIR, "assets"),
+    PUBLIC_DIR
+  ]);
+
+  for (const dir of searchDirs) {
+    if (!fileExists(dir)) continue;
+    if (pref) {
+      const direct = path.join(dir, pref);
+      if (fileExists(direct)) return { file: direct, routeName: path.basename(direct), dir };
+      const parsed = path.parse(pref);
+      if (!parsed.ext) {
+        for (const ext of exts) {
+          const candidate = path.join(dir, `${parsed.name}${ext}`);
+          if (fileExists(candidate)) return { file: candidate, routeName: path.basename(candidate), dir };
+        }
+      }
+    }
+  }
+
+  for (const dir of searchDirs) {
+    if (!fileExists(dir)) continue;
+    const files = listAvatarFiles(dir);
+    for (const fileName of files) {
+      const ext = lower(path.extname(fileName));
+      if (exts.includes(ext)) {
+        return { file: path.join(dir, fileName), routeName: fileName, dir };
+      }
+    }
+  }
+
+  return null;
+}
+
+function getAvatarAssetSnapshot() {
+  const video = resolveAvatarAssetFile(AVATAR_VIDEO_BASENAME, [".mp4", ".webm", ".mov", ".m4v"]);
+  const fallback = resolveAvatarAssetFile(AVATAR_FALLBACK_BASENAME, [".png", ".jpg", ".jpeg", ".webp"]);
+  const assetDir = fileExists(AVATAR_ASSETS_DIR) ? AVATAR_ASSETS_DIR : (video && video.dir) || AVATAR_PUBLIC_DIR;
+  return {
+    routePrefix: AVATAR_ROUTE_PREFIX,
+    aliases: AVATAR_ROUTE_ALIASES.slice(),
+    assetDir,
+    assetDirExists: fileExists(assetDir),
+    avatarDirExists: fileExists(AVATAR_PUBLIC_DIR),
+    video,
+    fallback,
+    files: listAvatarFiles(assetDir),
+    configured: {
+      video: AVATAR_VIDEO_BASENAME,
+      fallback: AVATAR_FALLBACK_BASENAME
+    },
+    urls: {
+      video: video ? avatarUrlFor(video.routeName) : "",
+      fallback: fallback ? avatarUrlFor(fallback.routeName) : ""
+    }
+  };
+}
+
+function sendAvatarAsset(req, res, type) {
+  const snap = getAvatarAssetSnapshot();
+  const hit = type === "fallback" ? snap.fallback : snap.video;
+  if (!hit || !hit.file) {
+    return res.status(404).json({
+      ok: false,
+      error: "not_found",
+      path: cleanText(req.originalUrl || req.path || ""),
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        assetType: type,
+        avatar: {
+          configured: snap.configured,
+          routePrefix: snap.routePrefix,
+          aliases: snap.aliases,
+          assetDir: snap.assetDir,
+          files: snap.files,
+          urls: snap.urls
+        },
+        likelyNewsCanadaMiss: false
+      }
+    });
+  }
+  return res.sendFile(hit.file);
+}
+
+function buildAvatarClientScript() {
+  const snap = getAvatarAssetSnapshot();
+  return [
+    "(function(){",
+    `window.SB_NYX_AVATAR_SRC=${JSON.stringify(snap.urls.video || "")};`,
+    `window.SB_NYX_AVATAR_FALLBACK_SRC=${JSON.stringify(snap.urls.fallback || "")};`,
+    `window.SB_NYX_AVATAR_ROUTE_PREFIX=${JSON.stringify(snap.routePrefix)};`,
+    `window.SB_NYX_AVATAR_ROUTE_ALIASES=${JSON.stringify(snap.aliases)};`,
+    `window.SB_NYX_AVATAR_FILES=${JSON.stringify(snap.files)};`,
+    "})();"
+  ].join("\n");
+}
 
 function safeStr(v) {
 
@@ -4402,6 +4580,46 @@ app.use((err, req, res, _next) => {
     meta: { v: INDEX_VERSION, t: now() }
   });
 });
+
+if (fileExists(AVATAR_ASSETS_DIR)) {
+  app.use(AVATAR_ROUTE_PREFIX, express.static(AVATAR_PUBLIC_DIR, avatarStaticOptions()));
+  AVATAR_ROUTE_ALIASES.forEach((alias) => {
+    app.use(alias, express.static(AVATAR_PUBLIC_DIR, avatarStaticOptions()));
+  });
+}
+
+app.get(["/api/avatar/config.js", "/avatar/config.js", "/avatar/script.js"], (req, res) => {
+  applyCors(req, res);
+  res.type("application/javascript; charset=utf-8");
+  return res.status(200).send(buildAvatarClientScript());
+});
+
+app.get(["/api/avatar/status", "/avatar/status"], (req, res) => {
+  applyCors(req, res);
+  const snap = getAvatarAssetSnapshot();
+  return res.status(snap.video ? 200 : 404).json({
+    ok: !!snap.video,
+    assetDir: snap.assetDir,
+    assetDirExists: snap.assetDirExists,
+    avatarDirExists: snap.avatarDirExists,
+    configured: snap.configured,
+    files: snap.files,
+    urls: snap.urls,
+    aliases: snap.aliases,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName"], (req, res, next) => {
+  const requested = cleanEnvAvatarBasename(req.params && req.params.fileName);
+  if (!requested) return next();
+  const candidate = resolveAvatarAssetFile(requested, [lower(path.extname(requested)) || ".mp4", ".mp4", ".webm", ".mov", ".m4v", ".png", ".jpg", ".jpeg", ".webp"]);
+  if (!candidate || !candidate.file) return next();
+  return res.sendFile(candidate.file);
+});
+
+app.get("/avatar/video", (req, res) => sendAvatarAsset(req, res, "video"));
+app.get("/avatar/fallback", (req, res) => sendAvatarAsset(req, res, "fallback"));
 
 STATIC_PUBLIC_DIRS.forEach((dir) => {
   app.use(express.static(dir));
