@@ -1,7 +1,7 @@
 "use strict";
 
- // newsCanadaFeedService v2.2.0sb
- // DEMOTED-TO-CACHE-BRIDGE
+ // newsCanadaFeedService v2.3.0sb
+ // CACHE-BRIDGE + MANUAL-REFRESH-COMPAT
  // Purpose:
  // - remove live-origin authority from this service
  // - delegate News Canada delivery to the cache-first contract when available
@@ -55,7 +55,8 @@
  const DEFAULTS = {
    source: "news_canada_cache_bridge",
    mode: "cache_first",
-   maxStories: 24
+   maxStories: 24,
+   refreshMode: "manual_refresh"
  };
 
  function readJsonFile(filePath) {
@@ -65,6 +66,18 @@
    } catch (_) {
      return null;
    }
+ }
+
+
+ function isSeedPayload(payload) {
+   const items = Array.isArray(payload && payload.items) ? payload.items
+     : (Array.isArray(payload && payload.stories) ? payload.stories : []);
+   const meta = isObj(payload && payload.meta) ? payload.meta : {};
+   const parserMode = cleanText(meta.parserMode || "").toLowerCase();
+   const source = cleanText(meta.source || meta.servedFrom || "").toLowerCase();
+   const detail = cleanText(meta.detail || "").toLowerCase();
+   if (parserMode.includes("seed") || source.includes("seed") || detail.includes("manual_seed_bootstrap")) return true;
+   return items.some((item) => cleanText(item && item.id).toLowerCase().includes("newscanada-seed-"));
  }
 
  function readCacheSnapshot() {
@@ -144,12 +157,12 @@
 
    async function fetchRSS(opts = {}) {
      const fromCacheService = await getViaCacheService(opts);
-     if (fromCacheService && fromCacheService.items.length) {
+     if (fromCacheService && fromCacheService.items.length && !isSeedPayload(fromCacheService)) {
        return fromCacheService;
      }
 
      const snapshot = readCacheSnapshot();
-     if (snapshot && snapshot.items.length) {
+     if (snapshot && snapshot.items.length && !isSeedPayload(snapshot)) {
        return snapshot;
      }
 
@@ -215,13 +228,23 @@
      };
    }
 
-   async function prime() {
+   async function prime(opts = {}) {
      try {
        if (CACHE_SERVICE_MOD && typeof CACHE_SERVICE_MOD.refreshCache === "function") {
-         const payload = await CACHE_SERVICE_MOD.refreshCache({ timeoutMs: 30000 });
+         const payload = await CACHE_SERVICE_MOD.refreshCache({
+           timeoutMs: Number(opts.timeoutMs || 30000),
+           forceRefresh: true
+         });
+         const normalized = normalizePayload(payload);
          return {
-           ok: !!(payload && Array.isArray(payload.items) && payload.items.length),
-           meta: normalizePayload(payload).meta
+           ok: !!(normalized && Array.isArray(normalized.items) && normalized.items.length && !isSeedPayload(normalized)),
+           items: normalized.items,
+           stories: normalized.stories,
+           meta: {
+             ...normalized.meta,
+             mode: DEFAULTS.refreshMode,
+             servedFrom: cleanText(normalized.meta && normalized.meta.servedFrom || "cache_refresh") || "cache_refresh"
+           }
          };
        }
 
@@ -260,11 +283,16 @@
      };
    }
 
+   async function refreshNow(opts = {}) {
+     return prime(opts);
+   }
+
    return {
      fetchRSS,
      getEditorsPicks,
      getStory,
      prime,
+     refreshNow,
      health
    };
  }
@@ -274,5 +302,9 @@
    fetchRSS: async function fetchRSSCompat(opts = {}) {
      const service = createNewsCanadaFeedService();
      return service.fetchRSS(opts);
+   },
+   refreshNow: async function refreshNowCompat(opts = {}) {
+     const service = createNewsCanadaFeedService();
+     return service.refreshNow(opts);
    }
  };
