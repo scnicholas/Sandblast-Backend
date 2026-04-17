@@ -62,6 +62,34 @@ function stripTags(value) {
   return cleanText(decodeHtml(value).replace(/<[^>]+>/g, " "));
 }
 
+function normalizeFeedBodyText(value) {
+  return cleanText(
+    stripTags(value)
+      .replace(/The post\s+.+?\s+appeared first on\s+.+?\.?$/i, "")
+      .replace(/Continue reading\s*$/i, "")
+  );
+}
+
+function extractImageFromHtml(value) {
+  const html = safeStr(value);
+  const match = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i.exec(html);
+  return cleanText(match && match[1] || "");
+}
+
+function preferImageUrl(...values) {
+  for (const value of values) {
+    const url = cleanText(value);
+    if (!url) continue;
+    if (/\.(png|jpe?g|webp|gif|avif|svg)(?:[?#].*)?$/i.test(url)) return url;
+    if (/\/wp-content\/uploads\//i.test(url) && !/\.(mp4|webm|mov|m4v)(?:[?#].*)?$/i.test(url)) return url;
+  }
+  for (const value of values) {
+    const url = cleanText(value);
+    if (url) return url;
+  }
+  return "";
+}
+
 function firstString(arr) {
   for (const item of Array.isArray(arr) ? arr : []) {
     const s = cleanText(item);
@@ -252,15 +280,21 @@ function normalizeWpPosts(raw, sourceUrl) {
   const arr = Array.isArray(raw) ? raw : [];
   const items = arr.map((post, index) => {
     const title = stripTags(post && post.title && post.title.rendered) || `Story ${index + 1}`;
-    const excerpt = stripTags(post && post.excerpt && post.excerpt.rendered);
-    const content = stripTags(post && post.content && post.content.rendered);
+    const excerptHtml = safeStr(post && post.excerpt && post.excerpt.rendered);
+    const contentHtml = safeStr(post && post.content && post.content.rendered);
+    const excerpt = normalizeFeedBodyText(excerptHtml);
+    const content = normalizeFeedBodyText(contentHtml);
     const summary = cleanText(excerpt || clipText(content, 320));
     const body = cleanText(content || summary);
     const author = firstString([
       post && post.author_name,
       post && post._embedded && Array.isArray(post._embedded.author) && post._embedded.author[0] && post._embedded.author[0].name
     ]);
-    const image = extractWpFeaturedImage(post);
+    const image = preferImageUrl(
+      extractWpFeaturedImage(post),
+      extractImageFromHtml(contentHtml),
+      extractImageFromHtml(excerptHtml)
+    );
     const url = cleanText(post && post.link);
 
     return {
@@ -280,6 +314,7 @@ function normalizeWpPosts(raw, sourceUrl) {
       pubDate: cleanText(post && post.date),
       publishedAt: cleanText(post && post.date),
       image,
+      mediaUrl: "",
       popupImage: image,
       popupBody: body,
       author: author || "For Your Life",
@@ -327,9 +362,10 @@ function normalizeRssXml(xmlText, sourceUrl) {
 
   const items = blocks.map((block, index) => {
     const title = stripTags(firstXmlTagValue(block, ["title"])) || `Story ${index + 1}`;
-    const description = stripTags(
-      firstXmlTagValue(block, ["description", "content:encoded", "excerpt:encoded", "content", "summary"])
-    );
+    const descriptionHtml = firstXmlTagValue(block, ["description"]);
+    const contentHtml = firstXmlTagValue(block, ["content:encoded", "excerpt:encoded", "content", "summary"]);
+    const description = normalizeFeedBodyText(descriptionHtml);
+    const content = normalizeFeedBodyText(contentHtml);
     const url = firstString([
       firstXmlAttrValue(block, ["link"], "href"),
       firstXmlTagValue(block, ["link"]),
@@ -339,12 +375,16 @@ function normalizeRssXml(xmlText, sourceUrl) {
       firstXmlTagValue(block, ["pubDate", "published", "updated", "dc:date"])
     ]);
     const author = stripTags(firstXmlTagValue(block, ["dc:creator", "author", "creator"])) || "For Your Life";
-    const image = firstString([
-      firstXmlAttrValue(block, ["media:content", "media:thumbnail", "enclosure"], "url"),
-      firstXmlTagValue(block, ["image"])
+    const mediaUrl = firstString([
+      firstXmlAttrValue(block, ["media:content", "media:thumbnail"], "url"),
+      firstXmlTagValue(block, ["image"]),
+      extractImageFromHtml(contentHtml),
+      extractImageFromHtml(descriptionHtml),
+      firstXmlAttrValue(block, ["enclosure"], "url")
     ]);
-    const summary = cleanText(description || title);
-    const body = cleanText(description || summary);
+    const image = preferImageUrl(mediaUrl);
+    const summary = cleanText(description || clipText(content, 320) || title);
+    const body = cleanText(content || description || summary);
 
     return {
       id: cleanText(firstXmlTagValue(block, ["guid", "id"])) || `rss-${index}`,
@@ -363,6 +403,7 @@ function normalizeRssXml(xmlText, sourceUrl) {
       pubDate: cleanText(pubDate),
       publishedAt: cleanText(pubDate),
       image: cleanText(image),
+      mediaUrl: cleanText(mediaUrl || ""),
       popupImage: cleanText(image),
       popupBody: body,
       author,
@@ -396,7 +437,7 @@ function normalizeHtmlFeed(htmlText, sourceUrl) {
     const key = `${url}|${title.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const summary = clipText(stripTags(html.slice(Math.max(0, match.index - 600), Math.min(html.length, match.index + 1400))), 260) || title;
+    const summary = clipText(normalizeFeedBodyText(html.slice(Math.max(0, match.index - 600), Math.min(html.length, match.index + 1400))), 260) || title;
     items.push({
       id: `html-${items.length}`,
       guid: `html-${items.length}`,
