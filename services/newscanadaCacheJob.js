@@ -4,7 +4,8 @@ const {
   refreshCache
 } = require("./newscanadaCacheService");
 
-const DEFAULT_JOB_INTERVAL_MS = 10 * 60 * 1000;
+const DEFAULT_JOB_INTERVAL_MS = Number(process.env.NEWS_CANADA_REFRESH_MS || 30 * 60 * 1000);
+const DEFAULT_TIMEOUT_MS = Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000);
 
 let jobTimer = null;
 let started = false;
@@ -18,15 +19,16 @@ function startNewsCanadaCacheJob(options) {
   }
 
   const intervalMs = Number(options && options.intervalMs) || DEFAULT_JOB_INTERVAL_MS;
+  const timeoutMs = Number(options && options.timeoutMs) || DEFAULT_TIMEOUT_MS;
 
   started = true;
 
-  refreshCache({ timeoutMs: 30000 }).catch((err) => {
+  refreshCache({ timeoutMs }).catch((err) => {
     console.log("[Sandblast][newscanadaCacheJob:init_error]", err && (err.stack || err.message || err));
   });
 
   jobTimer = setInterval(() => {
-    refreshCache({ timeoutMs: 30000 }).catch((err) => {
+    refreshCache({ timeoutMs }).catch((err) => {
       console.log("[Sandblast][newscanadaCacheJob:refresh_error]", err && (err.stack || err.message || err));
     });
   }, intervalMs);
