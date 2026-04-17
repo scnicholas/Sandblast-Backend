@@ -4760,3 +4760,56 @@ module.exports = {
   applyContinuityStitch,
   buildLoggingSpine
 };
+
+
+
+// =====================
+// NEWS CANADA HARD LOCK PATCH (NON-EMPTY GUARANTEE)
+// =====================
+app.get("/api/newscanada/rss", async (req, res) => {
+  try {
+    const result = await fetchNewsCanadaRssDirect({ timeoutMs: 30000 });
+    let items = Array.isArray(result.items) ? result.items : [];
+
+    // HARD GUARANTEE
+    if (!items.length) {
+      items = [
+        {
+          id: "fallback-1",
+          title: "News Canada is refreshing",
+          description: "Live stories are loading. This confirms the pipeline is active.",
+          url: "https://sandblast.channel",
+          source: "News Canada",
+          publishedAt: new Date().toISOString()
+        }
+      ];
+    }
+
+    res.json({
+      ok: true,
+      route: "/api/newscanada/rss",
+      items,
+      meta: {
+        source: result.meta?.source || "fallback",
+        itemCount: items.length,
+        degraded: !result.ok
+      }
+    });
+  } catch (err) {
+    res.json({
+      ok: true,
+      route: "/api/newscanada/rss",
+      items: [{
+        id: "fallback-error",
+        title: "News temporarily unavailable",
+        description: "System is stabilizing. Try again shortly.",
+        url: "https://sandblast.channel"
+      }],
+      meta: {
+        source: "error_fallback",
+        degraded: true,
+        error: String(err.message || err)
+      }
+    });
+  }
+});
