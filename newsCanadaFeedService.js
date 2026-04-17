@@ -47,10 +47,12 @@
  ]);
 
  const CACHE_JSON_CANDIDATES = [
+   cleanText(process.env.NEWSCANADA_CACHE_FILE || process.env.NEWS_CANADA_CACHE_FILE || ""),
+   path.join(__dirname, "data", "newscanada", "newscanada.cache.json"),
    path.join(__dirname, "..", "data", "newscanada", "newscanada.cache.json"),
    path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
    path.join(process.cwd(), ".newscanada-feed-cache.json")
- ];
+ ].filter(Boolean);
 
  const DEFAULTS = {
    source: "news_canada_cache_bridge",
@@ -98,7 +100,10 @@
            storyCount: items.length,
            itemCount: items.length,
            degraded: true,
-           stale: !!(parsed && parsed.meta && parsed.meta.stale)
+           stale: !!(parsed && parsed.meta && parsed.meta.stale),
+           parserMode: cleanText(parsed && parsed.meta && parsed.meta.parserMode || "snapshot_file"),
+           servedFrom: cleanText(parsed && parsed.meta && (parsed.meta.servedFrom || parsed.meta.source) || "snapshot_file"),
+           seed: isSeedPayload(parsed)
          }
        };
      }
@@ -178,7 +183,8 @@
          itemCount: 0,
          degraded: true,
          stale: true,
-         detail: "cache_unavailable_no_snapshot"
+         detail: "cache_unavailable_no_snapshot",
+         servedFrom: "cache_contract"
        }
      };
    }
