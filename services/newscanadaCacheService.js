@@ -3,14 +3,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const CACHE_VERSION = "newscanada-cache-v1";
-const DEFAULT_REFRESH_MS = 10 * 60 * 1000;
-const DEFAULT_STALE_MS = 30 * 60 * 1000;
-const DEFAULT_TIMEOUT_MS = 30000;
-const DEFAULT_MAX_ITEMS = 6;
+const CACHE_VERSION = "newscanada-cache-v2";
+const DEFAULT_REFRESH_MS = Number(process.env.NEWS_CANADA_REFRESH_MS || 30 * 60 * 1000);
+const DEFAULT_STALE_MS = Number(process.env.NEWS_CANADA_STALE_MS || 60 * 60 * 1000);
+const DEFAULT_TIMEOUT_MS = Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000);
+const DEFAULT_MAX_ITEMS = Number(process.env.NEWS_CANADA_MAX_ITEMS || 6);
 
-const CACHE_DIR = path.join(__dirname, "..", "data", "newscanada");
-const CACHE_FILE = path.join(CACHE_DIR, "newscanada.cache.json");
+const CACHE_DIR = cleanText(process.env.NEWSCANADA_CACHE_DIR || process.env.NEWS_CANADA_CACHE_DIR || "") || path.join(__dirname, "..", "data", "newscanada");
+const CACHE_FILE = cleanText(process.env.NEWSCANADA_CACHE_FILE || process.env.NEWS_CANADA_CACHE_FILE || "") || path.join(CACHE_DIR, "newscanada.cache.json");
 
 function safeStr(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -63,6 +63,40 @@ function now() {
   return Date.now();
 }
 
+function getEnvNumber(name, fallback) {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+function getConfiguredFeedUrl() {
+  return cleanText(
+    process.env.NEWS_CANADA_RSS_FEED_URL ||
+    process.env.NEWS_CANADA_FEED_URL ||
+    process.env.SB_NEWSCANADA_RSS_FEED_URL ||
+    "https://foryourlife.ca/feed/"
+  ) || "https://foryourlife.ca/feed/";
+}
+
+function unique(arr) {
+  return Array.from(new Set((Array.isArray(arr) ? arr : []).filter(Boolean)));
+}
+
+function isSeedItem(item) {
+  const id = cleanText(item && item.id).toLowerCase();
+  const parserMode = cleanText(item && item.parserMode).toLowerCase();
+  const summary = cleanText(item && (item.summary || item.description || item.body || item.content)).toLowerCase();
+  return id.includes("newscanada-seed-") || parserMode.includes("seed") || summary.includes("seed story");
+}
+
+function isSeedPayload(payload) {
+  const items = Array.isArray(payload && payload.items) ? payload.items : [];
+  const meta = payload && payload.meta && typeof payload.meta === "object" ? payload.meta : {};
+  const parserMode = cleanText(meta.parserMode).toLowerCase();
+  const servedFrom = cleanText(meta.servedFrom || meta.source).toLowerCase();
+  const detail = cleanText(meta.detail).toLowerCase();
+  return parserMode.includes("seed") || servedFrom.includes("seed") || detail.includes("manual_seed_bootstrap") || items.some(isSeedItem);
+}
+
 function ensureCacheDir() {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
@@ -82,14 +116,26 @@ function writeJsonFile(filePath, data) {
 }
 
 function getFeedOriginCandidates() {
-  return [
-    "https://foryourlife.ca/wp-json/wp/v2/posts?per_page=6&_embed=1&_fields=id,date,link,slug,title,excerpt,content,yoast_head_json,_embedded",
-    "https://foryourlife.ca/index.php?rest_route=/wp/v2/posts&per_page=6&_embed=1",
-    "https://foryourlife.ca/feed/",
-    "https://foryourlife.ca/?feed=rss2",
-    "https://foryourlife.ca/index.php?feed=rss2",
-    "https://foryourlife.ca/feed/rss2/"
-  ];
+  const primary = getConfiguredFeedUrl();
+  const derived = [];
+  try {
+    const base = new URL(primary);
+    derived.push(`${base.origin}/wp-json/wp/v2/posts?per_page=6&_embed=1&_fields=id,date,link,slug,title,excerpt,content,yoast_head_json,_embedded`);
+    derived.push(`${base.origin}/index.php?rest_route=/wp/v2/posts&per_page=6&_embed=1`);
+    derived.push(`${base.origin}/feed/`);
+    derived.push(`${base.origin}/?feed=rss2`);
+    derived.push(`${base.origin}/index.php?feed=rss2`);
+    derived.push(`${base.origin}/feed/rss2/`);
+  } catch (_) {
+    derived.push(primary);
+  }
+  return unique([
+    primary,
+    cleanText(process.env.NEWS_CANADA_FEED_URL_ALT || ""),
+    cleanText(process.env.NEWS_CANADA_RSS_FEED_URL_ALT || ""),
+    cleanText(process.env.SB_NEWSCANADA_RSS_FEED_URL_ALT || ""),
+    ...derived
+  ]);
 }
 
 function makeFetchHeaders(mode) {
@@ -343,6 +389,7 @@ function writeCache(items, metaPatch) {
       itemCount: safeItems.length,
       cacheVersion: CACHE_VERSION,
       stale: false,
+      feedUrl: getConfiguredFeedUrl(),
       ...(metaPatch && typeof metaPatch === "object" ? metaPatch : {})
     }
   };
@@ -365,7 +412,7 @@ function isCacheStale(cached, staleMs) {
 let refreshInFlight = null;
 
 async function fetchLiveNewsCanada(options) {
-  const timeoutMs = Number(options && options.timeoutMs) || DEFAULT_TIMEOUT_MS;
+  const timeoutMs = Number(options && options.timeoutMs) || getEnvNumber("NEWS_CANADA_RSS_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
   const attempts = [];
   const candidates = getFeedOriginCandidates();
 
@@ -441,7 +488,8 @@ async function fetchLiveNewsCanada(options) {
       contentType: "unknown",
       attemptedUrls: attempts,
       sample: "",
-      detail: "live_fetch_failed"
+      detail: "live_fetch_failed",
+      feedUrl: getConfiguredFeedUrl()
     }
   };
 }
@@ -474,11 +522,13 @@ async function refreshCache(options) {
         stale: true,
         degraded: true,
         refreshFailed: true,
+        seed: isSeedPayload(existing),
         detail: firstString([
           live.meta && live.meta.detail,
-          "refresh_failed_using_existing_cache"
+          isSeedPayload(existing) ? "refresh_failed_using_seed_cache" : "refresh_failed_using_existing_cache"
         ]),
-        attemptedUrls: live.meta && live.meta.attemptedUrls || []
+        attemptedUrls: live.meta && live.meta.attemptedUrls || [],
+        feedUrl: getConfiguredFeedUrl()
       }
     };
   })();
@@ -492,8 +542,8 @@ async function refreshCache(options) {
 
 async function getCachedOrRefresh(options) {
   const opts = options && typeof options === "object" ? options : {};
-  const refreshMs = Number(opts.refreshMs) || DEFAULT_REFRESH_MS;
-  const staleMs = Number(opts.staleMs) || DEFAULT_STALE_MS;
+  const refreshMs = Number(opts.refreshMs) || getEnvNumber("NEWS_CANADA_REFRESH_MS", DEFAULT_REFRESH_MS);
+  const staleMs = Number(opts.staleMs) || getEnvNumber("NEWS_CANADA_STALE_MS", DEFAULT_STALE_MS);
   const forceRefresh = !!opts.forceRefresh;
 
   const cached = readCache();
