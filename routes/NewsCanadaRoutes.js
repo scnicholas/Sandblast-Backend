@@ -14,6 +14,11 @@ function isObj(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
+function boolQuery(value) {
+  const raw = cleanText(value).toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 function resolveRssService(mod) {
   if (!mod) return null;
   if (typeof mod.fetchRSS === "function") return mod;
@@ -66,14 +71,95 @@ router.get("/rss", async (req, res) => {
     return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
   }
 
+  const trace = {
+    refresh: boolQuery(req.query && req.query.refresh),
+    clearCache: boolQuery(req.query && req.query.clearCache),
+    diagnostics: boolQuery(req.query && req.query.diagnostics),
+    maxItems: Number(req.query && req.query.maxItems) || undefined,
+    timeoutMs: Number(req.query && req.query.timeoutMs) || undefined,
+  };
+
   try {
-    const result = await rssService.fetchRSS({
-      refresh: req.query && String(req.query.refresh || "").trim() === "1"
-    });
-    return res.json(result);
+    const result = await rssService.fetchRSS(trace);
+    const response = {
+      ok: true,
+      ...result,
+      route: "/api/newscanada/rss",
+      trace: {
+        request: trace,
+        resultSource: cleanText(result && result.meta && result.meta.source || ""),
+        servedFrom: cleanText(result && result.meta && result.meta.servedFrom || ""),
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || ""),
+        itemCount: Array.isArray(result && result.items) ? result.items.length : 0,
+      }
+    };
+    return res.json(response);
   } catch (err) {
     console.error("[newscanada.routes][rss:error]", err && (err.stack || err.message || err));
-    return res.status(500).json({ ok: false, error: cleanText(err && err.message) || "rss_fetch_failed" });
+    return res.status(500).json({
+      ok: false,
+      error: cleanText(err && err.message) || "rss_fetch_failed",
+      route: "/api/newscanada/rss",
+      trace: { request: trace }
+    });
+  }
+});
+
+router.post("/rss/refresh", async (req, res) => {
+  if (!rssService || typeof rssService.fetchRSS !== "function") {
+    return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
+  }
+
+  const options = {
+    refresh: true,
+    clearCache: true,
+    diagnostics: true,
+    maxItems: Number(req.body && req.body.maxItems) || undefined,
+    timeoutMs: Number(req.body && req.body.timeoutMs) || undefined,
+  };
+
+  try {
+    const result = await rssService.fetchRSS(options);
+    return res.json({
+      ok: true,
+      route: "/api/newscanada/rss/refresh",
+      ...result,
+      trace: {
+        request: options,
+        resultSource: cleanText(result && result.meta && result.meta.source || ""),
+        servedFrom: cleanText(result && result.meta && result.meta.servedFrom || ""),
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || ""),
+        itemCount: Array.isArray(result && result.items) ? result.items.length : 0,
+      }
+    });
+  } catch (err) {
+    console.error("[newscanada.routes][refresh:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({ ok: false, error: cleanText(err && err.message) || "rss_refresh_failed" });
+  }
+});
+
+router.get("/rss/diagnostics", async (req, res) => {
+  if (!rssService) {
+    return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
+  }
+  try {
+    const health = typeof rssService.health === "function"
+      ? await rssService.health()
+      : { ok: false, error: "rss_health_unavailable" };
+
+    const cacheInfo = typeof rssService.inspectCache === "function"
+      ? await rssService.inspectCache()
+      : { ok: false, error: "rss_cache_introspection_unavailable" };
+
+    return res.json({
+      ok: true,
+      route: "/api/newscanada/rss/diagnostics",
+      health,
+      cacheInfo
+    });
+  } catch (err) {
+    console.error("[newscanada.routes][diagnostics:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({ ok: false, error: cleanText(err && err.message) || "rss_diagnostics_failed" });
   }
 });
 
