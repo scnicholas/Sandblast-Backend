@@ -102,10 +102,20 @@ function isSeedPayload(payload) {
   const meta = isObj(payload && payload.meta) ? payload.meta : {};
   const source = cleanText(meta.source || meta.servedFrom || "").toLowerCase();
   const detail = cleanText(meta.detail || "").toLowerCase();
+  const parserMode = cleanText(meta.parserMode || "").toLowerCase();
   return (
     source.includes("seed") ||
+    source.includes("fallback") ||
     detail.includes("seed") ||
-    items.some((item) => cleanText(item && item.id).toLowerCase().includes("fallback-"))
+    detail.includes("fallback") ||
+    parserMode.includes("seed") ||
+    parserMode.includes("guaranteed_fallback") ||
+    items.some((item) => {
+      const id = cleanText(item && item.id).toLowerCase();
+      const slug = cleanText(item && item.slug).toLowerCase();
+      const itemParserMode = cleanText(item && item.parserMode).toLowerCase();
+      return id.includes("fallback-") || slug.includes("refreshing") || itemParserMode.includes("guaranteed_fallback");
+    })
   );
 }
 
@@ -267,7 +277,12 @@ function createForYourLifeFeedService(options = {}) {
       return fromCacheService;
     }
 
-    const fromRssService = await getViaRssService(opts, logger);
+    const shouldForceLive = !!(fromCacheService && (
+      isSeedPayload(fromCacheService) ||
+      (fromCacheService.meta && (fromCacheService.meta.degraded || fromCacheService.meta.stale))
+    ));
+
+    const fromRssService = await getViaRssService({ ...opts, refresh: shouldForceLive || !!opts.refresh }, logger);
     if (fromRssService && fromRssService.items.length) {
       return fromRssService;
     }
@@ -311,6 +326,7 @@ function createForYourLifeFeedService(options = {}) {
       meta: {
         ...payload.meta,
         storyCount: stories.length,
+        detail: cleanText((payload.meta && payload.meta.detail) || (stories.length ? "bridge_payload_ready" : "bridge_empty_payload")) || (stories.length ? "bridge_payload_ready" : "bridge_empty_payload"),
       },
     };
   }
