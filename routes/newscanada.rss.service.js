@@ -1,20 +1,8 @@
 /**
  * newscanada-rss-service.hardened.js
  *
- * Hardened RSS service for the For Your Life feed served through the existing
- * News Canada route contract.
- *
- * What changed:
- * - upstream source is now https://foryourlife.ca/feed/
- * - parsing is tuned for the For Your Life WordPress RSS feed
- * - image extraction now works from enclosures and embedded HTML
- * - cache paths support both legacy newscanada and new foryourlife locations
- * - response diagnostics explicitly identify the feed source
- *
- * Integration assumptions:
- * - Node.js 18+ (global fetch available)
- * - Express backend
- * - Writable local cache directory
+ * Hardened RSS service for the legacy News Canada route contract,
+ * now sourced from the actual For Your Life feed.
  */
 
 const fs = require("fs");
@@ -24,7 +12,6 @@ const { XMLParser } = require("fast-xml-parser");
 
 const FEED_NAME = "For Your Life";
 const FEED_URL = "https://foryourlife.ca/feed/";
-const ROUTE_CONTRACT = "/api/newscanada/rss";
 
 const DEFAULTS = {
   timeoutMs: 30000,
@@ -32,53 +19,52 @@ const DEFAULTS = {
   retryDelayMs: 1200,
   maxItems: 12,
   cacheTtlMs: 30 * 60 * 1000,
-  cacheFilePath:
-    process.env.FORYOURLIFE_CACHE_FILE ||
-    process.env.NEWSCANADA_CACHE_FILE ||
-    path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
-  legacyCacheFilePath: path.join(process.cwd(), "DATA", "newscanada", "cache", "rss-cache.json"),
-  userAgent:
-    "SandblastForYourLife/1.0 (+https://sandblast.channel; contact: ops@sandblast.channel)",
+  cacheFilePath: path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
+  userAgent: "SandblastForYourLife/1.0 (+https://sandblast.channel; contact: ops@sandblast.channel)",
 };
 
+const ROUTE_CONTRACT = "/api/newscanada/rss";
 const RSS_URLS = [FEED_URL];
 
 const FALLBACK_SEED_STORIES = [
   {
     id: "fallback-001",
     title: "For Your Life feed is temporarily refreshing",
-    description:
-      "The live For Your Life RSS bridge is retrying. This fallback story confirms the feed pipeline is still mounted and serving data.",
+    description: "The live RSS bridge is retrying. This fallback story confirms the For Your Life pipeline is still mounted and serving data.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
     category: FEED_NAME,
     publishedAt: new Date().toISOString(),
     image: "",
+    feedName: FEED_NAME,
+    feedUrl: FEED_URL,
   },
   {
     id: "fallback-002",
     title: "Sandblast feed cache safeguard is active",
-    description:
-      "A stale-cache and fallback protection layer is in place to prevent empty story slots on the frontend while the live feed recovers.",
+    description: "A stale-cache and fallback protection layer is now in place to prevent empty story slots on the frontend.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
     category: FEED_NAME,
     publishedAt: new Date().toISOString(),
     image: "",
+    feedName: FEED_NAME,
+    feedUrl: FEED_URL,
   },
   {
     id: "fallback-003",
-    title: "Live For Your Life stories will replace fallback items automatically",
-    description:
-      "As soon as the upstream RSS source responds successfully, live stories will overwrite the fallback items in cache and in the response.",
+    title: "Live stories will replace fallback slots automatically",
+    description: "As soon as the upstream RSS source responds successfully, live For Your Life stories will overwrite the fallback items.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
     category: FEED_NAME,
     publishedAt: new Date().toISOString(),
     image: "",
+    feedName: FEED_NAME,
+    feedUrl: FEED_URL,
   },
 ];
 
@@ -87,7 +73,6 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: "",
   trimValues: true,
   parseTagValue: true,
-  processEntities: true,
 });
 
 function ensureDirForFile(filePath) {
@@ -111,19 +96,6 @@ function normalizeText(value) {
   return String(value).replace(/\s+/g, " ").trim();
 }
 
-function stripHtml(value) {
-  return normalizeText(String(value || "").replace(/<[^>]+>/g, " "));
-}
-
-function htmlDecode(value) {
-  return String(value || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
 function normalizeUrl(value) {
   const url = normalizeText(value);
   if (!url) return "";
@@ -139,16 +111,14 @@ function coerceArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-function extractHtmlImage(...values) {
-  for (const value of values) {
-    const html = String(value || "");
-    const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (match && match[1]) {
-      const url = normalizeUrl(htmlDecode(match[1]));
-      if (url) return url;
-    }
-  }
-  return "";
+function stripHtml(value) {
+  return normalizeText(String(value || "").replace(/<[^>]*>/g, " "));
+}
+
+function extractFirstImageFromHtml(value) {
+  const html = String(value || "");
+  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return normalizeUrl(match && match[1]);
 }
 
 function extractImage(item) {
@@ -156,43 +126,37 @@ function extractImage(item) {
     item?.enclosure?.url ||
     item?.["media:content"]?.url ||
     item?.["media:thumbnail"]?.url ||
-    item?.thumbnail ||
-    item?.image;
+    item?.["content:encoded"]?.img?.src;
 
   return (
     normalizeUrl(enclosureUrl) ||
-    extractHtmlImage(item?.description, item?.summary, item?.["content:encoded"], item?.content)
+    extractFirstImageFromHtml(item?.["content:encoded"]) ||
+    extractFirstImageFromHtml(item?.description)
   );
 }
 
 function extractPublishedAt(item) {
   const candidates = [item?.pubDate, item?.published, item?.updated, item?.dcDate, item?.["dc:date"]];
-
   for (const candidate of candidates) {
     const text = normalizeText(candidate);
     if (!text) continue;
     const t = Date.parse(text);
     if (!Number.isNaN(t)) return new Date(t).toISOString();
   }
-
   return new Date().toISOString();
 }
 
-function extractDescription(raw) {
-  const html = raw?.["content:encoded"] || raw?.description || raw?.summary || raw?.content || "";
-  return stripHtml(htmlDecode(html));
-}
-
 function normalizeItem(raw, sourceUrl) {
-  const title = stripHtml(htmlDecode(raw?.title));
-  const description = extractDescription(raw);
+  const title = normalizeText(raw?.title);
+  const descriptionHtml = raw?.description || raw?.summary || raw?.content || raw?.["content:encoded"] || "";
+  const description = stripHtml(descriptionHtml);
   const url = normalizeUrl(raw?.link || raw?.guid || raw?.id);
-  const category =
-    normalizeText(Array.isArray(raw?.category) ? raw.category[0] : raw?.category) || FEED_NAME;
+  const link = normalizeUrl(raw?.link || url);
+  const guid = normalizeText(raw?.guid || "");
+  const category = normalizeText(Array.isArray(raw?.category) ? raw.category[0] : raw?.category) || FEED_NAME;
   const publishedAt = extractPublishedAt(raw);
   const image = extractImage(raw);
-  const source = FEED_NAME;
-  const guid = normalizeText(raw?.guid || "");
+  const author = normalizeText(raw?.["dc:creator"] || raw?.author || "");
 
   if (!title || !url) return null;
 
@@ -203,23 +167,22 @@ function normalizeItem(raw, sourceUrl) {
     description,
     summary: description,
     url,
-    link: url,
-    source,
-    feedName: FEED_NAME,
-    feedUrl: FEED_URL,
+    link,
+    source: FEED_NAME,
+    author,
     category,
     publishedAt,
     image,
+    feedName: FEED_NAME,
+    feedUrl: FEED_URL,
   };
 }
 
 function parseRssXml(xml, sourceUrl) {
   const doc = xmlParser.parse(xml);
-
   const channelItems = coerceArray(doc?.rss?.channel?.item);
   const atomEntries = coerceArray(doc?.feed?.entry);
   const rawItems = channelItems.length ? channelItems : atomEntries;
-
   const items = rawItems.map((item) => normalizeItem(item, sourceUrl)).filter(Boolean);
   return dedupeItems(items);
 }
@@ -227,14 +190,12 @@ function parseRssXml(xml, sourceUrl) {
 function dedupeItems(items) {
   const seen = new Set();
   const deduped = [];
-
   for (const item of items) {
     const key = item.url || item.id;
     if (!key || seen.has(key)) continue;
     seen.add(key);
     deduped.push(item);
   }
-
   deduped.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
   return deduped;
 }
@@ -242,23 +203,17 @@ function dedupeItems(items) {
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULTS.timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error(`timeout of ${timeoutMs}ms exceeded`)), timeoutMs);
-
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
       headers: {
         "user-agent": DEFAULTS.userAgent,
-        accept:
-          "application/rss+xml, application/xml, text/xml, application/atom+xml;q=0.9, */*;q=0.8",
+        accept: "application/rss+xml, application/xml, text/xml, application/atom+xml;q=0.9, */*;q=0.8",
         ...(options.headers || {}),
       },
     });
-
-    if (!response.ok) {
-      throw new Error(`http_${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`http_${response.status}`);
     return await response.text();
   } finally {
     clearTimeout(timer);
@@ -269,28 +224,17 @@ async function fetchRssWithRetry(url, config = {}) {
   const maxRetries = Number.isInteger(config.maxRetries) ? config.maxRetries : DEFAULTS.maxRetries;
   const timeoutMs = config.timeoutMs || DEFAULTS.timeoutMs;
   const retryDelayMs = config.retryDelayMs || DEFAULTS.retryDelayMs;
-
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
       const xml = await fetchWithTimeout(url, {}, timeoutMs);
       const items = parseRssXml(xml, url);
-
-      if (!items.length) {
-        throw new Error("rss_parsed_but_empty");
-      }
-
-      return {
-        ok: true,
-        items,
-        attempts: attempt + 1,
-      };
+      if (!items.length) throw new Error("rss_parsed_but_empty");
+      return { ok: true, items, attempts: attempt + 1 };
     } catch (error) {
       lastError = error;
-      if (attempt < maxRetries) {
-        await sleep(retryDelayMs * (attempt + 1));
-      }
+      if (attempt < maxRetries) await sleep(retryDelayMs * (attempt + 1));
     }
   }
 
@@ -302,57 +246,23 @@ async function fetchRssWithRetry(url, config = {}) {
   };
 }
 
-function readJsonCache(cacheFilePath) {
-  try {
-    if (!fs.existsSync(cacheFilePath)) {
-      return null;
-    }
-
-    const raw = fs.readFileSync(cacheFilePath, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 function readCache(cacheFilePath = DEFAULTS.cacheFilePath) {
   try {
-    const primary = readJsonCache(cacheFilePath);
-    const legacy = cacheFilePath === DEFAULTS.legacyCacheFilePath ? null : readJsonCache(DEFAULTS.legacyCacheFilePath);
-    const data = primary || legacy;
-
-    if (!data) {
-      return { ok: true, items: [], lastUpdated: null, ageMs: null };
-    }
-
+    if (!fs.existsSync(cacheFilePath)) return { ok: true, items: [], lastUpdated: null, ageMs: null };
+    const raw = fs.readFileSync(cacheFilePath, "utf8");
+    const data = JSON.parse(raw);
     const items = Array.isArray(data?.items) ? data.items : [];
     const lastUpdated = data?.lastUpdated || null;
     const ageMs = lastUpdated ? safeNow() - Date.parse(lastUpdated) : null;
-
     return { ok: true, items, lastUpdated, ageMs };
   } catch (error) {
-    return {
-      ok: false,
-      items: [],
-      lastUpdated: null,
-      ageMs: null,
-      error: String(error.message || error),
-    };
+    return { ok: false, items: [], lastUpdated: null, ageMs: null, error: String(error.message || error) };
   }
 }
 
 function writeCache(items, cacheFilePath = DEFAULTS.cacheFilePath) {
   ensureDirForFile(cacheFilePath);
-  const payload = {
-    lastUpdated: new Date().toISOString(),
-    itemCount: items.length,
-    items,
-    meta: {
-      source: FEED_NAME,
-      feedUrl: FEED_URL,
-      servedFrom: "rss_live",
-    },
-  };
+  const payload = { lastUpdated: new Date().toISOString(), itemCount: items.length, items };
   fs.writeFileSync(cacheFilePath, JSON.stringify(payload, null, 2), "utf8");
   return payload;
 }
@@ -362,12 +272,7 @@ function withinTtl(ageMs, ttlMs = DEFAULTS.cacheTtlMs) {
 }
 
 function fallbackStories(maxItems = DEFAULTS.maxItems) {
-  return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({
-    ...story,
-    order: index,
-    feedName: FEED_NAME,
-    feedUrl: FEED_URL,
-  }));
+  return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({ ...story, order: index }));
 }
 
 async function getNewsCanadaStories(options = {}) {
@@ -384,9 +289,9 @@ async function getNewsCanadaStories(options = {}) {
   const cache = readCache(config.cacheFilePath);
   const diagnostics = {
     routeContract: ROUTE_CONTRACT,
-    source: null,
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    source: null,
     itemCount: 0,
     rssUrlTried: null,
     rssAttempts: 0,
@@ -406,18 +311,15 @@ async function getNewsCanadaStories(options = {}) {
 
   for (const rssUrl of config.rssUrls) {
     diagnostics.rssUrlTried = rssUrl;
-
     const rssResult = await fetchRssWithRetry(rssUrl, config);
     diagnostics.rssAttempts = rssResult.attempts || 0;
 
     if (rssResult.ok && rssResult.items.length) {
       const items = rssResult.items.slice(0, config.maxItems);
       writeCache(items, config.cacheFilePath);
-
       diagnostics.source = "rss_live";
       diagnostics.itemCount = items.length;
       diagnostics.degraded = false;
-
       return { ok: true, items, meta: diagnostics };
     }
 
@@ -429,7 +331,6 @@ async function getNewsCanadaStories(options = {}) {
     diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
     diagnostics.itemCount = items.length;
     diagnostics.degraded = true;
-
     return { ok: true, items, meta: diagnostics };
   }
 
@@ -438,7 +339,6 @@ async function getNewsCanadaStories(options = {}) {
   diagnostics.itemCount = items.length;
   diagnostics.degraded = true;
   diagnostics.error = diagnostics.error || "rss_unavailable_cache_empty";
-
   return { ok: true, items, meta: diagnostics };
 }
 
@@ -446,25 +346,18 @@ function createNewsCanadaHandler(options = {}) {
   return async function newsCanadaRssHandler(req, res) {
     try {
       const result = await getNewsCanadaStories(options);
-
-      return res.status(200).json({
-        ok: true,
-        route: ROUTE_CONTRACT,
-        items: result.items,
-        meta: result.meta,
-      });
+      return res.status(200).json({ ok: true, route: ROUTE_CONTRACT, items: result.items, meta: result.meta });
     } catch (error) {
       const fallback = fallbackStories(options.maxItems || DEFAULTS.maxItems);
-
       return res.status(200).json({
         ok: true,
         route: ROUTE_CONTRACT,
         items: fallback,
         meta: {
           routeContract: ROUTE_CONTRACT,
-          source: "fallback_seed",
           feedName: FEED_NAME,
           feedUrl: FEED_URL,
+          source: "fallback_seed",
           itemCount: fallback.length,
           degraded: true,
           error: String(error.message || error),
@@ -480,8 +373,6 @@ module.exports = {
   ROUTE_CONTRACT,
   RSS_URLS,
   FALLBACK_SEED_STORIES,
-  FEED_NAME,
-  FEED_URL,
   readCache,
   writeCache,
   getNewsCanadaStories,
