@@ -3,14 +3,25 @@
 const fs = require("fs");
 const path = require("path");
 
-const CACHE_VERSION = "newscanada-cache-v2";
+const CACHE_VERSION = "newscanada-cache-v3";
 const DEFAULT_REFRESH_MS = Number(process.env.NEWS_CANADA_REFRESH_MS || 30 * 60 * 1000);
 const DEFAULT_STALE_MS = Number(process.env.NEWS_CANADA_STALE_MS || 60 * 60 * 1000);
 const DEFAULT_TIMEOUT_MS = Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000);
 const DEFAULT_MAX_ITEMS = Number(process.env.NEWS_CANADA_MAX_ITEMS || 6);
+const DEFAULT_RETRIES = Number(process.env.NEWS_CANADA_FETCH_RETRIES || 2);
+const DEFAULT_RETRY_BASE_MS = Number(process.env.NEWS_CANADA_FETCH_RETRY_BASE_MS || 1200);
 
 const CACHE_DIR = cleanText(process.env.NEWSCANADA_CACHE_DIR || process.env.NEWS_CANADA_CACHE_DIR || "") || path.join(__dirname, "..", "data", "newscanada");
 const CACHE_FILE = cleanText(process.env.NEWSCANADA_CACHE_FILE || process.env.NEWS_CANADA_CACHE_FILE || "") || path.join(CACHE_DIR, "newscanada.cache.json");
+const CACHE_FILE_CANDIDATES = unique([
+  CACHE_FILE,
+  path.join(CACHE_DIR, "newscanada.cache.json"),
+  path.join(__dirname, "..", "data", "newscanada", "newscanada.cache.json"),
+  path.join(__dirname, "..", "Data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "Data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), ".newscanada-feed-cache.json")
+]);
 
 function safeStr(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -63,6 +74,10 @@ function now() {
   return Date.now();
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
 function getEnvNumber(name, fallback) {
   const raw = Number(process.env[name]);
   return Number.isFinite(raw) && raw > 0 ? raw : fallback;
@@ -97,8 +112,8 @@ function isSeedPayload(payload) {
   return parserMode.includes("seed") || servedFrom.includes("seed") || detail.includes("manual_seed_bootstrap") || items.some(isSeedItem);
 }
 
-function ensureCacheDir() {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
+function ensureDirForFile(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
 function readJsonFile(filePath) {
@@ -111,8 +126,21 @@ function readJsonFile(filePath) {
 }
 
 function writeJsonFile(filePath, data) {
-  ensureCacheDir();
+  ensureDirForFile(filePath);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+}
+
+function getReadableCachePath() {
+  for (const candidate of CACHE_FILE_CANDIDATES) {
+    try {
+      if (candidate && fs.existsSync(candidate)) return candidate;
+    } catch (_) {}
+  }
+  return CACHE_FILE;
+}
+
+function getWritableCachePath() {
+  return CACHE_FILE || getReadableCachePath();
 }
 
 function getFeedOriginCandidates() {
@@ -120,8 +148,8 @@ function getFeedOriginCandidates() {
   const derived = [];
   try {
     const base = new URL(primary);
-    derived.push(`${base.origin}/wp-json/wp/v2/posts?per_page=6&_embed=1&_fields=id,date,link,slug,title,excerpt,content,yoast_head_json,_embedded`);
-    derived.push(`${base.origin}/index.php?rest_route=/wp/v2/posts&per_page=6&_embed=1`);
+    derived.push(`${base.origin}/wp-json/wp/v2/posts?per_page=${DEFAULT_MAX_ITEMS}&_embed=1&_fields=id,date,link,slug,title,excerpt,content,yoast_head_json,_embedded`);
+    derived.push(`${base.origin}/index.php?rest_route=/wp/v2/posts&per_page=${DEFAULT_MAX_ITEMS}&_embed=1`);
     derived.push(`${base.origin}/feed/`);
     derived.push(`${base.origin}/?feed=rss2`);
     derived.push(`${base.origin}/index.php?feed=rss2`);
@@ -150,40 +178,42 @@ function makeFetchHeaders(mode) {
   };
 }
 
-async function fetchWithTimeout(url, mode, timeoutMs) {
-  const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = controller
-    ? setTimeout(() => {
-        try { controller.abort(); } catch (_) {}
-      }, timeoutMs)
-    : null;
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      headers: makeFetchHeaders(mode),
-      signal: controller ? controller.signal : undefined
-    });
-
-    const contentType = cleanText(
-      response && response.headers && typeof response.headers.get === "function"
-        ? response.headers.get("content-type") || ""
-        : ""
-    );
-
-    const text = await response.text();
-
-    return {
-      ok: !!(response && response.ok),
-      status: Number(response && response.status || 0),
-      url: cleanText(response && response.url || url) || url,
-      contentType,
-      text
-    };
-  } finally {
-    if (timer) clearTimeout(timer);
+async function fetchWithTimeout(url, mode, timeoutMs, retries = DEFAULT_RETRIES) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => { try { controller.abort(); } catch (_) {} }, timeoutMs) : null;
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        headers: makeFetchHeaders(mode),
+        signal: controller ? controller.signal : undefined
+      });
+      const contentType = cleanText(
+        response && response.headers && typeof response.headers.get === "function"
+          ? response.headers.get("content-type") || ""
+          : ""
+      );
+      const text = await response.text();
+      return {
+        ok: !!(response && response.ok),
+        status: Number(response && response.status || 0),
+        url: cleanText(response && response.url || url) || url,
+        contentType,
+        text,
+        attempt: attempt + 1
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await sleep(getEnvNumber("NEWS_CANADA_FETCH_RETRY_BASE_MS", DEFAULT_RETRY_BASE_MS) * Math.pow(2, attempt));
+      }
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
+  throw lastError || new Error("fetch_failed");
 }
 
 function extractWpFeaturedImage(post) {
@@ -263,7 +293,7 @@ function normalizeWpPosts(raw, sourceUrl) {
       feedUrl: sourceUrl,
       isActive: true
     };
-  }).filter((item) => item && (item.title || item.summary || item.url));
+  }).filter((item) => item && item.title && item.url);
 
   return items.slice(0, DEFAULT_MAX_ITEMS);
 }
@@ -346,9 +376,70 @@ function normalizeRssXml(xmlText, sourceUrl) {
       feedUrl: sourceUrl,
       isActive: true
     };
-  }).filter((item) => item && (item.title || item.summary || item.url));
+  }).filter((item) => item && item.title && item.url);
 
   return items.slice(0, DEFAULT_MAX_ITEMS);
+}
+
+function normalizeHtmlFeed(htmlText, sourceUrl) {
+  const html = safeStr(htmlText);
+  const items = [];
+  const seen = new Set();
+  const anchorRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = anchorRe.exec(html)) && items.length < DEFAULT_MAX_ITEMS) {
+    const url = cleanText(decodeHtml(match[1] || ""));
+    const title = stripTags(match[2] || "");
+    if (!/^https?:\/\//i.test(url)) continue;
+    if (!title || title.length < 12) continue;
+    if (/\/feed\/|\/wp-json\/|\/tag\/|\/category\//i.test(url)) continue;
+    const key = `${url}|${title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const summary = clipText(stripTags(html.slice(Math.max(0, match.index - 600), Math.min(html.length, match.index + 1400))), 260) || title;
+    items.push({
+      id: `html-${items.length}`,
+      guid: `html-${items.length}`,
+      slug: cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `html-${items.length}`,
+      title,
+      headline: title,
+      description: summary,
+      summary,
+      body: summary,
+      content: summary,
+      link: url,
+      url,
+      sourceUrl: url,
+      canonicalUrl: url,
+      pubDate: "",
+      publishedAt: "",
+      image: "",
+      popupImage: "",
+      popupBody: summary,
+      author: "For Your Life",
+      byline: "For Your Life",
+      category: "For Your Life",
+      chipLabel: "News Canada",
+      ctaText: "Read full story",
+      source: "For Your Life",
+      sourceName: "For Your Life",
+      parserMode: "html_anchor_fallback",
+      feedUrl: sourceUrl,
+      isActive: true
+    });
+  }
+  return items;
+}
+
+function normalizeFeedText(text, contentType, sourceUrl) {
+  const type = cleanText(contentType).toLowerCase();
+  const xmlItems = normalizeRssXml(text, sourceUrl);
+  if (xmlItems.length) return { items: xmlItems, parserMode: "rss_xml_parser" };
+  if (/text\/html|application\/xhtml\+xml/.test(type) || /<html\b/i.test(safeStr(text))) {
+    const htmlItems = normalizeHtmlFeed(text, sourceUrl);
+    if (htmlItems.length) return { items: htmlItems, parserMode: "html_anchor_fallback" };
+  }
+  return { items: [], parserMode: "no_items" };
 }
 
 function buildEmptyContract(reason) {
@@ -363,37 +454,50 @@ function buildEmptyContract(reason) {
       itemCount: 0,
       cacheVersion: CACHE_VERSION,
       stale: true,
-      detail: cleanText(reason || "no_cache_available")
+      detail: cleanText(reason || "no_cache_available"),
+      cachePath: getReadableCachePath(),
+      cacheCandidates: CACHE_FILE_CANDIDATES
     }
   };
 }
 
 function readCache() {
-  const cached = readJsonFile(CACHE_FILE);
+  const filePath = getReadableCachePath();
+  const cached = filePath ? readJsonFile(filePath) : null;
   if (!cached || !Array.isArray(cached.items) || !cached.meta) {
     return buildEmptyContract("cache_missing");
   }
-  return cached;
+  return {
+    ...cached,
+    meta: {
+      ...(cached.meta || {}),
+      cachePath: filePath,
+      cacheCandidates: CACHE_FILE_CANDIDATES
+    }
+  };
 }
 
 function writeCache(items, metaPatch) {
   const safeItems = Array.isArray(items) ? items.slice(0, DEFAULT_MAX_ITEMS) : [];
+  const writtenAt = now();
   const payload = {
     ok: safeItems.length > 0,
     items: safeItems,
     meta: {
       source: "cache",
       mode: "cache_first",
-      fetchedAt: now(),
-      lastSuccessAt: now(),
+      fetchedAt: writtenAt,
+      lastSuccessAt: writtenAt,
       itemCount: safeItems.length,
       cacheVersion: CACHE_VERSION,
       stale: false,
       feedUrl: getConfiguredFeedUrl(),
+      cachePath: getWritableCachePath(),
+      cacheCandidates: CACHE_FILE_CANDIDATES,
       ...(metaPatch && typeof metaPatch === "object" ? metaPatch : {})
     }
   };
-  writeJsonFile(CACHE_FILE, payload);
+  writeJsonFile(getWritableCachePath(), payload);
   return payload;
 }
 
@@ -413,20 +517,22 @@ let refreshInFlight = null;
 
 async function fetchLiveNewsCanada(options) {
   const timeoutMs = Number(options && options.timeoutMs) || getEnvNumber("NEWS_CANADA_RSS_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
+  const retries = Number(options && options.retries);
   const attempts = [];
   const candidates = getFeedOriginCandidates();
 
   for (const url of candidates) {
     const mode = /wp-json|rest_route/i.test(url) ? "wp_rest" : "rss";
     try {
-      const result = await fetchWithTimeout(url, mode, timeoutMs);
+      const result = await fetchWithTimeout(url, mode, timeoutMs, Number.isFinite(retries) ? retries : DEFAULT_RETRIES);
       attempts.push({
         url,
         mode,
         status: result.status,
         ok: result.ok,
         finalUrl: result.url,
-        contentType: result.contentType
+        contentType: result.contentType,
+        attempt: result.attempt
       });
 
       if (!result.ok) continue;
@@ -445,24 +551,26 @@ async function fetchLiveNewsCanada(options) {
               resolvedUrl: result.url || url,
               contentType: result.contentType,
               attemptedUrls: attempts,
-              sample: clipText(result.text, 240)
+              sample: clipText(result.text, 240),
+              feedUrl: getConfiguredFeedUrl()
             }
           };
         }
       } else {
-        const items = normalizeRssXml(result.text, result.url || url);
-        if (items.length) {
+        const parsed = normalizeFeedText(result.text, result.contentType, result.url || url);
+        if (parsed.items.length) {
           return {
             ok: true,
-            items,
+            items: parsed.items,
             meta: {
               source: "live_origin",
               mode: "rss",
-              parserMode: "rss_xml_parser",
+              parserMode: parsed.parserMode,
               resolvedUrl: result.url || url,
               contentType: result.contentType,
               attemptedUrls: attempts,
-              sample: clipText(result.text, 240)
+              sample: clipText(result.text, 240),
+              feedUrl: getConfiguredFeedUrl()
             }
           };
         }
@@ -509,7 +617,10 @@ async function refreshCache(options) {
         contentType: live.meta && live.meta.contentType || "",
         attemptedUrls: live.meta && live.meta.attemptedUrls || [],
         sample: live.meta && live.meta.sample || "",
-        stale: false
+        stale: false,
+        degraded: false,
+        feedUrl: live.meta && live.meta.feedUrl || getConfiguredFeedUrl(),
+        detail: "live_refresh_success"
       });
     }
 
@@ -528,7 +639,9 @@ async function refreshCache(options) {
           isSeedPayload(existing) ? "refresh_failed_using_seed_cache" : "refresh_failed_using_existing_cache"
         ]),
         attemptedUrls: live.meta && live.meta.attemptedUrls || [],
-        feedUrl: getConfiguredFeedUrl()
+        feedUrl: getConfiguredFeedUrl(),
+        cachePath: getReadableCachePath(),
+        cacheCandidates: CACHE_FILE_CANDIDATES
       }
     };
   })();
@@ -593,9 +706,12 @@ async function getCachedOrRefresh(options) {
 module.exports = {
   CACHE_FILE,
   CACHE_DIR,
+  CACHE_FILE_CANDIDATES,
   readCache,
   writeCache,
   refreshCache,
   getCachedOrRefresh,
-  fetchLiveNewsCanada
+  fetchLiveNewsCanada,
+  getReadableCachePath,
+  getWritableCachePath
 };
