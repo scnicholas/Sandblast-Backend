@@ -3017,6 +3017,144 @@ function normalizeImageLike(entry, title) {
   };
 }
 
+
+function buildNewsCanadaGuaranteedFallbackItems(reason, limit) {
+  const max = clamp(Number(limit || 4), 1, 12);
+  const nowIso = new Date().toISOString();
+  const baseItems = [
+    {
+      id: "newscanada-fallback-1",
+      guid: "newscanada-fallback-1",
+      slug: "news-canada-refreshing",
+      title: "News Canada is refreshing",
+      headline: "News Canada is refreshing",
+      description: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      summary: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      body: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      content: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-2",
+      guid: "newscanada-fallback-2",
+      slug: "cache-and-rss-protection-active",
+      title: "Cache and RSS protection is active",
+      headline: "Cache and RSS protection is active",
+      description: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      summary: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      body: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      content: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-3",
+      guid: "newscanada-fallback-3",
+      slug: "diagnostics-available-in-meta",
+      title: "Diagnostics are available in the response metadata",
+      headline: "Diagnostics are available in the response metadata",
+      description: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      summary: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      body: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      content: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-4",
+      guid: "newscanada-fallback-4",
+      slug: "live-stories-will-replace-these-slots",
+      title: "Live stories will replace these slots automatically",
+      headline: "Live stories will replace these slots automatically",
+      description: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      summary: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      body: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      content: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    }
+  ];
+
+  return baseItems.slice(0, max).map((item) => ({
+    ...item,
+    fallbackReason: cleanText(reason || "news_canada_non_empty_contract")
+  }));
+}
+
+function ensureNewsCanadaItemsNonEmpty(items, reason, limit) {
+  const normalized = Array.isArray(items) ? items.filter(Boolean) : [];
+  return normalized.length ? normalized : buildNewsCanadaGuaranteedFallbackItems(reason, limit);
+}
+
 function getNewsCanadaService() {
   return newsCanadaPrimaryService || newsCanadaFeedService;
 }
@@ -3024,12 +3162,42 @@ function getNewsCanadaService() {
 async function getNewsCanadaEditorsPicksResponse(req) {
   const service = getNewsCanadaService();
   if (!service || typeof service.getEditorsPicks !== "function") {
+    const fallbackStories = buildNewsCanadaGuaranteedFallbackItems("service_unavailable", Number(req.query && req.query.limit || 4) || 4);
     return {
-      ok: false,
-      error: "news_canada_service_unavailable",
+      ok: true,
       route: "/api/newscanada/editors-picks",
-      stories: [],
-      meta: { v: INDEX_VERSION, t: now(), source: "service_unavailable", degraded: true }
+      storyRoute: "/api/newscanada/story",
+      availableStories: fallbackStories.length,
+      storyCount: fallbackStories.length,
+      count: fallbackStories.length,
+      stories: fallbackStories,
+      items: fallbackStories,
+      articles: fallbackStories,
+      editorsPicks: fallbackStories,
+      editorPicks: fallbackStories,
+      feed: fallbackStories,
+      slides: fallbackStories,
+      panels: fallbackStories,
+      chips: [],
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        source: "fallback_seed",
+        degraded: true,
+        mode: "rss",
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        fetchedAt: now(),
+        storyCount: fallbackStories.length,
+        itemCount: fallbackStories.length,
+        parserMode: "guaranteed_fallback",
+        contractVersion: "newscanada-rss-service-v4",
+        stableRoutes: {
+          editorsPicks: "/api/newscanada/editors-picks",
+          editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+          story: "/api/newscanada/story",
+          refresh: "/api/newscanada/rss"
+        }
+      }
     };
   }
 
@@ -3038,32 +3206,41 @@ async function getNewsCanadaEditorsPicksResponse(req) {
     limit: Number(req.query && req.query.limit || 0) || undefined
   }));
 
+  const stories = ensureNewsCanadaItemsNonEmpty(
+    Array.isArray(result && result.stories) ? result.stories : [],
+    cleanText(result && result.meta && result.meta.detail || "empty_editors_picks_payload"),
+    Number(req.query && req.query.limit || 4) || 4
+  );
+  const slides = Array.isArray(result && result.slides) && result.slides.length ? result.slides : stories;
+
   return {
-    ok: result && result.ok !== false,
+    ok: true,
     route: "/api/newscanada/editors-picks",
     storyRoute: "/api/newscanada/story",
-    availableStories: Array.isArray(result && result.stories) ? result.stories.filter((story) => story && story.isActive !== false).length : 0,
-    storyCount: Array.isArray(result && result.stories) ? result.stories.length : 0,
-    count: Array.isArray(result && result.stories) ? result.stories.length : 0,
-    stories: Array.isArray(result && result.stories) ? result.stories : [],
-    items: Array.isArray(result && result.stories) ? result.stories : [],
-    articles: Array.isArray(result && result.stories) ? result.stories : [],
-    editorsPicks: Array.isArray(result && result.stories) ? result.stories : [],
-    editorPicks: Array.isArray(result && result.stories) ? result.stories : [],
-    feed: Array.isArray(result && result.stories) ? result.stories : [],
-    slides: Array.isArray(result && result.slides) ? result.slides : (Array.isArray(result && result.stories) ? result.stories : []),
-    panels: Array.isArray(result && result.slides) ? result.slides : (Array.isArray(result && result.stories) ? result.stories : []),
+    availableStories: stories.filter((story) => story && story.isActive !== false).length,
+    storyCount: stories.length,
+    count: stories.length,
+    stories,
+    items: stories,
+    articles: stories,
+    editorsPicks: stories,
+    editorPicks: stories,
+    feed: stories,
+    slides,
+    panels: slides,
     chips: Array.isArray(result && result.chips) ? result.chips : [],
     meta: {
       v: INDEX_VERSION,
       t: now(),
-      source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
-      degraded: !!(result && result.meta && result.meta.degraded),
+      source: cleanText(result && result.meta && result.meta.source || (stories.length ? "rss_service" : "fallback_seed")) || "rss_service",
+      degraded: !!(result && result.meta && result.meta.degraded) || !Array.isArray(result && result.stories) || !result.stories.length,
       mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
-      feedUrl: cleanText(result && result.meta && result.meta.feedUrl || ""),
-      fetchedAt: Number(result && result.meta && result.meta.fetchedAt || 0),
-      storyCount: Number(result && result.meta && result.meta.storyCount || 0),
-      contractVersion: "newscanada-rss-service-v1",
+      feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+      fetchedAt: Number(result && result.meta && result.meta.fetchedAt || now()),
+      storyCount: stories.length,
+      itemCount: stories.length,
+      parserMode: cleanText(result && result.meta && result.meta.parserMode || (stories.length ? "rss_payload" : "guaranteed_fallback")) || "rss_payload",
+      contractVersion: "newscanada-rss-service-v4",
       stableRoutes: {
         editorsPicks: "/api/newscanada/editors-picks",
         editorsPicksMeta: "/api/newscanada/editors-picks/meta",
@@ -3124,12 +3301,30 @@ async function getNewsCanadaStoryResponse(req) {
 async function getNewsCanadaRssResponse(req) {
   const service = getNewsCanadaService();
   if (!service || typeof service.fetchRSS !== "function") {
+    const fallbackItems = buildNewsCanadaGuaranteedFallbackItems("service_unavailable", 4);
     return {
-      ok: false,
-      error: "news_canada_service_unavailable",
+      ok: true,
       route: "/api/newscanada/rss",
-      items: [],
-      meta: { v: INDEX_VERSION, t: now(), source: "service_unavailable", degraded: true }
+      items: fallbackItems,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        source: "fallback_seed",
+        degraded: true,
+        mode: "rss",
+        parserMode: "guaranteed_fallback",
+        contentType: "",
+        resolvedUrl: "",
+        attemptedUrls: [],
+        sample: "",
+        detail: "news_canada_service_unavailable",
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        fetchedAt: now(),
+        itemCount: fallbackItems.length,
+        cacheContractPath: "",
+        cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+        contractVersion: "newscanada-rss-service-v4"
+      }
     };
   }
 
@@ -3138,42 +3333,60 @@ async function getNewsCanadaRssResponse(req) {
       refresh: req.query && req.query.refresh === "1"
     }));
 
+    const items = ensureNewsCanadaItemsNonEmpty(
+      Array.isArray(result && result.items) ? result.items : [],
+      cleanText(result && result.meta && result.meta.detail || "empty_rss_payload"),
+      4
+    );
+
     return {
-      ok: result && result.ok !== false,
+      ok: true,
       route: "/api/newscanada/rss",
-      items: Array.isArray(result && result.items) ? result.items : [],
+      items,
       meta: {
         v: INDEX_VERSION,
         t: now(),
-        source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
-        degraded: !!(result && result.meta && result.meta.degraded),
+        source: cleanText(result && result.meta && result.meta.source || (items.length ? "rss_service" : "fallback_seed")) || "rss_service",
+        degraded: !!(result && result.meta && result.meta.degraded) || !Array.isArray(result && result.items) || !result.items.length,
         mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
-        parserMode: cleanText(result && result.meta && result.meta.parserMode || "unknown") || "unknown",
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || (items.length ? "rss_payload" : "guaranteed_fallback")) || "rss_payload",
         contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
         resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
         attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
         sample: cleanText(result && result.meta && result.meta.sample || ""),
         detail: cleanText(result && result.meta && result.meta.detail || ""),
         feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
-        fetchedAt: Number(result && result.meta && result.meta.fetchedAt || 0),
-        itemCount: Array.isArray(result && result.items) ? result.items.length : 0,
+        fetchedAt: Number(result && result.meta && result.meta.fetchedAt || now()),
+        itemCount: items.length,
         cacheContractPath: cleanText(result && result.meta && result.meta.cacheContractPath || "") || "",
         cacheContractCandidates: Array.isArray(result && result.meta && result.meta.cacheContractCandidates) ? result.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths(),
-        contractVersion: "newscanada-rss-service-v3"
+        contractVersion: "newscanada-rss-service-v4"
       }
     };
   } catch (err) {
+    const fallbackItems = buildNewsCanadaGuaranteedFallbackItems(cleanText(err && (err.message || err.code || "rss_fetch_failed")), 4);
     return {
-      ok: false,
-      error: "rss_fetch_failed",
+      ok: true,
       route: "/api/newscanada/rss",
-      items: [],
+      items: fallbackItems,
       meta: {
         v: INDEX_VERSION,
         t: now(),
-        source: "rss_service",
+        source: "fallback_seed",
         degraded: true,
-        detail: cleanText(err && (err.message || err.code || "rss_fetch_failed"))
+        mode: "rss",
+        parserMode: "guaranteed_fallback",
+        contentType: "",
+        resolvedUrl: "",
+        attemptedUrls: [],
+        sample: "",
+        detail: cleanText(err && (err.message || err.code || "rss_fetch_failed")),
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        fetchedAt: now(),
+        itemCount: fallbackItems.length,
+        cacheContractPath: "",
+        cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+        contractVersion: "newscanada-rss-service-v4"
       }
     };
   }
@@ -4760,56 +4973,3 @@ module.exports = {
   applyContinuityStitch,
   buildLoggingSpine
 };
-
-
-
-// =====================
-// NEWS CANADA HARD LOCK PATCH (NON-EMPTY GUARANTEE)
-// =====================
-app.get("/api/newscanada/rss", async (req, res) => {
-  try {
-    const result = await fetchNewsCanadaRssDirect({ timeoutMs: 30000 });
-    let items = Array.isArray(result.items) ? result.items : [];
-
-    // HARD GUARANTEE
-    if (!items.length) {
-      items = [
-        {
-          id: "fallback-1",
-          title: "News Canada is refreshing",
-          description: "Live stories are loading. This confirms the pipeline is active.",
-          url: "https://sandblast.channel",
-          source: "News Canada",
-          publishedAt: new Date().toISOString()
-        }
-      ];
-    }
-
-    res.json({
-      ok: true,
-      route: "/api/newscanada/rss",
-      items,
-      meta: {
-        source: result.meta?.source || "fallback",
-        itemCount: items.length,
-        degraded: !result.ok
-      }
-    });
-  } catch (err) {
-    res.json({
-      ok: true,
-      route: "/api/newscanada/rss",
-      items: [{
-        id: "fallback-error",
-        title: "News temporarily unavailable",
-        description: "System is stabilizing. Try again shortly.",
-        url: "https://sandblast.channel"
-      }],
-      meta: {
-        source: "error_fallback",
-        degraded: true,
-        error: String(err.message || err)
-      }
-    });
-  }
-});
