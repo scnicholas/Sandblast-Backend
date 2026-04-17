@@ -268,28 +268,101 @@ async function getViaRssService(opts = {}, logger = console.log) {
   return null;
 }
 
+
+function listBridgeCacheFiles() {
+  if (CACHE_SERVICE_MOD && typeof CACHE_SERVICE_MOD.listCacheFiles === "function") {
+    try {
+      return CACHE_SERVICE_MOD.listCacheFiles();
+    } catch (_) {}
+  }
+  return CACHE_JSON_CANDIDATES.map((candidate) => {
+    const filePath = cleanText(candidate);
+    if (!filePath) return { path: "", exists: false, size: 0, mtimeMs: 0 };
+    try {
+      if (!fs.existsSync(filePath)) return { path: filePath, exists: false, size: 0, mtimeMs: 0 };
+      const stat = fs.statSync(filePath);
+      return { path: filePath, exists: stat.isFile(), size: Number(stat.size || 0), mtimeMs: Number(stat.mtimeMs || 0) };
+    } catch (_) {
+      return { path: filePath, exists: false, size: 0, mtimeMs: 0, error: "stat_failed" };
+    }
+  });
+}
+
+function clearBridgeCacheFiles() {
+  if (CACHE_SERVICE_MOD && typeof CACHE_SERVICE_MOD.clearCacheFiles === "function") {
+    try {
+      return CACHE_SERVICE_MOD.clearCacheFiles();
+    } catch (_) {}
+  }
+  const cleared = [];
+  const missing = [];
+  const failed = [];
+  for (const candidate of CACHE_JSON_CANDIDATES) {
+    const filePath = cleanText(candidate);
+    if (!filePath) continue;
+    try {
+      if (!fs.existsSync(filePath)) {
+        missing.push(filePath);
+        continue;
+      }
+      fs.unlinkSync(filePath);
+      cleared.push(filePath);
+    } catch (err) {
+      failed.push({ path: filePath, error: cleanText(err && (err.message || err) || "unlink_failed") });
+    }
+  }
+  return { ok: failed.length === 0, cleared, missing, failed, cacheCandidates: CACHE_JSON_CANDIDATES.slice() };
+}
+
 function createForYourLifeFeedService(options = {}) {
   const logger = typeof options.logger === "function" ? options.logger : (...args) => console.log(...args);
 
   async function fetchRSS(opts = {}) {
-    const fromCacheService = await getViaCacheService(opts, logger);
-    if (fromCacheService && fromCacheService.items.length && !isSeedPayload(fromCacheService)) {
-      return fromCacheService;
+    const normalizedOpts = opts && typeof opts === "object" ? { ...opts } : {};
+    let cacheMaintenance = null;
+    if (normalizedOpts.clearCache) {
+      cacheMaintenance = clearBridgeCacheFiles();
     }
 
-    const shouldForceLive = !!(fromCacheService && (
+    const fromCacheService = normalizedOpts.clearCache ? null : await getViaCacheService(normalizedOpts, logger);
+    if (fromCacheService && fromCacheService.items.length && !isSeedPayload(fromCacheService)) {
+      return {
+        ...fromCacheService,
+        meta: {
+          ...(fromCacheService.meta || {}),
+          cacheMaintenance,
+          cacheFiles: listBridgeCacheFiles()
+        }
+      };
+    }
+
+    const shouldForceLive = !!normalizedOpts.clearCache || !!(fromCacheService && (
       isSeedPayload(fromCacheService) ||
       (fromCacheService.meta && (fromCacheService.meta.degraded || fromCacheService.meta.stale))
     ));
 
-    const fromRssService = await getViaRssService({ ...opts, refresh: shouldForceLive || !!opts.refresh }, logger);
+    const fromRssService = await getViaRssService({ ...normalizedOpts, refresh: shouldForceLive || !!normalizedOpts.refresh, preferFreshCache: true }, logger);
     if (fromRssService && fromRssService.items.length) {
-      return fromRssService;
+      return {
+        ...fromRssService,
+        meta: {
+          ...(fromRssService.meta || {}),
+          cacheMaintenance,
+          cacheFiles: listBridgeCacheFiles()
+        }
+      };
     }
 
     const snapshot = readCacheSnapshot();
     if (snapshot && snapshot.items.length && !isSeedPayload(snapshot)) {
-      return snapshot;
+      return {
+        ...snapshot,
+        meta: {
+          ...(snapshot.meta || {}),
+          cacheMaintenance,
+          cacheFiles: listBridgeCacheFiles()
+        }
+      };
     }
 
     return {
@@ -309,6 +382,8 @@ function createForYourLifeFeedService(options = {}) {
         detail: "cache_and_live_rss_unavailable_no_snapshot",
         servedFrom: "bridge_empty",
         routeContract: "/api/newscanada/rss",
+        cacheMaintenance,
+        cacheFiles: listBridgeCacheFiles(),
       },
     };
   }
@@ -394,6 +469,25 @@ function createForYourLifeFeedService(options = {}) {
     return prime(opts);
   }
 
+  async function inspectCacheFiles() {
+    return {
+      ok: true,
+      files: listBridgeCacheFiles(),
+      feedUrl: DEFAULTS.feedUrl
+    };
+  }
+
+  async function clearCacheAndRefresh(opts = {}) {
+    const payload = await fetchRSS({ ...opts, clearCache: true, refresh: true });
+    return {
+      ok: !!(payload && Array.isArray(payload.items) && payload.items.length),
+      items: payload.items || [],
+      stories: payload.stories || [],
+      meta: payload.meta || {},
+      files: listBridgeCacheFiles()
+    };
+  }
+
   return {
     fetchRSS,
     getEditorsPicks,
@@ -401,6 +495,8 @@ function createForYourLifeFeedService(options = {}) {
     prime,
     refreshNow,
     health,
+    inspectCacheFiles,
+    clearCacheAndRefresh,
   };
 }
 
@@ -419,4 +515,14 @@ module.exports = {
     const service = createForYourLifeFeedService();
     return service.refreshNow(opts);
   },
+  inspectCacheFiles: async function inspectCacheFilesCompat() {
+    const service = createForYourLifeFeedService();
+    return service.inspectCacheFiles();
+  },
+  clearCacheAndRefresh: async function clearCacheAndRefreshCompat(opts = {}) {
+    const service = createForYourLifeFeedService();
+    return service.clearCacheAndRefresh(opts);
+  },
+  clearBridgeCacheFiles,
+  listBridgeCacheFiles,
 };
