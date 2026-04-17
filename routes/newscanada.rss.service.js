@@ -1,8 +1,12 @@
 /**
- * newscanada-rss-service.hardened.js
+ * Legacy filename retained for compatibility.
+ * Actual upstream source is For Your Life: https://foryourlife.ca/feed/
  *
- * Hardened RSS service for the legacy News Canada route contract,
- * now sourced from the actual For Your Life feed.
+ * This service now:
+ * - fetches live For Your Life RSS
+ * - caches results locally
+ * - falls back to stale cache if needed
+ * - exposes both For Your Life and legacy News Canada export names
  */
 
 const fs = require("fs");
@@ -12,6 +16,8 @@ const { XMLParser } = require("fast-xml-parser");
 
 const FEED_NAME = "For Your Life";
 const FEED_URL = "https://foryourlife.ca/feed/";
+const PRIMARY_ROUTE_CONTRACT = "/api/foryourlife/rss";
+const LEGACY_ROUTE_CONTRACT = "/api/newscanada/rss";
 
 const DEFAULTS = {
   timeoutMs: 30000,
@@ -19,18 +25,21 @@ const DEFAULTS = {
   retryDelayMs: 1200,
   maxItems: 12,
   cacheTtlMs: 30 * 60 * 1000,
-  cacheFilePath: path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
-  userAgent: "SandblastForYourLife/1.0 (+https://sandblast.channel; contact: ops@sandblast.channel)",
+  cacheFilePath:
+    process.env.FORYOURLIFE_CACHE_FILE ||
+    path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
+  userAgent:
+    "SandblastForYourLife/1.0 (+https://sandblast.channel; contact: ops@sandblast.channel)",
 };
 
-const ROUTE_CONTRACT = "/api/newscanada/rss";
 const RSS_URLS = [FEED_URL];
 
 const FALLBACK_SEED_STORIES = [
   {
     id: "fallback-001",
     title: "For Your Life feed is temporarily refreshing",
-    description: "The live RSS bridge is retrying. This fallback story confirms the For Your Life pipeline is still mounted and serving data.",
+    description:
+      "The live RSS bridge is retrying. This fallback story confirms the For Your Life pipeline is still mounted and serving data.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
@@ -43,7 +52,8 @@ const FALLBACK_SEED_STORIES = [
   {
     id: "fallback-002",
     title: "Sandblast feed cache safeguard is active",
-    description: "A stale-cache and fallback protection layer is now in place to prevent empty story slots on the frontend.",
+    description:
+      "A stale-cache and fallback protection layer is now in place to prevent empty story slots on the frontend.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
@@ -56,7 +66,8 @@ const FALLBACK_SEED_STORIES = [
   {
     id: "fallback-003",
     title: "Live stories will replace fallback slots automatically",
-    description: "As soon as the upstream RSS source responds successfully, live For Your Life stories will overwrite the fallback items.",
+    description:
+      "As soon as the upstream RSS source responds successfully, live For Your Life stories will overwrite the fallback items.",
     url: FEED_URL,
     link: FEED_URL,
     source: FEED_NAME,
@@ -248,7 +259,12 @@ async function fetchRssWithRetry(url, config = {}) {
 
 function readCache(cacheFilePath = DEFAULTS.cacheFilePath) {
   try {
-    if (!fs.existsSync(cacheFilePath)) return { ok: true, items: [], lastUpdated: null, ageMs: null };
+    if (!fs.existsSync(cacheFilePath)) {
+      const legacyPath = path.join(process.cwd(), "DATA", "newscanada", "cache", "rss-cache.json");
+      if (fs.existsSync(legacyPath)) return readCache(legacyPath);
+      return { ok: true, items: [], lastUpdated: null, ageMs: null };
+    }
+
     const raw = fs.readFileSync(cacheFilePath, "utf8");
     const data = JSON.parse(raw);
     const items = Array.isArray(data?.items) ? data.items : [];
@@ -275,7 +291,7 @@ function fallbackStories(maxItems = DEFAULTS.maxItems) {
   return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({ ...story, order: index }));
 }
 
-async function getNewsCanadaStories(options = {}) {
+async function getForYourLifeStories(options = {}) {
   const config = {
     timeoutMs: options.timeoutMs || DEFAULTS.timeoutMs,
     maxRetries: Number.isInteger(options.maxRetries) ? options.maxRetries : DEFAULTS.maxRetries,
@@ -288,7 +304,9 @@ async function getNewsCanadaStories(options = {}) {
 
   const cache = readCache(config.cacheFilePath);
   const diagnostics = {
-    routeContract: ROUTE_CONTRACT,
+    routeContract: LEGACY_ROUTE_CONTRACT,
+    primaryRouteContract: PRIMARY_ROUTE_CONTRACT,
+    legacyRouteContract: LEGACY_ROUTE_CONTRACT,
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
     source: null,
@@ -342,19 +360,35 @@ async function getNewsCanadaStories(options = {}) {
   return { ok: true, items, meta: diagnostics };
 }
 
-function createNewsCanadaHandler(options = {}) {
-  return async function newsCanadaRssHandler(req, res) {
+async function getNewsCanadaStories(options = {}) {
+  return getForYourLifeStories(options);
+}
+
+function createForYourLifeHandler(options = {}) {
+  return async function forYourLifeRssHandler(req, res) {
     try {
-      const result = await getNewsCanadaStories(options);
-      return res.status(200).json({ ok: true, route: ROUTE_CONTRACT, items: result.items, meta: result.meta });
+      const result = await getForYourLifeStories(options);
+      return res.status(200).json({
+        ok: true,
+        route: LEGACY_ROUTE_CONTRACT,
+        primaryRoute: PRIMARY_ROUTE_CONTRACT,
+        feedName: FEED_NAME,
+        feedUrl: FEED_URL,
+        items: result.items,
+        meta: result.meta,
+      });
     } catch (error) {
       const fallback = fallbackStories(options.maxItems || DEFAULTS.maxItems);
       return res.status(200).json({
         ok: true,
-        route: ROUTE_CONTRACT,
+        route: LEGACY_ROUTE_CONTRACT,
+        primaryRoute: PRIMARY_ROUTE_CONTRACT,
+        feedName: FEED_NAME,
+        feedUrl: FEED_URL,
         items: fallback,
         meta: {
-          routeContract: ROUTE_CONTRACT,
+          routeContract: LEGACY_ROUTE_CONTRACT,
+          primaryRouteContract: PRIMARY_ROUTE_CONTRACT,
           feedName: FEED_NAME,
           feedUrl: FEED_URL,
           source: "fallback_seed",
@@ -368,13 +402,23 @@ function createNewsCanadaHandler(options = {}) {
   };
 }
 
+function createNewsCanadaHandler(options = {}) {
+  return createForYourLifeHandler(options);
+}
+
 module.exports = {
+  FEED_NAME,
+  FEED_URL,
   DEFAULTS,
-  ROUTE_CONTRACT,
+  PRIMARY_ROUTE_CONTRACT,
+  LEGACY_ROUTE_CONTRACT,
+  ROUTE_CONTRACT: LEGACY_ROUTE_CONTRACT,
   RSS_URLS,
   FALLBACK_SEED_STORIES,
   readCache,
   writeCache,
+  getForYourLifeStories,
   getNewsCanadaStories,
+  createForYourLifeHandler,
   createNewsCanadaHandler,
 };
