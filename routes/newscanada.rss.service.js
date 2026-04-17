@@ -2,10 +2,11 @@
  * Legacy filename retained for compatibility.
  * Actual upstream source is For Your Life: https://foryourlife.ca/feed/
  *
- * This service now:
+ * Diagnostics-hardened edition:
  * - fetches live For Your Life RSS
  * - caches results locally
- * - falls back to stale cache if needed
+ * - can clear cache on demand
+ * - emits failure-trace metadata for fetch, parse, cache-read, cache-write, and fallback decisions
  * - exposes both For Your Life and legacy News Canada export names
  */
 
@@ -29,7 +30,7 @@ const DEFAULTS = {
     process.env.FORYOURLIFE_CACHE_FILE ||
     path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
   userAgent:
-    "SandblastForYourLife/1.0 (+https://sandblast.channel; contact: ops@sandblast.channel)",
+    "SandblastForYourLife/1.1 (+https://sandblast.channel; diagnostics enabled)",
 };
 
 const RSS_URLS = [FEED_URL];
@@ -48,6 +49,7 @@ const FALLBACK_SEED_STORIES = [
     image: "",
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    parserMode: "fallback_seed"
   },
   {
     id: "fallback-002",
@@ -62,6 +64,7 @@ const FALLBACK_SEED_STORIES = [
     image: "",
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    parserMode: "fallback_seed"
   },
   {
     id: "fallback-003",
@@ -76,6 +79,7 @@ const FALLBACK_SEED_STORIES = [
     image: "",
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    parserMode: "fallback_seed"
   },
 ];
 
@@ -123,7 +127,14 @@ function coerceArray(value) {
 }
 
 function stripHtml(value) {
-  return normalizeText(String(value || "").replace(/<[^>]*>/g, " "));
+  return normalizeText(String(value || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, " "));
+}
+
+function normalizeBodyText(value) {
+  return stripHtml(value)
+    .replace(/The post\s+.+?\s+appeared first on\s+.+?\.?$/i, "")
+    .replace(/Continue reading\s*$/i, "")
+    .trim();
 }
 
 function extractFirstImageFromHtml(value) {
@@ -133,16 +144,18 @@ function extractFirstImageFromHtml(value) {
 }
 
 function extractImage(item) {
-  const enclosureUrl =
-    item?.enclosure?.url ||
-    item?.["media:content"]?.url ||
-    item?.["media:thumbnail"]?.url ||
-    item?.["content:encoded"]?.img?.src;
+  const mediaContent = item && item["media:content"];
+  const mediaThumb = item && item["media:thumbnail"];
+  const enclosure = item && item.enclosure;
+  const direct =
+    (mediaContent && mediaContent.url) ||
+    (mediaThumb && mediaThumb.url) ||
+    (enclosure && enclosure.type && /^image\//i.test(enclosure.type) ? enclosure.url : "");
 
   return (
-    normalizeUrl(enclosureUrl) ||
-    extractFirstImageFromHtml(item?.["content:encoded"]) ||
-    extractFirstImageFromHtml(item?.description)
+    normalizeUrl(direct) ||
+    extractFirstImageFromHtml(item && item["content:encoded"]) ||
+    extractFirstImageFromHtml(item && item.description)
   );
 }
 
@@ -159,8 +172,9 @@ function extractPublishedAt(item) {
 
 function normalizeItem(raw, sourceUrl) {
   const title = normalizeText(raw?.title);
-  const descriptionHtml = raw?.description || raw?.summary || raw?.content || raw?.["content:encoded"] || "";
-  const description = stripHtml(descriptionHtml);
+  const descriptionHtml = raw?.description || "";
+  const contentHtml = raw?.["content:encoded"] || raw?.content || raw?.summary || "";
+  const description = normalizeBodyText(descriptionHtml || contentHtml);
   const url = normalizeUrl(raw?.link || raw?.guid || raw?.id);
   const link = normalizeUrl(raw?.link || url);
   const guid = normalizeText(raw?.guid || "");
@@ -177,6 +191,8 @@ function normalizeItem(raw, sourceUrl) {
     title,
     description,
     summary: description,
+    body: description,
+    content: description,
     url,
     link,
     source: FEED_NAME,
@@ -186,6 +202,7 @@ function normalizeItem(raw, sourceUrl) {
     image,
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    parserMode: "rss_xml_parser"
   };
 }
 
@@ -224,8 +241,15 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULTS.timeoutM
         ...(options.headers || {}),
       },
     });
+    const text = await response.text();
     if (!response.ok) throw new Error(`http_${response.status}`);
-    return await response.text();
+    return {
+      ok: true,
+      status: Number(response.status || 0),
+      finalUrl: normalizeText(response.url || url) || url,
+      contentType: normalizeText(response.headers.get("content-type") || ""),
+      xml: text
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -236,15 +260,42 @@ async function fetchRssWithRetry(url, config = {}) {
   const timeoutMs = config.timeoutMs || DEFAULTS.timeoutMs;
   const retryDelayMs = config.retryDelayMs || DEFAULTS.retryDelayMs;
   let lastError = null;
+  const attempts = [];
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      const xml = await fetchWithTimeout(url, {}, timeoutMs);
-      const items = parseRssXml(xml, url);
+      const fetched = await fetchWithTimeout(url, {}, timeoutMs);
+      const items = parseRssXml(fetched.xml, url);
+      attempts.push({
+        attempt: attempt + 1,
+        url,
+        status: fetched.status,
+        ok: true,
+        finalUrl: fetched.finalUrl,
+        contentType: fetched.contentType,
+        parsedItemCount: items.length
+      });
       if (!items.length) throw new Error("rss_parsed_but_empty");
-      return { ok: true, items, attempts: attempt + 1 };
+      return {
+        ok: true,
+        items,
+        attempts: attempt + 1,
+        diagnostics: {
+          attempts,
+          contentType: fetched.contentType,
+          finalUrl: fetched.finalUrl,
+          parserMode: "rss_xml_parser",
+          rawItemCount: items.length
+        }
+      };
     } catch (error) {
       lastError = error;
+      attempts.push({
+        attempt: attempt + 1,
+        url,
+        ok: false,
+        error: String(error.message || error)
+      });
       if (attempt < maxRetries) await sleep(retryDelayMs * (attempt + 1));
     }
   }
@@ -254,25 +305,36 @@ async function fetchRssWithRetry(url, config = {}) {
     items: [],
     attempts: maxRetries + 1,
     error: lastError ? String(lastError.message || lastError) : "unknown_rss_error",
+    diagnostics: {
+      attempts,
+      parserMode: "rss_failed",
+      rawItemCount: 0
+    }
   };
 }
 
 function readCache(cacheFilePath = DEFAULTS.cacheFilePath) {
   try {
     if (!fs.existsSync(cacheFilePath)) {
-      const legacyPath = path.join(process.cwd(), "DATA", "newscanada", "cache", "rss-cache.json");
-      if (fs.existsSync(legacyPath)) return readCache(legacyPath);
-      return { ok: true, items: [], lastUpdated: null, ageMs: null };
+      const legacyPaths = [
+        path.join(process.cwd(), "DATA", "newscanada", "cache", "rss-cache.json"),
+        path.join(process.cwd(), "data", "newscanada", "cache", "rss-cache.json"),
+        path.join(process.cwd(), ".newscanada-feed-cache.json")
+      ];
+      for (const legacyPath of legacyPaths) {
+        if (fs.existsSync(legacyPath)) return readCache(legacyPath);
+      }
+      return { ok: true, items: [], lastUpdated: null, ageMs: null, cacheFilePath };
     }
 
     const raw = fs.readFileSync(cacheFilePath, "utf8");
     const data = JSON.parse(raw);
     const items = Array.isArray(data?.items) ? data.items : [];
-    const lastUpdated = data?.lastUpdated || null;
+    const lastUpdated = data?.lastUpdated || data?.meta?.fetchedAt || null;
     const ageMs = lastUpdated ? safeNow() - Date.parse(lastUpdated) : null;
-    return { ok: true, items, lastUpdated, ageMs };
+    return { ok: true, items, lastUpdated, ageMs, cacheFilePath };
   } catch (error) {
-    return { ok: false, items: [], lastUpdated: null, ageMs: null, error: String(error.message || error) };
+    return { ok: false, items: [], lastUpdated: null, ageMs: null, cacheFilePath, error: String(error.message || error) };
   }
 }
 
@@ -283,12 +345,53 @@ function writeCache(items, cacheFilePath = DEFAULTS.cacheFilePath) {
   return payload;
 }
 
+function clearCache(cacheFilePath = DEFAULTS.cacheFilePath) {
+  const candidates = [
+    cacheFilePath,
+    path.join(process.cwd(), "DATA", "newscanada", "cache", "rss-cache.json"),
+    path.join(process.cwd(), "data", "newscanada", "cache", "rss-cache.json"),
+    path.join(process.cwd(), ".newscanada-feed-cache.json")
+  ];
+  const removed = [];
+  for (const candidate of candidates) {
+    try {
+      if (candidate && fs.existsSync(candidate)) {
+        fs.unlinkSync(candidate);
+        removed.push(candidate);
+      }
+    } catch (_) {}
+  }
+  return removed;
+}
+
 function withinTtl(ageMs, ttlMs = DEFAULTS.cacheTtlMs) {
   return typeof ageMs === "number" && ageMs >= 0 && ageMs <= ttlMs;
 }
 
 function fallbackStories(maxItems = DEFAULTS.maxItems) {
   return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({ ...story, order: index }));
+}
+
+function buildMeta(base) {
+  return {
+    routeContract: LEGACY_ROUTE_CONTRACT,
+    primaryRouteContract: PRIMARY_ROUTE_CONTRACT,
+    legacyRouteContract: LEGACY_ROUTE_CONTRACT,
+    feedName: FEED_NAME,
+    feedUrl: FEED_URL,
+    source: null,
+    itemCount: 0,
+    rssUrlTried: null,
+    rssAttempts: 0,
+    cacheAgeMs: null,
+    cacheLastUpdated: null,
+    degraded: false,
+    error: null,
+    parserMode: "unknown",
+    diagnosticsLog: [],
+    generatedAt: new Date().toISOString(),
+    ...(base || {})
+  };
 }
 
 async function getForYourLifeStories(options = {}) {
@@ -300,30 +403,41 @@ async function getForYourLifeStories(options = {}) {
     cacheTtlMs: options.cacheTtlMs || DEFAULTS.cacheTtlMs,
     cacheFilePath: options.cacheFilePath || DEFAULTS.cacheFilePath,
     rssUrls: Array.isArray(options.rssUrls) && options.rssUrls.length ? options.rssUrls : RSS_URLS,
+    preferFreshCache: !!options.preferFreshCache,
+    refresh: !!options.refresh,
+    clearCache: !!options.clearCache,
+    diagnostics: !!options.diagnostics,
   };
 
+  const removedCaches = config.clearCache ? clearCache(config.cacheFilePath) : [];
   const cache = readCache(config.cacheFilePath);
-  const diagnostics = {
-    routeContract: LEGACY_ROUTE_CONTRACT,
-    primaryRouteContract: PRIMARY_ROUTE_CONTRACT,
-    legacyRouteContract: LEGACY_ROUTE_CONTRACT,
-    feedName: FEED_NAME,
-    feedUrl: FEED_URL,
-    source: null,
-    itemCount: 0,
-    rssUrlTried: null,
-    rssAttempts: 0,
+  const diagnostics = buildMeta({
     cacheAgeMs: cache.ageMs,
     cacheLastUpdated: cache.lastUpdated,
-    degraded: false,
-    error: null,
-    generatedAt: new Date().toISOString(),
-  };
+    cacheFilePath: cache.cacheFilePath || config.cacheFilePath,
+    clearedCacheFiles: removedCaches,
+    diagnosticsEnabled: config.diagnostics
+  });
 
-  if (options.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
+  diagnostics.diagnosticsLog.push({
+    step: "cache_read",
+    cacheOk: !!cache.ok,
+    cacheItemCount: Array.isArray(cache.items) ? cache.items.length : 0,
+    cacheAgeMs: cache.ageMs,
+    cacheFilePath: cache.cacheFilePath || config.cacheFilePath,
+    clearedCacheFiles: removedCaches
+  });
+
+  if (!config.refresh && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
     const items = cache.items.slice(0, config.maxItems);
     diagnostics.source = "cache_fresh";
     diagnostics.itemCount = items.length;
+    diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || "cache_fresh";
+    diagnostics.diagnosticsLog.push({
+      step: "cache_return",
+      reason: "prefer_fresh_cache",
+      returnedItemCount: items.length
+    });
     return { ok: true, items, meta: diagnostics };
   }
 
@@ -331,6 +445,16 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.rssUrlTried = rssUrl;
     const rssResult = await fetchRssWithRetry(rssUrl, config);
     diagnostics.rssAttempts = rssResult.attempts || 0;
+    diagnostics.diagnosticsLog.push({
+      step: "rss_fetch",
+      rssUrl,
+      attempts: rssResult.attempts || 0,
+      ok: !!rssResult.ok,
+      error: rssResult.error || "",
+      parserMode: rssResult.diagnostics && rssResult.diagnostics.parserMode || "",
+      parsedItemCount: rssResult.diagnostics && rssResult.diagnostics.rawItemCount || 0,
+      attemptTrace: rssResult.diagnostics && rssResult.diagnostics.attempts || []
+    });
 
     if (rssResult.ok && rssResult.items.length) {
       const items = rssResult.items.slice(0, config.maxItems);
@@ -338,6 +462,14 @@ async function getForYourLifeStories(options = {}) {
       diagnostics.source = "rss_live";
       diagnostics.itemCount = items.length;
       diagnostics.degraded = false;
+      diagnostics.parserMode = rssResult.diagnostics && rssResult.diagnostics.parserMode || "rss_xml_parser";
+      diagnostics.finalUrl = rssResult.diagnostics && rssResult.diagnostics.finalUrl || rssUrl;
+      diagnostics.contentType = rssResult.diagnostics && rssResult.diagnostics.contentType || "";
+      diagnostics.diagnosticsLog.push({
+        step: "cache_write",
+        cacheFilePath: config.cacheFilePath,
+        writtenItemCount: items.length
+      });
       return { ok: true, items, meta: diagnostics };
     }
 
@@ -349,6 +481,12 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
     diagnostics.itemCount = items.length;
     diagnostics.degraded = true;
+    diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || diagnostics.source;
+    diagnostics.diagnosticsLog.push({
+      step: "cache_fallback_return",
+      returnedItemCount: items.length,
+      cacheState: diagnostics.source
+    });
     return { ok: true, items, meta: diagnostics };
   }
 
@@ -357,11 +495,24 @@ async function getForYourLifeStories(options = {}) {
   diagnostics.itemCount = items.length;
   diagnostics.degraded = true;
   diagnostics.error = diagnostics.error || "rss_unavailable_cache_empty";
+  diagnostics.parserMode = "fallback_seed";
+  diagnostics.diagnosticsLog.push({
+    step: "fallback_seed_return",
+    returnedItemCount: items.length
+  });
   return { ok: true, items, meta: diagnostics };
 }
 
 async function getNewsCanadaStories(options = {}) {
   return getForYourLifeStories(options);
+}
+
+async function inspectCache(cacheFilePath = DEFAULTS.cacheFilePath) {
+  const cache = readCache(cacheFilePath);
+  return {
+    ok: true,
+    cache
+  };
 }
 
 function createForYourLifeHandler(options = {}) {
@@ -386,17 +537,13 @@ function createForYourLifeHandler(options = {}) {
         feedName: FEED_NAME,
         feedUrl: FEED_URL,
         items: fallback,
-        meta: {
-          routeContract: LEGACY_ROUTE_CONTRACT,
-          primaryRouteContract: PRIMARY_ROUTE_CONTRACT,
-          feedName: FEED_NAME,
-          feedUrl: FEED_URL,
+        meta: buildMeta({
           source: "fallback_seed",
           itemCount: fallback.length,
           degraded: true,
           error: String(error.message || error),
-          generatedAt: new Date().toISOString(),
-        },
+          parserMode: "fallback_seed"
+        }),
       });
     }
   };
@@ -417,8 +564,29 @@ module.exports = {
   FALLBACK_SEED_STORIES,
   readCache,
   writeCache,
+  clearCache,
+  inspectCache,
   getForYourLifeStories,
   getNewsCanadaStories,
   createForYourLifeHandler,
   createNewsCanadaHandler,
+  fetchRSS: async function fetchRSSCompat(options = {}) {
+    const result = await getForYourLifeStories(options);
+    return {
+      ok: true,
+      items: result.items,
+      stories: result.items,
+      meta: result.meta
+    };
+  },
+  health: async function healthCompat(options = {}) {
+    const result = await getForYourLifeStories({ ...options, preferFreshCache: false, diagnostics: true });
+    return {
+      ok: true,
+      source: result.meta.source,
+      degraded: !!result.meta.degraded,
+      itemCount: result.meta.itemCount,
+      diagnostics: result.meta
+    };
+  }
 };
