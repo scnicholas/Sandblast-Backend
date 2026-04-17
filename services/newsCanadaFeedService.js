@@ -2,7 +2,7 @@
 
 // Legacy filename retained for compatibility.
 // Primary upstream source is For Your Life, not newscanada.com.
-// This bridge now prefers cache, then snapshot, then direct RSS service fallback.
+// This bridge now prefers cache contract, then snapshot, then direct RSS service fallback.
 
 const fs = require("fs");
 const path = require("path");
@@ -17,6 +17,10 @@ function cleanText(v) {
 
 function isObj(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function unique(arr) {
+  return Array.from(new Set((Array.isArray(arr) ? arr : []).filter(Boolean)));
 }
 
 function tryRequireMany(paths) {
@@ -51,7 +55,7 @@ const RSS_SERVICE_MOD = tryRequireMany([
   "../services/newscanada.rss.service.js",
 ]);
 
-const CACHE_JSON_CANDIDATES = [
+const CACHE_JSON_CANDIDATES = unique([
   cleanText(
     process.env.FORYOURLIFE_CACHE_FILE ||
       process.env.NEWSCANADA_CACHE_FILE ||
@@ -60,13 +64,16 @@ const CACHE_JSON_CANDIDATES = [
   ),
   path.join(__dirname, "data", "foryourlife", "foryourlife.cache.json"),
   path.join(__dirname, "data", "newscanada", "newscanada.cache.json"),
+  path.join(__dirname, "Data", "newscanada", "newscanada.cache.json"),
   path.join(__dirname, "..", "data", "foryourlife", "foryourlife.cache.json"),
   path.join(__dirname, "..", "data", "newscanada", "newscanada.cache.json"),
+  path.join(__dirname, "..", "Data", "newscanada", "newscanada.cache.json"),
   path.join(process.cwd(), "data", "foryourlife", "foryourlife.cache.json"),
   path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "Data", "newscanada", "newscanada.cache.json"),
   path.join(process.cwd(), ".foryourlife-feed-cache.json"),
   path.join(process.cwd(), ".newscanada-feed-cache.json"),
-].filter(Boolean);
+]);
 
 const DEFAULTS = {
   feedName: "For Your Life",
@@ -106,18 +113,24 @@ function normalizeStory(item) {
   const story = isObj(item) ? { ...item } : {};
   story.id = cleanText(story.id || story.guid || story.link || story.url || story.title);
   story.guid = cleanText(story.guid || story.id);
-  story.title = cleanText(story.title);
-  story.description = cleanText(story.description || story.summary || "");
+  story.slug = cleanText(story.slug || story.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+  story.title = cleanText(story.title || story.headline);
+  story.description = cleanText(story.description || story.summary || story.body || story.content || "");
   story.summary = cleanText(story.summary || story.description || "");
-  story.url = cleanText(story.url || story.link);
+  story.body = cleanText(story.body || story.content || story.summary || story.description || "");
+  story.url = cleanText(story.url || story.link || story.sourceUrl || story.canonicalUrl);
   story.link = cleanText(story.link || story.url);
-  story.image = cleanText(story.image || story.thumbnail || story.imageUrl || "");
+  story.image = cleanText(story.image || story.thumbnail || story.imageUrl || story.popupImage || "");
   story.source = cleanText(story.source || DEFAULTS.feedName) || DEFAULTS.feedName;
   story.feedName = cleanText(story.feedName || DEFAULTS.feedName) || DEFAULTS.feedName;
   story.feedUrl = cleanText(story.feedUrl || DEFAULTS.feedUrl) || DEFAULTS.feedUrl;
   story.category = cleanText(story.category || DEFAULTS.feedName) || DEFAULTS.feedName;
-  story.author = cleanText(story.author || "");
+  story.author = cleanText(story.author || story.byline || "");
+  story.byline = cleanText(story.byline || story.author || "");
   story.publishedAt = cleanText(story.publishedAt || story.pubDate || new Date().toISOString());
+  story.pubDate = cleanText(story.pubDate || story.publishedAt || "");
+  story.parserMode = cleanText(story.parserMode || "unknown");
+  story.isActive = story.isActive !== false;
   return story;
 }
 
@@ -128,7 +141,9 @@ function normalizePayload(payload, servedFromHint) {
     : Array.isArray(src.stories)
       ? src.stories
       : [];
-  const normalizedItems = items.map(normalizeStory).filter((item) => item.title && (item.url || item.link));
+  const normalizedItems = items
+    .map(normalizeStory)
+    .filter((item) => item.title && (item.url || item.link));
 
   return {
     ok: src.ok !== false && normalizedItems.length > 0,
@@ -136,7 +151,7 @@ function normalizePayload(payload, servedFromHint) {
     stories: normalizedItems.slice(0, DEFAULTS.maxStories),
     meta: {
       feedName: DEFAULTS.feedName,
-      feedUrl: DEFAULTS.feedUrl,
+      feedUrl: cleanText((src.meta && src.meta.feedUrl) || DEFAULTS.feedUrl) || DEFAULTS.feedUrl,
       source: cleanText((src.meta && src.meta.source) || DEFAULTS.source) || DEFAULTS.source,
       mode: cleanText((src.meta && src.meta.mode) || DEFAULTS.mode) || DEFAULTS.mode,
       fetchedAt: Number((src.meta && src.meta.fetchedAt) || Date.now()),
@@ -144,8 +159,12 @@ function normalizePayload(payload, servedFromHint) {
       itemCount: normalizedItems.length,
       degraded: !!(src.meta && src.meta.degraded),
       stale: !!(src.meta && src.meta.stale),
+      parserMode: cleanText((src.meta && src.meta.parserMode) || "unknown") || "unknown",
+      detail: cleanText((src.meta && src.meta.detail) || "") || "",
       servedFrom: cleanText((src.meta && src.meta.servedFrom) || servedFromHint || "bridge") || servedFromHint || "bridge",
       routeContract: cleanText((src.meta && src.meta.routeContract) || "/api/newscanada/rss"),
+      attemptedUrls: Array.isArray(src.meta && src.meta.attemptedUrls) ? src.meta.attemptedUrls : [],
+      cachePath: cleanText(src.meta && src.meta.cachePath || src.meta && src.meta.snapshotPath || "")
     },
   };
 }
@@ -153,7 +172,11 @@ function normalizePayload(payload, servedFromHint) {
 function readCacheSnapshot() {
   for (const candidate of CACHE_JSON_CANDIDATES) {
     const parsed = readJsonFile(candidate);
-    const items = Array.isArray(parsed && (parsed.items || parsed.stories)) ? parsed.items || parsed.stories : [];
+    const items = Array.isArray(parsed && parsed.items)
+      ? parsed.items
+      : Array.isArray(parsed && parsed.stories)
+        ? parsed.stories
+        : [];
     if (items.length) {
       const normalized = normalizePayload(
         {
@@ -161,10 +184,10 @@ function readCacheSnapshot() {
           items,
           meta: {
             ...(parsed.meta || {}),
-            source: DEFAULTS.source,
-            mode: DEFAULTS.mode,
+            source: cleanText(parsed.meta && parsed.meta.source || DEFAULTS.source) || DEFAULTS.source,
+            mode: cleanText(parsed.meta && parsed.meta.mode || DEFAULTS.mode) || DEFAULTS.mode,
             fetchedAt: Number((parsed.meta && parsed.meta.fetchedAt) || parsed.writtenAt || Date.now()),
-            degraded: true,
+            degraded: !!(parsed && parsed.meta && parsed.meta.degraded),
             stale: !!(parsed && parsed.meta && parsed.meta.stale),
             servedFrom: "snapshot_file",
             snapshotPath: candidate,
