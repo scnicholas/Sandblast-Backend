@@ -698,12 +698,13 @@ async function getCachedOrRefresh(options) {
   const opts = options && typeof options === "object" ? options : {};
   const refreshMs = Number(opts.refreshMs) || getEnvNumber("NEWS_CANADA_REFRESH_MS", DEFAULT_REFRESH_MS);
   const staleMs = Number(opts.staleMs) || getEnvNumber("NEWS_CANADA_STALE_MS", DEFAULT_STALE_MS);
-  const forceRefresh = !!opts.forceRefresh;
+  const forceRefresh = !!opts.forceRefresh || !!opts.clearCache;
 
   const cached = readCache();
 
   if (forceRefresh) {
-    return await refreshCache(opts);
+    if (opts.clearCache) clearCacheFiles();
+    return await refreshCache({ ...opts, forceRefresh: true });
   }
 
   if (cached.ok && isCacheFresh(cached, refreshMs)) {
@@ -744,6 +745,68 @@ async function getCachedOrRefresh(options) {
   return await refreshCache(opts);
 }
 
+
+function listCacheFiles() {
+  return CACHE_FILE_CANDIDATES.map((candidate) => {
+    const filePath = cleanText(candidate);
+    if (!filePath) {
+      return { path: "", exists: false, size: 0, mtimeMs: 0 };
+    }
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { path: filePath, exists: false, size: 0, mtimeMs: 0 };
+      }
+      const stat = fs.statSync(filePath);
+      return {
+        path: filePath,
+        exists: stat.isFile(),
+        size: stat.isFile() ? Number(stat.size || 0) : 0,
+        mtimeMs: Number(stat.mtimeMs || 0)
+      };
+    } catch (_) {
+      return { path: filePath, exists: false, size: 0, mtimeMs: 0, error: "stat_failed" };
+    }
+  });
+}
+
+function clearCacheFiles() {
+  const cleared = [];
+  const missing = [];
+  const failed = [];
+  for (const candidate of CACHE_FILE_CANDIDATES) {
+    const filePath = cleanText(candidate);
+    if (!filePath) continue;
+    try {
+      if (!fs.existsSync(filePath)) {
+        missing.push(filePath);
+        continue;
+      }
+      fs.unlinkSync(filePath);
+      cleared.push(filePath);
+    } catch (err) {
+      failed.push({ path: filePath, error: cleanText(err && (err.message || err) || "unlink_failed") });
+    }
+  }
+  return {
+    ok: failed.length === 0,
+    cleared,
+    missing,
+    failed,
+    cacheCandidates: CACHE_FILE_CANDIDATES.slice()
+  };
+}
+
+async function clearAndRefreshCache(options) {
+  const cleared = clearCacheFiles();
+  const refreshed = await refreshCache({ ...(options && typeof options === "object" ? options : {}), forceRefresh: true });
+  return {
+    ok: !!(refreshed && refreshed.ok),
+    cleared,
+    refreshed,
+    cacheFiles: listCacheFiles()
+  };
+}
+
 module.exports = {
   CACHE_FILE,
   CACHE_DIR,
@@ -754,5 +817,8 @@ module.exports = {
   getCachedOrRefresh,
   fetchLiveNewsCanada,
   getReadableCachePath,
-  getWritableCachePath
+  getWritableCachePath,
+  listCacheFiles,
+  clearCacheFiles,
+  clearAndRefreshCache
 };
