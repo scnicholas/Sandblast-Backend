@@ -23,10 +23,10 @@ const PRIMARY_ROUTE_CONTRACT = "/api/foryourlife/rss";
 const LEGACY_ROUTE_CONTRACT = "/api/newscanada/rss";
 
 const DEFAULTS = {
-  timeoutMs: 30000,
+  timeoutMs: 45000,
   maxRetries: 2,
   retryDelayMs: 1200,
-  maxItems: 12,
+  maxItems: 24,
   cacheTtlMs: 30 * 60 * 1000,
   cacheFilePath:
     process.env.FORYOURLIFE_CACHE_FILE ||
@@ -383,6 +383,8 @@ function buildMeta(base) {
     diagnosticsLog: [],
     generatedAt: new Date().toISOString(),
     truthMode: true,
+    rssPriority: true,
+    wpRestSecondary: false,
     ...(base || {})
   };
 }
@@ -426,6 +428,7 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.rssAttempts = rssResult.attempts || 0;
     diagnostics.diagnosticsLog.push({
       step: "rss_fetch",
+      strategy: "rss_primary_only",
       rssUrl,
       attempts: rssResult.attempts || 0,
       ok: !!rssResult.ok,
