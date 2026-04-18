@@ -94,6 +94,165 @@ function readJsonFile(filePath) {
   }
 }
 
+function decodeEntities(value) {
+  return safeStr(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#8217;/gi, "'")
+    .replace(/&#8220;|&#8221;/gi, '"')
+    .replace(/&#8230;/gi, "…")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function stripTags(value) {
+  return cleanText(decodeEntities(value).replace(/<[^>]+>/g, " "));
+}
+
+function firstTagValue(block, tagNames) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag) continue;
+    const match = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
+    if (match && cleanText(match[1])) return decodeEntities(match[1]);
+  }
+  return "";
+}
+
+function firstAttrValue(block, tagNames, attrName) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  const attr = cleanText(attrName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag || !attr) continue;
+    const match = new RegExp(`<${safeTag}\\b[^>]*\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
+    if (match && cleanText(match[1])) return decodeEntities(match[1]);
+  }
+  return "";
+}
+
+function parseDirectFeedXml(xmlText, feedUrl) {
+  const xml = safeStr(xmlText || "");
+  const items = [];
+  const itemBlocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || []);
+  const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
+  const parserMode = itemBlocks.length ? "bridge_xml_item_parser" : (entryBlocks.length ? "bridge_atom_entry_parser" : "bridge_xml_no_items");
+
+  blocks.forEach((block, index) => {
+    const title = stripTags(firstTagValue(block, ["title"])) || `Story ${index + 1}`;
+    const descriptionRaw = firstTagValue(block, ["description", "content:encoded", "excerpt:encoded", "content", "summary"]);
+    const description = stripTags(descriptionRaw);
+    const url = cleanText(
+      firstAttrValue(block, ["link"], "href") ||
+      firstTagValue(block, ["link"]) ||
+      firstTagValue(block, ["guid"])
+    );
+    const pubDate = cleanText(firstTagValue(block, ["pubDate", "published", "updated", "dc:date"]));
+    const author = stripTags(firstTagValue(block, ["dc:creator", "author", "creator"]));
+    const category = stripTags(firstTagValue(block, ["category"])) || DEFAULTS.feedName;
+    const image = cleanText(
+      firstAttrValue(block, ["media:content", "media:thumbnail", "enclosure"], "url") ||
+      firstTagValue(block, ["image"])
+    );
+    items.push({
+      id: cleanText(firstTagValue(block, ["guid", "id"]) || url || title || `rss-${index}`),
+      guid: cleanText(firstTagValue(block, ["guid", "id"]) || url || title || `rss-${index}`),
+      slug: cleanText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")),
+      title,
+      headline: title,
+      description,
+      summary: description,
+      body: description,
+      content: description,
+      url,
+      link: url,
+      sourceUrl: url,
+      canonicalUrl: url,
+      image,
+      imageUrl: image,
+      thumbnail: image,
+      source: DEFAULTS.feedName,
+      sourceName: DEFAULTS.feedName,
+      feedName: DEFAULTS.feedName,
+      feedUrl: cleanText(feedUrl || DEFAULTS.feedUrl) || DEFAULTS.feedUrl,
+      category,
+      author,
+      byline: author,
+      publishedAt: pubDate,
+      pubDate,
+      parserMode,
+      isActive: true
+    });
+  });
+
+  return { items, parserMode };
+}
+
+async function getViaDirectFeed(opts = {}, logger = console.log) {
+  const timeoutMs = Number(opts && opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 30000;
+  const feedUrl = cleanText((opts && opts.feedUrl) || process.env.NEWS_CANADA_FEED_URL || process.env.NEWS_CANADA_RSS_FEED_URL || DEFAULTS.feedUrl) || DEFAULTS.feedUrl;
+  if (typeof fetch !== "function") return null;
+
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => {
+    try { controller.abort(); } catch (_) {}
+  }, timeoutMs) : null;
+
+  try {
+    const res = await fetch(feedUrl, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        "accept": "application/rss+xml, application/xml, text/xml;q=0.95, application/atom+xml;q=0.95, text/html;q=0.7, */*;q=0.6",
+        "cache-control": "no-cache",
+        "pragma": "no-cache",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+      },
+      signal: controller ? controller.signal : undefined
+    });
+
+    if (!res || !res.ok) {
+      if (typeof logger === "function") logger("[Sandblast][foryourlife] direct_feed_http_error", res && res.status, feedUrl);
+      return null;
+    }
+
+    const contentType = cleanText(res.headers && typeof res.headers.get === "function" ? (res.headers.get("content-type") || "") : "");
+    const rawText = await res.text();
+    const parsed = parseDirectFeedXml(rawText, cleanText((res && res.url) || feedUrl) || feedUrl);
+    if (!parsed.items.length) {
+      if (typeof logger === "function") logger("[Sandblast][foryourlife] direct_feed_parse_empty", { feedUrl, contentType, sample: cleanText(rawText).slice(0, 180) });
+      return null;
+    }
+
+    return normalizePayload({
+      ok: true,
+      items: parsed.items,
+      meta: {
+        feedUrl: cleanText((res && res.url) || feedUrl) || feedUrl,
+        source: "direct_feed_live",
+        mode: "direct_feed",
+        fetchedAt: Date.now(),
+        degraded: false,
+        stale: false,
+        parserMode: cleanText(parsed.parserMode || "bridge_xml_item_parser") || "bridge_xml_item_parser",
+        detail: "direct_feed_live_success",
+        servedFrom: "direct_feed_live",
+        contentType
+      }
+    }, "direct_feed_live");
+  } catch (err) {
+    if (typeof logger === "function") logger("[Sandblast][foryourlife] direct_feed_error", err && (err.stack || err.message || err));
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function timeoutPromise(label, timeoutMs) {
   return new Promise((resolve) => {
     const safeLabel = cleanText(label || "bridge_timeout") || "bridge_timeout";
@@ -395,6 +554,18 @@ function createForYourLifeFeedService(options = {}) {
         ...fromRssService,
         meta: {
           ...(fromRssService.meta || {}),
+          cacheMaintenance,
+          cacheFiles: listBridgeCacheFiles()
+        }
+      };
+    }
+
+    const fromDirectFeed = await getViaDirectFeed({ ...normalizedOpts, refresh: true }, logger);
+    if (fromDirectFeed && fromDirectFeed.items.length) {
+      return {
+        ...fromDirectFeed,
+        meta: {
+          ...(fromDirectFeed.meta || {}),
           cacheMaintenance,
           cacheFiles: listBridgeCacheFiles()
         }
