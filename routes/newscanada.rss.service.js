@@ -409,6 +409,24 @@ function fallbackStories(maxItems = DEFAULTS.maxItems) {
   return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({ ...story, order: index }));
 }
 
+function isSyntheticStory(item) {
+  const parserMode = normalizeText(item && item.parserMode).toLowerCase();
+  const id = normalizeText(item && item.id).toLowerCase();
+  const title = normalizeText(item && item.title).toLowerCase();
+  const description = normalizeText(item && (item.description || item.summary || item.body || item.content)).toLowerCase();
+  return (
+    parserMode.includes("fallback") ||
+    parserMode.includes("seed") ||
+    parserMode.includes("timeout") ||
+    id.startsWith("fallback-") ||
+    title.includes("temporarily refreshing") ||
+    title.includes("cache safeguard") ||
+    title.includes("replace fallback") ||
+    description.includes("fallback story") ||
+    description.includes("fallback items")
+  );
+}
+
 function buildMeta(base) {
   return {
     routeContract: LEGACY_ROUTE_CONTRACT,
@@ -444,8 +462,8 @@ async function getForYourLifeStories(options = {}) {
     refresh: !!options.refresh,
     clearCache: !!options.clearCache,
     diagnostics: !!options.diagnostics,
-    strictLive: !!options.strictLive,
-    allowFallbackSeed: options.allowFallbackSeed !== false,
+    strictLive: options.strictLive !== false,
+    allowFallbackSeed: !!options.allowFallbackSeed,
   };
 
   const removedCaches = config.clearCache ? clearCache(config.cacheFilePath) : [];
@@ -467,17 +485,25 @@ async function getForYourLifeStories(options = {}) {
     clearedCacheFiles: removedCaches
   });
 
-  if (!config.refresh && !config.strictLive && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
-    const items = cache.items.slice(0, config.maxItems);
-    diagnostics.source = "cache_fresh";
-    diagnostics.itemCount = items.length;
-    diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || "cache_fresh";
-    diagnostics.diagnosticsLog.push({
-      step: "cache_return",
-      reason: "prefer_fresh_cache",
-      returnedItemCount: items.length
-    });
-    return { ok: true, items, meta: diagnostics };
+  if (!config.refresh && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
+    const items = cache.items.slice(0, config.maxItems).filter((item) => !isSyntheticStory(item));
+    if (!items.length) {
+      diagnostics.diagnosticsLog.push({
+        step: "cache_return_skipped",
+        reason: "cache_contains_synthetic_only",
+        returnedItemCount: 0
+      });
+    } else {
+      diagnostics.source = "cache_fresh";
+      diagnostics.itemCount = items.length;
+      diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || "cache_fresh";
+      diagnostics.diagnosticsLog.push({
+        step: "cache_return",
+        reason: "prefer_fresh_cache",
+        returnedItemCount: items.length
+      });
+      return { ok: true, items, meta: diagnostics };
+    }
   }
 
   for (const rssUrl of config.rssUrls) {
@@ -496,7 +522,16 @@ async function getForYourLifeStories(options = {}) {
     });
 
     if (rssResult.ok && rssResult.items.length) {
-      const items = rssResult.items.slice(0, config.maxItems);
+      const items = rssResult.items.slice(0, config.maxItems).filter((item) => !isSyntheticStory(item));
+      if (!items.length) {
+        diagnostics.diagnosticsLog.push({
+          step: "rss_result_rejected",
+          reason: "synthetic_items_only",
+          returnedItemCount: 0
+        });
+        diagnostics.error = "rss_result_filtered_to_zero_real_items";
+        continue;
+      }
       writeCache(items, config.cacheFilePath);
       diagnostics.source = "rss_live";
       diagnostics.itemCount = items.length;
@@ -516,31 +551,38 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.error = rssResult.error || "rss_fetch_failed";
   }
 
-  if (!config.strictLive && cache.ok && cache.items.length) {
-    const items = cache.items.slice(0, config.maxItems);
-    diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
-    diagnostics.itemCount = items.length;
-    diagnostics.degraded = true;
-    diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || diagnostics.source;
+  if (cache.ok && cache.items.length) {
+    const items = cache.items.slice(0, config.maxItems).filter((item) => !isSyntheticStory(item));
+    if (items.length) {
+      diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
+      diagnostics.itemCount = items.length;
+      diagnostics.degraded = true;
+      diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || diagnostics.source;
+      diagnostics.diagnosticsLog.push({
+        step: "cache_fallback_return",
+        returnedItemCount: items.length,
+        cacheState: diagnostics.source
+      });
+      return { ok: true, items, meta: diagnostics };
+    }
     diagnostics.diagnosticsLog.push({
-      step: "cache_fallback_return",
-      returnedItemCount: items.length,
-      cacheState: diagnostics.source
+      step: "cache_fallback_skipped",
+      reason: "cache_contains_synthetic_only",
+      returnedItemCount: 0
     });
-    return { ok: true, items, meta: diagnostics };
   }
 
-  const items = config.allowFallbackSeed ? fallbackStories(config.maxItems) : [];
-  diagnostics.source = config.allowFallbackSeed ? "fallback_seed" : "live_empty";
-  diagnostics.itemCount = items.length;
+  const items = [];
+  diagnostics.source = "live_empty";
+  diagnostics.itemCount = 0;
   diagnostics.degraded = true;
   diagnostics.error = diagnostics.error || "rss_unavailable_cache_empty";
-  diagnostics.parserMode = config.allowFallbackSeed ? "fallback_seed" : "live_empty";
+  diagnostics.parserMode = "live_empty";
   diagnostics.diagnosticsLog.push({
-    step: config.allowFallbackSeed ? "fallback_seed_return" : "live_empty_return",
-    returnedItemCount: items.length
+    step: "live_empty_return",
+    returnedItemCount: 0
   });
-  return { ok: !config.strictLive && !!items.length, items, meta: diagnostics };
+  return { ok: false, items, meta: diagnostics };
 }
 
 async function getNewsCanadaStories(options = {}) {
@@ -569,20 +611,19 @@ function createForYourLifeHandler(options = {}) {
         meta: result.meta,
       });
     } catch (error) {
-      const fallback = fallbackStories(options.maxItems || DEFAULTS.maxItems);
       return res.status(200).json({
-        ok: true,
+        ok: false,
         route: LEGACY_ROUTE_CONTRACT,
         primaryRoute: PRIMARY_ROUTE_CONTRACT,
         feedName: FEED_NAME,
         feedUrl: FEED_URL,
-        items: fallback,
+        items: [],
         meta: buildMeta({
-          source: "fallback_seed",
-          itemCount: fallback.length,
+          source: "live_empty",
+          itemCount: 0,
           degraded: true,
           error: String(error.message || error),
-          parserMode: "fallback_seed"
+          parserMode: "live_empty"
         }),
       });
     }
@@ -613,7 +654,7 @@ module.exports = {
   fetchRSS: async function fetchRSSCompat(options = {}) {
     const result = await getForYourLifeStories(options);
     return {
-      ok: true,
+      ok: result.ok !== false,
       items: result.items,
       stories: result.items,
       meta: result.meta
