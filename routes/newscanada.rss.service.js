@@ -30,7 +30,9 @@ const DEFAULTS = {
   cacheTtlMs: 30 * 60 * 1000,
   cacheFilePath:
     process.env.FORYOURLIFE_CACHE_FILE ||
-    path.join(process.cwd(), "DATA", "foryourlife", "cache", "rss-cache.json"),
+    process.env.NEWSCANADA_CACHE_FILE ||
+    process.env.NEWS_CANADA_CACHE_FILE ||
+    path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
   userAgent:
     "SandblastForYourLifeTruthMode/1.0 (+https://sandblast.channel; live truth mode)",
 };
@@ -192,20 +194,31 @@ function normalizeItem(raw, sourceUrl) {
   return {
     id: buildId(`${title}|${url}|${publishedAt}|${sourceUrl}`),
     guid,
+    slug: normalizeText(title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")),
     title,
+    headline: title,
     description,
     summary: description,
     body: description,
     content: description,
+    popupBody: description,
     url,
     link,
     source: FEED_NAME,
+    sourceName: FEED_NAME,
     author,
+    byline: author,
     category,
     publishedAt,
+    pubDate: publishedAt,
     image,
+    popupImage: image,
+    mediaUrl: "",
+    chipLabel: "News Canada",
+    ctaText: "Read full story",
     feedName: FEED_NAME,
     feedUrl: FEED_URL,
+    isActive: true,
     parserMode: "rss_xml_parser_truth_mode"
   };
 }
@@ -518,6 +531,7 @@ module.exports = {
   writeCache,
   clearCache,
   inspectCache,
+  inspectCacheFiles: inspectCache,
   getForYourLifeStories,
   getNewsCanadaStories,
   createForYourLifeHandler,
@@ -539,6 +553,15 @@ module.exports = {
       degraded: !!result.meta.degraded,
       itemCount: result.meta.itemCount,
       diagnostics: result.meta
+    };
+  },
+  clearCacheAndRefresh: async function clearCacheAndRefreshCompat(options = {}) {
+    const result = await getForYourLifeStories({ ...options, clearCache: true, refresh: true, diagnostics: true });
+    return {
+      ok: result.ok !== false,
+      items: result.items,
+      stories: result.items,
+      meta: result.meta
     };
   }
 };
