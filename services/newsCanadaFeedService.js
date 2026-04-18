@@ -82,6 +82,7 @@ const DEFAULTS = {
   mode: "cache_first_then_live_rss",
   maxStories: 24,
   refreshMode: "manual_refresh",
+  bridgeTimeoutMs: Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS || 15000),
 };
 
 function readJsonFile(filePath) {
@@ -89,6 +90,51 @@ function readJsonFile(filePath) {
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (_) {
+    return null;
+  }
+}
+
+function timeoutPromise(label, timeoutMs) {
+  return new Promise((resolve) => {
+    const safeLabel = cleanText(label || "bridge_timeout") || "bridge_timeout";
+    const ms = Number(timeoutMs) > 0 ? Number(timeoutMs) : DEFAULTS.bridgeTimeoutMs;
+    setTimeout(() => resolve({
+      __bridgeTimedOut: true,
+      ok: false,
+      items: [],
+      stories: [],
+      meta: {
+        source: DEFAULTS.source,
+        mode: DEFAULTS.mode,
+        detail: `${safeLabel}_timeout_${ms}ms`,
+        bridgeTimeoutMs: ms,
+        degraded: true,
+        stale: true,
+        servedFrom: safeLabel
+      }
+    }), ms);
+  });
+}
+
+async function withBridgeTimeout(label, factory, timeoutMs, logger) {
+  const safeLabel = cleanText(label || "bridge_call") || "bridge_call";
+  const ms = Number(timeoutMs) > 0 ? Number(timeoutMs) : DEFAULTS.bridgeTimeoutMs;
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(factory),
+      timeoutPromise(safeLabel, ms)
+    ]);
+    if (result && result.__bridgeTimedOut) {
+      if (typeof logger === "function") {
+        logger("[Sandblast][foryourlife] bridge_timeout", { label: safeLabel, timeoutMs: ms });
+      }
+      return null;
+    }
+    return result || null;
+  } catch (err) {
+    if (typeof logger === "function") {
+      logger("[Sandblast][foryourlife] bridge_call_error", safeLabel, err && (err.stack || err.message || err));
+    }
     return null;
   }
 }
@@ -214,19 +260,21 @@ function readCacheSnapshot() {
 
 async function getViaCacheService(opts = {}, logger = console.log) {
   if (!CACHE_SERVICE_MOD) return null;
+  const timeoutMs = Number(opts && opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : DEFAULTS.bridgeTimeoutMs;
 
   try {
     if (typeof CACHE_SERVICE_MOD.getCachedOrRefresh === "function") {
-      const payload = await CACHE_SERVICE_MOD.getCachedOrRefresh({
+      const payload = await withBridgeTimeout("cache_contract", () => CACHE_SERVICE_MOD.getCachedOrRefresh({
         forceRefresh: !!opts.refresh,
         timeoutMs: Number(opts.timeoutMs || 30000),
-      });
-      return normalizePayload(payload, "cache_contract");
+        clearCache: !!opts.clearCache,
+      }), timeoutMs, logger);
+      return payload ? normalizePayload(payload, "cache_contract") : null;
     }
 
     if (typeof CACHE_SERVICE_MOD.readCache === "function") {
-      const payload = CACHE_SERVICE_MOD.readCache();
-      return normalizePayload(payload, "cache_read");
+      const payload = await withBridgeTimeout("cache_read", () => Promise.resolve(CACHE_SERVICE_MOD.readCache()), timeoutMs, logger);
+      return payload ? normalizePayload(payload, "cache_read") : null;
     }
   } catch (err) {
     logger("[Sandblast][foryourlife] cache_bridge_error", err && (err.stack || err.message || err));
@@ -237,29 +285,30 @@ async function getViaCacheService(opts = {}, logger = console.log) {
 
 async function getViaRssService(opts = {}, logger = console.log) {
   if (!RSS_SERVICE_MOD) return null;
+  const timeoutMs = Number(opts && opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : DEFAULTS.bridgeTimeoutMs;
 
   try {
     if (typeof RSS_SERVICE_MOD.getForYourLifeStories === "function") {
-      const payload = await RSS_SERVICE_MOD.getForYourLifeStories({
+      const payload = await withBridgeTimeout("rss_service_getForYourLifeStories", () => RSS_SERVICE_MOD.getForYourLifeStories({
         maxItems: Number(opts.limit || opts.maxStories || DEFAULTS.maxStories),
         timeoutMs: Number(opts.timeoutMs || 30000),
         preferFreshCache: !!opts.preferFreshCache,
-      });
-      return normalizePayload(payload, "rss_service_live");
+      }), timeoutMs, logger);
+      return payload ? normalizePayload(payload, "rss_service_live") : null;
     }
 
     if (typeof RSS_SERVICE_MOD.getNewsCanadaStories === "function") {
-      const payload = await RSS_SERVICE_MOD.getNewsCanadaStories({
+      const payload = await withBridgeTimeout("rss_service_getNewsCanadaStories", () => RSS_SERVICE_MOD.getNewsCanadaStories({
         maxItems: Number(opts.limit || opts.maxStories || DEFAULTS.maxStories),
         timeoutMs: Number(opts.timeoutMs || 30000),
         preferFreshCache: !!opts.preferFreshCache,
-      });
-      return normalizePayload(payload, "rss_service_live");
+      }), timeoutMs, logger);
+      return payload ? normalizePayload(payload, "rss_service_live") : null;
     }
 
     if (typeof RSS_SERVICE_MOD.fetchRSS === "function") {
-      const payload = await RSS_SERVICE_MOD.fetchRSS(opts);
-      return normalizePayload(payload, "rss_service_live");
+      const payload = await withBridgeTimeout("rss_service_fetchRSS", () => RSS_SERVICE_MOD.fetchRSS(opts), timeoutMs, logger);
+      return payload ? normalizePayload(payload, "rss_service_live") : null;
     }
   } catch (err) {
     logger("[Sandblast][foryourlife] rss_service_error", err && (err.stack || err.message || err));
@@ -267,7 +316,6 @@ async function getViaRssService(opts = {}, logger = console.log) {
 
   return null;
 }
-
 
 function listBridgeCacheFiles() {
   if (CACHE_SERVICE_MOD && typeof CACHE_SERVICE_MOD.listCacheFiles === "function") {
@@ -379,7 +427,7 @@ function createForYourLifeFeedService(options = {}) {
         itemCount: 0,
         degraded: true,
         stale: true,
-        detail: "cache_and_live_rss_unavailable_no_snapshot",
+        detail: "cache_and_live_rss_unavailable_no_snapshot_or_bridge_timeout",
         servedFrom: "bridge_empty",
         routeContract: "/api/newscanada/rss",
         cacheMaintenance,
