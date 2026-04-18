@@ -489,7 +489,7 @@ function buildEmptyContract(reason) {
     items: [],
     meta: {
       source: "cache",
-      mode: "cache_first",
+      mode: "live_origin_backed_cache",
       fetchedAt: now(),
       lastSuccessAt: 0,
       itemCount: 0,
@@ -508,7 +508,7 @@ function readCache() {
   if (!cached || !Array.isArray(cached.items) || !cached.meta) {
     return buildEmptyContract("cache_missing");
   }
-  return {
+  const normalized = {
     ...cached,
     meta: {
       ...(cached.meta || {}),
@@ -516,6 +516,21 @@ function readCache() {
       cacheCandidates: CACHE_FILE_CANDIDATES
     }
   };
+  if (isSeedPayload(normalized) || !normalized.items.some((item) => item && item.url && item.title)) {
+    return {
+      ...normalized,
+      ok: false,
+      items: [],
+      meta: {
+        ...(normalized.meta || {}),
+        stale: true,
+        degraded: true,
+        seed: true,
+        detail: firstString([cleanText(normalized.meta && normalized.meta.detail), "seed_cache_rejected"])
+      }
+    };
+  }
+  return normalized;
 }
 
 function writeCache(items, metaPatch) {
@@ -526,7 +541,7 @@ function writeCache(items, metaPatch) {
     items: safeItems,
     meta: {
       source: "cache",
-      mode: "cache_first",
+      mode: "live_origin_backed_cache",
       fetchedAt: writtenAt,
       lastSuccessAt: writtenAt,
       itemCount: safeItems.length,
@@ -668,7 +683,7 @@ async function refreshCache(options) {
     const existing = readCache();
     return {
       ...existing,
-      ok: Array.isArray(existing.items) && existing.items.length > 0,
+      ok: !!(existing && existing.ok && Array.isArray(existing.items) && existing.items.length > 0),
       meta: {
         ...(existing.meta || {}),
         stale: true,
@@ -696,48 +711,24 @@ async function refreshCache(options) {
 
 async function getCachedOrRefresh(options) {
   const opts = options && typeof options === "object" ? options : {};
-  const refreshMs = Number(opts.refreshMs) || getEnvNumber("NEWS_CANADA_REFRESH_MS", DEFAULT_REFRESH_MS);
-  const staleMs = Number(opts.staleMs) || getEnvNumber("NEWS_CANADA_STALE_MS", DEFAULT_STALE_MS);
-  const forceRefresh = !!opts.forceRefresh || !!opts.clearCache;
+  const forceRefresh = !!opts.forceRefresh || !!opts.clearCache || true;
+
+  if (opts.clearCache) clearCacheFiles();
+
+  const liveRefreshed = await refreshCache({ ...opts, forceRefresh });
+  if (liveRefreshed && liveRefreshed.ok && Array.isArray(liveRefreshed.items) && liveRefreshed.items.length) {
+    return liveRefreshed;
+  }
 
   const cached = readCache();
-
-  if (forceRefresh) {
-    if (opts.clearCache) clearCacheFiles();
-    return await refreshCache({ ...opts, forceRefresh: true });
-  }
-
-  if (cached.ok && isCacheFresh(cached, refreshMs)) {
-    return {
-      ...cached,
-      meta: {
-        ...(cached.meta || {}),
-        stale: false,
-        servedFrom: "fresh_cache"
-      }
-    };
-  }
-
-  if (cached.ok && !isCacheStale(cached, staleMs)) {
-    refreshCache(opts).catch(() => {});
-    return {
-      ...cached,
-      meta: {
-        ...(cached.meta || {}),
-        stale: false,
-        servedFrom: "cache_background_refresh"
-      }
-    };
-  }
-
-  if (cached.ok && isCacheStale(cached, staleMs)) {
-    refreshCache(opts).catch(() => {});
+  if (cached.ok && Array.isArray(cached.items) && cached.items.length) {
     return {
       ...cached,
       meta: {
         ...(cached.meta || {}),
         stale: true,
-        servedFrom: "stale_cache_background_refresh"
+        degraded: true,
+        servedFrom: "validated_cache_after_live_failure"
       }
     };
   }
