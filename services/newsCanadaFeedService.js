@@ -68,7 +68,7 @@ const DEFAULTS = {
   mode: "live_rss_only",
   maxStories: 24,
   refreshMode: "manual_refresh",
-  bridgeTimeoutMs: Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS || 15000),
+  bridgeTimeoutMs: Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS || 45000),
 };
 
 function normalizeStory(item) {
@@ -127,6 +127,8 @@ function normalizePayload(payload, servedFromHint) {
       routeContract: cleanText((src.meta && src.meta.routeContract) || "/api/newscanada/rss"),
       attemptedUrls: Array.isArray(src.meta && src.meta.attemptedUrls) ? src.meta.attemptedUrls : [],
       truthMode: true,
+        rssPriority: true,
+        wpRestSecondary: false,
     },
   };
 }
@@ -220,6 +222,7 @@ function createForYourLifeFeedService(options = {}) {
           cacheFiles: listBridgeCacheFiles(),
           source: "foryourlife_truth_mode_bridge",
           mode: "live_rss_only",
+          parserMode: cleanText((fromRssService.meta && fromRssService.meta.parserMode) || "rss_xml_parser_truth_mode") || "rss_xml_parser_truth_mode",
           servedFrom: "rss_service_truth_mode"
         }
       };
@@ -239,12 +242,14 @@ function createForYourLifeFeedService(options = {}) {
         itemCount: 0,
         degraded: true,
         stale: true,
-        detail: "live_rss_only_failed_no_returned_items",
+        detail: "rss_primary_failed_no_returned_items",
         servedFrom: "truth_mode_bridge_empty",
         routeContract: "/api/newscanada/rss",
         cacheMaintenance,
         cacheFiles: listBridgeCacheFiles(),
         truthMode: true,
+        rssPriority: true,
+        wpRestSecondary: false,
       },
     };
   }
@@ -262,7 +267,7 @@ function createForYourLifeFeedService(options = {}) {
       meta: {
         ...payload.meta,
         storyCount: stories.length,
-        detail: cleanText((payload.meta && payload.meta.detail) || (stories.length ? "truth_mode_payload_ready" : "truth_mode_empty_payload")) || (stories.length ? "truth_mode_payload_ready" : "truth_mode_empty_payload"),
+        detail: cleanText((payload.meta && payload.meta.detail) || (stories.length ? "rss_primary_payload_ready" : "rss_primary_empty_payload")) || (stories.length ? "rss_primary_payload_ready" : "rss_primary_empty_payload"),
       },
     };
   }
