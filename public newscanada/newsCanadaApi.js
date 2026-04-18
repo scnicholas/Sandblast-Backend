@@ -59,9 +59,14 @@ function normalizeStory(item, index) {
     popupImage: image,
     pubDate: publishedAt,
     isoDate: publishedAt,
-    source: cleanText((item && (item.creator || item.author)) || "News Canada") || "News Canada",
-    category: "news",
-    ctaText: "Read more",
+    source: cleanText((item && (item.creator || item.author)) || "For Your Life") || "For Your Life",
+    sourceName: "For Your Life",
+    category: "For Your Life",
+    chipLabel: "News Canada",
+    ctaText: "Read full story",
+    feedUrl: "https://foryourlife.ca/feed/",
+    popupImage: image,
+    popupBody: summary,
     isActive: true
   };
 }
@@ -86,7 +91,7 @@ function createNewsCanadaFeedService(options = {}) {
       process.env.NEWS_CANADA_FEED_URL ||
       process.env.NEWS_CANADA_RSS_FEED_URL ||
       process.env.SB_NEWSCANADA_RSS_FEED_URL ||
-      ""
+      "https://foryourlife.ca/feed/"
     );
   }
 
@@ -170,11 +175,27 @@ function createNewsCanadaFeedService(options = {}) {
       ok: result.ok,
       items: result.stories.map((story) => ({
         id: story.id,
+        guid: story.id,
+        slug: story.slug,
         title: story.title,
+        headline: story.title,
         description: story.summary,
+        summary: story.summary,
+        body: story.body,
+        content: story.content,
+        popupBody: story.popupBody,
         link: story.url,
+        url: story.url,
         pubDate: story.pubDate,
-        image: story.image
+        publishedAt: story.pubDate,
+        image: story.image,
+        popupImage: story.popupImage,
+        chipLabel: story.chipLabel,
+        ctaText: story.ctaText,
+        source: story.source,
+        sourceName: story.sourceName,
+        feedUrl: story.feedUrl,
+        isActive: story.isActive
       })),
       meta: result.meta
     };
