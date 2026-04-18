@@ -82,7 +82,7 @@ router.get("/rss", async (req, res) => {
   try {
     const result = await rssService.fetchRSS(trace);
     const response = {
-      ok: true,
+      ok: !!(result && result.ok !== false),
       ...result,
       route: "/api/newscanada/rss",
       trace: {
@@ -93,7 +93,7 @@ router.get("/rss", async (req, res) => {
         itemCount: Array.isArray(result && result.items) ? result.items.length : 0,
       }
     };
-    return res.json(response);
+    return res.status(response.ok ? 200 : 502).json(response);
   } catch (err) {
     console.error("[newscanada.routes][rss:error]", err && (err.stack || err.message || err));
     return res.status(500).json({
@@ -120,8 +120,8 @@ router.post("/rss/refresh", async (req, res) => {
 
   try {
     const result = await rssService.fetchRSS(options);
-    return res.json({
-      ok: true,
+    return res.status(result && result.ok !== false ? 200 : 502).json({
+      ok: !!(result && result.ok !== false),
       route: "/api/newscanada/rss/refresh",
       ...result,
       trace: {
@@ -135,6 +135,104 @@ router.post("/rss/refresh", async (req, res) => {
   } catch (err) {
     console.error("[newscanada.routes][refresh:error]", err && (err.stack || err.message || err));
     return res.status(500).json({ ok: false, error: cleanText(err && err.message) || "rss_refresh_failed" });
+  }
+});
+
+
+
+router.get("/editors-picks", async (req, res) => {
+  if (!rssService || typeof rssService.getEditorsPicks !== "function") {
+    return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
+  }
+
+  const options = {
+    refresh: boolQuery(req.query && req.query.refresh),
+    clearCache: boolQuery(req.query && req.query.clearCache),
+    diagnostics: boolQuery(req.query && req.query.diagnostics),
+    limit: Number(req.query && req.query.limit) || undefined,
+    timeoutMs: Number(req.query && req.query.timeoutMs) || undefined,
+  };
+
+  try {
+    const result = await rssService.getEditorsPicks(options);
+    return res.status(result && result.ok ? 200 : 502).json({
+      ok: !!(result && result.ok),
+      route: "/api/newscanada/editors-picks",
+      ...result,
+      trace: {
+        request: options,
+        resultSource: cleanText(result && result.meta && result.meta.source || ""),
+        servedFrom: cleanText(result && result.meta && result.meta.servedFrom || ""),
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || ""),
+        storyCount: Array.isArray(result && result.stories) ? result.stories.length : 0,
+      }
+    });
+  } catch (err) {
+    console.error("[newscanada.routes][editors-picks:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({
+      ok: false,
+      error: cleanText(err && err.message) || "editors_picks_failed",
+      route: "/api/newscanada/editors-picks"
+    });
+  }
+});
+
+router.get("/editors-picks/meta", async (req, res) => {
+  if (!rssService || typeof rssService.getEditorsPicks !== "function") {
+    return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
+  }
+
+  try {
+    const result = await rssService.getEditorsPicks({
+      refresh: false,
+      diagnostics: true,
+      limit: Number(req.query && req.query.limit) || undefined,
+      timeoutMs: Number(req.query && req.query.timeoutMs) || undefined,
+    });
+    return res.json({
+      ok: !!(result && result.ok),
+      route: "/api/newscanada/editors-picks/meta",
+      meta: result && result.meta ? result.meta : {},
+      chipCount: Array.isArray(result && result.chips) ? result.chips.length : 0,
+      storyCount: Array.isArray(result && result.stories) ? result.stories.length : 0,
+    });
+  } catch (err) {
+    console.error("[newscanada.routes][editors-picks-meta:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({ ok: false, error: cleanText(err && err.message) || "editors_picks_meta_failed" });
+  }
+});
+
+router.get("/story/:lookup?", async (req, res) => {
+  if (!rssService || typeof rssService.getStory !== "function") {
+    return res.status(500).json({ ok: false, error: "rss_service_unavailable" });
+  }
+
+  const lookup = cleanText(req.params && req.params.lookup) ||
+    cleanText(req.query && req.query.lookup) ||
+    cleanText(req.query && req.query.id) ||
+    cleanText(req.query && req.query.slug) ||
+    cleanText(req.query && req.query.url) ||
+    cleanText(req.query && req.query.title);
+
+  try {
+    const result = await rssService.getStory(lookup, {
+      refresh: boolQuery(req.query && req.query.refresh),
+      timeoutMs: Number(req.query && req.query.timeoutMs) || undefined,
+    });
+    return res.status(result && result.ok ? 200 : 404).json({
+      ok: !!(result && result.ok),
+      route: "/api/newscanada/story",
+      lookup,
+      ...result
+    });
+  } catch (err) {
+    console.error("[newscanada.routes][story:error]", err && (err.stack || err.message || err));
+    return res.status(500).json({
+      ok: false,
+      error: cleanText(err && err.message) || "story_fetch_failed",
+      route: "/api/newscanada/story",
+      lookup
+    });
   }
 });
 
