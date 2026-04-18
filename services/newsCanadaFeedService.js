@@ -209,7 +209,7 @@ function createForYourLifeFeedService(options = {}) {
   async function fetchRSS(opts = {}) {
     const normalizedOpts = opts && typeof opts === "object" ? { ...opts } : {};
     const cacheMaintenance = normalizedOpts.clearCache ? clearBridgeCacheFiles() : null;
-    const fromRssService = await getViaRssService({ ...normalizedOpts, refresh: true }, logger);
+    const fromRssService = await getViaRssService({ ...normalizedOpts, refresh: normalizedOpts.refresh !== false }, logger);
 
     if (fromRssService && fromRssService.items.length) {
       return {
@@ -338,6 +338,10 @@ function createForYourLifeFeedService(options = {}) {
     };
   }
 
+  async function inspectCache() {
+    return inspectCacheFiles();
+  }
+
   async function clearCacheAndRefresh(opts = {}) {
     const payload = await fetchRSS({ ...opts, clearCache: true, refresh: true });
     return {
@@ -357,6 +361,7 @@ function createForYourLifeFeedService(options = {}) {
     refreshNow,
     health,
     inspectCacheFiles,
+    inspectCache,
     clearCacheAndRefresh,
   };
 }
@@ -379,6 +384,10 @@ module.exports = {
   inspectCacheFiles: async function inspectCacheFilesCompat() {
     const service = createForYourLifeFeedService();
     return service.inspectCacheFiles();
+  },
+  inspectCache: async function inspectCacheCompat() {
+    const service = createForYourLifeFeedService();
+    return service.inspectCache();
   },
   clearCacheAndRefresh: async function clearCacheAndRefreshCompat(opts = {}) {
     const service = createForYourLifeFeedService();
