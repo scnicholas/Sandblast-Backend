@@ -3340,7 +3340,7 @@ async function getNewsCanadaEditorsPicksResponse(req) {
         storyCount: fallbackStories.length,
         itemCount: fallbackStories.length,
         parserMode: "guaranteed_fallback",
-        contractVersion: "newscanada-rss-service-v4",
+        contractVersion: "newscanada-rss-service-v5",
         stableRoutes: {
           editorsPicks: "/api/newscanada/editors-picks",
           editorsPicksMeta: "/api/newscanada/editors-picks/meta",
@@ -3390,7 +3390,7 @@ async function getNewsCanadaEditorsPicksResponse(req) {
       storyCount: stories.length,
       itemCount: stories.length,
       parserMode: cleanText(result && result.meta && result.meta.parserMode || (stories.length ? "rss_payload" : "guaranteed_fallback")) || "rss_payload",
-      contractVersion: "newscanada-rss-service-v4",
+      contractVersion: "newscanada-rss-service-v5",
       stableRoutes: {
         editorsPicks: "/api/newscanada/editors-picks",
         editorsPicksMeta: "/api/newscanada/editors-picks/meta",
@@ -3451,18 +3451,17 @@ async function getNewsCanadaStoryResponse(req) {
 async function getNewsCanadaRssResponse(req) {
   const service = getNewsCanadaService();
   if (!service || typeof service.fetchRSS !== "function") {
-    const fallbackItems = buildNewsCanadaGuaranteedFallbackItems("service_unavailable", 4);
     return {
-      ok: true,
+      ok: false,
       route: "/api/newscanada/rss",
-      items: fallbackItems,
+      items: [],
       meta: {
         v: INDEX_VERSION,
         t: now(),
-        source: "fallback_seed",
+        source: "service_unavailable",
         degraded: true,
         mode: "rss",
-        parserMode: "guaranteed_fallback",
+        parserMode: "live_empty",
         contentType: "",
         resolvedUrl: "",
         attemptedUrls: [],
@@ -3470,10 +3469,10 @@ async function getNewsCanadaRssResponse(req) {
         detail: "news_canada_service_unavailable",
         feedUrl: resolveNewsCanadaFeedUrl(),
         fetchedAt: now(),
-        itemCount: fallbackItems.length,
+        itemCount: 0,
         cacheContractPath: "",
         cacheContractCandidates: getNewsCanadaCacheContractPaths(),
-        contractVersion: "newscanada-rss-service-v4"
+        contractVersion: "newscanada-rss-service-v5"
       }
     };
   }
@@ -3482,9 +3481,12 @@ async function getNewsCanadaRssResponse(req) {
     const result = await withNewsCanadaTimeout(
       "route_fetchRSS",
       () => Promise.resolve(service.fetchRSS({
-        refresh: req.query && req.query.refresh === "1"
+        refresh: req.query && req.query.refresh === "1",
+        strictLive: true,
+        allowFallbackSeed: false,
+        preferFreshCache: false
       })),
-      Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000),
+      Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 30000),
       (label, ms) => ({
         ok: false,
         items: [],
@@ -3496,7 +3498,7 @@ async function getNewsCanadaRssResponse(req) {
           degraded: true,
           stale: true,
           mode: "rss",
-          parserMode: "timeout_guard",
+          parserMode: "live_empty",
           contentType: "",
           resolvedUrl: "",
           attemptedUrls: [],
@@ -3507,54 +3509,52 @@ async function getNewsCanadaRssResponse(req) {
           itemCount: 0,
           cacheContractPath: "",
           cacheContractCandidates: getNewsCanadaCacheContractPaths(),
-          contractVersion: "newscanada-rss-service-v4"
+          contractVersion: "newscanada-rss-service-v5"
         }
       })
     );
 
-    const items = ensureNewsCanadaItemsNonEmpty(
-      Array.isArray(result && result.items) ? result.items : [],
-      cleanText(result && result.meta && result.meta.detail || "empty_rss_payload"),
-      4
-    );
+    const rawItems = Array.isArray(result && result.items) ? result.items : [];
+    const hasSyntheticPayload = isNewsCanadaSeedPayload(result);
+    const items = hasSyntheticPayload ? [] : rawItems.filter(Boolean);
+    const ok = !!(result && result.ok !== false && items.length);
 
     return {
-      ok: true,
+      ok,
       route: "/api/newscanada/rss",
       items,
       meta: {
         v: INDEX_VERSION,
         t: now(),
-        source: cleanText(result && result.meta && result.meta.source || (items.length ? "rss_service" : "fallback_seed")) || "rss_service",
-        degraded: !!(result && result.meta && result.meta.degraded) || !Array.isArray(result && result.items) || !result.items.length || isNewsCanadaSeedPayload(result),
+        source: cleanText(result && result.meta && result.meta.source || (ok ? "rss_service" : "rss_unavailable")) || "rss_unavailable",
+        degraded: !!(result && result.meta && result.meta.degraded) || !ok,
         mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
-        parserMode: cleanText(result && result.meta && result.meta.parserMode || (items.length ? "rss_payload" : "guaranteed_fallback")) || "rss_payload",
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || (ok ? "rss_payload" : "live_empty")) || "live_empty",
         contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
         resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
         attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
         sample: cleanText(result && result.meta && result.meta.sample || ""),
-        detail: cleanText(result && result.meta && result.meta.detail || ""),
+        detail: cleanText(result && result.meta && result.meta.detail || (hasSyntheticPayload ? "synthetic_payload_rejected" : (!items.length ? "no_real_stories_available" : ""))),
         feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
         fetchedAt: Number(result && result.meta && result.meta.fetchedAt || now()),
         itemCount: items.length,
         cacheContractPath: cleanText(result && result.meta && result.meta.cacheContractPath || "") || "",
         cacheContractCandidates: Array.isArray(result && result.meta && result.meta.cacheContractCandidates) ? result.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths(),
-        contractVersion: "newscanada-rss-service-v4"
+        contractVersion: "newscanada-rss-service-v5"
       }
     };
   } catch (err) {
-    const fallbackItems = buildNewsCanadaGuaranteedFallbackItems(cleanText(err && (err.message || err.code || "rss_fetch_failed")), 4);
     return {
-      ok: true,
+      ok: false,
       route: "/api/newscanada/rss",
-      items: fallbackItems,
+      items: [],
       meta: {
         v: INDEX_VERSION,
         t: now(),
-        source: "fallback_seed",
+        source: "rss_exception",
         degraded: true,
         mode: "rss",
-        parserMode: "guaranteed_fallback",
+        parserMode: "live_empty",
         contentType: "",
         resolvedUrl: "",
         attemptedUrls: [],
@@ -3562,92 +3562,14 @@ async function getNewsCanadaRssResponse(req) {
         detail: cleanText(err && (err.message || err.code || "rss_fetch_failed")),
         feedUrl: resolveNewsCanadaFeedUrl(),
         fetchedAt: now(),
-        itemCount: fallbackItems.length,
+        itemCount: 0,
         cacheContractPath: "",
         cacheContractCandidates: getNewsCanadaCacheContractPaths(),
-        contractVersion: "newscanada-rss-service-v4"
+        contractVersion: "newscanada-rss-service-v5"
       }
     };
   }
 }
-
-function wantsNewsCanadaLegacyArray(req) {
-  const format = lower(req.query && req.query.format);
-  const accept = lower(req.headers && req.headers.accept);
-  return format === "array" || accept.includes("application/vnd.sandblast.newscanada.array+json");
-}
-
-const NEWS_CANADA_COMPAT_ALIASES = Object.freeze({
-  foryourlife: {
-    aliases: ["/foryourlife", "/for-your-life", "/api/foryourlife", "/api/for-your-life"],
-    slot: "for-your-life",
-    label: "For Your Life"
-  },
-  editorspick: {
-    aliases: ["/editorspick", "/editors-pick", "/editorspicks", "/editor-picks", "/api/editorspick", "/api/editors-pick", "/api/editorspicks", "/api/editor-picks"],
-    slot: "editors-pick",
-    label: "Editor's Pick"
-  },
-  topstory: {
-    aliases: ["/topstory", "/top-story", "/api/topstory", "/api/top-story"],
-    slot: "top-story",
-    label: "Top Story"
-  }
-});
-
-function buildNewsCanadaRouteHints() {
-  return {
-    rss: "/api/newscanada/rss",
-    manualCompat: "/api/newscanada/manual",
-    editorsPicks: "/api/newscanada/editors-picks",
-    editorsPicksMeta: "/api/newscanada/editors-picks/meta",
-    story: "/api/newscanada/story",
-        refresh: "/api/newscanada/rss",
-    diagnostics: "/api/newscanada/diagnostics",
-    aliases: {
-      foryourlife: NEWS_CANADA_COMPAT_ALIASES.foryourlife.aliases,
-      editorspick: NEWS_CANADA_COMPAT_ALIASES.editorspick.aliases,
-      topstory: NEWS_CANADA_COMPAT_ALIASES.topstory.aliases
-    }
-  };
-}
-
-async function getNewsCanadaCompatAliasResponse(req, aliasConfig) {
-  const out = await getNewsCanadaEditorsPicksResponse(req);
-  return {
-    ...out,
-    route: cleanText(req.originalUrl || req.path || ""),
-    compatibilityAlias: true,
-    requestedSlot: cleanText(aliasConfig && aliasConfig.slot || ""),
-    requestedLabel: cleanText(aliasConfig && aliasConfig.label || ""),
-    meta: {
-      ...(isObj(out.meta) ? out.meta : {}),
-      compatibilityAlias: true,
-      aliasTarget: "/api/newscanada/editors-picks",
-      requestedSlot: cleanText(aliasConfig && aliasConfig.slot || ""),
-      requestedLabel: cleanText(aliasConfig && aliasConfig.label || "")
-    }
-  };
-}
-
-function installNewsCanadaCompatAliases() {
-  Object.values(NEWS_CANADA_COMPAT_ALIASES).forEach((aliasConfig) => {
-    app.get(aliasConfig.aliases, async (req, res) => {
-      applyCors(req, res);
-      const out = await getNewsCanadaCompatAliasResponse(req, aliasConfig);
-      res.setHeader("x-sb-newscanada-source", cleanText(out.meta && out.meta.source || "rss_service") || "rss_service");
-      res.setHeader("x-sb-newscanada-degraded", out.meta && out.meta.degraded ? "1" : "0");
-      res.setHeader("x-sb-newscanada-shape", wantsNewsCanadaLegacyArray(req) ? "array" : "object");
-      res.setHeader("x-sb-newscanada-alias", cleanText(aliasConfig.slot || "compat"));
-      if (wantsNewsCanadaLegacyArray(req)) {
-        return res.status(out.ok ? 200 : 503).json(out.slides || out.stories || []);
-      }
-      return res.status(out.ok ? 200 : 503).json(out);
-    });
-  });
-}
-
-installNewsCanadaCompatAliases();
 
 app.get(["/api/newscanada/rss", "/newscanada/rss"], async (req, res) => {
   applyCors(req, res);
