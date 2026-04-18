@@ -1104,6 +1104,46 @@ function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, clamp(Number(ms || 0), 0, 10000)));
 }
 
+function withNewsCanadaTimeout(label, work, timeoutMs, fallbackFactory) {
+  const ms = clamp(Number(timeoutMs || process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000), 1000, 45000);
+  return Promise.race([
+    Promise.resolve().then(work),
+    new Promise((resolve) => {
+      setTimeout(() => {
+        try {
+          resolve(
+            typeof fallbackFactory === "function"
+              ? fallbackFactory(cleanText(label || "news_canada_timeout") || "news_canada_timeout", ms)
+              : {
+                  ok: false,
+                  items: [],
+                  stories: [],
+                  meta: {
+                    source: "timeout_guard",
+                    degraded: true,
+                    stale: true,
+                    detail: `${cleanText(label || "news_canada_timeout") || "news_canada_timeout"}_${ms}ms`
+                  }
+                }
+          );
+        } catch (_) {
+          resolve({
+            ok: false,
+            items: [],
+            stories: [],
+            meta: {
+              source: "timeout_guard",
+              degraded: true,
+              stale: true,
+              detail: `${cleanText(label || "news_canada_timeout") || "news_canada_timeout"}_${ms}ms`
+            }
+          });
+        }
+      }, ms);
+    })
+  ]);
+}
+
 function readNewsCanadaSnapshot() {
   try {
     if (!fs.existsSync(NEWS_CANADA_CACHE_FILE)) return null;
@@ -1687,7 +1727,22 @@ const newsCanadaFeedService = (() => {
   return {
     async fetchRSS(opts) {
       try {
-        const primary = await Promise.resolve(normalized.fetchRSS(opts));
+        const primary = await withNewsCanadaTimeout(
+          "normalized_fetchRSS",
+          () => Promise.resolve(normalized.fetchRSS(opts)),
+          Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000),
+          (label, ms) => ({
+            ok: false,
+            items: [],
+            stories: [],
+            meta: {
+              source: "normalized_service_timeout",
+              degraded: true,
+              stale: true,
+              detail: `${label}_${ms}ms`
+            }
+          })
+        );
         const items = Array.isArray(primary && primary.items)
           ? primary.items
           : (Array.isArray(primary && primary.stories) ? primary.stories : []);
@@ -1695,7 +1750,22 @@ const newsCanadaFeedService = (() => {
       } catch (err) {
         logger("[Sandblast][newsCanada] service_fetchRSS_primary_error", err && (err.stack || err.message || err));
       }
-      return directFallback.fetchRSS(opts);
+      return withNewsCanadaTimeout(
+        "direct_fallback_fetchRSS",
+        () => directFallback.fetchRSS(opts),
+        Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000),
+        (label, ms) => ({
+          ok: false,
+          items: [],
+          stories: [],
+          meta: {
+            source: "direct_fallback_timeout",
+            degraded: true,
+            stale: true,
+            detail: `${label}_${ms}ms`
+          }
+        })
+      );
     },
     async getEditorsPicks(opts) {
       try {
@@ -3375,9 +3445,38 @@ async function getNewsCanadaRssResponse(req) {
   }
 
   try {
-    const result = await Promise.resolve(service.fetchRSS({
-      refresh: req.query && req.query.refresh === "1"
-    }));
+    const result = await withNewsCanadaTimeout(
+      "route_fetchRSS",
+      () => Promise.resolve(service.fetchRSS({
+        refresh: req.query && req.query.refresh === "1"
+      })),
+      Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000),
+      (label, ms) => ({
+        ok: false,
+        items: [],
+        stories: [],
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          source: "route_timeout_guard",
+          degraded: true,
+          stale: true,
+          mode: "rss",
+          parserMode: "timeout_guard",
+          contentType: "",
+          resolvedUrl: "",
+          attemptedUrls: [],
+          sample: "",
+          detail: `${label}_${ms}ms`,
+          feedUrl: resolveNewsCanadaFeedUrl(),
+          fetchedAt: now(),
+          itemCount: 0,
+          cacheContractPath: "",
+          cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+          contractVersion: "newscanada-rss-service-v4"
+        }
+      })
+    );
 
     const items = ensureNewsCanadaItemsNonEmpty(
       Array.isArray(result && result.items) ? result.items : [],
@@ -3522,6 +3621,7 @@ app.get(["/api/newscanada/rss", "/newscanada/rss"], async (req, res) => {
   res.setHeader("x-sb-newscanada-source", cleanText(out.meta && out.meta.source || "rss_service") || "rss_service");
   res.setHeader("x-sb-newscanada-degraded", out.meta && out.meta.degraded ? "1" : "0");
   res.setHeader("x-sb-newscanada-shape", "object");
+  res.setHeader("x-sb-newscanada-timeout-ms", String(clamp(Number(process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000), 1000, 45000)));
   return res.status(out.ok ? 200 : 503).json(out);
 });
 
