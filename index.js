@@ -3570,6 +3570,47 @@ async function getNewsCanadaRssResponse(req) {
     };
   }
 }
+function wantsNewsCanadaLegacyArray(req) {
+  const format = lower(req.query && req.query.format);
+  const accept = lower(req.headers && req.headers.accept);
+  return format === "array" || accept.includes("application/vnd.sandblast.newscanada.array+json");
+}
+
+const NEWS_CANADA_COMPAT_ALIASES = Object.freeze({
+  foryourlife: {
+    aliases: ["/foryourlife", "/for-your-life", "/api/foryourlife", "/api/for-your-life"],
+    slot: "for-your-life",
+    label: "For Your Life"
+  },
+  editorspick: {
+    aliases: ["/editorspick", "/editors-pick", "/editorspicks", "/editor-picks", "/api/editorspick", "/api/editors-pick", "/api/editorspicks", "/api/editor-picks"],
+    slot: "editors-pick",
+    label: "Editor's Pick"
+  },
+  topstory: {
+    aliases: ["/topstory", "/top-story", "/api/topstory", "/api/top-story"],
+    slot: "top-story",
+    label: "Top Story"
+  }
+});
+
+function buildNewsCanadaRouteHints() {
+  return {
+    rss: "/api/newscanada/rss",
+    manualCompat: "/api/newscanada/manual",
+    editorsPicks: "/api/newscanada/editors-picks",
+    editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+    story: "/api/newscanada/story",
+    refresh: "/api/newscanada/rss",
+    diagnostics: "/api/newscanada/diagnostics",
+    aliases: {
+      foryourlife: NEWS_CANADA_COMPAT_ALIASES.foryourlife.aliases,
+      editorspick: NEWS_CANADA_COMPAT_ALIASES.editorspick.aliases,
+      topstory: NEWS_CANADA_COMPAT_ALIASES.topstory.aliases
+    }
+  };
+}
+
 async function getNewsCanadaCompatAliasResponse(req, aliasConfig) {
   const out = await getNewsCanadaEditorsPicksResponse(req);
   return {
