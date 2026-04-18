@@ -1144,6 +1144,40 @@ function withNewsCanadaTimeout(label, work, timeoutMs, fallbackFactory) {
   ]);
 }
 
+function withHardJsonDeadline(res, timeoutMs, buildPayload) {
+  const ms = clamp(Number(timeoutMs || process.env.NEWS_CANADA_HARD_RESPONSE_TIMEOUT_MS || 8000), 1000, 45000);
+  let finished = false;
+  const timer = setTimeout(() => {
+    if (finished || res.headersSent || res.writableEnded) return;
+    finished = true;
+    try {
+      const payload = typeof buildPayload === "function" ? buildPayload(ms) : { ok: true, items: [], meta: { source: "hard_deadline_guard", degraded: true, detail: `hard_deadline_${ms}ms` } };
+      res.status(200).json(payload);
+    } catch (_) {
+      try {
+        res.status(200).json({
+          ok: true,
+          items: [],
+          meta: {
+            source: "hard_deadline_guard",
+            degraded: true,
+            detail: `hard_deadline_${ms}ms`
+          }
+        });
+      } catch (_) {}
+    }
+  }, ms);
+
+  return {
+    done() {
+      if (finished) return false;
+      finished = true;
+      clearTimeout(timer);
+      return true;
+    }
+  };
+}
+
 function readNewsCanadaSnapshot() {
   try {
     if (!fs.existsSync(NEWS_CANADA_CACHE_FILE)) return null;
