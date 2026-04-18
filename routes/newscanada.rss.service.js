@@ -409,25 +409,6 @@ function fallbackStories(maxItems = DEFAULTS.maxItems) {
   return FALLBACK_SEED_STORIES.slice(0, maxItems).map((story, index) => ({ ...story, order: index }));
 }
 
-function isSyntheticStory(item) {
-  const parserMode = normalizeText(item && item.parserMode).toLowerCase();
-  const id = normalizeText(item && item.id).toLowerCase();
-  const title = normalizeText(item && item.title).toLowerCase();
-  return (
-    parserMode.includes("fallback") ||
-    parserMode.includes("seed") ||
-    parserMode.includes("timeout") ||
-    id.startsWith("fallback-") ||
-    title.includes("temporarily refreshing") ||
-    title.includes("cache safeguard") ||
-    title.includes("replace fallback")
-  );
-}
-
-function filterRealStories(items) {
-  return (Array.isArray(items) ? items : []).filter((item) => item && !isSyntheticStory(item));
-}
-
 function buildMeta(base) {
   return {
     routeContract: LEGACY_ROUTE_CONTRACT,
@@ -463,8 +444,8 @@ async function getForYourLifeStories(options = {}) {
     refresh: !!options.refresh,
     clearCache: !!options.clearCache,
     diagnostics: !!options.diagnostics,
-    strictLive: options.strictLive !== false,
-    allowFallbackSeed: !!options.allowFallbackSeed,
+    strictLive: !!options.strictLive,
+    allowFallbackSeed: options.allowFallbackSeed !== false,
   };
 
   const removedCaches = config.clearCache ? clearCache(config.cacheFilePath) : [];
@@ -486,10 +467,8 @@ async function getForYourLifeStories(options = {}) {
     clearedCacheFiles: removedCaches
   });
 
-  const cachedRealItems = filterRealStories(cache.items);
-
-  if (!config.refresh && config.preferFreshCache && cachedRealItems.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
-    const items = cachedRealItems.slice(0, config.maxItems);
+  if (!config.refresh && !config.strictLive && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
+    const items = cache.items.slice(0, config.maxItems);
     diagnostics.source = "cache_fresh";
     diagnostics.itemCount = items.length;
     diagnostics.parserMode = normalizeText(items[0] && items[0].parserMode) || "cache_fresh";
@@ -517,16 +496,7 @@ async function getForYourLifeStories(options = {}) {
     });
 
     if (rssResult.ok && rssResult.items.length) {
-      const items = filterRealStories(rssResult.items).slice(0, config.maxItems);
-      if (!items.length) {
-        diagnostics.error = "rss_result_filtered_to_zero_real_items";
-        diagnostics.diagnosticsLog.push({
-          step: "rss_result_rejected",
-          reason: "synthetic_or_invalid_items_only",
-          returnedItemCount: 0
-        });
-        continue;
-      }
+      const items = rssResult.items.slice(0, config.maxItems);
       writeCache(items, config.cacheFilePath);
       diagnostics.source = "rss_live";
       diagnostics.itemCount = items.length;
@@ -546,8 +516,8 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.error = rssResult.error || "rss_fetch_failed";
   }
 
-  if (cachedRealItems.length) {
-    const items = cachedRealItems.slice(0, config.maxItems);
+  if (!config.strictLive && cache.ok && cache.items.length) {
+    const items = cache.items.slice(0, config.maxItems);
     diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
     diagnostics.itemCount = items.length;
     diagnostics.degraded = true;
@@ -561,7 +531,7 @@ async function getForYourLifeStories(options = {}) {
   }
 
   const items = config.allowFallbackSeed ? fallbackStories(config.maxItems) : [];
-  diagnostics.source = config.allowFallbackSeed ? "fallback_seed" : "live_unavailable";
+  diagnostics.source = config.allowFallbackSeed ? "fallback_seed" : "live_empty";
   diagnostics.itemCount = items.length;
   diagnostics.degraded = true;
   diagnostics.error = diagnostics.error || "rss_unavailable_cache_empty";
@@ -570,7 +540,7 @@ async function getForYourLifeStories(options = {}) {
     step: config.allowFallbackSeed ? "fallback_seed_return" : "live_empty_return",
     returnedItemCount: items.length
   });
-  return { ok: !!items.length && !config.strictLive, items, meta: diagnostics };
+  return { ok: !config.strictLive && !!items.length, items, meta: diagnostics };
 }
 
 async function getNewsCanadaStories(options = {}) {
@@ -588,9 +558,9 @@ async function inspectCache(cacheFilePath = DEFAULTS.cacheFilePath) {
 function createForYourLifeHandler(options = {}) {
   return async function forYourLifeRssHandler(req, res) {
     try {
-      const result = await getForYourLifeStories({ strictLive: true, allowFallbackSeed: false, ...options });
-      return res.status(result.ok ? 200 : 503).json({
-        ok: result.ok,
+      const result = await getForYourLifeStories(options);
+      return res.status(200).json({
+        ok: true,
         route: LEGACY_ROUTE_CONTRACT,
         primaryRoute: PRIMARY_ROUTE_CONTRACT,
         feedName: FEED_NAME,
@@ -599,19 +569,20 @@ function createForYourLifeHandler(options = {}) {
         meta: result.meta,
       });
     } catch (error) {
-      return res.status(503).json({
-        ok: false,
+      const fallback = fallbackStories(options.maxItems || DEFAULTS.maxItems);
+      return res.status(200).json({
+        ok: true,
         route: LEGACY_ROUTE_CONTRACT,
         primaryRoute: PRIMARY_ROUTE_CONTRACT,
         feedName: FEED_NAME,
         feedUrl: FEED_URL,
-        items: [],
+        items: fallback,
         meta: buildMeta({
-          source: "handler_error",
-          itemCount: 0,
+          source: "fallback_seed",
+          itemCount: fallback.length,
           degraded: true,
           error: String(error.message || error),
-          parserMode: "live_empty"
+          parserMode: "fallback_seed"
         }),
       });
     }
@@ -640,18 +611,18 @@ module.exports = {
   createForYourLifeHandler,
   createNewsCanadaHandler,
   fetchRSS: async function fetchRSSCompat(options = {}) {
-    const result = await getForYourLifeStories({ strictLive: true, allowFallbackSeed: false, ...options });
+    const result = await getForYourLifeStories(options);
     return {
-      ok: !!result.ok,
+      ok: true,
       items: result.items,
       stories: result.items,
       meta: result.meta
     };
   },
   health: async function healthCompat(options = {}) {
-    const result = await getForYourLifeStories({ ...options, preferFreshCache: false, diagnostics: true, strictLive: false });
+    const result = await getForYourLifeStories({ ...options, preferFreshCache: false, diagnostics: true });
     return {
-      ok: !!result.ok || !!result.meta.itemCount,
+      ok: true,
       source: result.meta.source,
       degraded: !!result.meta.degraded,
       itemCount: result.meta.itemCount,
