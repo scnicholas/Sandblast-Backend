@@ -88,6 +88,9 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: "",
   trimValues: true,
   parseTagValue: true,
+  parseAttributeValue: false,
+  cdataPropName: "__cdata",
+  textNodeName: "__text"
 });
 
 function ensureDirForFile(filePath) {
@@ -124,6 +127,47 @@ function normalizeUrl(value) {
 function coerceArray(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
+}
+
+function pickAtomLink(entry) {
+  const links = coerceArray(entry && entry.link);
+  for (const link of links) {
+    if (typeof link === "string") {
+      const out = normalizeUrl(link);
+      if (out) return out;
+      continue;
+    }
+    const rel = normalizeText(link && link.rel).toLowerCase();
+    const href = normalizeUrl(link && (link.href || link.url));
+    if (!href) continue;
+    if (!rel || rel === "alternate" || rel === "self") return href;
+  }
+  return "";
+}
+
+function pickTextField(value) {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const out = pickTextField(entry);
+      if (normalizeText(out)) return out;
+    }
+    return "";
+  }
+  if (typeof value === "object") {
+    return (
+      pickTextField(value.__cdata) ||
+      pickTextField(value.__text) ||
+      pickTextField(value["#text"]) ||
+      pickTextField(value.text) ||
+      pickTextField(value.value) ||
+      ""
+    );
+  }
+  return "";
 }
 
 function stripHtml(value) {
@@ -171,17 +215,23 @@ function extractPublishedAt(item) {
 }
 
 function normalizeItem(raw, sourceUrl) {
-  const title = normalizeText(raw?.title);
-  const descriptionHtml = raw?.description || "";
-  const contentHtml = raw?.["content:encoded"] || raw?.content || raw?.summary || "";
+  const title = normalizeText(pickTextField(raw?.title));
+  const descriptionHtml = pickTextField(raw?.description) || "";
+  const contentHtml = pickTextField(raw?.["content:encoded"]) || pickTextField(raw?.content) || pickTextField(raw?.summary) || "";
   const description = normalizeBodyText(descriptionHtml || contentHtml);
-  const url = normalizeUrl(raw?.link || raw?.guid || raw?.id);
-  const link = normalizeUrl(raw?.link || url);
-  const guid = normalizeText(raw?.guid || "");
-  const category = normalizeText(Array.isArray(raw?.category) ? raw.category[0] : raw?.category) || FEED_NAME;
+  const atomLink = pickAtomLink(raw);
+  const url = normalizeUrl(atomLink || raw?.link || raw?.guid || raw?.id);
+  const link = normalizeUrl(atomLink || raw?.link || url);
+  const guid = normalizeText(pickTextField(raw?.guid) || pickTextField(raw?.id));
+  const categoryRaw = Array.isArray(raw?.category) ? raw.category[0] : raw?.category;
+  const category = normalizeText(pickTextField(categoryRaw)) || FEED_NAME;
   const publishedAt = extractPublishedAt(raw);
   const image = extractImage(raw);
-  const author = normalizeText(raw?.["dc:creator"] || raw?.author || "");
+  const author = normalizeText(
+    pickTextField(raw?.["dc:creator"]) ||
+    pickTextField(raw?.author?.name) ||
+    pickTextField(raw?.author)
+  );
 
   if (!title || !url) return null;
 
@@ -213,19 +263,6 @@ function parseRssXml(xml, sourceUrl) {
   const rawItems = channelItems.length ? channelItems : atomEntries;
   const items = rawItems.map((item) => normalizeItem(item, sourceUrl)).filter(Boolean);
   return dedupeItems(items);
-}
-
-function dedupeItems(items) {
-  const seen = new Set();
-  const deduped = [];
-  for (const item of items) {
-    const key = item.url || item.id;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(item);
-  }
-  deduped.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-  return deduped;
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULTS.timeoutMs) {
@@ -407,6 +444,8 @@ async function getForYourLifeStories(options = {}) {
     refresh: !!options.refresh,
     clearCache: !!options.clearCache,
     diagnostics: !!options.diagnostics,
+    strictLive: !!options.strictLive,
+    allowFallbackSeed: options.allowFallbackSeed !== false,
   };
 
   const removedCaches = config.clearCache ? clearCache(config.cacheFilePath) : [];
@@ -428,7 +467,7 @@ async function getForYourLifeStories(options = {}) {
     clearedCacheFiles: removedCaches
   });
 
-  if (!config.refresh && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
+  if (!config.refresh && !config.strictLive && config.preferFreshCache && cache.ok && cache.items.length && withinTtl(cache.ageMs, config.cacheTtlMs)) {
     const items = cache.items.slice(0, config.maxItems);
     diagnostics.source = "cache_fresh";
     diagnostics.itemCount = items.length;
@@ -465,6 +504,7 @@ async function getForYourLifeStories(options = {}) {
       diagnostics.parserMode = rssResult.diagnostics && rssResult.diagnostics.parserMode || "rss_xml_parser";
       diagnostics.finalUrl = rssResult.diagnostics && rssResult.diagnostics.finalUrl || rssUrl;
       diagnostics.contentType = rssResult.diagnostics && rssResult.diagnostics.contentType || "";
+      diagnostics.rawItemCount = rssResult.diagnostics && rssResult.diagnostics.rawItemCount || items.length;
       diagnostics.diagnosticsLog.push({
         step: "cache_write",
         cacheFilePath: config.cacheFilePath,
@@ -476,7 +516,7 @@ async function getForYourLifeStories(options = {}) {
     diagnostics.error = rssResult.error || "rss_fetch_failed";
   }
 
-  if (cache.ok && cache.items.length) {
+  if (!config.strictLive && cache.ok && cache.items.length) {
     const items = cache.items.slice(0, config.maxItems);
     diagnostics.source = withinTtl(cache.ageMs, config.cacheTtlMs) ? "cache_fresh" : "cache_stale";
     diagnostics.itemCount = items.length;
@@ -490,17 +530,17 @@ async function getForYourLifeStories(options = {}) {
     return { ok: true, items, meta: diagnostics };
   }
 
-  const items = fallbackStories(config.maxItems);
-  diagnostics.source = "fallback_seed";
+  const items = config.allowFallbackSeed ? fallbackStories(config.maxItems) : [];
+  diagnostics.source = config.allowFallbackSeed ? "fallback_seed" : "live_empty";
   diagnostics.itemCount = items.length;
   diagnostics.degraded = true;
   diagnostics.error = diagnostics.error || "rss_unavailable_cache_empty";
-  diagnostics.parserMode = "fallback_seed";
+  diagnostics.parserMode = config.allowFallbackSeed ? "fallback_seed" : "live_empty";
   diagnostics.diagnosticsLog.push({
-    step: "fallback_seed_return",
+    step: config.allowFallbackSeed ? "fallback_seed_return" : "live_empty_return",
     returnedItemCount: items.length
   });
-  return { ok: true, items, meta: diagnostics };
+  return { ok: !config.strictLive && !!items.length, items, meta: diagnostics };
 }
 
 async function getNewsCanadaStories(options = {}) {
