@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK";
+const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -691,29 +691,34 @@ function parseNewsCanadaWpPostsJson(raw, sourceUrl) {
   const parserMode = 'wp_rest_posts_parser';
   const items = arr.map((post, index) => {
     const title = decodeWpRendered(post && post.title) || `Story ${index + 1}`;
-    const excerpt = decodeWpRendered(post && post.excerpt);
-    const content = decodeWpRendered(post && post.content);
-    const summary = cleanText(excerpt || clipText(content, 320));
+    const excerptHtml = isObj(post && post.excerpt) ? safeStr(post.excerpt.rendered || post.excerpt.raw || "") : safeStr(post && post.excerpt || "");
+    const contentHtml = isObj(post && post.content) ? safeStr(post.content.rendered || post.content.raw || "") : safeStr(post && post.content || "");
+    const summary = cleanText(extractFirstHtmlParagraph(excerptHtml || contentHtml) || clipText(stripTags(contentHtml || excerptHtml), 320));
+    const body = removeNewsCanadaFeedBoilerplate(stripTags(contentHtml || excerptHtml || summary));
     const author = firstString([post && post.author_name, post && post._embedded && Array.isArray(post._embedded.author) && post._embedded.author[0] && post._embedded.author[0].name]);
+    const image = cleanText(extractWpFeaturedImage(post) || extractFirstHtmlImageUrl(contentHtml) || extractFirstHtmlImageUrl(excerptHtml));
+    const mediaUrl = cleanText(extractHtmlVideoSrc(contentHtml));
     return buildNewsCanadaItem({
       id: cleanText(post && post.id),
       guid: cleanText(post && post.id),
       slug: cleanText(post && post.slug),
       title,
       headline: title,
-      description: cleanText(summary || content),
+      description: cleanText(summary || body),
       summary,
-      body: cleanText(content || summary),
-      content: cleanText(content || summary),
+      body: cleanText(body || summary),
+      content: cleanText(body || summary),
       link: cleanText(post && post.link),
       url: cleanText(post && post.link),
       sourceUrl: cleanText(post && post.link),
       canonicalUrl: cleanText(post && post.link),
       pubDate: cleanText(post && post.date),
       publishedAt: cleanText(post && post.date),
-      image: extractWpFeaturedImage(post),
-      popupImage: extractWpFeaturedImage(post),
-      popupBody: cleanText(content || summary),
+      image,
+      mediaUrl,
+      mediaType: mediaUrl ? 'video/mp4' : '',
+      popupImage: image,
+      popupBody: cleanText(body || summary),
       byline: author,
       author,
       category: 'For Your Life',
@@ -797,6 +802,42 @@ function htmlDecodeForFeed(value) {
   return stripTags(value).replace(/\s+/g, " ").trim();
 }
 
+function removeNewsCanadaFeedBoilerplate(value) {
+  return cleanText(safeStr(value)
+    .replace(/The post\s+.+?\s+appeared first on\s+.+?\.?$/i, " ")
+    .replace(/Continue reading\s*$/i, " "));
+}
+
+function stripUnsafeFeedAttrs(html) {
+  return safeStr(html)
+    .replace(/\s(?:style|srcset|sizes|fetchpriority|decoding|loading|class|id|link_thumbnail)=(["']).*?/gi, "")
+    .replace(/\s(?:data-[a-z0-9_-]+)=(["']).*?/gi, "");
+}
+
+function extractFirstHtmlImageUrl(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const match = /<img[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  return cleanText(match && match[1] || "");
+}
+
+function extractHtmlVideoSrc(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const sourceMatch = /<source[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  if (sourceMatch && cleanText(sourceMatch[1])) return cleanText(sourceMatch[1]);
+  const videoMatch = /<video[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  return cleanText(videoMatch && videoMatch[1] || "");
+}
+
+function extractFirstHtmlParagraph(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const matches = sanitized.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
+  for (const block of matches) {
+    const text = removeNewsCanadaFeedBoilerplate(stripTags(block));
+    if (text && !/^the post/i.test(text)) return text;
+  }
+  return removeNewsCanadaFeedBoilerplate(stripTags(sanitized));
+}
+
 function buildNewsCanadaItem(entry, index, feedUrl, parserMode) {
   const sourceName = "For Your Life";
   const base = isObj(entry) ? { ...entry } : {};
@@ -825,6 +866,8 @@ function buildNewsCanadaItem(entry, index, feedUrl, parserMode) {
     pubDate,
     publishedAt: cleanText(base.publishedAt || pubDate),
     image,
+    mediaUrl: cleanText(base.mediaUrl || base.videoUrl || base.enclosureUrl || ""),
+    mediaType: cleanText(base.mediaType || base.enclosureType || ""),
     popupImage: cleanText(base.popupImage || image),
     popupBody: cleanText(base.popupBody || description),
     byline: author,
@@ -846,8 +889,8 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
   let parserMode = "no_items";
   if (!xml) return { items, parserMode };
 
-  const itemBlocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
-  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || []);
+  const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry[\s\S]*?<\/entry>/gi) || []);
   const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
 
   if (blocks.length) {
@@ -856,8 +899,11 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
 
   blocks.forEach((block, index) => {
     const title = stripTags(firstXmlTagValue(block, ["title"])) || `Story ${index + 1}`;
-    const descriptionRaw = firstXmlTagValue(block, ["description", "content:encoded", "excerpt:encoded", "content", "summary"]);
-    const description = stripTags(descriptionRaw);
+    const descriptionRaw = firstXmlTagValue(block, ["description", "summary"]);
+    const contentRaw = firstXmlTagValue(block, ["content:encoded", "excerpt:encoded", "content"]);
+    const combinedHtml = safeStr(contentRaw || descriptionRaw);
+    const summary = cleanText(extractFirstHtmlParagraph(descriptionRaw || contentRaw) || truncateForMeta(combinedHtml, 320));
+    const body = removeNewsCanadaFeedBoilerplate(stripTags(contentRaw || descriptionRaw || summary));
     const url = cleanText(
       firstXmlAttrValue(block, ["link"], "href") ||
       firstXmlTagValue(block, ["link"]) ||
@@ -866,9 +912,19 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
     const pubDate = cleanText(firstXmlTagValue(block, ["pubDate", "published", "updated", "dc:date"]));
     const author = stripTags(firstXmlTagValue(block, ["dc:creator", "author", "creator"]));
     const category = stripTags(firstXmlTagValue(block, ["category"])) || "For Your Life";
+    const enclosureUrl = cleanText(firstXmlAttrValue(block, ["enclosure"], "url"));
+    const enclosureType = cleanText(firstXmlAttrValue(block, ["enclosure"], "type"));
     const image = cleanText(
-      firstXmlAttrValue(block, ["media:content", "media:thumbnail", "enclosure"], "url") ||
-      firstXmlTagValue(block, ["image"])
+      (/^image\//i.test(enclosureType) ? enclosureUrl : "") ||
+      firstXmlAttrValue(block, ["media:content", "media:thumbnail"], "url") ||
+      firstXmlTagValue(block, ["image"]) ||
+      extractFirstHtmlImageUrl(contentRaw) ||
+      extractFirstHtmlImageUrl(descriptionRaw)
+    );
+    const mediaUrl = cleanText(
+      (/^video\//i.test(enclosureType) ? enclosureUrl : "") ||
+      extractHtmlVideoSrc(contentRaw) ||
+      extractHtmlVideoSrc(descriptionRaw)
     );
     const allCategories = allXmlTagValues(block, ["category"]).map((v) => stripTags(v)).filter(Boolean);
     items.push(buildNewsCanadaItem({
@@ -876,10 +932,10 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
       guid: cleanText(firstXmlTagValue(block, ["guid", "id"])),
       title,
       headline: title,
-      description,
-      summary: description,
-      body: description,
-      content: description,
+      description: cleanText(summary || body),
+      summary: cleanText(summary || body),
+      body: cleanText(body || summary),
+      content: cleanText(body || summary),
       link: url,
       url,
       sourceUrl: url,
@@ -887,8 +943,10 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
       pubDate,
       publishedAt: pubDate,
       image,
+      mediaUrl,
+      mediaType: cleanText((/^video\//i.test(enclosureType) && enclosureType) || (mediaUrl ? 'video/mp4' : enclosureType)),
       popupImage: image,
-      popupBody: description,
+      popupBody: cleanText(body || summary),
       byline: author,
       author,
       category: category || firstString(allCategories),
@@ -897,7 +955,7 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
   });
 
   return {
-    items: items.filter((item) => item && (item.title || item.summary || item.url)),
+    items: items.filter((item) => item && ((item.title && item.url) || item.summary || item.mediaUrl)),
     parserMode
   };
 }
@@ -3764,11 +3822,23 @@ app.get(["/api/newscanada/story", "/newscanada/story"], async (req, res) => {
   return res.status(out.ok ? 200 : 404).json(out);
 });
 
-function resolveMusicDataFile() {
+const MUSIC_TOP_MOMENTS_LIMIT = clamp(Number(process.env.MUSIC_TOP_MOMENTS_LIMIT || 10), 3, 25);
+const MUSIC_REFRESH_MS = clamp(Number(process.env.MUSIC_REFRESH_MS || 5 * 60 * 1000), 30000, 60 * 60 * 1000);
+const MUSIC_DATA_FILE_CANDIDATES = uniq([
+  cleanText(process.env.MUSIC_DATA_FILE || process.env.SB_MUSIC_DATA_FILE || ""),
+  path.join(__dirname, "data", "music", "music-top-moments.json"),
+  path.join(__dirname, "Data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "Data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "backend", "data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "backend", "Data", "music", "music-top-moments.json")
+].filter(Boolean));
 
-  return cleanText(MUSIC_DATA_FILE_CANDIDATES.find((file) => {
+function resolveMusicDataFile() {
+  const candidates = Array.isArray(MUSIC_DATA_FILE_CANDIDATES) ? MUSIC_DATA_FILE_CANDIDATES : [];
+  return cleanText(candidates.find((file) => {
     try { return !!(file && fs.existsSync(file)); } catch (_) { return false; }
-  }) || MUSIC_DATA_FILE_CANDIDATES[0] || "");
+  }) || candidates[0] || "");
 }
 
 function buildStaticMusicFallback() {
