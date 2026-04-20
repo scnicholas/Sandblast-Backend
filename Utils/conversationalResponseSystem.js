@@ -44,10 +44,17 @@ function normalizeStrategy(raw) {
 function normalizeSupportFlags(raw) {
   const src = isObj(raw) ? raw : {};
   return {
+    crisis: !!src.crisis,
     highDistress: !!src.highDistress,
     needsContainment: !!src.needsContainment,
     needsGrounding: !!src.needsGrounding,
     needsStabilization: !!src.needsStabilization,
+    needsClarification: !!src.needsClarification,
+    needsConnection: !!src.needsConnection,
+    guardedness: !!src.guardedness,
+    suppressed: !!src.suppressed,
+    forcedPositivity: !!src.forcedPositivity,
+    minimization: !!src.minimization,
     vulnerable: !!src.vulnerable
   };
 }
@@ -119,6 +126,7 @@ function inferState(domain, emotion, requestedMode, supportMode) {
   const s = safeStr(supportMode).toLowerCase();
   if (d === "psychology") return "supportive";
   if (/crisis|acute|soothe|stabilize|ground/.test(s)) return "supportive";
+  if (emotion.supportFlags.crisis) return "supportive";
   if (m === "recovery" || m === "clarity_building") return "clarifying";
   if (emotion.supportFlags.highDistress || emotion.supportFlags.needsContainment || emotion.supportFlags.needsStabilization) return "supportive";
   if (["sad","sadness","anxious","anxiety","overwhelmed","depressed","fear","grief","loneliness","panic"].includes(emotion.primaryEmotion)) return "supportive";
@@ -207,7 +215,12 @@ function buildResponseContract(result = {}, packet = {}) {
   const reply = resolveReply(result, packet, context);
   const ui = buildUi(context, state);
   const emotionalTurn = buildEmotionalTurn(context, state);
-  const followUps = uniq(arr(result.followUps || packet?.synthesis?.followUps || [])).slice(0, 4);
+  const followUps = uniq(
+    arr(result.followUps || packet?.synthesis?.followUps || [])
+      .map((item) => sanitizeUserFacingReply(item))
+      .filter(Boolean)
+      .filter((item) => item.toLowerCase() !== reply.toLowerCase())
+  ).slice(0, 4);
   try {
     console.log("[MARION] conversationalResponseSystem route", {
       domain: context.domain,
@@ -221,6 +234,8 @@ function buildResponseContract(result = {}, packet = {}) {
   return {
     ok: true,
     reply,
+    output: reply,
+    spokenText: reply,
     ui,
     emotionalTurn,
     followUps,
