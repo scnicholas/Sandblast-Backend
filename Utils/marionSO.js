@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.4.0-commercial-grade-phase15-lock";
+const MARION_VERSION = "marionSO v1.5.0-emission-guard-fastpath-lane-emitter";
 const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -108,6 +108,10 @@ let AIK = safeRequire("./aiKnowledge");
 // -------------------------
 const DEFAULT_CPU_BUDGET_MS = Number(process.env.MARION_CPU_BUDGET_MS || 0) || 40; // keep Marion fast to avoid server timeouts
 const MARION_DEBUG = String(process.env.MARION_DEBUG || "").toLowerCase() === "1" || String(process.env.MARION_DEBUG || "").toLowerCase() === "true";
+
+const MARION_FAST_PATH_TTL_MS = Number(process.env.MARION_FAST_PATH_TTL_MS || 0) || 15000;
+const MARION_LOOP_INTENT_WINDOW_MS = Number(process.env.MARION_LOOP_INTENT_WINDOW_MS || 0) || 45000;
+const MARION_MAX_GENERAL_LANES = 3;
 
 function budgetGate(startMs, budgetMs) {
   const b = Number(budgetMs || 0) || DEFAULT_CPU_BUDGET_MS;
@@ -746,7 +750,7 @@ function computeLaneExpertRouting(effectiveLane, cog) {
   if (riskDomains.includes(RISK.DOMAINS.LEGAL)) lanes.push(LANE_EXPERTS.LAW);
 
   // Keep it crisp: English + up to 4 others
-  const pruned = clampLaneExperts(lanes, 5);
+  const pruned = clampLaneExperts(lanes, MARION_MAX_GENERAL_LANES);
   return {
     effectiveLane: "general",
     crossLaneAllowed: true,
@@ -2571,6 +2575,22 @@ function finalizeContract(cog, nowMs, extra) {
 
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
+    emissionReady: c.emissionReady !== false,
+    emissionPolicy: isPlainObject(c.emissionPolicy)
+      ? {
+          mustEmit: c.emissionPolicy.mustEmit !== false,
+          route: safeStr(c.emissionPolicy.route || "", 24) || (intent === "STABILIZE" ? "support" : intent === "ADVANCE" ? "respond" : "clarify"),
+          reason: safeStr(c.emissionPolicy.reason || "", 48),
+          at: clampInt(c.emissionPolicy.at, 0, 4102444800000, Number(nowMs || 0) || nowMsDefault()),
+        }
+      : {
+          mustEmit: true,
+          route: intent === "STABILIZE" ? "support" : intent === "ADVANCE" ? "respond" : "clarify",
+          reason: "finalize_contract",
+          at: clampInt(nowMs, 0, 4102444800000, Number(nowMs || 0) || nowMsDefault()),
+        },
+    fastPath: !!c.fastPath,
+    fastPathKind: safeStr(c.fastPathKind || "", 24),
     supportCompatible: !!c.supportCompatible,
     questionSuppression: !!c.questionSuppression,
     avoidLaneRebuild: c.avoidLaneRebuild !== false,
@@ -3474,6 +3494,140 @@ function aggregateKnowledgeHints(cog) {
   return out;
 }
 
+
+function isLightTurnText(text) {
+  const t = safeStr(text || "", 240).trim().toLowerCase();
+  if (!t) return false;
+  if (/^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|kk|cool|nice|great)$/.test(t)) return true;
+  if (/^(good\s+morning|good\s+afternoon|good\s+evening)$/.test(t)) return true;
+  return false;
+}
+
+function detectFastPathTurn(norm, session, mode, lane, now) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const text = safeStr(n.text || "", 240).trim();
+  if (!isLightTurnText(text)) return null;
+  const recentFastPathAt = Number(s.lastFastPathAt || 0) || 0;
+  const repeated = !!(recentFastPathAt && now - recentFastPathAt <= MARION_FAST_PATH_TTL_MS);
+  const baseLane = normalizeLaneRaw(lane) || "general";
+  const cue = /thank/.test(text.toLowerCase()) ? "acknowledge" : "greet";
+  return {
+    marionVersion: MARION_VERSION,
+    mode: normalizeMacModeRaw(mode) || "architect",
+    intent: "ADVANCE",
+    dominance: cue === "acknowledge" ? "soft" : "neutral",
+    budget: "short",
+    lane: baseLane,
+    laneAction: "",
+    laneReason: "fast_path",
+    actionable: false,
+    textEmpty: !text,
+    stalled: false,
+    groundingMaxLines: 0,
+    marionState: "FAST_PATH",
+    marionReason: repeated ? "fast_path_repeat" : `fast_path_${cue}`,
+    questionSuppression: true,
+    avoidLaneRebuild: true,
+    allowMenuRegeneration: false,
+    supportCompatible: true,
+    marionMaySpeak: false,
+    marionSurfaceRole: "reasoning_only",
+    fastPath: true,
+    fastPathKind: cue,
+    bridge: { enabled: false, reason: "fast_path" },
+    psyche: { enabled: false, reason: "fast_path" },
+    psychologyHints: { enabled: false, reason: "fast_path" },
+    cyberKnowledgeHints: { enabled: false, reason: "fast_path" },
+    englishKnowledgeHints: { enabled: false, reason: "fast_path" },
+    financeKnowledgeHints: { enabled: false, reason: "fast_path" },
+    aiKnowledgeHints: { enabled: false, reason: "fast_path" },
+    sessionPatchSuggestion: {
+      lastFastPathAt: now,
+      lastIntent: "ADVANCE",
+      lastIntentAt: now,
+      lane: baseLane,
+    },
+  };
+}
+
+function buildLaneEmitter(cog) {
+  const c = isPlainObject(cog) ? cog : {};
+  const effectiveLane = normalizeLaneRaw(c.effectiveLane || c.lane) || "general";
+  const lanesUsed = clampLaneExperts(Array.isArray(c.lanesUsed) && c.lanesUsed.length ? c.lanesUsed : [effectiveLane], 6);
+  return {
+    enabled: true,
+    sourceLane: normalizeLaneRaw(c.lane) || effectiveLane,
+    effectiveLane,
+    lanesUsed,
+    crossLaneAllowed: !!c.crossLaneAllowed,
+    reason: safeStr(c.laneExpertReason || c.laneReason || "lane_emitter", 32),
+    fastPath: !!c.fastPath,
+    bridgeKind: safeStr(c.bridge && c.bridge.kind ? c.bridge.kind : "", 24),
+  };
+}
+
+function enforceCogMinimums(cog, nowMs, context) {
+  const c = isPlainObject(cog) ? { ...cog } : {};
+  const ctx = isPlainObject(context) ? context : {};
+
+  c.mode = normalizeMacModeRaw(c.mode) || normalizeMacModeRaw(ctx.mode) || "architect";
+  c.intent = normalizeMove(c.intent || ctx.intent || "CLARIFY");
+  c.dominance = normalizeDominance(c.dominance || ctx.dominance || (c.intent === "STABILIZE" ? "soft" : "neutral"));
+  c.budget = normalizeBudget(c.budget || ctx.budget || "short");
+  c.lane = normalizeLaneRaw(c.lane || ctx.lane) || "general";
+  c.laneAction = safeStr(c.laneAction || ctx.laneAction || "", 24).trim().toLowerCase();
+  c.laneReason = safeStr(c.laneReason || ctx.laneReason || "emission_guard", 40);
+  c.actionable = !!c.actionable;
+  c.textEmpty = !!c.textEmpty;
+  c.stalled = !!c.stalled;
+  c.groundingMaxLines = clampInt(c.groundingMaxLines, 0, 3, 0);
+  c.movePolicy = isPlainObject(c.movePolicy) ? c.movePolicy : deriveMovePolicy(c);
+
+  if (!isPlainObject(c.bridge)) c.bridge = { enabled: false, reason: "emission_guard" };
+  if (!Array.isArray(c.lanesUsed) || !c.lanesUsed.length) c.lanesUsed = [c.lane];
+  if (c.crossLaneAllowed == null) c.crossLaneAllowed = laneCrossAllowedByDefault(c.lane);
+  c.effectiveLane = normalizeLaneRaw(c.effectiveLane || c.lane) || c.lane;
+
+  c.emissionReady = true;
+  c.emissionPolicy = {
+    mustEmit: true,
+    route: c.intent === "STABILIZE" ? "support" : c.intent === "ADVANCE" ? "respond" : "clarify",
+    reason: safeStr(c.marionReason || c.laneReason || "emission_guard", 48),
+    at: clampInt(nowMs, 0, 4102444800000, nowMsDefault()),
+  };
+
+  c.laneEmitter = buildLaneEmitter(c);
+  return c;
+}
+
+function enforceIntentLoopGuard(cog, session, now) {
+  const c = isPlainObject(cog) ? cog : {};
+  const s = isPlainObject(session) ? session : {};
+  const currentIntent = safeStr(c.intent || "", 16).toUpperCase();
+  const lastIntent = safeStr(s.lastIntent || "", 16).toUpperCase();
+  const lastIntentAt = Number(s.lastIntentAt || 0) || 0;
+  if (!currentIntent || !lastIntent || currentIntent !== lastIntent) return c;
+  if (c.actionable || safeStr(c.marionState || "", 24).toUpperCase() === "FAST_PATH") return c;
+  if (!lastIntentAt || now - lastIntentAt > MARION_LOOP_INTENT_WINDOW_MS) return c;
+
+  c.loopGuardIntent = true;
+  c.stalled = true;
+  c.intent = currentIntent === "STABILIZE" ? "STABILIZE" : "CLARIFY";
+  c.budget = "short";
+  c.marionState = "BREAK_LOOP";
+  c.marionReason = "intent_repeat_guard";
+  c.questionSuppression = c.intent === "STABILIZE";
+  if (c.questionSuppression) {
+    c.needsClarify = false;
+    c.askKind = "none";
+    c.clarifyPrompt = "";
+    c.minimalClarifier = "";
+  }
+  c.movePolicy = { preferredMove: c.intent, hardOverride: true, reason: "intent_repeat_guard" };
+  return c;
+}
+
 // -------------------------
 // main: mediate
 // -------------------------
@@ -3545,6 +3699,15 @@ function mediate(norm, session, opts = {}) {
     const hysteresis = suggestModeHysteresisPatch(s, modeCandidate, implicit);
     const mode = (hysteresis && hysteresis.effectiveMode) || modeCandidate;
 
+    const fastPath = detectFastPathTurn(n, s, mode, lane, now);
+    if (fastPath) {
+      const fastMetrics = { schema: OPINTEL_SCHEMA, cpuMs: gate.elapsed(), gateBudgetMs: gate.budgetMs, clampedBytes: 0, tracePolicyIssues: [] };
+      fastPath.marionMetrics = fastMetrics;
+      fastPath.opPackage = buildOperationalPackage(n, s, fastPath, fastMetrics);
+      const fastFinal = finalizeContract(enforceCogMinimums(fastPath, now, { mode, lane, intent: "ADVANCE", budget: "short", dominance: "neutral", laneReason: "fast_path" }), now, { norm: n, session: s });
+      return fastFinal;
+    }
+
     const lastAdvanceAt = Number(s.lastAdvanceAt || 0) || 0;
     const stalled = lastAdvanceAt ? now - lastAdvanceAt > 90 * 1000 : false;
 
@@ -3600,7 +3763,7 @@ function mediate(norm, session, opts = {}) {
     // (unless we are in an explicit actionable/bridge advance)
     const _aff = isPlainObject(psychSeed?.affect) ? psychSeed.affect : {};
     const _tags = Array.isArray(_aff.tags) ? _aff.tags : [];
-    const _distress = _tags.includes("distress_language") || _tags.includes("escalation_language");
+    const _distress = (_tags.includes("distress_language") || _tags.includes("escalation_language")) && clamp01(_aff.tension) >= 0.72;
     const _selfHarm = _tags.includes("self_harm_language");
     if (!_selfHarm && _distress && !actionable && !(bridge && bridge.enabled) && intent !== "ADVANCE") {
       intent = "STABILIZE";
@@ -3976,6 +4139,13 @@ try {
       applyBrutalLoopBreaker(cog, { ...lg.meta, sig: sig.sig });
     }
 
+    enforceIntentLoopGuard(cog, s, now);
+
+    const patch3 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
+    patch3.lastIntent = safeStr(cog.intent || "", 16).toUpperCase();
+    patch3.lastIntentAt = now;
+    patch3.lastLaneEmitter = buildLaneEmitter(cog);
+    cog.sessionPatchSuggestion = patch3;
 
     const trace = buildTrace(n, s, {
       ...cog,
@@ -4022,6 +4192,8 @@ try {
       cog.degraded = true;
       cog.degradeReason = "cpu_budget";
     }
+
+    cog = enforceCogMinimums(cog, now, { mode, intent, dominance, budget, lane, laneReason, laneAction });
 
     const issues = tracePolicyCheck(cog, n, o);
     const metrics = { schema: OPINTEL_SCHEMA, cpuMs: gate.elapsed(), gateBudgetMs: gate.budgetMs, clampedBytes: 0, tracePolicyIssues: issues || [] };
@@ -4172,6 +4344,8 @@ module.exports = {
   // bridge exports (unit tests)
   buildBridgeContract,
   normalizeBridgeKind,
+  buildLaneEmitter,
+  enforceCogMinimums,
 
   // psyche bridge exports
   buildPsycheBridgeInput,
