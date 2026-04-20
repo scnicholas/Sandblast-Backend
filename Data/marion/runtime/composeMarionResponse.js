@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.4.1 LOCKED-ESCALATION-DOMINANCE";
+const VERSION = "composeMarionResponse v1.4.2 UPSTREAM-EMISSION-HARDENED";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
@@ -18,9 +18,46 @@ function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _uniq(arr) { return [...new Set(_safeArray(arr).map(_trim).filter(Boolean))]; }
 
+
+const INTERNAL_BLOCKER_PATTERNS = [
+  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
+  /bridge\s+rejected\s+malformed\s+marion\s+output/i,
+  /reply\s+emission/i,
+  /authoritative\s+reply\s+missing/i,
+  /packet(?:_|\s)?synthesis(?:_|\s)?reply(?:_|\s)?missing/i,
+  /bridge_rejected/i,
+  /contract_invalid/i,
+  /packet_invalid/i,
+  /input_invalid/i,
+  /compose_marion_response_unavailable/i
+];
+
+function _containsInternalBlocker(text = "") {
+  const value = _trim(text);
+  if (!value) return false;
+  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(value));
+}
+
+function _sanitizeEmissionText(text = "") {
+  const value = _trim(text);
+  if (!value || _containsInternalBlocker(value)) return "";
+  return value.replace(/\s+([,.;:!?])/g, "$1").replace(/[ \t]{2,}/g, " ").trim();
+}
+
+function _isUsableUserFacingReply(text = "") {
+  const value = _sanitizeEmissionText(text);
+  return !!value && !_isGenericLoopReply(value) && !_isMetaResponse(value);
+}
+
 function _harmonizeReplyBundle(reply = "", followUps = []) {
-  const normalizedReply = _trim(reply) || FALLBACK_REPLY;
-  const followUpsStrings = _uniq(_safeArray(followUps).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(normalizedReply)));
+  const normalizedReply = _sanitizeEmissionText(reply) || FALLBACK_REPLY;
+  const followUpsStrings = _uniq(
+    _safeArray(followUps)
+      .map((item) => _sanitizeEmissionText(item))
+      .filter(Boolean)
+      .filter((item) => _lower(item) !== _lower(normalizedReply))
+      .filter((item) => !_containsInternalBlocker(item))
+  );
   return {
     reply: normalizedReply,
     text: normalizedReply,
@@ -386,7 +423,7 @@ function _looksEmotionSpecific(reply = "", primaryEmotion = "", conversationStat
 }
 
 function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, primaryEmotion = "", conversationState = {}, input = {}) {
-  const reply = _trim(candidateReply);
+  const reply = _sanitizeEmissionText(candidateReply);
   if (!reply) return false;
   if (_safeObj(input).allowExternalDraftOverride !== true) return false;
   if (_safeObj(escalationProfile).shouldDeepen) return false;
@@ -572,15 +609,15 @@ function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", suppor
   if (_safeObj(escalationProfile).shouldDeepen) {
     return { reply: generated, source: _isMetaResponse(generatedBase) ? "forced_meta_rewrite" : "forced_escalation_override", selectedFunction, authority: "marion" };
   }
-  const assistantDraft = _trim(_safeObj(input).assistantDraft);
+  const assistantDraft = _sanitizeEmissionText(_safeObj(input).assistantDraft);
   if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState, input)) {
     return { reply: _humanizeMetaReply(assistantDraft, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "assistantDraft", selectedFunction, authority: "external_override" };
   }
-  const inputReply = _trim(_safeObj(input).reply);
+  const inputReply = _sanitizeEmissionText(_safeObj(input).reply);
   if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState, input)) {
     return { reply: _humanizeMetaReply(inputReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "input.reply", selectedFunction, authority: "external_override" };
   }
-  const routedReply = _trim(_safeObj(routed).reply);
+  const routedReply = _sanitizeEmissionText(_safeObj(routed).reply);
   if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState, input)) {
     return { reply: _humanizeMetaReply(routedReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), source: "routed.reply", selectedFunction, authority: "external_override" };
   }
@@ -815,7 +852,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     engagementState,
     relationalStyle
   );
-  const replyBundle = _harmonizeReplyBundle(resolvedReply.reply || FALLBACK_REPLY);
+  const hardenedReply = _isUsableUserFacingReply(resolvedReply.reply)
+    ? _sanitizeEmissionText(resolvedReply.reply)
+    : _makeEscalatedReply(normalizedPrimaryEmotion, supportMode, _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1), { ...conversationState, selectedFunction: _trim(resolvedReply.selectedFunction || "") || "clarify" }, escalationProfile, arcState, engagementState);
+  const replyBundle = _harmonizeReplyBundle(hardenedReply || FALLBACK_REPLY);
   const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
   const followUps = _uniq(
     _buildEscalatedFollowUps(
@@ -866,7 +906,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     strategy,
     conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
     escalationProfile,
-    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle },
+    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", upstreamEmissionHardened: true, arcState, engagementState, relationalStyle },
     responsePlan,
     blendProfile,
     stateDrift,
@@ -908,8 +948,9 @@ function composeMarionResponse(routed = {}, input = {}) {
       escalationShouldDeepen: !!escalationProfile.shouldDeepen,
       escalationShouldSolve: !!escalationProfile.shouldSolve,
       handoffNormalized: true,
-      replyResolvedFrom: resolvedReply.source,
+      replyResolvedFrom: _containsInternalBlocker(resolvedReply.reply) ? "source_blocked_to_fallback" : resolvedReply.source,
       replyAuthority: _trim(resolvedReply.authority || "marion") || "marion",
+      upstreamEmissionHardened: true,
       selectedFunction,
       arcStage: arcState.stage,
       arcType: arcState.arcType,
