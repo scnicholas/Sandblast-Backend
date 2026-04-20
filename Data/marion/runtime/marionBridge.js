@@ -330,6 +330,67 @@ function _extractDatasets(inputDatasets = [], sections = {}) {
 }
 function _resolveCanonicalRoute(text, requestedDomain, previousMemory = {}) { if (typeof routeMarion === "function") { try { return _safeObj(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain, previousMemory })); } catch (_e) {} } return { ok: true, primaryDomain: _canonicalDomain(requestedDomain), supportFlags: {}, domains: { emotion: {}, psychology: { matched: false, matches: [] } }, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, classified: { classifications: {}, supportFlags: {}, domainCandidates: [_canonicalDomain(requestedDomain)] }, diagnostics: { domainCandidates: [_canonicalDomain(requestedDomain)], usedPsychology: false } }; }
 
+function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
+  const userQuery = _trim(context.userQuery || context.text || "");
+  const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
+  const intent = _trim(context.intent || "general") || "general";
+  const reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY)) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
+  const followUpsStrings = _safeArray(context.followUpsStrings).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(reply));
+  const packet = {
+    routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
+    synthesis: {
+      domain,
+      intent,
+      mode: "bridge_fallback",
+      answer: reply,
+      reply,
+      interpretation: reply,
+      supportMode: "bridge_fallback",
+      routeBias: intent,
+      riskLevel: "unknown",
+      responsePlan: { pacing: "steady", followupStyle: "reflective" },
+      nyxDirective: {
+        presentationMode: "fallback",
+        allowNyxRewrite: false,
+        allowReplySynthesis: false,
+        singleSourceOfTruth: true,
+        bridgeFallback: true
+      }
+    },
+    evidence: _safeArray(context.evidence).slice(0, MAX_RANKED_EVIDENCE),
+    meta: {
+      version: VERSION,
+      endpoint: CANONICAL_ENDPOINT,
+      bridgeFallback: true,
+      fallbackReason: _trim(reason || "bridge_fallback") || "bridge_fallback",
+      packetSignature: _hashText(`${domain}|${intent}|${reply}`)
+    }
+  };
+  return {
+    ok: true,
+    partial: true,
+    rejected: false,
+    status: "fallback",
+    endpoint: CANONICAL_ENDPOINT,
+    userQuery,
+    domain,
+    intent,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    spokenText: reply.replace(/\n+/g, " ").trim(),
+    diagnostics: { fallback: { reason: _trim(reason || "bridge_fallback") || "bridge_fallback", detail: _safeObj(detail) } },
+    meta: packet.meta,
+    packet,
+    ui: null,
+    emotionalTurn: null,
+    followUps: followUpsStrings,
+    followUpsStrings,
+    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
+  };
+}
+
 function _makeRejectionResult(reason, detail = {}, context = {}) {
   const userQuery = _trim(context.userQuery || context.text || "");
   const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
@@ -402,8 +463,14 @@ function _validateContractShape(contract = {}) {
   const synthesis = _safeObj(src.synthesis);
   const candidates = [
     _trim(src.reply),
+    _trim(src.text),
+    _trim(src.answer),
     _trim(src.output),
+    _trim(src.spokenText),
     _trim(synthesis.reply),
+    _trim(synthesis.text),
+    _trim(synthesis.answer),
+    _trim(synthesis.output),
     _trim(src.interpretation)
   ].filter(Boolean);
 
@@ -428,7 +495,7 @@ function _validatePacketShape(packet = {}) {
   if (!_trim(routing.domain)) issues.push("packet_routing_domain_missing");
   if (!_trim(routing.intent)) issues.push("packet_routing_intent_missing");
   if (!_trim(routing.endpoint)) issues.push("packet_routing_endpoint_missing");
-  if (!_trim(synthesis.reply || synthesis.answer || synthesis.interpretation) && !hasStructuredContent) issues.push("packet_synthesis_reply_missing");
+  if (!_trim(synthesis.reply || synthesis.text || synthesis.answer || synthesis.output || synthesis.interpretation) && !hasStructuredContent) issues.push("packet_synthesis_reply_missing");
 
   return { ok: issues.length === 0, issues, hasStructuredContent };
 }
@@ -639,8 +706,14 @@ function _isLegacyLeakReply(reply = "") {
 function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}, domain = "general") {
   const candidates = [
     ["contract.reply", _trim(contract.reply)],
+    ["contract.text", _trim(contract.text)],
+    ["contract.answer", _trim(contract.answer)],
     ["contract.output", _trim(contract.output)],
+    ["contract.spokenText", _trim(contract.spokenText)],
     ["contract.synthesis.reply", _trim(_safeObj(contract.synthesis).reply)],
+    ["contract.synthesis.text", _trim(_safeObj(contract.synthesis).text)],
+    ["contract.synthesis.answer", _trim(_safeObj(contract.synthesis).answer)],
+    ["contract.synthesis.output", _trim(_safeObj(contract.synthesis).output)],
     ["contract.interpretation", _trim(contract.interpretation)]
   ];
 
@@ -678,7 +751,7 @@ function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "
 async function processWithMarion(input = {}) {
   const inputValidation = _validateInputShape(input);
   if (!inputValidation.ok) {
-    return _makeRejectionResult("input_invalid", { issues: inputValidation.issues }, { userQuery: inputValidation.normalized.userQuery, requestedDomain: inputValidation.normalized.requestedDomain, intent: _trim(inputValidation.normalized.intent || "general") || "general" });
+    return _makeSoftFallbackResult("input_invalid", { issues: inputValidation.issues }, { userQuery: inputValidation.normalized.userQuery, requestedDomain: inputValidation.normalized.requestedDomain, intent: _trim(inputValidation.normalized.intent || "general") || "general" });
   }
   const layer2 = await retrieveLayer2Signals(inputValidation.normalized);
   const identityState = typeof getPublicIdentitySnapshot === "function" ? getPublicIdentitySnapshot() : { name: "Marion", role: "private interpreter" };
@@ -703,12 +776,12 @@ async function processWithMarion(input = {}) {
       { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} }
     );
   } else {
-    return _makeRejectionResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+    return _makeSoftFallbackResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, evidence: layer2.evidence });
   }
 
   const contractValidation = _validateContractShape(contract);
   if (!contractValidation.ok) {
-    return _makeRejectionResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+    return _makeSoftFallbackResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, contract, evidence: layer2.evidence });
   }
 
   const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
@@ -840,11 +913,12 @@ async function processWithMarion(input = {}) {
       followUpsStrings = presentationFollowUpStrings.length ? presentationFollowUpStrings : followUps.map((item) => _trim(item)).filter(Boolean);
       const presentationValidation = _validatePresentationShape(presentation, reply);
       if (!presentationValidation.ok) {
-        return _makeRejectionResult("presentation_invalid", { issues: presentationValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+        payload = _synchronizeAuthoritativePayload(_safeObj(presentation.payload), reply, followUpsStrings, contractLocked, layer2.domain);
+      } else {
+        payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings, contractLocked, layer2.domain);
       }
-      payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings, contractLocked, layer2.domain);
     } catch (_e) {
-      return _makeRejectionResult("presentation_contract_exception", { message: _trim(_e && _e.message) }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+      payload = _synchronizeAuthoritativePayload({}, reply, followUpsStrings, contractLocked, layer2.domain);
     }
   } else {
     payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings, contractLocked, layer2.domain);
@@ -854,7 +928,7 @@ async function processWithMarion(input = {}) {
   const packet = _buildPacket(finalizedResult, layer2.evidence);
   const packetValidation = _validatePacketShape(packet);
   if (!packetValidation.ok) {
-    return _makeRejectionResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent });
+    return _makeSoftFallbackResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, reply, followUpsStrings, packet, evidence: layer2.evidence, contract: contractLocked });
   }
 
   return { ...finalizedResult, packet };
