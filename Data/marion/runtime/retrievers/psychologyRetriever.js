@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "psychologyRetriever v2.0.0 HARDENED-PIPELINE-READY";
+const VERSION = "psychologyRetriever v2.1.0 HARDENED-INTEGRATION-READY";
 const FILE_NAME = "psychologyRetriever.js";
 
 let _cache = {
@@ -490,7 +490,7 @@ function _emptyResponse(reason) {
     recommendedApproach: "supportive",
     toneGuide: "balanced",
     confidence: 0,
-    route: null,
+    route: { ruleId: null, primarySubdomain: "", secondarySubdomains: [], supportMode: "", routeBias: "" },
     responsePlan: {
       semanticFrame: "supportive",
       deliveryTone: "balanced",
@@ -506,17 +506,17 @@ function _emptyResponse(reason) {
     evidenceMatches: [],
     blendProfile: { dominantAxis: "neutral", weights: {}, supportShape: "steady" },
     stateDrift: { previousEmotion: null, currentEmotion: null, previousIntensity: 0, currentIntensity: 0, delta: 0, trend: "steady", stable: true },
-    meta: { reason }
+    meta: { reason, source: FILE_NAME, version: VERSION }
   };
 }
 
 function retrievePsychology(input = {}) {
   const compiled = _loadCompiled();
-  const text = _trim(input.text || input.query || input.userText);
+  const text = _trim(input.text || input.query || input.userText || input.userQuery);
   const normalizedText = _normalizeText(text);
   const records = _safeArray(compiled.records);
   const emotion = _safeObj(input.emotion || input.lockedEmotion);
-  const supportFlags = _safeObj(input.supportFlags || emotion.supportFlags);
+  const supportFlags = { ..._safeObj(emotion.supportFlags), ..._safeObj(input.supportFlags) };
 
   if (!text) return _emptyResponse("empty_text");
 
@@ -585,6 +585,9 @@ function retrievePsychology(input = {}) {
       ].filter(Boolean),
       compiledPath: _cache.compiledPath || null,
       derivedRiskLevel: riskLevel,
+      compiledAvailable: !!_cache.compiledPath,
+      routeMapAvailable: !!_cache.routeMapPath,
+      supportMapAvailable: !!_cache.supportMapPath,
       retrievalPolicy: _safeObj(compiled.retrievalPolicy)
     }
   };
