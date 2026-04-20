@@ -43,6 +43,15 @@ const MAX_RANKED_EVIDENCE = 8;
 const STRICT_REJECTION_STATUS = "bridge_rejected";
 const STRICT_REJECTION_REPLY = "Bridge rejected malformed Marion output before Nyx handoff.";
 
+const INTERNAL_BLOCKER_REPLY_PATTERNS = [
+  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
+  /bridge\s+rejected\s+malformed\s+marion\s+output\s+before\s+nyx\s+handoff/i,
+  /reply\s+emission/i,
+  /bridge_rejected/i,
+  /packet_invalid/i,
+  /contract_invalid/i
+];
+
 function _safeObj(v) { return !!v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _trim(v) { return v == null ? "" : String(v).trim(); }
@@ -53,6 +62,12 @@ function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v
 function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return mod[name]; if (mod && typeof mod.retrieve === "function") return mod.retrieve; if (typeof mod === "function") return mod; return null; }
 function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
 function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
+
+function _isInternalBlockerReply(v) {
+  const text = _lower(v || "").replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return INTERNAL_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
+}
 
 function _firstNonEmpty(...values) {
   for (const value of values) {
@@ -334,7 +349,8 @@ function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
   const userQuery = _trim(context.userQuery || context.text || "");
   const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
   const intent = _trim(context.intent || "general") || "general";
-  const reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY)) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
+  let reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY)) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
+  if (_isInternalBlockerReply(reply)) reply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
   const followUpsStrings = _safeArray(context.followUpsStrings).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(reply));
   const packet = {
     routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
@@ -478,6 +494,7 @@ function _validateContractShape(contract = {}) {
   const issues = [];
   if (!Object.keys(src).length) issues.push("contract_missing");
   if (!candidates.length && !hasStructuredContent) issues.push("authoritative_reply_missing");
+  if (candidates.some((value) => _isInternalBlockerReply(value)) && !hasStructuredContent) issues.push("authoritative_reply_blocked_internal");
   if (_safeObj(src.responsePlan) && typeof _safeObj(src.responsePlan).pacing !== "undefined" && !_trim(_safeObj(src.responsePlan).pacing)) issues.push("response_plan_pacing_invalid");
   if (_safeObj(src.nyxDirective) && src.nyxDirective.allowNyxRewrite === true) issues.push("nyx_rewrite_not_allowed");
 
@@ -720,6 +737,10 @@ function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}, domai
   const blockedSources = [];
   for (const [source, value] of candidates) {
     if (!value) continue;
+    if (_isInternalBlockerReply(value)) {
+      blockedSources.push(`${source}:internal_blocker`);
+      continue;
+    }
     if (_safeObj(escalationProfile).shouldDeepen && _isLegacyLeakReply(value)) {
       blockedSources.push(source);
       continue;
@@ -785,7 +806,7 @@ async function processWithMarion(input = {}) {
   }
 
   const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
-  const reply = _trim(authoritativeReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
+  const reply = _trim((!_isInternalBlockerReply(authoritativeReply.reply) && authoritativeReply.reply) || FALLBACK_REPLY) || FALLBACK_REPLY;
   const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
   const memoryPatch = _safeObj(contract.memoryPatch);
   const turnMemory = {
@@ -888,6 +909,7 @@ async function processWithMarion(input = {}) {
       marionReplyAuthority: {
         source: authoritativeReply.source,
         blockedLegacyReplySources: authoritativeReply.blockedSources,
+        internalBlockerSuppressed: authoritativeReply.blockedSources.some((item) => _lower(item).includes("internal_blocker")),
         escalationMode: escalationProfile.mode,
         singleSourceOfTruth: true
       }
