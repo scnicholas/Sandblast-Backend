@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.17.6sb MARION-EMISSION-GATE-BYPASS + MARION-FALLBACK-REPLY-GUARD + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17";
+const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -280,28 +280,6 @@ function cleanReplyForUser(v) {
   t = t.replace(/\bbackend\b/ig, "system");
   t = t.replace(/\s+([,.!?])/g, "$1").trim();
   return t;
-}
-
-function isInternalBlockerReply(v) {
-  const t = lower(cleanReplyForUser(v || ""));
-  if (!t) return false;
-  return (
-    /marion\s+input\s+required\s+before\s+reply\s+emission/.test(t) ||
-    /awaiting\s+marion\s+input/.test(t) ||
-    /reply\s+emission\s+blocked/.test(t) ||
-    /reply\s+emission\s+requires?\s+marion/.test(t) ||
-    /marion\s+authority\s+required/.test(t)
-  );
-}
-
-function pickFirstUserSafeReply(values) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const cleaned = cleanReplyForUser(value);
-    if (!cleaned) continue;
-    if (isInternalBlockerReply(cleaned)) continue;
-    return cleaned;
-  }
-  return "";
 }
 
 function replyHash(v) {
@@ -2870,12 +2848,12 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
   const continuitySrc = isObj(src.continuity) ? src.continuity : {};
   const metaSrc = isObj(src.meta) ? src.meta : {};
-  const rawResponse = cleanReplyForUser(
+  let response = cleanReplyForUser(
     src.response || src.reply || src.text || src.output || src.answer || src.spokenText ||
     payload.reply || payload.text || payload.message || payload.spokenText ||
     synthesis.reply || synthesis.answer || ""
   );
-  const response = isInternalBlockerReply(rawResponse) ? "" : rawResponse;
+  if (isInternalMarionBlockerReply(response)) response = "";
   const followUp = cleanText(src.follow_up || src.followUp || metaSrc.follow_up || payload.follow_up || payload.followUp || "");
   const normalizedEmotion = normalizeMarionEmotionState(
     src.emotional_state || src.emotionalState || metaSrc.emotional_state || metaSrc.emotion || "",
@@ -2895,7 +2873,6 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
     meta: {
       confidence: Number.isFinite(Number(metaSrc.confidence ?? src.confidence)) ? clamp(Number(metaSrc.confidence ?? src.confidence), 0, 1) : 0.82,
       fallback: !!(metaSrc.fallback || src.fallback || src.ok === false || !response),
-      blockedInternalReply: !!(rawResponse && !response),
       source: cleanText(metaSrc.source || src.source || "marion") || "marion",
       traceId: cleanText(metaSrc.traceId || src.traceId || norm && norm.traceId || "")
     }
@@ -2909,6 +2886,7 @@ function validateMarionContract(contract) {
   if (!cleanText(c.intent || "")) errors.push("missing_intent");
   if (!cleanText(c.emotional_state || "")) errors.push("missing_emotional_state");
   if (!cleanText(c.response || "")) errors.push("missing_response");
+  if (isInternalMarionBlockerReply(c.response || "")) errors.push("internal_blocker_response");
   if (!isObj(c.continuity)) errors.push("missing_continuity");
   if (!isObj(c.meta)) errors.push("missing_meta");
   return { ok: errors.length === 0, errors };
@@ -3018,15 +2996,17 @@ function buildLoggingSpine(trace) {
 
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
-  return pickFirstUserSafeReply([
-    marion.reply,
-    marion.text,
-    marion.output,
-    marion.answer,
-    marion.spokenText,
-    isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.spokenText || "") : "",
-    (isObj(marion.packet) && isObj(marion.packet.synthesis)) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || "") : ""
-  ]);
+  const reply = cleanReplyForUser(
+    marion.reply ||
+    marion.text ||
+    marion.output ||
+    marion.answer ||
+    marion.spokenText ||
+    (isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.spokenText || "") : "") ||
+    (isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || "") : "") ||
+    ""
+  );
+  return isInternalMarionBlockerReply(reply) ? "" : reply;
 }
 
 function shouldLockMarionAuthority(marion) {
@@ -3044,7 +3024,8 @@ function enforceMarionAuthority(shaped, marion, opts) {
   const hasAuthority = shouldLockMarionAuthority(marion);
   out.meta = mergeMeta(out.meta, {
     marionAuthorityCandidate: hasAuthority,
-    marionAuthorityReplyPresent: !!marionReply
+    marionAuthorityReplyPresent: !!marionReply,
+    marionAuthorityBlockedInternal: isInternalMarionBlockerReply(marionReply)
   });
   if (!hasAuthority) return out;
 
@@ -4868,24 +4849,6 @@ app.post("/api/chat", enforceToken, async (req, res) => {
       supportActive = true;
       supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
     }
-  }
-
-  if (isInternalBlockerReply(reply)) {
-    reply = normalizeSupportReply(buildSafeSupportReply(norm.text, emotion, {
-      traceId: norm.traceId,
-      sessionId,
-      source: "marion_emission_gate"
-    }) || "I am here with you. Talk to me.");
-    shaped.reply = reply;
-    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
-    shaped.meta = mergeMeta(shaped.meta, {
-      marionGateBypassed: true,
-      marionGateReplySuppressed: true,
-      fallbackResolved: true,
-      replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || "fallback_support") || "fallback_support"
-    });
-    supportActive = true;
-    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
   }
 
   reply = cleanReplyForUser(reply);
