@@ -34,7 +34,7 @@ try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { eval
 try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
 try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
 
-const VERSION = "marionBridge v5.4.0 NEWS-CANADA-STRUCTURED-CONTENT-PRESERVE";
+const VERSION = "marionBridge v5.5.0 PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
 const NEWS_FALLBACK_REPLY = "Here is the News Canada handoff, preserved for page rendering.";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
@@ -495,7 +495,7 @@ async function retrieveLayer2Signals(input = {}) {
   const supportFlags = _normalizeSupportFlags({ ...emotion.supportFlags, ..._safeObj(routing.supportFlags), ..._safeObj(_safeObj(routing.classified).supportFlags) });
   const domain = _canonicalDomain(routing.primaryDomain || requestedDomain || "general");
   const datasets = _extractDatasets(normalized.datasets, normalized.knowledgeSections);
-  const psychology = _safeObj(_safeObj(routing.domains).psychology).matched ? _safeObj(_safeObj(routing.domains).psychology) : _safeObj(await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, supportFlags, riskLevel: supportFlags.crisis ? "critical" : (supportFlags.highDistress ? "high" : "low"), maxMatches: 3 }));
+  const psychology = _safeObj(_safeObj(routing.domains).psychology).matched ? _safeObj(_safeObj(routing.domains).psychology) : _safeObj(await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, emotion, lockedEmotion: emotion, supportFlags, riskLevel: supportFlags.crisis ? "critical" : (supportFlags.highDistress ? "high" : "low"), maxMatches: 3 }));
   const conversationState = _buildConversationState(text, previousMemory, normalized.conversationState, emotion, behavior, domain, intent);
   const directDomainEvidence = _safeArray(await _callRetriever(DomainRetriever, "retrieve", { text, query: text, userQuery: text, domain, conversationState, maxMatches: 5 }));
   const directDatasetEvidence = _safeArray(await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, intent, conversationState, datasets, emotion: { primaryEmotion: emotion.primaryEmotion, intensity: emotion.intensity }, psychology: { supportMode: _trim(_safeObj(_safeObj(psychology.primary).record).supportMode || _safeObj(psychology.route).supportMode || "") }, maxMatches: 6 }));
@@ -520,7 +520,11 @@ async function retrieveLayer2Signals(input = {}) {
         emotionAvailable: !!_pickFn(EmotionRetriever, "retrieveEmotion"),
         psychologyAvailable: !!_pickFn(PsychologyRetriever, "retrievePsychology"),
         domainAvailable: !!_pickFn(DomainRetriever, "retrieve"),
-        datasetAvailable: !!_pickFn(DatasetRetriever, "retrieveDataset")
+        datasetAvailable: !!_pickFn(DatasetRetriever, "retrieveDataset"),
+        routeMarionAvailable: typeof routeMarion === "function",
+        composeMarionResponseAvailable: typeof composeMarionResponse === "function",
+        buildResponseContractAvailable: typeof buildResponseContract === "function",
+        normalizeMarionPacketAvailable: typeof normalizeMarionPacket === "function"
       },
       continuity: { depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emotionTrend: _trim(conversationState.emotionTrend || "stable") || "stable" },
       layer2EvidenceCounts: {
@@ -530,7 +534,18 @@ async function retrieveLayer2Signals(input = {}) {
         domain: _safeArray(normalized.domainEvidence).length + directDomainEvidence.length,
         dataset: _safeArray(normalized.datasetEvidence).length + directDatasetEvidence.length
       },
-      routingDiagnostics: _safeObj(routing.diagnostics)
+      routingDiagnostics: _safeObj(routing.diagnostics),
+      integrationReadiness: {
+        hardBlockers: [
+          typeof composeMarionResponse === "function" ? null : "composeMarionResponse_missing"
+        ].filter(Boolean),
+        optionalDependenciesMissing: [
+          !!_pickFn(DomainRetriever, "retrieve") ? null : "domainRetriever_missing",
+          !!_pickFn(DatasetRetriever, "retrieveDataset") ? null : "datasetRetriever_missing",
+          typeof buildResponseContract === "function" ? null : "buildResponseContract_missing",
+          typeof normalizeMarionPacket === "function" ? null : "normalizeMarionPacket_missing"
+        ].filter(Boolean)
+      }
     }
   };
 }
@@ -741,6 +756,34 @@ async function processWithMarion(input = {}) {
     }
   };
 
+  const packetSeed = {
+    routing: { domain: layer2.domain, intent: layer2.intent, endpoint: layer2.endpoint },
+    emotion: { lockedEmotion: layer2.emotion },
+    synthesis: {
+      domain: layer2.domain,
+      intent: layer2.intent,
+      mode: contractLocked.supportMode,
+      answer: reply,
+      reply,
+      interpretation: contractLocked.interpretation,
+      supportMode: contractLocked.supportMode,
+      routeBias: contractLocked.routeBias,
+      riskLevel: contractLocked.riskLevel,
+      responsePlan: contractLocked.responsePlan,
+      nyxDirective: contractLocked.nyxDirective
+    },
+    evidence: _safeArray(layer2.evidence).slice(0, MAX_RANKED_EVIDENCE),
+    continuityState,
+    turnMemory,
+    identityState,
+    relationshipState,
+    trustState,
+    privateChannel,
+    memorySignals,
+    consciousness,
+    meta: { version: VERSION, endpoint: layer2.endpoint, seed: true }
+  };
+
   const result = {
     ok: true,
     partial: layer2.diagnostics.inputIssues.length > 0,
@@ -788,7 +831,7 @@ async function processWithMarion(input = {}) {
 
   if (typeof buildResponseContract === "function") {
     try {
-      const presentation = buildResponseContract(result, packet);
+      const presentation = buildResponseContract(result, packetSeed);
       ui = presentation.ui;
       emotionalTurn = presentation.emotionalTurn;
       const presentationFollowUps = _safeArray(presentation.followUps).map((item) => _trim(item)).filter(Boolean);
