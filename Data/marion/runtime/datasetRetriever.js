@@ -22,6 +22,7 @@ function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _trim(v) { return v == null ? "" : String(v).trim(); }
 function _lower(v) { return _trim(v).toLowerCase(); }
+function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 
 function _exists(p) { try { fs.accessSync(p); return true; } catch { return false; } }
 function _mtime(p) { try { return fs.statSync(p).mtimeMs || 0; } catch { return 0; } }
@@ -56,6 +57,11 @@ function _flattenStrings(value, out = []) {
   return out;
 }
 function _uniqStrings(arr) { return [...new Set(_safeArray(arr).map((x) => _trim(x)).filter(Boolean))]; }
+function _canonicalDomain(v) {
+  const raw = _lower(v || "general");
+  const map = { core: "general", psych: "psychology", psychology: "psychology", fin: "finance", finance: "finance", legal: "law", law: "law", en: "english", english: "english", cyber: "cybersecurity", cybersecurity: "cybersecurity", mkt: "marketing", marketing: "marketing", strat: "strategy", strategy: "strategy", news: "news_canada", newscanada: "news_canada", news_canada: "news_canada" };
+  return map[raw] || raw || "general";
+}
 
 function _conversationSignalTerms(context = {}) {
   const state = _safeObj(context.conversationState);
@@ -199,7 +205,7 @@ function _scoreDatasetItem(query, item, context = {}) {
   const reasons = [];
   let score = 0;
 
-  const domain = _lower(context.domain || "general");
+  const domain = _canonicalDomain(context.domain || "general");
   const primaryEmotion = _lower(_safeObj(context.emotion).primaryEmotion || _safeObj(_safeObj(context.emotion).primary).emotion || "");
   const supportMode = _lower(_safeObj(context.psychology).supportMode || "");
   const queryTokens = _tokenize(query);
@@ -265,7 +271,7 @@ function _normalizeEvidence(item, datasetName, file, score, reasons, rank, input
     source: "datasetRetriever",
     dataset: datasetName,
     file,
-    domain: _lower(src.domain || src.category || input.domain || "general"),
+    domain: _canonicalDomain(src.domain || src.category || input.domain || "general"),
     title: src.title || src.label || src.topic || src.name || datasetName,
     summary: _trim(src.summary || src.description || content.slice(0, 220)),
     content,
@@ -285,7 +291,7 @@ function _normalizeEvidence(item, datasetName, file, score, reasons, rank, input
 }
 
 async function retrieveDataset(input = {}) {
-  const query = _trim(input.query || input.text || input.userQuery);
+  const query = _trim(input.query || input.text || input.userQuery || input.message);
   const maxMatches = Math.max(1, Number(input.maxMatches) || 8);
   const allowedDatasets = _safeArray(input.datasets).map(_lower).filter(Boolean);
   if (!query) return [];
