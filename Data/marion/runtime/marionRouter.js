@@ -23,11 +23,17 @@ function _canonicalizeDomain(value) {
     core: "general",
     fin: "finance",
     en: "english",
-    cyber: "cyber",
+    cyber: "cybersecurity",
     psychology: "psychology",
     psych: "psychology",
     strat: "strategy",
-    mkt: "marketing"
+    mkt: "marketing",
+    strategy: "strategy",
+    cybersecurity: "cybersecurity",
+    legal: "law",
+    law: "law",
+    english: "english",
+    finance: "finance"
   };
   return alias[canonical] || canonical || "general";
 }
@@ -74,6 +80,16 @@ function _buildBlendProfile(primaryEmotion = {}, emotion = {}) {
   };
 }
 
+function _shouldForcePsychology(classified = {}, finalSupportFlags = {}, primaryEmotion = {}) {
+  const flags = _safeObj(finalSupportFlags);
+  const classes = _safeObj(_safeObj(classified).classifications);
+  const emo = _lower(primaryEmotion.emotion || "");
+  if (classes.crisis || classes.support || classes.emotional) return true;
+  if (flags.crisis || flags.highDistress || flags.needsContainment || flags.needsStabilization) return true;
+  if (["sadness", "sad", "depressed", "loneliness", "grief", "fear", "panic", "anxiety", "overwhelm", "overwhelmed", "anger", "frustration"].includes(emo)) return true;
+  return false;
+}
+
 function _buildStateDrift(primaryEmotion = {}, previousMemory = {}) {
   const prev = _safeObj(previousMemory.emotion || previousMemory.lastEmotion);
   const previousEmotion = _lower(prev.primaryEmotion || prev.emotion || "");
@@ -95,13 +111,13 @@ function _buildStateDrift(primaryEmotion = {}, previousMemory = {}) {
 }
 
 function routeMarion(input = {}) {
-  const text = input.text || input.userText || input.query || "";
+  const text = input.text || input.userText || input.userQuery || input.query || input.message || "";
   const previousMemory = _safeObj(input.previousMemory);
 
   const emotion = retrieveEmotion({
     text,
     userText: input.userText || text,
-    query: input.query || text,
+    query: input.query || input.userQuery || text,
     maxMatches: 5
   }) || { matched: false, supportFlags: {}, matches: [] };
 
@@ -116,11 +132,14 @@ function routeMarion(input = {}) {
 
   const finalSupportFlags = _mergeSupportFlags(mergedFlags, classified.supportFlags);
   let psychology = null;
-  if (_safeArray(classified.domainCandidates).includes("psychology")) {
+  if (_safeArray(classified.domainCandidates).includes("psychology") || _shouldForcePsychology(classified, finalSupportFlags, primaryEmotion)) {
     psychology = retrievePsychology({
       text,
+      query: input.query || input.userQuery || text,
+      userQuery: input.userQuery || text,
       supportFlags: finalSupportFlags,
-      riskLevel: input.riskLevel || (_safeObj(classified.classifications).crisis ? "critical" : "low"),
+      emotion: primaryEmotion,
+      riskLevel: input.riskLevel || (_safeObj(classified.classifications).crisis ? "critical" : (finalSupportFlags.highDistress ? "high" : "low")),
       maxMatches: 3
     });
   }
@@ -149,6 +168,7 @@ function routeMarion(input = {}) {
     primaryEmotion,
     blendProfile,
     stateDrift,
+    conversationState: _safeObj(input.conversationState),
     previousTurn: {
       emotion: {
         primaryEmotion: _lower(_safeObj(previousMemory.emotion).primaryEmotion || _safeObj(previousMemory.emotion).emotion || ""),
