@@ -7,6 +7,7 @@
 
 const VERSION = "composeMarionResponse v1.4.1 LOCKED-ESCALATION-DOMINANCE";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
+const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
@@ -23,9 +24,19 @@ function _normalizeSupportFlags() {
   for (const src of arguments) {
     const obj = _safeObj(src);
     for (const [key, value] of Object.entries(obj)) {
-      merged[_trim(key)] = !!value;
+      const keyName = _trim(key);
+      if (!keyName) continue;
+      merged[keyName] = !!value;
     }
   }
+
+  if (merged.guarded && !("guardedness" in merged)) merged.guardedness = true;
+  if (merged.suppressionPresent && !("suppressed" in merged)) merged.suppressed = true;
+  if (merged.forcedPositivity && !("suppressed" in merged)) merged.suppressed = true;
+  if (merged.minimization && !("suppressed" in merged)) merged.suppressed = true;
+  if (merged.needsContainment && !("needsGrounding" in merged)) merged.needsGrounding = true;
+  if (merged.needsConnection && !("vulnerable" in merged)) merged.vulnerable = true;
+
   return merged;
 }
 
@@ -792,7 +803,17 @@ function composeMarionResponse(routed = {}, input = {}) {
   );
   const reply = _trim(resolvedReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
   const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
-  const followUps = _uniq(_buildEscalatedFollowUps(modePlan, normalizedPrimaryEmotion, supportFlags, { ...conversationState, selectedFunction }, escalationProfile)).filter((item) => _lower(item) !== _lower(reply) && !_isGenericLoopReply(item));
+  const followUps = _uniq(
+    _buildEscalatedFollowUps(
+      modePlan,
+      normalizedPrimaryEmotion,
+      supportFlags,
+      { ...conversationState, selectedFunction },
+      escalationProfile,
+      arcState,
+      engagementState
+    )
+  ).filter((item) => _trim(item) && _lower(item) !== _lower(reply) && !_isGenericLoopReply(item));
   const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, arcStage: arcState.stage, engagementLevel: engagementState.engagementLevel };
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
 
@@ -841,7 +862,10 @@ function composeMarionResponse(routed = {}, input = {}) {
       askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
       shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
       shouldMirrorIntensity: false,
-      expressiveRole: "express_resolved_state_only"
+      expressiveRole: "express_resolved_state_only",
+      allowNyxRewrite: false,
+      allowReplySynthesis: false,
+      singleSourceOfTruth: true
     },
     source: {
       domain: primaryDomain,
@@ -875,7 +899,6 @@ function composeMarionResponse(routed = {}, input = {}) {
       engagementCadence: engagementState.preferredCadence
     },
     pipelineTrace,
-    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle },
     synthesis: {
       reply,
       followUps,
@@ -889,7 +912,10 @@ function composeMarionResponse(routed = {}, input = {}) {
         askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
         shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
         shouldMirrorIntensity: false,
-        expressiveRole: "express_resolved_state_only"
+        expressiveRole: "express_resolved_state_only",
+      allowNyxRewrite: false,
+      allowReplySynthesis: false,
+      singleSourceOfTruth: true
       },
       emotion: emotionPayload,
       strategy,
