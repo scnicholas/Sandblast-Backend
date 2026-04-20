@@ -18,6 +18,20 @@ function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _uniq(arr) { return [...new Set(_safeArray(arr).map(_trim).filter(Boolean))]; }
 
+function _harmonizeReplyBundle(reply = "", followUps = []) {
+  const normalizedReply = _trim(reply) || FALLBACK_REPLY;
+  const followUpsStrings = _uniq(_safeArray(followUps).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(normalizedReply)));
+  return {
+    reply: normalizedReply,
+    text: normalizedReply,
+    answer: normalizedReply,
+    output: normalizedReply,
+    displayReply: normalizedReply,
+    spokenText: normalizedReply.replace(/\n+/g, " ").trim(),
+    followUpsStrings
+  };
+}
+
 
 function _normalizeSupportFlags() {
   const merged = {};
@@ -160,7 +174,7 @@ function _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags = {}, 
   const state = _safeObj(conversationState);
   const emo = _lower(primaryEmotion || "neutral");
   if (_num(state.depthLevel, 1) >= 3 || state.threadContinuation) {
-    if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+    if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
       return ["Has this been building over time, or did something trigger it today?"];
     }
     if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
@@ -328,7 +342,7 @@ function _humanizeMetaReply(reply = "", primaryEmotion = "", conversationState =
 
 function _normalizeEmotionAlias(value = "") {
   const emo = _lower(value);
-  if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken"].includes(emo)) return "sadness";
+  if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken", "hurt", "hurting"].includes(emo)) return "sadness";
   if (["anxious", "panic", "overwhelmed", "overwhelm", "fear", "afraid"].includes(emo)) return "fear";
   if (["angry", "frustrated", "frustration", "mad"].includes(emo)) return "anger";
   return emo || "neutral";
@@ -715,7 +729,7 @@ function _makeSupportReply(primaryEmotion, supportMode, intensity) {
   if (supportMode === "crisis_escalation") {
     return "I am here with you. Your safety comes first right now. If you are in immediate danger or might act on this, call emergency services or a crisis line right now.";
   }
-  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+  if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
     return intensity >= 0.8
       ? "I hear how heavy this feels. You do not have to hold all of it at once. What feels heaviest right now?"
       : "I hear the weight in that. You do not have to carry it alone in this moment. What has been sitting on you the most?";
@@ -733,7 +747,7 @@ function _buildFollowUps(modePlan, primaryEmotion, supportFlags = {}) {
   if (supportFlags.crisis) return [];
   if (!modePlan.shouldAskFollowup) return [];
   const emo = _lower(primaryEmotion || "neutral");
-  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo)) {
+  if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
     return ["What has been sitting on you the most?"];
   }
   if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
@@ -801,7 +815,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     engagementState,
     relationalStyle
   );
-  const reply = _trim(resolvedReply.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
+  const replyBundle = _harmonizeReplyBundle(resolvedReply.reply || FALLBACK_REPLY);
   const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
   const followUps = _uniq(
     _buildEscalatedFollowUps(
@@ -813,9 +827,10 @@ function composeMarionResponse(routed = {}, input = {}) {
       arcState,
       engagementState
     )
-  ).filter((item) => _trim(item) && _lower(item) !== _lower(reply) && !_isGenericLoopReply(item));
+  ).filter((item) => _trim(item) && _lower(item) !== _lower(replyBundle.reply) && !_isGenericLoopReply(item));
   const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, arcStage: arcState.stage, engagementLevel: engagementState.engagementLevel };
-  const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, reply, followUps);
+  const finalReplyBundle = _harmonizeReplyBundle(replyBundle.reply, followUps);
+  const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, finalReplyBundle.reply, finalReplyBundle.followUpsStrings);
 
   try {
     console.log("[MARION] composeMarionResponse resolve", {
@@ -823,7 +838,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       emotion: normalizedPrimaryEmotion,
       supportMode,
       riskLevel,
-      replyPreview: _trim(reply).slice(0, 120),
+      replyPreview: _trim(finalReplyBundle.reply).slice(0, 120),
       forcedEmotionalExecution: true
     });
   } catch (_e) {}
@@ -833,11 +848,14 @@ function composeMarionResponse(routed = {}, input = {}) {
     matched: !!(psychology.matched || emotion.matched || _safeArray(sourcePrimary.matches).length),
     domain: primaryDomain,
     interpretation,
-    reply,
-    output: reply,
-    displayReply: reply,
-    spokenText: reply,
-    followUps,
+    reply: finalReplyBundle.reply,
+    text: finalReplyBundle.text,
+    answer: finalReplyBundle.answer,
+    output: finalReplyBundle.output,
+    displayReply: finalReplyBundle.displayReply,
+    spokenText: finalReplyBundle.spokenText,
+    followUps: finalReplyBundle.followUpsStrings,
+    followUpsStrings: finalReplyBundle.followUpsStrings,
     supportMode,
     routeBias: _trim(record.routeBias || _safeObj(psychology.route).routeBias || routed.routeBias || "clarify") || "clarify",
     riskLevel,
@@ -900,8 +918,13 @@ function composeMarionResponse(routed = {}, input = {}) {
     },
     pipelineTrace,
     synthesis: {
-      reply,
-      followUps,
+      reply: finalReplyBundle.reply,
+      text: finalReplyBundle.text,
+      answer: finalReplyBundle.answer,
+      output: finalReplyBundle.output,
+      spokenText: finalReplyBundle.spokenText,
+      followUps: finalReplyBundle.followUpsStrings,
+      followUpsStrings: finalReplyBundle.followUpsStrings,
       supportMode,
       responsePlan,
       nyxDirective: {
