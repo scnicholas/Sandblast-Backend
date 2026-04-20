@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "emotionRetriever v3.0.0 HARDENED-INTERPRETER-READY";
+const VERSION = "emotionRetriever v3.1.0 HARDENED-INTEGRATION-READY";
 const FILE_NAME = "emotionRetriever.js";
 const DATA_FILE_NAMES = Object.freeze([
   "base_labels.json",
@@ -335,6 +335,8 @@ function _valenceNumeric(valenceLabel) {
 function _supportFlags(emotionName, valence, intensity, suppression = {}) {
   const emotion = _lower(emotionName);
   const level = Number(intensity) || 0;
+  const guarded = !!suppression.guarded;
+  const suppressionPresent = !!suppression.present;
   return {
     needsStabilization: ["panic", "fear", "despair", "overwhelm", "shame", "rage", "grief", "anxiety"].includes(emotion) || level >= 7,
     needsContainment: ["panic", "rage"].includes(emotion) || level >= 8,
@@ -344,10 +346,12 @@ function _supportFlags(emotionName, valence, intensity, suppression = {}) {
     crisis: false,
     recoveryPresent: ["relief", "hope", "calm"].includes(emotion),
     positivePresent: valence === "positive",
-    guarded: !!suppression.guarded,
+    guarded,
+    guardedness: guarded,
     minimization: !!suppression.minimization,
     forcedPositivity: !!suppression.forcedPositivity,
-    suppressionPresent: !!suppression.present
+    suppressionPresent,
+    suppressed: suppressionPresent
   };
 }
 
@@ -565,7 +569,7 @@ function _applyGuidedPromptBias(result = {}, input = {}) {
 }
 
 function retrieveEmotion(input = {}) {
-  const text = _trim(input.text || input.userText || input.query);
+  const text = _trim(input.text || input.userText || input.userQuery || input.query);
   const normalizedText = _normalizeText(text);
   const dataset = _ensureLoaded();
 
@@ -649,6 +653,8 @@ function retrieveEmotion(input = {}) {
     blendProfile,
     stateDrift,
     meta: {
+      source: FILE_NAME,
+      version: VERSION,
       sourceCounts: {
         labels: _safeArray(dataset.labels).length,
         patterns: _safeArray(dataset.patterns).length,
