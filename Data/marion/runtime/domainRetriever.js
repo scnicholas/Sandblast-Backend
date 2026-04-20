@@ -45,6 +45,12 @@ const DOMAIN_CONFIGS = {
       path.join(MARION_ROOT, "marketing", "compiled", "marketing_compiled.json")
     ]
   },
+  strategy: {
+    root: path.join(MARION_ROOT, "strategy"),
+    compiled: [
+      path.join(MARION_ROOT, "strategy", "compiled", "strategy_compiled.json")
+    ]
+  },
   general: {
     root: path.join(MARION_ROOT, "general"),
     compiled: [
@@ -80,6 +86,11 @@ function _clamp(value, min = 0, max = 1) {
 
 function _uniqStrings(values) {
   return [...new Set(_safeArray(values).map(_trim).filter(Boolean))];
+}
+function _canonicalDomain(value) {
+  const raw = _lower(value || "general");
+  const map = { core: "general", psych: "psychology", psychology: "psychology", fin: "finance", finance: "finance", legal: "law", law: "law", en: "english", english: "english", cyber: "cybersecurity", cybersecurity: "cybersecurity", mkt: "marketing", marketing: "marketing", strat: "strategy", strategy: "strategy", news: "news_canada", newscanada: "news_canada", news_canada: "news_canada" };
+  return map[raw] || raw || "general";
 }
 
 function _exists(filePath) {
@@ -424,7 +435,7 @@ function _normalizeEvidence(record, domain, scoreBundle, idx) {
     id: normalizedRecord.id || `domain-${domain}-${idx + 1}`,
     source: "domain",
     dataset: normalizedRecord.dataset || `${domain}_compiled`,
-    domain: _trim(normalizedRecord.domain) || domain || "general",
+    domain: _canonicalDomain(_trim(normalizedRecord.domain) || domain || "general"),
     title:
       _trim(normalizedRecord.title) ||
       _trim(normalizedRecord.topic) ||
@@ -469,7 +480,7 @@ function _normalizeEvidence(record, domain, scoreBundle, idx) {
 
 async function retrieveDomain(input = {}) {
   const query = _trim(input.query || input.text || input.userQuery);
-  const domain = _lower(input.domain || input.requestedDomain || "general") || "general";
+  const domain = _canonicalDomain(input.domain || input.requestedDomain || "general") || "general";
   const maxMatches = Math.max(1, Number(input.maxMatches) || 5);
 
   if (!query) return [];
@@ -509,8 +520,5 @@ async function retrieveDomain(input = {}) {
 module.exports = {
   retrieveDomain,
   retrieve: retrieveDomain
-<<<<<<< HEAD
 };
-=======
 };
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
