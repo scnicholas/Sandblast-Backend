@@ -1,5 +1,9 @@
 "use strict";
 
+const VERSION = "marionRouter v1.1.0 AUTOPSY-HARDENED-SOFTFAIL";
+const DEBUG_TAG = "[MARION] marionRouter patch active";
+try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
+
 const { classifyQuery } = require("./queryClassifier");
 const { retrieveEmotion } = require("./emotionRetriever");
 const { retrievePsychology } = require("./psychologyRetriever");
@@ -13,6 +17,106 @@ function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _mergeSupportFlags(a, b, c) { return { ..._safeObj(a), ..._safeObj(b), ..._safeObj(c) }; }
+
+const INTERNAL_BLOCKER_PATTERNS = [
+  /marion input required before reply emission/i,
+  /reply emission/i,
+  /bridge rejected/i,
+  /authoritative_reply_missing/i,
+  /packet_synthesis_reply_missing/i,
+  /contract_missing/i,
+  /packet_missing/i,
+  /bridge_rejected/i,
+  /marion_contract_invalid/i,
+  /compose_marion_response_unavailable/i,
+  /packet_invalid/i
+];
+
+function _isInternalBlockerText(value) {
+  const text = _trim(value);
+  if (!text) return false;
+  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text));
+}
+
+function _safeEmotionResult(raw = {}) {
+  const src = _safeObj(raw);
+  return {
+    matched: !!src.matched,
+    supportFlags: _safeObj(src.supportFlags),
+    matches: _safeArray(src.matches),
+    primary: _safeObj(src.primary),
+    primaryEmotion: _trim(src.primaryEmotion),
+    intensity: _num(src.intensity, 0),
+    confidence: _num(src.confidence, 0),
+    blendProfile: _safeObj(src.blendProfile || src.blend_profile),
+    stateDrift: _safeObj(src.stateDrift || src.state_drift)
+  };
+}
+
+function _safePsychologyResult(raw = {}) {
+  const src = _safeObj(raw);
+  const primary = _safeObj(src.primary);
+  const record = _safeObj(primary.record);
+  const blocked = [
+    src.reply, src.text, src.answer, src.output,
+    record.reply, record.text, record.answer, record.output, record.interpretation
+  ].some(_isInternalBlockerText);
+  return {
+    ...src,
+    matched: blocked ? false : !!src.matched,
+    matches: blocked ? [] : _safeArray(src.matches),
+    route: _safeObj(src.route),
+    primary: blocked ? { ...primary, record: { ...record, reply: '', text: '', answer: '', output: '', interpretation: '' } } : primary,
+    blockedInternalEmission: blocked
+  };
+}
+
+function _safeClassifiedResult(raw = {}) {
+  const src = _safeObj(raw);
+  return {
+    ...src,
+    classifications: _safeObj(src.classifications),
+    domainCandidates: _safeArray(src.domainCandidates).map(_canonicalizeDomain).filter(Boolean),
+    supportFlags: _safeObj(src.supportFlags)
+  };
+}
+
+function _buildSoftRouteFallback(text = '', previousMemory = {}, reason = 'router_soft_fallback') {
+  const prevEmotion = _safeObj(previousMemory.emotion || previousMemory.lastEmotion);
+  const currentEmotion = _resolvePrimaryEmotion({});
+  const blendProfile = _buildBlendProfile(currentEmotion, {});
+  const stateDrift = _buildStateDrift(currentEmotion, previousMemory);
+  return {
+    ok: true,
+    partial: true,
+    primaryDomain: 'general',
+    secondaryDomains: [],
+    classified: { classifications: {}, domainCandidates: ['general'], supportFlags: {} },
+    supportFlags: {},
+    primaryEmotion: currentEmotion,
+    blendProfile,
+    stateDrift,
+    conversationState: {},
+    previousTurn: {
+      emotion: {
+        primaryEmotion: _lower(prevEmotion.primaryEmotion || prevEmotion.emotion || ''),
+        intensity: _clamp(_safeObj(previousMemory.emotion).intensity, 0, 1)
+      }
+    },
+    domains: {
+      emotion: { matched: false, supportFlags: {}, matches: [], primary: currentEmotion, blendProfile, stateDrift },
+      psychology: { matched: false, matches: [], blockedInternalEmission: false }
+    },
+    diagnostics: {
+      domainCandidates: ['general'],
+      usedPsychology: false,
+      supportFlagCount: 0,
+      routed: null,
+      softFallback: true,
+      reason: _trim(reason || 'router_soft_fallback') || 'router_soft_fallback'
+    }
+  };
+}
 
 function _canonicalizeDomain(value) {
   const fn = domainRouter && typeof domainRouter.canonicalizeDomain === "function"
@@ -114,84 +218,108 @@ function routeMarion(input = {}) {
   const text = input.text || input.userText || input.userQuery || input.query || input.message || "";
   const previousMemory = _safeObj(input.previousMemory);
 
-  const emotion = retrieveEmotion({
-    text,
-    userText: input.userText || text,
-    query: input.query || input.userQuery || text,
-    maxMatches: 5
-  }) || { matched: false, supportFlags: {}, matches: [] };
+  try {
+    const emotionRaw = typeof retrieveEmotion === "function"
+      ? retrieveEmotion({
+          text,
+          userText: input.userText || text,
+          query: input.query || input.userQuery || text,
+          maxMatches: 5
+        })
+      : {};
 
-  const primaryEmotion = _resolvePrimaryEmotion(emotion);
-  const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(emotion.supportFlags));
-  const classified = classifyQuery({
-    text,
-    affect: input.affect,
-    supportFlags: mergedFlags,
-    emotion
-  });
+    const emotion = _safeEmotionResult(emotionRaw);
+    const primaryEmotion = _resolvePrimaryEmotion(emotion);
+    const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(emotion.supportFlags));
 
-  const finalSupportFlags = _mergeSupportFlags(mergedFlags, classified.supportFlags);
-  let psychology = null;
-  if (_safeArray(classified.domainCandidates).includes("psychology") || _shouldForcePsychology(classified, finalSupportFlags, primaryEmotion)) {
-    psychology = retrievePsychology({
-      text,
-      query: input.query || input.userQuery || text,
-      userQuery: input.userQuery || text,
-      supportFlags: finalSupportFlags,
-      emotion: primaryEmotion,
-      riskLevel: input.riskLevel || (_safeObj(classified.classifications).crisis ? "critical" : (finalSupportFlags.highDistress ? "high" : "low")),
-      maxMatches: 3
-    });
-  }
+    const classifiedRaw = typeof classifyQuery === "function"
+      ? classifyQuery({
+          text,
+          affect: input.affect,
+          supportFlags: mergedFlags,
+          emotion
+        })
+      : {};
 
-  let routed = null;
-  if (domainRouter && typeof domainRouter.routeDomain === "function") {
-    routed = domainRouter.routeDomain(
-      { text, lane: input.requestedDomain || input.domain || "", action: input.action || "" },
-      _safeObj(input.session),
-      { intent: _trim(input.intent || _safeArray(classified.domainCandidates)[0] || "general"), riskTier: _safeObj(classified.classifications).crisis ? "high" : "low" },
-      { maxSecondary: 3 }
-    );
-  }
+    const classified = _safeClassifiedResult(classifiedRaw);
+    const finalSupportFlags = _mergeSupportFlags(mergedFlags, classified.supportFlags);
 
-  const primaryDomain = _choosePrimaryDomain(classified, psychology, routed);
-  const secondaryDomains = _safeArray(routed && routed.secondary).map(_canonicalizeDomain).filter((d) => d !== primaryDomain);
-  const blendProfile = _buildBlendProfile(primaryEmotion, emotion);
-  const stateDrift = _buildStateDrift(primaryEmotion, previousMemory);
-
-  return {
-    ok: true,
-    primaryDomain,
-    secondaryDomains,
-    classified,
-    supportFlags: finalSupportFlags,
-    primaryEmotion,
-    blendProfile,
-    stateDrift,
-    conversationState: _safeObj(input.conversationState),
-    previousTurn: {
-      emotion: {
-        primaryEmotion: _lower(_safeObj(previousMemory.emotion).primaryEmotion || _safeObj(previousMemory.emotion).emotion || ""),
-        intensity: _clamp(_safeObj(previousMemory.emotion).intensity, 0, 1)
-      }
-    },
-    domains: {
-      emotion: {
-        ..._safeObj(emotion),
-        primary: primaryEmotion,
-        blendProfile,
-        stateDrift,
-        supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), finalSupportFlags)
-      },
-      psychology: psychology || { matched: false, matches: [] }
-    },
-    diagnostics: {
-      domainCandidates: _safeArray(classified.domainCandidates),
-      usedPsychology: !!(psychology && psychology.matched),
-      supportFlagCount: Object.keys(finalSupportFlags).length,
-      routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains } : null
+    let psychology = null;
+    if (_safeArray(classified.domainCandidates).includes("psychology") || _shouldForcePsychology(classified, finalSupportFlags, primaryEmotion)) {
+      const psychologyRaw = typeof retrievePsychology === "function"
+        ? retrievePsychology({
+            text,
+            query: input.query || input.userQuery || text,
+            userQuery: input.userQuery || text,
+            supportFlags: finalSupportFlags,
+            emotion: primaryEmotion,
+            riskLevel: input.riskLevel || (_safeObj(classified.classifications).crisis ? "critical" : (finalSupportFlags.highDistress ? "high" : "low")),
+            maxMatches: 3
+          })
+        : null;
+      psychology = _safePsychologyResult(psychologyRaw || {});
     }
-  };
+
+    let routed = null;
+    if (domainRouter && typeof domainRouter.routeDomain === "function") {
+      try {
+        routed = domainRouter.routeDomain(
+          { text, lane: input.requestedDomain || input.domain || "", action: input.action || "" },
+          _safeObj(input.session),
+          { intent: _trim(input.intent || _safeArray(classified.domainCandidates)[0] || "general"), riskTier: _safeObj(classified.classifications).crisis ? "high" : "low" },
+          { maxSecondary: 3 }
+        );
+      } catch (_e) {
+        routed = null;
+      }
+    }
+
+    const primaryDomain = _choosePrimaryDomain(classified, psychology, routed);
+    const secondaryDomains = _safeArray(routed && routed.secondary).map(_canonicalizeDomain).filter((d) => d && d !== primaryDomain);
+    const blendProfile = _buildBlendProfile(primaryEmotion, emotion);
+    const stateDrift = _buildStateDrift(primaryEmotion, previousMemory);
+
+    return {
+      ok: true,
+      primaryDomain,
+      secondaryDomains,
+      classified,
+      supportFlags: finalSupportFlags,
+      primaryEmotion,
+      blendProfile,
+      stateDrift,
+      conversationState: _safeObj(input.conversationState),
+      previousTurn: {
+        emotion: {
+          primaryEmotion: _lower(_safeObj(previousMemory.emotion).primaryEmotion || _safeObj(previousMemory.emotion).emotion || ""),
+          intensity: _clamp(_safeObj(previousMemory.emotion).intensity, 0, 1)
+        }
+      },
+      domains: {
+        emotion: {
+          ..._safeObj(emotion),
+          primary: primaryEmotion,
+          blendProfile,
+          stateDrift,
+          supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), finalSupportFlags)
+        },
+        psychology: psychology || { matched: false, matches: [], blockedInternalEmission: false }
+      },
+      diagnostics: {
+        domainCandidates: _safeArray(classified.domainCandidates),
+        usedPsychology: !!(psychology && psychology.matched),
+        supportFlagCount: Object.keys(finalSupportFlags).length,
+        routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains } : null,
+        blockedInternalEmission: !!(psychology && psychology.blockedInternalEmission),
+        softFallback: false
+      }
+    };
+  } catch (err) {
+    const fallback = _buildSoftRouteFallback(text, previousMemory, err && (err.message || err) || 'router_exception');
+    fallback.diagnostics.error = _trim(err && (err.message || err) || 'router_exception');
+    return fallback;
+  }
+}
 }
 
-module.exports = { routeMarion };
+module.exports = { VERSION, routeMarion };
