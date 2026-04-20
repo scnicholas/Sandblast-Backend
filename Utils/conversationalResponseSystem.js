@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.3.0 HANDOFF-NORMALIZED PIPELINE-TRACE";
+const VERSION = "conversationalResponseSystem v2.3.1 EMISSION-SOURCE-HARDENED";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -12,6 +12,31 @@ function clamp(v, min, max, fallback = min) { const n = toFiniteNumber(v, fallba
 function clamp01(v, fallback = 0) { return clamp(v, 0, 1, fallback); }
 function firstNonEmpty() { for (const value of arguments) { const s = safeStr(value).trim(); if (s) return s; } return ""; }
 function uniq(items) { const out = []; const seen = new Set(); for (const item of arr(items)) { const key = typeof item === "string" ? item.trim().toLowerCase() : JSON.stringify(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
+
+
+const INTERNAL_BLOCKER_PATTERNS = [
+  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
+  /bridge\s+rejected\s+malformed\s+marion\s+output/i,
+  /reply\s+emission/i,
+  /authoritative\s+reply\s+missing/i,
+  /packet(?:_|\s)?synthesis(?:_|\s)?reply(?:_|\s)?missing/i,
+  /bridge_rejected/i,
+  /contract_invalid/i,
+  /packet_invalid/i,
+  /input_invalid/i,
+  /compose_marion_response_unavailable/i
+];
+
+function isInternalBlockerReply(reply) {
+  const value = safeStr(reply).trim();
+  if (!value) return false;
+  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(value));
+}
+
+function isUsableReplyCandidate(reply) {
+  const value = safeStr(reply).trim();
+  return !!value && !isInternalBlockerReply(value) && !/^done\.?$/i.test(value);
+}
 
 
 function normalizePipelineTrace(raw) {
@@ -195,7 +220,7 @@ function buildEmotionalTurn(context, state) {
 }
 
 function resolveReply(result, packet, context) {
-  const emotionalCandidate = firstNonEmpty(
+  const candidates = [
     result.reply,
     result.output,
     packet?.synthesis?.reply,
@@ -203,9 +228,12 @@ function resolveReply(result, packet, context) {
     packet?.reply,
     packet?.answer,
     result.interpretation
-  );
-  const cleaned = sanitizeUserFacingReply(emotionalCandidate);
-  if (cleaned && !/^done\.?$/i.test(cleaned)) return cleaned;
+  ];
+  for (const candidate of candidates) {
+    if (!isUsableReplyCandidate(candidate)) continue;
+    const cleaned = sanitizeUserFacingReply(candidate);
+    if (isUsableReplyCandidate(cleaned)) return cleaned;
+  }
   return buildFallbackReply(context);
 }
 
@@ -228,7 +256,8 @@ function buildResponseContract(result = {}, packet = {}) {
       state,
       supportMode: context.supportMode,
       replyPreview: safeStr(reply).slice(0, 120),
-      preservedEmotionalRoute: true
+      preservedEmotionalRoute: true,
+      upstreamEmissionHardened: true
     });
   } catch (_e) {}
   return {
@@ -251,7 +280,8 @@ function buildResponseContract(result = {}, packet = {}) {
       supportMode: safeStr(context.supportMode || ""),
       strategyArchetype: safeStr(context.strategy?.archetype || ""),
       pipelineStage: safeStr(context.pipelineTrace?.stage || ""),
-      preservedEmotionalRoute: true
+      preservedEmotionalRoute: true,
+      upstreamEmissionHardened: true
     }
   };
 }
