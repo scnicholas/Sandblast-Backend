@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.3.1 EMISSION-SOURCE-HARDENED";
+const VERSION = "conversationalResponseSystem v2.3.1 ROLLBACK-SAFE-EMISSION-GUARD";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -13,30 +13,27 @@ function clamp01(v, fallback = 0) { return clamp(v, 0, 1, fallback); }
 function firstNonEmpty() { for (const value of arguments) { const s = safeStr(value).trim(); if (s) return s; } return ""; }
 function uniq(items) { const out = []; const seen = new Set(); for (const item of arr(items)) { const key = typeof item === "string" ? item.trim().toLowerCase() : JSON.stringify(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
 
-
 const INTERNAL_BLOCKER_PATTERNS = [
-  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
-  /bridge\s+rejected\s+malformed\s+marion\s+output/i,
-  /reply\s+emission/i,
-  /authoritative\s+reply\s+missing/i,
-  /packet(?:_|\s)?synthesis(?:_|\s)?reply(?:_|\s)?missing/i,
+  /marion input required before reply emission/i,
+  /reply emission/i,
+  /bridge rejected malformed marion output before nyx handoff/i,
+  /bridge rejected/i,
+  /authoritative_reply_missing/i,
+  /packet_synthesis_reply_missing/i,
+  /contract_missing/i,
+  /packet_missing/i,
   /bridge_rejected/i,
-  /contract_invalid/i,
-  /packet_invalid/i,
-  /input_invalid/i,
-  /compose_marion_response_unavailable/i
+  /marion_contract_invalid/i,
+  /compose_marion_response_unavailable/i,
+  /packet_invalid/i
 ];
 
-function isInternalBlockerReply(reply) {
-  const value = safeStr(reply).trim();
-  if (!value) return false;
-  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(value));
+function isInternalBlockerText(value) {
+  const text = safeStr(value).trim();
+  if (!text) return false;
+  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text));
 }
 
-function isUsableReplyCandidate(reply) {
-  const value = safeStr(reply).trim();
-  return !!value && !isInternalBlockerReply(value) && !/^done\.?$/i.test(value);
-}
 
 
 function normalizePipelineTrace(raw) {
@@ -102,6 +99,7 @@ function normalizeEmotion(raw) {
 function sanitizeUserFacingReply(reply) {
   let out = safeStr(reply).trim();
   if (!out) return "";
+  if (isInternalBlockerText(out)) return "";
   for (const rx of [
     /\b(shell is active|guiding properly)\b/ig,
     /\broute[_ ]?guard\b/ig,
@@ -220,7 +218,7 @@ function buildEmotionalTurn(context, state) {
 }
 
 function resolveReply(result, packet, context) {
-  const candidates = [
+  const emotionalCandidate = firstNonEmpty(
     result.reply,
     result.output,
     packet?.synthesis?.reply,
@@ -228,12 +226,9 @@ function resolveReply(result, packet, context) {
     packet?.reply,
     packet?.answer,
     result.interpretation
-  ];
-  for (const candidate of candidates) {
-    if (!isUsableReplyCandidate(candidate)) continue;
-    const cleaned = sanitizeUserFacingReply(candidate);
-    if (isUsableReplyCandidate(cleaned)) return cleaned;
-  }
+  );
+  const cleaned = sanitizeUserFacingReply(emotionalCandidate);
+  if (cleaned && !/^done\.?$/i.test(cleaned) && !isInternalBlockerText(cleaned)) return cleaned;
   return buildFallbackReply(context);
 }
 
@@ -247,6 +242,7 @@ function buildResponseContract(result = {}, packet = {}) {
     arr(result.followUps || packet?.synthesis?.followUps || [])
       .map((item) => sanitizeUserFacingReply(item))
       .filter(Boolean)
+      .filter((item) => !isInternalBlockerText(item))
       .filter((item) => item.toLowerCase() !== reply.toLowerCase())
   ).slice(0, 4);
   try {
@@ -256,8 +252,7 @@ function buildResponseContract(result = {}, packet = {}) {
       state,
       supportMode: context.supportMode,
       replyPreview: safeStr(reply).slice(0, 120),
-      preservedEmotionalRoute: true,
-      upstreamEmissionHardened: true
+      preservedEmotionalRoute: true
     });
   } catch (_e) {}
   return {
@@ -280,8 +275,7 @@ function buildResponseContract(result = {}, packet = {}) {
       supportMode: safeStr(context.supportMode || ""),
       strategyArchetype: safeStr(context.strategy?.archetype || ""),
       pipelineStage: safeStr(context.pipelineTrace?.stage || ""),
-      preservedEmotionalRoute: true,
-      upstreamEmissionHardened: true
+      preservedEmotionalRoute: true
     }
   };
 }
