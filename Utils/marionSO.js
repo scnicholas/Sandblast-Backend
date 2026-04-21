@@ -3323,14 +3323,15 @@ function computeLoopGuard(session, sig, now) {
 function applyBrutalLoopBreaker(cog, loopMeta) {
   const c = isPlainObject(cog) ? cog : {};
   const distressLike = safeStr(c.intent || '', 16).toUpperCase() === 'STABILIZE' || ['medium', 'high'].includes(safeStr(c.riskTier || '', 12).toLowerCase());
-  // Force a clean pivot without creating another generic clarify loop.
+  const priorIntent = safeStr(c.intent || '', 16).toUpperCase();
+  // Force a clean pivot without creating another generic clarify loop or collapsing continuity.
   c.stalled = true;
   c.actionable = false;
-  c.intent = distressLike ? 'STABILIZE' : 'ADVANCE';
+  c.intent = distressLike ? 'STABILIZE' : (priorIntent === 'ADVANCE' ? 'ADVANCE' : 'CLARIFY');
   c.budget = 'short';
   c.marionState = 'BREAK_LOOP';
   c.marionReason = 'loop_guard';
-  c.movePolicy = { preferredMove: distressLike ? 'STABILIZE' : 'ADVANCE', hardOverride: true, reason: 'loop_guard' };
+  c.movePolicy = { preferredMove: distressLike ? 'STABILIZE' : c.intent, hardOverride: true, reason: 'loop_guard' };
   c.bridge = { enabled: false, reason: 'loop_guard' };
   c.needsClarify = false;
   c.askKind = 'none';
@@ -3338,6 +3339,7 @@ function applyBrutalLoopBreaker(cog, loopMeta) {
   c.minimalClarifier = '';
   c.questionSuppression = true;
   c.avoidLaneRebuild = true;
+  c.unresolvedThreads = clampStringArray([].concat(c.unresolvedThreads || []).concat('continuity_loop_guard'), 6, 120);
 
   c.handoff = isPlainObject(c.handoff) ? c.handoff : {};
   c.handoff.marionEndsHard = true;
@@ -3607,8 +3609,11 @@ function enforceIntentLoopGuard(cog, session, now) {
   const currentIntent = safeStr(c.intent || "", 16).toUpperCase();
   const lastIntent = safeStr(s.lastIntent || "", 16).toUpperCase();
   const lastIntentAt = Number(s.lastIntentAt || 0) || 0;
+  const openThreads = Array.isArray(c.unresolvedThreads) ? c.unresolvedThreads.length : 0;
+  const sessionDepth = Number(s.depthHint || s.depthLevel || 0) || 0;
   if (!currentIntent || !lastIntent || currentIntent !== lastIntent) return c;
   if (c.actionable || safeStr(c.marionState || "", 24).toUpperCase() === "FAST_PATH") return c;
+  if (openThreads > 0 || sessionDepth >= 2) return c;
   if (!lastIntentAt || now - lastIntentAt > MARION_LOOP_INTENT_WINDOW_MS) return c;
 
   c.loopGuardIntent = true;
@@ -3624,8 +3629,40 @@ function enforceIntentLoopGuard(cog, session, now) {
     c.clarifyPrompt = "";
     c.minimalClarifier = "";
   }
+  c.unresolvedThreads = clampStringArray([].concat(c.unresolvedThreads || []).concat("intent_repeat_guard"), 6, 120);
   c.movePolicy = { preferredMove: c.intent, hardOverride: true, reason: "intent_repeat_guard" };
   return c;
+}
+
+function deriveUnresolvedThreads(norm, session, cog) {
+  const n = isPlainObject(norm) ? norm : {};
+  const s = isPlainObject(session) ? session : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const prior = clampStringArray([]
+    .concat(s.unresolvedThreads || [])
+    .concat(s.openThreads || [])
+    .concat(c.unresolvedThreads || []), 6, 120);
+  const intent = safeStr(c.intent || "", 16).toUpperCase();
+  const lane = normalizeLaneRaw(c.lane || n.lane || s.lane) || "general";
+  const out = prior.slice();
+  if (intent === "CLARIFY") out.push(`clarify:${lane}`);
+  if (intent === "STABILIZE") out.push("stabilize");
+  if (safeStr(c.marionState || "", 24).toUpperCase() === "BREAK_LOOP") out.push("continuity_loop_guard");
+  return clampStringArray(out, 6, 120);
+}
+
+function enrichSessionPatchSuggestion(patch, cog, session, now) {
+  const p = isPlainObject(patch) ? { ...patch } : {};
+  const c = isPlainObject(cog) ? cog : {};
+  const s = isPlainObject(session) ? session : {};
+  p.lastIntent = safeStr(c.intent || "", 16).toUpperCase();
+  p.lastIntentAt = now;
+  p.depthHint = Math.max(Number(s.depthHint || s.depthLevel || 0) || 0, Number(c.depthHint || 0) || 0, Array.isArray(c.unresolvedThreads) ? c.unresolvedThreads.length : 0);
+  p.lastMarionState = safeStr(c.marionState || "", 24);
+  p.lastMarionReason = safeStr(c.marionReason || "", 48);
+  p.unresolvedThreads = clampStringArray([].concat(s.unresolvedThreads || []).concat(c.unresolvedThreads || []), 6, 120);
+  p.lastLaneEmitter = buildLaneEmitter(c);
+  return p;
 }
 
 // -------------------------
@@ -3930,6 +3967,8 @@ function mediate(norm, session, opts = {}) {
 
     // Apply psych shaping to mediator outputs
     cog = applyPsychologyToMediator(cog, psych0);
+    cog.unresolvedThreads = deriveUnresolvedThreads(n, s, cog);
+    cog.depthHint = Math.max(Number(s.depthHint || s.depthLevel || 0) || 0, Array.isArray(cog.unresolvedThreads) ? cog.unresolvedThreads.length : 0);
 
 
 // Phase 3++++: local support hinting (non-crisis) — lets chatEngine/Nyx avoid clarify spirals
@@ -4141,10 +4180,7 @@ try {
 
     enforceIntentLoopGuard(cog, s, now);
 
-    const patch3 = isPlainObject(cog.sessionPatchSuggestion) ? { ...cog.sessionPatchSuggestion } : {};
-    patch3.lastIntent = safeStr(cog.intent || "", 16).toUpperCase();
-    patch3.lastIntentAt = now;
-    patch3.lastLaneEmitter = buildLaneEmitter(cog);
+    const patch3 = enrichSessionPatchSuggestion(cog.sessionPatchSuggestion, cog, s, now);
     cog.sessionPatchSuggestion = patch3;
 
     const trace = buildTrace(n, s, {
