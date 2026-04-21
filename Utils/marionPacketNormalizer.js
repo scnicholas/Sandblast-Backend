@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "marionPacketNormalizer v1.1.0 AUTOPSY-HARDENED-SOFTFAIL";
+const VERSION = "marionPacketNormalizer v1.2.0 AUTOPSY-HARDENED-SOFTFAIL-CONTINUITY";
 
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 const DEFAULT_ENDPOINT = "marion://routeMarion.primary";
@@ -92,6 +92,20 @@ function mergeRenderableContent(packet, result) {
   }
   return synthesis;
 }
+
+function normalizeContinuityState(packet, result) {
+  const continuity = isObj(packet.continuityState) ? cloneObj(packet.continuityState) : {};
+  const sourceContinuity = isObj(result.continuityState) ? cloneObj(result.continuityState) : {};
+  const turnMemory = isObj(packet.turnMemory) ? cloneObj(packet.turnMemory) : (isObj(result.turnMemory) ? cloneObj(result.turnMemory) : {});
+  const merged = { ...turnMemory, ...continuity, ...sourceContinuity };
+  merged.depthLevel = Math.max(1, Math.min(6, Number(merged.depthLevel || 1) || 1));
+  merged.threadContinuation = !!merged.threadContinuation;
+  merged.unresolvedSignals = uniq(arr(merged.unresolvedSignals || []));
+  merged.lastTopics = uniq(arr(merged.lastTopics || []));
+  merged.continuityMode = safeStr(merged.continuityMode || (merged.threadContinuation ? "deepen" : "stabilize")) || "stabilize";
+  return merged;
+}
+
 function normalizeFollowUps(packet, result, reply) {
   const raw = []
     .concat(arr(packet.followUps))
@@ -113,21 +127,23 @@ function normalizeMarionPacket(result = {}) {
   packet.emotion = normalizeEmotion(packet, result);
 
   const resolvedReply = firstUsableReply(
-    sourcePacket?.synthesis?.reply,
-    sourcePacket?.synthesis?.answer,
-    sourcePacket?.synthesis?.text,
-    sourcePacket?.reply,
-    sourcePacket?.answer,
+    result?.contract?.reply,
+    result?.contract?.output,
+    result?.authoritativeReply,
+    result?.authoritative_reply,
     result.reply,
     result.output,
     result.answer,
     result.text,
     result.spokenText,
+    sourcePacket?.synthesis?.reply,
+    sourcePacket?.synthesis?.answer,
+    sourcePacket?.synthesis?.text,
+    sourcePacket?.reply,
+    sourcePacket?.answer,
     result?.payload?.reply,
     result?.payload?.answer,
     result?.payload?.text,
-    result?.contract?.reply,
-    result?.contract?.output,
     FALLBACK_REPLY
   ) || FALLBACK_REPLY;
 
@@ -156,8 +172,8 @@ function normalizeMarionPacket(result = {}) {
   packet.output = resolvedReply;
 
   packet.evidence = normalizeEvidence(packet, result);
-  packet.continuityState = isObj(packet.continuityState) ? packet.continuityState : (isObj(result.continuityState) ? result.continuityState : {});
   packet.turnMemory = isObj(packet.turnMemory) ? packet.turnMemory : (isObj(result.turnMemory) ? result.turnMemory : {});
+  packet.continuityState = normalizeContinuityState(packet, result);
   packet.identityState = isObj(packet.identityState) ? packet.identityState : (isObj(result.identityState) ? result.identityState : {});
   packet.relationshipState = isObj(packet.relationshipState) ? packet.relationshipState : (isObj(result.relationshipState) ? result.relationshipState : {});
   packet.trustState = isObj(packet.trustState) ? packet.trustState : (isObj(result.trustState) ? result.trustState : {});
@@ -176,6 +192,8 @@ function normalizeMarionPacket(result = {}) {
   packet.meta.packetNormalizer = VERSION;
   packet.meta.packetNormalized = true;
   packet.meta.replySoftFailed = resolvedReply === FALLBACK_REPLY;
+  packet.meta.continuityDepth = packet.continuityState.depthLevel || 1;
+  packet.meta.threadContinuation = !!packet.continuityState.threadContinuation;
   packet.meta.hadInternalBlocker = [
     sourcePacket?.synthesis?.reply,
     sourcePacket?.reply,
