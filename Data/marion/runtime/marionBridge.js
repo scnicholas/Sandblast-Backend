@@ -63,6 +63,72 @@ function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return
 function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
 function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
 
+function _dedupeStrings(items = [], limit = 8) {
+  return [...new Set(_safeArray(items).map((item) => _trim(item)).filter(Boolean))].slice(0, limit);
+}
+
+function _mergeTurnMemory(previousMemory = {}, conversationState = {}, memoryPatch = {}, extras = {}) {
+  const prev = _safeObj(previousMemory);
+  const convo = _safeObj(conversationState);
+  const patch = _safeObj(memoryPatch);
+  const ext = _safeObj(extras);
+
+  const prevTopics = _safeArray(prev.lastTopics);
+  const convoTopics = _safeArray(convo.lastTopics);
+  const patchTopics = _safeArray(patch.lastTopics);
+  const extraTopics = _safeArray(ext.lastTopics);
+
+  const unresolvedSignals = _dedupeStrings([]
+    .concat(_safeArray(prev.unresolvedSignals))
+    .concat(_safeArray(convo.unresolvedSignals))
+    .concat(_safeArray(patch.unresolvedSignals))
+    .concat(_safeArray(ext.unresolvedSignals)), 8);
+
+  return {
+    ...prev,
+    ...patch,
+    ...ext,
+    lastTopics: _dedupeStrings([].concat(convoTopics).concat(patchTopics).concat(extraTopics).concat(prevTopics), 8),
+    unresolvedSignals,
+    repetitionCount: Math.max(_num(prev.repetitionCount, 0), _num(convo.repetitionCount, 0), _num(patch.repetitionCount, 0), _num(ext.repetitionCount, 0)),
+    repeatQueryStreak: Math.max(_num(prev.repeatQueryStreak, 0), _num(ext.repeatQueryStreak, 0)),
+    depthLevel: Math.max(1, _num(prev.depthLevel, 1), _num(convo.depthLevel, 1), _num(patch.depthLevel, 1), _num(ext.depthLevel, 1)),
+    emotionTrend: _trim(ext.emotionTrend || patch.emotionTrend || convo.emotionTrend || prev.emotionTrend || "stable") || "stable",
+    continuityMode: _trim(ext.continuityMode || patch.continuityMode || convo.continuityMode || prev.continuityMode || "stabilize") || "stabilize",
+    threadContinuation: !!(ext.threadContinuation || patch.threadContinuation || convo.threadContinuation || prev.threadContinuation),
+    updatedAt: Date.now()
+  };
+}
+
+function _repairPacket(packet = {}, fallback = {}) {
+  const src = _safeObj(packet);
+  const fb = _safeObj(fallback);
+  const routing = _safeObj(src.routing);
+  const synthesis = _safeObj(src.synthesis);
+  const domain = _trim(routing.domain || fb.domain || "general") || "general";
+  const intent = _trim(routing.intent || fb.intent || "general") || "general";
+  const endpoint = _trim(routing.endpoint || fb.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT;
+  const repaired = { ...src, routing: { ...routing, domain, intent, endpoint }, synthesis: { ...synthesis } };
+  const synthesizedReply = _firstNonEmpty(
+    repaired.synthesis.reply,
+    repaired.synthesis.text,
+    repaired.synthesis.answer,
+    repaired.synthesis.output,
+    _trim(fb.reply),
+    _trim(fb.text),
+    _trim(fb.answer),
+    _trim(fb.output),
+    _hasStructuredRenderableContent(repaired) ? _synthesizeReplyFromStructuredContent(repaired, domain) : "",
+    _hasStructuredRenderableContent(fb) ? _synthesizeReplyFromStructuredContent(fb, domain) : "",
+    _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY
+  );
+  repaired.synthesis.reply = synthesizedReply;
+  repaired.synthesis.text = synthesizedReply;
+  repaired.synthesis.answer = synthesizedReply;
+  repaired.synthesis.output = synthesizedReply;
+  return repaired;
+}
+
 function _isInternalBlockerReply(v) {
   const text = _lower(v || "").replace(/\s+/g, " ").trim();
   if (!text) return false;
@@ -449,28 +515,29 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     }
   };
 
+  const safeReply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
   return {
-    ok: false,
-    partial: false,
+    ok: true,
+    partial: true,
     rejected: true,
     status: STRICT_REJECTION_STATUS,
     endpoint: CANONICAL_ENDPOINT,
     userQuery,
     domain,
     intent,
-    reply: "",
-    text: "",
-    answer: "",
-    output: "",
-    spokenText: "",
+    reply: safeReply,
+    text: safeReply,
+    answer: safeReply,
+    output: safeReply,
+    spokenText: safeReply.replace(/\n+/g, " ").trim(),
     diagnostics,
     meta: packet.meta,
-    packet,
+    packet: _repairPacket(packet, { domain, intent, endpoint: CANONICAL_ENDPOINT, reply: safeReply }),
     ui: null,
     emotionalTurn: null,
     followUps: [],
     followUpsStrings: [],
-    payload: null
+    payload: { reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
   };
 }
 
@@ -562,7 +629,8 @@ function _buildPacket(result, evidence) {
     meta: result.meta,
     ...renderableContent
   };
-  return typeof normalizeMarionPacket === "function" ? normalizeMarionPacket({ ...result, packet }) : packet;
+  const normalizedPacket = typeof normalizeMarionPacket === "function" ? normalizeMarionPacket({ ...result, packet }) : packet;
+  return _repairPacket(normalizedPacket, { ...result, endpoint: result.endpoint });
 }
 
 async function retrieveLayer2Signals(input = {}) {
@@ -809,28 +877,23 @@ async function processWithMarion(input = {}) {
   const reply = _trim((!_isInternalBlockerReply(authoritativeReply.reply) && authoritativeReply.reply) || FALLBACK_REPLY) || FALLBACK_REPLY;
   const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
   const memoryPatch = _safeObj(contract.memoryPatch);
-  const turnMemory = {
+  const turnMemory = _mergeTurnMemory(input.previousMemory || {}, layer2.conversationState, memoryPatch, {
     lastQuery: layer2.userQuery,
     domain: layer2.domain,
     intent: layer2.intent,
     emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity },
     lastEmotion: layer2.conversationState.lastEmotion,
-    lastTopics: layer2.conversationState.lastTopics,
-    emotionTrend: layer2.conversationState.emotionTrend,
-    repetitionCount: layer2.conversationState.repetitionCount,
-    depthLevel: layer2.conversationState.depthLevel,
-    unresolvedSignals: layer2.conversationState.unresolvedSignals,
     escalationProfile,
     arcState,
     engagementState,
     relationalStyle,
     behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits, messageLength: layer2.behavior.messageLength },
     repeatQueryStreak: layer2.behavior.repeatQueryStreak,
-    updatedAt: Date.now(),
     trustTier: trustState.tier,
     state: stateTransition.current,
-    ...memoryPatch
-  };
+    lastDomain: layer2.domain,
+    lastIntent: layer2.intent
+  });
 
   const contractRenderableContent = _mergeRenderableContent(contract);
   const contractLocked = {
@@ -987,7 +1050,7 @@ function createMarionBridge(options = {}) {
       });
       const renderableContent = _mergeRenderableContent(result.packet, result.payload, result.ui, result.emotionalTurn, result.contract);
       return {
-        usedBridge: !!result.ok && (!!_trim(result.reply) || _hasStructuredRenderableContent(renderableContent)),
+        usedBridge: (!!result.ok || result.partial || result.rejected) && (!!_trim(result.reply) || _hasStructuredRenderableContent(renderableContent) || !!result.packet),
         packet: result.packet,
         reply: result.reply,
         text: result.reply,
