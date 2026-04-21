@@ -557,6 +557,22 @@ const marionBridgeMod = tryRequireMany([
   "./runtime/marionBridge.js"
 ]);
 
+
+function getMarionRuntimeDiagnostics() {
+  return {
+    marionBridgeLoaded: !!marionBridgeMod,
+    marionBridgeKeys: marionBridgeMod && typeof marionBridgeMod === "object" ? Object.keys(marionBridgeMod).slice(0, 20) : [],
+    marionBridgeHasRoute: !!(marionBridgeMod && typeof marionBridgeMod.route === "function"),
+    marionBridgeHasAsk: !!(marionBridgeMod && typeof marionBridgeMod.ask === "function"),
+    marionBridgeHasHandle: !!(marionBridgeMod && typeof marionBridgeMod.handle === "function"),
+    marionBridgeHasProcessWithMarion: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
+    marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
+    marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
+    chatEngineLoaded: !!chatEngineMod,
+    chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : []
+  };
+}
+
 const affectEngineMod = tryRequireMany([
   "./affectEngine",
   "./affectEngine.js",
@@ -2846,17 +2862,37 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
   const payload = isObj(src.payload) ? src.payload : {};
   const packet = isObj(src.packet) ? src.packet : {};
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
-  const continuitySrc = isObj(src.continuity) ? src.continuity : {};
-  const metaSrc = isObj(src.meta) ? src.meta : {};
+  const bridge = isObj(src.bridge) ? src.bridge : {};
+  const packetMeta = isObj(packet.meta) ? packet.meta : {};
+  const continuitySrc =
+    isObj(src.continuity) ? src.continuity :
+    (isObj(payload.continuity) ? payload.continuity :
+    (isObj(packet.continuityState) ? packet.continuityState :
+    (isObj(synthesis.continuity) ? synthesis.continuity : {})));
+  const metaSrc = {
+    ...(isObj(src.meta) ? src.meta : {}),
+    ...(isObj(payload.meta) ? payload.meta : {}),
+    ...(isObj(synthesis.meta) ? synthesis.meta : {}),
+    ...(isObj(packetMeta) ? packetMeta : {})
+  };
   let response = cleanReplyForUser(
     src.response || src.reply || src.text || src.output || src.answer || src.spokenText ||
     payload.reply || payload.text || payload.message || payload.spokenText ||
-    synthesis.reply || synthesis.answer || ""
+    synthesis.reply || synthesis.answer || synthesis.text || synthesis.output || synthesis.spokenText ||
+    (isObj(src.contract) ? (src.contract.reply || src.contract.response || src.contract.text || src.contract.output || "") : "") ||
+    bridge.reply || bridge.text || bridge.output || bridge.answer || ""
   );
   if (isInternalMarionBlockerReply(response)) response = "";
-  const followUp = cleanText(src.follow_up || src.followUp || metaSrc.follow_up || payload.follow_up || payload.followUp || "");
+  const followUp = cleanText(
+    src.follow_up || src.followUp ||
+    metaSrc.follow_up || metaSrc.followUp ||
+    payload.follow_up || payload.followUp ||
+    synthesis.follow_up || synthesis.followUp || ""
+  );
   const normalizedEmotion = normalizeMarionEmotionState(
-    src.emotional_state || src.emotionalState || metaSrc.emotional_state || metaSrc.emotion || "",
+    src.emotional_state || src.emotionalState ||
+    (isObj(src.contract) ? (src.contract.emotional_state || src.contract.emotionalState || "") : "") ||
+    metaSrc.emotional_state || metaSrc.emotion || "",
     emotion && emotion.label || "calm"
   );
   const continuity = {
@@ -2864,17 +2900,36 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
     ...(isObj(continuitySrc) ? continuitySrc : {})
   };
   return {
-    status: cleanText(src.status || (src.ok === false ? "error" : "success")) || "success",
-    intent: cleanText(src.intent || src.routeIntent || metaSrc.intent || norm && norm.intentHint || "general") || "general",
+    status: cleanText(
+      src.status ||
+      (isObj(src.contract) ? src.contract.status : "") ||
+      metaSrc.status ||
+      (src.ok === false ? "error" : "success")
+    ) || "success",
+    intent: cleanText(
+      src.intent || src.routeIntent ||
+      (isObj(src.contract) ? src.contract.intent : "") ||
+      synthesis.intent || packet.intent ||
+      metaSrc.intent ||
+      norm && norm.intentHint || "general"
+    ) || "general",
     emotional_state: normalizedEmotion,
     response,
     follow_up: followUp,
     continuity,
     meta: {
-      confidence: Number.isFinite(Number(metaSrc.confidence ?? src.confidence)) ? clamp(Number(metaSrc.confidence ?? src.confidence), 0, 1) : 0.82,
+      confidence: Number.isFinite(Number(
+        metaSrc.confidence ??
+        src.confidence ??
+        (isObj(src.contract) ? src.contract.confidence : undefined)
+      )) ? clamp(Number(
+        metaSrc.confidence ??
+        src.confidence ??
+        (isObj(src.contract) ? src.contract.confidence : undefined)
+      ), 0, 1) : 0.82,
       fallback: !!(metaSrc.fallback || src.fallback || src.ok === false || !response),
-      source: cleanText(metaSrc.source || src.source || "marion") || "marion",
-      traceId: cleanText(metaSrc.traceId || src.traceId || norm && norm.traceId || "")
+      source: cleanText(metaSrc.source || synthesis.source || packetMeta.source || src.source || "marion") || "marion",
+      traceId: cleanText(metaSrc.traceId || src.traceId || packetMeta.traceId || norm && norm.traceId || "")
     }
   };
 }
@@ -2963,6 +3018,11 @@ function applyContinuityStitch(shaped, prevTurn, contract, norm, emotion) {
     ...(isObj(out.bridge) ? out.bridge : {}),
     continuity
   };
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    continuity,
+    continuityStitchApplied: true
+  };
   const follow = cleanText(contract && contract.follow_up || "");
   const existing = Array.isArray(out.followUpsStrings) ? out.followUpsStrings.filter(Boolean) : [];
   const stitched = [];
@@ -3036,6 +3096,16 @@ function enforceMarionAuthority(shaped, marion, opts) {
   payload.message = locked;
   payload.spokenText = locked;
 
+  const packet = isObj(marion && marion.packet) ? marion.packet : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const packetFollowUps = uniq([
+    ...(Array.isArray(marion && marion.followUps) ? marion.followUps : []),
+    ...(Array.isArray(marion && marion.followUpsStrings) ? marion.followUpsStrings : []),
+    ...(Array.isArray(packet && packet.followUps) ? packet.followUps : []),
+    ...(Array.isArray(synthesis && synthesis.followUpsStrings) ? synthesis.followUpsStrings : []),
+    ...(Array.isArray(synthesis && synthesis.followUps) ? synthesis.followUps : [])
+  ].map((v) => cleanText(v)).filter(Boolean)).slice(0, 4);
+
   out.ok = out.ok !== false;
   out.reply = locked;
   out.text = locked;
@@ -3044,6 +3114,10 @@ function enforceMarionAuthority(shaped, marion, opts) {
   out.spokenText = locked;
   out.payload = payload;
   out.bridge = repairBridgeEnvelope(out.bridge, marion, out.lane || out.laneId || out.sessionLane || options.lane || "general");
+  if (packetFollowUps.length) {
+    out.followUps = packetFollowUps;
+    out.followUpsStrings = packetFollowUps;
+  }
   out.meta = mergeMeta(out.meta, {
     replyAuthority: "marion_locked",
     semanticAuthority: "marion",
@@ -3114,9 +3188,28 @@ async function callMarionBridge(input) {
     if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
     if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
     if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
+    if (typeof marionBridgeMod.processWithMarion === "function") return await marionBridgeMod.processWithMarion(input);
+    if (typeof marionBridgeMod.default === "function") return await marionBridgeMod.default(input);
+    if (typeof marionBridgeMod.createMarionBridge === "function") {
+      const bridge = marionBridgeMod.createMarionBridge();
+      if (bridge && typeof bridge.route === "function") return await bridge.route(input);
+      if (bridge && typeof bridge.ask === "function") return await bridge.ask(input);
+      if (bridge && typeof bridge.handle === "function") return await bridge.handle(input);
+      if (bridge && typeof bridge.processWithMarion === "function") return await bridge.processWithMarion(input);
+    }
     if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
   } catch (err) {
     console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
+    return {
+      ok: false,
+      error: "marion_bridge_runtime_error",
+      detail: cleanText(err && (err.message || err) || "marion bridge failed"),
+      meta: {
+        source: "index_callMarionBridge",
+        v: INDEX_VERSION,
+        t: now()
+      }
+    };
   }
   return null;
 }
@@ -4642,6 +4735,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     marion = null;
   }
 
+  const marionRuntimeDiagnostics = getMarionRuntimeDiagnostics();
   const marionContract = normalizeMarionContract(marion, norm, emotion, priorTurn);
   const marionContractCheck = validateMarionContract(marionContract);
   const trace = buildLoggingSpine({
@@ -4711,6 +4805,8 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   trace.normalized = {
     marionContractOk: marionContractCheck.ok,
+    marionBridgeLoaded: !!marionRuntimeDiagnostics.marionBridgeLoaded,
+    marionBridgeHasRoute: !!marionRuntimeDiagnostics.marionBridgeHasRoute,
     marionForceDirect: !!engineInput.forceDirect,
     replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
     lane: cleanText(shaped.lane || norm.lane || "general")
