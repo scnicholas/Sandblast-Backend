@@ -1,12 +1,11 @@
-
 "use strict";
 
 /**
  * supportResponse.js
- * Deterministic supportive response generator.
+ * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v1.9.0 CONVERSATIONAL-CONTINUITY";
+const VERSION = "supportResponse v2.0.0 FORENSIC-NORMALIZED";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -19,6 +18,9 @@ const DEFAULT_CONFIG = {
   suppressQuestionOnRecovery: true,
   suppressQuestionOnLoop: true,
   suppressQuestionOnHighContinuity: true,
+  suppressQuestionOnContainment: true,
+  suppressQuestionOnHighDistress: true,
+  allowQuestionsOnPositive: true,
   debug: false
 };
 
@@ -29,12 +31,9 @@ function oneLine(s) { return safeStr(s).replace(/\s+/g, " ").trim(); }
 function uniq(arr) { return [...new Set((Array.isArray(arr) ? arr : []).map((x) => safeStr(x).trim()).filter(Boolean))]; }
 function lower(v) { return safeStr(v).toLowerCase(); }
 function emotionAny(emo, list) { const set = new Set((Array.isArray(list) ? list : []).map((x) => lower(x))); const vals = [emo?.primaryEmotion, emo?.secondaryEmotion, emo?.dominantEmotion].map((x) => lower(x)).filter(Boolean); return vals.some((v) => set.has(v)); }
-function emotionClusterIs(emo, list) { const set = new Set((Array.isArray(list) ? list : []).map((x) => lower(x))); return set.has(lower(emo?.emotionCluster)); }
 function hashSeed(seed) { let h = 0; const s = safeStr(seed || "nyx"); for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return h >>> 0; }
 function pick(arr, seed) { if (!Array.isArray(arr) || !arr.length) return ""; const h = hashSeed(seed); return safeStr(arr[h % arr.length] || ""); }
-function pickN(arr, seed, maxCount) { const a = Array.isArray(arr) ? arr.slice() : []; const out = []; if (!a.length || maxCount <= 0) return out; let h = hashSeed(seed); const seen = new Set(); for (let i = 0; i < a.length && out.length < maxCount; i++) { const idx = (h + i) % a.length; const val = safeStr(a[idx] || "").trim(); if (!val || seen.has(val)) continue; seen.add(val); out.push(val); } return out; }
 function joinSentences(parts) { return (Array.isArray(parts) ? parts : []).map((p) => oneLine(p)).filter(Boolean).join(" ").replace(/\s+/g, " ").trim(); }
-
 
 function looksGreeting(text) {
   const s = safeStr(text).trim().toLowerCase();
@@ -51,7 +50,7 @@ function looksHowAreYou(text) {
 function looksTechnicalRequest(text) {
   const s = safeStr(text).toLowerCase();
   if (!s) return false;
-  return /(chat engine|state spine|support response|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend)/.test(s);
+  return /(chat engine|state spine|support response|emotion route|loop|looping|debug|debugging|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend|frontend|runtime|function|syntax|error|bug)/.test(s);
 }
 
 function normalizeAudioFailure(input) {
@@ -70,7 +69,17 @@ function normalizeAudioFailure(input) {
   const retryable = !!bag.retryable;
   const action = /retry/i.test(explicitAction) ? "retry" : /stop|terminal/i.test(explicitAction) ? "stop" : /downgrade/i.test(explicitAction) ? "downgrade" : "";
   const shouldTerminate = !!(bag.shouldTerminate || bag.shouldStop || action === "stop");
-  return { present: !!(reason || providerStatus || retryable || action), cleared: false, reason, message: safeStr(bag.message || ""), providerStatus, retryable, action: action || (retryable ? "retry" : (providerStatus >= 400 && providerStatus < 500 ? "stop" : (providerStatus >= 500 ? "downgrade" : ""))), shouldTerminate, terminalStopUntil: Number(bag.terminalStopUntil || 0) || 0 };
+  return {
+    present: !!(reason || providerStatus || retryable || action),
+    cleared: false,
+    reason,
+    message: safeStr(bag.message || ""),
+    providerStatus,
+    retryable,
+    action: action || (retryable ? "retry" : (providerStatus >= 400 && providerStatus < 500 ? "stop" : (providerStatus >= 500 ? "downgrade" : ""))),
+    shouldTerminate,
+    terminalStopUntil: Number(bag.terminalStopUntil || 0) || 0
+  };
 }
 
 function buildAudioFailureLine(audioFailure, seed) {
@@ -101,22 +110,158 @@ function looksNeutralInformational(text) {
   if (!s) return false;
   if (/\?$/.test(s)) return false;
   if (looksTechnicalRequest(s)) return false;
-  if (/\b(feel|felt|feeling|lost|depressed|sad|anxious|afraid|worried|lonely|angry|proud|happy|love|great|amazing|beautiful)\b/i.test(s)) return false;
+  if (/\b(feel|felt|feeling|lost|depressed|sad|anxious|afraid|worried|lonely|angry|proud|happy|love|great|amazing|beautiful|hopeless|numb|grief|ashamed|guilty)\b/i.test(s)) return false;
   return true;
+}
+
+function normalizeEmotion(input) {
+  const emo = isPlainObject(input?.emo) ? input.emo : (isPlainObject(input?.emotion) ? input.emotion : {});
+  const supportFlags = isPlainObject(emo.supportFlags) ? emo.supportFlags : {};
+  const presentationSignals = isPlainObject(emo.presentationSignals)
+    ? emo.presentationSignals
+    : (isPlainObject(input?.presentationSignals) ? input.presentationSignals : (isPlainObject(input?.turnSignals) ? input.turnSignals : {}));
+  const expressionContract = isPlainObject(emo.expressionContract)
+    ? emo.expressionContract
+    : (isPlainObject(input?.expressionContract) ? input.expressionContract : {});
+  const nuanceProfile = isPlainObject(emo.nuanceProfile)
+    ? emo.nuanceProfile
+    : {};
+  const conversationPlan = isPlainObject(emo.conversationPlan)
+    ? emo.conversationPlan
+    : {};
+  return {
+    ...emo,
+    supportFlags,
+    presentationSignals,
+    expressionContract,
+    nuanceProfile,
+    conversationPlan
+  };
+}
+
+function deriveQuestionBudget(cfg, emo, text) {
+  let budget = clampInt(cfg.maxQuestionCount, 1, 0, 2);
+  const pressure = lower(emo?.nuanceProfile?.questionPressure || "");
+  if (pressure === "none") budget = 0;
+  else if (pressure === "low") budget = Math.min(budget, 1);
+  const askAtMost = clampInt(emo?.expressionContract?.askAtMost, budget, 0, 2);
+  budget = Math.min(budget, askAtMost);
+  if (cfg.suppressQuestionOnTechnical && looksTechnicalRequest(text)) budget = 0;
+  if (cfg.suppressQuestionOnContainment && emo?.supportFlags?.needsContainment) budget = 0;
+  if (cfg.suppressQuestionOnHighDistress && emo?.supportFlags?.highDistress) budget = 0;
+  if (cfg.suppressQuestionOnRecovery && emo?.supportFlags?.crisis) budget = 0;
+  if (cfg.suppressQuestionOnLoop && emo?.nuanceProfile?.loopRisk === "high") budget = 0;
+  if (cfg.suppressQuestionOnHighContinuity && inputContinuityHigh(emo)) budget = 0;
+  if (!cfg.allowQuestionsOnPositive && emotionAny(emo, ["joy", "gratitude", "relief", "excitement", "hope"])) budget = 0;
+  return budget;
+}
+
+function inputContinuityHigh(emo) {
+  return !!(emo?.continuity?.high || emo?.supportFlags?.highContinuity || emo?.presentationSignals?.hasContrast || emo?.presentationSignals?.narrativeDensity >= 3);
+}
+
+function buildContainmentLine(emo, seed) {
+  if (emo?.supportFlags?.crisis) return "";
+  if (emo?.supportFlags?.needsContainment || emo?.supportModeCandidate === "validate_and_hold") {
+    return pick([
+      "We do not need to solve all of it at once.",
+      "We can keep this small and steady.",
+      "Let us stay with one honest piece at a time."
+    ], `${seed}|containment`);
+  }
+  if (emo?.supportFlags?.needsStabilization || emo?.routeBias === "stabilize") {
+    return pick([
+      "Let us slow this down and shrink the scope.",
+      "We can steady this one piece at a time.",
+      "We do not need to let the whole spiral run the room."
+    ], `${seed}|stabilize`);
+  }
+  return "";
+}
+
+function buildQuestion(emo, seed, budget) {
+  if (budget <= 0) return "";
+  const primary = lower(emo?.primaryEmotion || "neutral");
+  if (["depressed", "sadness", "grief", "loneliness"].includes(primary)) {
+    return pick([
+      "What feels heaviest right now?",
+      "What part of this is pressing on you the most?",
+      "What is hurting the most right now?"
+    ], `${seed}|sad|q`);
+  }
+  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) {
+    return pick([
+      "What is the most urgent part right now?",
+      "What is the first thing your mind keeps jumping back to?",
+      "Which piece feels most immediate?"
+    ], `${seed}|fear|q`);
+  }
+  if (["shame", "guilt"].includes(primary)) {
+    return pick([
+      "What part feels hardest to face directly?",
+      "What are you blaming yourself for most right now?",
+      "What feels most exposed in this for you?"
+    ], `${seed}|repair|q`);
+  }
+  if (["joy", "gratitude", "relief", "excitement", "hope"].includes(primary)) {
+    return pick([
+      "What do you want to build on next?",
+      "What do you want to carry forward from this?",
+      "What is the next smart move from here?"
+    ], `${seed}|positive|q`);
+  }
+  if (emo?.routeBias === "clarify") {
+    return pick([
+      "What is the exact point that feels most unclear?",
+      "Which part do you want to isolate first?",
+      "What is the cleanest next piece to look at?"
+    ], `${seed}|clarify|q`);
+  }
+  return "Tell me the next piece, and I will stay with the real thread.";
+}
+
+function buildOpening(emo, seed) {
+  const primary = lower(emo?.primaryEmotion || "neutral");
+  if (["depressed", "sadness", "grief", "loneliness"].includes(primary)) {
+    return pick([
+      "I am here with you.",
+      "I am with you in this.",
+      "You do not have to carry this alone for this moment."
+    ], `${seed}|sad|open`);
+  }
+  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) {
+    return "I am here with you.";
+  }
+  if (["shame", "guilt"].includes(primary)) {
+    return pick([
+      "I am here, and I am not meeting this with judgment.",
+      "You are allowed to bring this here without getting shamed for it.",
+      "We can look at this carefully without turning it into punishment."
+    ], `${seed}|repair|open`);
+  }
+  if (["joy", "gratitude", "relief", "excitement", "hope"].includes(primary)) {
+    return pick([
+      "That is good to hear.",
+      "I like that shift.",
+      "That has real lift in it."
+    ], `${seed}|positive|open`);
+  }
+  return "I am here with you.";
 }
 
 function buildSupportReply(input = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(input.config) ? input.config : {}) };
   const text = oneLine(input.text || "");
-  const emo = isPlainObject(input.emo) ? input.emo : (isPlainObject(input.emotion) ? input.emotion : {});
+  const emo = normalizeEmotion(input);
   const audioFailure = normalizeAudioFailure(input);
-  const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}`;
+  const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}|${emo.routeBias || "maintain"}`;
+  const questionBudget = deriveQuestionBudget(cfg, emo, text);
 
-  if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm"])) {
+  if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm", "shame", "guilt"])) {
     return "Hey. I am here and ready. Tell me what you want to explore, fix, or understand.";
   }
 
-  if (looksHowAreYou(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm"])) {
+  if (looksHowAreYou(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm", "shame", "guilt"])) {
     return "I am steady and ready to help. What do you want to get into first?";
   }
 
@@ -124,64 +269,65 @@ function buildSupportReply(input = {}) {
     return joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       "I have the technical thread.",
-      "Give me the exact failure point, and I will keep the next move tight and concrete."
+      questionBudget > 0 ? "Give me the exact failure point, and I will keep the next move tight and concrete." : "I will keep the next move tight and concrete."
     ]);
   }
 
   if (emo.supportFlags?.crisis || emo.escalation_required === true || emo?.guard?.escalation_required === true) {
-    return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988.";
+    return cfg.keepCrisisShort
+      ? "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988."
+      : "I am here with you. Your safety matters more than solving this conversation cleanly. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988.";
   }
 
-  if (emotionAny(emo, ["depressed", "sadness", "grief", "loneliness"]) || /\b(depressed|hopeless|empty|numb|sad)\b/i.test(text)) {
+  if (emotionAny(emo, ["depressed", "sadness", "grief", "loneliness"]) || /\b(depressed|hopeless|empty|numb|sad|grief|lonely)\b/i.test(text)) {
     return joinSentences([
-      pick([
-        "I am here with you.",
-        "I am with you in this.",
-        "You do not have to carry this alone for this moment."
-      ], `${seed}|sad|open`),
-      pick([
-        "We can keep this small and steady.",
-        "We do not need to solve all of it at once.",
-        "Let us stay with the next honest piece only."
-      ], `${seed}|sad|contain`),
-      cfg.maxQuestionCount > 0 ? pick([
-        "What feels heaviest right now?",
-        "What part of this is pressing on you the most?",
-        "Do you want to tell me what is hurting the most?"
-      ], `${seed}|sad|q`) : ""
+      buildAudioFailureLine(audioFailure, seed),
+      buildOpening(emo, seed),
+      buildContainmentLine(emo, seed),
+      buildQuestion(emo, seed, questionBudget)
     ]);
   }
 
   if (emotionAny(emo, ["anxiety", "fear", "panic", "overwhelm"])) {
     return joinSentences([
-      "I am here with you.",
-      pick([
-        "Let us slow this down and shrink the scope.",
-        "We can steady this one piece at a time.",
-        "We do not need to let the whole spiral run the room."
-      ], `${seed}|fear|contain`),
-      cfg.maxQuestionCount > 0 ? pick([
-        "What is the most urgent part right now?",
-        "What is the first thing your mind keeps jumping back to?",
-        "Which piece feels most immediate?"
-      ], `${seed}|fear|q`) : ""
+      buildAudioFailureLine(audioFailure, seed),
+      buildOpening(emo, seed),
+      buildContainmentLine(emo, seed),
+      buildQuestion(emo, seed, questionBudget)
     ]);
   }
 
-  if (emotionAny(emo, ["joy", "gratitude", "relief", "excitement"])) {
+  if (emotionAny(emo, ["shame", "guilt"])) {
     return joinSentences([
-      pick(["That is good to hear.", "I like that shift.", "That has real lift in it."], `${seed}|pos|open`),
-      cfg.maxQuestionCount > 0 ? pick(["What do you want to build on next?", "What do you want to carry forward from this?", "What is the next smart move from here?"], `${seed}|pos|q`) : ""
+      buildAudioFailureLine(audioFailure, seed),
+      buildOpening(emo, seed),
+      buildContainmentLine(emo, seed),
+      buildQuestion(emo, seed, questionBudget)
+    ]);
+  }
+
+  if (emotionAny(emo, ["joy", "gratitude", "relief", "excitement", "hope"])) {
+    return joinSentences([
+      buildAudioFailureLine(audioFailure, seed),
+      buildOpening(emo, seed),
+      buildQuestion(emo, seed, questionBudget)
     ]);
   }
 
   if (looksNeutralInformational(text)) {
-    return "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation.";
+    return joinSentences([
+      buildAudioFailureLine(audioFailure, seed),
+      emo?.routeBias === "clarify"
+        ? "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation."
+        : "I have the thread, and I can answer this directly once you give me one more clean piece of context."
+    ]);
   }
 
   return joinSentences([
-    "I am here with you.",
-    cfg.maxQuestionCount > 0 ? "Tell me the next piece, and I will stay with the real thread." : ""
+    buildAudioFailureLine(audioFailure, seed),
+    buildOpening(emo, seed),
+    buildContainmentLine(emo, seed),
+    buildQuestion(emo, seed, questionBudget)
   ]);
 }
 
@@ -190,5 +336,7 @@ module.exports = {
   DEFAULT_CONFIG,
   buildSupportReply,
   getSupportReply: buildSupportReply,
-  default: buildSupportReply
+  default: buildSupportReply,
+  normalizeAudioFailure,
+  normalizeEmotion
 };
