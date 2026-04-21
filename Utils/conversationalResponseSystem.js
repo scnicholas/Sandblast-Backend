@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.4.0 FAST-PATH-GREETING-COMMAND-HARDENED";
+const VERSION = "conversationalResponseSystem v2.5.0 FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -157,6 +157,19 @@ function normalizeUserInput(result, packet) {
   return { raw, text, lower, tokenCount, greetingOnly, thanksOnly, ackOnly, actionLead };
 }
 
+
+function normalizeContinuityState(result, packet) {
+  const continuity = isObj(packet?.continuityState) ? packet.continuityState : (isObj(result?.continuityState) ? result.continuityState : {});
+  const turnMemory = isObj(packet?.turnMemory) ? packet.turnMemory : (isObj(result?.turnMemory) ? result.turnMemory : {});
+  return {
+    depthLevel: Math.max(1, clamp(continuity.depthLevel || turnMemory.depthLevel || 1, 1, 6, 1)),
+    threadContinuation: !!(continuity.threadContinuation || turnMemory.threadContinuation),
+    continuityMode: firstNonEmpty(continuity.continuityMode, turnMemory.continuityMode, "stabilize").toLowerCase(),
+    unresolvedSignals: uniq(arr(continuity.unresolvedSignals || turnMemory.unresolvedSignals || [])),
+    lastTopics: uniq(arr(continuity.lastTopics || turnMemory.lastTopics || []))
+  };
+}
+
 function normalizeContext(result, packet) {
   const domain = firstNonEmpty(result?.domain, packet?.routing?.domain, result?.source?.domain, "general").toLowerCase();
   const responsePlan = isObj(result?.responsePlan) ? result.responsePlan : (isObj(packet?.synthesis?.responsePlan) ? packet.synthesis.responsePlan : {});
@@ -183,11 +196,12 @@ function normalizeContext(result, packet) {
   const diagnostics = isObj(result?.diagnostics) ? result.diagnostics : {};
   const pipelineTrace = normalizePipelineTrace(result?.pipelineTrace || {});
   const userInput = normalizeUserInput(result, packet);
+  const continuity = normalizeContinuityState(result, packet);
   return {
     domain, requestedMode, intent, emotion, strategy, evidenceCount,
     privateChannel, trustState, consciousness, responsePlan, nyxDirective,
     supportMode, guidance, guardrails, source, diagnostics, pipelineTrace,
-    userInput
+    userInput, continuity
   };
 }
 
@@ -250,7 +264,7 @@ function domainPlaceholder(domain, state) {
 }
 
 function buildUi(context, state) {
-  const replace = state === "supportive" || context.userInput.greetingOnly || context.userInput.thanksOnly || context.userInput.ackOnly;
+  const replace = !!(context.userInput.greetingOnly || context.userInput.thanksOnly || context.userInput.ackOnly);
   return {
     chips: [],
     allowMic: true,
@@ -290,7 +304,8 @@ function buildEmotionalTurn(context, state) {
       thanksOnly: context.userInput.thanksOnly,
       ackOnly: context.userInput.ackOnly,
       actionLead: context.userInput.actionLead
-    }
+    },
+    continuity: context.continuity
   };
 }
 
@@ -376,8 +391,11 @@ function buildResponseContract(result = {}, packet = {}) {
       pipelineStage: safeStr(context.pipelineTrace?.stage || ""),
       preservedEmotionalRoute: true,
       fastPath,
-      latencyMs
-    }
+      latencyMs,
+      continuityDepth: context.continuity.depthLevel,
+      threadContinuation: !!context.continuity.threadContinuation
+    },
+    continuityState: context.continuity
   };
 }
 
