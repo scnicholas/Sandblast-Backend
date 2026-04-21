@@ -117,6 +117,14 @@ function createState(seed = {}) {
       presenceState: "receptive",
       listenerMode: "attuned"
     },
+    continuityThread: {
+      depthLevel: 1,
+      threadContinuation: false,
+      unresolvedSignals: [],
+      lastTopics: [],
+      responseMode: "steady",
+      updatedAt: 0
+    },
     lastUpdatedAt: 0
   };
 }
@@ -187,7 +195,17 @@ function coerceState(input) {
       continuityScore: Math.max(0, Math.min(1, Number(src?.emotionalEngine?.continuityScore ?? 0.35) || 0.35)),
       stateStreak: clampInt(src?.emotionalEngine?.stateStreak, 0, 0, 999999),
       placeholder: safeStr(src?.emotionalEngine?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
-      lastActionLabels: Array.isArray(src?.emotionalEngine?.lastActionLabels) ? src.emotionalEngine.lastActionLabels.slice(0, 6).map((x) => safeStr(x)) : []
+      lastActionLabels: Array.isArray(src?.emotionalEngine?.lastActionLabels) ? src.emotionalEngine.lastActionLabels.slice(0, 6).map((x) => safeStr(x)) : [],
+      presenceState: safeStr(src?.emotionalEngine?.presenceState || "receptive") || "receptive",
+      listenerMode: safeStr(src?.emotionalEngine?.listenerMode || "attuned") || "attuned"
+    },
+    continuityThread: {
+      depthLevel: clampInt(src?.continuityThread?.depthLevel, 1, 1, 999999),
+      threadContinuation: !!src?.continuityThread?.threadContinuation,
+      unresolvedSignals: Array.isArray(src?.continuityThread?.unresolvedSignals) ? src.continuityThread.unresolvedSignals.slice(0, 6).map((x) => safeStr(x)) : [],
+      lastTopics: Array.isArray(src?.continuityThread?.lastTopics) ? src.continuityThread.lastTopics.slice(0, 6).map((x) => safeStr(x)) : [],
+      responseMode: safeStr(src?.continuityThread?.responseMode || "steady") || "steady",
+      updatedAt: Number(src?.continuityThread?.updatedAt || 0) || 0
     },
     lastUpdatedAt: Number(src.lastUpdatedAt || 0) || 0
   };
@@ -298,10 +316,12 @@ function normalizeEmotionalEngineSignals(inbound, prevState) {
   const continuityScore = Math.max(0, Math.min(1, Number(sig.engineContinuityScore ?? prevEngine.continuityScore ?? 0.35) || 0.35));
   const placeholder = safeStr(sig.enginePlaceholder || prevEngine.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…";
   const lastActionLabels = Array.isArray(sig.engineActionLabels) ? sig.engineActionLabels.slice(0, 6).map((x) => safeStr(x)) : prevEngine.lastActionLabels;
+  const presenceState = safeStr(sig.enginePresenceState || prevEngine.presenceState || primaryState || "receptive").toLowerCase() || "receptive";
+  const listenerMode = safeStr(sig.engineListenerMode || prevEngine.listenerMode || "attuned").toLowerCase() || "attuned";
   const stateStreak = safeStr(prevEngine.primaryState || "") === primaryState
     ? clampInt(prevEngine.stateStreak, 0, 0, 999999) + 1
     : 0;
-  return { primaryState, secondaryState, continuityScore, placeholder, lastActionLabels, stateStreak };
+  return { primaryState, secondaryState, continuityScore, placeholder, lastActionLabels, stateStreak, presenceState, listenerMode };
 }
 
 function inferConversationPhase(prevState, inbound, plannerDecision) {
@@ -487,7 +507,18 @@ function finalizeTurn(params = {}) {
     continuityScore: engineSignals.continuityScore,
     stateStreak: engineSignals.stateStreak,
     placeholder: engineSignals.placeholder,
-    lastActionLabels: Array.isArray(engineSignals.lastActionLabels) ? engineSignals.lastActionLabels : []
+    lastActionLabels: Array.isArray(engineSignals.lastActionLabels) ? engineSignals.lastActionLabels : [],
+    presenceState: safeStr(engineSignals.presenceState || prev.emotionalEngine?.presenceState || engineSignals.primaryState || "receptive") || "receptive",
+    listenerMode: safeStr(engineSignals.listenerMode || prev.emotionalEngine?.listenerMode || "attuned") || "attuned"
+  };
+
+  const continuityThread = {
+    depthLevel: Math.max(1, Math.max(repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
+    threadContinuation: !!(sameLane || sameIntent || sameUser || sameAssistant || support.lockActive),
+    unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
+    lastTopics: [safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
+    responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
+    updatedAt: nowMs()
   };
 
   return {
@@ -522,6 +553,7 @@ function finalizeTurn(params = {}) {
       terminalStopReason: audio.shouldStop ? (audio.reason || "audio_terminal_stop") : ""
     },
     emotionalEngine,
+    continuityThread,
     lastUpdatedAt: nowMs()
   };
 }
