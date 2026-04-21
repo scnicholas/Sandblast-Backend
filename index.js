@@ -416,6 +416,7 @@ function maybeSweepMemory() {
   prune(memory.lastBySession);
   prune(memory.supportBySession);
   prune(memory.transportBySession);
+  prune(memory.spineBySession);
 }
 
 function shouldLogRequest(req, statusCode, durationMs) {
@@ -555,6 +556,15 @@ const marionBridgeMod = tryRequireMany([
   "./Utils/marionBridge.js",
   "./runtime/marionBridge",
   "./runtime/marionBridge.js"
+]);
+
+const stateSpineMod = tryRequireMany([
+  "./stateSpine",
+  "./stateSpine.js",
+  "./utils/stateSpine",
+  "./utils/stateSpine.js",
+  "./Utils/stateSpine",
+  "./Utils/stateSpine.js"
 ]);
 
 
@@ -2295,7 +2305,8 @@ const newsCanadaPrimaryService = buildNewsCanadaCacheBackedService(newscanadaCac
 const memory = {
   lastBySession: new Map(),
   supportBySession: new Map(),
-  transportBySession: new Map()
+  transportBySession: new Map(),
+  spineBySession: new Map()
 };
 
 function getSessionId(req) {
@@ -2412,6 +2423,113 @@ function setTransportState(sessionId, patch) {
   };
   memory.transportBySession.set(sessionId, next);
   return next;
+}
+
+function getStateSpineRuntime() {
+  return isObj(stateSpineMod) ? stateSpineMod : null;
+}
+
+function getStateSpine(sessionId) {
+  const runtime = getStateSpineRuntime();
+  const existing = memory.spineBySession.get(sessionId);
+  if (existing) return existing;
+  if (runtime && typeof runtime.createState === "function") {
+    try {
+      const created = runtime.createState({ lane: "general", stage: "open" });
+      memory.spineBySession.set(sessionId, created);
+      return created;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function setStateSpine(sessionId, nextState) {
+  const runtime = getStateSpineRuntime();
+  let next = isObj(nextState) ? nextState : {};
+  if (runtime && typeof runtime.coerceState === "function") {
+    try {
+      next = runtime.coerceState(next);
+    } catch (_) {}
+  }
+  next = { ...next, updatedAt: now() };
+  memory.spineBySession.set(sessionId, next);
+  return next;
+}
+
+function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn, shaped) {
+  const contract = isObj(marionContract) ? marionContract : {};
+  const continuity = isObj(contract.continuity) ? contract.continuity : {};
+  const packet = isObj(marion && marion.packet) ? marion.packet : {};
+  const turnSignals = {
+    emotionSupportMode: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || ""),
+    emotionPrimary: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || ""),
+    emotionCluster: cleanText(contract.emotionCluster || continuity.emotionCluster || ""),
+    questionStyle: cleanText(contract.question_style || contract.questionStyle || ""),
+    supportLockActive: !!(emotion && (emotion.distress || emotion.sensitive || emotion.stabilize)),
+    emotionShouldSuppressMenus: !!(emotion && (emotion.distress || emotion.sensitive || emotion.stabilize)),
+    emotionNeedSoft: !!(emotion && emotion.distress),
+    emotionNeedCrisis: !!(emotion && emotion.sensitive),
+    emotionSameEmotionCount: Number(priorTurn && priorTurn.emotionLabel && cleanText(priorTurn.emotionLabel) === cleanText(emotion && emotion.label || "") ? 1 : 0),
+    enginePrimaryState: cleanText(continuity.currentState || contract.emotional_state || emotion?.label || "focused"),
+    engineSecondaryState: cleanText(contract.support_mode || continuity.responseMode || "steady"),
+    engineContinuityScore: Number(continuity.depthLevel ? Math.min(1, 0.35 + (Number(continuity.depthLevel || 1) * 0.12)) : 0.35),
+    enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblast…"),
+    engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : []
+  };
+  return {
+    text: norm && norm.text || "",
+    lane: cleanText(norm && norm.lane || contract.domain || "general") || "general",
+    action: cleanText(norm && norm.payload && norm.payload.action || norm && norm.body && norm.body.action || ""),
+    payload: isObj(norm && norm.payload) ? norm.payload : {},
+    emotion: {
+      primaryEmotion: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || "neutral") || "neutral",
+      supportFlags: {
+        highDistress: !!(emotion && emotion.distress),
+        crisis: !!(emotion && emotion.sensitive),
+        needsContainment: !!(emotion && emotion.stabilize)
+      },
+      supportModeCandidate: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || "")
+    },
+    emo: {
+      primaryEmotion: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || "neutral") || "neutral",
+      supportFlags: {
+        highDistress: !!(emotion && emotion.distress),
+        crisis: !!(emotion && emotion.sensitive),
+        needsContainment: !!(emotion && emotion.stabilize)
+      }
+    },
+    turnSignals
+  };
+}
+
+function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, marionContract, priorTurn, shaped) {
+  const runtime = getStateSpineRuntime();
+  if (!runtime || typeof runtime.finalizeTurn !== "function") return null;
+  try {
+    const decision = {
+      move: cleanText(shaped && shaped.cog && shaped.cog.intent || marionContract && marionContract.intent || "ADVANCE") || "ADVANCE",
+      stage: cleanText(shaped && shaped.meta && shaped.meta.failSafe ? "recovery" : (shaped && shaped.meta && shaped.meta.suppressMenus ? "recovery" : "deliver")) || "deliver",
+      rationale: cleanText(shaped && shaped.meta && (shaped.meta.replyAuthority || shaped.meta.error || "") || marionContract && marionContract.response || "normal_progression"),
+      speak: cleanText(shaped && shaped.reply || shaped && shaped.payload && shaped.payload.reply || ""),
+      _plannerMode: cleanText(shaped && shaped.cog && shaped.cog.mode || "advance") || "advance"
+    };
+    const inbound = buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn, shaped);
+    const next = runtime.finalizeTurn({
+      prevState,
+      inbound,
+      decision,
+      lane: inbound.lane,
+      stage: decision.stage,
+      reply: decision.speak,
+      assistantText: decision.speak,
+      marionCog: isObj(shaped && shaped.cog) ? shaped.cog : { intent: decision.move, mode: decision._plannerMode },
+      updateReason: cleanText(decision.rationale || "")
+    });
+    return setStateSpine(sessionId, next);
+  } catch (err) {
+    console.log("[Sandblast][stateSpine:error]", err && (err.stack || err.message || err));
+    return null;
+  }
 }
 
 function normalizePayload(req) {
@@ -2601,12 +2719,17 @@ function shouldEnterSupportHold(text, emotion, engineResult) {
 
 function buildSupportSessionPatch(existing, active, release) {
   const prev = isObj(existing) ? existing : {};
-  const lock = {};
+  const lock = isObj(prev.supportLock) ? { ...prev.supportLock } : {};
   if (active) lock.active = true;
   if (release) lock.release = true;
   return {
     ...prev,
-    supportLock: lock
+    supportLock: lock,
+    continuity: isObj(prev.continuity) ? prev.continuity : {},
+    continuityState: isObj(prev.continuityState) ? prev.continuityState : {},
+    turnMemory: isObj(prev.turnMemory) ? prev.turnMemory : {},
+    emotionalEngine: isObj(prev.emotionalEngine) ? prev.emotionalEngine : {},
+    stateSpine: isObj(prev.stateSpine) ? prev.stateSpine : {}
   };
 }
 
@@ -4711,6 +4834,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, count: 1 });
 
+  const priorSpine = getStateSpine(sessionId);
   const marionInput = {
     text: norm.text,
     lane: norm.lane,
@@ -4721,6 +4845,17 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     turnId: norm.turnId,
     payload: norm.payload,
     emotion,
+    previousMemory: {
+      ...(isObj(priorTurn) ? priorTurn : {}),
+      stateSpine: isObj(priorSpine) ? priorSpine : {},
+      continuity: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
+      continuityState: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
+      emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {},
+      support: isObj(priorSpine && priorSpine.support) ? priorSpine.support : {}
+    },
+    continuityState: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
+    turnMemory: isObj(priorTurn) ? priorTurn : {},
+    stateSpine: isObj(priorSpine) ? priorSpine : {},
     guidedPrompt: norm.guidedPrompt,
     domainHint: norm.domainHint,
     intentHint: norm.intentHint,
@@ -4769,7 +4904,14 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     marionContract,
     emotion,
     previousTurn: priorTurn,
+    previousMemory: {
+      ...(isObj(priorTurn) ? priorTurn : {}),
+      stateSpine: isObj(priorSpine) ? priorSpine : {},
+      emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {},
+      support: isObj(priorSpine && priorSpine.support) ? priorSpine.support : {}
+    },
     continuity: marionContract && marionContract.continuity || buildMarionContinuity(priorTurn, norm, emotion),
+    stateSpine: isObj(priorSpine) ? priorSpine : {},
     forceDirect: shouldForceMarionReply(marionContract, norm),
     overrideReply: shouldForceMarionReply(marionContract, norm) ? cleanText(marionContract && marionContract.response || "") : "",
     forcedIntent: cleanText(marionContract && marionContract.intent || norm.intentHint || ""),
@@ -4997,7 +5139,35 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     lastUserHash: replyHash(norm.text)
   });
 
+  const nextSpine = finalizeStateSpineForTurn(sessionId, priorSpine, norm, emotion, marion, marionContract, priorTurn, shaped);
+  if (nextSpine) {
+    shaped.stateSpine = nextSpine;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), stateSpine: nextSpine };
+    shaped.meta = mergeMeta(shaped.meta, {
+      stateSpineRev: Number(nextSpine.rev || 0),
+      stateSpinePhase: cleanText(nextSpine.phase || ""),
+      stateSpineStage: cleanText(nextSpine.stage || ""),
+      stateSpineVolatility: cleanText(nextSpine.volatility || "")
+    });
+  }
+
   const sessionPatch = buildSupportSessionPatch(shaped.sessionPatch, supportActive, !supportActive);
+  if (nextSpine) {
+    sessionPatch.stateSpine = nextSpine;
+    sessionPatch.emotionalEngine = isObj(nextSpine.emotionalEngine) ? nextSpine.emotionalEngine : {};
+    sessionPatch.continuityState = isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : (isObj(sessionPatch.continuityState) ? sessionPatch.continuityState : {});
+    sessionPatch.continuity = isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : (isObj(sessionPatch.continuity) ? sessionPatch.continuity : {});
+    sessionPatch.turnMemory = {
+      ...(isObj(sessionPatch.turnMemory) ? sessionPatch.turnMemory : {}),
+      stateSpineRev: Number(nextSpine.rev || 0),
+      stage: cleanText(nextSpine.stage || ""),
+      phase: cleanText(nextSpine.phase || ""),
+      lastIntent: cleanText(nextSpine.lastIntent || ""),
+      lastMove: cleanText(nextSpine.lastMove || ""),
+      supportLock: !!(nextSpine.support && nextSpine.support.lockActive),
+      continuityScore: Number(nextSpine.emotionalEngine && nextSpine.emotionalEngine.continuityScore || 0)
+    };
+  }
   shaped.sessionPatch = sessionPatch;
 
   shaped.meta = mergeMeta(shaped.meta, {
@@ -5480,6 +5650,9 @@ module.exports = {
   buildSpeechContract,
   normalizeVoiceRouteResponse,
   attachVoiceRoute,
+  getStateSpine,
+  setStateSpine,
+  finalizeStateSpineForTurn,
   normalizeMarionContract,
   validateMarionContract,
   enforceMarionContract,
