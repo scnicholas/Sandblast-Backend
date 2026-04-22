@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionRouter v1.2.0 AUTOPSY-HARDENED-SOFTFAIL-CONTINUITY";
+const VERSION = "marionRouter v1.1.0 AUTOPSY-HARDENED-SOFTFAIL-SYNTAX-FIX-LOOP-GUARD";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -214,68 +214,6 @@ function _buildStateDrift(primaryEmotion = {}, previousMemory = {}) {
   };
 }
 
-function _resolveConversationState(input = {}, previousMemory = {}, primaryEmotion = {}) {
-  const direct = _safeObj(input.conversationState);
-  const prevPatch = _safeObj(_safeObj(previousMemory).memoryPatch);
-  const previousState = _safeObj(previousMemory.conversationState || previousMemory.continuityState || prevPatch.conversationState);
-  const lastEmotion = _safeObj(direct.lastEmotion);
-  const previousLastEmotion = _safeObj(previousState.lastEmotion);
-  const currentEmotion = _lower(
-    lastEmotion.primaryEmotion ||
-    primaryEmotion.emotion ||
-    direct.currentEmotion ||
-    previousState.currentEmotion ||
-    "neutral"
-  ) || "neutral";
-  const previousEmotion = _lower(
-    direct.previousEmotion ||
-    lastEmotion.previousEmotion ||
-    previousLastEmotion.primaryEmotion ||
-    previousState.previousEmotion ||
-    _safeObj(previousMemory.lastEmotion).primaryEmotion ||
-    ""
-  );
-  const lastTopics = []
-    .concat(_safeArray(direct.lastTopics))
-    .concat(_safeArray(previousState.lastTopics))
-    .filter(Boolean);
-  const unresolvedSignals = []
-    .concat(_safeArray(direct.unresolvedSignals))
-    .concat(_safeArray(previousState.unresolvedSignals))
-    .filter(Boolean);
-  const repetitionCount = Math.max(0, _num(
-    direct.repetitionCount,
-    previousState.repetitionCount || previousMemory.repetitionCount || 0
-  ));
-  const depthLevel = Math.max(1, Math.min(6, _num(
-    direct.depthLevel,
-    previousState.depthLevel || previousMemory.depthLevel || (repetitionCount > 0 ? 2 : 1)
-  )));
-  const threadContinuation = !!(
-    direct.threadContinuation ||
-    previousState.threadContinuation ||
-    repetitionCount > 0 ||
-    unresolvedSignals.length > 0 ||
-    depthLevel > 1
-  );
-  return {
-    previousEmotion,
-    currentEmotion,
-    emotionTrend: _trim(direct.emotionTrend || previousState.emotionTrend || "stable") || "stable",
-    lastTopics: [...new Set(lastTopics.map((x) => _trim(x)).filter(Boolean))].slice(0, 6),
-    repetitionCount,
-    depthLevel,
-    unresolvedSignals: [...new Set(unresolvedSignals.map((x) => _trim(x)).filter(Boolean))].slice(0, 6),
-    threadContinuation,
-    continuityMode: _trim(direct.continuityMode || previousState.continuityMode || (threadContinuation ? "deepen" : "stabilize")) || "stabilize",
-    lastEmotion: {
-      primaryEmotion: currentEmotion,
-      previousEmotion: previousEmotion || null,
-      intensity: _clamp(primaryEmotion.intensity, 0, 1)
-    }
-  };
-}
-
 function routeMarion(input = {}) {
   const text = input.text || input.userText || input.userQuery || input.query || input.message || "";
   const previousMemory = _safeObj(input.previousMemory);
@@ -337,7 +275,6 @@ function routeMarion(input = {}) {
     }
 
     const primaryDomain = _choosePrimaryDomain(classified, psychology, routed);
-    const conversationState = _resolveConversationState(input, previousMemory, primaryEmotion);
     const secondaryDomains = _safeArray(routed && routed.secondary).map(_canonicalizeDomain).filter((d) => d && d !== primaryDomain);
     const blendProfile = _buildBlendProfile(primaryEmotion, emotion);
     const stateDrift = _buildStateDrift(primaryEmotion, previousMemory);
@@ -346,12 +283,15 @@ function routeMarion(input = {}) {
       ok: true,
       primaryDomain,
       secondaryDomains,
-      classified,
+      classified: {
+        ...classified,
+        domainCandidates: _safeArray(classified.domainCandidates).map(_canonicalizeDomain).filter(Boolean)
+      },
       supportFlags: finalSupportFlags,
       primaryEmotion,
       blendProfile,
       stateDrift,
-      conversationState,
+      conversationState: _safeObj(input.conversationState),
       previousTurn: {
         emotion: {
           primaryEmotion: _lower(_safeObj(previousMemory.emotion).primaryEmotion || _safeObj(previousMemory.emotion).emotion || ""),
@@ -369,14 +309,12 @@ function routeMarion(input = {}) {
         psychology: psychology || { matched: false, matches: [], blockedInternalEmission: false }
       },
       diagnostics: {
-        domainCandidates: _safeArray(classified.domainCandidates),
+        domainCandidates: _safeArray(classified.domainCandidates).map(_canonicalizeDomain).filter(Boolean),
         usedPsychology: !!(psychology && psychology.matched),
         supportFlagCount: Object.keys(finalSupportFlags).length,
         routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains } : null,
         blockedInternalEmission: !!(psychology && psychology.blockedInternalEmission),
-        softFallback: false,
-        continuityActive: !!conversationState.threadContinuation,
-        continuityDepth: _num(conversationState.depthLevel, 1)
+        softFallback: false
       }
     };
   } catch (err) {
