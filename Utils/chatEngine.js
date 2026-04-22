@@ -3,7 +3,7 @@
 /**
  * chatEngine.js
  *
- * Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED
+ * Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY
  * ------------------------------------------------------------
  * PURPOSE
  * - Act as a traffic coordinator only
@@ -70,6 +70,63 @@ function firstUsableReply() {
     return text;
   }
   return "";
+}
+
+function getMetaReply(meta = {}) {
+  const marion = isPlainObject(meta.marion) ? meta.marion : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const contract = isPlainObject(meta.marionContract) ? meta.marionContract : {};
+  const contractPayload = isPlainObject(contract.payload) ? contract.payload : {};
+  return firstUsableReply(
+    meta.overrideReply,
+    meta.replySeed,
+    meta.fallbackResponse,
+    meta.fallbackReply,
+    contract.response,
+    contract.reply,
+    contract.output,
+    contract.answer,
+    contract.text,
+    contract.spokenText,
+    contractPayload.reply,
+    contractPayload.text,
+    contractPayload.message,
+    marion.response,
+    marion.reply,
+    marion.text,
+    marion.output,
+    marion.answer,
+    marion.spokenText,
+    marion.message,
+    marion.fallbackResponse,
+    marion.replySeed,
+    payload.reply,
+    payload.text,
+    payload.message,
+    payload.spokenText,
+    payload.response,
+    payload.fallbackResponse,
+    payload.replySeed,
+    packet.reply,
+    packet.answer,
+    packet.output,
+    packet.text,
+    packet.response,
+    packet.message,
+    packet.fallbackResponse,
+    packet.replySeed,
+    synthesis.reply,
+    synthesis.answer,
+    synthesis.text,
+    synthesis.output,
+    synthesis.spokenText,
+    synthesis.response,
+    synthesis.message,
+    synthesis.fallbackResponse,
+    synthesis.replySeed
+  );
 }
 
 function countRecentReplyRepeats(memory, reply, windowSize = 3) {
@@ -410,14 +467,19 @@ class ChatEngine {
   }
 
   resolveResponse(input, continuity, meta = {}) {
-    const marionReply = firstUsableReply(meta.overrideReply, meta.replySeed, meta.fallbackResponse);
+    const marionReply = getMetaReply(meta);
     const forcedIntent = cleanText(meta.forcedIntent || meta.marionIntent || "");
     const forcedEmotion = cleanText(meta.forcedEmotion || meta.marionEmotionalState || "");
 
-    if (meta.marionAuthorityLock && marionReply) {
+    const repeatedLoop = countRecentReplyRepeats(this.state.memory, LOOPING_FALLBACK_REPLY, 3) >= 1;
+    const repeatedMarionReply = marionReply && countRecentReplyRepeats(this.state.memory, marionReply, 2) >= 1;
+
+    if (marionReply && !(repeatedLoop && cleanText(marionReply) === LOOPING_FALLBACK_REPLY)) {
       return {
-        reply: marionReply,
-        replyAuthority: "marion_locked",
+        reply: repeatedMarionReply && cleanText(marionReply) === LOOPING_FALLBACK_REPLY
+          ? buildLoopRecoveryReply(input, continuity, meta)
+          : marionReply,
+        replyAuthority: meta.marionAuthorityLock ? "marion_locked" : (repeatedMarionReply ? "marion_recovered" : "marion_resolved"),
         awaitingMarion: false,
         intent: forcedIntent || "general",
         emotion: forcedEmotion || "neutral"
@@ -425,7 +487,6 @@ class ChatEngine {
     }
 
     const fallbackReply = firstUsableReply(meta.fallbackReply, meta.replySeed, meta.fallbackResponse);
-    const repeatedLoop = countRecentReplyRepeats(this.state.memory, LOOPING_FALLBACK_REPLY, 3) >= 1;
     const repeatedFallback = fallbackReply && countRecentReplyRepeats(this.state.memory, fallbackReply, 2) >= 1;
 
     if (fallbackReply && !(repeatedLoop || repeatedFallback)) {
@@ -671,7 +732,7 @@ function buildStructuredEngineReply(response, input, meta) {
   const reply = cleanText(response);
   const lane = cleanText(src.lane || "general") || "general";
   const follow = buildFollowUps(meta);
-  const awaitingMarion = !meta.marionAuthorityLock;
+  const awaitingMarion = reply === AWAITING_REPLY;
 
   return {
     ok: true,
@@ -705,8 +766,8 @@ function buildStructuredEngineReply(response, input, meta) {
       decisionAuthority: "marion"
     },
     meta: {
-      engineVersion: "Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED",
-      replyAuthority: meta.marionAuthorityLock ? "marion_locked" : (reply === AWAITING_REPLY ? "awaiting_marion" : "resolved"),
+      engineVersion: "Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY",
+      replyAuthority: reply === AWAITING_REPLY ? "awaiting_marion" : (meta.marionAuthorityLock ? "marion_locked" : "resolved"),
       marionAuthorityLock: !!meta.marionAuthorityLock,
       marionIntent: cleanText((meta.marionContract && meta.marionContract.intent) || ""),
       marionEmotionalState: cleanText((meta.marionContract && meta.marionContract.emotional_state) || ""),
