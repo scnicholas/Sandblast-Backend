@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19";
+const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -5376,16 +5376,21 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     forceDirect: shouldForceMarionReply(marionContract, norm) || !!marionAuthorityReply,
     overrideReply: cleanText(
       marionAuthorityReply ||
+      (isObj(marion) ? (marion.reply || marion.text || marion.output || marion.answer || marion.spokenText || marion.response || marion.message || marion.finalAnswer || marion.authoritativeReply || marion.authoritative_reply || "") : "") ||
+      (isObj(marion) && isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.output || marion.payload.answer || marion.payload.spokenText || marion.payload.response || "") : "") ||
+      (isObj(marion) && isObj(marion.packet) ? (marion.packet.reply || marion.packet.text || marion.packet.output || marion.packet.answer || marion.packet.response || "") : "") ||
+      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.text || marion.packet.synthesis.message || marion.packet.synthesis.output || marion.packet.synthesis.answer || marion.packet.synthesis.spokenText || marion.packet.synthesis.response || "") : "") ||
       marionReplySeed ||
-      marionContract && marionContract.response || ""
+      marionContract && (marionContract.response || marionContract.reply || marionContract.output || marionContract.answer || marionContract.text || marionContract.spokenText) || ""
     ),
     fallbackResponse: cleanText(
-      (isObj(marion) ? (marion.fallbackResponse || marion.replySeed || "") : "") ||
-      (isObj(marion) && isObj(marion.payload) ? (marion.payload.fallbackResponse || marion.payload.replySeed || "") : "") ||
-      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || marion.packet.synthesis.output || "") : "") ||
-      marionContract && marionContract.response || ""
+      (isObj(marion) ? (marion.fallbackResponse || marion.replySeed || marion.response || marion.message || "") : "") ||
+      (isObj(marion) && isObj(marion.payload) ? (marion.payload.fallbackResponse || marion.payload.replySeed || marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.output || marion.payload.answer || marion.payload.response || "") : "") ||
+      (isObj(marion) && isObj(marion.packet) ? (marion.packet.reply || marion.packet.text || marion.packet.message || marion.packet.output || marion.packet.answer || marion.packet.response || "") : "") ||
+      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.text || marion.packet.synthesis.message || marion.packet.synthesis.answer || marion.packet.synthesis.output || marion.packet.synthesis.response || "") : "") ||
+      marionContract && (marionContract.response || marionContract.reply || marionContract.output || marionContract.answer || marionContract.text || marionContract.spokenText) || ""
     ),
-    replySeed: cleanText(marionReplySeed || marionAuthorityReply || ""),
+    replySeed: cleanText(marionReplySeed || marionAuthorityReply || (isObj(marion) ? (marion.replySeed || marion.fallbackResponse || marion.response || marion.message || "") : "") || ""),
     forcedIntent: cleanText(marionContract && marionContract.intent || norm.intentHint || ""),
     forcedEmotion: cleanText(marionContract && marionContract.emotional_state || norm.emotionalHint || ""),
     guidedPrompt: norm.guidedPrompt,
@@ -5450,7 +5455,10 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
         answer: marionAuthorityReply,
         output: marionAuthorityReply,
         response: marionAuthorityReply,
-        spokenText: marionAuthorityReply
+        spokenText: marionAuthorityReply,
+        answer: marionAuthorityReply,
+        output: marionAuthorityReply,
+        response: marionAuthorityReply
       };
       shaped.meta = mergeMeta(shaped.meta, {
         marionSupportRecoveryApplied: true,
