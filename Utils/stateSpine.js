@@ -239,14 +239,40 @@ function extractIntent(inbound) {
 
 function normalizeAudioSignal(inbound) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
-  const actionRaw = safeStr(sig.ttsAction || sig.audioAction || "");
+  const audioFailure = isPlainObject(inbound?.audioFailure) ? inbound.audioFailure : (isPlainObject(inbound?.ttsFailure) ? inbound.ttsFailure : {});
+  const audio = isPlainObject(inbound?.audio) ? inbound.audio : {};
+  const bridgeTts = isPlainObject(inbound?.bridge?.tts) ? inbound.bridge.tts : {};
+  const actionRaw = safeStr(
+    sig.ttsAction || sig.audioAction ||
+    audioFailure.action || audio.action ||
+    bridgeTts.action || ""
+  );
   const action = /retry/i.test(actionRaw) ? "retry" :
     /downgrade/i.test(actionRaw) ? "downgrade" :
     /stop|terminal/i.test(actionRaw) ? "stop" : "";
-  const shouldStop = !!(sig.ttsShouldStop || sig.audioShouldStop || action === "stop");
-  const retryable = !!(sig.ttsRetryable || sig.audioRetryable || action === "retry");
-  const reason = safeStr(sig.ttsReason || sig.audioReason || "");
-  const status = clampInt(sig.ttsProviderStatus || sig.audioProviderStatus, 0, 0, 999999);
+  const shouldStop = !!(
+    sig.ttsShouldStop || sig.audioShouldStop ||
+    audioFailure.shouldTerminate || audioFailure.shouldStop ||
+    audio.shouldStop || bridgeTts.shouldStop ||
+    action === "stop"
+  );
+  const retryable = !!(
+    sig.ttsRetryable || sig.audioRetryable ||
+    audioFailure.retryable || audio.retryable || bridgeTts.retryable ||
+    action === "retry"
+  );
+  const reason = safeStr(
+    sig.ttsReason || sig.audioReason ||
+    audioFailure.reason || audioFailure.message ||
+    audio.reason || bridgeTts.reason || ""
+  );
+  const status = clampInt(
+    sig.ttsProviderStatus || sig.audioProviderStatus ||
+    audioFailure.providerStatus || audioFailure.status ||
+    audio.providerStatus || audio.status ||
+    bridgeTts.providerStatus || bridgeTts.status,
+    0, 0, 999999
+  );
   return { action, shouldStop, retryable, reason, status };
 }
 
