@@ -457,7 +457,6 @@ function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
     userQuery,
     domain,
     intent,
-    response: reply,
     reply,
     text: reply,
     answer: reply,
@@ -470,7 +469,7 @@ function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
     emotionalTurn: null,
     followUps: followUpsStrings,
     followUpsStrings,
-    payload: { response: reply, reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
+    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
   };
 }
 
@@ -526,7 +525,6 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     userQuery,
     domain,
     intent,
-    response: safeReply,
     reply: safeReply,
     text: safeReply,
     answer: safeReply,
@@ -539,7 +537,7 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     emotionalTurn: null,
     followUps: [],
     followUpsStrings: [],
-    payload: { response: safeReply, reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
+    payload: { reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
   };
 }
 
@@ -830,9 +828,13 @@ function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "
   const renderableContent = _mergeRenderableContent(payload, contract);
   const synced = _safeObj(payload) ? { ...payload } : {};
   if ("reply" in synced || !Object.keys(synced).length) synced.reply = reply;
+  synced.response = reply;
+  synced.message = reply;
   synced.text = reply;
   synced.answer = reply;
   synced.output = reply;
+  synced.fallbackResponse = reply;
+  synced.replySeed = reply;
   synced.spokenText = reply.replace(/\n+/g, " ").trim();
   Object.assign(synced, renderableContent);
   if (_safeArray(followUpsStrings).length) synced.followUpsStrings = _safeArray(followUpsStrings).map((item) => _trim(item)).filter(Boolean);
@@ -957,6 +959,9 @@ async function processWithMarion(input = {}) {
     evidence: layer2.evidence,
     contract: contractLocked,
     response: reply,
+    fallbackResponse: reply,
+    replySeed: reply,
+    message: reply,
     reply,
     text: reply,
     answer: reply,
@@ -1055,6 +1060,10 @@ function createMarionBridge(options = {}) {
       return {
         usedBridge: (!!result.ok || result.partial || result.rejected) && (!!_trim(result.reply) || _hasStructuredRenderableContent(renderableContent) || !!result.packet),
         packet: result.packet,
+        response: result.reply,
+        fallbackResponse: result.reply,
+        replySeed: result.reply,
+        message: result.reply,
         reply: result.reply,
         text: result.reply,
         output: result.reply,
@@ -1080,7 +1089,11 @@ function createMarionBridge(options = {}) {
 }
 
 async function route(input = {}) { return processWithMarion(input); }
+async function maybeResolve(input = {}) {
+  const bridge = createMarionBridge();
+  return bridge.maybeResolve(input);
+}
 const ask = route;
 const handle = route;
 
-module.exports = { VERSION, CANONICAL_ENDPOINT, retrieveLayer2Signals, processWithMarion, createMarionBridge, route, ask, handle, default: route };
+module.exports = { VERSION, CANONICAL_ENDPOINT, retrieveLayer2Signals, processWithMarion, createMarionBridge, route, maybeResolve, ask, handle, default: route };
