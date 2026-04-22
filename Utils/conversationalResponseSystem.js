@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.5.0 FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY";
+const VERSION = "conversationalResponseSystem v2.5.0 FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY-LOOP-GUARD";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -232,6 +232,22 @@ function buildActionFallback(context) {
   return "Tell me exactly what you want handled, and I’ll help you move it forward.";
 }
 
+function countRecentReplyRepeats(context, target) {
+  const continuity = isObj(context?.continuity) ? context.continuity : {};
+  const unresolved = arr(continuity.unresolvedSignals).map((item) => safeStr(item).toLowerCase());
+  const reply = safeStr(target).toLowerCase();
+  return unresolved.filter((item) => item === reply).length;
+}
+
+function buildLoopGuardReply(context) {
+  if (context.userInput.greetingOnly) return buildGreetingReply(context);
+  if (context.userInput.actionLead) return buildActionFallback(context);
+  if (context.continuity.lastTopics.length) {
+    return `Stay with ${context.continuity.lastTopics.slice(0, 3).join(", ")}, and tell me the exact part you want handled next.`;
+  }
+  return "Tell me the exact point you want handled, and I’ll answer that directly.";
+}
+
 function buildFallbackReply(context) {
   if (context.userInput.greetingOnly || context.userInput.thanksOnly || context.userInput.ackOnly) {
     return buildGreetingReply(context);
@@ -320,20 +336,28 @@ function resolveReply(result, packet, context) {
     result?.authoritative_reply,
     result?.response,
     result?.text,
+    result?.payload?.response,
+    result?.payload?.message,
     packet?.synthesis?.reply,
     packet?.synthesis?.answer,
     packet?.synthesis?.spokenText,
     packet?.synthesis?.finalAnswer,
+    packet?.synthesis?.response,
     packet?.reply,
     packet?.answer,
     packet?.output,
     packet?.spokenText,
     packet?.finalAnswer,
+    packet?.response,
     result?.interpretation
   );
   const cleaned = sanitizeUserFacingReply(emotionalCandidate);
   if (cleaned && !/^done\.?$/i.test(cleaned) && !isInternalBlockerText(cleaned)) return cleaned;
-  return buildFallbackReply(context);
+  const fallback = buildFallbackReply(context);
+  if (countRecentReplyRepeats(context, fallback) > 0) {
+    return buildLoopGuardReply(context);
+  }
+  return fallback;
 }
 
 function resolveFollowUps(result, packet, reply, context) {
