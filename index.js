@@ -359,36 +359,58 @@ const CFG = {
   port: PORT
 };
 
+function isSandblastOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return false;
+  try {
+    const url = new URL(o);
+    const host = lower(url.host || "");
+    return host === "sandblast.channel" || host === "www.sandblast.channel" || host.endsWith && host.endsWith(".sandblast.channel");
+  } catch (_) {
+    return /https?:\/\/(www\.)?sandblast\.channel(?::\d+)?$/i.test(o);
+  }
+}
+
 function isAllowedOrigin(origin) {
   const o = cleanText(origin);
   if (!o) return true;
   if (CFG.corsAllowedOrigins.includes("*")) return true;
+  if (isSandblastOrigin(o)) return true;
   return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
 }
 
 function applyCors(req, res) {
-  const origin = cleanText(req.headers.origin || "");
-  const reqHeaders = cleanText(req.headers["access-control-request-headers"] || "");
+  const origin = cleanText((req && req.headers && req.headers.origin) || "");
+  const reqHeaders = cleanText((req && req.headers && req.headers["access-control-request-headers"]) || "");
   const allowHeaders = uniq([
     "Content-Type",
     "Authorization",
     "x-sb-trace-id",
+    "x-requested-with",
     CFG.apiTokenHeader,
     ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
   ]);
+  const allowed = origin && isAllowedOrigin(origin);
 
-  if (origin && isAllowedOrigin(origin)) {
+  if (allowed) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Vary", "Origin");
     if (CFG.corsAllowCredentials) {
       res.header("Access-Control-Allow-Credentials", "true");
     }
+  } else if (!origin) {
+    res.header("Vary", "Origin");
   }
 
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
   res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
   return origin;
+}
+
+function hardenCors(req, res) {
+  try { applyCors(req, res); } catch (_) {}
+  return res;
 }
 
 app.use((req, res, next) => {
@@ -2363,6 +2385,7 @@ function readToken(req) {
 }
 
 function denyUnauthorized(res) {
+  hardenCors(null, res);
   return res.status(401).json({
     ok: false,
     error: "unauthorized",
@@ -5088,7 +5111,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
-  applyCors(req, res);
+  hardenCors(req, res);
   const handler = ttsHealthFromModule(ttsMod);
   if (!handler) {
     return res.status(200).json({
@@ -5121,7 +5144,7 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
 });
 
 app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
-  applyCors(req, res);
+  hardenCors(req, res);
   try {
     return await dispatchTts(req, res);
   } catch (err) {
@@ -5134,8 +5157,13 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   }
 });
 
-app.post("/api/chat", enforceToken, async (req, res) => {
-  applyCors(req, res);
+app.options(["/api/chat", "/api/chat/"], (req, res) => {
+  hardenCors(req, res);
+  return res.status(204).end();
+});
+
+app.post(["/api/chat", "/api/chat/"], enforceToken, async (req, res) => {
+  hardenCors(req, res);
   const startedAt = now();
   const norm = normalizePayload(req);
   const sessionId = getSessionId(req);
@@ -5858,6 +5886,7 @@ app.use((err, req, res, _next) => {
     detail
   });
 
+  hardenCors(req, res);
   return res.status(statusCode).json({
     ok: false,
     error: errorCode,
