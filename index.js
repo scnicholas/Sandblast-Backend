@@ -2393,8 +2393,26 @@ function denyUnauthorized(res) {
   });
 }
 
+function isConversationRoute(req) {
+  const path = cleanText((req && (req.path || req.originalUrl || req.url)) || "").split("?")[0];
+  return /^\/(api\/chat|chat|respond)\/?$/i.test(path);
+}
+
+function isTrustedWidgetConversation(req) {
+  if (!isConversationRoute(req)) return false;
+  const origin = cleanText((req && req.headers && req.headers.origin) || "");
+  const referer = cleanText((req && req.headers && req.headers.referer) || "");
+  const source = lower(req && req.body && req.body.ui && req.body.ui.source || "");
+  const hasWidgetHeader = !!cleanText(req && req.headers && req.headers[lower(CFG.apiTokenHeader || "x-sb-widget-token")]);
+  if (source === "nyx_widget") return true;
+  if (hasWidgetHeader && (isSandblastOrigin(origin) || isSandblastOrigin(referer))) return true;
+  if (isSandblastOrigin(origin) || isSandblastOrigin(referer)) return true;
+  return false;
+}
+
 function enforceToken(req, res, next) {
   if (req.method === "OPTIONS") return next();
+  if (isTrustedWidgetConversation(req)) return next();
   if (!CFG.apiToken) return next();
   const got = readToken(req);
   if (got && got === CFG.apiToken) return next();
@@ -5157,12 +5175,12 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   }
 });
 
-app.options(["/api/chat", "/api/chat/"], (req, res) => {
+app.options(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], (req, res) => {
   hardenCors(req, res);
   return res.status(204).end();
 });
 
-app.post(["/api/chat", "/api/chat/"], enforceToken, async (req, res) => {
+app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], enforceToken, async (req, res) => {
   hardenCors(req, res);
   const startedAt = now();
   const norm = normalizePayload(req);
