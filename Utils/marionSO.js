@@ -2576,6 +2576,9 @@ function finalizeContract(cog, nowMs, extra) {
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
     emissionReady: c.emissionReady !== false,
+    replySeed: safeStr(c.replySeed || c.fallbackResponse || "", 240),
+    fallbackResponse: safeStr(c.fallbackResponse || c.replySeed || "", 240),
+    emotionCarry: safeStr(c.emotionCarry || c.emotionalState || c.currentEmotion || "", 40),
     emissionPolicy: isPlainObject(c.emissionPolicy)
       ? {
           mustEmit: c.emissionPolicy.mustEmit !== false,
@@ -2689,15 +2692,6 @@ function finalizeContract(cog, nowMs, extra) {
 
   if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
   out.routingUpgrade = computeRoutingUpgradeHints(out);
-
-  const intentSeed = safeStr(out.intent || "", 16).toUpperCase();
-  const riskSeed = safeStr(out.riskTier || "", 12).toLowerCase();
-  const fallbackResponse =
-    intentSeed === "STABILIZE" || riskSeed === RISK.TIERS.HIGH || riskSeed === RISK.TIERS.MEDIUM
-      ? "I am here with you. We can take this one step at a time."
-      : "I am here, and I can help you move this forward clearly.";
-  out.fallbackResponse = safeStr(out.fallbackResponse || fallbackResponse, 220);
-  out.replySeed = safeStr(out.replySeed || out.fallbackResponse, 220);
 
   
   // ==========================================================
@@ -4280,6 +4274,9 @@ try {
       textEmpty: false,
       groundingMaxLines: 0,
       bridge: { enabled: false, reason: "fail_open" },
+      replySeed: "I am here with you. Tell me the next piece and I will stay with it.",
+      fallbackResponse: "I am here with you. Tell me the next piece and I will stay with it.",
+      emotionCarry: "regulated",
       // NEW router defaults
       effectiveLane: "general",
       crossLaneAllowed: true,
