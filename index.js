@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17";
+const INDEX_VERSION = "index.js v2.17.5sb MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -2393,26 +2393,8 @@ function denyUnauthorized(res) {
   });
 }
 
-function isConversationRoute(req) {
-  const path = cleanText((req && (req.path || req.originalUrl || req.url)) || "").split("?")[0];
-  return /^\/(api\/chat|chat|respond)\/?$/i.test(path);
-}
-
-function isTrustedWidgetConversation(req) {
-  if (!isConversationRoute(req)) return false;
-  const origin = cleanText((req && req.headers && req.headers.origin) || "");
-  const referer = cleanText((req && req.headers && req.headers.referer) || "");
-  const source = lower(req && req.body && req.body.ui && req.body.ui.source || "");
-  const hasWidgetHeader = !!cleanText(req && req.headers && req.headers[lower(CFG.apiTokenHeader || "x-sb-widget-token")]);
-  if (source === "nyx_widget") return true;
-  if (hasWidgetHeader && (isSandblastOrigin(origin) || isSandblastOrigin(referer))) return true;
-  if (isSandblastOrigin(origin) || isSandblastOrigin(referer)) return true;
-  return false;
-}
-
 function enforceToken(req, res, next) {
   if (req.method === "OPTIONS") return next();
-  if (isTrustedWidgetConversation(req)) return next();
   if (!CFG.apiToken) return next();
   const got = readToken(req);
   if (got && got === CFG.apiToken) return next();
@@ -3235,14 +3217,16 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
 function validateMarionContract(contract) {
   const c = isObj(contract) ? contract : {};
   const errors = [];
-  if (cleanText(c.status || "") !== "success") errors.push("status_not_success");
-  if (!cleanText(c.intent || "")) errors.push("missing_intent");
-  if (!cleanText(c.emotional_state || "")) errors.push("missing_emotional_state");
-  if (!cleanText(c.response || "")) errors.push("missing_response");
-  if (isInternalMarionBlockerReply(c.response || "")) errors.push("internal_blocker_response");
-  if (!isObj(c.continuity)) errors.push("missing_continuity");
-  if (!isObj(c.meta)) errors.push("missing_meta");
-  return { ok: errors.length === 0, errors };
+  const response = cleanText(c.response || "");
+  const status = cleanText(c.status || "success") || "success";
+  if (!response) errors.push("missing_response");
+  if (isInternalMarionBlockerReply(response)) errors.push("internal_blocker_response");
+  if (status && status !== "success") errors.push("status_not_success");
+  if (!cleanText(c.intent || "")) c.intent = "general";
+  if (!cleanText(c.emotional_state || "")) c.emotional_state = "calm";
+  if (!isObj(c.continuity)) c.continuity = {};
+  if (!isObj(c.meta)) c.meta = {};
+  return { ok: errors.length === 0 || (errors.length === 1 && errors[0] === "status_not_success" && !!response), errors };
 }
 
 function shouldForceMarionReply(contract, norm) {
@@ -3261,45 +3245,38 @@ function enforceMarionContract(shaped, contract, norm) {
   const out = isObj(shaped) ? { ...shaped } : {};
   const c = isObj(contract) ? contract : null;
   const checked = validateMarionContract(c);
+  const candidate = cleanReplyForUser(c && c.response || "");
   out.meta = mergeMeta(out.meta, {
     marionContractVersion: "marion-nyx-v1",
     marionContractOk: checked.ok,
-    marionContractErrors: checked.errors
+    marionContractErrors: checked.errors,
+    marionReplyPresent: !!candidate
   });
-  if (!c || !checked.ok) return out;
-  const locked = cleanReplyForUser(c.response || "");
-  if (!locked) return out;
-  out.reply = locked;
+  if (!candidate) return out;
+  out.reply = candidate;
   out.payload = {
     ...(isObj(out.payload) ? out.payload : {}),
-    reply: locked,
-    text: locked,
-    message: locked,
-    spokenText: locked,
-    marionContract: c,
-    continuity: c.continuity
+    reply: candidate,
+    text: candidate,
+    message: candidate,
+    spokenText: candidate,
+    marionContract: c || {},
+    continuity: isObj(c && c.continuity) ? c.continuity : {}
   };
   out.bridge = {
     ...(isObj(out.bridge) ? out.bridge : {}),
-    marionContract: c,
-    continuity: c.continuity,
-    intent: c.intent,
-    emotional_state: c.emotional_state,
-    confidence: c.meta && c.meta.confidence
+    source: cleanText((c && c.meta && c.meta.source) || (out.bridge && out.bridge.source) || "marion") || "marion",
+    authority: "marion_locked"
   };
   out.cog = {
     ...(isObj(out.cog) ? out.cog : {}),
-    intent: cleanText(out.cog && out.cog.intent || c.intent || ""),
-    mode: cleanText(out.cog && out.cog.mode || "authoritative"),
-    publicMode: out.cog && out.cog.publicMode !== false
+    intent: cleanText((c && c.intent) || out.cog && out.cog.intent || norm && norm.intentHint || "MARION") || "MARION",
+    mode: "authoritative",
+    publicMode: true
   };
   out.meta = mergeMeta(out.meta, {
-    replyAuthority: "marion_contract_locked",
-    semanticAuthority: "marion",
-    marionIntent: c.intent,
-    marionEmotionalState: c.emotional_state,
-    marionConfidence: c.meta && c.meta.confidence,
-    marionFallback: !!(c.meta && c.meta.fallback)
+    marionApplied: true,
+    replyAuthority: "marion_locked"
   });
   return out;
 }
@@ -5358,7 +5335,8 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   if (!shaped.bridge && marion) shaped.bridge = marion;
   shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
 
-  const supportTriggered = shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
+  const marionReplyPresent = !!cleanText(marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
+  const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
   if (supportTriggered) {
     supportActive = true;
     supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
@@ -5397,7 +5375,7 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
 
   if (engineError) {
     failSafe = true;
-    if (shouldLockMarionAuthority(marion)) {
+    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
       shaped = repairEngineContract(shapeEngineReply({
         ok: true,
         reply: getMarionAuthorityReply(marion),
@@ -5470,7 +5448,7 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
   let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
   if (!reply) {
-    if (shouldLockMarionAuthority(marion)) {
+    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
       reply = getMarionAuthorityReply(marion);
       shaped.reply = reply;
       shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
@@ -5498,7 +5476,7 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
 
   const loop = detectLoop(sessionId, reply, norm.text);
   if (loop.repeated) {
-    if (shouldLockMarionAuthority(marion)) {
+    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
       shaped.meta = mergeMeta(shaped.meta, {
         duplicateReplyObserved: true,
         duplicateReplySuppressed: true,
