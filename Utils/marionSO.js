@@ -321,18 +321,6 @@ const LATENT_DESIRE = Object.freeze({
 
 const MARION_TRACE_MAX = 160; // hard cap in chars
 
-
-function buildFallbackResponseSeed(intent, lane) {
-  const move = safeStr(intent || "CLARIFY", 16).toUpperCase();
-  const channel = safeStr(lane || "general", 24).toLowerCase();
-  if (move === "STABILIZE") return "I am here with you. We can take this one step at a time.";
-  if (channel.includes("news")) return "I have the next News Canada handoff ready.";
-  if (channel.includes("music")) return "I have the next music handoff ready.";
-  if (move === "ADVANCE") return "I have the next clear step ready.";
-  return "Tell me the next piece and I will stay with the thread.";
-}
-
-
 // -------------------------
 // Operational Intelligence (enterprise-heavy, audit-friendly)
 // -------------------------
@@ -2587,9 +2575,6 @@ function finalizeContract(cog, nowMs, extra) {
 
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
-    replySeed: safeStr(c.replySeed || buildFallbackResponseSeed(intent, lane), 220),
-    fallbackResponse: safeStr(c.fallbackResponse || c.replySeed || buildFallbackResponseSeed(intent, lane), 220),
-    emotionCarry: isPlainObject(c.emotionCarry) ? { ...c.emotionCarry } : { requestedEmotion: safeStr(c.emotionalState || "", 24), lane: safeStr(lane || "general", 24), intent },
     emissionReady: c.emissionReady !== false,
     emissionPolicy: isPlainObject(c.emissionPolicy)
       ? {
@@ -2704,6 +2689,15 @@ function finalizeContract(cog, nowMs, extra) {
 
   if (Array.isArray(ex.tracePolicyIssues) && ex.tracePolicyIssues.length) out.tracePolicyIssues = uniqBounded(ex.tracePolicyIssues, 6);
   out.routingUpgrade = computeRoutingUpgradeHints(out);
+
+  const intentSeed = safeStr(out.intent || "", 16).toUpperCase();
+  const riskSeed = safeStr(out.riskTier || "", 12).toLowerCase();
+  const fallbackResponse =
+    intentSeed === "STABILIZE" || riskSeed === RISK.TIERS.HIGH || riskSeed === RISK.TIERS.MEDIUM
+      ? "I am here with you. We can take this one step at a time."
+      : "I am here, and I can help you move this forward clearly.";
+  out.fallbackResponse = safeStr(out.fallbackResponse || fallbackResponse, 220);
+  out.replySeed = safeStr(out.replySeed || out.fallbackResponse, 220);
 
   
   // ==========================================================
@@ -4342,9 +4336,6 @@ try {
       },
       marionTrace: "fail_open",
       marionTraceHash: sha1Lite("fail_open").slice(0, 10),
-      replySeed: buildFallbackResponseSeed("CLARIFY", "general"),
-      fallbackResponse: buildFallbackResponseSeed("CLARIFY", "general"),
-      emotionCarry: { requestedEmotion: "regulated", lane: "general", intent: "CLARIFY" },
       macModeOverride: "",
       macModeWhy: [],
       privacy: { noRawTextInTrace: true, boundedTrace: true, sideEffectFree: true },
