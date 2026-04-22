@@ -567,6 +567,28 @@ const stateSpineMod = tryRequireMany([
   "./Utils/stateSpine.js"
 ]);
 
+const siteBridgeMod = tryRequireMany([
+  "./sitebridge",
+  "./sitebridge.js",
+  "./siteBridge",
+  "./siteBridge.js",
+  "./utils/sitebridge",
+  "./utils/sitebridge.js",
+  "./Utils/sitebridge",
+  "./Utils/sitebridge.js",
+  "./Utils/SiteBridge",
+  "./Utils/SiteBridge.js"
+]);
+
+const s2sMod = tryRequireMany([
+  "./s2s",
+  "./s2s.js",
+  "./utils/s2s",
+  "./utils/s2s.js",
+  "./Utils/s2s",
+  "./Utils/s2s.js"
+]);
+
 
 function getMarionRuntimeDiagnostics() {
   return {
@@ -579,7 +601,13 @@ function getMarionRuntimeDiagnostics() {
     marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
     chatEngineLoaded: !!chatEngineMod,
-    chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : []
+    chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : [],
+    siteBridgeLoaded: !!siteBridgeMod,
+    siteBridgeHasBuild: !!(siteBridgeMod && typeof siteBridgeMod.build === "function"),
+    siteBridgeHasBuildAsync: !!(siteBridgeMod && typeof siteBridgeMod.buildAsync === "function"),
+    s2sLoaded: !!s2sMod,
+    s2sHasRun: !!(s2sMod && typeof s2sMod.runLocalChat === "function"),
+    s2sHasHealth: !!(s2sMod && typeof s2sMod.health === "function")
   };
 }
 
@@ -2460,6 +2488,8 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
   const contract = isObj(marionContract) ? marionContract : {};
   const continuity = isObj(contract.continuity) ? contract.continuity : {};
   const packet = isObj(marion && marion.packet) ? marion.packet : {};
+  const audio = isObj(shaped && shaped.audio) ? shaped.audio : {};
+  const speech = isObj(shaped && shaped.speech) ? shaped.speech : (isObj(shaped && shaped.payload && shaped.payload.speech) ? shaped.payload.speech : {});
   const turnSignals = {
     emotionSupportMode: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || ""),
     emotionPrimary: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || ""),
@@ -2474,7 +2504,19 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
     engineSecondaryState: cleanText(contract.support_mode || continuity.responseMode || "steady"),
     engineContinuityScore: Number(continuity.depthLevel ? Math.min(1, 0.35 + (Number(continuity.depthLevel || 1) * 0.12)) : 0.35),
     enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblast…"),
-    engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : []
+    engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : [],
+    ttsAction: cleanText(audio.action || ""),
+    ttsShouldStop: !!audio.shouldStop,
+    ttsRetryable: !!audio.retryable,
+    ttsReason: cleanText(audio.reason || ""),
+    ttsProviderStatus: Number(audio.providerStatus || audio.status || 0) || 0,
+    audioAction: cleanText(audio.action || ""),
+    audioShouldStop: !!audio.shouldStop,
+    audioRetryable: !!audio.retryable,
+    audioReason: cleanText(audio.reason || ""),
+    audioProviderStatus: Number(audio.providerStatus || audio.status || 0) || 0,
+    speechEnabled: speech.enabled !== false,
+    speechSpeak: speech.speak !== false
   };
   return {
     text: norm && norm.text || "",
@@ -2500,6 +2542,98 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
     },
     turnSignals
   };
+}
+
+
+function ensureAudioContractFromSpeech(base, speech) {
+  const shaped = isObj(base) ? { ...base } : {};
+  const currentSpeech = isObj(speech) ? speech : {};
+  const reply = cleanReplyForUser(
+    currentSpeech.textSpeak ||
+    currentSpeech.text ||
+    shaped?.audio?.textToSynth ||
+    shaped?.payload?.textSpeak ||
+    shaped?.payload?.spokenText ||
+    shaped?.reply || ""
+  );
+
+  if (!reply) return shaped;
+
+  shaped.audio = isObj(shaped.audio) ? { ...shaped.audio } : {};
+  if (shaped.audio.enabled !== false) shaped.audio.enabled = true;
+  shaped.audio.textToSynth = cleanText(shaped.audio.textToSynth || reply) || reply;
+  if (shaped.audio.autoPlay === undefined) shaped.audio.autoPlay = currentSpeech.speak !== false;
+  shaped.audio.provider = cleanText(shaped.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble";
+  shaped.audio.when = cleanText(shaped.audio.when || "post_reply") || "post_reply";
+  shaped.audio.strategy = cleanText(shaped.audio.strategy || "single_shot") || "single_shot";
+  shaped.audio.presenceProfile = cleanText(shaped.audio.presenceProfile || currentSpeech.presenceProfile || "") || undefined;
+  shaped.audio.nyxStateHint = cleanText(shaped.audio.nyxStateHint || currentSpeech.nyxStateHint || "") || undefined;
+
+  const directives = Array.isArray(shaped.directives) ? shaped.directives.slice() : [];
+  const hasSpeak = directives.some((d) => isObj(d) && cleanText(d.type).toUpperCase() === "TTS_SPEAK");
+  const hasPlay = directives.some((d) => isObj(d) && cleanText(d.type).toUpperCase() === "AUDIO_PLAY");
+
+  if (!hasSpeak) {
+    directives.push({
+      type: "TTS_SPEAK",
+      text: shaped.audio.textToSynth,
+      textToSynth: shaped.audio.textToSynth,
+      provider: shaped.audio.provider,
+      autoPlay: !!shaped.audio.autoPlay,
+      when: shaped.audio.when
+    });
+  }
+  if (!!shaped.audio.autoPlay && !hasPlay) {
+    directives.push({
+      type: "AUDIO_PLAY",
+      autoPlay: true,
+      when: shaped.audio.when,
+      strategy: shaped.audio.strategy
+    });
+  }
+  shaped.directives = directives;
+  return shaped;
+}
+
+function buildSiteBridgeSnapshot(norm, emotion, priorSpine, marionContract) {
+  if (!siteBridgeMod || typeof siteBridgeMod.build !== "function") return null;
+  try {
+    return siteBridgeMod.build({
+      queryKey: cleanText(norm && norm.domainHint || norm && norm.intentHint || norm && norm.lane || "general"),
+      sessionKey: cleanText(norm && norm.turnId || norm && norm.traceId || "session"),
+      features: {
+        lane: cleanText(norm && norm.lane || "general") || "general",
+        intent: cleanText(marionContract && marionContract.intent || "CLARIFY") || "CLARIFY",
+        emotion: isObj(emotion) ? {
+          primaryEmotion: cleanText(emotion.label || "neutral") || "neutral",
+          intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+          supportFlags: {
+            highDistress: !!emotion.distress,
+            crisis: !!emotion.sensitive,
+            needsContainment: !!emotion.stabilize
+          }
+        } : undefined,
+        continuityState: isObj(priorSpine && priorSpine.continuityThread) ? priorSpine.continuityThread : {},
+        emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {}
+      },
+      emotion: isObj(emotion) ? {
+        primaryEmotion: cleanText(emotion.label || "neutral") || "neutral",
+        intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+        supportFlags: {
+          highDistress: !!emotion.distress,
+          crisis: !!emotion.sensitive,
+          needsContainment: !!emotion.stabilize
+        }
+      } : undefined,
+      opts: {
+        routeConfidence: 0.74,
+        actionHints: [cleanText(norm && norm.intentHint || ""), cleanText(norm && norm.domainHint || "")].filter(Boolean)
+      }
+    });
+  } catch (err) {
+    console.log("[Sandblast][siteBridge:error]", err && (err.stack || err.message || err));
+    return null;
+  }
 }
 
 function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, marionContract, priorTurn, shaped) {
@@ -4652,7 +4786,10 @@ app.get("/health", (req, res) => {
       supportResponse: !!supportResponseMod,
       affectEngine: !!affectEngineMod,
       voiceRoute: !!voiceRouteMod,
-      tts: !!ttsMod
+      tts: !!ttsMod,
+      stateSpine: !!stateSpineMod,
+      siteBridge: !!siteBridgeMod,
+      s2s: !!s2sMod
     },
     runtimeDeps: {
       express: moduleAvailable("express"),
@@ -4663,7 +4800,9 @@ app.get("/health", (req, res) => {
       voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
       voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
       ttsHandler: !!ttsHandlerFromModule(ttsMod),
-      ttsHealth: !!ttsHealthFromModule(ttsMod)
+      ttsHealth: !!ttsHealthFromModule(ttsMod),
+      siteBridgeBuild: !!(siteBridgeMod && typeof siteBridgeMod.build === "function"),
+      s2sRun: !!(s2sMod && typeof s2sMod.runLocalChat === "function")
     },
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     preserveMixerVoice: !!CFG.preserveMixerVoice,
@@ -4682,6 +4821,7 @@ app.get("/api/health", (req, res) => {
     traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("health")),
     upMs: now() - SERVER_BOOT_AT,
     tts,
+    marionRuntime: getMarionRuntimeDiagnostics(),
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
     backendPublicBase: getBackendPublicBase(),
@@ -4835,6 +4975,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
   setTransportState(sessionId, { key: transportKey, count: 1 });
 
   const priorSpine = getStateSpine(sessionId);
+  const siteBridgeSnapshot = buildSiteBridgeSnapshot(norm, emotion, priorSpine, null);
   const marionInput = {
     text: norm.text,
     lane: norm.lane,
@@ -5174,6 +5315,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     v: INDEX_VERSION,
     t: now(),
     knowledge: shaped.meta?.knowledge || knowledgeRuntime.extract(norm.text, { marion }),
+    siteBridge: siteBridgeSnapshot || undefined,
     clearStaleUi: suppressMenus,
     suppressMenus,
     failSafe: !!failSafe,
@@ -5207,6 +5349,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
 
   shaped = attachVoiceRoute(shaped);
   const speech = buildSpeechContract(shaped, norm);
+  shaped = ensureAudioContractFromSpeech(shaped, speech);
   shaped.speech = speech;
   shaped.payload = {
     ...(isObj(shaped.payload) ? shaped.payload : {}),
