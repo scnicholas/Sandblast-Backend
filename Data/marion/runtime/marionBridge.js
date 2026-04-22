@@ -411,13 +411,63 @@ function _extractDatasets(inputDatasets = [], sections = {}) {
 }
 function _resolveCanonicalRoute(text, requestedDomain, previousMemory = {}) { if (typeof routeMarion === "function") { try { return _safeObj(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain, previousMemory })); } catch (_e) {} } return { ok: true, primaryDomain: _canonicalDomain(requestedDomain), supportFlags: {}, domains: { emotion: {}, psychology: { matched: false, matches: [] } }, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, classified: { classifications: {}, supportFlags: {}, domainCandidates: [_canonicalDomain(requestedDomain)] }, diagnostics: { domainCandidates: [_canonicalDomain(requestedDomain)], usedPsychology: false } }; }
 
+function _buildBridgeFallbackReply(context = {}) {
+  const src = _safeObj(context);
+  const domain = _canonicalDomain(src.domain || src.requestedDomain || "general");
+  const emotion = _safeObj(src.emotion);
+  const behavior = _safeObj(src.behavior);
+  const conversationState = _safeObj(src.conversationState);
+  const primaryEmotion = _trim(emotion.primaryEmotion || conversationState.activeEmotion || "") || "neutral";
+  const intensity = _clamp01(emotion.intensity, 0);
+  const unresolved = _safeArray(conversationState.unresolvedSignals);
+  const topEvidence = _safeObj(_safeArray(src.evidence)[0]);
+  const anchor = _firstNonEmpty(topEvidence.title, topEvidence.label, topEvidence.summary, _safeArray(conversationState.lastTopics)[0], primaryEmotion);
+  const highDistress = !!(_safeObj(src.supportFlags).highDistress || _safeObj(src.supportFlags).needsContainment || _safeObj(src.supportFlags).crisis || intensity >= 0.82 || _num(behavior.urgencyHits, 0) >= 2);
+
+  if (_isNewsDomain(domain)) {
+    return _trim(_synthesizeReplyFromStructuredContent(src.contract || src.packet || src.payload || src, domain) || NEWS_FALLBACK_REPLY) || NEWS_FALLBACK_REPLY;
+  }
+
+  if (highDistress) {
+    return "I am here with you. Let us steady this first, then we can take the next clean step together.";
+  }
+
+  if (domain && domain !== "general" && anchor && anchor !== "neutral") {
+    return `I am tracking this through ${domain}. The clearest next step is to stay with ${anchor} and respond directly.`;
+  }
+
+  if (anchor && anchor !== "neutral") {
+    return `I am with you. The clearest thread I can hold from here is ${anchor}.`;
+  }
+
+  if (unresolved.length) {
+    return `I am with you. There is still an open thread here, so I am keeping the response stable instead of letting it collapse.`;
+  }
+
+  return FALLBACK_REPLY;
+}
+
+function _buildBridgeFallbackFollowUps(context = {}) {
+  const src = _safeObj(context);
+  const domain = _canonicalDomain(src.domain || src.requestedDomain || "general");
+  const intent = _trim(src.intent || "general") || "general";
+  const topEvidence = _safeObj(_safeArray(src.evidence)[0]);
+  const anchor = _firstNonEmpty(topEvidence.title, topEvidence.label, _safeArray(_safeObj(src.conversationState).lastTopics)[0]);
+  const options = [];
+  if (anchor) options.push(`Keep building from ${anchor}.`);
+  if (domain !== "general") options.push(`Stay in the ${domain} lane.`);
+  if (/clarify/i.test(intent)) options.push("Give one more concrete detail so I can tighten the answer.");
+  else options.push("Keep going and I will carry the next step.");
+  return _dedupeStrings(options, 3);
+}
+
 function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
   const userQuery = _trim(context.userQuery || context.text || "");
   const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
   const intent = _trim(context.intent || "general") || "general";
-  let reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY)) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
+  let reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || _buildBridgeFallbackReply({ ...context, domain, intent })) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
   if (_isInternalBlockerReply(reply)) reply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
-  const followUpsStrings = _safeArray(context.followUpsStrings).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(reply));
+  const followUpsStrings = _dedupeStrings(_safeArray(context.followUpsStrings).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(reply)).concat(_buildBridgeFallbackFollowUps({ ...context, domain, intent }).filter((item) => _lower(item) !== _lower(reply))), 3);
   const packet = {
     routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
     synthesis: {
@@ -515,7 +565,7 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     }
   };
 
-  const safeReply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
+  const safeReply = _trim(_buildBridgeFallbackReply({ ...context, domain, intent })) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
   return {
     ok: true,
     partial: true,
@@ -865,12 +915,12 @@ async function processWithMarion(input = {}) {
       { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} }
     );
   } else {
-    return _makeSoftFallbackResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, evidence: layer2.evidence });
+    return _makeSoftFallbackResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, conversationState: layer2.conversationState, supportFlags: layer2.supportFlags, evidence: layer2.evidence });
   }
 
   const contractValidation = _validateContractShape(contract);
   if (!contractValidation.ok) {
-    return _makeSoftFallbackResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, contract, evidence: layer2.evidence });
+    return _makeSoftFallbackResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, contract, emotion: layer2.emotion, behavior: layer2.behavior, conversationState: layer2.conversationState, supportFlags: layer2.supportFlags, evidence: layer2.evidence });
   }
 
   const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
@@ -1013,7 +1063,7 @@ async function processWithMarion(input = {}) {
   const packet = _buildPacket(finalizedResult, layer2.evidence);
   const packetValidation = _validatePacketShape(packet);
   if (!packetValidation.ok) {
-    return _makeSoftFallbackResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, reply, followUpsStrings, packet, evidence: layer2.evidence, contract: contractLocked });
+    return _makeSoftFallbackResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, reply, followUpsStrings, packet, contract: contractLocked, emotion: layer2.emotion, behavior: layer2.behavior, conversationState: layer2.conversationState, supportFlags: layer2.supportFlags, evidence: layer2.evidence });
   }
 
   return { ...finalizedResult, packet };
