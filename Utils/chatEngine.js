@@ -3,7 +3,7 @@
 /**
  * chatEngine.js
  *
- * Chat Engine vMarion-Coordinator
+ * Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED
  * ------------------------------------------------------------
  * PURPOSE
  * - Act as a traffic coordinator only
@@ -37,6 +37,78 @@ function uniqueStrings(items) {
   );
 }
 
+
+const INTERNAL_BLOCKER_PATTERNS = [
+  /marion input required before reply emission/i,
+  /reply emission/i,
+  /bridge rejected malformed marion output before nyx handoff/i,
+  /bridge rejected/i,
+  /authoritative_reply_missing/i,
+  /packet_synthesis_reply_missing/i,
+  /contract_missing/i,
+  /packet_missing/i,
+  /bridge_rejected/i,
+  /marion_contract_invalid/i,
+  /compose_marion_response_unavailable/i,
+  /packet_invalid/i
+];
+const LOOPING_FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
+const AWAITING_REPLY = "Marion input required before reply emission.";
+
+function isInternalBlockerText(value) {
+  const text = cleanText(value);
+  if (!text) return false;
+  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text));
+}
+
+function firstUsableReply() {
+  for (const value of arguments) {
+    const text = cleanText(value);
+    if (!text) continue;
+    if (isInternalBlockerText(text)) continue;
+    if (/^done\.?$/i.test(text)) continue;
+    return text;
+  }
+  return "";
+}
+
+function countRecentReplyRepeats(memory, reply, windowSize = 3) {
+  const target = cleanText(reply).toLowerCase();
+  if (!target) return 0;
+  const recent = (Array.isArray(memory) ? memory : []).slice(-windowSize);
+  let hits = 0;
+  for (const entry of recent) {
+    const candidate = cleanText(entry && entry.reply || "").toLowerCase();
+    if (candidate && candidate === target) hits += 1;
+  }
+  return hits;
+}
+
+function isGreetingLike(text) {
+  return /^(?:hi|hello|hey|yo|sup|howdy|hiya|good\s+(?:morning|afternoon|evening))(?:[\s,!?.]|$)+/i.test(cleanText(text));
+}
+
+function buildLoopRecoveryReply(input, continuity = {}, meta = {}) {
+  const normalized = cleanText(input);
+  const forcedEmotion = cleanText(meta.forcedEmotion || meta.marionEmotionalState || "neutral") || "neutral";
+  const topicEcho = Array.isArray(continuity.topicEchoes) && continuity.topicEchoes.length
+    ? continuity.topicEchoes.slice(0, 3).join(", ")
+    : "";
+  if (isGreetingLike(normalized)) {
+    return "Hey. I’m here. What do you want to do?";
+  }
+  if (/\?$/.test(normalized) || /(how|what|why|when|where|who|can|could|would|should|do|does|did|is|are)/i.test(normalized)) {
+    return "I’m here. Ask me the direct question again and I’ll answer it cleanly without looping.";
+  }
+  if (/sad|grief|hurt|overwhelm|anx|panic|fear|depress/i.test(forcedEmotion)) {
+    return "I’m with you. Tell me the single part you want me to respond to first, and I’ll stay on that exact point.";
+  }
+  if (topicEcho) {
+    return `I’m here. Stay with ${topicEcho}, and tell me the exact move you want next.`;
+  }
+  return "I’m here. Give me the exact point you want handled, and I’ll answer that directly.";
+}
+
 function extractMarionFields(src) {
   const source = isPlainObject(src) ? src : {};
   const marionContract = isPlainObject(source.marionContract) ? source.marionContract : {};
@@ -44,22 +116,46 @@ function extractMarionFields(src) {
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   const packet = isPlainObject(marion.packet) ? marion.packet : {};
   const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const contractPayload = isPlainObject(marionContract.payload) ? marionContract.payload : {};
 
-  const reply = cleanText(
-    source.overrideReply ||
-    marionContract.response ||
-    marion.reply ||
-    marion.text ||
-    marion.output ||
-    marion.answer ||
-    marion.spokenText ||
-    payload.reply ||
-    payload.text ||
-    payload.message ||
-    payload.spokenText ||
-    synthesis.reply ||
-    synthesis.answer ||
-    ""
+  const reply = firstUsableReply(
+    source.overrideReply,
+    marionContract.response,
+    marionContract.reply,
+    marionContract.output,
+    marionContract.answer,
+    marionContract.text,
+    marionContract.spokenText,
+    contractPayload.reply,
+    contractPayload.text,
+    contractPayload.message,
+    marion.response,
+    marion.reply,
+    marion.text,
+    marion.output,
+    marion.answer,
+    marion.spokenText,
+    marion.message,
+    marion.fallbackResponse,
+    marion.replySeed,
+    payload.reply,
+    payload.text,
+    payload.message,
+    payload.spokenText,
+    payload.response,
+    payload.fallbackResponse,
+    packet.reply,
+    packet.answer,
+    packet.output,
+    packet.text,
+    packet.response,
+    synthesis.reply,
+    synthesis.answer,
+    synthesis.text,
+    synthesis.output,
+    synthesis.spokenText,
+    synthesis.response,
+    synthesis.message
   );
 
   const intent = cleanText(
@@ -68,6 +164,8 @@ function extractMarionFields(src) {
     marion.intent ||
     payload.intent ||
     source.intentHint ||
+    packet.intent ||
+    synthesis.intent ||
     ""
   );
 
@@ -77,6 +175,7 @@ function extractMarionFields(src) {
     marion.emotional_state ||
     payload.emotional_state ||
     source.emotionalHint ||
+    synthesis.emotional_state ||
     ""
   );
 
@@ -311,7 +410,7 @@ class ChatEngine {
   }
 
   resolveResponse(input, continuity, meta = {}) {
-    const marionReply = cleanText(meta.overrideReply || "");
+    const marionReply = firstUsableReply(meta.overrideReply, meta.replySeed, meta.fallbackResponse);
     const forcedIntent = cleanText(meta.forcedIntent || meta.marionIntent || "");
     const forcedEmotion = cleanText(meta.forcedEmotion || meta.marionEmotionalState || "");
 
@@ -325,12 +424,25 @@ class ChatEngine {
       };
     }
 
-    const fallbackReply = cleanText(meta.fallbackReply || "");
-    const reply = fallbackReply || "Marion input required before reply emission.";
+    const fallbackReply = firstUsableReply(meta.fallbackReply, meta.replySeed, meta.fallbackResponse);
+    const repeatedLoop = countRecentReplyRepeats(this.state.memory, LOOPING_FALLBACK_REPLY, 3) >= 1;
+    const repeatedFallback = fallbackReply && countRecentReplyRepeats(this.state.memory, fallbackReply, 2) >= 1;
+
+    if (fallbackReply && !(repeatedLoop || repeatedFallback)) {
+      return {
+        reply: fallbackReply,
+        replyAuthority: "bridge_fallback",
+        awaitingMarion: false,
+        intent: forcedIntent || "general",
+        emotion: forcedEmotion || "neutral"
+      };
+    }
+
+    const recoveredReply = buildLoopRecoveryReply(input, continuity, meta);
     return {
-      reply,
-      replyAuthority: fallbackReply ? "bridge_fallback" : "awaiting_marion",
-      awaitingMarion: !fallbackReply,
+      reply: recoveredReply || AWAITING_REPLY,
+      replyAuthority: recoveredReply ? "loop_recovery" : "awaiting_marion",
+      awaitingMarion: !recoveredReply,
       intent: forcedIntent || "general",
       emotion: forcedEmotion || "neutral"
     };
@@ -355,6 +467,7 @@ class ChatEngine {
         carryEmotion: continuity.carryEmotion || null
       },
       replyAuthority: resolution.replyAuthority || "unknown",
+      reply: cleanText(resolution.reply || ""),
       timestamp: Date.now()
     });
 
@@ -535,7 +648,9 @@ function buildHandleMeta(input) {
       : (isPlainObject(fields.marionContract.continuity) ? fields.marionContract.continuity : {}),
     previousTurn: isPlainObject(src.previousTurn) ? src.previousTurn : null,
     traceId: cleanText(src.traceId || ""),
-    fallbackReply: cleanText(src.fallbackReply || "")
+    fallbackReply: firstUsableReply(src.fallbackReply, src.payload && src.payload.fallbackReply, src.marion && src.marion.fallbackResponse),
+    fallbackResponse: firstUsableReply(src.fallbackResponse, src.payload && src.payload.fallbackResponse, src.marion && src.marion.fallbackResponse),
+    replySeed: firstUsableReply(src.replySeed, src.payload && src.payload.replySeed, src.marion && src.marion.replySeed)
   };
 }
 
@@ -565,6 +680,9 @@ function buildStructuredEngineReply(response, input, meta) {
       reply,
       text: reply,
       message: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
       spokenText: reply,
       marionContract: isPlainObject(meta.marionContract) ? meta.marionContract : undefined,
       continuity: isPlainObject(meta.continuity) ? meta.continuity : undefined
@@ -587,8 +705,8 @@ function buildStructuredEngineReply(response, input, meta) {
       decisionAuthority: "marion"
     },
     meta: {
-      engineVersion: "Chat Engine vMarion-Coordinator",
-      replyAuthority: meta.marionAuthorityLock ? "marion_locked" : "awaiting_marion",
+      engineVersion: "Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED",
+      replyAuthority: meta.marionAuthorityLock ? "marion_locked" : (reply === AWAITING_REPLY ? "awaiting_marion" : "resolved"),
       marionAuthorityLock: !!meta.marionAuthorityLock,
       marionIntent: cleanText((meta.marionContract && meta.marionContract.intent) || ""),
       marionEmotionalState: cleanText((meta.marionContract && meta.marionContract.emotional_state) || ""),
