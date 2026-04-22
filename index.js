@@ -3538,6 +3538,195 @@ function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
   return res.status(code).json(payload);
 }
 
+function firstTruthyString() {
+  for (const v of arguments) {
+    const s = cleanText(v);
+    if (s) return s;
+  }
+  return "";
+}
+
+function boolish(v, fallback) {
+  if (v === true || v === false) return v;
+  const s = lower(v);
+  if (["1","true","yes","on"].includes(s)) return true;
+  if (["0","false","no","off"].includes(s)) return false;
+  return !!fallback;
+}
+
+function inferAudioMimeType(raw) {
+  const direct = firstTruthyString(
+    raw && raw.mimeType,
+    raw && raw.contentType,
+    raw && raw.audioMimeType,
+    raw && raw.audio && raw.audio.mimeType,
+    raw && raw.audio && raw.audio.contentType,
+    raw && raw.payload && raw.payload.mimeType,
+    raw && raw.payload && raw.payload.contentType
+  );
+  if (direct) return direct;
+  const format = lower(
+    firstTruthyString(
+      raw && raw.format,
+      raw && raw.audioFormat,
+      raw && raw.audio && raw.audio.format,
+      raw && raw.payload && raw.payload.format
+    )
+  );
+  if (format === "mp3" || format === "mpeg") return "audio/mpeg";
+  if (format === "wav" || format === "wave") return "audio/wav";
+  if (format === "ogg") return "audio/ogg";
+  if (format === "webm") return "audio/webm";
+  if (format === "mp4" || format === "m4a") return "audio/mp4";
+  return "audio/mpeg";
+}
+
+function looksLikeBase64Audio(v) {
+  const s = cleanText(v);
+  if (!s) return false;
+  if (/^data:audio\//i.test(s)) return false;
+  return s.length > 64 && /^[A-Za-z0-9+/=\s]+$/.test(s);
+}
+
+function normalizeTtsRoutePayload(raw, req) {
+  const src = isObj(raw) ? { ...raw } : {};
+  const payload = isObj(src.payload) ? { ...src.payload } : {};
+  const audio = isObj(src.audio) ? { ...src.audio } : {};
+  const speech = isObj(src.speech) ? { ...src.speech } : {};
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || src.traceId || payload.traceId || makeTraceId("tts"));
+
+  const audioUrl = firstTruthyString(
+    src.audioUrl,
+    src.url,
+    src.src,
+    src.audioSrc,
+    audio.url,
+    audio.audioUrl,
+    audio.src,
+    payload.audioUrl,
+    payload.url,
+    payload.src
+  );
+  let audioBase64 = firstTruthyString(
+    src.audioBase64,
+    src.base64,
+    src.audioContent,
+    src.audioData,
+    audio.base64,
+    audio.audioBase64,
+    audio.content,
+    audio.data,
+    payload.audioBase64,
+    payload.base64,
+    payload.audioContent,
+    payload.audioData
+  );
+  const dataUri = /^data:(audio\/[^;]+);base64,(.+)$/i.exec(audioBase64 || "");
+  let mimeType = inferAudioMimeType({ ...src, payload, audio });
+  if (dataUri) {
+    mimeType = cleanText(dataUri[1]) || mimeType;
+    audioBase64 = cleanText(dataUri[2]);
+  }
+
+  const text = cleanReplyForUser(firstTruthyString(
+    src.text,
+    src.textSpeak,
+    src.textDisplay,
+    src.spokenText,
+    speech.textSpeak,
+    speech.text,
+    payload.textSpeak,
+    payload.textDisplay,
+    payload.spokenText,
+    payload.text
+  ));
+
+  const format = cleanText(
+    src.format ||
+    src.audioFormat ||
+    audio.format ||
+    payload.format ||
+    (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//i, ""))
+  ) || "mp3";
+
+  const playable = !!(audioUrl || audioBase64 || src.playable === true || audio.playable === true || payload.playable === true);
+  const autoPlay = boolish(
+    src.autoPlay !== undefined ? src.autoPlay :
+    audio.autoPlay !== undefined ? audio.autoPlay :
+    payload.autoPlay !== undefined ? payload.autoPlay :
+    src.shouldPlay !== undefined ? src.shouldPlay :
+    audio.shouldPlay !== undefined ? audio.shouldPlay :
+    payload.shouldPlay !== undefined ? payload.shouldPlay :
+    true,
+    true
+  );
+
+  const normalizedAudio = {
+    ok: playable,
+    playable,
+    url: audioUrl || "",
+    src: audioUrl || "",
+    audioUrl: audioUrl || "",
+    audioBase64: audioBase64 || "",
+    mimeType,
+    contentType: mimeType,
+    format,
+    autoPlay,
+    shouldPlay: autoPlay,
+    provider: firstTruthyString(src.provider, audio.provider, payload.provider, process.env.TTS_PROVIDER || "resemble") || "resemble",
+    text: text || "",
+    textSpeak: text || "",
+    chars: Number(src.chars || audio.chars || payload.chars || (text ? text.length : 0)) || 0
+  };
+
+  return {
+    ok: src.ok !== false && playable,
+    playable,
+    spokenUnavailable: !playable,
+    traceId,
+    audio: normalizedAudio,
+    audioUrl: normalizedAudio.audioUrl,
+    audioBase64: normalizedAudio.audioBase64,
+    src: normalizedAudio.audioUrl,
+    url: normalizedAudio.audioUrl,
+    mimeType: normalizedAudio.mimeType,
+    contentType: normalizedAudio.mimeType,
+    format: normalizedAudio.format,
+    autoPlay: normalizedAudio.autoPlay,
+    shouldPlay: normalizedAudio.shouldPlay,
+    text: text || "",
+    textSpeak: text || "",
+    spokenText: text || "",
+    speech: {
+      enabled: true,
+      speak: playable,
+      text: text || "",
+      textDisplay: text || "",
+      textSpeak: text || "",
+      alignmentVersion: "speech-contract-v3"
+    },
+    payload: {
+      ...payload,
+      playable,
+      audioUrl: normalizedAudio.audioUrl,
+      audioBase64: normalizedAudio.audioBase64,
+      mimeType: normalizedAudio.mimeType,
+      format: normalizedAudio.format,
+      autoPlay: normalizedAudio.autoPlay,
+      shouldPlay: normalizedAudio.shouldPlay,
+      textSpeak: text || payload.textSpeak || "",
+      spokenText: text || payload.spokenText || ""
+    },
+    meta: {
+      ...(isObj(src.meta) ? src.meta : {}),
+      v: INDEX_VERSION,
+      t: now(),
+      route: cleanText(req && (req.originalUrl || req.path) || "/api/tts") || "/api/tts",
+      audioContract: "audio-first-v2"
+    }
+  };
+}
+
 async function dispatchTts(req, res) {
   const moduleHandler = ttsHandlerFromModule(ttsMod);
   if (CFG.httpLogEnabled) {
@@ -3546,7 +3735,25 @@ async function dispatchTts(req, res) {
   if (!moduleHandler) {
     throw new Error("tts_handler_unavailable");
   }
-  return moduleHandler(req, res);
+
+  const originalJson = typeof res.json === "function" ? res.json.bind(res) : null;
+  if (originalJson) {
+    res.json = function patchedTtsJson(body) {
+      return originalJson(normalizeTtsRoutePayload(body, req));
+    };
+  }
+
+  const result = await moduleHandler(req, res);
+  if (res.headersSent || res.writableEnded) return result;
+
+  if (result !== undefined) {
+    return res.status(200).json(normalizeTtsRoutePayload(result, req));
+  }
+
+  return sendTtsJsonError(req, res, 503, "tts_empty_response", "TTS handler completed without audio payload.", {
+    configSource: "tts_module",
+    ttsModuleBound: true
+  });
 }
 
 function attachVoiceRoute(base) {
@@ -3557,6 +3764,7 @@ function attachVoiceRoute(base) {
     enabled: routeEnabled,
     endpoint: routeUrl("/api/tts"),
     healthEndpoint: routeUrl("/api/tts/health"),
+    compatibilityHealthEndpoint: routeUrl("/tts/health"),
     method: "POST",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
@@ -3583,6 +3791,7 @@ function normalizeVoiceRouteResponse(out) {
     enabled: out.enabled !== false,
     endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
     healthEndpoint: cleanText(out.healthEndpoint || "/api/tts/health") || "/api/tts/health",
+    compatibilityHealthEndpoint: cleanText(out.compatibilityHealthEndpoint || "/tts/health") || "/tts/health",
     method: cleanText(out.method || "POST") || "POST",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
@@ -4830,6 +5039,7 @@ app.get("/api/health", (req, res) => {
       endpoint: routeUrl("/api/tts"),
       endpointCompat: routeUrl("/tts"),
       healthEndpoint: routeUrl("/api/tts/health"),
+    compatibilityHealthEndpoint: routeUrl("/tts/health"),
       healthEndpointCompat: routeUrl("/tts/health"),
       deterministicAudio: true
     },
@@ -5460,6 +5670,7 @@ app.post("/api/chat", enforceToken, async (req, res) => {
         version: "audio-first-v1",
         endpoint: routeUrl("/api/tts"),
         healthEndpoint: routeUrl("/api/tts/health"),
+    compatibilityHealthEndpoint: routeUrl("/tts/health"),
         deterministicAudio: true,
         failOpenChat: true
       }
@@ -5467,6 +5678,16 @@ app.post("/api/chat", enforceToken, async (req, res) => {
     speech,
     audio: shaped.audio || undefined,
     ttsProfile: shaped.ttsProfile || undefined,
+    playback: {
+      ready: !!(shaped.audio && shaped.audio.enabled !== false && cleanText(shaped.audio.textToSynth || "")),
+      autoPlay: !!(shaped.audio && shaped.audio.autoPlay !== false),
+      route: routeUrl("/api/tts"),
+      compatibilityRoute: routeUrl("/tts"),
+      health: routeUrl("/api/tts/health"),
+      compatibilityHealth: routeUrl("/tts/health"),
+      textSpeak: cleanText(shaped.audio && shaped.audio.textToSynth || speech && speech.textSpeak || ""),
+      provider: cleanText(shaped.audio && shaped.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+    },
     voiceRoute: shaped.voiceRoute || undefined
   });
 });
