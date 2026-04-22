@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.5.0-emission-guard-fastpath-lane-emitter";
+const MARION_VERSION = "marionSO v1.5.1-emission-guard-fallback-seed-lane-emitter";
 const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -2604,6 +2604,10 @@ function finalizeContract(cog, nowMs, extra) {
       ? { ...c.handoff }
       : { marionEndsHard: true, nyxBeginsAfter: true, allowSameTurnSplit: true },
 
+    fallbackResponse: safeStr(c.fallbackResponse || buildFallbackResponseSeed(c, ex), 220),
+    replySeed: safeStr(c.replySeed || c.fallbackResponse || buildFallbackResponseSeed(c, ex), 220),
+    emotionCarry: safeStr(c.emotionCarry || c.primaryEmotion || ex.emotion || "neutral", 32),
+
     macModeOverride: safeStr(c.macModeOverride || "", 60),
     macModeWhy: Array.isArray(c.macModeWhy) ? c.macModeWhy.slice(0, 6).map((x) => safeStr(x, 60)) : [],
 
@@ -3553,6 +3557,26 @@ function detectFastPathTurn(norm, session, mode, lane, now) {
   };
 }
 
+function buildFallbackResponseSeed(cog, context = {}) {
+  const c = isPlainObject(cog) ? cog : {};
+  const ctx = isPlainObject(context) ? context : {};
+  const lane = normalizeLaneRaw(c.effectiveLane || c.lane || ctx.lane) || "general";
+  const intent = normalizeMove(c.intent || ctx.intent || "CLARIFY");
+  const riskTier = safeStr(c.riskTier || "", 12).toLowerCase();
+  const emotionTag = safeStr(c.primaryEmotion || c.emotionLabel || ctx.emotion || "", 24).toLowerCase();
+  let reply = "I am with you, and I can hold this clearly.";
+  if (intent === "STABILIZE" || riskTier === RISK.TIERS.HIGH || riskTier === RISK.TIERS.MEDIUM) {
+    reply = "I am here with you. Let us steady this first, then take the next clear step.";
+  } else if (intent === "ADVANCE") {
+    reply = lane !== "general"
+      ? `I can keep this moving in the ${lane} lane without dropping the thread.`
+      : "I can keep this moving without dropping the thread.";
+  } else if (emotionTag && emotionTag !== "neutral") {
+    reply = `I can hold the ${emotionTag} thread and keep the response clean.`;
+  }
+  return reply;
+}
+
 function buildLaneEmitter(cog) {
   const c = isPlainObject(cog) ? cog : {};
   const effectiveLane = normalizeLaneRaw(c.effectiveLane || c.lane) || "general";
@@ -3600,6 +3624,13 @@ function enforceCogMinimums(cog, nowMs, context) {
   };
 
   c.laneEmitter = buildLaneEmitter(c);
+  c.fallbackResponse = safeStr(c.fallbackResponse || c.replySeed || buildFallbackResponseSeed(c, ctx), 220);
+  c.replySeed = safeStr(c.replySeed || c.fallbackResponse, 220);
+  c.emotionCarry = safeStr(c.emotionCarry || ctx.emotion || "neutral", 32);
+  c.sessionPatchSuggestion = isPlainObject(c.sessionPatchSuggestion) ? c.sessionPatchSuggestion : {};
+  c.sessionPatchSuggestion.fallbackResponse = c.fallbackResponse;
+  c.sessionPatchSuggestion.replySeed = c.replySeed;
+  c.sessionPatchSuggestion.emotionCarry = c.emotionCarry;
   return c;
 }
 
