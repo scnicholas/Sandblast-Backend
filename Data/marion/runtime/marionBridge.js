@@ -457,6 +457,7 @@ function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
     userQuery,
     domain,
     intent,
+    response: reply,
     reply,
     text: reply,
     answer: reply,
@@ -469,7 +470,7 @@ function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
     emotionalTurn: null,
     followUps: followUpsStrings,
     followUpsStrings,
-    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
+    payload: { response: reply, reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
   };
 }
 
@@ -525,6 +526,7 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     userQuery,
     domain,
     intent,
+    response: safeReply,
     reply: safeReply,
     text: safeReply,
     answer: safeReply,
@@ -537,7 +539,7 @@ function _makeRejectionResult(reason, detail = {}, context = {}) {
     emotionalTurn: null,
     followUps: [],
     followUpsStrings: [],
-    payload: { reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
+    payload: { response: safeReply, reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
   };
 }
 
@@ -954,10 +956,8 @@ async function processWithMarion(input = {}) {
     psychology: layer2.psychology,
     evidence: layer2.evidence,
     contract: contractLocked,
-    reply,
     response: reply,
-    fallbackResponse: reply,
-    replySeed: reply,
+    reply,
     text: reply,
     answer: reply,
     output: reply,
@@ -1080,8 +1080,7 @@ function createMarionBridge(options = {}) {
 }
 
 async function route(input = {}) { return processWithMarion(input); }
-async function maybeResolve(input = {}) { return processWithMarion(input); }
 const ask = route;
 const handle = route;
 
-module.exports = { VERSION, CANONICAL_ENDPOINT, retrieveLayer2Signals, processWithMarion, createMarionBridge, route, maybeResolve, ask, handle, default: route };
+module.exports = { VERSION, CANONICAL_ENDPOINT, retrieveLayer2Signals, processWithMarion, createMarionBridge, route, ask, handle, default: route };
