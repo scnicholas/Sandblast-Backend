@@ -3165,24 +3165,29 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
     ...(isObj(synthesis.meta) ? synthesis.meta : {}),
     ...(isObj(packetMeta) ? packetMeta : {})
   };
-  let response = cleanReplyForUser(
-    src.response || src.reply || src.text || src.output || src.answer || src.spokenText ||
-    (isObj(src.result) ? (src.result.reply || src.result.text || src.result.output || src.result.answer || "") : "") ||
-    payload.reply || payload.text || payload.message || payload.output || payload.answer || payload.spokenText ||
-    synthesis.reply || synthesis.answer || synthesis.text || synthesis.output || synthesis.spokenText || synthesis.interpretation ||
-    (isObj(src.contract) ? (src.contract.reply || src.contract.response || src.contract.text || src.contract.output || (isObj(src.contract.synthesis) ? (src.contract.synthesis.reply || src.contract.synthesis.answer || src.contract.synthesis.text || src.contract.synthesis.output || "") : "")) : "") ||
-    bridge.reply || bridge.text || bridge.output || bridge.answer || ""
-  );
+  let response = extractMarionReplyCandidate({
+    response: src.response,
+    reply: src.reply,
+    text: src.text,
+    output: src.output,
+    answer: src.answer,
+    spokenText: src.spokenText,
+    fallbackResponse: src.fallbackResponse,
+    replySeed: src.replySeed,
+    payload,
+    packet,
+    synthesis,
+    contract: isObj(src.contract) ? src.contract : {},
+    bridge,
+    result: isObj(src.result) ? src.result : {},
+    meta: metaSrc
+  });
   if (isInternalMarionBlockerReply(response)) response = "";
   const followUp = cleanText(
     src.follow_up || src.followUp ||
     metaSrc.follow_up || metaSrc.followUp ||
     payload.follow_up || payload.followUp ||
-    synthesis.follow_up || synthesis.followUp ||
-    (Array.isArray(src.followUpsStrings) ? src.followUpsStrings[0] : "") ||
-    (Array.isArray(src.followUps) ? src.followUps[0] : "") ||
-    (Array.isArray(payload.followUpsStrings) ? payload.followUpsStrings[0] : "") ||
-    ""
+    synthesis.follow_up || synthesis.followUp || ""
   );
   const normalizedEmotion = normalizeMarionEmotionState(
     src.emotional_state || src.emotionalState ||
@@ -3344,20 +3349,85 @@ function buildLoggingSpine(trace) {
   };
 }
 
+
+function extractMarionReplyCandidate(source) {
+  const seen = new Set();
+  const walk = (value, depth) => {
+    if (!value || depth > 4) return "";
+    if (typeof value === "string") {
+      const cleaned = cleanReplyForUser(value);
+      return isInternalMarionBlockerReply(cleaned) ? "" : cleaned;
+    }
+    if (!isObj(value)) return "";
+    if (seen.has(value)) return "";
+    seen.add(value);
+
+    const directKeys = [
+      "response", "reply", "text", "output", "answer", "spokenText", "message",
+      "fallbackResponse", "replySeed", "interpretation"
+    ];
+    for (const key of directKeys) {
+      const candidate = cleanReplyForUser(value[key] || "");
+      if (candidate && !isInternalMarionBlockerReply(candidate)) return candidate;
+    }
+
+    const nestedObjects = [
+      value.payload, value.packet, value.synthesis, value.contract, value.result,
+      value.bridge, value.meta, value.ui, value.emotionalTurn
+    ];
+    for (const nested of nestedObjects) {
+      const candidate = walk(nested, depth + 1);
+      if (candidate) return candidate;
+    }
+
+    if (isObj(value.packet) && isObj(value.packet.synthesis)) {
+      const candidate = walk(value.packet.synthesis, depth + 1);
+      if (candidate) return candidate;
+    }
+    if (isObj(value.contract) && isObj(value.contract.synthesis)) {
+      const candidate = walk(value.contract.synthesis, depth + 1);
+      if (candidate) return candidate;
+    }
+    return "";
+  };
+  return walk(source, 0);
+}
+
+function buildMarionRecoveryEnvelope(norm, emotion, meta) {
+  const lane = cleanText(norm && norm.lane || "general") || "general";
+  const reply = normalizeSupportReply(buildSafeSupportReply(cleanText(norm && norm.text || ""), emotion || {}, {
+    traceId: cleanText(meta && meta.traceId || norm && norm.traceId || ""),
+    sessionId: cleanText(meta && meta.sessionId || ""),
+    source: cleanText(meta && meta.source || "marion_recovery") || "marion_recovery"
+  }) || "I am here with you. We can take this one step at a time.");
+  return {
+    ok: true,
+    partial: true,
+    status: "recovered",
+    reply,
+    response: reply,
+    text: reply,
+    output: reply,
+    answer: reply,
+    spokenText: reply,
+    lane,
+    meta: {
+      source: cleanText(meta && meta.source || "index_marion_recovery") || "index_marion_recovery",
+      traceId: cleanText(meta && meta.traceId || norm && norm.traceId || ""),
+      recovered: true,
+      v: INDEX_VERSION,
+      t: now()
+    },
+    payload: { reply, text: reply, message: reply, spokenText: reply },
+    packet: { synthesis: { reply, text: reply, answer: reply, output: reply }, meta: { source: "index_marion_recovery", traceId: cleanText(meta && meta.traceId || norm && norm.traceId || "") } },
+    followUps: [],
+    followUpsStrings: []
+  };
+}
+
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
-  const reply = cleanReplyForUser(
-    marion.reply ||
-    marion.text ||
-    marion.output ||
-    marion.answer ||
-    marion.spokenText ||
-    (isObj(marion.result) ? (marion.result.reply || marion.result.text || marion.result.output || marion.result.answer || "") : "") ||
-    (isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.output || marion.payload.answer || marion.payload.spokenText || "") : "") ||
-    (isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || marion.packet.synthesis.text || marion.packet.synthesis.output || marion.packet.synthesis.interpretation || "") : "") ||
-    ""
-  );
-  return isInternalMarionBlockerReply(reply) ? "" : reply;
+  return extractMarionReplyCandidate(marion);
 }
 
 function shouldLockMarionAuthority(marion) {
@@ -3474,63 +3544,38 @@ async function callChatEngine(input) {
 }
 
 async function callMarionBridge(input) {
-  if (!marionBridgeMod) return null;
+  if (!marionBridgeMod) return buildMarionRecoveryEnvelope(input, input && input.emotion || {}, { traceId: input && input.traceId, sessionId: input && input.sessionId, source: "marion_module_missing" });
   try {
-    if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
-    if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
-    if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
-    if (typeof marionBridgeMod.processWithMarion === "function") return await marionBridgeMod.processWithMarion(input);
-    if (typeof marionBridgeMod.default === "function") return await marionBridgeMod.default(input);
-    if (typeof marionBridgeMod.createMarionBridge === "function") {
+    let result = null;
+    if (typeof marionBridgeMod.route === "function") result = await marionBridgeMod.route(input);
+    if (!result && typeof marionBridgeMod.ask === "function") result = await marionBridgeMod.ask(input);
+    if (!result && typeof marionBridgeMod.handle === "function") result = await marionBridgeMod.handle(input);
+    if (!result && typeof marionBridgeMod.processWithMarion === "function") result = await marionBridgeMod.processWithMarion(input);
+    if (!result && typeof marionBridgeMod.maybeResolve === "function") result = await marionBridgeMod.maybeResolve(input);
+    if (!result && typeof marionBridgeMod.default === "function") result = await marionBridgeMod.default(input);
+    if (!result && typeof marionBridgeMod.createMarionBridge === "function") {
       const bridge = marionBridgeMod.createMarionBridge();
-      if (bridge && typeof bridge.route === "function") return await bridge.route(input);
-      if (bridge && typeof bridge.ask === "function") return await bridge.ask(input);
-      if (bridge && typeof bridge.handle === "function") return await bridge.handle(input);
-      if (bridge && typeof bridge.processWithMarion === "function") return await bridge.processWithMarion(input);
-      if (bridge && typeof bridge.maybeResolve === "function") {
-        const resolved = await bridge.maybeResolve({
-          text: input && input.text || "",
-          userQuery: input && input.text || "",
-          sessionId: input && input.sessionId || "public",
-          domain: input && (input.domainHint || input.lane) || "",
-          requestedDomain: input && (input.domainHint || input.lane) || "",
-          mode: input && input.mode || "",
-          intent: input && input.intentHint || "",
-          meta: {
-            sessionId: input && input.sessionId || "public",
-            turnId: input && input.turnId || "",
-            traceId: input && input.traceId || "",
-            mode: input && input.mode || "",
-            intent: input && input.intentHint || "",
-            preferredDomain: input && (input.domainHint || input.lane) || "",
-            knowledgeSections: isObj(input && input.payload) ? input.payload.knowledgeSections || input.payload.knowledge || {} : {},
-            generalEvidence: [],
-            memoryEvidence: [],
-            datasetEvidence: []
-          },
-          conversationState: isObj(input && input.continuityState) ? input.continuityState : {},
-          session: isObj(input && input.stateSpine) ? input.stateSpine : {},
-          previousMemory: isObj(input && input.previousMemory) ? input.previousMemory : {}
-        });
-        if (resolved) return resolved;
-      }
+      if (bridge && typeof bridge.route === "function") result = await bridge.route(input);
+      if (!result && bridge && typeof bridge.ask === "function") result = await bridge.ask(input);
+      if (!result && bridge && typeof bridge.handle === "function") result = await bridge.handle(input);
+      if (!result && bridge && typeof bridge.processWithMarion === "function") result = await bridge.processWithMarion(input);
+      if (!result && bridge && typeof bridge.maybeResolve === "function") result = await bridge.maybeResolve(input);
     }
-    if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
+    if (!result && typeof marionBridgeMod === "function") result = await marionBridgeMod(input);
+    if (!result) return buildMarionRecoveryEnvelope(input, input && input.emotion || {}, { traceId: input && input.traceId, sessionId: input && input.sessionId, source: "marion_null_result" });
+    const reply = extractMarionReplyCandidate(result);
+    if (reply) return result;
+    return { ...buildMarionRecoveryEnvelope(input, input && input.emotion || {}, { traceId: input && input.traceId, sessionId: input && input.sessionId, source: "marion_reply_recovered" }), ...result, reply, response: reply, text: reply, output: reply, answer: reply, spokenText: reply, payload: { ...(isObj(result.payload) ? result.payload : {}), reply: reply || undefined, text: reply || undefined, message: reply || undefined, spokenText: reply || undefined } };
   } catch (err) {
     console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
-    return {
-      ok: false,
-      error: "marion_bridge_runtime_error",
-      detail: cleanText(err && (err.message || err) || "marion bridge failed"),
-      meta: {
-        source: "index_callMarionBridge",
-        v: INDEX_VERSION,
-        t: now()
-      }
-    };
+    return buildMarionRecoveryEnvelope(input, input && input.emotion || {}, {
+      traceId: input && input.traceId,
+      sessionId: input && input.sessionId,
+      source: "index_callMarionBridge_error"
+    });
   }
-  return null;
 }
+
 
 function callWithTimeout(promiseOrValue, ms, label) {
   const timeoutMs = clamp(Number(ms || CFG.requestTimeoutMs || 18000), 1000, 60000);
@@ -5286,7 +5331,10 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
   } catch (err) {
     console.log("[Sandblast][marionBridge:timeout]", err && (err.stack || err.message || err));
-    marion = null;
+    marion = buildMarionRecoveryEnvelope(marionInput, emotion, { traceId: norm.traceId, sessionId, source: "marion_timeout" });
+  }
+  if (!isObj(marion)) {
+    marion = buildMarionRecoveryEnvelope(marionInput, emotion, { traceId: norm.traceId, sessionId, source: "marion_non_object" });
   }
 
   const marionRuntimeDiagnostics = getMarionRuntimeDiagnostics();
@@ -5377,14 +5425,6 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
   if (!shaped.bridge && marion) shaped.bridge = marion;
   shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
-
-  if (!cleanText(shaped.reply || shaped.payload?.reply || "") && cleanText(getMarionAuthorityReply(marion) || "")) {
-    const lockedReply = getMarionAuthorityReply(marion);
-    shaped.reply = lockedReply;
-    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply: lockedReply, text: lockedReply, message: lockedReply, spokenText: lockedReply };
-    shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-    shaped = enforceMarionContract(shaped, marionContract, norm);
-  }
 
   const marionReplyPresent = !!cleanText(marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
   const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
