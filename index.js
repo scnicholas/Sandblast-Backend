@@ -271,21 +271,6 @@ function maskSecret(v) {
   return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 
-const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
-  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
-  /bridge\s+rejected\s+malformed\s+marion\s+output\s+before\s+nyx\s+handoff/i,
-  /reply\s+emission/i,
-  /bridge_rejected/i,
-  /packet_invalid/i,
-  /contract_invalid/i
-];
-
-function isInternalMarionBlockerReply(v) {
-  const text = cleanText(v || '').toLowerCase();
-  if (!text) return false;
-  return INTERNAL_MARION_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
-}
-
 function cleanReplyForUser(v) {
   let t = cleanText(v);
   if (!t) return "";
@@ -305,6 +290,21 @@ function replyHash(v) {
     h |= 0;
   }
   return String(h);
+}
+
+const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
+  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
+  /bridge\s+rejected\s+malformed\s+marion\s+output\s+before\s+nyx\s+handoff/i,
+  /reply\s+emission/i,
+  /bridge_rejected/i,
+  /packet_invalid/i,
+  /contract_invalid/i
+];
+
+function isInternalMarionBlockerReply(value) {
+  const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return INTERNAL_MARION_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
 }
 
 function makeTraceId(prefix) {
@@ -3356,31 +3356,61 @@ function buildLoggingSpine(trace) {
 
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
-  const contract = isObj(marion.contract) ? marion.contract : {};
   const payload = isObj(marion.payload) ? marion.payload : {};
   const packet = isObj(marion.packet) ? marion.packet : {};
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const contract = isObj(marion.contract) ? marion.contract : {};
+  const result = isObj(marion.result) ? marion.result : {};
+  const resultPayload = isObj(result.payload) ? result.payload : {};
+  const resultPacket = isObj(result.packet) ? result.packet : {};
+  const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
   const reply = cleanReplyForUser(
     marion.response ||
     marion.reply ||
     marion.text ||
     marion.output ||
     marion.answer ||
+    marion.message ||
     marion.spokenText ||
+    marion.fallbackResponse ||
+    marion.replySeed ||
+    payload.response ||
+    payload.reply ||
+    payload.text ||
+    payload.message ||
+    payload.output ||
+    payload.answer ||
+    payload.spokenText ||
+    payload.fallbackResponse ||
+    payload.replySeed ||
+    synthesis.reply ||
+    synthesis.text ||
+    synthesis.output ||
+    synthesis.answer ||
+    synthesis.spokenText ||
     contract.response ||
     contract.reply ||
     contract.text ||
     contract.output ||
     contract.answer ||
-    payload.reply ||
-    payload.text ||
-    payload.message ||
-    payload.answer ||
-    payload.spokenText ||
-    synthesis.reply ||
-    synthesis.answer ||
-    synthesis.text ||
-    synthesis.output ||
+    result.response ||
+    result.reply ||
+    result.text ||
+    result.output ||
+    result.answer ||
+    result.message ||
+    result.spokenText ||
+    resultPayload.response ||
+    resultPayload.reply ||
+    resultPayload.text ||
+    resultPayload.message ||
+    resultPayload.output ||
+    resultPayload.answer ||
+    resultPayload.spokenText ||
+    resultSynthesis.reply ||
+    resultSynthesis.text ||
+    resultSynthesis.output ||
+    resultSynthesis.answer ||
     ""
   );
   return isInternalMarionBlockerReply(reply) ? "" : reply;
@@ -3506,6 +3536,7 @@ async function callMarionBridge(input) {
     if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
     if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
     if (typeof marionBridgeMod.processWithMarion === "function") return await marionBridgeMod.processWithMarion(input);
+    if (typeof marionBridgeMod.maybeResolve === "function") return await marionBridgeMod.maybeResolve(input);
     if (typeof marionBridgeMod.default === "function") return await marionBridgeMod.default(input);
     if (typeof marionBridgeMod.createMarionBridge === "function") {
       const bridge = marionBridgeMod.createMarionBridge();
@@ -3515,7 +3546,6 @@ async function callMarionBridge(input) {
       if (bridge && typeof bridge.processWithMarion === "function") return await bridge.processWithMarion(input);
       if (bridge && typeof bridge.maybeResolve === "function") return await bridge.maybeResolve(input);
     }
-    if (typeof marionBridgeMod.maybeResolve === "function") return await marionBridgeMod.maybeResolve(input);
     if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
   } catch (err) {
     console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
@@ -5384,6 +5414,26 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   if (supportTriggered) {
     supportActive = true;
     supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
+
+    const marionAuthorityReply = getMarionAuthorityReply(marion);
+    if (marionAuthorityReply) {
+      shaped.reply = marionAuthorityReply;
+      shaped.payload = {
+        ...(isObj(shaped.payload) ? shaped.payload : {}),
+        reply: marionAuthorityReply,
+        text: marionAuthorityReply,
+        message: marionAuthorityReply,
+        spokenText: marionAuthorityReply
+      };
+      shaped.meta = mergeMeta(shaped.meta, {
+        marionSupportRecoveryApplied: true,
+        supportTriggeredByEmotion: true,
+        clearStaleUi: true,
+        suppressMenus: true,
+        supportHold: true,
+        supportUiOnly: true
+      });
+    }
 
     const quietPatch = buildQuietUiPatch("support", true);
     shaped = {
