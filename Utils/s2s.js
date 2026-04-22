@@ -132,23 +132,47 @@ function extractAudioPlan(out, input){
   const directives = _asArr(out && out.directives);
   const ttsDir = directives.find((d) => _isObj(d) && _trim(d.type).toUpperCase() === "TTS_SPEAK") || null;
   const playDir = directives.find((d) => _isObj(d) && _trim(d.type).toUpperCase() === "AUDIO_PLAY") || null;
-  const reply = _trim(out && (out.reply || (out.payload && out.payload.reply) || ""));
+  const payload = _isObj(out && out.payload) ? out.payload : {};
+  const speech = _isObj(out && out.speech) ? out.speech : (_isObj(payload.speech) ? payload.speech : {});
+  const voiceRoute = _isObj(out && out.voiceRoute) ? out.voiceRoute : {};
+  const audio = _isObj(out && out.audio) ? out.audio : {};
+  const reply = _trim(out && (out.reply || payload.reply || payload.text || payload.message || payload.spokenText || ""));
   const ctx = _isObj(out && out.ctx) ? out.ctx : (_isObj(input && input.ctx) ? input.ctx : {});
-  const shouldSpeak = !!(ttsDir && _trim(ttsDir.text || ttsDir.textToSynth || reply));
-  const textToSynth = _softSpeak(_trim(ttsDir && (ttsDir.textToSynth || ttsDir.text) ? (ttsDir.textToSynth || ttsDir.text) : reply)).slice(0, 2200);
-  const autoPlay = shouldSpeak && (playDir ? _bool(playDir.autoPlay, true) : _bool(ctx.autoPlayAudio, true));
+
+  const preferredText = _trim(
+    (ttsDir && (ttsDir.textToSynth || ttsDir.text)) ||
+    audio.textToSynth ||
+    speech.textSpeak ||
+    payload.textSpeak ||
+    voiceRoute.textSpeak ||
+    speech.text ||
+    payload.spokenText ||
+    reply
+  );
+  const shouldSpeak = !!(
+    preferredText &&
+    (ttsDir || audio.enabled === true || speech.speak !== false || voiceRoute.enabled === true || reply)
+  );
+  const textToSynth = _softSpeak(preferredText).slice(0, 2200);
+  const autoPlay = !!(
+    shouldSpeak &&
+    (playDir ? _bool(playDir.autoPlay, true)
+      : (audio.autoPlay !== undefined ? _bool(audio.autoPlay, true)
+      : (speech.autoPlay !== undefined ? _bool(speech.autoPlay, true)
+      : _bool(ctx.autoPlayAudio, true))))
+  );
 
   return {
     enabled: shouldSpeak,
-    provider: _trim((ttsDir && ttsDir.provider) || process.env.TTS_PROVIDER || "resemble") || "resemble",
-    voiceMode: _trim(ttsDir && ttsDir.voiceMode) || "nyx_primary",
+    provider: _trim((ttsDir && ttsDir.provider) || audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble",
+    voiceMode: _trim((ttsDir && ttsDir.voiceMode) || audio.voiceMode || "nyx_primary") || "nyx_primary",
     textToSynth,
     chars: textToSynth.length,
     autoPlay,
-    when: _trim((playDir && playDir.when) || (ttsDir && ttsDir.when) || "post_reply") || "post_reply",
-    strategy: _trim((playDir && playDir.strategy) || "single_shot") || "single_shot",
-    presenceProfile: _trim((ttsDir && ttsDir.presenceProfile) || (out && out.audio && out.audio.presenceProfile) || (out && out.payload && out.payload.speech && out.payload.speech.presenceProfile) || "steady") || "steady",
-    nyxStateHint: _trim((ttsDir && ttsDir.nyxStateHint) || (out && out.audio && out.audio.nyxStateHint) || (out && out.payload && out.payload.speech && out.payload.speech.nyxStateHint) || "engaged") || "engaged",
+    when: _trim((playDir && playDir.when) || (ttsDir && ttsDir.when) || audio.when || speech.when || "post_reply") || "post_reply",
+    strategy: _trim((playDir && playDir.strategy) || audio.strategy || "single_shot") || "single_shot",
+    presenceProfile: _trim((ttsDir && ttsDir.presenceProfile) || audio.presenceProfile || speech.presenceProfile || voiceRoute.presenceProfile || "steady") || "steady",
+    nyxStateHint: _trim((ttsDir && ttsDir.nyxStateHint) || audio.nyxStateHint || speech.nyxStateHint || voiceRoute.nyxStateHint || "engaged") || "engaged",
   };
 }
 
