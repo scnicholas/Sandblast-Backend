@@ -3441,6 +3441,9 @@ function enforceMarionAuthority(shaped, marion, opts) {
   payload.reply = locked;
   payload.text = locked;
   payload.message = locked;
+  payload.answer = locked;
+  payload.output = locked;
+  payload.response = locked;
   payload.spokenText = locked;
 
   const packet = isObj(marion && marion.packet) ? marion.packet : {};
@@ -3458,6 +3461,7 @@ function enforceMarionAuthority(shaped, marion, opts) {
   out.text = locked;
   out.output = locked;
   out.answer = locked;
+  out.response = locked;
   out.spokenText = locked;
   out.payload = payload;
   out.bridge = repairBridgeEnvelope(out.bridge, marion, out.lane || out.laneId || out.sessionLane || options.lane || "general");
@@ -5323,6 +5327,13 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   const marionRuntimeDiagnostics = getMarionRuntimeDiagnostics();
   const marionContract = normalizeMarionContract(marion, norm, emotion, priorTurn);
   const marionContractCheck = validateMarionContract(marionContract);
+  const marionAuthorityReply = getMarionAuthorityReply(marion);
+  const marionReplySeed = cleanText(
+    (isObj(marion) ? (marion.replySeed || marion.fallbackResponse || "") : "") ||
+    (isObj(marion) && isObj(marion.payload) ? (marion.payload.replySeed || marion.payload.fallbackResponse || "") : "") ||
+    (isObj(marionContract) ? (marionContract.response || "") : "") ||
+    marionAuthorityReply
+  );
   const trace = buildLoggingSpine({
     traceId: norm.traceId,
     sessionId,
@@ -5362,8 +5373,19 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     },
     continuity: marionContract && marionContract.continuity || buildMarionContinuity(priorTurn, norm, emotion),
     stateSpine: isObj(priorSpine) ? priorSpine : {},
-    forceDirect: shouldForceMarionReply(marionContract, norm),
-    overrideReply: shouldForceMarionReply(marionContract, norm) ? cleanText(marionContract && marionContract.response || "") : "",
+    forceDirect: shouldForceMarionReply(marionContract, norm) || !!marionAuthorityReply,
+    overrideReply: cleanText(
+      marionAuthorityReply ||
+      marionReplySeed ||
+      marionContract && marionContract.response || ""
+    ),
+    fallbackResponse: cleanText(
+      (isObj(marion) ? (marion.fallbackResponse || marion.replySeed || "") : "") ||
+      (isObj(marion) && isObj(marion.payload) ? (marion.payload.fallbackResponse || marion.payload.replySeed || "") : "") ||
+      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.answer || marion.packet.synthesis.output || "") : "") ||
+      marionContract && marionContract.response || ""
+    ),
+    replySeed: cleanText(marionReplySeed || marionAuthorityReply || ""),
     forcedIntent: cleanText(marionContract && marionContract.intent || norm.intentHint || ""),
     forcedEmotion: cleanText(marionContract && marionContract.emotional_state || norm.emotionalHint || ""),
     guidedPrompt: norm.guidedPrompt,
@@ -5377,7 +5399,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     forceDirect: !!engineInput.forceDirect,
     forcedIntent: cleanText(engineInput.forcedIntent || ""),
     forcedEmotion: cleanText(engineInput.forcedEmotion || ""),
-    overrideReplyPresent: !!cleanText(engineInput.overrideReply || "")
+    overrideReplyPresent: !!cleanText(engineInput.overrideReply || ""),
+    fallbackResponsePresent: !!cleanText(engineInput.fallbackResponse || ""),
+    replySeedPresent: !!cleanText(engineInput.replySeed || "")
   };
 
   let engineRaw = null;
@@ -5409,7 +5433,7 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   if (!shaped.bridge && marion) shaped.bridge = marion;
   shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
 
-  const marionReplyPresent = !!cleanText(marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
+  const marionReplyPresent = !!cleanText(marionAuthorityReply || marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
   const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
   if (supportTriggered) {
     supportActive = true;
@@ -5423,6 +5447,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
         reply: marionAuthorityReply,
         text: marionAuthorityReply,
         message: marionAuthorityReply,
+        answer: marionAuthorityReply,
+        output: marionAuthorityReply,
+        response: marionAuthorityReply,
         spokenText: marionAuthorityReply
       };
       shaped.meta = mergeMeta(shaped.meta, {
