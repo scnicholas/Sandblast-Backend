@@ -1322,11 +1322,17 @@ function coerceBool(x, fallback = false) {
 
 function pickEmotionSource(input, features, opts) {
   const candidates = [
+    opts && opts.emotion,
+    opts && opts.lockedEmotion,
     opts && opts.emotionAnalysis,
     opts && opts.emotionPayload,
+    features && features.emotion,
+    features && features.lockedEmotion,
     features && features.emotionAnalysis,
     features && features.emotionPayload,
     features && features.__emotion,
+    input && input.emotion,
+    input && input.lockedEmotion,
     input && input.emotionAnalysis,
     input && input.emotionPayload,
   ].filter(Boolean);
