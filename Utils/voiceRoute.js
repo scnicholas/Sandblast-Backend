@@ -16,7 +16,7 @@ const ttsMod = require("./tts");
 let chatEngine = null;
 try { chatEngine = require("./chatEngine"); } catch (_e) { chatEngine = null; }
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.1.0 TTS-COMPAT-HARDEN";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.2.0 PLAYBACK-CONTRACT-HARDEN";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 1));
 
 function safeStr(x) {
@@ -53,6 +53,123 @@ function wantsJson(req) {
   const b = req && req.body && typeof req.body === "object" ? req.body : {};
   return boolish(pickFirst(q.returnJson, b.returnJson, q.json, b.json), false);
 }
+
+function clientWantsJson(req) {
+  if (wantsJson(req)) return true;
+  const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
+  const accept = safeStr(headers.accept || "").toLowerCase();
+  const requestedWith = safeStr(headers["x-requested-with"] || "").toLowerCase();
+  const secFetchDest = safeStr(headers["sec-fetch-dest"] || "").toLowerCase();
+  const contentType = safeStr(headers["content-type"] || "").toLowerCase();
+  if (accept.includes("application/json") || accept.includes("text/json")) return true;
+  if (requestedWith === "xmlhttprequest") return true;
+  if (secFetchDest === "empty") return true;
+  if (contentType.includes("application/json")) return true;
+  return false;
+}
+function hasAnyValue(v) {
+  return !(v === undefined || v === null || v === "");
+}
+function extractAudioUrl(result) {
+  return safeStr(pickFirst(
+    result && result.audioUrl,
+    result && result.url,
+    result && result.audio_url,
+    result && result.publicUrl,
+    result && result.signedUrl,
+    result && result.streamUrl,
+    result && result.audio && result.audio.url,
+    result && result.audio && result.audio.audioUrl,
+    result && result.payload && result.payload.audioUrl,
+    result && result.payload && result.payload.url
+  ));
+}
+function extractMime(result) {
+  return safeStr(pickFirst(
+    result && result.mime,
+    result && result.mimeType,
+    result && result.contentType,
+    result && result.audio && result.audio.mime,
+    result && result.audio && result.audio.mimeType,
+    "audio/mpeg"
+  )) || "audio/mpeg";
+}
+function extractFormat(result, mime) {
+  const format = safeStr(pickFirst(
+    result && result.format,
+    result && result.audio && result.audio.format
+  )).toLowerCase();
+  if (format) return format;
+  const m = safeStr(mime).toLowerCase();
+  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+  if (m.includes("wav")) return "wav";
+  if (m.includes("ogg")) return "ogg";
+  if (m.includes("webm")) return "webm";
+  return "mp3";
+}
+function extractAudioBase64(result) {
+  const direct = pickFirst(
+    result && result.audioBase64,
+    result && result.base64,
+    result && result.audio && result.audio.base64,
+    result && result.audio && result.audio.audioBase64,
+    result && result.payload && result.payload.audioBase64
+  );
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  if (result && Buffer.isBuffer(result.audio)) return result.audio.toString("base64");
+  if (result && Buffer.isBuffer(result.buffer)) return result.buffer.toString("base64");
+  if (result && Buffer.isBuffer(result.data)) return result.data.toString("base64");
+  return "";
+}
+function buildPlayableAudioEnvelope(input, result) {
+  const mimeType = extractMime(result);
+  const format = extractFormat(result, mimeType);
+  const audioUrl = extractAudioUrl(result);
+  const audioBase64 = extractAudioBase64(result);
+  const text = safeStr(pickFirst(result && result.text, result && result.textSpeak, input.textDisplay, input.text));
+  const playable = !!(audioUrl || audioBase64 || (result && Buffer.isBuffer(result.audio)));
+  return {
+    ok: !!(result && result.ok),
+    version: VOICE_ROUTE_VERSION,
+    requestId: safeStr(pickFirst(result && result.requestId, input.requestId)),
+    turnId: safeStr(pickFirst(result && result.turnId, input.turnId)),
+    sessionId: safeStr(pickFirst(result && result.sessionId, input.sessionId)),
+    provider: safeStr(pickFirst(result && result.provider, input.provider, "resemble")) || "resemble",
+    providerStatus: clampInt(pickFirst(result && result.providerStatus, result && result.status, 200), 200, 0, 999999),
+    routeKind: safeStr(pickFirst(result && result.routeKind, input.routeKind, "main")) || "main",
+    mimeType,
+    mime: mimeType,
+    format,
+    text,
+    textSpeak: text,
+    spokenText: text,
+    audioUrl,
+    url: audioUrl,
+    audioBase64,
+    chars: clampInt(text.length, 0, 0, 999999),
+    playable,
+    autoPlay: true,
+    audio: {
+      url: audioUrl,
+      audioUrl,
+      audioBase64,
+      mimeType,
+      mime: mimeType,
+      format,
+      playable,
+      autoPlay: true,
+      chars: clampInt(text.length, 0, 0, 999999)
+    },
+    playback: {
+      ready: playable,
+      autoPlay: true,
+      route: "/api/tts",
+      compatibilityRoute: "/tts",
+      mimeType,
+      format
+    }
+  };
+}
 function normalizeInput(req) {
   const body = req && req.body && typeof req.body === "object" ? req.body : {};
   const query = req && req.query && typeof req.query === "object" ? req.query : {};
@@ -67,7 +184,7 @@ function normalizeInput(req) {
     routeKind: safeStr(pickFirst(body.routeKind, query.routeKind, body.mode, query.mode, "main")),
     voiceUuid: safeStr(pickFirst(body.voiceUuid, body.voice_uuid, query.voiceUuid, query.voice_uuid, headers["x-sb-voice"])),
     title: safeStr(pickFirst(body.title, query.title, "voice_route")),
-    wantJson: wantsJson(req)
+    wantJson: clientWantsJson(req)
   };
 }
 
@@ -239,27 +356,17 @@ async function voiceRoute(req, res) {
   }
 
   if (result && result.ok) {
+    const playable = buildPlayableAudioEnvelope(input, result);
     setHeaderSafe(res, "X-SB-TTS-Action", "success");
-    setHeaderSafe(res, "X-SB-TTS-Provider", safeStr(result.provider || "resemble"));
-    setHeaderSafe(res, "X-SB-TTS-Upstream-Status", String(clampInt(result.providerStatus || 200, 200, 0, 999999)));
+    setHeaderSafe(res, "X-SB-TTS-Provider", safeStr(playable.provider || "resemble"));
+    setHeaderSafe(res, "X-SB-TTS-Upstream-Status", String(clampInt(playable.providerStatus || 200, 200, 0, 999999)));
+    setHeaderSafe(res, "X-SB-TTS-Playable", playable.playable ? "1" : "0");
 
-    if (input.wantJson) {
-      return res.status(200).json({
-        ok: true,
-        version: VOICE_ROUTE_VERSION,
-        requestId: safeStr(result.requestId || input.requestId || ""),
-        turnId: safeStr(result.turnId || input.turnId || ""),
-        sessionId: safeStr(result.sessionId || input.sessionId || ""),
-        provider: safeStr(result.provider || "resemble"),
-        providerStatus: clampInt(result.providerStatus || 200, 200, 0, 999999),
-        mime: safeStr(result.mime || "audio/mpeg"),
-        text: safeStr(result.text || input.text || ""),
-        routeKind: safeStr(result.routeKind || input.routeKind || "main"),
-        audioBase64: Buffer.isBuffer(result.audio) ? result.audio.toString("base64") : ""
-      });
+    if (input.wantJson || playable.audioUrl || playable.audioBase64 || !Buffer.isBuffer(result.audio)) {
+      return res.status(200).json(playable);
     }
 
-    setHeaderSafe(res, "Content-Type", safeStr(result.mime || "audio/mpeg"));
+    setHeaderSafe(res, "Content-Type", safeStr(playable.mimeType || "audio/mpeg"));
     return res.status(200).send(result.audio);
   }
 
@@ -285,7 +392,26 @@ async function voiceRoute(req, res) {
     ttsFailure: envelope.ttsFailure,
     reply: safeStr((downgraded || {}).reply || envelope.text || input.text || "Audio unavailable."),
     payload: (downgraded || {}).payload || { reply: safeStr((downgraded || {}).reply || envelope.text || input.text || "Audio unavailable.") },
-    directives: (downgraded || {}).directives || [Object.assign({ type: "tts_failure" }, envelope.ttsFailure)]
+    directives: (downgraded || {}).directives || [Object.assign({ type: "tts_failure" }, envelope.ttsFailure)],
+    audio: {
+      url: "",
+      audioUrl: "",
+      audioBase64: "",
+      mimeType: "audio/mpeg",
+      mime: "audio/mpeg",
+      format: "mp3",
+      playable: false,
+      autoPlay: false,
+      chars: 0
+    },
+    playback: {
+      ready: false,
+      autoPlay: false,
+      route: "/api/tts",
+      compatibilityRoute: "/tts",
+      mimeType: "audio/mpeg",
+      format: "mp3"
+    }
   });
 }
 
