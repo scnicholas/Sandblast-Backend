@@ -4828,7 +4828,9 @@ app.get("/api/health", (req, res) => {
     audioContract: {
       version: "audio-first-v1",
       endpoint: routeUrl("/api/tts"),
+      endpointCompat: routeUrl("/tts"),
       healthEndpoint: routeUrl("/api/tts/health"),
+      healthEndpointCompat: routeUrl("/tts/health"),
       deterministicAudio: true
     },
     newsCanada: newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
@@ -4875,7 +4877,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.get("/api/tts/health", enforceVoiceRouteAccess, async (req, res) => {
+app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
   applyCors(req, res);
   const handler = ttsHealthFromModule(ttsMod);
   if (!handler) {
