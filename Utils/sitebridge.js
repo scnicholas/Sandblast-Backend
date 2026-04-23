@@ -118,7 +118,7 @@ function hash12(s) {
 // CONFIG
 // =========================
 
-const BRIDGE_VERSION = "1.6.0-commercial-grade-presence-sync";
+const BRIDGE_VERSION = "1.6.1-commercial-grade-presence-sync-social-lock-hardened";
 const SITEBRIDGE_PIPELINE_SCHEMA = "nyx.marion.sitebridge/1.5";
 
 const OPINTEL_SCHEMA = "oi:1.0";
@@ -907,40 +907,40 @@ const SOCIAL_LEX = Object.freeze({
   bye: ["bye","goodbye","see_you","cya","talk_later","later","take_care"],
 });
 
+function shouldAllowSocialOverrideIntent(currentIntent, features) {
+  const intent = safeStr(currentIntent || "", 24).toUpperCase();
+  const f = isObject(features) ? features : {};
+  if (f.__forcePsychBridge) return false;
+  if (["SUPPORT", "STABILIZE", "EXECUTE", "ADVANCE", "SAFETY"].includes(intent)) return false;
+  return !intent || intent === "CLARIFY" || intent === "NORMAL" || intent === "GENERAL";
+}
+
 function resolveSocialIntent(input) {
   const f = isObject(input?.features) ? input.features : {};
   const tokens = Array.isArray(input?.tokens) ? input.tokens : [];
   const tset = toTokenSet(tokens);
 
-  // Upstream explicit intent wins if set to something concrete (but we still tag social cues).
   const upstreamIntent = safeStr(f.intent || "", 24).toUpperCase();
+  const allowOverride = shouldAllowSocialOverrideIntent(upstreamIntent, f);
 
   const hit = (arr) => arr.some((k) => tset.has(k));
-  const isGreeting = hit(SOCIAL_LEX.greeting);
-  const isHowAreYou = hit(SOCIAL_LEX.howareyou);
-  const isThanks = hit(SOCIAL_LEX.thanks);
-  const isBye = hit(SOCIAL_LEX.bye);
-
-  // Small safety net: if tokenization misses (e.g., client didn't send tokens),
-  // allow an OPTIONAL, truncated text hint to classify basic social intents.
-  // This hint is used only for routing cues and is not persisted.
-  const __textHintRaw = safeStr(input?.textHint || f.textHint || "", 200);
-  const __textHint = __textHintRaw.trim().toLowerCase();
-
-  const hintHowAreYou = __textHint ? /\b(how\s+are\s+you|how\s+you\s+doing|how\s+is\s+it\s+going|how['’]s\s+it\s+going)\b/.test(__textHint) : false;
-  const hintGreeting = __textHint ? (/^(hi|hey|hello)\b/.test(__textHint) || /\b(good\s+morning|good\s+afternoon|good\s+evening)\b/.test(__textHint) || /\b(what['’]s\s+up|whats\s+up)\b/.test(__textHint)) : false;
-  const hintThanks = __textHint ? /\b(thanks|thank\s+you|appreciate\s+it)\b/.test(__textHint) : false;
-  const hintBye = __textHint ? /\b(bye|goodbye|see\s+you|later)\b/.test(__textHint) : false;
-
-
-  // Intent override only when upstream intent is empty/CLARIFY/default.
-  const allowOverride = !upstreamIntent || upstreamIntent === "CLARIFY" || upstreamIntent === "NORMAL";
+  const isGreeting = !!(f.socialGreeting || hit(SOCIAL_LEX.greeting));
+  const isHowAreYou = !!(f.socialHowAreYou || hit(SOCIAL_LEX.howareyou));
+  const isThanks = !!(f.socialThanks || hit(SOCIAL_LEX.thanks));
+  const isBye = !!(f.socialGoodbye || hit(SOCIAL_LEX.bye));
 
   let intent = "";
   let kind = "";
-  if (allowOverride && (isGreeting || isHowAreYou || hintGreeting || hintHowAreYou)) { intent = "GREETING"; kind = (isHowAreYou || hintHowAreYou) ? "how_are_you" : "greeting"; }
-  else if (allowOverride && (isThanks || hintThanks)) { intent = "THANKS"; kind = "thanks"; }
-  else if (allowOverride && (isBye || hintBye)) { intent = "GOODBYE"; kind = "goodbye"; }
+  if (allowOverride && (isGreeting || isHowAreYou)) {
+    intent = "GREETING";
+    kind = isHowAreYou ? "how_are_you" : "greeting";
+  } else if (allowOverride && isThanks) {
+    intent = "THANKS";
+    kind = "thanks";
+  } else if (allowOverride && isBye) {
+    intent = "GOODBYE";
+    kind = "goodbye";
+  }
 
   return {
     intent,
@@ -949,6 +949,8 @@ function resolveSocialIntent(input) {
     isHowAreYou,
     isThanks,
     isBye,
+    allowOverride,
+    textHintBlocked: !!safeStr(input?.textHint || f.textHint || "", 200).trim(),
   };
 }
 
@@ -1660,7 +1662,9 @@ function build(input) {
       if (social.intent === "GOODBYE") responseCues.unshift("social_goodbye");
       toneCues.unshift("warm", "friendly");
       uiCues.unshift("show_social_followup");
+      guardrails.unshift("social_intent_detected");
     }
+    if (social && social.textHintBlocked) guardrails.unshift("raw_text_hint_ignored");
 
     // Emotion coordination: SiteBridge CONSUMES structured emotion payload, never raw text.
     const emotion = resolveEmotionEnvelope(input, features, opts);
@@ -1726,6 +1730,12 @@ function build(input) {
       lane: safeStr(features.lane || features.lastLane || "", 24).toLowerCase(),
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
       bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
+      social: social && (social.intent || social.isGreeting || social.isHowAreYou || social.isThanks || social.isBye) ? {
+        intent: social.intent || undefined,
+        kind: social.kind || undefined,
+        allowOverride: !!social.allowOverride,
+        textHintBlocked: !!social.textHintBlocked,
+      } : undefined,
       emotion: emotion ? {
         primaryEmotion: emotion.primaryEmotion,
         emotionCluster: emotion.emotionCluster,
@@ -1945,6 +1955,12 @@ async function buildAsync(input) {
       audioSilent: !!(opts.silentAudio || opts.silent || features.silentAudio || features.silent),
       bridgeFile: _path && typeof __filename === "string" ? _path.basename(__filename) : "SiteBridge.js",
       async: true,
+      social: social && (social.intent || social.isGreeting || social.isHowAreYou || social.isThanks || social.isBye) ? {
+        intent: social.intent || undefined,
+        kind: social.kind || undefined,
+        allowOverride: !!social.allowOverride,
+        textHintBlocked: !!social.textHintBlocked,
+      } : undefined,
       emotion: emotion ? {
         primaryEmotion: emotion.primaryEmotion,
         emotionCluster: emotion.emotionCluster,
