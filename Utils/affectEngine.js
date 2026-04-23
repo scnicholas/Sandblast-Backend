@@ -1,7 +1,7 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.4.0 BRIDGE-HARDENED NORMALIZED-HANDOFF + YEAR-SPEECH";
+const VERSION = "affectEngine v3.5.0 BRIDGE-HARDENED NORMALIZED-HANDOFF + YEAR-SPEECH + AUTHORITY-SURFACING";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -524,6 +524,7 @@ function updateAffectMemory({ memory, affectState, ttsProfile, presetKey }) {
 }
 
 function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt, speechHints, pronunciationMap, spokenText }) {
+  const authoritativeReply = safeStr(spokenText).trim();
   return {
     version: VERSION,
     emotionLocked: true,
@@ -546,6 +547,8 @@ function buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey,
     speechHints,
     pronunciationMap,
     spokenText,
+    authoritativeReply,
+    marionAuthorityRecommended: !!authoritativeReply,
     affectState
   };
 }
@@ -746,6 +749,12 @@ function runAffectEngine(input = {}) {
     memory: nextMemory,
     unifiedTurn,
     expressionBridge: buildExpressionBridge({ lockedEmotion, strategy, affectState, styleKey, styleProfile, ttsProfile, guidedPrompt, speechHints, pronunciationMap, spokenText }),
+    meta: {
+      version: VERSION,
+      marionAuthorityRecommended: true,
+      spokenTextReady: !!spokenText,
+      supportMode: strategy.supportModeCandidate
+    },
     debug: {
       ...affectState.debug,
       handoffNormalized: true,
