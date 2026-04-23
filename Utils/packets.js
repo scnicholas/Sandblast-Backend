@@ -7,7 +7,7 @@
  * Reads Data/nyx/packets_v1.json and returns:
  *   { reply, followUps, sessionPatch, meta }
  *
- * v1.2-C (STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION)
+ * v1.3-C (MARION AUTHORITY LOCK + STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION)
  *
  * HARDENING / FIXES:
  * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
@@ -105,6 +105,94 @@ function djb2Hash(str) {
     h |= 0;
   }
   return h >>> 0; // unsigned
+}
+
+
+function firstNonEmptyString() {
+  for (const v of arguments) {
+    const s = String(v == null ? "" : v).trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function isInternalBlockerReply(text) {
+  const s = normText(text);
+  if (!s) return false;
+  return (
+    s.includes("marion input required before reply emission") ||
+    s.includes("reply emission") ||
+    s.includes("bridge rejected") ||
+    s.includes("authoritative_reply_missing") ||
+    s.includes("packet_synthesis_reply_missing") ||
+    s.includes("contract_missing") ||
+    s.includes("packet_missing") ||
+    s.includes("marion_contract_invalid") ||
+    s.includes("packet_invalid")
+  );
+}
+
+function getMarionAuthorityReply(session) {
+  const s = isPlainObject(session) ? session : Object.create(null);
+  const meta = isPlainObject(s.meta) ? s.meta : Object.create(null);
+  const marion = isPlainObject(meta.marion) ? meta.marion : Object.create(null);
+  const marionContract = isPlainObject(meta.marionContract) ? meta.marionContract : Object.create(null);
+  const payload = isPlainObject(marion.payload) ? marion.payload : Object.create(null);
+  const packet = isPlainObject(marion.packet) ? marion.packet : Object.create(null);
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : Object.create(null);
+
+  const reply = firstNonEmptyString(
+    s.marionReply,
+    s.overrideReply,
+    s.reply,
+    s.answer,
+    s.output,
+    s.text,
+    meta.overrideReply,
+    meta.marionReply,
+    meta.reply,
+    meta.answer,
+    meta.output,
+    meta.text,
+    marionContract.response,
+    marionContract.reply,
+    marionContract.answer,
+    marionContract.output,
+    marionContract.text,
+    marion.reply,
+    marion.answer,
+    marion.output,
+    marion.text,
+    marion.response,
+    marion.fallbackResponse,
+    marion.replySeed,
+    payload.reply,
+    payload.answer,
+    payload.output,
+    payload.text,
+    payload.message,
+    packet.reply,
+    packet.answer,
+    packet.output,
+    packet.text,
+    packet.response,
+    synthesis.reply,
+    synthesis.answer,
+    synthesis.output,
+    synthesis.text,
+    synthesis.message
+  );
+
+  if (!reply || isInternalBlockerReply(reply)) return "";
+  return reply.length > MAX_REPLY_LEN ? reply.slice(0, MAX_REPLY_LEN).trim() : reply;
+}
+
+function packetCanOverrideMarion(packet, matchedTrig) {
+  const trig = normText(matchedTrig || "");
+  if (isReservedTrigger(trig)) return true;
+  const p = isPlainObject(packet) ? packet : Object.create(null);
+  const constraints = isPlainObject(p.constraints) ? p.constraints : Object.create(null);
+  return constraints.allowPacketReplaceBackend === true;
 }
 
 function safeFollowUps(list) {
@@ -326,11 +414,18 @@ function allowPacketFire({ packet, matchedTrig }) {
  * - If session.allowPackets !== true, packets do not run (unless reserved trigger explicitly invoked).
  * - If a year exists in inbound OR session year context exists, do not run packets unless reserved trigger.
  */
-function gateAllowsRun({ lowerText, session, matchedTrig }) {
+function gateAllowsRun({ lowerText, session, matchedTrig, marionReply, packet }) {
   const reserved = isReservedTrigger(matchedTrig || "");
 
-  // Reserved triggers are explicit invocations — always allowed.
-  if (reserved) return true;
+  // Reserved triggers are explicit invocations — always allowed unless Marion has authority
+  // and the packet is not explicitly allowed to replace backend output.
+  if (reserved) {
+    if (marionReply && !packetCanOverrideMarion(packet, matchedTrig)) return false;
+    return true;
+  }
+
+  // Marion authority lock: when Marion has already spoken, packets become assistive only.
+  if (marionReply && !packetCanOverrideMarion(packet, matchedTrig)) return false;
 
   // Must be explicitly enabled by chatEngine.
   const allow = !!(session && session.allowPackets === true);
@@ -437,6 +532,23 @@ async function handleChat({ text, session, visitorId, debug }) {
     const packets = data.packets;
     const t = String(text || "").trim();
     const lower = normText(t);
+    const marionReply = getMarionAuthorityReply(session);
+
+    if (marionReply) {
+      return {
+        reply: marionReply,
+        followUps: [],
+        sessionPatch: null,
+        meta: debug
+          ? {
+              ok: true,
+              source: "marion_authority_lock",
+              marionAuthority: true,
+              path: PACKETS_PATH
+            }
+          : null,
+      };
+    }
 
     const state = getNyxState(session);
     const y = getYearVar(session, lower);
@@ -460,7 +572,7 @@ async function handleChat({ text, session, visitorId, debug }) {
           if (!allowPacketFire({ packet: p, matchedTrig: trig })) break;
 
           // 2) chatEngine gate
-          if (!gateAllowsRun({ lowerText: lower, session, matchedTrig: trig })) {
+          if (!gateAllowsRun({ lowerText: lower, session, matchedTrig: trig, marionReply, packet: p })) {
             break;
           }
 
@@ -528,6 +640,7 @@ async function handleChat({ text, session, visitorId, debug }) {
             state,
             usedStateTemplates: !!(chosen.stateTemplates && chosen.stateTemplates[state]),
             gateAllowPackets: !!(session && session.allowPackets === true),
+            marionAuthority: !!marionReply,
             blockedByYear: !!(
               extractYearFromText(lower) ||
               (session && (clampYear(session.lastMusicYear) || clampYear(session.cog && (session.cog.year || session.cog.lastMusicYear))))
