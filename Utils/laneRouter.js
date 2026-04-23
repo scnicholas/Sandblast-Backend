@@ -23,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.4.0 CONVERSATIONAL-CONTINUITY";
+const LR_VERSION = "laneRouter v1.5.0 LOOP-BREAK TECHNICAL-PRIORITY";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -265,6 +265,13 @@ function looksIdentityPing(text) {
   return /^(hi|hello|hey)(\s+(nyx|nix))?(\b|[!.?])/.test(s);
 }
 
+
+function looksTechnicalPrompt(text) {
+  const s = safeStr(text).trim().toLowerCase();
+  if (!s) return false;
+  return /(chat\s*engine|state\s*spine|support\s*response|emotion\s*route|emotion\s*engine|affect\s*engine|loop|looping|debug|patch|update|rebuild|integrate|implementation|code|script|file|tts|api|route|backend|frontend|runtime|function|syntax|error|bug|fix)/.test(s);
+}
+
 function looksDirectiveAsk(text) {
   const s = safeStr(text).trim().toLowerCase();
   if (!s) return false;
@@ -275,6 +282,14 @@ function simpleGeneralReply(norm, emo) {
   const text = safeStr(norm?.text || "").trim();
   const state = mapEmotionalState(emo);
   if (!text) return "I am here and ready. Tell me what you want to explore, fix, or understand.";
+
+  if (/(loop|looping|repeat|repeating)/i.test(text)) {
+    return "Understood. We are breaking the loop directly now. I will stay on the failing layer and move to the next concrete action instead of re-entering soft support.";
+  }
+
+  if (looksTechnicalPrompt(text)) {
+    return "Understood. This is a technical path, so I am keeping it in execution mode and moving straight to the exact fix instead of softening the turn.";
+  }
 
   if ((looksGreeting(text) || looksIdentityPing(text)) && !isSupportiveEmotion(emo)) {
     return "Hey. I am here and fully with you. Tell me what you want to explore, and I’ll keep the thread moving.";
@@ -392,8 +407,9 @@ function resolveLane(norm, session) {
 function routeLane(norm, session, emo) {
   const n = normalizeNorm(norm);
   const lane = resolveLane(n, session);
+  const technicalPrompt = looksTechnicalPrompt(n.text);
 
-  if (isSupportiveEmotion(emo)) {
+  if (isSupportiveEmotion(emo) && !technicalPrompt) {
     return normalizeLaneOutput({
       reply: simpleGeneralReply(n, emo),
       lane: "general",
