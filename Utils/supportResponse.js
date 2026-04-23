@@ -5,7 +5,7 @@
  * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v2.0.0 FORENSIC-NORMALIZED";
+const VERSION = "supportResponse v2.1.0 FORENSIC-NORMALIZED LOOP-ESCAPE";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -139,7 +139,7 @@ function normalizeEmotion(input) {
   };
 }
 
-function deriveQuestionBudget(cfg, emo, text) {
+function deriveQuestionBudget(cfg, emo, text, input = {}) {
   let budget = clampInt(cfg.maxQuestionCount, 1, 0, 2);
   const pressure = lower(emo?.nuanceProfile?.questionPressure || "");
   if (pressure === "none") budget = 0;
@@ -150,7 +150,7 @@ function deriveQuestionBudget(cfg, emo, text) {
   if (cfg.suppressQuestionOnContainment && emo?.supportFlags?.needsContainment) budget = 0;
   if (cfg.suppressQuestionOnHighDistress && emo?.supportFlags?.highDistress) budget = 0;
   if (cfg.suppressQuestionOnRecovery && emo?.supportFlags?.crisis) budget = 0;
-  if (cfg.suppressQuestionOnLoop && emo?.nuanceProfile?.loopRisk === "high") budget = 0;
+  if (cfg.suppressQuestionOnLoop && loopPressureHigh(input, emo)) budget = 0;
   if (cfg.suppressQuestionOnHighContinuity && inputContinuityHigh(emo)) budget = 0;
   if (!cfg.allowQuestionsOnPositive && emotionAny(emo, ["joy", "gratitude", "relief", "excitement", "hope"])) budget = 0;
   return budget;
@@ -158,6 +158,19 @@ function deriveQuestionBudget(cfg, emo, text) {
 
 function inputContinuityHigh(emo) {
   return !!(emo?.continuity?.high || emo?.supportFlags?.highContinuity || emo?.presentationSignals?.hasContrast || emo?.presentationSignals?.narrativeDensity >= 3);
+}
+
+function loopPressureHigh(input, emo) {
+  const spine = isPlainObject(input?.stateSpine) ? input.stateSpine : (isPlainObject(input?.session) ? input.session : {});
+  const repetition = isPlainObject(spine?.repetition) ? spine.repetition : {};
+  const text = safeStr(input?.text || "").toLowerCase();
+  return !!(
+    emo?.nuanceProfile?.loopRisk === "high" ||
+    repetition.noProgressCount >= 2 ||
+    repetition.sameAssistantHashCount >= 2 ||
+    repetition.sameStageCount >= 2 ||
+    /\b(loop|looping|repeat|repeating|same thing|again and again)\b/.test(text)
+  );
 }
 
 function buildContainmentLine(emo, seed) {
@@ -255,7 +268,7 @@ function buildSupportReply(input = {}) {
   const emo = normalizeEmotion(input);
   const audioFailure = normalizeAudioFailure(input);
   const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}|${emo.routeBias || "maintain"}`;
-  const questionBudget = deriveQuestionBudget(cfg, emo, text);
+  const questionBudget = deriveQuestionBudget(cfg, emo, text, input);
 
   if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm", "shame", "guilt"])) {
     return "Hey. I am here and ready. Tell me what you want to explore, fix, or understand.";
@@ -266,10 +279,13 @@ function buildSupportReply(input = {}) {
   }
 
   if (looksTechnicalRequest(text)) {
+    const loopHeavy = loopPressureHigh(input, emo);
     return joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       "I have the technical thread.",
-      questionBudget > 0 ? "Give me the exact failure point, and I will keep the next move tight and concrete." : "I will keep the next move tight and concrete."
+      loopHeavy
+        ? "I am not going to ask you to restate the same failure again. I am holding the target on the replaying layer and moving the next step forward in a tighter lane."
+        : (questionBudget > 0 ? "Give me the exact failure point, and I will keep the next move tight and concrete." : "I will keep the next move tight and concrete.")
     ]);
   }
 
@@ -317,9 +333,11 @@ function buildSupportReply(input = {}) {
   if (looksNeutralInformational(text)) {
     return joinSentences([
       buildAudioFailureLine(audioFailure, seed),
-      emo?.routeBias === "clarify"
-        ? "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation."
-        : "I have the thread, and I can answer this directly once you give me one more clean piece of context."
+      loopPressureHigh(input, emo)
+        ? "I have the thread, and I am keeping this out of a clarifier loop. I will stay direct and move from the current target."
+        : (emo?.routeBias === "clarify"
+            ? "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation."
+            : "I have the thread, and I can answer this directly once you give me one more clean piece of context.")
     ]);
   }
 
