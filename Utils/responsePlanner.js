@@ -1,22 +1,17 @@
 /**
  * responsePlanner.js
- * OPINTEL v1.1.0
+ * OPINTEL v1.2.0
  *
  * Purpose:
  * - Decide the best response shape
  * - Minimize unnecessary clarifiers
  * - Convert routing/evidence/context into a planning envelope for ChatEngine
- *
- * Design goals:
- * - Hardened and fail-open
- * - Simple API
- * - No infrastructure-breaking assumptions
- * - Distress-first support routing
+ * - Stay coherent with affect/emotion route guard outputs
  */
 
 "use strict";
 
-const VERSION = "responsePlanner.opintel.v1.1.0";
+const VERSION = "responsePlanner.opintel.v1.2.0";
 
 function isObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -53,17 +48,27 @@ const SHAPES = Object.freeze({
   SUPPORT: "support_first"
 });
 
+function extractEmotionEnvelope(input = {}) {
+  if (isObject(input.emotionRoute)) return input.emotionRoute;
+  if (isObject(input.route)) return input.route;
+  if (isObject(input.analysis) && isObject(input.analysis.emotionRoute)) return input.analysis.emotionRoute;
+  return {};
+}
+
 function isSupportDistress(input = {}) {
+  const envelope = extractEmotionEnvelope(input);
+  const supportFlags = isObject(envelope.supportFlags) ? envelope.supportFlags : {};
   const lane = lower(input.lane || input.intent?.lane || "");
   const intent = lower(input.intent?.intent || input.intent || "");
-  const mode = lower(input.mode || input.intent?.mode || "");
+  const mode = lower(input.mode || input.intent?.mode || envelope.mode || "");
   const regulation = lower(input.regulation || input.intent?.regulation || "");
   const message = lower(input.message || input.text || "");
-  const supportFirst = !!input.supportFirst;
+  const supportFirst = !!input.supportFirst || !!envelope.downstream?.chat?.supportFirst;
 
   if (supportFirst) return true;
+  if (supportFlags.crisis || supportFlags.highDistress || supportFlags.needsContainment) return true;
   if (lane === "support" || lane === "wellbeing") return true;
-  if (intent === "stabilize" || mode === "safety" || mode === "stabilize") return true;
+  if (intent === "stabilize" || mode === "safety" || mode === "stabilize" || mode === "crisis" || mode === "vulnerable") return true;
   if (regulation === "fragile" || regulation === "crisis") return true;
 
   return (
@@ -74,11 +79,14 @@ function isSupportDistress(input = {}) {
 }
 
 function shouldClarify(input = {}) {
+  const envelope = extractEmotionEnvelope(input);
   if (isSupportDistress(input)) return false;
+  if (num(envelope.expressionContract?.askAtMost, 1) === 0) return false;
+  if (envelope.downstream?.chat?.shouldSuppressClarifier) return false;
 
   const ambiguity = clamp(num(input.ambiguity, 0), 0, 1);
   const intentConfidence = clamp(num(input.intentConfidence, 0), 0, 1);
-  const routeConfidence = clamp(num(input.routeConfidence, 0), 0, 1);
+  const routeConfidence = clamp(num(input.routeConfidence, envelope.confidence || 0), 0, 1);
   const unresolvedAsks = asArray(input.memoryWindow?.unresolvedAsks || input.unresolvedAsks);
   const explicitQuestion = /\?$/.test(str(input.message || input.text || ""));
   const clarifyCount = num(input.clarifyCount, 0);
@@ -91,16 +99,18 @@ function shouldClarify(input = {}) {
 }
 
 function pickReplyShape(input = {}) {
+  const envelope = extractEmotionEnvelope(input);
   if (isSupportDistress(input)) return SHAPES.SUPPORT;
 
   const lane = lower(input.lane || input.intent?.lane || "");
   const unresolvedAsks = asArray(input.memoryWindow?.unresolvedAsks || input.unresolvedAsks);
   const actionHints = asArray(input.actionHints);
-  const routeConfidence = clamp(num(input.routeConfidence, 0), 0, 1);
+  const routeConfidence = clamp(num(input.routeConfidence, envelope.confidence || 0), 0, 1);
+  const routeBias = lower(envelope.routeBias || "");
 
   if (unresolvedAsks.length && routeConfidence >= 0.58) return SHAPES.RESUME;
   if (shouldClarify(input)) return SHAPES.CLARIFY;
-  if (actionHints.length) return SHAPES.ACTION;
+  if (actionHints.length || routeBias === "channel") return SHAPES.ACTION;
   if (lane === "music" || lane === "roku" || lane === "radio") return SHAPES.GUIDED;
   if (routeConfidence >= 0.8) return SHAPES.DIRECT;
   return SHAPES.GUIDED;
@@ -118,9 +128,11 @@ function buildMinimalClarifier(input = {}) {
 }
 
 function deriveReplyDepth(input = {}) {
+  const envelope = extractEmotionEnvelope(input);
   if (isSupportDistress(input)) return "tight";
+  if (num(envelope.expressionContract?.askAtMost, 1) === 0) return "tight";
 
-  const routeConfidence = clamp(num(input.routeConfidence, 0), 0, 1);
+  const routeConfidence = clamp(num(input.routeConfidence, envelope.confidence || 0), 0, 1);
   const ambiguity = clamp(num(input.ambiguity, 0), 0, 1);
   const urgency = clamp(num(input.urgency, 0), 0, 1);
 
@@ -131,7 +143,8 @@ function deriveReplyDepth(input = {}) {
 }
 
 function pickNextBestAction(input = {}, shape = "") {
-  if (shape === SHAPES.SUPPORT) return "deliver_support";
+  const envelope = extractEmotionEnvelope(input);
+  if (shape === SHAPES.SUPPORT) return envelope.routeBias === "contain" ? "deliver_containment" : "deliver_support";
 
   const lane = lower(input.lane || input.intent?.lane || "");
   const actionHints = asArray(input.actionHints);
@@ -146,6 +159,7 @@ function pickNextBestAction(input = {}, shape = "") {
 
 function planResponse(input = {}) {
   const safe = isObject(input) ? input : {};
+  const envelope = extractEmotionEnvelope(safe);
   const replyShape = pickReplyShape(safe);
   const clarifier = replyShape === SHAPES.CLARIFY ? buildMinimalClarifier(safe) : "";
   const nextBestAction = pickNextBestAction(safe, replyShape);
@@ -162,7 +176,10 @@ function planResponse(input = {}) {
     guidanceMode: replyShape === SHAPES.GUIDED || replyShape === SHAPES.RESUME,
     actionFirst: replyShape === SHAPES.ACTION,
     supportFirst,
-    metaControlSuppressed: supportFirst,
+    metaControlSuppressed: supportFirst || !!envelope.expressionContract?.suppressMenus,
+    questionBudget: num(envelope.expressionContract?.askAtMost, supportFirst ? 0 : 1),
+    routeBias: envelope.routeBias || "maintain",
+    affectAligned: !!Object.keys(envelope).length,
     failOpen: true
   };
 }
@@ -173,5 +190,6 @@ module.exports = {
   planResponse,
   pickReplyShape,
   shouldClarify,
-  isSupportDistress
+  isSupportDistress,
+  extractEmotionEnvelope
 };
