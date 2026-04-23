@@ -4,8 +4,21 @@
   "source": "nyx_phrasepack_v1.2",
   "voice": {
     "persona": "Nyx",
-    "style": ["clean", "host-like", "forward", "confident", "warm", "fluid"],
-    "constraints": ["no-tech-leak", "no-overexplaining", "short-lines", "action-forward", "no-menu-dumping"]
+    "style": [
+      "clean",
+      "host-like",
+      "forward",
+      "confident",
+      "warm",
+      "fluid"
+    ],
+    "constraints": [
+      "no-tech-leak",
+      "no-overexplaining",
+      "short-lines",
+      "action-forward",
+      "no-menu-dumping"
+    ]
   },
   "packets": [
     {
@@ -47,15 +60,37 @@
         ]
       },
       "chips": [
-        { "label": "Start with a year", "send": "1988" },
-        { "label": "Top 10 (1988)", "send": "top 10 1988" },
-        { "label": "Schedule", "send": "schedule" },
-        { "label": "Sponsors", "send": "sponsors" }
+        {
+          "label": "Start with a year",
+          "send": "1988"
+        },
+        {
+          "label": "Top 10 (1988)",
+          "send": "top 10 1988"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
       ],
-      "constraints": { "oncePerSession": true },
-      "sessionPatch": { "lane": "general" }
+      "constraints": {
+        "oncePerSession": true,
+        "honorMarionFirst": true
+      },
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      }
     },
-
     {
       "id": "general.greetings_returning",
       "type": "greeting",
@@ -89,15 +124,37 @@
         ]
       },
       "chips": [
-        { "label": "Pick a year", "send": "1988" },
-        { "label": "Story (1988)", "send": "story moment 1988" },
-        { "label": "Schedule", "send": "schedule" },
-        { "label": "Something to watch", "send": "movies" }
+        {
+          "label": "Pick a year",
+          "send": "1988"
+        },
+        {
+          "label": "Story (1988)",
+          "send": "story moment 1988"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Something to watch",
+          "send": "movies"
+        }
       ],
-      "constraints": { "oncePerSession": true },
-      "sessionPatch": { "lane": "general" }
+      "constraints": {
+        "oncePerSession": true,
+        "honorMarionFirst": true
+      },
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      }
     },
-
     {
       "id": "general.capabilities_quick",
       "type": "help",
@@ -117,14 +174,36 @@
         "Music lives in years.\nSchedules live in cities.\nI’ll guide the rest."
       ],
       "chips": [
-        { "label": "Music by year", "send": "1988" },
-        { "label": "Schedule (Toronto)", "send": "in Toronto" },
-        { "label": "Sponsors", "send": "sponsors" },
-        { "label": "Watch something", "send": "movies" }
+        {
+          "label": "Music by year",
+          "send": "1988"
+        },
+        {
+          "label": "Schedule (Toronto)",
+          "send": "in Toronto"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        },
+        {
+          "label": "Watch something",
+          "send": "movies"
+        }
       ],
-      "sessionPatch": { "lane": "general" }
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "general.goodbyes_soft",
       "type": "goodbye",
@@ -147,18 +226,39 @@
         "Easy to return.\nA year brings it back."
       ],
       "chips": [
-        { "label": "Top 10 (1994)", "send": "top 10 1994" },
-        { "label": "Story (1977)", "send": "story moment 1977" },
-        { "label": "Schedule", "send": "schedule" }
+        {
+          "label": "Top 10 (1994)",
+          "send": "top 10 1994"
+        },
+        {
+          "label": "Story (1977)",
+          "send": "story moment 1977"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        }
       ],
-      "sessionPatch": { "lane": "general" }
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "general.fallback_nudge",
       "type": "fallback",
       "lane": "general",
-      "trigger": ["__fallback__"],
+      "trigger": [
+        "__fallback__"
+      ],
       "templates": [
         "Give me a year—1950 to now—and I’ll steer.",
         "Start with one year. We can pivot fast."
@@ -178,19 +278,55 @@
         ]
       },
       "chips": [
-        { "label": "Start with a year", "send": "1988" },
-        { "label": "Schedule", "send": "schedule" },
-        { "label": "Sponsors", "send": "sponsors" },
-        { "label": "Watch something", "send": "movies" }
+        {
+          "label": "Start with a year",
+          "send": "1988"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        },
+        {
+          "label": "Watch something",
+          "send": "movies"
+        }
       ],
-      "sessionPatch": { "lane": "general" }
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "last_resort_fallback",
+        "allowWhenBackendReplyExists": false,
+        "requireBackendEmpty": true,
+        "requireHardFailureOrNoReply": true
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "fallbackOnly": true,
+        "requireBackendEmpty": true,
+        "requireNoBackendReply": true,
+        "requireHardFailureOrNoReply": true
+      },
+      "priority": -100,
+      "notes": [
+        "Use only when Marion produced no usable reply.",
+        "Do not fire on ambiguity alone.",
+        "Do not replace a valid backend response."
+      ]
     },
-
     {
       "id": "general.errors_generic",
       "type": "error",
       "lane": "general",
-      "trigger": ["__error__"],
+      "trigger": [
+        "__error__"
+      ],
       "templates": [
         "Tiny snag.\nTry again—give me a year.",
         "That didn’t land cleanly.\nRepeat it once, clean and simple."
@@ -210,14 +346,45 @@
         ]
       },
       "chips": [
-        { "label": "Start with a year", "send": "1988" },
-        { "label": "Top 10 (1988)", "send": "top 10 1988" },
-        { "label": "Schedule", "send": "schedule" },
-        { "label": "Watch something", "send": "movies" }
+        {
+          "label": "Start with a year",
+          "send": "1988"
+        },
+        {
+          "label": "Top 10 (1988)",
+          "send": "top 10 1988"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Watch something",
+          "send": "movies"
+        }
       ],
-      "sessionPatch": { "lane": "general" }
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "error_last_resort",
+        "allowWhenBackendReplyExists": false,
+        "requireBackendFailure": true
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "errorOnly": true,
+        "requireBackendFailure": true,
+        "requireNoBackendReply": true
+      },
+      "priority": -90,
+      "notes": [
+        "Use only for transport or contract failure.",
+        "Do not fire when Marion returned a usable reply."
+      ]
     },
-
     {
       "id": "music.ask_year",
       "type": "prompt",
@@ -256,117 +423,280 @@
         ]
       },
       "chips": [
-        { "label": "1988", "send": "1988" },
-        { "label": "Top 10 (1988)", "send": "top 10 1988" },
-        { "label": "Story (1988)", "send": "story moment 1988" },
-        { "label": "Micro (1988)", "send": "micro moment 1988" }
+        {
+          "label": "1988",
+          "send": "1988"
+        },
+        {
+          "label": "Top 10 (1988)",
+          "send": "top 10 1988"
+        },
+        {
+          "label": "Story (1988)",
+          "send": "story moment 1988"
+        },
+        {
+          "label": "Micro (1988)",
+          "send": "micro moment 1988"
+        }
       ],
-      "constraints": { "requireNoYear": true },
-      "sessionPatch": { "lane": "music" }
+      "constraints": {
+        "requireNoYear": true,
+        "honorMarionFirst": true
+      },
+      "sessionPatch": {
+        "lane": "music"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      }
     },
-
     {
       "id": "music.mode_prompt_has_year",
       "type": "prompt",
       "lane": "music",
-      "trigger": ["__mode_prompt__"],
+      "trigger": [
+        "__mode_prompt__"
+      ],
       "templates": [
         "{year} is set.\nPick a lens: Top 10, #1, story, or micro.",
         "{year} holds steady.\nDo you want the list, the story, or the spark?"
       ],
       "chips": [
-        { "label": "Top 10", "send": "top 10" },
-        { "label": "#1", "send": "#1" },
-        { "label": "Story", "send": "story moment" },
-        { "label": "Micro", "send": "micro moment" }
+        {
+          "label": "Top 10",
+          "send": "top 10"
+        },
+        {
+          "label": "#1",
+          "send": "#1"
+        },
+        {
+          "label": "Story",
+          "send": "story moment"
+        },
+        {
+          "label": "Micro",
+          "send": "micro moment"
+        }
       ],
-      "sessionPatch": { "lane": "music" }
+      "sessionPatch": {
+        "lane": "music"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "music.nav_next_year",
       "type": "nav",
       "lane": "music",
-      "trigger": ["__nav_next_year__"],
+      "trigger": [
+        "__nav_next_year__"
+      ],
       "templates": [
         "{year}.\nSame lens.",
         "Moving forward to {year}."
       ],
-      "chips": [{ "label": "Replay", "send": "replay" }],
-      "sessionPatch": { "lane": "music" }
+      "chips": [
+        {
+          "label": "Replay",
+          "send": "replay"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "music"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "music.nav_another_year",
       "type": "nav",
       "lane": "music",
-      "trigger": ["another year", "__nav_another_year__"],
+      "trigger": [
+        "another year",
+        "__nav_another_year__"
+      ],
       "templates": [
         "Name the year.",
         "Give me the next year. I’ll pivot fast."
       ],
       "chips": [
-        { "label": "1988", "send": "1988" },
-        { "label": "1999", "send": "1999" },
-        { "label": "2007", "send": "2007" }
+        {
+          "label": "1988",
+          "send": "1988"
+        },
+        {
+          "label": "1999",
+          "send": "1999"
+        },
+        {
+          "label": "2007",
+          "send": "2007"
+        }
       ],
-      "sessionPatch": { "lane": "music" }
+      "sessionPatch": {
+        "lane": "music"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "sponsors.open",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": ["sponsor", "sponsors", "advertise", "advertising", "ad package", "promotion", "promote"],
+      "trigger": [
+        "sponsor",
+        "sponsors",
+        "advertise",
+        "advertising",
+        "ad package",
+        "promotion",
+        "promote"
+      ],
       "templates": [
         "Sponsors.\nWhat outcome do you want?",
         "Let’s talk sponsorship.\nWhat are we moving—attention, action, or memory?"
       ],
       "chips": [
-        { "label": "Calls", "send": "calls" },
-        { "label": "Foot traffic", "send": "foot traffic" },
-        { "label": "Website clicks", "send": "website clicks" },
-        { "label": "Awareness", "send": "brand awareness" },
-        { "label": "Budget next", "send": "__sponsors_need_budget__" }
+        {
+          "label": "Calls",
+          "send": "calls"
+        },
+        {
+          "label": "Foot traffic",
+          "send": "foot traffic"
+        },
+        {
+          "label": "Website clicks",
+          "send": "website clicks"
+        },
+        {
+          "label": "Awareness",
+          "send": "brand awareness"
+        },
+        {
+          "label": "Budget next",
+          "send": "__sponsors_need_budget__"
+        }
       ],
-      "sessionPatch": { "lane": "sponsors" }
+      "sessionPatch": {
+        "lane": "sponsors"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "sponsors.need_goal",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": ["__sponsors_need_goal__"],
+      "trigger": [
+        "__sponsors_need_goal__"
+      ],
       "templates": [
         "If this works perfectly—what changes?",
         "What’s the real outcome you want?"
       ],
       "chips": [
-        { "label": "Calls", "send": "calls" },
-        { "label": "Foot traffic", "send": "foot traffic" },
-        { "label": "Website clicks", "send": "website clicks" },
-        { "label": "Awareness", "send": "brand awareness" }
+        {
+          "label": "Calls",
+          "send": "calls"
+        },
+        {
+          "label": "Foot traffic",
+          "send": "foot traffic"
+        },
+        {
+          "label": "Website clicks",
+          "send": "website clicks"
+        },
+        {
+          "label": "Awareness",
+          "send": "brand awareness"
+        }
       ],
-      "sessionPatch": { "lane": "sponsors" }
+      "sessionPatch": {
+        "lane": "sponsors"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "sponsors.need_budget",
       "type": "prompt",
       "lane": "sponsors",
-      "trigger": ["__sponsors_need_budget__"],
+      "trigger": [
+        "__sponsors_need_budget__"
+      ],
       "templates": [
         "Give me a range.\nI’ll keep it clean.",
         "Budget sets the scale.\nStarter, Growth, or Dominance?"
       ],
       "chips": [
-        { "label": "Starter", "send": "starter test" },
-        { "label": "Growth", "send": "growth bundle" },
-        { "label": "Dominance", "send": "dominance" }
+        {
+          "label": "Starter",
+          "send": "starter test"
+        },
+        {
+          "label": "Growth",
+          "send": "growth bundle"
+        },
+        {
+          "label": "Dominance",
+          "send": "dominance"
+        }
       ],
-      "sessionPatch": { "lane": "sponsors" }
+      "sessionPatch": {
+        "lane": "sponsors"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "schedule.open",
       "type": "prompt",
@@ -393,52 +723,126 @@
         "Tell me the city/timezone.\nThen: Now / Next / Later."
       ],
       "chips": [
-        { "label": "Playing now", "send": "what’s playing now" },
-        { "label": "Today", "send": "schedule today" },
-        { "label": "London", "send": "in London" },
-        { "label": "Toronto", "send": "in Toronto" }
+        {
+          "label": "Playing now",
+          "send": "what’s playing now"
+        },
+        {
+          "label": "Today",
+          "send": "schedule today"
+        },
+        {
+          "label": "London",
+          "send": "in London"
+        },
+        {
+          "label": "Toronto",
+          "send": "in Toronto"
+        }
       ],
-      "sessionPatch": { "lane": "schedule" }
+      "sessionPatch": {
+        "lane": "schedule"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "schedule.need_city",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": ["__schedule_need_city__"],
+      "trigger": [
+        "__schedule_need_city__"
+      ],
       "templates": [
         "City sets the clock.\nName it.",
         "One location is enough.\nWhich city?"
       ],
       "chips": [
-        { "label": "London", "send": "in London" },
-        { "label": "Toronto", "send": "in Toronto" },
-        { "label": "New York", "send": "in New York" },
-        { "label": "Los Angeles", "send": "in Los Angeles" }
+        {
+          "label": "London",
+          "send": "in London"
+        },
+        {
+          "label": "Toronto",
+          "send": "in Toronto"
+        },
+        {
+          "label": "New York",
+          "send": "in New York"
+        },
+        {
+          "label": "Los Angeles",
+          "send": "in Los Angeles"
+        }
       ],
-      "sessionPatch": { "lane": "schedule" }
+      "sessionPatch": {
+        "lane": "schedule"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "schedule.need_show_or_now",
       "type": "prompt",
       "lane": "schedule",
-      "trigger": ["__schedule_need_show__"],
+      "trigger": [
+        "__schedule_need_show__"
+      ],
       "templates": [
         "Do you want what’s on now—or a specific title?"
       ],
       "chips": [
-        { "label": "Playing now", "send": "what’s playing now" },
-        { "label": "Today", "send": "schedule today" }
+        {
+          "label": "Playing now",
+          "send": "what’s playing now"
+        },
+        {
+          "label": "Today",
+          "send": "schedule today"
+        }
       ],
-      "sessionPatch": { "lane": "schedule" }
+      "sessionPatch": {
+        "lane": "schedule"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "movies.open",
       "type": "prompt",
       "lane": "movies",
-      "trigger": ["movie", "movies", "tv", "show", "shows", "recommend", "recommend something", "what to watch", "watch"],
+      "trigger": [
+        "movie",
+        "movies",
+        "tv",
+        "show",
+        "shows",
+        "recommend",
+        "recommend something",
+        "what to watch",
+        "watch"
+      ],
       "templates": [
         "Movies.\nTitle, genre, or mood?"
       ],
@@ -457,29 +861,114 @@
         ]
       },
       "chips": [
-        { "label": "Surprise me", "send": "recommend something" },
-        { "label": "Classic TV", "send": "classic tv" },
-        { "label": "Westerns", "send": "westerns" },
-        { "label": "Detective", "send": "detective" }
+        {
+          "label": "Surprise me",
+          "send": "recommend something"
+        },
+        {
+          "label": "Classic TV",
+          "send": "classic tv"
+        },
+        {
+          "label": "Westerns",
+          "send": "westerns"
+        },
+        {
+          "label": "Detective",
+          "send": "detective"
+        }
       ],
-      "sessionPatch": { "lane": "movies" }
+      "sessionPatch": {
+        "lane": "movies"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     },
-
     {
       "id": "movies.need_title_or_genre",
       "type": "prompt",
       "lane": "movies",
-      "trigger": ["__movies_need_title_or_genre__"],
+      "trigger": [
+        "__movies_need_title_or_genre__"
+      ],
       "templates": [
         "Give me a title—or a genre + decade. That’s enough."
       ],
       "chips": [
-        { "label": "Surprise me", "send": "recommend something" },
-        { "label": "Classic TV", "send": "classic tv" },
-        { "label": "Westerns", "send": "westerns" },
-        { "label": "Detective", "send": "detective" }
+        {
+          "label": "Surprise me",
+          "send": "recommend something"
+        },
+        {
+          "label": "Classic TV",
+          "send": "classic tv"
+        },
+        {
+          "label": "Westerns",
+          "send": "westerns"
+        },
+        {
+          "label": "Detective",
+          "send": "detective"
+        }
       ],
-      "sessionPatch": { "lane": "movies" }
+      "sessionPatch": {
+        "lane": "movies"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true
+      }
     }
-  ]
+  ],
+  "marionAuthorityLock": {
+    "enabled": true,
+    "mode": "backend_first",
+    "backendReplyPrimary": true,
+    "packetRole": "tone_and_last_resort",
+    "rules": [
+      "If Marion returns a non-empty reply, that reply wins.",
+      "Packets may shape tone, chips, and lane hints, but may not replace Marion authority.",
+      "Fallback packets may run only when backend reply is empty, missing, or hard-failed.",
+      "Error packets may run only on transport, parser, or contract failure.",
+      "Greeting and prompt packets may assist orientation, but never override a live Marion reply."
+    ]
+  },
+  "runtimeContract": {
+    "consumerExpectation": "packet-matcher must honor marionAuthorityLock fields",
+    "backendFieldsPreferred": [
+      "reply",
+      "text",
+      "answer",
+      "output",
+      "response",
+      "payload.reply",
+      "payload.text",
+      "payload.message",
+      "packet.reply",
+      "packet.answer",
+      "packet.output",
+      "packet.synthesis.reply",
+      "packet.synthesis.answer",
+      "packet.synthesis.text",
+      "packet.synthesis.output"
+    ],
+    "fallbackOnlyWhen": [
+      "no_backend_reply",
+      "backend_transport_failure",
+      "backend_contract_failure"
+    ]
+  }
 }
