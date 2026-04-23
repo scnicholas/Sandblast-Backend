@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "emotionRouteGuard v4.2.0 FORENSIC-NORMALIZED";
+const VERSION = "emotionRouteGuard v4.3.0 COHESION-HARDENED";
 
 const ARCHETYPES = {
   witness: { openingStyle: "reflective_presence", questionStyle: "gentle_reflective", allowsActionShift: false },
@@ -43,7 +43,11 @@ const EMOTION_STRATEGY_MAP = {
 function safeStr(v) { return v == null ? "" : String(v); }
 function lower(v) { return safeStr(v).toLowerCase(); }
 function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-function clamp(n, min, max) { const x = Number(n); if (!Number.isFinite(x)) return min; return Math.min(max, Math.max(min, x)); }
+function clamp(n, min, max) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return min;
+  return Math.min(max, Math.max(min, x));
+}
 
 function extractGuidedPrompt(input = {}) {
   const obj = isObj(input) ? input : {};
@@ -77,7 +81,7 @@ function detectPresentationSignals(text) {
     asksForRelief: /\b(make it stop|i need this to stop|get me out of this|calm me down|help me breathe)\b/.test(t),
     hasContrast: /\b(but|though|except|yet)\b/.test(t),
     hasUncertainty: /\b(maybe|i guess|not sure|i think|possibly|kind of|sort of)\b/.test(t),
-    mentionsLooping: /\b(loop|looping|same response|same thing|again and again|repeating|stuck in this|spiral|spiraling)\b/.test(t),
+    mentionsLooping: /\b(loop|looping|same response|same thing|again and again|repeating|stuck in this|spiral|spiraling|spiralling)\b/.test(t),
     requestsAction: /\b(what should i do|next step|what now|how do i move forward|what can i do)\b/.test(t),
     celebratoryBuzz: /\b(amazing|awesome|incredible|fantastic|lets go|let's go|pumped)\b/.test(t),
     referencesSelfHarm: /\b(cannot go on|can't go on|want to die|kill myself|hurt myself|suicide|self harm|end it all)\b/.test(t),
@@ -179,9 +183,10 @@ function deriveEmotionCluster(primaryEmotion) {
 function buildExpressionContract(strategy, lockedEmotion) {
   const supportMode = safeStr(strategy.supportModeCandidate);
   const questionPressure = safeStr(strategy.nuanceProfile?.questionPressure || "medium");
+  const askAtMost = questionPressure === "none" ? 0 : 1;
   return {
     pacingBias: /ground|hold|stabilize/.test(supportMode) ? "slow" : "steady",
-    askAtMost: questionPressure === "none" ? 0 : questionPressure === "low" ? 1 : 1,
+    askAtMost,
     mirrorIntensity: false,
     tone: strategy.deliveryTone,
     allowActionShift: !!strategy.conversationPlan.allowsActionShift,
@@ -197,7 +202,7 @@ function buildStrategyFromEmotion(lockedEmotion, signals, priorState, guidedProm
   const archetype = ARCHETYPES[template.archetype] || ARCHETYPES.clarify;
   const intensity = Number(lockedEmotion.intensity || 0);
   const supportFlags = lockedEmotion.supportFlags || {};
-  const questionPressure = supportFlags.crisis ? "none" : template.questionPressure;
+  const questionPressure = supportFlags.crisis || supportFlags.preferNoQuestion ? "none" : template.questionPressure;
   return {
     primaryEmotion,
     intensity,
@@ -235,7 +240,7 @@ function inferPrimaryEmotionFromText(text) {
   if (/\b(grief|grieving|heartbroken|mourning)\b/.test(text)) return "grief";
   if (/\b(sad|down|low)\b/.test(text)) return "sadness";
   if (/\b(panic|panicking)\b/.test(text)) return "panic";
-  if (/\b(anxious|worried|overwhelmed|spiraling)\b/.test(text)) return "anxiety";
+  if (/\b(anxious|worried|overwhelmed|spiraling|spiralling)\b/.test(text)) return "anxiety";
   if (/\b(afraid|terrified|scared)\b/.test(text)) return "fear";
   if (/\b(shame|ashamed|embarrassed)\b/.test(text)) return "shame";
   if (/\b(guilty|guilt|my fault)\b/.test(text)) return "guilt";
@@ -252,9 +257,19 @@ function inferPrimaryEmotionFromText(text) {
   return "neutral";
 }
 
+function _extractLockedEmotionSource(input = {}) {
+  if (isObj(input.lockedEmotion)) return input.lockedEmotion;
+  if (isObj(input.emotion)) return input.emotion;
+  if (isObj(input.marion_handoff) && isObj(input.marion_handoff.locked_emotion)) return input.marion_handoff.locked_emotion;
+  if (isObj(input.analysis) && isObj(input.analysis.lockedEmotion)) return input.analysis.lockedEmotion;
+  return input;
+}
+
 function normalizeLockedEmotion(input = {}) {
-  const src = isObj(input.lockedEmotion) ? input.lockedEmotion : (isObj(input.emotion) ? input.emotion : input);
-  const text = normalizeText(input.text || src.text || "");
+  const src = _extractLockedEmotionSource(input);
+  const text = normalizeText(
+    input.text || input.message || src.text || (isObj(input.guidedPrompt) ? input.guidedPrompt.text : "") || ""
+  );
   let primary = lower(src.primaryEmotion || src.primary || src.dominantEmotion || "");
   if (!primary) primary = inferPrimaryEmotionFromText(text);
 
@@ -273,10 +288,17 @@ function normalizeLockedEmotion(input = {}) {
   if (["panic", "grief", "depressed"].includes(primary)) supportFlags.preferNoQuestion = true;
   if (["joy", "gratitude", "relief", "excitement", "hope"].includes(primary)) supportFlags.canChannelForward = true;
 
-  const intensity = clamp(src.intensity != null ? src.intensity : (supportFlags.crisis ? 0.95 : supportFlags.highDistress ? 0.85 : supportFlags.needsStabilization ? 0.72 : 0.5), 0, 1);
+  const intensity = clamp(
+    src.intensity != null
+      ? src.intensity
+      : (supportFlags.crisis ? 0.95 : supportFlags.highDistress ? 0.85 : supportFlags.needsStabilization ? 0.72 : 0.5),
+    0,
+    1
+  );
+
   return {
     primaryEmotion: primary,
-    secondaryEmotion: safeStr(src.secondaryEmotion || "").toLowerCase() || null,
+    secondaryEmotion: safeStr(src.secondaryEmotion || src.secondary || "").toLowerCase() || null,
     intensity,
     valence: typeof src.valence === "number" || typeof src.valence === "string"
       ? src.valence
@@ -288,7 +310,7 @@ function normalizeLockedEmotion(input = {}) {
 
 function analyzeEmotionRoute(input = {}) {
   const payload = basePayload();
-  const text = safeStr(input.text || input.message || "");
+  const text = safeStr(input.text || input.message || (isObj(input.guidedPrompt) ? input.guidedPrompt.text : "") || "");
   const priorState = isObj(input.session) ? input.session : (isObj(input.priorState) ? input.priorState : {});
   const lockedEmotion = normalizeLockedEmotion(input);
   const signals = detectPresentationSignals(text);
@@ -324,15 +346,24 @@ function analyzeEmotionRoute(input = {}) {
       allowEmotionOverride: false,
       archetype: strategy.archetype,
       deliveryTone: strategy.deliveryTone,
-      emotionCluster: strategy.emotionCluster
+      emotionCluster: strategy.emotionCluster,
+      supportModeCandidate: strategy.supportModeCandidate
+    },
+    chat: {
+      supportFirst: !!(payload.supportFlags.crisis || payload.supportFlags.highDistress),
+      shouldSuppressClarifier: payload.expressionContract.askAtMost === 0,
+      questionPressure: payload.nuanceProfile.questionPressure,
+      routeBias: payload.routeBias
     },
     tts: {
       pacingBias: payload.expressionContract.pacingBias,
       caution: payload.supportFlags.needsContainment || payload.supportFlags.needsStabilization || false,
-      suppressExpressiveEscalation: !!payload.supportFlags.highDistress
+      suppressExpressiveEscalation: !!payload.supportFlags.highDistress,
+      tone: payload.deliveryTone
     },
     stateSpine: {
       emotionPrimary: payload.primaryEmotion,
+      emotionSecondary: payload.secondaryEmotion,
       emotionCluster: payload.emotionCluster,
       emotionSupportMode: payload.supportModeCandidate,
       emotionArchetype: payload.archetype,
@@ -359,7 +390,13 @@ function analyzeEmotionRoute(input = {}) {
         ? "POSITIVE"
         : "REGULATED";
   payload.diagnostics = {
-    normalizedFrom: isObj(input.lockedEmotion) ? "lockedEmotion" : isObj(input.emotion) ? "emotion" : "input",
+    normalizedFrom: isObj(input.lockedEmotion)
+      ? "lockedEmotion"
+      : isObj(input.emotion)
+        ? "emotion"
+        : isObj(input.marion_handoff) && isObj(input.marion_handoff.locked_emotion)
+          ? "marion_handoff.locked_emotion"
+          : "input",
     priorStateEmotion: lower(priorState.primaryEmotion || ""),
     inferredSignals: Object.keys(signals).filter((key) => !!signals[key])
   };
