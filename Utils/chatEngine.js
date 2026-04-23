@@ -3,7 +3,7 @@
 /**
  * chatEngine.js
  *
- * Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY
+ * Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY + META-SURFACING-V2
  * ------------------------------------------------------------
  * PURPOSE
  * - Act as a traffic coordinator only
@@ -154,7 +154,7 @@ function buildLoopRecoveryReply(input, continuity = {}, meta = {}) {
   if (isGreetingLike(normalized)) {
     return "Hey. I’m here. What do you want to do?";
   }
-  if (/\?$/.test(normalized) || /(how|what|why|when|where|who|can|could|would|should|do|does|did|is|are)/i.test(normalized)) {
+  if (/\?$/.test(normalized) || /\b(how|what|why|when|where|who|can|could|would|should|do|does|did|is|are)\b/i.test(normalized)) {
     return "I’m here. Ask me the direct question again and I’ll answer it cleanly without looping.";
   }
   if (/sad|grief|hurt|overwhelm|anx|panic|fear|depress/i.test(forcedEmotion)) {
@@ -690,12 +690,30 @@ function getRuntime() {
 
 function buildHandleMeta(input) {
   const src = isPlainObject(input) ? input : {};
-  const fields = extractMarionFields(src);
-  const authority = shouldLockMarionAuthority(src);
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const metaIn = isPlainObject(src.meta) ? src.meta : {};
+  const packet = isPlainObject(src.packet) ? src.packet : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const merged = Object.assign({}, src, payload, {
+    meta: metaIn,
+    marion: src.marion || payload.marion || metaIn.marion,
+    marionContract: src.marionContract || payload.marionContract || metaIn.marionContract,
+    overrideReply: src.overrideReply || payload.overrideReply || metaIn.overrideReply || synthesis.reply,
+    fallbackReply: src.fallbackReply || payload.fallbackReply || metaIn.fallbackReply,
+    fallbackResponse: src.fallbackResponse || payload.fallbackResponse || metaIn.fallbackResponse,
+    replySeed: src.replySeed || payload.replySeed || metaIn.replySeed,
+    forcedIntent: src.forcedIntent || payload.forcedIntent || metaIn.forcedIntent,
+    forcedEmotion: src.forcedEmotion || payload.forcedEmotion || metaIn.forcedEmotion,
+    continuity: src.continuity || payload.continuity || metaIn.continuity,
+    previousTurn: src.previousTurn || payload.previousTurn || metaIn.previousTurn,
+    traceId: src.traceId || payload.traceId || metaIn.traceId
+  });
+  const fields = extractMarionFields(merged);
+  const authority = shouldLockMarionAuthority(merged);
 
   return {
     channel: "index",
-    userId: cleanText(src.sessionId || ""),
+    userId: cleanText(src.sessionId || payload.sessionId || ""),
     forcedIntent: fields.intent,
     forcedEmotion: fields.emotionalState,
     marionIntent: cleanText(fields.marionContract.intent || fields.intent || ""),
@@ -708,10 +726,10 @@ function buildHandleMeta(input) {
       ? src.continuity
       : (isPlainObject(fields.marionContract.continuity) ? fields.marionContract.continuity : {}),
     previousTurn: isPlainObject(src.previousTurn) ? src.previousTurn : null,
-    traceId: cleanText(src.traceId || ""),
-    fallbackReply: firstUsableReply(src.fallbackReply, src.payload && src.payload.fallbackReply, src.marion && src.marion.fallbackResponse),
-    fallbackResponse: firstUsableReply(src.fallbackResponse, src.payload && src.payload.fallbackResponse, src.marion && src.marion.fallbackResponse),
-    replySeed: firstUsableReply(src.replySeed, src.payload && src.payload.replySeed, src.marion && src.marion.replySeed)
+    traceId: cleanText(merged.traceId || ""),
+    fallbackReply: firstUsableReply(merged.fallbackReply, payload.fallbackReply, src.marion && src.marion.fallbackResponse, packet.fallbackResponse, synthesis.fallbackResponse),
+    fallbackResponse: firstUsableReply(merged.fallbackResponse, payload.fallbackResponse, src.marion && src.marion.fallbackResponse, packet.fallbackResponse, synthesis.fallbackResponse),
+    replySeed: firstUsableReply(merged.replySeed, payload.replySeed, src.marion && src.marion.replySeed, packet.replySeed, synthesis.replySeed)
   };
 }
 
@@ -744,6 +762,8 @@ function buildStructuredEngineReply(response, input, meta) {
       answer: reply,
       output: reply,
       response: reply,
+      authoritativeReply: reply,
+      overrideReply: reply,
       spokenText: reply,
       marionContract: isPlainObject(meta.marionContract) ? meta.marionContract : undefined,
       continuity: isPlainObject(meta.continuity) ? meta.continuity : undefined
@@ -766,7 +786,7 @@ function buildStructuredEngineReply(response, input, meta) {
       decisionAuthority: "marion"
     },
     meta: {
-      engineVersion: "Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY",
+      engineVersion: "Chat Engine vMarion-Coordinator LOOP-GUARD-HARDENED + AUTHORITY-CHAIN-RECOVERY + META-SURFACING-V2",
       replyAuthority: reply === AWAITING_REPLY ? "awaiting_marion" : (meta.marionAuthorityLock ? "marion_locked" : "resolved"),
       marionAuthorityLock: !!meta.marionAuthorityLock,
       marionIntent: cleanText((meta.marionContract && meta.marionContract.intent) || ""),
