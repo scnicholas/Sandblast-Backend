@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.5.0 FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY-LOOP-GUARD";
+const VERSION = "conversationalResponseSystem v2.6.0 MARION-AUTHORITY-LOCK + FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY-LOOP-GUARD";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -104,6 +104,58 @@ function normalizeEmotion(raw) {
   };
 }
 
+function extractAuthoritativeReply(result, packet) {
+  const resultMeta = isObj(result?.meta) ? result.meta : {};
+  const packetMeta = isObj(packet?.meta) ? packet.meta : {};
+  const packetPayload = isObj(packet?.payload) ? packet.payload : {};
+  return sanitizeUserFacingReply(firstNonEmpty(
+    resultMeta.overrideReply,
+    resultMeta.authoritativeReply,
+    resultMeta.reply,
+    resultMeta.response,
+    result?.authoritativeReply,
+    result?.authoritative_reply,
+    result?.reply,
+    result?.output,
+    result?.spokenText,
+    result?.answer,
+    result?.finalAnswer,
+    result?.response,
+    result?.text,
+    result?.payload?.response,
+    result?.payload?.reply,
+    result?.payload?.text,
+    result?.payload?.message,
+    packetMeta.overrideReply,
+    packetMeta.authoritativeReply,
+    packetPayload.reply,
+    packetPayload.text,
+    packetPayload.message,
+    packet?.synthesis?.reply,
+    packet?.synthesis?.answer,
+    packet?.synthesis?.spokenText,
+    packet?.synthesis?.finalAnswer,
+    packet?.synthesis?.response,
+    packet?.reply,
+    packet?.answer,
+    packet?.output,
+    packet?.spokenText,
+    packet?.finalAnswer,
+    packet?.response,
+    result?.interpretation
+  ));
+}
+
+function shouldBlockFallback(result, packet, context) {
+  const resultMeta = isObj(result?.meta) ? result.meta : {};
+  const packetMeta = isObj(packet?.meta) ? packet.meta : {};
+  if (resultMeta.marionAuthorityLock === true || packetMeta.marionAuthorityLock === true) return true;
+  if (resultMeta.singleSourceOfTruth === true || packetMeta.singleSourceOfTruth === true) return true;
+  if (resultMeta.allowReplySynthesis === false || packet?.synthesis?.nyxDirective?.allowReplySynthesis === false) return true;
+  if (context && context.strategy && /ground|clarify|channel|celebrate|witness|boundary/.test(safeStr(context.strategy.archetype))) return true;
+  return false;
+}
+
 function sanitizeUserFacingReply(reply) {
   let out = safeStr(reply).trim();
   if (!out) return "";
@@ -197,11 +249,13 @@ function normalizeContext(result, packet) {
   const pipelineTrace = normalizePipelineTrace(result?.pipelineTrace || {});
   const userInput = normalizeUserInput(result, packet);
   const continuity = normalizeContinuityState(result, packet);
+  const marionAuthorityLock = !!(result?.meta?.marionAuthorityLock || packet?.meta?.marionAuthorityLock || packet?.synthesis?.nyxDirective?.singleSourceOfTruth);
+  const authoritativeReply = extractAuthoritativeReply(result, packet);
   return {
     domain, requestedMode, intent, emotion, strategy, evidenceCount,
     privateChannel, trustState, consciousness, responsePlan, nyxDirective,
     supportMode, guidance, guardrails, source, diagnostics, pipelineTrace,
-    userInput, continuity
+    userInput, continuity, marionAuthorityLock, authoritativeReply
   };
 }
 
@@ -326,6 +380,11 @@ function buildEmotionalTurn(context, state) {
 }
 
 function resolveReply(result, packet, context) {
+  const authoritativeReply = sanitizeUserFacingReply(context?.authoritativeReply || "");
+  if (authoritativeReply && !/^done\.?$/i.test(authoritativeReply) && !isInternalBlockerText(authoritativeReply)) {
+    return authoritativeReply;
+  }
+
   const emotionalCandidate = firstNonEmpty(
     result?.reply,
     result?.output,
@@ -337,6 +396,8 @@ function resolveReply(result, packet, context) {
     result?.response,
     result?.text,
     result?.payload?.response,
+    result?.payload?.reply,
+    result?.payload?.text,
     result?.payload?.message,
     packet?.synthesis?.reply,
     packet?.synthesis?.answer,
@@ -353,6 +414,9 @@ function resolveReply(result, packet, context) {
   );
   const cleaned = sanitizeUserFacingReply(emotionalCandidate);
   if (cleaned && !/^done\.?$/i.test(cleaned) && !isInternalBlockerText(cleaned)) return cleaned;
+  if (context?.marionAuthorityLock || shouldBlockFallback(result, packet, context)) {
+    return buildLoopGuardReply(context);
+  }
   const fallback = buildFallbackReply(context);
   if (countRecentReplyRepeats(context, fallback) > 0) {
     return buildLoopGuardReply(context);
@@ -417,7 +481,9 @@ function buildResponseContract(result = {}, packet = {}) {
       fastPath,
       latencyMs,
       continuityDepth: context.continuity.depthLevel,
-      threadContinuation: !!context.continuity.threadContinuation
+      threadContinuation: !!context.continuity.threadContinuation,
+      marionAuthorityLock: !!context.marionAuthorityLock,
+      replyAuthority: context.marionAuthorityLock && context.authoritativeReply ? "marion_locked" : (reply === buildLoopGuardReply(context) ? "loop_guard" : "resolved")
     },
     continuityState: context.continuity
   };
