@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionRouter v1.2.0 AUTOPSY-HARDENED-SOFTFAIL-SYNTAX-FIX-LOOP-GUARD CONTRACT-ALIGN";
+const VERSION = "marionRouter v1.2.0 LOOP-BREAK HANDOFF-HARDENED";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -217,7 +217,6 @@ function _buildStateDrift(primaryEmotion = {}, previousMemory = {}) {
 function routeMarion(input = {}) {
   const text = input.text || input.userText || input.userQuery || input.query || input.message || "";
   const previousMemory = _safeObj(input.previousMemory);
-  const lockedEmotion = _safeObj(input.lockedEmotion || _safeObj(input.emotion).lockedEmotion || _safeObj(_safeObj(input.marion_handoff).locked_emotion));
 
   try {
     const emotionRaw = typeof retrieveEmotion === "function"
@@ -230,28 +229,15 @@ function routeMarion(input = {}) {
       : {};
 
     const emotion = _safeEmotionResult(emotionRaw);
-    const mergedEmotionView = {
-      ...emotion,
-      primary: Object.keys(_safeObj(lockedEmotion)).length ? {
-        emotion: _trim(lockedEmotion.primaryEmotion || lockedEmotion.primary || emotion.primaryEmotion || _safeObj(emotion.primary).emotion || "neutral"),
-        secondaryEmotion: _trim(lockedEmotion.secondaryEmotion || lockedEmotion.secondary || ""),
-        intensity: _num(lockedEmotion.intensity, emotion.intensity || 0),
-        confidence: _num(lockedEmotion.confidence, emotion.confidence || 0)
-      } : _safeObj(emotion.primary),
-      primaryEmotion: _trim(lockedEmotion.primaryEmotion || lockedEmotion.primary || emotion.primaryEmotion || ""),
-      intensity: Object.keys(_safeObj(lockedEmotion)).length ? _num(lockedEmotion.intensity, emotion.intensity || 0) : emotion.intensity,
-      confidence: Object.keys(_safeObj(lockedEmotion)).length ? _num(lockedEmotion.confidence, emotion.confidence || 0) : emotion.confidence,
-      supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), _safeObj(lockedEmotion.supportFlags))
-    };
-    const primaryEmotion = _resolvePrimaryEmotion(mergedEmotionView);
-    const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(mergedEmotionView.supportFlags));
+    const primaryEmotion = _resolvePrimaryEmotion(emotion);
+    const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(emotion.supportFlags));
 
     const classifiedRaw = typeof classifyQuery === "function"
       ? classifyQuery({
           text,
           affect: input.affect,
           supportFlags: mergedFlags,
-          emotion: mergedEmotionView
+          emotion
         })
       : {};
 
@@ -318,8 +304,7 @@ function routeMarion(input = {}) {
           primary: primaryEmotion,
           blendProfile,
           stateDrift,
-          supportFlags: _mergeSupportFlags(_safeObj(mergedEmotionView.supportFlags), finalSupportFlags),
-          lockedEmotionConsumed: Object.keys(_safeObj(lockedEmotion)).length > 0
+          supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), finalSupportFlags)
         },
         psychology: psychology || { matched: false, matches: [], blockedInternalEmission: false }
       },
