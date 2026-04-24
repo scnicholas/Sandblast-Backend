@@ -5,7 +5,7 @@
  * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v2.1.0 LOOP-BREAK TECHNICAL-EXECUTION";
+const VERSION = "supportResponse v2.1.1 FORENSIC-NORMALIZED";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -115,7 +115,11 @@ function looksNeutralInformational(text) {
 }
 
 function normalizeEmotion(input) {
-  const emo = isPlainObject(input?.emo) ? input.emo : (isPlainObject(input?.emotion) ? input.emotion : {});
+  const emo = isPlainObject(input?.emo)
+    ? input.emo
+    : (isPlainObject(input?.emotion)
+      ? input.emotion
+      : ((input?.primaryEmotion || input?.primary || input?.supportFlags || input?.nuanceProfile || input?.conversationPlan) && isPlainObject(input) ? input : {}));
   const supportFlags = isPlainObject(emo.supportFlags) ? emo.supportFlags : {};
   const presentationSignals = isPlainObject(emo.presentationSignals)
     ? emo.presentationSignals
