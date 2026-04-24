@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20";
+const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -300,6 +300,102 @@ const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
   /packet_invalid/i,
   /contract_invalid/i
 ];
+
+const MARION_DOMAIN_BY_INTENT = Object.freeze({
+  technical_debug: "technical",
+  emotional_support: "emotional",
+  business_strategy: "business",
+  music_query: "music",
+  news_query: "news",
+  roku_query: "roku",
+  identity_or_memory: "memory",
+  domain_question: "general_reasoning",
+  simple_chat: "general"
+});
+
+const MARION_INTENT_ALIAS = Object.freeze({
+  technical: "technical_debug",
+  debug: "technical_debug",
+  autopsy: "technical_debug",
+  emotional: "emotional_support",
+  support: "emotional_support",
+  business: "business_strategy",
+  strategy: "business_strategy",
+  music: "music_query",
+  news: "news_query",
+  newscanada: "news_query",
+  roku: "roku_query",
+  memory: "identity_or_memory",
+  continuity: "identity_or_memory",
+  general: "domain_question",
+  chat: "simple_chat"
+});
+
+function canonicalMarionIntent(value) {
+  const raw = lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!raw) return "simple_chat";
+  return MARION_INTENT_ALIAS[raw] || raw;
+}
+
+function normalizeIncomingMarionIntent(raw, fallbackText) {
+  const src = isObj(raw) ? raw : {};
+  const intent = canonicalMarionIntent(src.intent || src.type || "");
+  const text = lower(fallbackText || "");
+  let inferred = intent;
+  if (!inferred || inferred === "simple_chat") {
+    if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
+    else if (/(sad|stressed|overwhelmed|depressed|anxious|hurt|alone|frustrated|panic|grief)/i.test(text)) inferred = "emotional_support";
+    else if (/(pricing|sponsor|media kit|monetize|pitch|funding|investor|sales|proposal|revenue)/i.test(text)) inferred = "business_strategy";
+    else if (/(top\s*10|song|artist|album|chart|music|radio|playlist)/i.test(text)) inferred = "music_query";
+    else if (/(news|story|headline|article|rss|newscanada|for your life)/i.test(text)) inferred = "news_query";
+    else if (/(roku|tv app|channel|linear tv|streaming)/i.test(text)) inferred = "roku_query";
+    else if (/(remember|last time|continue|state spine|memory|emotional pinpoints)/i.test(text)) inferred = "identity_or_memory";
+    else if (String(fallbackText || "").length > 180 || /\?/.test(String(fallbackText || ""))) inferred = "domain_question";
+    else inferred = "simple_chat";
+  }
+  const activate = typeof src.activate === "boolean" ? src.activate : inferred !== "simple_chat";
+  const n = Number(src.confidence);
+  const confidence = Number.isFinite(n) ? clamp(n, 0, 1) : (activate ? 0.66 : 0.4);
+  const domain = cleanText(src.domain || src.routeDomain || MARION_DOMAIN_BY_INTENT[inferred] || "general") || "general";
+  return {
+    activate,
+    intent: inferred,
+    confidence,
+    reason: cleanText(src.reason || src.source || (isObj(raw) ? "widget_trigger" : "index_inference")) || "index_inference",
+    source: cleanText(src.source || src.triggerSource || (isObj(raw) ? "widget" : "index")) || "index",
+    triggerSource: cleanText(src.triggerSource || src.source || (isObj(raw) ? "widget" : "index")) || "index",
+    domain,
+    routeDomain: domain
+  };
+}
+
+function buildMarionIntentRouting(intentPacket, lane) {
+  const mi = isObj(intentPacket) ? intentPacket : normalizeIncomingMarionIntent(null, "");
+  const domain = cleanText(mi.domain || MARION_DOMAIN_BY_INTENT[mi.intent] || "general") || "general";
+  const mode =
+    domain === "technical" ? "autopsy" :
+    domain === "business" ? "commercial" :
+    domain === "emotional" ? "supportive_reasoning" :
+    domain === "memory" ? "continuity" :
+    domain === "music" || domain === "news" ? "domain_retrieval" :
+    domain === "roku" ? "platform" :
+    "balanced";
+  const depth =
+    domain === "technical" ? "forensic" :
+    domain === "emotional" || domain === "memory" ? "high" :
+    domain === "business" ? "strategic" :
+    "balanced";
+  return {
+    domain,
+    intent: mi.intent || "simple_chat",
+    lane: cleanText(lane || "general") || "general",
+    mode,
+    depth,
+    useDomainKnowledge: domain !== "general",
+    useMemory: domain === "memory" || mi.intent === "identity_or_memory",
+    triggerSource: mi.triggerSource || mi.source || "index"
+  };
+}
 
 function isInternalMarionBlockerReply(value) {
   const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
@@ -2719,14 +2815,19 @@ function normalizePayload(req) {
   const payload = isObj(body.payload) ? body.payload : {};
   const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
   const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
+  const rawMarionIntent = isObj(body.marionIntent) ? body.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : {});
+  const marionIntent = normalizeIncomingMarionIntent(rawMarionIntent, text);
+  const marionRouting = buildMarionIntentRouting(marionIntent, cleanText(payload.lane || body.lane || "general").toLowerCase() || "general");
   return {
     text,
     guidedPrompt,
-    domainHint: cleanText(body.domainHint || payload.domainHint || (guidedPrompt && guidedPrompt.domainHint) || ""),
-    intentHint: cleanText(body.intentHint || payload.intentHint || (guidedPrompt && guidedPrompt.intentHint) || ""),
+    domainHint: cleanText(body.domainHint || payload.domainHint || marionRouting.domain || (guidedPrompt && guidedPrompt.domainHint) || ""),
+    intentHint: cleanText(body.intentHint || payload.intentHint || marionIntent.intent || (guidedPrompt && guidedPrompt.intentHint) || ""),
     emotionalHint: cleanText(body.emotionalHint || payload.emotionalHint || (guidedPrompt && guidedPrompt.emotionalHint) || ""),
     body,
     payload,
+    marionIntent,
+    marionRouting,
     lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
     year: cleanText(payload.year || body.year || ""),
     mode: cleanText(payload.mode || body.mode || ""),
@@ -3169,6 +3270,8 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
   const bridge = isObj(src.bridge) ? src.bridge : {};
   const packetMeta = isObj(packet.meta) ? packet.meta : {};
+  const contractIntent = isObj(src.marionIntent) ? src.marionIntent : (isObj(packet.marionIntent) ? packet.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : (norm && norm.marionIntent || {})));
+  const normalizedMarionIntent = normalizeIncomingMarionIntent(contractIntent, norm && norm.text || "");
   const continuitySrc =
     isObj(src.continuity) ? src.continuity :
     (isObj(payload.continuity) ? payload.continuity :
@@ -3219,6 +3322,8 @@ function normalizeMarionContract(raw, norm, emotion, prevTurn) {
       norm && norm.intentHint || "general"
     ) || "general",
     emotional_state: normalizedEmotion,
+    marionIntent: normalizedMarionIntent,
+    routing: buildMarionIntentRouting(normalizedMarionIntent, norm && norm.lane || "general"),
     response,
     follow_up: followUp,
     continuity,
@@ -5298,6 +5403,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     sessionId,
     turnId: norm.turnId,
     payload: norm.payload,
+    marionIntent: norm.marionIntent,
+    routing: norm.marionRouting,
+    triggerSource: norm.marionIntent && norm.marionIntent.triggerSource || "index",
     emotion,
     previousMemory: {
       ...(isObj(priorTurn) ? priorTurn : {}),
@@ -5343,7 +5451,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
       lane: norm.lane,
       mode: norm.mode,
       year: norm.year,
-      turnId: norm.turnId
+      turnId: norm.turnId,
+      marionIntent: norm.marionIntent,
+      marionRouting: norm.marionRouting
     },
     marion_raw: marion,
     marion_contract: marionContract,
@@ -5361,6 +5471,8 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     traceId: norm.traceId,
     sessionId,
     client: norm.client,
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting,
     marion,
     marionContract,
     emotion,
@@ -5406,7 +5518,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     forcedEmotion: cleanText(engineInput.forcedEmotion || ""),
     overrideReplyPresent: !!cleanText(engineInput.overrideReply || ""),
     fallbackResponsePresent: !!cleanText(engineInput.fallbackResponse || ""),
-    replySeedPresent: !!cleanText(engineInput.replySeed || "")
+    replySeedPresent: !!cleanText(engineInput.replySeed || ""),
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting
   };
 
   let engineRaw = null;
@@ -5430,7 +5544,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     marionBridgeHasRoute: !!marionRuntimeDiagnostics.marionBridgeHasRoute,
     marionForceDirect: !!engineInput.forceDirect,
     replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
-    lane: cleanText(shaped.lane || norm.lane || "general")
+    lane: cleanText(shaped.lane || norm.lane || "general"),
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting
   };
   if (!shaped.lane) shaped.lane = norm.lane || "general";
   if (!shaped.laneId) shaped.laneId = shaped.lane;
@@ -5685,6 +5801,9 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     suppressMenus,
     failSafe: !!failSafe,
     marionBridgePresent: !!marion,
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting,
+    marionTriggerActive: !!(norm.marionIntent && norm.marionIntent.activate),
     mixerVoicePreserved: !!CFG.preserveMixerVoice,
     error: shaped.meta?.error || "",
     indexLoopGuard: true,
@@ -5797,6 +5916,8 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
     laneId: shaped.laneId || shaped.lane || norm.lane || "general",
     sessionLane: shaped.sessionLane || shaped.lane || norm.lane || "general",
     bridge: shaped.bridge || marion || null,
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting,
     ctx: shaped.ctx || {},
     ui: shaped.ui || {},
     directives: Array.isArray(shaped.directives) ? shaped.directives : [],
