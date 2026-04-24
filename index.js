@@ -5472,35 +5472,63 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   const startedAt = now();
   const norm = normalizePayload(req);
   const sessionId = getSessionId(req);
-  const priorSupport = getSupportState(sessionId);
   const priorTurn = getLastTurn(sessionId);
-  let supportHold = clamp(Number(priorSupport.hold || 0), 0, CFG.quietSupportHoldTurns);
-  let supportActive = !!priorSupport.active && supportHold > 0;
-  if (supportHold > 0) supportHold -= 1;
-  let failSafe = false;
-  const technicalTurn = isTechnicalDebugTurn(norm.text, norm);
-
-  const emotion = inferEmotion(norm.text, {
-    lane: norm.lane,
-    mode: norm.mode,
+  const trace = {
+    traceId: norm.traceId,
     sessionId,
-    traceId: norm.traceId
-  });  const transportKey = buildTransportKey(norm, norm.text, req);
+    route: req.originalUrl || req.path || "",
+    transportOnly: true,
+    marionTransportOnly: true,
+    startedAt
+  };
+
+  if (!cleanText(norm.text)) {
+    return res.status(400).json({
+      ok: false,
+      error: "empty_text",
+      detail: "A message text value is required.",
+      traceId: norm.traceId,
+      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true }
+    });
+  }
+
+  const transportKey = buildTransportKey(norm, norm.text, req);
   const transportState = getTransportState(sessionId);
   const priorTransportReplay = transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
   if (priorTransportReplay) {
-    const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "") || "I caught the duplicate transport pass and kept the previous turn finalized.";
-    setTransportState(sessionId, { key: transportKey, turnId: cleanText(norm.turnId || transportState.turnId || ""), reply: cachedReply, replyHash: replyHash(cachedReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache"), count: Number(transportState.count || 0) + 1 });
-    const cached = normalizeReplyEnvelope({ ok: true, reply: cachedReply, payload: { reply: cachedReply }, lane: norm.lane || "general", laneId: norm.lane || "general", sessionLane: norm.lane || "general", ui: {}, directives: [], followUps: [], followUpsStrings: [], sessionPatch: buildSupportSessionPatch({}, false, true), cog: { intent: "REPLAY_CACHE", mode: "finalized", publicMode: true }, requestId: makeTraceId("req"), traceId: norm.traceId }, cachedReply, { v: INDEX_VERSION, t: now(), transportDuplicateSuppressed: true, duplicateReplyStrategy: "return_cached_final", supportHold: 0, supportDeauthorized: true, latencyMs: now() - startedAt });
-    cached.voiceRoute = normalizeVoiceRouteResponse(attachVoiceRoute({ reply: cachedReply }).voiceRoute);
-    return res.status(200).json(cached);
+    const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "");
+    if (cachedReply) {
+      const cached = normalizeReplyEnvelope({
+        ok: true,
+        reply: cachedReply,
+        payload: { reply: cachedReply },
+        lane: norm.lane || "general",
+        laneId: norm.lane || "general",
+        sessionLane: norm.lane || "general",
+        requestId: makeTraceId("req"),
+        traceId: norm.traceId,
+        meta: { replyAuthority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache") }
+      }, cachedReply, {
+        v: INDEX_VERSION,
+        t: now(),
+        transportOnly: true,
+        marionTransportOnly: true,
+        transportDuplicateSuppressed: true,
+        duplicateReplyStrategy: "return_cached_final",
+        supportDeauthorized: true,
+        supportHold: 0,
+        latencyMs: now() - startedAt
+      });
+      cached.voiceRoute = normalizeVoiceRouteResponse(attachVoiceRoute({ reply: cachedReply }).voiceRoute);
+      return res.status(200).json(cached);
+    }
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
-  const priorSpine = getStateSpine(sessionId);
-  const siteBridgeSnapshot = buildSiteBridgeSnapshot(norm, emotion, priorSpine, null);
   const marionInput = {
     text: norm.text,
+    query: norm.text,
+    userQuery: norm.text,
     lane: norm.lane,
     year: norm.year,
     mode: norm.mode,
@@ -5510,452 +5538,152 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     payload: norm.payload,
     marionIntent: norm.marionIntent,
     routing: norm.marionRouting,
-    triggerSource: norm.marionIntent && norm.marionIntent.triggerSource || "index",
-    emotion,
-    previousMemory: {
-      ...(isObj(priorTurn) ? priorTurn : {}),
-      stateSpine: isObj(priorSpine) ? priorSpine : {},
-      continuity: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
-      continuityState: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
-      emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {},
-      support: isObj(priorSpine && priorSpine.support) ? priorSpine.support : {}
-    },
-    continuityState: isObj(priorTurn && priorTurn.continuity) ? priorTurn.continuity : {},
-    turnMemory: isObj(priorTurn) ? priorTurn : {},
-    stateSpine: isObj(priorSpine) ? priorSpine : {},
-    guidedPrompt: norm.guidedPrompt,
-    domainHint: norm.domainHint,
-    intentHint: norm.intentHint,
-    emotionalHint: norm.emotionalHint
+    requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
+    intent: (norm.marionIntent && norm.marionIntent.intent) || norm.intentHint || "simple_chat",
+    previousMemory: isObj(priorTurn) ? priorTurn : {},
+    session: isObj(norm.body && norm.body.session) ? norm.body.session : {},
+    meta: {
+      source: "index_transport_only",
+      indexRole: "transport_only",
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      traceId: norm.traceId,
+      turnId: norm.turnId
+    }
   };
 
   let marion = null;
+  let engine = null;
+  let selected = null;
+  let authority = "none";
+  let errorDetail = "";
+
   try {
     marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
   } catch (err) {
-    console.log("[Sandblast][marionBridge:timeout]", err && (err.stack || err.message || err));
-    marion = null;
+    errorDetail = cleanText(err && (err.message || err) || "marion_bridge_failed");
+    console.log("[Sandblast][chatRoute:marion_transport_error]", { traceId: norm.traceId, error: errorDetail });
   }
 
-  const marionRuntimeDiagnostics = getMarionRuntimeDiagnostics();
-  const marionContract = normalizeMarionContract(marion, norm, emotion, priorTurn);
-  const marionContractCheck = validateMarionContract(marionContract);
-  const marionAuthorityReply = getMarionAuthorityReply(marion);
-  const marionReplySeed = cleanText(
-    (isObj(marion) ? (marion.replySeed || marion.fallbackResponse || "") : "") ||
-    (isObj(marion) && isObj(marion.payload) ? (marion.payload.replySeed || marion.payload.fallbackResponse || "") : "") ||
-    (isObj(marionContract) ? (marionContract.response || "") : "") ||
-    marionAuthorityReply
-  );
-  const trace = buildLoggingSpine({
-    traceId: norm.traceId,
-    sessionId,
-    startedAt,
-    request: {
-      text: clipText(norm.text, 220),
-      lane: norm.lane,
-      mode: norm.mode,
-      year: norm.year,
-      turnId: norm.turnId,
-      marionIntent: norm.marionIntent,
-      marionRouting: norm.marionRouting
-    },
-    marion_raw: marion,
-    marion_contract: marionContract,
-    errors: marionContractCheck.ok ? [] : marionContractCheck.errors.slice()
-  });
-
-  const engineInput = {
-    text: norm.text,
-    payload: norm.payload,
-    body: norm.body,
-    lane: norm.lane,
-    year: norm.year,
-    mode: norm.mode,
-    turnId: norm.turnId,
-    traceId: norm.traceId,
-    sessionId,
-    client: norm.client,
-    marionIntent: norm.marionIntent,
-    marionRouting: norm.marionRouting,
-    marion,
-    marionContract,
-    emotion,
-    previousTurn: priorTurn,
-    previousMemory: {
-      ...(isObj(priorTurn) ? priorTurn : {}),
-      stateSpine: isObj(priorSpine) ? priorSpine : {},
-      emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {},
-      support: isObj(priorSpine && priorSpine.support) ? priorSpine.support : {}
-    },
-    continuity: marionContract && marionContract.continuity || buildMarionContinuity(priorTurn, norm, emotion),
-    stateSpine: isObj(priorSpine) ? priorSpine : {},
-    forceDirect: shouldForceMarionReply(marionContract, norm) || !!marionAuthorityReply,
-    overrideReply: cleanText(
-      marionAuthorityReply ||
-      (isObj(marion) ? (marion.reply || marion.text || marion.output || marion.answer || marion.spokenText || marion.response || marion.message || marion.finalAnswer || marion.authoritativeReply || marion.authoritative_reply || "") : "") ||
-      (isObj(marion) && isObj(marion.payload) ? (marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.output || marion.payload.answer || marion.payload.spokenText || marion.payload.response || "") : "") ||
-      (isObj(marion) && isObj(marion.packet) ? (marion.packet.reply || marion.packet.text || marion.packet.output || marion.packet.answer || marion.packet.response || "") : "") ||
-      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.text || marion.packet.synthesis.message || marion.packet.synthesis.output || marion.packet.synthesis.answer || marion.packet.synthesis.spokenText || marion.packet.synthesis.response || "") : "") ||
-      marionReplySeed ||
-      marionContract && (marionContract.response || marionContract.reply || marionContract.output || marionContract.answer || marionContract.text || marionContract.spokenText) || ""
-    ),
-    fallbackResponse: cleanText(
-      (isObj(marion) ? (marion.fallbackResponse || marion.replySeed || marion.response || marion.message || "") : "") ||
-      (isObj(marion) && isObj(marion.payload) ? (marion.payload.fallbackResponse || marion.payload.replySeed || marion.payload.reply || marion.payload.text || marion.payload.message || marion.payload.output || marion.payload.answer || marion.payload.response || "") : "") ||
-      (isObj(marion) && isObj(marion.packet) ? (marion.packet.reply || marion.packet.text || marion.packet.message || marion.packet.output || marion.packet.answer || marion.packet.response || "") : "") ||
-      (isObj(marion) && isObj(marion.packet) && isObj(marion.packet.synthesis) ? (marion.packet.synthesis.reply || marion.packet.synthesis.text || marion.packet.synthesis.message || marion.packet.synthesis.answer || marion.packet.synthesis.output || marion.packet.synthesis.response || "") : "") ||
-      marionContract && (marionContract.response || marionContract.reply || marionContract.output || marionContract.answer || marionContract.text || marionContract.spokenText) || ""
-    ),
-    replySeed: cleanText(marionReplySeed || marionAuthorityReply || (isObj(marion) ? (marion.replySeed || marion.fallbackResponse || marion.response || marion.message || "") : "") || ""),
-    forcedIntent: cleanText(marionContract && marionContract.intent || norm.intentHint || ""),
-    forcedEmotion: cleanText(marionContract && marionContract.emotional_state || norm.emotionalHint || ""),
-    guidedPrompt: norm.guidedPrompt,
-    domainHint: norm.domainHint,
-    intentHint: norm.intentHint,
-    emotionalHint: norm.emotionalHint,
-    knowledge: knowledgeRuntime.extract(norm.text, { marion, guidedPrompt: norm.guidedPrompt })
-  };
-
-  trace.engine_input = {
-    forceDirect: !!engineInput.forceDirect,
-    forcedIntent: cleanText(engineInput.forcedIntent || ""),
-    forcedEmotion: cleanText(engineInput.forcedEmotion || ""),
-    overrideReplyPresent: !!cleanText(engineInput.overrideReply || ""),
-    fallbackResponsePresent: !!cleanText(engineInput.fallbackResponse || ""),
-    replySeedPresent: !!cleanText(engineInput.replySeed || ""),
-    marionIntent: norm.marionIntent,
-    marionRouting: norm.marionRouting
-  };
-
-  let engineRaw = null;
-  let engineError = null;
-  try {
-    engineRaw = await callWithTimeout(callChatEngine(engineInput), CFG.requestTimeoutMs, "chat_engine");
-    if (engineRaw && engineRaw.__engineError) {
-      engineError = engineRaw.__engineError;
-      engineRaw = null;
+  const marionReply = getMarionAuthorityReply(marion);
+  if (marion && marion.ok !== false && marionReply) {
+    selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
+    selected.reply = marionReply;
+    selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply };
+    selected.bridge = marion;
+    authority = "marion_bridge";
+  } else {
+    try {
+      engine = await callWithTimeout(callChatEngine({
+        text: norm.text,
+        query: norm.text,
+        userQuery: norm.text,
+        lane: norm.lane,
+        mode: norm.mode,
+        year: norm.year,
+        sessionId,
+        turnId: norm.turnId,
+        marionIntent: norm.marionIntent,
+        routing: norm.marionRouting,
+        previousMemory: isObj(priorTurn) ? priorTurn : {},
+        marion,
+        meta: { source: "index_transport_only", traceId: norm.traceId, turnId: norm.turnId }
+      }), CFG.requestTimeoutMs, "chat_engine");
+    } catch (err) {
+      errorDetail = cleanText(err && (err.message || err) || errorDetail || "chat_engine_failed");
+      console.log("[Sandblast][chatRoute:engine_transport_error]", { traceId: norm.traceId, error: errorDetail });
     }
-  } catch (err) {
-    engineError = err;
+    const engineReply = cleanText(engine && (engine.reply || engine.text || engine.answer || engine.output || engine.response || engine.message || (engine.payload && (engine.payload.reply || engine.payload.text)) || ""));
+    if (engine && engine.ok !== false && engineReply && !isInternalMarionBlockerReply(engineReply)) {
+      selected = isObj(engine) ? { ...engine } : { ok: true, reply: engineReply };
+      selected.reply = cleanReplyForUser(engineReply);
+      selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: selected.reply, text: selected.reply, message: selected.reply, spokenText: selected.reply };
+      selected.bridge = marion || selected.bridge || null;
+      authority = "chat_engine";
+    }
   }
 
-  let shaped = repairEngineContract(shapeEngineReply(engineRaw), marion, norm);
-  shaped = enforceMarionContract(shaped, marionContract, norm);
-  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
-  trace.normalized = {
-    marionContractOk: marionContractCheck.ok,
-    marionBridgeLoaded: !!marionRuntimeDiagnostics.marionBridgeLoaded,
-    marionBridgeHasRoute: !!marionRuntimeDiagnostics.marionBridgeHasRoute,
-    marionForceDirect: !!engineInput.forceDirect,
-    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
-    lane: cleanText(shaped.lane || norm.lane || "general"),
-    marionIntent: norm.marionIntent,
-    marionRouting: norm.marionRouting
-  };
-  if (!shaped.lane) shaped.lane = norm.lane || "general";
-  if (!shaped.laneId) shaped.laneId = shaped.lane;
-  if (!shaped.sessionLane) shaped.sessionLane = shaped.lane;
-  if (!shaped.bridge && marion) shaped.bridge = marion;
-  shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
-
-  const marionReplyPresent = !!cleanText(marionAuthorityReply || marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
-  const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {}, { norm, supportState: priorSupport, technicalTurn, hasAuthorityReply: marionReplyPresent });
-  if (supportTriggered) {
-    supportActive = true;
-    supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
-
-    const marionAuthorityReply = getMarionAuthorityReply(marion);
-    if (marionAuthorityReply) {
-      shaped.reply = marionAuthorityReply;
-      shaped.payload = {
-        ...(isObj(shaped.payload) ? shaped.payload : {}),
-        reply: marionAuthorityReply,
-        text: marionAuthorityReply,
-        message: marionAuthorityReply,
-        answer: marionAuthorityReply,
-        output: marionAuthorityReply,
-        response: marionAuthorityReply,
-        spokenText: marionAuthorityReply,
-        answer: marionAuthorityReply,
-        output: marionAuthorityReply,
-        response: marionAuthorityReply
-      };
-      shaped.meta = mergeMeta(shaped.meta, {
-        marionSupportRecoveryApplied: true,
-        supportTriggeredByEmotion: true,
-        clearStaleUi: true,
-        suppressMenus: true,
-        supportHold: true,
-        supportUiOnly: true
-      });
-    }
-
-    const quietPatch = buildQuietUiPatch("support", true);
-    shaped = {
-      ...shaped,
-      ok: true,
-      ui: {
-        ...(isObj(shaped.ui) ? shaped.ui : {}),
-        ...quietPatch.ui
-      },
-      sessionPatch: {
-        ...(isObj(shaped.sessionPatch) ? shaped.sessionPatch : {}),
-        ...(isObj(quietPatch.sessionPatch) ? quietPatch.sessionPatch : {})
-      },
-      meta: mergeMeta(shaped.meta, {
-        supportOverride: false,
-        supportTriggeredByEmotion: true,
-        clearStaleUi: true,
-        suppressMenus: true,
-        supportHold: true,
-        supportUiOnly: true
-      })
-    };
-
-    console.log("[Sandblast][supportHold]", {
+  if (!selected) {
+    return res.status(502).json({
+      ok: false,
+      error: "conversation_authority_empty",
+      detail: cleanText(errorDetail || "No final reply was returned by MarionBridge or ChatEngine."),
+      reply: "",
+      text: "",
       traceId: norm.traceId,
-      sessionId,
-      textHash: replyHash(norm.text),
-      emotionLabel: cleanText(emotion && emotion.label || ""),
-      supportTriggered,
-      marionReplyPresent: !!getMarionAuthorityReply(marion)
+      requestId: makeTraceId("req"),
+      marionIntent: norm.marionIntent,
+      marionRouting: norm.marionRouting,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        indexRole: "transport_only",
+        transportOnly: true,
+        noSupportDecision: true,
+        noEmotionDecision: true,
+        marionBridgePresent: !!marionBridgeMod,
+        chatEnginePresent: !!chatEngineMod,
+        marionReturned: !!marion,
+        engineReturned: !!engine,
+        latencyMs: now() - startedAt
+      }
     });
   }
 
-  if (engineError) {
-    failSafe = true;
-    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
-      shaped = repairEngineContract(shapeEngineReply({
-        ok: true,
-        reply: getMarionAuthorityReply(marion),
-        payload: { reply: getMarionAuthorityReply(marion) },
-        lane: norm.lane || "general",
-        laneId: norm.lane || "general",
-        sessionLane: norm.lane || "general",
-        bridge: marion || null,
-        ctx: {},
-        ui: {},
-        directives: Array.isArray(marion.followUps) ? [] : [],
-        followUps: Array.isArray(marion.followUps) ? marion.followUps : [],
-        followUpsStrings: Array.isArray(marion.followUpsStrings) ? marion.followUpsStrings : [],
-        sessionPatch: {},
-        cog: { intent: "MARION", mode: "authoritative", publicMode: true },
-        meta: {
-          v: INDEX_VERSION,
-          t: now(),
-          engineVersion: "chatEngine failure contained; marion authority preserved",
-          knowledge: knowledgeRuntime.extract(norm.text, { marion }),
-          clearStaleUi: true,
-          suppressMenus: true,
-          failSafe: true,
-          marionAvailable: true,
-          replyAuthority: "marion_locked",
-          error: cleanText(engineError && engineError.message || engineError || "engine failure")
-        },
-        speech: null
-      }), marion, norm);
-    } else {
-      const supportReply = buildSafeSupportReply(norm.text, emotion, {
-        traceId: norm.traceId,
-        sessionId,
-        source: "engine_error"
-      });
-
-      shaped = {
-        ok: false,
-        reply: supportReply,
-        payload: { reply: supportReply },
-        lane: norm.lane || "general",
-        laneId: norm.lane || "general",
-        sessionLane: norm.lane || "general",
-        bridge: marion || null,
-        ctx: {},
-        ui: {},
-        directives: [],
-        followUps: [],
-        followUpsStrings: [],
-        sessionPatch: {},
-        cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-        meta: {
-          v: INDEX_VERSION,
-          t: now(),
-          engineVersion: "chatEngine failure contained",
-          knowledge: knowledgeRuntime.extract(norm.text, { marion }),
-          clearStaleUi: true,
-          suppressMenus: true,
-          failSafe: true,
-          marionAvailable: !!marion,
-          error: cleanText(engineError && engineError.message || engineError || "engine failure")
-        },
-        speech: null
-      };
-    }
-  }
-
-  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-  shaped = enforceMarionContract(shaped, marionContract, norm);
-  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
-  let reply = cleanText(shaped.reply || shaped.payload?.reply || "");
-  if (!reply) {
-    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
-      reply = getMarionAuthorityReply(marion);
-      shaped.reply = reply;
-      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
-      shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-    } else {
-      reply = normalizeSupportReply(buildSafeSupportReply(norm.text, emotion, {
-        traceId: norm.traceId,
-        sessionId,
-        source: "empty_reply"
-      }) || "I am here with you. Talk to me.");
-      shaped.reply = reply;
-      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
-      supportActive = true;
-      supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
-    }
-  }
-
-  reply = cleanReplyForUser(reply);
-  shaped.reply = reply;
-  shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: shaped.payload?.text || reply, message: shaped.payload?.message || reply };
-  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-  shaped = enforceMarionContract(shaped, marionContract, norm);
-  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
-  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);  const loop = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority: cleanText(shaped.meta && shaped.meta.replyAuthority || "") });
-  if (loop.repeated) {
-    const hasMarionAuthority = shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "");
-    if (hasMarionAuthority && !technicalTurn) {
-      shaped.meta = mergeMeta(shaped.meta, { duplicateReplyObserved: true, duplicateReplySuppressed: true, duplicateReplyStrategy: "marion_authority_preserved_once", supportDeauthorized: true });
-      supportActive = false;
-      supportHold = 0;
-      shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-      reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
-    } else {
-      failSafe = false;
-      supportActive = false;
-      supportHold = 0;
-      reply = cleanReplyForUser(buildLoopBreakReply(norm, loop, priorSupport));
-      shaped.reply = reply;
-      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
-      shaped.cog = { ...(isObj(shaped.cog) ? shaped.cog : {}), intent: technicalTurn ? "TECHNICAL_DEBUG" : "LOOP_BREAK", mode: "finalized_loop_break", publicMode: true };
-      shaped.meta = mergeMeta(shaped.meta, { duplicateReplyObserved: true, duplicateReplySuppressed: true, duplicateReplyStrategy: "semantic_loop_break", supportDeauthorized: true, loopBreakApplied: true });
-    }
-  }
-
-  const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
-  if (suppressMenus && supportActive) {
-    supportHold = Math.max(supportHold, 1);
-  }
-
-  setSupportState(sessionId, {
-    active: supportActive,
-    hold: supportHold,
-    replyHash: replyHash(reply),
-    lastUserHash: replyHash(norm.text),
-    lastTurnId: norm.turnId,
-    supportPasses: supportActive ? Number(priorSupport.supportPasses || 0) + 1 : 0,
-    releaseUntilTurnId: supportActive ? "" : norm.turnId,
-    releaseUntilAt: supportActive ? 0 : now() + CFG.loopSuppressionWindowMs,
-    lastRoute: norm.lane || "general",
-    lastAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
-    loopBreakApplied: !!(shaped.meta && shaped.meta.loopBreakApplied)
-  });
-
-  const nextSpine = finalizeStateSpineForTurn(sessionId, priorSpine, norm, emotion, marion, marionContract, priorTurn, shaped);
-  if (nextSpine) {
-    shaped.stateSpine = nextSpine;
-    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), stateSpine: nextSpine };
-    shaped.meta = mergeMeta(shaped.meta, {
-      stateSpineRev: Number(nextSpine.rev || 0),
-      stateSpinePhase: cleanText(nextSpine.phase || ""),
-      stateSpineStage: cleanText(nextSpine.stage || ""),
-      stateSpineVolatility: cleanText(nextSpine.volatility || "")
-    });
-  }
-
-  const sessionPatch = buildSupportSessionPatch(shaped.sessionPatch, supportActive, !supportActive);
-  if (nextSpine) {
-    sessionPatch.stateSpine = nextSpine;
-    sessionPatch.emotionalEngine = isObj(nextSpine.emotionalEngine) ? nextSpine.emotionalEngine : {};
-    sessionPatch.continuityState = isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : (isObj(sessionPatch.continuityState) ? sessionPatch.continuityState : {});
-    sessionPatch.continuity = isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : (isObj(sessionPatch.continuity) ? sessionPatch.continuity : {});
-    sessionPatch.turnMemory = {
-      ...(isObj(sessionPatch.turnMemory) ? sessionPatch.turnMemory : {}),
-      stateSpineRev: Number(nextSpine.rev || 0),
-      stage: cleanText(nextSpine.stage || ""),
-      phase: cleanText(nextSpine.phase || ""),
-      lastIntent: cleanText(nextSpine.lastIntent || ""),
-      lastMove: cleanText(nextSpine.lastMove || ""),
-      supportLock: !!(nextSpine.support && nextSpine.support.lockActive),
-      continuityScore: Number(nextSpine.emotionalEngine && nextSpine.emotionalEngine.continuityScore || 0)
-    };
-  }
-  shaped.sessionPatch = sessionPatch;
-
-  shaped.meta = mergeMeta(shaped.meta, {
+  let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
+  selected = normalizeReplyEnvelope(selected, reply, {
     v: INDEX_VERSION,
     t: now(),
-    knowledge: shaped.meta?.knowledge || knowledgeRuntime.extract(norm.text, { marion }),
-    siteBridge: siteBridgeSnapshot || undefined,
-    clearStaleUi: suppressMenus,
-    suppressMenus,
-    failSafe: !!failSafe,
+    indexRole: "transport_only",
+    transportOnly: true,
+    marionTransportOnly: true,
+    noSupportDecision: true,
+    noEmotionDecision: true,
+    supportDeauthorized: true,
+    supportHold: 0,
+    replyAuthority: authority,
+    semanticAuthority: authority,
     marionBridgePresent: !!marion,
+    chatEnginePresent: !!engine,
     marionIntent: norm.marionIntent,
     marionRouting: norm.marionRouting,
-    marionTriggerActive: !!(norm.marionIntent && norm.marionIntent.activate),
-    mixerVoicePreserved: !!CFG.preserveMixerVoice,
-    error: shaped.meta?.error || "",
-    indexLoopGuard: true,
-    loopStatus: loop.repeated ? "repeated_break_applied" : "clear",
     turnId: norm.turnId,
-    finalized: true,
-    finalizationGuard: true,
-    supportDeauthorized: !supportActive,
-    supportHold,
     traceId: norm.traceId,
     latencyMs: now() - startedAt
   });
+  selected.ok = selected.ok !== false;
+  selected.final = true;
+  selected.finalized = true;
+  selected.handled = true;
+  selected.marionFinal = authority === "marion_bridge" || !!selected.marionFinal;
+  selected.lane = selected.lane || norm.lane || "general";
+  selected.laneId = selected.laneId || selected.lane;
+  selected.sessionLane = selected.sessionLane || selected.lane;
+  selected.requestId = cleanText(selected.requestId || makeTraceId("req"));
+  selected.traceId = cleanText(selected.traceId || norm.traceId);
+  selected.bridge = selected.bridge || marion || null;
+  selected.marionIntent = norm.marionIntent;
+  selected.marionRouting = norm.marionRouting;
 
-  shaped.cog = {
-    ...(isObj(shaped.cog) ? shaped.cog : {}),
-    intent: shaped.cog?.intent || (supportActive ? "STABILIZE" : ""),
-    mode: shaped.cog?.mode || (supportActive ? "support" : "finalized"),
-    publicMode: shaped.cog?.publicMode !== false
-  };
-
-  console.log("[Sandblast][chatRoute:final]", {
-    traceId: norm.traceId,
-    sessionId,
-    supportActive,
-    failSafe: !!failSafe,
-    supportHold,
-    emotionLabel: emotion && emotion.label || "",
-    emotionDistress: !!(emotion && emotion.distress),
-    emotionSensitive: !!(emotion && emotion.sensitive),
-    reply: shaped.reply
-  });
-
-  shaped = normalizeReplyEnvelope(shaped, cleanText(shaped.reply || reply), { loopStatus: loop.repeated ? "repeated_break_applied" : "clear", supportHold, supportActive: !!supportActive });
-
-  shaped = attachVoiceRoute(shaped);
-  const speech = buildSpeechContract(shaped, norm);
-  shaped = ensureAudioContractFromSpeech(shaped, speech);
-  shaped.speech = speech;
-  shaped.payload = {
-    ...(isObj(shaped.payload) ? shaped.payload : {}),
+  const speech = buildSpeechContract(selected, norm);
+  selected = ensureAudioContractFromSpeech(attachVoiceRoute(selected), speech);
+  selected.speech = speech;
+  selected.payload = {
+    ...(isObj(selected.payload) ? selected.payload : {}),
+    reply,
     text: speech.text,
     textDisplay: speech.textDisplay,
     textSpeak: speech.textSpeak,
+    spokenText: speech.textSpeak,
     routeKind: speech.routeKind,
     intro: speech.intro,
     source: speech.source,
     speechHints: speech.speechHints,
-    speech
+    speech,
+    finalized: true
   };
-  shaped.voiceRoute = {
-    ...(isObj(shaped.voiceRoute) ? shaped.voiceRoute : {}),
+  selected.voiceRoute = normalizeVoiceRouteResponse({
+    ...(isObj(selected.voiceRoute) ? selected.voiceRoute : {}),
     text: speech.text,
     textDisplay: speech.textDisplay,
     textSpeak: speech.textSpeak,
@@ -5966,123 +5694,112 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     presenceProfile: speech.presenceProfile,
     voiceStyle: speech.voiceStyle,
     nyxStateHint: speech.nyxStateHint
-  };
-  shaped = enforceQuietUiIfNeeded(shaped, {
-    supportActive,
-    failSafe,
-    forceQuiet: suppressMenus
   });
-  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-  shaped = enforceMarionContract(shaped, marionContract, norm);
-  shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
-  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
 
-  shaped.voiceRoute = normalizeVoiceRouteResponse(shaped.voiceRoute);
-  shaped.requestId = cleanText(shaped.requestId || makeTraceId("req"));
-  shaped.traceId = cleanText(shaped.traceId || norm.traceId);
-
-  trace.stitched = {
-    continuity: isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : null,
-    followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : []
-  };
-
+  setSupportState(sessionId, {
+    active: false,
+    hold: 0,
+    replyHash: replyHash(reply),
+    lastUserHash: replyHash(norm.text),
+    lastTurnId: norm.turnId,
+    supportPasses: 0,
+    releaseUntilTurnId: norm.turnId,
+    releaseUntilAt: now() + CFG.loopSuppressionWindowMs,
+    lastRoute: norm.lane || "general",
+    lastAuthority: authority,
+    loopBreakApplied: false
+  });
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply, replyHash: replyHash(reply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority, count: 1 });
   setLastTurn(sessionId, {
-    replyHash: replyHash(cleanText(shaped.reply || reply)),
+    replyHash: replyHash(reply),
     userHash: replyHash(norm.text),
-    lane: shaped.lane || norm.lane,
-    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    lane: selected.lane || norm.lane,
+    replyAuthority: authority,
     turnId: norm.turnId,
     route: norm.lane || "general",
-    loopStatus: cleanText(shaped.meta && shaped.meta.loopStatus || "clear"),
+    loopStatus: "transport_only_clear",
     finalized: true,
     userText: norm.text,
-    reply: cleanText(shaped.reply || reply),
-    emotionLabel: cleanText((marionContract && marionContract.emotional_state) || (emotion && emotion.label) || ""),
-    continuity: isObj(shaped.payload && shaped.payload.continuity) ? shaped.payload.continuity : {}
+    reply,
+    emotionLabel: "",
+    continuity: isObj(selected.payload && selected.payload.continuity) ? selected.payload.continuity : {},
+    memoryPatch: isObj(selected.memoryPatch) ? selected.memoryPatch : (isObj(selected.sessionPatch && selected.sessionPatch.memoryPatch) ? selected.sessionPatch.memoryPatch : {})
   });
 
-  shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
-  shaped = enforceMarionContract(shaped, marionContract, norm);
-  shaped.payload = {
-    ...(isObj(shaped.payload) ? shaped.payload : {}),
-    reply: cleanText(shaped.reply || shaped.payload?.reply || ""),
-    text: cleanText(shaped.reply || shaped.payload?.text || shaped.payload?.reply || ""),
-    message: cleanText(shaped.reply || shaped.payload?.message || shaped.payload?.reply || ""),
-    spokenText: cleanText(shaped.reply || shaped.payload?.spokenText || shaped.payload?.reply || ""),
-    finalized: true
-  };
-
-  trace.rendered = {
-    ok: shaped.ok !== false,
-    replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
-    marionContractOk: !!(shaped.meta && shaped.meta.marionContractOk),
+  console.log("[Sandblast][chatRoute:transportFinal]", {
+    traceId: norm.traceId,
+    sessionId,
+    authority,
+    reply,
     latencyMs: now() - startedAt
-  };
-
-  console.log("[Sandblast][loggingSpine]", trace);
+  });
 
   return res.status(200).json({
-    ok: shaped.ok !== false,
-    reply: shaped.reply,
-    text: shaped.reply,
-    short: shaped.reply,
-    detail: cleanText(shaped.payload && (shaped.payload.detail || shaped.payload.longReply || shaped.payload.payloadText) || shaped.reply || ""),
-    textSpeak: cleanText(speech && speech.textSpeak || shaped.reply || ""),
-    textDisplay: cleanText(speech && speech.textDisplay || shaped.reply || ""),
-    payload: shaped.payload,
-    lane: shaped.lane || norm.lane || "general",
-    laneId: shaped.laneId || shaped.lane || norm.lane || "general",
-    sessionLane: shaped.sessionLane || shaped.lane || norm.lane || "general",
-    bridge: shaped.bridge || marion || null,
+    ok: selected.ok !== false,
+    final: true,
+    reply,
+    text: reply,
+    short: reply,
+    detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
+    textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
+    textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
+    payload: selected.payload,
+    lane: selected.lane || norm.lane || "general",
+    laneId: selected.laneId || selected.lane || norm.lane || "general",
+    sessionLane: selected.sessionLane || selected.lane || norm.lane || "general",
+    bridge: selected.bridge || null,
     marionIntent: norm.marionIntent,
     marionRouting: norm.marionRouting,
-    ctx: shaped.ctx || {},
-    ui: shaped.ui || {},
-    directives: Array.isArray(shaped.directives) ? shaped.directives : [],
-    followUps: Array.isArray(shaped.followUps) ? shaped.followUps : [],
-    followUpsStrings: Array.isArray(shaped.followUpsStrings) ? shaped.followUpsStrings : [],
-    emotionalTurn: shaped.emotionalTurn || undefined,
-    sessionPatch: shaped.sessionPatch || {},
-    cog: shaped.cog || {},
-    requestId: shaped.requestId,
-    traceId: shaped.traceId,
+    ctx: selected.ctx || {},
+    ui: selected.ui || {},
+    directives: Array.isArray(selected.directives) ? selected.directives : [],
+    followUps: Array.isArray(selected.followUps) ? selected.followUps : [],
+    followUpsStrings: Array.isArray(selected.followUpsStrings) ? selected.followUpsStrings : [],
+    emotionalTurn: selected.emotionalTurn || undefined,
+    sessionPatch: selected.sessionPatch || selected.memoryPatch || {},
+    cog: selected.cog || { intent: (norm.marionIntent && norm.marionIntent.intent) || "simple_chat", mode: "finalized", publicMode: true },
+    requestId: selected.requestId,
+    traceId: selected.traceId,
     meta: {
-      ...(shaped.meta || {}),
-      marionContract: marionContract,
-      loggingSpine: {
-        traceId: trace.traceId,
-        sessionId: trace.sessionId,
-        request: trace.request,
-        normalized: trace.normalized,
-        stitched: trace.stitched,
-        rendered: trace.rendered,
-        errors: trace.errors
-      },
+      ...(selected.meta || {}),
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      replyAuthority: authority,
+      semanticAuthority: authority,
+      supportDeauthorized: true,
+      supportHold: 0,
+      latencyMs: now() - startedAt,
+      loggingSpine: trace,
       audioContract: {
         version: "audio-first-v1",
         endpoint: routeUrl("/api/tts"),
         healthEndpoint: routeUrl("/api/tts/health"),
-    compatibilityHealthEndpoint: routeUrl("/tts/health"),
+        compatibilityHealthEndpoint: routeUrl("/tts/health"),
         deterministicAudio: true,
         failOpenChat: true
       }
     },
     speech,
-    audio: shaped.audio || undefined,
-    ttsProfile: shaped.ttsProfile || undefined,
+    audio: selected.audio || undefined,
+    ttsProfile: selected.ttsProfile || undefined,
     playback: {
-      ready: !!(shaped.audio && shaped.audio.enabled !== false && cleanText(shaped.audio.textToSynth || "")),
-      autoPlay: !!(shaped.audio && shaped.audio.autoPlay !== false),
+      ready: !!(selected.audio && selected.audio.enabled !== false && cleanText(selected.audio.textToSynth || "")),
+      autoPlay: !!(selected.audio && selected.audio.autoPlay !== false),
       route: routeUrl("/api/tts"),
       compatibilityRoute: routeUrl("/tts"),
       health: routeUrl("/api/tts/health"),
       compatibilityHealth: routeUrl("/tts/health"),
-      textSpeak: cleanText(shaped.audio && shaped.audio.textToSynth || speech && speech.textSpeak || ""),
-      provider: cleanText(shaped.audio && shaped.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+      textSpeak: cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || ""),
+      provider: cleanText(selected.audio && selected.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
     },
-    voiceRoute: shaped.voiceRoute || undefined
+    voiceRoute: selected.voiceRoute || undefined
   });
 });
+
 
 console.log("[Sandblast][newsCanada] rss_service_ready", {
   api: "/api/newscanada",
