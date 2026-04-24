@@ -18,8 +18,8 @@
 
 const crypto = require("crypto");
 
-const S2S_VERSION = "s2s v1.1.1 FORENSIC-NORMALIZED";
-const S2S_SCHEMA = "nyx.marion.s2s/1.1";
+const S2S_VERSION = "s2s v1.2.0 CONTRACT-FRESH-DIAGNOSTICS";
+const S2S_SCHEMA = "nyx.marion.s2s/1.2";
 
 let ChatEngine = null;
 try { ChatEngine = require("./chatEngine"); } catch (_) {
@@ -339,7 +339,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_MISSING" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, error: "CHATENGINE_MISSING" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, schema: S2S_SCHEMA, error: "CHATENGINE_MISSING" } },
       requestId: input.requestId,
     };
   }
@@ -358,7 +358,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: {},
       bridge: { opIntel: false, error: "CHATENGINE_INVALID" },
-      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, error: "CHATENGINE_INVALID" } },
+      meta: { elapsedMs: Date.now() - started, s2s: { v: S2S_VERSION, schema: S2S_SCHEMA, error: "CHATENGINE_INVALID" } },
       requestId: input.requestId,
     };
   }
@@ -380,7 +380,7 @@ async function runLocalChat(promptOrInput, context){
       followUpsStrings: [],
       sessionPatch: { __s2sErrorAt: Date.now() },
       bridge: { opIntel: false, error: "S2S_RUN_FAILED" },
-      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: S2S_VERSION, error: "S2S_RUN_FAILED" } },
+      meta: { elapsedMs: Date.now() - started, error: detail, s2s: { v: S2S_VERSION, schema: S2S_SCHEMA, error: "S2S_RUN_FAILED" } },
       requestId: input.requestId,
     };
   }
