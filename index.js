@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21";
+const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -397,6 +397,34 @@ function buildMarionIntentRouting(intentPacket, lane) {
   };
 }
 
+function routeMarionIntentThroughRuntime(intentPacket, lane, text) {
+  const normalized = isObj(intentPacket) ? intentPacket : normalizeIncomingMarionIntent(null, text || "");
+  if (marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function") {
+    try {
+      const routed = marionIntentRouterMod.routeMarionIntent({
+        text: cleanText(text || ""),
+        lane: cleanText(lane || "general") || "general",
+        marionIntent: normalized,
+        session: { lane: cleanText(lane || "general") || "general" }
+      });
+      if (isObj(routed)) {
+        return {
+          marionIntent: isObj(routed.marionIntent) ? routed.marionIntent : normalized,
+          routing: isObj(routed.routing) ? routed.routing : buildMarionIntentRouting(normalized, lane),
+          meta: isObj(routed.meta) ? routed.meta : {}
+        };
+      }
+    } catch (err) {
+      console.log("[Sandblast][marionIntentRouter:error]", cleanText(err && (err.message || err) || "router_failed"));
+    }
+  }
+  return {
+    marionIntent: normalized,
+    routing: buildMarionIntentRouting(normalized, lane),
+    meta: { triggerSource: normalized.triggerSource || normalized.source || "index_fallback" }
+  };
+}
+
 function isInternalMarionBlockerReply(value) {
   const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
   if (!text) return false;
@@ -691,6 +719,16 @@ const marionBridgeMod = tryRequireMany([
   "./runtime/marionBridge.js"
 ]);
 
+const marionIntentRouterMod = tryRequireMany([
+  "./Data/marion/runtime/marionIntentRouter",
+  "./Data/marion/runtime/marionIntentRouter.js"
+]);
+
+const marionDomainRegistryMod = tryRequireMany([
+  "./Data/marion/runtime/marionDomainRegistry",
+  "./Data/marion/runtime/marionDomainRegistry.js"
+]);
+
 const stateSpineMod = tryRequireMany([
   "./stateSpine",
   "./stateSpine.js",
@@ -733,6 +771,9 @@ function getMarionRuntimeDiagnostics() {
     marionBridgeHasProcessWithMarion: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
     marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
+    marionIntentRouterLoaded: !!marionIntentRouterMod,
+    marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
+    marionDomainRegistryLoaded: !!marionDomainRegistryMod,
     chatEngineLoaded: !!chatEngineMod,
     chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : [],
     siteBridgeLoaded: !!siteBridgeMod,
@@ -2816,8 +2857,10 @@ function normalizePayload(req) {
   const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
   const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
   const rawMarionIntent = isObj(body.marionIntent) ? body.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : {});
-  const marionIntent = normalizeIncomingMarionIntent(rawMarionIntent, text);
-  const marionRouting = buildMarionIntentRouting(marionIntent, cleanText(payload.lane || body.lane || "general").toLowerCase() || "general");
+  const lane = cleanText(payload.lane || body.lane || "general").toLowerCase() || "general";
+  const routedMarionIntent = routeMarionIntentThroughRuntime(normalizeIncomingMarionIntent(rawMarionIntent, text), lane, text);
+  const marionIntent = routedMarionIntent.marionIntent;
+  const marionRouting = routedMarionIntent.routing;
   return {
     text,
     guidedPrompt,
@@ -2828,7 +2871,8 @@ function normalizePayload(req) {
     payload,
     marionIntent,
     marionRouting,
-    lane: cleanText(payload.lane || body.lane || "general").toLowerCase() || "general",
+    marionRuntimeRoutingMeta: isObj(routedMarionIntent.meta) ? routedMarionIntent.meta : {},
+    lane,
     year: cleanText(payload.year || body.year || ""),
     mode: cleanText(payload.mode || body.mode || ""),
     turnId: payload.turnId || body.turnId || null,
