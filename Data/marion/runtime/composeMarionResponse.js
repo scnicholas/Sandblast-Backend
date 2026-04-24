@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.5.0 AUTOPSY-HARDENED-EMISSION-SAFE-CONTINUITY";
+const VERSION = "composeMarionResponse v1.5.1 LOOP-FINAL-EMISSION + AUTOPSY-HARDENED-EMISSION-SAFE-CONTINUITY";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
