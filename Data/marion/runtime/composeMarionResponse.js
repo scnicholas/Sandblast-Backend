@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.5.2 HANDSHAKE-LOOP-BREAK-9.8 + LOOP-FINAL-EMISSION + AUTOPSY-HARDENED-EMISSION-SAFE-CONTINUITY";
+const VERSION = "composeMarionResponse v1.5.3 INTENT-COMPOSE-FORWARD-DEEP-MOVEMENT + HANDSHAKE-LOOP-BREAK-9.8 + LOOP-FINAL-EMISSION";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
@@ -468,6 +468,52 @@ function _technicalIntentDetected(input = {}, routed = {}, state = {}) {
   const raw = _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,routed.intent,routed.primaryDomain,routed.domain,state.lastIntent,state.lastDomain,input.userQuery,input.text,input.query].filter(Boolean).join(" "));
   return /(technical|debug|autopsy|audit|gap refinement|line.by.line|index\.js|marion|bridge|packet|normalizer|router|route|loop|handoff|syntax|script|file|fix|harden|download|zip)/i.test(raw);
 }
+function _intentText(input = {}, routed = {}, state = {}) {
+  return _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,routed.intent,routed.primaryDomain,routed.domain,_safeObj(routed.marionIntent).intent,_safeObj(routed.routing).intent,state.lastIntent,state.lastDomain,input.userQuery,input.text,input.query].filter(Boolean).join(" "));
+}
+function _inputText(input = {}) { return _trim(input.userQuery || input.text || input.query || input.message || ""); }
+function _hasHighDistressLanguage(value = "") {
+  const text = _lower(value);
+  return /\b(kill myself|suicid(?:e|al)|self[-\s]?harm|do not want to live|don't want to live|panic attack|cannot breathe|can't breathe|depressed|hopeless|worthless|grief|heartbroken|overwhelmed|terrified|afraid|anxious|crying|hurt|hurting|alone|lonely)\b/i.test(text);
+}
+function _isLightSocialTurn(input = {}, routed = {}, state = {}) {
+  const raw = _inputText(input);
+  const text = _lower(raw).replace(/[!?.,]+$/g, "").trim();
+  if (!text || _hasHighDistressLanguage(raw)) return false;
+  if (_technicalIntentDetected(input, routed, state)) return false;
+  if (/\b(news|music|roku|radio|top\s*10|fix|debug|autopsy|audit|download|zip|file|script|route|endpoint|error|bug|broken|loop)\b/i.test(text)) return false;
+  if (/^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+nyx)?$/i.test(text)) return true;
+  if (/^(how are you|how are you doing|how's it going|what's up|you there|are you there)(\s+nyx)?$/i.test(text)) return true;
+  const intentText = _intentText(input, routed, state);
+  return /\bsimple_chat\b|\bgeneral\b/.test(intentText) && text.length <= 80 && !/\b(sad|stress|stressed|depress|anxious|hurt|alone|panic|grief|overwhelm)\b/i.test(text);
+}
+function _buildForwardSocialReply(input = {}, routed = {}, conversationState = {}) {
+  const raw = _inputText(input);
+  const text = _lower(raw).replace(/[!?.,]+$/g, "").trim();
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const priorSig = _trim(prev.replySignature || patch.replySignature || "");
+  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
+  const openers = /^(hi|hello|hey|yo|good morning|good afternoon|good evening)/i.test(text)
+    ? ["I’m here, present, and ready to move with you. What layer do you want to open first?", "I’m with you. Give me the thread, and I’ll carry it forward cleanly.", "I’m here. Let’s make this useful — what are we stepping into?"]
+    : ["I’m steady, focused, and here with you. What do you want to move deeper into next?", "I’m good — clear, present, and ready to build the next layer with you.", "I’m here and tracking. What direction do you want to take this now?"];
+  let reply = openers[Math.abs(_functionSeed(`${text}|${depth}|${priorSig}`)) % openers.length];
+  if (priorSig && priorSig === _replySignature(reply)) reply = "I won’t circle the same opener. Let’s go deeper — what’s the real target underneath this turn?";
+  return reply;
+}
+function _makeSimpleChatResult(routed = {}, input = {}, conversationState = {}) {
+  const reply = _buildForwardSocialReply(input, routed, conversationState);
+  const replySignature = _replySignature(reply);
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const previousReplySignature = _trim(prev.replySignature || patch.replySignature || "");
+  const sameReplyCount = previousReplySignature && previousReplySignature === replySignature ? Math.max(1, _num(prev.sameReplyCount, patch.sameReplyCount || 0) + 1) : 0;
+  const state = { ..._safeObj(conversationState), threadContinuation: false, continuityMode: "advance", depthLevel: Math.max(1, _num(conversationState.depthLevel, 1)), selectedFunction: "advance", lastResponseFunction: "advance", loopBreakApplied: sameReplyCount > 0 };
+  const responsePlan = { semanticFrame: "social_forward_motion", deliveryTone: "warm_direct", expressionStyle: "direct_conversational", followupStyle: "forward_invitation", responseLength: "short", pacing: "steady", transitionReadiness: "high", transitionTargets: ["advance", "deepen"], adviceLevel: "minimal" };
+  const nyxDirective = { tonePosture: "warm_direct", pacing: "steady", responseLength: "short", followupStyle: "forward_invitation", askAtMost: 1, shouldOfferNextStep: true, shouldMirrorIntensity: false, expressiveRole: "express_resolved_state_only", allowNyxRewrite: false, allowReplySynthesis: false, singleSourceOfTruth: true };
+  const memoryPatch = { lastResponseFunction: "advance", sameFunctionCount: 0, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: sameReplyCount > 0, composedOnce: true, marionFinal: true, replyAuthority: "marion", conversationState: state, unresolvedSignals: [], continuityMode: "advance", depthLevel: state.depthLevel, threadContinuation: false, emissionSafe: true };
+  return { ok: true, final: true, marionFinal: true, composedOnce: true, finalizedBy: "composeMarionResponse", replyAuthority: "marion", replySignature, matched: false, domain: "general", interpretation: "Simple conversational turn resolved without support-mode dominance.", reply, text: reply, answer: reply, output: reply, displayReply: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUps: [], followUpsStrings: [], supportMode: "forward_social", routeBias: "advance", riskLevel: "low", supportFlags: {}, mode: "social_forward_motion", intent: "simple_chat", emotion: { locked: true, primaryEmotion: "neutral", secondaryEmotion: null, intensity: 0, valence: 0, confidence: 0.86, supportFlags: {}, needs: [], cues: [], blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 } }, strategy: { archetype: "advance", supportModeCandidate: "forward_social", routeBias: "advance", deliveryTone: "warm_direct", questionPressure: "low", transitionReadiness: "high", acknowledgementMode: "light", shouldDeepen: false, shouldSolve: true, loopBreakApplied: sameReplyCount > 0 }, conversationState: state, escalationProfile: { shouldDeepen: false, shouldSolve: true, mode: "simple_chat_advance", depthLevel: state.depthLevel, repetitionCount: _num(state.repetitionCount, 0), unresolvedSignals: [], intensity: 0, threadContinuation: false, emotionTrend: "stable" }, memoryPatch, responsePlan, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, guidance: ["Do not convert light social turns into support containment.", "Move the conversation forward with one clean invitation."], guardrails: ["Emotional intelligence may shape warmth, but it must not override simple_chat intent."], nyxDirective, diagnostics: { simpleChatBypass: true, supportDominanceReleased: true, replyAuthority: "marion", selectedFunction: "advance", emissionSafe: true, loopGuard: { active: sameReplyCount > 0, forceAdvance: true, releaseThread: true, sameReplyCount } }, pipelineTrace: { stage: "composeMarionResponse", version: VERSION, domain: "general", supportMode: "forward_social", riskLevel: "low", emotion: { primaryEmotion: "neutral", intensity: 0, valence: 0 }, strategy: { archetype: "advance", routeBias: "advance", deliveryTone: "warm_direct" }, replyPreview: reply.slice(0, 160), followUpCount: 0, resolvedAt: Date.now() }, synthesis: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUps: [], followUpsStrings: [], supportMode: "forward_social", responsePlan, nyxDirective, memoryPatch }, matches: [] };
+}
 function _sameReplySignature(input = {}, candidateReply = "") {
   const prev = _safeObj(input.previousMemory || {});
   const patch = _safeObj(prev.memoryPatch);
@@ -484,7 +530,7 @@ function _resolveComposeLoopGuard(input = {}, routed = {}, conversationState = {
   const isTechnical = _technicalIntentDetected(input, routed, conversationState);
   const crisis = !!_safeObj(supportFlags).crisis;
   const highDistress = !!_safeObj(supportFlags).highDistress;
-  const loopPressure = sameFunctionCount >= 1 || sameReplyCount >= 1 || repetitionCount >= 2 || !!prev.loopBreakApplied || !!patch.loopBreakApplied;
+  const loopPressure = sameFunctionCount >= 1 || sameReplyCount >= 1 || repetitionCount >= 2;
   const releaseThread = !!(loopPressure || isTechnical) && !crisis && !(highDistress && !isTechnical);
   const forceAdvance = releaseThread && (isTechnical || repetitionCount >= 2 || sameReplyCount >= 1);
   return { active: releaseThread || forceAdvance, loopPressure, forceAdvance, releaseThread, isTechnical, crisis, sameFunctionCount, sameReplyCount, repetitionCount, previousReplySignature: _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || ""), previousFunction: _lower(prev.lastResponseFunction || patch.lastResponseFunction || ""), primaryEmotion: _normalizeEmotionAlias(primaryEmotion) };
@@ -895,6 +941,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     _safeObj(_safeObj(_safeObj(psychology.primary).record).supportFlags)
   );
   const conversationState = _resolveConversationState(routed, input);
+
+  if (_isLightSocialTurn(input, routed, conversationState)) {
+    return _makeSimpleChatResult(routed, input, conversationState);
+  }
 
   const primaryEmotion = _safeObj(emotion.primary || emotion);
   const normalizedPrimaryEmotion = _trim(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral";
