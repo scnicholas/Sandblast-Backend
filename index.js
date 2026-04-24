@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.1sb LOOP-GUARD-HARDENED + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
+const INDEX_VERSION = "index.js v2.18.2sb CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -489,6 +489,8 @@ const CFG = {
   quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
   loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
+  supportHoldMaxTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_MAX_TURNS || 1), 0, 3),
+  transportReplayCacheMs: clamp(Number(process.env.SB_TRANSPORT_REPLAY_CACHE_MS || 12000), 3000, 45000),
   requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
   httpLogEnabled: boolEnv("SB_HTTP_LOG_ENABLED", false),
   httpLogSlowMs: clamp(Number(process.env.SB_HTTP_LOG_SLOW_MS || 2500), 250, 30000),
@@ -2613,6 +2615,10 @@ function summarizeTurnForMemory(prev, patch) {
     userHash: cleanText(next.userHash || base.userHash || ""),
     lane: cleanText(next.lane || base.lane || ""),
     replyAuthority: cleanText(next.replyAuthority || base.replyAuthority || ""),
+    turnId: cleanText(next.turnId || base.turnId || ""),
+    route: cleanText(next.route || base.route || ""),
+    loopStatus: cleanText(next.loopStatus || base.loopStatus || ""),
+    finalized: next.finalized === true || base.finalized === true,
     userText: cleanText(next.userText || base.userText || "").slice(0, 280),
     reply: cleanText(next.reply || base.reply || "").slice(0, 280),
     emotionLabel: cleanText(next.emotionLabel || base.emotionLabel || "").slice(0, 80),
@@ -2631,6 +2637,13 @@ function getSupportState(sessionId) {
     active: false,
     replyHash: "",
     lastUserHash: "",
+    lastTurnId: "",
+    supportPasses: 0,
+    releaseUntilTurnId: "",
+    releaseUntilAt: 0,
+    lastRoute: "",
+    lastAuthority: "",
+    loopBreakApplied: false,
     updatedAt: 0
   };
 }
@@ -2649,6 +2662,13 @@ function setSupportState(sessionId, patch) {
 function getTransportState(sessionId) {
   return memory.transportBySession.get(sessionId) || {
     key: "",
+    turnId: "",
+    reply: "",
+    replyHash: "",
+    userHash: "",
+    finalized: false,
+    route: "",
+    authority: "",
     at: 0,
     count: 0
   };
@@ -3056,26 +3076,53 @@ function buildQuietUiPatch(reason, holdActive) {
   };
 }
 
-function shouldEnterSupportHold(text, emotion, engineResult) {
+function isTechnicalDebugTurn(text, norm) {
+  const source = `${cleanText(text || "")} ${cleanText(norm && norm.intentHint || "")} ${cleanText(norm && norm.domainHint || "")} ${cleanText(norm && norm.lane || "")}`.toLowerCase();
+  return /(autopsy|line.by.line|gap refinement|index\.js|marionbridge|packet normalizer|intent router|route|endpoint|diagnostic|debug|stack|syntax|looping|transport|fallback|finalization|hardening|download|zip|script|file)/i.test(source);
+}
+
+function isHighRiskSupportSignal(emotion, text) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const body = lower(text || "");
+  return !!(emo.sensitive || /\b(suicid(?:e|al)|self[-\s]?harm|kill myself|don['’]?t want to live|do not want to live|hurt myself)\b/i.test(body));
+}
+
+function shouldEnterSupportHold(text, emotion, engineResult, opts) {
+  const o = isObj(opts) ? opts : {};
   const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
   const intent = lower(engineResult && engineResult.intent);
   const mode = lower(engineResult && engineResult.mode);
-  return !!(
-    emo.sensitive ||
-    emo.distress ||
-    emo.stabilize ||
-    intent === "stabilize" ||
-    mode === "transitional" ||
-    mode === "support" ||
-    mode === "quiet"
-  );
+  const technicalTurn = !!o.technicalTurn || isTechnicalDebugTurn(text, o.norm || null);
+  const hasAuthorityReply = !!o.hasAuthorityReply;
+  const supportState = isObj(o.supportState) ? o.supportState : {};
+  const repeatedSupport = Number(supportState.supportPasses || 0) >= CFG.supportHoldMaxTurns;
+  if (hasAuthorityReply) return false;
+  if (technicalTurn && !isHighRiskSupportSignal(emo, text)) return false;
+  if (repeatedSupport && !isHighRiskSupportSignal(emo, text)) return false;
+  return !!(emo.sensitive || emo.distress || emo.stabilize || intent === "stabilize" || mode === "support" || mode === "quiet");
+}
+
+function normalizeReplyEnvelope(shaped, reply, metaPatch) {
+  const out = isObj(shaped) ? { ...shaped } : { ok: true };
+  const finalReply = cleanReplyForUser(reply || out.reply || out.payload?.reply || "");
+  out.reply = finalReply;
+  out.text = finalReply;
+  out.short = finalReply;
+  out.payload = { ...(isObj(out.payload) ? out.payload : {}), reply: finalReply, text: finalReply, message: finalReply, spokenText: cleanText(out.payload?.spokenText || finalReply) || finalReply, finalized: true };
+  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: true, finalizationGuard: true, indexSemanticAuthority: false, semanticAuthority: "chatEngine_or_marion", indexRole: "transport_orchestrator" });
+  return out;
+}
+
+function buildLoopBreakReply(norm, loop, supportState) {
+  if (isTechnicalDebugTurn(norm && norm.text, norm)) return "I caught the repeated turn. I am breaking the support loop and staying on the technical path: inspect the route, duplicate detector, fallback branch, and finalization guard.";
+  return "I caught the repeated response, so I am not going to recycle the same support line. Let us move one step forward from the exact point you want handled next.";
 }
 
 function buildSupportSessionPatch(existing, active, release) {
   const prev = isObj(existing) ? existing : {};
   const lock = isObj(prev.supportLock) ? { ...prev.supportLock } : {};
-  if (active) lock.active = true;
-  if (release) lock.release = true;
+  if (active) { lock.active = true; lock.release = false; }
+  if (release) { lock.active = false; lock.release = true; }
   return {
     ...prev,
     supportLock: lock,
@@ -3146,20 +3193,19 @@ function buildTransportKey(ctx, text, req) {
   ].join("|");
 }
 
-function detectLoop(sessionId, reply, userText) {
+function detectLoop(sessionId, reply, userText, opts) {
+  const o = isObj(opts) ? opts : {};
   const prev = getLastTurn(sessionId);
+  const transport = getTransportState(sessionId);
   const curHash = replyHash(reply);
   const userHash = replyHash(userText);
   const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
   const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
   const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
-  return {
-    sameReply,
-    sameUser,
-    repeated: sameReply && sameUser,
-    curHash,
-    userHash
-  };
+  const sameTurn = !!(o.turnId && ((prev && prev.turnId === o.turnId) || (transport && transport.turnId === o.turnId)));
+  const sameRoute = !o.route || !prev || !prev.route || prev.route === o.route;
+  const sameAuthority = !o.authority || !prev || !prev.replyAuthority || prev.replyAuthority === o.authority;
+  return { sameReply, sameUser, sameTurn, sameRoute, sameAuthority, repeated: (sameReply && sameUser && sameRoute && sameAuthority) || sameTurn, curHash, userHash, previousTurnId: cleanText(prev && prev.turnId || "") };
 }
 
 function applyAffectBridge(base, affectInput) {
@@ -4477,6 +4523,8 @@ async function getNewsCanadaRssResponse(req) {
     routeMode: "inline_direct_truth"
   });
 
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: cleanText(shaped.reply || reply), replyHash: replyHash(cleanText(shaped.reply || reply)), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""), count: 1 });
+
   try {
     const cachedContract = !trace.refresh ? readNewsCanadaCacheContractFile() : null;
     const cachedItems = cachedContract && Array.isArray(cachedContract.items) ? cachedContract.items : [];
@@ -5430,46 +5478,24 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   let supportActive = !!priorSupport.active && supportHold > 0;
   if (supportHold > 0) supportHold -= 1;
   let failSafe = false;
+  const technicalTurn = isTechnicalDebugTurn(norm.text, norm);
 
   const emotion = inferEmotion(norm.text, {
     lane: norm.lane,
     mode: norm.mode,
     sessionId,
     traceId: norm.traceId
-  });
-
-  const transportKey = buildTransportKey(norm, norm.text, req);
+  });  const transportKey = buildTransportKey(norm, norm.text, req);
   const transportState = getTransportState(sessionId);
-  if (transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.loopSuppressionWindowMs)) {
-    setTransportState(sessionId, { key: transportKey, count: Number(transportState.count || 0) + 1 });
-    return res.status(200).json({
-      ok: true,
-      reply: normalizeSupportReply("I am here with you. We can take this one step at a time."),
-      payload: { reply: normalizeSupportReply("I am here with you. We can take this one step at a time.") },
-      lane: norm.lane || "general",
-      laneId: norm.lane || "general",
-      sessionLane: norm.lane || "general",
-      bridge: null,
-      ctx: {},
-      ui: buildQuietUiPatch("loop", true).ui,
-      directives: [],
-      followUps: [],
-      followUpsStrings: [],
-      sessionPatch: buildSupportSessionPatch({}, true, false),
-      cog: { intent: "STABILIZE", mode: "transitional", publicMode: true },
-      requestId: makeTraceId("req"),
-      traceId: norm.traceId,
-      meta: {
-        v: INDEX_VERSION,
-        t: now(),
-        transportDuplicateSuppressed: true,
-        supportHold: Math.max(supportHold, 1),
-        latencyMs: now() - startedAt
-      },
-      voiceRoute: normalizeVoiceRouteResponse(attachVoiceRoute({ reply: norm.text || "" }).voiceRoute)
-    });
+  const priorTransportReplay = transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
+  if (priorTransportReplay) {
+    const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "") || "I caught the duplicate transport pass and kept the previous turn finalized.";
+    setTransportState(sessionId, { key: transportKey, turnId: cleanText(norm.turnId || transportState.turnId || ""), reply: cachedReply, replyHash: replyHash(cachedReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache"), count: Number(transportState.count || 0) + 1 });
+    const cached = normalizeReplyEnvelope({ ok: true, reply: cachedReply, payload: { reply: cachedReply }, lane: norm.lane || "general", laneId: norm.lane || "general", sessionLane: norm.lane || "general", ui: {}, directives: [], followUps: [], followUpsStrings: [], sessionPatch: buildSupportSessionPatch({}, false, true), cog: { intent: "REPLAY_CACHE", mode: "finalized", publicMode: true }, requestId: makeTraceId("req"), traceId: norm.traceId }, cachedReply, { v: INDEX_VERSION, t: now(), transportDuplicateSuppressed: true, duplicateReplyStrategy: "return_cached_final", supportHold: 0, supportDeauthorized: true, latencyMs: now() - startedAt });
+    cached.voiceRoute = normalizeVoiceRouteResponse(attachVoiceRoute({ reply: cachedReply }).voiceRoute);
+    return res.status(200).json(cached);
   }
-  setTransportState(sessionId, { key: transportKey, count: 1 });
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
   const priorSpine = getStateSpine(sessionId);
   const siteBridgeSnapshot = buildSiteBridgeSnapshot(norm, emotion, priorSpine, null);
@@ -5634,7 +5660,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   shaped = applyAffectBridge(shaped, buildAffectInputFromMarion(marion));
 
   const marionReplyPresent = !!cleanText(marionAuthorityReply || marionContract && marionContract.response || shaped.reply || shaped.payload?.reply || "");
-  const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {});
+  const supportTriggered = !marionReplyPresent && shouldEnterSupportHold(norm.text, emotion, shaped.cog || shaped.meta || {}, { norm, supportState: priorSupport, technicalTurn, hasAuthorityReply: marionReplyPresent });
   if (supportTriggered) {
     supportActive = true;
     supportHold = Math.max(supportHold, CFG.quietSupportHoldTurns);
@@ -5690,8 +5716,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     console.log("[Sandblast][supportHold]", {
       traceId: norm.traceId,
       sessionId,
-      text: norm.text,
-      emotion,
+      textHash: replyHash(norm.text),
+      emotionLabel: cleanText(emotion && emotion.label || ""),
       supportTriggered,
       marionReplyPresent: !!getMarionAuthorityReply(marion)
     });
@@ -5796,40 +5822,29 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
   shaped = enforceMarionContract(shaped, marionContract, norm);
   shaped = applyContinuityStitch(shaped, priorTurn, marionContract, norm, emotion);
-  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
-
-  const loop = detectLoop(sessionId, reply, norm.text);
+  reply = cleanText(shaped.reply || shaped.payload?.reply || reply);  const loop = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority: cleanText(shaped.meta && shaped.meta.replyAuthority || "") });
   if (loop.repeated) {
-    if (shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "")) {
-      shaped.meta = mergeMeta(shaped.meta, {
-        duplicateReplyObserved: true,
-        duplicateReplySuppressed: true,
-        duplicateReplyStrategy: "transport_only"
-      });
+    const hasMarionAuthority = shouldLockMarionAuthority(marion) || cleanText(marionContract && marionContract.response || "");
+    if (hasMarionAuthority && !technicalTurn) {
+      shaped.meta = mergeMeta(shaped.meta, { duplicateReplyObserved: true, duplicateReplySuppressed: true, duplicateReplyStrategy: "marion_authority_preserved_once", supportDeauthorized: true });
+      supportActive = false;
+      supportHold = 0;
       shaped = enforceMarionAuthority(shaped, marion, { lane: norm.lane || "general" });
       reply = cleanText(shaped.reply || shaped.payload?.reply || reply);
     } else {
       failSafe = false;
-      supportActive = true;
-      supportHold = Math.max(supportHold, 1);
-      reply = normalizeSupportReply("I am here with you. We can take this one step at a time.");
+      supportActive = false;
+      supportHold = 0;
+      reply = cleanReplyForUser(buildLoopBreakReply(norm, loop, priorSupport));
       shaped.reply = reply;
-      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply };
-      shaped.cog = {
-        ...(isObj(shaped.cog) ? shaped.cog : {}),
-        intent: "STABILIZE",
-        mode: "transitional",
-        publicMode: true
-      };
-      shaped.meta = mergeMeta(shaped.meta, {
-        duplicateReplySuppressed: true
-      });
+      shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply, text: reply, message: reply, spokenText: reply };
+      shaped.cog = { ...(isObj(shaped.cog) ? shaped.cog : {}), intent: technicalTurn ? "TECHNICAL_DEBUG" : "LOOP_BREAK", mode: "finalized_loop_break", publicMode: true };
+      shaped.meta = mergeMeta(shaped.meta, { duplicateReplyObserved: true, duplicateReplySuppressed: true, duplicateReplyStrategy: "semantic_loop_break", supportDeauthorized: true, loopBreakApplied: true });
     }
   }
 
   const suppressMenus = shouldSuppressMenus(shaped, supportActive || failSafe);
-  if (suppressMenus) {
-    supportActive = true;
+  if (suppressMenus && supportActive) {
     supportHold = Math.max(supportHold, 1);
   }
 
@@ -5837,7 +5852,14 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     active: supportActive,
     hold: supportHold,
     replyHash: replyHash(reply),
-    lastUserHash: replyHash(norm.text)
+    lastUserHash: replyHash(norm.text),
+    lastTurnId: norm.turnId,
+    supportPasses: supportActive ? Number(priorSupport.supportPasses || 0) + 1 : 0,
+    releaseUntilTurnId: supportActive ? "" : norm.turnId,
+    releaseUntilAt: supportActive ? 0 : now() + CFG.loopSuppressionWindowMs,
+    lastRoute: norm.lane || "general",
+    lastAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    loopBreakApplied: !!(shaped.meta && shaped.meta.loopBreakApplied)
   });
 
   const nextSpine = finalizeStateSpineForTurn(sessionId, priorSpine, norm, emotion, marion, marionContract, priorTurn, shaped);
@@ -5886,6 +5908,11 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     mixerVoicePreserved: !!CFG.preserveMixerVoice,
     error: shaped.meta?.error || "",
     indexLoopGuard: true,
+    loopStatus: loop.repeated ? "repeated_break_applied" : "clear",
+    turnId: norm.turnId,
+    finalized: true,
+    finalizationGuard: true,
+    supportDeauthorized: !supportActive,
     supportHold,
     traceId: norm.traceId,
     latencyMs: now() - startedAt
@@ -5894,7 +5921,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   shaped.cog = {
     ...(isObj(shaped.cog) ? shaped.cog : {}),
     intent: shaped.cog?.intent || (supportActive ? "STABILIZE" : ""),
-    mode: shaped.cog?.mode || (supportActive ? "transitional" : ""),
+    mode: shaped.cog?.mode || (supportActive ? "support" : "finalized"),
     publicMode: shaped.cog?.publicMode !== false
   };
 
@@ -5909,6 +5936,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     emotionSensitive: !!(emotion && emotion.sensitive),
     reply: shaped.reply
   });
+
+  shaped = normalizeReplyEnvelope(shaped, cleanText(shaped.reply || reply), { loopStatus: loop.repeated ? "repeated_break_applied" : "clear", supportHold, supportActive: !!supportActive });
 
   shaped = attachVoiceRoute(shaped);
   const speech = buildSpeechContract(shaped, norm);
@@ -5962,6 +5991,10 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     userHash: replyHash(norm.text),
     lane: shaped.lane || norm.lane,
     replyAuthority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""),
+    turnId: norm.turnId,
+    route: norm.lane || "general",
+    loopStatus: cleanText(shaped.meta && shaped.meta.loopStatus || "clear"),
+    finalized: true,
     userText: norm.text,
     reply: cleanText(shaped.reply || reply),
     emotionLabel: cleanText((marionContract && marionContract.emotional_state) || (emotion && emotion.label) || ""),
@@ -5975,7 +6008,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     reply: cleanText(shaped.reply || shaped.payload?.reply || ""),
     text: cleanText(shaped.reply || shaped.payload?.text || shaped.payload?.reply || ""),
     message: cleanText(shaped.reply || shaped.payload?.message || shaped.payload?.reply || ""),
-    spokenText: cleanText(shaped.reply || shaped.payload?.spokenText || shaped.payload?.reply || "")
+    spokenText: cleanText(shaped.reply || shaped.payload?.spokenText || shaped.payload?.reply || ""),
+    finalized: true
   };
 
   trace.rendered = {
