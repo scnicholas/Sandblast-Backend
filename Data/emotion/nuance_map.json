@@ -1,4 +1,10 @@
 {
+  "schema_version": "marion-nuance-map.v1.1",
+  "runtime_contract": {
+    "consumer": "Marion emotion interpreter",
+    "handoff_target": "Nyx expression layer",
+    "strict_json": true
+  },
   "sadness": {
     "subtypes": [
       "loneliness",
@@ -7,7 +13,8 @@
       "hopelessness",
       "hurt",
       "emotional_numbness",
-      "depressed"
+      "depressed",
+      "shame"
     ],
     "social_patterns": [
       "feeling unseen",
@@ -16,7 +23,8 @@
       "mourning",
       "discouraged",
       "low energy",
-      "empty"
+      "empty",
+      "self_blame"
     ],
     "response_style": [
       "validation",
@@ -43,7 +51,9 @@
       "withdrawal",
       "despair",
       "isolation",
-      "shutdown"
+      "shutdown",
+      "despair_language",
+      "self_harm_language"
     ],
     "blend_axes": [
       "emotional_loss"
@@ -319,6 +329,18 @@
       ],
       "avoid": [
         "flattening_the_moment"
+      ]
+    },
+    "sadness+shame": {
+      "dominant_axis": "emotional_loss",
+      "preferred_openers": [
+        "validate",
+        "stabilize"
+      ],
+      "avoid": [
+        "shaming_language",
+        "diagnostic_labeling",
+        "premature_solutioning"
       ]
     }
   }
