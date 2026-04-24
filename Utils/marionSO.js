@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.5.0-emission-guard-fastpath-lane-emitter";
+const MARION_VERSION = "marionSO v1.5.1-conflict-audited-non-authoritative-mediator";
 const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -4342,12 +4342,64 @@ try {
   }
 }
 
+
+// -------------------------
+// Conflict diagnostics contract
+// -------------------------
+// MarionSO is intentionally NON-AUTHORITATIVE. It may classify, mediate,
+// and emit bounded cognition hints, but it must not own final response
+// authority, route authority, packet normalization, or transport routing.
+const MARION_SO_ROLE = Object.freeze({
+  module: "marionSO",
+  required: false,
+  role: "optional_non_authoritative_mediator",
+  ownsFinalReply: false,
+  ownsTransport: false,
+  ownsRuntimeRouting: false,
+  ownsPacketNormalization: false,
+  allowedPrimaryFunction: "mediate",
+  conflictPolicy: "disable_or_bypass_if_it_duplicates_bridge_router_or_normalizer_authority"
+});
+
+function getMarionSOConflictDiagnostics() {
+  return {
+    ok: true,
+    version: MARION_VERSION,
+    schema: MARION_PIPELINE_SCHEMA,
+    required: false,
+    recommendation: "keep_only_if_chatEngine_explicitly_consumes_mediate_output_without_granting_final_reply_authority",
+    canDisableSafely: true,
+    role: MARION_SO_ROLE.role,
+    ownsFinalReply: MARION_SO_ROLE.ownsFinalReply,
+    ownsTransport: MARION_SO_ROLE.ownsTransport,
+    ownsRuntimeRouting: MARION_SO_ROLE.ownsRuntimeRouting,
+    ownsPacketNormalization: MARION_SO_ROLE.ownsPacketNormalization,
+    conflictRisk: "medium_if_imported_as_authority_low_if_used_as_mediator_only",
+    authoritativeLayers: {
+      finalReply: "marionBridge/composeMarionResponse/index authority lock",
+      routing: "Data/marion/runtime/marionIntentRouter",
+      packetNormalization: "marionPacketNormalizer",
+      trust: "marionTrustPolicy",
+      transport: "index.js"
+    },
+    separationRules: [
+      "Do not let MarionSO call MarionBridge.",
+      "Do not let MarionSO normalize final Marion packets.",
+      "Do not let MarionSO mount routes or touch Express.",
+      "Do not let MarionSO overwrite final reply authority.",
+      "Use mediate() only as a bounded cognition and lane-hint layer."
+    ]
+  };
+}
+
+
 module.exports = {
+  MARION_SO_ROLE,
+  getMarionSOConflictDiagnostics,
   MARION_PIPELINE_SCHEMA,
   MARION_VERSION,
   SO_VERSION,
   version,
-  MARION_PIPELINE_SCHEMA,
   PHASE10_PLAN,
   PHASE15_PLAN,
   LATENT_DESIRE,
