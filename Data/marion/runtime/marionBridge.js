@@ -34,7 +34,7 @@ try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { eval
 try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
 try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
 
-const VERSION = "marionBridge v5.5.0 PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
+const VERSION = "marionBridge v5.5.1 LOOP-GUARD-FINAL-ENVELOPE + PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
 const NEWS_FALLBACK_REPLY = "Here is the News Canada handoff, preserved for page rendering.";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
@@ -51,6 +51,33 @@ const INTERNAL_BLOCKER_REPLY_PATTERNS = [
   /packet_invalid/i,
   /contract_invalid/i
 ];
+
+
+function _isFinalizedMarionEnvelope(input = {}) {
+  const src = _safeObj(input);
+  const meta = _safeObj(src.meta);
+  const packetMeta = _safeObj(_safeObj(src.packet).meta);
+  return !!(src.__marionHandled || src.marionHandled || src.marionFinal || src.final === true || meta.marionFinal || meta.final === true || packetMeta.marionFinal || packetMeta.final === true);
+}
+
+function _markFinalEnvelope(result = {}, input = {}) {
+  if (!_safeObj(result) || !Object.keys(_safeObj(result)).length) return result;
+  const out = { ...result };
+  const reply = _trim(out.reply || out.text || out.answer || out.output || out.response || out.message || out.spokenText || out.payload?.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
+  out.ok = out.ok !== false;
+  out.handled = true; out.final = true; out.marionHandled = true; out.marionFinal = true;
+  out.replyAuthority = _trim(out.replyAuthority || "marion") || "marion";
+  out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply;
+  out.spokenText = _trim(out.spokenText || reply.replace(/\n+/g, " ")) || reply;
+  out.payload = { ..._safeObj(out.payload), reply, text: reply, answer: reply, output: reply, spokenText: out.spokenText, handled: true, final: true, marionFinal: true };
+  out.meta = { ..._safeObj(out.meta), version: VERSION, handled: true, final: true, marionHandled: true, marionFinal: true, singleSourceOfTruth: true, loopGuard: "bridge_final_envelope", turnId: _trim(input.turnId || out.turnId || ""), turnFingerprint: _trim(input.turnFingerprint || out.turnFingerprint || "") };
+  if (_safeObj(out.packet) && Object.keys(_safeObj(out.packet)).length) {
+    out.packet = { ...out.packet, handled: true, final: true, marionHandled: true, marionFinal: true };
+    out.packet.meta = { ..._safeObj(out.packet.meta), handled: true, final: true, marionHandled: true, marionFinal: true, singleSourceOfTruth: true, loopGuard: "bridge_packet_final" };
+    out.packet.synthesis = { ..._safeObj(out.packet.synthesis), reply, text: reply, answer: reply, output: reply, spokenText: out.spokenText, handled: true, final: true };
+  }
+  return out;
+}
 
 function _safeObj(v) { return !!v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
@@ -1088,7 +1115,7 @@ function createMarionBridge(options = {}) {
   };
 }
 
-async function route(input = {}) { return processWithMarion(input); }
+async function route(input = {}) { return _markFinalEnvelope(await processWithMarion(input), input); }
 async function maybeResolve(input = {}) {
   const bridge = createMarionBridge();
   return bridge.maybeResolve(input);
