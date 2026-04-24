@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "emotionDetect v5.0.0 COHESION-HARDENED";
+const VERSION = "emotionDetect v5.0.1 FORENSIC-NORMALIZED";
 const RUNTIME_ROOT = __dirname;
 const DEFAULT_SOURCES = [
   path.join(RUNTIME_ROOT, "base_labels.json"),
@@ -97,6 +97,25 @@ function _fallbackEmotion(text) {
   return { primary: "neutral", secondary: "informational", intensity: 0.18, confidence: 0.62 };
 }
 
+
+const NUANCE_PRIMARY_ALIASES = {
+  depressed: "sadness",
+  grief: "sadness",
+  loneliness: "sadness",
+  anxiety: "fear",
+  panic: "fear",
+  overwhelm: "fear",
+  frustration: "anger",
+  guilt: "sadness",
+  shame: "sadness",
+  confusion: "surprise",
+  relief: "joy",
+  gratitude: "joy",
+  excitement: "joy",
+  calm: "neutral"
+};
+function _nuanceKey(primary) { return NUANCE_PRIMARY_ALIASES[_lower(primary)] || _lower(primary) || "neutral"; }
+
 function _deriveValence(primary) {
   if (["joy", "gratitude", "relief", "hope", "excitement", "calm"].includes(primary)) return 0.6;
   if (["neutral", "confusion"].includes(primary)) return 0;
@@ -112,6 +131,7 @@ function _buildSupportFlags(primary, intensity, text) {
     crisis: crisisSignals,
     highDistress: crisisSignals || intensity >= 0.8 || highDistressLex,
     needsContainment: crisisSignals || intensity >= 0.72 || vulnerableSet.includes(primary),
+    needsGentlePacing: crisisSignals || intensity >= 0.72 || vulnerableSet.includes(primary),
     needsStabilization: crisisSignals || (stabilizationSet.includes(primary) && intensity >= 0.6),
     vulnerable: vulnerableSet.includes(primary),
     preferNoQuestion: crisisSignals || ["panic", "grief", "depressed"].includes(primary),
@@ -133,7 +153,8 @@ function detectEmotion(input = {}) {
     confidence: _clamp(Number(best.weight || 0.5) + 0.08, 0, 0.95)
   } : _fallbackEmotion(text);
 
-  const nuanceDef = _safeObj(dataset.nuance[base.primary]);
+  const nuanceKey = _nuanceKey(base.primary);
+  const nuanceDef = _safeObj(dataset.nuance[base.primary] || dataset.nuance[nuanceKey]);
   const supportFlags = _buildSupportFlags(base.primary, base.intensity, text);
   const valence = _deriveValence(base.primary);
   const dominantWeight = Number(Math.max(0.55, base.intensity).toFixed(2));
@@ -164,7 +185,8 @@ function detectEmotion(input = {}) {
         [base.primary]: dominantWeight,
         ...(base.secondary && base.secondary !== "informational" ? { [base.secondary]: secondaryWeight } : {})
       },
-      dominant_axis: _safeArray(nuanceDef.blend_axes)[0] || "low_signal_state"
+      dominant_axis: _safeArray(nuanceDef.blend_axes)[0] || "low_signal_state",
+      nuance_key: nuanceKey
     },
     nuance: {
       subtype: base.secondary,
@@ -175,6 +197,7 @@ function detectEmotion(input = {}) {
     state_drift: {
       previous_emotion: _lower(source.previousEmotion || source.priorEmotion || ""),
       current_emotion: base.primary,
+      canonical_emotion: nuanceKey,
       trend: "stable",
       stability: 0.72,
       volatility: 1 - Math.min(0.9, base.intensity)
@@ -209,6 +232,7 @@ function detectEmotion(input = {}) {
       locked_emotion: lockedEmotion,
       state_spine: {
         emotionPrimary: base.primary,
+        emotionCanonical: nuanceKey,
         emotionSecondary: base.secondary,
         emotionValence: valence,
         emotionIntensity: base.intensity,
