@@ -5,7 +5,7 @@
  * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v2.1.1 FORENSIC-NORMALIZED";
+const VERSION = "supportResponse v2.2.0 EMOTION-CONTRACT-LOCKED";
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -115,11 +115,7 @@ function looksNeutralInformational(text) {
 }
 
 function normalizeEmotion(input) {
-  const emo = isPlainObject(input?.emo)
-    ? input.emo
-    : (isPlainObject(input?.emotion)
-      ? input.emotion
-      : ((input?.primaryEmotion || input?.primary || input?.supportFlags || input?.nuanceProfile || input?.conversationPlan) && isPlainObject(input) ? input : {}));
+  const emo = isPlainObject(input?.emo) ? input.emo : (isPlainObject(input?.emotion) ? input.emotion : {});
   const supportFlags = isPlainObject(emo.supportFlags) ? emo.supportFlags : {};
   const presentationSignals = isPlainObject(emo.presentationSignals)
     ? emo.presentationSignals
@@ -153,6 +149,7 @@ function deriveQuestionBudget(cfg, emo, text) {
   if (cfg.suppressQuestionOnTechnical && looksTechnicalRequest(text)) budget = 0;
   if (cfg.suppressQuestionOnContainment && emo?.supportFlags?.needsContainment) budget = 0;
   if (cfg.suppressQuestionOnHighDistress && emo?.supportFlags?.highDistress) budget = 0;
+  if (emo?.supportFlags?.needsGentlePacing && Number(emo?.intensity || 0) >= 0.75) budget = 0;
   if (cfg.suppressQuestionOnRecovery && emo?.supportFlags?.crisis) budget = 0;
   if (cfg.suppressQuestionOnLoop && emo?.nuanceProfile?.loopRisk === "high") budget = 0;
   if (cfg.suppressQuestionOnHighContinuity && inputContinuityHigh(emo)) budget = 0;
