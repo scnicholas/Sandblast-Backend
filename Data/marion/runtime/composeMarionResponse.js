@@ -5,7 +5,7 @@
  * Cohesive Marion composition layer.
  */
 
-const VERSION = "composeMarionResponse v1.5.1 LOOP-FINAL-EMISSION + AUTOPSY-HARDENED-EMISSION-SAFE-CONTINUITY";
+const VERSION = "composeMarionResponse v1.5.2 HANDSHAKE-LOOP-BREAK-9.8 + LOOP-FINAL-EMISSION + AUTOPSY-HARDENED-EMISSION-SAFE-CONTINUITY";
 const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
@@ -460,6 +460,74 @@ function _functionSeed(text = "") {
   return Math.abs(h >>> 0);
 }
 
+function _replySignature(value = "") {
+  const text = _lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  return text ? String(_functionSeed(text)) : "0";
+}
+function _technicalIntentDetected(input = {}, routed = {}, state = {}) {
+  const raw = _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,routed.intent,routed.primaryDomain,routed.domain,state.lastIntent,state.lastDomain,input.userQuery,input.text,input.query].filter(Boolean).join(" "));
+  return /(technical|debug|autopsy|audit|gap refinement|line.by.line|index\.js|marion|bridge|packet|normalizer|router|route|loop|handoff|syntax|script|file|fix|harden|download|zip)/i.test(raw);
+}
+function _sameReplySignature(input = {}, candidateReply = "") {
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const prevSig = _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || "");
+  const nextSig = _replySignature(candidateReply);
+  return !!prevSig && !!nextSig && prevSig === nextSig;
+}
+function _resolveComposeLoopGuard(input = {}, routed = {}, conversationState = {}, escalationProfile = {}, supportFlags = {}, primaryEmotion = "") {
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const sameFunctionCount = Math.max(0, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0));
+  const sameReplyCount = Math.max(0, _num(prev.sameReplyCount, patch.sameReplyCount || 0));
+  const repetitionCount = Math.max(0, _num(conversationState.repetitionCount, 0));
+  const isTechnical = _technicalIntentDetected(input, routed, conversationState);
+  const crisis = !!_safeObj(supportFlags).crisis;
+  const highDistress = !!_safeObj(supportFlags).highDistress;
+  const loopPressure = sameFunctionCount >= 1 || sameReplyCount >= 1 || repetitionCount >= 2 || !!prev.loopBreakApplied || !!patch.loopBreakApplied;
+  const releaseThread = !!(loopPressure || isTechnical) && !crisis && !(highDistress && !isTechnical);
+  const forceAdvance = releaseThread && (isTechnical || repetitionCount >= 2 || sameReplyCount >= 1);
+  return { active: releaseThread || forceAdvance, loopPressure, forceAdvance, releaseThread, isTechnical, crisis, sameFunctionCount, sameReplyCount, repetitionCount, previousReplySignature: _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || ""), previousFunction: _lower(prev.lastResponseFunction || patch.lastResponseFunction || ""), primaryEmotion: _normalizeEmotionAlias(primaryEmotion) };
+}
+function _applyComposeLoopGuard(loopGuard = {}, conversationState = {}, escalationProfile = {}, responsePlan = null, strategy = null) {
+  const guard = _safeObj(loopGuard);
+  if (!guard.active) return { conversationState, escalationProfile, responsePlan, strategy };
+  conversationState.loopBreakApplied = true;
+  conversationState.threadContinuation = guard.releaseThread ? false : !!conversationState.threadContinuation;
+  conversationState.continuityMode = guard.forceAdvance ? "advance" : "stabilize";
+  conversationState.unresolvedSignals = guard.forceAdvance ? _safeArray(conversationState.unresolvedSignals).slice(0, 2) : _safeArray(conversationState.unresolvedSignals);
+  escalationProfile.shouldDeepen = guard.forceAdvance ? false : !!escalationProfile.shouldDeepen;
+  escalationProfile.shouldSolve = guard.forceAdvance ? true : !!escalationProfile.shouldSolve;
+  escalationProfile.mode = guard.forceAdvance ? "loop_break_advance" : (_trim(escalationProfile.mode || "loop_guard") || "loop_guard");
+  if (responsePlan) { responsePlan.expressionStyle = guard.forceAdvance ? "direct_resolution" : responsePlan.expressionStyle; responsePlan.followupStyle = guard.forceAdvance ? "single_action" : responsePlan.followupStyle; responsePlan.transitionReadiness = guard.forceAdvance ? "high" : responsePlan.transitionReadiness; responsePlan.pacing = guard.forceAdvance ? "tight" : responsePlan.pacing; }
+  if (strategy) { strategy.loopBreakApplied = true; strategy.routeBias = guard.forceAdvance ? "advance" : strategy.routeBias; strategy.shouldDeepen = guard.forceAdvance ? false : !!strategy.shouldDeepen; strategy.shouldSolve = guard.forceAdvance ? true : !!strategy.shouldSolve; }
+  return { conversationState, escalationProfile, responsePlan, strategy };
+}
+function _stabilizeSelectedFunction(selectedFunction = "", loopGuard = {}, conversationState = {}, input = {}) {
+  const fn = _lower(selectedFunction || "clarify") || "clarify";
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const lastFn = _lower(prev.lastResponseFunction || patch.lastResponseFunction || conversationState.lastResponseFunction || "");
+  const sameCount = lastFn && lastFn === fn ? Math.max(1, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0) + 1) : 0;
+  if (!_safeObj(loopGuard).forceAdvance && sameCount < 2) return fn;
+  const rotation = { clarify: "trace", trace: "differentiate", differentiate: "solve", interpret: "solve", solve: "differentiate" };
+  if (_safeObj(loopGuard).isTechnical) return "solve";
+  return rotation[fn] || "solve";
+}
+function _buildLoopBreakReply(primaryEmotion = "", selectedFunction = "solve", conversationState = {}, loopGuard = {}) {
+  if (!_safeObj(loopGuard).forceAdvance) return "";
+  if (_safeObj(loopGuard).isTechnical) return "I am going to stop the repeat pattern here and move this forward directly: this should be treated as a handoff/state issue, verified once at the bridge output, then finalized instead of re-entering the same continuation path.";
+  return _buildFunctionReply(primaryEmotion, selectedFunction || "solve", { ..._safeObj(conversationState), threadContinuation: false, continuityMode: "advance" }, { shouldSolve: true }, {}, { engagementLevel: "medium" });
+}
+function _applyReplyLoopBreak(replyBundle = {}, primaryEmotion = "", selectedFunction = "", conversationState = {}, loopGuard = {}, input = {}) {
+  const bundle = _safeObj(replyBundle);
+  const sameReply = _sameReplySignature(input, bundle.reply || "") || _isGenericLoopReply(bundle.reply || "");
+  if (!_safeObj(loopGuard).forceAdvance && !sameReply) return bundle;
+  const replacement = _buildLoopBreakReply(primaryEmotion, selectedFunction, conversationState, { ..._safeObj(loopGuard), forceAdvance: true });
+  if (!replacement) return bundle;
+  return _harmonizeReplyBundle(_ensureUsableReply(replacement, bundle.reply || FALLBACK_REPLY), []);
+}
+
 function _emotionFamily(primaryEmotion = "") {
   const emo = _normalizeEmotionAlias(primaryEmotion);
   if (["sadness", "fear", "anger"].includes(emo)) return emo;
@@ -838,6 +906,8 @@ function composeMarionResponse(routed = {}, input = {}) {
   const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
 
   const escalationProfile = _resolveEscalationProfile(routed, input, supportFlags, conversationState, primaryEmotion);
+  const loopGuard = _resolveComposeLoopGuard(input, routed, conversationState, escalationProfile, supportFlags, normalizedPrimaryEmotion);
+  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile);
   const arcState = _resolveArcState(routed, input, normalizedPrimaryEmotion, conversationState, escalationProfile);
   const engagementState = _resolveEngagementState(input, conversationState, escalationProfile);
   const relationalStyle = _resolveRelationalStyle(input, conversationState, engagementState, escalationProfile);
@@ -853,6 +923,8 @@ function composeMarionResponse(routed = {}, input = {}) {
     careSequence: modePlan.careSequence,
     adviceLevel: escalationProfile.shouldSolve ? "medium" : modePlan.adviceLevel
   };
+
+  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile, responsePlan);
 
   const sourcePrimary = _safeObj(psychology.primary);
   const record = _safeObj(sourcePrimary.record);
@@ -875,7 +947,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     relationalStyle
   );
   const replyBundle = _harmonizeReplyBundle(_ensureUsableReply(resolvedReply.reply || FALLBACK_REPLY, FALLBACK_REPLY));
-  const selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
+  let selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
+  selectedFunction = _stabilizeSelectedFunction(selectedFunction, loopGuard, conversationState, input);
+  conversationState.selectedFunction = selectedFunction;
+  conversationState.lastResponseFunction = selectedFunction;
   const followUps = _uniq(
     _buildEscalatedFollowUps(
       modePlan,
@@ -888,7 +963,13 @@ function composeMarionResponse(routed = {}, input = {}) {
     )
   ).filter((item) => _trim(item) && _lower(item) !== _lower(replyBundle.reply) && !_isGenericLoopReply(item));
   const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, arcStage: arcState.stage, engagementLevel: engagementState.engagementLevel };
-  const finalReplyBundle = _harmonizeReplyBundle(_ensureUsableReply(replyBundle.reply, FALLBACK_REPLY), followUps);
+  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile, responsePlan, strategy);
+  const preFinalReplyBundle = _harmonizeReplyBundle(_ensureUsableReply(replyBundle.reply, FALLBACK_REPLY), followUps);
+  const finalReplyBundle = _applyReplyLoopBreak(preFinalReplyBundle, normalizedPrimaryEmotion, selectedFunction, conversationState, loopGuard, input);
+  const replySignature = _replySignature(finalReplyBundle.reply);
+  const previousReplySignature = _trim(loopGuard.previousReplySignature || "");
+  const sameReplyCount = previousReplySignature && previousReplySignature === replySignature ? loopGuard.sameReplyCount + 1 : 0;
+  const sameFunctionCount = loopGuard.previousFunction && loopGuard.previousFunction === _lower(selectedFunction) ? loopGuard.sameFunctionCount + 1 : 0;
   const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, finalReplyBundle.reply, finalReplyBundle.followUpsStrings);
 
   try {
@@ -904,6 +985,11 @@ function composeMarionResponse(routed = {}, input = {}) {
 
   return {
     ok: true,
+    final: true,
+    marionFinal: true,
+    composedOnce: true,
+    finalizedBy: "composeMarionResponse",
+    replySignature,
     matched: !!(psychology.matched || emotion.matched || _safeArray(sourcePrimary.matches).length),
     domain: primaryDomain,
     interpretation,
@@ -925,7 +1011,7 @@ function composeMarionResponse(routed = {}, input = {}) {
     strategy,
     conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
     escalationProfile,
-    memoryPatch: { lastResponseFunction: selectedFunction, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true },
+    memoryPatch: { lastResponseFunction: selectedFunction, sameFunctionCount, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: !!loopGuard.active, composedOnce: true, marionFinal: true, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction, loopBreakApplied: !!loopGuard.active }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true },
     responsePlan,
     blendProfile,
     stateDrift,
@@ -975,7 +1061,8 @@ function composeMarionResponse(routed = {}, input = {}) {
       engagementLevel: engagementState.engagementLevel,
       engagementCadence: engagementState.preferredCadence,
       emissionSafe: true,
-      blockerGuardActive: true
+      blockerGuardActive: true,
+      loopGuard
     },
     pipelineTrace,
     synthesis: {
@@ -1008,7 +1095,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       relationalStyle,
       conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
       escalationProfile,
-      memoryPatch: { lastResponseFunction: selectedFunction, arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" }
+      memoryPatch: { lastResponseFunction: selectedFunction, sameFunctionCount, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: !!loopGuard.active, composedOnce: true, marionFinal: true, arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction, loopBreakApplied: !!loopGuard.active }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" }
     },
     matches: _safeArray(psychology.matches).map((m) => {
       const rec = _safeObj(_safeObj(m).record);
