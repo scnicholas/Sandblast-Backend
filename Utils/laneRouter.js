@@ -23,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.5.0 LOOP-BREAK TECHNICAL-PRIORITY";
+const LR_VERSION = "laneRouter v1.5.1 FORENSIC-NORMALIZED";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -283,7 +283,7 @@ function simpleGeneralReply(norm, emo) {
   const state = mapEmotionalState(emo);
   if (!text) return "I am here and ready. Tell me what you want to explore, fix, or understand.";
 
-  if (/(loop|looping|repeat|repeating)/i.test(text)) {
+  if (/\b(loop|looping|repeat|repeating)\b/i.test(text)) {
     return "Understood. We are breaking the loop directly now. I will stay on the failing layer and move to the next concrete action instead of re-entering soft support.";
   }
 
