@@ -2,1036 +2,195 @@
 
 /**
  * composeMarionResponse.js
- * Cohesive Marion composition layer.
+ * Clean single-emission Marion composer.
+ * One purpose: convert routed intent + context into one final response packet.
  */
 
-const VERSION = "composeMarionResponse v1.5.3 INTENT-COMPOSE-FORWARD-DEEP-MOVEMENT + HANDSHAKE-LOOP-BREAK-9.8 + LOOP-FINAL-EMISSION";
-const DEBUG_TAG = "[MARION] composeMarionResponse patch active";
-const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
-try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
+const VERSION = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
 
-function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
-function _safeArray(v) { return Array.isArray(v) ? v : []; }
-function _trim(v) { return v == null ? "" : String(v).trim(); }
-function _lower(v) { return _trim(v).toLowerCase(); }
-function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
-function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
-function _uniq(arr) { return [...new Set(_safeArray(arr).map(_trim).filter(Boolean))]; }
-
-const INTERNAL_BLOCKER_PATTERNS = [
-  /marion input required before reply emission/i,
-  /reply emission/i,
-  /bridge rejected malformed marion output before nyx handoff/i,
-  /bridge rejected/i,
-  /authoritative_reply_missing/i,
-  /packet_synthesis_reply_missing/i,
-  /contract_missing/i,
-  /packet_missing/i,
-  /bridge_rejected/i,
-  /marion_contract_invalid/i,
-  /compose_marion_response_unavailable/i,
-  /packet_invalid/i,
-  /internal(?:-|\s)?pipeline/i,
-  /runtime(?:-|\s)?trace/i,
-  /route(?:_|\s)?guard/i,
-  /telemetry/i,
-  /shell is active/i,
-  /guiding properly/i,
-  /^working\.?$/i,
-  /^ready\.?$/i,
-  /^done\.?$/i
-];
-
-function _isInternalBlockerText(value = "") {
-  const text = _trim(value);
-  if (!text) return false;
-  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text));
+function safeStr(v) {
+  return v == null ? "" : String(v).trim();
 }
 
-function _sanitizeEmissionText(value = "", fallback = FALLBACK_REPLY) {
-  const text = _trim(value);
-  if (!text || _isInternalBlockerText(text)) return _trim(fallback) || FALLBACK_REPLY;
-  return text;
+function lower(v) {
+  return safeStr(v).toLowerCase();
 }
 
-function _isWeakEmissionText(value = "") {
-  const text = _trim(value);
-  if (!text) return true;
-  if (_isInternalBlockerText(text)) return true;
-  if (text.length < 2) return true;
-  return false;
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-function _ensureUsableReply(value = "", fallback = FALLBACK_REPLY) {
-  const sanitized = _sanitizeEmissionText(value, fallback);
-  return _isWeakEmissionText(sanitized) ? (_trim(fallback) || FALLBACK_REPLY) : sanitized;
+function arr(v) {
+  return Array.isArray(v) ? v : [];
 }
 
-
-function _harmonizeReplyBundle(reply = "", followUps = []) {
-  const normalizedReply = _ensureUsableReply(reply, FALLBACK_REPLY);
-  const followUpsStrings = _uniq(_safeArray(followUps).map((item) => _trim(item)).filter(Boolean).filter((item) => !_isInternalBlockerText(item)).filter((item) => _lower(item) !== _lower(normalizedReply)));
-  return {
-    reply: normalizedReply,
-    text: normalizedReply,
-    answer: normalizedReply,
-    output: normalizedReply,
-    displayReply: normalizedReply,
-    spokenText: normalizedReply.replace(/\n+/g, " ").trim(),
-    followUpsStrings
-  };
+function clamp01(v, fallback = 0) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(1, n));
 }
 
-
-function _normalizeSupportFlags() {
-  const merged = {};
-  for (const src of arguments) {
-    const obj = _safeObj(src);
-    for (const [key, value] of Object.entries(obj)) {
-      const keyName = _trim(key);
-      if (!keyName) continue;
-      merged[keyName] = !!value;
-    }
-  }
-
-  if (merged.guarded && !("guardedness" in merged)) merged.guardedness = true;
-  if (merged.suppressionPresent && !("suppressed" in merged)) merged.suppressed = true;
-  if (merged.forcedPositivity && !("suppressed" in merged)) merged.suppressed = true;
-  if (merged.minimization && !("suppressed" in merged)) merged.suppressed = true;
-  if (merged.needsContainment && !("needsGrounding" in merged)) merged.needsGrounding = true;
-  if (merged.needsConnection && !("vulnerable" in merged)) merged.vulnerable = true;
-
-  return merged;
-}
-
-function _buildEmotionPayload(primaryEmotion = {}, emotion = {}, supportFlags = {}) {
-  const primary = _safeObj(primaryEmotion);
-  const blended = _safeObj(emotion);
-  return {
-    locked: true,
-    primaryEmotion: _lower(primary.emotion || blended.primaryEmotion || "neutral") || "neutral",
-    secondaryEmotion: _lower(primary.secondaryEmotion || blended.secondaryEmotion || "") || null,
-    intensity: Number(_clamp(primary.intensity != null ? primary.intensity : blended.intensity, 0, 1).toFixed(3)),
-    valence: Number(_clamp(primary.valence != null ? primary.valence : blended.valence, -1, 1).toFixed(3)),
-    confidence: Number(_clamp(primary.confidence != null ? primary.confidence : blended.confidence != null ? blended.confidence : 0.82, 0, 1).toFixed(3)),
-    supportFlags: _normalizeSupportFlags(supportFlags),
-    needs: _uniq(_safeArray(blended.needs).concat(_safeArray(primary.needs))),
-    cues: _uniq(_safeArray(blended.cues).concat(_safeArray(primary.cues))),
-    blendProfile: _resolveBlendProfile(blended),
-    stateDrift: _resolveStateDrift({}, blended)
-  };
-}
-
-function _buildStrategyPayload(supportMode, modePlan, routed = {}, psychology = {}) {
-  const route = _safeObj(psychology.route);
-  const record = _safeObj(_safeObj(psychology.primary).record);
-  const routeBias = _trim(record.routeBias || route.routeBias || routed.routeBias || "clarify") || "clarify";
-  const deliveryTone = _trim(modePlan.deliveryTone || route.deliveryTone || routed.deliveryTone || "steadying") || "steadying";
-  let archetype = _trim(route.archetype || record.archetype || routed.archetype || "");
-  if (!archetype) {
-    if (/crisis|acute|soothe|stabilize|ground/.test(supportMode)) archetype = "ground";
-    else if (/affirm|channel/.test(supportMode)) archetype = "channel";
-    else if (/celebrate/.test(supportMode)) archetype = "celebrate";
-    else archetype = "clarify";
-  }
-  return {
-    archetype,
-    supportModeCandidate: supportMode,
-    routeBias,
-    deliveryTone,
-    questionPressure: modePlan.shouldAskFollowup ? "medium" : "low",
-    transitionReadiness: _trim(modePlan.transitionReadiness || "medium") || "medium",
-    acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportMode) ? "auto" : "light",
-    expressionContract: {
-      questionPressure: modePlan.shouldAskFollowup ? "medium" : "low",
-      transitionReadiness: _trim(modePlan.transitionReadiness || "medium") || "medium",
-      acknowledgementMode: /crisis|acute|soothe|stabilize/.test(supportMode) ? "auto" : "light"
-    }
-  };
-}
-
-function _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategyPayload, reply, followUps) {
-  return {
-    stage: "composeMarionResponse",
-    version: VERSION,
-    domain: primaryDomain,
-    supportMode,
-    riskLevel,
-    emotion: {
-      primaryEmotion: emotionPayload.primaryEmotion,
-      intensity: emotionPayload.intensity,
-      valence: emotionPayload.valence
-    },
-    strategy: {
-      archetype: strategyPayload.archetype,
-      routeBias: strategyPayload.routeBias,
-      deliveryTone: strategyPayload.deliveryTone
-    },
-    replyPreview: _trim(reply).slice(0, 160),
-    followUpCount: _safeArray(followUps).length,
-    resolvedAt: Date.now()
-  };
-}
-
-function _resolveConversationState(routed = {}, input = {}) {
-  const state = _safeObj(routed.conversationState || input.conversationState);
-  const prevMemory = _safeObj(input.previousMemory);
-  const prevPatch = _safeObj(prevMemory.memoryPatch);
-  const previousState = _safeObj(prevMemory.conversationState || prevMemory.continuityState || prevPatch.conversationState);
-  const lastTopics = _uniq([].concat(_safeArray(state.lastTopics)).concat(_safeArray(previousState.lastTopics))).slice(0, 6);
-  const unresolvedSignals = _uniq([].concat(_safeArray(state.unresolvedSignals)).concat(_safeArray(previousState.unresolvedSignals))).slice(0, 6);
-  const repetitionCount = Math.max(0, _num(state.repetitionCount, previousState.repetitionCount || prevMemory.repetitionCount || 0));
-  const depthLevel = Math.max(1, Math.min(6, _num(state.depthLevel, previousState.depthLevel || prevMemory.depthLevel || (repetitionCount > 0 ? 2 : 1))));
-  const threadContinuation = !!(state.threadContinuation || previousState.threadContinuation || unresolvedSignals.length || depthLevel > 1);
-  return {
-    previousEmotion: _lower(state.previousEmotion || _safeObj(state.lastEmotion).previousEmotion || previousState.previousEmotion || ""),
-    currentEmotion: _lower(_safeObj(state.lastEmotion).primaryEmotion || previousState.currentEmotion || ""),
-    emotionTrend: _lower(state.emotionTrend || previousState.emotionTrend || "stable") || "stable",
-    lastTopics,
-    repetitionCount,
-    depthLevel,
-    unresolvedSignals,
-    threadContinuation,
-    continuityMode: _trim(state.continuityMode || previousState.continuityMode || (threadContinuation ? "deepen" : "stabilize")) || "stabilize"
-  };
-}
-
-function _buildStateLead(conversationState = {}, primaryEmotion = "") {
-  const state = _safeObj(conversationState);
-  const previousEmotion = _lower(state.previousEmotion || "");
-  const currentEmotion = _lower(primaryEmotion || state.currentEmotion || "neutral");
-  if (!state.threadContinuation && _num(state.depthLevel, 1) <= 1) return "";
-  if (previousEmotion && previousEmotion !== currentEmotion) {
-    return `Earlier this felt closer to ${previousEmotion}, and now it seems heavier.`;
-  }
-  if (state.threadContinuation && currentEmotion) {
-    return `I can see this thread is still carrying ${currentEmotion}.`;
-  }
-  return "I can feel this thread continuing.";
-}
-
-function _makeStateAwareReply(primaryEmotion, supportMode, intensity, conversationState = {}) {
-  const base = _makeSupportReply(primaryEmotion, supportMode, intensity);
-  const lead = _buildStateLead(conversationState, primaryEmotion);
-  if (!lead) return base;
-  if (_num(conversationState.depthLevel, 1) >= 3) {
-    if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(_lower(primaryEmotion))) {
-      return `${lead} I am still with you in it. Does this feel like something that has been building, or did something make it sharper today?`;
-    }
-    if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(_lower(primaryEmotion))) {
-      return `${lead} Let us keep this narrow and honest. Is the pressure coming more from what might happen, or from what is already happening?`;
-    }
-    return `${lead} ${base}`;
-  }
-  return _ensureUsableReply(`${lead} ${base}`.trim(), base || FALLBACK_REPLY);
-}
-
-function _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}) {
-  if (supportFlags.crisis) return [];
-  if (!modePlan.shouldAskFollowup) return [];
-  const state = _safeObj(conversationState);
-  const emo = _lower(primaryEmotion || "neutral");
-  if (_num(state.depthLevel, 1) >= 3 || state.threadContinuation) {
-    if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
-      return ["Has this been building over time, or did something trigger it today?"];
-    }
-    if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
-      return ["Is the pressure coming from one clear source, or from everything stacking at once?"];
-    }
-    return ["What keeps this thread active for you right now?"];
-  }
-  return _buildFollowUps(modePlan, primaryEmotion, supportFlags);
-}
-
-function _resolveEscalationProfile(routed = {}, input = {}, supportFlags = {}, conversationState = {}, primaryEmotion = {}) {
-  const routedProfile = _safeObj(routed.escalationProfile || input.escalationProfile);
-  const depthLevel = Math.max(1, _num(conversationState.depthLevel, routedProfile.depthLevel || 1));
-  const repetitionCount = Math.max(0, _num(conversationState.repetitionCount, routedProfile.repetitionCount || 0));
-  const unresolvedSignals = _uniq(_safeArray(conversationState.unresolvedSignals).concat(_safeArray(routedProfile.unresolvedSignals))).slice(0, 6);
-  const intensity = _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : routedProfile.intensity, 0, 1);
-  const highDistress = !!_safeObj(supportFlags).highDistress || !!_safeObj(supportFlags).needsContainment;
-  const shouldDeepen = !!routedProfile.shouldDeepen || depthLevel >= 3 || repetitionCount >= 2 || unresolvedSignals.length >= 2 || intensity >= 0.74 || !!conversationState.threadContinuation;
-  return {
-    shouldDeepen,
-    shouldSolve: !!routedProfile.shouldSolve || (!highDistress && (depthLevel >= 4 || repetitionCount >= 3 || unresolvedSignals.length >= 3) && intensity < 0.82),
-    mode: _trim(routedProfile.mode || (shouldDeepen ? "deep_reflection" : "standard")) || "standard",
-    depthLevel,
-    repetitionCount,
-    unresolvedSignals,
-    intensity,
-    threadContinuation: !!conversationState.threadContinuation,
-    emotionTrend: _trim(conversationState.emotionTrend || routedProfile.emotionTrend || "stable") || "stable"
-  };
-}
-
-
-function _resolveArcState(routed = {}, input = {}, primaryEmotion = "", conversationState = {}, escalationProfile = {}) {
-  const prevMemory = _safeObj(input.previousMemory);
-  const prevPatch = _safeObj(prevMemory.memoryPatch);
-  const prev = _safeObj(prevMemory.arcState || prevPatch.arcState);
-  const currentEmotion = _normalizeEmotionAlias(primaryEmotion || conversationState.currentEmotion || "");
-  const topics = _safeArray(conversationState.lastTopics).slice(0, 6);
-  const anchorTopic = _trim(topics[0] || prev.anchorTopic || currentEmotion || "general") || "general";
-  const anchorPerson = topics.find((t) => ["cait"].includes(_lower(t))) || _trim(prev.anchorPerson || "");
-  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
-  const arcState = _safeObj(input.arcState || _safeObj(_safeObj(input.previousMemory).memoryPatch).arcState || input.arcState);
-  const engagementState = _safeObj(input.engagementState || _safeObj(_safeObj(input.previousMemory).memoryPatch).engagementState || input.engagementState);
-  const highSolve = !!_safeObj(escalationProfile).shouldSolve;
-  let arcType = _trim(prev.arcType || "");
-  if (!arcType) arcType = highSolve ? "problem_solving" : (currentEmotion === "sadness" ? "connection_building" : "emotional_processing");
-  let stage = "opening";
-  if (highSolve) stage = "resolution";
-  else if (depth >= 5) stage = "reframing";
-  else if (depth >= 4) stage = "differentiation";
-  else if (depth >= 3) stage = "deepening";
-  const objectiveMap = {
-    emotional_processing: "help the user name the real pressure under the feeling",
-    problem_solving: "turn recurring pressure into one useful next move",
-    identity_reflection: "surface the meaning beneath the immediate sentence",
-    connection_building: "increase trust and felt understanding without overreaching"
-  };
-  return {
-    arcType,
-    stage,
-    objective: objectiveMap[arcType] || objectiveMap.identity_reflection,
-    tension: Number(_clamp((_num(conversationState.repetitionCount, 0) * 0.18) + _num(_safeObj(escalationProfile).intensity, 0), 0, 1).toFixed(3)),
-    resolved: highSolve && _num(conversationState.repetitionCount, 0) <= 1,
-    anchorTopic,
-    anchorPerson: anchorPerson || null,
-    lastShiftAt: Date.now()
-  };
-}
-
-function _resolveEngagementState(input = {}, conversationState = {}, escalationProfile = {}) {
-  const behavior = _safeObj(input.behavior || input.userBehavior);
-  const prevMemory = _safeObj(input.previousMemory);
-  const prevPatch = _safeObj(prevMemory.memoryPatch);
-  const previous = _safeObj(prevMemory.engagementState || prevPatch.engagementState);
-  const messageLength = Math.max(0, _num(behavior.messageLength, 0));
-  const openness = Number(_clamp(
-    (previous.openness || 0.35)
-    + (messageLength > 140 ? 0.22 : messageLength > 60 ? 0.12 : 0)
-    + (_safeArray(conversationState.unresolvedSignals).length ? 0.08 : 0),
-    0, 1).toFixed(3));
-  const brevity = Number(_clamp(messageLength ? 1 - (messageLength / 220) : (previous.brevity || 0.75), 0, 1).toFixed(3));
-  const volatility = Number(_clamp(_num(behavior.volatility, previous.volatility || 0.2), 0, 1).toFixed(3));
-  const receptivity = Number(_clamp((openness * 0.65) + ((1 - volatility) * 0.35), 0, 1).toFixed(3));
-  const engagementLevel = receptivity >= 0.72 ? "high" : receptivity >= 0.48 ? "medium" : "low";
-  const preferredCadence = _safeObj(escalationProfile).shouldSolve ? "directive" : (engagementLevel === "high" ? "deepening" : "tight");
-  return { engagementLevel, openness, brevity, volatility, receptivity, preferredCadence };
-}
-
-function _resolveRelationalStyle(input = {}, conversationState = {}, engagementState = {}, escalationProfile = {}) {
-  const prevMemory = _safeObj(input.previousMemory);
-  const prevPatch = _safeObj(prevMemory.memoryPatch);
-  const previous = _safeObj(prevMemory.relationalStyle || prevPatch.relationalStyle);
-  const gravity = Number(_clamp(previous.gravity || (_num(conversationState.depthLevel, 1) * 0.12), 0.35, 0.85).toFixed(3));
-  const warmth = Number(_clamp(previous.warmth || (engagementState.engagementLevel === "high" ? 0.76 : 0.62), 0.45, 0.9).toFixed(3));
-  const directness = Number(_clamp(previous.directness || (_safeObj(escalationProfile).shouldSolve ? 0.72 : 0.56), 0.35, 0.88).toFixed(3));
-  return {
-    warmth,
-    gravity,
-    directness,
-    invitationStyle: engagementState.engagementLevel === "high" ? "soft_magnetic" : "clean_direct",
-    intimacyCeiling: _safeObj(escalationProfile).shouldDeepen ? "measured_warm" : "measured",
-    validationDensity: _num(conversationState.depthLevel, 1) <= 2 ? "light" : "minimal"
-  };
-}
-
-function _applyRelationalPhrasing(reply = "", relationalStyle = {}, engagementState = {}, arcState = {}) {
-  const base = _trim(reply);
-  if (!base) return "";
-  const lowerBase = _lower(base);
-  if (lowerBase.startsWith("stay with me for a second.") || lowerBase.startsWith("let us get precise for a second.") || lowerBase.startsWith("there is a little more under that.")) return base;
-  const style = _safeObj(relationalStyle);
-  const engagement = _safeObj(engagementState);
-  const arc = _safeObj(arcState);
-  let opener = "";
-  if (engagement.preferredCadence === "directive" && style.directness >= 0.68) opener = "Let us get precise for a second.";
-  else if (/deepening|differentiation|reframing/.test(_trim(arc.stage)) && style.gravity >= 0.55) opener = "Stay with me for a second.";
-  else if (engagement.engagementLevel === "high" && style.invitationStyle === "soft_magnetic") opener = "There is a little more under that.";
-  return opener ? `${opener} ${base}` : base;
-}
-
-function _isMetaResponse(reply = "") {
-  const text = _lower(reply).replace(/\s+/g, " ").trim();
-  if (!text) return false;
-  const patterns = [
-    "i'm following the thread",
-    "i am following the thread",
-    "push the next layer",
-    "continue the thread",
-    "stay with the thread",
-    "not starting cold",
-    "next layer instead of",
-    "restating the surface",
-    "expand on that a bit",
-    "so push the next layer"
-  ];
-  return patterns.some((pattern) => text.includes(pattern));
-}
-
-function _rewriteMetaToHuman(reply = "", primaryEmotion = "", conversationState = {}) {
-  const emo = _normalizeEmotionAlias(primaryEmotion || _safeObj(conversationState).currentEmotion || "");
-  if (emo === "sadness") {
-    return "You do not have to push anything forward right now. Just tell me what part of this is still sitting with you.";
-  }
-  if (emo === "fear") {
-    return "Let us slow this down for a second. What feels like it is pressing on you the most right now?";
-  }
-  if (emo === "anger") {
-    return "Something here clearly is not sitting right. What part of it is actually crossing the line for you?";
-  }
-  return "Stay with me here. What feels most real in this for you right now?";
-}
-
-function _humanizeMetaReply(reply = "", primaryEmotion = "", conversationState = {}, relationalStyle = {}, engagementState = {}, arcState = {}) {
-  const cleaned = _trim(reply);
-  if (!cleaned) return "";
-  if (!_isMetaResponse(cleaned)) return cleaned;
-  return _applyRelationalPhrasing(
-    _rewriteMetaToHuman(cleaned, primaryEmotion, conversationState),
-    relationalStyle,
-    engagementState,
-    arcState
-  );
-}
-
-
-function _normalizeEmotionAlias(value = "") {
-  const emo = _lower(value);
-  if (["sad", "depressed", "lonely", "loneliness", "grief", "heartbroken", "hurt", "hurting"].includes(emo)) return "sadness";
-  if (["anxious", "panic", "overwhelmed", "overwhelm", "fear", "afraid"].includes(emo)) return "fear";
-  if (["angry", "frustrated", "frustration", "mad"].includes(emo)) return "anger";
-  return emo || "neutral";
-}
-
-function _isGenericLoopReply(reply = "") {
-  const text = _lower(reply).replace(/\s+/g, " ").trim();
-  if (!text) return true;
-  const bannedPatterns = [
-    "i have the thread",
-    "give me one clean beat more",
-    "i will answer directly without flattening",
-    "tell me the next piece",
-    "stay with the next honest piece",
-    "continue the thread",
-    "give me one more",
-    "one clean beat more",
-    "the real thread",
-    "answer directly without flattening",
-    "tell me one more",
-    "stay with this thread"
-  ];
-  return bannedPatterns.some((snippet) => text.includes(snippet));
-}
-
-function _looksEmotionSpecific(reply = "", primaryEmotion = "", conversationState = {}) {
-  const text = _lower(reply);
-  const emo = _normalizeEmotionAlias(primaryEmotion);
-  const signals = _safeArray(conversationState.unresolvedSignals).map(_lower);
-  if (emo && emo !== "neutral") {
-      }
-  const emotionHints = {
-    sadness: ["missing", "lost", "grief", "lonely", "heavy", "hurt", "connection", "unfinished"],
-    fear: ["pressure", "control", "urgent", "stacking", "signal", "controllable", "pressure point"],
-    anger: ["boundary", "confront", "change", "pressure", "unfinished", "decision"]
-  };
-  const hints = emotionHints[emo] || [];
-  const emotionHit = hints.some((hint) => text.includes(hint));
-  const stateHit = signals.some((signal) => !!signal && text.includes(signal)) || _safeArray(conversationState.lastTopics).some((topic) => text.includes(_lower(topic)));
-  return emotionHit || stateHit;
-}
-
-function _shouldHonorDraftReply(candidateReply = "", escalationProfile = {}, primaryEmotion = "", conversationState = {}, input = {}) {
-  const reply = _trim(candidateReply);
-  if (!reply) return false;
-  if (_isInternalBlockerText(reply)) return false;
-  if (_safeObj(input).allowExternalDraftOverride !== true) return false;
-  if (_safeObj(escalationProfile).shouldDeepen) return false;
-  if (_isGenericLoopReply(reply)) return false;
-  return _looksEmotionSpecific(reply, primaryEmotion, conversationState);
-}
-
-function _functionSeed(text = "") {
-  const s = _trim(text);
+function hashText(v) {
+  const s = lower(v).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
   let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i);
-  return Math.abs(h >>> 0);
-}
-
-function _replySignature(value = "") {
-  const text = _lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-  return text ? String(_functionSeed(text)) : "0";
-}
-function _technicalIntentDetected(input = {}, routed = {}, state = {}) {
-  const raw = _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,routed.intent,routed.primaryDomain,routed.domain,state.lastIntent,state.lastDomain,input.userQuery,input.text,input.query].filter(Boolean).join(" "));
-  return /(technical|debug|autopsy|audit|gap refinement|line.by.line|index\.js|marion|bridge|packet|normalizer|router|route|loop|handoff|syntax|script|file|fix|harden|download|zip)/i.test(raw);
-}
-function _intentText(input = {}, routed = {}, state = {}) {
-  return _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,routed.intent,routed.primaryDomain,routed.domain,_safeObj(routed.marionIntent).intent,_safeObj(routed.routing).intent,state.lastIntent,state.lastDomain,input.userQuery,input.text,input.query].filter(Boolean).join(" "));
-}
-function _inputText(input = {}) { return _trim(input.userQuery || input.text || input.query || input.message || ""); }
-function _hasHighDistressLanguage(value = "") {
-  const text = _lower(value);
-  return /\b(kill myself|suicid(?:e|al)|self[-\s]?harm|do not want to live|don't want to live|panic attack|cannot breathe|can't breathe|depressed|hopeless|worthless|grief|heartbroken|overwhelmed|terrified|afraid|anxious|crying|hurt|hurting|alone|lonely)\b/i.test(text);
-}
-function _isLightSocialTurn(input = {}, routed = {}, state = {}) {
-  const raw = _inputText(input);
-  const text = _lower(raw).replace(/[!?.,]+$/g, "").trim();
-  if (!text || _hasHighDistressLanguage(raw)) return false;
-  if (_technicalIntentDetected(input, routed, state)) return false;
-  if (/\b(news|music|roku|radio|top\s*10|fix|debug|autopsy|audit|download|zip|file|script|route|endpoint|error|bug|broken|loop)\b/i.test(text)) return false;
-  if (/^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+nyx)?$/i.test(text)) return true;
-  if (/^(how are you|how are you doing|how's it going|what's up|you there|are you there)(\s+nyx)?$/i.test(text)) return true;
-  const intentText = _intentText(input, routed, state);
-  return /\bsimple_chat\b|\bgeneral\b/.test(intentText) && text.length <= 80 && !/\b(sad|stress|stressed|depress|anxious|hurt|alone|panic|grief|overwhelm)\b/i.test(text);
-}
-function _buildForwardSocialReply(input = {}, routed = {}, conversationState = {}) {
-  const raw = _inputText(input);
-  const text = _lower(raw).replace(/[!?.,]+$/g, "").trim();
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const priorSig = _trim(prev.replySignature || patch.replySignature || "");
-  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
-  const openers = /^(hi|hello|hey|yo|good morning|good afternoon|good evening)/i.test(text)
-    ? ["I’m here, present, and ready to move with you. What layer do you want to open first?", "I’m with you. Give me the thread, and I’ll carry it forward cleanly.", "I’m here. Let’s make this useful — what are we stepping into?"]
-    : ["I’m steady, focused, and here with you. What do you want to move deeper into next?", "I’m good — clear, present, and ready to build the next layer with you.", "I’m here and tracking. What direction do you want to take this now?"];
-  let reply = openers[Math.abs(_functionSeed(`${text}|${depth}|${priorSig}`)) % openers.length];
-  if (priorSig && priorSig === _replySignature(reply)) reply = "I won’t circle the same opener. Let’s go deeper — what’s the real target underneath this turn?";
-  return reply;
-}
-function _makeSimpleChatResult(routed = {}, input = {}, conversationState = {}) {
-  const reply = _buildForwardSocialReply(input, routed, conversationState);
-  const replySignature = _replySignature(reply);
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const previousReplySignature = _trim(prev.replySignature || patch.replySignature || "");
-  const sameReplyCount = previousReplySignature && previousReplySignature === replySignature ? Math.max(1, _num(prev.sameReplyCount, patch.sameReplyCount || 0) + 1) : 0;
-  const state = { ..._safeObj(conversationState), threadContinuation: false, continuityMode: "advance", depthLevel: Math.max(1, _num(conversationState.depthLevel, 1)), selectedFunction: "advance", lastResponseFunction: "advance", loopBreakApplied: sameReplyCount > 0 };
-  const responsePlan = { semanticFrame: "social_forward_motion", deliveryTone: "warm_direct", expressionStyle: "direct_conversational", followupStyle: "forward_invitation", responseLength: "short", pacing: "steady", transitionReadiness: "high", transitionTargets: ["advance", "deepen"], adviceLevel: "minimal" };
-  const nyxDirective = { tonePosture: "warm_direct", pacing: "steady", responseLength: "short", followupStyle: "forward_invitation", askAtMost: 1, shouldOfferNextStep: true, shouldMirrorIntensity: false, expressiveRole: "express_resolved_state_only", allowNyxRewrite: false, allowReplySynthesis: false, singleSourceOfTruth: true };
-  const memoryPatch = { lastResponseFunction: "advance", sameFunctionCount: 0, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: sameReplyCount > 0, composedOnce: true, marionFinal: true, replyAuthority: "marion", conversationState: state, unresolvedSignals: [], continuityMode: "advance", depthLevel: state.depthLevel, threadContinuation: false, emissionSafe: true };
-  return { ok: true, final: true, marionFinal: true, composedOnce: true, finalizedBy: "composeMarionResponse", replyAuthority: "marion", replySignature, matched: false, domain: "general", interpretation: "Simple conversational turn resolved without support-mode dominance.", reply, text: reply, answer: reply, output: reply, displayReply: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUps: [], followUpsStrings: [], supportMode: "forward_social", routeBias: "advance", riskLevel: "low", supportFlags: {}, mode: "social_forward_motion", intent: "simple_chat", emotion: { locked: true, primaryEmotion: "neutral", secondaryEmotion: null, intensity: 0, valence: 0, confidence: 0.86, supportFlags: {}, needs: [], cues: [], blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 } }, strategy: { archetype: "advance", supportModeCandidate: "forward_social", routeBias: "advance", deliveryTone: "warm_direct", questionPressure: "low", transitionReadiness: "high", acknowledgementMode: "light", shouldDeepen: false, shouldSolve: true, loopBreakApplied: sameReplyCount > 0 }, conversationState: state, escalationProfile: { shouldDeepen: false, shouldSolve: true, mode: "simple_chat_advance", depthLevel: state.depthLevel, repetitionCount: _num(state.repetitionCount, 0), unresolvedSignals: [], intensity: 0, threadContinuation: false, emotionTrend: "stable" }, memoryPatch, responsePlan, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, guidance: ["Do not convert light social turns into support containment.", "Move the conversation forward with one clean invitation."], guardrails: ["Emotional intelligence may shape warmth, but it must not override simple_chat intent."], nyxDirective, diagnostics: { simpleChatBypass: true, supportDominanceReleased: true, replyAuthority: "marion", selectedFunction: "advance", emissionSafe: true, loopGuard: { active: sameReplyCount > 0, forceAdvance: true, releaseThread: true, sameReplyCount } }, pipelineTrace: { stage: "composeMarionResponse", version: VERSION, domain: "general", supportMode: "forward_social", riskLevel: "low", emotion: { primaryEmotion: "neutral", intensity: 0, valence: 0 }, strategy: { archetype: "advance", routeBias: "advance", deliveryTone: "warm_direct" }, replyPreview: reply.slice(0, 160), followUpCount: 0, resolvedAt: Date.now() }, synthesis: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUps: [], followUpsStrings: [], supportMode: "forward_social", responsePlan, nyxDirective, memoryPatch }, matches: [] };
-}
-function _sameReplySignature(input = {}, candidateReply = "") {
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const prevSig = _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || "");
-  const nextSig = _replySignature(candidateReply);
-  return !!prevSig && !!nextSig && prevSig === nextSig;
-}
-function _resolveComposeLoopGuard(input = {}, routed = {}, conversationState = {}, escalationProfile = {}, supportFlags = {}, primaryEmotion = "") {
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const sameFunctionCount = Math.max(0, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0));
-  const sameReplyCount = Math.max(0, _num(prev.sameReplyCount, patch.sameReplyCount || 0));
-  const repetitionCount = Math.max(0, _num(conversationState.repetitionCount, 0));
-  const isTechnical = _technicalIntentDetected(input, routed, conversationState);
-  const crisis = !!_safeObj(supportFlags).crisis;
-  const highDistress = !!_safeObj(supportFlags).highDistress;
-  const loopPressure = sameFunctionCount >= 1 || sameReplyCount >= 1 || repetitionCount >= 2;
-  const releaseThread = !!(loopPressure || isTechnical) && !crisis && !(highDistress && !isTechnical);
-  const forceAdvance = releaseThread && (isTechnical || repetitionCount >= 2 || sameReplyCount >= 1);
-  return { active: releaseThread || forceAdvance, loopPressure, forceAdvance, releaseThread, isTechnical, crisis, sameFunctionCount, sameReplyCount, repetitionCount, previousReplySignature: _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || ""), previousFunction: _lower(prev.lastResponseFunction || patch.lastResponseFunction || ""), primaryEmotion: _normalizeEmotionAlias(primaryEmotion) };
-}
-function _applyComposeLoopGuard(loopGuard = {}, conversationState = {}, escalationProfile = {}, responsePlan = null, strategy = null) {
-  const guard = _safeObj(loopGuard);
-  if (!guard.active) return { conversationState, escalationProfile, responsePlan, strategy };
-  conversationState.loopBreakApplied = true;
-  conversationState.threadContinuation = guard.releaseThread ? false : !!conversationState.threadContinuation;
-  conversationState.continuityMode = guard.forceAdvance ? "advance" : "stabilize";
-  conversationState.unresolvedSignals = guard.forceAdvance ? _safeArray(conversationState.unresolvedSignals).slice(0, 2) : _safeArray(conversationState.unresolvedSignals);
-  escalationProfile.shouldDeepen = guard.forceAdvance ? false : !!escalationProfile.shouldDeepen;
-  escalationProfile.shouldSolve = guard.forceAdvance ? true : !!escalationProfile.shouldSolve;
-  escalationProfile.mode = guard.forceAdvance ? "loop_break_advance" : (_trim(escalationProfile.mode || "loop_guard") || "loop_guard");
-  if (responsePlan) { responsePlan.expressionStyle = guard.forceAdvance ? "direct_resolution" : responsePlan.expressionStyle; responsePlan.followupStyle = guard.forceAdvance ? "single_action" : responsePlan.followupStyle; responsePlan.transitionReadiness = guard.forceAdvance ? "high" : responsePlan.transitionReadiness; responsePlan.pacing = guard.forceAdvance ? "tight" : responsePlan.pacing; }
-  if (strategy) { strategy.loopBreakApplied = true; strategy.routeBias = guard.forceAdvance ? "advance" : strategy.routeBias; strategy.shouldDeepen = guard.forceAdvance ? false : !!strategy.shouldDeepen; strategy.shouldSolve = guard.forceAdvance ? true : !!strategy.shouldSolve; }
-  return { conversationState, escalationProfile, responsePlan, strategy };
-}
-function _stabilizeSelectedFunction(selectedFunction = "", loopGuard = {}, conversationState = {}, input = {}) {
-  const fn = _lower(selectedFunction || "clarify") || "clarify";
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const lastFn = _lower(prev.lastResponseFunction || patch.lastResponseFunction || conversationState.lastResponseFunction || "");
-  const sameCount = lastFn && lastFn === fn ? Math.max(1, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0) + 1) : 0;
-  if (!_safeObj(loopGuard).forceAdvance && sameCount < 2) return fn;
-  const rotation = { clarify: "trace", trace: "differentiate", differentiate: "solve", interpret: "solve", solve: "differentiate" };
-  if (_safeObj(loopGuard).isTechnical) return "solve";
-  return rotation[fn] || "solve";
-}
-function _buildLoopBreakReply(primaryEmotion = "", selectedFunction = "solve", conversationState = {}, loopGuard = {}) {
-  if (!_safeObj(loopGuard).forceAdvance) return "";
-  if (_safeObj(loopGuard).isTechnical) return "I am going to stop the repeat pattern here and move this forward directly: this should be treated as a handoff/state issue, verified once at the bridge output, then finalized instead of re-entering the same continuation path.";
-  return _buildFunctionReply(primaryEmotion, selectedFunction || "solve", { ..._safeObj(conversationState), threadContinuation: false, continuityMode: "advance" }, { shouldSolve: true }, {}, { engagementLevel: "medium" });
-}
-function _applyReplyLoopBreak(replyBundle = {}, primaryEmotion = "", selectedFunction = "", conversationState = {}, loopGuard = {}, input = {}) {
-  const bundle = _safeObj(replyBundle);
-  const sameReply = _sameReplySignature(input, bundle.reply || "") || _isGenericLoopReply(bundle.reply || "");
-  if (!_safeObj(loopGuard).forceAdvance && !sameReply) return bundle;
-  const replacement = _buildLoopBreakReply(primaryEmotion, selectedFunction, conversationState, { ..._safeObj(loopGuard), forceAdvance: true });
-  if (!replacement) return bundle;
-  return _harmonizeReplyBundle(_ensureUsableReply(replacement, bundle.reply || FALLBACK_REPLY), []);
-}
-
-function _emotionFamily(primaryEmotion = "") {
-  const emo = _normalizeEmotionAlias(primaryEmotion);
-  if (["sadness", "fear", "anger"].includes(emo)) return emo;
-  return "general";
-}
-
-function _responseFunctionBanks() {
-  return {
-    sadness: {
-      trace: [
-        "When did this start feeling heavier instead of just sad?",
-        "What changed between missing them and feeling pulled under by it?",
-        "When do you notice this loneliness hit the hardest?"
-      ],
-      differentiate: [
-        "Is this more about missing Cait, or about missing how you felt when that connection was alive?",
-        "Does this feel more like absence, rejection, or something unfinished that keeps reopening?",
-        "Is the pain coming more from who is missing, or from what that absence says to you about your life now?"
-      ],
-      interpret: [
-        "This does not sound like a passing mood. It sounds like an absence that keeps echoing after the moment itself is over.",
-        "This feels less like one bad moment and more like something unresolved that keeps finding its way back in.",
-        "There is grief-like weight in this, even if you are not naming it that way."
-      ],
-      solve: [
-        "What would make tonight feel even ten percent less heavy in a real way?",
-        "What do you need most here: comfort, contact, clarity, or a concrete shift in what happens next?",
-        "What would actually help this feel less stuck instead of just more described?"
-      ]
-    },
-    fear: {
-      trace: [
-        "When did this shift from stress into something that started running you?",
-        "What is usually happening right before this pressure spikes again?",
-        "When do you first notice the strain move from manageable to too much?"
-      ],
-      differentiate: [
-        "Is this fear about one real risk, or about too many open loops stacking together?",
-        "Does this feel more like urgency, uncertainty, or loss of control?",
-        "Is the pressure coming from what is actually happening, or from what your mind keeps preparing for?"
-      ],
-      interpret: [
-        "This sounds like your system staying braced, not just your thoughts running fast.",
-        "There is a pattern of anticipatory pressure here, not just a single hard moment.",
-        "This feels like accumulation more than randomness."
-      ],
-      solve: [
-        "What is the next controllable move here, even if it is small?",
-        "Which part of this actually needs action first, and which part only needs to stop getting fed?",
-        "What would reduce the pressure fastest without making the rest worse?"
-      ]
-    },
-    anger: {
-      trace: [
-        "When did this stop being irritating and start feeling personal?",
-        "What keeps bringing you back to the same pressure point?",
-        "At what point did this start feeling like too much rather than just frustrating?"
-      ],
-      differentiate: [
-        "Is this more about disrespect, blockage, or having to carry what should not be yours?",
-        "Are you angrier about what happened, or about what keeps not changing?",
-        "Does this feel more like crossed boundaries or accumulated pressure?"
-      ],
-      interpret: [
-        "This feels like a pattern your system is tired of tolerating.",
-        "There is more than irritation here. There is a sense that something keeps staying unresolved.",
-        "This sounds like repeated friction, not just a single flare-up."
-      ],
-      solve: [
-        "What specifically needs to stop, change, or be confronted for this to ease?",
-        "What boundary or decision would actually reduce this pressure?",
-        "What action would move this from circular to resolved?"
-      ]
-    },
-    general: {
-      trace: [
-        "When did this start feeling heavier than you expected?",
-        "What has been building underneath this that keeps bringing it back?",
-        "Where do you feel the shift from surface stress into something deeper?"
-      ],
-      differentiate: [
-        "What is this really about underneath the latest sentence?",
-        "Is this more about the event itself, or what it means to you?",
-        "Which part of this is immediate, and which part goes deeper than today?"
-      ],
-      interpret: [
-        "This feels like a recurring pattern, not an isolated moment.",
-        "There is more continuity here than your last line alone would suggest.",
-        "This sounds like something that keeps returning because it has not actually resolved."
-      ],
-      solve: [
-        "What would make this feel more resolved, not just more discussed?",
-        "What next move would create real relief here?",
-        "What would help this situation shift in a meaningful way today?"
-      ]
-    }
-  };
-}
-
-function _selectResponseFunction(primaryEmotion = "", escalationProfile = {}, conversationState = {}, input = {}) {
-  const prev = _safeObj(input.previousMemory || {});
-  const memoryPatch = _safeObj(prev.memoryPatch);
-  const lastFn = _lower(
-    conversationState.lastResponseFunction ||
-    memoryPatch.lastResponseFunction ||
-    prev.lastResponseFunction ||
-    prev.responseFunction ||
-    ""
-  );
-  const depth = Math.max(1, _num(conversationState.depthLevel, 1));
-  const arcState = _safeObj(input.arcState || _safeObj(_safeObj(input.previousMemory).memoryPatch).arcState || input.arcState);
-  const engagementState = _safeObj(input.engagementState || _safeObj(_safeObj(input.previousMemory).memoryPatch).engagementState || input.engagementState);
-  const repetition = Math.max(0, _num(conversationState.repetitionCount, 0));
-  let pool = [];
-  if (_trim(arcState.stage) === "resolution" || _safeObj(escalationProfile).shouldSolve) pool = ["differentiate", "interpret", "solve"];
-  else if (_trim(arcState.stage) === "reframing") pool = ["interpret", "differentiate", "solve"];
-  else if (_trim(engagementState.preferredCadence) === "tight" && !_safeObj(escalationProfile).shouldDeepen) pool = ["clarify", "trace"];
-  else if (_safeObj(escalationProfile).shouldDeepen && depth >= 5) pool = ["interpret", "differentiate", "trace", "solve"];
-  else if (_safeObj(escalationProfile).shouldDeepen && depth >= 3) pool = repetition >= 2 ? ["trace", "differentiate", "interpret"] : ["differentiate", "trace", "interpret"];
-  else if (lastFn === "clarify") pool = ["trace", "differentiate"];
-  else pool = ["clarify", "trace"];
-  const effectivePool = pool.filter((name) => name !== lastFn);
-  const finalPool = effectivePool.length ? effectivePool : pool;
-  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${conversationState.repetitionCount || 0}|${conversationState.depthLevel || 0}|${primaryEmotion}|${lastFn}|${_trim(conversationState.previousEmotion || "")}`);
-  return finalPool[seed % finalPool.length] || finalPool[0] || "clarify";
-}
-
-function _buildFunctionReply(primaryEmotion = "", selectedFunction = "clarify", conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
-  const family = _emotionFamily(primaryEmotion);
-  const banks = _responseFunctionBanks();
-  if (selectedFunction === "clarify") {
-    return _trim(_safeObj(engagementState).engagementLevel) === "low"
-      ? "Keep it simple for me. What part of this matters most right now?"
-      : "I am with you. Tell me what feels most important right now.";
+  for (let i = 0; i < s.length; i += 1) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
   }
-  const choices = _safeArray(_safeObj(banks[family])[selectedFunction] || _safeObj(banks.general)[selectedFunction]);
-  if (!choices.length) return "I am with you. Tell me what feels most important right now.";
-  const seed = _functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|${conversationState.depthLevel || 0}|${conversationState.repetitionCount || 0}|${_trim(_safeObj(arcState).stage)}|${_trim(_safeObj(engagementState).engagementLevel)}`);
-  return choices[seed % choices.length];
+  return String(h >>> 0);
 }
 
-function _buildFunctionFollowUps(primaryEmotion = "", selectedFunction = "clarify", escalationProfile = {}, conversationState = {}, arcState = {}, engagementState = {}) {
-  const nextMap = {
-    clarify: ["trace", "differentiate"],
-    trace: ["differentiate", "interpret"],
-    differentiate: [_safeObj(escalationProfile).shouldSolve ? "solve" : "interpret", "trace"],
-    interpret: [_safeObj(escalationProfile).shouldSolve ? "solve" : "differentiate", "trace"],
-    solve: ["differentiate", "solve"]
-  };
-  const options = _safeArray(nextMap[selectedFunction]);
-  const nextFn = options.length > 1
-    ? options[_functionSeed(`${conversationState.lastQuery || ""}|${selectedFunction}|follow`) % options.length]
-    : (options[0] || "differentiate");
-  const prompt = _buildFunctionReply(primaryEmotion, nextFn, conversationState, escalationProfile, arcState, engagementState);
-  return prompt ? [prompt] : [];
+function detectDistress(text) {
+  const t = lower(text);
+  const crisis = /\b(suicide|self[- ]?harm|kill myself|don['’]?t want to live|end my life)\b/i.test(t);
+  const high = crisis || /\b(panic|depressed|hopeless|overwhelmed|crying|heartbroken|grief)\b/i.test(t);
+  const emotional = high || /\b(sad|lonely|hurt|anxious|afraid|stressed|upset)\b/i.test(t);
+  return { crisis, high, emotional };
 }
 
-function _resolveFinalReply(routed = {}, input = {}, primaryEmotion = "", supportMode = "clarify_and_sequence", intensity = 0, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}, relationalStyle = {}) {
-  const selectedFunction = _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, { ...input, arcState, engagementState });
-  const generatedBase = _makeEscalatedReply(primaryEmotion, supportMode, intensity, { ...conversationState, selectedFunction }, escalationProfile, arcState, engagementState);
-  const generated = _humanizeMetaReply(
-    _applyRelationalPhrasing(generatedBase, relationalStyle, engagementState, arcState),
-    primaryEmotion,
-    conversationState,
-    relationalStyle,
-    engagementState,
-    arcState
-  );
-  if (_safeObj(escalationProfile).shouldDeepen) {
-    return { reply: generated, source: _isMetaResponse(generatedBase) ? "forced_meta_rewrite" : "forced_escalation_override", selectedFunction, authority: "marion" };
-  }
-  const assistantDraft = _trim(_safeObj(input).assistantDraft);
-  if (_shouldHonorDraftReply(assistantDraft, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: _ensureUsableReply(_humanizeMetaReply(assistantDraft, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), FALLBACK_REPLY), source: "assistantDraft", selectedFunction, authority: "external_override" };
-  }
-  const inputReply = _trim(_safeObj(input).reply);
-  if (_shouldHonorDraftReply(inputReply, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: _ensureUsableReply(_humanizeMetaReply(inputReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), FALLBACK_REPLY), source: "input.reply", selectedFunction, authority: "external_override" };
-  }
-  const routedReply = _trim(_safeObj(routed).reply);
-  if (_shouldHonorDraftReply(routedReply, escalationProfile, primaryEmotion, conversationState, input)) {
-    return { reply: _ensureUsableReply(_humanizeMetaReply(routedReply, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), FALLBACK_REPLY), source: "routed.reply", selectedFunction, authority: "external_override" };
-  }
-  return { reply: _ensureUsableReply(_humanizeMetaReply(generated, primaryEmotion, conversationState, relationalStyle, engagementState, arcState), FALLBACK_REPLY), source: "marion_generated", selectedFunction, authority: "marion" };
+function simpleChatReply(text) {
+  const t = lower(text);
+  if (/^(hi|hello|hey|yo)\b/.test(t)) return "Hey. I’m here, clear and ready. What are we working on next?";
+  if (/how are you/.test(t)) return "I’m steady, focused, and ready to move with you. What do you want to tackle first?";
+  if (/thank/.test(t)) return "You’re welcome. Let’s keep it moving.";
+  return "I’m with you. Give me the next piece and I’ll help you move it forward.";
 }
 
-function _makeEscalatedReply(primaryEmotion, supportMode, intensity, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
-  const emo = _lower(primaryEmotion || "neutral");
-  const state = _safeObj(conversationState);
-  const profile = _safeObj(escalationProfile);
-  const shouldDeepen = !!profile.shouldDeepen;
-  const shouldSolve = !!profile.shouldSolve;
-  if (!shouldDeepen) {
-    return _makeStateAwareReply(primaryEmotion, supportMode, intensity, conversationState);
+function technicalReply(text) {
+  if (/loop/i.test(text)) {
+    return "The loop should be handled as a state-progression problem: confirm the router intent, confirm the composer emits once, then verify the bridge finalizes without reusing fallback state.";
   }
-  const lead = _buildStateLead(state, primaryEmotion) || "I can feel this thread continuing.";
-  const selectedFunction = _trim(state.selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, state, {});
-  const functionalReply = _buildFunctionReply(primaryEmotion, selectedFunction, state, profile, arcState, engagementState);
-  if (shouldSolve && selectedFunction === "solve") {
-    return `${lead} ${functionalReply}`;
-  }
-  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(emo) && selectedFunction === "interpret") {
-    return `${lead} ${functionalReply}`;
-  }
-  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo) && selectedFunction === "interpret") {
-    return `${lead} ${functionalReply}`;
-  }
-  return `${lead} ${functionalReply}`.trim();
+  return "I’ll treat this technically: isolate the failing layer, verify the packet path, check finalization, and remove any duplicate authority before we patch.";
 }
 
-function _buildEscalatedFollowUps(modePlan, primaryEmotion, supportFlags = {}, conversationState = {}, escalationProfile = {}, arcState = {}, engagementState = {}) {
-  if (supportFlags.crisis) return [];
-  const profile = _safeObj(escalationProfile);
-  if (!profile.shouldDeepen) return _buildStateAwareFollowUps(modePlan, primaryEmotion, supportFlags, conversationState);
-  const selectedFunction = _trim(_safeObj(conversationState).selectedFunction || "") || _selectResponseFunction(primaryEmotion, escalationProfile, conversationState, {});
-  return _buildFunctionFollowUps(primaryEmotion, selectedFunction, escalationProfile, conversationState, arcState, engagementState);
+function emotionalReply(text, previousMemory = {}) {
+  const distress = detectDistress(text);
+  const alreadySupported = !!previousMemory.supportUsedLastTurn || !!previousMemory.memoryPatch?.supportUsedLastTurn;
+
+  if (distress.crisis) {
+    return "I’m here with you. Your safety comes first. If you might hurt yourself or you’re in immediate danger, contact emergency services or a local crisis line now. Stay with me on the smallest next safe step.";
+  }
+
+  if (alreadySupported && !distress.high) {
+    return "I hear the weight in that. Let’s move deeper instead of circling it: what is the real pressure underneath this right now?";
+  }
+
+  if (distress.high) {
+    return "I hear how heavy this feels. Let’s keep this steady and honest: what part of it is pressing on you the hardest right now?";
+  }
+
+  return "I hear you. Let’s not flatten it into a generic answer. What is the part of this that actually matters most underneath the surface?";
 }
 
-const MODE_DEFAULTS = Object.freeze({
-  crisis_escalation: { semanticFrame: "immediate_safety", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "action_gate", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "escalate"], careSequence: ["acknowledge", "stabilize", "escalate"], adviceLevel: "minimal", shouldAskFollowup: false, shouldOfferNextStep: true },
-  acute_regulation: { semanticFrame: "acute_regulation", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "ground_then_narrow", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["stabilize", "contain"], careSequence: ["acknowledge", "ground", "narrow"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: true },
-  soothe_and_structure: { semanticFrame: "stabilization", deliveryTone: "warm_affirming", expressionStyle: "plain_statement", followupStyle: "ground_then_narrow", responseLength: "short", pacing: "steady", transitionReadiness: "low", transitionTargets: ["stabilize", "clarify"], careSequence: ["validate", "stabilize", "sequence"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  careful_nonshaming_reflection: { semanticFrame: "identity_decompression", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "steady", transitionReadiness: "low", transitionTargets: ["stabilize", "clarify"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: false },
-  validate_and_gently_activate: { semanticFrame: "depletion_support", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["clarify", "activate"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  affirm_and_channel: { semanticFrame: "momentum_preservation", deliveryTone: "warm_affirming", expressionStyle: "plain_statement", followupStyle: "direct_answer_then_one_question", responseLength: "short", pacing: "steady", transitionReadiness: "high", transitionTargets: ["maintain", "channel"], adviceLevel: "low", shouldAskFollowup: true, shouldOfferNextStep: true },
-  soft_probe_first: { semanticFrame: "guarded_attunement", deliveryTone: "gentle_nonintrusive", expressionStyle: "plain_statement", followupStyle: "soft_probe", responseLength: "short", pacing: "slow", transitionReadiness: "low", transitionTargets: ["validate", "clarify"], adviceLevel: "minimal", shouldAskFollowup: true, shouldOfferNextStep: false },
-  clarify_and_sequence: { semanticFrame: "clarity_building", deliveryTone: "steadying", expressionStyle: "plain_statement", followupStyle: "reflective", responseLength: "medium", pacing: "steady", transitionReadiness: "medium", transitionTargets: ["clarify"], adviceLevel: "medium", shouldAskFollowup: true, shouldOfferNextStep: true }
-});
-
-function _pickSupportMode(routed = {}, psychology = {}, emotion = {}, supportFlags = {}) {
-  const route = _safeObj(psychology.route);
-  const primary = _safeObj(psychology.primary);
-  const record = _safeObj(primary.record);
-  if (_safeObj(supportFlags).crisis) return "crisis_escalation";
-  if (_safeObj(supportFlags).needsContainment && _safeObj(supportFlags).highDistress) return "acute_regulation";
-  if (_safeObj(supportFlags).suppressed || _safeObj(supportFlags).guardedness) return "soft_probe_first";
-  const resolved = _trim(record.supportMode || route.supportMode || routed.supportMode || "");
-  if (resolved) return resolved;
-  const primaryEmotion = _lower(_safeObj(emotion.primary).emotion || emotion.primaryEmotion || "");
-  if (["sadness", "sad", "depressed", "loneliness", "grief"].includes(primaryEmotion)) return "soothe_and_structure";
-  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(primaryEmotion)) return "acute_regulation";
-  return "clarify_and_sequence";
+function businessReply() {
+  return "Let’s make this commercial and practical: clarify the offer, sharpen the buyer psychology, define the package, then move it into a clean execution path.";
 }
 
-function _resolveModePlan(mode) {
-  return _safeObj(MODE_DEFAULTS[mode]) || _safeObj(MODE_DEFAULTS.clarify_and_sequence);
+function musicReply() {
+  return "Music lane is ready. Give me the year, artist, chart, or story angle and I’ll route it cleanly.";
 }
 
-function _resolveBlendProfile(emotion = {}) {
-  const primary = _safeObj(emotion.primary);
-  const raw = _safeObj(emotion.blendProfile || emotion.blend_profile || {});
-  const out = {};
-  for (const [key, value] of Object.entries(raw.weights || raw)) {
-    const k = _lower(key);
-    const v = _clamp(value, 0, 1);
-    if (k && v > 0) out[k] = Number(v.toFixed(3));
-  }
-  if (!Object.keys(out).length && _trim(primary.emotion || emotion.primaryEmotion)) {
-    const p = _lower(primary.emotion || emotion.primaryEmotion);
-    const s = _lower(primary.secondaryEmotion || emotion.secondaryEmotion || "");
-    out[p] = Number(_clamp(primary.weight || 0.7, 0.45, 1).toFixed(3));
-    if (s && s !== p) out[s] = Number((1 - out[p]).toFixed(3));
-  }
-  const sorted = Object.entries(out).sort((a, b) => b[1] - a[1]);
-  return { weights: out, dominantAxis: sorted[0] ? sorted[0][0] : (_lower(primary.emotion || emotion.primaryEmotion) || "neutral") };
+function newsReply() {
+  return "News Canada lane is ready. Give me the story, headline, or feed issue and I’ll keep the source path clean.";
 }
 
-function _resolveStateDrift(routed = {}, emotion = {}) {
-  const drift = _safeObj(routed.stateDrift || emotion.stateDrift || emotion.state_drift);
-  if (Object.keys(drift).length) {
-    return {
-      previousEmotion: _lower(drift.previousEmotion || drift.previous_emotion || ""),
-      currentEmotion: _lower(drift.currentEmotion || drift.current_emotion || ""),
-      trend: _lower(drift.trend || "stable") || "stable",
-      stability: Number(_clamp(drift.stability, 0, 1).toFixed(3))
-    };
-  }
-  const primary = _safeObj(emotion.primary);
-  return {
-    previousEmotion: _lower(_safeObj(_safeObj(routed.previousTurn).emotion).primaryEmotion || ""),
-    currentEmotion: _lower(primary.emotion || emotion.primaryEmotion || "neutral"),
-    trend: "stable",
-    stability: 0.75
-  };
+function rokuReply() {
+  return "Roku lane is ready. Tell me whether we’re checking the app path, live TV lane, content feed, or deployment issue.";
 }
 
-function _resolveRiskLevel(supportFlags = {}, psychology = {}, primaryEmotion = {}) {
-  if (_safeObj(supportFlags).crisis) return "critical";
-  const primary = _safeObj(psychology.primary);
-  const record = _safeObj(primary.record);
-  const route = _safeObj(psychology.route);
-  const declared = _lower(record.riskLevel || route.riskLevel || psychology.riskLevel || "");
-  if (declared) return declared;
-  return _clamp(primaryEmotion.intensity, 0, 1) >= 0.82 || _safeObj(supportFlags).highDistress ? "high" : "low";
+function memoryReply() {
+  return "I’m holding the thread. Tell me what continuity point you want carried forward, and I’ll anchor it cleanly.";
 }
 
-function _buildGuidance(modePlan, psychology = {}, routed = {}, supportFlags = {}) {
-  const primary = _safeObj(psychology.primary);
-  const record = _safeObj(primary.record);
-  const supportProfile = _safeObj(primary.supportProfile);
-  return _uniq([])
-    .concat(_safeArray(record.responseGuidance))
-    .concat(_safeArray(supportProfile.responseShape))
-    .concat(_safeArray(routed.guidance))
-    .concat(_safeObj(supportFlags).suppressed ? ["Do not overinterpret guarded language."] : [])
-    .concat(_safeObj(supportFlags).needsContainment ? ["Keep the next move singular and bounded."] : [])
-    .concat(modePlan.shouldAskFollowup ? ["Ask at most one follow-up unless the user clearly opens the door further."] : [])
-    .concat(["Keep Marion as the sole interpreter and let Nyx express the resolved state only."]);
+function domainReply() {
+  return "I can work through that. Give me the exact target and I’ll break it down into a clean answer.";
 }
 
-function _buildGuardrails(modePlan, psychology = {}, routed = {}, supportFlags = {}) {
-  const primary = _safeObj(psychology.primary);
-  const record = _safeObj(primary.record);
-  const supportProfile = _safeObj(primary.supportProfile);
-  return _uniq([])
-    .concat(_safeArray(record.contraindications))
-    .concat(_safeArray(supportProfile.constraints))
-    .concat(_safeArray(routed.guardrails))
-    .concat(_safeObj(supportFlags).suppressed ? ["Do not force disclosure."] : [])
-    .concat(_safeObj(supportFlags).crisis ? ["Stop normal flow and prioritize safety language."] : [])
-    .concat(["Do not allow bridge-level improvisation to override the response contract."]);
+function resolveIntent(routed = {}, input = {}) {
+  return lower(
+    routed.intent ||
+    routed.marionIntent?.intent ||
+    routed.routing?.intent ||
+    input.intent ||
+    input.marionIntent?.intent ||
+    "simple_chat"
+  ) || "simple_chat";
 }
 
-function _makeSupportReply(primaryEmotion, supportMode, intensity) {
-  const emo = _lower(primaryEmotion || "neutral");
-  if (supportMode === "crisis_escalation") {
-    return "I am here with you. Your safety comes first right now. If you are in immediate danger or might act on this, call emergency services or a crisis line right now.";
-  }
-  if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
-    return intensity >= 0.8
-      ? "I hear how heavy this feels. You do not have to hold all of it at once. What feels heaviest right now?"
-      : "I hear the weight in that. You do not have to carry it alone in this moment. What has been sitting on you the most?";
-  }
-  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
-    return "I am with you. Let us slow this down and take the most urgent piece first. What feels hardest right now?";
-  }
-  if (["anger", "frustration"].includes(emo)) {
-    return "I can feel the pressure in that. Let us keep it steady and look at the part that needs attention first.";
-  }
-  return "I am with you. Tell me what feels most important right now.";
+function resolveDomain(routed = {}, input = {}) {
+  return lower(
+    routed.primaryDomain ||
+    routed.domain ||
+    routed.routing?.domain ||
+    input.domain ||
+    input.requestedDomain ||
+    "general"
+  ) || "general";
 }
 
-function _buildFollowUps(modePlan, primaryEmotion, supportFlags = {}) {
-  if (supportFlags.crisis) return [];
-  if (!modePlan.shouldAskFollowup) return [];
-  const emo = _lower(primaryEmotion || "neutral");
-  if (["sadness", "sad", "depressed", "loneliness", "grief", "hurt", "hurting"].includes(emo)) {
-    return ["What has been sitting on you the most?"];
+function buildReply(intent, text, input = {}) {
+  switch (intent) {
+    case "technical_debug": return technicalReply(text);
+    case "emotional_support": return emotionalReply(text, input.previousMemory || {});
+    case "business_strategy": return businessReply(text);
+    case "music_query": return musicReply(text);
+    case "news_query": return newsReply(text);
+    case "roku_query": return rokuReply(text);
+    case "identity_or_memory": return memoryReply(text);
+    case "domain_question": return domainReply(text);
+    case "simple_chat":
+    default: return simpleChatReply(text);
   }
-  if (["fear", "anxiety", "panic", "overwhelm", "overwhelmed"].includes(emo)) {
-    return ["What feels hardest right now?"];
-  }
-  return ["What feels most important right now?"];
+}
+
+function chooseNextMove(intent, text) {
+  if (intent === "technical_debug") return "verify_packet_path";
+  if (intent === "emotional_support") return "deepen_without_repeating";
+  if (intent === "business_strategy") return "convert_to_execution";
+  if (intent === "music_query") return "ask_music_target";
+  if (intent === "news_query") return "ask_news_target";
+  if (intent === "roku_query") return "ask_roku_target";
+  return "continue_conversation";
 }
 
 function composeMarionResponse(routed = {}, input = {}) {
-  const primaryDomain = _trim(routed.primaryDomain || routed.domain || input.requestedDomain || input.domain || "general") || "general";
-  const domains = _safeObj(routed.domains);
-  const psychology = _safeObj(domains.psychology || routed.psychology);
-  const emotion = _safeObj(domains.emotion || routed.emotion);
-  const classified = _safeObj(routed.classified);
-  const supportFlags = _normalizeSupportFlags(
-    routed.supportFlags,
-    emotion.supportFlags,
-    _safeObj(_safeObj(_safeObj(psychology.primary).record).supportFlags)
-  );
-  const conversationState = _resolveConversationState(routed, input);
+  const text = safeStr(input.userQuery || input.text || input.query || routed.text || "");
+  const intent = resolveIntent(routed, input);
+  const domain = resolveDomain(routed, input);
+  const previousMemory = isObj(input.previousMemory) ? input.previousMemory : {};
+  const previousSig = safeStr(previousMemory.replySignature || previousMemory.memoryPatch?.replySignature || "");
 
-  if (_isLightSocialTurn(input, routed, conversationState)) {
-    return _makeSimpleChatResult(routed, input, conversationState);
+  let reply = buildReply(intent, text, input);
+  let replySignature = hashText(reply);
+
+  if (previousSig && previousSig === replySignature) {
+    if (intent === "emotional_support") {
+      reply = "Let’s go one layer deeper so we don’t repeat the same comfort: what is the part you have not said out loud yet?";
+    } else if (intent === "simple_chat") {
+      reply = "I’m here and tracking. Let’s move forward: what do you want to focus on next?";
+    } else if (intent === "technical_debug") {
+      reply = "We should advance the diagnosis now: check the router output, composer output, and bridge final flag for this exact turn.";
+    } else {
+      reply = "Let’s move this forward instead of repeating it. Give me the next target and I’ll act on that.";
+    }
+    replySignature = hashText(reply);
   }
 
-  const primaryEmotion = _safeObj(emotion.primary || emotion);
-  const normalizedPrimaryEmotion = _trim(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral";
-  const supportMode = _pickSupportMode(routed, psychology, emotion, supportFlags) || "clarify_and_sequence";
-  const modePlan = _resolveModePlan(supportMode);
-  const blendProfile = _resolveBlendProfile(emotion);
-  const stateDrift = _resolveStateDrift(routed, emotion);
-  const riskLevel = _resolveRiskLevel(supportFlags, psychology, primaryEmotion);
-  const emotionPayload = _buildEmotionPayload(primaryEmotion, emotion, supportFlags);
+  const distress = detectDistress(text);
+  const nextMove = chooseNextMove(intent, text);
 
-  const escalationProfile = _resolveEscalationProfile(routed, input, supportFlags, conversationState, primaryEmotion);
-  const loopGuard = _resolveComposeLoopGuard(input, routed, conversationState, escalationProfile, supportFlags, normalizedPrimaryEmotion);
-  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile);
-  const arcState = _resolveArcState(routed, input, normalizedPrimaryEmotion, conversationState, escalationProfile);
-  const engagementState = _resolveEngagementState(input, conversationState, escalationProfile);
-  const relationalStyle = _resolveRelationalStyle(input, conversationState, engagementState, escalationProfile);
-  const responsePlan = {
-    semanticFrame: modePlan.semanticFrame,
-    deliveryTone: escalationProfile.shouldSolve ? "steadying_directive" : (engagementState.engagementLevel === "high" ? "warm_gravity" : modePlan.deliveryTone),
-    expressionStyle: escalationProfile.shouldDeepen ? "state_aware_reflection" : modePlan.expressionStyle,
-    followupStyle: escalationProfile.shouldSolve ? "explore_then_direct" : (escalationProfile.shouldDeepen ? "deep_reflection" : modePlan.followupStyle),
-    responseLength: engagementState.engagementLevel === "high" ? "medium" : (escalationProfile.shouldDeepen ? "medium" : modePlan.responseLength),
-    pacing: engagementState.preferredCadence === "tight" ? "tight" : modePlan.pacing,
-    transitionReadiness: escalationProfile.shouldSolve ? "high" : modePlan.transitionReadiness,
-    transitionTargets: modePlan.transitionTargets,
-    careSequence: modePlan.careSequence,
-    adviceLevel: escalationProfile.shouldSolve ? "medium" : modePlan.adviceLevel
+  const memoryPatch = {
+    lastIntent: intent,
+    lastDomain: domain,
+    replySignature,
+    lastReplySignature: replySignature,
+    supportUsedLastTurn: intent === "emotional_support",
+    composedOnce: true,
+    marionFinal: true,
+    final: true,
+    nextMove,
+    updatedAt: Date.now()
   };
-
-  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile, responsePlan);
-
-  const sourcePrimary = _safeObj(psychology.primary);
-  const record = _safeObj(sourcePrimary.record);
-  const interpretation =
-    _trim(record.interpretation) ||
-    _trim(record.summary) ||
-    _trim(routed.interpretation) ||
-    (_trim(normalizedPrimaryEmotion) ? `Resolved emotional posture: ${normalizedPrimaryEmotion}.` : "Resolved posture held.");
-
-  const resolvedReply = _resolveFinalReply(
-    routed,
-    input,
-    normalizedPrimaryEmotion,
-    supportMode,
-    _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
-    conversationState,
-    escalationProfile,
-    arcState,
-    engagementState,
-    relationalStyle
-  );
-  const replyBundle = _harmonizeReplyBundle(_ensureUsableReply(resolvedReply.reply || FALLBACK_REPLY, FALLBACK_REPLY));
-  let selectedFunction = _trim(resolvedReply.selectedFunction || "") || (escalationProfile.shouldDeepen ? _selectResponseFunction(normalizedPrimaryEmotion, escalationProfile, conversationState, input) : "clarify");
-  selectedFunction = _stabilizeSelectedFunction(selectedFunction, loopGuard, conversationState, input);
-  conversationState.selectedFunction = selectedFunction;
-  conversationState.lastResponseFunction = selectedFunction;
-  const followUps = _uniq(
-    _buildEscalatedFollowUps(
-      modePlan,
-      normalizedPrimaryEmotion,
-      supportFlags,
-      { ...conversationState, selectedFunction },
-      escalationProfile,
-      arcState,
-      engagementState
-    )
-  ).filter((item) => _trim(item) && _lower(item) !== _lower(replyBundle.reply) && !_isGenericLoopReply(item));
-  const strategy = { ..._buildStrategyPayload(supportMode, modePlan, routed, psychology), escalationMode: escalationProfile.mode, shouldDeepen: !!escalationProfile.shouldDeepen, shouldSolve: !!escalationProfile.shouldSolve, arcStage: arcState.stage, engagementLevel: engagementState.engagementLevel };
-  _applyComposeLoopGuard(loopGuard, conversationState, escalationProfile, responsePlan, strategy);
-  const preFinalReplyBundle = _harmonizeReplyBundle(_ensureUsableReply(replyBundle.reply, FALLBACK_REPLY), followUps);
-  const finalReplyBundle = _applyReplyLoopBreak(preFinalReplyBundle, normalizedPrimaryEmotion, selectedFunction, conversationState, loopGuard, input);
-  const replySignature = _replySignature(finalReplyBundle.reply);
-  const previousReplySignature = _trim(loopGuard.previousReplySignature || "");
-  const sameReplyCount = previousReplySignature && previousReplySignature === replySignature ? loopGuard.sameReplyCount + 1 : 0;
-  const sameFunctionCount = loopGuard.previousFunction && loopGuard.previousFunction === _lower(selectedFunction) ? loopGuard.sameFunctionCount + 1 : 0;
-  const pipelineTrace = _buildPipelineTrace(primaryDomain, supportMode, riskLevel, emotionPayload, strategy, finalReplyBundle.reply, finalReplyBundle.followUpsStrings);
-
-  try {
-    console.log("[MARION] composeMarionResponse resolve", {
-      domain: primaryDomain,
-      emotion: normalizedPrimaryEmotion,
-      supportMode,
-      riskLevel,
-      replyPreview: _trim(finalReplyBundle.reply).slice(0, 120),
-      forcedEmotionalExecution: true
-    });
-  } catch (_e) {}
 
   return {
     ok: true,
@@ -1039,119 +198,74 @@ function composeMarionResponse(routed = {}, input = {}) {
     marionFinal: true,
     composedOnce: true,
     finalizedBy: "composeMarionResponse",
-    replySignature,
-    matched: !!(psychology.matched || emotion.matched || _safeArray(sourcePrimary.matches).length),
-    domain: primaryDomain,
-    interpretation,
-    reply: finalReplyBundle.reply,
-    text: finalReplyBundle.text,
-    answer: finalReplyBundle.answer,
-    output: finalReplyBundle.output,
-    displayReply: finalReplyBundle.displayReply,
-    spokenText: finalReplyBundle.spokenText,
-    followUps: finalReplyBundle.followUpsStrings,
-    followUpsStrings: finalReplyBundle.followUpsStrings,
-    supportMode,
-    routeBias: _trim(record.routeBias || _safeObj(psychology.route).routeBias || routed.routeBias || "clarify") || "clarify",
-    riskLevel,
-    supportFlags,
-    mode: modePlan.semanticFrame,
-    intent: _trim(routed.intent || _safeObj(routed.classified).intent || _safeObj(input).intent || "general").toLowerCase() || "general",
-    emotion: emotionPayload,
-    strategy,
-    conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
-    escalationProfile,
-    memoryPatch: { lastResponseFunction: selectedFunction, sameFunctionCount, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: !!loopGuard.active, composedOnce: true, marionFinal: true, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion", arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction, loopBreakApplied: !!loopGuard.active }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true },
-    responsePlan,
-    blendProfile,
-    stateDrift,
-    guidance: _buildGuidance(modePlan, psychology, routed, supportFlags),
-    guardrails: _buildGuardrails(modePlan, psychology, routed, supportFlags),
+    version: VERSION,
+
+    domain,
+    intent,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    displayReply: reply,
+    spokenText: reply.replace(/\n+/g, " ").trim(),
+
+    followUps: [],
+    followUpsStrings: [],
+
+    supportMode: intent === "emotional_support" ? "support_then_deepen" : "none",
+    routeBias: nextMove,
+    riskLevel: distress.crisis ? "critical" : distress.high ? "high" : "low",
+    supportFlags: {
+      crisis: distress.crisis,
+      highDistress: distress.high,
+      emotional: distress.emotional
+    },
+
+    responsePlan: {
+      semanticFrame: intent,
+      deliveryTone: intent === "emotional_support" ? "warm_direct" : "clear_direct",
+      expressionStyle: "single_emission",
+      followupStyle: "none",
+      responseLength: "short",
+      pacing: "steady",
+      transitionReadiness: "high",
+      nextMove
+    },
+
     nyxDirective: {
-      tonePosture: responsePlan.deliveryTone,
-      pacing: responsePlan.pacing,
-      responseLength: responsePlan.responseLength,
-      followupStyle: responsePlan.followupStyle,
-      askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
-      shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
-      shouldMirrorIntensity: false,
       expressiveRole: "express_resolved_state_only",
       allowNyxRewrite: false,
       allowReplySynthesis: false,
-      singleSourceOfTruth: true
+      singleSourceOfTruth: true,
+      askAtMost: 0,
+      shouldOfferNextStep: true
     },
-    source: {
-      domain: primaryDomain,
-      subdomain: _trim(record.subdomain) || null,
-      topic: _trim(record.topic) || null,
-      recordId: _trim(record.id) || null,
-      routeRuleId: _trim(_safeObj(psychology.route).ruleId) || null,
-      emotion: normalizedPrimaryEmotion || null,
-      emotionIntensity: _clamp(primaryEmotion.intensity != null ? primaryEmotion.intensity : emotion.intensity, 0, 1),
-      matchScore: _num(sourcePrimary.score, 0)
-    },
+
+    memoryPatch,
+
     diagnostics: {
-      classifier: classified.classifications || {},
-      psychologyMatched: !!psychology.matched,
-      emotionMatched: !!emotion.matched,
-      supportFlagCount: Object.keys(_safeObj(supportFlags)).length,
-      forcedEmotionalExecution: true,
-      responsePlanResolved: !!Object.keys(responsePlan).length,
-      continuityDepth: _num(conversationState.depthLevel, 1),
-      threadContinuation: !!conversationState.threadContinuation,
-      escalationMode: escalationProfile.mode,
-      escalationShouldDeepen: !!escalationProfile.shouldDeepen,
-      escalationShouldSolve: !!escalationProfile.shouldSolve,
-      handoffNormalized: true,
-      replyResolvedFrom: resolvedReply.source,
-      replyAuthority: _trim(resolvedReply.authority || "marion") || "marion",
-      selectedFunction,
-      arcStage: arcState.stage,
-      arcType: arcState.arcType,
-      engagementLevel: engagementState.engagementLevel,
-      engagementCadence: engagementState.preferredCadence,
-      emissionSafe: true,
-      blockerGuardActive: true,
-      loopGuard
+      composerVersion: VERSION,
+      replySignature,
+      previousReplySignature: previousSig,
+      duplicateBroken: !!previousSig && previousSig === replySignature,
+      singleEmission: true,
+      finalAuthority: "composeMarionResponse"
     },
-    pipelineTrace,
+
     synthesis: {
-      reply: finalReplyBundle.reply,
-      text: finalReplyBundle.text,
-      answer: finalReplyBundle.answer,
-      output: finalReplyBundle.output,
-      spokenText: finalReplyBundle.spokenText,
-      followUps: finalReplyBundle.followUpsStrings,
-      followUpsStrings: finalReplyBundle.followUpsStrings,
-      supportMode,
-      responsePlan,
-      nyxDirective: {
-        tonePosture: responsePlan.deliveryTone,
-        pacing: responsePlan.pacing,
-        responseLength: responsePlan.responseLength,
-        followupStyle: responsePlan.followupStyle,
-        askAtMost: modePlan.shouldAskFollowup ? 1 : 0,
-        shouldOfferNextStep: !!modePlan.shouldOfferNextStep,
-        shouldMirrorIntensity: false,
-        expressiveRole: "express_resolved_state_only",
-      allowNyxRewrite: false,
-      allowReplySynthesis: false,
-      singleSourceOfTruth: true
-      },
-      emotion: emotionPayload,
-      strategy,
-      arcState,
-      engagementState,
-      relationalStyle,
-      conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction },
-      escalationProfile,
-      memoryPatch: { lastResponseFunction: selectedFunction, sameFunctionCount, sameReplyCount, replySignature, lastReplySignature: replySignature, sourceTurnId: _trim(input.turnId || input.sourceTurnId || ""), loopBreakApplied: !!loopGuard.active, composedOnce: true, marionFinal: true, arcState, engagementState, relationalStyle, conversationState: { ...conversationState, selectedFunction, lastResponseFunction: selectedFunction, loopBreakApplied: !!loopGuard.active }, unresolvedSignals: _safeArray(conversationState.unresolvedSignals), continuityMode: _trim(conversationState.continuityMode || "stabilize"), depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emissionSafe: true, replyAuthority: _trim(resolvedReply.authority || "marion") || "marion" }
-    },
-    matches: _safeArray(psychology.matches).map((m) => {
-      const rec = _safeObj(_safeObj(m).record);
-      return { recordId: _trim(rec.id) || null, subdomain: _trim(rec.subdomain) || null, topic: _trim(rec.topic) || null, score: _num(_safeObj(m).score, 0) };
-    })
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      spokenText: reply.replace(/\n+/g, " ").trim(),
+      followUps: [],
+      followUpsStrings: [],
+      memoryPatch
+    }
   };
 }
 
-module.exports = { composeMarionResponse };
+module.exports = {
+  VERSION,
+  composeMarionResponse
+};
