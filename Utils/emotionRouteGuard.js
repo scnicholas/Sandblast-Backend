@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "emotionRouteGuard v4.3.1 FORENSIC-NORMALIZED";
+const VERSION = "emotionRouteGuard v4.4.0 HANDOFF-CONTRACT-LOCKED";
 
 const ARCHETYPES = {
   witness: { openingStyle: "reflective_presence", questionStyle: "gentle_reflective", allowsActionShift: false },
@@ -191,6 +191,7 @@ function buildExpressionContract(strategy, lockedEmotion) {
     tone: strategy.deliveryTone,
     allowActionShift: !!strategy.conversationPlan.allowsActionShift,
     containment: !!lockedEmotion.supportFlags?.needsContainment,
+    gentlePacing: !!lockedEmotion.supportFlags?.needsGentlePacing,
     suppressMenus: !!(lockedEmotion.supportFlags?.needsContainment || lockedEmotion.supportFlags?.crisis),
     prefersSingleTurnStability: !!(lockedEmotion.supportFlags?.highDistress || questionPressure === "none")
   };
@@ -276,7 +277,6 @@ function normalizeLockedEmotion(input = {}) {
   const supportFlags = isObj(src.supportFlags) ? { ...src.supportFlags } : {};
   if (["depressed", "sadness", "grief", "loneliness", "shame", "guilt"].includes(primary)) {
     supportFlags.needsContainment = supportFlags.needsContainment || /\b(depressed|hopeless|empty|numb|ashamed|guilty|alone)\b/.test(text);
-    supportFlags.needsGentlePacing = supportFlags.needsGentlePacing || supportFlags.needsContainment;
     supportFlags.highDistress = supportFlags.highDistress || /\b(depressed|hopeless|empty|cannot cope|numb)\b/.test(text);
   }
   if (/\b(cannot go on|can't go on|want to die|kill myself|hurt myself|suicide|self harm|end it all)\b/.test(text)) {
@@ -285,10 +285,7 @@ function normalizeLockedEmotion(input = {}) {
     supportFlags.needsContainment = true;
     supportFlags.needsStabilization = true;
   }
-  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) {
-    supportFlags.needsStabilization = true;
-    supportFlags.needsGentlePacing = true;
-  }
+  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) supportFlags.needsStabilization = true;
   if (["panic", "grief", "depressed"].includes(primary)) supportFlags.preferNoQuestion = true;
   if (["joy", "gratitude", "relief", "excitement", "hope"].includes(primary)) supportFlags.canChannelForward = true;
 
@@ -363,6 +360,7 @@ function analyzeEmotionRoute(input = {}) {
       pacingBias: payload.expressionContract.pacingBias,
       caution: payload.supportFlags.needsContainment || payload.supportFlags.needsStabilization || false,
       suppressExpressiveEscalation: !!payload.supportFlags.highDistress,
+      gentlePacing: !!payload.supportFlags.needsGentlePacing,
       tone: payload.deliveryTone
     },
     stateSpine: {
@@ -371,7 +369,7 @@ function analyzeEmotionRoute(input = {}) {
       emotionCluster: payload.emotionCluster,
       emotionSupportMode: payload.supportModeCandidate,
       emotionArchetype: payload.archetype,
-      emotionNeedSoft: !!(payload.supportFlags.highDistress || payload.supportFlags.needsGentlePacing),
+      emotionNeedSoft: !!payload.supportFlags.highDistress,
       emotionNeedCrisis: !!payload.supportFlags.crisis,
       emotionShouldSuppressMenus: !!(payload.supportFlags.needsContainment || payload.supportFlags.crisis),
       transitionReadiness: payload.nuanceProfile.transitionReadiness,
