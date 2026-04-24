@@ -23,7 +23,7 @@ try {
   MoviesLane = null;
 }
 
-const LR_VERSION = "laneRouter v1.5.1 FORENSIC-NORMALIZED";
+const LR_VERSION = "laneRouter v1.6.0 LOOP-BREAK CONTRACT-LOCKED";
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -415,7 +415,7 @@ function routeLane(norm, session, emo) {
       lane: "general",
       followUps: buildEmotionalActionsForLane("general", emo, n),
       ui: buildSupportUi(),
-      meta: { supportiveRoute: true, suppressMenus: true, clearStaleUi: true }
+      meta: { supportiveRoute: true, suppressMenus: true, clearStaleUi: true, contract: "emotion-support-lock" }
     }, "general", emo, n);
   }
 
