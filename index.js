@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22";
+const INDEX_VERSION = "index.js v2.18.0sb MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -2548,6 +2548,33 @@ function denyUnauthorized(res) {
 function isConversationRoutePath(req) {
   const pathValue = cleanText(req && (req.originalUrl || req.url || req.path) || "").split("?")[0].replace(/\/+$/, "");
   return pathValue === "/api/chat" || pathValue === "/chat" || pathValue === "/respond";
+}
+
+
+function buildConversationRouteDiagnostics(req) {
+  const pathValue = cleanText(req && (req.originalUrl || req.url || req.path) || "").split("?")[0] || "";
+  return {
+    ok: true,
+    routeMounted: true,
+    routeFamily: "marion_conversation",
+    canonicalPost: "/api/chat",
+    compatibilityPosts: ["/chat", "/respond"],
+    requestedPath: pathValue,
+    method: cleanText(req && req.method || "GET"),
+    acceptsPost: true,
+    acceptsGetAsHealthOnly: true,
+    marion: getMarionRuntimeDiagnostics(),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      detail: "GET is diagnostic only. Widget chat turns must POST JSON to /api/chat."
+    }
+  };
+}
+
+function sendConversationMethodDiagnostic(req, res) {
+  hardenCors(req, res);
+  return res.status(200).json(buildConversationRouteDiagnostics(req));
 }
 
 function enforceToken(req, res, next) {
@@ -5379,12 +5406,20 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   }
 });
 
-app.options(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], (req, res) => {
+const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
+
+app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   hardenCors(req, res);
   return res.status(204).end();
 });
 
-app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], enforceToken, async (req, res) => {
+app.get(CONVERSATION_ROUTE_ALIASES, sendConversationMethodDiagnostic);
+app.head(CONVERSATION_ROUTE_ALIASES, (req, res) => {
+  hardenCors(req, res);
+  return res.status(204).end();
+});
+
+app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
   const startedAt = now();
   const norm = normalizePayload(req);
@@ -5955,6 +5990,11 @@ app.post(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"]
   return res.status(200).json({
     ok: shaped.ok !== false,
     reply: shaped.reply,
+    text: shaped.reply,
+    short: shaped.reply,
+    detail: cleanText(shaped.payload && (shaped.payload.detail || shaped.payload.longReply || shaped.payload.payloadText) || shaped.reply || ""),
+    textSpeak: cleanText(speech && speech.textSpeak || shaped.reply || ""),
+    textDisplay: cleanText(speech && speech.textDisplay || shaped.reply || ""),
     payload: shaped.payload,
     lane: shaped.lane || norm.lane || "general",
     laneId: shaped.laneId || shaped.lane || norm.lane || "general",
@@ -6118,6 +6158,21 @@ app.get(["/api/avatar/config.js", "/avatar/config.js", "/avatar/script.js"], (re
     `window.SB_NYX_AVATAR_DIRECT_VIDEO=${JSON.stringify(payload.directVideo)};\n` +
     `window.SB_NYX_AVATAR_CONFIG=${JSON.stringify(payload)};\n`
   );
+});
+
+
+app.all(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], (req, res) => {
+  if (req.method === "POST") {
+    hardenCors(req, res);
+    return res.status(503).json({
+      ok: false,
+      error: "conversation_route_fell_through",
+      path: req.path,
+      detail: "Conversation route alias reached the final guard instead of the POST handler.",
+      meta: { v: INDEX_VERSION, t: now(), diagnostics: buildConversationRouteDiagnostics(req) }
+    });
+  }
+  return sendConversationMethodDiagnostic(req, res);
 });
 
 app.use("/api", (req, res) => {
