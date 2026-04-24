@@ -1,4 +1,11 @@
 {
+  "schema_version": "marion-emotion-analysis-schema.v1.1",
+  "runtime_contract": {
+    "producer": "Marion emotion interpreter",
+    "consumer": "MarionBridge/Nyx",
+    "mode": "resolved_state_only",
+    "strict_json": true
+  },
   "emotion": {
     "primary": "sadness",
     "secondary": "fear",
@@ -76,7 +83,13 @@
     "safe_to_continue": true,
     "escalation_needed": false,
     "detected_flags": [],
-    "action_mode": "supportive_monitoring"
+    "action_mode": "supportive_monitoring",
+    "escalation_policy": {
+      "self_harm_language": "stabilize_then_external_support",
+      "violence_language": "deescalate_then_safety_boundary",
+      "panic_escalation": "grounding_first",
+      "diagnosis_block": true
+    }
   },
   "marion_handoff": {
     "interpreter_summary": "User likely needs recognition before solutions; avoid sudden reframing or heavy advice.",
@@ -90,12 +103,21 @@
       "emotion.primary",
       "nuance.subtype",
       "support.timing_profile",
-      "guard.safe_to_continue"
+      "guard.safe_to_continue",
+      "emotion.confidence",
+      "emotion.intensity",
+      "guard.action_mode",
+      "marion_handoff.nyx_contract"
     ],
     "nyx_contract": {
       "reply_mode": "resolved_state_only",
       "followup_cap": 1,
       "pacing_source": "support.timing_profile"
-    }
+    },
+    "integration_notes": [
+      "Nyx should consume only the resolved state, not raw pattern matches.",
+      "Suppression signals should reduce neutral confidence rather than erase emotional context.",
+      "High intensity caps advice and prioritizes validation/stabilization."
+    ]
   }
 }
