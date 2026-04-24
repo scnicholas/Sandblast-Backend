@@ -1,4 +1,11 @@
 {
+  "schema_version": "marion-emotion-labels.v1.1",
+  "runtime_contract": {
+    "consumer": "Marion",
+    "handoff_target": "Nyx",
+    "mode": "resolved_state_triggering",
+    "strict_json": true
+  },
   "primary_emotions": [
     "anger",
     "joy",
@@ -37,7 +44,9 @@
     "guarded",
     "emotional_numbness",
     "shame",
-    "depressed"
+    "depressed",
+    "unclear",
+    "boundary_activation"
   ],
   "intensity_scale": {
     "min": 0,
