@@ -1,1127 +1,702 @@
 "use strict";
 
-let EmotionRetriever = null;
-let PsychologyRetriever = null;
-let DomainRetriever = null;
-let DatasetRetriever = null;
-let routeMarion = null;
-let domainRouter = null;
-let composeMarionResponse = null;
-let buildResponseContract = null;
-let getIdentityCore = null;
-let getPublicIdentitySnapshot = null;
-let getRelationship = null;
-let resolveTrustState = null;
-let buildMemorySignals = null;
-let buildConsciousnessContext = null;
-let evaluateState = null;
-let resolvePrivateChannel = null;
-let normalizeMarionPacket = null;
+/**
+ * marionBridge.js
+ * Clean reduced Marion bridge.
+ *
+ * Mission:
+ * - validate inbound packet
+ * - call marionIntentRouter
+ * - call composeMarionResponse
+ * - mark final
+ * - return response
+ *
+ * Non-goals:
+ * - no fallback personality
+ * - no emotional interpretation
+ * - no packet re-wrapping
+ * - no legacy retriever orchestration
+ */
 
-try { EmotionRetriever = require("./emotionRetriever"); } catch (_e) { EmotionRetriever = null; }
-try { PsychologyRetriever = require("./psychologyRetriever"); } catch (_e) { PsychologyRetriever = null; }
-try { DomainRetriever = require("./domainRetriever"); } catch (_e) { DomainRetriever = null; }
-try { DatasetRetriever = require("./datasetRetriever"); } catch (_e) { DatasetRetriever = null; }
-try { ({ routeMarion } = require("./marionRouter")); } catch (_e) { routeMarion = null; }
-try { domainRouter = require("./domainRouter"); } catch (_e) { domainRouter = null; }
-try { ({ composeMarionResponse } = require("./composeMarionResponse")); } catch (_e) { composeMarionResponse = null; }
-try { ({ buildResponseContract } = require("./conversationalResponseSystem")); } catch (_e) { buildResponseContract = null; }
-try { ({ getIdentityCore, getPublicIdentitySnapshot } = require("./marionIdentityCore")); } catch (_e) { getIdentityCore = null; getPublicIdentitySnapshot = null; }
-try { ({ getRelationship } = require("./marionRelationshipModel")); } catch (_e) { getRelationship = null; }
-try { ({ resolveTrustState } = require("./marionTrustPolicy")); } catch (_e) { resolveTrustState = null; }
-try { ({ buildMemorySignals, buildConsciousnessContext } = require("./marionMemoryRuntime")); } catch (_e) { buildMemorySignals = null; buildConsciousnessContext = null; }
-try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { evaluateState = null; }
-try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
-try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
-
-const VERSION = "marionBridge v5.5.2 HANDSHAKE-LOOP-BREAK-9.8 + LOOP-GUARD-FINAL-ENVELOPE + PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
-const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
-const NEWS_FALLBACK_REPLY = "Here is the News Canada handoff, preserved for page rendering.";
+const VERSION = "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
-const MAX_EVIDENCE = 16;
-const MAX_RANKED_EVIDENCE = 8;
-const STRICT_REJECTION_STATUS = "bridge_rejected";
-const STRICT_REJECTION_REPLY = "Bridge rejected malformed Marion output before Nyx handoff.";
 
-const INTERNAL_BLOCKER_REPLY_PATTERNS = [
-  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
-  /bridge\s+rejected\s+malformed\s+marion\s+output\s+before\s+nyx\s+handoff/i,
-  /reply\s+emission/i,
-  /bridge_rejected/i,
-  /packet_invalid/i,
-  /contract_invalid/i
-];
+let routeMarionIntent = null;
+let composeMarionResponse = null;
 
-
-function _isFinalizedMarionEnvelope(input = {}) {
-  const src = _safeObj(input);
-  const meta = _safeObj(src.meta);
-  const packetMeta = _safeObj(_safeObj(src.packet).meta);
-  return !!(src.__marionHandled || src.marionHandled || src.marionFinal || src.final === true || meta.marionFinal || meta.final === true || packetMeta.marionFinal || packetMeta.final === true);
+try {
+  ({ routeMarionIntent } = require("./marionIntentRouter"));
+} catch (_err) {
+  routeMarionIntent = null;
 }
 
-function _markFinalEnvelope(result = {}, input = {}) {
-  if (!_safeObj(result) || !Object.keys(_safeObj(result)).length) return result;
-  const out = { ...result };
-  const reply = _trim(out.reply || out.text || out.answer || out.output || out.response || out.message || out.spokenText || out.payload?.reply || FALLBACK_REPLY) || FALLBACK_REPLY;
-  out.ok = out.ok !== false;
-  out.handled = true; out.final = true; out.marionHandled = true; out.marionFinal = true;
-  out.replyAuthority = _trim(out.replyAuthority || "marion") || "marion";
-  out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply;
-  out.spokenText = _trim(out.spokenText || reply.replace(/\n+/g, " ")) || reply;
-  out.payload = { ..._safeObj(out.payload), reply, text: reply, answer: reply, output: reply, spokenText: out.spokenText, handled: true, final: true, marionFinal: true };
-  out.meta = { ..._safeObj(out.meta), version: VERSION, handled: true, final: true, marionHandled: true, marionFinal: true, singleSourceOfTruth: true, loopGuard: "bridge_final_envelope", turnId: _trim(input.turnId || out.turnId || ""), turnFingerprint: _trim(input.turnFingerprint || out.turnFingerprint || "") };
-  if (_safeObj(out.packet) && Object.keys(_safeObj(out.packet)).length) {
-    out.packet = { ...out.packet, handled: true, final: true, marionHandled: true, marionFinal: true };
-    out.packet.meta = { ..._safeObj(out.packet.meta), handled: true, final: true, marionHandled: true, marionFinal: true, singleSourceOfTruth: true, loopGuard: "bridge_packet_final" };
-    out.packet.synthesis = { ..._safeObj(out.packet.synthesis), reply, text: reply, answer: reply, output: reply, spokenText: out.spokenText, handled: true, final: true };
+try {
+  ({ composeMarionResponse } = require("./composeMarionResponse"));
+} catch (_err) {
+  composeMarionResponse = null;
+}
+
+function safeStr(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function isObj(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeObj(value) {
+  return isObj(value) ? value : {};
+}
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function lower(value) {
+  return safeStr(value).toLowerCase();
+}
+
+function hashText(value) {
+  const source = lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = ((hash << 5) - hash) + source.charCodeAt(i);
+    hash |= 0;
   }
-  return out;
+  return String(hash >>> 0);
 }
 
-function _safeObj(v) { return !!v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
-function _safeArray(v) { return Array.isArray(v) ? v : []; }
-function _trim(v) { return v == null ? "" : String(v).trim(); }
-function _lower(v) { return _trim(v).toLowerCase(); }
-function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
-function _clamp01(v, d = 0) { return Math.max(0, Math.min(1, _num(v, d))); }
-function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
-function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return mod[name]; if (mod && typeof mod.retrieve === "function") return mod.retrieve; if (typeof mod === "function") return mod; return null; }
-function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
-function _replySignature(value = "") { return _hashText(_lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()); }
-function _technicalIntentDetected(input = {}, layer2 = {}) {
-  const raw = _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,input.userQuery,input.text,input.query,layer2.intent,layer2.domain,layer2.userQuery].filter(Boolean).join(" "));
-  return /(technical|debug|autopsy|audit|gap refinement|line.by.line|index\.js|marion|bridge|packet|normalizer|router|route|loop|handoff|syntax|script|file|fix|harden|download|zip)/i.test(raw);
-}
-function _resolveBridgeLoopGuard(input = {}, layer2 = {}, contract = {}, reply = "") {
-  const prev = _safeObj(input.previousMemory || {});
-  const patch = _safeObj(prev.memoryPatch);
-  const replySig = _replySignature(reply);
-  const prevSig = _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || "");
-  const sameReplyCount = prevSig && prevSig === replySig ? Math.max(1, _num(prev.sameReplyCount, patch.sameReplyCount || 0) + 1) : 0;
-  const currentFn = _lower(_safeObj(contract.memoryPatch).lastResponseFunction || contract.lastResponseFunction || "");
-  const previousFn = _lower(prev.lastResponseFunction || patch.lastResponseFunction || "");
-  const sameFunctionCount = previousFn && currentFn && previousFn === currentFn ? Math.max(1, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0) + 1) : 0;
-  const isTechnical = _technicalIntentDetected(input, layer2);
-  const contractLoop = !!(_safeObj(contract.memoryPatch).loopBreakApplied || contract.loopBreakApplied || _safeObj(contract.diagnostics).loopGuard?.active);
-  const active = !!(contractLoop || sameReplyCount >= 1 || sameFunctionCount >= 2 || isTechnical);
-  return { active, isTechnical, replySignature: replySig, previousReplySignature: prevSig, sameReplyCount, sameFunctionCount, contractLoop, finalizedBy: "marionBridge", composedOnce: true };
-}
-function _applyBridgeLoopGuardToMemory(turnMemory = {}, bridgeLoopGuard = {}, layer2 = {}) {
-  const mem = { ..._safeObj(turnMemory) };
-  const guard = _safeObj(bridgeLoopGuard);
-  mem.replySignature = guard.replySignature || mem.replySignature || ""; mem.lastReplySignature = guard.replySignature || mem.lastReplySignature || ""; mem.sameReplyCount = guard.sameReplyCount || 0; mem.sameFunctionCount = guard.sameFunctionCount || mem.sameFunctionCount || 0; mem.loopBreakApplied = !!guard.active; mem.marionFinal = true; mem.composedOnce = true; mem.finalizedBy = "marionBridge";
-  if (guard.active && guard.isTechnical) { mem.threadContinuation = false; mem.continuityMode = "advance"; mem.intent = layer2.intent || mem.intent; mem.domain = layer2.domain || mem.domain; mem.unresolvedSignals = _safeArray(mem.unresolvedSignals).slice(0, 2); }
-  mem.memoryPatch = { ..._safeObj(mem.memoryPatch), replySignature: mem.replySignature, lastReplySignature: mem.lastReplySignature, sameReplyCount: mem.sameReplyCount, sameFunctionCount: mem.sameFunctionCount, loopBreakApplied: mem.loopBreakApplied, marionFinal: true, composedOnce: true, finalizedBy: "marionBridge", threadContinuation: !!mem.threadContinuation, continuityMode: mem.continuityMode || "stabilize" };
-  return mem;
-}
-function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
-
-function _dedupeStrings(items = [], limit = 8) {
-  return [...new Set(_safeArray(items).map((item) => _trim(item)).filter(Boolean))].slice(0, limit);
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function _mergeTurnMemory(previousMemory = {}, conversationState = {}, memoryPatch = {}, extras = {}) {
-  const prev = _safeObj(previousMemory);
-  const convo = _safeObj(conversationState);
-  const patch = _safeObj(memoryPatch);
-  const ext = _safeObj(extras);
-
-  const prevTopics = _safeArray(prev.lastTopics);
-  const convoTopics = _safeArray(convo.lastTopics);
-  const patchTopics = _safeArray(patch.lastTopics);
-  const extraTopics = _safeArray(ext.lastTopics);
-
-  const unresolvedSignals = _dedupeStrings([]
-    .concat(_safeArray(prev.unresolvedSignals))
-    .concat(_safeArray(convo.unresolvedSignals))
-    .concat(_safeArray(patch.unresolvedSignals))
-    .concat(_safeArray(ext.unresolvedSignals)), 8);
-
-  return {
-    ...prev,
-    ...patch,
-    ...ext,
-    lastTopics: _dedupeStrings([].concat(convoTopics).concat(patchTopics).concat(extraTopics).concat(prevTopics), 8),
-    unresolvedSignals,
-    repetitionCount: Math.max(_num(prev.repetitionCount, 0), _num(convo.repetitionCount, 0), _num(patch.repetitionCount, 0), _num(ext.repetitionCount, 0)),
-    repeatQueryStreak: Math.max(_num(prev.repeatQueryStreak, 0), _num(ext.repeatQueryStreak, 0)),
-    depthLevel: Math.max(1, _num(prev.depthLevel, 1), _num(convo.depthLevel, 1), _num(patch.depthLevel, 1), _num(ext.depthLevel, 1)),
-    emotionTrend: _trim(ext.emotionTrend || patch.emotionTrend || convo.emotionTrend || prev.emotionTrend || "stable") || "stable",
-    continuityMode: _trim(ext.continuityMode || patch.continuityMode || convo.continuityMode || prev.continuityMode || "stabilize") || "stabilize",
-    threadContinuation: !!(ext.threadContinuation || patch.threadContinuation || convo.threadContinuation || prev.threadContinuation),
-    updatedAt: Date.now()
-  };
-}
-
-function _repairPacket(packet = {}, fallback = {}) {
-  const src = _safeObj(packet);
-  const fb = _safeObj(fallback);
-  const routing = _safeObj(src.routing);
-  const synthesis = _safeObj(src.synthesis);
-  const domain = _trim(routing.domain || fb.domain || "general") || "general";
-  const intent = _trim(routing.intent || fb.intent || "general") || "general";
-  const endpoint = _trim(routing.endpoint || fb.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT;
-  const repaired = { ...src, routing: { ...routing, domain, intent, endpoint }, synthesis: { ...synthesis } };
-  const synthesizedReply = _firstNonEmpty(
-    repaired.synthesis.reply,
-    repaired.synthesis.text,
-    repaired.synthesis.answer,
-    repaired.synthesis.output,
-    _trim(fb.reply),
-    _trim(fb.text),
-    _trim(fb.answer),
-    _trim(fb.output),
-    _hasStructuredRenderableContent(repaired) ? _synthesizeReplyFromStructuredContent(repaired, domain) : "",
-    _hasStructuredRenderableContent(fb) ? _synthesizeReplyFromStructuredContent(fb, domain) : "",
-    _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY
-  );
-  repaired.synthesis.reply = synthesizedReply;
-  repaired.synthesis.text = synthesizedReply;
-  repaired.synthesis.answer = synthesizedReply;
-  repaired.synthesis.output = synthesizedReply;
-  return repaired;
-}
-
-function _isInternalBlockerReply(v) {
-  const text = _lower(v || "").replace(/\s+/g, " ").trim();
-  if (!text) return false;
-  return INTERNAL_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
-}
-
-function _firstNonEmpty(...values) {
-  for (const value of values) {
-    const s = _trim(value);
-    if (s) return s;
+function firstText() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const value = safeStr(arguments[i]);
+    if (value) return value;
   }
   return "";
 }
 
-function _extractRenderableContent(source = {}) {
-  const src = _safeObj(source);
-  const payload = _safeObj(src.payload);
-  const synthesis = _safeObj(src.synthesis);
-  const content = {
-    newsItems: _safeArray(src.newsItems).concat(_safeArray(payload.newsItems)).concat(_safeArray(synthesis.newsItems)),
-    stories: _safeArray(src.stories).concat(_safeArray(payload.stories)).concat(_safeArray(synthesis.stories)),
-    articles: _safeArray(src.articles).concat(_safeArray(payload.articles)).concat(_safeArray(synthesis.articles)),
-    cards: _safeArray(src.cards).concat(_safeArray(payload.cards)).concat(_safeArray(synthesis.cards)),
-    carouselItems: _safeArray(src.carouselItems).concat(_safeArray(payload.carouselItems)).concat(_safeArray(synthesis.carouselItems)),
-    contentBlocks: _safeArray(src.contentBlocks).concat(_safeArray(payload.contentBlocks)).concat(_safeArray(synthesis.contentBlocks)),
-    sections: _safeArray(src.sections).concat(_safeArray(payload.sections)).concat(_safeArray(synthesis.sections)),
-    pageData: _safeObj(src.pageData),
-    page: _safeObj(src.page),
-    newsPage: _safeObj(src.newsPage),
-    render: _safeObj(src.render)
-  };
-  return content;
+function extractUserText(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const payload = safeObj(src.payload);
+  const packet = safeObj(src.packet);
+  const synthesis = safeObj(packet.synthesis);
+
+  return firstText(
+    src.userQuery,
+    src.text,
+    src.query,
+    src.message,
+    body.userQuery,
+    body.text,
+    body.query,
+    body.message,
+    payload.userQuery,
+    payload.text,
+    payload.query,
+    payload.message,
+    synthesis.userQuery,
+    synthesis.text
+  );
 }
 
-function _hasStructuredRenderableContent(source = {}) {
-  const content = _extractRenderableContent(source);
+function extractLane(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const session = safeObj(src.session || body.session);
+  const meta = safeObj(src.meta || body.meta);
+
+  return firstText(
+    src.lane,
+    src.sessionLane,
+    body.lane,
+    body.sessionLane,
+    session.lane,
+    meta.lane,
+    "general"
+  ) || "general";
+}
+
+function extractTurnId(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const meta = safeObj(src.meta || body.meta);
+
+  return firstText(
+    src.turnId,
+    src.requestId,
+    src.traceId,
+    src.id,
+    body.turnId,
+    body.requestId,
+    body.traceId,
+    meta.turnId,
+    meta.requestId,
+    meta.traceId
+  );
+}
+
+function extractPreviousMemory(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const session = safeObj(src.session || body.session);
+  const meta = safeObj(src.meta || body.meta);
+
+  return safeObj(
+    src.previousMemory ||
+    src.turnMemory ||
+    src.memory ||
+    body.previousMemory ||
+    body.turnMemory ||
+    body.memory ||
+    session.previousMemory ||
+    session.turnMemory ||
+    session.memory ||
+    meta.previousMemory ||
+    {}
+  );
+}
+
+function extractMarionIntentPacket(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const session = safeObj(src.session || body.session);
+  const meta = safeObj(src.meta || body.meta);
+
+  return safeObj(
+    src.marionIntent ||
+    src.intentPacket ||
+    body.marionIntent ||
+    body.intentPacket ||
+    session.marionIntent ||
+    meta.marionIntent ||
+    {}
+  );
+}
+
+function extractRequestedDomain(input = {}) {
+  const src = safeObj(input);
+  const body = safeObj(src.body);
+  const meta = safeObj(src.meta || body.meta);
+  const packet = safeObj(src.packet);
+  const routing = safeObj(packet.routing);
+
+  return firstText(
+    src.requestedDomain,
+    src.domain,
+    body.requestedDomain,
+    body.domain,
+    meta.requestedDomain,
+    meta.domain,
+    meta.preferredDomain,
+    routing.domain,
+    "general"
+  ) || "general";
+}
+
+function isAlreadyFinal(input = {}) {
+  const src = safeObj(input);
+  const meta = safeObj(src.meta);
+  const packet = safeObj(src.packet);
+  const packetMeta = safeObj(packet.meta);
+
   return !!(
-    content.newsItems.length ||
-    content.stories.length ||
-    content.articles.length ||
-    content.cards.length ||
-    content.carouselItems.length ||
-    content.contentBlocks.length ||
-    content.sections.length ||
-    Object.keys(content.pageData).length ||
-    Object.keys(content.page).length ||
-    Object.keys(content.newsPage).length ||
-    Object.keys(content.render).length
+    src.final === true ||
+    src.handled === true ||
+    src.marionFinal === true ||
+    src.marionHandled === true ||
+    meta.final === true ||
+    meta.marionFinal === true ||
+    packet.final === true ||
+    packet.marionFinal === true ||
+    packetMeta.final === true ||
+    packetMeta.marionFinal === true
   );
 }
 
-function _mergeRenderableContent(...sources) {
-  const merged = {
-    newsItems: [],
-    stories: [],
-    articles: [],
-    cards: [],
-    carouselItems: [],
-    contentBlocks: [],
-    sections: [],
-    pageData: {},
-    page: {},
-    newsPage: {},
-    render: {}
-  };
-  for (const source of sources) {
-    const content = _extractRenderableContent(source);
-    merged.newsItems = merged.newsItems.concat(content.newsItems);
-    merged.stories = merged.stories.concat(content.stories);
-    merged.articles = merged.articles.concat(content.articles);
-    merged.cards = merged.cards.concat(content.cards);
-    merged.carouselItems = merged.carouselItems.concat(content.carouselItems);
-    merged.contentBlocks = merged.contentBlocks.concat(content.contentBlocks);
-    merged.sections = merged.sections.concat(content.sections);
-    merged.pageData = { ...merged.pageData, ...content.pageData };
-    merged.page = { ...merged.page, ...content.page };
-    merged.newsPage = { ...merged.newsPage, ...content.newsPage };
-    merged.render = { ...merged.render, ...content.render };
-  }
-  merged.newsItems = _uniqBy(merged.newsItems, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
-  merged.stories = _uniqBy(merged.stories, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
-  merged.articles = _uniqBy(merged.articles, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
-  merged.cards = _uniqBy(merged.cards, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
-  merged.carouselItems = _uniqBy(merged.carouselItems, (item) => _trim(_safeObj(item).id || _safeObj(item).slug || _safeObj(item).url || _safeObj(item).title || JSON.stringify(item)));
-  merged.contentBlocks = _uniqBy(merged.contentBlocks, (item) => _trim(_safeObj(item).id || _safeObj(item).key || _safeObj(item).title || JSON.stringify(item)));
-  merged.sections = _uniqBy(merged.sections, (item) => _trim(_safeObj(item).id || _safeObj(item).key || _safeObj(item).title || JSON.stringify(item)));
-  return merged;
-}
+function normalizeInbound(input = {}) {
+  const source = safeObj(input);
+  const userQuery = extractUserText(source);
+  const turnId = extractTurnId(source) || `marion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const lane = extractLane(source);
+  const requestedDomain = extractRequestedDomain(source);
+  const previousMemory = extractPreviousMemory(source);
+  const marionIntent = extractMarionIntentPacket(source);
 
-function _synthesizeReplyFromStructuredContent(source = {}, domain = "general") {
-  const content = _extractRenderableContent(source);
-  const leadItem =
-    _safeObj(content.newsItems[0]) ||
-    _safeObj(content.stories[0]) ||
-    _safeObj(content.articles[0]) ||
-    _safeObj(content.cards[0]) ||
-    _safeObj(content.carouselItems[0]) ||
-    _safeObj(content.contentBlocks[0]);
-
-  const leadTitle = _firstNonEmpty(
-    leadItem.title,
-    leadItem.headline,
-    leadItem.label,
-    _safeObj(content.newsPage).title,
-    _safeObj(content.pageData).title,
-    _safeObj(content.page).title
-  );
-
-  if (_lower(domain).includes("news")) {
-    return leadTitle ? `News Canada content is ready: ${leadTitle}` : NEWS_FALLBACK_REPLY;
-  }
-
-  return leadTitle || FALLBACK_REPLY;
-}
-
-function _isNewsDomain(domain = "") {
-  return /(news|canada_news|news_canada|newscanada)/.test(_lower(domain));
-}
-
-function _extractTopicHints(text = "", limit = 4) {
-  return [...new Set(_lower(text).split(/[^a-z0-9_'-]+/).map((t) => t.trim()).filter((t) => t.length > 3))].slice(0, limit);
-}
-
-function _buildConversationState(text = "", previousMemory = {}, existingState = {}, emotion = {}, behavior = {}, domain = "general", intent = "general") {
-  const prevMem = _safeObj(previousMemory);
-  const prevState = _safeObj(existingState);
-  const previousEmotion = _lower(
-    _safeObj(prevState.lastEmotion).primaryEmotion ||
-    _safeObj(_safeObj(prevMem.emotion)).primaryEmotion ||
-    _safeObj(prevMem.lastEmotion).primaryEmotion ||
-    ""
-  );
-  const currentEmotion = _lower(_safeObj(emotion).primaryEmotion || "neutral");
-  const previousTopics = _safeArray(prevState.lastTopics).concat(_safeArray(prevMem.lastTopics));
-  const currentTopics = _extractTopicHints(text, 5);
-  const repeatedEmotion = !!previousEmotion && previousEmotion === currentEmotion;
-  const repeatedTopic = currentTopics.some((topic) => previousTopics.includes(topic));
-  const emotionTrend = !previousEmotion ? "initial" : (previousEmotion === currentEmotion ? "stable" : "shifted");
-  const unresolvedSignals = _uniqBy([].concat(_safeArray(prevState.unresolvedSignals)).concat(_safeArray(prevMem.unresolvedSignals)).concat(repeatedEmotion ? [currentEmotion] : []).concat(repeatedTopic ? currentTopics.slice(0, 2) : []), (v) => _trim(v));
-  const depthLevel = Math.max(1, Math.min(5, _num(prevState.depthLevel || prevMem.depthLevel, 1) + ((repeatedEmotion || repeatedTopic || behavior.repeatQuery) ? 1 : 0)));
-  const prevPatch = _safeObj(prevMem.memoryPatch);
-  return {
-    lastQuery: _trim(text),
-    lastDomain: _trim(domain || prevState.lastDomain || prevMem.domain || "general") || "general",
-    lastIntent: _trim(intent || prevState.lastIntent || prevMem.intent || "general") || "general",
-    lastEmotion: {
-      primaryEmotion: currentEmotion || "neutral",
-      intensity: _clamp01(_safeObj(emotion).intensity, 0),
-      previousEmotion: previousEmotion || null
-    },
-    previousEmotion: previousEmotion || null,
-    emotionTrend,
-    lastTopics: _uniqBy([].concat(currentTopics).concat(previousTopics), (v) => _trim(v)).slice(0, 6),
-    repetitionCount: behavior.repeatQuery ? Math.max(2, _num(prevState.repetitionCount || prevMem.repetitionCount, 1) + 1) : ((repeatedEmotion || repeatedTopic) ? Math.max(1, _num(prevState.repetitionCount || prevMem.repetitionCount, 0) + 1) : 0),
-    depthLevel,
-    unresolvedSignals: unresolvedSignals.slice(0, 6),
-    continuityMode: repeatedEmotion || repeatedTopic || behavior.repeatQuery ? "deepen" : "stabilize",
-    threadContinuation: repeatedEmotion || repeatedTopic || behavior.repeatQuery,
-    lastResponseFunction: _trim(prevPatch.lastResponseFunction || prevMem.lastResponseFunction || prevState.lastResponseFunction || ""),
-    arcState: _safeObj(prevPatch.arcState || prevMem.arcState || prevState.arcState),
-    engagementState: _safeObj(prevPatch.engagementState || prevMem.engagementState || prevState.engagementState),
-    relationalStyle: _safeObj(prevPatch.relationalStyle || prevMem.relationalStyle || prevState.relationalStyle),
-    updatedAt: Date.now()
-  };
-}
-
-function _canonicalDomain(v) {
-  const raw = _lower(v || "general");
-  if (domainRouter && typeof domainRouter.canonicalizeDomain === "function") {
-    try {
-      const mapped = _lower(domainRouter.canonicalizeDomain(raw, "general"));
-      if (mapped) return mapped === "core" ? "general" : mapped;
-    } catch (_e) {}
-  }
-  const map = { psych: "psychology", psychology: "psychology", finance: "finance", law: "law", legal: "law", english: "english", cyber: "cybersecurity", cybersecurity: "cybersecurity", ai: "ai", strategy: "strategy", marketing: "marketing", news: "news_canada", newscanada: "news_canada", newscanadapage: "news_canada", canada_news: "news_canada", news_canada: "news_canada", core: "general", general: "general" };
-  return map[raw] || "general";
-}
-
-function _inferIntent(text) {
-  const q = _lower(text);
-  if (/(sad|upset|anxious|overwhelmed|hurting|afraid|lonely|depressed|grief|panic)/.test(q)) return "support";
-  if (/(fix|debug|repair|stability|loop|bridge|error|bug|broken|issue|failure)/.test(q)) return "debug";
-  if (/(plan|roadmap|strategy|architecture|design|build|scale|execution)/.test(q)) return "strategy";
-  if (/(analysis|assess|evaluate|compare|break down|audit|critical)/.test(q)) return "analysis";
-  if (/(news|headline|headlines|article|articles|story|stories|carousel|page render|publish|published)/.test(q)) return "news";
-  if (/(research|dataset|evidence|source|reference|study|signal)/.test(q)) return "research";
-  return "general";
-}
-
-function _normalizeSupportFlags(flags = {}) {
-  const src = _safeObj(flags);
-  return {
-    crisis: !!src.crisis,
-    needsContainment: !!src.needsContainment,
-    needsStabilization: !!src.needsStabilization,
-    needsClarification: !!src.needsClarification,
-    needsConnection: !!src.needsConnection,
-    highDistress: !!src.highDistress,
-    frustration: !!src.frustration,
-    urgency: !!src.urgency,
-    repeatEscalation: !!src.repeatEscalation,
-    guardedness: !!src.guardedness,
-    suppressed: !!src.suppressed,
-    forcedPositivity: !!src.forcedPositivity,
-    minimization: !!src.minimization
-  };
-}
-
-function _analyzeBehavior(text = "", previousMemory = {}) {
-  const q = _lower(text);
-  const mem = _safeObj(previousMemory);
-  const lastQuery = _lower(mem.lastQuery || "");
-  const repeatQuery = !!q && !!lastQuery && q === lastQuery;
-  const urgencyHits = (q.match(/\b(now|urgent|asap|immediately|today|quick|fast)\b/g) || []).length;
-  const frustrationHits = (q.match(/\b(horrible|broken|annoying|stupid|mad|frustrated|angry|wtf|fail|failing)\b/g) || []).length;
-  const distressHits = (q.match(/\b(hurting|overwhelmed|panic|afraid|depressed|sad|anxious|lonely)\b/g) || []).length;
-  const directiveHits = (q.match(/\b(do|fix|update|resend|lock|stabilize|analyze|audit|build)\b/g) || []).length;
-  const cognitiveLoad = Math.min(1, ((q.split(/\s+/).filter(Boolean).length / 120) + (directiveHits * 0.03)));
-  return { messageLength: _trim(text).length, repeatQuery, repeatQueryStreak: repeatQuery ? (_num(mem.repeatQueryStreak, 0) + 1) : 0, urgencyHits, frustrationHits, distressHits, directiveHits, cognitiveLoad: Number(cognitiveLoad.toFixed(3)), volatility: Number(Math.min(1, frustrationHits * 0.18 + urgencyHits * 0.08).toFixed(3)), userState: distressHits > 0 ? "distressed" : (frustrationHits > 0 ? "frustrated" : (urgencyHits > 0 ? "urgent" : "stable")) };
-}
-
-function _normalizeEmotion(raw = {}, text = "", behavior = {}) {
-  const src = _safeObj(raw);
-  const primary = _safeObj(src.primary);
-  const supportFlags = _normalizeSupportFlags(src.supportFlags);
-  let primaryEmotion = _lower(primary.emotion || src.primaryEmotion || src.emotion || "");
-  let intensity = _clamp01(primary.intensity != null ? primary.intensity : src.intensity, 0);
-  const q = _lower(text);
-  if (!primaryEmotion) {
-    if (/(sad|down|grief|cry|depressed|heartbroken)/.test(q)) { primaryEmotion = "sadness"; intensity = Math.max(intensity, 0.78); }
-    else if (/(anxious|panic|worried|overwhelmed|scared|afraid)/.test(q)) { primaryEmotion = "fear"; intensity = Math.max(intensity, 0.76); }
-    else if (/(angry|mad|furious|frustrated|annoyed|horrible)/.test(q)) { primaryEmotion = "anger"; intensity = Math.max(intensity, 0.68); }
-    else if (/(happy|good|great|excited|love|relieved|grateful)/.test(q)) { primaryEmotion = "joy"; intensity = Math.max(intensity, 0.55); }
-    else primaryEmotion = "neutral";
-  }
-  intensity = Math.min(1, intensity + Math.min(0.16, _num(behavior.distressHits, 0) * 0.04));
-  if (["sadness", "fear"].includes(primaryEmotion)) { supportFlags.needsContainment = supportFlags.needsContainment || intensity >= 0.7; supportFlags.highDistress = supportFlags.highDistress || intensity >= 0.82 || _num(behavior.distressHits, 0) >= 2; }
-  if (_num(behavior.frustrationHits, 0) > 0) supportFlags.frustration = true;
-  if (_num(behavior.urgencyHits, 0) > 0) supportFlags.urgency = true;
-  if (behavior.repeatQuery || _num(behavior.repeatQueryStreak, 0) >= 2) supportFlags.repeatEscalation = true;
-  return { primaryEmotion, secondaryEmotion: _lower(primary.secondaryEmotion || src.secondaryEmotion || ""), intensity: Number(intensity.toFixed(3)), valence: primaryEmotion === "joy" ? 0.7 : (primaryEmotion === "neutral" ? 0 : -0.7), confidence: _clamp01(primary.confidence != null ? primary.confidence : src.confidence, 0.72), supportFlags, source: src.source || "bridge_inference" };
-}
-
-function _normalizeEvidenceItem(item, fallbackDomain = "general", fallbackSource = "bridge") {
-  if (typeof item === "string") {
-    const text = _trim(item);
-    return text ? { source: fallbackSource, domain: fallbackDomain, title: `${fallbackDomain}_evidence`, summary: text.slice(0, 220), content: text, score: 0.62, confidence: 0.62, tags: [fallbackDomain, "inline"], metadata: {} } : null;
-  }
-  const obj = _safeObj(item);
-  const content = _trim(obj.content || obj.text || obj.body || obj.summary || obj.note || "");
-  if (!content) return null;
-  return { id: obj.id || null, source: obj.source || fallbackSource, dataset: obj.dataset || obj.name || null, domain: _canonicalDomain(obj.domain || fallbackDomain), title: _trim(obj.title || obj.label || `${fallbackDomain}_evidence`) || `${fallbackDomain}_evidence`, summary: _trim(obj.summary || content.slice(0, 220)) || content.slice(0, 220), content, score: _clamp01(obj.score, 0.7), confidence: _clamp01(obj.confidence != null ? obj.confidence : obj.score, 0.7), tags: _safeArray(obj.tags).slice(0, 8), metadata: _safeObj(obj.metadata) };
-}
-
-function _normalizeEvidence(items, domain, source) {
-  return _uniqBy(_safeArray(items).map((x) => _normalizeEvidenceItem(x, domain, source)).filter(Boolean), (item) => item.id || `${item.source}|${item.domain}|${item.title}|${item.summary}`)
-    .sort((a, b) => (_num(b.score, 0) + _num(b.confidence, 0)) - (_num(a.score, 0) + _num(a.confidence, 0)));
-}
-
-function _validateInputShape(input = {}) {
-  const src = _safeObj(input);
-  const userQuery = _trim(src.userQuery || src.text || src.query || "");
-  const requestedDomain = _canonicalDomain(src.requestedDomain || src.domain || src.preferredDomain || "general");
-  const knowledgeSections = _safeObj(src.knowledgeSections || _safeObj(_safeObj(src.knowledge).knowledgeSections) || {});
-  const normalized = { userQuery, requestedDomain, previousMemory: _safeObj(src.previousMemory), datasets: [...new Set(_safeArray(src.datasets).map(_trim).filter(Boolean))], knowledgeSections, conversationState: _safeObj(src.conversationState), domainEvidence: _safeArray(src.domainEvidence), datasetEvidence: _safeArray(src.datasetEvidence), memoryEvidence: _safeArray(src.memoryEvidence), generalEvidence: _safeArray(src.generalEvidence), intent: _trim(src.intent || src.intentHint || "") };
   const issues = [];
   if (!userQuery) issues.push("user_query_missing");
-  return { ok: issues.length === 0, issues, normalized };
-}
 
-async function _callRetriever(mod, name, payload) { const fn = _pickFn(mod, name); if (!fn) return null; try { return await Promise.resolve(fn(payload)); } catch (_e) { return null; } }
-function _extractDatasets(inputDatasets = [], sections = {}) {
-  const out = [];
-  for (const item of _safeArray(inputDatasets)) out.push(_trim(item));
-  for (const value of Object.values(_safeObj(sections))) {
-    if (!Array.isArray(value)) continue;
-    for (const item of value) out.push(_trim(item));
-  }
-  return [...new Set(out.filter(Boolean))];
-}
-function _resolveCanonicalRoute(text, requestedDomain, previousMemory = {}) { if (typeof routeMarion === "function") { try { return _safeObj(routeMarion({ text, query: text, requestedDomain, domain: requestedDomain, previousMemory })); } catch (_e) {} } return { ok: true, primaryDomain: _canonicalDomain(requestedDomain), supportFlags: {}, domains: { emotion: {}, psychology: { matched: false, matches: [] } }, blendProfile: { weights: { neutral: 1 }, dominantAxis: "neutral" }, stateDrift: { previousEmotion: "", currentEmotion: "neutral", trend: "stable", stability: 1 }, classified: { classifications: {}, supportFlags: {}, domainCandidates: [_canonicalDomain(requestedDomain)] }, diagnostics: { domainCandidates: [_canonicalDomain(requestedDomain)], usedPsychology: false } }; }
-
-function _makeSoftFallbackResult(reason, detail = {}, context = {}) {
-  const userQuery = _trim(context.userQuery || context.text || "");
-  const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
-  const intent = _trim(context.intent || "general") || "general";
-  let reply = _trim(context.reply || _synthesizeReplyFromStructuredContent(context.contract || context.packet || {}, domain) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY)) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
-  if (_isInternalBlockerReply(reply)) reply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
-  const followUpsStrings = _safeArray(context.followUpsStrings).map((item) => _trim(item)).filter(Boolean).filter((item) => _lower(item) !== _lower(reply));
-  const packet = {
-    routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
-    synthesis: {
-      domain,
-      intent,
-      mode: "bridge_fallback",
-      answer: reply,
-      reply,
-      interpretation: reply,
-      supportMode: "bridge_fallback",
-      routeBias: intent,
-      riskLevel: "unknown",
-      responsePlan: { pacing: "steady", followupStyle: "reflective" },
-      nyxDirective: {
-        presentationMode: "fallback",
-        allowNyxRewrite: false,
-        allowReplySynthesis: false,
-        singleSourceOfTruth: true,
-        bridgeFallback: true
-      }
-    },
-    evidence: _safeArray(context.evidence).slice(0, MAX_RANKED_EVIDENCE),
-    meta: {
-      version: VERSION,
-      endpoint: CANONICAL_ENDPOINT,
-      bridgeFallback: true,
-      fallbackReason: _trim(reason || "bridge_fallback") || "bridge_fallback",
-      packetSignature: _hashText(`${domain}|${intent}|${reply}`)
-    }
-  };
   return {
-    ok: true,
-    partial: true,
-    rejected: false,
-    status: "fallback",
-    endpoint: CANONICAL_ENDPOINT,
+    ok: issues.length === 0,
+    issues,
+    original: source,
     userQuery,
-    domain,
-    intent,
-    reply,
-    text: reply,
-    answer: reply,
-    output: reply,
-    spokenText: reply.replace(/\n+/g, " ").trim(),
-    diagnostics: { fallback: { reason: _trim(reason || "bridge_fallback") || "bridge_fallback", detail: _safeObj(detail) } },
-    meta: packet.meta,
-    packet,
-    ui: null,
-    emotionalTurn: null,
-    followUps: followUpsStrings,
-    followUpsStrings,
-    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply.replace(/\n+/g, " ").trim(), followUpsStrings }
+    text: userQuery,
+    query: userQuery,
+    lane,
+    requestedDomain,
+    domain: requestedDomain,
+    previousMemory,
+    marionIntent,
+    turnId,
+    sessionId: firstText(source.sessionId, source.body && source.body.sessionId, source.meta && source.meta.sessionId, "public") || "public"
   };
 }
 
-function _makeRejectionResult(reason, detail = {}, context = {}) {
-  const userQuery = _trim(context.userQuery || context.text || "");
-  const domain = _trim(context.domain || context.requestedDomain || "general") || "general";
-  const intent = _trim(context.intent || "general") || "general";
-  const diagnostics = {
-    rejection: {
-      reason: _trim(reason || "bridge_rejected") || "bridge_rejected",
-      detail: _safeObj(detail)
-    }
-  };
-
-  const packet = {
-    routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
-    synthesis: {
-      domain,
-      intent,
-      mode: STRICT_REJECTION_STATUS,
-      answer: "",
-      reply: "",
-      interpretation: "",
-      supportMode: STRICT_REJECTION_STATUS,
-      routeBias: intent,
-      riskLevel: "unknown",
-      responsePlan: { pacing: "halted", followupStyle: "none" },
-      nyxDirective: {
-        presentationMode: "halt",
-        allowNyxRewrite: false,
-        allowReplySynthesis: false,
-        singleSourceOfTruth: true,
-        bridgeRejected: true
-      }
-    },
-    evidence: [],
-    meta: {
-      version: VERSION,
-      endpoint: CANONICAL_ENDPOINT,
-      bridgeRejected: true,
-      rejectionReason: diagnostics.rejection.reason,
-      packetSignature: _hashText(`${domain}|${intent}|${diagnostics.rejection.reason}`)
-    }
-  };
-
-  const safeReply = _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY;
-  return {
-    ok: true,
-    partial: true,
-    rejected: true,
-    status: STRICT_REJECTION_STATUS,
-    endpoint: CANONICAL_ENDPOINT,
-    userQuery,
-    domain,
-    intent,
-    reply: safeReply,
-    text: safeReply,
-    answer: safeReply,
-    output: safeReply,
-    spokenText: safeReply.replace(/\n+/g, " ").trim(),
-    diagnostics,
-    meta: packet.meta,
-    packet: _repairPacket(packet, { domain, intent, endpoint: CANONICAL_ENDPOINT, reply: safeReply }),
-    ui: null,
-    emotionalTurn: null,
-    followUps: [],
-    followUpsStrings: [],
-    payload: { reply: safeReply, text: safeReply, answer: safeReply, output: safeReply, spokenText: safeReply.replace(/\n+/g, " ").trim() }
-  };
-}
-
-function _validateContractShape(contract = {}) {
-  const src = _safeObj(contract);
-  const synthesis = _safeObj(src.synthesis);
-  const candidates = [
-    _trim(src.reply),
-    _trim(src.text),
-    _trim(src.answer),
-    _trim(src.output),
-    _trim(src.spokenText),
-    _trim(synthesis.reply),
-    _trim(synthesis.text),
-    _trim(synthesis.answer),
-    _trim(synthesis.output),
-    _trim(src.interpretation)
-  ].filter(Boolean);
-
-  const hasStructuredContent = _hasStructuredRenderableContent(src) || _hasStructuredRenderableContent(synthesis);
+function validateRouterResult(result = {}) {
+  const src = safeObj(result);
+  const routing = safeObj(src.routing);
+  const marionIntent = safeObj(src.marionIntent);
   const issues = [];
-  if (!Object.keys(src).length) issues.push("contract_missing");
-  if (!candidates.length && !hasStructuredContent) issues.push("authoritative_reply_missing");
-  if (candidates.some((value) => _isInternalBlockerReply(value)) && !hasStructuredContent) issues.push("authoritative_reply_blocked_internal");
-  if (_safeObj(src.responsePlan) && typeof _safeObj(src.responsePlan).pacing !== "undefined" && !_trim(_safeObj(src.responsePlan).pacing)) issues.push("response_plan_pacing_invalid");
-  if (_safeObj(src.nyxDirective) && src.nyxDirective.allowNyxRewrite === true) issues.push("nyx_rewrite_not_allowed");
 
-  return { ok: issues.length === 0, issues, authoritativeCandidates: candidates.length, hasStructuredContent };
-}
+  if (!src.ok) issues.push("router_not_ok");
+  if (!safeStr(routing.intent || marionIntent.intent)) issues.push("intent_missing");
+  if (!safeStr(routing.domain)) issues.push("domain_missing");
+  if (!safeStr(routing.endpoint)) issues.push("endpoint_missing");
 
-function _validatePacketShape(packet = {}) {
-  const src = _safeObj(packet);
-  const routing = _safeObj(src.routing);
-  const synthesis = _safeObj(src.synthesis);
-  const issues = [];
-  const hasStructuredContent = _hasStructuredRenderableContent(src) || _hasStructuredRenderableContent(synthesis);
-
-  if (!Object.keys(src).length) issues.push("packet_missing");
-  if (!_trim(routing.domain)) issues.push("packet_routing_domain_missing");
-  if (!_trim(routing.intent)) issues.push("packet_routing_intent_missing");
-  if (!_trim(routing.endpoint)) issues.push("packet_routing_endpoint_missing");
-  if (!_trim(synthesis.reply || synthesis.text || synthesis.answer || synthesis.output || synthesis.interpretation) && !hasStructuredContent) issues.push("packet_synthesis_reply_missing");
-
-  return { ok: issues.length === 0, issues, hasStructuredContent };
-}
-
-function _validatePresentationShape(presentation = {}, reply = "") {
-  const src = _safeObj(presentation);
-  const issues = [];
-  if (!Object.keys(src).length) return { ok: true, issues: [] };
-  if ("payload" in src && src.payload != null) {
-    const payload = _safeObj(src.payload);
-    const candidate = _trim(payload.reply || payload.text || payload.answer || payload.output || "");
-    const hasStructuredContent = _hasStructuredRenderableContent(payload);
-    if (candidate && candidate !== _trim(reply)) issues.push("presentation_payload_desynced");
-    if (!candidate && !hasStructuredContent && !_trim(reply)) issues.push("presentation_payload_empty");
-  }
   return { ok: issues.length === 0, issues };
 }
 
-function _buildPacket(result, evidence) {
-  const renderableContent = _mergeRenderableContent(result.contract, _safeObj(result.payload), _safeObj(result.ui), _safeObj(result.emotionalTurn));
-  const packet = {
-    routing: { domain: result.domain, intent: result.intent, endpoint: result.endpoint },
-    emotion: { lockedEmotion: result.emotion },
-    synthesis: {
-      domain: result.domain,
-      intent: result.intent,
-      mode: result.contract.supportMode,
-      answer: result.reply,
-      reply: result.reply,
-      interpretation: result.contract.interpretation,
-      supportMode: result.contract.supportMode,
-      routeBias: result.contract.routeBias,
-      riskLevel: result.contract.riskLevel,
-      responsePlan: result.contract.responsePlan,
-      nyxDirective: result.contract.nyxDirective,
-      ...renderableContent
-    },
-    evidence: _safeArray(evidence).slice(0, MAX_RANKED_EVIDENCE),
-    continuityState: result.continuityState,
-    turnMemory: result.turnMemory,
-    identityState: result.identityState,
-    relationshipState: result.relationshipState,
-    trustState: result.trustState,
-    privateChannel: result.privateChannel,
-    memorySignals: result.memorySignals,
-    consciousness: result.consciousness,
-    meta: result.meta,
-    ...renderableContent
-  };
-  const normalizedPacket = typeof normalizeMarionPacket === "function" ? normalizeMarionPacket({ ...result, packet }) : packet;
-  return _repairPacket(normalizedPacket, { ...result, endpoint: result.endpoint });
+function extractReply(contract = {}) {
+  const src = safeObj(contract);
+  const synthesis = safeObj(src.synthesis);
+  const payload = safeObj(src.payload);
+
+  return firstText(
+    src.reply,
+    src.text,
+    src.answer,
+    src.output,
+    src.response,
+    src.message,
+    src.spokenText,
+    payload.reply,
+    payload.text,
+    payload.answer,
+    payload.output,
+    synthesis.reply,
+    synthesis.text,
+    synthesis.answer,
+    synthesis.output,
+    synthesis.spokenText
+  );
 }
 
-async function retrieveLayer2Signals(input = {}) {
-  const validated = _validateInputShape(input);
-  const normalized = validated.normalized;
-  const text = normalized.userQuery;
-  const requestedDomain = normalized.requestedDomain;
-  const intent = _trim(normalized.intent) || _inferIntent(text);
-  const previousMemory = _safeObj(normalized.previousMemory);
-  const behavior = _analyzeBehavior(text, previousMemory);
-  const emotionRaw = await _callRetriever(EmotionRetriever, "retrieveEmotion", { text, query: text, userQuery: text, maxMatches: 5 });
-  const emotion = _normalizeEmotion(emotionRaw || {}, text, behavior);
-  const routing = _resolveCanonicalRoute(text, requestedDomain, previousMemory);
-  const supportFlags = _normalizeSupportFlags({ ...emotion.supportFlags, ..._safeObj(routing.supportFlags), ..._safeObj(_safeObj(routing.classified).supportFlags) });
-  const domain = _canonicalDomain(routing.primaryDomain || requestedDomain || "general");
-  const datasets = _extractDatasets(normalized.datasets, normalized.knowledgeSections);
-  const psychology = _safeObj(_safeObj(routing.domains).psychology).matched ? _safeObj(_safeObj(routing.domains).psychology) : _safeObj(await _callRetriever(PsychologyRetriever, "retrievePsychology", { text, query: text, userQuery: text, emotion, lockedEmotion: emotion, supportFlags, riskLevel: supportFlags.crisis ? "critical" : (supportFlags.highDistress ? "high" : "low"), maxMatches: 3 }));
-  const conversationState = _buildConversationState(text, previousMemory, normalized.conversationState, emotion, behavior, domain, intent);
-  const directDomainEvidence = _safeArray(await _callRetriever(DomainRetriever, "retrieve", { text, query: text, userQuery: text, domain, conversationState, maxMatches: 5 }));
-  const directDatasetEvidence = _safeArray(await _callRetriever(DatasetRetriever, "retrieveDataset", { text, query: text, userQuery: text, domain, intent, conversationState, datasets, emotion: { primaryEmotion: emotion.primaryEmotion, intensity: emotion.intensity }, psychology: { supportMode: _trim(_safeObj(_safeObj(psychology.primary).record).supportMode || _safeObj(psychology.route).supportMode || "") }, maxMatches: 6 }));
-  const evidence = _normalizeEvidence([].concat(normalized.memoryEvidence).concat(normalized.generalEvidence).concat(normalized.domainEvidence).concat(normalized.datasetEvidence).concat(directDomainEvidence).concat(directDatasetEvidence).concat(_safeArray(normalized.knowledgeSections[domain])).concat(_safeArray(normalized.knowledgeSections.general)), domain, "bridge").slice(0, MAX_EVIDENCE);
-  return {
-    endpoint: CANONICAL_ENDPOINT,
-    userQuery: text,
+function validateComposeResult(contract = {}) {
+  const src = safeObj(contract);
+  const issues = [];
+
+  if (!Object.keys(src).length) issues.push("compose_contract_missing");
+  if (src.ok === false) issues.push("compose_not_ok");
+  if (!extractReply(src)) issues.push("compose_reply_missing");
+
+  return { ok: issues.length === 0, issues };
+}
+
+function buildErrorResult(reason, detail = {}, input = {}) {
+  const normalized = safeObj(input);
+  const userQuery = safeStr(normalized.userQuery || normalized.text || normalized.query || "");
+  const turnId = safeStr(normalized.turnId || "");
+  const domain = safeStr(normalized.domain || normalized.requestedDomain || "general") || "general";
+  const intent = safeStr(normalized.intent || "bridge_error") || "bridge_error";
+  const reply = "";
+
+  return markFinal({
+    ok: false,
+    error: true,
+    status: "error",
+    reason: safeStr(reason || "bridge_error") || "bridge_error",
+    detail: safeObj(detail),
+    userQuery,
     domain,
     intent,
-    behavior,
-    emotion,
-    routing,
-    psychology,
-    supportFlags,
-    datasets,
-    conversationState,
-    evidence,
-    diagnostics: {
-      inputIssues: validated.issues,
-      evidenceIssues: evidence.length ? [] : ["evidence_empty"],
-      retrievers: {
-        emotionAvailable: !!_pickFn(EmotionRetriever, "retrieveEmotion"),
-        psychologyAvailable: !!_pickFn(PsychologyRetriever, "retrievePsychology"),
-        domainAvailable: !!_pickFn(DomainRetriever, "retrieve"),
-        datasetAvailable: !!_pickFn(DatasetRetriever, "retrieveDataset"),
-        routeMarionAvailable: typeof routeMarion === "function",
-        composeMarionResponseAvailable: typeof composeMarionResponse === "function",
-        buildResponseContractAvailable: typeof buildResponseContract === "function",
-        normalizeMarionPacketAvailable: typeof normalizeMarionPacket === "function"
-      },
-      continuity: { depthLevel: _num(conversationState.depthLevel, 1), threadContinuation: !!conversationState.threadContinuation, emotionTrend: _trim(conversationState.emotionTrend || "stable") || "stable" },
-      layer2EvidenceCounts: {
-        total: evidence.length,
-        memory: _safeArray(normalized.memoryEvidence).length,
-        general: _safeArray(normalized.generalEvidence).length,
-        domain: _safeArray(normalized.domainEvidence).length + directDomainEvidence.length,
-        dataset: _safeArray(normalized.datasetEvidence).length + directDatasetEvidence.length
-      },
-      routingDiagnostics: _safeObj(routing.diagnostics),
-      integrationReadiness: {
-        hardBlockers: [
-          typeof composeMarionResponse === "function" ? null : "composeMarionResponse_missing"
-        ].filter(Boolean),
-        optionalDependenciesMissing: [
-          !!_pickFn(DomainRetriever, "retrieve") ? null : "domainRetriever_missing",
-          !!_pickFn(DatasetRetriever, "retrieveDataset") ? null : "datasetRetriever_missing",
-          typeof buildResponseContract === "function" ? null : "buildResponseContract_missing",
-          typeof normalizeMarionPacket === "function" ? null : "normalizeMarionPacket_missing"
-        ].filter(Boolean)
-      }
-    }
-  };
-}
-
-
-function _resolveEngagementProfileForBridge(layer2 = {}, input = {}) {
-  const state = _safeObj(layer2.conversationState);
-  const previousMemory = _safeObj(input.previousMemory);
-  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).engagementState || previousMemory.engagementState);
-  const behavior = _safeObj(layer2.behavior);
-  const messageLength = Math.max(0, _num(behavior.messageLength, 0));
-  const openness = Number(_clamp((previous.openness || 0.35) + (messageLength > 120 ? 0.18 : messageLength > 60 ? 0.09 : 0) + (_safeArray(state.unresolvedSignals).length ? 0.06 : 0), 0, 1).toFixed(3));
-  const volatility = Number(_clamp(_num(behavior.volatility, previous.volatility || 0.2), 0, 1).toFixed(3));
-  const receptivity = Number(_clamp((openness * 0.6) + ((1 - volatility) * 0.4), 0, 1).toFixed(3));
-  const engagementLevel = receptivity >= 0.72 ? "high" : receptivity >= 0.48 ? "medium" : "low";
-  return { engagementLevel, openness, volatility, receptivity, preferredCadence: engagementLevel === "high" ? "deepening" : "tight" };
-}
-
-function _resolveArcStateForBridge(layer2 = {}, escalationProfile = {}, input = {}) {
-  const state = _safeObj(layer2.conversationState);
-  const previousMemory = _safeObj(input.previousMemory);
-  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).arcState || previousMemory.arcState);
-  const topics = _safeArray(state.lastTopics);
-  let stage = "opening";
-  if (_safeObj(escalationProfile).shouldSolve) stage = "resolution";
-  else if (_num(state.depthLevel,1) >= 5) stage = "reframing";
-  else if (_num(state.depthLevel,1) >= 4) stage = "differentiation";
-  else if (_num(state.depthLevel,1) >= 3) stage = "deepening";
-  return {
-    arcType: _trim(previous.arcType || "") || (_safeObj(escalationProfile).shouldSolve ? "problem_solving" : "emotional_processing"),
-    stage,
-    anchorTopic: _trim(topics[0] || previous.anchorTopic || layer2.emotion.primaryEmotion || "general") || "general",
-    anchorPerson: topics.find((t) => ["cait"].includes(_lower(t))) || _trim(previous.anchorPerson || "") || null,
-    tension: Number(_clamp((_num(state.repetitionCount,0) * 0.18) + _num(layer2.emotion.intensity,0), 0, 1).toFixed(3)),
-    resolved: _safeObj(escalationProfile).shouldSolve && _num(state.repetitionCount,0) <= 1,
-    lastShiftAt: Date.now()
-  };
-}
-
-function _resolveRelationalStyleForBridge(layer2 = {}, engagementState = {}, escalationProfile = {}, input = {}) {
-  const previousMemory = _safeObj(input.previousMemory);
-  const previous = _safeObj(_safeObj(previousMemory.memoryPatch).relationalStyle || previousMemory.relationalStyle);
-  return {
-    warmth: Number(_clamp(previous.warmth || (engagementState.engagementLevel === "high" ? 0.76 : 0.62), 0.45, 0.9).toFixed(3)),
-    gravity: Number(_clamp(previous.gravity || (_num(_safeObj(layer2.conversationState).depthLevel,1) * 0.12), 0.35, 0.85).toFixed(3)),
-    directness: Number(_clamp(previous.directness || (_safeObj(escalationProfile).shouldSolve ? 0.72 : 0.56), 0.35, 0.88).toFixed(3)),
-    invitationStyle: engagementState.engagementLevel === "high" ? "soft_magnetic" : "clean_direct",
-    intimacyCeiling: _safeObj(escalationProfile).shouldDeepen ? "measured_warm" : "measured",
-    validationDensity: _num(_safeObj(layer2.conversationState).depthLevel,1) <= 2 ? "light" : "minimal"
-  };
-}
-
-function _resolveEscalationProfileForBridge(layer2 = {}) {
-  const state = _safeObj(layer2.conversationState);
-  const supportFlags = _safeObj(layer2.supportFlags);
-  const intensity = _clamp01(_safeObj(layer2.emotion).intensity, 0);
-  const depthLevel = Math.max(1, _num(state.depthLevel, 1));
-  const repetitionCount = Math.max(0, _num(state.repetitionCount, 0));
-  const unresolvedSignals = _safeArray(state.unresolvedSignals).slice(0, 6);
-  const highDistress = !!supportFlags.highDistress || !!supportFlags.needsContainment || !!supportFlags.crisis;
-  const shouldDeepen = depthLevel >= 3 || repetitionCount >= 2 || unresolvedSignals.length >= 2 || intensity >= 0.74 || !!state.threadContinuation;
-  const shouldSolve = !highDistress && (depthLevel >= 4 || repetitionCount >= 3 || unresolvedSignals.length >= 3) && intensity < 0.82;
-  return {
-    mode: shouldDeepen ? (shouldSolve ? "explore_and_solve" : "deep_reflection") : "standard",
-    shouldDeepen,
-    shouldSolve,
-    depthLevel,
-    repetitionCount,
-    unresolvedSignals,
-    intensity,
-    emotionTrend: _trim(state.emotionTrend || "stable") || "stable",
-    threadContinuation: !!state.threadContinuation
-  };
-}
-
-function _isLegacyLeakReply(reply = "") {
-  const text = _lower(reply).replace(/\s+/g, " ").trim();
-  if (!text) return false;
-  return [
-    "i have the thread",
-    "give me one clean beat more",
-    "tell me the next piece",
-    "stay with the next honest piece",
-    "i will answer directly without flattening the conversation",
-    "continue the thread",
-    "give me one more",
-    "the real thread"
-  ].some((snippet) => text.includes(snippet));
-}
-
-function _resolveAuthoritativeReply(contract = {}, escalationProfile = {}, domain = "general") {
-  const candidates = [
-    ["contract.reply", _trim(contract.reply)],
-    ["contract.text", _trim(contract.text)],
-    ["contract.answer", _trim(contract.answer)],
-    ["contract.output", _trim(contract.output)],
-    ["contract.spokenText", _trim(contract.spokenText)],
-    ["contract.synthesis.reply", _trim(_safeObj(contract.synthesis).reply)],
-    ["contract.synthesis.text", _trim(_safeObj(contract.synthesis).text)],
-    ["contract.synthesis.answer", _trim(_safeObj(contract.synthesis).answer)],
-    ["contract.synthesis.output", _trim(_safeObj(contract.synthesis).output)],
-    ["contract.interpretation", _trim(contract.interpretation)]
-  ];
-
-  const blockedSources = [];
-  for (const [source, value] of candidates) {
-    if (!value) continue;
-    if (_isInternalBlockerReply(value)) {
-      blockedSources.push(`${source}:internal_blocker`);
-      continue;
-    }
-    if (_safeObj(escalationProfile).shouldDeepen && _isLegacyLeakReply(value)) {
-      blockedSources.push(source);
-      continue;
-    }
-    return { reply: value, source, blockedSources };
-  }
-
-  if (_hasStructuredRenderableContent(contract)) {
-    return { reply: _synthesizeReplyFromStructuredContent(contract, domain), source: "contract_structured_content", blockedSources };
-  }
-
-  return { reply: _isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY, source: "bridge_fallback", blockedSources };
-}
-
-function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "", followUpsStrings = [], contract = {}, domain = "general") {
-  const reply = _trim(authoritativeReply) || (_isNewsDomain(domain) ? NEWS_FALLBACK_REPLY : FALLBACK_REPLY);
-  const renderableContent = _mergeRenderableContent(payload, contract);
-  const synced = _safeObj(payload) ? { ...payload } : {};
-  if ("reply" in synced || !Object.keys(synced).length) synced.reply = reply;
-  synced.response = reply;
-  synced.message = reply;
-  synced.text = reply;
-  synced.answer = reply;
-  synced.output = reply;
-  synced.fallbackResponse = reply;
-  synced.replySeed = reply;
-  synced.spokenText = reply.replace(/\n+/g, " ").trim();
-  Object.assign(synced, renderableContent);
-  if (_safeArray(followUpsStrings).length) synced.followUpsStrings = _safeArray(followUpsStrings).map((item) => _trim(item)).filter(Boolean);
-  return synced;
-}
-
-async function processWithMarion(input = {}) {
-  if (_isFinalizedMarionEnvelope(input)) return _markFinalEnvelope(input, input);
-  const inputValidation = _validateInputShape(input);
-  if (!inputValidation.ok) {
-    return _makeSoftFallbackResult("input_invalid", { issues: inputValidation.issues }, { userQuery: inputValidation.normalized.userQuery, requestedDomain: inputValidation.normalized.requestedDomain, intent: _trim(inputValidation.normalized.intent || "general") || "general" });
-  }
-  const layer2 = await retrieveLayer2Signals(inputValidation.normalized);
-  const identityState = typeof getPublicIdentitySnapshot === "function" ? getPublicIdentitySnapshot() : { name: "Marion", role: "private interpreter" };
-  const relationshipState = typeof getRelationship === "function" ? getRelationship({ principalId: input?.principalId || input?.sessionId || input?.actor || "public" }) : { principalId: "public", trustTier: "public", channelEntitlement: "public_filtered" };
-  const trustState = typeof resolveTrustState === "function" ? resolveTrustState(relationshipState, { requestedMode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { tier: relationshipState.trustTier || "public", level: 1, effectiveChannel: "relay_to_nyx" };
-  const memorySignals = typeof buildMemorySignals === "function" ? buildMemorySignals({ previousMemory: input.previousMemory || {}, emotion: layer2.emotion, relationship: relationshipState, trustState, identity: identityState, intent: layer2.intent }) : { retentionClass: "hold", privatePartition: "public_filtered" };
-  const continuityState = { activeQuery: layer2.userQuery, activeDomain: layer2.domain, activeIntent: layer2.intent, activeEmotion: layer2.emotion.primaryEmotion, emotionalIntensity: layer2.emotion.intensity, responseMode: "clarify_and_sequence", continuityHealth: layer2.conversationState.threadContinuation ? "engaged" : (layer2.behavior.repeatQuery ? "stressed" : "stable"), currentState: "receptive", depthLevel: _num(layer2.conversationState.depthLevel, 1), emotionTrend: _trim(layer2.conversationState.emotionTrend || "stable") || "stable", unresolvedSignals: _safeArray(layer2.conversationState.unresolvedSignals), lastTopics: _safeArray(layer2.conversationState.lastTopics), threadContinuation: !!layer2.conversationState.threadContinuation, timestamp: Date.now() };
-  const stateTransition = typeof evaluateState === "function" ? evaluateState({ emotion: layer2.emotion, trustState, continuityState, intent: layer2.intent }) : { current: "receptive", previous: "receptive", reason: "fallback", stability: 0.8 };
-  continuityState.currentState = stateTransition.current;
-  continuityState.responseMode = stateTransition.current;
-  const privateChannel = typeof resolvePrivateChannel === "function" ? resolvePrivateChannel({ trustState, relationship: relationshipState, mode: input.mode || input.requestedMode || "", privateChannelRequested: !!input.privateChannelRequested }) : { active: false, mode: "relay_to_nyx", target: "nyx" };
-  const consciousness = typeof buildConsciousnessContext === "function" ? buildConsciousnessContext({ identity: identityState, relationship: relationshipState, trustState, memorySignals }) : { trustState, memorySignals };
-  const escalationProfile = _resolveEscalationProfileForBridge(layer2);
-  const engagementState = _resolveEngagementProfileForBridge(layer2, input);
-  const arcState = _resolveArcStateForBridge(layer2, escalationProfile, input);
-  const relationalStyle = _resolveRelationalStyleForBridge(layer2, engagementState, escalationProfile, input);
-  continuityState.responseMode = escalationProfile.mode;
-  let contract = null;
-  if (typeof composeMarionResponse === "function") {
-    contract = composeMarionResponse(
-      { primaryDomain: layer2.domain, emotion: layer2.emotion, psychology: layer2.psychology, supportFlags: layer2.supportFlags, blendProfile: _safeObj(layer2.routing.blendProfile), stateDrift: _safeObj(layer2.routing.stateDrift), routeBias: _trim(_safeObj(_safeObj(layer2.psychology).route).routeBias || layer2.intent || ""), conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle },
-      { domain: layer2.domain, intent: layer2.intent, emotion: layer2.emotion, behavior: layer2.behavior, evidence: layer2.evidence, identityState, relationshipState, trustState, privateChannel, memorySignals, conversationState: layer2.conversationState, escalationProfile, arcState, engagementState, relationalStyle, previousMemory: input.previousMemory || {} }
-    );
-  } else {
-    return _makeSoftFallbackResult("compose_marion_response_unavailable", { dependency: "composeMarionResponse" }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, evidence: layer2.evidence });
-  }
-
-  const contractValidation = _validateContractShape(contract);
-  if (!contractValidation.ok) {
-    return _makeSoftFallbackResult("marion_contract_invalid", { issues: contractValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, contract, evidence: layer2.evidence });
-  }
-
-  const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
-  const reply = _trim((!_isInternalBlockerReply(authoritativeReply.reply) && authoritativeReply.reply) || FALLBACK_REPLY) || FALLBACK_REPLY;
-  const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
-  const bridgeLoopGuard = _resolveBridgeLoopGuard(input, layer2, contract, reply);
-  const memoryPatch = { ..._safeObj(contract.memoryPatch), replySignature: bridgeLoopGuard.replySignature, lastReplySignature: bridgeLoopGuard.replySignature, sameReplyCount: bridgeLoopGuard.sameReplyCount, sameFunctionCount: bridgeLoopGuard.sameFunctionCount, loopBreakApplied: !!bridgeLoopGuard.active, marionFinal: true, composedOnce: true, finalizedBy: "marionBridge" };
-  let turnMemory = _mergeTurnMemory(input.previousMemory || {}, layer2.conversationState, memoryPatch, {
-    lastQuery: layer2.userQuery,
-    domain: layer2.domain,
-    intent: layer2.intent,
-    emotion: { primaryEmotion: layer2.emotion.primaryEmotion, intensity: layer2.emotion.intensity },
-    lastEmotion: layer2.conversationState.lastEmotion,
-    escalationProfile,
-    arcState,
-    engagementState,
-    relationalStyle,
-    behavior: { userState: layer2.behavior.userState, volatility: layer2.behavior.volatility, urgencyHits: layer2.behavior.urgencyHits, frustrationHits: layer2.behavior.frustrationHits, messageLength: layer2.behavior.messageLength },
-    repeatQueryStreak: layer2.behavior.repeatQueryStreak,
-    trustTier: trustState.tier,
-    state: stateTransition.current,
-    lastDomain: layer2.domain,
-    lastIntent: layer2.intent
-  });
-  turnMemory = _applyBridgeLoopGuardToMemory(turnMemory, bridgeLoopGuard, layer2);
-
-  const contractRenderableContent = _mergeRenderableContent(contract);
-  const contractLocked = {
-    ...contract,
-    final: true, marionFinal: true, handled: true, composedOnce: true, finalizedBy: "marionBridge", replySignature: bridgeLoopGuard.replySignature,
-    ...contractRenderableContent,
-    reply,
-    output: reply,
-    synthesis: { ..._safeObj(contract.synthesis), ...contractRenderableContent, reply, output: reply, answer: reply },
-    diagnostics: {
-      ..._safeObj(contract.diagnostics),
-      authoritativeReplySource: authoritativeReply.source,
-      blockedLegacyReplySources: authoritativeReply.blockedSources,
-      marionSingleSourceOfTruth: true,
-      structuredRenderableContent: _hasStructuredRenderableContent(contractRenderableContent),
-      bridgeLoopGuard,
-      arcStage: _trim(_safeObj(arcState).stage || ""),
-      engagementLevel: _trim(_safeObj(engagementState).engagementLevel || "")
-    }
-  };
-
-  const packetSeed = {
-    routing: { domain: layer2.domain, intent: layer2.intent, endpoint: layer2.endpoint },
-    emotion: { lockedEmotion: layer2.emotion },
-    synthesis: {
-      domain: layer2.domain,
-      intent: layer2.intent,
-      mode: contractLocked.supportMode,
-      answer: reply,
-      reply,
-      interpretation: contractLocked.interpretation,
-      supportMode: contractLocked.supportMode,
-      routeBias: contractLocked.routeBias,
-      riskLevel: contractLocked.riskLevel,
-      responsePlan: contractLocked.responsePlan,
-      nyxDirective: contractLocked.nyxDirective
-    },
-    evidence: _safeArray(layer2.evidence).slice(0, MAX_RANKED_EVIDENCE),
-    continuityState,
-    turnMemory,
-    identityState,
-    relationshipState,
-    trustState,
-    privateChannel,
-    memorySignals,
-    consciousness,
-    meta: { version: VERSION, endpoint: layer2.endpoint, seed: true }
-  };
-
-  const result = {
-    ok: true,
-    final: true, marionFinal: true, handled: true, composedOnce: true, finalizedBy: "marionBridge", replySignature: bridgeLoopGuard.replySignature,
-    partial: layer2.diagnostics.inputIssues.length > 0,
-    status: "ok",
-    endpoint: layer2.endpoint,
-    userQuery: layer2.userQuery,
-    domain: layer2.domain,
-    intent: layer2.intent,
-    emotion: layer2.emotion,
-    behavior: layer2.behavior,
-    psychology: layer2.psychology,
-    evidence: layer2.evidence,
-    contract: contractLocked,
-    response: reply,
-    fallbackResponse: reply,
-    replySeed: reply,
-    message: reply,
     reply,
     text: reply,
     answer: reply,
     output: reply,
-    spokenText: reply.replace(/\n+/g, " ").trim(),
-    continuityState,
-    turnMemory,
-    identityState,
-    relationshipState,
-    trustState,
-    privateChannel,
-    memorySignals,
-    consciousness,
+    spokenText: reply,
+    followUps: [],
+    followUpsStrings: [],
+    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply },
     diagnostics: {
-      ...layer2.diagnostics,
-      marionReplyAuthority: {
-        source: authoritativeReply.source,
-        blockedLegacyReplySources: authoritativeReply.blockedSources,
-        internalBlockerSuppressed: authoritativeReply.blockedSources.some((item) => _lower(item).includes("internal_blocker")),
-        escalationMode: escalationProfile.mode,
-        singleSourceOfTruth: true
-      },
-      bridgeLoopGuard
+      bridgeVersion: VERSION,
+      bridgeError: true,
+      reason: safeStr(reason || "bridge_error") || "bridge_error",
+      detail: safeObj(detail)
     },
-    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), replySignature: bridgeLoopGuard.replySignature, loopBreakApplied: !!bridgeLoopGuard.active, knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode, structuredRenderableContent: _hasStructuredRenderableContent(contractLocked), final: true, marionFinal: true, handled: true, finalizedBy: "marionBridge" },
-    layer2
+    meta: {
+      version: VERSION,
+      endpoint: CANONICAL_ENDPOINT,
+      turnId,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      finalizedBy: "marionBridge",
+      bridgeReduced: true
+    }
+  }, normalized);
+}
+
+function buildPacket({ normalized, routed, contract, reply, replySignature }) {
+  const routing = safeObj(routed.routing);
+  const intent = safeStr(routing.intent || safeObj(routed.marionIntent).intent || contract.intent || "simple_chat") || "simple_chat";
+  const domain = safeStr(routing.domain || contract.domain || normalized.domain || "general") || "general";
+  const endpoint = safeStr(routing.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT;
+  const synthesis = safeObj(contract.synthesis);
+
+  return {
+    routing: { domain, intent, endpoint },
+    synthesis: {
+      ...synthesis,
+      domain,
+      intent,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      spokenText: safeStr(contract.spokenText || synthesis.spokenText || reply.replace(/\n+/g, " ")) || reply
+    },
+    memoryPatch: safeObj(contract.memoryPatch),
+    meta: {
+      version: VERSION,
+      endpoint,
+      turnId: normalized.turnId,
+      replySignature,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      finalizedBy: "marionBridge",
+      bridgeReduced: true,
+      singleSourceOfTruth: true
+    }
+  };
+}
+
+function markFinal(result = {}, input = {}) {
+  const src = safeObj(result);
+  const normalized = safeObj(input);
+  const reply = extractReply(src);
+  const replySignature = safeStr(src.replySignature || hashText(reply));
+  const spokenText = safeStr(src.spokenText || reply.replace(/\n+/g, " ")) || reply;
+
+  const out = {
+    ...src,
+    ok: src.ok !== false,
+    final: true,
+    handled: true,
+    marionFinal: true,
+    marionHandled: true,
+    composedOnce: true,
+    finalizedBy: "marionBridge",
+    replyAuthority: "composeMarionResponse",
+    replySignature,
+    endpoint: safeStr(src.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
+    userQuery: safeStr(src.userQuery || normalized.userQuery || normalized.text || ""),
+    domain: safeStr(src.domain || normalized.domain || normalized.requestedDomain || "general") || "general",
+    intent: safeStr(src.intent || normalized.intent || "simple_chat") || "simple_chat",
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText,
+    followUps: safeArray(src.followUps),
+    followUpsStrings: safeArray(src.followUpsStrings),
+    payload: {
+      ...safeObj(src.payload),
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      spokenText,
+      final: true,
+      marionFinal: true,
+      handled: true
+    },
+    meta: {
+      ...safeObj(src.meta),
+      version: VERSION,
+      endpoint: safeStr(src.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
+      turnId: safeStr(normalized.turnId || src.turnId || safeObj(src.meta).turnId || ""),
+      final: true,
+      marionFinal: true,
+      handled: true,
+      finalizedBy: "marionBridge",
+      bridgeReduced: true,
+      noFallbackPersonality: true,
+      noRewrap: true,
+      singleSourceOfTruth: true,
+      replySignature
+    }
   };
 
-  let ui = null;
-  let emotionalTurn = null;
-  let followUps = contractFollowUps;
-  let followUpsStrings = contractFollowUps.slice();
-  let payload = null;
-
-  if (typeof buildResponseContract === "function") {
-    try {
-      const presentation = buildResponseContract(result, packetSeed);
-      ui = presentation.ui;
-      emotionalTurn = presentation.emotionalTurn;
-      const presentationFollowUps = _safeArray(presentation.followUps).map((item) => _trim(item)).filter(Boolean);
-      const presentationFollowUpStrings = _safeArray(presentation.followUpsStrings).map((item) => _trim(item)).filter(Boolean);
-      followUps = presentationFollowUps.length ? presentationFollowUps : contractFollowUps;
-      followUpsStrings = presentationFollowUpStrings.length ? presentationFollowUpStrings : followUps.map((item) => _trim(item)).filter(Boolean);
-      const presentationValidation = _validatePresentationShape(presentation, reply);
-      if (!presentationValidation.ok) {
-        payload = _synchronizeAuthoritativePayload(_safeObj(presentation.payload), reply, followUpsStrings, contractLocked, layer2.domain);
-      } else {
-        payload = _synchronizeAuthoritativePayload(presentation.payload, reply, followUpsStrings, contractLocked, layer2.domain);
-      }
-    } catch (_e) {
-      payload = _synchronizeAuthoritativePayload({}, reply, followUpsStrings, contractLocked, layer2.domain);
-    }
+  if (!isObj(out.packet) || !Object.keys(out.packet).length) {
+    out.packet = {
+      routing: { domain: out.domain, intent: out.intent, endpoint: out.endpoint },
+      synthesis: { reply, text: reply, answer: reply, output: reply, spokenText },
+      memoryPatch: safeObj(out.memoryPatch),
+      meta: out.meta
+    };
   } else {
-    payload = _synchronizeAuthoritativePayload(payload, reply, followUpsStrings, contractLocked, layer2.domain);
+    out.packet = {
+      ...out.packet,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      routing: {
+        ...safeObj(out.packet.routing),
+        domain: safeStr(safeObj(out.packet.routing).domain || out.domain),
+        intent: safeStr(safeObj(out.packet.routing).intent || out.intent),
+        endpoint: safeStr(safeObj(out.packet.routing).endpoint || out.endpoint)
+      },
+      synthesis: {
+        ...safeObj(out.packet.synthesis),
+        reply,
+        text: reply,
+        answer: reply,
+        output: reply,
+        spokenText
+      },
+      meta: {
+        ...safeObj(out.packet.meta),
+        ...out.meta,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        finalizedBy: "marionBridge"
+      }
+    };
   }
 
-  const finalizedResult = { ...result, ui, emotionalTurn, followUps, followUpsStrings, payload };
-  const packet = _buildPacket(finalizedResult, layer2.evidence);
-  const packetValidation = _validatePacketShape(packet);
-  if (!packetValidation.ok) {
-    return _makeSoftFallbackResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, reply, followUpsStrings, packet, evidence: layer2.evidence, contract: contractLocked });
+  return out;
+}
+
+function normalizeComposeInput(normalized, routed) {
+  const routing = safeObj(routed.routing);
+  const marionIntent = safeObj(routed.marionIntent);
+
+  return {
+    userQuery: normalized.userQuery,
+    text: normalized.userQuery,
+    query: normalized.userQuery,
+    domain: safeStr(routing.domain || normalized.domain || "general") || "general",
+    requestedDomain: safeStr(routing.domain || normalized.requestedDomain || "general") || "general",
+    intent: safeStr(routing.intent || marionIntent.intent || "simple_chat") || "simple_chat",
+    marionIntent,
+    routing,
+    previousMemory: normalized.previousMemory,
+    lane: normalized.lane,
+    sessionId: normalized.sessionId,
+    turnId: normalized.turnId,
+    sourceTurnId: normalized.turnId
+  };
+}
+
+async function processWithMarion(input = {}) {
+  if (isAlreadyFinal(input)) return markFinal(input, input);
+
+  const normalized = normalizeInbound(input);
+  if (!normalized.ok) {
+    return buildErrorResult("input_invalid", { issues: normalized.issues }, normalized);
   }
 
-  return _markFinalEnvelope({ ...finalizedResult, packet }, input);
+  if (typeof routeMarionIntent !== "function") {
+    return buildErrorResult("intent_router_unavailable", { dependency: "marionIntentRouter.routeMarionIntent" }, normalized);
+  }
+
+  if (typeof composeMarionResponse !== "function") {
+    return buildErrorResult("composer_unavailable", { dependency: "composeMarionResponse.composeMarionResponse" }, normalized);
+  }
+
+  const routed = await Promise.resolve(routeMarionIntent({
+    text: normalized.userQuery,
+    query: normalized.userQuery,
+    userQuery: normalized.userQuery,
+    lane: normalized.lane,
+    requestedDomain: normalized.requestedDomain,
+    domain: normalized.domain,
+    marionIntent: normalized.marionIntent,
+    previousMemory: normalized.previousMemory,
+    session: {
+      lane: normalized.lane,
+      previousMemory: normalized.previousMemory,
+      marionIntent: normalized.marionIntent
+    },
+    turnId: normalized.turnId
+  }));
+
+  const routerValidation = validateRouterResult(routed);
+  if (!routerValidation.ok) {
+    return buildErrorResult("intent_router_invalid", { issues: routerValidation.issues, routed }, normalized);
+  }
+
+  const composeInput = normalizeComposeInput(normalized, routed);
+  const contract = await Promise.resolve(composeMarionResponse({
+    ...safeObj(routed),
+    primaryDomain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
+    domain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
+    intent: safeStr(safeObj(routed.routing).intent || composeInput.intent),
+    routing: safeObj(routed.routing),
+    marionIntent: safeObj(routed.marionIntent)
+  }, composeInput));
+
+  const composeValidation = validateComposeResult(contract);
+  if (!composeValidation.ok) {
+    return buildErrorResult("composer_invalid", { issues: composeValidation.issues }, {
+      ...normalized,
+      intent: composeInput.intent,
+      domain: composeInput.domain
+    });
+  }
+
+  const reply = extractReply(contract);
+  const replySignature = hashText(reply);
+  const packet = buildPacket({ normalized: composeInput, routed, contract, reply, replySignature });
+
+  return markFinal({
+    ...safeObj(contract),
+    ok: true,
+    status: "ok",
+    endpoint: safeStr(safeObj(routed.routing).endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
+    userQuery: normalized.userQuery,
+    domain: composeInput.domain,
+    intent: composeInput.intent,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply,
+    replySignature,
+    packet,
+    payload: {
+      ...safeObj(contract.payload),
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply
+    },
+    diagnostics: {
+      ...safeObj(contract.diagnostics),
+      bridgeVersion: VERSION,
+      bridgeReduced: true,
+      validatedPacket: true,
+      routerCalled: true,
+      composerCalled: true,
+      finalMarked: true,
+      noFallbackPersonality: true,
+      noEmotionalInterpretation: true,
+      noRewrap: true,
+      routerVersion: safeStr(routed.routerVersion || routed.VERSION || ""),
+      composerVersion: safeStr(contract.version || "")
+    },
+    meta: {
+      ...safeObj(contract.meta),
+      version: VERSION,
+      endpoint: CANONICAL_ENDPOINT,
+      turnId: normalized.turnId,
+      routedIntent: composeInput.intent,
+      routedDomain: composeInput.domain,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      finalizedBy: "marionBridge",
+      bridgeReduced: true,
+      replySignature
+    },
+    routed
+  }, composeInput);
+}
+
+async function retrieveLayer2Signals(input = {}) {
+  const normalized = normalizeInbound(input);
+  if (!normalized.ok) {
+    return {
+      ok: false,
+      issues: normalized.issues,
+      userQuery: normalized.userQuery,
+      domain: normalized.domain,
+      intent: "input_invalid",
+      diagnostics: { bridgeReduced: true, noLegacyRetrievers: true }
+    };
+  }
+
+  if (typeof routeMarionIntent !== "function") {
+    return {
+      ok: false,
+      issues: ["intent_router_unavailable"],
+      userQuery: normalized.userQuery,
+      domain: normalized.domain,
+      intent: "router_unavailable",
+      diagnostics: { bridgeReduced: true, noLegacyRetrievers: true }
+    };
+  }
+
+  const routed = await Promise.resolve(routeMarionIntent({
+    text: normalized.userQuery,
+    query: normalized.userQuery,
+    userQuery: normalized.userQuery,
+    lane: normalized.lane,
+    requestedDomain: normalized.requestedDomain,
+    domain: normalized.domain,
+    marionIntent: normalized.marionIntent,
+    previousMemory: normalized.previousMemory,
+    turnId: normalized.turnId
+  }));
+
+  const routing = safeObj(routed.routing);
+  return {
+    ok: true,
+    endpoint: safeStr(routing.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
+    userQuery: normalized.userQuery,
+    domain: safeStr(routing.domain || normalized.domain || "general") || "general",
+    intent: safeStr(routing.intent || safeObj(routed.marionIntent).intent || "simple_chat") || "simple_chat",
+    routing,
+    marionIntent: safeObj(routed.marionIntent),
+    diagnostics: {
+      bridgeReduced: true,
+      noLegacyRetrievers: true,
+      routerCalled: true,
+      routerVersion: safeStr(routed.routerVersion || "")
+    }
+  };
 }
 
 function createMarionBridge(options = {}) {
-  const memoryProvider = _safeObj(options.memoryProvider);
-  const evidenceEngine = _safeObj(options.evidenceEngine);
+  const memoryProvider = safeObj(options.memoryProvider);
+
   return {
     version: VERSION,
     canonicalEndpoint: CANONICAL_ENDPOINT,
     async maybeResolve(req = {}) {
-      const meta = _safeObj(req.meta);
-      const previousMemory = memoryProvider && typeof memoryProvider.getContext === "function" ? await Promise.resolve(memoryProvider.getContext(req)) : {};
-      const collectedEvidence = evidenceEngine && typeof evidenceEngine.collect === "function" ? await Promise.resolve(evidenceEngine.collect(req)) : [];
-      const knowledgeSections = _safeObj(meta.knowledgeSections || meta.knowledge || {});
-      const datasets = _extractDatasets(meta.datasets, knowledgeSections);
+      const meta = safeObj(req.meta);
+      const previousMemory = typeof memoryProvider.getContext === "function"
+        ? safeObj(await Promise.resolve(memoryProvider.getContext(req)))
+        : safeObj(req.previousMemory || meta.previousMemory || req.session && req.session.previousMemory || {});
+
       const result = await processWithMarion({
-        userQuery: req.userQuery || req.text || req.query || _trim(_safeObj(req.body).text || _safeObj(req.body).query || ""),
-        requestedDomain: meta.preferredDomain || meta.domain || req.domain || req.requestedDomain || "",
-        conversationState: _safeObj(meta.session || req.session || req.conversationState),
+        ...safeObj(req),
+        userQuery: firstText(req.userQuery, req.text, req.query, safeObj(req.body).text, safeObj(req.body).query),
+        requestedDomain: firstText(meta.preferredDomain, meta.domain, req.domain, req.requestedDomain, "general"),
         previousMemory,
-        datasets,
-        knowledgeSections,
-        domainEvidence: _safeArray(collectedEvidence),
-        datasetEvidence: _safeArray(meta.datasetEvidence),
-        memoryEvidence: _safeArray(meta.memoryEvidence),
-        generalEvidence: _safeArray(meta.generalEvidence),
-        mode: _trim(meta.mode || req.mode || ""),
-        privateChannelRequested: !!meta.privateChannelRequested,
-        principalId: _trim(meta.principalId || req.principalId || req.sessionId || "public"),
-        sessionId: _trim(req.sessionId || meta.sessionId || "public"),
-        intent: _trim(meta.intent || req.intent || ""),
-        turnId: _trim(meta.turnId || req.turnId || req.id || ""),
-        turnFingerprint: _trim(meta.turnFingerprint || req.turnFingerprint || "")
+        marionIntent: safeObj(req.marionIntent || meta.marionIntent || safeObj(req.session).marionIntent),
+        turnId: firstText(meta.turnId, req.turnId, req.id, meta.requestId, req.requestId),
+        sessionId: firstText(req.sessionId, meta.sessionId, "public"),
+        lane: firstText(req.lane, meta.lane, safeObj(req.session).lane, "general")
       });
-      const renderableContent = _mergeRenderableContent(result.packet, result.payload, result.ui, result.emotionalTurn, result.contract);
+
       return {
-        usedBridge: (!!result.ok || result.partial || result.rejected) && (!!_trim(result.reply) || _hasStructuredRenderableContent(renderableContent) || !!result.packet),
+        usedBridge: result.ok !== false && !!safeStr(result.reply),
         packet: result.packet,
         response: result.reply,
         fallbackResponse: result.reply,
@@ -1129,34 +704,44 @@ function createMarionBridge(options = {}) {
         message: result.reply,
         reply: result.reply,
         text: result.reply,
+        answer: result.reply,
         output: result.reply,
         spokenText: result.spokenText,
         domain: result.domain,
         intent: result.intent,
         endpoint: result.endpoint,
-        meta: { ..._safeObj(result.meta), final: true, marionFinal: true, handled: true, finalizedBy: "marionBridge" },
+        meta: result.meta,
         diagnostics: result.diagnostics,
-        ui: result.ui,
-        emotionalTurn: result.emotionalTurn,
         followUps: result.followUps,
         followUpsStrings: result.followUpsStrings,
         payload: result.payload,
-        result,
-        privateChannel: result.privateChannel,
-        trustState: result.trustState,
-        consciousness: result.consciousness,
-        ...renderableContent
+        result
       };
     }
   };
 }
 
-async function route(input = {}) { return _markFinalEnvelope(await processWithMarion(input), input); }
+async function route(input = {}) {
+  return processWithMarion(input);
+}
+
 async function maybeResolve(input = {}) {
   const bridge = createMarionBridge();
   return bridge.maybeResolve(input);
 }
+
 const ask = route;
 const handle = route;
 
-module.exports = { VERSION, CANONICAL_ENDPOINT, retrieveLayer2Signals, processWithMarion, createMarionBridge, route, maybeResolve, ask, handle, default: route };
+module.exports = {
+  VERSION,
+  CANONICAL_ENDPOINT,
+  retrieveLayer2Signals,
+  processWithMarion,
+  createMarionBridge,
+  route,
+  maybeResolve,
+  ask,
+  handle,
+  default: route
+};
