@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionPacketNormalizer v1.2.2 MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
+const VERSION = "marionPacketNormalizer v1.2.3 DATA-MARION-RUNTIME-PATH + MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
 
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 const DEFAULT_ENDPOINT = "marion://routeMarion.primary";
@@ -8,6 +8,21 @@ const MAX_EVIDENCE = 8;
 const MAX_FOLLOWUPS = 4;
 const MARION_CONFIDENCE_FLOOR = 0;
 const MARION_CONFIDENCE_CEILING = 1;
+const MARION_RUNTIME_PATH = "./Data/marion/runtime";
+
+function tryRequireRuntime(paths) {
+  for (const p of Array.isArray(paths) ? paths : []) {
+    try { return require(p); } catch (_) {}
+  }
+  return null;
+}
+
+const marionRuntimeRouter = tryRequireRuntime([
+  "./marionIntentRouter",
+  "./Data/marion/runtime/marionIntentRouter",
+  "../Data/marion/runtime/marionIntentRouter",
+  "../../Data/marion/runtime/marionIntentRouter"
+]);
 
 const DOMAIN_BY_INTENT = Object.freeze({
   technical_debug: "technical",
@@ -147,6 +162,21 @@ function normalizeMarionIntent(packet, result) {
     routeDomain: domain
   };
 }
+function routeThroughRuntime(packet, result) {
+  if (!marionRuntimeRouter || typeof marionRuntimeRouter.routeMarionIntent !== "function") return null;
+  try {
+    const routed = marionRuntimeRouter.routeMarionIntent({
+      text: safeStr(result.text || result.query || packet.text || ""),
+      lane: safeStr(result.lane || packet.lane || "general") || "general",
+      marionIntent: packet.marionIntent || result.marionIntent || {},
+      session: isObj(result.session) ? result.session : (isObj(packet.session) ? packet.session : {})
+    });
+    return isObj(routed) ? routed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function buildSoftReplySeed(packet, result) {
   const domain = lower(packet?.routing?.domain || packet?.marionIntent?.domain || result?.domain || "general");
   if (domain === "finance") return "Tell me the number, goal, or decision you want broken down, and I’ll tighten it up with you.";
@@ -160,12 +190,14 @@ function buildSoftReplySeed(packet, result) {
 function normalizeRouting(packet, result) {
   const routing = cloneObj(packet.routing);
   const marionIntent = packet.marionIntent || normalizeMarionIntent(packet, result);
-  const domain = safeStr(routing.domain || marionIntent.domain || result.domain || "general") || "general";
-  const intent = canonicalIntent(routing.intent || marionIntent.intent || result.intent || "general");
-  const endpoint = safeStr(routing.endpoint || result.endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
-  const depth = safeStr(routing.depth || result.depth || (domain === "technical" ? "forensic" : domain === "emotional" || domain === "memory" ? "high" : "balanced"));
-  const mode = safeStr(routing.mode || result.mode || (domain === "technical" ? "autopsy" : domain === "business" ? "commercial" : domain === "memory" ? "continuity" : domain === "emotional" ? "supportive_reasoning" : "domain_retrieval"));
-  return { ...routing, domain, intent, endpoint, depth, mode, useDomainKnowledge: domain !== "general", useMemory: domain === "memory" || intent === "identity_or_memory", triggerSource: marionIntent.triggerSource || marionIntent.source || "normalizer" };
+  const runtimeRoute = routeThroughRuntime({ ...packet, marionIntent }, result);
+  const routed = isObj(runtimeRoute && runtimeRoute.routing) ? runtimeRoute.routing : {};
+  const domain = safeStr(routing.domain || routed.domain || marionIntent.domain || result.domain || "general") || "general";
+  const intent = canonicalIntent(routing.intent || routed.intent || marionIntent.intent || result.intent || "general");
+  const endpoint = safeStr(routing.endpoint || routed.endpoint || result.endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
+  const depth = safeStr(routing.depth || routed.depth || result.depth || (domain === "technical" ? "forensic" : domain === "emotional" || domain === "memory" ? "high" : "balanced"));
+  const mode = safeStr(routing.mode || routed.mode || result.mode || (domain === "technical" ? "autopsy" : domain === "business" ? "commercial" : domain === "memory" ? "continuity" : domain === "emotional" ? "supportive_reasoning" : "domain_retrieval"));
+  return { ...routed, ...routing, domain, intent, endpoint, depth, mode, useDomainKnowledge: domain !== "general", useMemory: domain === "memory" || intent === "identity_or_memory", triggerSource: marionIntent.triggerSource || marionIntent.source || routed.triggerSource || "normalizer", runtimePath: MARION_RUNTIME_PATH };
 }
 function normalizeEmotion(packet, result) {
   const emotion = cloneObj(packet.emotion);
@@ -314,6 +346,8 @@ function normalizeMarionPacket(result = {}) {
 
   packet.meta = normalizeMeta(packet, result, sourcePacket, resolvedReply, softReplySeed);
   packet.meta.marionIntentNormalized = true;
+  packet.meta.marionRuntimePath = MARION_RUNTIME_PATH;
+  packet.meta.marionRuntimeRouterLoaded = !!marionRuntimeRouter;
   packet.meta.routingHardened = true;
   packet.meta.memoryEnvelopePreserved = true;
   packet.meta.triggerSource = packet.marionIntent.triggerSource || packet.marionIntent.source || "normalizer";
