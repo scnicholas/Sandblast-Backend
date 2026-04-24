@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "emotionRouteGuard v4.3.0 COHESION-HARDENED";
+const VERSION = "emotionRouteGuard v4.3.1 FORENSIC-NORMALIZED";
 
 const ARCHETYPES = {
   witness: { openingStyle: "reflective_presence", questionStyle: "gentle_reflective", allowsActionShift: false },
@@ -276,6 +276,7 @@ function normalizeLockedEmotion(input = {}) {
   const supportFlags = isObj(src.supportFlags) ? { ...src.supportFlags } : {};
   if (["depressed", "sadness", "grief", "loneliness", "shame", "guilt"].includes(primary)) {
     supportFlags.needsContainment = supportFlags.needsContainment || /\b(depressed|hopeless|empty|numb|ashamed|guilty|alone)\b/.test(text);
+    supportFlags.needsGentlePacing = supportFlags.needsGentlePacing || supportFlags.needsContainment;
     supportFlags.highDistress = supportFlags.highDistress || /\b(depressed|hopeless|empty|cannot cope|numb)\b/.test(text);
   }
   if (/\b(cannot go on|can't go on|want to die|kill myself|hurt myself|suicide|self harm|end it all)\b/.test(text)) {
@@ -284,7 +285,10 @@ function normalizeLockedEmotion(input = {}) {
     supportFlags.needsContainment = true;
     supportFlags.needsStabilization = true;
   }
-  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) supportFlags.needsStabilization = true;
+  if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) {
+    supportFlags.needsStabilization = true;
+    supportFlags.needsGentlePacing = true;
+  }
   if (["panic", "grief", "depressed"].includes(primary)) supportFlags.preferNoQuestion = true;
   if (["joy", "gratitude", "relief", "excitement", "hope"].includes(primary)) supportFlags.canChannelForward = true;
 
@@ -367,7 +371,7 @@ function analyzeEmotionRoute(input = {}) {
       emotionCluster: payload.emotionCluster,
       emotionSupportMode: payload.supportModeCandidate,
       emotionArchetype: payload.archetype,
-      emotionNeedSoft: !!payload.supportFlags.highDistress,
+      emotionNeedSoft: !!(payload.supportFlags.highDistress || payload.supportFlags.needsGentlePacing),
       emotionNeedCrisis: !!payload.supportFlags.crisis,
       emotionShouldSuppressMenus: !!(payload.supportFlags.needsContainment || payload.supportFlags.crisis),
       transitionReadiness: payload.nuanceProfile.transitionReadiness,
