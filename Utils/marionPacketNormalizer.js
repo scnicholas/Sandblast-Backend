@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionPacketNormalizer v1.2.1 MARION-INTENT-NORMALIZED + ROUTING-HARDENED + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
+const VERSION = "marionPacketNormalizer v1.2.2 MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
 
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 const DEFAULT_ENDPOINT = "marion://routeMarion.primary";
@@ -19,6 +19,26 @@ const DOMAIN_BY_INTENT = Object.freeze({
   identity_or_memory: "memory",
   domain_question: "general_reasoning",
   simple_chat: "general"
+});
+
+const INTENT_ALIASES = Object.freeze({
+  technical: "technical_debug",
+  tech: "technical_debug",
+  debug: "technical_debug",
+  autopsy: "technical_debug",
+  emotional: "emotional_support",
+  support: "emotional_support",
+  business: "business_strategy",
+  strategy: "business_strategy",
+  music: "music_query",
+  news: "news_query",
+  newscanada: "news_query",
+  roku: "roku_query",
+  memory: "identity_or_memory",
+  continuity: "identity_or_memory",
+  general: "domain_question",
+  question: "domain_question",
+  chat: "simple_chat"
 });
 
 const INTERNAL_BLOCKER_PATTERNS = [
@@ -72,6 +92,11 @@ function firstObj() {
   for (const value of arguments) if (isObj(value)) return value;
   return {};
 }
+function canonicalIntent(value) {
+  const raw = lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!raw) return "simple_chat";
+  return INTENT_ALIASES[raw] || raw;
+}
 function isInternalBlockerText(v) {
   const text = safeStr(v);
   if (!text) return false;
@@ -90,7 +115,7 @@ function firstUsableReply() {
   return "";
 }
 function resolveIntentDomain(intent, fallbackDomain) {
-  const key = lower(intent).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const key = canonicalIntent(intent);
   return DOMAIN_BY_INTENT[key] || safeStr(fallbackDomain) || "general";
 }
 function normalizeMarionIntent(packet, result) {
@@ -99,18 +124,27 @@ function normalizeMarionIntent(packet, result) {
     result.intentPacket,
     result?.payload?.marionIntent,
     result?.session?.marionIntent,
+    result?.body?.marionIntent,
+    result?.ui?.marionIntent,
     packet.marionIntent,
     packet.intentPacket,
-    packet?.session?.marionIntent
+    packet?.session?.marionIntent,
+    packet?.payload?.marionIntent,
+    packet?.ui?.marionIntent
   );
-  const intent = safeStr(raw.intent || raw.type || result.intent || packet.intent || "simple_chat") || "simple_chat";
+  const intent = canonicalIntent(raw.intent || raw.type || result.intent || packet.intent || "simple_chat");
   const activate = safeBool(raw.activate, intent !== "simple_chat");
+  const domain = resolveIntentDomain(intent, raw.domain || raw.routeDomain || result.domain || packet?.routing?.domain);
+  const source = safeStr(raw.source || raw.triggerSource || result.triggerSource || packet.triggerSource || "normalizer");
   return {
     activate,
     intent,
     confidence: clampNumber(raw.confidence, activate ? 0.66 : 0.4),
-    reason: safeStr(raw.reason || raw.source || "normalizer"),
-    domain: resolveIntentDomain(intent, raw.domain || result.domain || packet?.routing?.domain)
+    reason: safeStr(raw.reason || source || "normalizer"),
+    source,
+    triggerSource: source,
+    domain,
+    routeDomain: domain
   };
 }
 function buildSoftReplySeed(packet, result) {
@@ -127,10 +161,11 @@ function normalizeRouting(packet, result) {
   const routing = cloneObj(packet.routing);
   const marionIntent = packet.marionIntent || normalizeMarionIntent(packet, result);
   const domain = safeStr(routing.domain || marionIntent.domain || result.domain || "general") || "general";
-  const intent = safeStr(routing.intent || marionIntent.intent || result.intent || "general") || "general";
+  const intent = canonicalIntent(routing.intent || marionIntent.intent || result.intent || "general");
   const endpoint = safeStr(routing.endpoint || result.endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
   const depth = safeStr(routing.depth || result.depth || (domain === "technical" ? "forensic" : domain === "emotional" || domain === "memory" ? "high" : "balanced"));
-  return { ...routing, domain, intent, endpoint, depth, useDomainKnowledge: domain !== "general", useMemory: domain === "memory" || intent === "identity_or_memory" };
+  const mode = safeStr(routing.mode || result.mode || (domain === "technical" ? "autopsy" : domain === "business" ? "commercial" : domain === "memory" ? "continuity" : domain === "emotional" ? "supportive_reasoning" : "domain_retrieval"));
+  return { ...routing, domain, intent, endpoint, depth, mode, useDomainKnowledge: domain !== "general", useMemory: domain === "memory" || intent === "identity_or_memory", triggerSource: marionIntent.triggerSource || marionIntent.source || "normalizer" };
 }
 function normalizeEmotion(packet, result) {
   const emotion = cloneObj(packet.emotion);
@@ -249,6 +284,8 @@ function normalizeMarionPacket(result = {}) {
     result.spokenText ||
     resolvedReply
   ) || resolvedReply;
+  packet.synthesis.marionIntent = packet.marionIntent;
+  packet.synthesis.routing = packet.routing;
 
   packet.reply = resolvedReply;
   packet.answer = resolvedReply;
@@ -279,8 +316,13 @@ function normalizeMarionPacket(result = {}) {
   packet.meta.marionIntentNormalized = true;
   packet.meta.routingHardened = true;
   packet.meta.memoryEnvelopePreserved = true;
+  packet.meta.triggerSource = packet.marionIntent.triggerSource || packet.marionIntent.source || "normalizer";
+  packet.meta.intent = packet.marionIntent.intent;
+  packet.meta.domain = packet.routing.domain;
+  packet.meta.routingMode = packet.routing.mode;
+  packet.meta.routingDepth = packet.routing.depth;
 
   return packet;
 }
 
-module.exports = { VERSION, normalizeMarionPacket };
+module.exports = { VERSION, normalizeMarionPacket, normalizeMarionIntent };
