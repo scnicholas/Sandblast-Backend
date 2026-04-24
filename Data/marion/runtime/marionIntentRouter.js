@@ -4,7 +4,7 @@ const {
   getDomainConfig
 } = require("./marionDomainRegistry");
 
-const VERSION = "marionIntentRouter v1.0.0 MARION-TRIGGER-ROUTING";
+const VERSION = "marionIntentRouter v1.0.1 LOOP-SAFE-CANONICAL-INTENT + MARION-TRIGGER-ROUTING";
 
 const INTENT_TO_DOMAIN = Object.freeze({
   simple_chat: "general",
@@ -32,9 +32,10 @@ function clampConfidence(v) {
   return Math.max(0, Math.min(1, n));
 }
 
-function normalizeIntent(rawIntent) {
+function normalizeIntent(rawInput) {
   const src = rawIntent && typeof rawIntent === "object" ? rawIntent : {};
-  const intent = cleanKey(src.intent || src.type || "simple_chat") || "simple_chat";
+  const rawIntent = cleanKey(src.intent || src.type || "simple_chat") || "simple_chat";
+  const intent = INTENT_ALIASES[rawIntent] || rawIntent;
   const activate = typeof src.activate === "boolean"
     ? src.activate
     : intent !== "simple_chat";
