@@ -34,7 +34,7 @@ try { ({ evaluateState } = require("./marionStateMachine")); } catch (_e) { eval
 try { ({ resolvePrivateChannel } = require("./marionPrivateChannel")); } catch (_e) { resolvePrivateChannel = null; }
 try { ({ normalizeMarionPacket } = require("./marionPacketNormalizer")); } catch (_e) { normalizeMarionPacket = null; }
 
-const VERSION = "marionBridge v5.5.1 LOOP-GUARD-FINAL-ENVELOPE + PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
+const VERSION = "marionBridge v5.5.2 HANDSHAKE-LOOP-BREAK-9.8 + LOOP-GUARD-FINAL-ENVELOPE + PIPELINE-HARDENED-NYX-INTEGRATION-GUARDS";
 const FALLBACK_REPLY = "I am here with you, and I can stay with this clearly.";
 const NEWS_FALLBACK_REPLY = "Here is the News Canada handoff, preserved for page rendering.";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
@@ -88,6 +88,33 @@ function _clamp01(v, d = 0) { return Math.max(0, Math.min(1, _num(v, d))); }
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _pickFn(mod, name) { if (mod && typeof mod[name] === "function") return mod[name]; if (mod && typeof mod.retrieve === "function") return mod.retrieve; if (typeof mod === "function") return mod; return null; }
 function _hashText(v) { const s = _trim(v); let h = 0; for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h) + s.charCodeAt(i); return String(h >>> 0); }
+function _replySignature(value = "") { return _hashText(_lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()); }
+function _technicalIntentDetected(input = {}, layer2 = {}) {
+  const raw = _lower([input.intent,input.intentHint,input.requestedDomain,input.domain,input.userQuery,input.text,input.query,layer2.intent,layer2.domain,layer2.userQuery].filter(Boolean).join(" "));
+  return /(technical|debug|autopsy|audit|gap refinement|line.by.line|index\.js|marion|bridge|packet|normalizer|router|route|loop|handoff|syntax|script|file|fix|harden|download|zip)/i.test(raw);
+}
+function _resolveBridgeLoopGuard(input = {}, layer2 = {}, contract = {}, reply = "") {
+  const prev = _safeObj(input.previousMemory || {});
+  const patch = _safeObj(prev.memoryPatch);
+  const replySig = _replySignature(reply);
+  const prevSig = _trim(prev.replySignature || patch.replySignature || prev.lastReplySignature || patch.lastReplySignature || "");
+  const sameReplyCount = prevSig && prevSig === replySig ? Math.max(1, _num(prev.sameReplyCount, patch.sameReplyCount || 0) + 1) : 0;
+  const currentFn = _lower(_safeObj(contract.memoryPatch).lastResponseFunction || contract.lastResponseFunction || "");
+  const previousFn = _lower(prev.lastResponseFunction || patch.lastResponseFunction || "");
+  const sameFunctionCount = previousFn && currentFn && previousFn === currentFn ? Math.max(1, _num(prev.sameFunctionCount, patch.sameFunctionCount || 0) + 1) : 0;
+  const isTechnical = _technicalIntentDetected(input, layer2);
+  const contractLoop = !!(_safeObj(contract.memoryPatch).loopBreakApplied || contract.loopBreakApplied || _safeObj(contract.diagnostics).loopGuard?.active);
+  const active = !!(contractLoop || sameReplyCount >= 1 || sameFunctionCount >= 2 || isTechnical);
+  return { active, isTechnical, replySignature: replySig, previousReplySignature: prevSig, sameReplyCount, sameFunctionCount, contractLoop, finalizedBy: "marionBridge", composedOnce: true };
+}
+function _applyBridgeLoopGuardToMemory(turnMemory = {}, bridgeLoopGuard = {}, layer2 = {}) {
+  const mem = { ..._safeObj(turnMemory) };
+  const guard = _safeObj(bridgeLoopGuard);
+  mem.replySignature = guard.replySignature || mem.replySignature || ""; mem.lastReplySignature = guard.replySignature || mem.lastReplySignature || ""; mem.sameReplyCount = guard.sameReplyCount || 0; mem.sameFunctionCount = guard.sameFunctionCount || mem.sameFunctionCount || 0; mem.loopBreakApplied = !!guard.active; mem.marionFinal = true; mem.composedOnce = true; mem.finalizedBy = "marionBridge";
+  if (guard.active && guard.isTechnical) { mem.threadContinuation = false; mem.continuityMode = "advance"; mem.intent = layer2.intent || mem.intent; mem.domain = layer2.domain || mem.domain; mem.unresolvedSignals = _safeArray(mem.unresolvedSignals).slice(0, 2); }
+  mem.memoryPatch = { ..._safeObj(mem.memoryPatch), replySignature: mem.replySignature, lastReplySignature: mem.lastReplySignature, sameReplyCount: mem.sameReplyCount, sameFunctionCount: mem.sameFunctionCount, loopBreakApplied: mem.loopBreakApplied, marionFinal: true, composedOnce: true, finalizedBy: "marionBridge", threadContinuation: !!mem.threadContinuation, continuityMode: mem.continuityMode || "stabilize" };
+  return mem;
+}
 function _uniqBy(items, keyFn) { const seen = new Set(); const out = []; for (const item of _safeArray(items)) { const key = keyFn(item); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); } return out; }
 
 function _dedupeStrings(items = [], limit = 8) {
@@ -869,6 +896,7 @@ function _synchronizeAuthoritativePayload(payload = null, authoritativeReply = "
 }
 
 async function processWithMarion(input = {}) {
+  if (_isFinalizedMarionEnvelope(input)) return _markFinalEnvelope(input, input);
   const inputValidation = _validateInputShape(input);
   if (!inputValidation.ok) {
     return _makeSoftFallbackResult("input_invalid", { issues: inputValidation.issues }, { userQuery: inputValidation.normalized.userQuery, requestedDomain: inputValidation.normalized.requestedDomain, intent: _trim(inputValidation.normalized.intent || "general") || "general" });
@@ -907,8 +935,9 @@ async function processWithMarion(input = {}) {
   const authoritativeReply = _resolveAuthoritativeReply(contract, escalationProfile, layer2.domain);
   const reply = _trim((!_isInternalBlockerReply(authoritativeReply.reply) && authoritativeReply.reply) || FALLBACK_REPLY) || FALLBACK_REPLY;
   const contractFollowUps = _safeArray(contract.followUps).map((item) => _trim(item)).filter(Boolean);
-  const memoryPatch = _safeObj(contract.memoryPatch);
-  const turnMemory = _mergeTurnMemory(input.previousMemory || {}, layer2.conversationState, memoryPatch, {
+  const bridgeLoopGuard = _resolveBridgeLoopGuard(input, layer2, contract, reply);
+  const memoryPatch = { ..._safeObj(contract.memoryPatch), replySignature: bridgeLoopGuard.replySignature, lastReplySignature: bridgeLoopGuard.replySignature, sameReplyCount: bridgeLoopGuard.sameReplyCount, sameFunctionCount: bridgeLoopGuard.sameFunctionCount, loopBreakApplied: !!bridgeLoopGuard.active, marionFinal: true, composedOnce: true, finalizedBy: "marionBridge" };
+  let turnMemory = _mergeTurnMemory(input.previousMemory || {}, layer2.conversationState, memoryPatch, {
     lastQuery: layer2.userQuery,
     domain: layer2.domain,
     intent: layer2.intent,
@@ -925,10 +954,12 @@ async function processWithMarion(input = {}) {
     lastDomain: layer2.domain,
     lastIntent: layer2.intent
   });
+  turnMemory = _applyBridgeLoopGuardToMemory(turnMemory, bridgeLoopGuard, layer2);
 
   const contractRenderableContent = _mergeRenderableContent(contract);
   const contractLocked = {
     ...contract,
+    final: true, marionFinal: true, handled: true, composedOnce: true, finalizedBy: "marionBridge", replySignature: bridgeLoopGuard.replySignature,
     ...contractRenderableContent,
     reply,
     output: reply,
@@ -939,6 +970,7 @@ async function processWithMarion(input = {}) {
       blockedLegacyReplySources: authoritativeReply.blockedSources,
       marionSingleSourceOfTruth: true,
       structuredRenderableContent: _hasStructuredRenderableContent(contractRenderableContent),
+      bridgeLoopGuard,
       arcStage: _trim(_safeObj(arcState).stage || ""),
       engagementLevel: _trim(_safeObj(engagementState).engagementLevel || "")
     }
@@ -974,6 +1006,7 @@ async function processWithMarion(input = {}) {
 
   const result = {
     ok: true,
+    final: true, marionFinal: true, handled: true, composedOnce: true, finalizedBy: "marionBridge", replySignature: bridgeLoopGuard.replySignature,
     partial: layer2.diagnostics.inputIssues.length > 0,
     status: "ok",
     endpoint: layer2.endpoint,
@@ -1010,9 +1043,10 @@ async function processWithMarion(input = {}) {
         internalBlockerSuppressed: authoritativeReply.blockedSources.some((item) => _lower(item).includes("internal_blocker")),
         escalationMode: escalationProfile.mode,
         singleSourceOfTruth: true
-      }
+      },
+      bridgeLoopGuard
     },
-    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode, structuredRenderableContent: _hasStructuredRenderableContent(contractLocked) },
+    meta: { version: VERSION, endpoint: layer2.endpoint, evidenceCount: layer2.evidence.length, mode: contract.supportMode || "clarify_and_sequence", packetSignature: _hashText(`${layer2.domain}|${layer2.intent}|${reply}`), replySignature: bridgeLoopGuard.replySignature, loopBreakApplied: !!bridgeLoopGuard.active, knowledgeStable: true, stateTransition, trustTier: trustState.tier, privateChannel: privateChannel.mode, structuredRenderableContent: _hasStructuredRenderableContent(contractLocked), final: true, marionFinal: true, handled: true, finalizedBy: "marionBridge" },
     layer2
   };
 
@@ -1051,7 +1085,7 @@ async function processWithMarion(input = {}) {
     return _makeSoftFallbackResult("packet_invalid", { issues: packetValidation.issues }, { userQuery: layer2.userQuery, domain: layer2.domain, intent: layer2.intent, reply, followUpsStrings, packet, evidence: layer2.evidence, contract: contractLocked });
   }
 
-  return { ...finalizedResult, packet };
+  return _markFinalEnvelope({ ...finalizedResult, packet }, input);
 }
 
 function createMarionBridge(options = {}) {
@@ -1081,7 +1115,9 @@ function createMarionBridge(options = {}) {
         privateChannelRequested: !!meta.privateChannelRequested,
         principalId: _trim(meta.principalId || req.principalId || req.sessionId || "public"),
         sessionId: _trim(req.sessionId || meta.sessionId || "public"),
-        intent: _trim(meta.intent || req.intent || "")
+        intent: _trim(meta.intent || req.intent || ""),
+        turnId: _trim(meta.turnId || req.turnId || req.id || ""),
+        turnFingerprint: _trim(meta.turnFingerprint || req.turnFingerprint || "")
       });
       const renderableContent = _mergeRenderableContent(result.packet, result.payload, result.ui, result.emotionalTurn, result.contract);
       return {
@@ -1098,7 +1134,7 @@ function createMarionBridge(options = {}) {
         domain: result.domain,
         intent: result.intent,
         endpoint: result.endpoint,
-        meta: result.meta,
+        meta: { ..._safeObj(result.meta), final: true, marionFinal: true, handled: true, finalizedBy: "marionBridge" },
         diagnostics: result.diagnostics,
         ui: result.ui,
         emotionalTurn: result.emotionalTurn,
