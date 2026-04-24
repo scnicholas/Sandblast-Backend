@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionPacketNormalizer v1.2.3 DATA-MARION-RUNTIME-PATH + MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
+const VERSION = "marionPacketNormalizer v1.2.4 LOOP-FINAL-PRESERVE + DATA-MARION-RUNTIME-PATH + MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
 
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 const DEFAULT_ENDPOINT = "marion://routeMarion.primary";
