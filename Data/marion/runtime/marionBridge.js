@@ -20,6 +20,19 @@
 
 const VERSION = "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const MARION_FINAL_MARKERS = Object.freeze([
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  VERSION,
+  COMPOSER_VERSION_MARKER
+]);
+
+function buildMarionFinalSignature(replySignature, turnId) {
+  const seed = safeStr(replySignature || hashText(turnId || Date.now()));
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${VERSION}::${seed}`;
+}
 
 let routeMarionIntent = null;
 let composeMarionResponse = null;
@@ -335,7 +348,12 @@ function buildErrorResult(reason, detail = {}, input = {}) {
       marionFinal: true,
       handled: true,
       finalizedBy: "marionBridge",
-      bridgeReduced: true
+      bridgeReduced: true,
+      signature: buildMarionFinalSignature(hashText(reply), turnId),
+      marionFinalSignature: buildMarionFinalSignature(hashText(reply), turnId),
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
     }
   }, normalized);
 }
@@ -346,6 +364,7 @@ function buildPacket({ normalized, routed, contract, reply, replySignature }) {
   const domain = safeStr(routing.domain || contract.domain || normalized.domain || "general") || "general";
   const endpoint = safeStr(routing.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT;
   const synthesis = safeObj(contract.synthesis);
+  const marionFinalSignature = safeStr(contract.marionFinalSignature || safeObj(contract.meta).marionFinalSignature || safeObj(contract.meta).signature || safeObj(contract.diagnostics).marionFinalSignature || buildMarionFinalSignature(replySignature, normalized.turnId));
 
   return {
     routing: { domain, intent, endpoint },
@@ -357,6 +376,10 @@ function buildPacket({ normalized, routed, contract, reply, replySignature }) {
       text: reply,
       answer: reply,
       output: reply,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
       spokenText: safeStr(contract.spokenText || synthesis.spokenText || reply.replace(/\n+/g, " ")) || reply
     },
     memoryPatch: safeObj(contract.memoryPatch),
@@ -370,7 +393,12 @@ function buildPacket({ normalized, routed, contract, reply, replySignature }) {
       handled: true,
       finalizedBy: "marionBridge",
       bridgeReduced: true,
-      singleSourceOfTruth: true
+      singleSourceOfTruth: true,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
     }
   };
 }
@@ -381,6 +409,7 @@ function markFinal(result = {}, input = {}) {
   const reply = extractReply(src);
   const replySignature = safeStr(src.replySignature || hashText(reply));
   const spokenText = safeStr(src.spokenText || reply.replace(/\n+/g, " ")) || reply;
+  const marionFinalSignature = safeStr(src.marionFinalSignature || src.signature || safeObj(src.meta).marionFinalSignature || safeObj(src.meta).signature || safeObj(src.diagnostics).marionFinalSignature || buildMarionFinalSignature(replySignature, normalized.turnId || src.turnId));
 
   const out = {
     ...src,
@@ -393,6 +422,10 @@ function markFinal(result = {}, input = {}) {
     finalizedBy: "marionBridge",
     replyAuthority: "composeMarionResponse",
     replySignature,
+    signature: marionFinalSignature,
+    marionFinalSignature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers: MARION_FINAL_MARKERS.slice(),
     endpoint: safeStr(src.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
     userQuery: safeStr(src.userQuery || normalized.userQuery || normalized.text || ""),
     domain: safeStr(src.domain || normalized.domain || normalized.requestedDomain || "general") || "general",
@@ -415,6 +448,10 @@ function markFinal(result = {}, input = {}) {
       response: reply,
       message: reply,
       spokenText,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
       final: true,
       marionFinal: true,
       handled: true
@@ -432,14 +469,19 @@ function markFinal(result = {}, input = {}) {
       noFallbackPersonality: true,
       noRewrap: true,
       singleSourceOfTruth: true,
-      replySignature
+      replySignature,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
     }
   };
 
   if (!isObj(out.packet) || !Object.keys(out.packet).length) {
     out.packet = {
       routing: { domain: out.domain, intent: out.intent, endpoint: out.endpoint },
-      synthesis: { reply, text: reply, answer: reply, output: reply, spokenText },
+      synthesis: { reply, text: reply, answer: reply, output: reply, spokenText, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: MARION_FINAL_MARKERS.slice() },
       memoryPatch: safeObj(out.memoryPatch),
       meta: out.meta
     };
@@ -461,7 +503,11 @@ function markFinal(result = {}, input = {}) {
         text: reply,
         answer: reply,
         output: reply,
-        spokenText
+        spokenText,
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice()
       },
       meta: {
         ...safeObj(out.packet.meta),
@@ -469,7 +515,12 @@ function markFinal(result = {}, input = {}) {
         final: true,
         marionFinal: true,
         handled: true,
-        finalizedBy: "marionBridge"
+        finalizedBy: "marionBridge",
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice(),
+        hardlockCompatible: true
       }
     };
   }
@@ -584,7 +635,11 @@ async function processWithMarion(input = {}) {
       output: reply,
       response: reply,
       message: reply,
-      spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply
+      spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply,
+      signature: safeStr(packet.meta.signature || packet.meta.marionFinalSignature),
+      marionFinalSignature: safeStr(packet.meta.marionFinalSignature || packet.meta.signature),
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice()
     },
     diagnostics: {
       ...safeObj(contract.diagnostics),
@@ -598,7 +653,12 @@ async function processWithMarion(input = {}) {
       noEmotionalInterpretation: true,
       noRewrap: true,
       routerVersion: safeStr(routed.routerVersion || routed.VERSION || ""),
-      composerVersion: safeStr(contract.version || "")
+      composerVersion: safeStr(contract.version || ""),
+      signature: safeStr(packet.meta.signature || packet.meta.marionFinalSignature),
+      marionFinalSignature: safeStr(packet.meta.marionFinalSignature || packet.meta.signature),
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
     },
     meta: {
       ...safeObj(contract.meta),
@@ -612,7 +672,12 @@ async function processWithMarion(input = {}) {
       handled: true,
       finalizedBy: "marionBridge",
       bridgeReduced: true,
-      replySignature
+      replySignature,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
     },
     routed
   }, composeInput);
@@ -711,6 +776,10 @@ function createMarionBridge(options = {}) {
         intent: result.intent,
         endpoint: result.endpoint,
         meta: result.meta,
+        signature: result.signature || (result.meta && result.meta.signature),
+        marionFinalSignature: result.marionFinalSignature || (result.meta && result.meta.marionFinalSignature),
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice(),
         diagnostics: result.diagnostics,
         followUps: result.followUps,
         followUpsStrings: result.followUpsStrings,
@@ -736,6 +805,9 @@ const handle = route;
 module.exports = {
   VERSION,
   CANONICAL_ENDPOINT,
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  MARION_FINAL_SIGNATURE_PREFIX,
+  MARION_FINAL_MARKERS,
   retrieveLayer2Signals,
   processWithMarion,
   createMarionBridge,
