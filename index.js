@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.2sb CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -300,6 +300,102 @@ const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
   /packet_invalid/i,
   /contract_invalid/i
 ];
+
+const BLOCKED_LOOPING_SUPPORT_REPLY = "i am here with you, and i can stay with this clearly.";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const REQUIRED_MARION_FINAL_MARKERS = [
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF",
+  "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION"
+];
+
+function normalizedReplyKey(value) {
+  return lower(cleanText(value || "")).replace(/\s+/g, " ").replace(/[.!?]+$/g, "").trim();
+}
+
+function isBlockedLoopingSupportReply(value) {
+  return normalizedReplyKey(value) === BLOCKED_LOOPING_SUPPORT_REPLY;
+}
+
+function objectContainsFreshMarionSignature(value, depth) {
+  if (depth > 6 || value == null) return false;
+  if (typeof value === "string") {
+    const s = value;
+    return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => objectContainsFreshMarionSignature(item, depth + 1));
+  }
+  if (isObj(value)) {
+    return Object.keys(value).some((key) => objectContainsFreshMarionSignature(value[key], depth + 1));
+  }
+  return false;
+}
+
+function hasFreshMarionFinalEnvelope(value) {
+  const src = isObj(value) ? value : {};
+  const packet = isObj(src.packet) ? src.packet : {};
+  const packetMeta = isObj(packet.meta) ? packet.meta : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const bridge = isObj(src.bridge) ? src.bridge : {};
+  const finalish = !!(
+    src.final === true ||
+    src.marionFinal === true ||
+    src.handled === true ||
+    meta.final === true ||
+    meta.marionFinal === true ||
+    packet.final === true ||
+    packet.marionFinal === true ||
+    packetMeta.final === true ||
+    packetMeta.marionFinal === true ||
+    synthesis.final === true ||
+    synthesis.marionFinal === true ||
+    payload.final === true ||
+    payload.marionFinal === true ||
+    bridge.final === true ||
+    bridge.marionFinal === true
+  );
+  return finalish && objectContainsFreshMarionSignature(src, 0);
+}
+
+function buildLoopReplyBlockedReplacement(norm, authority) {
+  const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
+  const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
+  const reply = technical
+    ? "Nyx is connected. Send the exact file, route, or response you want checked next."
+    : "Nyx is connected. What would you like to do next?";
+  return {
+    ok: true,
+    final: true,
+    handled: true,
+    marionFinal: false,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    payload: { reply, text: reply, message: reply, spokenText: reply, loopReplyBlocked: true },
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      replyAuthority: "index_loop_phrase_hardlock",
+      blockedAuthority: cleanText(authority || "unknown"),
+      loopReplyBlocked: true,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE
+    },
+    diagnostics: {
+      loopReplyBlocked: true,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      reason: "blocked_stale_support_phrase_without_fresh_marion_final_signature"
+    }
+  };
+}
 
 const MARION_DOMAIN_BY_INTENT = Object.freeze({
   technical_debug: "technical",
@@ -5492,7 +5588,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   const priorTransportReplay = transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
   if (priorTransportReplay) {
     const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "");
-    if (cachedReply) {
+    if (isBlockedLoopingSupportReply(cachedReply) && !hasFreshMarionFinalEnvelope(transportState) && !hasFreshMarionFinalEnvelope(priorTurn)) {
+      setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", loopReplyBlocked: true });
+    } else if (cachedReply) {
       const cached = normalizeReplyEnvelope({
         ok: true,
         reply: cachedReply,
@@ -5552,6 +5650,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   let selected = null;
   let authority = "none";
   let errorDetail = "";
+  let loopReplyWasBlocked = false;
 
   try {
     marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
@@ -5561,7 +5660,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   const marionReply = getMarionAuthorityReply(marion);
-  if (marion && marion.ok !== false && marionReply) {
+  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply) && !hasFreshMarionFinalEnvelope(marion);
+  if (marionReplyBlocked) {
+    loopReplyWasBlocked = true;
+    console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
+  }
+  if (marion && marion.ok !== false && marionReply && !marionReplyBlocked) {
     selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
     selected.reply = marionReply;
     selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply };
@@ -5589,13 +5693,23 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       console.log("[Sandblast][chatRoute:engine_transport_error]", { traceId: norm.traceId, error: errorDetail });
     }
     const engineReply = cleanText(engine && (engine.reply || engine.text || engine.answer || engine.output || engine.response || engine.message || (engine.payload && (engine.payload.reply || engine.payload.text)) || ""));
-    if (engine && engine.ok !== false && engineReply && !isInternalMarionBlockerReply(engineReply)) {
+    const engineReplyBlocked = isBlockedLoopingSupportReply(engineReply) && !hasFreshMarionFinalEnvelope(engine);
+    if (engineReplyBlocked) {
+      loopReplyWasBlocked = true;
+      console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "chat_engine", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
+    }
+    if (engine && engine.ok !== false && engineReply && !engineReplyBlocked && !isInternalMarionBlockerReply(engineReply)) {
       selected = isObj(engine) ? { ...engine } : { ok: true, reply: engineReply };
       selected.reply = cleanReplyForUser(engineReply);
       selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: selected.reply, text: selected.reply, message: selected.reply, spokenText: selected.reply };
       selected.bridge = marion || selected.bridge || null;
       authority = "chat_engine";
     }
+  }
+
+  if (!selected && loopReplyWasBlocked) {
+    selected = buildLoopReplyBlockedReplacement(norm, "stale_support_phrase");
+    authority = "index_loop_phrase_hardlock";
   }
 
   if (!selected) {
@@ -5626,6 +5740,11 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
+  if (isBlockedLoopingSupportReply(reply) && !hasFreshMarionFinalEnvelope(selected)) {
+    selected = buildLoopReplyBlockedReplacement(norm, authority);
+    authority = "index_loop_phrase_hardlock";
+    reply = cleanReplyForUser(selected.reply || "");
+  }
   selected = normalizeReplyEnvelope(selected, reply, {
     v: INDEX_VERSION,
     t: now(),
@@ -5767,6 +5886,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       semanticAuthority: authority,
       supportDeauthorized: true,
       supportHold: 0,
+      loopPhraseHardlock: true,
+      requiredFreshSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       latencyMs: now() - startedAt,
       loggingSpine: trace,
       audioContract: {
