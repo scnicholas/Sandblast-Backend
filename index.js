@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.12.2sb TTS-HARDENED-AUDIO-CONTRACT + NEWSCANADA-MOUNT-FIX
+ * index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -308,13 +308,27 @@ const REQUIRED_MARION_FINAL_MARKERS = [
   "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF",
   "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION"
 ];
+const CHAT_LOOP_PHRASE_PATTERNS = [
+  /^i am here with you,? and i can stay with this clearly$/i,
+  /^i['’]?m here with you,? and i can stay with this clearly$/i,
+  /\bi am here with you\b.*\bstay with this clearly\b/i,
+  /\bi['’]?m here with you\b.*\bstay with this clearly\b/i,
+  /\bi am here with you\b.*\bone step at a time\b/i,
+  /\bwe can take this one step at a time\b/i,
+  /\bi can stay with this clearly\b/i,
+  /\bsend the exact file, route, or response you want checked next\b/i,
+  /\bnyx is connected\. what would you like to do next\b/i
+];
 
 function normalizedReplyKey(value) {
   return lower(cleanText(value || "")).replace(/\s+/g, " ").replace(/[.!?]+$/g, "").trim();
 }
 
 function isBlockedLoopingSupportReply(value) {
-  return normalizedReplyKey(value) === BLOCKED_LOOPING_SUPPORT_REPLY;
+  const key = normalizedReplyKey(value);
+  if (!key) return false;
+  if (key === BLOCKED_LOOPING_SUPPORT_REPLY) return true;
+  return CHAT_LOOP_PHRASE_PATTERNS.some((rx) => rx.test(key));
 }
 
 function objectContainsFreshMarionSignature(value, depth) {
@@ -387,11 +401,13 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       replyAuthority: "index_loop_phrase_hardlock",
       blockedAuthority: cleanText(authority || "unknown"),
       loopReplyBlocked: true,
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb"
     },
     diagnostics: {
       loopReplyBlocked: true,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb",
       reason: "blocked_stale_support_phrase_without_fresh_marion_final_signature"
     }
   };
