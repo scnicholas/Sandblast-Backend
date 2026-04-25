@@ -6,7 +6,7 @@
  * One purpose: classify intent and assign routing metadata.
  */
 
-const VERSION = "marionIntentRouter v2.0.0 CLEAN-REBUILD-SINGLE-CLASSIFIER";
+const VERSION = "marionIntentRouter v2.1.0 AUTOPSY-HARDENED-COHESION";
 
 const INTENT_TO_DOMAIN = Object.freeze({
   simple_chat: "general",
@@ -53,6 +53,12 @@ function normalizeIntentName(v) {
     newscanada: "news_query",
     roku: "roku_query",
     memory: "identity_or_memory",
+    state: "identity_or_memory",
+    state_spine: "identity_or_memory",
+    spine: "identity_or_memory",
+    phrase_pack: "identity_or_memory",
+    packets: "identity_or_memory",
+    greeting: "identity_or_memory",
     identity: "identity_or_memory"
   };
   return aliases[raw] || raw || "simple_chat";
@@ -67,7 +73,7 @@ function inferIntentFromText(text) {
 
   if (!t) return { intent: "simple_chat", confidence: 0.35, reason: "empty_text" };
 
-  if (has(/\b(index\.js|marion|bridge|router|normalizer|packet|compose|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|route|endpoint|script|file|harden|fix|download|zip)\b/i, t)) {
+  if (has(/\b(index\.js|marion|bridge|router|normalizer|packet|packets|phrase pack|phrase packs|greeting|greetings|compose|composer|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|script|file|harden|fix|download|zip)\b/i, t)) {
     return { intent: "technical_debug", confidence: 0.9, reason: "technical_debug_terms" };
   }
 
@@ -95,7 +101,7 @@ function inferIntentFromText(text) {
     return { intent: "business_strategy", confidence: 0.82, reason: "business_terms" };
   }
 
-  if (has(/\b(remember|last time|continue|memory|state spine|identity)\b/i, t)) {
+  if (has(/\b(remember|last time|continue|memory|conversation state|turn state|continuity|identity)\b/i, t)) {
     return { intent: "identity_or_memory", confidence: 0.76, reason: "memory_terms" };
   }
 
@@ -149,6 +155,8 @@ function routeMarionIntent(packet = {}) {
     domain,
     intent: marionIntent.intent,
     endpoint: "marion://routeMarion.primary",
+    contractVersion: "nyx.marion.intent/2.1",
+    expectsComposer: "composeMarionResponse",
     mode:
       domain === "technical" ? "debug" :
       domain === "emotional" ? "support_then_advance" :
@@ -180,7 +188,10 @@ function routeMarionIntent(packet = {}) {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
       triggerSource: marionIntent.source,
-      singleIntentAuthority: true
+      singleIntentAuthority: true,
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true
     }
   };
 }
