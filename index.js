@@ -1,972 +1,6562 @@
 "use strict";
 
 /**
- * marionBridge.js
- * Clean reduced Marion bridge.
+ * Sandblast Backend — index.js
  *
- * Mission:
- * - validate inbound packet
- * - call marionIntentRouter
- * - call composeMarionResponse
- * - mark final
- * - return response
- *
- * Non-goals:
- * - no fallback personality
- * - no emotional interpretation
- * - no packet re-wrapping
- * - no legacy retriever orchestration
+ * index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK
+ * ------------------------------------------------------------
+ * PURPOSE
+ * - Tightened backend shell
+ * - Removes duplicate replay authority from index layer
+ * - Keeps Chat Engine as the semantic turn authority
+ * - Uses TTS as the single synthesis authority
+ * - Preserves frontend voice route contract without provider-side dispatch authority
+ * - Keeps fail-open rendering contract
+ * - Hardens TTS route error handling and response finalization
+ * - Adds affect/stabilize/fail-safe unification
+ * - Adds loop suppression / stale-UI wipe discipline
+ * - Adds TTS response normalization so playable audio always streams when available
+ * - Strengthens News Canada file mount / hydration into app.locals
  */
 
-const VERSION = "marionBridge v6.1.0 INDEX-COHESION-HARDENED-FINAL-HANDOFF";
-const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
-const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
-const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
-const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
-const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
-const MARION_FINAL_MARKERS = Object.freeze([
-  REQUIRED_CHAT_ENGINE_SIGNATURE,
-  VERSION,
-  COMPOSER_VERSION_MARKER,
-  BRIDGE_PATCH_TAG,
-  CANONICAL_ENDPOINT
-]);
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
 
-function signaturePart(value) {
-  return safeStr(value).replace(/::+/g, ":").replace(/\s+/g, "_").slice(0, 180);
-}
-
-function buildMarionFinalSignature(replySignature, turnId) {
-  const seed = signaturePart(replySignature || hashText(turnId || Date.now()));
-  const turn = signaturePart(turnId || "turn");
-  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${signaturePart(VERSION)}::${signaturePart(COMPOSER_VERSION_MARKER)}::${signaturePart(BRIDGE_PATCH_TAG)}::${turn}::${seed}`;
-}
-
-function hasRequiredFinalSignature(value) {
-  const sig = safeStr(value);
-  return !!(
-    sig &&
-    sig.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
-    sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
-    sig.indexOf(signaturePart(VERSION)) !== -1 &&
-    sig.indexOf(signaturePart(BRIDGE_PATCH_TAG)) !== -1
-  );
-}
-
-let routeMarionIntent = null;
-let composeMarionResponse = null;
-
+let compression = null;
 try {
-  ({ routeMarionIntent } = require("./marionIntentRouter"));
-} catch (_err) {
-  routeMarionIntent = null;
+  compression = require("compression");
+} catch (_) {
+  compression = null;
 }
 
-try {
-  ({ composeMarionResponse } = require("./composeMarionResponse"));
-} catch (_err) {
-  composeMarionResponse = null;
-}
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29";
+const SERVER_BOOT_AT = Date.now();
 
-function safeStr(value) {
-  return value == null ? "" : String(value).trim();
-}
+process.on("unhandledRejection", (reason) => {
+  console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
+});
 
-function isObj(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
+process.on("uncaughtException", (err) => {
+  console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
+  try {
+    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
+  } catch (_) {}
+});
 
-function safeObj(value) {
-  return isObj(value) ? value : {};
-}
-
-function safeArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function lower(value) {
-  return safeStr(value).toLowerCase();
-}
-
-function hashText(value) {
-  const source = lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-  let hash = 0;
-  for (let i = 0; i < source.length; i += 1) {
-    hash = ((hash << 5) - hash) + source.charCodeAt(i);
-    hash |= 0;
+function tryRequireMany(paths) {
+  for (const p of paths) {
+    try {
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_) {}
   }
-  return String(hash >>> 0);
+  return null;
 }
 
-function nowIso() {
-  return new Date().toISOString();
+function moduleAvailable(name) {
+  try {
+    require.resolve(name);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
-function firstText() {
-  for (let i = 0; i < arguments.length; i += 1) {
-    const value = safeStr(arguments[i]);
-    if (value) return value;
+const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
+if (envLoader && typeof envLoader.config === "function") {
+  try { envLoader.config(); } catch (_) {}
+}
+
+const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", true);
+app.locals.musicTopMoments = [];
+app.locals.musicSources = [];
+app.locals.musicMeta = { ok: false, file: "", count: 0, loadedAt: 0, source: "empty", degraded: false };
+
+if (compression) {
+  app.use(compression());
+}
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+
+const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_NEWSCANADA_DIR = path.join(__dirname, "public newscanada");
+const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir) => {
+  try {
+    return fs.existsSync(dir);
+  } catch (_) {
+    return false;
+  }
+});
+
+
+const AVATAR_PUBLIC_DIR = path.join(PUBLIC_DIR, "avatar");
+const AVATAR_ASSETS_DIR = path.join(AVATAR_PUBLIC_DIR, "assets");
+const AVATAR_FALLBACK_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_FILE ||
+  process.env.SB_AVATAR_FILE ||
+  process.env.NYX_AVATAR_FILE ||
+  "avatar5.mp4"
+);
+const AVATAR_IMAGE_FALLBACK_BASENAME = cleanEnvAvatarBasename(
+  process.env.SB_NYX_AVATAR_FALLBACK_FILE ||
+  process.env.SB_AVATAR_FALLBACK_FILE ||
+  process.env.NYX_AVATAR_FALLBACK_FILE ||
+  "nyx-hero.png"
+);
+
+function cleanEnvAvatarBasename(value) {
+  const base = path.basename(cleanText(value || ""));
+  return cleanText(base);
+}
+
+function avatarAssetBaseUrl() {
+  return routeUrl("/avatar/assets");
+}
+
+function avatarStaticCandidateDirs() {
+  return uniq([
+    AVATAR_ASSETS_DIR,
+    AVATAR_PUBLIC_DIR,
+    path.join(PUBLIC_DIR, "assets"),
+    path.join(PUBLIC_DIR, "media"),
+    path.join(PUBLIC_DIR, "media", "avatar"),
+    path.join(PUBLIC_DIR, "videos"),
+    path.join(PUBLIC_DIR, "video")
+  ]).filter((dir) => {
+    try {
+      return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
+function avatarStaticCandidateFiles(fileName) {
+  const base = cleanEnvAvatarBasename(fileName);
+  if (!base) return [];
+  const dirs = avatarStaticCandidateDirs();
+  return uniq([
+    path.join(AVATAR_ASSETS_DIR, base),
+    path.join(AVATAR_PUBLIC_DIR, base),
+    ...dirs.map((dir) => path.join(dir, base))
+  ]);
+}
+
+function resolveAvatarAssetFile(fileName) {
+  const base = cleanEnvAvatarBasename(fileName);
+  if (!base) return "";
+  for (const candidate of avatarStaticCandidateFiles(base)) {
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    } catch (_) {}
+  }
+  const lowerName = base.toLowerCase();
+  for (const dir of avatarStaticCandidateDirs()) {
+    try {
+      const hits = fs.readdirSync(dir);
+      for (const entry of hits) {
+        const full = path.join(dir, entry);
+        if (entry.toLowerCase() === lowerName && fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+      }
+    } catch (_) {}
   }
   return "";
 }
 
-function extractUserText(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const payload = safeObj(src.payload);
-  const packet = safeObj(src.packet);
-  const synthesis = safeObj(packet.synthesis);
-
-  return firstText(
-    src.userQuery,
-    src.text,
-    src.query,
-    src.message,
-    body.userQuery,
-    body.text,
-    body.query,
-    body.message,
-    payload.userQuery,
-    payload.text,
-    payload.query,
-    payload.message,
-    synthesis.userQuery,
-    synthesis.text
-  );
+function avatarVideoFile() {
+  return resolveAvatarAssetFile(AVATAR_FALLBACK_BASENAME);
 }
 
-function extractLane(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const session = safeObj(src.session || body.session);
-  const meta = safeObj(src.meta || body.meta);
-
-  return firstText(
-    src.lane,
-    src.sessionLane,
-    body.lane,
-    body.sessionLane,
-    session.lane,
-    meta.lane,
-    "general"
-  ) || "general";
+function avatarFallbackImageFile() {
+  return resolveAvatarAssetFile(AVATAR_IMAGE_FALLBACK_BASENAME);
 }
 
-function extractTurnId(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const meta = safeObj(src.meta || body.meta);
-
-  return firstText(
-    src.turnId,
-    src.requestId,
-    src.traceId,
-    src.id,
-    body.turnId,
-    body.requestId,
-    body.traceId,
-    meta.turnId,
-    meta.requestId,
-    meta.traceId
-  );
+function avatarMimeType(filePath) {
+  const ext = lower(path.extname(filePath || ""));
+  if (ext === ".mp4") return "video/mp4";
+  if (ext === ".webm") return "video/webm";
+  if (ext === ".ogg" || ext === ".ogv") return "video/ogg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  return "application/octet-stream";
 }
 
-function extractPreviousMemory(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const session = safeObj(src.session || body.session);
-  const meta = safeObj(src.meta || body.meta);
-
-  return safeObj(
-    src.previousMemory ||
-    src.turnMemory ||
-    src.memory ||
-    body.previousMemory ||
-    body.turnMemory ||
-    body.memory ||
-    session.previousMemory ||
-    session.turnMemory ||
-    session.memory ||
-    meta.previousMemory ||
-    {}
-  );
+function sendAvatarFile(res, filePath) {
+  if (!filePath) return false;
+  try {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.type(avatarMimeType(filePath));
+    res.sendFile(filePath);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
-function extractMarionIntentPacket(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const session = safeObj(src.session || body.session);
-  const meta = safeObj(src.meta || body.meta);
-
-  return safeObj(
-    src.marionIntent ||
-    src.intentPacket ||
-    body.marionIntent ||
-    body.intentPacket ||
-    session.marionIntent ||
-    meta.marionIntent ||
-    {}
-  );
+function avatarConfigPayload() {
+  const videoFile = avatarVideoFile();
+  const imageFile = avatarFallbackImageFile();
+  const videoName = cleanEnvAvatarBasename(videoFile ? path.basename(videoFile) : AVATAR_FALLBACK_BASENAME) || AVATAR_FALLBACK_BASENAME;
+  const imageName = cleanEnvAvatarBasename(imageFile ? path.basename(imageFile) : AVATAR_IMAGE_FALLBACK_BASENAME) || AVATAR_IMAGE_FALLBACK_BASENAME;
+  return {
+    ok: !!videoFile,
+    base: getBackendPublicBase(),
+    assetBaseUrl: avatarAssetBaseUrl(),
+    videoFile: videoName,
+    imageFile: imageName,
+    avatarSrc: routeUrl(`/avatar/assets/${videoName}`),
+    fallbackSrc: routeUrl(`/avatar/assets/${imageName}`),
+    directVideo: routeUrl("/avatar/video"),
+    statusUrl: routeUrl("/avatar/status"),
+    scriptVersion: INDEX_VERSION,
+    searchedDirs: avatarStaticCandidateDirs()
+  };
 }
 
-function extractRequestedDomain(input = {}) {
-  const src = safeObj(input);
-  const body = safeObj(src.body);
-  const meta = safeObj(src.meta || body.meta);
-  const packet = safeObj(src.packet);
-  const routing = safeObj(packet.routing);
+function safeStr(v) {
 
-  return firstText(
-    src.requestedDomain,
-    src.domain,
-    body.requestedDomain,
-    body.domain,
-    meta.requestedDomain,
-    meta.domain,
-    meta.preferredDomain,
-    routing.domain,
-    "general"
-  ) || "general";
+  return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
-function isAlreadyFinal(input = {}) {
-  const src = safeObj(input);
-  const meta = safeObj(src.meta);
-  const packet = safeObj(src.packet);
-  const packetMeta = safeObj(packet.meta);
+function now() {
+  return Date.now();
+}
 
-  return !!(
+function lower(v) {
+  return safeStr(v).toLowerCase();
+}
+
+function clamp(n, min, max) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function uniq(arr) {
+  return Array.from(new Set(Array.isArray(arr) ? arr.filter(Boolean) : []));
+}
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function cleanText(v) {
+  return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function firstString(arr) {
+  for (const v of Array.isArray(arr) ? arr : []) {
+    const s = cleanText(v);
+    if (s) return s;
+  }
+  return "";
+}
+
+function clipText(v, max) {
+  const s = cleanText(v);
+  const n = clamp(Number(max || 280), 32, 4000);
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function maskSecret(v) {
+  const s = cleanText(v);
+  if (!s) return "";
+  if (s.length <= 8) return "********";
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+function cleanReplyForUser(v) {
+  let t = cleanText(v);
+  if (!t) return "";
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I can continue from your next instruction.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I can continue from your next instruction.");
+  t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
+  t = t.replace(/\bbackend\b/ig, "system");
+  t = t.replace(/\s+([,.!?])/g, "$1").trim();
+  return t;
+}
+
+function replyHash(v) {
+  const s = cleanText(v).toLowerCase();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return String(h);
+}
+
+const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
+  /marion\s+input\s+required\s+before\s+reply\s+emission/i,
+  /bridge\s+rejected\s+malformed\s+marion\s+output\s+before\s+nyx\s+handoff/i,
+  /reply\s+emission/i,
+  /bridge_rejected/i,
+  /packet_invalid/i,
+  /contract_invalid/i
+];
+
+const BLOCKED_LOOPING_SUPPORT_REPLY = "i am here with you, and i can stay with this clearly.";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const REQUIRED_MARION_FINAL_MARKERS = [
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF",
+  "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION"
+];
+const CHAT_LOOP_PHRASE_PATTERNS = [
+  /^i am here with you,? and i can stay with this clearly$/i,
+  /^i['’]?m here with you,? and i can stay with this clearly$/i,
+  /\bi am here with you\b.*\bstay with this clearly\b/i,
+  /\bi['’]?m here with you\b.*\bstay with this clearly\b/i,
+  /\bi am here with you\b.*\bone step at a time\b/i,
+  /\bwe can take this one step at a time\b/i,
+  /\bi can stay with this clearly\b/i,
+  /\bsend the exact file, route, or response you want checked next\b/i,
+  /\bnyx is connected\. what would you like to do next\b/i
+];
+
+function normalizedReplyKey(value) {
+  return lower(cleanText(value || "")).replace(/\s+/g, " ").replace(/[.!?]+$/g, "").trim();
+}
+
+function isBlockedLoopingSupportReply(value) {
+  const key = normalizedReplyKey(value);
+  if (!key) return false;
+  if (key === BLOCKED_LOOPING_SUPPORT_REPLY) return true;
+  return CHAT_LOOP_PHRASE_PATTERNS.some((rx) => rx.test(key));
+}
+
+function isFreshMarionSignatureString(value) {
+  const s = cleanText(value || "");
+  if (!s) return false;
+  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE)) return true;
+  return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
+}
+
+function objectContainsFreshMarionSignature(value, depth) {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") return isFreshMarionSignatureString(value);
+  if (Array.isArray(value)) return value.some((item) => objectContainsFreshMarionSignature(item, depth + 1));
+  if (isObj(value)) {
+    if (value.hardlockCompatible === true) return true;
+    if (value.requiredSignature === REQUIRED_CHAT_ENGINE_SIGNATURE) return true;
+    if (isFreshMarionSignatureString(value.signature || value.marionFinalSignature || value.replySignature || value.version || value.composerVersion || value.bridgeVersion)) return true;
+    return Object.keys(value).some((key) => objectContainsFreshMarionSignature(value[key], depth + 1));
+  }
+  return false;
+}
+
+function hasFreshMarionFinalEnvelope(value) {
+  const src = isObj(value) ? value : {};
+  const packet = isObj(src.packet) ? src.packet : {};
+  const packetMeta = isObj(packet.meta) ? packet.meta : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const bridge = isObj(src.bridge) ? src.bridge : {};
+  const result = isObj(src.result) ? src.result : {};
+  const resultMeta = isObj(result.meta) ? result.meta : {};
+  const resultPayload = isObj(result.payload) ? result.payload : {};
+  const resultPacket = isObj(result.packet) ? result.packet : {};
+  const resultPacketMeta = isObj(resultPacket.meta) ? resultPacket.meta : {};
+
+  const freshSignature = objectContainsFreshMarionSignature(src, 0);
+  const finalish = !!(
     src.final === true ||
-    src.handled === true ||
     src.marionFinal === true ||
+    src.handled === true ||
     src.marionHandled === true ||
+    src.usedBridge === true ||
+    src.hardlockCompatible === true ||
     meta.final === true ||
     meta.marionFinal === true ||
+    meta.handled === true ||
+    meta.hardlockCompatible === true ||
     packet.final === true ||
     packet.marionFinal === true ||
+    packet.handled === true ||
     packetMeta.final === true ||
-    packetMeta.marionFinal === true
+    packetMeta.marionFinal === true ||
+    packetMeta.handled === true ||
+    packetMeta.hardlockCompatible === true ||
+    synthesis.final === true ||
+    synthesis.marionFinal === true ||
+    payload.final === true ||
+    payload.marionFinal === true ||
+    payload.handled === true ||
+    payload.hardlockCompatible === true ||
+    bridge.final === true ||
+    bridge.marionFinal === true ||
+    bridge.handled === true ||
+    result.final === true ||
+    result.marionFinal === true ||
+    result.handled === true ||
+    result.marionHandled === true ||
+    resultMeta.final === true ||
+    resultMeta.marionFinal === true ||
+    resultMeta.handled === true ||
+    resultMeta.hardlockCompatible === true ||
+    resultPayload.final === true ||
+    resultPayload.marionFinal === true ||
+    resultPayload.handled === true ||
+    resultPacket.final === true ||
+    resultPacket.marionFinal === true ||
+    resultPacket.handled === true ||
+    resultPacketMeta.final === true ||
+    resultPacketMeta.marionFinal === true ||
+    resultPacketMeta.handled === true
   );
+
+  if (finalish && freshSignature) return true;
+
+  // Compatibility guard: some bridge wrappers expose the Marion final signature
+  // at the wrapper/result layer before mirroring final flags to the wrapper.
+  // Accept only successful bridge-shaped packets with a valid Marion final signature.
+  if (freshSignature && src.ok !== false && (src.usedBridge === true || isObj(src.result) || isObj(src.packet) || isObj(src.payload) || isObj(src.meta))) {
+    return true;
+  }
+
+  return false;
 }
 
-function normalizeInbound(input = {}) {
-  const source = safeObj(input);
-  const userQuery = extractUserText(source);
-  const turnId = extractTurnId(source) || `marion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const lane = extractLane(source);
-  const requestedDomain = extractRequestedDomain(source);
-  const previousMemory = extractPreviousMemory(source);
-  const marionIntent = extractMarionIntentPacket(source);
+function buildLoopReplyBlockedReplacement(norm, authority) {
+  const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
+  const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
 
-  const issues = [];
-  if (!userQuery) issues.push("user_query_missing");
+  // Recovery must not contain any phrase listed in CHAT_LOOP_PHRASE_PATTERNS.
+  // Otherwise the final response gate can block its own recovery message and create a second-order loop.
+  const reply = technical
+    ? "Ready. Send the specific file, route, or response you want checked next."
+    : "Ready. Send the next instruction and I’ll continue.";
 
   return {
-    ok: issues.length === 0,
-    issues,
-    original: source,
-    userQuery,
-    text: userQuery,
-    query: userQuery,
-    lane,
-    requestedDomain,
-    domain: requestedDomain,
-    previousMemory,
-    marionIntent,
-    turnId,
-    sessionId: firstText(source.sessionId, source.body && source.body.sessionId, source.meta && source.meta.sessionId, "public") || "public"
-  };
-}
-
-function validateRouterResult(result = {}) {
-  const src = safeObj(result);
-  const routing = safeObj(src.routing);
-  const marionIntent = safeObj(src.marionIntent);
-  const issues = [];
-
-  if (!src.ok) issues.push("router_not_ok");
-  if (!safeStr(routing.intent || marionIntent.intent)) issues.push("intent_missing");
-  if (!safeStr(routing.domain)) issues.push("domain_missing");
-
-  return { ok: issues.length === 0, issues };
-}
-
-function extractReply(contract = {}) {
-  const src = safeObj(contract);
-  const synthesis = safeObj(src.synthesis);
-  const payload = safeObj(src.payload);
-  const packet = safeObj(src.packet);
-  const packetSynthesis = safeObj(packet.synthesis);
-
-  return firstText(
-    src.reply,
-    src.text,
-    src.answer,
-    src.output,
-    src.response,
-    src.message,
-    src.spokenText,
-    payload.reply,
-    payload.text,
-    payload.answer,
-    payload.output,
-    synthesis.reply,
-    synthesis.text,
-    synthesis.answer,
-    synthesis.output,
-    synthesis.spokenText,
-    packetSynthesis.reply,
-    packetSynthesis.text,
-    packetSynthesis.answer,
-    packetSynthesis.output,
-    packetSynthesis.spokenText
-  );
-}
-
-function validateComposeResult(contract = {}) {
-  const src = safeObj(contract);
-  const issues = [];
-
-  if (!Object.keys(src).length) issues.push("compose_contract_missing");
-  if (src.ok === false) issues.push("compose_not_ok");
-  if (!extractReply(src)) issues.push("compose_reply_missing");
-
-  return { ok: issues.length === 0, issues };
-}
-
-function buildErrorResult(reason, detail = {}, input = {}) {
-  const normalized = safeObj(input);
-  const userQuery = safeStr(normalized.userQuery || normalized.text || normalized.query || "");
-  const turnId = safeStr(normalized.turnId || "");
-  const domain = safeStr(normalized.domain || normalized.requestedDomain || "general") || "general";
-  const intent = safeStr(normalized.intent || "bridge_error") || "bridge_error";
-  const reply = `Marion could not complete this turn cleanly: ${safeStr(reason || "bridge_error") || "bridge_error"}.`;
-
-  return markFinal({
-    ok: false,
-    error: true,
-    status: "error",
-    reason: safeStr(reason || "bridge_error") || "bridge_error",
-    detail: safeObj(detail),
-    userQuery,
-    domain,
-    intent,
-    reply,
-    text: reply,
-    answer: reply,
-    output: reply,
-    spokenText: reply,
-    followUps: [],
-    followUpsStrings: [],
-    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply },
-    diagnostics: {
-      bridgeVersion: VERSION,
-      bridgeError: true,
-      reason: safeStr(reason || "bridge_error") || "bridge_error",
-      detail: safeObj(detail)
-    },
-    meta: {
-      version: VERSION,
-      endpoint: CANONICAL_ENDPOINT,
-      turnId,
-      final: true,
-      marionFinal: true,
-      handled: true,
-      finalizedBy: "marionBridge",
-      bridgeReduced: true,
-      signature: buildMarionFinalSignature(hashText(reply), turnId),
-      marionFinalSignature: buildMarionFinalSignature(hashText(reply), turnId),
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
-    }
-  }, normalized);
-}
-
-function buildPacket({ normalized, routed, contract, reply, replySignature }) {
-  const routing = safeObj(routed.routing);
-  const intent = safeStr(routing.intent || safeObj(routed.marionIntent).intent || contract.intent || "simple_chat") || "simple_chat";
-  const domain = safeStr(routing.domain || contract.domain || normalized.domain || "general") || "general";
-  const endpoint = safeStr(routing.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT;
-  const synthesis = safeObj(contract.synthesis);
-  const marionFinalSignature = safeStr(contract.marionFinalSignature || safeObj(contract.meta).marionFinalSignature || safeObj(contract.meta).signature || safeObj(contract.diagnostics).marionFinalSignature || buildMarionFinalSignature(replySignature, normalized.turnId));
-
-  return {
-    routing: { domain, intent, endpoint },
-    synthesis: {
-      ...synthesis,
-      domain,
-      intent,
-      reply,
-      text: reply,
-      answer: reply,
-      output: reply,
-      signature: marionFinalSignature,
-      marionFinalSignature,
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      spokenText: safeStr(contract.spokenText || synthesis.spokenText || reply.replace(/\n+/g, " ")) || reply
-    },
-    memoryPatch: safeObj(contract.memoryPatch),
-    meta: {
-      version: VERSION,
-      endpoint,
-      turnId: normalized.turnId,
-      replySignature,
-      final: true,
-      marionFinal: true,
-      handled: true,
-      finalizedBy: "marionBridge",
-      bridgeReduced: true,
-      singleSourceOfTruth: true,
-      signature: marionFinalSignature,
-      marionFinalSignature,
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
-    }
-  };
-}
-
-function markFinal(result = {}, input = {}) {
-  const src = safeObj(result);
-  const normalized = safeObj(input);
-  const reply = extractReply(src);
-  const replySignature = safeStr(src.replySignature || hashText(reply));
-  const spokenText = safeStr(src.spokenText || reply.replace(/\n+/g, " ")) || reply;
-  const marionFinalSignature = safeStr(src.marionFinalSignature || src.signature || safeObj(src.meta).marionFinalSignature || safeObj(src.meta).signature || safeObj(src.diagnostics).marionFinalSignature || buildMarionFinalSignature(replySignature, normalized.turnId || src.turnId));
-
-  const out = {
-    ...src,
-    ok: src.ok !== false,
+    ok: true,
     final: true,
     handled: true,
-    marionFinal: true,
-    marionHandled: true,
-    composedOnce: true,
-    finalizedBy: "marionBridge",
-    replyAuthority: "composeMarionResponse",
-    replySignature,
-    signature: marionFinalSignature,
-    marionFinalSignature,
-    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-    finalMarkers: MARION_FINAL_MARKERS.slice(),
-    endpoint: safeStr(src.endpoint || safeObj(src.meta).endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
-    userQuery: safeStr(src.userQuery || normalized.userQuery || normalized.text || ""),
-    domain: safeStr(src.domain || normalized.domain || normalized.requestedDomain || "general") || "general",
-    intent: safeStr(src.intent || normalized.intent || "simple_chat") || "simple_chat",
+    marionFinal: false,
+    recoveryInjected: true,
     reply,
     text: reply,
     answer: reply,
     output: reply,
-    response: reply,
-    message: reply,
-    spokenText,
-    followUps: safeArray(src.followUps),
-    followUpsStrings: safeArray(src.followUpsStrings),
     payload: {
-      ...safeObj(src.payload),
       reply,
       text: reply,
-      answer: reply,
-      output: reply,
-      response: reply,
       message: reply,
-      spokenText,
-      signature: marionFinalSignature,
-      marionFinalSignature,
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      final: true,
-      marionFinal: true,
-      handled: true
+      spokenText: reply,
+      loopReplyBlocked: true,
+      recoveryInjected: true
     },
     meta: {
-      ...safeObj(src.meta),
-      version: VERSION,
-      endpoint: safeStr(src.endpoint || safeObj(src.meta).endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
-      turnId: safeStr(normalized.turnId || src.turnId || safeObj(src.meta).turnId || ""),
-      final: true,
-      marionFinal: true,
-      handled: true,
-      finalizedBy: "marionBridge",
-      bridgeReduced: true,
-      noFallbackPersonality: true,
-      noRewrap: true,
-      singleSourceOfTruth: true,
-      replySignature,
-      signature: marionFinalSignature,
-      marionFinalSignature,
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      replyAuthority: "index_loop_phrase_recovery",
+      blockedAuthority: cleanText(authority || "unknown"),
+      loopReplyBlocked: true,
+      recoveryInjected: true,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb"
+    },
+    diagnostics: {
+      loopReplyBlocked: true,
+      recoveryInjected: true,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb",
+      reason: "stale_loop_phrase_replaced_with_non_matching_recovery"
     }
   };
+}
 
-  if (!isObj(out.packet) || !Object.keys(out.packet).length) {
-    out.packet = {
-      routing: { domain: out.domain, intent: out.intent, endpoint: out.endpoint },
-      synthesis: { reply, text: reply, answer: reply, output: reply, spokenText, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: MARION_FINAL_MARKERS.slice() },
-      memoryPatch: safeObj(out.memoryPatch),
-      meta: out.meta
+const MARION_DOMAIN_BY_INTENT = Object.freeze({
+  technical_debug: "technical",
+  emotional_support: "emotional",
+  business_strategy: "business",
+  music_query: "music",
+  news_query: "news",
+  roku_query: "roku",
+  identity_or_memory: "memory",
+  domain_question: "general_reasoning",
+  simple_chat: "general"
+});
+
+const MARION_INTENT_ALIAS = Object.freeze({
+  technical: "technical_debug",
+  debug: "technical_debug",
+  autopsy: "technical_debug",
+  emotional: "emotional_support",
+  support: "emotional_support",
+  business: "business_strategy",
+  strategy: "business_strategy",
+  music: "music_query",
+  news: "news_query",
+  newscanada: "news_query",
+  roku: "roku_query",
+  memory: "identity_or_memory",
+  continuity: "identity_or_memory",
+  general: "domain_question",
+  chat: "simple_chat"
+});
+
+function canonicalMarionIntent(value) {
+  const raw = lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!raw) return "simple_chat";
+  return MARION_INTENT_ALIAS[raw] || raw;
+}
+
+function normalizeIncomingMarionIntent(raw, fallbackText) {
+  const src = isObj(raw) ? raw : {};
+  const intent = canonicalMarionIntent(src.intent || src.type || "");
+  const text = lower(fallbackText || "");
+  let inferred = intent;
+  if (!inferred || inferred === "simple_chat") {
+    if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
+    else if (/(sad|stressed|overwhelmed|depressed|anxious|hurt|alone|frustrated|panic|grief)/i.test(text)) inferred = "emotional_support";
+    else if (/(pricing|sponsor|media kit|monetize|pitch|funding|investor|sales|proposal|revenue)/i.test(text)) inferred = "business_strategy";
+    else if (/(top\s*10|song|artist|album|chart|music|radio|playlist)/i.test(text)) inferred = "music_query";
+    else if (/(news|story|headline|article|rss|newscanada|for your life)/i.test(text)) inferred = "news_query";
+    else if (/(roku|tv app|channel|linear tv|streaming)/i.test(text)) inferred = "roku_query";
+    else if (/(remember|last time|continue|state spine|memory|emotional pinpoints)/i.test(text)) inferred = "identity_or_memory";
+    else if (String(fallbackText || "").length > 180 || /\?/.test(String(fallbackText || ""))) inferred = "domain_question";
+    else inferred = "simple_chat";
+  }
+  const activate = typeof src.activate === "boolean" ? src.activate : inferred !== "simple_chat";
+  const n = Number(src.confidence);
+  const confidence = Number.isFinite(n) ? clamp(n, 0, 1) : (activate ? 0.66 : 0.4);
+  const domain = cleanText(src.domain || src.routeDomain || MARION_DOMAIN_BY_INTENT[inferred] || "general") || "general";
+  return {
+    activate,
+    intent: inferred,
+    confidence,
+    reason: cleanText(src.reason || src.source || (isObj(raw) ? "widget_trigger" : "index_inference")) || "index_inference",
+    source: cleanText(src.source || src.triggerSource || (isObj(raw) ? "widget" : "index")) || "index",
+    triggerSource: cleanText(src.triggerSource || src.source || (isObj(raw) ? "widget" : "index")) || "index",
+    domain,
+    routeDomain: domain
+  };
+}
+
+function buildMarionIntentRouting(intentPacket, lane) {
+  const mi = isObj(intentPacket) ? intentPacket : normalizeIncomingMarionIntent(null, "");
+  const domain = cleanText(mi.domain || MARION_DOMAIN_BY_INTENT[mi.intent] || "general") || "general";
+  const mode =
+    domain === "technical" ? "autopsy" :
+    domain === "business" ? "commercial" :
+    domain === "emotional" ? "supportive_reasoning" :
+    domain === "memory" ? "continuity" :
+    domain === "music" || domain === "news" ? "domain_retrieval" :
+    domain === "roku" ? "platform" :
+    "balanced";
+  const depth =
+    domain === "technical" ? "forensic" :
+    domain === "emotional" || domain === "memory" ? "high" :
+    domain === "business" ? "strategic" :
+    "balanced";
+  return {
+    domain,
+    intent: mi.intent || "simple_chat",
+    lane: cleanText(lane || "general") || "general",
+    mode,
+    depth,
+    useDomainKnowledge: domain !== "general",
+    useMemory: domain === "memory" || mi.intent === "identity_or_memory",
+    triggerSource: mi.triggerSource || mi.source || "index"
+  };
+}
+
+function routeMarionIntentThroughRuntime(intentPacket, lane, text) {
+  const normalized = isObj(intentPacket) ? intentPacket : normalizeIncomingMarionIntent(null, text || "");
+  if (marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function") {
+    try {
+      const routed = marionIntentRouterMod.routeMarionIntent({
+        text: cleanText(text || ""),
+        lane: cleanText(lane || "general") || "general",
+        marionIntent: normalized,
+        session: { lane: cleanText(lane || "general") || "general" }
+      });
+      if (isObj(routed)) {
+        return {
+          marionIntent: isObj(routed.marionIntent) ? routed.marionIntent : normalized,
+          routing: isObj(routed.routing) ? routed.routing : buildMarionIntentRouting(normalized, lane),
+          meta: isObj(routed.meta) ? routed.meta : {}
+        };
+      }
+    } catch (err) {
+      console.log("[Sandblast][marionIntentRouter:error]", cleanText(err && (err.message || err) || "router_failed"));
+    }
+  }
+  return {
+    marionIntent: normalized,
+    routing: buildMarionIntentRouting(normalized, lane),
+    meta: { triggerSource: normalized.triggerSource || normalized.source || "index_fallback" }
+  };
+}
+
+function isInternalMarionBlockerReply(value) {
+  const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return INTERNAL_MARION_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
+}
+
+function makeTraceId(prefix) {
+  return `${prefix || "trace"}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function boolEnv(name, fallback) {
+  const raw = lower(process.env[name]);
+  if (!raw) return !!fallback;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return !!fallback;
+}
+
+function parseOrigins(raw) {
+  return uniq(
+    cleanText(raw || "")
+      .split(",")
+      .map((s) => cleanText(s))
+      .filter(Boolean)
+  );
+}
+
+function sameHost(a, b) {
+  try {
+    return new URL(a).host === new URL(b).host;
+  } catch (_) {
+    return false;
+  }
+}
+
+function getBackendPublicBase() {
+  return cleanText(
+    process.env.SB_BACKEND_PUBLIC_BASE_URL ||
+    process.env.SANDBLAST_BACKEND_PUBLIC_BASE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    "https://sandblast-backend.onrender.com"
+  ).replace(/\/$/, "");
+}
+
+function routeUrl(pathname) {
+  const base = getBackendPublicBase();
+  const p = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${base}${p}`;
+}
+
+const CFG = {
+  apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
+  apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
+  requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
+  voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
+  preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
+  corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
+  corsAllowedOrigins: parseOrigins(
+    process.env.SB_CORS_ALLOWED_ORIGINS ||
+    "https://www.sandblast.channel,https://sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
+  ),
+  quietSupportHoldTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_TURNS || 2), 1, 4),
+  loopSuppressionWindowMs: clamp(Number(process.env.SB_LOOP_SUPPRESSION_MS || 12000), 3000, 45000),
+  duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
+  supportHoldMaxTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_MAX_TURNS || 1), 0, 3),
+  transportReplayCacheMs: clamp(Number(process.env.SB_TRANSPORT_REPLAY_CACHE_MS || 12000), 3000, 45000),
+  requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
+  httpLogEnabled: boolEnv("SB_HTTP_LOG_ENABLED", false),
+  httpLogSlowMs: clamp(Number(process.env.SB_HTTP_LOG_SLOW_MS || 2500), 250, 30000),
+  logHealthCalls: boolEnv("SB_LOG_HEALTH_CALLS", false),
+  memoryTtlMs: clamp(Number(process.env.SB_MEMORY_TTL_MS || 30 * 60 * 1000), 60000, 24 * 60 * 60 * 1000),
+  memorySweepEveryMs: clamp(Number(process.env.SB_MEMORY_SWEEP_EVERY_MS || 60 * 1000), 10000, 10 * 60 * 1000),
+  port: PORT
+};
+
+function isSandblastOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return false;
+  try {
+    const url = new URL(o);
+    const host = lower(url.host || "");
+    return host === "sandblast.channel" || host === "www.sandblast.channel" || host.endsWith && host.endsWith(".sandblast.channel");
+  } catch (_) {
+    return /https?:\/\/(www\.)?sandblast\.channel(?::\d+)?$/i.test(o);
+  }
+}
+
+function isAllowedOrigin(origin) {
+  const o = cleanText(origin);
+  if (!o) return true;
+  if (CFG.corsAllowedOrigins.includes("*")) return true;
+  if (isSandblastOrigin(o)) return true;
+  return CFG.corsAllowedOrigins.includes(o) || CFG.corsAllowedOrigins.some((x) => sameHost(x, o));
+}
+
+function applyCors(req, res) {
+  const origin = cleanText((req && req.headers && req.headers.origin) || "");
+  const reqHeaders = cleanText((req && req.headers && req.headers["access-control-request-headers"]) || "");
+  const allowHeaders = uniq([
+    "Content-Type",
+    "Authorization",
+    "x-sb-trace-id",
+    "x-requested-with",
+    CFG.apiTokenHeader,
+    ...reqHeaders.split(",").map((s) => cleanText(s)).filter(Boolean)
+  ]);
+  const allowed = origin && isAllowedOrigin(origin);
+
+  if (allowed) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Vary", "Origin");
+    if (CFG.corsAllowCredentials) {
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  } else if (!origin) {
+    res.header("Vary", "Origin");
+  }
+
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  return origin;
+}
+
+function hardenCors(req, res) {
+  try { applyCors(req, res); } catch (_) {}
+  return res;
+}
+
+app.use((req, res, next) => {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  return next();
+});
+
+let lastMemorySweepAt = 0;
+
+function maybeSweepMemory() {
+  const current = now();
+  if (current - lastMemorySweepAt < CFG.memorySweepEveryMs) return;
+  lastMemorySweepAt = current;
+  const ttl = CFG.memoryTtlMs;
+  const prune = (mapObj) => {
+    if (!mapObj || typeof mapObj.forEach !== "function") return;
+    for (const [key, value] of mapObj.entries()) {
+      const at = Number((value && value.at) || (value && value.updatedAt) || 0);
+      if (!at || current - at > ttl) mapObj.delete(key);
+    }
+  };
+  prune(memory.lastBySession);
+  prune(memory.supportBySession);
+  prune(memory.transportBySession);
+  prune(memory.spineBySession);
+}
+
+function shouldLogRequest(req, statusCode, durationMs) {
+  const url = cleanText(req.originalUrl || req.url || req.path || "");
+  if (CFG.httpLogEnabled) return true;
+  if (Number(durationMs || 0) >= CFG.httpLogSlowMs) return true;
+  if (Number(statusCode || 0) >= 500) return true;
+  if (CFG.logHealthCalls && /\/health(?:$|\/|\?)/i.test(url)) return true;
+  return false;
+}
+
+app.use((req, res, next) => {
+  maybeSweepMemory();
+  const startedAt = now();
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || makeTraceId("http"));
+  req.sbTraceId = traceId;
+  res.setHeader("x-sb-trace-id", traceId);
+  res.on("finish", () => {
+    const durationMs = now() - startedAt;
+    if (!shouldLogRequest(req, res.statusCode, durationMs)) return;
+    console.log("[Sandblast][http]", {
+      traceId,
+      method: req.method,
+      path: req.originalUrl || req.url || req.path || "",
+      status: res.statusCode,
+      durationMs,
+      sessionId: getSessionId(req)
+    });
+  });
+  return next();
+});
+
+const chatEngineMod = tryRequireMany([
+  "./chatEngine",
+  "./chatEngine.js",
+  "./ChatEngine",
+  "./ChatEngine.js",
+  "./utils/chatEngine",
+  "./utils/chatEngine.js",
+  "./Utils/chatEngine",
+  "./Utils/chatEngine.js"
+]);
+
+const supportResponseMod = tryRequireMany([
+  "./supportResponse",
+  "./supportResponse.js",
+  "./utils/supportResponse",
+  "./utils/supportResponse.js",
+  "./Utils/supportResponse",
+  "./Utils/supportResponse.js"
+]);
+
+const voiceRouteMod = tryRequireMany([
+  "./utils/voiceRoute",
+  "./utils/voiceRoute.js",
+  "./Utils/voiceRoute",
+  "./Utils/voiceRoute.js"
+]);
+
+const ttsMod = tryRequireMany([
+  "./tts",
+  "./tts.js",
+  "./utils/tts",
+  "./utils/tts.js",
+  "./Utils/tts",
+  "./Utils/tts.js"
+]);
+
+const newscanadaCacheServiceMod = tryRequireMany([
+  "./services/newscanadaCacheService",
+  "./services/newscanadaCacheService.js",
+  "./Services/newscanadaCacheService",
+  "./Services/newscanadaCacheService.js",
+  "./utils/newscanadaCacheService",
+  "./utils/newscanadaCacheService.js",
+  "./Utils/newscanadaCacheService",
+  "./Utils/newscanadaCacheService.js"
+]);
+
+const newscanadaCacheJobMod = tryRequireMany([
+  "./services/newscanadaCacheJob",
+  "./services/newscanadaCacheJob.js",
+  "./Services/newscanadaCacheJob",
+  "./Services/newscanadaCacheJob.js",
+  "./utils/newscanadaCacheJob",
+  "./utils/newscanadaCacheJob.js",
+  "./Utils/newscanadaCacheJob",
+  "./Utils/newscanadaCacheJob.js"
+]);
+
+const newsCanadaFeedServiceMod = tryRequireMany([
+  "./services/newsCanadaFeedService",
+  "./services/newsCanadaFeedService.js",
+  "./Services/newsCanadaFeedService",
+  "./Services/newsCanadaFeedService.js",
+  "./utils/newsCanadaFeedService",
+  "./utils/newsCanadaFeedService.js",
+  "./Utils/newsCanadaFeedService",
+  "./Utils/newsCanadaFeedService.js",
+  "./public newscanada/js/newsCanadaApi",
+  "./public newscanada/js/newsCanadaApi.js",
+  "./public newscanada/js/newscanada.rss.service",
+  "./public newscanada/js/newscanada.rss.service.js"
+]);
+
+
+const newsCanadaRoutesMod = tryRequireMany([
+  "./routes/newscanada.routes",
+  "./routes/newscanada.routes.js",
+  "./routes/manualNewsCanadaRoutes",
+  "./routes/manualNewsCanadaRoutes.js",
+  "./routes/newscanadaRoutes",
+  "./routes/newscanadaRoutes.js"
+]);
+
+function resolveExpressRouterFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod === "function" && typeof mod.use === "function") return mod;
+  if (mod.default && typeof mod.default === "function" && typeof mod.default.use === "function") return mod.default;
+  if (mod.router && typeof mod.router === "function" && typeof mod.router.use === "function") return mod.router;
+  if (typeof mod.createRouter === "function") {
+    try {
+      const built = mod.createRouter();
+      if (built && typeof built.use === "function") return built;
+    } catch (_) {}
+  }
+  return null;
+}
+
+const marionBridgeMod = tryRequireMany([
+
+  "./marionBridge",
+  "./marionBridge.js",
+  "./utils/marionBridge",
+  "./utils/marionBridge.js",
+  "./Utils/marionBridge",
+  "./Utils/marionBridge.js",
+  "./runtime/marionBridge",
+  "./runtime/marionBridge.js"
+]);
+
+const marionIntentRouterMod = tryRequireMany([
+  "./Data/marion/runtime/marionIntentRouter",
+  "./Data/marion/runtime/marionIntentRouter.js"
+]);
+
+const marionDomainRegistryMod = tryRequireMany([
+  "./Data/marion/runtime/marionDomainRegistry",
+  "./Data/marion/runtime/marionDomainRegistry.js"
+]);
+
+const stateSpineMod = tryRequireMany([
+  "./stateSpine",
+  "./stateSpine.js",
+  "./utils/stateSpine",
+  "./utils/stateSpine.js",
+  "./Utils/stateSpine",
+  "./Utils/stateSpine.js"
+]);
+
+// PHASE-3 ACTIVE-FLOW DISABLE:
+// SiteBridge / psycheBridge must not participate in the live Marion response path.
+// Keep this null so diagnostics remain safe and no duplicate bridge layer can re-enter.
+const siteBridgeMod = null;
+
+const s2sMod = tryRequireMany([
+  "./s2s",
+  "./s2s.js",
+  "./utils/s2s",
+  "./utils/s2s.js",
+  "./Utils/s2s",
+  "./Utils/s2s.js"
+]);
+
+
+function getMarionRuntimeDiagnostics() {
+  return {
+    marionBridgeLoaded: !!marionBridgeMod,
+    marionBridgeKeys: marionBridgeMod && typeof marionBridgeMod === "object" ? Object.keys(marionBridgeMod).slice(0, 20) : [],
+    marionBridgeHasRoute: !!(marionBridgeMod && typeof marionBridgeMod.route === "function"),
+    marionBridgeHasAsk: !!(marionBridgeMod && typeof marionBridgeMod.ask === "function"),
+    marionBridgeHasHandle: !!(marionBridgeMod && typeof marionBridgeMod.handle === "function"),
+    marionBridgeHasProcessWithMarion: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
+    marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
+    marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
+    marionIntentRouterLoaded: !!marionIntentRouterMod,
+    marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
+    marionDomainRegistryLoaded: !!marionDomainRegistryMod,
+    chatEngineLoaded: !!chatEngineMod,
+    chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : [],
+    siteBridgeLoaded: !!siteBridgeMod,
+    siteBridgeHasBuild: !!(siteBridgeMod && typeof siteBridgeMod.build === "function"),
+    siteBridgeHasBuildAsync: !!(siteBridgeMod && typeof siteBridgeMod.buildAsync === "function"),
+    s2sLoaded: !!s2sMod,
+    s2sHasRun: !!(s2sMod && typeof s2sMod.runLocalChat === "function"),
+    s2sHasHealth: !!(s2sMod && typeof s2sMod.health === "function")
+  };
+}
+
+const affectEngineMod = tryRequireMany([
+  "./affectEngine",
+  "./affectEngine.js",
+  "./utils/affectEngine",
+  "./utils/affectEngine.js",
+  "./Utils/affectEngine",
+  "./Utils/affectEngine.js"
+]);
+
+const knowledgeRuntimeMod = tryRequireMany([
+  "./Utils/knowledgeRuntime",
+  "./Utils/knowledgeRuntime.js",
+  "./utils/knowledgeRuntime",
+  "./utils/knowledgeRuntime.js"
+]);
+
+const musicLaneMod = tryRequireMany([
+  "./musicLane",
+  "./musicLane.js",
+  "./utils/musicLane",
+  "./utils/musicLane.js",
+  "./Utils/musicLane",
+  "./Utils/musicLane.js"
+]);
+
+const musicResolverMod = tryRequireMany([
+  "./musicResolver",
+  "./musicResolver.js",
+  "./utils/musicResolver",
+  "./utils/musicResolver.js",
+  "./Utils/musicResolver",
+  "./Utils/musicResolver.js"
+]);
+
+const musicKnowledgeMod = tryRequireMany([
+  "./musicKnowledge",
+  "./musicKnowledge.js",
+  "./utils/musicKnowledge",
+  "./utils/musicKnowledge.js",
+  "./Utils/musicKnowledge",
+  "./Utils/musicKnowledge.js"
+]);
+
+const knowledgeRuntime = {
+  available: !!knowledgeRuntimeMod,
+  extract(query, opts) {
+    try {
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.extract === "function") {
+        return knowledgeRuntimeMod.extract(query, opts || {});
+      }
+      if (knowledgeRuntimeMod && typeof knowledgeRuntimeMod.retrieve === "function") {
+        return knowledgeRuntimeMod.retrieve(query, opts || {});
+      }
+    } catch (_) {}
+    return { ok: false, loaded: false, source: "index_fallback", extracted: true };
+  }
+};
+
+function resolveNewsCanadaFeedUrl() {
+  return cleanText(
+    process.env.NEWS_CANADA_FEED_URL ||
+    process.env.NEWS_CANADA_RSS_FEED_URL ||
+    process.env.SB_NEWSCANADA_RSS_FEED_URL ||
+    "https://foryourlife.ca/feed/"
+  );
+}
+
+function resolveNewsCanadaFeedCandidates() {
+  const primary = resolveNewsCanadaFeedUrl();
+  const configured = uniq([
+    primary,
+    cleanText(process.env.NEWS_CANADA_FEED_URL_ALT || ""),
+    cleanText(process.env.NEWS_CANADA_RSS_FEED_URL_ALT || ""),
+    cleanText(process.env.SB_NEWSCANADA_RSS_FEED_URL_ALT || "")
+  ].filter(Boolean));
+
+  const derived = [];
+  const seed = primary || "https://foryourlife.ca/feed/";
+  try {
+    const base = new URL(seed);
+    derived.push(`${base.origin}/feed/`);
+    derived.push(`${base.origin}/?feed=rss2`);
+    derived.push(`${base.origin}/index.php?feed=rss2`);
+    derived.push(`${base.origin}/feed/rss2/`);
+  } catch (_) {}
+
+  return uniq([...configured, ...derived].map((v) => cleanText(v)).filter(Boolean));
+}
+
+function resolveNewsCanadaApiCandidates() {
+  const feedCandidates = resolveNewsCanadaFeedCandidates();
+  const out = [];
+  for (const candidate of feedCandidates) {
+    try {
+      const base = new URL(candidate);
+      out.push(`${base.origin}/wp-json/wp/v2/posts?per_page=6&_embed=1&_fields=id,date,link,slug,title,excerpt,content,yoast_head_json,_embedded`);
+      out.push(`${base.origin}/index.php?rest_route=/wp/v2/posts&per_page=6&_embed=1`);
+    } catch (_) {}
+  }
+  return uniq(out.map((v) => cleanText(v)).filter(Boolean));
+}
+
+function decodeWpRendered(value) {
+  if (isObj(value)) return stripTags(value.rendered || value.raw || "");
+  return stripTags(value);
+}
+
+function extractWpFeaturedImage(post) {
+  const embedded = isObj(post && post._embedded) ? post._embedded : {};
+  const mediaArr = Array.isArray(embedded['wp:featuredmedia']) ? embedded['wp:featuredmedia'] : [];
+  for (const media of mediaArr) {
+    const direct = cleanText(media && (media.source_url || media.link || media.guid && media.guid.rendered));
+    if (direct) return direct;
+    const sizes = isObj(media && media.media_details && media.media_details.sizes) ? media.media_details.sizes : {};
+    for (const key of ['full','large','medium_large','medium','thumbnail']) {
+      const cand = cleanText(sizes[key] && sizes[key].source_url);
+      if (cand) return cand;
+    }
+  }
+  const yoast = isObj(post && post.yoast_head_json) ? post.yoast_head_json : {};
+  if (Array.isArray(yoast.og_image)) {
+    for (const img of yoast.og_image) {
+      const cand = cleanText(img && (img.url || img.src));
+      if (cand) return cand;
+    }
+  }
+  return "";
+}
+
+function parseNewsCanadaWpPostsJson(raw, sourceUrl) {
+  const arr = Array.isArray(raw) ? raw : (Array.isArray(raw && raw.posts) ? raw.posts : []);
+  const parserMode = 'wp_rest_posts_parser';
+  const items = arr.map((post, index) => {
+    const title = decodeWpRendered(post && post.title) || `Story ${index + 1}`;
+    const excerptHtml = isObj(post && post.excerpt) ? safeStr(post.excerpt.rendered || post.excerpt.raw || "") : safeStr(post && post.excerpt || "");
+    const contentHtml = isObj(post && post.content) ? safeStr(post.content.rendered || post.content.raw || "") : safeStr(post && post.content || "");
+    const summary = cleanText(extractFirstHtmlParagraph(excerptHtml || contentHtml) || clipText(stripTags(contentHtml || excerptHtml), 320));
+    const body = removeNewsCanadaFeedBoilerplate(stripTags(contentHtml || excerptHtml || summary));
+    const author = firstString([post && post.author_name, post && post._embedded && Array.isArray(post._embedded.author) && post._embedded.author[0] && post._embedded.author[0].name]);
+    const image = cleanText(extractWpFeaturedImage(post) || extractFirstHtmlImageUrl(contentHtml) || extractFirstHtmlImageUrl(excerptHtml));
+    const mediaUrl = cleanText(extractHtmlVideoSrc(contentHtml));
+    return buildNewsCanadaItem({
+      id: cleanText(post && post.id),
+      guid: cleanText(post && post.id),
+      slug: cleanText(post && post.slug),
+      title,
+      headline: title,
+      description: cleanText(summary || body),
+      summary,
+      body: cleanText(body || summary),
+      content: cleanText(body || summary),
+      link: cleanText(post && post.link),
+      url: cleanText(post && post.link),
+      sourceUrl: cleanText(post && post.link),
+      canonicalUrl: cleanText(post && post.link),
+      pubDate: cleanText(post && post.date),
+      publishedAt: cleanText(post && post.date),
+      image,
+      mediaUrl,
+      mediaType: mediaUrl ? 'video/mp4' : '',
+      popupImage: image,
+      popupBody: cleanText(body || summary),
+      byline: author,
+      author,
+      category: 'For Your Life',
+      chipLabel: 'RSS Feed',
+      source: 'For Your Life',
+      sourceName: 'For Your Life',
+      parserMode
+    }, index, sourceUrl, parserMode);
+  }).filter((item) => item && (item.title || item.summary || item.url));
+  return { items, parserMode };
+}
+
+function decodeXmlEntities(value) {
+  return safeStr(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#8217;/gi, "'")
+    .replace(/&#8220;|&#8221;/gi, '"')
+    .replace(/&#8230;/gi, "…")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      try { return String.fromCodePoint(parseInt(hex, 16)); } catch (_) { return ""; }
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try { return String.fromCodePoint(parseInt(dec, 10)); } catch (_) { return ""; }
+    });
+}
+
+function stripTags(value) {
+  return cleanText(decodeXmlEntities(value).replace(/<[^>]+>/g, " "));
+}
+
+function firstXmlTagValue(block, tagNames) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag) continue;
+    const match = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "i").exec(block);
+    if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
+  }
+  return "";
+}
+
+function allXmlTagValues(block, tagNames) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  const out = [];
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag) continue;
+    const re = new RegExp(`<${safeTag}\\b[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "ig");
+    let match;
+    while ((match = re.exec(block))) {
+      const value = decodeXmlEntities(match[1]);
+      if (cleanText(value)) out.push(value);
+    }
+  }
+  return out;
+}
+
+function firstXmlAttrValue(block, tagNames, attrName) {
+  const names = Array.isArray(tagNames) ? tagNames : [tagNames];
+  const attr = cleanText(attrName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const tagName of names) {
+    const safeTag = cleanText(tagName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!safeTag || !attr) continue;
+    const match = new RegExp(`<${safeTag}\\b[^>]*\\s${attr}=["']([^"']+)["'][^>]*\\/?>`, "i").exec(block);
+    if (match && cleanText(match[1])) return decodeXmlEntities(match[1]);
+  }
+  return "";
+}
+
+function truncateForMeta(value, max) {
+  return clipText(stripTags(value), clamp(Number(max || 240), 40, 2000));
+}
+
+function htmlDecodeForFeed(value) {
+  return stripTags(value).replace(/\s+/g, " ").trim();
+}
+
+function removeNewsCanadaFeedBoilerplate(value) {
+  return cleanText(safeStr(value)
+    .replace(/The post\s+.+?\s+appeared first on\s+.+?\.?$/i, " ")
+    .replace(/Continue reading\s*$/i, " "));
+}
+
+function stripUnsafeFeedAttrs(html) {
+  return safeStr(html)
+    .replace(/\s(?:style|srcset|sizes|fetchpriority|decoding|loading|class|id|link_thumbnail)=(["']).*?/gi, "")
+    .replace(/\s(?:data-[a-z0-9_-]+)=(["']).*?/gi, "");
+}
+
+function extractFirstHtmlImageUrl(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const match = /<img[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  return cleanText(match && match[1] || "");
+}
+
+function extractHtmlVideoSrc(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const sourceMatch = /<source[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  if (sourceMatch && cleanText(sourceMatch[1])) return cleanText(sourceMatch[1]);
+  const videoMatch = /<video[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  return cleanText(videoMatch && videoMatch[1] || "");
+}
+
+function extractFirstHtmlParagraph(html) {
+  const sanitized = stripUnsafeFeedAttrs(html);
+  const matches = sanitized.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
+  for (const block of matches) {
+    const text = removeNewsCanadaFeedBoilerplate(stripTags(block));
+    if (text && !/^the post/i.test(text)) return text;
+  }
+  return removeNewsCanadaFeedBoilerplate(stripTags(sanitized));
+}
+
+function buildNewsCanadaItem(entry, index, feedUrl, parserMode) {
+  const sourceName = "For Your Life";
+  const base = isObj(entry) ? { ...entry } : {};
+  const title = cleanText(base.title || base.headline || `Story ${index + 1}`) || `Story ${index + 1}`;
+  const description = cleanText(base.description || base.summary || base.body || base.content || "");
+  const url = cleanText(base.url || base.link || base.sourceUrl || base.guid || "");
+  const pubDate = cleanText(base.pubDate || base.publishedAt || base.date || "");
+  const image = cleanText(base.image || base.popupImage || base.thumbnail || "");
+  const author = cleanText(base.author || base.byline || "");
+  const category = cleanText(base.category || sourceName) || sourceName;
+  const slug = cleanText(base.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || `rss-${index}`;
+  return {
+    id: cleanText(base.id || base.guid || url || slug || `rss-${index}`) || `rss-${index}`,
+    guid: cleanText(base.guid || base.id || url || slug || `rss-${index}`) || `rss-${index}`,
+    slug,
+    title,
+    headline: title,
+    description,
+    summary: cleanText(base.summary || description),
+    body: cleanText(base.body || description),
+    content: cleanText(base.content || description),
+    link: url,
+    url,
+    sourceUrl: cleanText(base.sourceUrl || url),
+    canonicalUrl: cleanText(base.canonicalUrl || url),
+    pubDate,
+    publishedAt: cleanText(base.publishedAt || pubDate),
+    image,
+    mediaUrl: cleanText(base.mediaUrl || base.videoUrl || base.enclosureUrl || ""),
+    mediaType: cleanText(base.mediaType || base.enclosureType || ""),
+    popupImage: cleanText(base.popupImage || image),
+    popupBody: cleanText(base.popupBody || description),
+    byline: author,
+    author,
+    category,
+    chipLabel: cleanText(base.chipLabel || "RSS Feed") || "RSS Feed",
+    ctaText: cleanText(base.ctaText || "Read full story") || "Read full story",
+    source: cleanText(base.source || sourceName) || sourceName,
+    sourceName: cleanText(base.sourceName || sourceName) || sourceName,
+    feedUrl: cleanText(feedUrl || resolveNewsCanadaFeedUrl()),
+    parserMode: cleanText(base.parserMode || parserMode || "rss_parser") || "rss_parser",
+    isActive: base.isActive !== false
+  };
+}
+
+function parseNewsCanadaRssXml(xmlText, feedUrl) {
+  const xml = safeStr(xmlText);
+  const items = [];
+  let parserMode = "no_items";
+  if (!xml) return { items, parserMode };
+
+  const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry[\s\S]*?<\/entry>/gi) || []);
+  const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
+
+  if (blocks.length) {
+    parserMode = itemBlocks.length ? "xml_item_parser" : "atom_entry_parser";
+  }
+
+  blocks.forEach((block, index) => {
+    const title = stripTags(firstXmlTagValue(block, ["title"])) || `Story ${index + 1}`;
+    const descriptionRaw = firstXmlTagValue(block, ["description", "summary"]);
+    const contentRaw = firstXmlTagValue(block, ["content:encoded", "excerpt:encoded", "content"]);
+    const combinedHtml = safeStr(contentRaw || descriptionRaw);
+    const summary = cleanText(extractFirstHtmlParagraph(descriptionRaw || contentRaw) || truncateForMeta(combinedHtml, 320));
+    const body = removeNewsCanadaFeedBoilerplate(stripTags(contentRaw || descriptionRaw || summary));
+    const url = cleanText(
+      firstXmlAttrValue(block, ["link"], "href") ||
+      firstXmlTagValue(block, ["link"]) ||
+      firstXmlTagValue(block, ["guid"])
+    );
+    const pubDate = cleanText(firstXmlTagValue(block, ["pubDate", "published", "updated", "dc:date"]));
+    const author = stripTags(firstXmlTagValue(block, ["dc:creator", "author", "creator"]));
+    const category = stripTags(firstXmlTagValue(block, ["category"])) || "For Your Life";
+    const enclosureUrl = cleanText(firstXmlAttrValue(block, ["enclosure"], "url"));
+    const enclosureType = cleanText(firstXmlAttrValue(block, ["enclosure"], "type"));
+    const image = cleanText(
+      (/^image\//i.test(enclosureType) ? enclosureUrl : "") ||
+      firstXmlAttrValue(block, ["media:content", "media:thumbnail"], "url") ||
+      firstXmlTagValue(block, ["image"]) ||
+      extractFirstHtmlImageUrl(contentRaw) ||
+      extractFirstHtmlImageUrl(descriptionRaw)
+    );
+    const mediaUrl = cleanText(
+      (/^video\//i.test(enclosureType) ? enclosureUrl : "") ||
+      extractHtmlVideoSrc(contentRaw) ||
+      extractHtmlVideoSrc(descriptionRaw)
+    );
+    const allCategories = allXmlTagValues(block, ["category"]).map((v) => stripTags(v)).filter(Boolean);
+    items.push(buildNewsCanadaItem({
+      id: cleanText(firstXmlTagValue(block, ["guid", "id"])),
+      guid: cleanText(firstXmlTagValue(block, ["guid", "id"])),
+      title,
+      headline: title,
+      description: cleanText(summary || body),
+      summary: cleanText(summary || body),
+      body: cleanText(body || summary),
+      content: cleanText(body || summary),
+      link: url,
+      url,
+      sourceUrl: url,
+      canonicalUrl: url,
+      pubDate,
+      publishedAt: pubDate,
+      image,
+      mediaUrl,
+      mediaType: cleanText((/^video\//i.test(enclosureType) && enclosureType) || (mediaUrl ? 'video/mp4' : enclosureType)),
+      popupImage: image,
+      popupBody: cleanText(body || summary),
+      byline: author,
+      author,
+      category: category || firstString(allCategories),
+      parserMode
+    }, index, feedUrl, parserMode));
+  });
+
+  return {
+    items: items.filter((item) => item && ((item.title && item.url) || item.summary || item.mediaUrl)),
+    parserMode
+  };
+}
+
+function parseNewsCanadaFeedHtml(htmlText, feedUrl) {
+  const html = safeStr(htmlText);
+  const items = [];
+  if (!html) return { items, parserMode: "html_empty" };
+  const parserMode = "html_anchor_fallback";
+  const anchorRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const seen = new Set();
+  let match;
+  while ((match = anchorRe.exec(html)) && items.length < 12) {
+    const href = cleanText(decodeXmlEntities(match[1] || ""));
+    const anchorText = htmlDecodeForFeed(match[2] || "");
+    if (!href || !anchorText) continue;
+    if (!/^https?:\/\//i.test(href)) continue;
+    if (/\/wp-content\/|\/wp-json\//i.test(href)) continue;
+    if (anchorText.length < 6) continue;
+    const dedupeKey = `${href}|${anchorText.toLowerCase()}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const slice = html.slice(Math.max(0, match.index - 800), Math.min(html.length, match.index + 2200));
+    const summary = truncateForMeta(slice, 260) || anchorText;
+    items.push(buildNewsCanadaItem({
+      title: anchorText,
+      headline: anchorText,
+      description: summary,
+      summary,
+      body: summary,
+      content: summary,
+      link: href,
+      url: href,
+      sourceUrl: href,
+      canonicalUrl: href,
+      parserMode
+    }, items.length, feedUrl, parserMode));
+  }
+  return { items, parserMode };
+}
+
+function parseNewsCanadaFeedContent(rawText, feedUrl, contentType) {
+  const text = safeStr(rawText);
+  const normalizedContentType = lower(contentType || "");
+  const looksLikeXml = /<(rss|feed|rdf:rdf)\b/i.test(text) || /<item\b/i.test(text) || /<entry\b/i.test(text) || /xml/i.test(normalizedContentType);
+  const xmlParsed = parseNewsCanadaRssXml(text, feedUrl);
+  if (xmlParsed.items.length) {
+    return { items: xmlParsed.items, parserMode: xmlParsed.parserMode, contentType: normalizedContentType || "unknown" };
+  }
+  if (!looksLikeXml || /text\/html|application\/xhtml\+xml/i.test(normalizedContentType) || /<html\b/i.test(text)) {
+    const htmlParsed = parseNewsCanadaFeedHtml(text, feedUrl);
+    if (htmlParsed.items.length) {
+      return { items: htmlParsed.items, parserMode: htmlParsed.parserMode, contentType: normalizedContentType || "text/html" };
+    }
+    return { items: [], parserMode: htmlParsed.parserMode || "html_no_items", contentType: normalizedContentType || "text/html" };
+  }
+  return { items: [], parserMode: xmlParsed.parserMode || "xml_no_items", contentType: normalizedContentType || "unknown" };
+}
+
+
+const NEWS_CANADA_CACHE_FILE = path.join(__dirname, ".newscanada-feed-cache.json");
+const NEWS_CANADA_CACHE_CONTRACT_CANDIDATES = uniq([
+  cleanText(process.env.NEWSCANADA_CACHE_FILE || process.env.NEWS_CANADA_CACHE_FILE || ""),
+  path.join(__dirname, "data", "newscanada", "newscanada.cache.json"),
+  path.join(__dirname, "Data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "Data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "backend", "data", "newscanada", "newscanada.cache.json"),
+  path.join(process.cwd(), "backend", "Data", "newscanada", "newscanada.cache.json")
+].filter(Boolean));
+
+function getNewsCanadaCacheContractPaths() {
+  return NEWS_CANADA_CACHE_CONTRACT_CANDIDATES.slice();
+}
+
+function readNewsCanadaCacheContractFile() {
+  for (const candidate of getNewsCanadaCacheContractPaths()) {
+    try {
+      if (!candidate || !fs.existsSync(candidate)) continue;
+      const raw = fs.readFileSync(candidate, "utf8");
+      const parsed = JSON.parse(raw);
+      const items = Array.isArray(parsed && parsed.items)
+        ? parsed.items
+        : (Array.isArray(parsed && parsed.stories) ? parsed.stories : []);
+      if (!items.length) continue;
+      return {
+        ok: parsed && parsed.ok !== false,
+        items,
+        stories: items,
+        meta: {
+          ...(isObj(parsed && parsed.meta) ? parsed.meta : {}),
+          source: cleanText(parsed && parsed.meta && (parsed.meta.source || parsed.meta.servedFrom) || "cache") || "cache",
+          mode: cleanText(parsed && parsed.meta && parsed.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(parsed && parsed.meta && parsed.meta.parserMode || "cache_contract") || "cache_contract",
+          cacheContractPath: candidate,
+          cacheContractCandidates: getNewsCanadaCacheContractPaths()
+        }
+      };
+    } catch (_) {}
+  }
+  return null;
+}
+
+function isNewsCanadaSeedPayload(payload) {
+  const items = Array.isArray(payload && payload.items)
+    ? payload.items
+    : (Array.isArray(payload && payload.stories) ? payload.stories : []);
+  const meta = isObj(payload && payload.meta) ? payload.meta : {};
+  const parserMode = lower(meta.parserMode || "");
+  const source = lower(meta.source || meta.servedFrom || "");
+  const detail = lower(meta.detail || "");
+  if (
+    parserMode.includes("seed") ||
+    parserMode.includes("guaranteed_fallback") ||
+    source.includes("seed") ||
+    source.includes("fallback") ||
+    detail.includes("manual_seed_bootstrap") ||
+    detail.includes("guaranteed_fallback") ||
+    detail.includes("service_unavailable")
+  ) {
+    return true;
+  }
+  return items.some((item) => {
+    const id = lower(item && item.id);
+    const title = lower(item && item.title);
+    const slug = lower(item && item.slug);
+    const itemParserMode = lower(item && item.parserMode);
+    const description = lower(item && (item.description || item.summary || item.body || item.content));
+    return id.includes("newscanada-seed-") || id.includes("fallback-") || /seed story\s+[0-9]+/.test(title) || slug.includes("refreshing") || itemParserMode.includes("guaranteed_fallback") || description.includes("seed story");
+  });
+}
+
+function getWritableNewsCanadaCacheContractPath() {
+  const candidates = getNewsCanadaCacheContractPaths();
+  for (const candidate of candidates) {
+    try {
+      if (candidate && fs.existsSync(candidate)) return candidate;
+    } catch (_) {}
+  }
+  for (const candidate of candidates) {
+    try {
+      if (!candidate) continue;
+      const dir = path.dirname(candidate);
+      if (fs.existsSync(dir)) return candidate;
+    } catch (_) {}
+  }
+  return candidates[0] || path.join(__dirname, "Data", "newscanada", "newscanada.cache.json");
+}
+
+function getNewsCanadaCacheServeTtlMs() {
+  return clamp(Number(process.env.NEWS_CANADA_CACHE_SERVE_TTL_MS || 15 * 60 * 1000), 60 * 1000, 24 * 60 * 60 * 1000);
+}
+
+function getNewsCanadaBackgroundRefreshIntervalMs() {
+  return clamp(Number(process.env.NEWS_CANADA_BACKGROUND_REFRESH_MS || 10 * 60 * 1000), 60 * 1000, 24 * 60 * 60 * 1000);
+}
+
+function isFreshNewsCanadaContractCache(payload, ttlMs) {
+  const meta = isObj(payload && payload.meta) ? payload.meta : {};
+  const fetchedAt = Number(meta.fetchedAt || meta.lastSuccessAt || 0);
+  if (!fetchedAt) return false;
+  return (now() - fetchedAt) <= clamp(Number(ttlMs || getNewsCanadaCacheServeTtlMs()), 60 * 1000, 24 * 60 * 60 * 1000);
+}
+
+let newsCanadaBackgroundRefreshPromise = null;
+let newsCanadaBackgroundRefreshAt = 0;
+
+function scheduleNewsCanadaBackgroundRefresh(reason) {
+  const minIntervalMs = getNewsCanadaBackgroundRefreshIntervalMs();
+  if (newsCanadaBackgroundRefreshPromise) return false;
+  if ((now() - newsCanadaBackgroundRefreshAt) < minIntervalMs) return false;
+  newsCanadaBackgroundRefreshAt = now();
+  newsCanadaBackgroundRefreshPromise = Promise.resolve().then(async () => {
+    try {
+      const refreshed = await fetchNewsCanadaRssDirect({
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        refresh: true,
+        strictLive: true,
+        allowFallbackSeed: false,
+        preferFreshCache: false,
+        timeoutMs: clamp(Number(process.env.NEWS_CANADA_BACKGROUND_TIMEOUT_MS || process.env.NEWS_CANADA_DIRECT_FETCH_TIMEOUT_MS || 15000), 5000, 30000),
+        retryCount: clamp(Number(process.env.NEWS_CANADA_BACKGROUND_RETRIES || 1), 0, 2),
+        retryBaseMs: clamp(Number(process.env.NEWS_CANADA_FETCH_RETRY_BASE_MS || 500), 100, 2000)
+      });
+      const items = Array.isArray(refreshed && refreshed.items) ? refreshed.items : (Array.isArray(refreshed && refreshed.stories) ? refreshed.stories : []);
+      if (items.length && !isNewsCanadaSeedPayload(refreshed)) {
+        writeNewsCanadaSnapshot({ ...(isObj(refreshed) ? refreshed : {}), items, stories: items });
+        writeNewsCanadaCacheContractFile({ ...(isObj(refreshed) ? refreshed : {}), items, stories: items, ok: refreshed && refreshed.ok !== false }, {
+          ...(isObj(refreshed && refreshed.meta) ? refreshed.meta : {}),
+          servedFrom: 'background_refresh',
+          detail: cleanText(reason || 'background_refresh'),
+          stale: false,
+          degraded: false,
+          lastSuccessAt: Number(refreshed && refreshed.meta && refreshed.meta.fetchedAt || now()),
+          contractVersion: 'newscanada-rss-service-v17-transport-hardened'
+        });
+      }
+    } catch (err) {
+      console.log('[Sandblast][newsCanada] background_refresh_error', cleanText(err && (err.message || err) || 'background_refresh_failed'));
+    } finally {
+      newsCanadaBackgroundRefreshPromise = null;
+    }
+  });
+  return true;
+}
+
+function writeNewsCanadaCacheContractFile(payload, metaOverrides) {
+  try {
+    const items = Array.isArray(payload && payload.items)
+      ? payload.items
+      : (Array.isArray(payload && payload.stories) ? payload.stories : []);
+    if (!items.length) return { ok: false, reason: "no_items" };
+    const targetPath = getWritableNewsCanadaCacheContractPath();
+    const mergedMeta = {
+      ...(isObj(payload && payload.meta) ? payload.meta : {}),
+      ...(isObj(metaOverrides) ? metaOverrides : {})
     };
-  } else {
-    out.packet = {
-      ...out.packet,
-      final: true,
-      marionFinal: true,
-      handled: true,
-      routing: {
-        ...safeObj(out.packet.routing),
-        domain: safeStr(safeObj(out.packet.routing).domain || out.domain),
-        intent: safeStr(safeObj(out.packet.routing).intent || out.intent),
-        endpoint: safeStr(safeObj(out.packet.routing).endpoint || out.endpoint)
-      },
-      synthesis: {
-        ...safeObj(out.packet.synthesis),
-        reply,
-        text: reply,
-        answer: reply,
-        output: reply,
-        spokenText,
-        signature: marionFinalSignature,
-        marionFinalSignature,
-        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice()
-      },
+    const out = {
+      ok: payload && payload.ok !== false,
+      items: items.slice(0, 24),
       meta: {
-        ...safeObj(out.packet.meta),
-        ...out.meta,
-        final: true,
-        marionFinal: true,
-        handled: true,
-        finalizedBy: "marionBridge",
-        signature: marionFinalSignature,
-        marionFinalSignature,
-        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice(),
-        hardlockCompatible: true
+        ...mergedMeta,
+        source: cleanText(mergedMeta.source || mergedMeta.servedFrom || "cache") || "cache",
+        mode: cleanText(mergedMeta.mode || "cache_first") || "cache_first",
+        parserMode: cleanText(mergedMeta.parserMode || "cache_contract") || "cache_contract",
+        fetchedAt: Number(mergedMeta.fetchedAt || Date.now()),
+        lastSuccessAt: Number(mergedMeta.lastSuccessAt || mergedMeta.fetchedAt || Date.now()),
+        itemCount: items.length,
+        storyCount: items.length,
+        cacheContractPath: targetPath,
+        cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+        cacheVersion: cleanText(mergedMeta.cacheVersion || "newscanada-cache-v2") || "newscanada-cache-v2",
+        contractVersion: cleanText(mergedMeta.contractVersion || "newscanada-cache-contract-v3") || "newscanada-cache-contract-v3"
+      }
+    };
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.writeFileSync(targetPath, JSON.stringify(out, null, 2), "utf8");
+    return { ok: true, path: targetPath, itemCount: out.items.length };
+  } catch (err) {
+    console.log("[Sandblast][newsCanada] cache_contract_write_error", err && (err.stack || err.message || err));
+    return { ok: false, reason: cleanText(err && (err.message || err) || "cache_contract_write_failed") };
+  }
+}
+
+function getNewsCanadaBrowserHeaders(acceptHeader) {
+  return {
+    "accept": acceptHeader,
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "connection": "keep-alive",
+    "upgrade-insecure-requests": "1",
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+  };
+}
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, clamp(Number(ms || 0), 0, 10000)));
+}
+
+function withNewsCanadaTimeout(label, work, timeoutMs, fallbackFactory) {
+  const ms = clamp(Number(timeoutMs || process.env.NEWS_CANADA_ROUTE_TIMEOUT_MS || 15000), 1000, 45000);
+  return Promise.race([
+    Promise.resolve().then(work),
+    new Promise((resolve) => {
+      setTimeout(() => {
+        try {
+          resolve(
+            typeof fallbackFactory === "function"
+              ? fallbackFactory(cleanText(label || "news_canada_timeout") || "news_canada_timeout", ms)
+              : {
+                  ok: false,
+                  items: [],
+                  stories: [],
+                  meta: {
+                    source: "timeout_guard",
+                    degraded: true,
+                    stale: true,
+                    detail: `${cleanText(label || "news_canada_timeout") || "news_canada_timeout"}_${ms}ms`
+                  }
+                }
+          );
+        } catch (_) {
+          resolve({
+            ok: false,
+            items: [],
+            stories: [],
+            meta: {
+              source: "timeout_guard",
+              degraded: true,
+              stale: true,
+              detail: `${cleanText(label || "news_canada_timeout") || "news_canada_timeout"}_${ms}ms`
+            }
+          });
+        }
+      }, ms);
+    })
+  ]);
+}
+
+function withHardJsonDeadline(res, timeoutMs, buildPayload) {
+  const ms = clamp(Number(timeoutMs || process.env.NEWS_CANADA_HARD_RESPONSE_TIMEOUT_MS || 12000), 1000, 45000);
+  let finished = false;
+  const timer = setTimeout(() => {
+    if (finished || res.headersSent || res.writableEnded) return;
+    finished = true;
+    try {
+      const payload = typeof buildPayload === "function" ? buildPayload(ms) : { ok: true, items: [], meta: { source: "hard_deadline_guard", degraded: true, detail: `hard_deadline_${ms}ms` } };
+      res.status(200).json(payload);
+    } catch (_) {
+      try {
+        res.status(200).json({
+          ok: true,
+          items: [],
+          meta: {
+            source: "hard_deadline_guard",
+            degraded: true,
+            detail: `hard_deadline_${ms}ms`
+          }
+        });
+      } catch (_) {}
+    }
+  }, ms);
+
+  return {
+    done() {
+      if (finished) return false;
+      finished = true;
+      clearTimeout(timer);
+      return true;
+    }
+  };
+}
+
+function readNewsCanadaSnapshot() {
+  try {
+    if (!fs.existsSync(NEWS_CANADA_CACHE_FILE)) return null;
+    const raw = fs.readFileSync(NEWS_CANADA_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeNewsCanadaSnapshot(payload) {
+  try {
+    const out = {
+      writtenAt: Date.now(),
+      items: Array.isArray(payload && payload.items) ? payload.items.slice(0, 24) : [],
+      meta: isObj(payload && payload.meta) ? payload.meta : {}
+    };
+    if (!out.items.length) return;
+    fs.writeFileSync(NEWS_CANADA_CACHE_FILE, JSON.stringify(out), "utf8");
+  } catch (_) {}
+}
+
+async function fetchNewsCanadaRssDirect(opts) {
+  const options = isObj(opts) ? opts : {};
+  if (typeof fetch !== "function") {
+    throw new Error("fetch_unavailable");
+  }
+
+  const diagnostics = {
+    attemptedUrls: [],
+    parserMode: "uninitialized",
+    contentType: "",
+    resolvedUrl: "",
+    sample: "",
+    itemCount: 0,
+    stage: "entered"
+  };
+  const timeoutMs = clamp(Number(options.timeoutMs || process.env.NEWS_CANADA_DIRECT_FETCH_TIMEOUT_MS || process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 15000), 5000, 30000);
+  const retryCount = clamp(Number(options.retryCount || process.env.NEWS_CANADA_FETCH_RETRIES || 1), 0, 2);
+  const retryBaseMs = clamp(Number(options.retryBaseMs || process.env.NEWS_CANADA_FETCH_RETRY_BASE_MS || 500), 100, 2000);
+  let lastError = null;
+
+  const tryFetch = async (targetUrl, acceptHeader, mode) => {
+    diagnostics.stage = `try_fetch_${mode}`;
+    let finalErr = null;
+    for (let attempt = 0; attempt <= retryCount; attempt++) {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => { try { controller.abort(); } catch (_) {} }, timeoutMs) : null;
+      try {
+        diagnostics.attemptedUrls.push({ url: targetUrl, mode, attempt: attempt + 1, phase: "start" });
+        const res = await fetch(targetUrl, {
+          method: "GET",
+          redirect: "follow",
+          headers: getNewsCanadaBrowserHeaders(acceptHeader),
+          signal: controller ? controller.signal : undefined
+        });
+        const finalUrl = cleanText((res && res.url) || targetUrl) || targetUrl;
+        const contentType = cleanText(res && res.headers && typeof res.headers.get === "function" ? (res.headers.get("content-type") || "") : "");
+        diagnostics.attemptedUrls.push({
+          url: targetUrl,
+          status: Number(res && res.status || 0),
+          ok: !!(res && res.ok),
+          finalUrl,
+          contentType,
+          mode,
+          attempt: attempt + 1,
+          phase: "response"
+        });
+        if (!res || !res.ok) {
+          throw new Error(`${mode}_http_${res ? res.status : "failed"}`);
+        }
+        const rawText = await res.text();
+        diagnostics.sample = truncateForMeta(rawText, 320);
+        diagnostics.contentType = cleanText(contentType || diagnostics.contentType || "unknown") || "unknown";
+        diagnostics.resolvedUrl = finalUrl || targetUrl;
+        return { rawText, finalUrl, contentType };
+      } catch (err) {
+        finalErr = err;
+        diagnostics.attemptedUrls.push({
+          url: targetUrl,
+          ok: false,
+          error: cleanText(err && (err.message || err) || `${mode}_fetch_failed`),
+          mode,
+          attempt: attempt + 1,
+          phase: "error"
+        });
+        if (attempt < retryCount) {
+          await sleepMs(retryBaseMs * Math.pow(2, attempt));
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
+    throw finalErr || new Error(`${mode}_fetch_failed`);
+  };
+
+  const primaryFeedUrl = cleanText(options.feedUrl || resolveNewsCanadaFeedUrl() || 'https://foryourlife.ca/feed/');
+  let secondaryFeedUrl = '';
+  try {
+    const base = new URL(primaryFeedUrl);
+    secondaryFeedUrl = `${base.origin}/?feed=rss2`;
+  } catch (_) {}
+  const feedCandidates = uniq([primaryFeedUrl, secondaryFeedUrl].filter(Boolean)).slice(0, 2);
+  const apiCandidates = resolveNewsCanadaApiCandidates().slice(0, 1);
+
+  diagnostics.stage = "rss_candidates_ready";
+  for (const feedUrl of feedCandidates) {
+    try {
+      const fetched = await tryFetch(feedUrl, "application/rss+xml, application/xml, text/xml;q=0.95, application/atom+xml;q=0.95, text/html;q=0.7, */*;q=0.6", "rss");
+      const parsed = parseNewsCanadaFeedContent(fetched.rawText, fetched.finalUrl || feedUrl, fetched.contentType);
+      diagnostics.parserMode = cleanText(parsed.parserMode || "no_items") || "no_items";
+      diagnostics.itemCount = Array.isArray(parsed.items) ? parsed.items.length : 0;
+      diagnostics.stage = "rss_parsed";
+      if (parsed.items.length) {
+        const successPayload = {
+          ok: true,
+          items: parsed.items,
+          stories: parsed.items,
+          meta: {
+            source: "rss_direct_fallback",
+            degraded: false,
+            mode: "rss",
+            strategy: "rss_first_then_wp_rest",
+            parserMode: diagnostics.parserMode,
+            contentType: diagnostics.contentType,
+            resolvedUrl: diagnostics.resolvedUrl,
+            attemptedUrls: diagnostics.attemptedUrls,
+            sample: diagnostics.sample,
+            feedUrl,
+            fetchedAt: Date.now(),
+            itemCount: parsed.items.length,
+            storyCount: parsed.items.length,
+            stage: diagnostics.stage
+          }
+        };
+        writeNewsCanadaSnapshot(successPayload);
+        writeNewsCanadaCacheContractFile(successPayload, {
+          source: "rss_direct_fallback",
+          mode: "rss",
+          parserMode: diagnostics.parserMode,
+          feedUrl,
+          fetchedAt: Date.now(),
+          itemCount: parsed.items.length,
+          storyCount: parsed.items.length,
+          contractVersion: "newscanada-rss-service-v17-transport-hardened"
+        });
+        return successPayload;
+      }
+      lastError = new Error(`rss_no_items_${diagnostics.parserMode}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  diagnostics.stage = "wp_rest_candidates_ready";
+  for (const apiUrl of apiCandidates) {
+    try {
+      const fetched = await tryFetch(apiUrl, "application/json, text/json;q=0.95, */*;q=0.6", "wp_rest");
+      const parsedJson = JSON.parse(fetched.rawText);
+      const parsed = parseNewsCanadaWpPostsJson(parsedJson, fetched.finalUrl || apiUrl);
+      diagnostics.parserMode = parsed.parserMode;
+      diagnostics.itemCount = Array.isArray(parsed.items) ? parsed.items.length : 0;
+      diagnostics.stage = "wp_rest_parsed";
+      if (parsed.items.length) {
+        const successPayload = {
+          ok: true,
+          items: parsed.items,
+          stories: parsed.items,
+          meta: {
+            source: "wp_rest_api_fallback",
+            degraded: false,
+            mode: "wp_rest",
+            strategy: "rss_first_then_wp_rest",
+            parserMode: diagnostics.parserMode,
+            contentType: diagnostics.contentType,
+            resolvedUrl: diagnostics.resolvedUrl,
+            attemptedUrls: diagnostics.attemptedUrls,
+            sample: diagnostics.sample,
+            feedUrl: resolveNewsCanadaFeedUrl(),
+            fetchedAt: Date.now(),
+            itemCount: parsed.items.length,
+            storyCount: parsed.items.length,
+            stage: diagnostics.stage
+          }
+        };
+        writeNewsCanadaSnapshot(successPayload);
+        writeNewsCanadaCacheContractFile(successPayload, {
+          source: "wp_rest_api_fallback",
+          mode: "wp_rest",
+          parserMode: diagnostics.parserMode,
+          feedUrl: resolveNewsCanadaFeedUrl(),
+          fetchedAt: Date.now(),
+          itemCount: parsed.items.length,
+          storyCount: parsed.items.length,
+          contractVersion: "newscanada-rss-service-v17-transport-hardened"
+        });
+        return successPayload;
+      }
+      lastError = new Error("wp_rest_no_items");
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  const contractCache = readNewsCanadaCacheContractFile();
+  if (contractCache && Array.isArray(contractCache.items) && contractCache.items.length) {
+    return {
+      ok: true,
+      items: contractCache.items.slice(),
+      stories: contractCache.items.slice(),
+      meta: {
+        ...(isObj(contractCache.meta) ? contractCache.meta : {}),
+        source: cleanText(contractCache.meta && contractCache.meta.source || "cache_contract") || "cache_contract",
+        degraded: true,
+        mode: cleanText(contractCache.meta && contractCache.meta.mode || "cache_first") || "cache_first",
+        parserMode: cleanText(contractCache.meta && contractCache.meta.parserMode || "cache_contract") || "cache_contract",
+        contentType: cleanText(diagnostics.contentType || contractCache.meta && contractCache.meta.contentType || "cached") || "cached",
+        resolvedUrl: cleanText(diagnostics.resolvedUrl || contractCache.meta && contractCache.meta.resolvedUrl || "") || "",
+        attemptedUrls: diagnostics.attemptedUrls,
+        sample: diagnostics.sample,
+        detail: cleanText(lastError && (lastError.message || lastError) || "cache_contract_used"),
+        feedUrl: cleanText(contractCache.meta && contractCache.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+        fetchedAt: Number(contractCache.meta && contractCache.meta.fetchedAt || Date.now()),
+        itemCount: contractCache.items.length,
+        storyCount: contractCache.items.length,
+        stage: diagnostics.stage,
+        contractVersion: "newscanada-rss-service-v17-transport-hardened"
       }
     };
   }
 
-  out.indexCohesion = {
+  const snapshot = readNewsCanadaSnapshot();
+  if (snapshot && Array.isArray(snapshot.items) && snapshot.items.length) {
+    return {
+      ok: true,
+      items: snapshot.items.slice(),
+      stories: snapshot.items.slice(),
+      meta: {
+        source: "news_canada_snapshot_cache",
+        degraded: true,
+        mode: "snapshot",
+        parserMode: "snapshot_cache",
+        contentType: cleanText(diagnostics.contentType || "cached") || "cached",
+        resolvedUrl: cleanText(diagnostics.resolvedUrl || "") || "",
+        attemptedUrls: diagnostics.attemptedUrls,
+        sample: diagnostics.sample,
+        detail: cleanText(lastError && (lastError.message || lastError) || "snapshot_cache_used"),
+        feedUrl: cleanText((snapshot.meta && snapshot.meta.feedUrl) || resolveNewsCanadaFeedUrl()),
+        fetchedAt: Number(snapshot.writtenAt || Date.now()),
+        itemCount: snapshot.items.length,
+        storyCount: snapshot.items.length,
+        stage: diagnostics.stage
+      }
+    };
+  }
+
+  return {
+    ok: false,
+    items: [],
+    stories: [],
+    meta: {
+      source: diagnostics.attemptedUrls.some((x) => x && x.mode === "wp_rest") ? "wp_rest_api_fallback" : "rss_direct_fallback",
+      degraded: true,
+      mode: diagnostics.attemptedUrls.some((x) => x && x.mode === "wp_rest") ? "wp_rest" : "rss",
+      parserMode: cleanText(diagnostics.parserMode || "no_items") || "no_items",
+      contentType: cleanText(diagnostics.contentType || "unknown") || "unknown",
+      resolvedUrl: cleanText(diagnostics.resolvedUrl || "") || "",
+      attemptedUrls: diagnostics.attemptedUrls,
+      sample: diagnostics.sample,
+      detail: cleanText(lastError && (lastError.message || lastError) || "feed_no_items"),
+      strategy: "rss_first_then_wp_rest",
+      feedUrl: cleanText((diagnostics.attemptedUrls[0] && diagnostics.attemptedUrls[0].url) || resolveNewsCanadaFeedUrl()),
+      fetchedAt: Date.now(),
+      itemCount: 0,
+      storyCount: 0,
+      stage: diagnostics.stage
+    }
+  };
+}
+
+function buildNewsCanadaDirectFallbackService(logger) {
+  const log = typeof logger === "function" ? logger : () => {};
+  let cache = {
+    ok: false,
+    items: [],
+    stories: [],
+    fetchedAt: 0,
+    feedUrl: resolveNewsCanadaFeedUrl(),
+    degraded: false,
+    source: "rss_direct_fallback",
+    parserMode: "uninitialized",
+    contentType: "",
+    resolvedUrl: "",
+    attemptedUrls: [],
+    sample: "",
+    detail: ""
+  };
+
+  async function refresh(opts) {
+    const result = await fetchNewsCanadaRssDirect(opts);
+    cache = {
+      ok: result && result.ok !== false,
+      items: Array.isArray(result && result.items) ? result.items : [],
+      stories: Array.isArray(result && result.stories) ? result.stories : [],
+      fetchedAt: Number(result && result.meta && result.meta.fetchedAt || Date.now()),
+      feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+      degraded: !!(result && result.meta && result.meta.degraded),
+      source: cleanText(result && result.meta && result.meta.source || "rss_direct_fallback") || "rss_direct_fallback",
+      parserMode: cleanText(result && result.meta && result.meta.parserMode || "unknown") || "unknown",
+      contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
+      resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
+      attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
+      sample: cleanText(result && result.meta && result.meta.sample || ""),
+      detail: cleanText(result && result.meta && result.meta.detail || "")
+    };
+    return result;
+  }
+
+  return {
+    async fetchRSS(opts) {
+      try {
+        return await refresh(opts);
+      } catch (err) {
+        log("[Sandblast][newsCanada] direct_fallback_fetch_error", err && (err.stack || err.message || err));
+        return {
+          ok: false,
+          items: cache.items.slice(),
+          stories: cache.stories.slice(),
+          meta: {
+            source: cache.stories.length ? "rss_direct_fallback_cache" : "rss_direct_fallback",
+            degraded: true,
+            mode: "rss",
+            parserMode: cache.parserMode || "error",
+            contentType: cache.contentType || "",
+            resolvedUrl: cache.resolvedUrl || "",
+            attemptedUrls: cache.attemptedUrls.slice(0, 12),
+            sample: cache.sample,
+            feedUrl: cache.feedUrl || resolveNewsCanadaFeedUrl(),
+            fetchedAt: cache.fetchedAt,
+            itemCount: cache.items.length,
+            storyCount: cache.stories.length,
+            detail: cleanText(err && (err.message || err) || cache.detail || "rss_direct_fallback_failed")
+          }
+        };
+      }
+    },
+    async getEditorsPicks(opts) {
+      const refreshRequested = !!(opts && opts.refresh);
+      if (!cache.ok || refreshRequested || !Array.isArray(cache.stories) || !cache.stories.length) {
+        await this.fetchRSS(opts);
+      }
+      const limit = clamp(Number(opts && opts.limit || 0), 0, 100);
+      const stories = limit > 0 ? cache.stories.slice(0, limit) : cache.stories.slice();
+      return {
+        ok: stories.length > 0,
+        stories,
+        slides: stories,
+        chips: [],
+        meta: {
+          source: cache.source,
+          degraded: !!cache.degraded,
+          mode: "rss",
+          parserMode: cache.parserMode,
+          contentType: cache.contentType,
+          resolvedUrl: cache.resolvedUrl,
+          attemptedUrls: cache.attemptedUrls.slice(0, 12),
+          sample: cache.sample,
+          detail: cache.detail,
+          feedUrl: cache.feedUrl,
+          fetchedAt: cache.fetchedAt,
+          storyCount: stories.length
+        }
+      };
+    },
+    async getStory(lookup, opts) {
+      const refreshRequested = !!(opts && opts.refresh);
+      if (!cache.ok || refreshRequested || !Array.isArray(cache.stories) || !cache.stories.length) {
+        await this.fetchRSS(opts);
+      }
+      const key = cleanText(lookup).toLowerCase();
+      const story = cache.stories.find((item) => [
+        cleanText(item.id).toLowerCase(),
+        cleanText(item.guid).toLowerCase(),
+        cleanText(item.slug).toLowerCase(),
+        cleanText(item.title).toLowerCase(),
+        cleanText(item.url).toLowerCase(),
+        cleanText(item.link).toLowerCase()
+      ].includes(key));
+      return story
+        ? {
+            ok: true,
+            story,
+            meta: {
+              source: cache.source,
+              degraded: !!cache.degraded,
+              mode: "rss",
+              parserMode: cache.parserMode,
+              contentType: cache.contentType,
+              resolvedUrl: cache.resolvedUrl,
+              attemptedUrls: cache.attemptedUrls.slice(0, 12),
+              sample: cache.sample,
+              detail: cache.detail,
+              feedUrl: cache.feedUrl,
+              fetchedAt: cache.fetchedAt
+            }
+          }
+        : {
+            ok: false,
+            error: "story_not_found",
+            meta: {
+              source: cache.source,
+              degraded: !!cache.degraded,
+              mode: "rss",
+              parserMode: cache.parserMode,
+              contentType: cache.contentType,
+              resolvedUrl: cache.resolvedUrl,
+              attemptedUrls: cache.attemptedUrls.slice(0, 12),
+              sample: cache.sample,
+              detail: cache.detail,
+              feedUrl: cache.feedUrl,
+              fetchedAt: cache.fetchedAt
+            }
+          };
+    },
+    async prime() {
+      const out = await this.fetchRSS({ refresh: true });
+      return { ok: out && out.ok !== false };
+    },
+    health() {
+      return {
+        ok: cache.ok,
+        source: cache.source,
+        degraded: !!cache.degraded,
+        mode: "rss",
+        parserMode: cache.parserMode,
+        contentType: cache.contentType,
+        resolvedUrl: cache.resolvedUrl,
+        attemptedUrls: cache.attemptedUrls.slice(0, 12),
+        sample: cache.sample,
+        detail: cache.detail,
+        feedUrl: cache.feedUrl || resolveNewsCanadaFeedUrl(),
+        fetchedAt: cache.fetchedAt,
+        storyCount: Array.isArray(cache.stories) ? cache.stories.length : 0,
+        itemCount: Array.isArray(cache.items) ? cache.items.length : 0
+      };
+    }
+  };
+}
+
+function buildNewsCanadaServiceFromFetch(fetchRSS, logger) {
+  if (typeof fetchRSS !== "function") return null;
+
+  let cache = {
+    ok: false,
+    items: [],
+    stories: [],
+    fetchedAt: 0,
+    feedUrl: resolveNewsCanadaFeedUrl(),
+    degraded: false,
+    source: "rss_service_fallback"
+  };
+
+  async function refresh(opts) {
+    const result = await Promise.resolve(fetchRSS(opts || {}));
+    const items = Array.isArray(result && result.items)
+      ? result.items
+      : (Array.isArray(result && result.stories) ? result.stories : []);
+    const stories = items.map((item, index) => {
+      const entry = isObj(item) ? { ...item } : {};
+      const title = cleanText(entry.title || entry.headline || `Story ${index + 1}`);
+      const url = cleanText(entry.url || entry.link || "");
+      const slug = cleanText(entry.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
+      const description = cleanText(entry.description || entry.summary || entry.body || entry.content || "");
+      const image = cleanText(entry.image || entry.popupImage || "");
+      return {
+        ...entry,
+        id: cleanText(entry.id || entry.guid || url || slug || `rss-${index}`) || `rss-${index}`,
+        slug: slug || `rss-${index}`,
+        title,
+        description,
+        summary: cleanText(entry.summary || description),
+        body: cleanText(entry.body || description),
+        content: cleanText(entry.content || description),
+        link: cleanText(entry.link || url),
+        url,
+        pubDate: cleanText(entry.pubDate || entry.isoDate || ""),
+        image,
+        popupImage: cleanText(entry.popupImage || image),
+        popupBody: cleanText(entry.popupBody || description),
+        ctaText: cleanText(entry.ctaText || "Read more"),
+        source: cleanText(entry.source || "News Canada"),
+        isActive: entry.isActive !== false
+      };
+    });
+
+    cache = {
+      ok: result && result.ok !== false,
+      items,
+      stories,
+      fetchedAt: Number(result && result.meta && result.meta.fetchedAt || Date.now()),
+      feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+      degraded: !!(result && result.meta && result.meta.degraded),
+      source: cleanText(result && result.meta && result.meta.source || "rss_service_fallback") || "rss_service_fallback"
+    };
+
+    return { result, stories };
+  }
+
+  return {
+    async fetchRSS(opts) {
+      const out = await refresh(opts);
+      return {
+        ok: out.result && out.result.ok !== false,
+        items: out.stories,
+        stories: out.stories,
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          source: cache.source,
+          degraded: !!cache.degraded,
+          mode: "rss",
+          feedUrl: cache.feedUrl,
+          fetchedAt: cache.fetchedAt,
+          itemCount: out.stories.length,
+          storyCount: out.stories.length
+        }
+      };
+    },
+    async getEditorsPicks(opts) {
+      const refreshRequested = !!(opts && opts.refresh);
+      if (!cache.ok || refreshRequested || !Array.isArray(cache.stories) || !cache.stories.length) {
+        await refresh(opts);
+      }
+      const limit = clamp(Number(opts && opts.limit || 0), 0, 100);
+      const stories = limit > 0 ? cache.stories.slice(0, limit) : cache.stories.slice();
+      return {
+        ok: true,
+        stories,
+        slides: stories,
+        chips: [],
+        meta: {
+          source: cache.source,
+          degraded: !!cache.degraded,
+          mode: "rss",
+          feedUrl: cache.feedUrl,
+          fetchedAt: cache.fetchedAt,
+          storyCount: stories.length
+        }
+      };
+    },
+    async getStory(lookup, opts) {
+      const refreshRequested = !!(opts && opts.refresh);
+      if (!cache.ok || refreshRequested || !Array.isArray(cache.stories) || !cache.stories.length) {
+        await refresh(opts);
+      }
+      const key = cleanText(lookup).toLowerCase();
+      const story = cache.stories.find((item) => [
+        cleanText(item.id).toLowerCase(),
+        cleanText(item.slug).toLowerCase(),
+        cleanText(item.title).toLowerCase(),
+        cleanText(item.url).toLowerCase(),
+        cleanText(item.link).toLowerCase()
+      ].includes(key));
+      if (!story) {
+        return {
+          ok: false,
+          error: "story_not_found",
+          meta: {
+            source: cache.source,
+            degraded: !!cache.degraded,
+            mode: "rss",
+            feedUrl: cache.feedUrl,
+            fetchedAt: cache.fetchedAt
+          }
+        };
+      }
+      return {
+        ok: true,
+        story,
+        meta: {
+          source: cache.source,
+          degraded: !!cache.degraded,
+          mode: "rss",
+          feedUrl: cache.feedUrl,
+          fetchedAt: cache.fetchedAt
+        }
+      };
+    },
+    async prime() {
+      try {
+        await refresh({ refresh: true });
+        return { ok: true };
+      } catch (err) {
+        if (typeof logger === "function") logger("[Sandblast][newsCanada] fallback_prime_error", err && (err.stack || err.message || err));
+        return { ok: false, error: cleanText(err && (err.message || err) || "prime_failed") };
+      }
+    },
+    health() {
+      return {
+        ok: cache.ok,
+        source: cache.source,
+        degraded: !!cache.degraded,
+        mode: "rss",
+        feedUrl: cache.feedUrl || resolveNewsCanadaFeedUrl(),
+        fetchedAt: cache.fetchedAt,
+        storyCount: Array.isArray(cache.stories) ? cache.stories.length : 0,
+        itemCount: Array.isArray(cache.items) ? cache.items.length : 0
+      };
+    }
+  };
+}
+
+function normalizeNewsCanadaServiceModule(mod) {
+  if (!mod) return null;
+  const logger = (...args) => console.log(...args);
+  const candidates = [mod, mod.default, mod.service, mod.newsCanadaFeedService].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    if (typeof candidate.createNewsCanadaFeedService === "function") {
+      try {
+        const built = candidate.createNewsCanadaFeedService({
+          fetchImpl: typeof fetch === "function" ? fetch.bind(globalThis) : null,
+          logger
+        });
+        if (built && (typeof built.fetchRSS === "function" || typeof built.getEditorsPicks === "function")) return built;
+      } catch (err) {
+        logger("[Sandblast][newsCanada] service_factory_error", err && (err.stack || err.message || err));
+      }
+    }
+
+    if (typeof candidate.fetchRSS === "function") {
+      const wrapped = buildNewsCanadaServiceFromFetch(candidate.fetchRSS.bind(candidate), logger);
+      if (wrapped) return wrapped;
+    }
+
+    if (
+      typeof candidate.getEditorsPicks === "function" ||
+      typeof candidate.getStory === "function" ||
+      typeof candidate.health === "function"
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+const newsCanadaFeedService = (() => {
+  const logger = (...args) => console.log(...args);
+  const directFallback = buildNewsCanadaDirectFallbackService(logger);
+
+  return {
+    async fetchRSS(opts) {
+      const normalizedOpts = {
+        ...(isObj(opts) ? opts : {}),
+        refresh: true,
+        strictLive: true,
+        allowFallbackSeed: false,
+        preferFreshCache: false,
+        timeoutMs: Number((opts && opts.timeoutMs) || process.env.NEWS_CANADA_DIRECT_FETCH_TIMEOUT_MS || process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 12000)
+      };
+      try {
+        return await Promise.resolve(directFallback.fetchRSS(normalizedOpts));
+      } catch (err) {
+        logger("[Sandblast][newsCanada] truth_path_fetchRSS_error", err && (err.stack || err.message || err));
+        return {
+          ok: false,
+          items: [],
+          stories: [],
+          meta: {
+            source: "truth_path_error",
+            degraded: true,
+            stale: true,
+            detail: cleanText(err && (err.message || err) || "truth_path_fetchRSS_error")
+          }
+        };
+      }
+    },
+    async getEditorsPicks(opts) {
+      try {
+        return await Promise.resolve(directFallback.getEditorsPicks({
+          ...(isObj(opts) ? opts : {}),
+          refresh: true,
+          strictLive: true,
+          allowFallbackSeed: false,
+          preferFreshCache: false
+        }));
+      } catch (err) {
+        logger("[Sandblast][newsCanada] truth_path_getEditorsPicks_error", err && (err.stack || err.message || err));
+        return {
+          ok: false,
+          stories: [],
+          slides: [],
+          chips: [],
+          meta: {
+            source: "truth_path_error",
+            degraded: true,
+            stale: true,
+            detail: cleanText(err && (err.message || err) || "truth_path_getEditorsPicks_error")
+          }
+        };
+      }
+    },
+    async getStory(lookup, opts) {
+      return directFallback.getStory(lookup, {
+        ...(isObj(opts) ? opts : {}),
+        refresh: true
+      });
+    },
+    async prime() {
+      return directFallback.prime();
+    },
+    health() {
+      return directFallback.health();
+    }
+  };
+})();;
+
+
+function buildNewsCanadaCacheBackedService(cacheMod, fallbackService) {
+  const cacheSvc = cacheMod && cacheMod.default && typeof cacheMod.default === "object" ? cacheMod.default : cacheMod;
+  const hasGetCachedOrRefresh = !!(cacheSvc && typeof cacheSvc.getCachedOrRefresh === "function");
+  const readCache = cacheSvc && typeof cacheSvc.readCache === "function" ? cacheSvc.readCache.bind(cacheSvc) : null;
+  const refreshCache = cacheSvc && typeof cacheSvc.refreshCache === "function" ? cacheSvc.refreshCache.bind(cacheSvc) : null;
+
+  if (!hasGetCachedOrRefresh && !readCache) {
+    const seeded = readNewsCanadaCacheContractFile();
+    if (!seeded) return fallbackService;
+  }
+
+  async function resolvePayload(opts) {
+    const forceRefresh = !!(opts && opts.refresh);
+    const seeded = readNewsCanadaCacheContractFile();
+    const seededIsPlaceholder = !!(seeded && seeded.items && seeded.items.length && isNewsCanadaSeedPayload(seeded));
+
+    if (seeded && seeded.items && seeded.items.length && !seededIsPlaceholder && !forceRefresh) {
+      return seeded;
+    }
+
+    if (hasGetCachedOrRefresh) {
+      const payload = await Promise.resolve(cacheSvc.getCachedOrRefresh({
+        forceRefresh: forceRefresh || seededIsPlaceholder,
+        timeoutMs: clamp(Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000)
+      }));
+      if (isObj(payload) && Array.isArray(payload.items) && payload.items.length && !isNewsCanadaSeedPayload(payload)) {
+        return {
+          ...payload,
+          meta: {
+            ...(isObj(payload.meta) ? payload.meta : {}),
+            cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || (seeded && seeded.meta && seeded.meta.cacheContractPath) || ""),
+            cacheContractCandidates: getNewsCanadaCacheContractPaths()
+          }
+        };
+      }
+      if (seeded && seeded.items && seeded.items.length && !seededIsPlaceholder) return seeded;
+      return isObj(payload)
+        ? {
+            ...payload,
+            meta: {
+              ...(isObj(payload.meta) ? payload.meta : {}),
+              cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || ""),
+              cacheContractCandidates: getNewsCanadaCacheContractPaths()
+            }
+          }
+        : {
+            ok: false,
+            items: [],
+            meta: {
+              source: "cache_service_invalid",
+              degraded: true,
+              cacheContractCandidates: getNewsCanadaCacheContractPaths()
+            }
+          };
+    }
+
+    if (readCache) {
+      const payload = await Promise.resolve(readCache());
+      if (isObj(payload) && Array.isArray(payload.items) && payload.items.length && !isNewsCanadaSeedPayload(payload)) {
+        return {
+          ...payload,
+          meta: {
+            ...(isObj(payload.meta) ? payload.meta : {}),
+            cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || (seeded && seeded.meta && seeded.meta.cacheContractPath) || ""),
+            cacheContractCandidates: getNewsCanadaCacheContractPaths()
+          }
+        };
+      }
+    }
+
+    if ((forceRefresh || seededIsPlaceholder) && fallbackService && typeof fallbackService.fetchRSS === "function") {
+      const fallbackPayload = await Promise.resolve(fallbackService.fetchRSS({
+        refresh: true,
+        timeoutMs: clamp(Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000),
+        retryCount: clamp(Number(process.env.NEWS_CANADA_FETCH_RETRIES || 2), 0, 4)
+      }));
+      const fallbackItems = Array.isArray(fallbackPayload && fallbackPayload.items)
+        ? fallbackPayload.items
+        : (Array.isArray(fallbackPayload && fallbackPayload.stories) ? fallbackPayload.stories : []);
+      if (fallbackItems.length && !isNewsCanadaSeedPayload(fallbackPayload)) {
+        writeNewsCanadaSnapshot({
+          ...(isObj(fallbackPayload) ? fallbackPayload : {}),
+          items: fallbackItems,
+          stories: fallbackItems
+        });
+        const writeResult = writeNewsCanadaCacheContractFile({
+          ...(isObj(fallbackPayload) ? fallbackPayload : {}),
+          items: fallbackItems,
+          stories: fallbackItems,
+          ok: fallbackPayload && fallbackPayload.ok !== false
+        }, {
+          ...(isObj(fallbackPayload && fallbackPayload.meta) ? fallbackPayload.meta : {}),
+          servedFrom: "auto_ingest_switch",
+          detail: seededIsPlaceholder ? "auto_ingest_replaced_seed_cache" : cleanText(fallbackPayload && fallbackPayload.meta && fallbackPayload.meta.detail || "auto_ingest_live_write"),
+          stale: false,
+          degraded: false,
+          lastSuccessAt: Number(fallbackPayload && fallbackPayload.meta && fallbackPayload.meta.fetchedAt || now())
+        });
+        return {
+          ...(isObj(fallbackPayload) ? fallbackPayload : {}),
+          items: fallbackItems,
+          stories: fallbackItems,
+          meta: {
+            ...(isObj(fallbackPayload && fallbackPayload.meta) ? fallbackPayload.meta : {}),
+            cacheContractPath: cleanText(writeResult.path || getWritableNewsCanadaCacheContractPath()),
+            cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+            servedFrom: "auto_ingest_switch",
+            detail: seededIsPlaceholder ? "auto_ingest_replaced_seed_cache" : cleanText(fallbackPayload && fallbackPayload.meta && fallbackPayload.meta.detail || "auto_ingest_live_write")
+          }
+        };
+      }
+    }
+
+    if (seeded && seeded.items && seeded.items.length) return seeded;
+
+    return {
+      ok: false,
+      items: [],
+      meta: {
+        source: "cache",
+        degraded: true,
+        mode: "cache_first",
+        parserMode: "cache_contract",
+        detail: "cache_contract_missing_or_empty",
+        cacheContractPath: "",
+        cacheContractCandidates: getNewsCanadaCacheContractPaths()
+      }
+    };
+  }
+
+  return {
+    async fetchRSS(opts) {
+      const payload = await resolvePayload(opts);
+      const items = Array.isArray(payload && payload.items) ? payload.items : [];
+      return {
+        ok: payload && payload.ok !== false && items.length > 0,
+        items,
+        stories: items,
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "cache") || "cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed || !items.length)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(payload && payload.meta && payload.meta.parserMode || "cache_contract") || "cache_contract",
+          contentType: cleanText(payload && payload.meta && payload.meta.contentType || "application/json") || "application/json",
+          resolvedUrl: cleanText(payload && payload.meta && payload.meta.resolvedUrl || "") || "",
+          attemptedUrls: Array.isArray(payload && payload.meta && payload.meta.attemptedUrls) ? payload.meta.attemptedUrls.slice(0, 12) : [],
+          sample: cleanText(payload && payload.meta && payload.meta.sample || ""),
+          detail: cleanText(payload && payload.meta && payload.meta.detail || ""),
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+          itemCount: items.length,
+          storyCount: items.length,
+          cacheVersion: cleanText(payload && payload.meta && payload.meta.cacheVersion || "newscanada-cache-v1") || "newscanada-cache-v1",
+          cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || ""),
+          cacheContractCandidates: Array.isArray(payload && payload.meta && payload.meta.cacheContractCandidates) ? payload.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths(),
+          contractVersion: "newscanada-cache-contract-v2"
+        }
+      };
+    },
+    async getEditorsPicks(opts) {
+      const payload = await resolvePayload(opts);
+      const stories = Array.isArray(payload && payload.items) ? payload.items : [];
+      return {
+        ok: stories.length > 0,
+        stories,
+        slides: stories,
+        chips: [],
+        meta: {
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "cache") || "cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed || !stories.length)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(payload && payload.meta && payload.meta.parserMode || "cache_contract") || "cache_contract",
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+          storyCount: stories.length,
+          attemptedUrls: Array.isArray(payload && payload.meta && payload.meta.attemptedUrls) ? payload.meta.attemptedUrls.slice(0, 12) : [],
+          detail: cleanText(payload && payload.meta && payload.meta.detail || ""),
+          cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || ""),
+          cacheContractCandidates: Array.isArray(payload && payload.meta && payload.meta.cacheContractCandidates) ? payload.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths()
+        }
+      };
+    },
+    async getStory(lookup, opts) {
+      const payload = await resolvePayload(opts);
+      const stories = Array.isArray(payload && payload.items) ? payload.items : [];
+      const key = cleanText(lookup).toLowerCase();
+      const story = stories.find((item) => [
+        cleanText(item && item.id).toLowerCase(),
+        cleanText(item && item.guid).toLowerCase(),
+        cleanText(item && item.slug).toLowerCase(),
+        cleanText(item && item.title).toLowerCase(),
+        cleanText(item && item.url).toLowerCase(),
+        cleanText(item && item.link).toLowerCase()
+      ].includes(key));
+      if (!story) {
+        return {
+          ok: false,
+          error: "story_not_found",
+          meta: {
+            source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "cache") || "cache",
+            degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+            mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+            feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+            fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+            cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || ""),
+            cacheContractCandidates: Array.isArray(payload && payload.meta && payload.meta.cacheContractCandidates) ? payload.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths()
+          }
+        };
+      }
+      return {
+        ok: true,
+        story,
+        meta: {
+          source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "cache") || "cache",
+          degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed)),
+          mode: cleanText(payload && payload.meta && payload.meta.mode || "cache_first") || "cache_first",
+          feedUrl: cleanText(payload && payload.meta && payload.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(payload && payload.meta && (payload.meta.fetchedAt || payload.meta.lastSuccessAt) || 0),
+          cacheContractPath: cleanText(payload && payload.meta && payload.meta.cacheContractPath || ""),
+          cacheContractCandidates: Array.isArray(payload && payload.meta && payload.meta.cacheContractCandidates) ? payload.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths()
+        }
+      };
+    },
+    async prime() {
+      if (refreshCache) {
+        const out = await Promise.resolve(refreshCache({ timeoutMs: clamp(Number(process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 30000), 5000, 45000) }));
+        return { ok: !!(out && out.ok !== false && Array.isArray(out.items) && out.items.length) };
+      }
+      const seeded = readNewsCanadaCacheContractFile();
+      return { ok: !!(seeded && seeded.ok !== false && Array.isArray(seeded.items) && seeded.items.length) };
+    },
+    health() {
+      try {
+        const seeded = readNewsCanadaCacheContractFile();
+        const cached = readCache ? readCache() : null;
+        const src = (cached && Array.isArray(cached.items) && cached.items.length) ? cached : seeded;
+        return {
+          ok: !!(src && src.ok !== false && Array.isArray(src.items) && src.items.length),
+          source: cleanText(src && src.meta && (src.meta.servedFrom || src.meta.source) || "cache") || "cache",
+          degraded: !!(src && src.meta && (src.meta.degraded || src.meta.stale || src.meta.refreshFailed)),
+          mode: cleanText(src && src.meta && src.meta.mode || "cache_first") || "cache_first",
+          feedUrl: cleanText(src && src.meta && src.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(src && src.meta && (src.meta.fetchedAt || src.meta.lastSuccessAt) || 0),
+          storyCount: Array.isArray(src && src.items) ? src.items.length : 0,
+          itemCount: Array.isArray(src && src.items) ? src.items.length : 0,
+          cacheVersion: cleanText(src && src.meta && src.meta.cacheVersion || "newscanada-cache-v1") || "newscanada-cache-v1",
+          cacheContractPath: cleanText(src && src.meta && src.meta.cacheContractPath || ""),
+          cacheContractCandidates: Array.isArray(src && src.meta && src.meta.cacheContractCandidates) ? src.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths()
+        };
+      } catch (_) {
+        return fallbackService && typeof fallbackService.health === "function" ? fallbackService.health() : { ok: false, source: "cache_unavailable", degraded: true, mode: "cache_first", cacheContractCandidates: getNewsCanadaCacheContractPaths() };
+      }
+    }
+  };
+}
+
+const newsCanadaPrimaryService = buildNewsCanadaCacheBackedService(newscanadaCacheServiceMod, newsCanadaFeedService);
+
+const memory = {
+  lastBySession: new Map(),
+  supportBySession: new Map(),
+  transportBySession: new Map(),
+  spineBySession: new Map()
+};
+
+function getSessionId(req) {
+  return cleanText(
+    req.headers["x-session-id"] ||
+    req.headers["x-sb-session-id"] ||
+    req.body?.sessionId ||
+    req.body?.payload?.sessionId ||
+    req.ip ||
+    "anon"
+  ).slice(0, 120);
+}
+
+function readBearerToken(req) {
+  const auth = cleanText((req.headers && req.headers.authorization) || req.get?.("Authorization") || "");
+  if (!auth) return "";
+  if (!/^bearer\s+/i.test(auth)) return "";
+  return cleanText(auth.replace(/^bearer\s+/i, ""));
+}
+
+function readToken(req) {
+  const header = lower(CFG.apiTokenHeader || "x-sb-widget-token");
+  const byHeader = cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
+  if (byHeader) return byHeader;
+  return readBearerToken(req);
+}
+
+function denyUnauthorized(res) {
+  hardenCors(null, res);
+  return res.status(401).json({
+    ok: false,
+    error: "unauthorized",
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+}
+
+function isConversationRoutePath(req) {
+  const pathValue = cleanText(req && (req.originalUrl || req.url || req.path) || "").split("?")[0].replace(/\/+$/, "");
+  return pathValue === "/api/chat" || pathValue === "/chat" || pathValue === "/respond";
+}
+
+
+function buildConversationRouteDiagnostics(req) {
+  const pathValue = cleanText(req && (req.originalUrl || req.url || req.path) || "").split("?")[0] || "";
+  return {
     ok: true,
-    endpoint: out.endpoint || CANONICAL_ENDPOINT,
-    finalEnvelope: true,
-    hardlockCompatible: true,
-    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-    signature: marionFinalSignature,
-    marionFinalSignature,
-    markers: MARION_FINAL_MARKERS.slice()
+    routeMounted: true,
+    routeFamily: "marion_conversation",
+    canonicalPost: "/api/chat",
+    compatibilityPosts: ["/chat", "/respond"],
+    requestedPath: pathValue,
+    method: cleanText(req && req.method || "GET"),
+    acceptsPost: true,
+    acceptsGetAsHealthOnly: true,
+    marion: getMarionRuntimeDiagnostics(),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      detail: "GET is diagnostic only. Widget chat turns must POST JSON to /api/chat."
+    }
+  };
+}
+
+function sendConversationMethodDiagnostic(req, res) {
+  hardenCors(req, res);
+  return res.status(200).json(buildConversationRouteDiagnostics(req));
+}
+
+function enforceToken(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (isConversationRoutePath(req)) {
+    const origin = cleanText((req && req.headers && req.headers.origin) || "");
+    const referer = cleanText((req && req.headers && req.headers.referer) || "");
+    if (isSandblastOrigin(origin) || isSandblastOrigin(referer)) return next();
+  }
+  if (!CFG.apiToken) return next();
+  const got = readToken(req);
+  if (got && got === CFG.apiToken) return next();
+  return denyUnauthorized(res);
+}
+
+function enforceVoiceRouteAccess(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  if (!CFG.requireVoiceRouteToken) return next();
+  return enforceToken(req, res, next);
+}
+
+function enforceMusicBridgeAccess(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  return next();
+}
+
+function getLastTurn(sessionId) {
+  return memory.lastBySession.get(sessionId) || null;
+}
+
+function summarizeTurnForMemory(prev, patch) {
+  const base = isObj(prev) ? prev : {};
+  const next = isObj(patch) ? patch : {};
+  return {
+    replyHash: cleanText(next.replyHash || base.replyHash || ""),
+    userHash: cleanText(next.userHash || base.userHash || ""),
+    lane: cleanText(next.lane || base.lane || ""),
+    replyAuthority: cleanText(next.replyAuthority || base.replyAuthority || ""),
+    turnId: cleanText(next.turnId || base.turnId || ""),
+    route: cleanText(next.route || base.route || ""),
+    loopStatus: cleanText(next.loopStatus || base.loopStatus || ""),
+    finalized: next.finalized === true || base.finalized === true,
+    userText: cleanText(next.userText || base.userText || "").slice(0, 280),
+    reply: cleanText(next.reply || base.reply || "").slice(0, 280),
+    emotionLabel: cleanText(next.emotionLabel || base.emotionLabel || "").slice(0, 80),
+    continuity: isObj(next.continuity) ? next.continuity : (isObj(base.continuity) ? base.continuity : {}),
+    at: now()
+  };
+}
+
+function setLastTurn(sessionId, data) {
+  memory.lastBySession.set(sessionId, summarizeTurnForMemory(getLastTurn(sessionId), data));
+}
+
+function getSupportState(sessionId) {
+  return memory.supportBySession.get(sessionId) || {
+    hold: 0,
+    active: false,
+    replyHash: "",
+    lastUserHash: "",
+    lastTurnId: "",
+    supportPasses: 0,
+    releaseUntilTurnId: "",
+    releaseUntilAt: 0,
+    lastRoute: "",
+    lastAuthority: "",
+    loopBreakApplied: false,
+    updatedAt: 0
+  };
+}
+
+function setSupportState(sessionId, patch) {
+  const prev = getSupportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    updatedAt: now()
+  };
+  memory.supportBySession.set(sessionId, next);
+  return next;
+}
+
+function getTransportState(sessionId) {
+  return memory.transportBySession.get(sessionId) || {
+    key: "",
+    turnId: "",
+    reply: "",
+    replyHash: "",
+    userHash: "",
+    finalized: false,
+    route: "",
+    authority: "",
+    at: 0,
+    count: 0
+  };
+}
+
+function setTransportState(sessionId, patch) {
+  const prev = getTransportState(sessionId);
+  const next = {
+    ...prev,
+    ...(isObj(patch) ? patch : {}),
+    at: now()
+  };
+  memory.transportBySession.set(sessionId, next);
+  return next;
+}
+
+function getStateSpineRuntime() {
+  return isObj(stateSpineMod) ? stateSpineMod : null;
+}
+
+function getStateSpine(sessionId) {
+  const runtime = getStateSpineRuntime();
+  const existing = memory.spineBySession.get(sessionId);
+  if (existing) return existing;
+  if (runtime && typeof runtime.createState === "function") {
+    try {
+      const created = runtime.createState({ lane: "general", stage: "open" });
+      memory.spineBySession.set(sessionId, created);
+      return created;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function setStateSpine(sessionId, nextState) {
+  const runtime = getStateSpineRuntime();
+  let next = isObj(nextState) ? nextState : {};
+  if (runtime && typeof runtime.coerceState === "function") {
+    try {
+      next = runtime.coerceState(next);
+    } catch (_) {}
+  }
+  next = { ...next, updatedAt: now() };
+  memory.spineBySession.set(sessionId, next);
+  return next;
+}
+
+function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn, shaped) {
+  const contract = isObj(marionContract) ? marionContract : {};
+  const continuity = isObj(contract.continuity) ? contract.continuity : {};
+  const packet = isObj(marion && marion.packet) ? marion.packet : {};
+  const audio = isObj(shaped && shaped.audio) ? shaped.audio : {};
+  const speech = isObj(shaped && shaped.speech) ? shaped.speech : (isObj(shaped && shaped.payload && shaped.payload.speech) ? shaped.payload.speech : {});
+  const turnSignals = {
+    emotionSupportMode: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || ""),
+    emotionPrimary: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || ""),
+    emotionCluster: cleanText(contract.emotionCluster || continuity.emotionCluster || ""),
+    questionStyle: cleanText(contract.question_style || contract.questionStyle || ""),
+    supportLockActive: !!(emotion && (emotion.distress || emotion.sensitive || emotion.stabilize)),
+    emotionShouldSuppressMenus: !!(emotion && (emotion.distress || emotion.sensitive || emotion.stabilize)),
+    emotionNeedSoft: !!(emotion && emotion.distress),
+    emotionNeedCrisis: !!(emotion && emotion.sensitive),
+    emotionSameEmotionCount: Number(priorTurn && priorTurn.emotionLabel && cleanText(priorTurn.emotionLabel) === cleanText(emotion && emotion.label || "") ? 1 : 0),
+    enginePrimaryState: cleanText(continuity.currentState || contract.emotional_state || emotion?.label || "focused"),
+    engineSecondaryState: cleanText(contract.support_mode || continuity.responseMode || "steady"),
+    engineContinuityScore: Number(continuity.depthLevel ? Math.min(1, 0.35 + (Number(continuity.depthLevel || 1) * 0.12)) : 0.35),
+    enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblast…"),
+    engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : [],
+    ttsAction: cleanText(audio.action || ""),
+    ttsShouldStop: !!audio.shouldStop,
+    ttsRetryable: !!audio.retryable,
+    ttsReason: cleanText(audio.reason || ""),
+    ttsProviderStatus: Number(audio.providerStatus || audio.status || 0) || 0,
+    audioAction: cleanText(audio.action || ""),
+    audioShouldStop: !!audio.shouldStop,
+    audioRetryable: !!audio.retryable,
+    audioReason: cleanText(audio.reason || ""),
+    audioProviderStatus: Number(audio.providerStatus || audio.status || 0) || 0,
+    speechEnabled: speech.enabled !== false,
+    speechSpeak: speech.speak !== false
+  };
+  return {
+    text: norm && norm.text || "",
+    lane: cleanText(norm && norm.lane || contract.domain || "general") || "general",
+    action: cleanText(norm && norm.payload && norm.payload.action || norm && norm.body && norm.body.action || ""),
+    payload: isObj(norm && norm.payload) ? norm.payload : {},
+    emotion: {
+      primaryEmotion: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || "neutral") || "neutral",
+      supportFlags: {
+        highDistress: !!(emotion && emotion.distress),
+        crisis: !!(emotion && emotion.sensitive),
+        needsContainment: !!(emotion && emotion.stabilize)
+      },
+      supportModeCandidate: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || "")
+    },
+    emo: {
+      primaryEmotion: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || "neutral") || "neutral",
+      supportFlags: {
+        highDistress: !!(emotion && emotion.distress),
+        crisis: !!(emotion && emotion.sensitive),
+        needsContainment: !!(emotion && emotion.stabilize)
+      }
+    },
+    turnSignals
+  };
+}
+
+
+function ensureAudioContractFromSpeech(base, speech) {
+  const shaped = isObj(base) ? { ...base } : {};
+  const currentSpeech = isObj(speech) ? speech : {};
+  const reply = cleanReplyForUser(
+    currentSpeech.textSpeak ||
+    currentSpeech.text ||
+    shaped?.audio?.textToSynth ||
+    shaped?.payload?.textSpeak ||
+    shaped?.payload?.spokenText ||
+    shaped?.reply || ""
+  );
+
+  if (!reply) return shaped;
+
+  shaped.audio = isObj(shaped.audio) ? { ...shaped.audio } : {};
+  if (shaped.audio.enabled !== false) shaped.audio.enabled = true;
+  shaped.audio.textToSynth = cleanText(shaped.audio.textToSynth || reply) || reply;
+  if (shaped.audio.autoPlay === undefined) shaped.audio.autoPlay = currentSpeech.speak !== false;
+  shaped.audio.provider = cleanText(shaped.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble";
+  shaped.audio.when = cleanText(shaped.audio.when || "post_reply") || "post_reply";
+  shaped.audio.strategy = cleanText(shaped.audio.strategy || "single_shot") || "single_shot";
+  shaped.audio.presenceProfile = cleanText(shaped.audio.presenceProfile || currentSpeech.presenceProfile || "") || undefined;
+  shaped.audio.nyxStateHint = cleanText(shaped.audio.nyxStateHint || currentSpeech.nyxStateHint || "") || undefined;
+
+  const directives = Array.isArray(shaped.directives) ? shaped.directives.slice() : [];
+  const hasSpeak = directives.some((d) => isObj(d) && cleanText(d.type).toUpperCase() === "TTS_SPEAK");
+  const hasPlay = directives.some((d) => isObj(d) && cleanText(d.type).toUpperCase() === "AUDIO_PLAY");
+
+  if (!hasSpeak) {
+    directives.push({
+      type: "TTS_SPEAK",
+      text: shaped.audio.textToSynth,
+      textToSynth: shaped.audio.textToSynth,
+      provider: shaped.audio.provider,
+      autoPlay: !!shaped.audio.autoPlay,
+      when: shaped.audio.when
+    });
+  }
+  if (!!shaped.audio.autoPlay && !hasPlay) {
+    directives.push({
+      type: "AUDIO_PLAY",
+      autoPlay: true,
+      when: shaped.audio.when,
+      strategy: shaped.audio.strategy
+    });
+  }
+  shaped.directives = directives;
+  return shaped;
+}
+
+function buildSiteBridgeSnapshot(norm, emotion, priorSpine, marionContract) {
+  // PHASE-3 ACTIVE-FLOW DISABLE: SiteBridge is intentionally disabled.
+  // It must not shape replies, support state, intent, or Nyx control signals.
+  return null;
+  if (!siteBridgeMod || typeof siteBridgeMod.build !== "function") return null;
+  try {
+    return siteBridgeMod.build({
+      queryKey: cleanText(norm && norm.domainHint || norm && norm.intentHint || norm && norm.lane || "general"),
+      sessionKey: cleanText(norm && norm.turnId || norm && norm.traceId || "session"),
+      features: {
+        lane: cleanText(norm && norm.lane || "general") || "general",
+        intent: cleanText(marionContract && marionContract.intent || "CLARIFY") || "CLARIFY",
+        emotion: isObj(emotion) ? {
+          primaryEmotion: cleanText(emotion.label || "neutral") || "neutral",
+          intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+          supportFlags: {
+            highDistress: !!emotion.distress,
+            crisis: !!emotion.sensitive,
+            needsContainment: !!emotion.stabilize
+          }
+        } : undefined,
+        continuityState: isObj(priorSpine && priorSpine.continuityThread) ? priorSpine.continuityThread : {},
+        emotionalEngine: isObj(priorSpine && priorSpine.emotionalEngine) ? priorSpine.emotionalEngine : {}
+      },
+      emotion: isObj(emotion) ? {
+        primaryEmotion: cleanText(emotion.label || "neutral") || "neutral",
+        intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+        supportFlags: {
+          highDistress: !!emotion.distress,
+          crisis: !!emotion.sensitive,
+          needsContainment: !!emotion.stabilize
+        }
+      } : undefined,
+      opts: {
+        routeConfidence: 0.74,
+        actionHints: [cleanText(norm && norm.intentHint || ""), cleanText(norm && norm.domainHint || "")].filter(Boolean)
+      }
+    });
+  } catch (err) {
+    console.log("[Sandblast][siteBridge:error]", err && (err.stack || err.message || err));
+    return null;
+  }
+}
+
+function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, marionContract, priorTurn, shaped) {
+  const runtime = getStateSpineRuntime();
+  if (!runtime || typeof runtime.finalizeTurn !== "function") return null;
+  try {
+    const decision = {
+      move: cleanText(shaped && shaped.cog && shaped.cog.intent || marionContract && marionContract.intent || "ADVANCE") || "ADVANCE",
+      stage: cleanText(shaped && shaped.meta && shaped.meta.failSafe ? "recovery" : (shaped && shaped.meta && shaped.meta.suppressMenus ? "recovery" : "deliver")) || "deliver",
+      rationale: cleanText(shaped && shaped.meta && (shaped.meta.replyAuthority || shaped.meta.error || "") || marionContract && marionContract.response || "normal_progression"),
+      speak: cleanText(shaped && shaped.reply || shaped && shaped.payload && shaped.payload.reply || ""),
+      _plannerMode: cleanText(shaped && shaped.cog && shaped.cog.mode || "advance") || "advance"
+    };
+    const inbound = buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn, shaped);
+    const next = runtime.finalizeTurn({
+      prevState,
+      inbound,
+      decision,
+      lane: inbound.lane,
+      stage: decision.stage,
+      reply: decision.speak,
+      assistantText: decision.speak,
+      marionCog: isObj(shaped && shaped.cog) ? shaped.cog : { intent: decision.move, mode: decision._plannerMode },
+      updateReason: cleanText(decision.rationale || "")
+    });
+    return setStateSpine(sessionId, next);
+  } catch (err) {
+    console.log("[Sandblast][stateSpine:error]", err && (err.stack || err.message || err));
+    return null;
+  }
+}
+
+function normalizePayload(req) {
+  const body = isObj(req.body) ? req.body : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
+  const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
+  const rawMarionIntent = isObj(body.marionIntent) ? body.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : {});
+  const lane = cleanText(payload.lane || body.lane || "general").toLowerCase() || "general";
+  const routedMarionIntent = routeMarionIntentThroughRuntime(normalizeIncomingMarionIntent(rawMarionIntent, text), lane, text);
+  const marionIntent = routedMarionIntent.marionIntent;
+  const marionRouting = routedMarionIntent.routing;
+  return {
+    text,
+    guidedPrompt,
+    domainHint: cleanText(body.domainHint || payload.domainHint || marionRouting.domain || (guidedPrompt && guidedPrompt.domainHint) || ""),
+    intentHint: cleanText(body.intentHint || payload.intentHint || marionIntent.intent || (guidedPrompt && guidedPrompt.intentHint) || ""),
+    emotionalHint: cleanText(body.emotionalHint || payload.emotionalHint || (guidedPrompt && guidedPrompt.emotionalHint) || ""),
+    body,
+    payload,
+    marionIntent,
+    marionRouting,
+    marionRuntimeRoutingMeta: isObj(routedMarionIntent.meta) ? routedMarionIntent.meta : {},
+    lane,
+    year: cleanText(payload.year || body.year || ""),
+    mode: cleanText(payload.mode || body.mode || ""),
+    turnId: cleanText(payload.turnId || body.turnId || req.headers["x-sb-turn-id"] || "") || makeTraceId("turn"),
+    traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
+    client: isObj(body.client) ? body.client : {}
+  };
+}
+
+function normalizeEmotion(raw, inputText) {
+  const out = {
+    ok: false,
+    label: "",
+    intensity: 0,
+    distress: false,
+    stabilize: false,
+    sensitive: false,
+    positive: false,
+    technical: false
   };
 
-  out.meta.indexCohesion = out.indexCohesion;
-  out.payload.indexCohesion = out.indexCohesion;
-  out.diagnostics = {
-    ...safeObj(out.diagnostics),
-    indexCohesion: out.indexCohesion,
-    freshFinalEnvelope: true,
-    hardlockCompatible: true
-  };
+  const baseText = `${safeStr(inputText)} ${safeStr(raw && raw.label)} ${safeStr(raw && raw.name)} ${safeStr(raw && raw.primary)} ${safeStr(raw && raw.mode)} ${safeStr(raw && raw.intent)}`;
+  const txt = lower(baseText);
 
+  if (isObj(raw)) {
+    out.ok = true;
+    out.label = cleanText(raw.label || raw.name || raw.primary || "");
+    const n = Number(raw.intensity ?? raw.score ?? raw.weight ?? 0);
+    out.intensity = Number.isFinite(n) ? clamp(n, 0, 1) : 0;
+    out.distress = !!(raw.distress || raw.support || raw.overwhelmed || raw.anxious || raw.negative);
+    out.stabilize = !!(raw.stabilize || raw.regulate || raw.deescalate);
+    out.sensitive = !!(raw.sensitive || raw.crisis || raw.selfHarm);
+    out.positive = !!(raw.positive || raw.upbeat);
+    out.technical = !!raw.technical;
+  }
+
+  const rawText = txt;
+  out.distress = out.distress || /(overwhelmed|panic|panicking|not okay|anxious|anxiety|too much|breaking down|falling apart|burned out|burnt out|help me|i am scared|i'm scared|i am hurting|i'm hurting|i feel awful|i feel terrible|i am drowning|i'm drowning|depressed|depression|i am depressed|i'm depressed|hopeless|empty|numb|can't go on|cannot go on)/.test(rawText);
+  out.stabilize = out.stabilize || out.distress || /(stabilize|steady|calm down|regulate|slow down)/.test(rawText);
+  out.sensitive = out.sensitive || /(suic|kill myself|want to die|end it|self harm|self-harm)/.test(rawText);
+  out.positive = /(happy|great|beautiful day|amazing|good mood|outstanding|did great|things are going right|relieved)/.test(rawText);
+  out.technical = /(debug|backend|chat engine|state spine|support response|marion|loop|fallback|api|route|tts|voice|fix|index\.js|emotion|stabiliz)/.test(rawText);
+
+  if (!out.label) {
+    if (out.sensitive) out.label = "crisis";
+    else if (out.distress) out.label = "distress";
+    else if (out.technical) out.label = "technical";
+    else if (out.positive) out.label = "positive";
+    else out.label = "neutral";
+  }
+
+  if (!out.ok) out.ok = out.distress || out.sensitive || out.positive || out.technical || !!out.label;
   return out;
 }
 
-function normalizeComposeInput(normalized, routed) {
-  const routing = safeObj(routed.routing);
-  const marionIntent = safeObj(routed.marionIntent);
+function inferEmotion(text, reqCtx) {
+  const raw = cleanText(text);
+  let engineResult = null;
+
+  try {
+    if (affectEngineMod && typeof affectEngineMod.detect === "function") {
+      engineResult = affectEngineMod.detect(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod.analyze === "function") {
+      engineResult = affectEngineMod.analyze(raw, reqCtx || {});
+    } else if (affectEngineMod && typeof affectEngineMod === "function") {
+      engineResult = affectEngineMod(raw, reqCtx || {});
+    }
+  } catch (err) {
+    console.log("[Sandblast][affectEngine:error]", err && (err.stack || err.message || err));
+    engineResult = null;
+  }
+
+  return normalizeEmotion(engineResult, raw);
+}
+
+function normalizeSupportReply(text) {
+  const cleaned = cleanReplyForUser(text);
+  if (cleaned) return cleaned;
+  return "I can continue from your next instruction.";
+}
+
+function buildSafeSupportReply(inputText, emotion, extras) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, inputText);
+  const opts = isObj(extras) ? extras : {};
+  const base = cleanText(inputText);
+
+  if (emo.sensitive) {
+    return "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988. Tell me: did something happen today, or has this been building for a while?";
+  }
+
+  let externalReply = "";
+  try {
+    if (supportResponseMod && typeof supportResponseMod.buildSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.buildSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (supportResponseMod && typeof supportResponseMod.getSupportReply === "function") {
+      externalReply = safeStr(supportResponseMod.getSupportReply({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    } else if (typeof supportResponseMod === "function") {
+      externalReply = safeStr(supportResponseMod({
+        text: base,
+        emo,
+        emotion: emo,
+        mode: "stabilize",
+        ...opts
+      }));
+    }
+  } catch (err) {
+    console.log("[Sandblast][supportResponse:error]", err && (err.stack || err.message || err));
+  }
+
+  if (externalReply) return normalizeSupportReply(externalReply);
+
+  if (emo.distress) {
+    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
+  }
+
+  return "I am here with you. Tell me what happened, and we will steady this together.";
+}
+
+function buildQuietUiPatch(reason, holdActive) {
+  const quiet = {
+    mode: "quiet",
+    chips: [],
+    allowMic: true,
+    replace: true,
+    clearStale: true,
+    revision: now()
+  };
 
   return {
-    userQuery: normalized.userQuery,
-    text: normalized.userQuery,
-    query: normalized.userQuery,
-    domain: safeStr(routing.domain || normalized.domain || "general") || "general",
-    requestedDomain: safeStr(routing.domain || normalized.requestedDomain || "general") || "general",
-    intent: safeStr(routing.intent || marionIntent.intent || "simple_chat") || "simple_chat",
-    marionIntent,
-    routing,
-    previousMemory: normalized.previousMemory,
-    lane: normalized.lane,
-    sessionId: normalized.sessionId,
-    turnId: normalized.turnId,
-    sourceTurnId: normalized.turnId
+    ui: quiet,
+    directives: [],
+    followUps: [],
+    followUpsStrings: [],
+    sessionPatch: {
+      supportLock: holdActive ? { active: true } : {}
+    },
+    metaPatch: {
+      clearStaleUi: true,
+      suppressMenus: true,
+      failSafe: reason === "failsafe",
+      supportHold: !!holdActive
+    }
   };
 }
 
-async function processWithMarion(input = {}) {
-  if (isAlreadyFinal(input)) return markFinal(input, input);
+function isTechnicalDebugTurn(text, norm) {
+  const source = `${cleanText(text || "")} ${cleanText(norm && norm.intentHint || "")} ${cleanText(norm && norm.domainHint || "")} ${cleanText(norm && norm.lane || "")}`.toLowerCase();
+  return /(autopsy|line.by.line|gap refinement|index\.js|marionbridge|packet normalizer|intent router|route|endpoint|diagnostic|debug|stack|syntax|looping|transport|fallback|finalization|hardening|download|zip|script|file)/i.test(source);
+}
 
-  const normalized = normalizeInbound(input);
-  if (!normalized.ok) {
-    return buildErrorResult("input_invalid", { issues: normalized.issues }, normalized);
-  }
+function isHighRiskSupportSignal(emotion, text) {
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const body = lower(text || "");
+  return !!(emo.sensitive || /\b(suicid(?:e|al)|self[-\s]?harm|kill myself|don['’]?t want to live|do not want to live|hurt myself)\b/i.test(body));
+}
 
-  if (typeof routeMarionIntent !== "function") {
-    return buildErrorResult("intent_router_unavailable", { dependency: "marionIntentRouter.routeMarionIntent" }, normalized);
-  }
+function shouldEnterSupportHold(text, emotion, engineResult, opts) {
+  const o = isObj(opts) ? opts : {};
+  const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
+  const intent = lower(engineResult && engineResult.intent);
+  const mode = lower(engineResult && engineResult.mode);
+  const technicalTurn = !!o.technicalTurn || isTechnicalDebugTurn(text, o.norm || null);
+  const hasAuthorityReply = !!o.hasAuthorityReply;
+  const supportState = isObj(o.supportState) ? o.supportState : {};
+  const repeatedSupport = Number(supportState.supportPasses || 0) >= CFG.supportHoldMaxTurns;
+  if (hasAuthorityReply) return false;
+  if (technicalTurn && !isHighRiskSupportSignal(emo, text)) return false;
+  if (repeatedSupport && !isHighRiskSupportSignal(emo, text)) return false;
+  return !!(emo.sensitive || emo.distress || emo.stabilize || intent === "stabilize" || mode === "support" || mode === "quiet");
+}
 
-  if (typeof composeMarionResponse !== "function") {
-    return buildErrorResult("composer_unavailable", { dependency: "composeMarionResponse.composeMarionResponse" }, normalized);
-  }
+function normalizeReplyEnvelope(shaped, reply, metaPatch) {
+  const out = isObj(shaped) ? { ...shaped } : { ok: true };
+  const finalReply = cleanReplyForUser(reply || out.reply || out.payload?.reply || "");
+  out.reply = finalReply;
+  out.text = finalReply;
+  out.short = finalReply;
+  out.payload = { ...(isObj(out.payload) ? out.payload : {}), reply: finalReply, text: finalReply, message: finalReply, spokenText: cleanText(out.payload?.spokenText || finalReply) || finalReply, finalized: true };
+  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: true, finalizationGuard: true, indexSemanticAuthority: false, semanticAuthority: "chatEngine_or_marion", indexRole: "transport_orchestrator" });
+  return out;
+}
 
-  const routed = await Promise.resolve(routeMarionIntent({
-    text: normalized.userQuery,
-    query: normalized.userQuery,
-    userQuery: normalized.userQuery,
-    lane: normalized.lane,
-    requestedDomain: normalized.requestedDomain,
-    domain: normalized.domain,
-    marionIntent: normalized.marionIntent,
-    previousMemory: normalized.previousMemory,
-    session: {
-      lane: normalized.lane,
-      previousMemory: normalized.previousMemory,
-      marionIntent: normalized.marionIntent
-    },
-    turnId: normalized.turnId
-  }));
+function buildLoopBreakReply(norm, loop, supportState) {
+  if (isTechnicalDebugTurn(norm && norm.text, norm)) return "I caught the repeated turn. I am breaking the support loop and staying on the technical path: inspect the route, duplicate detector, fallback branch, and finalization guard.";
+  return "I caught the repeated response, so I am not going to recycle the same support line. Let us move one step forward from the exact point you want handled next.";
+}
 
-  const routerValidation = validateRouterResult(routed);
-  if (!routerValidation.ok) {
-    return buildErrorResult("intent_router_invalid", { issues: routerValidation.issues, routed }, normalized);
-  }
+function buildSupportSessionPatch(existing, active, release) {
+  const prev = isObj(existing) ? existing : {};
+  const lock = isObj(prev.supportLock) ? { ...prev.supportLock } : {};
+  if (active) { lock.active = true; lock.release = false; }
+  if (release) { lock.active = false; lock.release = true; }
+  return {
+    ...prev,
+    supportLock: lock,
+    continuity: isObj(prev.continuity) ? prev.continuity : {},
+    continuityState: isObj(prev.continuityState) ? prev.continuityState : {},
+    turnMemory: isObj(prev.turnMemory) ? prev.turnMemory : {},
+    emotionalEngine: isObj(prev.emotionalEngine) ? prev.emotionalEngine : {},
+    stateSpine: isObj(prev.stateSpine) ? prev.stateSpine : {}
+  };
+}
 
-  const composeInput = normalizeComposeInput(normalized, routed);
-  const contract = await Promise.resolve(composeMarionResponse({
-    ...safeObj(routed),
-    primaryDomain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
-    domain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
-    intent: safeStr(safeObj(routed.routing).intent || composeInput.intent),
-    routing: safeObj(routed.routing),
-    marionIntent: safeObj(routed.marionIntent)
-  }, composeInput));
+function shouldSuppressMenus(engineOut, supportActive) {
+  const ui = isObj(engineOut?.ui) ? engineOut.ui : {};
+  const meta = isObj(engineOut?.meta) ? engineOut.meta : {};
+  if (supportActive) return true;
+  return !!(
+    ui.replace ||
+    ui.clearStale ||
+    ui.menuSuppressed ||
+    ui.degradedSupport ||
+    ui.failSafe ||
+    meta.clearStaleUi ||
+    meta.suppressMenus ||
+    meta.failSafe
+  );
+}
 
-  const composeValidation = validateComposeResult(contract);
-  if (!composeValidation.ok) {
-    return buildErrorResult("composer_invalid", { issues: composeValidation.issues }, {
-      ...normalized,
-      intent: composeInput.intent,
-      domain: composeInput.domain
+function enforceQuietUiIfNeeded(base, opts) {
+  const out = isObj(base) ? { ...base } : {};
+  const o = isObj(opts) ? opts : {};
+  const supportActive = !!o.supportActive;
+  const failSafe = !!o.failSafe;
+  const forceQuiet = !!o.forceQuiet;
+
+  if (!(supportActive || failSafe || forceQuiet)) return out;
+
+  const patch = buildQuietUiPatch(failSafe ? "failsafe" : "support", supportActive);
+  out.ui = patch.ui;
+  out.directives = patch.directives;
+  out.followUps = patch.followUps;
+  out.followUpsStrings = patch.followUpsStrings;
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    ...(isObj(patch.sessionPatch) ? patch.sessionPatch : {})
+  };
+  out.meta = {
+    ...(isObj(out.meta) ? out.meta : {}),
+    ...(isObj(patch.metaPatch) ? patch.metaPatch : {})
+  };
+  return out;
+}
+
+function mergeMeta(base, patch) {
+  return {
+    ...(isObj(base) ? base : {}),
+    ...(isObj(patch) ? patch : {})
+  };
+}
+
+function buildTransportKey(ctx, text, req) {
+  const msg = safeStr(text).trim().toLowerCase();
+  return [
+    getSessionId(req),
+    safeStr(ctx?.lane || ""),
+    safeStr(ctx?.mode || ""),
+    safeStr(ctx?.year || ""),
+    msg
+  ].join("|");
+}
+
+function detectLoop(sessionId, reply, userText, opts) {
+  const o = isObj(opts) ? opts : {};
+  const prev = getLastTurn(sessionId);
+  const transport = getTransportState(sessionId);
+  const curHash = replyHash(reply);
+  const userHash = replyHash(userText);
+  const within = prev && (now() - Number(prev.at || 0) < CFG.duplicateReplyWindowMs);
+  const sameReply = !!(within && prev.replyHash && prev.replyHash === curHash);
+  const sameUser = !!(within && prev.userHash && prev.userHash === userHash);
+  const sameTurn = !!(o.turnId && ((prev && prev.turnId === o.turnId) || (transport && transport.turnId === o.turnId)));
+  const sameRoute = !o.route || !prev || !prev.route || prev.route === o.route;
+  const sameAuthority = !o.authority || !prev || !prev.replyAuthority || prev.replyAuthority === o.authority;
+  return { sameReply, sameUser, sameTurn, sameRoute, sameAuthority, repeated: (sameReply && sameUser && sameRoute && sameAuthority) || sameTurn, curHash, userHash, previousTurnId: cleanText(prev && prev.turnId || "") };
+}
+
+function applyAffectBridge(base, affectInput) {
+  const shaped = isObj(base) ? { ...base } : {};
+  if (!affectEngineMod || typeof affectEngineMod.runAffectEngine !== "function") return shaped;
+  const input = isObj(affectInput) ? affectInput : {};
+  try {
+    const lockedEmotion = isObj(input.lockedEmotion) ? input.lockedEmotion : null;
+    const strategy = isObj(input.strategy) ? input.strategy : null;
+    if (!lockedEmotion || !lockedEmotion.locked || !strategy) return shaped;
+    const affectOut = affectEngineMod.runAffectEngine({
+      assistantDraft: cleanText(shaped.reply || shaped.payload?.reply || ""),
+      lockedEmotion,
+      strategy,
+      lane: cleanText(shaped.lane || "Default") || "Default",
+      memory: isObj(input.memory) ? input.memory : {}
     });
+    if (!isObj(affectOut) || affectOut.ok === false) return shaped;
+    const spokenText = cleanText(affectOut.spokenText || "");
+    if (!spokenText) return shaped;
+    shaped.reply = spokenText;
+    shaped.payload = { ...(isObj(shaped.payload) ? shaped.payload : {}), reply: spokenText, spokenText };
+    shaped.ttsProfile = isObj(affectOut.ttsProfile) ? affectOut.ttsProfile : shaped.ttsProfile;
+    shaped.audio = isObj(shaped.audio) ? shaped.audio : {};
+    shaped.audio.textToSynth = spokenText;
+    shaped.audio.enabled = true;
+    shaped.meta = mergeMeta(shaped.meta, { affectApplied: true, linkedDatasets: Array.isArray(affectOut.expressionBridge?.linkedDatasets) ? affectOut.expressionBridge.linkedDatasets.slice(0, 12) : [] });
+  } catch (err) {
+    console.log("[Sandblast][affectBridge:error]", err && (err.stack || err.message || err));
   }
+  return shaped;
+}
 
-  const reply = extractReply(contract);
-  const replySignature = hashText(reply);
-  const packet = buildPacket({ normalized: composeInput, routed, contract, reply, replySignature });
-  const marionFinalSignature = safeStr(packet && packet.meta && (packet.meta.signature || packet.meta.marionFinalSignature)) || buildMarionFinalSignature(replySignature, composeInput.turnId || normalized.turnId);
+function buildAffectInputFromMarion(marion) {
+  const src = isObj(marion) ? marion : {};
+  const layer2 = isObj(src.layer2) ? src.layer2 : {};
+  const emotion = isObj(layer2.emotion) ? layer2.emotion : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const lockedEmotion = isObj(meta.lockedEmotion) ? meta.lockedEmotion : (emotion.primaryEmotion ? {
+    locked: true,
+    primaryEmotion: cleanText(emotion.primaryEmotion || "neutral") || "neutral",
+    secondaryEmotion: cleanText(emotion.secondaryEmotion || ""),
+    intensity: Number.isFinite(Number(emotion.intensity)) ? Number(emotion.intensity) : 0,
+    valence: Number.isFinite(Number(emotion.valence)) ? Number(emotion.valence) : 0,
+    valenceLabel: cleanText(emotion.valenceLabel || ""),
+    confidence: Number.isFinite(Number(emotion.confidence)) ? Number(emotion.confidence) : 0,
+    needs: Array.isArray(emotion.needs) ? emotion.needs : [],
+    cues: Array.isArray(emotion.cues) ? emotion.cues : [],
+    supportFlags: isObj(emotion.supportFlags) ? emotion.supportFlags : {},
+    evidenceMatches: Array.isArray(emotion.evidenceMatches) ? emotion.evidenceMatches : [],
+    meta: { linkedDatasets: Array.isArray(meta.linkedDatasets) ? meta.linkedDatasets : [] }
+  } : null);
+  const strategy = isObj(meta.strategy) ? meta.strategy : null;
+  return { lockedEmotion, strategy, guidedPrompt: src.guidedPrompt || meta.guidedPrompt || null };
+}
 
-  return markFinal({
-    ...safeObj(contract),
-    ok: true,
-    status: "ok",
-    endpoint: safeStr(safeObj(routed.routing).endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
-    userQuery: normalized.userQuery,
-    domain: composeInput.domain,
-    intent: composeInput.intent,
+function shapeEngineReply(raw) {
+  if (!isObj(raw)) return {};
+  const payload = isObj(raw.payload) ? raw.payload : {};
+  const speech = isObj(raw.speech) ? raw.speech : (isObj(payload.speech) ? payload.speech : null);
+  return {
+    ok: raw.ok !== false,
+    reply: cleanText(raw.spokenText || payload.spokenText || raw.reply || payload.reply || raw.message || raw.text || ""),
+    payload: isObj(payload) ? payload : {},
+    lane: cleanText(raw.lane || raw.laneId || raw.sessionLane || payload.lane || ""),
+    laneId: cleanText(raw.laneId || raw.lane || ""),
+    sessionLane: cleanText(raw.sessionLane || raw.lane || ""),
+    bridge: isObj(raw.bridge) ? raw.bridge : null,
+    ctx: isObj(raw.ctx) ? raw.ctx : {},
+    ui: isObj(raw.ui) ? raw.ui : {},
+    emotionalTurn: isObj(raw.emotionalTurn) ? raw.emotionalTurn : null,
+    directives: Array.isArray(raw.directives) ? raw.directives : [],
+    followUps: Array.isArray(raw.followUps) ? raw.followUps : [],
+    followUpsStrings: Array.isArray(raw.followUpsStrings) ? raw.followUpsStrings : [],
+    sessionPatch: isObj(raw.sessionPatch) ? raw.sessionPatch : {},
+    cog: isObj(raw.cog) ? raw.cog : {},
+    meta: isObj(raw.meta) ? raw.meta : {},
+    speech,
+    audio: isObj(raw.audio) ? raw.audio : null,
+    ttsProfile: isObj(raw.ttsProfile) ? raw.ttsProfile : null,
+    voiceRoute: isObj(raw.voiceRoute) ? raw.voiceRoute : null,
+    requestId: cleanText(raw.requestId || payload.requestId || ""),
+    traceId: cleanText(raw.traceId || payload.traceId || "")
+  };
+}
+
+function repairBridgeEnvelope(bridge, marion, lane) {
+  const candidate = isObj(bridge) ? { ...bridge } : (isObj(marion) ? { ...marion } : {});
+  if (!isObj(candidate)) return null;
+  const out = {
+    ...candidate,
+    v: cleanText(candidate.v || candidate.version || "bridge.v3") || "bridge.v3",
+    authority: cleanText(candidate.authority || candidate.mode || "bridge_primary") || "bridge_primary",
+    domain: cleanText(candidate.domain || lane || "general") || "general",
+    intent: cleanText(candidate.intent || candidate.routeIntent || candidate.mode || "general") || "general",
+    confidence: Number.isFinite(Number(candidate.confidence)) ? clamp(Number(candidate.confidence), 0, 1) : 0.82,
+    source: cleanText(candidate.source || "marion") || "marion"
+  };
+  return out;
+}
+
+function repairEngineContract(shaped, marion, norm) {
+  const base = isObj(shaped) ? { ...shaped } : {};
+  const lane = cleanText(base.lane || base.laneId || base.sessionLane || norm?.lane || "general") || "general";
+  const laneId = cleanText(base.laneId || lane) || lane;
+  const sessionLane = cleanText(base.sessionLane || lane) || lane;
+  const payload = isObj(base.payload) ? { ...base.payload } : {};
+  const reply = cleanReplyForUser(base.reply || payload.reply || payload.text || payload.message || "");
+  const bridge = repairBridgeEnvelope(base.bridge, marion, lane);
+  const speech = isObj(base.speech) ? { ...base.speech } : (isObj(payload.speech) ? { ...payload.speech } : null);
+  const followUps = Array.isArray(base.followUps) ? base.followUps : [];
+  const followUpsStrings = Array.isArray(base.followUpsStrings) && base.followUpsStrings.length
+    ? base.followUpsStrings
+    : followUps.map((item) => cleanText((item && (item.label || item.title || item.text)) || item || "")).filter(Boolean).slice(0, 4);
+
+  payload.reply = reply;
+  payload.text = cleanText(payload.text || reply) || reply;
+  payload.message = cleanText(payload.message || reply) || reply;
+  if (speech) payload.speech = { ...speech };
+
+  return {
+    ok: base.ok !== false,
     reply,
-    text: reply,
-    answer: reply,
-    output: reply,
-    response: reply,
-    message: reply,
-    spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply,
-    replySignature,
-    packet,
-    payload: {
-      ...safeObj(contract.payload),
+    payload,
+    lane,
+    laneId,
+    sessionLane,
+    bridge,
+    ctx: isObj(base.ctx) ? base.ctx : {},
+    ui: isObj(base.ui) ? base.ui : {},
+    emotionalTurn: isObj(base.emotionalTurn) ? base.emotionalTurn : null,
+    directives: Array.isArray(base.directives) ? base.directives : [],
+    followUps,
+    followUpsStrings,
+    sessionPatch: isObj(base.sessionPatch) ? base.sessionPatch : {},
+    cog: isObj(base.cog) ? base.cog : {},
+    meta: isObj(base.meta) ? base.meta : {},
+    speech,
+    audio: isObj(base.audio) ? base.audio : null,
+    ttsProfile: isObj(base.ttsProfile) ? base.ttsProfile : null,
+    voiceRoute: isObj(base.voiceRoute) ? base.voiceRoute : null,
+    requestId: cleanText(base.requestId || ""),
+    traceId: cleanText(base.traceId || norm?.traceId || "")
+  };
+}
+
+function normalizeMarionEmotionState(value, fallback) {
+  const raw = lower(value || fallback || "");
+  if (["calm", "intense", "playful", "serious", "supportive"].includes(raw)) return raw;
+  if (/(crisis|distress|support|care|gentle|soft|warm)/.test(raw)) return "supportive";
+  if (/(technical|focus|grounded|serious)/.test(raw)) return "serious";
+  if (/(joy|upbeat|light|fun|playful)/.test(raw)) return "playful";
+  if (/(urgent|intense|sharp|escalat)/.test(raw)) return "intense";
+  return "calm";
+}
+
+function buildMarionContinuity(prev, norm, emotion) {
+  const previous = isObj(prev) ? prev : {};
+  const refs = uniq([
+    cleanText(previous.lane || ""),
+    cleanText(previous.emotionLabel || ""),
+    cleanText(previous.userText || "").split(/\s+/).slice(0, 8).join(" "),
+    cleanText(norm && norm.intentHint || ""),
+    cleanText(norm && norm.domainHint || "")
+  ].filter(Boolean)).slice(0, 4);
+  return {
+    references: refs,
+    memory_thread: cleanText(previous.userText || previous.reply || "").slice(0, 180),
+    last_user_text: cleanText(previous.userText || "").slice(0, 220),
+    last_reply: cleanText(previous.reply || "").slice(0, 220),
+    emotional_carry: normalizeMarionEmotionState(previous.emotionLabel || (emotion && emotion.label) || "calm")
+  };
+}
+
+function normalizeMarionContract(raw, norm, emotion, prevTurn) {
+  const src = isObj(raw) ? raw : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const packet = isObj(src.packet) ? src.packet : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const bridge = isObj(src.bridge) ? src.bridge : {};
+  const packetMeta = isObj(packet.meta) ? packet.meta : {};
+  const contractIntent = isObj(src.marionIntent) ? src.marionIntent : (isObj(packet.marionIntent) ? packet.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : (norm && norm.marionIntent || {})));
+  const normalizedMarionIntent = normalizeIncomingMarionIntent(contractIntent, norm && norm.text || "");
+  const continuitySrc =
+    isObj(src.continuity) ? src.continuity :
+    (isObj(payload.continuity) ? payload.continuity :
+    (isObj(packet.continuityState) ? packet.continuityState :
+    (isObj(synthesis.continuity) ? synthesis.continuity : {})));
+  const metaSrc = {
+    ...(isObj(src.meta) ? src.meta : {}),
+    ...(isObj(payload.meta) ? payload.meta : {}),
+    ...(isObj(synthesis.meta) ? synthesis.meta : {}),
+    ...(isObj(packetMeta) ? packetMeta : {})
+  };
+  let response = cleanReplyForUser(
+    src.response || src.reply || src.text || src.output || src.answer || src.spokenText ||
+    payload.reply || payload.text || payload.message || payload.spokenText ||
+    synthesis.reply || synthesis.answer || synthesis.text || synthesis.output || synthesis.spokenText ||
+    (isObj(src.contract) ? (src.contract.reply || src.contract.response || src.contract.text || src.contract.output || "") : "") ||
+    bridge.reply || bridge.text || bridge.output || bridge.answer || ""
+  );
+  if (isInternalMarionBlockerReply(response)) response = "";
+  const followUp = cleanText(
+    src.follow_up || src.followUp ||
+    metaSrc.follow_up || metaSrc.followUp ||
+    payload.follow_up || payload.followUp ||
+    synthesis.follow_up || synthesis.followUp || ""
+  );
+  const normalizedEmotion = normalizeMarionEmotionState(
+    src.emotional_state || src.emotionalState ||
+    (isObj(src.contract) ? (src.contract.emotional_state || src.contract.emotionalState || "") : "") ||
+    metaSrc.emotional_state || metaSrc.emotion || "",
+    emotion && emotion.label || "calm"
+  );
+  const continuity = {
+    ...buildMarionContinuity(prevTurn, norm, emotion),
+    ...(isObj(continuitySrc) ? continuitySrc : {})
+  };
+  return {
+    status: cleanText(
+      src.status ||
+      (isObj(src.contract) ? src.contract.status : "") ||
+      metaSrc.status ||
+      (src.ok === false ? "error" : "success")
+    ) || "success",
+    intent: cleanText(
+      src.intent || src.routeIntent ||
+      (isObj(src.contract) ? src.contract.intent : "") ||
+      synthesis.intent || packet.intent ||
+      metaSrc.intent ||
+      norm && norm.intentHint || "general"
+    ) || "general",
+    emotional_state: normalizedEmotion,
+    marionIntent: normalizedMarionIntent,
+    routing: buildMarionIntentRouting(normalizedMarionIntent, norm && norm.lane || "general"),
+    response,
+    follow_up: followUp,
+    continuity,
+    meta: {
+      confidence: Number.isFinite(Number(
+        metaSrc.confidence ??
+        src.confidence ??
+        (isObj(src.contract) ? src.contract.confidence : undefined)
+      )) ? clamp(Number(
+        metaSrc.confidence ??
+        src.confidence ??
+        (isObj(src.contract) ? src.contract.confidence : undefined)
+      ), 0, 1) : 0.82,
+      fallback: !!(metaSrc.fallback || src.fallback || src.ok === false || !response),
+      source: cleanText(metaSrc.source || synthesis.source || packetMeta.source || src.source || "marion") || "marion",
+      traceId: cleanText(metaSrc.traceId || src.traceId || packetMeta.traceId || norm && norm.traceId || "")
+    }
+  };
+}
+
+function validateMarionContract(contract) {
+  const c = isObj(contract) ? contract : {};
+  const errors = [];
+  const response = cleanText(c.response || "");
+  const status = cleanText(c.status || "success") || "success";
+  if (!response) errors.push("missing_response");
+  if (isInternalMarionBlockerReply(response)) errors.push("internal_blocker_response");
+  if (status && status !== "success") errors.push("status_not_success");
+  if (!cleanText(c.intent || "")) c.intent = "general";
+  if (!cleanText(c.emotional_state || "")) c.emotional_state = "calm";
+  if (!isObj(c.continuity)) c.continuity = {};
+  if (!isObj(c.meta)) c.meta = {};
+  return { ok: errors.length === 0 || (errors.length === 1 && errors[0] === "status_not_success" && !!response), errors };
+}
+
+function shouldForceMarionReply(contract, norm) {
+  const c = isObj(contract) ? contract : null;
+  if (!c) return false;
+  const checked = validateMarionContract(c);
+  if (!checked.ok) return false;
+  const text = lower(norm && norm.text || "");
+  if (!text) return true;
+  if (/(one\s+direct\s+answer|answer\s+this\s+in\s+one\s+sentence|answer\s+directly|direct\s+answer|just\s+answer|give\s+me\s+the\s+answer|what\s+is|what\s+are|how\s+do|how\s+does|why\s+is|define|explain\s+briefly)/.test(text)) return true;
+  if (cleanText(c.intent || "") && /^(direct_answer|answer|definition|explain|brief_answer)$/i.test(cleanText(c.intent || ""))) return true;
+  return true;
+}
+
+function enforceMarionContract(shaped, contract, norm) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const c = isObj(contract) ? contract : null;
+  const checked = validateMarionContract(c);
+  const candidate = cleanReplyForUser(c && c.response || "");
+  out.meta = mergeMeta(out.meta, {
+    marionContractVersion: "marion-nyx-v1",
+    marionContractOk: checked.ok,
+    marionContractErrors: checked.errors,
+    marionReplyPresent: !!candidate
+  });
+  if (!candidate) return out;
+  out.reply = candidate;
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    reply: candidate,
+    text: candidate,
+    message: candidate,
+    spokenText: candidate,
+    marionContract: c || {},
+    continuity: isObj(c && c.continuity) ? c.continuity : {}
+  };
+  out.bridge = {
+    ...(isObj(out.bridge) ? out.bridge : {}),
+    source: cleanText((c && c.meta && c.meta.source) || (out.bridge && out.bridge.source) || "marion") || "marion",
+    authority: "marion_locked"
+  };
+  out.cog = {
+    ...(isObj(out.cog) ? out.cog : {}),
+    intent: cleanText((c && c.intent) || out.cog && out.cog.intent || norm && norm.intentHint || "MARION") || "MARION",
+    mode: "authoritative",
+    publicMode: true
+  };
+  out.meta = mergeMeta(out.meta, {
+    marionApplied: true,
+    replyAuthority: "marion_locked"
+  });
+  return out;
+}
+
+function applyContinuityStitch(shaped, prevTurn, contract, norm, emotion) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const prev = isObj(prevTurn) ? prevTurn : {};
+  const continuity = isObj(contract && contract.continuity) ? { ...contract.continuity } : buildMarionContinuity(prev, norm, emotion);
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    continuity
+  };
+  out.bridge = {
+    ...(isObj(out.bridge) ? out.bridge : {}),
+    continuity
+  };
+  out.sessionPatch = {
+    ...(isObj(out.sessionPatch) ? out.sessionPatch : {}),
+    continuity,
+    continuityStitchApplied: true
+  };
+  const follow = cleanText(contract && contract.follow_up || "");
+  const existing = Array.isArray(out.followUpsStrings) ? out.followUpsStrings.filter(Boolean) : [];
+  const stitched = [];
+  if (follow) stitched.push(follow);
+  const prevUser = cleanText(prev.userText || "");
+  if (prevUser && !stitched.length) stitched.push(`Do you want to keep building from what you said about ${clipText(prevUser, 72)}?`);
+  out.followUpsStrings = uniq([...existing, ...stitched].map((v) => cleanText(v)).filter(Boolean)).slice(0, 4);
+  out.meta = mergeMeta(out.meta, {
+    continuityStitchApplied: true,
+    continuityReferences: Array.isArray(continuity.references) ? continuity.references.slice(0, 4) : [],
+    continuityMemoryThread: cleanText(continuity.memory_thread || "").slice(0, 180)
+  });
+  return out;
+}
+
+function buildLoggingSpine(trace) {
+  const src = isObj(trace) ? trace : {};
+  return {
+    traceId: cleanText(src.traceId || ""),
+    sessionId: cleanText(src.sessionId || ""),
+    startedAt: Number(src.startedAt || now()),
+    request: isObj(src.request) ? src.request : {},
+    marion_raw: src.marion_raw || null,
+    marion_contract: src.marion_contract || null,
+    normalized: src.normalized || null,
+    stitched: src.stitched || null,
+    rendered: src.rendered || null,
+    errors: Array.isArray(src.errors) ? src.errors : []
+  };
+}
+
+function getMarionAuthorityReply(marion) {
+  if (!isObj(marion)) return "";
+  const payload = isObj(marion.payload) ? marion.payload : {};
+  const packet = isObj(marion.packet) ? marion.packet : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const contract = isObj(marion.contract) ? marion.contract : {};
+  const result = isObj(marion.result) ? marion.result : {};
+  const resultPayload = isObj(result.payload) ? result.payload : {};
+  const resultPacket = isObj(result.packet) ? result.packet : {};
+  const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
+  const reply = cleanReplyForUser(
+    marion.response ||
+    marion.reply ||
+    marion.text ||
+    marion.output ||
+    marion.answer ||
+    marion.message ||
+    marion.spokenText ||
+    marion.fallbackResponse ||
+    marion.replySeed ||
+    payload.response ||
+    payload.reply ||
+    payload.text ||
+    payload.message ||
+    payload.output ||
+    payload.answer ||
+    payload.spokenText ||
+    payload.fallbackResponse ||
+    payload.replySeed ||
+    synthesis.reply ||
+    synthesis.text ||
+    synthesis.output ||
+    synthesis.answer ||
+    synthesis.spokenText ||
+    contract.response ||
+    contract.reply ||
+    contract.text ||
+    contract.output ||
+    contract.answer ||
+    result.response ||
+    result.reply ||
+    result.text ||
+    result.output ||
+    result.answer ||
+    result.message ||
+    result.spokenText ||
+    resultPayload.response ||
+    resultPayload.reply ||
+    resultPayload.text ||
+    resultPayload.message ||
+    resultPayload.output ||
+    resultPayload.answer ||
+    resultPayload.spokenText ||
+    resultSynthesis.reply ||
+    resultSynthesis.text ||
+    resultSynthesis.output ||
+    resultSynthesis.answer ||
+    ""
+  );
+  return isInternalMarionBlockerReply(reply) ? "" : reply;
+}
+
+
+function buildIndexMarionFinalSignature(reply, turnId) {
+  const seed = replyHash(`${cleanText(reply || "")}:${cleanText(turnId || "")}:${INDEX_VERSION}`);
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${INDEX_VERSION}::${seed}`;
+}
+
+function normalizeMarionBridgeResult(raw, input) {
+  if (!isObj(raw)) return raw;
+  const src = { ...raw };
+  const result = isObj(src.result) ? src.result : {};
+  const base = isObj(result) && Object.keys(result).length && !src.reply && !src.response && !src.payload
+    ? { ...result, ...src }
+    : src;
+
+  const reply = getMarionAuthorityReply(base) || getMarionAuthorityReply(src) || getMarionAuthorityReply(result);
+  if (!reply || base.ok === false || src.ok === false) return raw;
+
+  // Critical loop hardlock discipline:
+  // Do not let the index normalizer mint a fresh Marion signature for a known stale support phrase.
+  // A signed stale phrase was the cause of the visible loop: the final envelope became valid,
+  // so the final gate allowed the bad reply through. This keeps architecture intact while
+  // forcing the chat route to reject/regate the phrase downstream.
+  if (isBlockedLoopingSupportReply(reply)) {
+    const blockedMeta = {
+      ...(isObj(base.meta) ? base.meta : {}),
+      indexBridgeNormalized: true,
+      loopReplyBlockedCandidate: true,
+      hardlockCompatible: false,
+      final: false,
+      marionFinal: false
+    };
+    return {
+      ...base,
+      ok: false,
+      final: false,
+      handled: true,
+      marionFinal: false,
+      loopReplyBlockedCandidate: true,
       reply,
       text: reply,
       answer: reply,
       output: reply,
       response: reply,
       message: reply,
-      spokenText: safeStr(contract.spokenText || reply.replace(/\n+/g, " ")) || reply,
-      signature: safeStr(packet.meta.signature || packet.meta.marionFinalSignature),
-      marionFinalSignature: safeStr(packet.meta.marionFinalSignature || packet.meta.signature),
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice()
+      meta: blockedMeta,
+      diagnostics: {
+        ...(isObj(base.diagnostics) ? base.diagnostics : {}),
+        indexBridgeNormalized: true,
+        loopReplyBlockedCandidate: true,
+        reason: "stale_support_phrase_not_signed_by_index"
+      }
+    };
+  }
+
+  const req = isObj(input) ? input : {};
+  const reqMeta = isObj(req.meta) ? req.meta : {};
+  const turnId = cleanText(
+    base.turnId ||
+    (isObj(base.meta) && base.meta.turnId) ||
+    src.turnId ||
+    (isObj(src.meta) && src.meta.turnId) ||
+    req.turnId ||
+    reqMeta.turnId ||
+    ""
+  );
+
+  const existingMeta = isObj(base.meta) ? base.meta : {};
+  const existingPayload = isObj(base.payload) ? base.payload : {};
+  const existingPacket = isObj(base.packet) ? base.packet : {};
+  const existingPacketMeta = isObj(existingPacket.meta) ? existingPacket.meta : {};
+  const existingSynthesis = isObj(existingPacket.synthesis) ? existingPacket.synthesis : {};
+
+  const signature = cleanText(
+    base.signature ||
+    base.marionFinalSignature ||
+    existingMeta.signature ||
+    existingMeta.marionFinalSignature ||
+    existingPayload.signature ||
+    existingPayload.marionFinalSignature ||
+    existingPacketMeta.signature ||
+    existingPacketMeta.marionFinalSignature ||
+    buildIndexMarionFinalSignature(reply, turnId)
+  );
+
+  const finalMarkers = Array.isArray(base.finalMarkers) && base.finalMarkers.length
+    ? base.finalMarkers
+    : REQUIRED_MARION_FINAL_MARKERS.slice();
+
+  const meta = {
+    ...existingMeta,
+    version: cleanText(existingMeta.version || base.version || "marionBridge:index-normalized") || "marionBridge:index-normalized",
+    final: true,
+    marionFinal: true,
+    handled: true,
+    marionHandled: true,
+    finalizedBy: cleanText(existingMeta.finalizedBy || "index.callMarionBridge.normalizer"),
+    replySignature: cleanText(existingMeta.replySignature || base.replySignature || replyHash(reply)),
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true,
+    indexBridgeNormalized: true
+  };
+
+  const payload = {
+    ...existingPayload,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText: cleanText(existingPayload.spokenText || base.spokenText || reply),
+    final: true,
+    marionFinal: true,
+    handled: true,
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true
+  };
+
+  const packet = {
+    ...existingPacket,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    routing: {
+      ...(isObj(existingPacket.routing) ? existingPacket.routing : {}),
+      domain: cleanText((isObj(existingPacket.routing) && existingPacket.routing.domain) || base.domain || req.requestedDomain || "general") || "general",
+      intent: cleanText((isObj(existingPacket.routing) && existingPacket.routing.intent) || base.intent || req.intent || "simple_chat") || "simple_chat",
+      endpoint: cleanText((isObj(existingPacket.routing) && existingPacket.routing.endpoint) || base.endpoint || "marion://routeMarion.primary") || "marion://routeMarion.primary"
     },
-    diagnostics: {
-      ...safeObj(contract.diagnostics),
-      bridgeVersion: VERSION,
-      bridgeReduced: true,
-      validatedPacket: true,
-      routerCalled: true,
-      composerCalled: true,
-      finalMarked: true,
-      noFallbackPersonality: true,
-      noEmotionalInterpretation: true,
-      noRewrap: true,
-      routerVersion: safeStr(routed.routerVersion || routed.VERSION || ""),
-      composerVersion: safeStr(contract.version || ""),
-      signature: safeStr(packet.meta.signature || packet.meta.marionFinalSignature),
-      marionFinalSignature: safeStr(packet.meta.marionFinalSignature || packet.meta.signature),
+    synthesis: {
+      ...existingSynthesis,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      spokenText: cleanText(existingSynthesis.spokenText || base.spokenText || reply),
+      final: true,
+      marionFinal: true,
+      signature,
+      marionFinalSignature: signature,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      finalMarkers,
       hardlockCompatible: true
     },
     meta: {
-      ...safeObj(contract.meta),
-      version: VERSION,
-      endpoint: CANONICAL_ENDPOINT,
-      turnId: normalized.turnId,
-      routedIntent: composeInput.intent,
-      routedDomain: composeInput.domain,
-      final: true,
-      marionFinal: true,
-      handled: true,
-      finalizedBy: "marionBridge",
-      bridgeReduced: true,
-      replySignature,
-      signature: marionFinalSignature,
-      marionFinalSignature,
-      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
-    },
-    routed
-  }, composeInput);
+      ...existingPacketMeta,
+      ...meta
+    }
+  };
+
+  const diagnostics = {
+    ...(isObj(base.diagnostics) ? base.diagnostics : {}),
+    indexBridgeNormalized: true,
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true
+  };
+
+  return {
+    ...base,
+    ok: base.ok !== false,
+    final: true,
+    handled: true,
+    marionFinal: true,
+    marionHandled: true,
+    usedBridge: base.usedBridge !== false,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText: cleanText(base.spokenText || reply),
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true,
+    meta,
+    payload,
+    packet,
+    diagnostics,
+    result: isObj(result) ? { ...result, final: true, handled: true, marionFinal: true, meta, payload, packet, signature, marionFinalSignature: signature } : result
+  };
 }
 
-async function retrieveLayer2Signals(input = {}) {
-  const normalized = normalizeInbound(input);
-  if (!normalized.ok) {
+function shouldLockMarionAuthority(marion) {
+  const reply = getMarionAuthorityReply(marion);
+  if (!reply) return false;
+  if (!isObj(marion)) return false;
+  const ok = marion.ok !== false;
+  return !!ok;
+}
+
+function enforceMarionAuthority(shaped, marion, opts) {
+  const out = isObj(shaped) ? { ...shaped } : {};
+  const options = isObj(opts) ? opts : {};
+  const marionReply = getMarionAuthorityReply(marion);
+  const hasAuthority = shouldLockMarionAuthority(marion);
+  out.meta = mergeMeta(out.meta, {
+    marionAuthorityCandidate: hasAuthority,
+    marionAuthorityReplyPresent: !!marionReply,
+    marionAuthorityBlockedInternal: isInternalMarionBlockerReply(marionReply)
+  });
+  if (!hasAuthority) return out;
+
+  const locked = marionReply;
+  const payload = isObj(out.payload) ? { ...out.payload } : {};
+  payload.reply = locked;
+  payload.text = locked;
+  payload.message = locked;
+  payload.answer = locked;
+  payload.output = locked;
+  payload.response = locked;
+  payload.spokenText = locked;
+
+  const packet = isObj(marion && marion.packet) ? marion.packet : {};
+  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
+  const packetFollowUps = uniq([
+    ...(Array.isArray(marion && marion.followUps) ? marion.followUps : []),
+    ...(Array.isArray(marion && marion.followUpsStrings) ? marion.followUpsStrings : []),
+    ...(Array.isArray(packet && packet.followUps) ? packet.followUps : []),
+    ...(Array.isArray(synthesis && synthesis.followUpsStrings) ? synthesis.followUpsStrings : []),
+    ...(Array.isArray(synthesis && synthesis.followUps) ? synthesis.followUps : [])
+  ].map((v) => cleanText(v)).filter(Boolean)).slice(0, 4);
+
+  out.ok = out.ok !== false;
+  out.reply = locked;
+  out.text = locked;
+  out.output = locked;
+  out.answer = locked;
+  out.response = locked;
+  out.spokenText = locked;
+  out.payload = payload;
+  out.bridge = repairBridgeEnvelope(out.bridge, marion, out.lane || out.laneId || out.sessionLane || options.lane || "general");
+  if (packetFollowUps.length) {
+    out.followUps = packetFollowUps;
+    out.followUpsStrings = packetFollowUps;
+  }
+  out.meta = mergeMeta(out.meta, {
+    replyAuthority: "marion_locked",
+    semanticAuthority: "marion",
+    authorityLock: true,
+    marionReplyHash: replyHash(locked)
+  });
+  return out;
+}
+
+let chatEngineRuntime = null;
+
+function getChatEngineRuntime() {
+  if (chatEngineRuntime) return chatEngineRuntime;
+  if (!chatEngineMod || !isObj(chatEngineMod) || typeof chatEngineMod.ChatEngine !== "function") return null;
+  try {
+    const options = {};
+    if (typeof chatEngineMod.BasicEffectEngine === "function") {
+      options.effectEngine = new chatEngineMod.BasicEffectEngine();
+    }
+    chatEngineRuntime = new chatEngineMod.ChatEngine(options);
+    return chatEngineRuntime;
+  } catch (err) {
+    console.log("[Sandblast][chatEngine:runtime_init_error]", err && (err.stack || err.message || err));
+    return null;
+  }
+}
+
+async function callChatEngine(input) {
+  if (!chatEngineMod) return null;
+  try {
+    if (typeof chatEngineMod.handleChat === "function") return await chatEngineMod.handleChat(input);
+    if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
+    if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
+    if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
+    if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    const runtime = getChatEngineRuntime();
+    if (runtime && typeof runtime.processInput === "function") {
+      const response = await Promise.resolve(runtime.processInput(cleanText(input && input.text || ""), input || {}));
+      return {
+        ok: true,
+        reply: cleanReplyForUser(response),
+        payload: { reply: cleanReplyForUser(response) },
+        lane: cleanText(input && input.lane || "general") || "general",
+        laneId: cleanText(input && input.lane || "general") || "general",
+        sessionLane: cleanText(input && input.lane || "general") || "general",
+        bridge: isObj(input && input.marion) ? input.marion : null,
+        ctx: {},
+        ui: {},
+        directives: [],
+        followUps: [],
+        followUpsStrings: [],
+        sessionPatch: {},
+        cog: { intent: cleanText(input && input.intentHint || "general") || "general", mode: "runtime", publicMode: true },
+        meta: { replyAuthority: "chat_engine_runtime", engineVersion: INDEX_VERSION }
+      };
+    }
+    if (typeof chatEngineMod === "function") return await chatEngineMod(input);
+  } catch (err) {
+    console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
+    return { __engineError: err };
+  }
+  return null;
+}
+
+async function callMarionBridge(input) {
+  if (!marionBridgeMod) return null;
+  const finish = (value) => normalizeMarionBridgeResult(value, input);
+  try {
+    if (typeof marionBridgeMod.createMarionBridge === "function") {
+      const bridge = marionBridgeMod.createMarionBridge();
+      if (bridge && typeof bridge.maybeResolve === "function") return finish(await bridge.maybeResolve(input));
+      if (bridge && typeof bridge.processWithMarion === "function") return finish(await bridge.processWithMarion(input));
+      if (bridge && typeof bridge.route === "function") return finish(await bridge.route(input));
+      if (bridge && typeof bridge.ask === "function") return finish(await bridge.ask(input));
+      if (bridge && typeof bridge.handle === "function") return finish(await bridge.handle(input));
+    }
+    if (typeof marionBridgeMod.maybeResolve === "function") return finish(await marionBridgeMod.maybeResolve(input));
+    if (typeof marionBridgeMod.processWithMarion === "function") return finish(await marionBridgeMod.processWithMarion(input));
+    if (typeof marionBridgeMod.route === "function") return finish(await marionBridgeMod.route(input));
+    if (typeof marionBridgeMod.ask === "function") return finish(await marionBridgeMod.ask(input));
+    if (typeof marionBridgeMod.handle === "function") return finish(await marionBridgeMod.handle(input));
+    if (typeof marionBridgeMod.default === "function") return finish(await marionBridgeMod.default(input));
+    if (typeof marionBridgeMod === "function") return finish(await marionBridgeMod(input));
+  } catch (err) {
+    console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
     return {
       ok: false,
-      issues: normalized.issues,
-      userQuery: normalized.userQuery,
-      domain: normalized.domain,
-      intent: "input_invalid",
-      diagnostics: { bridgeReduced: true, noLegacyRetrievers: true }
+      error: "marion_bridge_runtime_error",
+      detail: cleanText(err && (err.message || err) || "marion bridge failed"),
+      meta: {
+        source: "index_callMarionBridge",
+        v: INDEX_VERSION,
+        t: now()
+      }
+    };
+  }
+  return null;
+}
+
+function callWithTimeout(promiseOrValue, ms, label) {
+  const timeoutMs = clamp(Number(ms || CFG.requestTimeoutMs || 18000), 1000, 60000);
+  return Promise.race([
+    Promise.resolve(promiseOrValue),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label || "operation"}_timeout`)), timeoutMs))
+  ]);
+}
+
+function ttsHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleTts === "function") return mod.handleTts.bind(mod);
+  if (typeof mod.ttsHandler === "function") return mod.ttsHandler.bind(mod);
+  if (typeof mod.handler === "function") return mod.handler.bind(mod);
+  if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod.delegateTts === "function") return mod.delegateTts.bind(mod);
+  if (typeof mod.generateSpeech === "function") return mod.generateSpeech.bind(mod);
+  if (typeof mod.speak === "function") return mod.speak.bind(mod);
+  if (typeof mod.run === "function") return mod.run.bind(mod);
+  if (typeof mod.generate === "function") return mod.generate.bind(mod);
+  if (typeof mod.tts === "function") return mod.tts.bind(mod);
+  if (typeof mod.synthesize === "function") return mod.synthesize.bind(mod);
+  if (typeof mod.default === "function") return mod.default.bind(mod);
+  if (typeof mod === "function") return mod;
+  return null;
+}
+
+function voiceRouteHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleVoiceRoute === "function") return mod.handleVoiceRoute.bind(mod);
+  if (typeof mod.voiceRouteHandler === "function") return mod.voiceRouteHandler.bind(mod);
+  if (typeof mod.handler === "function") return mod.handler.bind(mod);
+  if (typeof mod.handle === "function") return mod.handle.bind(mod);
+  if (typeof mod === "function") return mod;
+  return null;
+}
+
+function voiceHealthFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.health === "function") return mod.health.bind(mod);
+  if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  return null;
+}
+
+function ttsHealthFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.health === "function") return mod.health.bind(mod);
+  if (typeof mod.getHealth === "function") return mod.getHealth.bind(mod);
+  if (typeof mod.status === "function") return mod.status.bind(mod);
+  return null;
+}
+
+function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
+  const code = clamp(Number(statusCode || 503), 400, 599);
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("tts"));
+  const payload = {
+    ok: false,
+    spokenUnavailable: true,
+    error: cleanText(error || "tts_route_failure") || "tts_route_failure",
+    detail: cleanText(detail || "TTS route failed") || "TTS route failed",
+    traceId,
+    meta: { v: INDEX_VERSION, t: now() },
+    payload: { spokenUnavailable: true }
+  };
+  if (isObj(extra)) Object.assign(payload, extra);
+  return res.status(code).json(payload);
+}
+
+function firstTruthyString() {
+  for (const v of arguments) {
+    const s = cleanText(v);
+    if (s) return s;
+  }
+  return "";
+}
+
+function boolish(v, fallback) {
+  if (v === true || v === false) return v;
+  const s = lower(v);
+  if (["1","true","yes","on"].includes(s)) return true;
+  if (["0","false","no","off"].includes(s)) return false;
+  return !!fallback;
+}
+
+function inferAudioMimeType(raw) {
+  const direct = firstTruthyString(
+    raw && raw.mimeType,
+    raw && raw.contentType,
+    raw && raw.audioMimeType,
+    raw && raw.audio && raw.audio.mimeType,
+    raw && raw.audio && raw.audio.contentType,
+    raw && raw.payload && raw.payload.mimeType,
+    raw && raw.payload && raw.payload.contentType
+  );
+  if (direct) return direct;
+  const format = lower(
+    firstTruthyString(
+      raw && raw.format,
+      raw && raw.audioFormat,
+      raw && raw.audio && raw.audio.format,
+      raw && raw.payload && raw.payload.format
+    )
+  );
+  if (format === "mp3" || format === "mpeg") return "audio/mpeg";
+  if (format === "wav" || format === "wave") return "audio/wav";
+  if (format === "ogg") return "audio/ogg";
+  if (format === "webm") return "audio/webm";
+  if (format === "mp4" || format === "m4a") return "audio/mp4";
+  return "audio/mpeg";
+}
+
+function looksLikeBase64Audio(v) {
+  const s = cleanText(v);
+  if (!s) return false;
+  if (/^data:audio\//i.test(s)) return false;
+  return s.length > 64 && /^[A-Za-z0-9+/=\s]+$/.test(s);
+}
+
+function normalizeTtsRoutePayload(raw, req) {
+  const src = isObj(raw) ? { ...raw } : {};
+  const payload = isObj(src.payload) ? { ...src.payload } : {};
+  const audio = isObj(src.audio) ? { ...src.audio } : {};
+  const speech = isObj(src.speech) ? { ...src.speech } : {};
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || src.traceId || payload.traceId || makeTraceId("tts"));
+
+  const audioUrl = firstTruthyString(
+    src.audioUrl,
+    src.url,
+    src.src,
+    src.audioSrc,
+    audio.url,
+    audio.audioUrl,
+    audio.src,
+    payload.audioUrl,
+    payload.url,
+    payload.src
+  );
+  let audioBase64 = firstTruthyString(
+    src.audioBase64,
+    src.base64,
+    src.audioContent,
+    src.audioData,
+    audio.base64,
+    audio.audioBase64,
+    audio.content,
+    audio.data,
+    payload.audioBase64,
+    payload.base64,
+    payload.audioContent,
+    payload.audioData
+  );
+  const dataUri = /^data:(audio\/[^;]+);base64,(.+)$/i.exec(audioBase64 || "");
+  let mimeType = inferAudioMimeType({ ...src, payload, audio });
+  if (dataUri) {
+    mimeType = cleanText(dataUri[1]) || mimeType;
+    audioBase64 = cleanText(dataUri[2]);
+  }
+
+  const text = cleanReplyForUser(firstTruthyString(
+    src.text,
+    src.textSpeak,
+    src.textDisplay,
+    src.spokenText,
+    speech.textSpeak,
+    speech.text,
+    payload.textSpeak,
+    payload.textDisplay,
+    payload.spokenText,
+    payload.text
+  ));
+
+  const format = cleanText(
+    src.format ||
+    src.audioFormat ||
+    audio.format ||
+    payload.format ||
+    (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//i, ""))
+  ) || "mp3";
+
+  const playable = !!(audioUrl || audioBase64 || src.playable === true || audio.playable === true || payload.playable === true);
+  const autoPlay = boolish(
+    src.autoPlay !== undefined ? src.autoPlay :
+    audio.autoPlay !== undefined ? audio.autoPlay :
+    payload.autoPlay !== undefined ? payload.autoPlay :
+    src.shouldPlay !== undefined ? src.shouldPlay :
+    audio.shouldPlay !== undefined ? audio.shouldPlay :
+    payload.shouldPlay !== undefined ? payload.shouldPlay :
+    true,
+    true
+  );
+
+  const normalizedAudio = {
+    ok: playable,
+    playable,
+    url: audioUrl || "",
+    src: audioUrl || "",
+    audioUrl: audioUrl || "",
+    audioBase64: audioBase64 || "",
+    mimeType,
+    contentType: mimeType,
+    format,
+    autoPlay,
+    shouldPlay: autoPlay,
+    provider: firstTruthyString(src.provider, audio.provider, payload.provider, process.env.TTS_PROVIDER || "resemble") || "resemble",
+    text: text || "",
+    textSpeak: text || "",
+    chars: Number(src.chars || audio.chars || payload.chars || (text ? text.length : 0)) || 0
+  };
+
+  return {
+    ok: src.ok !== false && playable,
+    playable,
+    spokenUnavailable: !playable,
+    traceId,
+    audio: normalizedAudio,
+    audioUrl: normalizedAudio.audioUrl,
+    audioBase64: normalizedAudio.audioBase64,
+    src: normalizedAudio.audioUrl,
+    url: normalizedAudio.audioUrl,
+    mimeType: normalizedAudio.mimeType,
+    contentType: normalizedAudio.mimeType,
+    format: normalizedAudio.format,
+    autoPlay: normalizedAudio.autoPlay,
+    shouldPlay: normalizedAudio.shouldPlay,
+    text: text || "",
+    textSpeak: text || "",
+    spokenText: text || "",
+    speech: {
+      enabled: true,
+      speak: playable,
+      text: text || "",
+      textDisplay: text || "",
+      textSpeak: text || "",
+      alignmentVersion: "speech-contract-v3"
+    },
+    payload: {
+      ...payload,
+      playable,
+      audioUrl: normalizedAudio.audioUrl,
+      audioBase64: normalizedAudio.audioBase64,
+      mimeType: normalizedAudio.mimeType,
+      format: normalizedAudio.format,
+      autoPlay: normalizedAudio.autoPlay,
+      shouldPlay: normalizedAudio.shouldPlay,
+      textSpeak: text || payload.textSpeak || "",
+      spokenText: text || payload.spokenText || ""
+    },
+    meta: {
+      ...(isObj(src.meta) ? src.meta : {}),
+      v: INDEX_VERSION,
+      t: now(),
+      route: cleanText(req && (req.originalUrl || req.path) || "/api/tts") || "/api/tts",
+      audioContract: "audio-first-v2"
+    }
+  };
+}
+
+async function dispatchTts(req, res) {
+  const moduleHandler = ttsHandlerFromModule(ttsMod);
+  if (CFG.httpLogEnabled) {
+    console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase(), traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || "") });
+  }
+  if (!moduleHandler) {
+    throw new Error("tts_handler_unavailable");
+  }
+
+  const originalJson = typeof res.json === "function" ? res.json.bind(res) : null;
+  if (originalJson) {
+    res.json = function patchedTtsJson(body) {
+      return originalJson(normalizeTtsRoutePayload(body, req));
     };
   }
 
-  if (typeof routeMarionIntent !== "function") {
+  const result = await moduleHandler(req, res);
+  if (res.headersSent || res.writableEnded) return result;
+
+  if (result !== undefined) {
+    return res.status(200).json(normalizeTtsRoutePayload(result, req));
+  }
+
+  return sendTtsJsonError(req, res, 503, "tts_empty_response", "TTS handler completed without audio payload.", {
+    configSource: "tts_module",
+    ttsModuleBound: true
+  });
+}
+
+function attachVoiceRoute(base) {
+  const shaped = isObj(base) ? { ...base } : {};
+  const existing = isObj(shaped.voiceRoute) ? shaped.voiceRoute : {};
+  const routeEnabled = !!CFG.voiceRouteEnabled;
+  const route = {
+    enabled: routeEnabled,
+    endpoint: routeUrl("/api/tts"),
+    healthEndpoint: routeUrl("/api/tts/health"),
+    compatibilityHealthEndpoint: routeUrl("/tts/health"),
+    method: "POST",
+    requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
+    preserveMixerVoice: !!CFG.preserveMixerVoice,
+    jsonAudioSupported: true,
+    streamAudioSupported: true,
+    contractVersion: "audio-first-v1",
+    deterministicAudio: true,
+    failOpenChat: true,
+    traceHeader: "x-sb-trace-id"
+  };
+
+  if (routeEnabled && shaped.reply && !shaped.audio) {
+    shaped.voiceRoute = { ...route, ...existing };
+  } else if (existing && Object.keys(existing).length) {
+    shaped.voiceRoute = { ...route, ...existing };
+  }
+
+  return shaped;
+}
+
+function normalizeVoiceRouteResponse(out) {
+  if (!isObj(out)) return null;
+  return {
+    enabled: out.enabled !== false,
+    endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
+    healthEndpoint: cleanText(out.healthEndpoint || "/api/tts/health") || "/api/tts/health",
+    compatibilityHealthEndpoint: cleanText(out.compatibilityHealthEndpoint || "/tts/health") || "/tts/health",
+    method: cleanText(out.method || "POST") || "POST",
+    requiresToken: !!out.requiresToken,
+    preserveMixerVoice: !!out.preserveMixerVoice,
+    jsonAudioSupported: out.jsonAudioSupported !== false,
+    streamAudioSupported: out.streamAudioSupported !== false,
+    contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
+    deterministicAudio: out.deterministicAudio !== false,
+    failOpenChat: out.failOpenChat !== false,
+    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
+  };
+}
+
+function buildSpeechContract(shaped, norm) {
+  const payload = isObj(shaped && shaped.payload) ? shaped.payload : {};
+  const voiceRoute = isObj(shaped && shaped.voiceRoute) ? shaped.voiceRoute : {};
+  const incomingSpeech = isObj(shaped && shaped.speech) ? shaped.speech : (isObj(payload.speech) ? payload.speech : {});
+  const reply = cleanReplyForUser(
+    (incomingSpeech.displayText || incomingSpeech.text || shaped && shaped.reply || payload.reply || payload.text || voiceRoute.text || norm && norm.text || "")
+  );
+  const textDisplay = cleanReplyForUser(
+    incomingSpeech.displayText || payload.textDisplay || voiceRoute.textDisplay || shaped && shaped.textDisplay || reply
+  ) || reply;
+  const textSpeak = cleanReplyForUser(
+    incomingSpeech.normalizedText || incomingSpeech.text || payload.textSpeak || voiceRoute.textSpeak || shaped && shaped.textSpeak || reply
+  ) || reply;
+  const routeKind = cleanText(
+    payload.routeKind || voiceRoute.routeKind || shaped && shaped.routeKind || (norm && norm.mode === "intro" ? "intro" : "main")
+  ) || "main";
+  const intro = voiceRoute.intro === true || payload.intro === true || routeKind === "intro";
+  const source = cleanText(payload.source || voiceRoute.source || (intro ? "intro" : "chat"));
+  const speechHints = isObj(payload.speechHints) ? payload.speechHints : (isObj(voiceRoute.speechHints) ? voiceRoute.speechHints : {});
+  return {
+    enabled: incomingSpeech.enabled !== false,
+    speak: incomingSpeech.speak !== false,
+    text: reply,
+    textDisplay,
+    textSpeak,
+    routeKind,
+    intro,
+    source: source || (intro ? "intro" : "chat"),
+    speechHints,
+    presenceProfile: cleanText(incomingSpeech.presenceProfile || payload.presenceProfile || "") || undefined,
+    voiceStyle: cleanText(incomingSpeech.voiceStyle || payload.voiceStyle || "") || undefined,
+    nyxStateHint: cleanText(incomingSpeech.nyxStateHint || payload.nyxStateHint || "") || undefined,
+    alignmentVersion: "speech-contract-v2"
+  };
+}
+
+
+function normalizeImageLike(entry, title) {
+  if (!entry) return null;
+  if (typeof entry === "string") {
+    const url = cleanText(entry);
+    return url ? { url, alt: cleanText(title || ""), caption: "" } : null;
+  }
+  if (!isObj(entry)) return null;
+  const url = cleanText(entry.url || entry.src || entry.href || entry.image || entry.original || entry.large || entry.medium || entry.small || entry.thumbnail || "");
+  if (!url) return null;
+  return {
+    url,
+    alt: cleanText(entry.alt || entry.title || title || ""),
+    caption: cleanText(entry.caption || entry.description || "")
+  };
+}
+
+
+function buildNewsCanadaGuaranteedFallbackItems(reason, limit) {
+  const max = clamp(Number(limit || 4), 1, 12);
+  const nowIso = new Date().toISOString();
+  const baseItems = [
+    {
+      id: "newscanada-fallback-1",
+      guid: "newscanada-fallback-1",
+      slug: "news-canada-refreshing",
+      title: "News Canada is refreshing",
+      headline: "News Canada is refreshing",
+      description: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      summary: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      body: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      content: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "Live stories are loading. This confirms the News Canada pipeline is mounted and still serving data.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-2",
+      guid: "newscanada-fallback-2",
+      slug: "cache-and-rss-protection-active",
+      title: "Cache and RSS protection is active",
+      headline: "Cache and RSS protection is active",
+      description: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      summary: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      body: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      content: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "If the upstream feed slows down, the backend now protects the page from going empty.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-3",
+      guid: "newscanada-fallback-3",
+      slug: "diagnostics-available-in-meta",
+      title: "Diagnostics are available in the response metadata",
+      headline: "Diagnostics are available in the response metadata",
+      description: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      summary: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      body: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      content: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "Use the meta block to confirm whether stories came from rss_live, cache, snapshot, or fallback mode.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    },
+    {
+      id: "newscanada-fallback-4",
+      guid: "newscanada-fallback-4",
+      slug: "live-stories-will-replace-these-slots",
+      title: "Live stories will replace these slots automatically",
+      headline: "Live stories will replace these slots automatically",
+      description: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      summary: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      body: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      content: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      link: "https://sandblast.channel",
+      url: "https://sandblast.channel",
+      sourceUrl: "https://sandblast.channel",
+      canonicalUrl: "https://sandblast.channel",
+      pubDate: nowIso,
+      publishedAt: nowIso,
+      image: "",
+      popupImage: "",
+      popupBody: "As soon as the upstream feed answers cleanly, live stories overwrite the protected fallback payload.",
+      byline: "",
+      author: "",
+      category: "News Canada",
+      chipLabel: "News Canada",
+      ctaText: "Preview story",
+      source: "News Canada",
+      sourceName: "News Canada",
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      parserMode: "guaranteed_fallback",
+      isActive: true
+    }
+  ];
+
+  return baseItems.slice(0, max).map((item) => ({
+    ...item,
+    fallbackReason: cleanText(reason || "news_canada_non_empty_contract")
+  }));
+}
+
+function ensureNewsCanadaItemsNonEmpty(items, reason, limit) {
+  const normalized = Array.isArray(items) ? items.filter(Boolean) : [];
+  return normalized.length ? normalized : buildNewsCanadaGuaranteedFallbackItems(reason, limit);
+}
+
+function getNewsCanadaService() {
+  return {
+    async fetchRSS(opts) {
+      const normalizedOpts = {
+        ...(isObj(opts) ? opts : {}),
+        refresh: true,
+        strictLive: true,
+        allowFallbackSeed: false,
+        preferFreshCache: false
+      };
+      if (newsCanadaFeedService && typeof newsCanadaFeedService.fetchRSS === "function") {
+        return Promise.resolve(newsCanadaFeedService.fetchRSS(normalizedOpts));
+      }
+      return null;
+    },
+    async getEditorsPicks(opts) {
+      const normalizedOpts = {
+        ...(isObj(opts) ? opts : {}),
+        refresh: true,
+        strictLive: true,
+        allowFallbackSeed: false,
+        preferFreshCache: false
+      };
+      if (newsCanadaFeedService && typeof newsCanadaFeedService.getEditorsPicks === "function") {
+        return Promise.resolve(newsCanadaFeedService.getEditorsPicks(normalizedOpts));
+      }
+      return null;
+    },
+    async getStory(lookup, opts) {
+      if (newsCanadaFeedService && typeof newsCanadaFeedService.getStory === "function") {
+        return newsCanadaFeedService.getStory(lookup, { ...(isObj(opts) ? opts : {}), refresh: true });
+      }
+      return { ok: false, error: "news_canada_service_unavailable", meta: { source: "service_unavailable", degraded: true } };
+    }
+  };
+}
+
+async function getNewsCanadaEditorsPicksResponse(req) {
+  const service = getNewsCanadaService();
+  if (!service || typeof service.getEditorsPicks !== "function") {
     return {
       ok: false,
-      issues: ["intent_router_unavailable"],
-      userQuery: normalized.userQuery,
-      domain: normalized.domain,
-      intent: "router_unavailable",
-      diagnostics: { bridgeReduced: true, noLegacyRetrievers: true }
+      route: "/api/newscanada/editors-picks",
+      storyRoute: "/api/newscanada/story",
+      availableStories: 0,
+      storyCount: 0,
+      count: 0,
+      stories: [],
+      items: [],
+      articles: [],
+      editorsPicks: [],
+      editorPicks: [],
+      feed: [],
+      slides: [],
+      panels: [],
+      chips: [],
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        source: "service_unavailable",
+        degraded: true,
+        mode: "rss",
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        fetchedAt: now(),
+        storyCount: 0,
+        itemCount: 0,
+        parserMode: "live_empty",
+        detail: "news_canada_service_unavailable",
+        contractVersion: "newscanada-rss-service-v10",
+        stableRoutes: {
+          editorsPicks: "/api/newscanada/editors-picks",
+          editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+          story: "/api/newscanada/story",
+          refresh: "/api/newscanada/rss"
+        }
+      }
     };
   }
 
-  const routed = await Promise.resolve(routeMarionIntent({
-    text: normalized.userQuery,
-    query: normalized.userQuery,
-    userQuery: normalized.userQuery,
-    lane: normalized.lane,
-    requestedDomain: normalized.requestedDomain,
-    domain: normalized.domain,
-    marionIntent: normalized.marionIntent,
-    previousMemory: normalized.previousMemory,
-    turnId: normalized.turnId
+  const result = await Promise.resolve(service.getEditorsPicks({
+    refresh: req.query && req.query.refresh === "1",
+    limit: Number(req.query && req.query.limit || 0) || undefined,
+    strictLive: true,
+    allowFallbackSeed: false,
+    preferFreshCache: false
   }));
 
-  const routing = safeObj(routed.routing);
+  const rawStories = Array.isArray(result && result.stories) ? result.stories : [];
+  const hasSyntheticPayload = isNewsCanadaSeedPayload(result);
+  const stories = hasSyntheticPayload ? [] : rawStories.filter(Boolean);
+  const slides = Array.isArray(result && result.slides) && result.slides.length && !hasSyntheticPayload ? result.slides : stories;
+  const ok = !!(result && result.ok !== false && stories.length);
+
+  return {
+    ok,
+    route: "/api/newscanada/editors-picks",
+    storyRoute: "/api/newscanada/story",
+    availableStories: stories.filter((story) => story && story.isActive !== false).length,
+    storyCount: stories.length,
+    count: stories.length,
+    stories,
+    items: stories,
+    articles: stories,
+    editorsPicks: stories,
+    editorPicks: stories,
+    feed: stories,
+    slides,
+    panels: slides,
+    chips: Array.isArray(result && result.chips) && !hasSyntheticPayload ? result.chips : [],
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      source: cleanText(result && result.meta && result.meta.source || (ok ? "rss_service" : "rss_unavailable")) || "rss_unavailable",
+      degraded: !!(result && result.meta && result.meta.degraded) || !ok,
+      mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
+      feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+      fetchedAt: Number(result && result.meta && result.meta.fetchedAt || now()),
+      storyCount: stories.length,
+      itemCount: stories.length,
+      parserMode: cleanText(result && result.meta && result.meta.parserMode || (ok ? "rss_payload" : "live_empty")) || "live_empty",
+      detail: cleanText(result && result.meta && result.meta.detail || (hasSyntheticPayload ? "synthetic_payload_rejected" : (!stories.length ? "no_real_stories_available" : ""))),
+      contractVersion: "newscanada-rss-service-v10",
+      stableRoutes: {
+        editorsPicks: "/api/newscanada/editors-picks",
+        editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+        story: "/api/newscanada/story",
+        refresh: "/api/newscanada/rss"
+      }
+    }
+  };
+}
+
+async function getNewsCanadaStoryResponse(req) {
+  const service = getNewsCanadaService();
+  if (!service || typeof service.getStory !== "function") {
+    return {
+      ok: false,
+      error: "news_canada_service_unavailable",
+      route: "/api/newscanada/story",
+      meta: { v: INDEX_VERSION, t: now(), source: "service_unavailable", degraded: true }
+    };
+  }
+
+  const lookup = cleanText(req.query.id || req.query.storyId || req.query.slotId || req.query.slug || req.query.title || req.query.url || "");
+  const result = await Promise.resolve(service.getStory(lookup, {
+    refresh: req.query && req.query.refresh === "1"
+  }));
+
+  if (!result || result.ok === false || !isObj(result.story)) {
+    return {
+      ok: false,
+      error: "story_not_found",
+      route: "/api/newscanada/story",
+      lookup,
+      meta: { v: INDEX_VERSION, t: now(), source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service" }
+    };
+  }
+
   return {
     ok: true,
-    endpoint: safeStr(routing.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT,
-    userQuery: normalized.userQuery,
-    domain: safeStr(routing.domain || normalized.domain || "general") || "general",
-    intent: safeStr(routing.intent || safeObj(routed.marionIntent).intent || "simple_chat") || "simple_chat",
-    routing,
-    marionIntent: safeObj(routed.marionIntent),
-    diagnostics: {
-      bridgeReduced: true,
-      noLegacyRetrievers: true,
-      routerCalled: true,
-      routerVersion: safeStr(routed.routerVersion || "")
+    route: "/api/newscanada/story",
+    story: result.story,
+    popup: {
+      title: result.story.title,
+      body: result.story.popupBody || result.story.body || result.story.content || result.story.summary || "",
+      image: result.story.popupImage || result.story.image || "",
+      summary: result.story.summary || "",
+      url: result.story.url || "",
+      ctaText: result.story.ctaText || "Read more"
+    },
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
+      degraded: !!(result && result.meta && result.meta.degraded)
     }
   };
 }
 
-function createMarionBridge(options = {}) {
-  const memoryProvider = safeObj(options.memoryProvider);
+function buildNewsCanadaTrace(req) {
+  return {
+    traceId: cleanText(req && (req.sbTraceId || req.headers && req.headers["x-sb-trace-id"]) || makeTraceId("newscanada")),
+    route: cleanText(req && (req.originalUrl || req.url) || "/api/newscanada/rss") || "/api/newscanada/rss",
+    startedAt: now(),
+    refresh: !!(req && req.query && req.query.refresh === "1")
+  };
+}
+
+function logNewsCanadaTrace(trace, stage, payload) {
+  try {
+    console.log("[Sandblast][newsCanada][trace]", {
+      traceId: cleanText(trace && trace.traceId || ""),
+      stage: cleanText(stage || "stage") || "stage",
+      route: cleanText(trace && trace.route || "/api/newscanada/rss") || "/api/newscanada/rss",
+      elapsedMs: Math.max(0, now() - Number(trace && trace.startedAt || now())),
+      ...(isObj(payload) ? payload : {})
+    });
+  } catch (_) {}
+}
+
+async function getNewsCanadaRssResponse(req) {
+  const trace = buildNewsCanadaTrace(req);
+
+  logNewsCanadaTrace(trace, "request_received", {
+    refresh: trace.refresh,
+    serviceAvailable: false,
+    fetchRSSAvailable: true,
+    routeMode: "inline_direct_truth"
+  });
+
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: cleanText(shaped.reply || reply), replyHash: replyHash(cleanText(shaped.reply || reply)), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: cleanText(shaped.meta && shaped.meta.replyAuthority || ""), count: 1 });
+
+  try {
+    const cachedContract = !trace.refresh ? readNewsCanadaCacheContractFile() : null;
+    const cachedItems = cachedContract && Array.isArray(cachedContract.items) ? cachedContract.items : [];
+    const cachedUsable = !!(cachedItems.length && !isNewsCanadaSeedPayload(cachedContract));
+    const cacheFresh = cachedUsable ? isFreshNewsCanadaContractCache(cachedContract, getNewsCanadaCacheServeTtlMs()) : false;
+    if (cachedUsable && !trace.refresh) {
+      if (!cacheFresh) scheduleNewsCanadaBackgroundRefresh("stale_while_refresh_route_hit");
+      logNewsCanadaTrace(trace, cacheFresh ? "cache_contract_hit" : "cache_contract_stale_served", {
+        cachedItemCount: cachedItems.length,
+        source: cleanText(cachedContract.meta && cachedContract.meta.source || "cache_contract") || "cache_contract",
+        cacheFresh,
+        scheduledBackgroundRefresh: !cacheFresh
+      });
+      return {
+        ok: true,
+        traceId: trace.traceId,
+        route: "/api/newscanada/rss",
+        items: cachedItems.slice(),
+        meta: {
+          v: INDEX_VERSION,
+          t: now(),
+          traceId: trace.traceId,
+          source: cleanText(cachedContract.meta && cachedContract.meta.source || "cache_contract") || "cache_contract",
+          degraded: !cacheFresh,
+          mode: cleanText(cachedContract.meta && cachedContract.meta.mode || "cache_first") || "cache_first",
+          parserMode: cleanText(cachedContract.meta && cachedContract.meta.parserMode || "cache_contract") || "cache_contract",
+          contentType: cleanText(cachedContract.meta && cachedContract.meta.contentType || "cached") || "cached",
+          resolvedUrl: cleanText(cachedContract.meta && cachedContract.meta.resolvedUrl || "") || "",
+          attemptedUrls: [],
+          sample: "",
+          detail: cacheFresh ? "cache_contract_hit" : "stale_while_refresh_served",
+          feedUrl: cleanText(cachedContract.meta && cachedContract.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+          fetchedAt: Number(cachedContract.meta && cachedContract.meta.fetchedAt || now()),
+          itemCount: cachedItems.length,
+          cacheContractPath: cleanText(cachedContract.meta && cachedContract.meta.cacheContractPath || "") || "",
+          cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+          contractVersion: "newscanada-rss-service-v17-transport-hardened",
+          stage: cacheFresh ? "cache_contract_hit" : "stale_while_refresh_served"
+        }
+      };
+    }
+
+    const fetchTimeoutMs = clamp(Number(process.env.NEWS_CANADA_DIRECT_FETCH_TIMEOUT_MS || 15000), 5000, 30000);
+
+    logNewsCanadaTrace(trace, "fetch_start", {
+      sourceOfTruth: resolveNewsCanadaFeedUrl(),
+      strictLive: true,
+      allowFallbackSeed: false,
+      preferFreshCache: false,
+      routeMode: "inline_direct_truth",
+      fetchTimeoutMs
+    });
+
+    const result = await fetchNewsCanadaRssDirect({
+      feedUrl: resolveNewsCanadaFeedUrl(),
+      refresh: trace.refresh,
+      strictLive: true,
+      allowFallbackSeed: false,
+      preferFreshCache: false,
+      timeoutMs: fetchTimeoutMs,
+      retryCount: clamp(Number(process.env.NEWS_CANADA_FETCH_RETRIES || 0), 0, 2),
+      retryBaseMs: clamp(Number(process.env.NEWS_CANADA_FETCH_RETRY_BASE_MS || 400), 100, 1500)
+    });
+
+    const rawItems = Array.isArray(result && result.items) ? result.items : [];
+    const hasSyntheticPayload = isNewsCanadaSeedPayload(result);
+    const items = hasSyntheticPayload ? [] : rawItems.filter(Boolean);
+    const ok = !!(result && result.ok !== false && items.length);
+
+    logNewsCanadaTrace(trace, "fetch_complete", {
+      upstreamOk: !!(result && result.ok !== false),
+      rawItemCount: rawItems.length,
+      validItemCount: items.length,
+      syntheticPayloadRejected: hasSyntheticPayload,
+      source: cleanText(result && result.meta && result.meta.source || "rss_unavailable") || "rss_unavailable",
+      parserMode: cleanText(result && result.meta && result.meta.parserMode || "live_empty") || "live_empty",
+      resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
+      detail: cleanText(result && result.meta && result.meta.detail || ""),
+      attemptedUrlCount: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.length : 0,
+      stage: cleanText(result && result.meta && result.meta.stage || "")
+    });
+
+    return {
+      ok,
+      traceId: trace.traceId,
+      route: "/api/newscanada/rss",
+      items,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        traceId: trace.traceId,
+        source: cleanText(result && result.meta && result.meta.source || (ok ? "rss_direct_truth" : "rss_unavailable")) || "rss_unavailable",
+        degraded: !!(result && result.meta && result.meta.degraded) || !ok,
+        mode: cleanText(result && result.meta && result.meta.mode || "rss") || "rss",
+        parserMode: cleanText(result && result.meta && result.meta.parserMode || (ok ? "rss_payload" : "live_empty")) || "live_empty",
+        contentType: cleanText(result && result.meta && result.meta.contentType || "") || "",
+        resolvedUrl: cleanText(result && result.meta && result.meta.resolvedUrl || "") || "",
+        attemptedUrls: Array.isArray(result && result.meta && result.meta.attemptedUrls) ? result.meta.attemptedUrls.slice(0, 12) : [],
+        sample: cleanText(result && result.meta && result.meta.sample || ""),
+        detail: cleanText(result && result.meta && result.meta.detail || (hasSyntheticPayload ? "synthetic_payload_rejected" : (!items.length ? "no_real_stories_available" : ""))),
+        feedUrl: cleanText(result && result.meta && result.meta.feedUrl || resolveNewsCanadaFeedUrl()),
+        fetchedAt: Number(result && result.meta && result.meta.fetchedAt || now()),
+        itemCount: items.length,
+        cacheContractPath: cleanText(result && result.meta && result.meta.cacheContractPath || "") || "",
+        cacheContractCandidates: Array.isArray(result && result.meta && result.meta.cacheContractCandidates) ? result.meta.cacheContractCandidates.slice(0, 8) : getNewsCanadaCacheContractPaths(),
+        contractVersion: "newscanada-rss-service-v17-transport-hardened",
+        stage: cleanText(result && result.meta && result.meta.stage || "") || ""
+      }
+    };
+  } catch (err) {
+    logNewsCanadaTrace(trace, "fetch_error", {
+      detail: cleanText(err && (err.message || err.code || "rss_fetch_failed"))
+    });
+    return {
+      ok: false,
+      traceId: trace.traceId,
+      route: "/api/newscanada/rss",
+      items: [],
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        traceId: trace.traceId,
+        source: "rss_route_error",
+        degraded: true,
+        mode: "rss",
+        parserMode: "live_empty",
+        contentType: "",
+        resolvedUrl: "",
+        attemptedUrls: [],
+        sample: "",
+        detail: cleanText(err && (err.message || err.code || "rss_fetch_failed")),
+        feedUrl: resolveNewsCanadaFeedUrl(),
+        fetchedAt: now(),
+        itemCount: 0,
+        cacheContractPath: "",
+        cacheContractCandidates: getNewsCanadaCacheContractPaths(),
+        contractVersion: "newscanada-rss-service-v17-transport-hardened"
+      }
+    };
+  }
+}
+function wantsNewsCanadaLegacyArray(req) {
+  const format = lower(req.query && req.query.format);
+  const accept = lower(req.headers && req.headers.accept);
+  return format === "array" || accept.includes("application/vnd.sandblast.newscanada.array+json");
+}
+
+const NEWS_CANADA_COMPAT_ALIASES = Object.freeze({
+  foryourlife: {
+    aliases: ["/foryourlife", "/for-your-life", "/api/foryourlife", "/api/for-your-life"],
+    slot: "for-your-life",
+    label: "For Your Life"
+  },
+  editorspick: {
+    aliases: ["/editorspick", "/editors-pick", "/editorspicks", "/editor-picks", "/api/editorspick", "/api/editors-pick", "/api/editorspicks", "/api/editor-picks"],
+    slot: "editors-pick",
+    label: "Editor's Pick"
+  },
+  topstory: {
+    aliases: ["/topstory", "/top-story", "/api/topstory", "/api/top-story"],
+    slot: "top-story",
+    label: "Top Story"
+  }
+});
+
+function buildNewsCanadaRouteHints() {
+  return {
+    rss: "/api/newscanada/rss",
+    manualCompat: "/api/newscanada/manual",
+    editorsPicks: "/api/newscanada/editors-picks",
+    editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+    story: "/api/newscanada/story",
+    refresh: "/api/newscanada/rss",
+    diagnostics: "/api/newscanada/diagnostics",
+    aliases: {
+      foryourlife: NEWS_CANADA_COMPAT_ALIASES.foryourlife.aliases,
+      editorspick: NEWS_CANADA_COMPAT_ALIASES.editorspick.aliases,
+      topstory: NEWS_CANADA_COMPAT_ALIASES.topstory.aliases
+    }
+  };
+}
+
+async function getNewsCanadaCompatAliasResponse(req, aliasConfig) {
+  const out = await getNewsCanadaEditorsPicksResponse(req);
+  return {
+    ...out,
+    route: cleanText(req.originalUrl || req.path || ""),
+    compatibilityAlias: true,
+    requestedSlot: cleanText(aliasConfig && aliasConfig.slot || ""),
+    requestedLabel: cleanText(aliasConfig && aliasConfig.label || ""),
+    meta: {
+      ...(isObj(out.meta) ? out.meta : {}),
+      compatibilityAlias: true,
+      aliasTarget: "/api/newscanada/editors-picks",
+      requestedSlot: cleanText(aliasConfig && aliasConfig.slot || ""),
+      requestedLabel: cleanText(aliasConfig && aliasConfig.label || "")
+    }
+  };
+}
+
+function installNewsCanadaCompatAliases() {
+  Object.values(NEWS_CANADA_COMPAT_ALIASES).forEach((aliasConfig) => {
+    app.get(aliasConfig.aliases, async (req, res) => {
+      applyCors(req, res);
+      const out = await getNewsCanadaCompatAliasResponse(req, aliasConfig);
+      res.setHeader("x-sb-newscanada-source", cleanText(out.meta && out.meta.source || "rss_service") || "rss_service");
+      res.setHeader("x-sb-newscanada-degraded", out.meta && out.meta.degraded ? "1" : "0");
+      res.setHeader("x-sb-newscanada-shape", wantsNewsCanadaLegacyArray(req) ? "array" : "object");
+      res.setHeader("x-sb-newscanada-alias", cleanText(aliasConfig.slot || "compat"));
+      if (wantsNewsCanadaLegacyArray(req)) {
+        return res.status(out.ok ? 200 : 503).json(out.slides || out.stories || []);
+      }
+      return res.status(200).json(out);
+    });
+  });
+}
+
+if (boolEnv("SB_ENABLE_NEWSCANADA_COMPAT_ALIASES", false)) installNewsCanadaCompatAliases();
+
+app.get(["/api/newscanada/rss", "/newscanada/rss"], async (req, res) => {
+  applyCors(req, res);
+  const out = await getNewsCanadaRssResponse(req);
+  const traceId = cleanText(out && (out.traceId || out.meta && out.meta.traceId) || req.sbTraceId || makeTraceId("newscanada"));
+  res.setHeader("x-sb-trace-id", traceId);
+  res.setHeader("x-sb-newscanada-trace", traceId);
+  res.setHeader("x-sb-newscanada-source", cleanText(out.meta && out.meta.source || "rss_service") || "rss_service");
+  res.setHeader("x-sb-newscanada-degraded", out.meta && out.meta.degraded ? "1" : "0");
+  res.setHeader("x-sb-newscanada-shape", "object");
+  res.setHeader("x-sb-newscanada-timeout-ms", String(clamp(Number(process.env.NEWS_CANADA_DIRECT_FETCH_TIMEOUT_MS || process.env.NEWS_CANADA_RSS_TIMEOUT_MS || 15000), 1000, 45000)));
+  res.setHeader("x-sb-newscanada-ok", out && out.ok ? "1" : "0");
+  logNewsCanadaTrace({ traceId, route: cleanText(req.originalUrl || req.url || "/api/newscanada/rss") || "/api/newscanada/rss", startedAt: now() }, "response_sent", {
+    status: 200,
+    source: cleanText(out.meta && out.meta.source || "rss_service") || "rss_service",
+    itemCount: Number(out.meta && out.meta.itemCount || (Array.isArray(out.items) ? out.items.length : 0)),
+    degraded: !!(out.meta && out.meta.degraded)
+  });
+  return res.status(out.ok ? 200 : 503).json(out);
+});
+
+app.get(["/api/newscanada/diagnostics", "/newscanada/diagnostics"], async (req, res) => {
+  applyCors(req, res);
+  let health = null;
+  try {
+    health = newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
+      ? await Promise.resolve(newsCanadaFeedService.health())
+      : null;
+  } catch (err) {
+    health = {
+      ok: false,
+      source: "health_error",
+      degraded: true,
+      detail: cleanText(err && (err.message || err) || "health_error")
+    };
+  }
+
+  return res.status(200).json({
+    ok: !!newsCanadaFeedService,
+    route: "/api/newscanada/diagnostics",
+    moduleLoaded: !!newsCanadaFeedServiceMod,
+    moduleKeys: isObj(newsCanadaFeedServiceMod)
+      ? Object.keys(newsCanadaFeedServiceMod).slice(0, 20)
+      : [],
+    serviceMethods: newsCanadaFeedService
+      ? {
+          fetchRSS: typeof newsCanadaFeedService.fetchRSS === "function",
+          getEditorsPicks: typeof newsCanadaFeedService.getEditorsPicks === "function",
+          getStory: typeof newsCanadaFeedService.getStory === "function",
+          prime: typeof newsCanadaFeedService.prime === "function",
+          health: typeof newsCanadaFeedService.health === "function"
+        }
+      : null,
+    feedUrl: resolveNewsCanadaFeedUrl(),
+    health,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+
+
+app.get(["/api/newscanada/manual", "/newscanada/manual"], async (req, res) => {
+  applyCors(req, res);
+  return res.status(410).json({
+    ok: false,
+    route: "/api/newscanada/manual",
+    items: [],
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      source: "manual_route_disabled",
+      degraded: true,
+      mode: "rss",
+      parserMode: "manual_disabled",
+      detail: "manual_route_disabled_use_api_newscanada_rss"
+    }
+  });
+});
+
+app.get(["/api/newscanada/editors-picks", "/newscanada/editors-picks"], async (req, res) => {
+  applyCors(req, res);
+  const out = await getNewsCanadaEditorsPicksResponse(req);
+  res.setHeader("x-sb-newscanada-source", cleanText(out.meta && out.meta.source || "rss_service") || "rss_service");
+  res.setHeader("x-sb-newscanada-degraded", out.meta && out.meta.degraded ? "1" : "0");
+  if (wantsNewsCanadaLegacyArray(req)) {
+    res.setHeader("x-sb-newscanada-shape", "array");
+    return res.status(out.ok ? 200 : 503).json(out.slides || out.stories || []);
+  }
+  res.setHeader("x-sb-newscanada-shape", "object");
+  return res.status(out.ok ? 200 : 503).json(out);
+});
+
+app.get(["/api/newscanada/editors-picks/meta", "/newscanada/editors-picks/meta"], async (req, res) => {
+  applyCors(req, res);
+  res.setHeader("x-sb-newscanada-shape", "object");
+  return res.status(200).json(await getNewsCanadaEditorsPicksResponse(req));
+});
+
+app.get(["/api/newscanada/story", "/newscanada/story"], async (req, res) => {
+  applyCors(req, res);
+  const out = await getNewsCanadaStoryResponse(req);
+  return res.status(out.ok ? 200 : 404).json(out);
+});
+
+const MUSIC_TOP_MOMENTS_LIMIT = clamp(Number(process.env.MUSIC_TOP_MOMENTS_LIMIT || 10), 3, 25);
+const MUSIC_REFRESH_MS = clamp(Number(process.env.MUSIC_REFRESH_MS || 5 * 60 * 1000), 30000, 60 * 60 * 1000);
+const MUSIC_DATA_FILE_CANDIDATES = uniq([
+  cleanText(process.env.MUSIC_DATA_FILE || process.env.SB_MUSIC_DATA_FILE || ""),
+  path.join(__dirname, "data", "music", "music-top-moments.json"),
+  path.join(__dirname, "Data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "Data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "backend", "data", "music", "music-top-moments.json"),
+  path.join(process.cwd(), "backend", "Data", "music", "music-top-moments.json")
+].filter(Boolean));
+
+function resolveMusicDataFile() {
+  const candidates = Array.isArray(MUSIC_DATA_FILE_CANDIDATES) ? MUSIC_DATA_FILE_CANDIDATES : [];
+  return cleanText(candidates.find((file) => {
+    try { return !!(file && fs.existsSync(file)); } catch (_) { return false; }
+  }) || candidates[0] || "");
+}
+
+function buildStaticMusicFallback() {
+  return [
+    { id: "music-1", rank: 1, title: "Top 10 Music Moment One", summary: "Fallback music moment while live sources are being restored.", source: "Sandblast Music", url: "", category: "Music" },
+    { id: "music-2", rank: 2, title: "Top 10 Music Moment Two", summary: "Fallback music source contract keeps the music panel alive.", source: "Sandblast Music", url: "", category: "Music" },
+    { id: "music-3", rank: 3, title: "Top 10 Music Moment Three", summary: "Music routing remains stable even when upstream files are unavailable.", source: "Sandblast Music", url: "", category: "Music" }
+  ];
+}
+
+function normalizeMusicMoment(entry, index) {
+  const raw = isObj(entry) ? entry : {};
+  const title = cleanText(raw.title || raw.name || raw.headline || raw.label || "");
+  if (!title) return null;
+  return {
+    id: cleanText(raw.id || raw.slug || `music-${index || 0}`) || `music-${index || 0}`,
+    rank: clamp(Number(raw.rank || index + 1 || 1), 1, 999),
+    title,
+    summary: cleanText(raw.summary || raw.description || raw.excerpt || raw.body || "") || title,
+    source: cleanText(raw.source || raw.provider || raw.outlet || "Sandblast Music") || "Sandblast Music",
+    url: cleanText(raw.url || raw.href || raw.link || ""),
+    category: cleanText(raw.category || raw.section || "Music") || "Music",
+    image: cleanText(raw.image || raw.thumbnail || "") || "",
+    publishedAt: cleanText(raw.publishedAt || raw.date || "") || ""
+  };
+}
+
+function promoteMusicData(items, source, extraMeta) {
+  const list = (Array.isArray(items) ? items : []).map(normalizeMusicMoment).filter(Boolean).slice(0, MUSIC_TOP_MOMENTS_LIMIT);
+  const metaPatch = isObj(extraMeta) ? extraMeta : {};
+  app.locals.musicTopMoments = list.length ? list : buildStaticMusicFallback();
+  app.locals.musicSources = uniq(app.locals.musicTopMoments.map((item) => cleanText(item.source)).filter(Boolean));
+  app.locals.musicMeta = {
+    ...(isObj(app.locals.musicMeta) ? app.locals.musicMeta : {}),
+    ...metaPatch,
+    ok: app.locals.musicTopMoments.length > 0,
+    file: cleanText(metaPatch.file || app.locals.musicMeta?.file || resolveMusicDataFile() || "") || "",
+    count: app.locals.musicTopMoments.length,
+    loadedAt: now(),
+    source: cleanText(source || metaPatch.source || "music_runtime") || "music_runtime",
+    degraded: !!metaPatch.degraded
+  };
+  return app.locals.musicTopMoments;
+}
+
+function loadMusicFromDisk(forceReload) {
+  const shouldReload = !!forceReload || !Array.isArray(app.locals.musicTopMoments) || !app.locals.musicTopMoments.length;
+  if (!shouldReload && Array.isArray(app.locals.musicTopMoments) && app.locals.musicTopMoments.length) return app.locals.musicTopMoments;
+  const file = resolveMusicDataFile();
+  if (!file) return promoteMusicData(buildStaticMusicFallback(), "music_fallback", { degraded: true, file: "" });
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : Array.isArray(parsed.moments) ? parsed.moments : Array.isArray(parsed.topMoments) ? parsed.topMoments : [];
+    return promoteMusicData(list, "music_disk_feed", { degraded: !list.length, file });
+  } catch (err) {
+    console.log("[Sandblast][music:load:error]", cleanText(err && (err.message || err) || "music_load_failed"));
+    return promoteMusicData(buildStaticMusicFallback(), "music_fallback", { degraded: true, file, error: cleanText(err && (err.message || err) || "music_load_failed") || "music_load_failed" });
+  }
+}
+
+function buildMusicResponse(req) {
+  const forceReload = !!(req && req.query && req.query.refresh === "1");
+  const items = loadMusicFromDisk(forceReload);
+  return {
+    ok: Array.isArray(items) && items.length > 0,
+    route: "/api/music/top-moments",
+    count: Array.isArray(items) ? items.length : 0,
+    items: Array.isArray(items) ? items : [],
+    sources: Array.isArray(app.locals.musicSources) ? app.locals.musicSources : [],
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      file: app.locals.musicMeta?.file || resolveMusicDataFile(),
+      source: app.locals.musicMeta?.source || "music_runtime",
+      degraded: !!app.locals.musicMeta?.degraded,
+      refreshMs: MUSIC_REFRESH_MS,
+      limit: MUSIC_TOP_MOMENTS_LIMIT
+    }
+  };
+}
+
+app.get(["/api/music/top-moments", "/music/top-moments"], (req, res) => {
+  applyCors(req, res);
+  return res.status(200).json(buildMusicResponse(req));
+});
+
+app.get(["/api/music/sources", "/music/sources"], (req, res) => {
+  applyCors(req, res);
+  const out = buildMusicResponse(req);
+  return res.status(200).json({ ok: true, sources: out.sources, count: out.sources.length, meta: out.meta });
+});
+
+
+function musicBridgeHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.handleBridgeRequest === "function") return mod.handleBridgeRequest.bind(mod);
+  if (typeof mod.handleChat === "function") {
+    return async function bridgeFromHandleChat(body) {
+      const src = isObj(body) ? body : {};
+      const out = await Promise.resolve(mod.handleChat({
+        text: cleanText(src.text || ""),
+        session: isObj(src.session) ? src.session : {},
+        visitorId: cleanText(src.visitorId || ""),
+        debug: !!src.debug,
+        year: cleanText(src.year || ""),
+        mode: cleanText(src.mode || ""),
+        action: cleanText(src.action || ""),
+        payload: isObj(src.payload) ? src.payload : {}
+      }));
+      return isObj(out) ? out : { ok: false, error: "music_bridge_invalid_response" };
+    };
+  }
+  return null;
+}
+
+function musicResolverHandlerFromModule(mod) {
+  if (!mod) return null;
+  if (typeof mod.resolveMusicIntent === "function") return mod.resolveMusicIntent.bind(mod);
+  if (typeof mod.resolve === "function") return mod.resolve.bind(mod);
+  return null;
+}
+
+function musicKnowledgeCapabilitiesFromModule(mod) {
+  if (!mod) return null;
+  try {
+    if (typeof mod.getCapabilities === "function") {
+      const out = mod.getCapabilities();
+      return isObj(out) ? out : null;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function normalizeMusicBridgeInput(req) {
+  const norm = normalizePayload(req);
+  const body = isObj(req.body) ? req.body : {};
+  const query = isObj(req.query) ? req.query : {};
+  const payload = isObj(body.payload) ? body.payload : {};
+  const session = isObj(body.session) ? body.session : (isObj(payload.session) ? payload.session : {});
+  return {
+    text: cleanText(body.text || query.text || payload.text || norm.text || ""),
+    session,
+    visitorId: cleanText(body.visitorId || payload.visitorId || getSessionId(req)),
+    debug: body.debug === true || payload.debug === true || String((req.query && req.query.debug) || "") === "1",
+    traceId: norm.traceId,
+    lane: "music",
+    route: cleanText(body.route || query.route || payload.route || "music"),
+    action: cleanText(body.action || query.action || payload.action || ""),
+    year: cleanText(body.year || query.year || payload.year || norm.year || ""),
+    mode: cleanText(body.mode || query.mode || payload.mode || norm.mode || ""),
+    chart: cleanText(body.chart || query.chart || payload.chart || ""),
+    payload
+  };
+}
+
+function normalizeMusicFollowUps(rawFollowUps) {
+  const followUps = Array.isArray(rawFollowUps) ? rawFollowUps : [];
+  const followUpObjects = followUps.map((it, idx) => {
+    if (typeof it === "string") {
+      return {
+        id: `fu_${idx + 1}`,
+        type: "action",
+        label: it,
+        send: it,
+        payload: { action: it, lane: "music", route: "music" }
+      };
+    }
+    const label = cleanText(it && (it.label || it.send || it.text) || "");
+    return {
+      id: cleanText(it && it.id || `fu_${idx + 1}`) || `fu_${idx + 1}`,
+      type: cleanText(it && it.type || "action") || "action",
+      label,
+      send: cleanText(it && (it.send || label) || label) || label,
+      payload: isObj(it && it.payload) ? it.payload : {
+        action: cleanText(it && (it.send || label) || label) || label,
+        lane: "music",
+        route: "music"
+      }
+    };
+  }).filter((it) => cleanText(it.label));
+  return {
+    followUps,
+    followUpObjects,
+    followUpsStrings: followUpObjects.map((it) => cleanText(it.send || it.label)).filter(Boolean)
+  };
+}
+
+function buildMusicBridgeFailure(input, opts) {
+  const o = isObj(opts) ? opts : {};
+  const sessionPatch = isObj(o.sessionPatch) ? o.sessionPatch : {};
+  const year = cleanText(o.year || input.year || sessionPatch.lastMusicYear || sessionPatch.year || "") || null;
+  const mode = cleanText(o.mode || input.mode || input.action || sessionPatch.activeMusicMode || sessionPatch.mode || "") || null;
+  const reason = cleanText(o.reason || "music_bridge_invalid_contract") || "music_bridge_invalid_contract";
+  const status = cleanText(o.status || "blocked") || "blocked";
+  const executable = !!o.executable;
+  const needsYear = !!o.needsYear;
+  const follow = normalizeMusicFollowUps(o.followUps || []);
+  return {
+    ok: false,
+    reply: cleanReplyForUser(o.reply || "I could not retrieve verified music data for that request."),
+    text: cleanReplyForUser(o.reply || "I could not retrieve verified music data for that request."),
+    status,
+    executable,
+    needsYear,
+    followUps: follow.followUps,
+    followUpsStrings: follow.followUpsStrings,
+    followUpObjects: follow.followUpObjects,
+    sessionPatch,
+    bridge: {
+      ready: status === "execute",
+      valid: status === "execute" || status === "clarify",
+      lane: "music",
+      year,
+      mode,
+      endpoint: "/api/music/bridge",
+      capabilityMode: cleanText(o.capabilityMode || "none") || "none",
+      sourceTruth: cleanText(o.sourceTruth || "unknown") || "unknown",
+      routeSource: cleanText(o.routeSource || "unknown") || "unknown",
+      executable,
+      reason
+    }
+  };
+}
+
+function normalizeMusicBridgeResponse(result, req, startedAt, input) {
+  const raw = isObj(result) ? result : {};
+  const text = cleanText(raw.reply || raw.text || raw.message || "");
+  const sessionPatch = isObj(raw.sessionPatch) ? raw.sessionPatch : {};
+  const status = cleanText(raw.status || (raw.bridge && raw.bridge.ready === true ? "execute" : "")) || "blocked";
+  const executable = raw.executable === true || (status === "execute" && raw.ok !== false);
+  const needsYear = raw.needsYear === true;
+  const follow = normalizeMusicFollowUps(raw.followUpObjects || raw.followUps || raw.followUpsStrings || []);
+  const bridge = isObj(raw.bridge) ? {
+    ready: raw.bridge.ready === true,
+    valid: raw.bridge.valid === true,
+    lane: cleanText(raw.bridge.lane || "music") || "music",
+    year: raw.bridge.year != null ? raw.bridge.year : (sessionPatch.lastMusicYear || sessionPatch.year || input.year || null),
+    mode: cleanText(raw.bridge.mode || sessionPatch.activeMusicMode || sessionPatch.mode || input.mode || input.action || "") || null,
+    endpoint: "/api/music/bridge",
+    capabilityMode: cleanText(raw.bridge.capabilityMode || "none") || "none",
+    sourceTruth: cleanText(raw.bridge.sourceTruth || "unknown") || "unknown",
+    routeSource: cleanText(raw.bridge.routeSource || "unknown") || "unknown",
+    executable: raw.bridge.executable === true || executable,
+    reason: cleanText(raw.bridge.reason || "")
+  } : {
+    ready: status === "execute",
+    valid: status === "execute" || status === "clarify",
+    lane: "music",
+    year: sessionPatch.lastMusicYear || sessionPatch.year || input.year || null,
+    mode: cleanText(sessionPatch.activeMusicMode || sessionPatch.mode || input.mode || input.action || "") || null,
+    endpoint: "/api/music/bridge",
+    capabilityMode: cleanText(raw.capabilityMode || "none") || "none",
+    sourceTruth: cleanText(raw.sourceTruth || "unknown") || "unknown",
+    routeSource: cleanText(raw.routeSource || "unknown") || "unknown",
+    executable,
+    reason: cleanText(raw.reason || "")
+  };
+
+  const strictExecute = !!(bridge.valid === true && bridge.ready === true && status === "execute" && executable === true && text);
+  if (!strictExecute) {
+    const failed = buildMusicBridgeFailure(input, {
+      reply: raw.reply || raw.text || raw.message || "I could not retrieve verified music data for that request.",
+      status: needsYear ? "clarify" : status,
+      executable,
+      needsYear,
+      followUps: follow.followUps,
+      sessionPatch,
+      year: bridge.year,
+      mode: bridge.mode,
+      capabilityMode: bridge.capabilityMode,
+      sourceTruth: bridge.sourceTruth,
+      routeSource: bridge.routeSource,
+      reason: bridge.reason || (needsYear ? "missing_year" : "invalid_execute_contract")
+    });
+    return {
+      ...failed,
+      traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        latencyMs: now() - Number(startedAt || now()),
+        source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
+        degraded: true,
+        bridgeMounted: !!musicBridgeHandlerFromModule(musicLaneMod),
+        endpoint: "/api/music/bridge"
+      }
+    };
+  }
 
   return {
-    version: VERSION,
-    canonicalEndpoint: CANONICAL_ENDPOINT,
-    async maybeResolve(req = {}) {
-      const meta = safeObj(req.meta);
-      const previousMemory = typeof memoryProvider.getContext === "function"
-        ? safeObj(await Promise.resolve(memoryProvider.getContext(req)))
-        : safeObj(req.previousMemory || meta.previousMemory || req.session && req.session.previousMemory || {});
-
-      const result = await processWithMarion({
-        ...safeObj(req),
-        userQuery: firstText(req.userQuery, req.text, req.query, safeObj(req.body).text, safeObj(req.body).query),
-        requestedDomain: firstText(meta.preferredDomain, meta.domain, req.domain, req.requestedDomain, "general"),
-        previousMemory,
-        marionIntent: safeObj(req.marionIntent || meta.marionIntent || safeObj(req.session).marionIntent),
-        turnId: firstText(meta.turnId, req.turnId, req.id, meta.requestId, req.requestId),
-        sessionId: firstText(req.sessionId, meta.sessionId, "public"),
-        lane: firstText(req.lane, meta.lane, safeObj(req.session).lane, "general")
-      });
-
-      const resultMeta = safeObj(result.meta);
-      const resultPayload = safeObj(result.payload);
-      const resultPacket = safeObj(result.packet);
-      const resultPacketMeta = safeObj(resultPacket.meta);
-      const wrapperSignature = safeStr(
-        result.signature ||
-        result.marionFinalSignature ||
-        resultMeta.signature ||
-        resultMeta.marionFinalSignature ||
-        resultPayload.signature ||
-        resultPayload.marionFinalSignature ||
-        resultPacketMeta.signature ||
-        resultPacketMeta.marionFinalSignature ||
-        buildMarionFinalSignature(result.replySignature || hashText(result.reply), result.turnId || resultMeta.turnId || safeObj(req.meta).turnId || req.turnId)
-      );
-      const wrapperMeta = {
-        ...resultMeta,
-        version: VERSION,
-        final: true,
-        marionFinal: true,
-        handled: true,
-        marionHandled: true,
-        finalizedBy: "marionBridge",
-        bridgeReduced: true,
-        singleSourceOfTruth: true,
-        signature: wrapperSignature,
-        marionFinalSignature: wrapperSignature,
-        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice(),
-        hardlockCompatible: true
-      };
-      const wrapperPayload = {
-        ...resultPayload,
-        reply: result.reply,
-        text: result.reply,
-        answer: result.reply,
-        output: result.reply,
-        response: result.reply,
-        message: result.reply,
-        spokenText: result.spokenText,
-        final: true,
-        marionFinal: true,
-        handled: true,
-        signature: wrapperSignature,
-        marionFinalSignature: wrapperSignature,
-        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice()
-      };
-      const wrapperPacket = isObj(resultPacket) && Object.keys(resultPacket).length
-        ? {
-            ...resultPacket,
-            final: true,
-            marionFinal: true,
-            handled: true,
-            meta: {
-              ...resultPacketMeta,
-              ...wrapperMeta
-            },
-            synthesis: {
-              ...safeObj(resultPacket.synthesis),
-              reply: result.reply,
-              text: result.reply,
-              answer: result.reply,
-              output: result.reply,
-              spokenText: result.spokenText,
-              signature: wrapperSignature,
-              marionFinalSignature: wrapperSignature,
-              requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-              finalMarkers: MARION_FINAL_MARKERS.slice()
-            }
-          }
-        : {
-            final: true,
-            marionFinal: true,
-            handled: true,
-            routing: { domain: result.domain, intent: result.intent, endpoint: result.endpoint || CANONICAL_ENDPOINT },
-            synthesis: {
-              reply: result.reply,
-              text: result.reply,
-              answer: result.reply,
-              output: result.reply,
-              spokenText: result.spokenText,
-              signature: wrapperSignature,
-              marionFinalSignature: wrapperSignature,
-              requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-              finalMarkers: MARION_FINAL_MARKERS.slice()
-            },
-            meta: wrapperMeta
-          };
-
-      return {
-        ...safeObj(result),
-        ok: result.ok !== false,
-        final: true,
-        handled: true,
-        marionFinal: true,
-        marionHandled: true,
-        usedBridge: result.ok !== false && !!safeStr(result.reply),
-        packet: wrapperPacket,
-        response: result.reply,
-        fallbackResponse: "",
-        fallbackSuppressed: true,
-        replySeed: result.reply,
-        message: result.reply,
-        reply: result.reply,
-        text: result.reply,
-        answer: result.reply,
-        output: result.reply,
-        spokenText: result.spokenText,
-        domain: result.domain,
-        intent: result.intent,
-        endpoint: result.endpoint,
-        meta: wrapperMeta,
-        signature: wrapperSignature,
-        marionFinalSignature: wrapperSignature,
-        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice(),
-        hardlockCompatible: true,
-        diagnostics: {
-          ...safeObj(result.diagnostics),
-          bridgeWrapperFinalized: true,
-          signature: wrapperSignature,
-          marionFinalSignature: wrapperSignature,
-          requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-          finalMarkers: MARION_FINAL_MARKERS.slice(),
-          hardlockCompatible: true
-        },
-        followUps: result.followUps,
-        followUpsStrings: result.followUpsStrings,
-        payload: wrapperPayload
-      };
+    ok: true,
+    reply: text,
+    text,
+    status,
+    executable: true,
+    needsYear: false,
+    followUps: follow.followUps,
+    followUpsStrings: follow.followUpsStrings,
+    followUpObjects: follow.followUpObjects,
+    sessionPatch,
+    bridge,
+    traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      latencyMs: now() - Number(startedAt || now()),
+      source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
+      degraded: !!raw.degraded,
+      bridgeMounted: !!musicBridgeHandlerFromModule(musicLaneMod),
+      endpoint: "/api/music/bridge"
     }
   };
 }
 
-async function route(input = {}) {
-  return processWithMarion(input);
+async function dispatchMusicBridge(req, res) {
+  const handler = musicBridgeHandlerFromModule(musicLaneMod);
+  const resolver = musicResolverHandlerFromModule(musicResolverMod);
+  const capabilities = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
+  if (!handler && !resolver) {
+    return res.status(503).json({
+      ok: false,
+      error: "music_bridge_unavailable",
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
+      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: false }
+    });
+  }
+
+  const startedAt = now();
+  const input = normalizeMusicBridgeInput(req);
+  try {
+    let resolverOut = null;
+    if (resolver) {
+      resolverOut = await callWithTimeout(Promise.resolve(resolver({
+        text: input.text,
+        action: input.action,
+        payload: isObj(input.payload) ? input.payload : {},
+        session: isObj(input.session) ? input.session : {},
+        year: input.year ? Number(input.year) : null,
+        capabilities,
+        route: input.route,
+        lane: "music"
+      })), CFG.requestTimeoutMs, "music_resolver");
+    }
+
+    if (isObj(resolverOut)) {
+      const normalizedResolver = normalizeMusicBridgeResponse(resolverOut, req, startedAt, input);
+      if (cleanText(normalizedResolver.status) === "clarify" || cleanText(normalizedResolver.status) === "blocked") {
+        return res.status(200).json(normalizedResolver);
+      }
+      if (!(normalizedResolver.bridge && normalizedResolver.bridge.ready === true && normalizedResolver.bridge.valid === true && normalizedResolver.status === "execute")) {
+        return res.status(200).json(buildMusicBridgeFailure(input, {
+          reply: "Music route was resolved, but no valid execute contract was produced.",
+          status: "blocked",
+          executable: false,
+          needsYear: false,
+          followUps: normalizedResolver.followUpObjects,
+          sessionPatch: normalizedResolver.sessionPatch,
+          year: normalizedResolver.bridge && normalizedResolver.bridge.year,
+          mode: normalizedResolver.bridge && normalizedResolver.bridge.mode,
+          capabilityMode: normalizedResolver.bridge && normalizedResolver.bridge.capabilityMode,
+          sourceTruth: normalizedResolver.bridge && normalizedResolver.bridge.sourceTruth,
+          routeSource: normalizedResolver.bridge && normalizedResolver.bridge.routeSource,
+          reason: "resolver_missing_execute_contract"
+        }));
+      }
+      input.action = cleanText(resolverOut.action || input.action || "");
+      input.year = cleanText(resolverOut.year || input.year || "");
+      input.mode = cleanText((resolverOut.bridge && resolverOut.bridge.mode) || resolverOut.action || input.mode || "");
+      input.session = {
+        ...(isObj(input.session) ? input.session : {}),
+        ...(isObj(resolverOut.sessionPatch) ? resolverOut.sessionPatch : {})
+      };
+    }
+
+    if (!handler) {
+      return res.status(200).json(buildMusicBridgeFailure(input, {
+        reply: "Music resolver is present, but no execution handler is mounted.",
+        status: "blocked",
+        executable: false,
+        needsYear: false,
+        sessionPatch: isObj(resolverOut && resolverOut.sessionPatch) ? resolverOut.sessionPatch : {},
+        year: resolverOut && resolverOut.year,
+        mode: resolverOut && resolverOut.action,
+        sourceTruth: resolverOut && resolverOut.bridge && resolverOut.bridge.sourceTruth,
+        routeSource: resolverOut && resolverOut.bridge && resolverOut.bridge.routeSource,
+        capabilityMode: resolverOut && resolverOut.bridge && resolverOut.bridge.capabilityMode,
+        reason: "execution_handler_missing"
+      }));
+    }
+
+    const result = await callWithTimeout(Promise.resolve(handler({
+      ...input,
+      resolver: isObj(resolverOut) ? resolverOut : null,
+      capabilities
+    })), CFG.requestTimeoutMs, "music_bridge");
+    const out = normalizeMusicBridgeResponse(result, req, startedAt, input);
+    return res.status(out.ok ? 200 : 200).json(out);
+  } catch (err) {
+    console.log("[Sandblast][musicBridge:error]", err && (err.stack || err.message || err));
+    const fail = buildMusicBridgeFailure(normalizeMusicBridgeInput(req), {
+      reply: "I could not retrieve verified music data for that request.",
+      status: "blocked",
+      executable: false,
+      needsYear: false,
+      reason: cleanText(err && (err.message || err) || "music_bridge_failed")
+    });
+    return res.status(200).json({
+      ...fail,
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
+      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: true }
+    });
+  }
 }
 
-async function maybeResolve(input = {}) {
-  const bridge = createMarionBridge();
-  return bridge.maybeResolve(input);
+app.get(["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/health/", "/music/bridge/health/"], enforceMusicBridgeAccess, (req, res) => {
+  applyCors(req, res);
+  const caps = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
+  return res.status(200).json({
+    ok: !!musicBridgeHandlerFromModule(musicLaneMod),
+    enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
+    endpoint: routeUrl("/api/music/bridge"),
+    moduleBound: !!musicLaneMod,
+    resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
+    knowledgeBound: !!musicKnowledgeMod,
+    capabilities: caps || null,
+    version: INDEX_VERSION,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.all(["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bridge/"], enforceMusicBridgeAccess, async (req, res) => {
+  applyCors(req, res);
+  return dispatchMusicBridge(req, res);
+});
+
+app.get("/health", (req, res) => {
+  applyCors(req, res);
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  let tts = null;
+  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    upMs: now() - SERVER_BOOT_AT,
+    bootAt: SERVER_BOOT_AT,
+    modules: {
+      chatEngine: !!chatEngineMod,
+      marionBridge: !!marionBridgeMod,
+      supportResponse: !!supportResponseMod,
+      affectEngine: !!affectEngineMod,
+      voiceRoute: !!voiceRouteMod,
+      tts: !!ttsMod,
+      stateSpine: !!stateSpineMod,
+      siteBridge: !!siteBridgeMod,
+      s2s: !!s2sMod
+    },
+    runtimeDeps: {
+      express: moduleAvailable("express"),
+      compression: moduleAvailable("compression"),
+      dotenv: moduleAvailable("dotenv")
+    },
+    bindings: {
+      voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
+      voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
+      ttsHandler: !!ttsHandlerFromModule(ttsMod),
+      ttsHealth: !!ttsHealthFromModule(ttsMod),
+      siteBridgeBuild: !!(siteBridgeMod && typeof siteBridgeMod.build === "function"),
+      s2sRun: !!(s2sMod && typeof s2sMod.runLocalChat === "function")
+    },
+    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
+    preserveMixerVoice: !!CFG.preserveMixerVoice,
+    tts
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  applyCors(req, res);
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  let tts = null;
+  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  return res.status(200).json({
+    ok: true,
+    version: INDEX_VERSION,
+    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("health")),
+    upMs: now() - SERVER_BOOT_AT,
+    tts,
+    marionRuntime: getMarionRuntimeDiagnostics(),
+    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
+    requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
+    backendPublicBase: getBackendPublicBase(),
+    audioContract: {
+      version: "audio-first-v1",
+      endpoint: routeUrl("/api/tts"),
+      endpointCompat: routeUrl("/tts"),
+      healthEndpoint: routeUrl("/api/tts/health"),
+    compatibilityHealthEndpoint: routeUrl("/tts/health"),
+      healthEndpointCompat: routeUrl("/tts/health"),
+      deterministicAudio: true
+    },
+    newsCanada: newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
+      ? newsCanadaFeedService.health()
+      : {
+          ok: false,
+          source: "service_unavailable",
+          degraded: true,
+          mode: "rss",
+          feedUrl: cleanText(process.env.NEWS_CANADA_RSS_FEED_URL || process.env.SB_NEWSCANADA_RSS_FEED_URL || ""),
+          stableRoutes: {
+            rss: "/api/newscanada/rss",
+            manualCompat: "/api/newscanada/manual",
+            editorsPicks: "/api/newscanada/editors-picks",
+            editorsPicksMeta: "/api/newscanada/editors-picks/meta",
+            story: "/api/newscanada/story",
+        refresh: "/api/newscanada/rss"
+          }
+        },
+    memory: {
+      sessionsTracked: memory.lastBySession.size,
+      supportLocks: memory.supportBySession.size,
+      transportEntries: memory.transportBySession.size,
+      ttlMs: CFG.memoryTtlMs
+    },
+    music: {
+      file: app.locals.musicMeta?.file || resolveMusicDataFile(),
+      availableMoments: Array.isArray(app.locals.musicTopMoments) ? app.locals.musicTopMoments.length : 0,
+      loadedAt: app.locals.musicMeta?.loadedAt || 0,
+      source: app.locals.musicMeta?.source || "music_runtime",
+      degraded: !!app.locals.musicMeta?.degraded,
+      stableRoutes: {
+        topMoments: "/api/music/top-moments",
+        sources: "/api/music/sources",
+        bridge: "/api/music/bridge",
+        bridgeHealth: "/api/music/bridge/health"
+      },
+      bridge: {
+        enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
+        endpoint: routeUrl("/api/music/bridge"),
+        healthEndpoint: routeUrl("/api/music/bridge/health")
+      }
+    }
+  });
+});
+
+app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
+  hardenCors(req, res);
+  const handler = ttsHealthFromModule(ttsMod);
+  if (!handler) {
+    return res.status(200).json({
+      ok: false,
+      enabled: false,
+      error: "tts_health_unavailable",
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+  try {
+    const health = await Promise.resolve(handler());
+    return res.status(200).json({
+      ok: !!(health && health.ok !== false),
+      enabled: true,
+      health,
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  } catch (err) {
+    return res.status(503).json({
+      ok: false,
+      enabled: true,
+      error: "tts_health_failed",
+      detail: cleanText(err && (err.message || err) || "tts health failed"),
+      traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
+      meta: { v: INDEX_VERSION, t: now() }
+    });
+  }
+});
+
+app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
+  hardenCors(req, res);
+  try {
+    return await dispatchTts(req, res);
+  } catch (err) {
+    console.log("[Sandblast][ttsRoute:error]", err && (err.stack || err.message || err));
+    if (res.headersSent) return;
+    return sendTtsJsonError(req, res, 503, "tts_route_failure", cleanText(err && (err.message || err) || "tts route failed"), {
+      configSource: ttsHandlerFromModule(ttsMod) ? "tts_module" : "unavailable",
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+    });
+  }
+});
+
+const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
+
+app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
+  hardenCors(req, res);
+  return res.status(204).end();
+});
+
+app.get(CONVERSATION_ROUTE_ALIASES, sendConversationMethodDiagnostic);
+app.head(CONVERSATION_ROUTE_ALIASES, (req, res) => {
+  hardenCors(req, res);
+  return res.status(204).end();
+});
+
+app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
+  hardenCors(req, res);
+  const startedAt = now();
+  const norm = normalizePayload(req);
+  const sessionId = getSessionId(req);
+  const priorTurn = getLastTurn(sessionId);
+  const trace = {
+    traceId: norm.traceId,
+    sessionId,
+    route: req.originalUrl || req.path || "",
+    transportOnly: true,
+    marionTransportOnly: true,
+    startedAt
+  };
+
+  if (!cleanText(norm.text)) {
+    return res.status(400).json({
+      ok: false,
+      error: "empty_text",
+      detail: "A message text value is required.",
+      traceId: norm.traceId,
+      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true }
+    });
+  }
+
+  const transportKey = buildTransportKey(norm, norm.text, req);
+  const transportState = getTransportState(sessionId);
+  const priorTransportReplay = transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
+  if (priorTransportReplay) {
+    const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "");
+    if (isBlockedLoopingSupportReply(cachedReply) && !hasFreshMarionFinalEnvelope(transportState) && !hasFreshMarionFinalEnvelope(priorTurn)) {
+      setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", loopReplyBlocked: true });
+    } else if (cachedReply) {
+      const cached = normalizeReplyEnvelope({
+        ok: true,
+        reply: cachedReply,
+        payload: { reply: cachedReply },
+        lane: norm.lane || "general",
+        laneId: norm.lane || "general",
+        sessionLane: norm.lane || "general",
+        requestId: makeTraceId("req"),
+        traceId: norm.traceId,
+        meta: { replyAuthority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache") }
+      }, cachedReply, {
+        v: INDEX_VERSION,
+        t: now(),
+        transportOnly: true,
+        marionTransportOnly: true,
+        transportDuplicateSuppressed: true,
+        duplicateReplyStrategy: "return_cached_final",
+        supportDeauthorized: true,
+        supportHold: 0,
+        latencyMs: now() - startedAt
+      });
+      cached.voiceRoute = normalizeVoiceRouteResponse(attachVoiceRoute({ reply: cachedReply }).voiceRoute);
+      return res.status(200).json(cached);
+    }
+  }
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
+
+  const marionInput = {
+    text: norm.text,
+    query: norm.text,
+    userQuery: norm.text,
+    lane: norm.lane,
+    year: norm.year,
+    mode: norm.mode,
+    traceId: norm.traceId,
+    sessionId,
+    turnId: norm.turnId,
+    payload: norm.payload,
+    marionIntent: norm.marionIntent,
+    routing: norm.marionRouting,
+    requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
+    intent: (norm.marionIntent && norm.marionIntent.intent) || norm.intentHint || "simple_chat",
+    previousMemory: isObj(priorTurn) ? priorTurn : {},
+    session: isObj(norm.body && norm.body.session) ? norm.body.session : {},
+    meta: {
+      source: "index_transport_only",
+      indexRole: "transport_only",
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      traceId: norm.traceId,
+      turnId: norm.turnId
+    }
+  };
+
+  let marion = null;
+  let engine = null;
+  let selected = null;
+  let authority = "none";
+  let errorDetail = "";
+  let loopReplyWasBlocked = false;
+
+  try {
+    marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
+  } catch (err) {
+    errorDetail = cleanText(err && (err.message || err) || "marion_bridge_failed");
+    console.log("[Sandblast][chatRoute:marion_transport_error]", { traceId: norm.traceId, error: errorDetail });
+  }
+
+  marion = normalizeMarionBridgeResult(marion, marionInput);
+  const marionReply = getMarionAuthorityReply(marion);
+  const marionHasFreshEnvelope = hasFreshMarionFinalEnvelope(marion);
+  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply);
+  if (marionReplyBlocked) {
+    loopReplyWasBlocked = true;
+    console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
+  }
+  if (marion && marion.ok !== false && marionReply && !marionReplyBlocked) {
+    selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
+    selected.reply = marionReply;
+    selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply };
+    selected.bridge = marion;
+    authority = "marion_bridge";
+  } else {
+    try {
+      engine = await callWithTimeout(callChatEngine({
+        text: norm.text,
+        query: norm.text,
+        userQuery: norm.text,
+        lane: norm.lane,
+        mode: norm.mode,
+        year: norm.year,
+        sessionId,
+        turnId: norm.turnId,
+        marionIntent: norm.marionIntent,
+        routing: norm.marionRouting,
+        previousMemory: isObj(priorTurn) ? priorTurn : {},
+        marion,
+        meta: { source: "index_transport_only", traceId: norm.traceId, turnId: norm.turnId }
+      }), CFG.requestTimeoutMs, "chat_engine");
+    } catch (err) {
+      errorDetail = cleanText(err && (err.message || err) || errorDetail || "chat_engine_failed");
+      console.log("[Sandblast][chatRoute:engine_transport_error]", { traceId: norm.traceId, error: errorDetail });
+    }
+    const engineReply = cleanText(engine && (engine.reply || engine.text || engine.answer || engine.output || engine.response || engine.message || (engine.payload && (engine.payload.reply || engine.payload.text)) || ""));
+    const engineReplyBlocked = isBlockedLoopingSupportReply(engineReply);
+    if (engineReplyBlocked) {
+      loopReplyWasBlocked = true;
+      console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "chat_engine", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
+    }
+    if (engine && engine.ok !== false && engineReply && !engineReplyBlocked && !isInternalMarionBlockerReply(engineReply)) {
+      selected = isObj(engine) ? { ...engine } : { ok: true, reply: engineReply };
+      selected.reply = cleanReplyForUser(engineReply);
+      selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: selected.reply, text: selected.reply, message: selected.reply, spokenText: selected.reply };
+      selected.bridge = marion || selected.bridge || null;
+      authority = "chat_engine";
+    }
+  }
+
+  if (!selected && loopReplyWasBlocked) {
+    selected = buildLoopReplyBlockedReplacement(norm, "stale_support_phrase");
+    authority = "index_loop_phrase_recovery";
+  }
+
+  if (!selected) {
+    return res.status(502).json({
+      ok: false,
+      error: "conversation_authority_empty",
+      detail: cleanText(errorDetail || "No final reply was returned by MarionBridge or ChatEngine."),
+      reply: "",
+      text: "",
+      traceId: norm.traceId,
+      requestId: makeTraceId("req"),
+      marionIntent: norm.marionIntent,
+      marionRouting: norm.marionRouting,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        indexRole: "transport_only",
+        transportOnly: true,
+        noSupportDecision: true,
+        noEmotionDecision: true,
+        marionBridgePresent: !!marionBridgeMod,
+        chatEnginePresent: !!chatEngineMod,
+        marionReturned: !!marion,
+        engineReturned: !!engine,
+        latencyMs: now() - startedAt
+      }
+    });
+  }
+
+  let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
+  if (isBlockedLoopingSupportReply(reply)) {
+    selected = buildLoopReplyBlockedReplacement(norm, authority);
+    authority = "index_loop_phrase_recovery";
+    reply = cleanReplyForUser(selected.reply || "");
+  }
+  if (isBlockedLoopingSupportReply(reply)) {
+    reply = "Ready. Please send the next instruction.";
+    selected = {
+      ok: true,
+      final: true,
+      handled: true,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      payload: { reply, text: reply, message: reply, spokenText: reply, recoveryInjected: true },
+      meta: { v: INDEX_VERSION, t: now(), replyAuthority: "index_loop_phrase_last_resort", recoveryInjected: true }
+    };
+    authority = "index_loop_phrase_last_resort";
+  }
+
+  selected = normalizeReplyEnvelope(selected, reply, {
+    v: INDEX_VERSION,
+    t: now(),
+    indexRole: "transport_only",
+    transportOnly: true,
+    marionTransportOnly: true,
+    noSupportDecision: true,
+    noEmotionDecision: true,
+    supportDeauthorized: true,
+    supportHold: 0,
+    replyAuthority: authority,
+    semanticAuthority: authority,
+    marionBridgePresent: !!marion,
+    chatEnginePresent: !!engine,
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting,
+    turnId: norm.turnId,
+    traceId: norm.traceId,
+    latencyMs: now() - startedAt
+  });
+  selected.ok = selected.ok !== false;
+  selected.final = true;
+  selected.finalized = true;
+  selected.handled = true;
+  selected.marionFinal = authority === "marion_bridge" || !!selected.marionFinal;
+  selected.lane = selected.lane || norm.lane || "general";
+  selected.laneId = selected.laneId || selected.lane;
+  selected.sessionLane = selected.sessionLane || selected.lane;
+  selected.requestId = cleanText(selected.requestId || makeTraceId("req"));
+  selected.traceId = cleanText(selected.traceId || norm.traceId);
+  selected.bridge = selected.bridge || marion || null;
+  selected.marionIntent = norm.marionIntent;
+  selected.marionRouting = norm.marionRouting;
+
+  const speech = buildSpeechContract(selected, norm);
+  selected = ensureAudioContractFromSpeech(attachVoiceRoute(selected), speech);
+  selected.speech = speech;
+  selected.payload = {
+    ...(isObj(selected.payload) ? selected.payload : {}),
+    reply,
+    text: speech.text,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    spokenText: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    speechHints: speech.speechHints,
+    speech,
+    finalized: true
+  };
+  selected.voiceRoute = normalizeVoiceRouteResponse({
+    ...(isObj(selected.voiceRoute) ? selected.voiceRoute : {}),
+    text: speech.text,
+    textDisplay: speech.textDisplay,
+    textSpeak: speech.textSpeak,
+    routeKind: speech.routeKind,
+    intro: speech.intro,
+    source: speech.source,
+    speechHints: speech.speechHints,
+    presenceProfile: speech.presenceProfile,
+    voiceStyle: speech.voiceStyle,
+    nyxStateHint: speech.nyxStateHint
+  });
+
+  setSupportState(sessionId, {
+    active: false,
+    hold: 0,
+    replyHash: replyHash(reply),
+    lastUserHash: replyHash(norm.text),
+    lastTurnId: norm.turnId,
+    supportPasses: 0,
+    releaseUntilTurnId: norm.turnId,
+    releaseUntilAt: now() + CFG.loopSuppressionWindowMs,
+    lastRoute: norm.lane || "general",
+    lastAuthority: authority,
+    loopBreakApplied: false
+  });
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply, replyHash: replyHash(reply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority, count: 1 });
+  setLastTurn(sessionId, {
+    replyHash: replyHash(reply),
+    userHash: replyHash(norm.text),
+    lane: selected.lane || norm.lane,
+    replyAuthority: authority,
+    turnId: norm.turnId,
+    route: norm.lane || "general",
+    loopStatus: "transport_only_clear",
+    finalized: true,
+    userText: norm.text,
+    reply,
+    emotionLabel: "",
+    continuity: isObj(selected.payload && selected.payload.continuity) ? selected.payload.continuity : {},
+    memoryPatch: isObj(selected.memoryPatch) ? selected.memoryPatch : (isObj(selected.sessionPatch && selected.sessionPatch.memoryPatch) ? selected.sessionPatch.memoryPatch : {})
+  });
+
+  console.log("[Sandblast][chatRoute:transportFinal]", {
+    traceId: norm.traceId,
+    sessionId,
+    authority,
+    reply,
+    latencyMs: now() - startedAt
+  });
+
+  return res.status(200).json({
+    ok: selected.ok !== false,
+    final: true,
+    reply,
+    text: reply,
+    short: reply,
+    detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
+    textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
+    textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
+    payload: selected.payload,
+    lane: selected.lane || norm.lane || "general",
+    laneId: selected.laneId || selected.lane || norm.lane || "general",
+    sessionLane: selected.sessionLane || selected.lane || norm.lane || "general",
+    bridge: selected.bridge || null,
+    marionIntent: norm.marionIntent,
+    marionRouting: norm.marionRouting,
+    ctx: selected.ctx || {},
+    ui: selected.ui || {},
+    directives: Array.isArray(selected.directives) ? selected.directives : [],
+    followUps: Array.isArray(selected.followUps) ? selected.followUps : [],
+    followUpsStrings: Array.isArray(selected.followUpsStrings) ? selected.followUpsStrings : [],
+    emotionalTurn: selected.emotionalTurn || undefined,
+    sessionPatch: selected.sessionPatch || selected.memoryPatch || {},
+    cog: selected.cog || { intent: (norm.marionIntent && norm.marionIntent.intent) || "simple_chat", mode: "finalized", publicMode: true },
+    requestId: selected.requestId,
+    traceId: selected.traceId,
+    meta: {
+      ...(selected.meta || {}),
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      replyAuthority: authority,
+      semanticAuthority: authority,
+      supportDeauthorized: true,
+      supportHold: 0,
+      loopPhraseHardlock: true,
+      requiredFreshSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      latencyMs: now() - startedAt,
+      loggingSpine: trace,
+      audioContract: {
+        version: "audio-first-v1",
+        endpoint: routeUrl("/api/tts"),
+        healthEndpoint: routeUrl("/api/tts/health"),
+        compatibilityHealthEndpoint: routeUrl("/tts/health"),
+        deterministicAudio: true,
+        failOpenChat: true
+      }
+    },
+    speech,
+    audio: selected.audio || undefined,
+    ttsProfile: selected.ttsProfile || undefined,
+    playback: {
+      ready: !!(selected.audio && selected.audio.enabled !== false && cleanText(selected.audio.textToSynth || "")),
+      autoPlay: !!(selected.audio && selected.audio.autoPlay !== false),
+      route: routeUrl("/api/tts"),
+      compatibilityRoute: routeUrl("/tts"),
+      health: routeUrl("/api/tts/health"),
+      compatibilityHealth: routeUrl("/tts/health"),
+      textSpeak: cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || ""),
+      provider: cleanText(selected.audio && selected.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+    },
+    voiceRoute: selected.voiceRoute || undefined
+  });
+});
+
+
+console.log("[Sandblast][newsCanada] rss_service_ready", {
+  api: "/api/newscanada",
+  direct: "/newscanada",
+  source: newsCanadaFeedService ? "rss-service" : "service_unavailable",
+  moduleLoaded: !!newsCanadaFeedServiceMod,
+  serviceLoaded: !!newsCanadaFeedService,
+  feedUrl: resolveNewsCanadaFeedUrl(),
+  compatibility: {
+    rss: "/api/newscanada/rss",
+    manualCompat: "/api/newscanada/manual",
+    editorsPicks: "/api/newscanada/editors-picks",
+    story: "/api/newscanada/story",
+        refresh: "/api/newscanada/rss",
+    diagnostics: "/api/newscanada/diagnostics"
+  }
+});
+
+
+const newsCanadaRoutes = resolveExpressRouterFromModule(newsCanadaRoutesMod);
+if (newsCanadaRoutes && boolEnv("SB_ENABLE_NEWSCANADA_EXTERNAL_ROUTES", false)) {
+  app.use("/api/newscanada", newsCanadaRoutes);
+  app.use("/newscanada", newsCanadaRoutes);
+  console.log("[Sandblast][newsCanada] manual_rss_routes_mounted", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    router: true
+  });
+} else {
+  console.log("[Sandblast][newsCanada] manual_rss_routes_unavailable", {
+    api: "/api/newscanada",
+    direct: "/newscanada",
+    router: false
+  });
 }
 
-const ask = route;
-const handle = route;
+
+STATIC_PUBLIC_DIRS.forEach((dir) => {
+  app.use(express.static(dir));
+});
+
+if (fs.existsSync(AVATAR_PUBLIC_DIR)) {
+  app.use("/avatar", express.static(AVATAR_PUBLIC_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+  app.use("/public/avatar", express.static(AVATAR_PUBLIC_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+}
+if (fs.existsSync(AVATAR_ASSETS_DIR)) {
+  app.use("/avatar/assets", express.static(AVATAR_ASSETS_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+  app.use("/public/avatar/assets", express.static(AVATAR_ASSETS_DIR, { fallthrough: true, index: false, immutable: false, maxAge: "5m" }));
+}
+
+app.get(["/avatar/status", "/api/avatar/status"], (req, res) => {
+  applyCors(req, res);
+  const payload = avatarConfigPayload();
+  return res.status(payload.ok ? 200 : 404).json({
+    ok: payload.ok,
+    avatar: payload,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      route: req.originalUrl || req.path || "",
+      videoResolved: !!avatarVideoFile(),
+      fallbackResolved: !!avatarFallbackImageFile()
+    }
+  });
+});
+
+app.get(["/avatar/video", "/api/avatar/video"], (req, res) => {
+  applyCors(req, res);
+  const filePath = avatarVideoFile();
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+});
+
+app.get(["/avatar/fallback", "/api/avatar/fallback"], (req, res) => {
+  applyCors(req, res);
+  const filePath = avatarFallbackImageFile();
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+});
+
+app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName", "/api/avatar/assets/:fileName"], (req, res) => {
+  applyCors(req, res);
+  const requested = cleanEnvAvatarBasename(req.params && req.params.fileName);
+  const filePath = resolveAvatarAssetFile(requested);
+  if (sendAvatarFile(res, filePath)) return;
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: req.path,
+    requested,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      avatar: avatarConfigPayload()
+    }
+  });
+});
+
+app.get(["/api/avatar/config.js", "/avatar/config.js", "/avatar/script.js"], (req, res) => {
+  applyCors(req, res);
+  const payload = avatarConfigPayload();
+  res.type("application/javascript; charset=utf-8");
+  return res.send(
+    `window.SB_NYX_AVATAR_SRC=${JSON.stringify(payload.avatarSrc)};\n` +
+    `window.SB_NYX_AVATAR_FALLBACK_SRC=${JSON.stringify(payload.fallbackSrc)};\n` +
+    `window.SB_NYX_AVATAR_STATUS=${JSON.stringify(payload.statusUrl)};\n` +
+    `window.SB_NYX_AVATAR_DIRECT_VIDEO=${JSON.stringify(payload.directVideo)};\n` +
+    `window.SB_NYX_AVATAR_CONFIG=${JSON.stringify(payload)};\n`
+  );
+});
+
+
+app.all(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"], (req, res) => {
+  if (req.method === "POST") {
+    hardenCors(req, res);
+    return res.status(503).json({
+      ok: false,
+      error: "conversation_route_fell_through",
+      path: req.path,
+      detail: "Conversation route alias reached the final guard instead of the POST handler.",
+      meta: { v: INDEX_VERSION, t: now(), diagnostics: buildConversationRouteDiagnostics(req) }
+    });
+  }
+  return sendConversationMethodDiagnostic(req, res);
+});
+
+app.use("/api", (req, res) => {
+  applyCors(req, res);
+  const requestPath = cleanText(req.originalUrl || req.path || "");
+  const likelyNewsCanadaMiss = /newscanada|foryourlife|for-your-life|topstory|top-story|editorspick|editors-pick|editorspicks|editor-picks/i.test(requestPath);
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: req.path,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      routeHints: likelyNewsCanadaMiss ? buildNewsCanadaRouteHints() : undefined,
+      likelyNewsCanadaMiss
+    }
+  });
+});
+
+app.use((req, res, next) => {
+  if (res.headersSent) return next();
+  applyCors(req, res);
+  const requestPath = cleanText(req.originalUrl || req.path || "");
+  const likelyNewsCanadaMiss = /newscanada|foryourlife|for-your-life|topstory|top-story|editorspick|editors-pick|editorspicks|editor-picks/i.test(requestPath);
+  return res.status(404).json({
+    ok: false,
+    error: "not_found",
+    path: requestPath || req.path,
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      routeHints: likelyNewsCanadaMiss ? buildNewsCanadaRouteHints() : undefined,
+      likelyNewsCanadaMiss
+    }
+  });
+});
+
+app.use((err, req, res, _next) => {
+  applyCors(req, res);
+  if (res.headersSent) return;
+
+  const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("error"));
+  const isBodySyntax = !!(err && (err.type === "entity.parse.failed" || err instanceof SyntaxError));
+  const isTooLarge = !!(err && err.type === "entity.too.large");
+  const statusCode = isBodySyntax ? 400 : (isTooLarge ? 413 : clamp(Number((err && (err.statusCode || err.status)) || 500), 400, 599));
+  const errorCode = isBodySyntax ? "invalid_json" : (isTooLarge ? "payload_too_large" : "server_error");
+  const detail = isBodySyntax
+    ? "Request body contains invalid JSON."
+    : (isTooLarge ? "Request body exceeded the allowed size limit." : cleanText(err && (err.message || err) || "server error"));
+
+  console.log("[Sandblast][express:error]", {
+    traceId,
+    statusCode,
+    errorCode,
+    path: req && (req.originalUrl || req.url || req.path || ""),
+    detail
+  });
+
+  hardenCors(req, res);
+  return res.status(statusCode).json({
+    ok: false,
+    error: errorCode,
+    detail,
+    traceId,
+    meta: { v: INDEX_VERSION, t: now() }
+  });
+});
+
+app.get("*", (req, res, next) => {
+  for (const dir of STATIC_PUBLIC_DIRS) {
+    const p = path.join(dir, "index.html");
+    if (fs.existsSync(p)) return res.sendFile(p);
+  }
+  return next();
+});
+
+
+function resolveNewsCanadaDataFile() {
+  return cleanText(process.env.NEWS_CANADA_RSS_FEED_URL || process.env.SB_NEWSCANADA_RSS_FEED_URL || "");
+}
+
+function normalizeNewsCanadaFeed(feed) {
+  const src = Array.isArray(feed) ? feed : [];
+  return src.map((story) => (isObj(story) ? story : {})).filter((story) => Object.keys(story).length > 0);
+}
+
+function hydrateNewsCanadaLocals(store, extraMeta) {
+  return { store, extraMeta, delegated: true };
+}
+
+function getNewsCanadaCandidateDiagnostics() {
+  return newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
+    ? newsCanadaFeedService.health()
+    : {
+        ok: false,
+        source: "service_unavailable",
+        degraded: true,
+        mode: "rss",
+        feedUrl: resolveNewsCanadaDataFile()
+      };
+}
+
+if (newscanadaCacheJobMod && typeof newscanadaCacheJobMod.startNewsCanadaCacheJob === "function") {
+  try {
+    newscanadaCacheJobMod.startNewsCanadaCacheJob({ intervalMs: clamp(Number(process.env.NEWS_CANADA_CACHE_REFRESH_MS || 10 * 60 * 1000), 60 * 1000, 60 * 60 * 1000) });
+  } catch (err) {
+    console.log("[Sandblast][newscanadaCacheJob:start_error]", err && (err.stack || err.message || err));
+  }
+}
+
+setTimeout(() => {
+  startNewsCanadaAutoIngest().catch((err) => {
+    console.log("[Sandblast][newscanada:auto_ingest_start_error]", err && (err.stack || err.message || err));
+  });
+}, clamp(Number(process.env.NEWS_CANADA_AUTO_INGEST_DELAY_MS || 15000), 1000, 120000)).unref();
+
+
+async function startNewsCanadaAutoIngest() {
+  try {
+    const service = getNewsCanadaService();
+    const seeded = readNewsCanadaCacheContractFile();
+    const seededIsPlaceholder = !!(seeded && seeded.items && seeded.items.length && isNewsCanadaSeedPayload(seeded));
+
+    if (service && typeof service.fetchRSS === "function") {
+      const result = await Promise.resolve(service.fetchRSS({ refresh: seededIsPlaceholder }));
+      const items = Array.isArray(result && result.items) ? result.items : (Array.isArray(result && result.stories) ? result.stories : []);
+      if (items.length && !isNewsCanadaSeedPayload(result)) {
+        writeNewsCanadaSnapshot({
+          ...(isObj(result) ? result : {}),
+          items,
+          stories: items
+        });
+        writeNewsCanadaCacheContractFile({
+          ...(isObj(result) ? result : {}),
+          items,
+          stories: items,
+          ok: result && result.ok !== false
+        }, {
+          ...(isObj(result && result.meta) ? result.meta : {}),
+          servedFrom: "auto_ingest_switch",
+          detail: seededIsPlaceholder ? "auto_ingest_replaced_seed_cache" : cleanText(result && result.meta && result.meta.detail || "auto_ingest_cache_verified"),
+          stale: false,
+          degraded: false,
+          lastSuccessAt: Number(result && result.meta && result.meta.fetchedAt || now())
+        });
+        return;
+      }
+    }
+
+    if (newsCanadaFeedService && typeof newsCanadaFeedService.fetchRSS === "function") {
+      const fallback = await Promise.resolve(newsCanadaFeedService.fetchRSS({ refresh: true }));
+      const items = Array.isArray(fallback && fallback.items) ? fallback.items : (Array.isArray(fallback && fallback.stories) ? fallback.stories : []);
+      if (items.length && !isNewsCanadaSeedPayload(fallback)) {
+        writeNewsCanadaSnapshot({
+          ...(isObj(fallback) ? fallback : {}),
+          items,
+          stories: items
+        });
+        writeNewsCanadaCacheContractFile({
+          ...(isObj(fallback) ? fallback : {}),
+          items,
+          stories: items,
+          ok: fallback && fallback.ok !== false
+        }, {
+          ...(isObj(fallback && fallback.meta) ? fallback.meta : {}),
+          servedFrom: "auto_ingest_switch",
+          detail: seededIsPlaceholder ? "auto_ingest_replaced_seed_cache" : cleanText(fallback && fallback.meta && fallback.meta.detail || "auto_ingest_live_write"),
+          stale: false,
+          degraded: false,
+          lastSuccessAt: Number(fallback && fallback.meta && fallback.meta.fetchedAt || now())
+        });
+      }
+    }
+  } catch (err) {
+    console.log("[Sandblast][newscanada:auto_ingest_error]", err && (err.stack || err.message || err));
+  }
+}
+
+const server = app.listen(PORT, () => {
+  console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
+});
+
+function gracefulShutdown(signal) {
+  try {
+    console.log(`[Sandblast][shutdown] ${signal}`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  } catch (_) {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 module.exports = {
-  VERSION,
-  BRIDGE_PATCH_TAG,
-  CANONICAL_ENDPOINT,
-  REQUIRED_CHAT_ENGINE_SIGNATURE,
-  MARION_FINAL_SIGNATURE_PREFIX,
-  MARION_FINAL_MARKERS,
-  hasRequiredFinalSignature,
-  retrieveLayer2Signals,
-  processWithMarion,
-  createMarionBridge,
-  route,
-  maybeResolve,
-  ask,
-  handle,
-  default: route
+  app,
+  server,
+  INDEX_VERSION,
+  loadNewsCanadaEditorsPicksFromDisk,
+  resolveNewsCanadaDataFile,
+  normalizeNewsCanadaFeed,
+  hydrateNewsCanadaLocals,
+  getNewsCanadaCandidateDiagnostics,
+  writeNewsCanadaCacheContractFile,
+  isNewsCanadaSeedPayload,
+  resolveMusicDataFile,
+  loadMusicFromDisk,
+  dispatchMusicBridge,
+  normalizeMusicBridgeInput,
+  normalizeMusicBridgeResponse,
+  shapeEngineReply,
+  repairBridgeEnvelope,
+  repairEngineContract,
+  buildSpeechContract,
+  normalizeVoiceRouteResponse,
+  attachVoiceRoute,
+  getStateSpine,
+  setStateSpine,
+  finalizeStateSpineForTurn,
+  normalizeMarionContract,
+  validateMarionContract,
+  enforceMarionContract,
+  applyContinuityStitch,
+  buildLoggingSpine
 };
