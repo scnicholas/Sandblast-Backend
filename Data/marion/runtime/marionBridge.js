@@ -852,6 +852,7 @@ function createMarionBridge(options = {}) {
           };
 
       return {
+        ...safeObj(result),
         ok: result.ok !== false,
         final: true,
         handled: true,
@@ -888,18 +889,7 @@ function createMarionBridge(options = {}) {
         },
         followUps: result.followUps,
         followUpsStrings: result.followUpsStrings,
-        payload: wrapperPayload,
-        result: {
-          ...safeObj(result),
-          final: true,
-          handled: true,
-          marionFinal: true,
-          meta: wrapperMeta,
-          payload: wrapperPayload,
-          packet: wrapperPacket,
-          signature: wrapperSignature,
-          marionFinalSignature: wrapperSignature
-        }
+        payload: wrapperPayload
       };
     }
   };
