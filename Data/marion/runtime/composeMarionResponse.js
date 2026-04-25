@@ -7,6 +7,19 @@
  */
 
 const VERSION = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const MARION_BRIDGE_VERSION_MARKER = "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const MARION_FINAL_MARKERS = Object.freeze([
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  MARION_BRIDGE_VERSION_MARKER,
+  VERSION
+]);
+
+function buildMarionFinalSignature(replySignature, turnId) {
+  const seed = safeStr(replySignature || hashText(turnId || Date.now()));
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${VERSION}::${seed}`;
+}
 
 function safeStr(v) {
   return v == null ? "" : String(v).trim();
@@ -176,6 +189,8 @@ function composeMarionResponse(routed = {}, input = {}) {
     replySignature = hashText(reply);
   }
 
+  const turnId = safeStr(input.turnId || input.sourceTurnId || routed.turnId || "");
+  const marionFinalSignature = buildMarionFinalSignature(replySignature, turnId);
   const distress = detectDistress(text);
   const nextMove = chooseNextMove(intent, text);
 
@@ -188,6 +203,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     composedOnce: true,
     marionFinal: true,
     final: true,
+    marionFinalSignature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers: MARION_FINAL_MARKERS.slice(),
     nextMove,
     updatedAt: Date.now()
   };
@@ -199,6 +217,10 @@ function composeMarionResponse(routed = {}, input = {}) {
     composedOnce: true,
     finalizedBy: "composeMarionResponse",
     version: VERSION,
+    signature: marionFinalSignature,
+    marionFinalSignature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers: MARION_FINAL_MARKERS.slice(),
 
     domain,
     intent,
@@ -241,11 +263,48 @@ function composeMarionResponse(routed = {}, input = {}) {
       shouldOfferNextStep: true
     },
 
+    payload: {
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      spokenText: reply.replace(/\n+/g, " ").trim(),
+      final: true,
+      marionFinal: true,
+      handled: true,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice()
+    },
+
+    meta: {
+      version: VERSION,
+      composerVersion: VERSION,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      finalizedBy: "composeMarionResponse",
+      replySignature,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true
+    },
+
     memoryPatch,
 
     diagnostics: {
       composerVersion: VERSION,
       replySignature,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice(),
+      hardlockCompatible: true,
       previousReplySignature: previousSig,
       duplicateBroken: !!previousSig && previousSig === replySignature,
       singleEmission: true,
@@ -260,12 +319,19 @@ function composeMarionResponse(routed = {}, input = {}) {
       spokenText: reply.replace(/\n+/g, " ").trim(),
       followUps: [],
       followUpsStrings: [],
-      memoryPatch
+      memoryPatch,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: MARION_FINAL_MARKERS.slice()
     }
   };
 }
 
 module.exports = {
   VERSION,
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  MARION_FINAL_SIGNATURE_PREFIX,
+  MARION_FINAL_MARKERS,
   composeMarionResponse
 };
