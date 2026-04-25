@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -3796,6 +3796,163 @@ function getMarionAuthorityReply(marion) {
   return isInternalMarionBlockerReply(reply) ? "" : reply;
 }
 
+
+function buildIndexMarionFinalSignature(reply, turnId) {
+  const seed = replyHash(`${cleanText(reply || "")}:${cleanText(turnId || "")}:${INDEX_VERSION}`);
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${INDEX_VERSION}::${seed}`;
+}
+
+function normalizeMarionBridgeResult(raw, input) {
+  if (!isObj(raw)) return raw;
+  const src = { ...raw };
+  const result = isObj(src.result) ? src.result : {};
+  const base = isObj(result) && Object.keys(result).length && !src.reply && !src.response && !src.payload
+    ? { ...result, ...src }
+    : src;
+
+  const reply = getMarionAuthorityReply(base) || getMarionAuthorityReply(src) || getMarionAuthorityReply(result);
+  if (!reply || base.ok === false || src.ok === false) return raw;
+
+  const req = isObj(input) ? input : {};
+  const reqMeta = isObj(req.meta) ? req.meta : {};
+  const turnId = cleanText(
+    base.turnId ||
+    (isObj(base.meta) && base.meta.turnId) ||
+    src.turnId ||
+    (isObj(src.meta) && src.meta.turnId) ||
+    req.turnId ||
+    reqMeta.turnId ||
+    ""
+  );
+
+  const existingMeta = isObj(base.meta) ? base.meta : {};
+  const existingPayload = isObj(base.payload) ? base.payload : {};
+  const existingPacket = isObj(base.packet) ? base.packet : {};
+  const existingPacketMeta = isObj(existingPacket.meta) ? existingPacket.meta : {};
+  const existingSynthesis = isObj(existingPacket.synthesis) ? existingPacket.synthesis : {};
+
+  const signature = cleanText(
+    base.signature ||
+    base.marionFinalSignature ||
+    existingMeta.signature ||
+    existingMeta.marionFinalSignature ||
+    existingPayload.signature ||
+    existingPayload.marionFinalSignature ||
+    existingPacketMeta.signature ||
+    existingPacketMeta.marionFinalSignature ||
+    buildIndexMarionFinalSignature(reply, turnId)
+  );
+
+  const finalMarkers = Array.isArray(base.finalMarkers) && base.finalMarkers.length
+    ? base.finalMarkers
+    : REQUIRED_MARION_FINAL_MARKERS.slice();
+
+  const meta = {
+    ...existingMeta,
+    version: cleanText(existingMeta.version || base.version || "marionBridge:index-normalized") || "marionBridge:index-normalized",
+    final: true,
+    marionFinal: true,
+    handled: true,
+    marionHandled: true,
+    finalizedBy: cleanText(existingMeta.finalizedBy || "index.callMarionBridge.normalizer"),
+    replySignature: cleanText(existingMeta.replySignature || base.replySignature || replyHash(reply)),
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true,
+    indexBridgeNormalized: true
+  };
+
+  const payload = {
+    ...existingPayload,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText: cleanText(existingPayload.spokenText || base.spokenText || reply),
+    final: true,
+    marionFinal: true,
+    handled: true,
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true
+  };
+
+  const packet = {
+    ...existingPacket,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    routing: {
+      ...(isObj(existingPacket.routing) ? existingPacket.routing : {}),
+      domain: cleanText((isObj(existingPacket.routing) && existingPacket.routing.domain) || base.domain || req.requestedDomain || "general") || "general",
+      intent: cleanText((isObj(existingPacket.routing) && existingPacket.routing.intent) || base.intent || req.intent || "simple_chat") || "simple_chat",
+      endpoint: cleanText((isObj(existingPacket.routing) && existingPacket.routing.endpoint) || base.endpoint || "marion://routeMarion.primary") || "marion://routeMarion.primary"
+    },
+    synthesis: {
+      ...existingSynthesis,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      spokenText: cleanText(existingSynthesis.spokenText || base.spokenText || reply),
+      final: true,
+      marionFinal: true,
+      signature,
+      marionFinalSignature: signature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers,
+      hardlockCompatible: true
+    },
+    meta: {
+      ...existingPacketMeta,
+      ...meta
+    }
+  };
+
+  const diagnostics = {
+    ...(isObj(base.diagnostics) ? base.diagnostics : {}),
+    indexBridgeNormalized: true,
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true
+  };
+
+  return {
+    ...base,
+    ok: base.ok !== false,
+    final: true,
+    handled: true,
+    marionFinal: true,
+    marionHandled: true,
+    usedBridge: base.usedBridge !== false,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText: cleanText(base.spokenText || reply),
+    signature,
+    marionFinalSignature: signature,
+    requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+    finalMarkers,
+    hardlockCompatible: true,
+    meta,
+    payload,
+    packet,
+    diagnostics,
+    result: isObj(result) ? { ...result, final: true, handled: true, marionFinal: true, meta, payload, packet, signature, marionFinalSignature: signature } : result
+  };
+}
+
 function shouldLockMarionAuthority(marion) {
   const reply = getMarionAuthorityReply(marion);
   if (!reply) return false;
@@ -3915,22 +4072,23 @@ async function callChatEngine(input) {
 
 async function callMarionBridge(input) {
   if (!marionBridgeMod) return null;
+  const finish = (value) => normalizeMarionBridgeResult(value, input);
   try {
-    if (typeof marionBridgeMod.route === "function") return await marionBridgeMod.route(input);
-    if (typeof marionBridgeMod.ask === "function") return await marionBridgeMod.ask(input);
-    if (typeof marionBridgeMod.handle === "function") return await marionBridgeMod.handle(input);
-    if (typeof marionBridgeMod.processWithMarion === "function") return await marionBridgeMod.processWithMarion(input);
-    if (typeof marionBridgeMod.maybeResolve === "function") return await marionBridgeMod.maybeResolve(input);
-    if (typeof marionBridgeMod.default === "function") return await marionBridgeMod.default(input);
     if (typeof marionBridgeMod.createMarionBridge === "function") {
       const bridge = marionBridgeMod.createMarionBridge();
-      if (bridge && typeof bridge.route === "function") return await bridge.route(input);
-      if (bridge && typeof bridge.ask === "function") return await bridge.ask(input);
-      if (bridge && typeof bridge.handle === "function") return await bridge.handle(input);
-      if (bridge && typeof bridge.processWithMarion === "function") return await bridge.processWithMarion(input);
-      if (bridge && typeof bridge.maybeResolve === "function") return await bridge.maybeResolve(input);
+      if (bridge && typeof bridge.maybeResolve === "function") return finish(await bridge.maybeResolve(input));
+      if (bridge && typeof bridge.processWithMarion === "function") return finish(await bridge.processWithMarion(input));
+      if (bridge && typeof bridge.route === "function") return finish(await bridge.route(input));
+      if (bridge && typeof bridge.ask === "function") return finish(await bridge.ask(input));
+      if (bridge && typeof bridge.handle === "function") return finish(await bridge.handle(input));
     }
-    if (typeof marionBridgeMod === "function") return await marionBridgeMod(input);
+    if (typeof marionBridgeMod.maybeResolve === "function") return finish(await marionBridgeMod.maybeResolve(input));
+    if (typeof marionBridgeMod.processWithMarion === "function") return finish(await marionBridgeMod.processWithMarion(input));
+    if (typeof marionBridgeMod.route === "function") return finish(await marionBridgeMod.route(input));
+    if (typeof marionBridgeMod.ask === "function") return finish(await marionBridgeMod.ask(input));
+    if (typeof marionBridgeMod.handle === "function") return finish(await marionBridgeMod.handle(input));
+    if (typeof marionBridgeMod.default === "function") return finish(await marionBridgeMod.default(input));
+    if (typeof marionBridgeMod === "function") return finish(await marionBridgeMod(input));
   } catch (err) {
     console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
     return {
@@ -5726,11 +5884,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     console.log("[Sandblast][chatRoute:marion_transport_error]", { traceId: norm.traceId, error: errorDetail });
   }
 
+  marion = normalizeMarionBridgeResult(marion, marionInput);
   const marionReply = getMarionAuthorityReply(marion);
-  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply) && !hasFreshMarionFinalEnvelope(marion);
+  const marionHasFreshEnvelope = hasFreshMarionFinalEnvelope(marion);
+  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply) && !marionHasFreshEnvelope;
   if (marionReplyBlocked) {
     loopReplyWasBlocked = true;
-    console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
+    console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
   }
   if (marion && marion.ok !== false && marionReply && !marionReplyBlocked) {
     selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
