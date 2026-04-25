@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionRouter v1.2.0 LOOP-BREAK HANDOFF-HARDENED";
+const VERSION = "marionRouter v1.3.0 AUTOPSY-HARDENED-INTENT-COHESION";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -81,6 +81,43 @@ function _safeClassifiedResult(raw = {}) {
   };
 }
 
+
+function _inferMarionIntentFromDomain(primaryDomain, classified = {}, text = '') {
+  const d = _canonicalizeDomain(primaryDomain || 'general');
+  const t = _lower(text);
+  const classes = _safeObj(classified.classifications);
+  if (classes.crisis || classes.support || d === 'psychology') return 'emotional_support';
+  if (/state spine|statespine|packet|phrase pack|index\.js|bridge|router|compose|loop|debug|patch|script|file|harden|audit|autopsy/i.test(t)) return 'technical_debug';
+  if (d === 'business' || d === 'strategy' || d === 'marketing') return 'business_strategy';
+  if (d === 'music') return 'music_query';
+  if (d === 'news') return 'news_query';
+  if (d === 'roku') return 'roku_query';
+  if (d === 'memory') return 'identity_or_memory';
+  if (/\?$/.test(t) && t.length > 60) return 'domain_question';
+  return 'simple_chat';
+}
+
+function _buildRouting(primaryDomain, intent) {
+  const domain = intent === 'emotional_support' ? 'emotional' : _canonicalizeDomain(primaryDomain || 'general');
+  return {
+    domain,
+    intent,
+    endpoint: 'marion://routeMarion.primary',
+    mode:
+      intent === 'technical_debug' ? 'debug' :
+      intent === 'emotional_support' ? 'support_then_advance' :
+      intent === 'business_strategy' ? 'strategy' :
+      intent === 'music_query' || intent === 'news_query' ? 'retrieval' :
+      intent === 'roku_query' ? 'platform' :
+      intent === 'identity_or_memory' ? 'continuity' :
+      'conversation',
+    depth: intent === 'technical_debug' ? 'forensic' : intent === 'emotional_support' ? 'deep_forward' : 'normal',
+    contractVersion: 'nyx.marion.routing/1.3',
+    bridgeCompatible: true,
+    composerCompatible: true
+  };
+}
+
 function _buildSoftRouteFallback(text = '', previousMemory = {}, reason = 'router_soft_fallback') {
   const prevEmotion = _safeObj(previousMemory.emotion || previousMemory.lastEmotion);
   const currentEmotion = _resolvePrimaryEmotion({});
@@ -107,6 +144,9 @@ function _buildSoftRouteFallback(text = '', previousMemory = {}, reason = 'route
       emotion: { matched: false, supportFlags: {}, matches: [], primary: currentEmotion, blendProfile, stateDrift },
       psychology: { matched: false, matches: [], blockedInternalEmission: false }
     },
+    marionIntent: { activate: false, intent: 'simple_chat', confidence: 0.35, reason, source: 'marionRouter.softFallback' },
+    routing: _buildRouting('general', 'simple_chat'),
+    endpoint: 'marion://routeMarion.primary',
     diagnostics: {
       domainCandidates: ['general'],
       usedPsychology: false,
@@ -217,6 +257,7 @@ function _buildStateDrift(primaryEmotion = {}, previousMemory = {}) {
 function routeMarion(input = {}) {
   const text = input.text || input.userText || input.userQuery || input.query || input.message || "";
   const previousMemory = _safeObj(input.previousMemory);
+  const lockedEmotion = _safeObj(input.lockedEmotion || _safeObj(input.emotion).lockedEmotion || _safeObj(_safeObj(input.marion_handoff).locked_emotion));
 
   try {
     const emotionRaw = typeof retrieveEmotion === "function"
@@ -229,15 +270,28 @@ function routeMarion(input = {}) {
       : {};
 
     const emotion = _safeEmotionResult(emotionRaw);
-    const primaryEmotion = _resolvePrimaryEmotion(emotion);
-    const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(emotion.supportFlags));
+    const mergedEmotionView = {
+      ...emotion,
+      primary: Object.keys(_safeObj(lockedEmotion)).length ? {
+        emotion: _trim(lockedEmotion.primaryEmotion || lockedEmotion.primary || emotion.primaryEmotion || _safeObj(emotion.primary).emotion || "neutral"),
+        secondaryEmotion: _trim(lockedEmotion.secondaryEmotion || lockedEmotion.secondary || ""),
+        intensity: _num(lockedEmotion.intensity, emotion.intensity || 0),
+        confidence: _num(lockedEmotion.confidence, emotion.confidence || 0)
+      } : _safeObj(emotion.primary),
+      primaryEmotion: _trim(lockedEmotion.primaryEmotion || lockedEmotion.primary || emotion.primaryEmotion || ""),
+      intensity: Object.keys(_safeObj(lockedEmotion)).length ? _num(lockedEmotion.intensity, emotion.intensity || 0) : emotion.intensity,
+      confidence: Object.keys(_safeObj(lockedEmotion)).length ? _num(lockedEmotion.confidence, emotion.confidence || 0) : emotion.confidence,
+      supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), _safeObj(lockedEmotion.supportFlags))
+    };
+    const primaryEmotion = _resolvePrimaryEmotion(mergedEmotionView);
+    const mergedFlags = _mergeSupportFlags(input.supportFlags, _safeObj(mergedEmotionView.supportFlags));
 
     const classifiedRaw = typeof classifyQuery === "function"
       ? classifyQuery({
           text,
           affect: input.affect,
           supportFlags: mergedFlags,
-          emotion
+          emotion: mergedEmotionView
         })
       : {};
 
@@ -278,10 +332,17 @@ function routeMarion(input = {}) {
     const secondaryDomains = _safeArray(routed && routed.secondary).map(_canonicalizeDomain).filter((d) => d && d !== primaryDomain);
     const blendProfile = _buildBlendProfile(primaryEmotion, emotion);
     const stateDrift = _buildStateDrift(primaryEmotion, previousMemory);
+    const inferredIntent = _inferMarionIntentFromDomain(primaryDomain, classified, text);
+    const routing = _buildRouting(primaryDomain, inferredIntent);
 
     return {
       ok: true,
       primaryDomain,
+      domain: routing.domain,
+      intent: inferredIntent,
+      endpoint: routing.endpoint,
+      marionIntent: { activate: inferredIntent !== 'simple_chat', intent: inferredIntent, confidence: _clamp(_safeObj(classified).confidence || _safeObj(classified.classifications).confidence || 0.72, 0, 1), reason: 'marionRouter_domain_intent_alignment', source: 'marionRouter' },
+      routing,
       secondaryDomains,
       classified: {
         ...classified,
@@ -304,7 +365,8 @@ function routeMarion(input = {}) {
           primary: primaryEmotion,
           blendProfile,
           stateDrift,
-          supportFlags: _mergeSupportFlags(_safeObj(emotion.supportFlags), finalSupportFlags)
+          supportFlags: _mergeSupportFlags(_safeObj(mergedEmotionView.supportFlags), finalSupportFlags),
+          lockedEmotionConsumed: Object.keys(_safeObj(lockedEmotion)).length > 0
         },
         psychology: psychology || { matched: false, matches: [], blockedInternalEmission: false }
       },
@@ -314,7 +376,9 @@ function routeMarion(input = {}) {
         supportFlagCount: Object.keys(finalSupportFlags).length,
         routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains } : null,
         blockedInternalEmission: !!(psychology && psychology.blockedInternalEmission),
-        softFallback: false
+        softFallback: false,
+        bridgeCompatible: true,
+        composerCompatible: true
       }
     };
   } catch (err) {
