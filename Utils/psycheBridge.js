@@ -1,20 +1,35 @@
 "use strict";
 
 /**
- * Utils/psycheBridge.js
- * Legacy compatibility shim.
- * Normalized to re-export the hardened SiteBridge implementation so the
- * Marion -> Nyx pipeline cannot drift between duplicate bridge modules.
+ * psycheBridge.js
+ * Phase-3 disabled compatibility shim.
+ *
+ * Purpose:
+ * - Preserve legacy require/import compatibility.
+ * - Prevent psycheBridge from re-exporting SiteBridge.
+ * - Prevent duplicate bridge behavior from re-entering Marion/Nyx flow.
  */
 
-let SiteBridge = null;
-try { SiteBridge = require("./sitebridge"); } catch (_e1) {
-  try { SiteBridge = require("./SiteBridge"); } catch (_e2) { SiteBridge = null; }
+const VERSION = "psycheBridge.disabled.v1 PHASE3-INERT-NON-AUTHORITY";
+
+function disabled() {
+  return {
+    ok: true,
+    disabled: true,
+    version: VERSION,
+    nonAuthority: true,
+    finalReplyAuthority: false
+  };
 }
 
-if (!SiteBridge) {
-  throw new Error("sitebridge_missing_for_legacy_psycheBridge");
-}
-
-module.exports = SiteBridge;
-module.exports.LEGACY_SHIM = true;
+module.exports = {
+  VERSION,
+  LEGACY_SHIM: true,
+  DISABLED: true,
+  nonAuthority: true,
+  build: disabled,
+  buildAsync: async () => disabled(),
+  route: disabled,
+  handle: disabled,
+  maybeResolve: disabled
+};
