@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -361,25 +361,68 @@ function hasFreshMarionFinalEnvelope(value) {
   const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
   const payload = isObj(src.payload) ? src.payload : {};
   const bridge = isObj(src.bridge) ? src.bridge : {};
+  const result = isObj(src.result) ? src.result : {};
+  const resultMeta = isObj(result.meta) ? result.meta : {};
+  const resultPayload = isObj(result.payload) ? result.payload : {};
+  const resultPacket = isObj(result.packet) ? result.packet : {};
+  const resultPacketMeta = isObj(resultPacket.meta) ? resultPacket.meta : {};
+
+  const freshSignature = objectContainsFreshMarionSignature(src, 0);
   const finalish = !!(
     src.final === true ||
     src.marionFinal === true ||
     src.handled === true ||
+    src.marionHandled === true ||
+    src.usedBridge === true ||
+    src.hardlockCompatible === true ||
     meta.final === true ||
     meta.marionFinal === true ||
+    meta.handled === true ||
+    meta.hardlockCompatible === true ||
     packet.final === true ||
     packet.marionFinal === true ||
+    packet.handled === true ||
     packetMeta.final === true ||
     packetMeta.marionFinal === true ||
+    packetMeta.handled === true ||
+    packetMeta.hardlockCompatible === true ||
     synthesis.final === true ||
     synthesis.marionFinal === true ||
     payload.final === true ||
     payload.marionFinal === true ||
+    payload.handled === true ||
+    payload.hardlockCompatible === true ||
     bridge.final === true ||
-    bridge.marionFinal === true
+    bridge.marionFinal === true ||
+    bridge.handled === true ||
+    result.final === true ||
+    result.marionFinal === true ||
+    result.handled === true ||
+    result.marionHandled === true ||
+    resultMeta.final === true ||
+    resultMeta.marionFinal === true ||
+    resultMeta.handled === true ||
+    resultMeta.hardlockCompatible === true ||
+    resultPayload.final === true ||
+    resultPayload.marionFinal === true ||
+    resultPayload.handled === true ||
+    resultPacket.final === true ||
+    resultPacket.marionFinal === true ||
+    resultPacket.handled === true ||
+    resultPacketMeta.final === true ||
+    resultPacketMeta.marionFinal === true ||
+    resultPacketMeta.handled === true
   );
-  if (!finalish) return false;
-  if (objectContainsFreshMarionSignature(src, 0)) return true;
+
+  if (finalish && freshSignature) return true;
+
+  // Compatibility guard: some bridge wrappers expose the Marion final signature
+  // at the wrapper/result layer before mirroring final flags to the wrapper.
+  // Accept only successful bridge-shaped packets with a valid Marion final signature.
+  if (freshSignature && src.ok !== false && (src.usedBridge === true || isObj(src.result) || isObj(src.packet) || isObj(src.payload) || isObj(src.meta))) {
+    return true;
+  }
+
   return false;
 }
 
