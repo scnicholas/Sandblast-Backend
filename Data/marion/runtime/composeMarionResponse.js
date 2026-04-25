@@ -6,13 +6,15 @@
  * One purpose: convert routed intent + context into one final response packet.
  */
 
-const VERSION = "composeMarionResponse v2.1.0 AUTOPSY-HARDENED-STATE-COHESION";
+const VERSION = "composeMarionResponse v2.2.0 AUTOPSY-HARDENED-STATE-SPINE-COMPAT";
+const LEGACY_COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_BRIDGE_VERSION_MARKER = "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const MARION_FINAL_MARKERS = Object.freeze([
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   MARION_BRIDGE_VERSION_MARKER,
+  LEGACY_COMPOSER_VERSION_MARKER,
   VERSION
 ]);
 
@@ -49,8 +51,30 @@ function firstText() {
   return "";
 }
 
+function oneLine(v) {
+  return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
 function userSignature(text) {
   return hashText(lower(text).replace(/\s+/g, " "));
+}
+
+function stateSpineHashText(value) {
+  const s = safeStr(value);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+function stateUserSignature(text) {
+  return stateSpineHashText(oneLine(text).toLowerCase());
+}
+
+function stateAssistantSignature(text) {
+  return stateSpineHashText(oneLine(text).toLowerCase());
 }
 
 function clamp01(v, fallback = 0) {
@@ -113,7 +137,7 @@ function emotionalReply(text, previousMemory = {}) {
   const alreadySupported = !!previousMemory.supportUsedLastTurn || !!previousMemory.memoryPatch?.supportUsedLastTurn;
 
   if (distress.crisis) {
-    return "I’m here with you. Your safety comes first. If you might hurt yourself or you’re in immediate danger, contact emergency services or a local crisis line now. Stay with me on the smallest next safe step.";
+    return "Stay with me. Your safety comes first. If you might hurt yourself or you’re in immediate danger, contact emergency services or a local crisis line now. Focus only on the smallest next safe step.";
   }
 
   if (alreadySupported && !distress.high) {
@@ -204,10 +228,15 @@ function resolvePreviousMemory(input = {}) {
   return { previousMemory, state };
 }
 
-function buildProgressionPatch({ intent, domain, text, replySignature, previousMemory, state, nextMove, marionFinalSignature }) {
-  const priorUserSig = firstText(previousMemory.userSignature, previousMemory.lastUserSignature, state.lastUserHash);
+function buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature }) {
+  const priorMemoryUserSig = firstText(previousMemory.userSignature, previousMemory.lastUserSignature);
+  const priorStateUserSig = firstText(state.lastUserHash);
   const currentUserSig = userSignature(text);
-  const sameUser = !!(priorUserSig && priorUserSig === currentUserSig);
+  const currentStateUserSig = stateUserSignature(text);
+  const sameUser = !!(
+    (priorMemoryUserSig && priorMemoryUserSig === currentUserSig) ||
+    (priorStateUserSig && priorStateUserSig === currentStateUserSig)
+  );
   const priorIntent = firstText(previousMemory.lastIntent, state.lastIntent).toLowerCase();
   const sameIntent = !!(priorIntent && priorIntent === intent);
   const previousNoProgress = Number(safeObj(state.repetition).noProgressCount || previousMemory.noProgressCount || 0) || 0;
@@ -218,7 +247,9 @@ function buildProgressionPatch({ intent, domain, text, replySignature, previousM
     lastDomain: domain,
     userSignature: currentUserSig,
     lastUserSignature: currentUserSig,
+    stateUserHash: currentStateUserSig,
     replySignature,
+    replyStateSignature,
     lastReplySignature: replySignature,
     noProgressCount,
     duplicateUserTurn: sameUser,
@@ -237,6 +268,8 @@ function buildProgressionPatch({ intent, domain, text, replySignature, previousM
       source: "composeMarionResponse",
       userSignature: currentUserSig,
       replySignature,
+      replyStateSignature,
+      stateUserHash: currentStateUserSig,
       noProgressCount
     },
     updatedAt: Date.now()
@@ -248,12 +281,14 @@ function composeMarionResponse(routed = {}, input = {}) {
   const intent = resolveIntent(routed, input);
   const domain = resolveDomain(routed, input);
   const { previousMemory, state } = resolvePreviousMemory(input);
-  const previousSig = safeStr(previousMemory.replySignature || previousMemory.lastReplySignature || previousMemory.memoryPatch?.replySignature || state.lastAssistantHash || "");
+  const previousReplySig = safeStr(previousMemory.replySignature || previousMemory.lastReplySignature || previousMemory.memoryPatch?.replySignature || "");
+  const previousAssistantStateSig = safeStr(state.lastAssistantHash || previousMemory.replyStateSignature || previousMemory.memoryPatch?.replyStateSignature || "");
 
   let reply = buildReply(intent, text, input);
   let replySignature = hashText(reply);
+  let replyStateSignature = stateAssistantSignature(reply);
 
-  if (previousSig && previousSig === replySignature) {
+  if ((previousReplySig && previousReplySig === replySignature) || (previousAssistantStateSig && previousAssistantStateSig === replyStateSignature)) {
     if (intent === "emotional_support") {
       reply = "Let’s go one layer deeper so we don’t repeat the same comfort: what is the part you have not said out loud yet?";
     } else if (intent === "simple_chat") {
@@ -264,6 +299,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       reply = "Let’s move this forward instead of repeating it. Give me the next target and I’ll act on that.";
     }
     replySignature = hashText(reply);
+    replyStateSignature = stateAssistantSignature(reply);
   }
 
   const turnId = safeStr(input.turnId || input.sourceTurnId || routed.turnId || "");
@@ -271,7 +307,7 @@ function composeMarionResponse(routed = {}, input = {}) {
   const distress = detectDistress(text);
   const nextMove = chooseNextMove(intent, text);
 
-  const memoryPatch = buildProgressionPatch({ intent, domain, text, replySignature, previousMemory, state, nextMove, marionFinalSignature });
+  const memoryPatch = buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature });
 
   return {
     ok: true,
@@ -370,8 +406,10 @@ function composeMarionResponse(routed = {}, input = {}) {
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
       hardlockCompatible: true,
-      previousReplySignature: previousSig,
-      duplicateBroken: !!previousSig && previousSig === replySignature,
+      previousReplySignature: previousReplySig,
+      previousAssistantStateSignature: previousAssistantStateSig,
+      replyStateSignature,
+      duplicateBroken: !!((previousReplySig && previousReplySig === replySignature) || (previousAssistantStateSig && previousAssistantStateSig === replyStateSignature)),
       singleEmission: true,
       finalAuthority: "composeMarionResponse"
     },
@@ -396,6 +434,7 @@ function composeMarionResponse(routed = {}, input = {}) {
 module.exports = {
   VERSION,
   REQUIRED_CHAT_ENGINE_SIGNATURE,
+  LEGACY_COMPOSER_VERSION_MARKER,
   MARION_FINAL_SIGNATURE_PREFIX,
   MARION_FINAL_MARKERS,
   composeMarionResponse
