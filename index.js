@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -303,6 +303,7 @@ const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
 
 const BLOCKED_LOOPING_SUPPORT_REPLY = "i am here with you, and i can stay with this clearly.";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_MARION_FINAL_MARKERS = [
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF",
@@ -331,16 +332,21 @@ function isBlockedLoopingSupportReply(value) {
   return CHAT_LOOP_PHRASE_PATTERNS.some((rx) => rx.test(key));
 }
 
+function isFreshMarionSignatureString(value) {
+  const s = cleanText(value || "");
+  if (!s) return false;
+  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE)) return true;
+  return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
+}
+
 function objectContainsFreshMarionSignature(value, depth) {
-  if (depth > 6 || value == null) return false;
-  if (typeof value === "string") {
-    const s = value;
-    return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
-  }
-  if (Array.isArray(value)) {
-    return value.some((item) => objectContainsFreshMarionSignature(item, depth + 1));
-  }
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") return isFreshMarionSignatureString(value);
+  if (Array.isArray(value)) return value.some((item) => objectContainsFreshMarionSignature(item, depth + 1));
   if (isObj(value)) {
+    if (value.hardlockCompatible === true) return true;
+    if (value.requiredSignature === REQUIRED_CHAT_ENGINE_SIGNATURE) return true;
+    if (isFreshMarionSignatureString(value.signature || value.marionFinalSignature || value.replySignature || value.version || value.composerVersion || value.bridgeVersion)) return true;
     return Object.keys(value).some((key) => objectContainsFreshMarionSignature(value[key], depth + 1));
   }
   return false;
@@ -372,15 +378,17 @@ function hasFreshMarionFinalEnvelope(value) {
     bridge.final === true ||
     bridge.marionFinal === true
   );
-  return finalish && objectContainsFreshMarionSignature(src, 0);
+  if (!finalish) return false;
+  if (objectContainsFreshMarionSignature(src, 0)) return true;
+  return false;
 }
 
 function buildLoopReplyBlockedReplacement(norm, authority) {
   const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
   const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
   const reply = technical
-    ? "Nyx is connected. Send the exact file, route, or response you want checked next."
-    : "Nyx is connected. What would you like to do next?";
+    ? "A stale support loop was blocked. Marion needs a fresh final signature for this turn."
+    : "A stale support loop was blocked. Please send your next message after Marion finalizes the turn.";
   return {
     ok: true,
     final: true,
