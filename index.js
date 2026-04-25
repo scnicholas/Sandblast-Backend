@@ -740,18 +740,10 @@ const stateSpineMod = tryRequireMany([
   "./Utils/stateSpine.js"
 ]);
 
-const siteBridgeMod = tryRequireMany([
-  "./sitebridge",
-  "./sitebridge.js",
-  "./siteBridge",
-  "./siteBridge.js",
-  "./utils/sitebridge",
-  "./utils/sitebridge.js",
-  "./Utils/sitebridge",
-  "./Utils/sitebridge.js",
-  "./Utils/SiteBridge",
-  "./Utils/SiteBridge.js"
-]);
+// PHASE-3 ACTIVE-FLOW DISABLE:
+// SiteBridge / psycheBridge must not participate in the live Marion response path.
+// Keep this null so diagnostics remain safe and no duplicate bridge layer can re-enter.
+const siteBridgeMod = null;
 
 const s2sMod = tryRequireMany([
   "./s2s",
@@ -2828,6 +2820,9 @@ function ensureAudioContractFromSpeech(base, speech) {
 }
 
 function buildSiteBridgeSnapshot(norm, emotion, priorSpine, marionContract) {
+  // PHASE-3 ACTIVE-FLOW DISABLE: SiteBridge is intentionally disabled.
+  // It must not shape replies, support state, intent, or Nyx control signals.
+  return null;
   if (!siteBridgeMod || typeof siteBridgeMod.build !== "function") return null;
   try {
     return siteBridgeMod.build({
