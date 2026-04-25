@@ -7,7 +7,7 @@
  * Reads Data/nyx/packets_v1.json and returns:
  *   { reply, followUps, sessionPatch, meta }
  *
- * v1.3-C (MARION AUTHORITY LOCK + STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION)
+ * v1.4-C (MARION AUTHORITY LOCK + STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION + SAFE AUTHORITY ORDER)
  *
  * HARDENING / FIXES:
  * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
@@ -142,45 +142,38 @@ function getMarionAuthorityReply(session) {
   const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : Object.create(null);
 
   const reply = firstNonEmptyString(
-    s.marionReply,
-    s.overrideReply,
-    s.reply,
-    s.answer,
-    s.output,
-    s.text,
     meta.overrideReply,
     meta.marionReply,
-    meta.reply,
-    meta.answer,
-    meta.output,
-    meta.text,
     marionContract.response,
     marionContract.reply,
     marionContract.answer,
     marionContract.output,
     marionContract.text,
     marion.reply,
+    marion.response,
     marion.answer,
     marion.output,
     marion.text,
-    marion.response,
     marion.fallbackResponse,
     marion.replySeed,
     payload.reply,
+    payload.response,
     payload.answer,
     payload.output,
     payload.text,
     payload.message,
-    packet.reply,
-    packet.answer,
-    packet.output,
-    packet.text,
-    packet.response,
     synthesis.reply,
     synthesis.answer,
     synthesis.output,
     synthesis.text,
-    synthesis.message
+    synthesis.message,
+    packet.reply,
+    packet.response,
+    packet.answer,
+    packet.output,
+    packet.text,
+    s.marionReply,
+    s.overrideReply
   );
 
   if (!reply || isInternalBlockerReply(reply)) return "";
