@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-PHRASE-FINAL-GATE-V28";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -274,8 +274,8 @@ function maskSecret(v) {
 function cleanReplyForUser(v) {
   let t = cleanText(v);
   if (!t) return "";
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I am here with you. We can take this one step at a time.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I can continue from your next instruction.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I can continue from your next instruction.");
   t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
   t = t.replace(/\bbackend\b/ig, "system");
   t = t.replace(/\s+([,.!?])/g, "$1").trim();
@@ -430,8 +430,8 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
   const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
   const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
   const reply = technical
-    ? "A stale support loop was blocked. Marion needs a fresh final signature for this turn."
-    : "A stale support loop was blocked. Please send your next message after Marion finalizes the turn.";
+    ? "That loop phrase was blocked. Send the exact file, route, or response you want checked next."
+    : "That loop phrase was blocked. Send a fresh message and I’ll continue.";
   return {
     ok: true,
     final: true,
@@ -3155,7 +3155,7 @@ function inferEmotion(text, reqCtx) {
 function normalizeSupportReply(text) {
   const cleaned = cleanReplyForUser(text);
   if (cleaned) return cleaned;
-  return "I am here with you. We can take this one step at a time.";
+  return "I can continue from your next instruction.";
 }
 
 function buildSafeSupportReply(inputText, emotion, extras) {
@@ -3812,6 +3812,43 @@ function normalizeMarionBridgeResult(raw, input) {
 
   const reply = getMarionAuthorityReply(base) || getMarionAuthorityReply(src) || getMarionAuthorityReply(result);
   if (!reply || base.ok === false || src.ok === false) return raw;
+
+  // Critical loop hardlock discipline:
+  // Do not let the index normalizer mint a fresh Marion signature for a known stale support phrase.
+  // A signed stale phrase was the cause of the visible loop: the final envelope became valid,
+  // so the final gate allowed the bad reply through. This keeps architecture intact while
+  // forcing the chat route to reject/regate the phrase downstream.
+  if (isBlockedLoopingSupportReply(reply)) {
+    const blockedMeta = {
+      ...(isObj(base.meta) ? base.meta : {}),
+      indexBridgeNormalized: true,
+      loopReplyBlockedCandidate: true,
+      hardlockCompatible: false,
+      final: false,
+      marionFinal: false
+    };
+    return {
+      ...base,
+      ok: false,
+      final: false,
+      handled: true,
+      marionFinal: false,
+      loopReplyBlockedCandidate: true,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      meta: blockedMeta,
+      diagnostics: {
+        ...(isObj(base.diagnostics) ? base.diagnostics : {}),
+        indexBridgeNormalized: true,
+        loopReplyBlockedCandidate: true,
+        reason: "stale_support_phrase_not_signed_by_index"
+      }
+    };
+  }
 
   const req = isObj(input) ? input : {};
   const reqMeta = isObj(req.meta) ? req.meta : {};
@@ -5887,7 +5924,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   marion = normalizeMarionBridgeResult(marion, marionInput);
   const marionReply = getMarionAuthorityReply(marion);
   const marionHasFreshEnvelope = hasFreshMarionFinalEnvelope(marion);
-  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply) && !marionHasFreshEnvelope;
+  const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply);
   if (marionReplyBlocked) {
     loopReplyWasBlocked = true;
     console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
@@ -5920,7 +5957,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       console.log("[Sandblast][chatRoute:engine_transport_error]", { traceId: norm.traceId, error: errorDetail });
     }
     const engineReply = cleanText(engine && (engine.reply || engine.text || engine.answer || engine.output || engine.response || engine.message || (engine.payload && (engine.payload.reply || engine.payload.text)) || ""));
-    const engineReplyBlocked = isBlockedLoopingSupportReply(engineReply) && !hasFreshMarionFinalEnvelope(engine);
+    const engineReplyBlocked = isBlockedLoopingSupportReply(engineReply);
     if (engineReplyBlocked) {
       loopReplyWasBlocked = true;
       console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "chat_engine", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
@@ -5967,7 +6004,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
-  if (isBlockedLoopingSupportReply(reply) && !hasFreshMarionFinalEnvelope(selected)) {
+  if (isBlockedLoopingSupportReply(reply)) {
     selected = buildLoopReplyBlockedReplacement(norm, authority);
     authority = "index_loop_phrase_hardlock";
     reply = cleanReplyForUser(selected.reply || "");
