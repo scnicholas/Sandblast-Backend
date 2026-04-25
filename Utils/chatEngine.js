@@ -19,7 +19,8 @@
  * - No fallbackResponse/replySeed promotion unless it is part of a final Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.0.0 COORDINATOR-ONLY-MARION-FINAL";
+const VERSION = "ChatEngine v3.0.1 COORDINATOR-ONLY-MARION-FINAL + ACTIVE-SIGNATURE";
+const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -383,6 +384,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
 
     meta: {
       engineVersion: VERSION,
+      chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "none",
@@ -394,6 +396,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
 
     diagnostics: {
       engineVersion: VERSION,
+      chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       coordinatorOnly: true,
       error: true,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
@@ -477,6 +480,7 @@ function buildStructuredFinalReply(input = {}) {
     meta: {
       ...safeObj(input.meta),
       engineVersion: VERSION,
+      chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "marion_final",
@@ -490,6 +494,7 @@ function buildStructuredFinalReply(input = {}) {
     diagnostics: {
       ...safeObj(input.diagnostics),
       engineVersion: VERSION,
+      chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       coordinatorOnly: true,
       acceptedFinalEnvelope: true,
       replyPreview: clipText(reply, 160)
@@ -685,6 +690,7 @@ function shouldLockMarionAuthority(source = {}) {
 if (typeof module !== "undefined") {
   module.exports = {
     VERSION,
+    CHAT_ENGINE_SIGNATURE,
     ChatEngine,
     handleChat,
     run,
