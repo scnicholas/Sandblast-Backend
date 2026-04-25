@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-PHRASE-FINAL-GATE-V28";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -429,19 +429,31 @@ function hasFreshMarionFinalEnvelope(value) {
 function buildLoopReplyBlockedReplacement(norm, authority) {
   const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
   const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
+
+  // Recovery must not contain any phrase listed in CHAT_LOOP_PHRASE_PATTERNS.
+  // Otherwise the final response gate can block its own recovery message and create a second-order loop.
   const reply = technical
-    ? "That loop phrase was blocked. Send the exact file, route, or response you want checked next."
-    : "That loop phrase was blocked. Send a fresh message and I’ll continue.";
+    ? "Ready. Send the specific file, route, or response you want checked next."
+    : "Ready. Send the next instruction and I’ll continue.";
+
   return {
     ok: true,
     final: true,
     handled: true,
     marionFinal: false,
+    recoveryInjected: true,
     reply,
     text: reply,
     answer: reply,
     output: reply,
-    payload: { reply, text: reply, message: reply, spokenText: reply, loopReplyBlocked: true },
+    payload: {
+      reply,
+      text: reply,
+      message: reply,
+      spokenText: reply,
+      loopReplyBlocked: true,
+      recoveryInjected: true
+    },
     meta: {
       v: INDEX_VERSION,
       t: now(),
@@ -449,17 +461,19 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       transportOnly: true,
       noSupportDecision: true,
       noEmotionDecision: true,
-      replyAuthority: "index_loop_phrase_hardlock",
+      replyAuthority: "index_loop_phrase_recovery",
       blockedAuthority: cleanText(authority || "unknown"),
       loopReplyBlocked: true,
+      recoveryInjected: true,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb"
     },
     diagnostics: {
       loopReplyBlocked: true,
+      recoveryInjected: true,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb",
-      reason: "blocked_stale_support_phrase_without_fresh_marion_final_signature"
+      reason: "stale_loop_phrase_replaced_with_non_matching_recovery"
     }
   };
 }
@@ -5973,7 +5987,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   if (!selected && loopReplyWasBlocked) {
     selected = buildLoopReplyBlockedReplacement(norm, "stale_support_phrase");
-    authority = "index_loop_phrase_hardlock";
+    authority = "index_loop_phrase_recovery";
   }
 
   if (!selected) {
@@ -6006,9 +6020,25 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
   if (isBlockedLoopingSupportReply(reply)) {
     selected = buildLoopReplyBlockedReplacement(norm, authority);
-    authority = "index_loop_phrase_hardlock";
+    authority = "index_loop_phrase_recovery";
     reply = cleanReplyForUser(selected.reply || "");
   }
+  if (isBlockedLoopingSupportReply(reply)) {
+    reply = "Ready. Please send the next instruction.";
+    selected = {
+      ok: true,
+      final: true,
+      handled: true,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      payload: { reply, text: reply, message: reply, spokenText: reply, recoveryInjected: true },
+      meta: { v: INDEX_VERSION, t: now(), replyAuthority: "index_loop_phrase_last_resort", recoveryInjected: true }
+    };
+    authority = "index_loop_phrase_last_resort";
+  }
+
   selected = normalizeReplyEnvelope(selected, reply, {
     v: INDEX_VERSION,
     t: now(),
