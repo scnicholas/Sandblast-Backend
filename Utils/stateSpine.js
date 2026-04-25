@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.6.0 LOOP-BREAK TECHNICAL-ESCAPE PRESENCE-SYNC";
+const SPINE_VERSION = "stateSpine v1.7.0 SUPPORT-LOCK LOOP-HARDEN PRESENCE-SYNC LOOP-ESCAPE MARION-COHESION";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.5";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
@@ -417,11 +417,16 @@ function inferConversationPhase(prevState, inbound, plannerDecision) {
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev);
+  const plannerStage = safeStr(plannerDecision?.stage || "").toLowerCase();
+
   if (audio.shouldStop) return "recovery";
   if (prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs()) return "recovery";
+
+  const activeHold = clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0;
+  const activeSupportLock = !!(emo.supportLockSignal || prev.support.lockActive || activeHold);
+  if (activeSupportLock || plannerStage === "recovery" || plannerStage === "terminal_stop") return "recovery";
+
   if (technical) return "execution";
-  if (emo.supportLockSignal || prev.support.lockActive) return "recovery";
-  if (safeStr(plannerDecision?.stage || "").toLowerCase() === "recovery") return "recovery";
   return inferPhaseFromStage(prev.stage, false);
 }
 
@@ -436,7 +441,9 @@ function decideNextMove(prevState, inbound) {
 
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameIntent = !!(intent && prev.lastIntent && intent === prev.lastIntent);
-  const mentionsLooping = emo.mentionsLooping || sameUser;
+  const repeatedSupportHold = clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0;
+  const loopPressure = Number(prev?.repetition?.noProgressCount || 0) >= 2 || Number(prev?.repetition?.sameAssistantHashCount || 0) >= 2;
+  const mentionsLooping = !!(emo.mentionsLooping || (sameUser && sameIntent) || loopPressure);
 
   if (audio.shouldStop || terminalStopActive) {
     return {
@@ -468,11 +475,11 @@ function decideNextMove(prevState, inbound) {
     };
   }
 
-  if (emo.supportLockSignal || emo.highDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE") {
+  if (emo.supportLockSignal || emo.highDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE" || repeatedSupportHold) {
     return {
       move: "STABILIZE",
       stage: "recovery",
-      rationale: emo.mentionsLooping ? "support_lock_loop_guard" : "emotion_stabilize",
+      rationale: mentionsLooping ? "support_lock_loop_guard" : "emotion_stabilize",
       speak: "",
       _plannerMode: "support"
     };
@@ -480,19 +487,19 @@ function decideNextMove(prevState, inbound) {
 
   if (technical) {
     return {
-      move: mentionsLooping || sameIntent ? "STABILIZE" : "ADVANCE",
+      move: "ADVANCE",
       stage: "execution",
-      rationale: mentionsLooping || sameIntent ? "technical_loop_guard" : "technical_execution",
+      rationale: mentionsLooping ? "technical_loop_escape" : "technical_execution",
       speak: "",
       _plannerMode: "execution"
     };
   }
 
-  if (mentionsLooping || (sameUser && sameIntent)) {
+  if (mentionsLooping) {
     return {
       move: "STABILIZE",
       stage: "recovery",
-      rationale: mentionsLooping ? "route_exhaustion_guard" : "same_turn_repeat_guard",
+      rationale: "route_exhaustion_guard",
       speak: "",
       _plannerMode: "stabilize"
     };
@@ -505,6 +512,20 @@ function decideNextMove(prevState, inbound) {
     speak: "",
     _plannerMode: technical ? "execution" : "advance"
   };
+}
+
+function hasMarionFinalSignal(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = isPlainObject(p.marion) ? p.marion : (isPlainObject(meta.marion) ? meta.marion : {});
+  return !!(
+    p.marionFinal || p.final ||
+    inbound.marionFinal || inbound.final ||
+    meta.marionFinal || meta.final ||
+    marion.marionFinal || marion.final ||
+    safeStr(p.marionFinalSignature || meta.marionFinalSignature || marion.marionFinalSignature || "")
+  );
 }
 
 function finalizeTurn(params = {}) {
@@ -523,6 +544,7 @@ function finalizeTurn(params = {}) {
   const sameIntent = intent === prev.lastIntent;
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameAssistant = !!(assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
+  const marionFinalSignal = hasMarionFinalSignal(params);
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
@@ -532,15 +554,15 @@ function finalizeTurn(params = {}) {
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
   const supportLockActive = !!(
     emo.supportLockSignal ||
-    stage === "recovery" ||
     stage === "terminal_stop" ||
-    safeStr(intent) === "STABILIZE"
+    safeStr(intent) === "STABILIZE" ||
+    (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
   const progressionLock = !!(
     supportLockActive ||
     audio.shouldStop ||
-    (!technical && sameUser) ||
-    (!technical && sameAssistant && sameStage)
+    (!marionFinalSignal && sameAssistant && sameStage && clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999) >= 1) ||
+    (sameUser && sameIntent && clampInt(prev.repetition?.sameUserHashCount, 0, 0, 999999) >= 1)
   );
 
   const repetition = {
@@ -554,7 +576,7 @@ function finalizeTurn(params = {}) {
     sameArchetypeCount: emo.sameArchetypeCount,
     noProgressCount: Math.max(
       emo.noProgressTurnCount,
-      (sameStage && sameIntent && sameLane) ? prev.repetition.noProgressCount + 1 : 0
+      (sameStage && sameIntent && sameLane && !marionFinalSignal) ? prev.repetition.noProgressCount + 1 : 0
     ),
     fallbackCount: Math.max(
       emo.repeatedFallbackCount,
@@ -571,9 +593,9 @@ function finalizeTurn(params = {}) {
   const support = {
     lockActive: supportLockActive || holdTurns > 0,
     lockBias: emo.shouldSuppressMenus ? "strong" : (prev.support.lockBias || ""),
-    quietTurns: emo.shouldSuppressMenus ? prev.support.quietTurns + 1 : 0,
+    quietTurns: emo.shouldSuppressMenus ? prev.support.quietTurns + 1 : Math.max(clampInt(prev.support.quietTurns, 0, 0, 999999) - 1, 0),
     holdTurns,
-    reason: supportLockActive ? safeStr(decision.rationale || intent || "support_lock") : "",
+    reason: (supportLockActive || holdTurns > 0) ? safeStr(decision.rationale || prev.support.reason || intent || "support_lock") : "",
     shouldSuppressMenus: !!emo.shouldSuppressMenus,
     supportMode: safeStr(emo.supportMode || prev.support.supportMode || ""),
     archetype: safeStr(inbound?.turnSignals?.emotionArchetype || prev.support.archetype || ""),
@@ -582,7 +604,7 @@ function finalizeTurn(params = {}) {
     emotionCluster: safeStr(emo.emotionCluster || prev.support.emotionCluster || "")
   };
 
-  const volatility = audio.shouldStop || support.lockActive || (!technical && (progressionLock || repetition.noProgressCount >= 1))
+  const volatility = audio.shouldStop || progressionLock || repetition.noProgressCount >= 1 || support.lockActive
     ? "elevated"
     : repetition.sameStageCount >= 2
       ? "guarded"
@@ -601,10 +623,11 @@ function finalizeTurn(params = {}) {
 
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
-    threadContinuation: !!(sameLane || sameIntent || sameUser || sameAssistant || support.lockActive),
+    threadContinuation: !!(sameLane || sameIntent || sameUser || sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
     lastTopics: [safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
     responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
+    marionFinalObserved: marionFinalSignal,
     updatedAt: nowMs()
   };
 
