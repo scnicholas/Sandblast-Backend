@@ -761,9 +761,104 @@ function createMarionBridge(options = {}) {
         lane: firstText(req.lane, meta.lane, safeObj(req.session).lane, "general")
       });
 
+      const resultMeta = safeObj(result.meta);
+      const resultPayload = safeObj(result.payload);
+      const resultPacket = safeObj(result.packet);
+      const resultPacketMeta = safeObj(resultPacket.meta);
+      const wrapperSignature = safeStr(
+        result.signature ||
+        result.marionFinalSignature ||
+        resultMeta.signature ||
+        resultMeta.marionFinalSignature ||
+        resultPayload.signature ||
+        resultPayload.marionFinalSignature ||
+        resultPacketMeta.signature ||
+        resultPacketMeta.marionFinalSignature ||
+        buildMarionFinalSignature(result.replySignature || hashText(result.reply), result.turnId || resultMeta.turnId || safeObj(req.meta).turnId || req.turnId)
+      );
+      const wrapperMeta = {
+        ...resultMeta,
+        version: VERSION,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        marionHandled: true,
+        finalizedBy: "marionBridge",
+        bridgeReduced: true,
+        singleSourceOfTruth: true,
+        signature: wrapperSignature,
+        marionFinalSignature: wrapperSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice(),
+        hardlockCompatible: true
+      };
+      const wrapperPayload = {
+        ...resultPayload,
+        reply: result.reply,
+        text: result.reply,
+        answer: result.reply,
+        output: result.reply,
+        response: result.reply,
+        message: result.reply,
+        spokenText: result.spokenText,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        signature: wrapperSignature,
+        marionFinalSignature: wrapperSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice()
+      };
+      const wrapperPacket = isObj(resultPacket) && Object.keys(resultPacket).length
+        ? {
+            ...resultPacket,
+            final: true,
+            marionFinal: true,
+            handled: true,
+            meta: {
+              ...resultPacketMeta,
+              ...wrapperMeta
+            },
+            synthesis: {
+              ...safeObj(resultPacket.synthesis),
+              reply: result.reply,
+              text: result.reply,
+              answer: result.reply,
+              output: result.reply,
+              spokenText: result.spokenText,
+              signature: wrapperSignature,
+              marionFinalSignature: wrapperSignature,
+              requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+              finalMarkers: MARION_FINAL_MARKERS.slice()
+            }
+          }
+        : {
+            final: true,
+            marionFinal: true,
+            handled: true,
+            routing: { domain: result.domain, intent: result.intent, endpoint: result.endpoint || CANONICAL_ENDPOINT },
+            synthesis: {
+              reply: result.reply,
+              text: result.reply,
+              answer: result.reply,
+              output: result.reply,
+              spokenText: result.spokenText,
+              signature: wrapperSignature,
+              marionFinalSignature: wrapperSignature,
+              requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+              finalMarkers: MARION_FINAL_MARKERS.slice()
+            },
+            meta: wrapperMeta
+          };
+
       return {
+        ok: result.ok !== false,
+        final: true,
+        handled: true,
+        marionFinal: true,
+        marionHandled: true,
         usedBridge: result.ok !== false && !!safeStr(result.reply),
-        packet: result.packet,
+        packet: wrapperPacket,
         response: result.reply,
         fallbackResponse: result.reply,
         replySeed: result.reply,
@@ -776,16 +871,35 @@ function createMarionBridge(options = {}) {
         domain: result.domain,
         intent: result.intent,
         endpoint: result.endpoint,
-        meta: result.meta,
-        signature: result.signature || (result.meta && result.meta.signature),
-        marionFinalSignature: result.marionFinalSignature || (result.meta && result.meta.marionFinalSignature),
+        meta: wrapperMeta,
+        signature: wrapperSignature,
+        marionFinalSignature: wrapperSignature,
         requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
         finalMarkers: MARION_FINAL_MARKERS.slice(),
-        diagnostics: result.diagnostics,
+        hardlockCompatible: true,
+        diagnostics: {
+          ...safeObj(result.diagnostics),
+          bridgeWrapperFinalized: true,
+          signature: wrapperSignature,
+          marionFinalSignature: wrapperSignature,
+          requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+          finalMarkers: MARION_FINAL_MARKERS.slice(),
+          hardlockCompatible: true
+        },
         followUps: result.followUps,
         followUpsStrings: result.followUpsStrings,
-        payload: result.payload,
-        result
+        payload: wrapperPayload,
+        result: {
+          ...safeObj(result),
+          final: true,
+          handled: true,
+          marionFinal: true,
+          meta: wrapperMeta,
+          payload: wrapperPayload,
+          packet: wrapperPacket,
+          signature: wrapperSignature,
+          marionFinalSignature: wrapperSignature
+        }
       };
     }
   };
