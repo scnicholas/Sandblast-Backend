@@ -14,8 +14,8 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.7.0 SUPPORT-LOCK LOOP-HARDEN PRESENCE-SYNC LOOP-ESCAPE MARION-COHESION";
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.5";
+const SPINE_VERSION = "stateSpine v1.8.0 SUPPORT-LOCK LOOP-HARDEN MARION-COMPOSER-COHESION";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
@@ -52,6 +52,86 @@ function hashText(v) {
 
 function nowMs() {
   return Date.now();
+}
+
+function canonicalIntent(value, fallback) {
+  const raw = safeStr(value || fallback || "ADVANCE").trim();
+  if (!raw) return "ADVANCE";
+  return raw.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase() || "ADVANCE";
+}
+
+function firstNonEmpty() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const s = oneLine(arguments[i]);
+    if (s) return s;
+  }
+  return "";
+}
+
+function extractNested(obj, path) {
+  let cur = obj;
+  for (const key of path) {
+    if (!isPlainObject(cur)) return undefined;
+    cur = cur[key];
+  }
+  return cur;
+}
+
+function extractMarionObject(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const candidates = [
+    p.marion, p.composer, p.contract, p.result, p.response, p.marionContract,
+    inbound.marion, inbound.contract, inbound.result, inbound.response,
+    meta.marion, meta.marionContract, meta.result,
+    extractNested(inbound, ["meta", "marion"]),
+    extractNested(inbound, ["meta", "marionContract"])
+  ];
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate)) return candidate;
+  }
+  return {};
+}
+
+function extractComposerMemoryPatch(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const candidates = [
+    p.memoryPatch, inbound.memoryPatch, meta.memoryPatch, marion.memoryPatch, synthesis.memoryPatch,
+    extractNested(marion, ["payload", "memoryPatch"]),
+    extractNested(marion, ["meta", "memoryPatch"]),
+    extractNested(inbound, ["payload", "memoryPatch"]),
+    extractNested(inbound, ["meta", "memoryPatch"])
+  ];
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate)) return candidate;
+  }
+  return {};
+}
+
+function extractComposerReply(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  return firstNonEmpty(
+    p.reply, p.assistantText, p.assistantSummary,
+    marion.reply, marion.text, marion.answer, marion.output, marion.response,
+    payload.reply, payload.text, payload.answer, payload.output, payload.message,
+    synthesis.reply, synthesis.text, synthesis.answer, synthesis.output,
+    inbound.reply, inbound.response
+  );
+}
+
+function hashUserTextForComposer(text) {
+  return hashText(oneLine(text).toLowerCase());
 }
 
 function createState(seed = {}) {
@@ -131,6 +211,19 @@ function createState(seed = {}) {
       unresolvedSignals: [],
       lastTopics: [],
       responseMode: "steady",
+      updatedAt: 0
+    },
+    marionCohesion: {
+      composerObserved: false,
+      marionFinalObserved: false,
+      lastComposerIntent: "",
+      lastComposerDomain: "",
+      lastComposerUserSignature: "",
+      lastComposerReplySignature: "",
+      lastMarionFinalSignature: "",
+      statePatchRequired: false,
+      shouldAdvanceState: false,
+      noProgressCount: 0,
       updatedAt: 0
     },
     lastUpdatedAt: 0
@@ -222,6 +315,19 @@ function coerceState(input) {
       lastTopics: Array.isArray(src?.continuityThread?.lastTopics) ? src.continuityThread.lastTopics.slice(0, 6).map((x) => safeStr(x)) : [],
       responseMode: safeStr(src?.continuityThread?.responseMode || "steady") || "steady",
       updatedAt: Number(src?.continuityThread?.updatedAt || 0) || 0
+    },
+    marionCohesion: {
+      composerObserved: !!src?.marionCohesion?.composerObserved,
+      marionFinalObserved: !!src?.marionCohesion?.marionFinalObserved,
+      lastComposerIntent: safeStr(src?.marionCohesion?.lastComposerIntent || ""),
+      lastComposerDomain: safeStr(src?.marionCohesion?.lastComposerDomain || ""),
+      lastComposerUserSignature: safeStr(src?.marionCohesion?.lastComposerUserSignature || ""),
+      lastComposerReplySignature: safeStr(src?.marionCohesion?.lastComposerReplySignature || ""),
+      lastMarionFinalSignature: safeStr(src?.marionCohesion?.lastMarionFinalSignature || ""),
+      statePatchRequired: !!src?.marionCohesion?.statePatchRequired,
+      shouldAdvanceState: !!src?.marionCohesion?.shouldAdvanceState,
+      noProgressCount: clampInt(src?.marionCohesion?.noProgressCount, 0, 0, 999999),
+      updatedAt: Number(src?.marionCohesion?.updatedAt || 0) || 0
     },
     lastUpdatedAt: Number(src.lastUpdatedAt || 0) || 0
   };
@@ -518,13 +624,36 @@ function hasMarionFinalSignal(params = {}) {
   const p = isPlainObject(params) ? params : {};
   const inbound = isPlainObject(p.inbound) ? p.inbound : {};
   const meta = isPlainObject(p.meta) ? p.meta : {};
-  const marion = isPlainObject(p.marion) ? p.marion : (isPlainObject(meta.marion) ? meta.marion : {});
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const sig = firstNonEmpty(
+    p.marionFinalSignature,
+    p.signature,
+    meta.marionFinalSignature,
+    meta.signature,
+    marion.marionFinalSignature,
+    marion.signature,
+    packetMeta.marionFinalSignature,
+    packetMeta.signature,
+    payload.marionFinalSignature,
+    payload.signature,
+    memoryPatch.marionFinalSignature,
+    extractNested(inbound, ["meta", "marionFinalSignature"]),
+    extractNested(inbound, ["packet", "meta", "marionFinalSignature"])
+  );
   return !!(
-    p.marionFinal || p.final ||
-    inbound.marionFinal || inbound.final ||
-    meta.marionFinal || meta.final ||
-    marion.marionFinal || marion.final ||
-    safeStr(p.marionFinalSignature || meta.marionFinalSignature || marion.marionFinalSignature || "")
+    p.marionFinal || p.final || p.handled ||
+    inbound.marionFinal || inbound.final || inbound.handled ||
+    meta.marionFinal || meta.final || meta.handled ||
+    marion.marionFinal || marion.final || marion.handled ||
+    packet.marionFinal || packet.final || packet.handled ||
+    packetMeta.marionFinal || packetMeta.final || packetMeta.handled ||
+    payload.marionFinal || payload.final || payload.handled ||
+    memoryPatch.marionFinal || memoryPatch.final || memoryPatch.composedOnce ||
+    sig
   );
 }
 
@@ -533,11 +662,16 @@ function finalizeTurn(params = {}) {
   const inbound = isPlainObject(params.inbound) ? params.inbound : {};
   const decision = isPlainObject(params.decision) ? params.decision : {};
   const lane = safeStr(params.lane || inbound.lane || prev.lane || "general") || "general";
-  const stage = safeStr(decision.stage || params.stage || prev.stage || "deliver").toLowerCase() || "deliver";
-  const intent = safeStr(params.marionCog?.intent || decision.move || extractIntent(inbound)).toUpperCase();
+  const memoryPatch = extractComposerMemoryPatch(params);
+  const marion = extractMarionObject(params);
+  const composerIntent = firstNonEmpty(memoryPatch.lastIntent, marion.intent, params.intent, params.marionCog?.intent);
+  const composerDomain = firstNonEmpty(memoryPatch.lastDomain, marion.domain, params.domain, lane);
+  const marionReply = extractComposerReply(params);
+  let stage = safeStr(decision.stage || params.stage || prev.stage || "deliver").toLowerCase() || "deliver";
+  const intent = canonicalIntent(composerIntent || decision.move || extractIntent(inbound));
   const actionTaken = safeStr(params.actionTaken || inbound.action || inbound?.payload?.action || "");
-  const speak = oneLine(safeStr(decision.speak || params.assistantSummary || params.assistantText || params.reply || ""));
-  const userHash = hashText(oneLine(inbound.text || "").toLowerCase());
+  const speak = oneLine(safeStr(decision.speak || marionReply || params.assistantSummary || params.assistantText || params.reply || ""));
+  const userHash = firstNonEmpty(memoryPatch.userSignature, memoryPatch.lastUserSignature, hashUserTextForComposer(inbound.text || ""));
   const assistantHash = hashText(speak.toLowerCase());
   const sameLane = lane === prev.lane;
   const sameStage = stage === prev.stage;
@@ -545,6 +679,10 @@ function finalizeTurn(params = {}) {
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameAssistant = !!(assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
   const marionFinalSignal = hasMarionFinalSignal(params);
+  const composerAdvancedState = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState || memoryPatch.composedOnce || marionFinalSignal);
+  if (marionFinalSignal && composerAdvancedState && stage === "recovery" && isTechnicalInbound(inbound)) {
+    stage = "execution";
+  }
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
@@ -552,7 +690,16 @@ function finalizeTurn(params = {}) {
   const engineSignals = normalizeEmotionalEngineSignals(inbound, prev);
 
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
-  const supportLockActive = !!(
+  const releaseSupportLock = !!(
+    marionFinalSignal &&
+    composerAdvancedState &&
+    speak &&
+    !emo.highDistress &&
+    !emo.supportLockSignal &&
+    stage !== "terminal_stop" &&
+    !audio.shouldStop
+  );
+  const supportLockActive = !releaseSupportLock && !!(
     emo.supportLockSignal ||
     stage === "terminal_stop" ||
     safeStr(intent) === "STABILIZE" ||
@@ -574,10 +721,12 @@ function finalizeTurn(params = {}) {
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
-    noProgressCount: Math.max(
-      emo.noProgressTurnCount,
-      (sameStage && sameIntent && sameLane && !marionFinalSignal) ? prev.repetition.noProgressCount + 1 : 0
-    ),
+    noProgressCount: marionFinalSignal && composerAdvancedState
+      ? clampInt(memoryPatch.noProgressCount, 0, 0, 999999)
+      : Math.max(
+          emo.noProgressTurnCount,
+          (sameStage && sameIntent && sameLane) ? prev.repetition.noProgressCount + 1 : 0
+        ),
     fallbackCount: Math.max(
       emo.repeatedFallbackCount,
       /failopen|fallback|breaker|stabilize|audio_terminal|audio_downgrade|support_lock/i.test(
@@ -586,9 +735,11 @@ function finalizeTurn(params = {}) {
     )
   };
 
-  const holdTurns = supportLockActive
-    ? Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999), emo.highDistress ? 2 : 1)
-    : Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999) - 1, 0);
+  const holdTurns = releaseSupportLock
+    ? 0
+    : supportLockActive
+      ? Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999), emo.highDistress ? 2 : 1)
+      : Math.max(clampInt(prev.support.holdTurns, 0, 0, 999999) - 1, 0);
 
   const support = {
     lockActive: supportLockActive || holdTurns > 0,
@@ -635,7 +786,7 @@ function finalizeTurn(params = {}) {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
-    domain: lane,
+    domain: safeStr(composerDomain || lane) || lane,
     stage,
     phase: inferPhaseFromStage(stage, progressionLock),
     lastIntent: intent,
@@ -672,6 +823,19 @@ function finalizeTurn(params = {}) {
     },
     emotionalEngine,
     continuityThread,
+    marionCohesion: {
+      composerObserved: !!Object.keys(memoryPatch).length,
+      marionFinalObserved: marionFinalSignal,
+      lastComposerIntent: safeStr(memoryPatch.lastIntent || marion.intent || ""),
+      lastComposerDomain: safeStr(memoryPatch.lastDomain || marion.domain || ""),
+      lastComposerUserSignature: safeStr(memoryPatch.userSignature || memoryPatch.lastUserSignature || ""),
+      lastComposerReplySignature: safeStr(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
+      lastMarionFinalSignature: firstNonEmpty(memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature),
+      statePatchRequired: !!(marion?.nyxDirective?.statePatchRequired || memoryPatch?.stateBridge?.expectedStateMutation),
+      shouldAdvanceState: composerAdvancedState,
+      noProgressCount: clampInt(memoryPatch.noProgressCount, repetition.noProgressCount, 0, 999999),
+      updatedAt: nowMs()
+    },
     lastUpdatedAt: nowMs()
   };
 }
@@ -687,7 +851,9 @@ function assertTurnUpdated(prevState, nextState) {
     !!next?.audio?.playbackReady !== !!prev?.audio?.playbackReady ||
     safeStr(next?.audio?.lastAudioUrl || "") !== safeStr(prev?.audio?.lastAudioUrl || "") ||
     !!next?.support?.lockActive !== !!prev?.support?.lockActive ||
-    clampInt(next?.repetition?.sameEmotionCount, 0, 0, 999999) !== clampInt(prev?.repetition?.sameEmotionCount, 0, 0, 999999);
+    clampInt(next?.repetition?.sameEmotionCount, 0, 0, 999999) !== clampInt(prev?.repetition?.sameEmotionCount, 0, 0, 999999) ||
+    safeStr(next?.marionCohesion?.lastMarionFinalSignature || "") !== safeStr(prev?.marionCohesion?.lastMarionFinalSignature || "") ||
+    !!next?.marionCohesion?.shouldAdvanceState !== !!prev?.marionCohesion?.shouldAdvanceState;
 }
 
 module.exports = {
@@ -700,6 +866,9 @@ module.exports = {
   decideNextMove,
   finalizeTurn,
   assertTurnUpdated,
+  hasMarionFinalSignal,
+  extractComposerMemoryPatch,
+  extractComposerReply,
   normalizeAudioSignal,
   normalizeEmotionSignals,
   normalizeEmotionalEngineSignals
