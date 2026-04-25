@@ -10,7 +10,7 @@
  * - Never shape final replies, support mode, intent, transport, or Marion packets.
  */
 
-const VERSION = "sitebridge.disabled.v1 PHASE3-DATA-HINTS-ONLY";
+const VERSION = "sitebridge.disabled.v1.1 PHASE3-DATA-HINTS-ONLY-NON-AUTHORITY-CONFIRMED";
 
 function build(input = {}) {
   const features = input && typeof input === "object" && input.features && typeof input.features === "object" ? input.features : {};
