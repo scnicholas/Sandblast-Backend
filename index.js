@@ -306,8 +306,9 @@ const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_MARION_FINAL_MARKERS = [
   REQUIRED_CHAT_ENGINE_SIGNATURE,
-  "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF",
-  "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION"
+  "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF",
+  "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK",
+  "nyx.marion.stateSpine/1.6"
 ];
 const CHAT_LOOP_PHRASE_PATTERNS = [
   /^i am here with you,? and i can stay with this clearly$/i,
@@ -335,7 +336,7 @@ function isBlockedLoopingSupportReply(value) {
 function isFreshMarionSignatureString(value) {
   const s = cleanText(value || "");
   if (!s) return false;
-  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE)) return true;
+  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE) && s.includes("nyx.marion.stateSpine/1.6")) return true;
   return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
 }
 
@@ -3061,6 +3062,12 @@ function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, 
       reply: decision.speak,
       assistantText: decision.speak,
       marionCog: isObj(shaped && shaped.cog) ? shaped.cog : { intent: decision.move, mode: decision._plannerMode },
+      marion,
+      composer: marionContract,
+      contract: marionContract,
+      result: shaped,
+      memoryPatch: isObj(marionContract && marionContract.memoryPatch) ? marionContract.memoryPatch : (isObj(marion && marion.memoryPatch) ? marion.memoryPatch : {}),
+      marionFinalSignature: cleanText((marion && (marion.marionFinalSignature || marion.signature)) || (marionContract && (marionContract.marionFinalSignature || marionContract.signature)) || ""),
       updateReason: cleanText(decision.rationale || "")
     });
     return setStateSpine(sessionId, next);
