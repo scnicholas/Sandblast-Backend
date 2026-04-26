@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "psychologyRetriever v2.1.0 HARDENED-INTEGRATION-READY";
+const VERSION = "psychologyRetriever v2.2.0 STATE-SPINE-COHESION-HARDENED";
 const FILE_NAME = "psychologyRetriever.js";
 
 let _cache = {
@@ -589,6 +589,28 @@ function retrievePsychology(input = {}) {
       routeMapAvailable: !!_cache.routeMapPath,
       supportMapAvailable: !!_cache.supportMapPath,
       retrievalPolicy: _safeObj(compiled.retrievalPolicy)
+    },
+    turnSignals: {
+      stateSpineCompatible: true,
+      emotionPrimary: _lower(_safeObj(emotion).primaryEmotion || _safeObj(emotion).emotion || "neutral") || "neutral",
+      emotionCluster: riskLevel === "critical" || riskLevel === "high" ? "high_distress" : (primary ? "psychology" : "neutral"),
+      emotionNeedCrisis: riskLevel === "critical" || !!_safeObj(supportFlags).crisis,
+      emotionNeedSoft: riskLevel === "high" || !!(_safeObj(supportFlags).highDistress || _safeObj(supportFlags).needsStabilization),
+      emotionShouldSuppressMenus: !!(_safeObj(supportFlags).crisis || _safeObj(supportFlags).needsContainment || _safeObj(supportFlags).highDistress),
+      emotionSupportLock: !!(_safeObj(supportFlags).crisis || _safeObj(supportFlags).needsContainment || _safeObj(supportFlags).highDistress),
+      emotionSupportMode: recommendedApproach || "supportive",
+      questionStyle: _safeObj(responsePlan).followupStyle || "reflective",
+      enginePrimaryState: _lower(_safeObj(emotion).primaryEmotion || _safeObj(emotion).emotion || "focused") || "focused",
+      engineSecondaryState: riskLevel || "steady",
+      engineContinuityScore: confidence
+    },
+    stateSpinePatch: {
+      source: FILE_NAME,
+      schema: "nyx.marion.stateSpine/1.6",
+      shouldAdvanceState: false,
+      riskLevel,
+      recommendedApproach,
+      emotionCluster: riskLevel === "critical" || riskLevel === "high" ? "high_distress" : (primary ? "psychology" : "neutral")
     }
   };
 }
