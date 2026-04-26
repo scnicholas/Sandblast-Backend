@@ -19,10 +19,13 @@
  * - No fallbackResponse/replySeed promotion unless it is part of a final Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.1.0 COORDINATOR-ONLY-STATE-SPINE-COMPAT";
+const VERSION = "ChatEngine v3.2.0 COORDINATOR-ONLY-MARION-FINAL-ENVELOPE-AUTHORITY";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
+const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -124,11 +127,17 @@ function objectContainsTrustedFinalSignature(value, depth = 0) {
   if (depth > 8 || value == null) return false;
   if (typeof value === "string") {
     const s = cleanText(value);
-    return !!(s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && s.indexOf(CHAT_ENGINE_SIGNATURE) !== -1);
+    return !!(
+      (s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && s.indexOf(CHAT_ENGINE_SIGNATURE) !== -1) ||
+      s === FINAL_SIGNATURE
+    );
   }
   if (Array.isArray(value)) return value.some((item) => objectContainsTrustedFinalSignature(item, depth + 1));
   if (isPlainObject(value)) {
-    if (value.requiredSignature === CHAT_ENGINE_SIGNATURE && cleanText(value.marionFinalSignature || value.signature).indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0) return true;
+    const signature = cleanText(value.marionFinalSignature || value.finalSignature || value.signature);
+    if (value.requiredSignature === CHAT_ENGINE_SIGNATURE && signature.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0) return true;
+    if (value.contractVersion === FINAL_ENVELOPE_CONTRACT && value.source === "marion" && value.signature === FINAL_SIGNATURE && value.final === true) return true;
+    if (value.meta && value.meta.freshMarionFinal === true && value.meta.singleFinalAuthority === true) return true;
     return Object.keys(value).some((key) => objectContainsTrustedFinalSignature(value[key], depth + 1));
   }
   return false;
