@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "name": "Nyx Conversational Pack (Canonical)",
+    "version": "1.6-C-NORMALIZED",
+    "purpose": "Long-form conversational gravity only",
+    "constraints": [
+      "statement-first",
+      "no menu exposure",
+      "no self-disclosure pressure",
+      "no onboarding use",
+      "reflection throttle: max 1 per session"
+    ],
+    "normalized_from": "1.5-C",
+    "runtime_role": "intro_or_long_form_gravity_support_only",
+    "forensic_notes": [
+      "Converted to normalized expansion without changing original line intent.",
+      "Not suitable as hard fallback unless wrapped by backend-empty guard."
+    ]
+  },
+  "lines": [
+    "Hey — I’m Nyx. We don’t need a destination right away.",
+    "This space works best when it isn’t rushed.",
+    "Some moments unfold instead of announcing themselves.",
+    "A year can hold more than people expect.",
+    "It’s usually the quiet details that linger the longest.",
+    "Not everything important shows up on the surface.",
+    "Certain years feel different depending on where you stand now.",
+    "Memory doesn’t move in straight lines.",
+    "What mattered then isn’t always what mattered most.",
+    "Some sounds age like landmarks. Others drift like weather.",
+    "There’s value in staying with a moment a little longer.",
+    "Context often explains more than popularity ever could.",
+    "Time tends to soften sharp edges — but not meaning.",
+    "Some stories don’t need to be told all at once.",
+    "A pause can reveal what motion hides.",
+    "For many people, years like this connect in unexpected ways.",
+    "Patterns show themselves when nothing is being forced.",
+    "The past often feels closer when it isn’t explained.",
+    "Certain moments settle differently depending on when you return to them.",
+    "This is the kind of conversation that doesn’t need an ending."
+  ],
+  "lines_expansion_30": [
+    "A quiet start can still have weight.",
+    "The best direction is sometimes the one that does not announce itself.",
+    "Some rooms open when the pace stops trying to prove itself.",
+    "A single year can carry a whole weather system.",
+    "The feeling around a moment often matters as much as the moment itself.",
+    "There is no need to force meaning before it is ready.",
+    "Certain memories arrive softly and still change the room.",
+    "The surface rarely tells the whole story.",
+    "Time leaves fingerprints even when the details blur.",
+    "A familiar sound can become unfamiliar when you return to it later.",
+    "Some eras ask to be approached slowly.",
+    "The strongest thread is not always the loudest one.",
+    "A moment can be simple and still carry depth.",
+    "What remains after the noise fades is usually the useful part.",
+    "There is room here for the small detail to matter.",
+    "Not every answer has to arrive as a conclusion.",
+    "Sometimes the right move is to stay with the atmosphere.",
+    "A year can feel like a place when the memory is strong enough.",
+    "The past is not behind us in a straight line.",
+    "Some details return because they were never finished with us.",
+    "There is a kind of clarity that only arrives after the pause.",
+    "The conversation can move without rushing the meaning.",
+    "A soft return can still be exact.",
+    "The next step does not need to be large to be real.",
+    "Some patterns reveal themselves only after the first silence.",
+    "A quiet thread can hold more than a loud answer.",
+    "Meaning usually survives better when it is not overhandled.",
+    "A familiar year can still have a hidden room.",
+    "This can stay open without becoming uncertain.",
+    "The rhythm is enough to begin again."
+  ],
+  "routing_contract": {
+    "introEligible": true,
+    "fallbackEligible": "only_if_backend_empty_and_runtime_guarded",
+    "required_guard_file": "nyx_pack_runtime_adapter.js",
+    "do_not_use_for": [
+      "onboarding_menu",
+      "backend_reply_replacement",
+      "identity_memory_claims"
+    ]
+  }
+}
