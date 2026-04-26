@@ -6,7 +6,7 @@
  * One purpose: convert routed intent + context into one final response packet.
  */
 
-const VERSION = "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK";
+const VERSION = "composeMarionResponse v2.3.1 JSON-POST-FINAL-ENVELOPE-HARDLOCK";
 const LEGACY_COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_BRIDGE_VERSION_MARKER = "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF";
@@ -103,12 +103,43 @@ function detectDistress(text) {
   return { crisis, high, emotional };
 }
 
+const BLOCKED_LOOP_REPLY_PATTERNS = Object.freeze([
+  /\bi am here with you\b/i,
+  /\bi['’]?m here with you\b/i,
+  /\bi can stay with this clearly\b/i,
+  /\bwe can take this one step at a time\b/i,
+  /\bsend the next instruction and i['’]?ll continue\b/i,
+  /\bready\.\s*send the next instruction/i,
+  /\bnyx is connected\.\s*what would you like to do next\b/i
+]);
+
+function isBlockedLoopReply(value) {
+  const s = lower(oneLine(value)).replace(/[.!?]+$/g, "");
+  if (!s) return true;
+  return BLOCKED_LOOP_REPLY_PATTERNS.some((rx) => rx.test(s));
+}
+
+function safeFinalReply(value, intent, text) {
+  const raw = oneLine(value);
+  if (raw && !isBlockedLoopReply(raw)) return raw;
+  if (intent === "technical_debug") {
+    return "Technical path confirmed. I will inspect the route output, composer contract, bridge final flag, and State Spine mutation for this turn.";
+  }
+  if (intent === "emotional_support") {
+    return "I hear the weight in this. Let’s keep the response steady and move one layer deeper without repeating the same support line.";
+  }
+  if (/^(hi|hello|hey|yo)\b/i.test(safeStr(text))) {
+    return "Hey. Nyx is live, responsive, and ready for the next direction.";
+  }
+  return "Nyx is live and tracking the turn. Send the next target and I’ll move it forward.";
+}
+
 function simpleChatReply(text) {
   const t = lower(text);
-  if (/^(hi|hello|hey|yo)\b/.test(t)) return "Hey. I’m here, clear and ready. What are we working on next?";
-  if (/how are you/.test(t)) return "I’m steady, focused, and ready to move with you. What do you want to tackle first?";
+  if (/^(hi|hello|hey|yo)\b/.test(t)) return "Hey. Nyx is live, responsive, and ready for the next direction.";
+  if (/how are you/.test(t)) return "I’m steady, focused, and ready to help. What do you want to tackle first?";
   if (/thank/.test(t)) return "You’re welcome. Let’s keep it moving.";
-  return "I’m with you. Give me the next piece and I’ll help you move it forward.";
+  return "Nyx is live and tracking the turn. Send the next target and I’ll move it forward.";
 }
 
 function technicalReply(text, input = {}) {
@@ -293,7 +324,7 @@ function composeMarionResponse(routed = {}, input = {}) {
   const previousAssistantStateSig = safeStr(state.lastAssistantHash || previousMemory.replyStateSignature || previousMemory.memoryPatch?.replyStateSignature || "");
 
   let duplicateDetected = false;
-  let reply = buildReply(intent, text, input);
+  let reply = safeFinalReply(buildReply(intent, text, input), intent, text);
   let replySignature = hashText(reply);
   let replyStateSignature = stateAssistantSignature(reply);
 
@@ -302,12 +333,13 @@ function composeMarionResponse(routed = {}, input = {}) {
     if (intent === "emotional_support") {
       reply = "Let’s go one layer deeper so we don’t repeat the same comfort: what is the part you have not said out loud yet?";
     } else if (intent === "simple_chat") {
-      reply = "I’m here and tracking. Let’s move forward: what do you want to focus on next?";
+      reply = "Nyx is tracking the turn. Let’s move forward: what do you want to focus on next?";
     } else if (intent === "technical_debug") {
       reply = "We should advance the diagnosis now: check the router output, composer output, and bridge final flag for this exact turn.";
     } else {
       reply = "Let’s move this forward instead of repeating it. Give me the next target and I’ll act on that.";
     }
+    reply = safeFinalReply(reply, intent, text);
     replySignature = hashText(reply);
     replyStateSignature = stateAssistantSignature(reply);
   }
@@ -391,6 +423,48 @@ function composeMarionResponse(routed = {}, input = {}) {
       finalMarkers: MARION_FINAL_MARKERS.slice()
     },
 
+    packet: {
+      final: true,
+      marionFinal: true,
+      handled: true,
+      routing: {
+        domain,
+        intent,
+        endpoint: "marion://routeMarion.primary",
+        stateSchema: STATE_SPINE_SCHEMA
+      },
+      synthesis: {
+        reply,
+        text: reply,
+        answer: reply,
+        output: reply,
+        spokenText: reply.replace(/\n+/g, " ").trim(),
+        followUps: [],
+        followUpsStrings: [],
+        memoryPatch,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice()
+      },
+      meta: {
+        version: VERSION,
+        composerVersion: VERSION,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: MARION_FINAL_MARKERS.slice(),
+        hardlockCompatible: true,
+        stateSchema: STATE_SPINE_SCHEMA
+      }
+    },
+
     meta: {
       version: VERSION,
       composerVersion: VERSION,
@@ -403,7 +477,9 @@ function composeMarionResponse(routed = {}, input = {}) {
       marionFinalSignature,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
+      hardlockCompatible: true,
+      stateSchema: STATE_SPINE_SCHEMA,
+      jsonPostFinalEnvelope: true
     },
 
     memoryPatch,
@@ -421,7 +497,10 @@ function composeMarionResponse(routed = {}, input = {}) {
       replyStateSignature,
       duplicateBroken: duplicateDetected,
       singleEmission: true,
-      finalAuthority: "composeMarionResponse"
+      finalAuthority: "composeMarionResponse",
+      blockedLoopReplySanitized: isBlockedLoopReply(buildReply(intent, text, input)),
+      stateSchema: STATE_SPINE_SCHEMA,
+      jsonPostFinalEnvelope: true
     },
 
     synthesis: {
@@ -449,5 +528,9 @@ module.exports = {
   MARION_FINAL_MARKERS,
   STATE_SPINE_SCHEMA,
   buildMarionFinalSignature,
-  composeMarionResponse
+  isBlockedLoopReply,
+  safeFinalReply,
+  composeMarionResponse,
+  default: composeMarionResponse
 };
+module.exports.default = composeMarionResponse;
