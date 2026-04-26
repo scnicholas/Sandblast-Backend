@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.0.0";
+const ROUTER_VERSION = "domainRouter v1.1.0 STATE-SPINE-COHESION-HARDENED";
 
 // -------------------------
 // helpers
@@ -363,6 +363,13 @@ function scoreDomains(norm, session, cog, opts = {}) {
     scores: normalized.scores,
     confidence: normalized.confidence,
     signals: uniq(signals, 10),
+    stateSpinePatch: {
+      source: "domainRouter",
+      schema: "nyx.marion.stateSpine/1.6",
+      shouldAdvanceState: false,
+      domainScores: normalized.scores,
+      confidence: normalized.confidence
+    }
   };
 }
 
@@ -388,6 +395,22 @@ function routeDomain(norm, session, cog, opts = {}) {
     secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
     reason,
     signals: scored.signals,
+    routing: {
+      domain: canonicalizeDomain(pick.primary),
+      intent: safeStr((isPlainObject(cog) ? cog.intent : "") || "ADVANCE", 40) || "ADVANCE",
+      endpoint: "marion://routeMarion.primary",
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true
+    },
+    stateSpinePatch: {
+      source: "domainRouter",
+      schema: "nyx.marion.stateSpine/1.6",
+      shouldAdvanceState: false,
+      domain: canonicalizeDomain(pick.primary),
+      secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
+      confidence: scored.confidence ? scored.confidence[pick.primary] : 0
+    }
   };
 }
 
