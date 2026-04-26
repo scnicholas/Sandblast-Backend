@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -357,7 +357,13 @@ const CHAT_LOOP_PHRASE_PATTERNS = [
   /\bwe can take this one step at a time\b/i,
   /\bi can stay with this clearly\b/i,
   /\bsend the exact file, route, or response you want checked next\b/i,
-  /\bnyx is connected\. what would you like to do next\b/i
+  /\bnyx is connected\. what would you like to do next\b/i,
+  /\bi need one specific command to continue clearly\b/i,
+  /\bsend a specific command\b/i,
+  /\bpress reset to clear this session\b/i,
+  /\bready\. send your next message\b/i,
+  /\bready\. send the next instruction\b/i,
+  /\bready\. send the specific file\b/i
 ];
 
 function normalizedReplyKey(value) {
@@ -477,32 +483,26 @@ function hasFreshMarionFinalEnvelope(value) {
 }
 
 function buildLoopReplyBlockedReplacement(norm, authority) {
-  const intent = cleanText(norm && norm.marionIntent && norm.marionIntent.intent || norm && norm.intentHint || "simple_chat");
-  const technical = intent === "technical_debug" || /debug|route|file|script|index|marion|loop|error/i.test(cleanText(norm && norm.text || ""));
-
-  // Recovery must not contain any phrase listed in CHAT_LOOP_PHRASE_PATTERNS.
-  // Otherwise the final response gate can block its own recovery message and create a second-order loop.
-  const reply = technical
-    ? "Ready. Send the specific file, route, or response you want checked next."
-    : "Ready. Send the next instruction and I’ll continue.";
-
+  // Transport-only hardlock:
+  // index.js must not invent a replacement reply. Returning a blank error contract
+  // forces the fault back to MarionBridge / MarionLoopGuard, where recovery belongs.
   return {
-    ok: true,
+    ok: false,
     final: true,
     handled: true,
     marionFinal: false,
-    recoveryInjected: true,
-    reply,
-    text: reply,
-    answer: reply,
-    output: reply,
+    recoveryInjected: false,
+    reply: "",
+    text: "",
+    answer: "",
+    output: "",
     payload: {
-      reply,
-      text: reply,
-      message: reply,
-      spokenText: reply,
+      reply: "",
+      text: "",
+      message: "",
+      spokenText: "",
       loopReplyBlocked: true,
-      recoveryInjected: true
+      recoveryInjected: false
     },
     meta: {
       v: INDEX_VERSION,
@@ -511,19 +511,20 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       transportOnly: true,
       noSupportDecision: true,
       noEmotionDecision: true,
-      replyAuthority: "index_loop_phrase_recovery",
+      replyAuthority: "none",
       blockedAuthority: cleanText(authority || "unknown"),
       loopReplyBlocked: true,
-      recoveryInjected: true,
+      recoveryInjected: false,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb"
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb",
+      correction: "rogue_fallback_purged"
     },
     diagnostics: {
       loopReplyBlocked: true,
-      recoveryInjected: true,
+      recoveryInjected: false,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.3sb",
-      reason: "stale_loop_phrase_replaced_with_non_matching_recovery"
+      reason: "index_transport_only_refused_to_invent_recovery"
     }
   };
 }
