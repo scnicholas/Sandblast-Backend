@@ -19,8 +19,10 @@
  * - No fallbackResponse/replySeed promotion unless it is part of a final Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.0.1 COORDINATOR-ONLY-MARION-FINAL + ACTIVE-SIGNATURE";
+const VERSION = "ChatEngine v3.1.0 COORDINATOR-ONLY-STATE-SPINE-COMPAT";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -115,6 +117,25 @@ function isFinalEnvelope(source = {}) {
     synthesis.final === true ||
     synthesis.marionFinal === true
   );
+}
+
+
+function objectContainsTrustedFinalSignature(value, depth = 0) {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") {
+    const s = cleanText(value);
+    return !!(s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && s.indexOf(CHAT_ENGINE_SIGNATURE) !== -1);
+  }
+  if (Array.isArray(value)) return value.some((item) => objectContainsTrustedFinalSignature(item, depth + 1));
+  if (isPlainObject(value)) {
+    if (value.requiredSignature === CHAT_ENGINE_SIGNATURE && cleanText(value.marionFinalSignature || value.signature).indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0) return true;
+    return Object.keys(value).some((key) => objectContainsTrustedFinalSignature(value[key], depth + 1));
+  }
+  return false;
+}
+
+function hasTrustedFinalEnvelope(source = {}) {
+  return !!(isFinalEnvelope(source) && objectContainsTrustedFinalSignature(source, 0));
 }
 
 function extractMarionContract(input = {}) {
@@ -385,6 +406,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
     meta: {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "none",
@@ -397,6 +419,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
     diagnostics: {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
       coordinatorOnly: true,
       error: true,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
@@ -481,6 +504,7 @@ function buildStructuredFinalReply(input = {}) {
       ...safeObj(input.meta),
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "marion_final",
@@ -495,8 +519,11 @@ function buildStructuredFinalReply(input = {}) {
       ...safeObj(input.diagnostics),
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
       coordinatorOnly: true,
       acceptedFinalEnvelope: true,
+      trustedFinalEnvelope: true,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
       replyPreview: clipText(reply, 160)
     },
 
@@ -534,14 +561,17 @@ class ChatEngine {
     try {
       const src = typeof input === "string" ? { text: input } : safeObj(input);
       const finalEnvelope = isFinalEnvelope(src);
+      const trustedFinalEnvelope = hasTrustedFinalEnvelope(src);
       const reply = extractFinalReply(src);
 
       trace.stages.push({ stage: "detectFinalEnvelope", ok: finalEnvelope });
+      trace.stages.push({ stage: "detectTrustedFinalEnvelope", ok: trustedFinalEnvelope });
       trace.stages.push({ stage: "extractFinalReply", ok: !!reply, replyPreview: clipText(reply, 120) });
 
-      if (!finalEnvelope || !reply) {
+      if (!finalEnvelope || !trustedFinalEnvelope || !reply) {
         const errorContract = buildBlankErrorContract("marion_final_reply_missing", {
           finalEnvelope,
+          trustedFinalEnvelope,
           replyPresent: !!reply
         }, src);
 
@@ -549,6 +579,7 @@ class ChatEngine {
           at: Date.now(),
           code: "marion_final_reply_missing",
           finalEnvelope,
+          trustedFinalEnvelope,
           replyPresent: !!reply,
           turnId: extractTurnId(src)
         });
@@ -691,6 +722,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     VERSION,
     CHAT_ENGINE_SIGNATURE,
+    MARION_FINAL_SIGNATURE_PREFIX,
+    STATE_SPINE_SCHEMA,
     ChatEngine,
     handleChat,
     run,
@@ -701,6 +734,7 @@ if (typeof module !== "undefined") {
     shouldLockMarionAuthority,
     _internal: {
       isFinalEnvelope,
+      hasTrustedFinalEnvelope,
       extractFinalReply,
       buildBlankErrorContract,
       buildStructuredFinalReply
