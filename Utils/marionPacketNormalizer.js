@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionPacketNormalizer v1.2.4 LOOP-FINAL-PRESERVE + DATA-MARION-RUNTIME-PATH + MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
+const VERSION = "marionPacketNormalizer v1.3.0 STATE-SPINE-FINAL-ENVELOPE-COHESION + LOOP-FINAL-PRESERVE + DATA-MARION-RUNTIME-PATH + MARION-INTENT-PASSTHROUGH + ROUTING-DOMAIN-GUARD + MEMORY-ENVELOPE-PRESERVE + SOFTFAIL-GUARDED";
 
 const FALLBACK_REPLY = "I am here with you. Tell me what feels most important right now.";
 const DEFAULT_ENDPOINT = "marion://routeMarion.primary";
@@ -9,6 +9,8 @@ const MAX_FOLLOWUPS = 4;
 const MARION_CONFIDENCE_FLOOR = 0;
 const MARION_CONFIDENCE_CEILING = 1;
 const MARION_RUNTIME_PATH = "./Data/marion/runtime";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 
 function tryRequireRuntime(paths) {
   for (const p of Array.isArray(paths) ? paths : []) {
@@ -242,6 +244,51 @@ function normalizeFollowUps(packet, result, reply) {
 function normalizeStateEnvelope(packet, result, key) {
   return isObj(packet[key]) ? packet[key] : (isObj(result[key]) ? result[key] : {});
 }
+function _signaturePart(value) { return safeStr(value).replace(/::+/g, ":").replace(/\s+/g, "_").slice(0, 160); }
+function _hashForStateSpine(value) {
+  const s = safeStr(value).replace(/\s+/g, " ").trim().toLowerCase();
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(16);
+}
+function _extractFinalSignature(result = {}, packet = {}) {
+  return firstUsableReply(
+    result.marionFinalSignature, result.signature,
+    result?.meta?.marionFinalSignature, result?.meta?.signature,
+    result?.payload?.marionFinalSignature, result?.payload?.signature,
+    result?.contract?.marionFinalSignature, result?.contract?.signature,
+    packet?.meta?.marionFinalSignature, packet?.meta?.signature
+  );
+}
+function _buildStateSpineFinalSignature(reply, result = {}, packet = {}) {
+  const existing = _extractFinalSignature(result, packet);
+  if (existing && existing.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && existing.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1) return existing;
+  const turn = _signaturePart(result.turnId || result.requestId || result.traceId || packet?.meta?.turnId || "turn");
+  const seed = _signaturePart(_hashForStateSpine(reply || turn));
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${_signaturePart(VERSION)}::${turn}::${seed}`;
+}
+function _buildStateSpineMemoryPatch(packet, result, reply) {
+  const userText = safeStr(result.userQuery || result.text || result.query || result.message || "");
+  const finalSignature = _buildStateSpineFinalSignature(reply, result, packet);
+  return {
+    schema: "nyx.marion.stateSpine/1.6",
+    source: "marionPacketNormalizer",
+    composedOnce: true,
+    shouldAdvanceState: true,
+    marionFinal: true,
+    final: true,
+    handled: true,
+    marionFinalSignature: finalSignature,
+    userSignature: _hashForStateSpine(userText),
+    replySignature: _hashForStateSpine(reply),
+    lastUserSignature: _hashForStateSpine(userText),
+    lastReplySignature: _hashForStateSpine(reply),
+    lastIntent: safeStr(packet?.routing?.intent || packet?.marionIntent?.intent || result.intent || "ADVANCE"),
+    lastDomain: safeStr(packet?.routing?.domain || packet?.marionIntent?.domain || result.domain || "general"),
+    stateBridge: { shouldAdvanceState: true, expectedStateMutation: true }
+  };
+}
+
 function normalizeMeta(packet, result, sourcePacket, resolvedReply, fallbackReply) {
   const meta = isObj(packet.meta) ? { ...packet.meta } : (isObj(result.meta) ? { ...result.meta } : {});
   const blockerInputs = [
@@ -345,6 +392,19 @@ function normalizeMarionPacket(result = {}) {
   }
 
   packet.meta = normalizeMeta(packet, result, sourcePacket, resolvedReply, softReplySeed);
+  const statePatch = _buildStateSpineMemoryPatch(packet, result, resolvedReply);
+  packet.memoryPatch = { ...(isObj(packet.memoryPatch) ? packet.memoryPatch : {}), ...statePatch };
+  packet.synthesis.memoryPatch = packet.memoryPatch;
+  packet.marionFinal = true;
+  packet.final = true;
+  packet.handled = true;
+  packet.marionFinalSignature = statePatch.marionFinalSignature;
+  packet.signature = statePatch.marionFinalSignature;
+  packet.meta.marionFinal = true;
+  packet.meta.final = true;
+  packet.meta.handled = true;
+  packet.meta.marionFinalSignature = statePatch.marionFinalSignature;
+  packet.meta.requiredSignature = REQUIRED_CHAT_ENGINE_SIGNATURE;
   packet.meta.marionIntentNormalized = true;
   packet.meta.marionRuntimePath = MARION_RUNTIME_PATH;
   packet.meta.marionRuntimeRouterLoaded = !!marionRuntimeRouter;
