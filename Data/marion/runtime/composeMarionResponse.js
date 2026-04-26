@@ -6,21 +6,23 @@
  * One purpose: convert routed intent + context into one final response packet.
  */
 
-const VERSION = "composeMarionResponse v2.2.0 AUTOPSY-HARDENED-STATE-SPINE-COMPAT";
+const VERSION = "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK";
 const LEGACY_COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
-const MARION_BRIDGE_VERSION_MARKER = "marionBridge v6.0.0 CLEAN-REDUCED-FINAL-HANDOFF";
+const MARION_BRIDGE_VERSION_MARKER = "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
 const MARION_FINAL_MARKERS = Object.freeze([
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   MARION_BRIDGE_VERSION_MARKER,
   LEGACY_COMPOSER_VERSION_MARKER,
-  VERSION
+  VERSION,
+  STATE_SPINE_SCHEMA
 ]);
 
 function buildMarionFinalSignature(replySignature, turnId) {
   const seed = safeStr(replySignature || hashText(turnId || Date.now()));
-  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${VERSION}::${seed}`;
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${MARION_BRIDGE_VERSION_MARKER}::${VERSION}::${STATE_SPINE_SCHEMA}::${seed}`;
 }
 
 function safeStr(v) {
@@ -228,7 +230,7 @@ function resolvePreviousMemory(input = {}) {
   return { previousMemory, state };
 }
 
-function buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature }) {
+function buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature, duplicateBroken }) {
   const priorMemoryUserSig = firstText(previousMemory.userSignature, previousMemory.lastUserSignature);
   const priorStateUserSig = firstText(state.lastUserHash);
   const currentUserSig = userSignature(text);
@@ -266,6 +268,12 @@ function buildProgressionPatch({ intent, domain, text, replySignature, replyStat
       shouldAdvanceState: true,
       expectedStateMutation: "finalizeTurn",
       source: "composeMarionResponse",
+      stateSchema: STATE_SPINE_SCHEMA,
+      composedOnce: true,
+      finalEnvelopeTrusted: true,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      duplicateBroken: !!duplicateBroken,
       userSignature: currentUserSig,
       replySignature,
       replyStateSignature,
@@ -284,11 +292,13 @@ function composeMarionResponse(routed = {}, input = {}) {
   const previousReplySig = safeStr(previousMemory.replySignature || previousMemory.lastReplySignature || previousMemory.memoryPatch?.replySignature || "");
   const previousAssistantStateSig = safeStr(state.lastAssistantHash || previousMemory.replyStateSignature || previousMemory.memoryPatch?.replyStateSignature || "");
 
+  let duplicateDetected = false;
   let reply = buildReply(intent, text, input);
   let replySignature = hashText(reply);
   let replyStateSignature = stateAssistantSignature(reply);
 
   if ((previousReplySig && previousReplySig === replySignature) || (previousAssistantStateSig && previousAssistantStateSig === replyStateSignature)) {
+    duplicateDetected = true;
     if (intent === "emotional_support") {
       reply = "Let’s go one layer deeper so we don’t repeat the same comfort: what is the part you have not said out loud yet?";
     } else if (intent === "simple_chat") {
@@ -307,7 +317,7 @@ function composeMarionResponse(routed = {}, input = {}) {
   const distress = detectDistress(text);
   const nextMove = chooseNextMove(intent, text);
 
-  const memoryPatch = buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature });
+  const memoryPatch = buildProgressionPatch({ intent, domain, text, replySignature, replyStateSignature, previousMemory, state, nextMove, marionFinalSignature, duplicateBroken: duplicateDetected });
 
   return {
     ok: true,
@@ -409,7 +419,7 @@ function composeMarionResponse(routed = {}, input = {}) {
       previousReplySignature: previousReplySig,
       previousAssistantStateSignature: previousAssistantStateSig,
       replyStateSignature,
-      duplicateBroken: !!((previousReplySig && previousReplySig === replySignature) || (previousAssistantStateSig && previousAssistantStateSig === replyStateSignature)),
+      duplicateBroken: duplicateDetected,
       singleEmission: true,
       finalAuthority: "composeMarionResponse"
     },
@@ -437,5 +447,7 @@ module.exports = {
   LEGACY_COMPOSER_VERSION_MARKER,
   MARION_FINAL_SIGNATURE_PREFIX,
   MARION_FINAL_MARKERS,
+  STATE_SPINE_SCHEMA,
+  buildMarionFinalSignature,
   composeMarionResponse
 };
