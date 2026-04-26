@@ -3,7 +3,7 @@
 /**
  * Utils/stateSpine.js
  *
- * stateSpine v2.0.1 MARION-STATE-RESTRUCTURE SUPPORT-LOCK LOOP-SOURCE-FIX
+ * stateSpine v2.0.2 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX
  * ------------------------------------------------------------
  * PURPOSE
  * - Maintain durable conversational progression state
@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.0.1 MARION-STATE-RESTRUCTURE SUPPORT-LOCK LOOP-SOURCE-FIX FINAL-ENVELOPE-GUARD";
+const SPINE_VERSION = "stateSpine v2.0.2 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX FINAL-ENVELOPE-GUARD";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const TERMINAL_AUDIO_STOP_MS = 30000;
@@ -230,13 +230,19 @@ function hasTrustedMarionFinalEnvelope(params = {}) {
 function isLoopPhrase(text) {
   const s = oneLine(text).toLowerCase();
   if (!s) return false;
-  return /^(i['’]?m here with you|i am here with you|i['’]?m right here with you|i understand|i hear you|i['’]?ve got you|i got you|we can take this one step at a time)[.!?]*$/.test(s);
+  return /^(i['’]?m here with you|i am here with you|i['’]?m right here with you|i understand|i hear you|i['’]?ve got you|i got you|we can take this one step at a time)[.!?]*$/.test(s) ||
+    /i caught the repeated response/i.test(s) ||
+    /not going to recycle/i.test(s) ||
+    /same support line/i.test(s) ||
+    /exact point you want handled next/i.test(s) ||
+    /send the specific file, route, or response/i.test(s);
 }
 
 function isActionableComposerReply(text) {
   const s = oneLine(text);
   if (!s) return false;
   if (isLoopPhrase(s)) return false;
+  if (/repeated response|not going to recycle|same support line|fallback loop|support line/i.test(s)) return false;
   if (s.length < 12) return false;
   return true;
 }
@@ -250,7 +256,7 @@ function shouldTechnicalBypassSupportLock(inbound, decision, params = {}) {
     plannerStage === "execution" ||
     intent === "TECHNICAL_DEBUG" ||
     intent === "ADVANCE" ||
-    /debug|patch|update|fix|script|file|index|state/i.test(safeStr(extractInboundText(inbound)))
+    /debug|patch|update|fix|script|file|index|state|state spine|loop|looping|autopsy|downloadable|zip/i.test(safeStr(extractInboundText(inbound)))
   );
 }
 
@@ -732,11 +738,11 @@ function decideNextMove(prevState, inbound) {
     };
   }
 
-  if (technical && !(emo.highDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE")) {
+  if (technical) {
     return {
       move: "ADVANCE",
       stage: "execution",
-      rationale: mentionsLooping ? "technical_loop_escape" : "technical_execution",
+      rationale: mentionsLooping ? "technical_loop_escape_support_hold_released" : "technical_execution",
       speak: "",
       _plannerMode: "execution"
     };
@@ -863,7 +869,7 @@ function finalizeTurn(params = {}) {
   );
   const progressionLock = !!(
     audio.shouldStop ||
-    loopPhraseRejected ||
+    (!technicalBypassSupportLock && loopPhraseRejected) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technicalBypassSupportLock && supportLockActive) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technical && sameAssistant && sameStage && clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999) >= 1) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technical && sameUser && sameIntent && clampInt(prev.repetition?.sameUserHashCount, 0, 0, 999999) >= 1)
