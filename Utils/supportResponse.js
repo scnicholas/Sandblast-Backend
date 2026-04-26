@@ -5,7 +5,14 @@
  * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v2.2.0 EMOTION-CONTRACT-LOCKED";
+const VERSION = "supportResponse v2.3.0 STATE-SPINE-COHESION-LOOP-SAFE";
+
+
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const BLOCKED_LOOPING_SUPPORT_PATTERNS = Object.freeze([/\bi am here with you\b/i,/\bi['’]?m here with you\b/i,/\bwe can take this one step at a time\b/i,/\bi can stay with this clearly\b/i]);
+function getStateSpine(input) { const src = isPlainObject(input) ? input : {}; const prev = isPlainObject(src.previousMemory) ? src.previousMemory : {}; const session = isPlainObject(src.session) ? src.session : {}; return isPlainObject(src.stateSpine) ? src.stateSpine : isPlainObject(src.conversationState) ? src.conversationState : isPlainObject(prev.stateSpine) ? prev.stateSpine : isPlainObject(prev.conversationState) ? prev.conversationState : isPlainObject(session.stateSpine) ? session.stateSpine : {}; }
+function hasStateSpineLoopPressure(input) { const spine = getStateSpine(input); const rep = isPlainObject(spine.repetition) ? spine.repetition : {}; const support = isPlainObject(spine.support) ? spine.support : {}; return !!(spine.progressionLock || support.lockActive || Number(rep.noProgressCount || 0) >= 2 || Number(rep.sameAssistantHashCount || 0) >= 2); }
+function scrubLoopPhrases(reply, input) { let text = oneLine(reply); if (!text) return ""; const loopPressure = hasStateSpineLoopPressure(input); if (!loopPressure && !BLOCKED_LOOPING_SUPPORT_PATTERNS.some((rx) => rx.test(text))) return text; text = text.replace(/\bI am here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bI'm here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bI’m here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bWe can take this one step at a time\.?(\s*)/ig, "We can keep the next move small and concrete. ").replace(/\bI can stay with this clearly\.?(\s*)/ig, "I can keep this clear. ").replace(/\s+/g, " ").trim(); if (loopPressure && BLOCKED_LOOPING_SUPPORT_PATTERNS.some((rx) => rx.test(text))) { return looksTechnicalRequest(input && input.text) ? "I have the technical thread. I will keep the next move tight, concrete, and execution-first." : "I have the thread. We can keep the next move small, clear, and grounded."; } return text; }
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -225,13 +232,13 @@ function buildOpening(emo, seed) {
   const primary = lower(emo?.primaryEmotion || "neutral");
   if (["depressed", "sadness", "grief", "loneliness"].includes(primary)) {
     return pick([
-      "I am here with you.",
+      "I have the thread.",
       "I am with you in this.",
       "You do not have to carry this alone for this moment."
     ], `${seed}|sad|open`);
   }
   if (["anxiety", "fear", "panic", "overwhelm"].includes(primary)) {
-    return "I am here with you.";
+    return "I have the thread.";
   }
   if (["shame", "guilt"].includes(primary)) {
     return pick([
@@ -247,7 +254,7 @@ function buildOpening(emo, seed) {
       "That has real lift in it."
     ], `${seed}|positive|open`);
   }
-  return "I am here with you.";
+  return "I have the thread.";
 }
 
 function buildSupportReply(input = {}) {
