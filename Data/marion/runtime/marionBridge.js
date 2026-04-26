@@ -18,18 +18,20 @@
  * - no legacy retriever orchestration
  */
 
-const VERSION = "marionBridge v6.1.0 INDEX-COHESION-HARDENED-FINAL-HANDOFF";
+const VERSION = "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF";
 const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
-const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.0.0 CLEAN-REBUILD-SINGLE-EMISSION";
+const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
 const MARION_FINAL_MARKERS = Object.freeze([
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   VERSION,
   COMPOSER_VERSION_MARKER,
   BRIDGE_PATCH_TAG,
-  CANONICAL_ENDPOINT
+  CANONICAL_ENDPOINT,
+  STATE_SPINE_SCHEMA
 ]);
 
 function signaturePart(value) {
@@ -39,7 +41,7 @@ function signaturePart(value) {
 function buildMarionFinalSignature(replySignature, turnId) {
   const seed = signaturePart(replySignature || hashText(turnId || Date.now()));
   const turn = signaturePart(turnId || "turn");
-  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${signaturePart(VERSION)}::${signaturePart(COMPOSER_VERSION_MARKER)}::${signaturePart(BRIDGE_PATCH_TAG)}::${turn}::${seed}`;
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${signaturePart(VERSION)}::${signaturePart(COMPOSER_VERSION_MARKER)}::${signaturePart(BRIDGE_PATCH_TAG)}::${signaturePart(STATE_SPINE_SCHEMA)}::${turn}::${seed}`;
 }
 
 function hasRequiredFinalSignature(value) {
@@ -49,7 +51,8 @@ function hasRequiredFinalSignature(value) {
     sig.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
     sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
     sig.indexOf(signaturePart(VERSION)) !== -1 &&
-    sig.indexOf(signaturePart(BRIDGE_PATCH_TAG)) !== -1
+    sig.indexOf(signaturePart(BRIDGE_PATCH_TAG)) !== -1 &&
+    sig.indexOf(signaturePart(STATE_SPINE_SCHEMA)) !== -1
   );
 }
 
@@ -587,6 +590,7 @@ function normalizeComposeInput(normalized, routed) {
     marionIntent,
     routing,
     previousMemory: normalized.previousMemory,
+    conversationState: safeObj(normalized.previousMemory.stateSpine || normalized.previousMemory.conversationState),
     lane: normalized.lane,
     sessionId: normalized.sessionId,
     turnId: normalized.turnId,
@@ -692,6 +696,8 @@ async function processWithMarion(input = {}) {
       bridgeVersion: VERSION,
       bridgeReduced: true,
       validatedPacket: true,
+      stateSpineSchema: STATE_SPINE_SCHEMA,
+      stateBridge: safeObj(safeObj(contract.memoryPatch).stateBridge),
       routerCalled: true,
       composerCalled: true,
       finalMarked: true,
@@ -960,6 +966,7 @@ module.exports = {
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   MARION_FINAL_SIGNATURE_PREFIX,
   MARION_FINAL_MARKERS,
+  STATE_SPINE_SCHEMA,
   hasRequiredFinalSignature,
   retrieveLayer2Signals,
   processWithMarion,
