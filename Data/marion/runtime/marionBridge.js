@@ -18,20 +18,26 @@
  * - no legacy retriever orchestration
  */
 
-const VERSION = "marionBridge v6.3.0 STATE-SPINE-COHESION-FINAL-HANDOFF + PACKET-NORMALIZER + LOOP-GUARD + FINAL-ENVELOPE";
+const VERSION = "marionBridge v6.4.0 TRANSPORT-AUTHORITY-LOCK + PACKET-NORMALIZER + LOOP-GUARD + FINAL-ENVELOPE";
 const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
-const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK";
+const COMPOSER_VERSION_MARKER = "composeMarionResponse v2.4.0 SINGLE-EMISSION-RECOVERY-FINAL-ENVELOPE";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
+const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const MARION_FINAL_MARKERS = Object.freeze([
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   VERSION,
   COMPOSER_VERSION_MARKER,
   BRIDGE_PATCH_TAG,
   CANONICAL_ENDPOINT,
-  STATE_SPINE_SCHEMA
+  STATE_SPINE_SCHEMA,
+  STATE_SPINE_SCHEMA_COMPAT,
+  FINAL_ENVELOPE_CONTRACT,
+  FINAL_SIGNATURE
 ]);
 
 function signaturePart(value) {
@@ -45,14 +51,24 @@ function buildMarionFinalSignature(replySignature, turnId) {
 }
 
 function hasRequiredFinalSignature(value) {
+  if (isObj(value)) {
+    if (finalEnvelopeMod && typeof finalEnvelopeMod.isMarionFinalEnvelope === "function") {
+      try { if (finalEnvelopeMod.isMarionFinalEnvelope(value)) return true; } catch (_) {}
+    }
+    if (value.contractVersion === FINAL_ENVELOPE_CONTRACT && value.source === "marion" && value.signature === FINAL_SIGNATURE && value.final === true) return true;
+  }
   const sig = safeStr(value);
   return !!(
     sig &&
-    sig.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
-    sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
-    sig.indexOf(signaturePart(VERSION)) !== -1 &&
-    sig.indexOf(signaturePart(BRIDGE_PATCH_TAG)) !== -1 &&
-    sig.indexOf(signaturePart(STATE_SPINE_SCHEMA)) !== -1
+    (
+      (
+        sig.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
+        sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
+        (sig.indexOf(signaturePart(VERSION)) !== -1 || /marionBridge_v6\./i.test(sig) || sig.indexOf("marionBridge") !== -1) &&
+        (sig.indexOf(signaturePart(STATE_SPINE_SCHEMA)) !== -1 || sig.indexOf(signaturePart(STATE_SPINE_SCHEMA_COMPAT)) !== -1)
+      ) ||
+      sig === FINAL_SIGNATURE
+    )
   );
 }
 
@@ -656,10 +672,11 @@ function bridgeRecoveryReply(normalized = {}, loopResult = {}) {
   const intent = safeStr(normalized.intent || safeObj(normalized.marionIntent).intent || "simple_chat");
   const technical = intent === "technical_debug" || /debug|patch|update|fix|script|file|index|state|state spine|loop|looping|autopsy|downloadable|zip|route|endpoint/i.test(text);
   const emotional = intent === "emotional_support" || /depressed|sad|anxious|overwhelmed|hurt|lonely|panic|grief|stressed/i.test(text);
+  const reasons = safeArray(loopResult.reasons).slice(0, 2).join(", ");
 
-  if (technical) return "I detected a repeated technical response, so I’m switching to recovery mode. Send the exact file, route, or failing response and I’ll isolate the break cleanly.";
-  if (emotional) return "I detected a repeated support response, so I’m resetting the turn instead of recycling it. Tell me what changed or what you need from me right now.";
-  return "I detected a repeated response and reset the turn. Send the next instruction and I’ll continue from a clean state.";
+  if (technical) return `Recovery path engaged. I’m advancing the diagnosis instead of repeating the blocker: verify normalized input, routed intent, composer reply, loop-guard result, and final envelope for this exact turn${reasons ? " (" + reasons + ")" : ""}.`;
+  if (emotional) return "Recovery path engaged. I won’t repeat the same support line. Tell me the part that feels heaviest right now, and I’ll stay with that specific point.";
+  return "Recovery path engaged. I’m clearing the stale turn and ready for the next clear target.";
 }
 
 async function processWithMarion(input = {}) {
