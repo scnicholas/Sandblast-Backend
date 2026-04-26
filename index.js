@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + NYX-PACK-RUNTIME-ADAPTER-V31";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -914,6 +914,40 @@ const marionDomainRegistryMod = tryRequireMany([
   "./Data/marion/runtime/marionDomainRegistry.js"
 ]);
 
+const nyxPackRuntimeAdapterMod = tryRequireMany([
+  "./Data/marion/runtime/nyx_pack_runtime_adapter",
+  "./Data/marion/runtime/nyx_pack_runtime_adapter.js",
+  "./nyx_pack_runtime_adapter",
+  "./nyx_pack_runtime_adapter.js",
+  "./utils/nyx_pack_runtime_adapter",
+  "./utils/nyx_pack_runtime_adapter.js",
+  "./Utils/nyx_pack_runtime_adapter",
+  "./Utils/nyx_pack_runtime_adapter.js"
+]);
+
+function tryLoadJsonMany(paths) {
+  for (const candidate of Array.isArray(paths) ? paths : []) {
+    try {
+      if (!candidate) continue;
+      const full = path.isAbsolute(candidate) ? candidate : path.join(__dirname, candidate);
+      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue;
+      const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
+      if (parsed) return { data: parsed, file: full };
+    } catch (_) {}
+  }
+  return { data: null, file: "" };
+}
+
+const nyxPacketPackRuntime = tryLoadJsonMany([
+  process.env.NYX_PACKET_PACK_FILE || "",
+  "Data/marion/runtime/packets_v1_3_normalized.json",
+  "Data/marion/runtime/packets_v1.json",
+  "Data/marion/runtime/packets.json",
+  "packets_v1_3_normalized.json",
+  "packets_v1.json",
+  "packets.json"
+]);
+
 const stateSpineMod = tryRequireMany([
   "./stateSpine",
   "./stateSpine.js",
@@ -951,6 +985,10 @@ function getMarionRuntimeDiagnostics() {
     marionIntentRouterLoaded: !!marionIntentRouterMod,
     marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
     marionDomainRegistryLoaded: !!marionDomainRegistryMod,
+    nyxPackRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
+    nyxPackRuntimeAdapterHasResolve: !!(nyxPackRuntimeAdapterMod && typeof nyxPackRuntimeAdapterMod.resolveNyxPacket === "function"),
+    nyxPacketPackLoaded: !!(nyxPacketPackRuntime && nyxPacketPackRuntime.data && Array.isArray(nyxPacketPackRuntime.data.packets)),
+    nyxPacketPackFile: cleanText(nyxPacketPackRuntime && nyxPacketPackRuntime.file || ""),
     chatEngineLoaded: !!chatEngineMod,
     chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : [],
     siteBridgeLoaded: !!siteBridgeMod,
@@ -5846,6 +5884,73 @@ app.head(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   return res.status(204).end();
 });
 
+function isNyxIntroLikeText(value) {
+  const t = lower(cleanText(value || ""));
+  return /^(hi|hello|hey|yo|hiya|sup|gm|good morning|good afternoon|good evening|welcome back|back again|i['’]?m back|im back|we['’]?re back|were back|again|back)$/i.test(t);
+}
+
+function resolveNyxPackRuntimeFallback(norm, sessionId, backendContext) {
+  if (!nyxPackRuntimeAdapterMod || typeof nyxPackRuntimeAdapterMod.resolveNyxPacket !== "function") return null;
+  const pack = nyxPacketPackRuntime && nyxPacketPackRuntime.data;
+  if (!pack || !Array.isArray(pack.packets)) return null;
+  const prior = getLastTurn(sessionId);
+  const session = {
+    ...(isObj(norm && norm.body && norm.body.session) ? norm.body.session : {}),
+    state: cleanText(norm && norm.state || norm && norm.body && norm.body.state || "cold") || "cold",
+    lane: cleanText(norm && norm.lane || "general") || "general",
+    lastMusicYear: norm && norm.year,
+    activeMusicMode: norm && norm.mode
+  };
+  if (isObj(prior) && prior.reply) session.__lastOutSig = typeof nyxPackRuntimeAdapterMod.normalizeSig === "function" ? nyxPackRuntimeAdapterMod.normalizeSig(prior.reply) : replyHash(prior.reply);
+  const intent = isNyxIntroLikeText(norm && norm.text) ? "intro" : "fallback";
+  try {
+    const resolved = nyxPackRuntimeAdapterMod.resolveNyxPacket(pack, {
+      intent,
+      backendPayload: backendContext && backendContext.backendPayload,
+      backendFailed: !!(backendContext && backendContext.backendFailed),
+      freshMarionFinal: !!(backendContext && backendContext.freshMarionFinal),
+      replayDetected: !!(backendContext && backendContext.replayDetected),
+      session,
+      year: norm && norm.year,
+      mode: norm && norm.mode,
+      city: norm && norm.city,
+      seed: now()
+    });
+    const reply = cleanReplyForUser(resolved && resolved.reply || "");
+    if (!reply) return null;
+    const chips = Array.isArray(resolved && resolved.chips) ? resolved.chips : [];
+    return {
+      ok: true,
+      final: true,
+      handled: true,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      payload: { reply, text: reply, message: reply, spokenText: reply, source: "nyx_pack_runtime_adapter", adapterDecision: resolved && resolved.source || "packet", adapterPacket: resolved && resolved.packet || "", chips },
+      ui: { chips },
+      chips,
+      sessionPatch: session,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        replyAuthority: "nyx_pack_runtime_adapter",
+        semanticAuthority: "packet_last_resort",
+        adapterDecision: resolved && resolved.source || "packet",
+        adapterIntent: intent,
+        adapterPacket: resolved && resolved.packet || "",
+        adapterPackFile: cleanText(nyxPacketPackRuntime && nyxPacketPackRuntime.file || ""),
+        marionAuthorityPreserved: true,
+        backendFirst: true,
+        requireBackendEmpty: true
+      }
+    };
+  } catch (err) {
+    console.log("[Sandblast][nyxPackRuntimeAdapter:error]", cleanText(err && (err.message || err) || "adapter_failed"));
+    return null;
+  }
+}
+
 app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
   const startedAt = now();
@@ -6003,6 +6108,19 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   if (!selected) {
+    const adapterSelected = resolveNyxPackRuntimeFallback(norm, sessionId, {
+      backendPayload: marion || engine || null,
+      backendFailed: !!errorDetail || !!(marion && marion.ok === false) || !!(engine && engine.ok === false),
+      freshMarionFinal: !!marionHasFreshEnvelope,
+      replayDetected: !!loopReplyWasBlocked
+    });
+    if (adapterSelected) {
+      selected = adapterSelected;
+      authority = "nyx_pack_runtime_adapter";
+    }
+  }
+
+  if (!selected) {
     return res.status(502).json({
       ok: false,
       error: "conversation_authority_empty",
@@ -6022,6 +6140,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         noEmotionDecision: true,
         marionBridgePresent: !!marionBridgeMod,
         chatEnginePresent: !!chatEngineMod,
+        nyxPackRuntimeAdapterPresent: !!nyxPackRuntimeAdapterMod,
+        nyxPacketPackLoaded: !!(nyxPacketPackRuntime && nyxPacketPackRuntime.data && Array.isArray(nyxPacketPackRuntime.data.packets)),
         marionReturned: !!marion,
         engineReturned: !!engine,
         latencyMs: now() - startedAt
