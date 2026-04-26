@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30";
 const SERVER_BOOT_AT = Date.now();
 
 process.on("unhandledRejection", (reason) => {
@@ -336,8 +336,15 @@ function isBlockedLoopingSupportReply(value) {
 function isFreshMarionSignatureString(value) {
   const s = cleanText(value || "");
   if (!s) return false;
+
+  // V30: do not treat the ChatEngine coordinator marker by itself as a Marion final.
+  // The stale support loop was able to survive because wrapper/meta fields could satisfy
+  // the old "fresh" test without proving a real Marion final handoff.
   if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE) && s.includes("nyx.marion.stateSpine/1.6")) return true;
-  return REQUIRED_MARION_FINAL_MARKERS.some((marker) => marker && s.includes(marker));
+
+  const hasBridgeOrComposer = /marionBridge v\d|composeMarionResponse v\d/i.test(s);
+  const hasStateSpine = /nyx\.marion\.stateSpine\/[0-9.]+/i.test(s);
+  return hasBridgeOrComposer && hasStateSpine;
 }
 
 function objectContainsFreshMarionSignature(value, depth) {
@@ -345,9 +352,7 @@ function objectContainsFreshMarionSignature(value, depth) {
   if (typeof value === "string") return isFreshMarionSignatureString(value);
   if (Array.isArray(value)) return value.some((item) => objectContainsFreshMarionSignature(item, depth + 1));
   if (isObj(value)) {
-    if (value.hardlockCompatible === true) return true;
-    if (value.requiredSignature === REQUIRED_CHAT_ENGINE_SIGNATURE) return true;
-    if (isFreshMarionSignatureString(value.signature || value.marionFinalSignature || value.replySignature || value.version || value.composerVersion || value.bridgeVersion)) return true;
+    if (isFreshMarionSignatureString(value.signature || value.marionFinalSignature || value.finalSignature || value.version || value.composerVersion || value.bridgeVersion)) return true;
     return Object.keys(value).some((key) => objectContainsFreshMarionSignature(value[key], depth + 1));
   }
   return false;
@@ -3222,10 +3227,10 @@ function buildSafeSupportReply(inputText, emotion, extras) {
   if (externalReply) return normalizeSupportReply(externalReply);
 
   if (emo.distress) {
-    return "I am here with you. We can take this one step at a time. Tell me what happened, or keep talking and I will stay with you.";
+    return "I hear the weight in this. Tell me what happened, and I’ll keep the next step grounded and practical.";
   }
 
-  return "I am here with you. Tell me what happened, and we will steady this together.";
+  return "I hear you. Send the next detail and I’ll help steady the response without recycling a support line.";
 }
 
 function buildQuietUiPatch(reason, holdActive) {
@@ -6044,6 +6049,40 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       meta: { v: INDEX_VERSION, t: now(), replyAuthority: "index_loop_phrase_last_resort", recoveryInjected: true }
     };
     authority = "index_loop_phrase_last_resort";
+  }
+
+  const duplicateGate = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority });
+  if (duplicateGate.repeated && !isHighRiskSupportSignal(null, norm.text)) {
+    reply = cleanReplyForUser(buildLoopBreakReply(norm, duplicateGate, getSupportState(sessionId)));
+    selected = {
+      ...(isObj(selected) ? selected : {}),
+      ok: true,
+      final: true,
+      handled: true,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      payload: {
+        ...(isObj(selected && selected.payload) ? selected.payload : {}),
+        reply,
+        text: reply,
+        message: reply,
+        spokenText: reply,
+        duplicateReplyBlocked: true,
+        recoveryInjected: true
+      },
+      meta: {
+        ...(isObj(selected && selected.meta) ? selected.meta : {}),
+        v: INDEX_VERSION,
+        t: now(),
+        replyAuthority: "index_duplicate_loop_break",
+        previousTurnId: duplicateGate.previousTurnId,
+        duplicateReplyBlocked: true,
+        recoveryInjected: true
+      }
+    };
+    authority = "index_duplicate_loop_break";
   }
 
   selected = normalizeReplyEnvelope(selected, reply, {
