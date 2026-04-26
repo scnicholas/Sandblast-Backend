@@ -6,6 +6,8 @@ function _lower(v) { return _trim(v).toLowerCase(); }
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 
+const VERSION = "queryClassifier v1.1.0 STATE-SPINE-COHESION-HARDENED";
+
 const DOMAIN_PATTERNS = Object.freeze([
   ["ai", /(artificial intelligence|machine learning|deep learning|neural|transformer|llm|rag|embedding|vector|prompt|agent|inference|model eval|openai|anthropic|gemini|llama|mistral)/],
   ["finance", /(finance|stock|stocks|market|markets|economics|capital|investing|investor|revenue|profit|margin|cash flow|forecast|budget|roi|mrr|arr)/],
@@ -70,6 +72,31 @@ function _inferSuppression(text = "", primaryEmotion = {}) {
     forcedPositivity: contradictionHits,
     minimization: suppressionHits.length > 0,
     suppressionHits
+  };
+}
+
+function buildStateSpineTurnSignals(ctx = {}) {
+  const text = _trim(ctx.text || "");
+  const supportFlags = _safeObj(ctx.supportFlags);
+  const primaryEmotion = _safeObj(ctx.primaryEmotion);
+  const domainCandidates = _safeArray(ctx.domainCandidates);
+  const classifications = _safeObj(ctx.classifications);
+  const isTechnical = /(chat engine|state spine|support response|loop|looping|debug|patch|update|rebuild|restructure|integrate|implementation|code|script|file|tts|api|route|backend|frontend|runtime|function|syntax|error|bug|marion|bridge|composer|normalizer)/i.test(text);
+  const dominant = _lower(primaryEmotion.emotion || ctx.primaryEmotionName || "neutral") || "neutral";
+  return {
+    stateSpineCompatible: true,
+    turnIntent: isTechnical ? "TECHNICAL_DEBUG" : (supportFlags.crisis || supportFlags.highDistress ? "STABILIZE" : "ADVANCE"),
+    emotionPrimary: dominant,
+    emotionDominant: dominant,
+    emotionCluster: supportFlags.crisis || supportFlags.highDistress ? "high_distress" : (classifications.positive ? "positive" : (classifications.psychology ? "emotional" : "neutral")),
+    emotionNeedCrisis: !!supportFlags.crisis,
+    emotionNeedSoft: !!(supportFlags.highDistress || supportFlags.needsStabilization || supportFlags.needsContainment),
+    emotionShouldSuppressMenus: !!(supportFlags.crisis || supportFlags.needsContainment || supportFlags.highDistress),
+    emotionSupportLock: !!(supportFlags.crisis || supportFlags.highDistress || supportFlags.needsContainment),
+    emotionSupportMode: supportFlags.crisis ? "crisis" : supportFlags.highDistress ? "stabilize" : supportFlags.needsClarification ? "clarify" : "steady",
+    questionStyle: supportFlags.needsClarification ? "clarifying" : "minimal",
+    domainCandidates: domainCandidates.slice(0, 6),
+    classifierVersion: VERSION
   };
 }
 
@@ -151,8 +178,23 @@ function classifyQuery(input = {}) {
       primaryEmotion: _lower(primaryEmotion.emotion || emotion.primaryEmotion || "") || "neutral",
       candidateCount: domainCandidates.length,
       suppressionHits: suppression.suppressionHits
+    },
+    turnSignals: buildStateSpineTurnSignals({
+      text,
+      supportFlags: mergedSupportFlags,
+      primaryEmotion,
+      domainCandidates,
+      classifications: { crisis, psychology, positive, emotion: emotionDetected, guardedness, suppressed: suppression.suppressed }
+    }),
+    stateSpinePatch: {
+      source: "queryClassifier",
+      schema: "nyx.marion.stateSpine/1.6",
+      shouldAdvanceState: false,
+      emotionKey: _lower(primaryEmotion.emotion || emotion.primaryEmotion || "neutral") || "neutral",
+      emotionCluster: crisis || mergedSupportFlags.highDistress ? "high_distress" : psychology ? "emotional" : "neutral",
+      suppressMenus: !!(mergedSupportFlags.crisis || mergedSupportFlags.needsContainment || mergedSupportFlags.highDistress)
     }
   };
 }
 
-module.exports = { classifyQuery };
+module.exports = { VERSION, classifyQuery, buildStateSpineTurnSignals };
