@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -397,6 +397,12 @@ function objectContainsFreshMarionSignature(value, depth) {
 }
 
 function hasFreshMarionFinalEnvelope(value) {
+  if (marionFinalEnvelopeMod && typeof marionFinalEnvelopeMod.isMarionFinalEnvelope === "function") {
+    try {
+      if (marionFinalEnvelopeMod.isMarionFinalEnvelope(value)) return true;
+      if (isObj(value) && marionFinalEnvelopeMod.isMarionFinalEnvelope(value.finalEnvelope)) return true;
+    } catch (_) {}
+  }
   const src = isObj(value) ? value : {};
   const packet = isObj(src.packet) ? src.packet : {};
   const packetMeta = isObj(packet.meta) ? packet.meta : {};
@@ -954,6 +960,27 @@ const marionIntentRouterMod = tryRequireMany([
 const marionDomainRegistryMod = tryRequireMany([
   "./Data/marion/runtime/marionDomainRegistry",
   "./Data/marion/runtime/marionDomainRegistry.js"
+]);
+
+const marionCommandNormalizerMod = tryRequireMany([
+  "./Data/marion/runtime/marionCommandNormalizer",
+  "./Data/marion/runtime/marionCommandNormalizer.js",
+  "./utils/marionCommandNormalizer",
+  "./utils/marionCommandNormalizer.js"
+]);
+
+const marionLoopGuardMod = tryRequireMany([
+  "./Data/marion/runtime/marionLoopGuard",
+  "./Data/marion/runtime/marionLoopGuard.js",
+  "./utils/marionLoopGuard",
+  "./utils/marionLoopGuard.js"
+]);
+
+const marionFinalEnvelopeMod = tryRequireMany([
+  "./Data/marion/runtime/marionFinalEnvelope",
+  "./Data/marion/runtime/marionFinalEnvelope.js",
+  "./utils/marionFinalEnvelope",
+  "./utils/marionFinalEnvelope.js"
 ]);
 
 const stateSpineMod = tryRequireMany([
@@ -5982,6 +6009,20 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
+  const marionCommandPacket = marionCommandNormalizerMod && typeof marionCommandNormalizerMod.normalizeCommand === "function"
+    ? marionCommandNormalizerMod.normalizeCommand({
+        text: norm.text,
+        userQuery: norm.text,
+        query: norm.text,
+        lane: norm.lane,
+        sessionId,
+        turnId: norm.turnId,
+        marionIntent: norm.marionIntent,
+        previousMemory: isObj(priorTurn) ? priorTurn : {},
+        source: "index_transport_only"
+      })
+    : null;
+
   const marionInput = {
     text: norm.text,
     query: norm.text,
@@ -5998,12 +6039,17 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
     intent: (norm.marionIntent && norm.marionIntent.intent) || norm.intentHint || "simple_chat",
     previousMemory: isObj(priorTurn) ? priorTurn : {},
+    commandPacket: isObj(marionCommandPacket) ? marionCommandPacket : {},
+    state: isObj(marionCommandPacket && marionCommandPacket.state) ? marionCommandPacket.state : {},
     session: isObj(norm.body && norm.body.session) ? norm.body.session : {},
     meta: {
       source: "index_transport_only",
       indexRole: "transport_only",
       noSupportDecision: true,
       noEmotionDecision: true,
+      normalizerVersion: cleanText(marionCommandNormalizerMod && marionCommandNormalizerMod.VERSION || ""),
+      loopGuardVersion: cleanText(marionLoopGuardMod && marionLoopGuardMod.VERSION || ""),
+      finalEnvelopeVersion: cleanText(marionFinalEnvelopeMod && marionFinalEnvelopeMod.VERSION || ""),
       traceId: norm.traceId,
       turnId: norm.turnId
     }
@@ -6031,51 +6077,24 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     loopReplyWasBlocked = true;
     console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
   }
-  if (marion && marion.ok !== false && marionReply && !marionReplyBlocked) {
+  if (marion && marion.ok !== false && marionReply && !marionReplyBlocked && marionHasFreshEnvelope) {
     selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
     selected.reply = marionReply;
     selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply };
     selected.bridge = marion;
     authority = "marion_bridge";
   } else {
-    try {
-      engine = await callWithTimeout(callChatEngine({
-        text: norm.text,
-        query: norm.text,
-        userQuery: norm.text,
-        lane: norm.lane,
-        mode: norm.mode,
-        year: norm.year,
-        sessionId,
-        turnId: norm.turnId,
-        marionIntent: norm.marionIntent,
-        routing: norm.marionRouting,
-        previousMemory: isObj(priorTurn) ? priorTurn : {},
-        marion,
-        meta: { source: "index_transport_only", traceId: norm.traceId, turnId: norm.turnId }
-      }), CFG.requestTimeoutMs, "chat_engine");
-    } catch (err) {
-      errorDetail = cleanText(err && (err.message || err) || errorDetail || "chat_engine_failed");
-      console.log("[Sandblast][chatRoute:engine_transport_error]", { traceId: norm.traceId, error: errorDetail });
-    }
-    const engineReply = cleanText(engine && (engine.reply || engine.text || engine.answer || engine.output || engine.response || engine.message || (engine.payload && (engine.payload.reply || engine.payload.text)) || ""));
-    const engineReplyBlocked = isBlockedLoopingSupportReply(engineReply);
-    if (engineReplyBlocked) {
-      loopReplyWasBlocked = true;
-      console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "chat_engine", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE });
-    }
-    if (engine && engine.ok !== false && engineReply && !engineReplyBlocked && !isInternalMarionBlockerReply(engineReply)) {
-      selected = isObj(engine) ? { ...engine } : { ok: true, reply: engineReply };
-      selected.reply = cleanReplyForUser(engineReply);
-      selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: selected.reply, text: selected.reply, message: selected.reply, spokenText: selected.reply };
-      selected.bridge = marion || selected.bridge || null;
-      authority = "chat_engine";
-    }
+    errorDetail = cleanText(errorDetail || (marionReplyBlocked ? "marion_loop_reply_blocked" : "marion_final_envelope_missing"));
+    console.log("[Sandblast][chatRoute:transport_only_no_engine_fallback]", {
+      traceId: norm.traceId,
+      marionReturned: !!marion,
+      marionReplyPresent: !!marionReply,
+      marionReplyBlocked,
+      marionHasFreshEnvelope
+    });
   }
-
   if (!selected && loopReplyWasBlocked) {
-    selected = buildLoopReplyBlockedReplacement(norm, "stale_support_phrase");
-    authority = "index_loop_phrase_recovery";
+    errorDetail = cleanText(errorDetail || "marion_loop_reply_blocked_transport_only");
   }
 
   if (!selected) {
@@ -6098,6 +6117,10 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         noEmotionDecision: true,
         marionBridgePresent: !!marionBridgeMod,
         chatEnginePresent: !!chatEngineMod,
+        chatEngineFallbackDisabled: true,
+        normalizerPresent: !!marionCommandNormalizerMod,
+        loopGuardPresent: !!marionLoopGuardMod,
+        finalEnvelopePresent: !!marionFinalEnvelopeMod,
         marionReturned: !!marion,
         engineReturned: !!engine,
         latencyMs: now() - startedAt
@@ -6107,58 +6130,35 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
   if (isBlockedLoopingSupportReply(reply)) {
-    selected = buildLoopReplyBlockedReplacement(norm, authority);
-    authority = "index_loop_phrase_recovery";
-    reply = cleanReplyForUser(selected.reply || "");
-  }
-  if (isBlockedLoopingSupportReply(reply)) {
-    reply = "Ready. Please send the next instruction.";
-    selected = {
-      ok: true,
-      final: true,
-      handled: true,
-      reply,
-      text: reply,
-      answer: reply,
-      output: reply,
-      payload: { reply, text: reply, message: reply, spokenText: reply, recoveryInjected: true },
-      meta: { v: INDEX_VERSION, t: now(), replyAuthority: "index_loop_phrase_last_resort", recoveryInjected: true }
-    };
-    authority = "index_loop_phrase_last_resort";
+    return res.status(502).json({
+      ok: false,
+      error: "marion_loop_reply_blocked",
+      detail: "Index is transport-only and will not replace Marion's response. MarionLoopGuard must return a clean recovery final envelope.",
+      reply: "",
+      text: "",
+      traceId: norm.traceId,
+      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, noSupportDecision: true, noEmotionDecision: true }
+    });
   }
 
   const duplicateGate = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority });
   if (duplicateGate.repeated && !isHighRiskSupportSignal(null, norm.text)) {
-    reply = cleanReplyForUser(buildLoopBreakReply(norm, duplicateGate, getSupportState(sessionId)));
     selected = {
       ...(isObj(selected) ? selected : {}),
-      ok: true,
-      final: true,
-      handled: true,
-      reply,
-      text: reply,
-      answer: reply,
-      output: reply,
       payload: {
         ...(isObj(selected && selected.payload) ? selected.payload : {}),
-        reply,
-        text: reply,
-        message: reply,
-        spokenText: reply,
-        duplicateReplyBlocked: true,
-        recoveryInjected: true
+        duplicateReplyObserved: true
       },
       meta: {
         ...(isObj(selected && selected.meta) ? selected.meta : {}),
         v: INDEX_VERSION,
         t: now(),
-        replyAuthority: "index_duplicate_loop_break",
+        replyAuthority: authority,
         previousTurnId: duplicateGate.previousTurnId,
-        duplicateReplyBlocked: true,
-        recoveryInjected: true
+        duplicateReplyObserved: true,
+        transportOnlyNoSemanticReplacement: true
       }
     };
-    authority = "index_duplicate_loop_break";
   }
 
   selected = normalizeReplyEnvelope(selected, reply, {
@@ -6185,7 +6185,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   selected.final = true;
   selected.finalized = true;
   selected.handled = true;
-  selected.marionFinal = authority === "marion_bridge" || !!selected.marionFinal;
+  selected.marionFinal = authority === "marion_bridge" && hasFreshMarionFinalEnvelope(selected);
   selected.lane = selected.lane || norm.lane || "general";
   selected.laneId = selected.laneId || selected.lane;
   selected.sessionLane = selected.sessionLane || selected.lane;
