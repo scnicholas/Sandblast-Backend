@@ -7,7 +7,7 @@
  * Reads Data/nyx/packets_v1.json and returns:
  *   { reply, followUps, sessionPatch, meta }
  *
- * v1.4-C (MARION AUTHORITY LOCK + STATE TEMPLATES + ONCE-PER-SESSION FIX + TYPE NORMALIZATION + SAFE AUTHORITY ORDER)
+ * v1.5.0 (MARION AUTHORITY LOCK + STATE SPINE COHESION + SAFE AUTHORITY ORDER)
  *
  * HARDENING / FIXES:
  * ✅ Never throws, never bricks boot (all-guards + safe fallbacks)
@@ -50,6 +50,9 @@ const MAX_CHIPS = 10;
 const MAX_LABEL_LEN = 48;
 const MAX_SEND_LEN = 96;
 const MAX_REPLY_LEN = 1200;
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 
 // allowlist keys that packets.js may emit in sessionPatch
 // (chatEngine will further allowlist when it merges)
@@ -107,6 +110,11 @@ function djb2Hash(str) {
   return h >>> 0; // unsigned
 }
 
+
+
+function hasFreshMarionFinalSignature(value, depth) { if (depth > 8 || value == null) return false; if (typeof value === "string") { const s = String(value || ""); return s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && s.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1; } if (Array.isArray(value)) return value.some((item) => hasFreshMarionFinalSignature(item, depth + 1)); if (isPlainObject(value)) { if (value.requiredSignature === REQUIRED_CHAT_ENGINE_SIGNATURE && value.hardlockCompatible === true) return true; return Object.keys(value).some((key) => hasFreshMarionFinalSignature(value[key], depth + 1)); } return false; }
+function getStateSpineView(session) { const ss = isPlainObject(session) ? session : Object.create(null); const meta = isPlainObject(ss.meta) ? ss.meta : Object.create(null); const memory = isPlainObject(ss.memory) ? ss.memory : Object.create(null); return isPlainObject(ss.stateSpine) ? ss.stateSpine : isPlainObject(ss.conversationState) ? ss.conversationState : isPlainObject(memory.stateSpine) ? memory.stateSpine : isPlainObject(meta.stateSpine) ? meta.stateSpine : Object.create(null); }
+function stateSpineBlocksPackets(session) { const spine = getStateSpineView(session); const support = isPlainObject(spine.support) ? spine.support : Object.create(null); const repetition = isPlainObject(spine.repetition) ? spine.repetition : Object.create(null); const marionCohesion = isPlainObject(spine.marionCohesion) ? spine.marionCohesion : Object.create(null); return !!(support.lockActive === true || support.shouldSuppressMenus === true || spine.progressionLock === true || Number(repetition.noProgressCount || 0) >= 2 || marionCohesion.marionFinalObserved === true || marionCohesion.shouldAdvanceState === true); }
 
 function firstNonEmptyString() {
   for (const v of arguments) {
@@ -634,6 +642,8 @@ async function handleChat({ text, session, visitorId, debug }) {
             usedStateTemplates: !!(chosen.stateTemplates && chosen.stateTemplates[state]),
             gateAllowPackets: !!(session && session.allowPackets === true),
             marionAuthority: !!marionReply,
+            stateSpineSchema: STATE_SPINE_SCHEMA_COMPAT,
+            stateSpineBlocked: stateSpineBlocksPackets(session),
             blockedByYear: !!(
               extractYearFromText(lower) ||
               (session && (clampYear(session.lastMusicYear) || clampYear(session.cog && (session.cog.year || session.cog.lastMusicYear))))
@@ -655,4 +665,4 @@ async function handleChat({ text, session, visitorId, debug }) {
   }
 }
 
-module.exports = { handleChat };
+module.exports = { handleChat, getMarionAuthorityReply, stateSpineBlocksPackets };
