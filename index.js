@@ -30,8 +30,22 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + NYX-PACK-RUNTIME-ADAPTER-V31";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30";
 const SERVER_BOOT_AT = Date.now();
+
+function clampNumberEnv(name, fallback, min, max) {
+  const n = Number(process.env[name]);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+const HARDENING_CONSTANTS = Object.freeze({
+  MAX_SESSIONS: clampNumberEnv("SB_MAX_SESSIONS", 1000, 100, 100000),
+  XML_MAX_INPUT_CHARS: clampNumberEnv("SB_XML_MAX_INPUT_CHARS", 1024 * 1024, 8192, 5 * 1024 * 1024),
+  XML_MAX_ENTITY_REPLACEMENTS: clampNumberEnv("SB_XML_MAX_ENTITY_REPLACEMENTS", 5000, 100, 50000),
+  XML_MAX_DECODE_OUTPUT_CHARS: clampNumberEnv("SB_XML_MAX_DECODE_OUTPUT_CHARS", 1024 * 1024, 8192, 5 * 1024 * 1024),
+  AVATAR_MAX_BASENAME_CHARS: clampNumberEnv("SB_AVATAR_MAX_BASENAME_CHARS", 180, 16, 255)
+});
 
 process.on("unhandledRejection", (reason) => {
   console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
@@ -110,8 +124,25 @@ const AVATAR_IMAGE_FALLBACK_BASENAME = cleanEnvAvatarBasename(
 );
 
 function cleanEnvAvatarBasename(value) {
-  const base = path.basename(cleanText(value || ""));
+  const raw = cleanText(value || "");
+  if (!raw || raw.length > HARDENING_CONSTANTS.AVATAR_MAX_BASENAME_CHARS) return "";
+  if (raw.includes("\0")) return "";
+  const normalized = raw.replace(/\\+/g, "/");
+  const base = path.basename(normalized);
+  if (!base || base === "." || base === "..") return "";
+  if (base.includes("/") || base.includes("\\")) return "";
+  if (!/^[a-z0-9][a-z0-9._ -]{0,254}$/i.test(base)) return "";
+  if (base.startsWith(".")) return "";
   return cleanText(base);
+}
+
+function safeResolveUnderDir(baseDir, targetPath) {
+  const root = path.resolve(baseDir || "");
+  const resolved = path.resolve(targetPath || "");
+  if (!root || !resolved) return "";
+  const rel = path.relative(root, resolved);
+  if (rel === "" || (!!rel && !rel.startsWith("..") && !path.isAbsolute(rel))) return resolved;
+  return "";
 }
 
 function avatarAssetBaseUrl() {
@@ -136,32 +167,39 @@ function avatarStaticCandidateDirs() {
   });
 }
 
+function safeAvatarFileCandidate(dir, fileName) {
+  const base = cleanEnvAvatarBasename(fileName);
+  if (!base) return "";
+  const safeDir = avatarStaticCandidateDirs().find((candidateDir) => path.resolve(candidateDir) === path.resolve(dir));
+  if (!safeDir) return "";
+  return safeResolveUnderDir(safeDir, path.join(safeDir, base));
+}
+
 function avatarStaticCandidateFiles(fileName) {
   const base = cleanEnvAvatarBasename(fileName);
   if (!base) return [];
-  const dirs = avatarStaticCandidateDirs();
-  return uniq([
-    path.join(AVATAR_ASSETS_DIR, base),
-    path.join(AVATAR_PUBLIC_DIR, base),
-    ...dirs.map((dir) => path.join(dir, base))
-  ]);
+  return uniq(avatarStaticCandidateDirs().map((dir) => safeAvatarFileCandidate(dir, base)).filter(Boolean));
 }
 
 function resolveAvatarAssetFile(fileName) {
   const base = cleanEnvAvatarBasename(fileName);
   if (!base) return "";
+  const allowedDirs = avatarStaticCandidateDirs();
   for (const candidate of avatarStaticCandidateFiles(base)) {
     try {
-      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+      const resolved = path.resolve(candidate);
+      const allowed = allowedDirs.some((dir) => !!safeResolveUnderDir(dir, resolved));
+      if (allowed && fs.existsSync(resolved) && fs.statSync(resolved).isFile()) return resolved;
     } catch (_) {}
   }
   const lowerName = base.toLowerCase();
-  for (const dir of avatarStaticCandidateDirs()) {
+  for (const dir of allowedDirs) {
     try {
       const hits = fs.readdirSync(dir);
       for (const entry of hits) {
-        const full = path.join(dir, entry);
-        if (entry.toLowerCase() === lowerName && fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+        if (cleanEnvAvatarBasename(entry).toLowerCase() !== lowerName) continue;
+        const full = safeAvatarFileCandidate(dir, entry);
+        if (full && fs.existsSync(full) && fs.statSync(full).isFile()) return full;
       }
     } catch (_) {}
   }
@@ -763,6 +801,10 @@ function maybeSweepMemory() {
   prune(memory.supportBySession);
   prune(memory.transportBySession);
   prune(memory.spineBySession);
+  pruneMapToMaxSize(memory.lastBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
+  pruneMapToMaxSize(memory.supportBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
+  pruneMapToMaxSize(memory.transportBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
+  pruneMapToMaxSize(memory.spineBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
 }
 
 function shouldLogRequest(req, statusCode, durationMs) {
@@ -914,40 +956,6 @@ const marionDomainRegistryMod = tryRequireMany([
   "./Data/marion/runtime/marionDomainRegistry.js"
 ]);
 
-const nyxPackRuntimeAdapterMod = tryRequireMany([
-  "./Data/marion/runtime/nyx_pack_runtime_adapter",
-  "./Data/marion/runtime/nyx_pack_runtime_adapter.js",
-  "./nyx_pack_runtime_adapter",
-  "./nyx_pack_runtime_adapter.js",
-  "./utils/nyx_pack_runtime_adapter",
-  "./utils/nyx_pack_runtime_adapter.js",
-  "./Utils/nyx_pack_runtime_adapter",
-  "./Utils/nyx_pack_runtime_adapter.js"
-]);
-
-function tryLoadJsonMany(paths) {
-  for (const candidate of Array.isArray(paths) ? paths : []) {
-    try {
-      if (!candidate) continue;
-      const full = path.isAbsolute(candidate) ? candidate : path.join(__dirname, candidate);
-      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue;
-      const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
-      if (parsed) return { data: parsed, file: full };
-    } catch (_) {}
-  }
-  return { data: null, file: "" };
-}
-
-const nyxPacketPackRuntime = tryLoadJsonMany([
-  process.env.NYX_PACKET_PACK_FILE || "",
-  "Data/marion/runtime/packets_v1_3_normalized.json",
-  "Data/marion/runtime/packets_v1.json",
-  "Data/marion/runtime/packets.json",
-  "packets_v1_3_normalized.json",
-  "packets_v1.json",
-  "packets.json"
-]);
-
 const stateSpineMod = tryRequireMany([
   "./stateSpine",
   "./stateSpine.js",
@@ -985,10 +993,6 @@ function getMarionRuntimeDiagnostics() {
     marionIntentRouterLoaded: !!marionIntentRouterMod,
     marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
     marionDomainRegistryLoaded: !!marionDomainRegistryMod,
-    nyxPackRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
-    nyxPackRuntimeAdapterHasResolve: !!(nyxPackRuntimeAdapterMod && typeof nyxPackRuntimeAdapterMod.resolveNyxPacket === "function"),
-    nyxPacketPackLoaded: !!(nyxPacketPackRuntime && nyxPacketPackRuntime.data && Array.isArray(nyxPacketPackRuntime.data.packets)),
-    nyxPacketPackFile: cleanText(nyxPacketPackRuntime && nyxPacketPackRuntime.file || ""),
     chatEngineLoaded: !!chatEngineMod,
     chatEngineKeys: chatEngineMod && typeof chatEngineMod === "object" ? Object.keys(chatEngineMod).slice(0, 20) : [],
     siteBridgeLoaded: !!siteBridgeMod,
@@ -1175,23 +1179,36 @@ function parseNewsCanadaWpPostsJson(raw, sourceUrl) {
 }
 
 function decodeXmlEntities(value) {
-  return safeStr(value)
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#8217;/gi, "'")
-    .replace(/&#8220;|&#8221;/gi, '"')
-    .replace(/&#8230;/gi, "…")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+  let entityCount = 0;
+  const bump = () => {
+    entityCount += 1;
+    return entityCount <= HARDENING_CONSTANTS.XML_MAX_ENTITY_REPLACEMENTS;
+  };
+  let text = safeStr(value);
+  if (text.length > HARDENING_CONSTANTS.XML_MAX_INPUT_CHARS) text = text.slice(0, HARDENING_CONSTANTS.XML_MAX_INPUT_CHARS);
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) {
+    text = text.replace(/<!DOCTYPE[\s\S]*?>/gi, "").replace(/<!ENTITY[\s\S]*?>/gi, "");
+  }
+  const out = text
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, body) => bump() ? body : "")
+    .replace(/&nbsp;/gi, () => bump() ? " " : "")
+    .replace(/&#39;|&apos;/gi, () => bump() ? "'" : "")
+    .replace(/&quot;/gi, () => bump() ? '"' : "")
+    .replace(/&#8217;/gi, () => bump() ? "'" : "")
+    .replace(/&#8220;|&#8221;/gi, () => bump() ? '"' : "")
+    .replace(/&#8230;/gi, () => bump() ? "…" : "")
+    .replace(/&amp;/gi, () => bump() ? "&" : "")
+    .replace(/&lt;/gi, () => bump() ? "<" : "")
+    .replace(/&gt;/gi, () => bump() ? ">" : "")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      if (!bump()) return "";
       try { return String.fromCodePoint(parseInt(hex, 16)); } catch (_) { return ""; }
     })
     .replace(/&#(\d+);/g, (_, dec) => {
+      if (!bump()) return "";
       try { return String.fromCodePoint(parseInt(dec, 10)); } catch (_) { return ""; }
     });
+  return out.length > HARDENING_CONSTANTS.XML_MAX_DECODE_OUTPUT_CHARS ? out.slice(0, HARDENING_CONSTANTS.XML_MAX_DECODE_OUTPUT_CHARS) : out;
 }
 
 function stripTags(value) {
@@ -1327,10 +1344,14 @@ function buildNewsCanadaItem(entry, index, feedUrl, parserMode) {
 }
 
 function parseNewsCanadaRssXml(xmlText, feedUrl) {
-  const xml = safeStr(xmlText);
+  let xml = safeStr(xmlText);
   const items = [];
   let parserMode = "no_items";
   if (!xml) return { items, parserMode };
+  if (xml.length > HARDENING_CONSTANTS.XML_MAX_INPUT_CHARS) xml = xml.slice(0, HARDENING_CONSTANTS.XML_MAX_INPUT_CHARS);
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+    return { items, parserMode: "blocked_unsafe_xml_doctype" };
+  }
 
   const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
   const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry[\s\S]*?<\/entry>/gi) || []);
@@ -2719,6 +2740,23 @@ function buildNewsCanadaCacheBackedService(cacheMod, fallbackService) {
 
 const newsCanadaPrimaryService = buildNewsCanadaCacheBackedService(newscanadaCacheServiceMod, newsCanadaFeedService);
 
+function pruneMapToMaxSize(mapObj, maxSize) {
+  if (!mapObj || typeof mapObj.size !== "number" || typeof mapObj.keys !== "function") return;
+  const max = clamp(Number(maxSize || HARDENING_CONSTANTS.MAX_SESSIONS), 100, 100000);
+  while (mapObj.size > max) {
+    const oldest = mapObj.keys().next().value;
+    if (oldest === undefined) break;
+    mapObj.delete(oldest);
+  }
+}
+
+function touchMapEntry(mapObj, key, value) {
+  if (!mapObj || typeof mapObj.set !== "function") return;
+  if (mapObj.has(key)) mapObj.delete(key);
+  mapObj.set(key, value);
+  pruneMapToMaxSize(mapObj, HARDENING_CONSTANTS.MAX_SESSIONS);
+}
+
 const memory = {
   lastBySession: new Map(),
   supportBySession: new Map(),
@@ -2841,7 +2879,7 @@ function summarizeTurnForMemory(prev, patch) {
 }
 
 function setLastTurn(sessionId, data) {
-  memory.lastBySession.set(sessionId, summarizeTurnForMemory(getLastTurn(sessionId), data));
+  touchMapEntry(memory.lastBySession, sessionId, summarizeTurnForMemory(getLastTurn(sessionId), data));
 }
 
 function getSupportState(sessionId) {
@@ -2868,7 +2906,7 @@ function setSupportState(sessionId, patch) {
     ...(isObj(patch) ? patch : {}),
     updatedAt: now()
   };
-  memory.supportBySession.set(sessionId, next);
+  touchMapEntry(memory.supportBySession, sessionId, next);
   return next;
 }
 
@@ -2894,7 +2932,7 @@ function setTransportState(sessionId, patch) {
     ...(isObj(patch) ? patch : {}),
     at: now()
   };
-  memory.transportBySession.set(sessionId, next);
+  touchMapEntry(memory.transportBySession, sessionId, next);
   return next;
 }
 
@@ -2909,7 +2947,7 @@ function getStateSpine(sessionId) {
   if (runtime && typeof runtime.createState === "function") {
     try {
       const created = runtime.createState({ lane: "general", stage: "open" });
-      memory.spineBySession.set(sessionId, created);
+      touchMapEntry(memory.spineBySession, sessionId, created);
       return created;
     } catch (_) {}
   }
@@ -2925,7 +2963,7 @@ function setStateSpine(sessionId, nextState) {
     } catch (_) {}
   }
   next = { ...next, updatedAt: now() };
-  memory.spineBySession.set(sessionId, next);
+  touchMapEntry(memory.spineBySession, sessionId, next);
   return next;
 }
 
@@ -5884,73 +5922,6 @@ app.head(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   return res.status(204).end();
 });
 
-function isNyxIntroLikeText(value) {
-  const t = lower(cleanText(value || ""));
-  return /^(hi|hello|hey|yo|hiya|sup|gm|good morning|good afternoon|good evening|welcome back|back again|i['’]?m back|im back|we['’]?re back|were back|again|back)$/i.test(t);
-}
-
-function resolveNyxPackRuntimeFallback(norm, sessionId, backendContext) {
-  if (!nyxPackRuntimeAdapterMod || typeof nyxPackRuntimeAdapterMod.resolveNyxPacket !== "function") return null;
-  const pack = nyxPacketPackRuntime && nyxPacketPackRuntime.data;
-  if (!pack || !Array.isArray(pack.packets)) return null;
-  const prior = getLastTurn(sessionId);
-  const session = {
-    ...(isObj(norm && norm.body && norm.body.session) ? norm.body.session : {}),
-    state: cleanText(norm && norm.state || norm && norm.body && norm.body.state || "cold") || "cold",
-    lane: cleanText(norm && norm.lane || "general") || "general",
-    lastMusicYear: norm && norm.year,
-    activeMusicMode: norm && norm.mode
-  };
-  if (isObj(prior) && prior.reply) session.__lastOutSig = typeof nyxPackRuntimeAdapterMod.normalizeSig === "function" ? nyxPackRuntimeAdapterMod.normalizeSig(prior.reply) : replyHash(prior.reply);
-  const intent = isNyxIntroLikeText(norm && norm.text) ? "intro" : "fallback";
-  try {
-    const resolved = nyxPackRuntimeAdapterMod.resolveNyxPacket(pack, {
-      intent,
-      backendPayload: backendContext && backendContext.backendPayload,
-      backendFailed: !!(backendContext && backendContext.backendFailed),
-      freshMarionFinal: !!(backendContext && backendContext.freshMarionFinal),
-      replayDetected: !!(backendContext && backendContext.replayDetected),
-      session,
-      year: norm && norm.year,
-      mode: norm && norm.mode,
-      city: norm && norm.city,
-      seed: now()
-    });
-    const reply = cleanReplyForUser(resolved && resolved.reply || "");
-    if (!reply) return null;
-    const chips = Array.isArray(resolved && resolved.chips) ? resolved.chips : [];
-    return {
-      ok: true,
-      final: true,
-      handled: true,
-      reply,
-      text: reply,
-      answer: reply,
-      output: reply,
-      payload: { reply, text: reply, message: reply, spokenText: reply, source: "nyx_pack_runtime_adapter", adapterDecision: resolved && resolved.source || "packet", adapterPacket: resolved && resolved.packet || "", chips },
-      ui: { chips },
-      chips,
-      sessionPatch: session,
-      meta: {
-        v: INDEX_VERSION,
-        t: now(),
-        replyAuthority: "nyx_pack_runtime_adapter",
-        semanticAuthority: "packet_last_resort",
-        adapterDecision: resolved && resolved.source || "packet",
-        adapterIntent: intent,
-        adapterPacket: resolved && resolved.packet || "",
-        adapterPackFile: cleanText(nyxPacketPackRuntime && nyxPacketPackRuntime.file || ""),
-        marionAuthorityPreserved: true,
-        backendFirst: true,
-        requireBackendEmpty: true
-      }
-    };
-  } catch (err) {
-    console.log("[Sandblast][nyxPackRuntimeAdapter:error]", cleanText(err && (err.message || err) || "adapter_failed"));
-    return null;
-  }
-}
-
 app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
   const startedAt = now();
@@ -6108,19 +6079,6 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   if (!selected) {
-    const adapterSelected = resolveNyxPackRuntimeFallback(norm, sessionId, {
-      backendPayload: marion || engine || null,
-      backendFailed: !!errorDetail || !!(marion && marion.ok === false) || !!(engine && engine.ok === false),
-      freshMarionFinal: !!marionHasFreshEnvelope,
-      replayDetected: !!loopReplyWasBlocked
-    });
-    if (adapterSelected) {
-      selected = adapterSelected;
-      authority = "nyx_pack_runtime_adapter";
-    }
-  }
-
-  if (!selected) {
     return res.status(502).json({
       ok: false,
       error: "conversation_authority_empty",
@@ -6140,8 +6098,6 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         noEmotionDecision: true,
         marionBridgePresent: !!marionBridgeMod,
         chatEnginePresent: !!chatEngineMod,
-        nyxPackRuntimeAdapterPresent: !!nyxPackRuntimeAdapterMod,
-        nyxPacketPackLoaded: !!(nyxPacketPackRuntime && nyxPacketPackRuntime.data && Array.isArray(nyxPacketPackRuntime.data.packets)),
         marionReturned: !!marion,
         engineReturned: !!engine,
         latencyMs: now() - startedAt
