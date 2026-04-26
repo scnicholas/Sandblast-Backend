@@ -1,6 +1,6 @@
 {
-  "version": "packets_v1.2-C (state-ready + fluid templates)",
-  "updated": "2026-01-28",
+  "version": "packets_v1.3-C-normalized",
+  "updated": "2026-04-26",
   "source": "nyx_phrasepack_v1.2",
   "voice": {
     "persona": "Nyx",
@@ -931,6 +931,161 @@
       "constraints": {
         "honorMarionFirst": true
       }
+    },
+    {
+      "id": "general.intro_soft_expanded",
+      "type": "intro",
+      "lane": "general",
+      "trigger": [
+        "__intro__",
+        "start",
+        "begin"
+      ],
+      "templates": [
+        "Hi — Nyx here. One cue is enough.",
+        "Welcome in. Start simple and I’ll shape the path.",
+        "Hey. Give me the anchor and we’ll move cleanly.",
+        "Good to have you here. The first signal decides the lane.",
+        "No heavy setup needed. Drop the first cue.",
+        "We can start with a year, a city, or a goal.",
+        "One clean direction is enough to begin.",
+        "The door is open. Choose the first room.",
+        "Start small. I’ll keep the thread intact.",
+        "Give me the first piece and I’ll build from there."
+      ],
+      "chips": [
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        },
+        {
+          "label": "Movies",
+          "send": "movies"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "oncePerSession": true
+      },
+      "priority": 0
+    },
+    {
+      "id": "general.fallback_anchor_expanded",
+      "type": "fallback",
+      "lane": "general",
+      "trigger": [
+        "__fallback_anchor__"
+      ],
+      "templates": [
+        "I need one clean cue to move this forward.",
+        "Give me the anchor: year, city, title, or goal.",
+        "That didn’t choose a lane yet. One cue fixes it.",
+        "We can recover cleanly. Start with the strongest detail.",
+        "I won’t overbuild it. Give me the first signal.",
+        "One direction is enough: music, schedule, sponsors, or movies.",
+        "The thread needs an anchor before it can deepen.",
+        "We’re close. Give me one concrete detail.",
+        "No problem. One cue and I’ll steer.",
+        "Let’s reduce the noise: year, city, title, or goal."
+      ],
+      "chips": [
+        {
+          "label": "Year",
+          "send": "1988"
+        },
+        {
+          "label": "City",
+          "send": "in Toronto"
+        },
+        {
+          "label": "Goal",
+          "send": "sponsors"
+        },
+        {
+          "label": "Title",
+          "send": "movies"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "last_resort_fallback",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "fallbackOnly": true,
+        "requireBackendEmpty": true,
+        "requireNoBackendReply": true,
+        "requireHardFailureOrNoReply": true
+      },
+      "priority": -110
+    },
+    {
+      "id": "general.replay_breaker_expanded",
+      "type": "fallback",
+      "lane": "general",
+      "trigger": [
+        "__replay_detected__"
+      ],
+      "templates": [
+        "That did not advance the signal. We redirect cleanly.",
+        "Same loop, different skin. Let’s break the pattern.",
+        "The reply repeated. The next move has to change state.",
+        "A fallback should recover motion, not become the conversation.",
+        "We have enough to continue without recycling the same line.",
+        "That response lost traction. We restore direction.",
+        "The system needs a new handoff, not another echo.",
+        "We’re not staying in the loop. We move one layer forward.",
+        "That was a guardrail hit. The next line should carry progress.",
+        "No stall. We recover with a single clean cue."
+      ],
+      "chips": [
+        {
+          "label": "Advance",
+          "send": "continue"
+        },
+        {
+          "label": "Start fresh",
+          "send": "start fresh"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "replay_recovery",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "fallbackOnly": true,
+        "requireReplayDetected": true,
+        "requireNoFreshMarionFinal": true
+      },
+      "priority": -105
     }
   ],
   "marionAuthorityLock": {
@@ -969,6 +1124,19 @@
       "no_backend_reply",
       "backend_transport_failure",
       "backend_contract_failure"
+    ],
+    "requiredRuntimeGuardFile": "nyx_pack_runtime_adapter.js",
+    "replayProtectionRequired": true,
+    "introEligiblePackets": [
+      "general.greetings_first",
+      "general.greetings_returning",
+      "general.intro_soft_expanded"
+    ],
+    "fallbackEligiblePackets": [
+      "general.fallback_nudge",
+      "general.errors_generic",
+      "general.fallback_anchor_expanded",
+      "general.replay_breaker_expanded"
     ]
   }
 }
