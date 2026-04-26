@@ -14,10 +14,32 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.0.2 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX FINAL-ENVELOPE-GUARD";
+const SPINE_VERSION = "stateSpine v2.0.3 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX FINAL-ENVELOPE-GUARD + LOOP-GUARD-RECOVERY-STAGES";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const TERMINAL_AUDIO_STOP_MS = 30000;
+
+const STATE_STAGES = Object.freeze([
+  "intake",
+  "classified",
+  "routed",
+  "compose",
+  "final",
+  "recover",
+  "error",
+  "open"
+]);
+
+function normalizeStateStage(value, fallback = "open") {
+  const raw = safeStr(value || fallback || "open").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!raw) return "open";
+  if (raw === "recovery" || raw === "loop_recovery") return "recover";
+  if (raw === "classification") return "classified";
+  if (raw === "route") return "routed";
+  if (raw === "composed") return "compose";
+  if (STATE_STAGES.includes(raw)) return raw;
+  return fallback || "open";
+}
 
 function safeStr(x) {
   return x === null || x === undefined ? "" : String(x);
@@ -1024,16 +1046,56 @@ function assertTurnUpdated(prevState, nextState) {
     !!next?.marionCohesion?.shouldAdvanceState !== !!prev?.marionCohesion?.shouldAdvanceState;
 }
 
+function applyLoopRecoveryPatch(prevState, loopGuardResult = {}) {
+  const prev = coerceState(prevState);
+  const loopDetected = !!(loopGuardResult.loopDetected || loopGuardResult.forceRecovery);
+  const reasons = Array.isArray(loopGuardResult.reasons) ? loopGuardResult.reasons : [];
+  if (!loopDetected) {
+    return {
+      ...prev,
+      stage: normalizeStateStage(prev.stage, "open"),
+      lastUpdatedAt: nowMs()
+    };
+  }
+  return {
+    ...prev,
+    rev: clampInt(prev.rev, 0, 0, 999999) + 1,
+    stage: "recover",
+    phase: "recovery",
+    progressionLock: false,
+    repetition: {
+      ...prev.repetition,
+      fallbackCount: clampInt(prev.repetition?.fallbackCount, 0, 0, 999999) + 1,
+      noProgressCount: clampInt(prev.repetition?.noProgressCount, 0, 0, 999999) + 1
+    },
+    marionCohesion: {
+      ...prev.marionCohesion,
+      loopPhraseRejected: true,
+      statePatchRequired: true,
+      shouldAdvanceState: false,
+      noProgressCount: clampInt(prev.marionCohesion?.noProgressCount, 0, 0, 999999) + 1,
+      lastLoopReasons: reasons,
+      updatedAt: nowMs()
+    },
+    lastMove: "loop_guard_recovery",
+    lastRationale: reasons.join(",") || "loop_guard_detected",
+    lastUpdatedAt: nowMs()
+  };
+}
+
 module.exports = {
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
   SPINE_VERSION,
+  STATE_STAGES,
+  normalizeStateStage,
   TERMINAL_AUDIO_STOP_MS,
   createState,
   coerceState,
   inferConversationPhase,
   decideNextMove,
   finalizeTurn,
+  applyLoopRecoveryPatch,
   assertTurnUpdated,
   hasMarionFinalSignal,
   hasTrustedMarionFinalEnvelope,
