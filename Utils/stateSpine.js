@@ -3,7 +3,7 @@
 /**
  * Utils/stateSpine.js
  *
- * stateSpine v1.4.0 SUPPORT-LOCK LOOP-HARDEN
+ * stateSpine v1.9.0 MARION-STATE-RESTRUCTURE SUPPORT-LOCK LOOP-HARDEN
  * ------------------------------------------------------------
  * PURPOSE
  * - Maintain durable conversational progression state
@@ -14,8 +14,8 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v1.8.0 SUPPORT-LOCK LOOP-HARDEN MARION-COMPOSER-COHESION";
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
+const SPINE_VERSION = "stateSpine v1.9.0 MARION-STATE-RESTRUCTURE SUPPORT-LOCK LOOP-HARDEN FINAL-ENVELOPE-GUARD";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 function safeStr(x) {
@@ -134,6 +134,71 @@ function hashUserTextForComposer(text) {
   return hashText(oneLine(text).toLowerCase());
 }
 
+function extractMarionFinalSignature(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  return firstNonEmpty(
+    p.marionFinalSignature,
+    p.finalSignature,
+    p.signature,
+    meta.marionFinalSignature,
+    meta.finalSignature,
+    meta.signature,
+    marion.marionFinalSignature,
+    marion.finalSignature,
+    marion.signature,
+    packetMeta.marionFinalSignature,
+    packetMeta.finalSignature,
+    packetMeta.signature,
+    payload.marionFinalSignature,
+    payload.finalSignature,
+    payload.signature,
+    memoryPatch.marionFinalSignature,
+    memoryPatch.finalSignature,
+    extractNested(inbound, ["meta", "marionFinalSignature"]),
+    extractNested(inbound, ["meta", "finalSignature"]),
+    extractNested(inbound, ["packet", "meta", "marionFinalSignature"]),
+    extractNested(inbound, ["packet", "meta", "finalSignature"])
+  );
+}
+
+function hasTrustedMarionFinalEnvelope(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const sig = extractMarionFinalSignature(p);
+  const hasFinalFlag = !!(
+    p.marionFinal || p.final ||
+    inbound.marionFinal || inbound.final ||
+    meta.marionFinal || meta.final ||
+    marion.marionFinal || marion.final ||
+    packet.marionFinal || packet.final ||
+    packetMeta.marionFinal || packetMeta.final ||
+    payload.marionFinal || payload.final ||
+    memoryPatch.marionFinal || memoryPatch.final
+  );
+  const composedOnce = !!(memoryPatch.composedOnce || memoryPatch?.stateBridge?.composedOnce);
+  const bridgeAdvance = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState);
+  return !!(sig && (hasFinalFlag || composedOnce || bridgeAdvance));
+}
+
+function isLoopPhrase(text) {
+  const s = oneLine(text).toLowerCase();
+  if (!s) return false;
+  return /^(i['’]?m here with you|i am here with you|i['’]?m right here with you|i understand|i hear you|i['’]?ve got you|i got you|we can take this one step at a time)[.!?]*$/.test(s);
+}
+
 function createState(seed = {}) {
   const lane = safeStr(seed.lane || "general") || "general";
   const stage = safeStr(seed.stage || "open") || "open";
@@ -221,6 +286,8 @@ function createState(seed = {}) {
       lastComposerUserSignature: "",
       lastComposerReplySignature: "",
       lastMarionFinalSignature: "",
+      finalEnvelopeTrusted: false,
+      loopPhraseRejected: false,
       statePatchRequired: false,
       shouldAdvanceState: false,
       noProgressCount: 0,
@@ -324,6 +391,8 @@ function coerceState(input) {
       lastComposerUserSignature: safeStr(src?.marionCohesion?.lastComposerUserSignature || ""),
       lastComposerReplySignature: safeStr(src?.marionCohesion?.lastComposerReplySignature || ""),
       lastMarionFinalSignature: safeStr(src?.marionCohesion?.lastMarionFinalSignature || ""),
+      finalEnvelopeTrusted: !!src?.marionCohesion?.finalEnvelopeTrusted,
+      loopPhraseRejected: !!src?.marionCohesion?.loopPhraseRejected,
       statePatchRequired: !!src?.marionCohesion?.statePatchRequired,
       shouldAdvanceState: !!src?.marionCohesion?.shouldAdvanceState,
       noProgressCount: clampInt(src?.marionCohesion?.noProgressCount, 0, 0, 999999),
@@ -629,22 +698,18 @@ function hasMarionFinalSignal(params = {}) {
   const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   const memoryPatch = extractComposerMemoryPatch(p);
-  const sig = firstNonEmpty(
-    p.marionFinalSignature,
-    p.signature,
-    meta.marionFinalSignature,
-    meta.signature,
-    marion.marionFinalSignature,
-    marion.signature,
-    packetMeta.marionFinalSignature,
-    packetMeta.signature,
-    payload.marionFinalSignature,
-    payload.signature,
-    memoryPatch.marionFinalSignature,
-    extractNested(inbound, ["meta", "marionFinalSignature"]),
-    extractNested(inbound, ["packet", "meta", "marionFinalSignature"])
-  );
+  const sig = extractMarionFinalSignature(p);
+  const trusted = hasTrustedMarionFinalEnvelope(p);
+
+  /*
+   * Compatibility note:
+   * - Existing callers may only send handled/final flags. We still observe those
+   *   as Marion activity so legacy paths do not break.
+   * - State advancement in finalizeTurn is stricter and prefers a trusted final
+   *   envelope with a diagnostic signature or composer stateBridge advance.
+   */
   return !!(
+    trusted ||
     p.marionFinal || p.final || p.handled ||
     inbound.marionFinal || inbound.final || inbound.handled ||
     meta.marionFinal || meta.final || meta.handled ||
@@ -679,7 +744,10 @@ function finalizeTurn(params = {}) {
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
   const sameAssistant = !!(assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
   const marionFinalSignal = hasMarionFinalSignal(params);
-  const composerAdvancedState = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState || memoryPatch.composedOnce || marionFinalSignal);
+  const trustedFinalEnvelope = hasTrustedMarionFinalEnvelope(params);
+  const marionFinalSignature = extractMarionFinalSignature(params);
+  const loopPhraseRejected = isLoopPhrase(speak) && !trustedFinalEnvelope;
+  const composerAdvancedState = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState || memoryPatch.composedOnce || trustedFinalEnvelope);
   if (marionFinalSignal && composerAdvancedState && stage === "recovery" && isTechnicalInbound(inbound)) {
     stage = "execution";
   }
@@ -708,7 +776,8 @@ function finalizeTurn(params = {}) {
   const progressionLock = !!(
     supportLockActive ||
     audio.shouldStop ||
-    (!marionFinalSignal && sameAssistant && sameStage && clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999) >= 1) ||
+    loopPhraseRejected ||
+    (!trustedFinalEnvelope && sameAssistant && sameStage && clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999) >= 1) ||
     (sameUser && sameIntent && clampInt(prev.repetition?.sameUserHashCount, 0, 0, 999999) >= 1)
   );
 
@@ -721,7 +790,7 @@ function finalizeTurn(params = {}) {
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
-    noProgressCount: marionFinalSignal && composerAdvancedState
+    noProgressCount: trustedFinalEnvelope && composerAdvancedState
       ? clampInt(memoryPatch.noProgressCount, 0, 0, 999999)
       : Math.max(
           emo.noProgressTurnCount,
@@ -779,6 +848,8 @@ function finalizeTurn(params = {}) {
     lastTopics: [safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
     responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
+    finalEnvelopeTrusted: trustedFinalEnvelope,
+    loopPhraseRejected,
     updatedAt: nowMs()
   };
 
@@ -830,7 +901,9 @@ function finalizeTurn(params = {}) {
       lastComposerDomain: safeStr(memoryPatch.lastDomain || marion.domain || ""),
       lastComposerUserSignature: safeStr(memoryPatch.userSignature || memoryPatch.lastUserSignature || ""),
       lastComposerReplySignature: safeStr(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
-      lastMarionFinalSignature: firstNonEmpty(memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature),
+      lastMarionFinalSignature: firstNonEmpty(marionFinalSignature, memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature),
+      finalEnvelopeTrusted: trustedFinalEnvelope,
+      loopPhraseRejected,
       statePatchRequired: !!(marion?.nyxDirective?.statePatchRequired || memoryPatch?.stateBridge?.expectedStateMutation),
       shouldAdvanceState: composerAdvancedState,
       noProgressCount: clampInt(memoryPatch.noProgressCount, repetition.noProgressCount, 0, 999999),
@@ -867,6 +940,9 @@ module.exports = {
   finalizeTurn,
   assertTurnUpdated,
   hasMarionFinalSignal,
+  hasTrustedMarionFinalEnvelope,
+  extractMarionFinalSignature,
+  isLoopPhrase,
   extractComposerMemoryPatch,
   extractComposerReply,
   normalizeAudioSignal,
