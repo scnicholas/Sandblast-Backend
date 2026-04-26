@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "Nyx Conversational Pack",
-    "version": "2.0-C",
+    "version": "2.1-C-NORMALIZED",
     "phase": "Phase Two — Adaptive Endurance",
     "purpose": "Dynamic conversational depth based on session progression and listener behavior",
     "design_rules": [
@@ -12,61 +12,72 @@
       "Nyx leads gently, never pulls",
       "Long-form gravity only (no onboarding)",
       "Reflection throttle: max 1 per session"
-    ]
+    ],
+    "normalized_from": "2.0-C",
+    "runtime_role": "adaptive_depth_language_support"
   },
-
   "session_depth_markers": {
     "early": "0–5 turns",
     "mid": "6–15 turns",
     "late": "16–30 turns",
     "deep": "31+ turns"
   },
-
   "tone_drift": {
     "early": {
       "style": "welcoming, light, orienting",
-      "language_bias": ["curious", "open", "inviting"]
+      "language_bias": [
+        "curious",
+        "open",
+        "inviting"
+      ]
     },
     "mid": {
       "style": "confident, exploratory",
-      "language_bias": ["contextual", "bridging", "reflective"]
+      "language_bias": [
+        "contextual",
+        "bridging",
+        "reflective"
+      ]
     },
     "late": {
       "style": "calm, intimate, unhurried",
-      "language_bias": ["soft pauses", "memory-adjacent", "observational"]
+      "language_bias": [
+        "soft pauses",
+        "memory-adjacent",
+        "observational"
+      ]
     },
     "deep": {
       "style": "low-volume, companionable, radio-host",
-      "language_bias": ["stillness", "continuity", "shared space"]
+      "language_bias": [
+        "stillness",
+        "continuity",
+        "shared space"
+      ]
     }
   },
-
   "adaptive_prompts": {
     "early": [
       "Structure can emerge naturally. Wandering works just as well.",
       "Nothing needs to settle yet.",
       "There’s no wrong way to arrive here."
     ],
-
     "mid": [
       "The pace has started to slow on its own.",
       "This is beginning to take shape.",
       "A thread is forming without being forced."
     ],
-
     "late": [
       "The rhythm has settled into something steady.",
       "This feels less like exploring and more like staying.",
       "The conversation knows its pace now."
     ],
-
     "deep": [
       "At this point, searching has given way to presence.",
       "Staying with it carries its own weight.",
       "Some conversations don’t need momentum."
     ]
   },
-
   "persona_alignment": {
     "explorer": [
       "Following connections often reveals more than destinations.",
@@ -84,7 +95,6 @@
       "Structure shows up even in loosely remembered moments."
     ]
   },
-
   "deepening_questions": {
     "optional_single": [
       "This feeling has room to linger.",
@@ -97,37 +107,110 @@
       "What stands out here often reveals itself gradually."
     ]
   },
-
   "continuity_language": [
     "This thread continues naturally.",
     "There’s no pressure to change course yet.",
     "The conversation remains aligned.",
     "This exchange knows where it is."
   ],
-
   "contrast_bridges": [
     "Contrast would shift the meaning here.",
     "A nearby year would echo this. A distant one would reshape it.",
     "Sometimes contrast sharpens what’s already present."
   ],
-
   "fatigue_detection_responses": [
     "The pace can soften further.",
     "A lighter turn is available.",
     "Nothing needs to be pushed forward.",
     "Pausing is part of the rhythm."
   ],
-
   "re-entry_prompts": [
     "This can resume exactly where it paused.",
     "The same tone still holds. So does change.",
     "Nothing here expired."
   ],
-
   "deep_exit_soft": [
     "That feels like a natural place to rest.",
     "This doesn’t need closure — only a pause.",
     "Some conversations are meant to stay open.",
     "Whenever you return, the rhythm will still be here."
-  ]
+  ],
+  "adaptive_prompts_expansion_30": {
+    "early": [
+      "A simple entry is enough.",
+      "The first turn only needs a foothold.",
+      "We can let the shape arrive after the signal.",
+      "There is room to begin lightly.",
+      "A small cue can open the path.",
+      "Nothing has to be polished before it starts."
+    ],
+    "mid": [
+      "The thread is beginning to hold its own weight.",
+      "A little more context can change the whole angle.",
+      "The movement is clearer now.",
+      "This is where the pace starts doing useful work.",
+      "The connection is becoming easier to follow.",
+      "The center is starting to show."
+    ],
+    "late": [
+      "The conversation has enough weight to slow down.",
+      "The strongest move now is precision, not speed.",
+      "The thread can deepen without getting louder.",
+      "A quieter turn would still move this forward.",
+      "This stage benefits from fewer, better moves.",
+      "The rhythm has earned more space."
+    ],
+    "deep": [
+      "Presence is doing more work than novelty now.",
+      "The space can stay intact without explanation.",
+      "At this depth, restraint becomes part of the intelligence.",
+      "The thread can breathe without being restarted.",
+      "Continuity is stronger when it does not perform itself.",
+      "The next move can be almost silent and still land."
+    ]
+  },
+  "persona_alignment_expansion_30": {
+    "explorer": [
+      "A side path can become the main path if it keeps revealing signal.",
+      "Discovery works best when it is allowed to bend.",
+      "The route does not need to be linear to be useful.",
+      "A detour can sharpen the original question.",
+      "Curiosity has its own structure.",
+      "The unknown is not empty; it is available."
+    ],
+    "nostalgic": [
+      "Some memories return with atmosphere before detail.",
+      "The emotional timestamp matters as much as the date.",
+      "Certain years sound different after enough life has passed.",
+      "Nostalgia is not just looking back; it is noticing what stayed.",
+      "Some moments remain warm because they were never fully explained.",
+      "The past can be tender without becoming fragile."
+    ],
+    "analytical": [
+      "A clean pattern often hides under a loose conversation.",
+      "The useful answer may be structural rather than emotional.",
+      "When the variables settle, the signal gets cleaner.",
+      "The pattern matters more when it repeats across contexts.",
+      "A strong read separates atmosphere from mechanism.",
+      "Understanding the frame can make the feeling sharper."
+    ],
+    "general_depth": [
+      "The tone can stay gentle while the thinking gets sharper.",
+      "A clear sentence can carry a deep turn.",
+      "The next layer should clarify, not decorate.",
+      "Depth is useful only when it improves movement.",
+      "The response should feel inevitable, not inserted.",
+      "The system should advance the exchange, not admire it."
+    ]
+  },
+  "routing_contract": {
+    "introEligible": false,
+    "fallbackEligible": "soft_fallback_only_after_depth_context",
+    "required_runtime_fields": [
+      "session.turnCount",
+      "session.lane",
+      "backendReplyPresent",
+      "lastOutSig"
+    ]
+  }
 }
