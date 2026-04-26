@@ -6,7 +6,9 @@
  * One purpose: classify intent and assign routing metadata.
  */
 
-const VERSION = "marionIntentRouter v2.1.0 AUTOPSY-HARDENED-COHESION";
+const VERSION = "marionIntentRouter v2.2.0 STATE-SPINE-COHESION";
+
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
 
 const INTENT_TO_DOMAIN = Object.freeze({
   simple_chat: "general",
@@ -74,15 +76,15 @@ function inferIntentFromText(text) {
   if (!t) return { intent: "simple_chat", confidence: 0.35, reason: "empty_text" };
 
   if (has(/\b(index\.js|marion|bridge|router|normalizer|packet|packets|phrase pack|phrase packs|greeting|greetings|compose|composer|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|script|file|harden|fix|download|zip)\b/i, t)) {
-    return { intent: "technical_debug", confidence: 0.9, reason: "technical_debug_terms" };
+    return { intent: "technical_debug", confidence: 0.9, reason: "technical_debug_terms", stateStageHint: "execution" };
   }
 
   if (has(/\b(suicide|self[- ]?harm|kill myself|don['’]?t want to live|crisis|panic attack)\b/i, t)) {
-    return { intent: "emotional_support", confidence: 0.95, reason: "high_distress_terms" };
+    return { intent: "emotional_support", confidence: 0.95, reason: "high_distress_terms", stateStageHint: "recovery" };
   }
 
   if (has(/\b(sad|depressed|lonely|overwhelmed|anxious|hurt|heartbroken|grief|crying|afraid|stressed)\b/i, t)) {
-    return { intent: "emotional_support", confidence: 0.82, reason: "emotional_terms" };
+    return { intent: "emotional_support", confidence: 0.82, reason: "emotional_terms", stateStageHint: "recovery" };
   }
 
   if (has(/\b(top\s*10|song|artist|album|chart|playlist|music|radio|billboard|year)\b/i, t)) {
@@ -109,7 +111,7 @@ function inferIntentFromText(text) {
     return { intent: "domain_question", confidence: 0.65, reason: "general_question" };
   }
 
-  return { intent: "simple_chat", confidence: 0.72, reason: "plain_conversation" };
+  return { intent: "simple_chat", confidence: 0.72, reason: "plain_conversation", stateStageHint: "deliver" };
 }
 
 function normalizeIntent(rawInput = {}, fallbackText = "") {
@@ -138,6 +140,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     intent,
     confidence,
     reason,
+    stateStageHint: safeStr(src.stateStageHint || inferred.stateStageHint || "deliver"),
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
@@ -157,6 +160,8 @@ function routeMarionIntent(packet = {}) {
     endpoint: "marion://routeMarion.primary",
     contractVersion: "nyx.marion.intent/2.1",
     expectsComposer: "composeMarionResponse",
+    stateSpineSchema: STATE_SPINE_SCHEMA,
+    stateStageHint: marionIntent.stateStageHint,
     mode:
       domain === "technical" ? "debug" :
       domain === "emotional" ? "support_then_advance" :
@@ -182,6 +187,7 @@ function routeMarionIntent(packet = {}) {
     ok: true,
     final: false,
     routerVersion: VERSION,
+    stateSpineSchema: STATE_SPINE_SCHEMA,
     marionIntent,
     routing,
     meta: {
