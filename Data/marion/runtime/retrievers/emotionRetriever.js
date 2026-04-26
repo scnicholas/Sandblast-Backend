@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "emotionRetriever v3.1.0 HARDENED-INTEGRATION-READY";
+const VERSION = "emotionRetriever v3.2.0 STATE-SPINE-COHESION-HARDENED";
 const FILE_NAME = "emotionRetriever.js";
 const DATA_FILE_NAMES = Object.freeze([
   "base_labels.json",
@@ -668,6 +668,29 @@ function retrieveEmotion(input = {}) {
   };
 
   result.lockedEmotion = buildLockedEmotionContract(result);
+  result.turnSignals = {
+    stateSpineCompatible: true,
+    emotionPrimary: _lower(result.primaryEmotion || "neutral") || "neutral",
+    emotionDominant: _lower(result.primaryEmotion || "neutral") || "neutral",
+    emotionCluster: result.supportFlags && result.supportFlags.highDistress ? "high_distress" : (result.matched ? "emotional" : "neutral"),
+    emotionNeedCrisis: !!(result.supportFlags && result.supportFlags.crisis),
+    emotionNeedSoft: !!(result.supportFlags && (result.supportFlags.highDistress || result.supportFlags.needsStabilization || result.supportFlags.needsContainment)),
+    emotionShouldSuppressMenus: !!(result.supportFlags && (result.supportFlags.crisis || result.supportFlags.highDistress || result.supportFlags.needsContainment)),
+    emotionSupportLock: !!(result.supportFlags && (result.supportFlags.crisis || result.supportFlags.highDistress || result.supportFlags.needsContainment)),
+    enginePrimaryState: _lower(result.primaryEmotion || "focused") || "focused",
+    engineSecondaryState: _lower(result.secondaryEmotion || "steady") || "steady",
+    engineContinuityScore: _clamp01(result.confidence, 0.35),
+    enginePresenceState: result.supportFlags && result.supportFlags.highDistress ? "steadying" : "receptive",
+    engineListenerMode: result.supportFlags && result.supportFlags.needsClarification ? "clarifying" : "attuned"
+  };
+  result.stateSpinePatch = {
+    source: FILE_NAME,
+    schema: "nyx.marion.stateSpine/1.6",
+    shouldAdvanceState: false,
+    emotionKey: result.turnSignals.emotionPrimary,
+    emotionCluster: result.turnSignals.emotionCluster,
+    continuityScore: result.turnSignals.engineContinuityScore
+  };
   return _applyGuidedPromptBias(result, input);
 }
 
