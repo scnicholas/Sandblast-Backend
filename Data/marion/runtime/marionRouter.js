@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionRouter v1.3.0 AUTOPSY-HARDENED-INTENT-COHESION";
+const VERSION = "marionRouter v1.4.0 STATE-SPINE-COHESION-HARDENED";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -17,6 +17,19 @@ function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
 function _mergeSupportFlags(a, b, c) { return { ..._safeObj(a), ..._safeObj(b), ..._safeObj(c) }; }
+
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const STATE_SPINE_ROUTER_CONTRACT = "nyx.marion.router.stateSpine/1.0";
+function _oneLine(v) { return _trim(v).replace(/\s+/g, " ").trim(); }
+function _hashText(value) { const src = _oneLine(value).toLowerCase(); let h = 2166136261; for (let i=0;i<src.length;i+=1){ h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); }
+function _extractStateSpine(input = {}) { const src=_safeObj(input), previousMemory=_safeObj(src.previousMemory), session=_safeObj(src.session), meta=_safeObj(src.meta); return _safeObj(src.stateSpine || src.conversationState || previousMemory.stateSpine || previousMemory.conversationState || session.stateSpine || session.conversationState || meta.stateSpine || meta.conversationState || {}); }
+function _buildStateSpineTurnSignals({ input = {}, text = "", routing = {}, primaryEmotion = {}, finalSupportFlags = {}, stateDrift = {} }) {
+  const prev=_extractStateSpine(input); const rep=_safeObj(prev.repetition); const noProgress=_clamp(rep.noProgressCount,0,999999);
+  const supportMode = finalSupportFlags.crisis ? "crisis" : finalSupportFlags.highDistress ? "high_distress" : finalSupportFlags.needsContainment ? "containment" : finalSupportFlags.needsStabilization ? "stabilize" : routing.intent === "technical_debug" ? "technical" : "steady";
+  return { schema: STATE_SPINE_ROUTER_CONTRACT, stateSpineSchema: STATE_SPINE_SCHEMA_COMPAT, routerObserved: true, routerVersion: VERSION, turnIntent: _trim(routing.intent || "simple_chat"), routeDomain: _trim(routing.domain || "general"), routeEndpoint: _trim(routing.endpoint || "marion://routeMarion.primary"), emotionPrimary: _lower(primaryEmotion.emotion || primaryEmotion.primaryEmotion || "neutral"), emotionDominant: _lower(primaryEmotion.emotion || primaryEmotion.primaryEmotion || "neutral"), emotionCluster: _lower(primaryEmotion.secondaryEmotion || stateDrift.trend || ""), emotionSupportMode: supportMode, emotionSupportLock: !!(finalSupportFlags.crisis || finalSupportFlags.highDistress || finalSupportFlags.needsContainment || finalSupportFlags.needsStabilization), emotionNeedCrisis: !!finalSupportFlags.crisis, emotionNeedSoft: !!(finalSupportFlags.highDistress || finalSupportFlags.needsContainment || finalSupportFlags.needsGentlePacing), emotionShouldSuppressMenus: !!(finalSupportFlags.crisis || finalSupportFlags.highDistress || finalSupportFlags.needsContainment), emotionRouteExhaustion: noProgress >= 2 || /\b(loop|looping|same thing|again)\b/i.test(_trim(text)), emotionNoProgressTurnCount: noProgress, enginePrimaryState: routing.intent === "technical_debug" ? "focused" : (_lower(primaryEmotion.emotion || "focused") || "focused"), engineSecondaryState: _lower(primaryEmotion.secondaryEmotion || stateDrift.trend || "steady") || "steady", engineContinuityScore: _clamp((_num(primaryEmotion.intensity,0)*0.5)+(noProgress?0.25:0.15),0.15,0.95), enginePresenceState: routing.intent === "technical_debug" ? "execution" : "attuned", engineListenerMode: routing.intent === "technical_debug" ? "forensic" : "attuned", userSignature: _hashText(text), shouldAdvanceState: true };
+}
+function _buildStateBridge({ input = {}, text = "", routing = {}, primaryEmotion = {}, finalSupportFlags = {}, stateDrift = {} }) { const turnSignals=_buildStateSpineTurnSignals({ input, text, routing, primaryEmotion, finalSupportFlags, stateDrift }); return { schema: STATE_SPINE_ROUTER_CONTRACT, stateSpineSchema: STATE_SPINE_SCHEMA_COMPAT, expectedStateMutation: true, shouldAdvanceState: true, routerObserved: true, source: "marionRouter", version: VERSION, turnSignals, memoryPatch: { lastIntent: turnSignals.turnIntent, lastDomain: turnSignals.routeDomain, userSignature: turnSignals.userSignature, stateBridge: { expectedStateMutation: true, shouldAdvanceState: true, source: "marionRouter" }, noProgressCount: turnSignals.emotionRouteExhaustion ? turnSignals.emotionNoProgressTurnCount : 0 } }; }
+
 
 const INTERNAL_BLOCKER_PATTERNS = [
   /marion input required before reply emission/i,
