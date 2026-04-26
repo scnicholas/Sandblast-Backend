@@ -3,23 +3,23 @@
 /**
  * chatEngine.js
  *
- * Chat Engine v3.0.0 COORDINATOR-ONLY-MARION-FINAL
+ * Chat Engine v3.3.0 COORDINATOR-ONLY-MARION-FINAL-TRUST-GATE-HARDENED
  * ------------------------------------------------------------
  * PURPOSE
  * - Act as a transport/coordinator only.
- * - Accept only Marion final replies.
+ * - Accept Marion final replies through a strict but version-tolerant trust gate.
  * - Never invent, recover, emotionally rewrite, or fallback-personality a reply.
- * - Return a blank error contract when Marion final reply is missing.
+ * - Return explicit non-final awaiting-Marion errors for non-terminal missing-final cases.
  *
  * HARD RULES
  * - No buildLoopRecoveryReply.
  * - No emotional fallback.
  * - No reply invention.
  * - No synthetic "I'm here..." recovery.
- * - No fallbackResponse/replySeed promotion unless it is part of a final Marion envelope.
+ * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.2.0 COORDINATOR-ONLY-MARION-FINAL-ENVELOPE-AUTHORITY";
+const VERSION = "ChatEngine v3.3.0 COORDINATOR-ONLY-MARION-FINAL-TRUST-GATE-HARDENED";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -27,12 +27,33 @@ const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 
+const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
+  FINAL_ENVELOPE_CONTRACT,
+  "nyx.marion.final/0.9",
+  "nyx.marion.contract/2.1",
+  "nyx.marion.intent/2.1"
+]);
+
+const LEGACY_TRUST_FLAGS = Object.freeze([
+  "trustedTransport",
+  "internalTrustedTransport",
+  "marionTrustedTransport",
+  "bridgeTrustedTransport",
+  "hardlockCompatible",
+  "freshMarionFinal",
+  "singleFinalAuthority"
+]);
+
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
 }
 
 function cleanText(value) {
   return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+
+function lower(value) {
+  return cleanText(value).toLowerCase();
 }
 
 function safeObj(value) {
@@ -66,7 +87,7 @@ function hashText(value) {
   return String(hash >>> 0);
 }
 
-const INTERNAL_BLOCKER_PATTERNS = [
+const INTERNAL_BLOCKER_PATTERNS = Object.freeze([
   /marion input required before reply emission/i,
   /reply emission/i,
   /bridge rejected malformed marion output before nyx handoff/i,
@@ -78,27 +99,121 @@ const INTERNAL_BLOCKER_PATTERNS = [
   /bridge_rejected/i,
   /marion_contract_invalid/i,
   /compose_marion_response_unavailable/i,
-  /packet_invalid/i,
+  /packet_invalid/i
+]);
+
+const SHORT_BLOCKER_WORD_PATTERNS = Object.freeze([
   /^done\.?$/i,
   /^ready\.?$/i,
   /^working\.?$/i
-];
+]);
 
-function isInternalBlockerText(value) {
+function isShortBlockerText(value) {
   const text = cleanText(value);
   if (!text) return false;
-  return INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text));
+  return SHORT_BLOCKER_WORD_PATTERNS.some((rx) => rx.test(text));
 }
 
-function isFinalEnvelope(source = {}) {
-  const src = safeObj(source);
+function isInternalBlockerText(value, context = {}) {
+  const text = cleanText(value);
+  if (!text) return false;
+
+  if (INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text))) return true;
+
+  const envelopeTrusted = !!context.envelopeTrusted;
+  const fromDiagnosticPath = !!context.fromDiagnosticPath;
+  const finalEnvelope = !!context.finalEnvelope;
+
+  // Short generic words can be valid intentional final replies.
+  // Block them only when they came from diagnostic/synthesis fallback space,
+  // or when the envelope is not a trusted final.
+  if (isShortBlockerText(text)) {
+    return fromDiagnosticPath || !finalEnvelope || !envelopeTrusted;
+  }
+
+  return false;
+}
+
+function extractMarionContract(input = {}) {
+  const src = safeObj(input);
   const payload = safeObj(src.payload);
   const meta = safeObj(src.meta);
-  const marion = safeObj(src.marion);
-  const contract = safeObj(src.marionContract);
-  const packet = safeObj(src.packet || marion.packet);
+  const marion = safeObj(src.marion || payload.marion || meta.marion);
+  return safeObj(
+    src.marionContract ||
+    src.contract ||
+    payload.marionContract ||
+    payload.contract ||
+    meta.marionContract ||
+    marion.contract ||
+    marion.marionContract ||
+    {}
+  );
+}
+
+function extractPacket(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const marion = safeObj(src.marion || payload.marion || meta.marion);
+  return safeObj(src.packet || payload.packet || meta.packet || marion.packet || {});
+}
+
+function extractFinalEnvelope(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  return safeObj(
+    src.finalEnvelope ||
+    payload.finalEnvelope ||
+    meta.finalEnvelope ||
+    safeObj(src.marion).finalEnvelope ||
+    {}
+  );
+}
+
+function getNestedFinalLocations(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const marion = safeObj(src.marion || payload.marion || meta.marion);
+  const contract = extractMarionContract(src);
+  const packet = extractPacket(src);
   const packetMeta = safeObj(packet.meta);
   const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = extractFinalEnvelope(src);
+
+  return {
+    src,
+    payload,
+    meta,
+    marion,
+    contract,
+    packet,
+    packetMeta,
+    synthesis,
+    finalEnvelope
+  };
+}
+
+function isAuthoritativeMarionFinalLocation(input = {}) {
+  const { contract, packet, packetMeta, synthesis, finalEnvelope } = getNestedFinalLocations(input);
+
+  return !!(
+    contract.final === true ||
+    contract.marionFinal === true ||
+    synthesis.final === true ||
+    synthesis.marionFinal === true ||
+    packet.final === true ||
+    packet.marionFinal === true ||
+    packetMeta.final === true ||
+    packetMeta.marionFinal === true ||
+    finalEnvelope.final === true
+  );
+}
+
+function isWeakFinalFlagPresent(input = {}) {
+  const { src, payload, meta, marion } = getNestedFinalLocations(input);
 
   return !!(
     src.final === true ||
@@ -110,21 +225,58 @@ function isFinalEnvelope(source = {}) {
     meta.final === true ||
     meta.marionFinal === true ||
     marion.final === true ||
-    marion.marionFinal === true ||
-    contract.final === true ||
-    contract.marionFinal === true ||
-    packet.final === true ||
-    packet.marionFinal === true ||
-    packetMeta.final === true ||
-    packetMeta.marionFinal === true ||
-    synthesis.final === true ||
-    synthesis.marionFinal === true
+    marion.marionFinal === true
   );
 }
 
+function isFinalEnvelope(source = {}) {
+  // Prefer Marion-side contract/synthesis/packet final flags.
+  // Generic wrapper/meta final flags are accepted only when paired with a trust marker.
+  const authoritative = isAuthoritativeMarionFinalLocation(source);
+  if (authoritative) return true;
+
+  return !!(isWeakFinalFlagPresent(source) && objectContainsTrustedFinalSignature(source, 0));
+}
+
+function hasKnownGoodContractVersion(value = {}) {
+  if (!isPlainObject(value)) return false;
+  const { src, payload, meta, contract, packet, packetMeta, synthesis, finalEnvelope } = getNestedFinalLocations(value);
+  const versions = [
+    src.contractVersion,
+    src.finalContractVersion,
+    payload.contractVersion,
+    meta.contractVersion,
+    contract.contractVersion,
+    contract.finalContractVersion,
+    packet.contractVersion,
+    packetMeta.contractVersion,
+    synthesis.contractVersion,
+    finalEnvelope.contractVersion
+  ].map(cleanText).filter(Boolean);
+
+  return versions.some((v) => KNOWN_GOOD_FINAL_CONTRACTS.includes(v));
+}
+
+function containsLegacyTrustFlag(value, depth = 0) {
+  if (depth > 8 || value == null) return false;
+  if (Array.isArray(value)) return value.some((item) => containsLegacyTrustFlag(item, depth + 1));
+  if (!isPlainObject(value)) return false;
+
+  for (const key of LEGACY_TRUST_FLAGS) {
+    if (value[key] === true) return true;
+  }
+
+  const source = lower(value.source || value.origin || value.authority || "");
+  if (source === "marion" || source === "marionbridge" || source === "composemarionresponse") {
+    if (value.final === true || value.marionFinal === true || value.handled === true) return true;
+  }
+
+  return Object.keys(value).some((key) => containsLegacyTrustFlag(value[key], depth + 1));
+}
 
 function objectContainsTrustedFinalSignature(value, depth = 0) {
   if (depth > 8 || value == null) return false;
+
   if (typeof value === "string") {
     const s = cleanText(value);
     return !!(
@@ -132,7 +284,9 @@ function objectContainsTrustedFinalSignature(value, depth = 0) {
       s === FINAL_SIGNATURE
     );
   }
+
   if (Array.isArray(value)) return value.some((item) => objectContainsTrustedFinalSignature(item, depth + 1));
+
   if (isPlainObject(value)) {
     const signature = cleanText(value.marionFinalSignature || value.finalSignature || value.signature);
     if (value.requiredSignature === CHAT_ENGINE_SIGNATURE && signature.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0) return true;
@@ -140,38 +294,38 @@ function objectContainsTrustedFinalSignature(value, depth = 0) {
     if (value.meta && value.meta.freshMarionFinal === true && value.meta.singleFinalAuthority === true) return true;
     return Object.keys(value).some((key) => objectContainsTrustedFinalSignature(value[key], depth + 1));
   }
+
   return false;
 }
 
-function hasTrustedFinalEnvelope(source = {}) {
-  return !!(isFinalEnvelope(source) && objectContainsTrustedFinalSignature(source, 0));
-}
+function hasTrustedFinalEnvelope(source = {}, options = {}) {
+  const finalEnvelope = isFinalEnvelope(source);
+  if (!finalEnvelope) return false;
 
-function extractMarionContract(input = {}) {
-  const src = safeObj(input);
-  const payload = safeObj(src.payload);
-  const meta = safeObj(src.meta);
-  const marion = safeObj(src.marion || payload.marion || meta.marion);
-  const contract = safeObj(
-    src.marionContract ||
-    payload.marionContract ||
-    meta.marionContract ||
-    marion.contract ||
-    marion.marionContract ||
-    {}
+  const strictSignature = objectContainsTrustedFinalSignature(source, 0);
+  if (strictSignature) return true;
+
+  const knownGoodContract = hasKnownGoodContractVersion(source);
+  const legacyTrust = containsLegacyTrustFlag(source, 0);
+  const internalTrusted = !!(
+    options.trustedTransport ||
+    source.trustedTransport === true ||
+    safeObj(source.meta).trustedTransport === true ||
+    safeObj(source.payload).trustedTransport === true
   );
-  return contract;
+
+  // Version-gated trust: accept known-good final contracts when explicit legacy/internal
+  // trust is present, even if the newer final signature is not mirrored.
+  if (knownGoodContract && (legacyTrust || internalTrusted)) return true;
+
+  // Legacy compatibility: older bridge/composer final packets may lack final envelope
+  // signature but still expose Marion-side final plus hardlock compatibility.
+  if (isAuthoritativeMarionFinalLocation(source) && legacyTrust) return true;
+
+  return false;
 }
 
-function extractPacket(input = {}) {
-  const src = safeObj(input);
-  const payload = safeObj(src.payload);
-  const meta = safeObj(src.meta);
-  const marion = safeObj(src.marion || payload.marion || meta.marion);
-  return safeObj(src.packet || payload.packet || meta.packet || marion.packet || {});
-}
-
-function extractFinalReply(input = {}) {
+function extractReplyCandidate(input = {}) {
   const src = safeObj(input);
   const payload = safeObj(src.payload);
   const meta = safeObj(src.meta);
@@ -180,41 +334,62 @@ function extractFinalReply(input = {}) {
   const contractPayload = safeObj(contract.payload);
   const packet = extractPacket(src);
   const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = extractFinalEnvelope(src);
 
-  const reply = firstText(
-    contract.reply,
-    contract.text,
-    contract.answer,
-    contract.output,
-    contract.response,
-    contract.spokenText,
-    contractPayload.reply,
-    contractPayload.text,
-    contractPayload.answer,
-    contractPayload.output,
-    marion.reply,
-    marion.text,
-    marion.answer,
-    marion.output,
-    marion.response,
-    marion.spokenText,
-    payload.reply,
-    payload.text,
-    payload.answer,
-    payload.output,
-    packet.reply,
-    packet.text,
-    packet.answer,
-    packet.output,
-    synthesis.reply,
-    synthesis.text,
-    synthesis.answer,
-    synthesis.output,
-    synthesis.spokenText
-  );
+  const candidates = [
+    { value: finalEnvelope.reply, path: "finalEnvelope.reply", diagnostic: false },
+    { value: contract.reply, path: "contract.reply", diagnostic: false },
+    { value: contract.text, path: "contract.text", diagnostic: false },
+    { value: contract.answer, path: "contract.answer", diagnostic: false },
+    { value: contract.output, path: "contract.output", diagnostic: false },
+    { value: contract.response, path: "contract.response", diagnostic: false },
+    { value: contract.spokenText, path: "contract.spokenText", diagnostic: false },
+    { value: contractPayload.reply, path: "contract.payload.reply", diagnostic: false },
+    { value: contractPayload.text, path: "contract.payload.text", diagnostic: false },
+    { value: marion.reply, path: "marion.reply", diagnostic: false },
+    { value: marion.text, path: "marion.text", diagnostic: false },
+    { value: marion.answer, path: "marion.answer", diagnostic: false },
+    { value: marion.output, path: "marion.output", diagnostic: false },
+    { value: marion.response, path: "marion.response", diagnostic: false },
+    { value: marion.spokenText, path: "marion.spokenText", diagnostic: false },
+    { value: payload.reply, path: "payload.reply", diagnostic: false },
+    { value: payload.text, path: "payload.text", diagnostic: false },
+    { value: payload.answer, path: "payload.answer", diagnostic: false },
+    { value: payload.output, path: "payload.output", diagnostic: false },
+    { value: packet.reply, path: "packet.reply", diagnostic: false },
+    { value: packet.text, path: "packet.text", diagnostic: false },
+    { value: packet.answer, path: "packet.answer", diagnostic: false },
+    { value: packet.output, path: "packet.output", diagnostic: false },
+    { value: synthesis.reply, path: "packet.synthesis.reply", diagnostic: true },
+    { value: synthesis.text, path: "packet.synthesis.text", diagnostic: true },
+    { value: synthesis.answer, path: "packet.synthesis.answer", diagnostic: true },
+    { value: synthesis.output, path: "packet.synthesis.output", diagnostic: true },
+    { value: synthesis.spokenText, path: "packet.synthesis.spokenText", diagnostic: true }
+  ];
 
-  if (!reply || isInternalBlockerText(reply)) return "";
-  return reply;
+  for (const candidate of candidates) {
+    const text = cleanText(candidate.value);
+    if (text) return { ...candidate, value: text };
+  }
+
+  return { value: "", path: "", diagnostic: false };
+}
+
+function extractFinalReply(input = {}, trust = {}) {
+  const candidate = extractReplyCandidate(input);
+  if (!candidate.value) return "";
+  const envelopeTrusted = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
+  const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
+
+  if (isInternalBlockerText(candidate.value, {
+    envelopeTrusted,
+    finalEnvelope,
+    fromDiagnosticPath: candidate.diagnostic
+  })) {
+    return "";
+  }
+
+  return candidate.value;
 }
 
 function extractIntent(input = {}) {
@@ -225,8 +400,10 @@ function extractIntent(input = {}) {
   const packet = extractPacket(src);
   const routing = safeObj(packet.routing);
   const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = extractFinalEnvelope(src);
 
   return firstText(
+    finalEnvelope.intent,
     src.intent,
     payload.intent,
     meta.intent,
@@ -245,8 +422,10 @@ function extractDomain(input = {}) {
   const packet = extractPacket(src);
   const routing = safeObj(packet.routing);
   const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = extractFinalEnvelope(src);
 
   return firstText(
+    finalEnvelope.domain,
     src.domain,
     src.requestedDomain,
     payload.domain,
@@ -361,20 +540,31 @@ function extractSessionPatch(input = {}) {
   );
 }
 
-function buildBlankErrorContract(reason, detail = {}, input = {}) {
+function classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent }) {
+  if (!finalEnvelope) return "not_final_yet";
+  if (!trustedFinalEnvelope) return "missing_signature";
+  if (!replyPresent) return "missing_reply";
+  return "marion_final_reply_missing";
+}
+
+function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) {
   const lane = extractLane(input);
   const intent = extractIntent(input);
   const domain = extractDomain(input);
   const turnId = extractTurnId(input);
   const userQuery = extractUserText(input);
+  const terminal = !!options.terminal;
+  const awaitingMarion = !terminal;
 
   return {
     ok: false,
     error: true,
-    final: true,
+    final: terminal,
     marionFinal: false,
     handled: true,
-    status: "error",
+    terminal,
+    awaitingMarion,
+    status: terminal ? "terminal_error" : "awaiting_marion",
     reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
     detail: safeObj(detail),
 
@@ -397,8 +587,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
       answer: "",
       output: "",
       spokenText: "",
-      final: true,
-      error: true
+      final: terminal,
+      error: true,
+      awaitingMarion
     },
 
     followUps: [],
@@ -407,7 +598,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
 
     cog: {
       intent,
-      mode: "coordinator_only_error",
+      mode: terminal ? "coordinator_only_terminal_error" : "coordinator_only_waiting",
       publicMode: true,
       decisionAuthority: "marion_required"
     },
@@ -416,10 +607,12 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
+      stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "none",
-      awaitingMarion: true,
+      awaitingMarion,
+      terminal,
       turnId,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
       detail: safeObj(detail)
@@ -429,8 +622,11 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
+      stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
       coordinatorOnly: true,
       error: true,
+      awaitingMarion,
+      terminal,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
       detail: safeObj(detail)
     },
@@ -439,8 +635,10 @@ function buildBlankErrorContract(reason, detail = {}, input = {}) {
   };
 }
 
-function buildStructuredFinalReply(input = {}) {
-  const reply = extractFinalReply(input);
+function buildStructuredFinalReply(input = {}, trust = {}) {
+  const trustedFinalEnvelope = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
+  const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
+  const reply = extractFinalReply(input, { ...trust, trustedFinalEnvelope, finalEnvelope });
   const lane = extractLane(input);
   const intent = extractIntent(input);
   const domain = extractDomain(input);
@@ -514,6 +712,7 @@ function buildStructuredFinalReply(input = {}) {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
+      stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "marion_final",
@@ -521,7 +720,9 @@ function buildStructuredFinalReply(input = {}) {
       awaitingMarion: false,
       turnId,
       replySignature,
-      source: "chatEngine_passthrough"
+      source: "chatEngine_passthrough",
+      trustedFinalEnvelope,
+      finalEnvelope
     },
 
     diagnostics: {
@@ -529,10 +730,11 @@ function buildStructuredFinalReply(input = {}) {
       engineVersion: VERSION,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
+      stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
       coordinatorOnly: true,
       acceptedFinalEnvelope: true,
-      trustedFinalEnvelope: true,
-      stateSpineSchema: STATE_SPINE_SCHEMA,
+      trustedFinalEnvelope,
+      finalEnvelope,
       replyPreview: clipText(reply, 160)
     },
 
@@ -546,13 +748,15 @@ class ChatEngine {
       lastUserInput: "",
       memory: [],
       rejectionLog: [],
-      pipelineTrace: []
+      pipelineTrace: [],
+      rejectionByTurn: new Map()
     };
 
     this.config = {
       maxMemory: Number.isInteger(options.maxMemory) ? options.maxMemory : 12,
       maxRejectionLog: Number.isInteger(options.maxRejectionLog) ? options.maxRejectionLog : 200,
-      maxPipelineTrace: Number.isInteger(options.maxPipelineTrace) ? options.maxPipelineTrace : 100
+      maxPipelineTrace: Number.isInteger(options.maxPipelineTrace) ? options.maxPipelineTrace : 100,
+      rejectionThreshold: Number.isInteger(options.rejectionThreshold) ? options.rejectionThreshold : 3
     };
   }
 
@@ -569,37 +773,49 @@ class ChatEngine {
 
     try {
       const src = typeof input === "string" ? { text: input } : safeObj(input);
+      const turnId = extractTurnId(src) || hashText(JSON.stringify(src || {}).slice(0, 500));
       const finalEnvelope = isFinalEnvelope(src);
-      const trustedFinalEnvelope = hasTrustedFinalEnvelope(src);
-      const reply = extractFinalReply(src);
+      const trustedFinalEnvelope = hasTrustedFinalEnvelope(src, src);
+      const reply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
 
       trace.stages.push({ stage: "detectFinalEnvelope", ok: finalEnvelope });
       trace.stages.push({ stage: "detectTrustedFinalEnvelope", ok: trustedFinalEnvelope });
       trace.stages.push({ stage: "extractFinalReply", ok: !!reply, replyPreview: clipText(reply, 120) });
 
       if (!finalEnvelope || !trustedFinalEnvelope || !reply) {
-        const errorContract = buildBlankErrorContract("marion_final_reply_missing", {
-          finalEnvelope,
-          trustedFinalEnvelope,
-          replyPresent: !!reply
-        }, src);
+        const reason = classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent: !!reply });
+        const rejectionCount = this.incrementRejection(turnId);
+        const terminal = rejectionCount >= this.config.rejectionThreshold;
 
-        this.pushRejectionLog({
-          at: Date.now(),
-          code: "marion_final_reply_missing",
+        const errorContract = buildBlankErrorContract(reason, {
           finalEnvelope,
           trustedFinalEnvelope,
           replyPresent: !!reply,
-          turnId: extractTurnId(src)
+          rejectionCount,
+          rejectionThreshold: this.config.rejectionThreshold
+        }, src, { terminal });
+
+        this.pushRejectionLog({
+          at: Date.now(),
+          code: reason,
+          finalEnvelope,
+          trustedFinalEnvelope,
+          replyPresent: !!reply,
+          turnId,
+          rejectionCount,
+          terminal
         });
 
         trace.accepted = false;
         trace.responsePreview = "";
+        trace.stages.push({ stage: "reject", reason, rejectionCount, terminal });
         this.pushPipelineTrace(trace);
         return errorContract;
       }
 
-      const result = buildStructuredFinalReply(src);
+      this.clearRejection(turnId);
+
+      const result = buildStructuredFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
       this.updateState(src, result);
 
       trace.accepted = true;
@@ -610,7 +826,7 @@ class ChatEngine {
     } catch (err) {
       const errorContract = buildBlankErrorContract("chat_engine_coordinator_fault", {
         message: this.safeError(err)
-      }, isPlainObject(input) ? input : { text: input });
+      }, isPlainObject(input) ? input : { text: input }, { terminal: true });
 
       trace.errors.push(this.safeError(err));
       trace.accepted = false;
@@ -619,6 +835,18 @@ class ChatEngine {
 
       return errorContract;
     }
+  }
+
+  incrementRejection(turnId) {
+    const key = cleanText(turnId || "unknown_turn") || "unknown_turn";
+    const current = Number(this.state.rejectionByTurn.get(key) || 0) + 1;
+    this.state.rejectionByTurn.set(key, current);
+    return current;
+  }
+
+  clearRejection(turnId) {
+    const key = cleanText(turnId || "unknown_turn") || "unknown_turn";
+    this.state.rejectionByTurn.delete(key);
   }
 
   updateState(input = {}, result = {}) {
@@ -671,6 +899,7 @@ class ChatEngine {
     this.state.memory = [];
     this.state.rejectionLog = [];
     this.state.pipelineTrace = [];
+    this.state.rejectionByTurn = new Map();
   }
 
   safeError(err) {
@@ -724,7 +953,7 @@ function extractMarionFields(src = {}) {
 }
 
 function shouldLockMarionAuthority(source = {}) {
-  return isFinalEnvelope(source) && !!extractFinalReply(source);
+  return hasTrustedFinalEnvelope(source) && !!extractFinalReply(source, { trustedFinalEnvelope: true, finalEnvelope: true });
 }
 
 if (typeof module !== "undefined") {
@@ -733,6 +962,9 @@ if (typeof module !== "undefined") {
     CHAT_ENGINE_SIGNATURE,
     MARION_FINAL_SIGNATURE_PREFIX,
     STATE_SPINE_SCHEMA,
+    STATE_SPINE_SCHEMA_COMPAT,
+    FINAL_ENVELOPE_CONTRACT,
+    FINAL_SIGNATURE,
     ChatEngine,
     handleChat,
     run,
@@ -743,10 +975,17 @@ if (typeof module !== "undefined") {
     shouldLockMarionAuthority,
     _internal: {
       isFinalEnvelope,
+      isAuthoritativeMarionFinalLocation,
+      isWeakFinalFlagPresent,
+      hasKnownGoodContractVersion,
+      containsLegacyTrustFlag,
+      objectContainsTrustedFinalSignature,
       hasTrustedFinalEnvelope,
       extractFinalReply,
+      classifyMissingFinalReason,
       buildBlankErrorContract,
-      buildStructuredFinalReply
+      buildStructuredFinalReply,
+      isInternalBlockerText
     }
   };
 }
