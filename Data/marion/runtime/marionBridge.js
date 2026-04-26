@@ -18,7 +18,7 @@
  * - no legacy retriever orchestration
  */
 
-const VERSION = "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF";
+const VERSION = "marionBridge v6.3.0 STATE-SPINE-COHESION-FINAL-HANDOFF + PACKET-NORMALIZER + LOOP-GUARD + FINAL-ENVELOPE";
 const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
@@ -56,19 +56,72 @@ function hasRequiredFinalSignature(value) {
   );
 }
 
+function tryRequireMany(paths) {
+  for (const p of Array.isArray(paths) ? paths : []) {
+    try {
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_err) {}
+  }
+  return null;
+}
+
+const commandNormalizerMod = tryRequireMany([
+  "./Data/marion/runtime/marionCommandNormalizer",
+  "./Data/marion/runtime/marionCommandNormalizer.js",
+  "./marionCommandNormalizer",
+  "./marionCommandNormalizer.js",
+  "./utils/marionCommandNormalizer",
+  "./utils/marionCommandNormalizer.js",
+  "./Utils/marionCommandNormalizer",
+  "./Utils/marionCommandNormalizer.js"
+]);
+
+const loopGuardMod = tryRequireMany([
+  "./Data/marion/runtime/marionLoopGuard",
+  "./Data/marion/runtime/marionLoopGuard.js",
+  "./marionLoopGuard",
+  "./marionLoopGuard.js",
+  "./utils/marionLoopGuard",
+  "./utils/marionLoopGuard.js",
+  "./Utils/marionLoopGuard",
+  "./Utils/marionLoopGuard.js"
+]);
+
+const finalEnvelopeMod = tryRequireMany([
+  "./Data/marion/runtime/marionFinalEnvelope",
+  "./Data/marion/runtime/marionFinalEnvelope.js",
+  "./marionFinalEnvelope",
+  "./marionFinalEnvelope.js",
+  "./utils/marionFinalEnvelope",
+  "./utils/marionFinalEnvelope.js",
+  "./Utils/marionFinalEnvelope",
+  "./Utils/marionFinalEnvelope.js"
+]);
+
 let routeMarionIntent = null;
 let composeMarionResponse = null;
 
-try {
-  ({ routeMarionIntent } = require("./marionIntentRouter"));
-} catch (_err) {
-  routeMarionIntent = null;
+const intentRouterMod = tryRequireMany([
+  "./Data/marion/runtime/marionIntentRouter",
+  "./Data/marion/runtime/marionIntentRouter.js",
+  "./marionIntentRouter",
+  "./marionIntentRouter.js"
+]);
+if (intentRouterMod && typeof intentRouterMod.routeMarionIntent === "function") {
+  routeMarionIntent = intentRouterMod.routeMarionIntent;
 }
 
-try {
-  ({ composeMarionResponse } = require("./composeMarionResponse"));
-} catch (_err) {
-  composeMarionResponse = null;
+const composerMod = tryRequireMany([
+  "./composeMarionResponse",
+  "./composeMarionResponse.js",
+  "./Data/marion/composeMarionResponse",
+  "./Data/marion/composeMarionResponse.js",
+  "./Data/marion/runtime/composeMarionResponse",
+  "./Data/marion/runtime/composeMarionResponse.js"
+]);
+if (composerMod && typeof composerMod.composeMarionResponse === "function") {
+  composeMarionResponse = composerMod.composeMarionResponse;
 }
 
 function safeStr(value) {
@@ -598,10 +651,43 @@ function normalizeComposeInput(normalized, routed) {
   };
 }
 
+function bridgeRecoveryReply(normalized = {}, loopResult = {}) {
+  const text = safeStr(normalized.userQuery || normalized.text || normalized.query || "");
+  const intent = safeStr(normalized.intent || safeObj(normalized.marionIntent).intent || "simple_chat");
+  const technical = intent === "technical_debug" || /debug|patch|update|fix|script|file|index|state|state spine|loop|looping|autopsy|downloadable|zip|route|endpoint/i.test(text);
+  const emotional = intent === "emotional_support" || /depressed|sad|anxious|overwhelmed|hurt|lonely|panic|grief|stressed/i.test(text);
+
+  if (technical) return "I detected a repeated technical response, so I’m switching to recovery mode. Send the exact file, route, or failing response and I’ll isolate the break cleanly.";
+  if (emotional) return "I detected a repeated support response, so I’m resetting the turn instead of recycling it. Tell me what changed or what you need from me right now.";
+  return "I detected a repeated response and reset the turn. Send the next instruction and I’ll continue from a clean state.";
+}
+
 async function processWithMarion(input = {}) {
   if (isAlreadyFinal(input)) return markFinal(input, input);
 
-  const normalized = normalizeInbound(input);
+  let inbound = safeObj(input);
+  let commandPacket = {};
+  if (commandNormalizerMod && typeof commandNormalizerMod.normalizeCommand === "function") {
+    try {
+      commandPacket = commandNormalizerMod.normalizeCommand(input);
+      inbound = {
+        ...inbound,
+        text: safeStr(commandPacket.userText || inbound.text || inbound.userQuery || inbound.query),
+        userQuery: safeStr(commandPacket.userText || inbound.userQuery || inbound.text || inbound.query),
+        query: safeStr(commandPacket.userText || inbound.query || inbound.text || inbound.userQuery),
+        sessionId: safeStr(commandPacket.sessionId || inbound.sessionId),
+        source: safeStr(commandPacket.source || inbound.source),
+        channel: safeStr(commandPacket.channel || inbound.channel),
+        state: safeObj(commandPacket.state),
+        commandPacket
+      };
+    } catch (err) {
+      commandPacket = { ok: false, error: safeStr(err && (err.message || err) || "command_normalizer_failed") };
+    }
+  }
+
+  const normalized = normalizeInbound(inbound);
+  normalized.commandPacket = safeObj(commandPacket);
   if (!normalized.ok) {
     return buildErrorResult("input_invalid", { issues: normalized.issues }, normalized);
   }
@@ -655,7 +741,31 @@ async function processWithMarion(input = {}) {
     });
   }
 
-  const reply = extractReply(contract);
+  let reply = extractReply(contract);
+  let loopGuardResult = { ok: true, loopDetected: false, allowReply: true, forceRecovery: false, reasons: [] };
+  if (loopGuardMod && typeof loopGuardMod.applyLoopGuard === "function") {
+    try {
+      loopGuardResult = loopGuardMod.applyLoopGuard({
+        ...composeInput,
+        state: {
+          ...safeObj(composeInput.conversationState),
+          ...safeObj(normalized.commandPacket && normalized.commandPacket.state),
+          lastAssistantReply: safeStr(safeObj(composeInput.conversationState).lastAssistantReply || safeObj(normalized.commandPacket && normalized.commandPacket.state).lastAssistantReply),
+          loopCount: Number(safeObj(composeInput.conversationState).loopCount || safeObj(normalized.commandPacket && normalized.commandPacket.state).loopCount || 0)
+        }
+      }, reply);
+      if (loopGuardResult.forceRecovery) {
+        reply = bridgeRecoveryReply({
+          ...normalized,
+          intent: composeInput.intent,
+          domain: composeInput.domain,
+          marionIntent: composeInput.marionIntent
+        }, loopGuardResult);
+      }
+    } catch (err) {
+      loopGuardResult = { ok: false, loopDetected: false, allowReply: true, forceRecovery: false, reasons: ["loop_guard_error"], detail: safeStr(err && (err.message || err) || "") };
+    }
+  }
   const replySignature = hashText(reply);
   const packet = buildPacket({ normalized: composeInput, routed, contract, reply, replySignature });
   const marionFinalSignature = safeStr(packet && packet.meta && (packet.meta.signature || packet.meta.marionFinalSignature)) || buildMarionFinalSignature(replySignature, composeInput.turnId || normalized.turnId);
@@ -700,12 +810,18 @@ async function processWithMarion(input = {}) {
       stateBridge: safeObj(safeObj(contract.memoryPatch).stateBridge),
       routerCalled: true,
       composerCalled: true,
+      loopGuardCalled: !!loopGuardMod,
+      loopDetected: !!loopGuardResult.forceRecovery,
+      loopGuard: safeObj(loopGuardResult),
       finalMarked: true,
       noFallbackPersonality: true,
       noEmotionalInterpretation: true,
       noRewrap: true,
       routerVersion: safeStr(routed.routerVersion || routed.VERSION || ""),
       composerVersion: safeStr(contract.version || ""),
+      normalizerVersion: safeStr(commandNormalizerMod && commandNormalizerMod.VERSION || ""),
+      loopGuardVersion: safeStr(loopGuardMod && loopGuardMod.VERSION || ""),
+      finalEnvelopeVersion: safeStr(finalEnvelopeMod && finalEnvelopeMod.VERSION || ""),
       signature: safeStr(packet.meta.signature || packet.meta.marionFinalSignature),
       marionFinalSignature: safeStr(packet.meta.marionFinalSignature || packet.meta.signature),
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
@@ -729,8 +845,27 @@ async function processWithMarion(input = {}) {
       marionFinalSignature,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
+      hardlockCompatible: true,
+      loopDetected: !!loopGuardResult.forceRecovery,
+      loopGuard: safeObj(loopGuardResult)
     },
+    finalEnvelope: finalEnvelopeMod && typeof finalEnvelopeMod.createMarionFinalEnvelope === "function" ? finalEnvelopeMod.createMarionFinalEnvelope({
+      reply,
+      intent: composeInput.intent,
+      domain: composeInput.domain,
+      routing: safeObj(routed.routing),
+      stateStage: loopGuardResult.forceRecovery ? "recover" : "final",
+      sessionId: normalized.sessionId,
+      state: { conversationDepth: 0, loopCount: loopGuardResult.forceRecovery ? 1 : 0, recoveryRequired: !!loopGuardResult.forceRecovery },
+      meta: {
+        normalizerVersion: safeStr(commandNormalizerMod && commandNormalizerMod.VERSION || ""),
+        routerVersion: safeStr(routed.routerVersion || routed.VERSION || ""),
+        bridgeVersion: VERSION,
+        composerVersion: safeStr(contract.version || ""),
+        loopGuardVersion: safeStr(loopGuardMod && loopGuardMod.VERSION || ""),
+        diagnostics: safeObj(loopGuardResult)
+      }
+    }) : null,
     routed
   }, composeInput);
 }
@@ -967,6 +1102,9 @@ module.exports = {
   MARION_FINAL_SIGNATURE_PREFIX,
   MARION_FINAL_MARKERS,
   STATE_SPINE_SCHEMA,
+  commandNormalizerAvailable: !!commandNormalizerMod,
+  loopGuardAvailable: !!loopGuardMod,
+  finalEnvelopeAvailable: !!finalEnvelopeMod,
   hasRequiredFinalSignature,
   retrieveLayer2Signals,
   processWithMarion,
