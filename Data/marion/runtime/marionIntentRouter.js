@@ -5,16 +5,31 @@
  * Deterministic Marion intent router.
  *
  * Purpose:
- * - Classify incoming Nyx/Marion text into one authoritative intent.
- * - Attach routing metadata for Marion Bridge, State Spine, and ComposeMarionResponse.
- * - Prevent one-word emotional inputs from falling into dead-loop fallback handling.
- * - Keep this file routing-only. It does not compose final user replies.
+ * - Classify incoming Nyx/Marion text into one authoritative canonical intent.
+ * - Attach routing metadata for MarionBridge, State Spine, and ComposeMarionResponse.
+ * - Preserve cohesion with ComposeMarionResponse and MarionBridge by using the shared intent set.
+ * - Add identity + reasoning + baseline cognition routing without composing final user replies.
+ * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.2.1 LOOP-RESCUE-INTENT-HARDENED";
+const VERSION = "marionIntentRouter v2.3.0 COHESION-90-IDENTITY-BASELINE-HARDENED";
 
-const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.6";
-const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.2";
+const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
+const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.3";
+const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+
+const VALID_INTENTS = Object.freeze([
+  "simple_chat",
+  "technical_debug",
+  "emotional_support",
+  "business_strategy",
+  "music_query",
+  "news_query",
+  "roku_query",
+  "identity_or_memory",
+  "domain_question"
+]);
 
 const INTENT_TO_DOMAIN = Object.freeze({
   simple_chat: "general",
@@ -37,7 +52,7 @@ const DOMAIN_MODE = Object.freeze({
   news: "retrieval",
   roku: "platform",
   memory: "continuity",
-  general_reasoning: "conversation"
+  general_reasoning: "reasoning"
 });
 
 const DOMAIN_DEPTH = Object.freeze({
@@ -48,16 +63,36 @@ const DOMAIN_DEPTH = Object.freeze({
   music: "normal",
   news: "normal",
   roku: "normal",
-  memory: "continuity",
-  general_reasoning: "normal"
+  memory: "continuity_deep",
+  general_reasoning: "baseline_cognition"
+});
+
+const PREFERRED_STYLE = Object.freeze({
+  general: "direct_warm",
+  technical: "direct_forensic",
+  emotional: "warm_deep_forward",
+  business: "strategic_direct",
+  music: "clear_retrieval",
+  news: "clean_source_aware",
+  roku: "platform_direct",
+  memory: "identity_continuity",
+  general_reasoning: "reasoned_direct"
 });
 
 function safeStr(v) {
-  return v == null ? "" : String(v).trim();
+  return v == null ? "" : String(v).replace(/\s+/g, " ").trim();
 }
 
 function lower(v) {
   return safeStr(v).toLowerCase();
+}
+
+function isObj(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function safeObj(v) {
+  return isObj(v) ? v : {};
 }
 
 function clamp01(v, fallback = 0) {
@@ -73,7 +108,7 @@ function has(rx, text) {
 }
 
 function compactWhitespace(v) {
-  return safeStr(v).replace(/\s+/g, " ").trim();
+  return safeStr(v);
 }
 
 function normalizeIntentName(v) {
@@ -93,6 +128,11 @@ function normalizeIntentName(v) {
     audit: "technical_debug",
     code: "technical_debug",
     fix: "technical_debug",
+    script: "technical_debug",
+    endpoint: "technical_debug",
+    bridge: "technical_debug",
+    packet: "technical_debug",
+    contract: "technical_debug",
 
     support: "emotional_support",
     emotional: "emotional_support",
@@ -120,65 +160,109 @@ function normalizeIntentName(v) {
 
     memory: "identity_or_memory",
     identity: "identity_or_memory",
+    identity_query: "identity_or_memory",
     identity_or_memory: "identity_or_memory",
+    continuity: "identity_or_memory",
     state: "identity_or_memory",
     state_spine: "identity_or_memory",
     statespine: "identity_or_memory",
     spine: "identity_or_memory",
-    phrase_pack: "identity_or_memory",
-    phrase_packs: "identity_or_memory",
-    packet: "identity_or_memory",
-    packets: "identity_or_memory",
     greeting: "identity_or_memory",
     greetings: "identity_or_memory",
 
     question: "domain_question",
     domain_question: "domain_question",
-    reasoning: "domain_question"
+    reasoning: "domain_question",
+    baseline_cognition: "domain_question"
   });
 
-  return aliases[raw] || raw || "";
+  const normalized = aliases[raw] || raw || "";
+  return VALID_INTENTS.includes(normalized) ? normalized : "";
 }
 
 function extractText(packet = {}) {
-  const p = packet && typeof packet === "object" ? packet : {};
+  const p = safeObj(packet);
+  const body = safeObj(p.body);
+  const payload = safeObj(p.payload);
+  const session = safeObj(p.session || body.session);
+  const turn = safeObj(p.turn || body.turn);
+  const message = safeObj(p.message && typeof p.message === "object" ? p.message : {});
 
   return compactWhitespace(
     p.text ||
     p.query ||
     p.userQuery ||
-    p.message ||
+    (typeof p.message === "string" ? p.message : "") ||
     p.input ||
     p.prompt ||
     p.command ||
-    p.body?.text ||
-    p.body?.query ||
-    p.body?.message ||
-    p.body?.input ||
-    p.payload?.text ||
-    p.payload?.query ||
-    p.payload?.message ||
-    p.payload?.input ||
-    p.turn?.text ||
-    p.turn?.message ||
+    body.text ||
+    body.query ||
+    (typeof body.message === "string" ? body.message : "") ||
+    body.input ||
+    payload.text ||
+    payload.query ||
+    (typeof payload.message === "string" ? payload.message : "") ||
+    payload.input ||
+    turn.text ||
+    turn.message ||
+    message.text ||
+    session.lastUserText ||
     ""
   );
 }
 
+function extractExistingIntent(packet = {}) {
+  const p = safeObj(packet);
+  const body = safeObj(p.body);
+  const payload = safeObj(p.payload);
+  const session = safeObj(p.session || body.session);
+  return safeObj(p.marionIntent || p.intentPacket || body.marionIntent || body.intentPacket || payload.marionIntent || session.marionIntent || {});
+}
+
 function detectSafetyLevel(text) {
   const t = lower(text);
-
   if (!t) return "none";
 
-  if (has(/\b(suicide|suicidal|self[- ]?harm|kill myself|end my life|don['’]?t want to live|want to die|crisis|panic attack)\b/i, t)) {
+  if (has(/\b(suicide|suicidal|self[- ]?harm|kill myself|end my life|don['’]?t want to live|dont want to live|want to die|crisis|panic attack)\b/i, t)) {
     return "crisis";
   }
 
-  if (has(/\b(depressed|depression|sad|lonely|overwhelmed|anxious|anxiety|hurt|heartbroken|grief|crying|afraid|stressed|hopeless|numb|burned out|burnt out)\b/i, t)) {
+  if (has(/\b(depressed|depression|sad|lonely|overwhelmed|anxious|anxiety|hurt|heartbroken|grief|crying|afraid|stressed|hopeless|numb|burned out|burnt out|frustrated|exhausted)\b/i, t)) {
     return "distress";
   }
 
   return "none";
+}
+
+function detectSubIntent(text, intent) {
+  const t = lower(text);
+  if (!t) return "empty_input";
+
+  if (intent === "identity_or_memory") {
+    if (has(/\b(who are you|what are you|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity)\b/i, t)) return "identity_baseline";
+    if (has(/\b(remember|last time|continue|carry forward|continuity|state spine|conversation state|turn state)\b/i, t)) return "memory_continuity";
+    return "identity_or_memory";
+  }
+
+  if (intent === "technical_debug") {
+    if (has(/\b(final envelope|final reply|reply envelope|contract|authority gate|diagnostic|packet|bridge|composer|compose|endpoint|api\/chat|loop|looping)\b/i, t)) return "contract_or_bridge_diagnosis";
+    if (has(/\b(autopsy|audit|gap refinement|critical fix|critical fixes|line[- ]?by[- ]?line)\b/i, t)) return "forensic_audit";
+    if (has(/\b(integration|cohesion|cohesive|90%|ninety percent|baseline cognition|reasoning)\b/i, t)) return "cohesion_upgrade";
+    return "technical_execution";
+  }
+
+  if (intent === "domain_question") {
+    if (has(/\b(reason|reasoning|analyze|analysis|break down|step by step|why|how)\b/i, t)) return "baseline_reasoning";
+    return "general_question";
+  }
+
+  if (intent === "emotional_support") return "emotional_containment";
+  if (intent === "business_strategy") return "commercial_strategy";
+  if (intent === "music_query") return "music_retrieval";
+  if (intent === "news_query") return "news_retrieval";
+  if (intent === "roku_query") return "roku_platform";
+  return "plain_conversation";
 }
 
 function inferIntentFromText(text) {
@@ -196,15 +280,11 @@ function inferIntentFromText(text) {
     };
   }
 
-  /*
-   * Critical ordering:
-   * Emotional/crisis language must be detected before generic Marion/bridge/router terms.
-   * Otherwise phrases like "Marion, I am depressed" get misrouted as technical_debug.
-   */
+  /* Safety must outrank all other classes. */
   if (safetyLevel === "crisis") {
     return {
       intent: "emotional_support",
-      confidence: 0.97,
+      confidence: 0.98,
       reason: "crisis_distress_terms",
       stateStageHint: "recovery",
       safetyLevel,
@@ -215,7 +295,7 @@ function inferIntentFromText(text) {
   if (safetyLevel === "distress") {
     return {
       intent: "emotional_support",
-      confidence: 0.88,
+      confidence: 0.89,
       reason: "emotional_distress_terms",
       stateStageHint: "recovery",
       safetyLevel,
@@ -223,21 +303,44 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|script|file|harden|critical fix|critical fixes|download|zip)\b/i, t)) {
+  /* Identity baseline must outrank generic question and broad technical terms. */
+  if (has(/\b(who are you|what are you|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity|identity anchor)\b/i, t)) {
+    return {
+      intent: "identity_or_memory",
+      confidence: 0.93,
+      reason: "identity_baseline_terms",
+      stateStageHint: "continuity",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
+  if (has(/\b(remember|last time|continue|memory|conversation state|turn state|continuity|state spine|statespine|who am i)\b/i, t)) {
+    return {
+      intent: "identity_or_memory",
+      confidence: 0.82,
+      reason: "memory_continuity_terms",
+      stateStageHint: "continuity",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
+  if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|composemarionresponse|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|api\/chat|final envelope|contract|authority gate|script|file|harden|critical fix|critical fixes|download|zip|integration|cohesion|cohesive|90%|ninety percent|baseline cognition)\b/i, t)) {
     return {
       intent: "technical_debug",
-      confidence: 0.91,
-      reason: "technical_debug_terms",
+      confidence: 0.92,
+      reason: "technical_debug_or_cohesion_terms",
       stateStageHint: "execution",
       safetyLevel,
       recoveryRequired: false
     };
   }
 
-  if (has(/\b(top\s*10|song|songs|artist|album|chart|playlist|music|radio|billboard|year|decade|70s|80s|90s|2000s)\b/i, t)) {
+  if (has(/\b(top\s*10|song|songs|artist|album|chart|playlist|music|radio|billboard|year|decade|70s|80s|90s|2000s|adult contemporary)\b/i, t)) {
     return {
       intent: "music_query",
-      confidence: 0.83,
+      confidence: 0.84,
       reason: "music_terms",
       stateStageHint: "retrieve",
       safetyLevel,
@@ -248,7 +351,7 @@ function inferIntentFromText(text) {
   if (has(/\b(news|headline|headlines|article|story|stories|rss|newscanada|for your life|feed)\b/i, t)) {
     return {
       intent: "news_query",
-      confidence: 0.83,
+      confidence: 0.84,
       reason: "news_terms",
       stateStageHint: "retrieve",
       safetyLevel,
@@ -259,7 +362,7 @@ function inferIntentFromText(text) {
   if (has(/\b(roku|tv app|linear tv|streaming|channel app|ott)\b/i, t)) {
     return {
       intent: "roku_query",
-      confidence: 0.83,
+      confidence: 0.84,
       reason: "roku_terms",
       stateStageHint: "deliver",
       safetyLevel,
@@ -267,10 +370,10 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (has(/\b(price|pricing|sponsor|sponsorship|media kit|monetize|monetization|pitch|funding|investor|sales|proposal|revenue|business|startup|advertising|ad template)\b/i, t)) {
+  if (has(/\b(price|pricing|sponsor|sponsorship|media kit|monetize|monetization|pitch|funding|investor|sales|proposal|revenue|business|startup|advertising|ad template|audience|brand awareness|commercial positioning)\b/i, t)) {
     return {
       intent: "business_strategy",
-      confidence: 0.83,
+      confidence: 0.84,
       reason: "business_terms",
       stateStageHint: "strategy",
       safetyLevel,
@@ -278,21 +381,10 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (has(/\b(remember|last time|continue|memory|conversation state|turn state|continuity|identity|who are you|who am i)\b/i, t)) {
-    return {
-      intent: "identity_or_memory",
-      confidence: 0.78,
-      reason: "memory_identity_terms",
-      stateStageHint: "continuity",
-      safetyLevel,
-      recoveryRequired: false
-    };
-  }
-
-  if (has(/(^|\s)(how|what|why|where|when|can you|could you|should i|would it|is it|are we)\b|\?$/i, t)) {
+  if (has(/(^|\s)(how|what|why|where|when|can you|could you|should i|would it|is it|are we|explain|analyze|break down)\b|\?$/i, t)) {
     return {
       intent: "domain_question",
-      confidence: t.length > 60 ? 0.68 : 0.58,
+      confidence: t.length > 60 ? 0.7 : 0.6,
       reason: "general_question",
       stateStageHint: "reason",
       safetyLevel,
@@ -311,7 +403,7 @@ function inferIntentFromText(text) {
 }
 
 function normalizeIntent(rawInput = {}, fallbackText = "") {
-  const src = rawInput && typeof rawInput === "object" ? rawInput : {};
+  const src = safeObj(rawInput);
   const inferred = inferIntentFromText(fallbackText);
   const explicit = normalizeIntentName(src.intent || src.type || src.name || "");
 
@@ -322,10 +414,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
 
-  /*
-   * Distress language wins over stale explicit/general intent.
-   * Technical can only override emotional if the inferred text is clearly technical and not distress/crisis.
-   */
+  /* Distress language wins over stale explicit/general intent. */
   if (inferred.intent === "emotional_support") {
     intent = "emotional_support";
     confidence = Math.max(confidence, inferred.confidence);
@@ -335,24 +424,37 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     recoveryRequired = true;
   }
 
+  /* Identity baseline wins over stale simple/domain intent and must not be treated as generic Q&A. */
+  if (inferred.intent === "identity_or_memory" && intent !== "emotional_support") {
+    intent = "identity_or_memory";
+    confidence = Math.max(confidence, inferred.confidence);
+    reason = inferred.reason;
+    stateStageHint = "continuity";
+    recoveryRequired = false;
+  }
+
+  /* Technical can override support only when there is no distress language. */
   if (intent === "emotional_support" && inferred.intent === "technical_debug" && inferred.safetyLevel === "none") {
     intent = "technical_debug";
-    confidence = Math.max(confidence, 0.91);
+    confidence = Math.max(confidence, 0.92);
     reason = "technical_override_support";
     stateStageHint = "execution";
     recoveryRequired = false;
   }
 
-  if (!INTENT_TO_DOMAIN[intent]) {
+  if (!VALID_INTENTS.includes(intent)) {
     intent = "domain_question";
     confidence = Math.max(0.5, confidence);
     reason = reason || "unknown_intent_normalized";
     stateStageHint = stateStageHint || "reason";
   }
 
+  const subIntent = safeStr(src.subIntent || src.subintent || detectSubIntent(fallbackText, intent));
+
   return {
     activate: intent !== "simple_chat",
     intent,
+    subIntent,
     confidence,
     reason,
     stateStageHint,
@@ -360,46 +462,60 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     recoveryRequired,
     loopSafe: true,
     allowGenericFallback: false,
+    requiresFinalEnvelope: true,
+    requiresComposer: true,
+    identityAnchorRequired: subIntent === "identity_baseline",
+    baselineCognitionRequired: intent === "domain_question" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
 
 function buildRouting(marionIntent) {
   const domain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
+  const style = PREFERRED_STYLE[domain] || "direct";
 
   return {
     domain,
     intent: marionIntent.intent,
-    endpoint: "marion://routeMarion.primary",
+    subIntent: marionIntent.subIntent,
+    endpoint: CANONICAL_ENDPOINT,
     contractVersion: INTENT_CONTRACT_VERSION,
     expectsComposer: "composeMarionResponse",
+    expectedComposerContract: "finalEnvelope.reply.required",
     stateSpineSchema: STATE_SPINE_SCHEMA,
+    stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     stateStageHint: marionIntent.stateStageHint,
     mode: DOMAIN_MODE[domain] || "conversation",
     depth: DOMAIN_DEPTH[domain] || "normal",
-    useMemory: domain === "memory" || domain === "emotional",
+    cognitiveMode: marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation",
+    useMemory: domain === "memory" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
     useDomainKnowledge: domain !== "general",
     requireFreshComposerEnvelope: true,
+    requiresFinalEnvelope: true,
+    requiresHotFallback: true,
     blockRepeatedBridgeFallback: true,
     recoveryRequired: marionIntent.recoveryRequired,
     safetyLevel: marionIntent.safetyLevel,
-    preferredStyle:
-      domain === "technical" ? "direct_forensic" :
-      domain === "emotional" ? "warm_deep_forward" :
-      domain === "business" ? "strategic_direct" :
-      "direct"
+    identityAnchorRequired: !!marionIntent.identityAnchorRequired,
+    baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
+    preferredStyle: style,
+    cohesion: {
+      targetPercent: 90,
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true,
+      finalEnvelopeRequired: true,
+      noDiagnosticUserSurface: true
+    }
   };
 }
 
 function routeMarionIntent(packet = {}) {
   const text = extractText(packet);
-  const src = packet && typeof packet === "object" ? packet : {};
+  const src = safeObj(packet);
+  const existingIntent = extractExistingIntent(src);
 
-  const marionIntent = normalizeIntent(
-    src.marionIntent || src.intentPacket || src.session?.marionIntent || src.payload?.marionIntent || {},
-    text
-  );
-
+  const marionIntent = normalizeIntent(existingIntent, text);
   const routing = buildRouting(marionIntent);
 
   return {
@@ -407,6 +523,7 @@ function routeMarionIntent(packet = {}) {
     final: false,
     routerVersion: VERSION,
     stateSpineSchema: STATE_SPINE_SCHEMA,
+    stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     intentContractVersion: INTENT_CONTRACT_VERSION,
     marionIntent,
     routing,
@@ -419,7 +536,11 @@ function routeMarionIntent(packet = {}) {
       bridgeCompatible: true,
       composerCompatible: true,
       stateSpineCompatible: true,
-      preventsFallbackDeadState: true
+      preventsFallbackDeadState: true,
+      finalEnvelopeRequired: true,
+      identityAnchorRequired: !!marionIntent.identityAnchorRequired,
+      baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
+      noUserFacingDiagnostics: true
     }
   };
 }
@@ -427,10 +548,20 @@ function routeMarionIntent(packet = {}) {
 module.exports = {
   VERSION,
   STATE_SPINE_SCHEMA,
+  STATE_SPINE_SCHEMA_COMPAT,
   INTENT_CONTRACT_VERSION,
+  CANONICAL_ENDPOINT,
+  VALID_INTENTS,
   INTENT_TO_DOMAIN,
   normalizeIntentName,
   inferIntentFromText,
   normalizeIntent,
-  routeMarionIntent
+  routeMarionIntent,
+  _internal: {
+    extractText,
+    extractExistingIntent,
+    detectSafetyLevel,
+    detectSubIntent,
+    buildRouting
+  }
 };
