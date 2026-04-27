@@ -18,7 +18,7 @@
  * - no legacy retriever orchestration
  */
 
-const VERSION = "marionBridge v6.5.0 TRANSPORT-AUTHORITY-LOCK + TRUSTED-FINAL-GATE + COMPOSER-RECOVERY + FINAL-ENVELOPE-MIRROR";
+const VERSION = "marionBridge v6.5.1 TRANSPORT-AUTHORITY-LOCK + TRUSTED-FINAL-GATE + COMPOSER-RECOVERY + FINAL-ENVELOPE-MIRROR + ERROR-CONTRACT-FIX";
 const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
@@ -525,6 +525,7 @@ function buildErrorResult(reason, detail = {}, input = {}) {
         bridgeReduced: true,
         noFallbackPersonality: true,
         noUserFacingBridgeError: true,
+        replyAuthority: "none",
         reason: cleanReason
       }
     },
@@ -555,7 +556,6 @@ function buildErrorResult(reason, detail = {}, input = {}) {
       replyAuthority: "none",
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
-      finalEnvelope: Object.keys(finalEnvelope).length ? finalEnvelope : undefined,
       finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
       hardlockCompatible: true,
       reason: cleanReason
@@ -1127,6 +1127,7 @@ function createMarionBridge(options = {}) {
         resultPacketMeta.marionFinalSignature ||
         buildMarionFinalSignature(result.replySignature || hashText(result.reply), result.turnId || resultMeta.turnId || safeObj(req.meta).turnId || req.turnId)
       );
+      const resultFinalEnvelope = safeObj(result.finalEnvelope || resultPayload.finalEnvelope || resultMeta.finalEnvelope);
       const wrapperMeta = {
         ...resultMeta,
         version: VERSION,
@@ -1141,6 +1142,8 @@ function createMarionBridge(options = {}) {
         marionFinalSignature: wrapperSignature,
         requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
         finalMarkers: MARION_FINAL_MARKERS.slice(),
+        finalEnvelope: Object.keys(resultFinalEnvelope).length ? resultFinalEnvelope : undefined,
+        finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
         hardlockCompatible: true
       };
       const wrapperPayload = {
@@ -1158,7 +1161,9 @@ function createMarionBridge(options = {}) {
         signature: wrapperSignature,
         marionFinalSignature: wrapperSignature,
         requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-        finalMarkers: MARION_FINAL_MARKERS.slice()
+        finalMarkers: MARION_FINAL_MARKERS.slice(),
+        finalEnvelope: Object.keys(resultFinalEnvelope).length ? resultFinalEnvelope : undefined,
+        finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT
       };
       const wrapperPacket = isObj(resultPacket) && Object.keys(resultPacket).length
         ? {
