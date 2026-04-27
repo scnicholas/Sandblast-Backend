@@ -18,7 +18,7 @@
  * - no legacy retriever orchestration
  */
 
-const VERSION = "marionBridge v6.4.0 TRANSPORT-AUTHORITY-LOCK + PACKET-NORMALIZER + LOOP-GUARD + FINAL-ENVELOPE";
+const VERSION = "marionBridge v6.5.0 TRANSPORT-AUTHORITY-LOCK + TRUSTED-FINAL-GATE + COMPOSER-RECOVERY + FINAL-ENVELOPE-MIRROR";
 const BRIDGE_PATCH_TAG = "INDEX-COHESION-FINAL-ENVELOPE-HARDLOCK";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
@@ -66,8 +66,61 @@ function hasRequiredFinalSignature(value) {
         sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
         (sig.indexOf(signaturePart(VERSION)) !== -1 || /marionBridge_v6\./i.test(sig) || sig.indexOf("marionBridge") !== -1) &&
         (sig.indexOf(signaturePart(STATE_SPINE_SCHEMA)) !== -1 || sig.indexOf(signaturePart(STATE_SPINE_SCHEMA_COMPAT)) !== -1)
-      ) ||
-      sig === FINAL_SIGNATURE
+      )
+    )
+  );
+}
+
+
+function objectContainsRequiredFinalSignature(value, depth = 0) {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") return hasRequiredFinalSignature(value);
+  if (Array.isArray(value)) return value.some((item) => objectContainsRequiredFinalSignature(item, depth + 1));
+  if (isObj(value)) {
+    if (hasRequiredFinalSignature(value)) return true;
+    if (hasRequiredFinalSignature(value.signature || value.marionFinalSignature || value.finalSignature)) return true;
+    return Object.keys(value).some((key) => objectContainsRequiredFinalSignature(value[key], depth + 1));
+  }
+  return false;
+}
+
+function isTrustedMarionFinal(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const packet = safeObj(src.packet);
+  const packetMeta = safeObj(packet.meta);
+  const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+
+  if (finalEnvelopeMod && typeof finalEnvelopeMod.isMarionFinalEnvelope === "function") {
+    try {
+      if (finalEnvelopeMod.isMarionFinalEnvelope(src)) return true;
+      if (finalEnvelopeMod.isMarionFinalEnvelope(finalEnvelope)) return true;
+    } catch (_) {}
+  }
+
+  const marionSideFinal = !!(
+    src.marionFinal === true ||
+    payload.marionFinal === true ||
+    packet.marionFinal === true ||
+    packetMeta.marionFinal === true ||
+    synthesis.marionFinal === true ||
+    finalEnvelope.final === true
+  );
+
+  const trustedEnvelopeObject = !!(
+    finalEnvelope.contractVersion === FINAL_ENVELOPE_CONTRACT &&
+    finalEnvelope.source === "marion" &&
+    finalEnvelope.signature === FINAL_SIGNATURE &&
+    finalEnvelope.final === true
+  );
+
+  return !!(
+    trustedEnvelopeObject ||
+    (
+      marionSideFinal &&
+      objectContainsRequiredFinalSignature(src, 0)
     )
   );
 }
@@ -412,47 +465,102 @@ function buildErrorResult(reason, detail = {}, input = {}) {
   const turnId = safeStr(normalized.turnId || "");
   const domain = safeStr(normalized.domain || normalized.requestedDomain || "general") || "general";
   const intent = safeStr(normalized.intent || "bridge_error") || "bridge_error";
-  const reply = `Marion could not complete this turn cleanly: ${safeStr(reason || "bridge_error") || "bridge_error"}.`;
+  const cleanReason = safeStr(reason || "bridge_error") || "bridge_error";
 
-  return markFinal({
+  return {
     ok: false,
     error: true,
-    status: "error",
-    reason: safeStr(reason || "bridge_error") || "bridge_error",
+    status: "awaiting_marion",
+    reason: cleanReason,
     detail: safeObj(detail),
+    final: false,
+    handled: true,
+    marionFinal: false,
+    marionHandled: false,
+    awaitingMarion: true,
+    terminal: false,
+
     userQuery,
     domain,
     intent,
-    reply,
-    text: reply,
-    answer: reply,
-    output: reply,
-    spokenText: reply,
+    reply: "",
+    text: "",
+    answer: "",
+    output: "",
+    response: "",
+    message: "",
+    spokenText: "",
     followUps: [],
     followUpsStrings: [],
-    payload: { reply, text: reply, answer: reply, output: reply, spokenText: reply },
+
+    payload: {
+      reply: "",
+      text: "",
+      answer: "",
+      output: "",
+      response: "",
+      message: "",
+      spokenText: "",
+      final: false,
+      marionFinal: false,
+      handled: true,
+      awaitingMarion: true,
+      error: true
+    },
+
+    packet: {
+      final: false,
+      marionFinal: false,
+      handled: true,
+      routing: { domain, intent, endpoint: CANONICAL_ENDPOINT },
+      synthesis: { reply: "", text: "", answer: "", output: "", spokenText: "" },
+      meta: {
+        version: VERSION,
+        endpoint: CANONICAL_ENDPOINT,
+        turnId,
+        final: false,
+        marionFinal: false,
+        handled: true,
+        awaitingMarion: true,
+        bridgeReduced: true,
+        noFallbackPersonality: true,
+        noUserFacingBridgeError: true,
+        reason: cleanReason
+      }
+    },
+
     diagnostics: {
       bridgeVersion: VERSION,
       bridgeError: true,
-      reason: safeStr(reason || "bridge_error") || "bridge_error",
+      noUserFacingBridgeError: true,
+      awaitingMarion: true,
+      terminal: false,
+      reason: cleanReason,
       detail: safeObj(detail)
     },
+
     meta: {
       version: VERSION,
       endpoint: CANONICAL_ENDPOINT,
       turnId,
-      final: true,
-      marionFinal: true,
+      final: false,
+      marionFinal: false,
       handled: true,
+      awaitingMarion: true,
+      terminal: false,
       finalizedBy: "marionBridge",
       bridgeReduced: true,
-      signature: buildMarionFinalSignature(hashText(reply), turnId),
-      marionFinalSignature: buildMarionFinalSignature(hashText(reply), turnId),
+      noFallbackPersonality: true,
+      noUserFacingBridgeError: true,
+      replyAuthority: "none",
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
-      hardlockCompatible: true
+      finalEnvelope: Object.keys(finalEnvelope).length ? finalEnvelope : undefined,
+      finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
+      hardlockCompatible: true,
+      reason: cleanReason
     }
-  }, normalized);
+  };
 }
 
 function buildPacket({ normalized, routed, contract, reply, replySignature }) {
@@ -507,6 +615,7 @@ function markFinal(result = {}, input = {}) {
   const replySignature = safeStr(src.replySignature || hashText(reply));
   const spokenText = safeStr(src.spokenText || reply.replace(/\n+/g, " ")) || reply;
   const marionFinalSignature = safeStr(src.marionFinalSignature || src.signature || safeObj(src.meta).marionFinalSignature || safeObj(src.meta).signature || safeObj(src.diagnostics).marionFinalSignature || buildMarionFinalSignature(replySignature, normalized.turnId || src.turnId));
+  const finalEnvelope = safeObj(src.finalEnvelope || safeObj(src.payload).finalEnvelope || safeObj(src.meta).finalEnvelope);
 
   const out = {
     ...src,
@@ -549,6 +658,8 @@ function markFinal(result = {}, input = {}) {
       marionFinalSignature,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       finalMarkers: MARION_FINAL_MARKERS.slice(),
+      finalEnvelope: Object.keys(finalEnvelope).length ? finalEnvelope : undefined,
+      finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
       final: true,
       marionFinal: true,
       handled: true
@@ -622,6 +733,20 @@ function markFinal(result = {}, input = {}) {
     };
   }
 
+  out.finalEnvelope = Object.keys(finalEnvelope).length ? finalEnvelope : out.finalEnvelope;
+  if (isObj(out.payload)) {
+    out.payload.finalEnvelope = out.finalEnvelope;
+    out.payload.finalEnvelopeContract = FINAL_ENVELOPE_CONTRACT;
+  }
+  if (isObj(out.meta)) {
+    out.meta.finalEnvelope = out.finalEnvelope;
+    out.meta.finalEnvelopeContract = FINAL_ENVELOPE_CONTRACT;
+  }
+  if (isObj(out.packet) && isObj(out.packet.meta)) {
+    out.packet.meta.finalEnvelope = out.finalEnvelope;
+    out.packet.meta.finalEnvelopeContract = FINAL_ENVELOPE_CONTRACT;
+  }
+
   out.indexCohesion = {
     ok: true,
     endpoint: out.endpoint || CANONICAL_ENDPOINT,
@@ -680,7 +805,7 @@ function bridgeRecoveryReply(normalized = {}, loopResult = {}) {
 }
 
 async function processWithMarion(input = {}) {
-  if (isAlreadyFinal(input)) return markFinal(input, input);
+  if (isAlreadyFinal(input) && isTrustedMarionFinal(input)) return markFinal(input, input);
 
   let inbound = safeObj(input);
   let commandPacket = {};
@@ -772,12 +897,35 @@ async function processWithMarion(input = {}) {
         }
       }, reply);
       if (loopGuardResult.forceRecovery) {
-        reply = bridgeRecoveryReply({
-          ...normalized,
-          intent: composeInput.intent,
-          domain: composeInput.domain,
-          marionIntent: composeInput.marionIntent
-        }, loopGuardResult);
+        const recoveryContract = await Promise.resolve(composeMarionResponse({
+          ...safeObj(routed),
+          primaryDomain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
+          domain: safeStr(safeObj(routed.routing).domain || composeInput.domain),
+          intent: safeStr(safeObj(routed.routing).intent || composeInput.intent),
+          routing: safeObj(routed.routing),
+          marionIntent: safeObj(routed.marionIntent),
+          forceRecovery: true,
+          recoveryRequired: true,
+          loopGuard: loopGuardResult,
+          lastLoopReasons: safeArray(loopGuardResult.reasons)
+        }, {
+          ...composeInput,
+          forceRecovery: true,
+          recoveryRequired: true,
+          loopGuard: loopGuardResult,
+          lastLoopReasons: safeArray(loopGuardResult.reasons),
+          state: {
+            ...safeObj(composeInput.conversationState),
+            stateStage: "recover",
+            recoveryRequired: true,
+            loopCount: Number(safeObj(composeInput.conversationState).loopCount || 0) + 1,
+            lastLoopReasons: safeArray(loopGuardResult.reasons)
+          }
+        }));
+        if (validateComposeResult(recoveryContract).ok) {
+          Object.assign(contract, recoveryContract);
+          reply = extractReply(contract);
+        }
       }
     } catch (err) {
       loopGuardResult = { ok: false, loopDetected: false, allowReply: true, forceRecovery: false, reasons: ["loop_guard_error"], detail: safeStr(err && (err.message || err) || "") };
@@ -1064,9 +1212,7 @@ function createMarionBridge(options = {}) {
         usedBridge: result.ok !== false && !!safeStr(result.reply),
         packet: wrapperPacket,
         response: result.reply,
-        fallbackResponse: "",
         fallbackSuppressed: true,
-        replySeed: result.reply,
         message: result.reply,
         reply: result.reply,
         text: result.reply,
@@ -1123,6 +1269,7 @@ module.exports = {
   loopGuardAvailable: !!loopGuardMod,
   finalEnvelopeAvailable: !!finalEnvelopeMod,
   hasRequiredFinalSignature,
+  isTrustedMarionFinal,
   retrieveLayer2Signals,
   processWithMarion,
   createMarionBridge,
