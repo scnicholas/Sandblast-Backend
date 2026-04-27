@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -1018,6 +1018,9 @@ function getMarionRuntimeDiagnostics() {
     marionBridgeHasProcessWithMarion: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
     marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
+    marionBridgeVersion: cleanText(marionBridgeMod && marionBridgeMod.VERSION || ""),
+    chatEngineVersion: cleanText(chatEngineMod && chatEngineMod.VERSION || ""),
+    stateSpineVersion: cleanText(stateSpineMod && stateSpineMod.SPINE_VERSION || ""),
     marionIntentRouterLoaded: !!marionIntentRouterMod,
     marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
     marionDomainRegistryLoaded: !!marionDomainRegistryMod,
@@ -3882,8 +3885,7 @@ function getMarionAuthorityReply(marion) {
     marion.answer ||
     marion.message ||
     marion.spokenText ||
-    marion.fallbackResponse ||
-    marion.replySeed ||
+    /* fallbackResponse/replySeed intentionally ignored: transport-only Marion authority */
     payload.response ||
     payload.reply ||
     payload.text ||
@@ -3891,8 +3893,7 @@ function getMarionAuthorityReply(marion) {
     payload.output ||
     payload.answer ||
     payload.spokenText ||
-    payload.fallbackResponse ||
-    payload.replySeed ||
+    /* payload fallbackResponse/replySeed intentionally ignored */
     synthesis.reply ||
     synthesis.text ||
     synthesis.output ||
@@ -3929,7 +3930,7 @@ function getMarionAuthorityReply(marion) {
 
 function buildIndexMarionFinalSignature(reply, turnId) {
   const seed = replyHash(`${cleanText(reply || "")}:${cleanText(turnId || "")}:${INDEX_VERSION}`);
-  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${INDEX_VERSION}::${seed}`;
+  return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${INDEX_VERSION}::nyx.marion.stateSpine/1.7::${seed}`;
 }
 
 function normalizeMarionBridgeResult(raw, input) {
@@ -3964,12 +3965,12 @@ function normalizeMarionBridgeResult(raw, input) {
       handled: true,
       marionFinal: false,
       loopReplyBlockedCandidate: true,
-      reply,
-      text: reply,
-      answer: reply,
-      output: reply,
-      response: reply,
-      message: reply,
+      reply: "",
+      text: "",
+      answer: "",
+      output: "",
+      response: "",
+      message: "",
       meta: blockedMeta,
       diagnostics: {
         ...(isObj(base.diagnostics) ? base.diagnostics : {}),
@@ -4244,11 +4245,9 @@ async function callMarionBridge(input) {
     if (typeof marionBridgeMod.createMarionBridge === "function") {
       const bridge = marionBridgeMod.createMarionBridge();
       if (bridge && typeof bridge.maybeResolve === "function") return finish(await bridge.maybeResolve(input));
-      if (bridge && typeof bridge.processWithMarion === "function") return finish(await bridge.processWithMarion(input));
-      if (bridge && typeof bridge.route === "function") return finish(await bridge.route(input));
-      if (bridge && typeof bridge.ask === "function") return finish(await bridge.ask(input));
-      if (bridge && typeof bridge.handle === "function") return finish(await bridge.handle(input));
     }
+
+    // Fallback compatibility only if factory is absent.
     if (typeof marionBridgeMod.maybeResolve === "function") return finish(await marionBridgeMod.maybeResolve(input));
     if (typeof marionBridgeMod.processWithMarion === "function") return finish(await marionBridgeMod.processWithMarion(input));
     if (typeof marionBridgeMod.route === "function") return finish(await marionBridgeMod.route(input));
@@ -4262,10 +4261,18 @@ async function callMarionBridge(input) {
       ok: false,
       error: "marion_bridge_runtime_error",
       detail: cleanText(err && (err.message || err) || "marion bridge failed"),
+      reply: "",
+      text: "",
+      final: false,
+      marionFinal: false,
+      awaitingMarion: true,
       meta: {
         source: "index_callMarionBridge",
         v: INDEX_VERSION,
-        t: now()
+        t: now(),
+        transportOnly: true,
+        noSupportDecision: true,
+        noEmotionDecision: true
       }
     };
   }
@@ -5977,10 +5984,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   const transportKey = buildTransportKey(norm, norm.text, req);
   const transportState = getTransportState(sessionId);
-  const priorTransportReplay = transportKey && transportState.key === transportKey && (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
+  const priorTransportReplay = transportKey &&
+    transportState.key === transportKey &&
+    cleanText(transportState.turnId || "") === cleanText(norm.turnId || "") &&
+    (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
   if (priorTransportReplay) {
     const cachedReply = cleanText(transportState.reply || priorTurn && priorTurn.reply || "");
-    if (isBlockedLoopingSupportReply(cachedReply) && !hasFreshMarionFinalEnvelope(transportState) && !hasFreshMarionFinalEnvelope(priorTurn)) {
+    if (isBlockedLoopingSupportReply(cachedReply)) {
       setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", loopReplyBlocked: true });
     } else if (cachedReply) {
       const cached = normalizeReplyEnvelope({
