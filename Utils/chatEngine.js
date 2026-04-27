@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.3.0 COORDINATOR-ONLY-MARION-FINAL-TRUST-GATE-HARDENED";
+const VERSION = "ChatEngine v3.4.0 COORDINATOR-ONLY-MARION-FINAL-LOOP-PURGE-HARDENED";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -108,6 +108,29 @@ const SHORT_BLOCKER_WORD_PATTERNS = Object.freeze([
   /^working\.?$/i
 ]);
 
+
+const ROGUE_FALLBACK_REPLY_PATTERNS = Object.freeze([
+  /\bi need one specific command to continue (clearly|cleanly)\b/i,
+  /\bsend a specific command\b/i,
+  /\bpress reset to clear this session\b/i,
+  /\bready\.\s*send your next message\b/i,
+  /\bready\.\s*send the next instruction\b/i,
+  /\bready\.\s*send the specific file\b/i,
+  /\bi blocked a repeated fallback from the bridge\b/i,
+  /\bnyx is connected\.\s*what would you like to do next\b/i,
+  /\bi am here with you\b/i,
+  /\bi['’]?m here with you\b/i,
+  /\bwe can take this one step at a time\b/i,
+  /\bi can stay with this clearly\b/i
+]);
+
+function isRogueFallbackText(value) {
+  const text = cleanText(value);
+  if (!text) return false;
+  return ROGUE_FALLBACK_REPLY_PATTERNS.some((rx) => rx.test(text));
+}
+
+
 function isShortBlockerText(value) {
   const text = cleanText(value);
   if (!text) return false;
@@ -118,6 +141,7 @@ function isInternalBlockerText(value, context = {}) {
   const text = cleanText(value);
   if (!text) return false;
 
+  if (isRogueFallbackText(text)) return true;
   if (INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text))) return true;
 
   const envelopeTrusted = !!context.envelopeTrusted;
@@ -168,6 +192,8 @@ function extractFinalEnvelope(input = {}) {
     payload.finalEnvelope ||
     meta.finalEnvelope ||
     safeObj(src.marion).finalEnvelope ||
+    safeObj(payload.marion).finalEnvelope ||
+    safeObj(meta.marion).finalEnvelope ||
     {}
   );
 }
@@ -274,14 +300,40 @@ function containsLegacyTrustFlag(value, depth = 0) {
   return Object.keys(value).some((key) => containsLegacyTrustFlag(value[key], depth + 1));
 }
 
+
+function hasTrustedBridgeOrComposerMarker(value, depth = 0) {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") {
+    const s = cleanText(value);
+    return !!(
+      /marionBridge v6\.(3|4|5|6)/i.test(s) ||
+      /composeMarionResponse v2\.(3|4|5)/i.test(s) ||
+      /STATE-SPINE-COHESION|FINAL-ENVELOPE|TRANSPORT-AUTHORITY-LOCK/i.test(s)
+    );
+  }
+  if (Array.isArray(value)) return value.some((item) => hasTrustedBridgeOrComposerMarker(item, depth + 1));
+  if (isPlainObject(value)) return Object.keys(value).some((key) => hasTrustedBridgeOrComposerMarker(value[key], depth + 1));
+  return false;
+}
+
+function hasRejectedLoopReply(input = {}) {
+  const candidate = extractReplyCandidate(input);
+  return isRogueFallbackText(candidate.value);
+}
+
 function objectContainsTrustedFinalSignature(value, depth = 0) {
   if (depth > 8 || value == null) return false;
 
   if (typeof value === "string") {
     const s = cleanText(value);
     return !!(
-      (s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 && s.indexOf(CHAT_ENGINE_SIGNATURE) !== -1) ||
-      s === FINAL_SIGNATURE
+      s.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
+      s.indexOf(CHAT_ENGINE_SIGNATURE) !== -1 &&
+      (
+        s.indexOf(STATE_SPINE_SCHEMA) !== -1 ||
+        s.indexOf(STATE_SPINE_SCHEMA_COMPAT) !== -1 ||
+        /nyx\.marion\.stateSpine\/[0-9.]+/i.test(s)
+      )
     );
   }
 
@@ -302,11 +354,15 @@ function hasTrustedFinalEnvelope(source = {}, options = {}) {
   const finalEnvelope = isFinalEnvelope(source);
   if (!finalEnvelope) return false;
 
+  // Never trust known rogue fallback text, even if some wrapper has final flags.
+  if (hasRejectedLoopReply(source)) return false;
+
   const strictSignature = objectContainsTrustedFinalSignature(source, 0);
   if (strictSignature) return true;
 
   const knownGoodContract = hasKnownGoodContractVersion(source);
   const legacyTrust = containsLegacyTrustFlag(source, 0);
+  const bridgeOrComposerMarker = hasTrustedBridgeOrComposerMarker(source, 0);
   const internalTrusted = !!(
     options.trustedTransport ||
     source.trustedTransport === true ||
@@ -316,11 +372,11 @@ function hasTrustedFinalEnvelope(source = {}, options = {}) {
 
   // Version-gated trust: accept known-good final contracts when explicit legacy/internal
   // trust is present, even if the newer final signature is not mirrored.
-  if (knownGoodContract && (legacyTrust || internalTrusted)) return true;
+  if (knownGoodContract && (legacyTrust || internalTrusted || bridgeOrComposerMarker)) return true;
 
   // Legacy compatibility: older bridge/composer final packets may lack final envelope
   // signature but still expose Marion-side final plus hardlock compatibility.
-  if (isAuthoritativeMarionFinalLocation(source) && legacyTrust) return true;
+  if (isAuthoritativeMarionFinalLocation(source) && (legacyTrust || bridgeOrComposerMarker)) return true;
 
   return false;
 }
@@ -378,6 +434,7 @@ function extractReplyCandidate(input = {}) {
 function extractFinalReply(input = {}, trust = {}) {
   const candidate = extractReplyCandidate(input);
   if (!candidate.value) return "";
+  if (isRogueFallbackText(candidate.value)) return "";
   const envelopeTrusted = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
   const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
 
@@ -540,7 +597,8 @@ function extractSessionPatch(input = {}) {
   );
 }
 
-function classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent }) {
+function classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent, rogueFallbackPresent }) {
+  if (rogueFallbackPresent) return "rogue_fallback_reply_rejected";
   if (!finalEnvelope) return "not_final_yet";
   if (!trustedFinalEnvelope) return "missing_signature";
   if (!replyPresent) return "missing_reply";
@@ -742,6 +800,23 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   };
 }
 
+
+function stableTurnKey(input = {}) {
+  const turnId = extractTurnId(input);
+  if (turnId) return cleanText(turnId);
+  const userText = extractUserText(input);
+  const signature = firstText(
+    input.marionFinalSignature,
+    input.finalSignature,
+    input.signature,
+    safeObj(input.meta).marionFinalSignature,
+    safeObj(input.meta).signature,
+    safeObj(input.packet).meta && safeObj(safeObj(input.packet).meta).marionFinalSignature
+  );
+  return hashText(`${userText || ""}::${signature || ""}::${extractIntent(input)}::${extractDomain(input)}`);
+}
+
+
 class ChatEngine {
   constructor(options = {}) {
     this.state = {
@@ -773,24 +848,27 @@ class ChatEngine {
 
     try {
       const src = typeof input === "string" ? { text: input } : safeObj(input);
-      const turnId = extractTurnId(src) || hashText(JSON.stringify(src || {}).slice(0, 500));
+      const turnId = stableTurnKey(src);
       const finalEnvelope = isFinalEnvelope(src);
       const trustedFinalEnvelope = hasTrustedFinalEnvelope(src, src);
+      const rogueFallbackPresent = hasRejectedLoopReply(src);
       const reply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
 
       trace.stages.push({ stage: "detectFinalEnvelope", ok: finalEnvelope });
       trace.stages.push({ stage: "detectTrustedFinalEnvelope", ok: trustedFinalEnvelope });
       trace.stages.push({ stage: "extractFinalReply", ok: !!reply, replyPreview: clipText(reply, 120) });
+      trace.stages.push({ stage: "detectRogueFallbackReply", ok: !rogueFallbackPresent });
 
-      if (!finalEnvelope || !trustedFinalEnvelope || !reply) {
-        const reason = classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent: !!reply });
+      if (!finalEnvelope || !trustedFinalEnvelope || !reply || rogueFallbackPresent) {
+        const reason = classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent: !!reply, rogueFallbackPresent });
         const rejectionCount = this.incrementRejection(turnId);
-        const terminal = rejectionCount >= this.config.rejectionThreshold;
+        const terminal = rogueFallbackPresent || rejectionCount >= this.config.rejectionThreshold;
 
         const errorContract = buildBlankErrorContract(reason, {
           finalEnvelope,
           trustedFinalEnvelope,
           replyPresent: !!reply,
+          rogueFallbackPresent,
           rejectionCount,
           rejectionThreshold: this.config.rejectionThreshold
         }, src, { terminal });
@@ -801,6 +879,7 @@ class ChatEngine {
           finalEnvelope,
           trustedFinalEnvelope,
           replyPresent: !!reply,
+          rogueFallbackPresent,
           turnId,
           rejectionCount,
           terminal
@@ -953,7 +1032,9 @@ function extractMarionFields(src = {}) {
 }
 
 function shouldLockMarionAuthority(source = {}) {
-  return hasTrustedFinalEnvelope(source) && !!extractFinalReply(source, { trustedFinalEnvelope: true, finalEnvelope: true });
+  return hasTrustedFinalEnvelope(source) &&
+    !hasRejectedLoopReply(source) &&
+    !!extractFinalReply(source, { trustedFinalEnvelope: true, finalEnvelope: true });
 }
 
 if (typeof module !== "undefined") {
@@ -985,7 +1066,11 @@ if (typeof module !== "undefined") {
       classifyMissingFinalReason,
       buildBlankErrorContract,
       buildStructuredFinalReply,
-      isInternalBlockerText
+      isInternalBlockerText,
+      isRogueFallbackText,
+      hasRejectedLoopReply,
+      stableTurnKey,
+      hasTrustedBridgeOrComposerMarker
     }
   };
 }
