@@ -14,9 +14,20 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.0.3 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX FINAL-ENVELOPE-GUARD + LOOP-GUARD-RECOVERY-STAGES";
+const SPINE_VERSION = "stateSpine v2.1.0 MARION-STATE-RESTRUCTURE TRUST-GATE-ALIGNMENT + RECOVERY-ESCAPE-HARDENED";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
+const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
+const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
+const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
+const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+
+const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
+  FINAL_ENVELOPE_CONTRACT,
+  "nyx.marion.final/0.9",
+  "nyx.marion.contract/2.1",
+  "nyx.marion.intent/2.1"
+]);
 const TERMINAL_AUDIO_STOP_MS = 30000;
 
 const STATE_STAGES = Object.freeze([
@@ -33,12 +44,16 @@ const STATE_STAGES = Object.freeze([
 function normalizeStateStage(value, fallback = "open") {
   const raw = safeStr(value || fallback || "open").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   if (!raw) return "open";
-  if (raw === "recovery" || raw === "loop_recovery") return "recover";
+  if (raw === "recovery" || raw === "loop_recovery" || raw === "stabilize" || raw === "quiet") return "recover";
   if (raw === "classification") return "classified";
   if (raw === "route") return "routed";
-  if (raw === "composed") return "compose";
+  if (raw === "composed" || raw === "deliver" || raw === "advance" || /^domain_depth_/.test(raw)) return "final";
+  if (raw === "execution") return "compose";
+  if (raw === "terminal_stop" || raw === "terminal_error" || raw === "fault") return "error";
   if (STATE_STAGES.includes(raw)) return raw;
-  return fallback || "open";
+  const fb = safeStr(fallback || "open").trim().toLowerCase();
+  if (fb && fb !== raw) return normalizeStateStage(fb, "open");
+  return "open";
 }
 
 function safeStr(x) {
@@ -177,7 +192,6 @@ function trustedFinalShouldBreakLoop({ trustedFinalEnvelope, composerAdvancedSta
   return !!(
     trustedFinalEnvelope &&
     composerAdvancedState &&
-    speak &&
     !loopPhraseRejected
   );
 }
@@ -216,7 +230,51 @@ function extractMarionFinalSignature(params = {}) {
   );
 }
 
-function hasTrustedMarionFinalEnvelope(params = {}) {
+
+function extractFinalEnvelopeObject(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  return isPlainObject(p.finalEnvelope) ? p.finalEnvelope :
+    isPlainObject(inbound.finalEnvelope) ? inbound.finalEnvelope :
+    isPlainObject(meta.finalEnvelope) ? meta.finalEnvelope :
+    isPlainObject(marion.finalEnvelope) ? marion.finalEnvelope :
+    isPlainObject(payload.finalEnvelope) ? payload.finalEnvelope :
+    {};
+}
+
+function extractContractVersion(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const finalEnvelope = extractFinalEnvelopeObject(p);
+  return firstNonEmpty(
+    p.contractVersion,
+    p.finalContractVersion,
+    inbound.contractVersion,
+    meta.contractVersion,
+    marion.contractVersion,
+    payload.contractVersion,
+    packet.contractVersion,
+    packetMeta.contractVersion,
+    synthesis.contractVersion,
+    finalEnvelope.contractVersion
+  );
+}
+
+function hasKnownGoodFinalContract(params = {}) {
+  const contractVersion = extractContractVersion(params);
+  return !!(contractVersion && KNOWN_GOOD_FINAL_CONTRACTS.includes(contractVersion));
+}
+
+function hasLegacyTrustFlag(params = {}) {
   const p = isPlainObject(params) ? params : {};
   const inbound = isPlainObject(p.inbound) ? p.inbound : {};
   const meta = isPlainObject(p.meta) ? p.meta : {};
@@ -225,27 +283,99 @@ function hasTrustedMarionFinalEnvelope(params = {}) {
   const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   const memoryPatch = extractComposerMemoryPatch(p);
-  const sig = extractMarionFinalSignature(p);
-  const hasFinalFlag = !!(
-    p.marionFinal || p.final ||
-    inbound.marionFinal || inbound.final ||
-    meta.marionFinal || meta.final ||
-    marion.marionFinal || marion.final ||
-    packet.marionFinal || packet.final ||
-    packetMeta.marionFinal || packetMeta.final ||
-    payload.marionFinal || payload.final ||
-    memoryPatch.marionFinal || memoryPatch.final
+  const stateBridge = isPlainObject(memoryPatch.stateBridge) ? memoryPatch.stateBridge : {};
+  const finalEnvelope = extractFinalEnvelopeObject(p);
+  return !!(
+    p.trustedTransport ||
+    p.internalTrustedTransport ||
+    inbound.trustedTransport ||
+    meta.trustedTransport ||
+    meta.internalTrustedTransport ||
+    marion.trustedTransport ||
+    packetMeta.trustedTransport ||
+    payload.trustedTransport ||
+    memoryPatch.trustedTransport ||
+    memoryPatch.hardlockCompatible ||
+    stateBridge.finalEnvelopeTrusted ||
+    stateBridge.shouldAdvanceState ||
+    finalEnvelope.meta?.freshMarionFinal ||
+    finalEnvelope.meta?.singleFinalAuthority ||
+    finalEnvelope.source === "marion" ||
+    finalEnvelope.signature === FINAL_SIGNATURE ||
+    meta.hardlockCompatible ||
+    packetMeta.hardlockCompatible ||
+    payload.hardlockCompatible
   );
-  const composedOnce = !!(memoryPatch.composedOnce || memoryPatch?.stateBridge?.composedOnce);
-  const bridgeAdvance = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState);
+}
+
+function hasExplicitFinalEnvelopeContract(params = {}) {
+  const finalEnvelope = extractFinalEnvelopeObject(params);
+  return !!(
+    finalEnvelope &&
+    isPlainObject(finalEnvelope) &&
+    finalEnvelope.contractVersion === FINAL_ENVELOPE_CONTRACT &&
+    finalEnvelope.source === "marion" &&
+    finalEnvelope.signature === FINAL_SIGNATURE &&
+    finalEnvelope.final === true
+  );
+}
+
+function signatureLooksTrusted(signature) {
+  const sig = oneLine(signature);
+  if (!sig) return false;
+  if (sig === FINAL_SIGNATURE) return true;
+  return !!(
+    sig.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0 &&
+    sig.indexOf(REQUIRED_CHAT_ENGINE_SIGNATURE) !== -1 &&
+    (
+      sig.indexOf(STATE_SPINE_SCHEMA) !== -1 ||
+      sig.indexOf(STATE_SPINE_SCHEMA_COMPAT) !== -1 ||
+      /nyx\.marion\.stateSpine\/[0-9.]+/i.test(sig)
+    )
+  );
+}
+
+
+function hasTrustedMarionFinalEnvelope(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const stateBridge = isPlainObject(memoryPatch.stateBridge) ? memoryPatch.stateBridge : {};
+  const sig = extractMarionFinalSignature(p);
   const reply = extractComposerReply(p);
 
-  // v2.0.1: Do not let a missing or version-drifted signature trap the state
-  // spine in recovery if Marion produced a final/actionable composer result.
-  // Index still performs the outer transport hardlock; stateSpine only decides
-  // whether the conversation may advance.
-  if (sig && (hasFinalFlag || composedOnce || bridgeAdvance)) return true;
-  if ((hasFinalFlag || composedOnce || bridgeAdvance) && isActionableComposerReply(reply)) return true;
+  const marionSideFinal = !!(
+    p.marionFinal ||
+    inbound.marionFinal ||
+    meta.marionFinal ||
+    marion.marionFinal ||
+    packet.marionFinal ||
+    packetMeta.marionFinal ||
+    synthesis.marionFinal ||
+    payload.marionFinal ||
+    memoryPatch.marionFinal ||
+    memoryPatch.final
+  );
+
+  const composerAdvance = !!(
+    memoryPatch.composedOnce ||
+    memoryPatch.shouldAdvanceState ||
+    stateBridge.composedOnce ||
+    stateBridge.shouldAdvanceState ||
+    stateBridge.finalEnvelopeTrusted
+  );
+
+  if (hasExplicitFinalEnvelopeContract(p)) return true;
+  if (signatureLooksTrusted(sig) && (marionSideFinal || composerAdvance)) return true;
+  if (hasKnownGoodFinalContract(p) && hasLegacyTrustFlag(p) && (marionSideFinal || composerAdvance)) return true;
+  if ((marionSideFinal || composerAdvance) && hasLegacyTrustFlag(p) && isActionableComposerReply(reply)) return true;
+
   return false;
 }
 
@@ -264,7 +394,7 @@ function isActionableComposerReply(text) {
   const s = oneLine(text);
   if (!s) return false;
   if (isLoopPhrase(s)) return false;
-  if (/repeated response|not going to recycle|same support line|fallback loop|support line/i.test(s)) return false;
+  if (/not going to recycle|fallback loop/i.test(s)) return false;
   if (s.length < 12) return false;
   return true;
 }
@@ -801,34 +931,39 @@ function decideNextMove(prevState, inbound) {
 
 function hasMarionFinalSignal(params = {}) {
   const p = isPlainObject(params) ? params : {};
-  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
-  const meta = isPlainObject(p.meta) ? p.meta : {};
   const marion = extractMarionObject(p);
   const packet = isPlainObject(marion.packet) ? marion.packet : {};
   const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   const memoryPatch = extractComposerMemoryPatch(p);
   const sig = extractMarionFinalSignature(p);
   const trusted = hasTrustedMarionFinalEnvelope(p);
 
-  /*
-   * Compatibility note:
-   * - Existing callers may only send handled/final flags. We still observe those
-   *   as Marion activity so legacy paths do not break.
-   * - State advancement in finalizeTurn is stricter and prefers a trusted final
-   *   envelope with a diagnostic signature or composer stateBridge advance.
-   */
+  const composerAdvance = !!(
+    memoryPatch.composedOnce ||
+    memoryPatch.marionFinal ||
+    memoryPatch.final ||
+    memoryPatch?.stateBridge?.composedOnce ||
+    memoryPatch?.stateBridge?.shouldAdvanceState ||
+    memoryPatch?.stateBridge?.finalEnvelopeTrusted
+  );
+
+  const marionSideFinal = !!(
+    marion.marionFinal ||
+    packet.marionFinal ||
+    packetMeta.marionFinal ||
+    synthesis.marionFinal ||
+    payload.marionFinal ||
+    memoryPatch.marionFinal ||
+    memoryPatch.final
+  );
+
   return !!(
     trusted ||
-    p.marionFinal || p.final || p.handled ||
-    inbound.marionFinal || inbound.final || inbound.handled ||
-    meta.marionFinal || meta.final || meta.handled ||
-    marion.marionFinal || marion.final || marion.handled ||
-    packet.marionFinal || packet.final || packet.handled ||
-    packetMeta.marionFinal || packetMeta.final || packetMeta.handled ||
-    payload.marionFinal || payload.final || payload.handled ||
-    memoryPatch.marionFinal || memoryPatch.final || memoryPatch.composedOnce ||
-    sig
+    hasExplicitFinalEnvelopeContract(p) ||
+    (signatureLooksTrusted(sig) && (marionSideFinal || composerAdvance)) ||
+    composerAdvance
   );
 }
 
@@ -842,7 +977,7 @@ function finalizeTurn(params = {}) {
   const composerIntent = firstNonEmpty(memoryPatch.lastIntent, marion.intent, params.intent, params.marionCog?.intent);
   const composerDomain = firstNonEmpty(memoryPatch.lastDomain, marion.domain, params.domain, lane);
   const marionReply = extractComposerReply(params);
-  let stage = safeStr(decision.stage || params.stage || prev.stage || "deliver").toLowerCase() || "deliver";
+  let stage = normalizeStateStage(decision.stage || params.stage || prev.stage || "final", "final");
   const intent = canonicalIntent(composerIntent || decision.move || extractIntent(inbound));
   const actionTaken = safeStr(params.actionTaken || inbound.action || inbound?.payload?.action || "");
   const speak = oneLine(safeStr(decision.speak || marionReply || params.assistantSummary || params.assistantText || params.reply || ""));
@@ -861,6 +996,7 @@ function finalizeTurn(params = {}) {
   const loopPhraseRejected = isLoopPhrase(speak) && !trustedFinalEnvelope && !trustedFinalShape;
   const composerAdvancedState = !!(memoryPatch?.stateBridge?.shouldAdvanceState || memoryPatch.shouldAdvanceState || memoryPatch.composedOnce || trustedFinalEnvelope || trustedFinalShape);
   const loopBreakTrustedFinal = trustedFinalShouldBreakLoop({ trustedFinalEnvelope: trustedFinalEnvelope || trustedFinalShape, composerAdvancedState, speak, loopPhraseRejected });
+  const trustedFinalBreaksRecovery = !!(loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState);
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
   const technicalBypassSupportLock = shouldTechnicalBypassSupportLock(inbound, decision, params);
@@ -879,6 +1015,8 @@ function finalizeTurn(params = {}) {
     (
       loopBreakTrustedFinal ||
       trustedFinalShape ||
+      trustedFinalEnvelope ||
+      (trustedFinalBreaksRecovery && !emo.highDistress) ||
       technicalBypassSupportLock ||
       (technical && isActionableComposerReply(speak))
     )
@@ -889,7 +1027,7 @@ function finalizeTurn(params = {}) {
     safeStr(intent) === "STABILIZE" ||
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
-  const progressionLock = !!(
+  const progressionLock = trustedFinalBreaksRecovery ? false : !!(
     audio.shouldStop ||
     (!technicalBypassSupportLock && loopPhraseRejected) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technicalBypassSupportLock && supportLockActive) ||
@@ -906,7 +1044,7 @@ function finalizeTurn(params = {}) {
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
-    noProgressCount: (loopBreakTrustedFinal || trustedFinalShape || technicalBypassSupportLock)
+    noProgressCount: (trustedFinalBreaksRecovery || loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || technicalBypassSupportLock)
       ? 0
       : Math.max(
           emo.noProgressTurnCount,
@@ -965,7 +1103,7 @@ function finalizeTurn(params = {}) {
     responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
-    loopPhraseRejected,
+    loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
     updatedAt: nowMs()
   };
 
@@ -974,8 +1112,8 @@ function finalizeTurn(params = {}) {
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
     domain: safeStr(composerDomain || lane) || lane,
-    stage,
-    phase: inferPhaseFromStage(stage, progressionLock),
+    stage: normalizeStateStage(stage, "final"),
+    phase: inferPhaseFromStage(normalizeStateStage(stage, "final"), progressionLock),
     lastIntent: intent,
     lastAction: actionTaken,
     lastMove: safeStr(decision.move || intent),
@@ -1019,7 +1157,7 @@ function finalizeTurn(params = {}) {
       lastComposerReplySignature: safeStr(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
       lastMarionFinalSignature: firstNonEmpty(marionFinalSignature, memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature),
       finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
-      loopPhraseRejected,
+      loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
       loopBreakTrustedFinal,
       statePatchRequired: !!(marion?.nyxDirective?.statePatchRequired || memoryPatch?.stateBridge?.expectedStateMutation),
       shouldAdvanceState: composerAdvancedState,
@@ -1035,6 +1173,7 @@ function assertTurnUpdated(prevState, nextState) {
   const next = coerceState(nextState);
   return next.rev > prev.rev ||
     next.lastUpdatedAt > prev.lastUpdatedAt ||
+    safeStr(next.stage || "") !== safeStr(prev.stage || "") ||
     next.lastUserHash !== prev.lastUserHash ||
     safeStr(next?.audio?.lastFailureAction || "") !== safeStr(prev?.audio?.lastFailureAction || "") ||
     Number(next?.audio?.terminalStopUntil || 0) !== Number(prev?.audio?.terminalStopUntil || 0) ||
@@ -1051,9 +1190,22 @@ function applyLoopRecoveryPatch(prevState, loopGuardResult = {}) {
   const loopDetected = !!(loopGuardResult.loopDetected || loopGuardResult.forceRecovery);
   const reasons = Array.isArray(loopGuardResult.reasons) ? loopGuardResult.reasons : [];
   if (!loopDetected) {
+    const normalizedStage = normalizeStateStage(prev.stage, "open");
     return {
       ...prev,
-      stage: normalizeStateStage(prev.stage, "open"),
+      stage: normalizedStage === "recover" ? "final" : normalizedStage,
+      phase: normalizedStage === "recover" ? "active" : inferPhaseFromStage(normalizedStage, false),
+      progressionLock: false,
+      repetition: {
+        ...prev.repetition,
+        noProgressCount: normalizedStage === "recover" ? 0 : clampInt(prev.repetition?.noProgressCount, 0, 0, 999999)
+      },
+      marionCohesion: {
+        ...prev.marionCohesion,
+        loopPhraseRejected: false,
+        shouldAdvanceState: normalizedStage === "recover" ? true : !!prev.marionCohesion?.shouldAdvanceState,
+        updatedAt: nowMs()
+      },
       lastUpdatedAt: nowMs()
     };
   }
@@ -1070,7 +1222,7 @@ function applyLoopRecoveryPatch(prevState, loopGuardResult = {}) {
     },
     marionCohesion: {
       ...prev.marionCohesion,
-      loopPhraseRejected: true,
+      loopPhraseRejected: reasons.includes("blocked_phrase_detected") || reasons.includes("loop_phrase") || reasons.includes("blocked_loop_phrase_sanitized"),
       statePatchRequired: true,
       shouldAdvanceState: false,
       noProgressCount: clampInt(prev.marionCohesion?.noProgressCount, 0, 0, 999999) + 1,
@@ -1088,6 +1240,10 @@ module.exports = {
   STATE_SPINE_SCHEMA_COMPAT,
   SPINE_VERSION,
   STATE_STAGES,
+  FINAL_ENVELOPE_CONTRACT,
+  FINAL_SIGNATURE,
+  MARION_FINAL_SIGNATURE_PREFIX,
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
   normalizeStateStage,
   TERMINAL_AUDIO_STOP_MS,
   createState,
@@ -1104,6 +1260,10 @@ module.exports = {
   extractInboundText,
   trustedFinalShouldBreakLoop,
   hasTrustedFinalShape,
+  hasExplicitFinalEnvelopeContract,
+  hasKnownGoodFinalContract,
+  hasLegacyTrustFlag,
+  signatureLooksTrusted,
   isActionableComposerReply,
   shouldTechnicalBypassSupportLock,
   extractComposerMemoryPatch,
