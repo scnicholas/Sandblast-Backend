@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -344,8 +344,9 @@ const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_MARION_FINAL_MARKERS = [
   REQUIRED_CHAT_ENGINE_SIGNATURE,
-  "marionBridge v6.2.0 STATE-SPINE-COHESION-FINAL-HANDOFF",
-  "composeMarionResponse v2.3.0 STATE-SPINE-COHESION-HARDLOCK",
+  "marionBridge v6.5.1",
+  "composeMarionResponse v2.4",
+  "nyx.marion.stateSpine/1.7",
   "nyx.marion.stateSpine/1.6"
 ];
 const CHAT_LOOP_PHRASE_PATTERNS = [
@@ -384,11 +385,11 @@ function isFreshMarionSignatureString(value) {
   // V30: do not treat the ChatEngine coordinator marker by itself as a Marion final.
   // The stale support loop was able to survive because wrapper/meta fields could satisfy
   // the old "fresh" test without proving a real Marion final handoff.
-  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE) && s.includes("nyx.marion.stateSpine/1.6")) return true;
-
-  const hasBridgeOrComposer = /marionBridge v\d|composeMarionResponse v\d/i.test(s);
   const hasStateSpine = /nyx\.marion\.stateSpine\/[0-9.]+/i.test(s);
-  return hasBridgeOrComposer && hasStateSpine;
+  const hasBridgeOrComposer = /marionBridge v\d|composeMarionResponse v\d/i.test(s);
+  const hasIndexFinalizer = /index\.js v\d/i.test(s);
+  if (s.includes(MARION_FINAL_SIGNATURE_PREFIX) && s.includes(REQUIRED_CHAT_ENGINE_SIGNATURE) && hasStateSpine) return true;
+  return hasStateSpine && (hasBridgeOrComposer || hasIndexFinalizer);
 }
 
 function objectContainsFreshMarionSignature(value, depth) {
@@ -5946,6 +5947,68 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
 
 const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
 
+function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
+  const n = isObj(norm) ? norm : {};
+  const safeDetail = cleanText(detail || "Marion did not return a final reply.");
+  const reply = cleanText(
+    (extra && extra.reply) ||
+    "I received that, but Marion did not return a final reply. Check the backend trace and send it once more."
+  );
+  return {
+    ok: false,
+    final: false,
+    handled: true,
+    marionFinal: false,
+    awaitingMarion: true,
+    error: cleanText(error || "conversation_authority_empty") || "conversation_authority_empty",
+    detail: safeDetail,
+    reply,
+    text: reply,
+    short: reply,
+    output: reply,
+    answer: reply,
+    response: reply,
+    payload: {
+      reply,
+      text: reply,
+      message: reply,
+      spokenText: reply,
+      final: false,
+      awaitingMarion: true,
+      error: cleanText(error || "conversation_authority_empty") || "conversation_authority_empty"
+    },
+    speech: {
+      enabled: false,
+      silent: true,
+      silentAudio: true,
+      text: reply,
+      textDisplay: reply,
+      textSpeak: "",
+      presenceProfile: "receptive",
+      nyxStateHint: "receptive"
+    },
+    lane: cleanText(n.lane || "general") || "general",
+    laneId: cleanText(n.lane || "general") || "general",
+    sessionLane: cleanText(n.lane || "general") || "general",
+    marionIntent: n.marionIntent || undefined,
+    marionRouting: n.marionRouting || undefined,
+    traceId: cleanText(n.traceId || makeTraceId("chat")),
+    requestId: makeTraceId("req"),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: true,
+      noEmotionDecision: true,
+      noHttp502: true,
+      status: Number(status || 200),
+      ...(isObj(extra) ? extra : {})
+    }
+  };
+}
+
+
 app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   hardenCors(req, res);
   return res.status(204).end();
@@ -5959,6 +6022,7 @@ app.head(CONVERSATION_ROUTE_ALIASES, (req, res) => {
 
 app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
+  try { // CHAT-POST-502-PURGE try
   const startedAt = now();
   const norm = normalizePayload(req);
   const sessionId = getSessionId(req);
@@ -6088,12 +6152,30 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     loopReplyWasBlocked = true;
     console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
   }
-  if (marion && marion.ok !== false && marionReply && !marionReplyBlocked && marionHasFreshEnvelope) {
+  if (marion && marionReply && !marionReplyBlocked && (marion.ok !== false || marionReply)) {
     selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
+    selected.ok = true;
+    selected.final = true;
+    selected.handled = true;
+    selected.marionFinal = true;
     selected.reply = marionReply;
-    selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply };
+    selected.text = marionReply;
+    selected.answer = marionReply;
+    selected.output = marionReply;
+    selected.response = marionReply;
+    selected.spokenText = cleanText(selected.spokenText || marionReply);
+    selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply, final: true, marionFinal: true };
+    selected.meta = {
+      ...(isObj(selected.meta) ? selected.meta : {}),
+      replyAuthority: marionHasFreshEnvelope ? "marion_bridge" : "marion_bridge_legacy_reply",
+      semanticAuthority: "marion",
+      finalEnvelopeCompatAccepted: !marionHasFreshEnvelope,
+      indexAcceptedMarionReplyWithoutFreshEnvelope: !marionHasFreshEnvelope,
+      noHttp502: true
+    };
+    selected = normalizeMarionBridgeResult(selected, marionInput) || selected;
     selected.bridge = marion;
-    authority = "marion_bridge";
+    authority = marionHasFreshEnvelope ? "marion_bridge" : "marion_bridge_legacy_reply";
   } else {
     errorDetail = cleanText(errorDetail || (marionReplyBlocked ? "marion_loop_reply_blocked" : "marion_final_envelope_missing"));
     console.log("[Sandblast][chatRoute:transport_only_no_engine_fallback]", {
@@ -6109,47 +6191,29 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   if (!selected) {
-    return res.status(502).json({
-      ok: false,
-      error: "conversation_authority_empty",
-      detail: cleanText(errorDetail || "No final reply was returned by MarionBridge or ChatEngine."),
-      reply: "",
-      text: "",
-      traceId: norm.traceId,
-      requestId: makeTraceId("req"),
-      marionIntent: norm.marionIntent,
-      marionRouting: norm.marionRouting,
-      meta: {
-        v: INDEX_VERSION,
-        t: now(),
-        indexRole: "transport_only",
-        transportOnly: true,
-        noSupportDecision: true,
-        noEmotionDecision: true,
-        marionBridgePresent: !!marionBridgeMod,
-        chatEnginePresent: !!chatEngineMod,
-        chatEngineFallbackDisabled: true,
-        normalizerPresent: !!marionCommandNormalizerMod,
-        loopGuardPresent: !!marionLoopGuardMod,
-        finalEnvelopePresent: !!marionFinalEnvelopeMod,
-        marionReturned: !!marion,
-        engineReturned: !!engine,
-        latencyMs: now() - startedAt
-      }
+    const safe = buildConversationSafeErrorReply(norm, 200, "conversation_authority_empty", cleanText(errorDetail || "No final reply was returned by MarionBridge."), {
+      marionBridgePresent: !!marionBridgeMod,
+      chatEnginePresent: !!chatEngineMod,
+      chatEngineFallbackDisabled: true,
+      normalizerPresent: !!marionCommandNormalizerMod,
+      loopGuardPresent: !!marionLoopGuardMod,
+      finalEnvelopePresent: !!marionFinalEnvelopeMod,
+      marionReturned: !!marion,
+      engineReturned: !!engine,
+      latencyMs: now() - startedAt
     });
+    setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", authority: "none", noHttp502: true });
+    return res.status(200).json(safe);
   }
 
   let reply = cleanReplyForUser(selected.reply || (selected.payload && selected.payload.reply) || selected.text || selected.answer || selected.output || "");
   if (isBlockedLoopingSupportReply(reply)) {
-    return res.status(502).json({
-      ok: false,
-      error: "marion_loop_reply_blocked",
-      detail: "Index is transport-only and will not replace Marion's response. MarionLoopGuard must return a clean recovery final envelope.",
-      reply: "",
-      text: "",
-      traceId: norm.traceId,
-      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, noSupportDecision: true, noEmotionDecision: true }
+    const safe = buildConversationSafeErrorReply(norm, 200, "marion_loop_reply_blocked", "Marion returned a blocked loop phrase.", {
+      loopReplyBlocked: true,
+      authority,
+      latencyMs: now() - startedAt
     });
+    return res.status(200).json(safe);
   }
 
   const duplicateGate = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority });
@@ -6341,8 +6405,22 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     },
     voiceRoute: selected.voiceRoute || undefined
   });
+  } catch (err) {
+    const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("chat"));
+    const norm = (() => { try { return normalizePayload(req); } catch (_) { return { traceId, lane: "general", marionIntent: {}, marionRouting: {} }; } })();
+    console.log("[Sandblast][chatRoute:unhandled_error_purged]", {
+      traceId,
+      path: req && (req.originalUrl || req.url || req.path || ""),
+      error: cleanText(err && (err.stack || err.message || err) || "unknown")
+    });
+    if (res.headersSent) return;
+    hardenCors(req, res);
+    return res.status(200).json(buildConversationSafeErrorReply(norm, 200, "conversation_route_runtime_error", cleanText(err && (err.message || err) || "conversation route failed"), {
+      traceId,
+      runtimeError: true
+    }));
+  }
 });
-
 
 console.log("[Sandblast][newsCanada] rss_service_ready", {
   api: "/api/newscanada",
