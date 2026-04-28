@@ -1,10 +1,12 @@
 {
-  "schema_version": "marion-emotion-labels.v1.1",
+  "schema_version": "marion-emotion-labels.v1.2",
   "runtime_contract": {
     "consumer": "Marion",
     "handoff_target": "Nyx",
     "mode": "resolved_state_triggering",
-    "strict_json": true
+    "strict_json": true,
+    "nyx_visibility": "resolved_state_only",
+    "raw_pattern_exposure": "blocked"
   },
   "primary_emotions": [
     "anger",
@@ -99,7 +101,8 @@
     "detachment",
     "dry_humor_under_strain",
     "topic_shift",
-    "understatement"
+    "understatement",
+    "low_signal"
   ],
   "state_tracking": {
     "rolling_window_size": 3,
@@ -124,5 +127,56 @@
         "min_intensity": 0.7
       }
     }
+  },
+  "care_sequence_actions": [
+    "validate",
+    "stabilize",
+    "explore",
+    "guide",
+    "orient",
+    "clarify",
+    "contain",
+    "deescalate",
+    "affirm",
+    "join",
+    "expand",
+    "observe",
+    "probe_lightly"
+  ],
+  "risk_flags": [
+    "withdrawal",
+    "despair",
+    "isolation",
+    "shutdown",
+    "despair_language",
+    "self_harm_language",
+    "spiraling",
+    "panic_escalation",
+    "freeze_response",
+    "agitation",
+    "impulsivity",
+    "verbal_escalation",
+    "disorientation",
+    "hard_rejection"
+  ],
+  "validation_rules": {
+    "primary_must_be_in_primary_emotions": true,
+    "secondary_must_be_in_secondary_emotions_or_null": true,
+    "nuance_subtype_must_match_primary_subtypes_when_available": true,
+    "suppression_signal_must_be_in_suppression_signals_or_null": true,
+    "intensity_and_confidence_range": [
+      0,
+      1
+    ],
+    "nyx_receives_only_resolved_state": true,
+    "block_raw_pattern_matches_to_nyx": true
+  },
+  "handoff_safety": {
+    "diagnosis_language_allowed": false,
+    "advice_escalation_cap_when_intensity_high": "low",
+    "max_followups_per_turn": 1,
+    "fallback_primary": "neutral",
+    "fallback_secondary": "unclear",
+    "fallback_action_mode": "supportive_monitoring"
   }
 }
