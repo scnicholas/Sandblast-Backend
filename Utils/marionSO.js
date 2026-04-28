@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.5.1-conflict-audited-non-authoritative-mediator";
+const MARION_VERSION = "marionSO v1.5.2-non-authoritative-no-final-reply-surface";
 const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -2600,7 +2600,9 @@ function finalizeContract(cog, nowMs, extra) {
     allowMenuRegeneration: !!c.allowMenuRegeneration,
     knowledgeDomains: isPlainObject(c.knowledgeDomains) ? c.knowledgeDomains : { schema: 'marionSO.knowledgeDomains.v1', primaryDomain: 'language', secondaryDomains: [], availableDomains: [], counts: {} },
     marionSurfaceRole: safeStr(c.marionSurfaceRole || 'reasoning_only', 32),
-    marionMaySpeak: !!c.marionMaySpeak,
+    marionMaySpeak: false,
+    finalReplyAuthority: "none",
+    ownsFinalReply: false,
 
     marionStyle: MARION_STYLE_CONTRACT,
     handoff: isPlainObject(c.handoff)
