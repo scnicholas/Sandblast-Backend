@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -417,6 +417,7 @@ function hasFreshMarionFinalEnvelope(value) {
   const meta = isObj(src.meta) ? src.meta : {};
   const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
   const payload = isObj(src.payload) ? src.payload : {};
+  const finalEnvelope = isObj(src.finalEnvelope) ? src.finalEnvelope : {};
   const bridge = isObj(src.bridge) ? src.bridge : {};
   const result = isObj(src.result) ? src.result : {};
   const resultMeta = isObj(result.meta) ? result.meta : {};
@@ -449,6 +450,10 @@ function hasFreshMarionFinalEnvelope(value) {
     payload.marionFinal === true ||
     payload.handled === true ||
     payload.hardlockCompatible === true ||
+    finalEnvelope.final === true ||
+    finalEnvelope.marionFinal === true ||
+    finalEnvelope.handled === true ||
+    !!cleanText(finalEnvelope.reply || finalEnvelope.text || finalEnvelope.spokenText || "") ||
     bridge.final === true ||
     bridge.marionFinal === true ||
     bridge.handled === true ||
@@ -943,6 +948,8 @@ function resolveExpressRouterFromModule(mod) {
 }
 
 const marionBridgeMod = tryRequireMany([
+  "./Data/marion/runtime/marionBridge",
+  "./Data/marion/runtime/marionBridge.js",
 
   "./marionBridge",
   "./marionBridge.js",
@@ -3870,6 +3877,7 @@ function buildLoggingSpine(trace) {
 
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
+  const finalEnvelope = isObj(marion.finalEnvelope) ? marion.finalEnvelope : {};
   const payload = isObj(marion.payload) ? marion.payload : {};
   const packet = isObj(marion.packet) ? marion.packet : {};
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
@@ -3879,6 +3887,10 @@ function getMarionAuthorityReply(marion) {
   const resultPacket = isObj(result.packet) ? result.packet : {};
   const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
   const reply = cleanReplyForUser(
+    finalEnvelope.reply ||
+    finalEnvelope.text ||
+    finalEnvelope.displayReply ||
+    finalEnvelope.spokenText ||
     marion.response ||
     marion.reply ||
     marion.text ||
@@ -5949,10 +5961,10 @@ const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/"
 
 function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
   const n = isObj(norm) ? norm : {};
-  const safeDetail = cleanText(detail || "Marion did not return a final reply.");
+  const safeDetail = cleanText(detail || "conversation response incomplete");
   const reply = cleanText(
     (extra && extra.reply) ||
-    "I received that, but Marion did not return a final reply. Check the backend trace and send it once more."
+    "I’m still with you. Something didn’t come through properly. Let’s try that again."
   );
   return {
     ok: false,
@@ -5965,6 +5977,7 @@ function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
     reply,
     text: reply,
     short: reply,
+    finalEnvelope: { reply: "", text: "", displayReply: "", spokenText: "", final: false, marionFinal: false, handled: false },
     output: reply,
     answer: reply,
     response: reply,
@@ -6165,6 +6178,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     selected.response = marionReply;
     selected.spokenText = cleanText(selected.spokenText || marionReply);
     selected.payload = { ...(isObj(selected.payload) ? selected.payload : {}), reply: marionReply, text: marionReply, message: marionReply, spokenText: marionReply, final: true, marionFinal: true };
+    selected.finalEnvelope = { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply: marionReply, text: marionReply, displayReply: marionReply, spokenText: marionReply, final: true, marionFinal: true, handled: true };
     selected.meta = {
       ...(isObj(selected.meta) ? selected.meta : {}),
       replyAuthority: marionHasFreshEnvelope ? "marion_bridge" : "marion_bridge_legacy_reply",
@@ -6346,6 +6360,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     text: reply,
     short: reply,
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
+    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: true, handled: true },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
     payload: selected.payload,
