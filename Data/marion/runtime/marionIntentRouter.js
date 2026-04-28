@@ -12,11 +12,11 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.3.0 COHESION-90-IDENTITY-BASELINE-HARDENED";
+const VERSION = "marionIntentRouter v2.4.0 DIRECTIVE-EXECUTION-TEST2-HARDENED";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
-const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.3";
+const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.4";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const VALID_INTENTS = Object.freeze([
@@ -28,6 +28,7 @@ const VALID_INTENTS = Object.freeze([
   "news_query",
   "roku_query",
   "identity_or_memory",
+  "directive_response",
   "domain_question"
 ]);
 
@@ -40,6 +41,7 @@ const INTENT_TO_DOMAIN = Object.freeze({
   news_query: "news",
   roku_query: "roku",
   identity_or_memory: "memory",
+  directive_response: "directive",
   domain_question: "general_reasoning"
 });
 
@@ -52,6 +54,7 @@ const DOMAIN_MODE = Object.freeze({
   news: "retrieval",
   roku: "platform",
   memory: "continuity",
+  directive: "execution",
   general_reasoning: "reasoning"
 });
 
@@ -64,6 +67,7 @@ const DOMAIN_DEPTH = Object.freeze({
   news: "normal",
   roku: "normal",
   memory: "continuity_deep",
+  directive: "direct_execution",
   general_reasoning: "baseline_cognition"
 });
 
@@ -76,6 +80,7 @@ const PREFERRED_STYLE = Object.freeze({
   news: "clean_source_aware",
   roku: "platform_direct",
   memory: "identity_continuity",
+  directive: "short_direct_action",
   general_reasoning: "reasoned_direct"
 });
 
@@ -252,6 +257,12 @@ function detectSubIntent(text, intent) {
     return "technical_execution";
   }
 
+  if (intent === "directive_response") {
+    if (has(/\b(next best step|best next step|what should (i|we) do next)\b/i, t)) return "next_best_step";
+    if (has(/\b(short|direct|concise|brief)\b/i, t)) return "short_direct_answer";
+    return "directive_execution";
+  }
+
   if (intent === "domain_question") {
     if (has(/\b(reason|reasoning|analyze|analysis|break down|step by step|why|how)\b/i, t)) return "baseline_reasoning";
     return "general_question";
@@ -263,6 +274,17 @@ function detectSubIntent(text, intent) {
   if (intent === "news_query") return "news_retrieval";
   if (intent === "roku_query") return "roku_platform";
   return "plain_conversation";
+}
+
+function detectDirectiveIntent(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return !!(
+    has(/\b(short[, ]+direct answer|short direct answer|direct answer|short answer|concise answer|brief answer)\b/i, t) ||
+    has(/\b(next best step|best next step|single next step|one next step|what is the next best step|what should (i|we) do next)\b/i, t) ||
+    has(/\b(give me|tell me)\b.*\b(short|direct|concise|brief)\b.*\b(answer|step|move)\b/i, t) ||
+    has(/\b(one|single)\b.*\b(action|fix|move|step)\b/i, t)
+  );
 }
 
 function inferIntentFromText(text) {
@@ -300,6 +322,18 @@ function inferIntentFromText(text) {
       stateStageHint: "recovery",
       safetyLevel,
       recoveryRequired: true
+    };
+  }
+
+  /* Directive execution must outrank generic question and broad technical terms. */
+  if (detectDirectiveIntent(t)) {
+    return {
+      intent: "directive_response",
+      confidence: 0.94,
+      reason: "directive_execution_terms",
+      stateStageHint: "execute",
+      safetyLevel,
+      recoveryRequired: false
     };
   }
 
@@ -424,6 +458,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     recoveryRequired = true;
   }
 
+  /* Directive execution wins over stale simple/domain/technical intent and must not be treated as clarification. */
+  if (inferred.intent === "directive_response" && intent !== "emotional_support") {
+    intent = "directive_response";
+    confidence = Math.max(confidence, inferred.confidence);
+    reason = inferred.reason;
+    stateStageHint = "execute";
+    recoveryRequired = false;
+  }
+
   /* Identity baseline wins over stale simple/domain intent and must not be treated as generic Q&A. */
   if (inferred.intent === "identity_or_memory" && intent !== "emotional_support") {
     intent = "identity_or_memory";
@@ -465,7 +508,8 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     requiresFinalEnvelope: true,
     requiresComposer: true,
     identityAnchorRequired: subIntent === "identity_baseline",
-    baselineCognitionRequired: intent === "domain_question" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
+    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
+    directiveExecutionRequired: intent === "directive_response",
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
@@ -487,12 +531,13 @@ function buildRouting(marionIntent) {
     stateStageHint: marionIntent.stateStageHint,
     mode: DOMAIN_MODE[domain] || "conversation",
     depth: DOMAIN_DEPTH[domain] || "normal",
-    cognitiveMode: marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation",
+    cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation"),
     useMemory: domain === "memory" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
     useDomainKnowledge: domain !== "general",
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
     requiresHotFallback: true,
+    directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
     blockRepeatedBridgeFallback: true,
     recoveryRequired: marionIntent.recoveryRequired,
     safetyLevel: marionIntent.safetyLevel,
@@ -505,6 +550,7 @@ function buildRouting(marionIntent) {
       composerCompatible: true,
       stateSpineCompatible: true,
       finalEnvelopeRequired: true,
+      directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
       noDiagnosticUserSurface: true
     }
   };
@@ -538,8 +584,10 @@ function routeMarionIntent(packet = {}) {
       stateSpineCompatible: true,
       preventsFallbackDeadState: true,
       finalEnvelopeRequired: true,
+      directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
       identityAnchorRequired: !!marionIntent.identityAnchorRequired,
       baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
+      directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
       noUserFacingDiagnostics: true
     }
   };
@@ -555,6 +603,7 @@ module.exports = {
   INTENT_TO_DOMAIN,
   normalizeIntentName,
   inferIntentFromText,
+  detectDirectiveIntent,
   normalizeIntent,
   routeMarionIntent,
   _internal: {
@@ -562,6 +611,7 @@ module.exports = {
     extractExistingIntent,
     detectSafetyLevel,
     detectSubIntent,
+    detectDirectiveIntent,
     buildRouting
   }
 };
