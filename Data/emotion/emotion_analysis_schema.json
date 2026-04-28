@@ -1,14 +1,15 @@
 {
-  "schema_version": "marion-emotion-analysis-schema.v1.1",
+  "schema_version": "marion-emotion-analysis-schema.v1.2",
   "runtime_contract": {
     "producer": "Marion emotion interpreter",
     "consumer": "MarionBridge/Nyx",
     "mode": "resolved_state_only",
-    "strict_json": true
+    "strict_json": true,
+    "raw_pattern_exposure": "blocked"
   },
   "emotion": {
     "primary": "sadness",
-    "secondary": "fear",
+    "secondary": "loneliness",
     "confidence": 0.83,
     "intensity": 0.69
   },
@@ -107,7 +108,9 @@
       "emotion.confidence",
       "emotion.intensity",
       "guard.action_mode",
-      "marion_handoff.nyx_contract"
+      "marion_handoff.nyx_contract",
+      "emotion.secondary",
+      "pipeline_contract.handoff_visibility"
     ],
     "nyx_contract": {
       "reply_mode": "resolved_state_only",
@@ -118,6 +121,40 @@
       "Nyx should consume only the resolved state, not raw pattern matches.",
       "Suppression signals should reduce neutral confidence rather than erase emotional context.",
       "High intensity caps advice and prioritizes validation/stabilization."
+    ]
+  },
+  "validation_rules": {
+    "primary_must_be_canonical": true,
+    "secondary_must_be_canonical_secondary_or_null": true,
+    "confidence_range": [
+      0,
+      1
+    ],
+    "intensity_range": [
+      0,
+      1
+    ],
+    "blend_weights_sum_target": 1.0,
+    "safe_to_continue_required": true,
+    "nyx_contract_required": true,
+    "diagnosis_block_required": true,
+    "max_followups_per_turn": 1
+  },
+  "pipeline_contract": {
+    "input_source": "Marion emotion interpreter",
+    "output_target": "MarionBridge/Nyx expression layer",
+    "handoff_visibility": "resolved_state_only",
+    "forbidden_to_nyx": [
+      "raw_phrase_matches",
+      "internal_pattern_ids",
+      "diagnostic_reasoning",
+      "unvalidated_labels"
+    ],
+    "required_before_emit": [
+      "label_validation_passed",
+      "guard.safe_to_continue_resolved",
+      "support.timing_profile_resolved",
+      "marion_handoff.nyx_contract_resolved"
     ]
   }
 }
