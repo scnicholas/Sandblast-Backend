@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.2.0 DETERMINISTIC-COMPOSER-PATH-AUTHORITY";
+const VERSION = "marionBridge v7.3.0 EMOTION-CONTINUITY-PERSISTENCE";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const fs = require("fs");
@@ -72,22 +72,103 @@ function resolveEmotionForTurn(normalized={}){
   }
   try{
     const prev=safeObj(normalized.previousMemory);
-    const previousEmotionState=safeObj(prev.resolvedEmotion||prev.emotionState||prev.lastEmotionState||prev.emotionalState);
+    const previousEmotionState=safeObj(
+      prev.resolvedEmotion||
+      prev.emotionState||
+      prev.lastEmotionState||
+      prev.emotionalState||
+      safeObj(prev.stateSpine).resolvedEmotion||
+      safeObj(prev.conversationState).resolvedEmotion
+    );
     const recentReplies=safeArray(prev.recentReplies||prev.assistantReplies||prev.replyHistory).slice(-6);
-    const result=safeObj(emotionRuntimeMod.resolveEmotionState(normalized.userQuery,{previousEmotionState,recentReplies,sessionId:normalized.sessionId,turnId:normalized.turnId}));
+    const result=safeObj(emotionRuntimeMod.resolveEmotionState(normalized.userQuery,{
+      previousEmotionState,
+      recentReplies,
+      sessionId:normalized.sessionId,
+      turnId:normalized.turnId
+    }));
     return {ok:result.ok!==false,mode:result.mode||"resolved_state_only",state:safeObj(result.state),error:result.error||"",detail:result.detail||"",diagnostics:{dependency:DEPENDENCY_STATUS.emotionRuntime}};
   }catch(err){
     return {ok:false,mode:"resolved_state_only",error:"emotion_runtime_exception",detail:safeStr(err&&(err.message||err)||""),state:null,diagnostics:{dependency:DEPENDENCY_STATUS.emotionRuntime}};
   }
 }
+function emotionSummary(packet={}){
+  const state=safeObj(packet.state), emotion=safeObj(state.emotion), nuance=safeObj(state.nuance), drift=safeObj(state.state_drift), guard=safeObj(state.guard), support=safeObj(state.support);
+  return {
+    ok: packet.ok!==false,
+    mode: packet.mode||"resolved_state_only",
+    primary: safeStr(emotion.primary||"neutral"),
+    secondary: safeStr(emotion.secondary||nuance.subtype||"unclear"),
+    confidence: Number.isFinite(Number(emotion.confidence))?Number(emotion.confidence):0,
+    intensity: Number.isFinite(Number(emotion.intensity))?Number(emotion.intensity):0,
+    suppression_signal: safeStr(nuance.suppression_signal||""),
+    risk_flags: safeArray(nuance.risk_flags||guard.detected_flags).slice(0,10),
+    action_mode: safeStr(guard.action_mode||"supportive_monitoring"),
+    care_mode: safeStr(safeObj(state.psychology).care_mode||""),
+    timing_profile: safeObj(support.timing_profile),
+    state_drift: {
+      trend: safeStr(drift.trend||""),
+      stability: Number.isFinite(Number(drift.stability))?Number(drift.stability):0,
+      volatility: Number.isFinite(Number(drift.volatility))?Number(drift.volatility):0,
+      dominant_pattern: safeStr(drift.dominant_pattern||"")
+    },
+    source: safeStr(safeObj(state.runtime_meta).source||"emotionRuntime.resolveEmotionState")
+  };
+}
+function mergeEmotionIntoContract(contract={},resolvedEmotionPacket={}){
+  const c=safeObj(contract), state=safeObj(resolvedEmotionPacket.state), summary=emotionSummary(resolvedEmotionPacket);
+  if(!Object.keys(state).length) return c;
+  const memoryPatch={
+    ...safeObj(c.memoryPatch),
+    resolvedEmotion:state,
+    emotionState:state,
+    lastEmotionState:state,
+    emotionalContinuity:{
+      active:true,
+      primary:summary.primary,
+      secondary:summary.secondary,
+      confidence:summary.confidence,
+      intensity:summary.intensity,
+      stability:summary.state_drift.stability,
+      volatility:summary.state_drift.volatility,
+      trend:summary.state_drift.trend,
+      updatedAt:Date.now(),
+      source:"marionBridge"
+    }
+  };
+  const sessionPatch={...safeObj(c.sessionPatch),...memoryPatch};
+  return {
+    ...c,
+    memoryPatch,
+    sessionPatch,
+    resolvedEmotion:state,
+    emotionRuntime:safeObj(resolvedEmotionPacket),
+    emotionSummary:summary,
+    meta:{
+      ...safeObj(c.meta),
+      emotionRuntimeCalled:true,
+      emotionRuntimeOk:resolvedEmotionPacket.ok!==false,
+      emotionMode:resolvedEmotionPacket.mode||"resolved_state_only",
+      emotionPrimary:summary.primary,
+      emotionSecondary:summary.secondary,
+      emotionIntensity:summary.intensity
+    },
+    diagnostics:{
+      ...safeObj(c.diagnostics),
+      emotionRuntimeCalled:true,
+      emotionRuntimeOk:resolvedEmotionPacket.ok!==false,
+      emotionSummary:summary
+    }
+  };
+}
 function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){const routing=safeObj(routed.routing),marionIntent=safeObj(routed.marionIntent);return{userQuery:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,domain:safeStr(routing.domain||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||normalized.requestedDomain||"general")||"general",intent:safeStr(routing.intent||marionIntent.intent||"simple_chat")||"simple_chat",marionIntent,routing,previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),lane:normalized.lane,sessionId:normalized.sessionId,turnId:normalized.turnId,sourceTurnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false};}
-function wrapFinal({normalized,routed,contract,loopGuardResult}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});return{...envelope,ok:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true}};}
+function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});return{...envelope,ok:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};}
 async function processWithMarion(input={}){const normalized=normalizeInbound(input);if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);if(typeof composeMarionResponse!=="function")return createLocalFinalEnvelope({normalized,routed:fallbackRoute(normalized),contract:{reply:hotFallbackReply("composer_unavailable",normalized),speech:{enabled:false,silent:true,silentAudio:true}},reason:"composer_unavailable",loopGuardResult:{ok:false,reasons:["composer_unavailable"],dependencyStatus:DEPENDENCY_STATUS.composer}});const resolvedEmotionPacket=resolveEmotionForTurn(normalized);
-let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput));let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){const fallbackReply=hotFallbackReply("composer_invalid",normalized);contract={ok:true,reply:fallbackReply,text:fallbackReply,answer:fallbackReply,output:fallbackReply,response:fallbackReply,message:fallbackReply,spokenText:fallbackReply,intent:composeInput.intent,domain:composeInput.domain,speech:{enabled:false,silent:true,silentAudio:true,textDisplay:fallbackReply,textSpeak:fallbackReply,presenceProfile:"receptive",nyxStateHint:"receptive"},diagnostics:{composerRecoveredByBridge:true,issues:composeValidation.issues,bridgeVersion:VERSION}};composeValidation=validateComposeResult(contract);}let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(loopGuardMod&&typeof loopGuardMod.applyLoopGuard==="function"){try{loopGuardResult=safeObj(loopGuardMod.applyLoopGuard({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:Number(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount||0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:Number(safeObj(composeInput.conversationState).loopCount||0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}}));if(validateComposeResult(recoveryContract).ok){contract=recoveryContract;reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult});}
+let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput));let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){const fallbackReply=hotFallbackReply("composer_invalid",normalized);contract={ok:true,reply:fallbackReply,text:fallbackReply,answer:fallbackReply,output:fallbackReply,response:fallbackReply,message:fallbackReply,spokenText:fallbackReply,intent:composeInput.intent,domain:composeInput.domain,speech:{enabled:false,silent:true,silentAudio:true,textDisplay:fallbackReply,textSpeak:fallbackReply,presenceProfile:"receptive",nyxStateHint:"receptive"},diagnostics:{composerRecoveredByBridge:true,issues:composeValidation.issues,bridgeVersion:VERSION}};composeValidation=validateComposeResult(contract);}contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(loopGuardMod&&typeof loopGuardMod.applyLoopGuard==="function"){try{loopGuardResult=safeObj(loopGuardMod.applyLoopGuard({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:Number(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount||0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:Number(safeObj(composeInput.conversationState).loopCount||0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}}));if(validateComposeResult(recoveryContract).ok){contract=mergeEmotionIntoContract(recoveryContract,resolvedEmotionPacket);reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});}
 async function maybeResolve(input={}){return processWithMarion(input);}
 async function ask(input={}){return processWithMarion(input);}
 async function handle(input={}){return processWithMarion(input);}
 async function route(input={}){return processWithMarion(input);}
 async function retrieveLayer2Signals(input={}){const normalized=normalizeInbound(input);if(!normalized.ok)return{ok:false,issues:normalized.issues,userQuery:normalized.userQuery,diagnostics:{bridgeVersion:VERSION}};const routed=fallbackRoute(normalized);return{ok:true,userQuery:normalized.userQuery,routed,diagnostics:{bridgeVersion:VERSION,noLegacyRetrievers:true}};}
 function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMarion,retrieveLayer2Signals};}
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn}};
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract}};
