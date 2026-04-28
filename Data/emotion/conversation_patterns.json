@@ -1,9 +1,11 @@
 {
-  "schema_version": "marion-conversation-patterns.v1.1",
+  "schema_version": "marion-conversation-patterns.v1.2",
   "runtime_contract": {
     "consumer": "Marion pattern interpreter",
     "handoff_target": "emotion_analysis_schema",
-    "strict_json": true
+    "strict_json": true,
+    "nyx_visibility": "none",
+    "handoff_shape": "biases_only_into_resolved_state"
   },
   "patterns": [
     {
@@ -240,6 +242,28 @@
     "unknown_nuance_fallback": "unclear",
     "unknown_primary_fallback": "neutral",
     "nyx_handoff_mode": "resolved_state_only",
-    "max_followups_per_turn": 1
+    "max_followups_per_turn": 1,
+    "emit_raw_pattern_matches_to_nyx": false,
+    "resolved_state_required_before_handoff": true,
+    "confidence_floor_for_direct_bias": 0.4,
+    "confidence_ceiling_for_suppressed_neutral": 0.62,
+    "dedupe_matches_by_pattern_id": true,
+    "phrase_matching_normalization": [
+      "lowercase",
+      "trim",
+      "collapse_whitespace",
+      "strip_terminal_punctuation"
+    ]
+  },
+  "validation_rules": {
+    "pattern_id_unique": true,
+    "phrases_non_empty": true,
+    "weight_range": [
+      0,
+      1
+    ],
+    "emotion_bias_must_exist_in_base_labels.primary_emotions": true,
+    "nuance_bias_must_exist_in_base_labels.secondary_emotions": true,
+    "suppression_signal_must_exist_or_null": true
   }
 }
