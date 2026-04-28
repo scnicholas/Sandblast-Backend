@@ -1,0 +1,182 @@
+{
+  "schema_version": "marion-emotion-labels.v1.2",
+  "runtime_contract": {
+    "consumer": "Marion",
+    "handoff_target": "Nyx",
+    "mode": "resolved_state_triggering",
+    "strict_json": true,
+    "nyx_visibility": "resolved_state_only",
+    "raw_pattern_exposure": "blocked"
+  },
+  "primary_emotions": [
+    "anger",
+    "joy",
+    "sadness",
+    "fear",
+    "surprise",
+    "disgust",
+    "neutral"
+  ],
+  "secondary_emotions": [
+    "loneliness",
+    "grief",
+    "disappointment",
+    "hopelessness",
+    "hurt",
+    "anxiety",
+    "panic",
+    "uncertainty",
+    "hypervigilance",
+    "overwhelm",
+    "frustration",
+    "resentment",
+    "moral_injury",
+    "relief",
+    "gratitude",
+    "excitement",
+    "contentment",
+    "confusion",
+    "amazement",
+    "shock",
+    "revulsion",
+    "rejection",
+    "moral_disgust",
+    "flat",
+    "informational",
+    "guarded",
+    "emotional_numbness",
+    "shame",
+    "depressed",
+    "unclear",
+    "boundary_activation"
+  ],
+  "intensity_scale": {
+    "min": 0,
+    "max": 1,
+    "bands": {
+      "low": [
+        0.0,
+        0.33
+      ],
+      "moderate": [
+        0.34,
+        0.66
+      ],
+      "high": [
+        0.67,
+        1.0
+      ]
+    },
+    "behavioral_modifiers": {
+      "low": {
+        "response_length": "short_to_medium",
+        "followup_depth": "light",
+        "pacing": "normal"
+      },
+      "moderate": {
+        "response_length": "short",
+        "followup_depth": "targeted",
+        "pacing": "slowed"
+      },
+      "high": {
+        "response_length": "short",
+        "followup_depth": "minimal_first",
+        "pacing": "slow_and_containing"
+      }
+    }
+  },
+  "blend_axes": [
+    "threat_response",
+    "emotional_loss",
+    "boundary_activation",
+    "positive_release",
+    "orientation_shift",
+    "aversion_response",
+    "low_signal_state"
+  ],
+  "suppression_signals": [
+    "deflection",
+    "minimization",
+    "forced_positivity",
+    "detachment",
+    "dry_humor_under_strain",
+    "topic_shift",
+    "understatement",
+    "low_signal"
+  ],
+  "state_tracking": {
+    "rolling_window_size": 3,
+    "stability_thresholds": {
+      "stable": [
+        0.67,
+        1.0
+      ],
+      "variable": [
+        0.34,
+        0.66
+      ],
+      "volatile": [
+        0.0,
+        0.33
+      ]
+    },
+    "salience_rules": {
+      "depression_language_bias": {
+        "emotion_bias": "sadness",
+        "secondary_bias": "hopelessness",
+        "min_intensity": 0.7
+      }
+    }
+  },
+  "care_sequence_actions": [
+    "validate",
+    "stabilize",
+    "explore",
+    "guide",
+    "orient",
+    "clarify",
+    "contain",
+    "deescalate",
+    "affirm",
+    "join",
+    "expand",
+    "observe",
+    "probe_lightly"
+  ],
+  "risk_flags": [
+    "withdrawal",
+    "despair",
+    "isolation",
+    "shutdown",
+    "despair_language",
+    "self_harm_language",
+    "spiraling",
+    "panic_escalation",
+    "freeze_response",
+    "agitation",
+    "impulsivity",
+    "verbal_escalation",
+    "disorientation",
+    "hard_rejection"
+  ],
+  "validation_rules": {
+    "primary_must_be_in_primary_emotions": true,
+    "secondary_must_be_in_secondary_emotions_or_null": true,
+    "nuance_subtype_must_match_primary_subtypes_when_available": true,
+    "suppression_signal_must_be_in_suppression_signals_or_null": true,
+    "intensity_and_confidence_range": [
+      0,
+      1
+    ],
+    "nyx_receives_only_resolved_state": true,
+    "block_raw_pattern_matches_to_nyx": true
+  },
+  "handoff_safety": {
+    "diagnosis_language_allowed": false,
+    "advice_escalation_cap_when_intensity_high": "low",
+    "max_followups_per_turn": 1,
+    "fallback_primary": "neutral",
+    "fallback_secondary": "unclear",
+    "fallback_action_mode": "supportive_monitoring"
+  }
+}
