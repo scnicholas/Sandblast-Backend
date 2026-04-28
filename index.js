@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V36";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -992,6 +992,13 @@ const marionFinalEnvelopeMod = tryRequireMany([
   "./utils/marionFinalEnvelope.js"
 ]);
 
+// Marion emotion runtime is diagnostic-only at index scope.
+// Emotional interpretation remains inside MarionBridge / emotionRuntime.
+const marionEmotionRuntimeMod = tryRequireMany([
+  "./Data/marion/runtime/emotion/emotionRuntime",
+  "./Data/marion/runtime/emotion/emotionRuntime.js"
+]);
+
 const stateSpineMod = tryRequireMany([
   "./stateSpine",
   "./stateSpine.js",
@@ -1016,7 +1023,38 @@ const s2sMod = tryRequireMany([
 ]);
 
 
+function getMarionEmotionRuntimeHealth() {
+  if (!marionEmotionRuntimeMod || typeof marionEmotionRuntimeMod.getHealth !== "function") {
+    return {
+      ok: false,
+      runtime: "marion-emotion-runtime",
+      mode: "resolved_state_only",
+      error: "emotion_runtime_unavailable",
+      indexRole: "diagnostic_only"
+    };
+  }
+  try {
+    const health = marionEmotionRuntimeMod.getHealth();
+    return {
+      ...safeObj(health),
+      ok: !!(health && health.ok !== false),
+      indexRole: "diagnostic_only",
+      transportOnly: true
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      runtime: "marion-emotion-runtime",
+      mode: "resolved_state_only",
+      error: "emotion_health_failed",
+      detail: cleanText(err && (err.message || err) || "emotion_health_failed"),
+      indexRole: "diagnostic_only"
+    };
+  }
+}
+
 function getMarionRuntimeDiagnostics() {
+  const emotionHealth = getMarionEmotionRuntimeHealth();
   return {
     marionBridgeLoaded: !!marionBridgeMod,
     marionBridgeKeys: marionBridgeMod && typeof marionBridgeMod === "object" ? Object.keys(marionBridgeMod).slice(0, 20) : [],
@@ -1027,6 +1065,10 @@ function getMarionRuntimeDiagnostics() {
     marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
     marionBridgeVersion: cleanText(marionBridgeMod && marionBridgeMod.VERSION || ""),
+    marionEmotionRuntimeLoaded: !!marionEmotionRuntimeMod,
+    marionEmotionRuntimeHasHealth: !!(marionEmotionRuntimeMod && typeof marionEmotionRuntimeMod.getHealth === "function"),
+    marionEmotionRuntimeMode: "resolved_state_only",
+    marionEmotionRuntimeHealth: emotionHealth,
     chatEngineVersion: cleanText(chatEngineMod && chatEngineMod.VERSION || ""),
     stateSpineVersion: cleanText(stateSpineMod && stateSpineMod.SPINE_VERSION || ""),
     marionIntentRouterLoaded: !!marionIntentRouterMod,
@@ -5802,6 +5844,17 @@ app.all(["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bri
   return dispatchMusicBridge(req, res);
 });
 
+app.get(["/api/marion/emotion/health", "/api/marion/emotion/health/"], (req, res) => {
+  applyCors(req, res);
+  const health = getMarionEmotionRuntimeHealth();
+  return res.status(health.ok ? 200 : 503).json({
+    ...health,
+    version: INDEX_VERSION,
+    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("emotionhealth")),
+    note: "index.js exposes diagnostics only; emotion resolution remains inside MarionBridge/emotionRuntime"
+  });
+});
+
 app.get("/health", (req, res) => {
   applyCors(req, res);
   const ttsHealth = ttsHealthFromModule(ttsMod);
@@ -5815,6 +5868,7 @@ app.get("/health", (req, res) => {
     modules: {
       chatEngine: !!chatEngineMod,
       marionBridge: !!marionBridgeMod,
+      marionEmotionRuntime: !!marionEmotionRuntimeMod,
       supportResponse: !!supportResponseMod,
       affectEngine: !!affectEngineMod,
       voiceRoute: !!voiceRouteMod,
@@ -5829,6 +5883,7 @@ app.get("/health", (req, res) => {
       dotenv: moduleAvailable("dotenv")
     },
     bindings: {
+      marionEmotionRuntimeHealth: !!(marionEmotionRuntimeMod && typeof marionEmotionRuntimeMod.getHealth === "function"),
       voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
       voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
       ttsHandler: !!ttsHandlerFromModule(ttsMod),
@@ -6740,6 +6795,15 @@ async function startNewsCanadaAutoIngest() {
 
 const server = app.listen(PORT, () => {
   console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
+  try {
+    const emotionHealth = getMarionEmotionRuntimeHealth();
+    console.log("[Sandblast][marion-emotion-runtime]", {
+      ok: !!emotionHealth.ok,
+      loaded: !!marionEmotionRuntimeMod,
+      mode: "resolved_state_only",
+      route: "/api/marion/emotion/health"
+    });
+  } catch (_) {}
 });
 
 function gracefulShutdown(signal) {
