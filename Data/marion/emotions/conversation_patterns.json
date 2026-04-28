@@ -1,0 +1,269 @@
+{
+  "schema_version": "marion-conversation-patterns.v1.2",
+  "runtime_contract": {
+    "consumer": "Marion pattern interpreter",
+    "handoff_target": "emotion_analysis_schema",
+    "strict_json": true,
+    "nyx_visibility": "none",
+    "handoff_shape": "biases_only_into_resolved_state"
+  },
+  "patterns": [
+    {
+      "pattern_id": "emo_pattern_001",
+      "match_type": "contains",
+      "phrases": [
+        "i am depressed",
+        "i'm depressed",
+        "feeling depressed",
+        "i feel depressed",
+        "everything feels empty"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "hopelessness",
+      "weight": 0.9,
+      "priority": "high",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_002",
+      "match_type": "contains",
+      "phrases": [
+        "i feel alone",
+        "nobody gets me",
+        "i feel unseen"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "loneliness",
+      "weight": 0.78,
+      "priority": "medium",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_003",
+      "match_type": "contains",
+      "phrases": [
+        "i can't do this",
+        "i'm overwhelmed",
+        "too much right now"
+      ],
+      "emotion_bias": "fear",
+      "nuance_bias": "overwhelm",
+      "weight": 0.82,
+      "priority": "high",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_004",
+      "match_type": "contains",
+      "phrases": [
+        "i'm so angry",
+        "this is ridiculous",
+        "i'm pissed"
+      ],
+      "emotion_bias": "anger",
+      "nuance_bias": "frustration",
+      "weight": 0.84,
+      "priority": "high",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_005",
+      "match_type": "contains",
+      "phrases": [
+        "i'm okay",
+        "it's fine",
+        "whatever"
+      ],
+      "emotion_bias": "neutral",
+      "nuance_bias": "guarded",
+      "weight": 0.52,
+      "priority": "low",
+      "suppression_signal": "minimization"
+    },
+    {
+      "pattern_id": "emo_pattern_006",
+      "match_type": "contains",
+      "phrases": [
+        "i'm scared",
+        "i'm worried",
+        "what if this goes wrong"
+      ],
+      "emotion_bias": "fear",
+      "nuance_bias": "anxiety",
+      "weight": 0.81,
+      "priority": "high",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_007",
+      "match_type": "contains",
+      "phrases": [
+        "thank god",
+        "i'm so relieved",
+        "that's amazing"
+      ],
+      "emotion_bias": "joy",
+      "nuance_bias": "relief",
+      "weight": 0.74,
+      "priority": "medium",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_008",
+      "match_type": "contains",
+      "phrases": [
+        "yeah i'm good",
+        "all good",
+        "i'm fine really",
+        "don't worry about it"
+      ],
+      "emotion_bias": "neutral",
+      "nuance_bias": "guarded",
+      "weight": 0.44,
+      "priority": "low",
+      "suppression_signal": "forced_positivity"
+    },
+    {
+      "pattern_id": "emo_pattern_009",
+      "match_type": "contains",
+      "phrases": [
+        "i'm tired of this",
+        "i'm exhausted by all of it",
+        "same thing every day"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "emotional_numbness",
+      "weight": 0.71,
+      "priority": "medium",
+      "suppression_signal": "detachment"
+    },
+    {
+      "pattern_id": "emo_pattern_010",
+      "match_type": "contains",
+      "phrases": [
+        "leave me alone",
+        "back off",
+        "stop pushing me"
+      ],
+      "emotion_bias": "anger",
+      "nuance_bias": "boundary_activation",
+      "weight": 0.79,
+      "priority": "medium",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_011",
+      "match_type": "contains",
+      "phrases": [
+        "i don't even know anymore",
+        "nothing makes sense",
+        "what is happening"
+      ],
+      "emotion_bias": "surprise",
+      "nuance_bias": "confusion",
+      "weight": 0.76,
+      "priority": "medium",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_012",
+      "match_type": "contains",
+      "phrases": [
+        "that's disgusting",
+        "i hate that",
+        "that makes me sick"
+      ],
+      "emotion_bias": "disgust",
+      "nuance_bias": "moral_disgust",
+      "weight": 0.77,
+      "priority": "medium",
+      "suppression_signal": null
+    },
+    {
+      "pattern_id": "emo_pattern_013",
+      "match_type": "contains",
+      "phrases": [
+        "i feel ashamed",
+        "i'm ashamed",
+        "i hate myself for this"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "shame",
+      "weight": 0.83,
+      "priority": "high",
+      "suppression_signal": "understatement"
+    },
+    {
+      "pattern_id": "emo_pattern_014",
+      "match_type": "contains",
+      "phrases": [
+        "i don't know how to explain it",
+        "hard to explain",
+        "i'm not sure what i feel"
+      ],
+      "emotion_bias": "neutral",
+      "nuance_bias": "unclear",
+      "weight": 0.49,
+      "priority": "low",
+      "suppression_signal": "low_signal"
+    },
+    {
+      "pattern_id": "emo_pattern_015",
+      "match_type": "contains",
+      "phrases": [
+        "i feel numb",
+        "i feel empty",
+        "no energy"
+      ],
+      "emotion_bias": "sadness",
+      "nuance_bias": "emotional_numbness",
+      "weight": 0.75,
+      "priority": "medium",
+      "suppression_signal": "detachment"
+    }
+  ],
+  "interpreter_rules": {
+    "suppression_signal_lowers_neutral_confidence_by": 0.18,
+    "repeat_pattern_escalation_after_hits": 2,
+    "trajectory_detection_window": 3,
+    "high_intensity_caps_advice_level_to": "low",
+    "risk_flag_forces_care_sequence_openers": [
+      "validate",
+      "stabilize"
+    ],
+    "depression_aliases": [
+      "depressed",
+      "empty",
+      "numb",
+      "hopeless",
+      "no energy"
+    ],
+    "strict_label_validation": true,
+    "unknown_nuance_fallback": "unclear",
+    "unknown_primary_fallback": "neutral",
+    "nyx_handoff_mode": "resolved_state_only",
+    "max_followups_per_turn": 1,
+    "emit_raw_pattern_matches_to_nyx": false,
+    "resolved_state_required_before_handoff": true,
+    "confidence_floor_for_direct_bias": 0.4,
+    "confidence_ceiling_for_suppressed_neutral": 0.62,
+    "dedupe_matches_by_pattern_id": true,
+    "phrase_matching_normalization": [
+      "lowercase",
+      "trim",
+      "collapse_whitespace",
+      "strip_terminal_punctuation"
+    ]
+  },
+  "validation_rules": {
+    "pattern_id_unique": true,
+    "phrases_non_empty": true,
+    "weight_range": [
+      0,
+      1
+    ],
+    "emotion_bias_must_exist_in_base_labels.primary_emotions": true,
+    "nuance_bias_must_exist_in_base_labels.secondary_emotions": true,
+    "suppression_signal_must_exist_or_null": true
+  }
+}
