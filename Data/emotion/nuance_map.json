@@ -1,9 +1,10 @@
 {
-  "schema_version": "marion-nuance-map.v1.1",
+  "schema_version": "marion-nuance-map.v1.2",
   "runtime_contract": {
     "consumer": "Marion emotion interpreter",
     "handoff_target": "Nyx expression layer",
-    "strict_json": true
+    "strict_json": true,
+    "nyx_visibility": "style_directives_only"
   },
   "sadness": {
     "subtypes": [
@@ -282,7 +283,8 @@
     "suppression_markers": [
       "minimization",
       "forced_positivity",
-      "topic_shift"
+      "topic_shift",
+      "low_signal"
     ],
     "risk_flags": [],
     "blend_axes": [
@@ -343,5 +345,28 @@
         "premature_solutioning"
       ]
     }
+  },
+  "validation_rules": {
+    "top_level_emotions_must_match_base_labels.primary_emotions": true,
+    "all_subtypes_must_exist_in_base_labels.secondary_emotions": true,
+    "suppression_markers_must_exist_in_base_labels.suppression_signals": true,
+    "blend_axes_must_exist_in_base_labels.blend_axes": true,
+    "care_sequence_actions_must_exist_in_base_labels.care_sequence_actions": true,
+    "nyx_expression_layer_must_not_receive_risk_reasoning": true
+  },
+  "handoff_safety": {
+    "nyx_receives": [
+      "response_style",
+      "timing_profile",
+      "care_sequence_defaults",
+      "blend_axes"
+    ],
+    "nyx_does_not_receive": [
+      "raw_user_phrase_matches",
+      "pattern_ids",
+      "unvalidated_risk_flags"
+    ],
+    "risk_flags_route_to": "Marion guard layer",
+    "style_directives_are_advisory": true
   }
 }
