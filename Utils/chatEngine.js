@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.4.0 COORDINATOR-ONLY-MARION-FINAL-LOOP-PURGE-HARDENED";
+const VERSION = "ChatEngine v3.5.0 COORDINATOR-ONLY-MARION-V7-V3-FINAL-ENVELOPE-COMPAT";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
