@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.5.0 COORDINATOR-ONLY-MARION-V7-V3-FINAL-ENVELOPE-COMPAT";
+const VERSION = "ChatEngine v3.6.0 COORDINATOR-ONLY-FINAL-AUTHORITY-LOCK";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -121,7 +121,11 @@ const ROGUE_FALLBACK_REPLY_PATTERNS = Object.freeze([
   /\bi am here with you\b/i,
   /\bi['’]?m here with you\b/i,
   /\bwe can take this one step at a time\b/i,
-  /\bi can stay with this clearly\b/i
+  /\bi can stay with this clearly\b/i,
+  /\bi[’\']?m here and tracking the turn\b/i,
+  /\bi am here and tracking the turn\b/i,
+  /\bgive me the next clear target\b/i,
+  /\bnyx is live and tracking the turn\b/i
 ]);
 
 function isRogueFallbackText(value) {
@@ -306,8 +310,8 @@ function hasTrustedBridgeOrComposerMarker(value, depth = 0) {
   if (typeof value === "string") {
     const s = cleanText(value);
     return !!(
-      /marionBridge v6\.(3|4|5|6)/i.test(s) ||
-      /composeMarionResponse v2\.(3|4|5)/i.test(s) ||
+      /marionBridge v(6\.(3|4|5|6)|7\.[0-9]+)/i.test(s) ||
+      /composeMarionResponse v(2\.(3|4|5)|3\.[0-9]+)/i.test(s) ||
       /STATE-SPINE-COHESION|FINAL-ENVELOPE|TRANSPORT-AUTHORITY-LOCK/i.test(s)
     );
   }
@@ -343,6 +347,8 @@ function objectContainsTrustedFinalSignature(value, depth = 0) {
     const signature = cleanText(value.marionFinalSignature || value.finalSignature || value.signature);
     if (value.requiredSignature === CHAT_ENGINE_SIGNATURE && signature.indexOf(MARION_FINAL_SIGNATURE_PREFIX) === 0) return true;
     if (value.contractVersion === FINAL_ENVELOPE_CONTRACT && value.source === "marion" && value.signature === FINAL_SIGNATURE && value.final === true) return true;
+    if ((value.authority === "marionFinalEnvelope" || value.replyAuthority === "marionFinalEnvelope") && (value.final === true || value.marionFinal === true || cleanText(value.reply))) return true;
+    if (value.source === "composeMarionResponse" && value.authority === "marionFinalEnvelope" && cleanText(value.reply)) return true;
     if (value.meta && value.meta.freshMarionFinal === true && value.meta.singleFinalAuthority === true) return true;
     return Object.keys(value).some((key) => objectContainsTrustedFinalSignature(value[key], depth + 1));
   }
@@ -369,6 +375,9 @@ function hasTrustedFinalEnvelope(source = {}, options = {}) {
     safeObj(source.meta).trustedTransport === true ||
     safeObj(source.payload).trustedTransport === true
   );
+
+  const finalEnv = extractFinalEnvelope(source);
+  if (cleanText(finalEnv.reply) && (finalEnv.authority === "marionFinalEnvelope" || finalEnv.source === "composeMarionResponse" || finalEnv.source === "marionBridge")) return true;
 
   // Version-gated trust: accept known-good final contracts when explicit legacy/internal
   // trust is present, even if the newer final signature is not mirrored.
@@ -757,6 +766,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     followUps: followUpsStrings.map((text) => ({ label: text, text })),
     followUpsStrings,
     sessionPatch,
+    resolvedEmotion: input.resolvedEmotion || sessionPatch.resolvedEmotion || sessionPatch.lastEmotionState || null,
+    emotionRuntime: input.emotionRuntime || null,
+    emotionSummary: input.emotionSummary || safeObj(input.diagnostics).emotionSummary || null,
 
     cog: {
       intent,
