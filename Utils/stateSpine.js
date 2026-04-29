@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.2.1 DEEPENING-LOOP-STABILIZED + FINAL-RECOVERY-RELEASE";
+const SPINE_VERSION = "stateSpine v2.2.2 DEEPENING-FINAL-RELEASE + ENVELOPE-EXTRACTION-HARDENED";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -155,16 +155,22 @@ function extractComposerMemoryPatch(params = {}) {
 function extractComposerReply(params = {}) {
   const p = isPlainObject(params) ? params : {};
   const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const topPayload = isPlainObject(p.payload) ? p.payload : {};
+  const inboundPayload = isPlainObject(inbound.payload) ? inbound.payload : {};
   const marion = extractMarionObject(p);
+  const finalEnvelope = extractFinalEnvelopeObject(p);
   const packet = isPlainObject(marion.packet) ? marion.packet : {};
   const synthesis = isPlainObject(packet.synthesis) ? packet.synthesis : {};
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
   return firstNonEmpty(
+    finalEnvelope.reply, finalEnvelope.text, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.message, finalEnvelope.spokenText,
     p.reply, p.assistantText, p.assistantSummary,
+    topPayload.reply, topPayload.text, topPayload.answer, topPayload.output, topPayload.message,
     marion.reply, marion.text, marion.answer, marion.output, marion.response,
     payload.reply, payload.text, payload.answer, payload.output, payload.message,
     synthesis.reply, synthesis.text, synthesis.answer, synthesis.output,
-    inbound.reply, inbound.response
+    inbound.reply, inbound.response,
+    inboundPayload.reply, inboundPayload.text, inboundPayload.answer, inboundPayload.output, inboundPayload.message
   );
 }
 
@@ -236,13 +242,21 @@ function extractFinalEnvelopeObject(params = {}) {
   const p = isPlainObject(params) ? params : {};
   const inbound = isPlainObject(p.inbound) ? p.inbound : {};
   const meta = isPlainObject(p.meta) ? p.meta : {};
+  const topPayload = isPlainObject(p.payload) ? p.payload : {};
+  const inboundPayload = isPlainObject(inbound.payload) ? inbound.payload : {};
   const marion = extractMarionObject(p);
   const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const packet = isPlainObject(marion.packet) ? marion.packet : {};
+  const packetPayload = isPlainObject(packet.payload) ? packet.payload : {};
   return isPlainObject(p.finalEnvelope) ? p.finalEnvelope :
+    isPlainObject(topPayload.finalEnvelope) ? topPayload.finalEnvelope :
     isPlainObject(inbound.finalEnvelope) ? inbound.finalEnvelope :
+    isPlainObject(inboundPayload.finalEnvelope) ? inboundPayload.finalEnvelope :
     isPlainObject(meta.finalEnvelope) ? meta.finalEnvelope :
     isPlainObject(marion.finalEnvelope) ? marion.finalEnvelope :
     isPlainObject(payload.finalEnvelope) ? payload.finalEnvelope :
+    isPlainObject(packet.finalEnvelope) ? packet.finalEnvelope :
+    isPlainObject(packetPayload.finalEnvelope) ? packetPayload.finalEnvelope :
     {};
 }
 
@@ -1108,8 +1122,15 @@ function finalizeTurn(params = {}) {
     (marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState) &&
     isActionableComposerReply(speak)
   );
+  const deepeningTrustedFinalCompletion = !!(
+    deepeningInbound &&
+    trustedFinalCompletion &&
+    !loopPhraseRejected &&
+    !audio.shouldStop
+  );
   if (trustedFinalCompletion && stage === "recover") stage = "final";
   if (trustedFinalCompletion && stage === "open") stage = "final";
+  if (deepeningTrustedFinalCompletion && (stage === "recover" || stage === "recovery" || stage === "open" || stage === "compose")) stage = "final";
 
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
   const releaseSupportLock = !!(
@@ -1123,7 +1144,7 @@ function finalizeTurn(params = {}) {
       trustedFinalBreaksRecovery ||
       technicalBypassSupportLock ||
       (technical && isActionableComposerReply(speak)) ||
-      (deepeningInbound && trustedFinalCompletion)
+      deepeningTrustedFinalCompletion
     )
   );
   const supportLockActive = !releaseSupportLock && !technicalBypassSupportLock && !!(
@@ -1132,7 +1153,7 @@ function finalizeTurn(params = {}) {
     safeStr(intent) === "STABILIZE" ||
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
-  const progressionLock = trustedFinalBreaksRecovery ? false : !!(
+  const progressionLock = (trustedFinalBreaksRecovery || deepeningTrustedFinalCompletion) ? false : !!(
     audio.shouldStop ||
     (!technicalBypassSupportLock && loopPhraseRejected) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technicalBypassSupportLock && supportLockActive) ||
@@ -1149,7 +1170,7 @@ function finalizeTurn(params = {}) {
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
-    noProgressCount: (trustedFinalBreaksRecovery || loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || technicalBypassSupportLock)
+    noProgressCount: (trustedFinalBreaksRecovery || loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || technicalBypassSupportLock || deepeningTrustedFinalCompletion)
       ? 0
       : Math.max(
           emo.noProgressTurnCount,
