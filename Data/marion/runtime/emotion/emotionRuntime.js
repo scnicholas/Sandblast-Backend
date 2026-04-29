@@ -143,6 +143,56 @@ function resolveCandidate(inputText, contracts) {
   };
 }
 
+
+function hasContinuityCue(inputText) {
+  const normalized = normalizeText(inputText);
+  return /\b(still|again|same|continues|hasn'?t stopped|has not stopped|not better|trying|exhausting|mentally|overwhelming|too much|carry|pressure|deeper|underneath)\b/i.test(normalized);
+}
+
+function sanitizePlain(value, depth = 0) {
+  if (depth > 8) return null;
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.slice(0, 50).map((item) => sanitizePlain(item, depth + 1));
+  if (typeof value === 'object') {
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (typeof item === 'function' || typeof item === 'symbol' || typeof item === 'undefined') continue;
+      out[key] = sanitizePlain(item, depth + 1);
+    }
+    return out;
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  return value;
+}
+
+function mergePreviousEmotionWhenNeeded(inputText, draftState, context = {}) {
+  const previous = context.previousEmotionState && typeof context.previousEmotionState === 'object' ? context.previousEmotionState : {};
+  const previousEmotion = previous.emotion && typeof previous.emotion === 'object' ? previous.emotion : {};
+  const currentEmotion = draftState.emotion && typeof draftState.emotion === 'object' ? draftState.emotion : {};
+  const previousIntensity = Number(previousEmotion.intensity || 0) || 0;
+  const currentIntensity = Number(currentEmotion.intensity || 0) || 0;
+  const currentNeutral = String(currentEmotion.primary || 'neutral') === 'neutral' && currentIntensity <= 0.4;
+  const priorUsable = previousEmotion.primary && previousEmotion.primary !== 'neutral' && previousIntensity >= 0.45;
+  if (!(currentNeutral && priorUsable && hasContinuityCue(inputText))) return draftState;
+  const carried = sanitizePlain(previous);
+  return {
+    ...draftState,
+    ...carried,
+    emotion: {
+      ...currentEmotion,
+      ...previousEmotion,
+      confidence: Math.max(Number(previousEmotion.confidence || 0) || 0, Number(currentEmotion.confidence || 0) || 0, 0.55),
+      intensity: Math.max(previousIntensity, currentIntensity, 0.5)
+    },
+    runtime_meta: {
+      ...(draftState.runtime_meta || {}),
+      carried_from_previous: true,
+      carry_reason: 'deepening_turn_low_signal_current_emotion',
+      generated_at: new Date().toISOString()
+    }
+  };
+}
+
 function riskFlagsFromInput(inputText, resolved, contracts) {
   const normalized = normalizeText(inputText);
   const flags = [];
@@ -206,8 +256,9 @@ function buildResolvedState(inputText, context = {}, options = {}) {
     runtime_meta: { source: 'emotionRuntime.resolveEmotionState', raw_pattern_count: resolved.raw_candidates.length, raw_patterns_redacted_from_nyx: true, suppression: resolved.suppression, generated_at: new Date().toISOString() }
   };
 
-  const governed = governResolvedState(draftState, { recentReplies: context.recentReplies || [] });
-  return validateResolvedState(governed, contracts).state;
+  const carriedState = mergePreviousEmotionWhenNeeded(inputText, draftState, context);
+  const governed = governResolvedState(carriedState, { recentReplies: context.recentReplies || [] });
+  return sanitizePlain(validateResolvedState(governed, contracts).state);
 }
 
 function resolveEmotionState(inputText, context = {}, options = {}) {
@@ -231,4 +282,4 @@ function resolveEmotionState(inputText, context = {}, options = {}) {
   }
 }
 
-module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth, matchPatternCandidates, resolveEmotionState, buildResolvedState };
+module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth, matchPatternCandidates, resolveEmotionState, buildResolvedState, hasContinuityCue, sanitizePlain };
