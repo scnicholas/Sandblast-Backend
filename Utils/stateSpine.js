@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.2.0 FINAL-ENVELOPE-COMPLETION + EMOTION-CONTINUITY-HANDSHAKE";
+const SPINE_VERSION = "stateSpine v2.3.0 COMMERCIAL-EMOTION-CONTINUITY-SPINE";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -514,6 +514,23 @@ function createState(seed = {}) {
       presenceState: "receptive",
       listenerMode: "attuned"
     },
+    resolvedEmotion: {},
+    emotionState: {},
+    lastEmotionState: {},
+    emotionalContinuity: {
+      active: false,
+      primary: "",
+      secondary: "",
+      intensity: 0,
+      confidence: 0,
+      continuityScore: 0,
+      momentum: "none",
+      carryDepth: 0,
+      unresolvedPressure: false,
+      needsDeepening: false,
+      updatedAt: 0,
+      source: "stateSpine.createState"
+    },
     continuityThread: {
       depthLevel: 1,
       threadContinuation: false,
@@ -619,6 +636,23 @@ function coerceState(input) {
       lastActionLabels: Array.isArray(src?.emotionalEngine?.lastActionLabels) ? src.emotionalEngine.lastActionLabels.slice(0, 6).map((x) => safeStr(x)) : [],
       presenceState: safeStr(src?.emotionalEngine?.presenceState || "receptive") || "receptive",
       listenerMode: safeStr(src?.emotionalEngine?.listenerMode || "attuned") || "attuned"
+    },
+    resolvedEmotion: isPlainObject(src.resolvedEmotion) ? src.resolvedEmotion : {},
+    emotionState: isPlainObject(src.emotionState) ? src.emotionState : {},
+    lastEmotionState: isPlainObject(src.lastEmotionState) ? src.lastEmotionState : {},
+    emotionalContinuity: {
+      active: !!src?.emotionalContinuity?.active,
+      primary: safeStr(src?.emotionalContinuity?.primary || ""),
+      secondary: safeStr(src?.emotionalContinuity?.secondary || ""),
+      intensity: Math.max(0, Math.min(1, Number(src?.emotionalContinuity?.intensity || 0) || 0)),
+      confidence: Math.max(0, Math.min(1, Number(src?.emotionalContinuity?.confidence || 0) || 0)),
+      continuityScore: Math.max(0, Math.min(1, Number(src?.emotionalContinuity?.continuityScore || 0) || 0)),
+      momentum: safeStr(src?.emotionalContinuity?.momentum || "none"),
+      carryDepth: clampInt(src?.emotionalContinuity?.carryDepth, 0, 0, 999999),
+      unresolvedPressure: !!src?.emotionalContinuity?.unresolvedPressure,
+      needsDeepening: !!src?.emotionalContinuity?.needsDeepening,
+      updatedAt: Number(src?.emotionalContinuity?.updatedAt || 0) || 0,
+      source: safeStr(src?.emotionalContinuity?.source || "stateSpine.coerceState")
     },
     continuityThread: {
       depthLevel: clampInt(src?.continuityThread?.depthLevel, 1, 1, 999999),
@@ -736,6 +770,69 @@ function summarizeResolvedEmotionState(state = {}) {
     stability: Number.isFinite(Number(drift.stability)) ? Number(drift.stability) : 0,
     volatility: Number.isFinite(Number(drift.volatility)) ? Number(drift.volatility) : 0,
     dominantPattern: safeStr(drift.dominant_pattern || "")
+  };
+}
+
+
+function inferEmotionMomentum(prevSummary = {}, nextSummary = {}) {
+  const prevIntensity = Math.max(0, Math.min(1, Number(prevSummary.intensity || 0) || 0));
+  const nextIntensity = Math.max(0, Math.min(1, Number(nextSummary.intensity || 0) || 0));
+  if (!nextSummary.present) return prevSummary.present ? "cooling" : "none";
+  if (!prevSummary.present) return nextIntensity >= 0.6 ? "active" : "emerging";
+  const delta = nextIntensity - prevIntensity;
+  if (delta >= 0.12) return "escalating";
+  if (delta <= -0.12) return "deescalating";
+  return nextIntensity >= 0.55 ? "sustained" : "steady";
+}
+
+function buildEmotionalContinuity(prevState, inbound, params, emo) {
+  const prev = coerceState(prevState);
+  const priorContinuity = isPlainObject(prev.emotionalContinuity) ? prev.emotionalContinuity : {};
+  const prevSummary = {
+    present: !!priorContinuity.active,
+    primary: safeStr(priorContinuity.primary || ""),
+    secondary: safeStr(priorContinuity.secondary || ""),
+    intensity: Math.max(0, Math.min(1, Number(priorContinuity.intensity || 0) || 0)),
+    confidence: Math.max(0, Math.min(1, Number(priorContinuity.confidence || 0) || 0))
+  };
+  const current = isPlainObject(emo && emo.resolvedEmotionSummary) ? emo.resolvedEmotionSummary : summarizeResolvedEmotionState(extractResolvedEmotionState(inbound, params));
+  const hasCurrent = !!current.present;
+  const carryPrimary = safeStr((hasCurrent && current.primary) || prevSummary.primary || "");
+  const carrySecondary = safeStr((hasCurrent && current.secondary) || prevSummary.secondary || "");
+  const carryIntensity = hasCurrent ? current.intensity : Math.max(0, prevSummary.intensity - 0.08);
+  const carryConfidence = hasCurrent ? current.confidence : Math.max(0, prevSummary.confidence - 0.06);
+  const momentum = inferEmotionMomentum(prevSummary, hasCurrent ? current : prevSummary);
+  const text = safeStr(extractInboundText(inbound)).toLowerCase();
+  const continuityCue = /\b(still|again|same|too much|trying|not better|continues|keeps|feels like|can't shake|can’t shake)\b/i.test(text);
+  const unresolvedPressure = !!(
+    hasCurrent && (current.escalationNeeded || current.intensity >= 0.55 || /overwhelm|panic|anxiety|hopeless|pressure|fear/i.test(`${current.primary} ${current.secondary} ${current.actionMode}`))
+  ) || (!!priorContinuity.unresolvedPressure && continuityCue && carryIntensity >= 0.35);
+  const carryDepth = hasCurrent || continuityCue
+    ? Math.min(999999, clampInt(priorContinuity.carryDepth, 0, 0, 999999) + 1)
+    : Math.max(0, clampInt(priorContinuity.carryDepth, 0, 0, 999999) - 1);
+  const continuityScore = Math.max(0, Math.min(1,
+    (hasCurrent ? 0.34 : 0) +
+    (continuityCue ? 0.22 : 0) +
+    (unresolvedPressure ? 0.22 : 0) +
+    Math.min(0.22, carryDepth * 0.04)
+  ));
+  return {
+    active: !!(carryPrimary || carrySecondary || unresolvedPressure || carryDepth > 0),
+    primary: carryPrimary,
+    secondary: carrySecondary,
+    intensity: carryIntensity,
+    confidence: carryConfidence,
+    stability: hasCurrent ? current.stability : Number(priorContinuity.stability || 0),
+    volatility: hasCurrent ? current.volatility : Number(priorContinuity.volatility || 0),
+    continuityScore,
+    momentum,
+    carryDepth,
+    unresolvedPressure,
+    needsDeepening: !!(unresolvedPressure && carryDepth >= 2 && continuityScore >= 0.5),
+    safeToContinue: hasCurrent ? current.safeToContinue !== false : true,
+    escalationNeeded: hasCurrent ? !!current.escalationNeeded : false,
+    updatedAt: nowMs(),
+    source: "stateSpine.buildEmotionalContinuity"
   };
 }
 
@@ -1083,7 +1180,18 @@ function finalizeTurn(params = {}) {
   }
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev, params);
-  const engineSignals = normalizeEmotionalEngineSignals(inbound, prev);
+  const emotionalContinuityNext = buildEmotionalContinuity(prev, inbound, params, emo);
+  const engineSignals = normalizeEmotionalEngineSignals(inbound, {
+    ...prev,
+    emotionalEngine: {
+      ...prev.emotionalEngine,
+      primaryState: emotionalContinuityNext.primary || prev.emotionalEngine.primaryState,
+      secondaryState: emotionalContinuityNext.secondary || prev.emotionalEngine.secondaryState,
+      continuityScore: Math.max(prev.emotionalEngine.continuityScore || 0, emotionalContinuityNext.continuityScore || 0),
+      presenceState: emotionalContinuityNext.unresolvedPressure ? "supportive" : prev.emotionalEngine.presenceState,
+      listenerMode: emotionalContinuityNext.needsDeepening ? "deepening" : prev.emotionalEngine.listenerMode
+    }
+  });
   const trustedFinalCompletion = !!(
     !audio.shouldStop &&
     (marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState) &&
@@ -1236,17 +1344,7 @@ function finalizeTurn(params = {}) {
     resolvedEmotion: emo.resolvedEmotion || prev.resolvedEmotion || {},
     emotionState: emo.resolvedEmotion || prev.emotionState || {},
     lastEmotionState: emo.resolvedEmotion || prev.lastEmotionState || {},
-    emotionalContinuity: emo.resolvedEmotionSummary && emo.resolvedEmotionSummary.present ? {
-      active: true,
-      primary: emo.resolvedEmotionSummary.primary,
-      secondary: emo.resolvedEmotionSummary.secondary,
-      intensity: emo.resolvedEmotionSummary.intensity,
-      confidence: emo.resolvedEmotionSummary.confidence,
-      stability: emo.resolvedEmotionSummary.stability,
-      volatility: emo.resolvedEmotionSummary.volatility,
-      updatedAt: nowMs(),
-      source: "stateSpine.finalizeTurn"
-    } : (prev.emotionalContinuity || null),
+    emotionalContinuity: emotionalContinuityNext,
     marionCohesion: {
       composerObserved: !!Object.keys(memoryPatch).length,
       marionFinalObserved: marionFinalSignal,
