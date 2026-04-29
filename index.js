@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37";
+const INDEX_VERSION = "index.js v2.18.3sb CHAT-LOOP-PHRASE-HARDLOCK + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -340,7 +340,11 @@ const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
   /reply\s+emission/i,
   /bridge_rejected/i,
   /packet_invalid/i,
-  /contract_invalid/i
+  /contract_invalid/i,
+  /response path was interrupted/i,
+  /marion completed the final reply/i,
+  /turn non[- ]emotional/i,
+  /final[- ]envelope path/i
 ];
 
 const BLOCKED_LOOPING_SUPPORT_REPLY = "i am here with you, and i can stay with this clearly.";
@@ -368,7 +372,10 @@ const CHAT_LOOP_PHRASE_PATTERNS = [
   /\bpress reset to clear this session\b/i,
   /\bready\. send your next message\b/i,
   /\bready\. send the next instruction\b/i,
-  /\bready\. send the specific file\b/i
+  /\bready\. send the specific file\b/i,
+  /\bresponse path was interrupted before marion completed the final reply\b/i,
+  /\bkeeping the turn non[- ]emotional\b/i,
+  /\brouting it back through the final[- ]envelope path\b/i
 ];
 
 function normalizedReplyKey(value) {
@@ -667,6 +674,18 @@ function isInternalMarionBlockerReply(value) {
   const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
   if (!text) return false;
   return INTERNAL_MARION_BLOCKER_REPLY_PATTERNS.some((rx) => rx.test(text));
+}
+
+function isConversationDiagnosticFallbackReply(value) {
+  const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return !!(
+    isInternalMarionBlockerReply(text) ||
+    /response path was interrupted before marion completed the final reply/i.test(text) ||
+    /keeping the turn non[- ]emotional/i.test(text) ||
+    /routing it back through the final[- ]envelope path/i.test(text) ||
+    /conversation_authority_empty|marion_final_envelope_missing|awaiting_marion/i.test(text)
+  );
 }
 
 function makeTraceId(prefix) {
@@ -3929,6 +3948,7 @@ function getMarionAuthorityReply(marion) {
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
   const contract = isObj(marion.contract) ? marion.contract : {};
   const result = isObj(marion.result) ? marion.result : {};
+  const resultFinalEnvelope = isObj(result.finalEnvelope) ? result.finalEnvelope : {};
   const resultPayload = isObj(result.payload) ? result.payload : {};
   const resultPacket = isObj(result.packet) ? result.packet : {};
   const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
@@ -3963,6 +3983,10 @@ function getMarionAuthorityReply(marion) {
     contract.text ||
     contract.output ||
     contract.answer ||
+    resultFinalEnvelope.reply ||
+    resultFinalEnvelope.text ||
+    resultFinalEnvelope.displayReply ||
+    resultFinalEnvelope.spokenText ||
     result.response ||
     result.reply ||
     result.text ||
@@ -3983,7 +4007,7 @@ function getMarionAuthorityReply(marion) {
     resultSynthesis.answer ||
     ""
   );
-  return isInternalMarionBlockerReply(reply) ? "" : reply;
+  return isConversationDiagnosticFallbackReply(reply) ? "" : reply;
 }
 
 
@@ -6021,10 +6045,7 @@ const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/"
 function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
   const n = isObj(norm) ? norm : {};
   const safeDetail = cleanText(detail || "conversation response incomplete");
-  const reply = cleanText(
-    (extra && extra.reply) ||
-    "I’m still with you. Something didn’t come through properly. Let’s try that again."
-  );
+  const reply = cleanText((extra && extra.reply) || "");
   return {
     ok: false,
     final: false,
