@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.2.2 DEEPENING-FINAL-RELEASE + ENVELOPE-EXTRACTION-HARDENED";
+const SPINE_VERSION = "stateSpine v2.2.3 DEEP-CONTINUITY-REPETITION-RELEASE";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -434,6 +434,15 @@ function isDeepeningInbound(inbound = {}, params = {}) {
     continuity.carried === true ||
     continuity.continuityPreserved === true ||
     Number(continuity.carryDepth || 0) > 0
+  );
+}
+
+function isTrustedDeepeningCompletion(params = {}, inbound = {}) {
+  const reply = extractComposerReply(params);
+  return !!(
+    isDeepeningInbound(inbound, params) &&
+    isActionableComposerReply(reply) &&
+    (hasMarionFinalSignal(params) || hasTrustedFinalShape(params) || hasTrustedMarionFinalEnvelope(params))
   );
 }
 
@@ -1110,6 +1119,7 @@ function finalizeTurn(params = {}) {
   const plannerMode = safeStr(decision._plannerMode || params.marionCog?.mode || "").toLowerCase();
   const technical = isTechnicalInbound(inbound);
   const deepeningInbound = isDeepeningInbound(inbound, params);
+  const trustedDeepeningCompletion = isTrustedDeepeningCompletion(params, inbound);
   const technicalBypassSupportLock = shouldTechnicalBypassSupportLock(inbound, decision, params);
   if ((marionFinalSignal || trustedFinalShape || composerAdvancedState || technicalBypassSupportLock) && stage === "recovery" && technical) {
     stage = "execution";
@@ -1123,7 +1133,7 @@ function finalizeTurn(params = {}) {
     isActionableComposerReply(speak)
   );
   const deepeningTrustedFinalCompletion = !!(
-    deepeningInbound &&
+    (deepeningInbound || trustedDeepeningCompletion) &&
     trustedFinalCompletion &&
     !loopPhraseRejected &&
     !audio.shouldStop
@@ -1144,7 +1154,8 @@ function finalizeTurn(params = {}) {
       trustedFinalBreaksRecovery ||
       technicalBypassSupportLock ||
       (technical && isActionableComposerReply(speak)) ||
-      deepeningTrustedFinalCompletion
+      deepeningTrustedFinalCompletion ||
+      trustedDeepeningCompletion
     )
   );
   const supportLockActive = !releaseSupportLock && !technicalBypassSupportLock && !!(
@@ -1153,7 +1164,7 @@ function finalizeTurn(params = {}) {
     safeStr(intent) === "STABILIZE" ||
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
-  const progressionLock = (trustedFinalBreaksRecovery || deepeningTrustedFinalCompletion) ? false : !!(
+  const progressionLock = (trustedFinalBreaksRecovery || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? false : !!(
     audio.shouldStop ||
     (!technicalBypassSupportLock && loopPhraseRejected) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technicalBypassSupportLock && supportLockActive) ||
@@ -1163,14 +1174,14 @@ function finalizeTurn(params = {}) {
 
   const repetition = {
     sameLaneCount: sameLane ? prev.repetition.sameLaneCount + 1 : 0,
-    sameStageCount: sameStage ? prev.repetition.sameStageCount + 1 : 0,
-    sameIntentCount: sameIntent ? prev.repetition.sameIntentCount + 1 : 0,
-    sameUserHashCount: sameUser ? prev.repetition.sameUserHashCount + 1 : 0,
-    sameAssistantHashCount: sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0,
+    sameStageCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameStage ? prev.repetition.sameStageCount + 1 : 0),
+    sameIntentCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameIntent ? prev.repetition.sameIntentCount + 1 : 0),
+    sameUserHashCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameUser ? prev.repetition.sameUserHashCount + 1 : 0),
+    sameAssistantHashCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0),
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
-    noProgressCount: (trustedFinalBreaksRecovery || loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || technicalBypassSupportLock || deepeningTrustedFinalCompletion)
+    noProgressCount: (trustedFinalBreaksRecovery || loopBreakTrustedFinal || trustedFinalShape || trustedFinalEnvelope || technicalBypassSupportLock || deepeningTrustedFinalCompletion || trustedDeepeningCompletion)
       ? 0
       : Math.max(
           emo.noProgressTurnCount,
@@ -1223,7 +1234,7 @@ function finalizeTurn(params = {}) {
 
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
-    threadContinuation: loopBreakTrustedFinal ? false : !!(sameLane || sameIntent || sameUser || sameAssistant || support.lockActive || repetition.noProgressCount > 0),
+    threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
     lastTopics: [safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
     responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
@@ -1407,6 +1418,7 @@ module.exports = {
   isActionableComposerReply,
   shouldTechnicalBypassSupportLock,
   isDeepeningInbound,
+  isTrustedDeepeningCompletion,
   extractComposerMemoryPatch,
   extractComposerReply,
   normalizeAudioSignal,
