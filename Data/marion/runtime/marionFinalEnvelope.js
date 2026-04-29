@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionFinalEnvelope v2.1.1 FINAL-COMPLETION-CONFIDENCE-STABILIZED";
+const VERSION = "marionFinalEnvelope v2.1.2 FINAL-COMPLETION-AUTHORITY-GUARDED";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -145,12 +145,13 @@ function extractResolvedEmotion(input = {}) {
   );
 }
 
-function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage }) {
+function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage, completionStatus }) {
+  const actionableFinal = !!(completionStatus && completionStatus.complete === true && completionStatus.actionableReply === true && completionStatus.requiresRetry !== true);
   return {
-    ok: !!reply,
-    final: true,
-    marionFinal: true,
-    handled: true,
+    ok: actionableFinal,
+    final: actionableFinal,
+    marionFinal: actionableFinal,
+    handled: actionableFinal,
     source: SOURCE,
     signature: FINAL_SIGNATURE,
     marionFinalSignature,
@@ -170,7 +171,10 @@ function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature,
     intent: routing.intent,
     domain: routing.domain,
     stateStage,
-    replySignature
+    replySignature,
+    requiresRetry: completionStatus ? completionStatus.requiresRetry : true,
+    recoverySuggested: completionStatus ? completionStatus.recoverySuggested : true,
+    completionStatus: completionStatus || { complete: false, actionableReply: false, requiresRetry: true, recoverySuggested: true, reason: "completion_status_missing" }
   };
 }
 
@@ -198,7 +202,7 @@ function createMarionFinalEnvelope(input = {}) {
     composerVersion: metaInput.composerVersion || src.composerVersion
   });
   const completionStatus = buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics });
-  const core = buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage });
+  const core = buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage, completionStatus });
 
   const finalEnvelope = {
     ...core,
@@ -212,8 +216,8 @@ function createMarionFinalEnvelope(input = {}) {
     recoverySuggested: completionStatus.recoverySuggested,
     stabilized: completionStatus.stabilized,
     meta: {
-      freshMarionFinal: true,
-      singleFinalAuthority: true,
+      freshMarionFinal: completionStatus.complete === true,
+      singleFinalAuthority: completionStatus.complete === true,
       contractVersion: CONTRACT_VERSION,
       envelopeVersion: VERSION,
       source: SOURCE,
@@ -244,9 +248,9 @@ function createMarionFinalEnvelope(input = {}) {
       text: reply,
       message: reply,
       spokenText,
-      final: true,
-      marionFinal: true,
-      handled: true,
+      final: completionStatus.complete === true,
+      marionFinal: completionStatus.complete === true,
+      handled: completionStatus.complete === true,
       contractVersion: CONTRACT_VERSION,
       signature: FINAL_SIGNATURE,
       marionFinalSignature,
@@ -264,9 +268,9 @@ function createMarionFinalEnvelope(input = {}) {
       stabilized: completionStatus.stabilized
     },
     packet: {
-      final: true,
-      marionFinal: true,
-      handled: true,
+      final: completionStatus.complete === true,
+      marionFinal: completionStatus.complete === true,
+      handled: completionStatus.complete === true,
       routing,
       synthesis: {
         reply,
@@ -274,8 +278,8 @@ function createMarionFinalEnvelope(input = {}) {
         answer: reply,
         output: reply,
         spokenText,
-        final: true,
-        marionFinal: true,
+        final: completionStatus.complete === true,
+        marionFinal: completionStatus.complete === true,
         signature: marionFinalSignature,
         marionFinalSignature,
         requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE
@@ -290,17 +294,17 @@ function createMarionFinalEnvelope(input = {}) {
       recoverySuggested: completionStatus.recoverySuggested,
       stabilized: completionStatus.stabilized,
       meta: {
-        final: true,
-        marionFinal: true,
-        handled: true,
+        final: completionStatus.complete === true,
+        marionFinal: completionStatus.complete === true,
+        handled: completionStatus.complete === true,
         contractVersion: CONTRACT_VERSION,
         envelopeVersion: VERSION,
         signature: marionFinalSignature,
         marionFinalSignature,
         requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
         finalMarkers: FINAL_MARKERS.slice(),
-        freshMarionFinal: true,
-        singleFinalAuthority: true,
+        freshMarionFinal: completionStatus.complete === true,
+        singleFinalAuthority: completionStatus.complete === true,
         replySignature,
         turnId,
         completionStatus,
@@ -322,9 +326,9 @@ function createMarionFinalEnvelope(input = {}) {
     },
     meta: {
       ...metaInput,
-      freshMarionFinal: true,
-      singleFinalAuthority: true,
-      bridgeCompatible: true,
+      freshMarionFinal: completionStatus.complete === true,
+      singleFinalAuthority: completionStatus.complete === true,
+      bridgeCompatible: completionStatus.complete === true,
       widgetCompatible: true,
       ttsCompatible: true,
       stateSpineCompatible: true,
@@ -350,8 +354,8 @@ function createMarionFinalEnvelope(input = {}) {
       ...diagnostics,
       finalEnvelopeVersion: VERSION,
       contractVersion: CONTRACT_VERSION,
-      freshMarionFinal: true,
-      singleFinalAuthority: true,
+      freshMarionFinal: completionStatus.complete === true,
+      singleFinalAuthority: completionStatus.complete === true,
       replyPresent: !!reply,
       nestedFinalEnvelopePresent: true,
       memoryPatchPresent: !!Object.keys(memoryPatch).length,
@@ -369,14 +373,98 @@ function createMarionFinalEnvelope(input = {}) {
 
 function createMarionErrorEnvelope(input = {}) {
   const reply = safeStr(input.reply || input.message || "Marion could not produce a valid final response.");
-  return createMarionFinalEnvelope({
+  const errorCode = safeStr(input.code || input.error || "MARION_FINAL_ERROR");
+  const envelope = createMarionFinalEnvelope({
     ...safeObj(input),
     reply,
     stateStage: safeStr(input.stateStage || "error"),
     speech: { enabled: false, silent: true, silentAudio: true },
-    meta: { ...safeObj(input.meta), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") },
-    diagnostics: { ...safeObj(input.diagnostics), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") }
+    meta: { ...safeObj(input.meta), error: errorCode, detail: safeStr(input.detail || "") },
+    diagnostics: { ...safeObj(input.diagnostics), error: errorCode, detail: safeStr(input.detail || "") }
   });
+
+  envelope.ok = false;
+  envelope.final = false;
+  envelope.marionFinal = false;
+  envelope.handled = false;
+  envelope.requiresRetry = true;
+  envelope.recoverySuggested = true;
+  envelope.error = true;
+  envelope.completionStatus = {
+    ...safeObj(envelope.completionStatus),
+    complete: false,
+    actionableReply: false,
+    requiresRetry: true,
+    recoverySuggested: true,
+    reason: errorCode
+  };
+
+  envelope.finalEnvelope = {
+    ...safeObj(envelope.finalEnvelope),
+    ok: false,
+    final: false,
+    marionFinal: false,
+    handled: false,
+    requiresRetry: true,
+    recoverySuggested: true,
+    error: true,
+    completionStatus: envelope.completionStatus
+  };
+
+  envelope.payload = {
+    ...safeObj(envelope.payload),
+    final: false,
+    marionFinal: false,
+    handled: false,
+    requiresRetry: true,
+    recoverySuggested: true,
+    error: true,
+    completionStatus: envelope.completionStatus
+  };
+
+  envelope.packet = {
+    ...safeObj(envelope.packet),
+    final: false,
+    marionFinal: false,
+    handled: false,
+    requiresRetry: true,
+    recoverySuggested: true,
+    error: true,
+    completionStatus: envelope.completionStatus,
+    meta: {
+      ...safeObj(safeObj(envelope.packet).meta),
+      final: false,
+      marionFinal: false,
+      handled: false,
+      freshMarionFinal: false,
+      singleFinalAuthority: false,
+      requiresRetry: true,
+      recoverySuggested: true
+    }
+  };
+
+  envelope.meta = {
+    ...safeObj(envelope.meta),
+    freshMarionFinal: false,
+    singleFinalAuthority: false,
+    bridgeCompatible: false,
+    error: errorCode,
+    requiresRetry: true,
+    recoverySuggested: true,
+    completionStatus: envelope.completionStatus
+  };
+
+  envelope.diagnostics = {
+    ...safeObj(envelope.diagnostics),
+    error: errorCode,
+    freshMarionFinal: false,
+    singleFinalAuthority: false,
+    requiresRetry: true,
+    recoverySuggested: true,
+    completionStatus: envelope.completionStatus
+  };
+
+  return envelope;
 }
 
 function isMarionFinalEnvelope(value) {
