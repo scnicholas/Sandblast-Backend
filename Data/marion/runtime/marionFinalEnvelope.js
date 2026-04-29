@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionFinalEnvelope v2.1.0 FINAL-COMPLETION-HANDSHAKE-HARDENED";
+const VERSION = "marionFinalEnvelope v2.1.1 FINAL-COMPLETION-CONFIDENCE-STABILIZED";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -23,6 +23,55 @@ function isObj(value) { return !!value && typeof value === "object" && !Array.is
 function safeObj(value) { return isObj(value) ? value : {}; }
 function safeArray(value) { return Array.isArray(value) ? value : []; }
 function nowIso() { return new Date().toISOString(); }
+
+function lower(value) { return safeStr(value).toLowerCase(); }
+
+const SOFT_RECOVERY_REPLY_PATTERNS = Object.freeze([
+  /\bstill here\b.*\brun that one more time\b/i,
+  /\bthere was a break in the response\b/i,
+  /\bresponse path was interrupted\b/i,
+  /\bmarion completed the final reply\b/i,
+  /\bkeeping the turn non-emotional\b/i,
+  /\brouting it back through the final-envelope path\b/i,
+  /\bi[’']?m here and tracking the turn\b/i,
+  /\bgive me the next clear target\b/i,
+  /\bnyx is live and tracking the turn\b/i
+]);
+
+function isSoftRecoveryReply(value) {
+  const text = lower(value);
+  return !!(text && SOFT_RECOVERY_REPLY_PATTERNS.some((rx) => rx.test(text)));
+}
+
+function isActionableFinalReply(value) {
+  const text = safeStr(value);
+  if (!text || text.length < 8) return false;
+  if (isSoftRecoveryReply(text)) return false;
+  if (/\b(final envelope missing|diagnostic packet|non-final|composer_invalid|compose_reply_missing|marion did not return)\b/i.test(text)) return false;
+  return true;
+}
+
+function buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics }) {
+  const hasEmotion = !!Object.keys(safeObj(resolvedEmotion)).length;
+  const hasMemory = !!Object.keys(safeObj(memoryPatch)).length;
+  const actionable = isActionableFinalReply(reply);
+  const softRecovery = isSoftRecoveryReply(reply);
+  const explicitFailure = !!(safeObj(diagnostics).error || safeObj(diagnostics).bridgeError || safeObj(diagnostics).composerRecoveredByBridge);
+  const confidence = actionable ? (hasEmotion ? 0.99 : 0.96) : (softRecovery ? 0.18 : 0.35);
+  return {
+    complete: actionable && !explicitFailure,
+    stabilized: actionable && !softRecovery,
+    actionableReply: actionable,
+    emotionallyCoherentFinal: actionable && hasEmotion,
+    memoryPatchPresent: hasMemory,
+    completionConfidence: confidence,
+    requiresRetry: !actionable || explicitFailure,
+    recoverySuggested: !actionable || explicitFailure,
+    softRecoveryDetected: softRecovery,
+    reason: actionable && !explicitFailure ? 'trusted_final_reply_complete' : (softRecovery ? 'soft_recovery_reply_not_final' : 'reply_not_actionable')
+  };
+}
+
 
 function hashText(value) {
   const source = safeStr(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -148,6 +197,7 @@ function createMarionFinalEnvelope(input = {}) {
     bridgeVersion: metaInput.bridgeVersion || src.bridgeVersion,
     composerVersion: metaInput.composerVersion || src.composerVersion
   });
+  const completionStatus = buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics });
   const core = buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage });
 
   const finalEnvelope = {
@@ -156,6 +206,11 @@ function createMarionFinalEnvelope(input = {}) {
     sessionPatch,
     resolvedEmotion,
     emotionSummary,
+    completionStatus,
+    completionConfidence: completionStatus.completionConfidence,
+    requiresRetry: completionStatus.requiresRetry,
+    recoverySuggested: completionStatus.recoverySuggested,
+    stabilized: completionStatus.stabilized,
     meta: {
       freshMarionFinal: true,
       singleFinalAuthority: true,
@@ -179,6 +234,11 @@ function createMarionFinalEnvelope(input = {}) {
     resolvedEmotion,
     emotionSummary,
     finalEnvelope,
+    completionStatus,
+    completionConfidence: completionStatus.completionConfidence,
+    requiresRetry: completionStatus.requiresRetry,
+    recoverySuggested: completionStatus.recoverySuggested,
+    stabilized: completionStatus.stabilized,
     payload: {
       reply,
       text: reply,
@@ -196,7 +256,12 @@ function createMarionFinalEnvelope(input = {}) {
       memoryPatch,
       sessionPatch,
       resolvedEmotion,
-      emotionSummary
+      emotionSummary,
+      completionStatus,
+      completionConfidence: completionStatus.completionConfidence,
+      requiresRetry: completionStatus.requiresRetry,
+      recoverySuggested: completionStatus.recoverySuggested,
+      stabilized: completionStatus.stabilized
     },
     packet: {
       final: true,
@@ -219,6 +284,11 @@ function createMarionFinalEnvelope(input = {}) {
       sessionPatch,
       resolvedEmotion,
       emotionSummary,
+      completionStatus,
+      completionConfidence: completionStatus.completionConfidence,
+      requiresRetry: completionStatus.requiresRetry,
+      recoverySuggested: completionStatus.recoverySuggested,
+      stabilized: completionStatus.stabilized,
       meta: {
         final: true,
         marionFinal: true,
@@ -232,7 +302,12 @@ function createMarionFinalEnvelope(input = {}) {
         freshMarionFinal: true,
         singleFinalAuthority: true,
         replySignature,
-        turnId
+        turnId,
+        completionStatus,
+        completionConfidence: completionStatus.completionConfidence,
+        requiresRetry: completionStatus.requiresRetry,
+        recoverySuggested: completionStatus.recoverySuggested,
+        stabilized: completionStatus.stabilized
       }
     },
     speech: {
@@ -264,6 +339,11 @@ function createMarionFinalEnvelope(input = {}) {
       marionFinalSignature,
       finalEnvelopeAuthority: VERSION,
       resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length,
+      completionStatus,
+      completionConfidence: completionStatus.completionConfidence,
+      requiresRetry: completionStatus.requiresRetry,
+      recoverySuggested: completionStatus.recoverySuggested,
+      stabilized: completionStatus.stabilized,
       diagnostics
     },
     diagnostics: {
@@ -276,7 +356,13 @@ function createMarionFinalEnvelope(input = {}) {
       nestedFinalEnvelopePresent: true,
       memoryPatchPresent: !!Object.keys(memoryPatch).length,
       sessionPatchPresent: !!Object.keys(sessionPatch).length,
-      resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length
+      resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length,
+      completionStatus,
+      completionConfidence: completionStatus.completionConfidence,
+      requiresRetry: completionStatus.requiresRetry,
+      recoverySuggested: completionStatus.recoverySuggested,
+      stabilized: completionStatus.stabilized,
+      softRecoveryDetected: completionStatus.softRecoveryDetected
     }
   };
 }
@@ -306,7 +392,10 @@ function isMarionFinalEnvelope(value) {
     target.signature === FINAL_SIGNATURE &&
     target.contractVersion === CONTRACT_VERSION &&
     typeof target.reply === "string" &&
-    !!safeStr(target.reply)
+    !!safeStr(target.reply) &&
+    isActionableFinalReply(target.reply) &&
+    safeObj(target).requiresRetry !== true &&
+    safeObj(target).recoverySuggested !== true
   );
 }
 
@@ -331,5 +420,5 @@ module.exports = {
   createMarionErrorEnvelope,
   isMarionFinalEnvelope,
   unwrapReply,
-  _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray }
+  _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, isSoftRecoveryReply, isActionableFinalReply, buildCompletionStatus }
 };
