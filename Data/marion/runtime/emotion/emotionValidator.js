@@ -5,6 +5,9 @@
  * Location:
  *   /backend/Data/marion/runtime/emotion/emotionValidator.js
  *
+ * Version:
+ *   emotionValidator v1.1.0 CONTINUITY-SAFE-SERIALIZATION
+ *
  * Purpose:
  *   Validates emotion labels, nuance labels, blend axes, suppression signals,
  *   confidence/intensity ranges, guard fields, support fields, and Nyx handoff contracts.
@@ -16,8 +19,13 @@
 
 'use strict';
 
+const VERSION = 'emotionValidator v1.1.0 CONTINUITY-SAFE-SERIALIZATION';
 const DEFAULT_PRIMARY_FALLBACK = 'neutral';
 const DEFAULT_SECONDARY_FALLBACK = 'unclear';
+const MAX_STRING = 360;
+const MAX_ARRAY = 12;
+const MAX_OBJECT_DEPTH = 5;
+const MAX_OBJECT_KEYS = 40;
 
 const DEFAULT_ALLOWED = Object.freeze({
   primary: ['anger', 'joy', 'sadness', 'fear', 'surprise', 'disgust', 'neutral'],
@@ -27,26 +35,52 @@ const DEFAULT_ALLOWED = Object.freeze({
     'frustration', 'resentment', 'moral_injury', 'relief', 'gratitude',
     'excitement', 'contentment', 'confusion', 'amazement', 'shock',
     'revulsion', 'rejection', 'moral_disgust', 'flat', 'informational',
-    'guarded', 'emotional_numbness', 'shame', 'depressed', 'unclear',
-    'boundary_activation'
+    'guarded', 'emotional_numbness', 'shame', 'depressed', 'depression',
+    'exhaustion', 'burnout', 'fatigue', 'mental_fatigue', 'strain',
+    'unclear', 'boundary_activation'
   ],
   blendAxes: [
     'threat_response', 'emotional_loss', 'boundary_activation',
     'positive_release', 'orientation_shift', 'aversion_response',
-    'low_signal_state'
+    'low_signal_state', 'resource_depletion', 'continuity_pressure'
   ],
   suppressionSignals: [
     'deflection', 'minimization', 'forced_positivity', 'detachment',
-    'dry_humor_under_strain', 'topic_shift', 'understatement', 'low_signal'
+    'dry_humor_under_strain', 'topic_shift', 'understatement', 'low_signal',
+    'fatigue_disclosure', 'cognitive_load'
   ],
   pacing: ['normal', 'slowed', 'slow', 'slow_and_containing', 'slow_and_structured', 'steady', 'measured', 'contained', 'natural'],
   responseLength: ['short', 'short_to_medium', 'medium'],
   adviceLevels: ['none', 'low', 'medium'],
-  actionModes: ['supportive_monitoring', 'stabilize_then_external_support', 'deescalate_then_safety_boundary', 'grounding_first', 'neutral_continue', 'safe_decline']
+  actionModes: ['supportive_monitoring', 'stabilize_then_external_support', 'deescalate_then_safety_boundary', 'grounding_first', 'neutral_continue', 'safe_decline', 'reduce_load_then_continue']
+});
+
+const SECONDARY_ALIASES = Object.freeze({
+  overwhelmed: 'overwhelm',
+  exhaustion: 'exhaustion',
+  exhausted: 'exhaustion',
+  burnout: 'burnout',
+  burned_out: 'burnout',
+  mental_exhaustion: 'mental_fatigue',
+  cognitive_fatigue: 'mental_fatigue',
+  tired: 'fatigue',
+  drained: 'fatigue',
+  depressed: 'depressed',
+  depression: 'depressed'
 });
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cleanString(value, fallback = '', max = MAX_STRING) {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, max) : fallback;
+}
+
+function labelKey(value) {
+  return cleanString(value, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 function clamp01(value, fallback = 0) {
@@ -55,29 +89,59 @@ function clamp01(value, fallback = 0) {
   return Math.max(0, Math.min(1, Number(num.toFixed(4))));
 }
 
-function uniqueStrings(values) {
+function uniqueStrings(values, max = MAX_ARRAY) {
   if (!Array.isArray(values)) return [];
-  return [...new Set(values.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim()))];
+  return [...new Set(values.map((v) => cleanString(v, '', 160)).filter(Boolean))].slice(0, max);
+}
+
+function safeJson(value, depth = 0) {
+  if (depth > MAX_OBJECT_DEPTH) return '[truncated]';
+  if (value === null || value === undefined) return value === null ? null : undefined;
+  if (typeof value === 'string') return cleanString(value, '', MAX_STRING);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.slice(0, MAX_ARRAY).map((item) => safeJson(item, depth + 1)).filter((item) => item !== undefined);
+  if (!isPlainObject(value)) return cleanString(value, '', MAX_STRING);
+
+  const out = {};
+  for (const key of Object.keys(value).slice(0, MAX_OBJECT_KEYS)) {
+    const cleanKey = cleanString(key, '', 80);
+    if (!cleanKey) continue;
+    const next = safeJson(value[key], depth + 1);
+    if (next !== undefined) out[cleanKey] = next;
+  }
+  return out;
 }
 
 function buildAllowedFromContracts(contracts = {}) {
-  const labels = contracts.baseLabels || {};
+  const labels = isPlainObject(contracts.baseLabels) ? contracts.baseLabels : {};
   const allowed = {
-    primary: uniqueStrings(labels.primary_emotions).length ? uniqueStrings(labels.primary_emotions) : DEFAULT_ALLOWED.primary,
-    secondary: uniqueStrings(labels.secondary_emotions).length ? uniqueStrings(labels.secondary_emotions) : DEFAULT_ALLOWED.secondary,
-    blendAxes: uniqueStrings(labels.blend_axes).length ? uniqueStrings(labels.blend_axes) : DEFAULT_ALLOWED.blendAxes,
-    suppressionSignals: uniqueStrings(labels.suppression_signals).length ? uniqueStrings(labels.suppression_signals).concat('low_signal') : DEFAULT_ALLOWED.suppressionSignals,
+    primary: uniqueStrings(labels.primary_emotions, 50).length ? uniqueStrings(labels.primary_emotions, 50).map(labelKey) : DEFAULT_ALLOWED.primary,
+    secondary: uniqueStrings(labels.secondary_emotions, 120).length ? uniqueStrings(labels.secondary_emotions, 120).map(labelKey) : DEFAULT_ALLOWED.secondary,
+    blendAxes: uniqueStrings(labels.blend_axes, 80).length ? uniqueStrings(labels.blend_axes, 80).map(labelKey) : DEFAULT_ALLOWED.blendAxes,
+    suppressionSignals: uniqueStrings(labels.suppression_signals, 80).length ? uniqueStrings(labels.suppression_signals, 80).map(labelKey).concat('low_signal') : DEFAULT_ALLOWED.suppressionSignals,
     pacing: DEFAULT_ALLOWED.pacing,
     responseLength: DEFAULT_ALLOWED.responseLength,
     adviceLevels: DEFAULT_ALLOWED.adviceLevels,
     actionModes: DEFAULT_ALLOWED.actionModes
   };
-  allowed.suppressionSignals = [...new Set(allowed.suppressionSignals)];
+
+  // Contract files may lag the runtime. Keep these continuity-safe labels available
+  // so emotional carry never invalidates the final envelope because of vocabulary drift.
+  allowed.secondary = [...new Set(allowed.secondary.concat(DEFAULT_ALLOWED.secondary))];
+  allowed.blendAxes = [...new Set(allowed.blendAxes.concat(DEFAULT_ALLOWED.blendAxes))];
+  allowed.suppressionSignals = [...new Set(allowed.suppressionSignals.concat(DEFAULT_ALLOWED.suppressionSignals))];
   return allowed;
 }
 
+function normalizeAllowed(value, allowed, fallback, aliases = {}) {
+  const raw = labelKey(value);
+  const aliased = aliases[raw] || raw;
+  return allowed.includes(aliased) ? aliased : fallback;
+}
+
 function validateLabel(value, allowed, fallback) {
-  return allowed.includes(value) ? value : fallback;
+  return normalizeAllowed(value, allowed, fallback);
 }
 
 function validateTimingProfile(input = {}, allowed = DEFAULT_ALLOWED) {
@@ -85,7 +149,7 @@ function validateTimingProfile(input = {}, allowed = DEFAULT_ALLOWED) {
   return {
     pause_before_response: Boolean(timing.pause_before_response),
     response_length: validateLabel(timing.response_length, allowed.responseLength, 'short'),
-    followup_delay: typeof timing.followup_delay === 'string' && timing.followup_delay.trim() ? timing.followup_delay.trim() : 'light',
+    followup_delay: cleanString(timing.followup_delay, 'light', 60),
     pacing: validateLabel(timing.pacing, allowed.pacing, 'natural')
   };
 }
@@ -93,8 +157,8 @@ function validateTimingProfile(input = {}, allowed = DEFAULT_ALLOWED) {
 function validateEmotion(input = {}, allowed = DEFAULT_ALLOWED) {
   const emotion = isPlainObject(input) ? input : {};
   return {
-    primary: validateLabel(emotion.primary, allowed.primary, DEFAULT_PRIMARY_FALLBACK),
-    secondary: validateLabel(emotion.secondary, allowed.secondary, DEFAULT_SECONDARY_FALLBACK),
+    primary: normalizeAllowed(emotion.primary, allowed.primary, DEFAULT_PRIMARY_FALLBACK),
+    secondary: normalizeAllowed(emotion.secondary, allowed.secondary, DEFAULT_SECONDARY_FALLBACK, SECONDARY_ALIASES),
     confidence: clamp01(emotion.confidence, 0.5),
     intensity: clamp01(emotion.intensity, 0.25)
   };
@@ -104,31 +168,33 @@ function validateBlendProfile(input = {}, allowed = DEFAULT_ALLOWED) {
   const blend = isPlainObject(input) ? input : {};
   const rawWeights = isPlainObject(blend.weights) ? blend.weights : {};
   const weights = {};
-  for (const key of Object.keys(rawWeights)) {
-    if (allowed.primary.includes(key)) weights[key] = clamp01(rawWeights[key], 0);
+  for (const rawKey of Object.keys(rawWeights).slice(0, 20)) {
+    const key = labelKey(rawKey);
+    if (allowed.primary.includes(key)) weights[key] = clamp01(rawWeights[rawKey], 0);
   }
   return {
     weights,
     dominant_axis: validateLabel(blend.dominant_axis, allowed.blendAxes, 'low_signal_state'),
-    interaction_note: typeof blend.interaction_note === 'string' ? blend.interaction_note.slice(0, 240) : ''
+    interaction_note: cleanString(blend.interaction_note, '', 240)
   };
 }
 
 function validateNuance(input = {}, allowed = DEFAULT_ALLOWED) {
   const nuance = isPlainObject(input) ? input : {};
-  const suppression = nuance.suppression_signal == null ? null : validateLabel(nuance.suppression_signal, allowed.suppressionSignals, null);
+  const rawSuppression = nuance.suppression_signal == null ? null : labelKey(nuance.suppression_signal);
+  const suppression = rawSuppression ? validateLabel(rawSuppression, allowed.suppressionSignals, null) : null;
   return {
-    subtype: validateLabel(nuance.subtype, allowed.secondary, DEFAULT_SECONDARY_FALLBACK),
-    social_pattern: typeof nuance.social_pattern === 'string' ? nuance.social_pattern.slice(0, 120) : 'low_signal',
+    subtype: normalizeAllowed(nuance.subtype, allowed.secondary, DEFAULT_SECONDARY_FALLBACK, SECONDARY_ALIASES),
+    social_pattern: cleanString(nuance.social_pattern, 'low_signal', 120),
     suppression_signal: suppression,
-    risk_flags: uniqueStrings(nuance.risk_flags).slice(0, 8)
+    risk_flags: uniqueStrings(nuance.risk_flags, 10).map(labelKey).filter(Boolean).slice(0, 10)
   };
 }
 
 function validateSupport(input = {}, allowed = DEFAULT_ALLOWED) {
   const support = isPlainObject(input) ? input : {};
   return {
-    tone: typeof support.tone === 'string' && support.tone.trim() ? support.tone.trim().slice(0, 60) : 'steady',
+    tone: cleanString(support.tone, 'steady', 60),
     followup: support.followup !== false,
     advice_level: validateLabel(support.advice_level, allowed.adviceLevels, 'low'),
     timing_profile: validateTimingProfile(support.timing_profile, allowed)
@@ -141,27 +207,56 @@ function validateGuard(input = {}, allowed = DEFAULT_ALLOWED) {
     diagnosis_block: guard.diagnosis_block !== false,
     safe_to_continue: guard.safe_to_continue !== false,
     escalation_needed: Boolean(guard.escalation_needed),
-    detected_flags: uniqueStrings(guard.detected_flags).slice(0, 10),
+    detected_flags: uniqueStrings(guard.detected_flags, 10).map(labelKey).filter(Boolean).slice(0, 10),
     action_mode: validateLabel(guard.action_mode, allowed.actionModes, 'supportive_monitoring')
   };
 }
 
 function validateNyxContract(input = {}) {
   const contract = isPlainObject(input) ? input : {};
+  const cap = Number(contract.followup_cap);
   return {
     reply_mode: 'resolved_state_only',
-    followup_cap: Number.isInteger(contract.followup_cap) ? Math.max(0, Math.min(contract.followup_cap, 1)) : 1,
-    pacing_source: typeof contract.pacing_source === 'string' && contract.pacing_source.trim() ? contract.pacing_source.trim() : 'support.timing_profile'
+    followup_cap: Number.isFinite(cap) ? Math.max(0, Math.min(Math.trunc(cap), 1)) : 1,
+    pacing_source: cleanString(contract.pacing_source, 'support.timing_profile', 100)
   };
 }
 
 function validateHandoff(input = {}) {
   const handoff = isPlainObject(input) ? input : {};
+  const constraints = uniqueStrings(handoff.response_constraints, 14);
   return {
-    interpreter_summary: typeof handoff.interpreter_summary === 'string' ? handoff.interpreter_summary.slice(0, 300) : 'Resolved emotional state prepared for Marion composition.',
-    nyx_expression_goal: typeof handoff.nyx_expression_goal === 'string' ? handoff.nyx_expression_goal.slice(0, 220) : 'Maintain steady presence without over-talking.',
-    response_constraints: uniqueStrings(handoff.response_constraints).slice(0, 10),
+    interpreter_summary: cleanString(handoff.interpreter_summary, 'Resolved emotional state prepared for Marion composition.', 300),
+    nyx_expression_goal: cleanString(handoff.nyx_expression_goal, 'Maintain steady presence without over-talking.', 220),
+    response_constraints: constraints.slice(0, 12),
     nyx_contract: validateNyxContract(handoff.nyx_contract)
+  };
+}
+
+function validateStateDrift(input = {}) {
+  const drift = isPlainObject(input) ? input : {};
+  const rolling = Array.isArray(drift.rolling_window) ? drift.rolling_window.slice(-5).map((item) => {
+    const entry = isPlainObject(item) ? item : {};
+    return {
+      primary: cleanString(entry.primary, 'neutral', 40),
+      secondary: cleanString(entry.secondary, 'unclear', 60),
+      intensity: clamp01(entry.intensity, 0.25),
+      confidence: clamp01(entry.confidence, 0.5),
+      timestamp: cleanString(entry.timestamp, '', 60)
+    };
+  }) : [];
+  return {
+    previous_emotion: cleanString(drift.previous_emotion, '', 40) || null,
+    current_emotion: cleanString(drift.current_emotion, 'neutral', 40),
+    previous_secondary: cleanString(drift.previous_secondary, '', 60) || null,
+    current_secondary: cleanString(drift.current_secondary, 'unclear', 60),
+    trend: cleanString(drift.trend, 'stable_continuity', 80),
+    stability: clamp01(drift.stability, 1),
+    volatility: clamp01(drift.volatility, 0),
+    rolling_window: rolling,
+    rolling_window_size: Math.max(1, Math.min(Math.trunc(Number(drift.rolling_window_size) || rolling.length || 3), 8)),
+    dominant_pattern: cleanString(drift.dominant_pattern, 'low_signal', 60),
+    stabilization_hint: cleanString(drift.stabilization_hint, 'maintain_current_pacing', 120)
   };
 }
 
@@ -170,7 +265,9 @@ function validateResolvedState(input = {}, contracts = {}) {
   const state = isPlainObject(input) ? input : {};
   const emotion = validateEmotion(state.emotion, allowed);
   const blend_profile = validateBlendProfile(state.blend_profile, allowed);
+  if (!Object.keys(blend_profile.weights).length && emotion.primary) blend_profile.weights[emotion.primary] = emotion.confidence;
   const nuance = validateNuance(state.nuance, allowed);
+  if (nuance.subtype === DEFAULT_SECONDARY_FALLBACK && emotion.secondary !== DEFAULT_SECONDARY_FALLBACK) nuance.subtype = emotion.secondary;
   const support = validateSupport(state.support, allowed);
   const guard = validateGuard(state.guard, allowed);
   const marion_handoff = validateHandoff(state.marion_handoff);
@@ -183,6 +280,7 @@ function validateResolvedState(input = {}, contracts = {}) {
   if (guard.escalation_needed) {
     support.followup = false;
     support.advice_level = 'none';
+    guard.safe_to_continue = false;
     warnings.push('escalation_mode_caps_followup_and_advice');
   }
 
@@ -190,17 +288,17 @@ function validateResolvedState(input = {}, contracts = {}) {
     ok: true,
     warnings,
     state: {
-      schema_version: state.schema_version || 'marion-resolved-emotion-state.v1.0',
+      schema_version: cleanString(state.schema_version, 'marion-resolved-emotion-state.v1.0', 80),
       runtime_contract: { producer: 'Marion emotion runtime', consumer: 'MarionBridge/Nyx', mode: 'resolved_state_only', strict_json: true },
       emotion,
       blend_profile,
       nuance,
-      state_drift: isPlainObject(state.state_drift) ? state.state_drift : {},
-      psychology: isPlainObject(state.psychology) ? state.psychology : {},
+      state_drift: validateStateDrift(state.state_drift),
+      psychology: safeJson(state.psychology || {}),
       support,
       guard,
       marion_handoff,
-      runtime_meta: isPlainObject(state.runtime_meta) ? state.runtime_meta : {}
+      runtime_meta: safeJson(state.runtime_meta || {})
     }
   };
 }
@@ -216,6 +314,7 @@ function assertResolvedState(input = {}, contracts = {}) {
 }
 
 module.exports = {
+  VERSION,
   DEFAULT_ALLOWED,
   buildAllowedFromContracts,
   clamp01,
@@ -224,5 +323,6 @@ module.exports = {
   validateSupport,
   validateGuard,
   validateResolvedState,
-  assertResolvedState
+  assertResolvedState,
+  _internal: { cleanString, labelKey, safeJson, validateStateDrift }
 };
