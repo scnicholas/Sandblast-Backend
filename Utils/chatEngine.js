@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.1 COORDINATOR-ONLY-FINAL-AUTHORITY-LOCK-RETRY-GUARD";
+const VERSION = "ChatEngine v3.6.2 COORDINATOR-ONLY-TRANSPORT-SAFE-FINALS";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -85,6 +85,89 @@ function hashText(value) {
     hash |= 0;
   }
   return String(hash >>> 0);
+}
+
+function safeStringify(value, max = 4000) {
+  const seen = new WeakSet();
+  try {
+    const text = JSON.stringify(value, function (_key, item) {
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "bigint") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[Circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return text && text.length > max ? `${text.slice(0, max)}…` : (text || "");
+  } catch (err) {
+    return `[Unserializable:${cleanText(err && err.message || err)}]`;
+  }
+}
+
+function jsonSafe(value, depth = 0, seen = new WeakSet()) {
+  if (value == null) return value;
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return value;
+  if (t === "bigint") return String(value);
+  if (t === "function" || t === "symbol" || t === "undefined") return undefined;
+  if (depth > 8) return "[MaxDepth]";
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.slice(0, 80).map((item) => jsonSafe(item, depth + 1, seen)).filter((item) => item !== undefined);
+  if (isPlainObject(value)) {
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    const out = {};
+    for (const key of Object.keys(value)) {
+      if (/^(socket|res|req|next|stream|connection|client|server)$/i.test(key)) continue;
+      const v = jsonSafe(value[key], depth + 1, seen);
+      if (v !== undefined) out[key] = v;
+    }
+    return out;
+  }
+  try { return JSON.parse(JSON.stringify(value)); } catch (_err) { return String(value); }
+}
+
+function compactSessionPatchForTransport(value = {}) {
+  const patch = jsonSafe(safeObj(value));
+  const emotion = safeObj(patch.resolvedEmotion || patch.emotionState || patch.lastEmotionState);
+  if (Object.keys(emotion).length) {
+    const drift = safeObj(emotion.state_drift);
+    const compactEmotion = {
+      schema_version: cleanText(emotion.schema_version || "marion-resolved-emotion-state.v1.0"),
+      emotion: safeObj(emotion.emotion),
+      nuance: safeObj(emotion.nuance),
+      support: safeObj(emotion.support),
+      guard: safeObj(emotion.guard),
+      state_drift: {
+        trend: cleanText(drift.trend || ""),
+        stability: Number(drift.stability || 0) || 0,
+        volatility: Number(drift.volatility || 0) || 0,
+        dominant_pattern: cleanText(drift.dominant_pattern || "")
+      },
+      runtime_meta: { source: cleanText(safeObj(emotion.runtime_meta).source || "") }
+    };
+    patch.resolvedEmotion = compactEmotion;
+    patch.emotionState = compactEmotion;
+    patch.lastEmotionState = compactEmotion;
+  }
+  return patch;
+}
+
+function finalTransportPacket(packet = {}) {
+  const out = jsonSafe(packet);
+  if (isPlainObject(out)) {
+    out.ok = out.ok !== false;
+    out.final = out.final === true;
+    out.marionFinal = out.marionFinal === true;
+    out.awaitingMarion = false;
+    out.transportSafe = true;
+    out.socketReconnect = false;
+    if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
+    if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
+    if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactSessionPatchForTransport(out.payload.sessionPatch);
+    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch" };
+  }
+  return out;
 }
 
 const INTERNAL_BLOCKER_PATTERNS = Object.freeze([
@@ -731,7 +814,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   const turnId = extractTurnId(input);
   const userQuery = extractUserText(input);
   const followUpsStrings = extractFollowUps(input);
-  const sessionPatch = extractSessionPatch(input);
+  const sessionPatch = compactSessionPatchForTransport(extractSessionPatch(input));
   const contract = extractMarionContract(input);
   const packet = extractPacket(input);
   const replySignature = firstText(
@@ -871,7 +954,7 @@ class ChatEngine {
     const trace = {
       at: Date.now(),
       rawInputType: typeof input,
-      rawInputPreview: typeof input === "string" ? input.slice(0, 120) : clipText(JSON.stringify(input || {}), 180),
+      rawInputPreview: typeof input === "string" ? input.slice(0, 120) : clipText(safeStringify(input || {}, 180), 180),
       stages: [],
       accepted: false,
       responsePreview: "",
@@ -933,7 +1016,7 @@ class ChatEngine {
       trace.responsePreview = clipText(result.reply, 160);
       this.pushPipelineTrace(trace);
 
-      return result;
+      return finalTransportPacket(result);
     } catch (err) {
       const errorContract = buildBlankErrorContract("chat_engine_coordinator_fault", {
         message: this.safeError(err)
@@ -944,7 +1027,7 @@ class ChatEngine {
       trace.responsePreview = "";
       this.pushPipelineTrace(trace);
 
-      return errorContract;
+      return jsonSafe(errorContract);
     }
   }
 
@@ -1102,6 +1185,9 @@ if (typeof module !== "undefined") {
       isRogueFallbackText,
       hasRejectedLoopReply,
       hasFinalFailureMarker,
+      jsonSafe,
+      finalTransportPacket,
+      compactSessionPatchForTransport,
       stableTurnKey,
       hasTrustedBridgeOrComposerMarker
     }
