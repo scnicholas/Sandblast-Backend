@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.1.0 MARION-STATE-RESTRUCTURE TRUST-GATE-ALIGNMENT + RECOVERY-ESCAPE-HARDENED";
+const SPINE_VERSION = "stateSpine v2.2.0 FINAL-ENVELOPE-COMPLETION + EMOTION-CONTINUITY-HANDSHAKE";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -309,15 +309,21 @@ function hasLegacyTrustFlag(params = {}) {
 }
 
 function hasExplicitFinalEnvelopeContract(params = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const inbound = isPlainObject(p.inbound) ? p.inbound : {};
+  const marion = extractMarionObject(p);
   const finalEnvelope = extractFinalEnvelopeObject(params);
-  return !!(
-    finalEnvelope &&
-    isPlainObject(finalEnvelope) &&
-    finalEnvelope.contractVersion === FINAL_ENVELOPE_CONTRACT &&
-    finalEnvelope.source === "marion" &&
-    finalEnvelope.signature === FINAL_SIGNATURE &&
-    finalEnvelope.final === true
-  );
+  const payload = isPlainObject(marion.payload) ? marion.payload : {};
+  const candidates = [finalEnvelope, p, inbound, marion, isPlainObject(payload.finalEnvelope) ? payload.finalEnvelope : {}];
+  return candidates.some((candidate) => !!(
+    candidate &&
+    isPlainObject(candidate) &&
+    candidate.contractVersion === FINAL_ENVELOPE_CONTRACT &&
+    candidate.source === "marion" &&
+    candidate.signature === FINAL_SIGNATURE &&
+    candidate.final === true &&
+    candidate.marionFinal === true
+  ));
 }
 
 function signatureLooksTrusted(signature) {
@@ -668,6 +674,71 @@ function extractIntent(inbound) {
   return "ADVANCE";
 }
 
+function extractResolvedEmotionState(inbound = {}, params = {}) {
+  const src = isPlainObject(inbound) ? inbound : {};
+  const p = isPlainObject(params) ? params : {};
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const meta = isPlainObject(src.meta) ? src.meta : {};
+  const marion = extractMarionObject(p);
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const finalEnvelope = extractFinalEnvelopeObject(p);
+  const candidates = [
+    p.resolvedEmotion,
+    p.emotionState,
+    p.lastEmotionState,
+    p.emotionalState,
+    isPlainObject(p.emotionRuntime) ? p.emotionRuntime.state : {},
+    src.resolvedEmotion,
+    src.emotionState,
+    src.lastEmotionState,
+    src.emotionalState,
+    payload.resolvedEmotion,
+    payload.emotionState,
+    meta.resolvedEmotion,
+    meta.emotionState,
+    marion.resolvedEmotion,
+    marion.emotionState,
+    finalEnvelope.resolvedEmotion,
+    memoryPatch.resolvedEmotion,
+    memoryPatch.emotionState,
+    memoryPatch.lastEmotionState
+  ];
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate) && Object.keys(candidate).length) return candidate;
+  }
+  return {};
+}
+
+function summarizeResolvedEmotionState(state = {}) {
+  const resolved = isPlainObject(state) ? state : {};
+  const emotion = isPlainObject(resolved.emotion) ? resolved.emotion : {};
+  const nuance = isPlainObject(resolved.nuance) ? resolved.nuance : {};
+  const support = isPlainObject(resolved.support) ? resolved.support : {};
+  const guard = isPlainObject(resolved.guard) ? resolved.guard : {};
+  const psychology = isPlainObject(resolved.psychology) ? resolved.psychology : {};
+  const drift = isPlainObject(resolved.state_drift) ? resolved.state_drift : {};
+  const primary = safeStr(emotion.primary || "").toLowerCase();
+  const secondary = safeStr(emotion.secondary || nuance.subtype || "").toLowerCase();
+  const intensity = Math.max(0, Math.min(1, Number(emotion.intensity || 0) || 0));
+  const confidence = Math.max(0, Math.min(1, Number(emotion.confidence || 0) || 0));
+  return {
+    present: !!(primary || secondary || Object.keys(resolved).length),
+    primary: primary || "",
+    secondary: secondary || "",
+    intensity,
+    confidence,
+    careMode: safeStr(psychology.care_mode || ""),
+    actionMode: safeStr(guard.action_mode || ""),
+    safeToContinue: guard.safe_to_continue !== false,
+    escalationNeeded: !!guard.escalation_needed,
+    suppressionSignal: safeStr(nuance.suppression_signal || ""),
+    timingProfile: isPlainObject(support.timing_profile) ? support.timing_profile : {},
+    stability: Number.isFinite(Number(drift.stability)) ? Number(drift.stability) : 0,
+    volatility: Number.isFinite(Number(drift.volatility)) ? Number(drift.volatility) : 0,
+    dominantPattern: safeStr(drift.dominant_pattern || "")
+  };
+}
+
 function normalizeAudioSignal(inbound) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
   const audioFailure = isPlainObject(inbound?.audioFailure) ? inbound.audioFailure : (isPlainObject(inbound?.ttsFailure) ? inbound.ttsFailure : {});
@@ -753,14 +824,17 @@ function normalizeAudioSignal(inbound) {
   return { action, shouldStop, retryable, reason, status, playable, audioUrl, audioBase64, mimeType, format, chars };
 }
 
-function normalizeEmotionSignals(inbound, prevState) {
+function normalizeEmotionSignals(inbound, prevState, params = {}) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
   const direct = isPlainObject(inbound?.emotion) ? inbound.emotion : (isPlainObject(inbound?.emo) ? inbound.emo : (isPlainObject(inbound?.emotionPayload) ? inbound.emotionPayload : {}));
+  const resolvedState = extractResolvedEmotionState(inbound, params);
+  const resolved = summarizeResolvedEmotionState(resolvedState);
   const prev = coerceState(prevState);
-  const supportMode = safeStr(sig.emotionSupportMode || direct.supportModeCandidate || prev.support.supportMode || "").toLowerCase();
-  const emotionKey = safeStr(sig.emotionPrimary || sig.emotionDominant || direct.primaryEmotion || prev.support.emotionKey || "").toLowerCase();
-  const emotionCluster = safeStr(sig.emotionCluster || direct.emotionCluster || prev.support.emotionCluster || "").toLowerCase();
+  const supportMode = safeStr(sig.emotionSupportMode || direct.supportModeCandidate || resolved.careMode || prev.support.supportMode || "").toLowerCase();
+  const emotionKey = safeStr(sig.emotionPrimary || sig.emotionDominant || direct.primaryEmotion || resolved.primary || prev.support.emotionKey || "").toLowerCase();
+  const emotionCluster = safeStr(sig.emotionCluster || direct.emotionCluster || resolved.secondary || prev.support.emotionCluster || "").toLowerCase();
   const questionStyle = safeStr(sig.questionStyle || direct?.conversationPlan?.questionStyle || prev.support.questionStyle || "").toLowerCase();
+  const resolvedHigh = !!(resolved.present && (resolved.escalationNeeded || resolved.intensity >= 0.67 || /panic|overwhelm|hopeless|despair|self_harm/i.test(`${resolved.secondary} ${resolved.actionMode}`)));
   const supportLockSignal = !!(
     sig.supportLockActive ||
     sig.emotionSupportLock ||
@@ -770,7 +844,8 @@ function normalizeEmotionSignals(inbound, prevState) {
     sig.emotionFallbackSuppression ||
     sig.emotionRouteExhaustion ||
     direct?.supportFlags?.crisis ||
-    direct?.supportFlags?.highDistress
+    direct?.supportFlags?.highDistress ||
+    resolved.escalationNeeded
   );
   const sameEmotionCount = clampInt(sig.emotionSameEmotionCount, prev.repetition.sameEmotionCount, 0, 999999);
   const sameSupportModeCount = clampInt(sig.emotionSameSupportModeCount, prev.repetition.sameSupportModeCount, 0, 999999);
@@ -783,6 +858,8 @@ function normalizeEmotionSignals(inbound, prevState) {
     emotionKey,
     emotionCluster,
     questionStyle,
+    resolvedEmotion: resolved.present ? resolvedState : {},
+    resolvedEmotionSummary: resolved,
     supportLockSignal,
     shouldSuppressMenus: !!(
       sig.emotionShouldSuppressMenus ||
@@ -791,9 +868,10 @@ function normalizeEmotionSignals(inbound, prevState) {
       sig.emotionFallbackSuppression ||
       sig.emotionRouteExhaustion ||
       direct?.supportFlags?.needsContainment ||
-      direct?.supportFlags?.crisis
+      direct?.supportFlags?.crisis ||
+      resolved.escalationNeeded
     ),
-    highDistress: !!(sig.emotionNeedCrisis || sig.emotionNeedSoft || direct?.supportFlags?.highDistress || direct?.supportFlags?.crisis),
+    highDistress: !!(sig.emotionNeedCrisis || sig.emotionNeedSoft || direct?.supportFlags?.highDistress || direct?.supportFlags?.crisis || resolvedHigh),
     mentionsLooping: !!(
       sig.emotionRouteExhaustion ||
       sig.emotionFallbackSuppression ||
@@ -1004,19 +1082,26 @@ function finalizeTurn(params = {}) {
     stage = "execution";
   }
   const audio = normalizeAudioSignal(inbound);
-  const emo = normalizeEmotionSignals(inbound, prev);
+  const emo = normalizeEmotionSignals(inbound, prev, params);
   const engineSignals = normalizeEmotionalEngineSignals(inbound, prev);
+  const trustedFinalCompletion = !!(
+    !audio.shouldStop &&
+    (marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState) &&
+    isActionableComposerReply(speak)
+  );
+  if (trustedFinalCompletion && stage === "recover") stage = "final";
+  if (trustedFinalCompletion && stage === "open") stage = "final";
 
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
   const releaseSupportLock = !!(
-    !emo.highDistress &&
     stage !== "terminal_stop" &&
     !audio.shouldStop &&
     (
+      trustedFinalCompletion ||
       loopBreakTrustedFinal ||
       trustedFinalShape ||
       trustedFinalEnvelope ||
-      (trustedFinalBreaksRecovery && !emo.highDistress) ||
+      trustedFinalBreaksRecovery ||
       technicalBypassSupportLock ||
       (technical && isActionableComposerReply(speak))
     )
@@ -1148,6 +1233,20 @@ function finalizeTurn(params = {}) {
     },
     emotionalEngine,
     continuityThread,
+    resolvedEmotion: emo.resolvedEmotion || prev.resolvedEmotion || {},
+    emotionState: emo.resolvedEmotion || prev.emotionState || {},
+    lastEmotionState: emo.resolvedEmotion || prev.lastEmotionState || {},
+    emotionalContinuity: emo.resolvedEmotionSummary && emo.resolvedEmotionSummary.present ? {
+      active: true,
+      primary: emo.resolvedEmotionSummary.primary,
+      secondary: emo.resolvedEmotionSummary.secondary,
+      intensity: emo.resolvedEmotionSummary.intensity,
+      confidence: emo.resolvedEmotionSummary.confidence,
+      stability: emo.resolvedEmotionSummary.stability,
+      volatility: emo.resolvedEmotionSummary.volatility,
+      updatedAt: nowMs(),
+      source: "stateSpine.finalizeTurn"
+    } : (prev.emotionalContinuity || null),
     marionCohesion: {
       composerObserved: !!Object.keys(memoryPatch).length,
       marionFinalObserved: marionFinalSignal,
@@ -1270,6 +1369,8 @@ module.exports = {
   extractComposerReply,
   normalizeAudioSignal,
   normalizeEmotionSignals,
-  normalizeEmotionalEngineSignals
+  normalizeEmotionalEngineSignals,
+  extractResolvedEmotionState,
+  summarizeResolvedEmotionState
 };
 module.exports.default = module.exports;
