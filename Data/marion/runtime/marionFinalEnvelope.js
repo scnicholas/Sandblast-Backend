@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionFinalEnvelope v2.0.0 SINGLE-CONTRACT-AUTHORITY";
+const VERSION = "marionFinalEnvelope v2.1.0 FINAL-COMPLETION-HANDSHAKE-HARDENED";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -21,6 +21,7 @@ const FINAL_MARKERS = Object.freeze([
 function safeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
 function isObj(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
 function safeObj(value) { return isObj(value) ? value : {}; }
+function safeArray(value) { return Array.isArray(value) ? value : []; }
 function nowIso() { return new Date().toISOString(); }
 
 function hashText(value) {
@@ -49,28 +50,53 @@ function buildFinalSignature({ reply = "", turnId = "", replySignature = "", bri
 
 function normalizeRouting(input = {}) {
   const routing = safeObj(input.routing);
-  const intent = safeStr(input.intent || (input.marionIntent && input.marionIntent.intent) || routing.intent || "simple_chat") || "simple_chat";
+  const intent = safeStr(input.intent || safeObj(input.marionIntent).intent || routing.intent || "simple_chat") || "simple_chat";
   const domain = safeStr(input.domain || routing.domain || "general") || "general";
-  return { intent, domain, mode: safeStr(routing.mode || input.mode || ""), depth: safeStr(routing.depth || input.depth || ""), endpoint: safeStr(routing.endpoint || input.endpoint || "marion://routeMarion.primary") };
+  return {
+    intent,
+    domain,
+    mode: safeStr(routing.mode || input.mode || ""),
+    depth: safeStr(routing.depth || input.depth || ""),
+    endpoint: safeStr(routing.endpoint || input.endpoint || "marion://routeMarion.primary")
+  };
 }
 
 function extractReply(input = {}) {
-  const payload = safeObj(input.payload), synthesis = safeObj(input.synthesis), packet = safeObj(input.packet), packetSynthesis = safeObj(packet.synthesis);
-  return safeStr(input.reply || input.text || input.answer || input.output || input.response || input.message || input.spokenText || payload.reply || payload.text || payload.message || synthesis.reply || synthesis.text || packetSynthesis.reply || packetSynthesis.text || "");
+  const payload = safeObj(input.payload);
+  const synthesis = safeObj(input.synthesis);
+  const packet = safeObj(input.packet);
+  const packetSynthesis = safeObj(packet.synthesis);
+  const finalEnvelope = safeObj(input.finalEnvelope);
+  return safeStr(
+    finalEnvelope.reply || finalEnvelope.text || finalEnvelope.spokenText ||
+    input.reply || input.text || input.answer || input.output || input.response || input.message || input.spokenText ||
+    payload.reply || payload.text || payload.message ||
+    synthesis.reply || synthesis.text ||
+    packetSynthesis.reply || packetSynthesis.text || ""
+  );
 }
 
-function createMarionFinalEnvelope(input = {}) {
-  const src = safeObj(input);
-  const reply = extractReply(src);
-  const routing = normalizeRouting(src);
-  const memoryPatch = safeObj(src.memoryPatch);
-  const metaInput = safeObj(src.meta);
-  const diagnostics = safeObj(src.diagnostics || metaInput.diagnostics);
-  const replySignature = safeStr(src.replySignature || metaInput.replySignature || hashText(reply));
-  const turnId = safeStr(src.turnId || metaInput.turnId || memoryPatch.turnId || "");
-  const spokenText = safeStr((src.speech && src.speech.textSpeak) || src.spokenText || reply);
-  const marionFinalSignature = buildFinalSignature({ reply, turnId, replySignature, bridgeVersion: metaInput.bridgeVersion || src.bridgeVersion, composerVersion: metaInput.composerVersion || src.composerVersion });
+function extractResolvedEmotion(input = {}) {
+  const memoryPatch = safeObj(input.memoryPatch);
+  const sessionPatch = safeObj(input.sessionPatch);
+  const packet = safeObj(input.packet);
+  return safeObj(
+    input.resolvedEmotion ||
+    input.emotionState ||
+    input.lastEmotionState ||
+    input.emotionalState ||
+    input.emotionRuntime && safeObj(input.emotionRuntime).state ||
+    memoryPatch.resolvedEmotion ||
+    memoryPatch.emotionState ||
+    memoryPatch.lastEmotionState ||
+    sessionPatch.resolvedEmotion ||
+    sessionPatch.emotionState ||
+    safeObj(packet.memoryPatch).resolvedEmotion ||
+    {}
+  );
+}
 
+function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage }) {
   return {
     ok: !!reply,
     final: true,
@@ -83,36 +109,227 @@ function createMarionFinalEnvelope(input = {}) {
     requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
     contractVersion: CONTRACT_VERSION,
     envelopeVersion: VERSION,
-    envelopeId: makeId("marion_final"),
-    createdAt: nowIso(),
-    reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText,
+    envelopeId,
+    createdAt,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    spokenText,
     intent: routing.intent,
     domain: routing.domain,
-    stateStage: safeStr(src.stateStage || memoryPatch.stateStage || memoryPatch.stage || "final") || "final",
+    stateStage,
+    replySignature
+  };
+}
+
+function createMarionFinalEnvelope(input = {}) {
+  const src = safeObj(input);
+  const reply = extractReply(src);
+  const routing = normalizeRouting(src);
+  const memoryPatch = safeObj(src.memoryPatch);
+  const sessionPatch = safeObj(src.sessionPatch || src.memoryPatch);
+  const metaInput = safeObj(src.meta);
+  const diagnostics = safeObj(src.diagnostics || metaInput.diagnostics);
+  const resolvedEmotion = extractResolvedEmotion(src);
+  const emotionSummary = safeObj(src.emotionSummary || safeObj(src.emotionRuntime).summary || {});
+  const replySignature = safeStr(src.replySignature || metaInput.replySignature || memoryPatch.replySignature || hashText(reply));
+  const turnId = safeStr(src.turnId || metaInput.turnId || memoryPatch.turnId || "");
+  const spokenText = safeStr(safeObj(src.speech).textSpeak || src.spokenText || reply);
+  const stateStage = safeStr(src.stateStage || memoryPatch.stateStage || memoryPatch.stage || "final") || "final";
+  const envelopeId = makeId("marion_final");
+  const createdAt = nowIso();
+  const marionFinalSignature = buildFinalSignature({
+    reply,
+    turnId,
+    replySignature,
+    bridgeVersion: metaInput.bridgeVersion || src.bridgeVersion,
+    composerVersion: metaInput.composerVersion || src.composerVersion
+  });
+  const core = buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage });
+
+  const finalEnvelope = {
+    ...core,
+    memoryPatch,
+    sessionPatch,
+    resolvedEmotion,
+    emotionSummary,
+    meta: {
+      freshMarionFinal: true,
+      singleFinalAuthority: true,
+      contractVersion: CONTRACT_VERSION,
+      envelopeVersion: VERSION,
+      source: SOURCE,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers: FINAL_MARKERS.slice(),
+      turnId,
+      replySignature
+    }
+  };
+
+  return {
+    ...core,
     routing,
     memoryPatch,
-    payload: { reply, text: reply, message: reply, spokenText, final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, signature: FINAL_SIGNATURE, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE },
-    packet: {
-      final: true, marionFinal: true, handled: true, routing,
-      synthesis: { reply, text: reply, answer: reply, output: reply, spokenText, final: true, marionFinal: true, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE },
+    sessionPatch,
+    resolvedEmotion,
+    emotionSummary,
+    finalEnvelope,
+    payload: {
+      reply,
+      text: reply,
+      message: reply,
+      spokenText,
+      final: true,
+      marionFinal: true,
+      handled: true,
+      contractVersion: CONTRACT_VERSION,
+      signature: FINAL_SIGNATURE,
+      marionFinalSignature,
+      finalSignature: marionFinalSignature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalEnvelope,
       memoryPatch,
-      meta: { final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice() }
+      sessionPatch,
+      resolvedEmotion,
+      emotionSummary
     },
-    speech: { enabled: !(src.speech && src.speech.enabled === false), silent: !!(src.speech && src.speech.silent), silentAudio: !!(src.speech && src.speech.silentAudio), textDisplay: reply, textSpeak: spokenText, presenceProfile: safeStr((src.speech && src.speech.presenceProfile) || src.presenceProfile || "receptive"), nyxStateHint: safeStr((src.speech && src.speech.nyxStateHint) || src.nyxStateHint || "receptive") },
-    meta: { ...metaInput, freshMarionFinal: true, singleFinalAuthority: true, bridgeCompatible: true, widgetCompatible: true, ttsCompatible: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, finalMarkers: FINAL_MARKERS.slice(), source: SOURCE, replySignature, turnId, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, signature: marionFinalSignature, marionFinalSignature, finalEnvelopeAuthority: VERSION, diagnostics },
-    diagnostics: { ...diagnostics, finalEnvelopeVersion: VERSION, contractVersion: CONTRACT_VERSION, freshMarionFinal: true, singleFinalAuthority: true, replyPresent: !!reply }
+    packet: {
+      final: true,
+      marionFinal: true,
+      handled: true,
+      routing,
+      synthesis: {
+        reply,
+        text: reply,
+        answer: reply,
+        output: reply,
+        spokenText,
+        final: true,
+        marionFinal: true,
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE
+      },
+      memoryPatch,
+      sessionPatch,
+      resolvedEmotion,
+      emotionSummary,
+      meta: {
+        final: true,
+        marionFinal: true,
+        handled: true,
+        contractVersion: CONTRACT_VERSION,
+        envelopeVersion: VERSION,
+        signature: marionFinalSignature,
+        marionFinalSignature,
+        requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+        finalMarkers: FINAL_MARKERS.slice(),
+        freshMarionFinal: true,
+        singleFinalAuthority: true,
+        replySignature,
+        turnId
+      }
+    },
+    speech: {
+      enabled: !(src.speech && src.speech.enabled === false),
+      silent: !!(src.speech && src.speech.silent),
+      silentAudio: !!(src.speech && src.speech.silentAudio),
+      textDisplay: reply,
+      textSpeak: spokenText,
+      presenceProfile: safeStr(safeObj(src.speech).presenceProfile || src.presenceProfile || "receptive"),
+      nyxStateHint: safeStr(safeObj(src.speech).nyxStateHint || src.nyxStateHint || "receptive"),
+      timingProfile: safeObj(safeObj(src.speech).timingProfile || safeObj(safeObj(resolvedEmotion).support).timing_profile)
+    },
+    meta: {
+      ...metaInput,
+      freshMarionFinal: true,
+      singleFinalAuthority: true,
+      bridgeCompatible: true,
+      widgetCompatible: true,
+      ttsCompatible: true,
+      stateSpineCompatible: true,
+      contractVersion: CONTRACT_VERSION,
+      envelopeVersion: VERSION,
+      finalMarkers: FINAL_MARKERS.slice(),
+      source: SOURCE,
+      replySignature,
+      turnId,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      signature: marionFinalSignature,
+      marionFinalSignature,
+      finalEnvelopeAuthority: VERSION,
+      resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length,
+      diagnostics
+    },
+    diagnostics: {
+      ...diagnostics,
+      finalEnvelopeVersion: VERSION,
+      contractVersion: CONTRACT_VERSION,
+      freshMarionFinal: true,
+      singleFinalAuthority: true,
+      replyPresent: !!reply,
+      nestedFinalEnvelopePresent: true,
+      memoryPatchPresent: !!Object.keys(memoryPatch).length,
+      sessionPatchPresent: !!Object.keys(sessionPatch).length,
+      resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length
+    }
   };
 }
 
 function createMarionErrorEnvelope(input = {}) {
   const reply = safeStr(input.reply || input.message || "Marion could not produce a valid final response.");
-  return createMarionFinalEnvelope({ ...safeObj(input), reply, stateStage: safeStr(input.stateStage || "error"), speech: { enabled: false, silent: true, silentAudio: true }, meta: { ...safeObj(input.meta), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") }, diagnostics: { ...safeObj(input.diagnostics), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") } });
+  return createMarionFinalEnvelope({
+    ...safeObj(input),
+    reply,
+    stateStage: safeStr(input.stateStage || "error"),
+    speech: { enabled: false, silent: true, silentAudio: true },
+    meta: { ...safeObj(input.meta), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") },
+    diagnostics: { ...safeObj(input.diagnostics), error: safeStr(input.code || input.error || "MARION_FINAL_ERROR"), detail: safeStr(input.detail || "") }
+  });
 }
 
 function isMarionFinalEnvelope(value) {
-  return !!(isObj(value) && value.final === true && value.marionFinal === true && value.handled === true && value.source === SOURCE && value.signature === FINAL_SIGNATURE && value.contractVersion === CONTRACT_VERSION && typeof value.reply === "string" && !!safeStr(value.reply));
+  const v = safeObj(value);
+  const nested = safeObj(v.finalEnvelope);
+  const target = Object.keys(nested).length ? nested : v;
+  return !!(
+    isObj(target) &&
+    target.final === true &&
+    target.marionFinal === true &&
+    target.handled === true &&
+    target.source === SOURCE &&
+    target.signature === FINAL_SIGNATURE &&
+    target.contractVersion === CONTRACT_VERSION &&
+    typeof target.reply === "string" &&
+    !!safeStr(target.reply)
+  );
 }
 
-function unwrapReply(value) { return isMarionFinalEnvelope(value) ? value.reply : extractReply(value); }
+function unwrapReply(value) {
+  const v = safeObj(value);
+  if (isMarionFinalEnvelope(v)) return safeStr(safeObj(v.finalEnvelope).reply || v.reply);
+  return extractReply(value);
+}
 
-module.exports = { VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply };
+module.exports = {
+  VERSION,
+  CONTRACT_VERSION,
+  FINAL_SIGNATURE,
+  SOURCE,
+  REQUIRED_CHAT_ENGINE_SIGNATURE,
+  MARION_FINAL_SIGNATURE_PREFIX,
+  STATE_SPINE_SCHEMA,
+  STATE_SPINE_SCHEMA_COMPAT,
+  FINAL_MARKERS,
+  buildFinalSignature,
+  createMarionFinalEnvelope,
+  createMarionErrorEnvelope,
+  isMarionFinalEnvelope,
+  unwrapReply,
+  _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray }
+};
