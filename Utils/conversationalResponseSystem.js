@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "conversationalResponseSystem v2.6.0 MARION-AUTHORITY-LOCK + FAST-PATH-GREETING-COMMAND-HARDENED-CONTINUITY-LOOP-GUARD";
+const VERSION = "conversationalResponseSystem v2.6.1 MARION-FINAL-LOOP-HARDLOCK + TECHNICAL-RECOVERY";
 const DEBUG_TAG = "[MARION] conversationalResponseSystem patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -37,6 +37,50 @@ const GREETING_ONLY_RE = /^(?:hi|hello|hey|yo|sup|good\s+(?:morning|afternoon|ev
 const THANKS_ONLY_RE = /^(?:thanks|thank you|thx|ty)(?:\s+(?:nyx|nix|vera))?(?:[\s,!?.]|$)+$/i;
 const SHORT_ACK_RE = /^(?:ok(?:ay)?|cool|nice|great|perfect|sounds good|all right|alright)(?:[\s,!?.]|$)+$/i;
 const ACTION_LEAD_RE = /^(?:please\s+)?(?:help|show|tell|give|make|write|build|open|fix|update|check|find|explain|break\s+down|walk\s+me\s+through|summarize)\b/i;
+
+const TECHNICAL_REQUEST_RE = /\b(?:technical|test|testing|debug|debugging|loop|looping|fallback|marion|bridge|chat\s*engine|state\s*spine|support\s*response|composer|compose|packet|envelope|transport|socket|session|json|sanit(?:ize|ation)|route|backend|frontend|api|runtime|function|script|file|code|bug|error|patch|fix|audit|autopsy)\b/i;
+const LOOP_FINAL_BLOCK_PATTERNS = Object.freeze([
+  /\bi\s+am\s+here\s+with\s+you\b/i,
+  /\bi['’]?m\s+here\s+with\s+you\b/i,
+  /\bi\s+am\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bi['’]?m\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bwe\s+can\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\blet['’]?s\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\btell\s+me\s+the\s+next\s+piece\s+and\s+i\s+will\s+stay\s+with\s+it\b/i,
+  /\bgive\s+me\s+a\s+little\s+more,\s+and\s+i\s+will\s+help\s+tighten\s+the\s+next\s+move\b/i
+]);
+
+function wantsTechnicalRecovery(context) {
+  return TECHNICAL_REQUEST_RE.test(safeStr(context?.userInput?.text || context?.userInput?.raw || ""));
+}
+
+function isLoopFallbackText(value) {
+  const text = safeStr(value).replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  return LOOP_FINAL_BLOCK_PATTERNS.some((rx) => rx.test(text));
+}
+
+function buildTechnicalRecoveryReply(context) {
+  const subject = firstNonEmpty(context?.userInput?.text, "this turn");
+  if (wantsTechnicalRecovery(context)) {
+    return "Technical response: Marion received the turn, but the final resolver attempted to surface a generic support fallback instead of a specific answer. I blocked that loop phrase at the response-contract boundary. Next fix target: trace the upstream candidate that supplied the fallback and keep support acknowledgements as metadata, not final reply text.";
+  }
+  if (context?.userInput?.actionLead) return buildActionFallback(context);
+  if (context?.continuity?.lastTopics?.length) {
+    return `I have the active thread on ${context.continuity.lastTopics.slice(0, 3).join(", ")}. Name the exact piece you want handled next.`;
+  }
+  return `I have the thread for ${subject}. Give me the exact point you want handled next.`;
+}
+
+function finalizeResolvedReply(reply, context, source) {
+  const cleaned = sanitizeUserFacingReply(reply);
+  if (!cleaned || /^done\.?$/i.test(cleaned) || isInternalBlockerText(cleaned)) return "";
+  if (isLoopFallbackText(cleaned)) return buildTechnicalRecoveryReply(context);
+  if (wantsTechnicalRecovery(context) && /^(?:ok(?:ay)?|got it|sure|alright|all right)[.! ]*$/i.test(cleaned)) {
+    return buildTechnicalRecoveryReply(context);
+  }
+  return cleaned;
+}
 
 function isInternalBlockerText(value) {
   const text = safeStr(value).trim();
@@ -274,9 +318,9 @@ function inferState(domain, emotion, requestedMode, supportMode, userInput) {
 }
 
 function buildGreetingReply(context) {
-  if (context.userInput.thanksOnly) return "You’re welcome. I’m here. What do you want to tackle next?";
+  if (context.userInput.thanksOnly) return "You’re welcome. I’m online and ready. What do you want to tackle next?";
   if (context.userInput.ackOnly) return "All right. Give me the next move when you’re ready.";
-  return "Hey. I’m here with you. What do you want to do?";
+  return "Hey. I’m online and ready. What do you want to do?";
 }
 
 function buildActionFallback(context) {
@@ -303,6 +347,9 @@ function buildLoopGuardReply(context) {
 }
 
 function buildFallbackReply(context) {
+  if (wantsTechnicalRecovery(context)) {
+    return buildTechnicalRecoveryReply(context);
+  }
   if (context.userInput.greetingOnly || context.userInput.thanksOnly || context.userInput.ackOnly) {
     return buildGreetingReply(context);
   }
@@ -311,17 +358,17 @@ function buildFallbackReply(context) {
   }
   if (context.domain === "psychology") {
     if (context.emotion.supportFlags.highDistress || context.emotion.intensity >= 0.8) {
-      return "I am here with you. We can take this one step at a time. What feels heaviest right now?";
+      return "I have the thread. We can keep this small and concrete. What feels heaviest right now?";
     }
     if (["depressed","sad","sadness","grief","loneliness"].includes(context.emotion.primaryEmotion)) {
       return "I hear the weight in that. You do not have to carry the whole thing at once. What has been sitting on you the most?";
     }
     if (["anxious","anxiety","fear","panic","overwhelmed"].includes(context.emotion.primaryEmotion)) {
-      return "I am with you. Let us slow this down and take the most urgent part first. What feels hardest right now?";
+      return "I have the thread. Let us slow this down and take the most urgent part first. What feels hardest right now?";
     }
-    return "I am with you. Tell me what feels most important right now.";
+    return "I have the thread. Tell me what feels most important right now.";
   }
-  return "I am with you. Give me a little more, and I will help tighten the next move.";
+  return "I have the thread. Give me one concrete detail, and I will tighten the next move.";
 }
 
 function domainPlaceholder(domain, state) {
@@ -380,8 +427,8 @@ function buildEmotionalTurn(context, state) {
 }
 
 function resolveReply(result, packet, context) {
-  const authoritativeReply = sanitizeUserFacingReply(context?.authoritativeReply || "");
-  if (authoritativeReply && !/^done\.?$/i.test(authoritativeReply) && !isInternalBlockerText(authoritativeReply)) {
+  const authoritativeReply = finalizeResolvedReply(context?.authoritativeReply || "", context, "authoritative");
+  if (authoritativeReply) {
     return authoritativeReply;
   }
 
@@ -412,16 +459,16 @@ function resolveReply(result, packet, context) {
     packet?.response,
     result?.interpretation
   );
-  const cleaned = sanitizeUserFacingReply(emotionalCandidate);
-  if (cleaned && !/^done\.?$/i.test(cleaned) && !isInternalBlockerText(cleaned)) return cleaned;
+  const cleaned = finalizeResolvedReply(emotionalCandidate, context, "candidate");
+  if (cleaned) return cleaned;
   if (context?.marionAuthorityLock || shouldBlockFallback(result, packet, context)) {
-    return buildLoopGuardReply(context);
+    return finalizeResolvedReply(buildLoopGuardReply(context), context, "loop_guard") || buildTechnicalRecoveryReply(context);
   }
   const fallback = buildFallbackReply(context);
   if (countRecentReplyRepeats(context, fallback) > 0) {
-    return buildLoopGuardReply(context);
+    return finalizeResolvedReply(buildLoopGuardReply(context), context, "repeat_guard") || buildTechnicalRecoveryReply(context);
   }
-  return fallback;
+  return finalizeResolvedReply(fallback, context, "fallback") || buildTechnicalRecoveryReply(context);
 }
 
 function resolveFollowUps(result, packet, reply, context) {
@@ -483,6 +530,8 @@ function buildResponseContract(result = {}, packet = {}) {
       continuityDepth: context.continuity.depthLevel,
       threadContinuation: !!context.continuity.threadContinuation,
       marionAuthorityLock: !!context.marionAuthorityLock,
+      finalLoopHardlock: true,
+      technicalRecoveryEligible: wantsTechnicalRecovery(context),
       replyAuthority: context.marionAuthorityLock && context.authoritativeReply ? "marion_locked" : (reply === buildLoopGuardReply(context) ? "loop_guard" : "resolved")
     },
     continuityState: context.continuity
