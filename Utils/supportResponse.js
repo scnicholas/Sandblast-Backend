@@ -5,14 +5,63 @@
  * Deterministic supportive response generator with continuity-aware response shaping.
  */
 
-const VERSION = "supportResponse v2.3.0 STATE-SPINE-COHESION-LOOP-SAFE";
+const VERSION = "supportResponse v2.3.1 STATE-SPINE-COHESION-FINAL-LOOP-HARDLOCK";
 
 
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
-const BLOCKED_LOOPING_SUPPORT_PATTERNS = Object.freeze([/\bi am here with you\b/i,/\bi['’]?m here with you\b/i,/\bwe can take this one step at a time\b/i,/\bi can stay with this clearly\b/i]);
+const BLOCKED_LOOPING_SUPPORT_PATTERNS = Object.freeze([
+  /\bi\s+am\s+here\s+with\s+you\b/i,
+  /\bi['’]?m\s+here\s+with\s+you\b/i,
+  /\bi\s+am\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bi['’]?m\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bwe\s+can\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\blet['’]?s\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\bi\s+can\s+stay\s+with\s+this\s+clearly\b/i,
+  /\btell\s+me\s+the\s+next\s+piece\s+and\s+i\s+will\s+stay\s+with\b/i
+]);
+
 function getStateSpine(input) { const src = isPlainObject(input) ? input : {}; const prev = isPlainObject(src.previousMemory) ? src.previousMemory : {}; const session = isPlainObject(src.session) ? src.session : {}; return isPlainObject(src.stateSpine) ? src.stateSpine : isPlainObject(src.conversationState) ? src.conversationState : isPlainObject(prev.stateSpine) ? prev.stateSpine : isPlainObject(prev.conversationState) ? prev.conversationState : isPlainObject(session.stateSpine) ? session.stateSpine : {}; }
 function hasStateSpineLoopPressure(input) { const spine = getStateSpine(input); const rep = isPlainObject(spine.repetition) ? spine.repetition : {}; const support = isPlainObject(spine.support) ? spine.support : {}; return !!(spine.progressionLock || support.lockActive || Number(rep.noProgressCount || 0) >= 2 || Number(rep.sameAssistantHashCount || 0) >= 2); }
-function scrubLoopPhrases(reply, input) { let text = oneLine(reply); if (!text) return ""; const loopPressure = hasStateSpineLoopPressure(input); if (!loopPressure && !BLOCKED_LOOPING_SUPPORT_PATTERNS.some((rx) => rx.test(text))) return text; text = text.replace(/\bI am here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bI'm here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bI’m here with you\.?(\s*)/ig, "I have the thread. ").replace(/\bWe can take this one step at a time\.?(\s*)/ig, "We can keep the next move small and concrete. ").replace(/\bI can stay with this clearly\.?(\s*)/ig, "I can keep this clear. ").replace(/\s+/g, " ").trim(); if (loopPressure && BLOCKED_LOOPING_SUPPORT_PATTERNS.some((rx) => rx.test(text))) { return looksTechnicalRequest(input && input.text) ? "I have the technical thread. I will keep the next move tight, concrete, and execution-first." : "I have the thread. We can keep the next move small, clear, and grounded."; } return text; }
+
+function hasBlockedLoopPhrase(value) {
+  const text = oneLine(value);
+  if (!text) return false;
+  return BLOCKED_LOOPING_SUPPORT_PATTERNS.some((rx) => rx.test(text));
+}
+
+function scrubLoopPhrases(reply, input) {
+  let text = oneLine(reply);
+  if (!text) return "";
+  const loopPressure = hasStateSpineLoopPressure(input);
+  if (!loopPressure && !hasBlockedLoopPhrase(text)) return text;
+  text = text
+    .replace(/\bI\s+am\s+here\s+with\s+you\.?(\s*)/ig, "I have the thread. ")
+    .replace(/\bI'm\s+here\s+with\s+you\.?(\s*)/ig, "I have the thread. ")
+    .replace(/\bI’m\s+here\s+with\s+you\.?(\s*)/ig, "I have the thread. ")
+    .replace(/\bI\s+am\s+here\.\s*What['’]?s\s+next\??/ig, "I have the thread. Give me the next concrete move.")
+    .replace(/\bI'm\s+here\.\s*What['’]?s\s+next\??/ig, "I have the thread. Give me the next concrete move.")
+    .replace(/\bI’m\s+here\.\s*What['’]?s\s+next\??/ig, "I have the thread. Give me the next concrete move.")
+    .replace(/\bWe\s+can\s+take\s+this\s+one\s+step\s+at\s+a\s+time\.?(\s*)/ig, "We can keep the next move small and concrete. ")
+    .replace(/\bLet['’]?s\s+take\s+this\s+one\s+step\s+at\s+a\s+time\.?(\s*)/ig, "Let us keep the next move small and concrete. ")
+    .replace(/\bI\s+can\s+stay\s+with\s+this\s+clearly\.?(\s*)/ig, "I can keep this clear. ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (hasBlockedLoopPhrase(text)) {
+    return looksTechnicalRequest(input && input.text)
+      ? "Technical response: I blocked the generic support fallback and kept this in the execution lane."
+      : "I have the thread. We can keep the next move small, clear, and grounded.";
+  }
+  return text;
+}
+
+function finalizeSupportReply(reply, input) {
+  let text = scrubLoopPhrases(reply, input);
+  if (!text) return "";
+  if (looksTechnicalRequest(input && input.text) && hasBlockedLoopPhrase(text)) {
+    return "Technical response: support fallback was blocked before final emission. Keep the turn specific and execution-first.";
+  }
+  return text;
+}
 
 const DEFAULT_CONFIG = {
   includeDisclaimerOnSoft: false,
@@ -225,7 +274,7 @@ function buildQuestion(emo, seed, budget) {
       "What is the cleanest next piece to look at?"
     ], `${seed}|clarify|q`);
   }
-  return "Tell me the next piece, and I will stay with the real thread.";
+  return "Give me the next concrete piece, and I will keep the real thread clear.";
 }
 
 function buildOpening(emo, seed) {
@@ -233,7 +282,7 @@ function buildOpening(emo, seed) {
   if (["depressed", "sadness", "grief", "loneliness"].includes(primary)) {
     return pick([
       "I have the thread.",
-      "I am with you in this.",
+      "I have the thread.",
       "You do not have to carry this alone for this moment."
     ], `${seed}|sad|open`);
   }
@@ -242,7 +291,7 @@ function buildOpening(emo, seed) {
   }
   if (["shame", "guilt"].includes(primary)) {
     return pick([
-      "I am here, and I am not meeting this with judgment.",
+      "I have the thread, and I am not meeting this with judgment.",
       "You are allowed to bring this here without getting shamed for it.",
       "We can look at this carefully without turning it into punishment."
     ], `${seed}|repair|open`);
@@ -260,85 +309,86 @@ function buildOpening(emo, seed) {
 function buildSupportReply(input = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...(isPlainObject(input.config) ? input.config : {}) };
   const text = oneLine(input.text || "");
+  const emit = (reply) => finalizeSupportReply(reply, { ...input, text });
   const emo = normalizeEmotion(input);
   const audioFailure = normalizeAudioFailure(input);
   const seed = `${text}|${emo.primaryEmotion || "neutral"}|${emo.intensity || 0}|${emo.routeBias || "maintain"}`;
   const questionBudget = deriveQuestionBudget(cfg, emo, text);
 
   if (looksGreeting(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm", "shame", "guilt"])) {
-    return "Hey. I am here and ready. Tell me what you want to explore, fix, or understand.";
+    return emit("Hey. I am online and ready. Tell me what you want to explore, fix, or understand.");
   }
 
   if (looksHowAreYou(text) && !emotionAny(emo, ["depressed", "sadness", "grief", "loneliness", "anxiety", "fear", "panic", "overwhelm", "shame", "guilt"])) {
-    return "I am steady and ready to help. What do you want to get into first?";
+    return emit("I am steady and ready to help. What do you want to get into first?");
   }
 
   if (looksTechnicalRequest(text)) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       emo?.nuanceProfile?.loopRisk === "high"
         ? "I have the technical thread, and I am not going to re-enter a support loop on it."
         : "I have the technical thread.",
       "I will keep the next move tight, concrete, and execution-first."
-    ]);
+    ]));
   }
 
   if (emo.supportFlags?.crisis || emo.escalation_required === true || emo?.guard?.escalation_required === true) {
     return cfg.keepCrisisShort
-      ? "I am here with you. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988."
-      : "I am here with you. Your safety matters more than solving this conversation cleanly. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988.";
+      ? "Safety first. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988."
+      : "Your safety matters more than solving this conversation cleanly. If you are in immediate danger or might hurt yourself, call your local emergency number right now. In Canada or the United States you can also call or text 988.";
   }
 
   if (emotionAny(emo, ["depressed", "sadness", "grief", "loneliness"]) || /\b(depressed|hopeless|empty|numb|sad|grief|lonely)\b/i.test(text)) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       buildOpening(emo, seed),
       buildContainmentLine(emo, seed),
       buildQuestion(emo, seed, questionBudget)
-    ]);
+    ]));
   }
 
   if (emotionAny(emo, ["anxiety", "fear", "panic", "overwhelm"])) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       buildOpening(emo, seed),
       buildContainmentLine(emo, seed),
       buildQuestion(emo, seed, questionBudget)
-    ]);
+    ]));
   }
 
   if (emotionAny(emo, ["shame", "guilt"])) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       buildOpening(emo, seed),
       buildContainmentLine(emo, seed),
       buildQuestion(emo, seed, questionBudget)
-    ]);
+    ]));
   }
 
   if (emotionAny(emo, ["joy", "gratitude", "relief", "excitement", "hope"])) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       buildOpening(emo, seed),
       buildQuestion(emo, seed, questionBudget)
-    ]);
+    ]));
   }
 
   if (looksNeutralInformational(text)) {
-    return joinSentences([
+    return emit(joinSentences([
       buildAudioFailureLine(audioFailure, seed),
       emo?.routeBias === "clarify"
         ? "I have the thread. Give me one clean beat more, and I will answer directly without flattening the conversation."
         : "I have the thread, and I can answer this directly once you give me one more clean piece of context."
-    ]);
+    ]));
   }
 
-  return joinSentences([
+  return emit(joinSentences([
     buildAudioFailureLine(audioFailure, seed),
     buildOpening(emo, seed),
     buildContainmentLine(emo, seed),
     buildQuestion(emo, seed, questionBudget)
-  ]);
+  ]));
 }
 
 module.exports = {
@@ -348,5 +398,7 @@ module.exports = {
   getSupportReply: buildSupportReply,
   default: buildSupportReply,
   normalizeAudioFailure,
-  normalizeEmotion
+  normalizeEmotion,
+  scrubLoopPhrases,
+  finalizeSupportReply
 };
