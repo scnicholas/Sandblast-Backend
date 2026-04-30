@@ -23,7 +23,7 @@
  * ✅ Preserves existing widget structure + bridge contract + sessionPatch routing + FAIL-OPEN
  */
 
-const MARION_VERSION = "marionSO v1.5.2-non-authoritative-no-final-reply-surface";
+const MARION_VERSION = "marionSO v1.5.3-non-authoritative-ack-is-metadata-loop-safe";
 const MARION_PIPELINE_SCHEMA = "nyx.marion.core/1.4";
 const PHASE15_PLAN = Object.freeze([
   "P4: Distress-first routing (STABILIZE short-circuit + safer tone + bounded grounding)",
@@ -129,6 +129,33 @@ function safeStr(x, max = 200) {
   if (x === null || x === undefined) return "";
   const s = String(x);
   return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+const LOOP_UNSAFE_TEXT_PATTERNS = Object.freeze([
+  /\bi\s+am\s+here\s+with\s+you\b/i,
+  /\bi['’]?m\s+here\s+with\s+you\b/i,
+  /\bi\s+am\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bi['’]?m\s+here\.\s*what['’]?s\s+next\??/i,
+  /\bwe\s+can\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\blet['’]?s\s+take\s+this\s+one\s+step\s+at\s+a\s+time\b/i,
+  /\btell\s+me\s+the\s+next\s+piece\s+and\s+i\s+will\s+stay\s+with\s+it\b/i
+]);
+
+function scrubNonAuthoritativeSurfaceText(value, max = 240) {
+  let text = safeStr(value, max).replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  text = text
+    .replace(/\bI\s+am\s+here\s+with\s+you\.?/ig, "I have the thread.")
+    .replace(/\bI['’]?m\s+here\s+with\s+you\.?/ig, "I have the thread.")
+    .replace(/\bWe\s+can\s+take\s+this\s+one\s+step\s+at\s+a\s+time\.?/ig, "We can keep the next move small and concrete.")
+    .replace(/\bLet['’]?s\s+take\s+this\s+one\s+step\s+at\s+a\s+time\.?/ig, "Let us keep the next move small and concrete.")
+    .replace(/\bTell\s+me\s+the\s+next\s+piece\s+and\s+I\s+will\s+stay\s+with\s+it\.?/ig, "Give me the next concrete piece and I will keep it clear.")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (LOOP_UNSAFE_TEXT_PATTERNS.some((rx) => rx.test(text))) {
+    return "I have the thread. Give me the next concrete piece and I will keep it clear.";
+  }
+  return safeStr(text, max);
 }
 function isPlainObject(x) {
   return (
@@ -2576,8 +2603,8 @@ function finalizeContract(cog, nowMs, extra) {
     // NEW: canonical bridge output
     bridge: bridge || { enabled: false, reason: "none" },
     emissionReady: c.emissionReady !== false,
-    replySeed: safeStr(c.replySeed || c.fallbackResponse || "", 240),
-    fallbackResponse: safeStr(c.fallbackResponse || c.replySeed || "", 240),
+    replySeed: scrubNonAuthoritativeSurfaceText(c.replySeed || c.fallbackResponse || "", 240),
+    fallbackResponse: scrubNonAuthoritativeSurfaceText(c.fallbackResponse || c.replySeed || "", 240),
     emotionCarry: safeStr(c.emotionCarry || c.emotionalState || c.currentEmotion || "", 40),
     emissionPolicy: isPlainObject(c.emissionPolicy)
       ? {
@@ -3078,7 +3105,7 @@ let suppressOperationalTone = false;
 
 // High-sensitivity turns
 if (intent === "STABILIZE" || riskTier === "high" || selfHarmTag) {
-  ackText = "I’m here with you. Let’s take this one step at a time.";
+  ackText = "I have the thread. Let us keep the next move small and concrete.";
   suppressOperationalTone = true;
 } else if (riskTier === "medium" || distressTag || reg === PSYCH.REG.STRAINED || tension > 0.55) {
   ackText = "Okay — I hear you.";
@@ -4276,8 +4303,8 @@ try {
       textEmpty: false,
       groundingMaxLines: 0,
       bridge: { enabled: false, reason: "fail_open" },
-      replySeed: "I am here with you. Tell me the next piece and I will stay with it.",
-      fallbackResponse: "I am here with you. Tell me the next piece and I will stay with it.",
+      replySeed: "I have the thread. Give me the next concrete piece and I will keep it clear.",
+      fallbackResponse: "I have the thread. Give me the next concrete piece and I will keep it clear.",
       emotionCarry: "regulated",
       // NEW router defaults
       effectiveLane: "general",
