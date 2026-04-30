@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.5 COORDINATOR-ONLY-STRICT-TRUSTED-FINAL-EMIT-GATE";
+const VERSION = "ChatEngine v3.6.6 COORDINATOR-ONLY-FINAL-LOOP-HARDLOCK";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -212,9 +212,7 @@ const ROGUE_FALLBACK_REPLY_PATTERNS = Object.freeze([
   /\bi need one specific command to continue (clearly|cleanly)\b/i,
   /\bsend a specific command\b/i,
   /\bpress reset to clear this session\b/i,
-  /\bready\.\s*send your next message\b/i,
-  /\bready\.\s*send the next instruction\b/i,
-  /\bready\.\s*send the specific file\b/i,
+  /\bready\.\s*send (your next message|the next instruction|the specific file)\b/i,
   /\bi blocked a repeated fallback from the bridge\b/i,
   /\bnyx is connected\.\s*what would you like to do next\b/i,
   /\bi am here with you\b/i,
@@ -225,16 +223,15 @@ const ROGUE_FALLBACK_REPLY_PATTERNS = Object.freeze([
   /\bi am here and tracking the turn\b/i,
   /\bgive me the next clear target\b/i,
   /\bnyx is live and tracking the turn\b/i,
-  /\bi[’\']?m here\.? what[’\']?s next\b/i,
-  /\bi am here\.? what[’\']?s next\b/i,
-  /\bi[’\']?m holding the thread\b/i,
-  /\btell me what continuity point\b/i,
-  /\btechnical path confirmed\b/i,
-  /\bi[’\']?ll inspect the route output\b/i,
-  /\bcomposer reply\b/i,
-  /\bfinal envelope\b/i,
-  /\bbridge return shape\b/i,
-  /\bstate spine mutation\b/i,
+  /\bi[’\']?m here\.?\s*what[’\']?s next\b/i,
+  /\bi am here\.?\s*what[’\']?s next\b/i,
+  /\bi[’\']?m online\.?\s*what[’\']?s next\b/i,
+  /\bi am online\.?\s*what[’\']?s next\b/i,
+  /\bi[’\']?m here,?\s*fully online\.?\s*what are we working on\b/i,
+  /\bhi\s*[—-]\s*i[’\']?m here\b/i,
+  /\bfully online\b.*\bwhat are we working on\b/i,
+  /\bi[’\']?m holding the thread\.\s*tell me what continuity point\b/i,
+  /\btechnical path confirmed\.\s*i[’\']?ll inspect the route output, composer reply, final envelope, bridge return shape, and state spine mutation\b/i,
   /\bready for the next test\b/i,
   /\bonline\. send next test\b/i,
   /\bstill connected\. send the next test\b/i
@@ -253,7 +250,7 @@ function isThinPlaceholderText(value) {
   if (!text) return true;
   if (isRogueFallbackText(text)) return true;
   if (text.length < 18) return /^(ready|done|working|ok|okay|yes|no|next|continue|what next|i[’']?m here)$/i.test(text);
-  return /^(i[’']?m here|i am here|still connected|online|ready)\b.*\b(next|test|continue|working on)\b/i.test(text) || /\b(i[’']?ll inspect|i will inspect|i[’']?m holding|i am holding)\b/i.test(text);
+  return /^(i[’']?m here|i am here|i[’']?m online|i am online|still connected|online|ready)\b.*\b(next|test|continue|working on)\b/i.test(text) || /\b(i[’']?ll inspect|i will inspect|i[’']?m holding|i am holding)\b/i.test(text);
 }
 
 function isShortBlockerText(value) {
