@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.2 COORDINATOR-ONLY-TRANSPORT-SAFE-FINALS";
+const VERSION = "ChatEngine v3.6.3 COORDINATOR-ONLY-STRICT-NO-PLACEHOLDER-FINALS";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -208,7 +208,20 @@ const ROGUE_FALLBACK_REPLY_PATTERNS = Object.freeze([
   /\bi[’\']?m here and tracking the turn\b/i,
   /\bi am here and tracking the turn\b/i,
   /\bgive me the next clear target\b/i,
-  /\bnyx is live and tracking the turn\b/i
+  /\bnyx is live and tracking the turn\b/i,
+  /\bi[’\']?m here\.? what[’\']?s next\b/i,
+  /\bi am here\.? what[’\']?s next\b/i,
+  /\bi[’\']?m holding the thread\b/i,
+  /\btell me what continuity point\b/i,
+  /\btechnical path confirmed\b/i,
+  /\bi[’\']?ll inspect the route output\b/i,
+  /\bcomposer reply\b/i,
+  /\bfinal envelope\b/i,
+  /\bbridge return shape\b/i,
+  /\bstate spine mutation\b/i,
+  /\bready for the next test\b/i,
+  /\bonline\. send next test\b/i,
+  /\bstill connected\. send the next test\b/i
 ]);
 
 function isRogueFallbackText(value) {
@@ -217,6 +230,15 @@ function isRogueFallbackText(value) {
   return ROGUE_FALLBACK_REPLY_PATTERNS.some((rx) => rx.test(text));
 }
 
+
+
+function isThinPlaceholderText(value) {
+  const text = cleanText(value);
+  if (!text) return true;
+  if (isRogueFallbackText(text)) return true;
+  if (text.length < 18) return /^(ready|done|working|ok|okay|yes|no|next|continue|what next|i[’']?m here)$/i.test(text);
+  return /^(i[’']?m here|i am here|still connected|online|ready)\b.*\b(next|test|continue|working on)\b/i.test(text) || /\b(i[’']?ll inspect|i will inspect|i[’']?m holding|i am holding)\b/i.test(text);
+}
 
 function isShortBlockerText(value) {
   const text = cleanText(value);
@@ -545,7 +567,7 @@ function extractReplyCandidate(input = {}) {
 function extractFinalReply(input = {}, trust = {}) {
   const candidate = extractReplyCandidate(input);
   if (!candidate.value) return "";
-  if (isRogueFallbackText(candidate.value)) return "";
+  if (isThinPlaceholderText(candidate.value)) return "";
   const envelopeTrusted = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
   const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
 
@@ -1183,6 +1205,7 @@ if (typeof module !== "undefined") {
       buildStructuredFinalReply,
       isInternalBlockerText,
       isRogueFallbackText,
+      isThinPlaceholderText,
       hasRejectedLoopReply,
       hasFinalFailureMarker,
       jsonSafe,
