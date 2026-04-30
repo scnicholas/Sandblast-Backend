@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.3 COORDINATOR-ONLY-STRICT-NO-PLACEHOLDER-FINALS";
+const VERSION = "ChatEngine v3.6.4 COORDINATOR-ONLY-STRICT-NO-PLACEHOLDER-FINALS-NO-UI-FALLBACK-SURFACE";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -156,16 +156,30 @@ function compactSessionPatchForTransport(value = {}) {
 function finalTransportPacket(packet = {}) {
   const out = jsonSafe(packet);
   if (isPlainObject(out)) {
+    const reply = cleanText(out.reply || out.text || out.answer || out.output || out.response || out.message || safeObj(out.payload).reply || safeObj(out.finalEnvelope).reply);
+    const hasReply = !!reply && !isThinPlaceholderText(reply);
     out.ok = out.ok !== false;
-    out.final = out.final === true;
-    out.marionFinal = out.marionFinal === true;
-    out.awaitingMarion = false;
+    out.final = hasReply && out.final === true;
+    out.marionFinal = hasReply && out.marionFinal === true;
+    out.awaitingMarion = !hasReply;
     out.transportSafe = true;
     out.socketReconnect = false;
+    out.suppressUserFacingReply = !hasReply;
+    out.emit = hasReply;
+    out.blocked = !hasReply;
+    if (!hasReply) {
+      out.reply = "";
+      out.text = "";
+      out.answer = "";
+      out.output = "";
+      out.response = "";
+      out.message = "";
+      out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
+    }
     if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
     if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
     if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactSessionPatchForTransport(out.payload.sessionPatch);
-    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch" };
+    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", suppressUserFacingReply: !hasReply, emit: hasReply, blocked: !hasReply };
   }
   return out;
 }
@@ -526,6 +540,13 @@ function extractReplyCandidate(input = {}) {
   const finalEnvelope = extractFinalEnvelope(src);
 
   const candidates = [
+    { value: src.reply, path: "src.reply", diagnostic: false },
+    { value: src.text, path: "src.text", diagnostic: false },
+    { value: src.answer, path: "src.answer", diagnostic: false },
+    { value: src.output, path: "src.output", diagnostic: false },
+    { value: src.response, path: "src.response", diagnostic: false },
+    { value: src.message, path: "src.message", diagnostic: false },
+    { value: src.spokenText, path: "src.spokenText", diagnostic: false },
     { value: finalEnvelope.reply, path: "finalEnvelope.reply", diagnostic: false },
     { value: contract.reply, path: "contract.reply", diagnostic: false },
     { value: contract.text, path: "contract.text", diagnostic: false },
@@ -744,8 +765,8 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
   const domain = extractDomain(input);
   const turnId = extractTurnId(input);
   const userQuery = extractUserText(input);
-  const terminal = !!options.terminal;
-  const awaitingMarion = !terminal;
+  const terminal = false;
+  const awaitingMarion = true;
 
   return {
     ok: false,
@@ -755,6 +776,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
     handled: true,
     terminal,
     awaitingMarion,
+    suppressUserFacingReply: true,
+    emit: false,
+    blocked: true,
     status: terminal ? "terminal_error" : "awaiting_marion",
     reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
     detail: safeObj(detail),
@@ -764,6 +788,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
     answer: "",
     output: "",
     spokenText: "",
+    message: "",
 
     lane,
     laneId: lane,
@@ -780,7 +805,13 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       spokenText: "",
       final: terminal,
       error: true,
-      awaitingMarion
+      awaitingMarion,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true
     },
 
     followUps: [],
@@ -803,6 +834,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       finalReplyAuthority: "marion",
       replyAuthority: "none",
       awaitingMarion,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true,
       terminal,
       turnId,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
@@ -817,6 +851,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       coordinatorOnly: true,
       error: true,
       awaitingMarion,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true,
       terminal,
       reason: cleanText(reason || "marion_final_reply_missing") || "marion_final_reply_missing",
       detail: safeObj(detail)
@@ -999,7 +1036,7 @@ class ChatEngine {
       if (!finalEnvelope || !trustedFinalEnvelope || !reply || rogueFallbackPresent) {
         const reason = classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent: !!reply, rogueFallbackPresent });
         const rejectionCount = this.incrementRejection(turnId);
-        const terminal = rogueFallbackPresent || rejectionCount >= this.config.rejectionThreshold;
+        const terminal = false;
 
         const errorContract = buildBlankErrorContract(reason, {
           finalEnvelope,
