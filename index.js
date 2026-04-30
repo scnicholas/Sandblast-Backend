@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38";
+const INDEX_VERSION = "index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -706,32 +706,110 @@ function isGreetingOnlyTurn(text) {
 function buildIndexSafeTransportReply(norm, reason, extra) {
   const n = isObj(norm) ? norm : {};
   const text = cleanText(n.text || "");
-  const intent = lower((n.marionIntent && n.marionIntent.intent) || n.intentHint || "");
-  const why = lower(reason || (extra && extra.reason) || "");
 
+  // Index is transport/cohesion only. It may return a crisis-safe emergency notice,
+  // but it must not invent technical, greeting, identity, or recovery replies when
+  // Marion fails to produce a trusted final envelope. False-final packets were the
+  // visible source of the widget's "Backend reply unavailable" state.
   if (isHighRiskSupportSignal(null, text)) {
     return "Your safety comes first. If you might hurt yourself or you are in immediate danger, contact emergency services now. In Canada or the United States, call or text 988.";
   }
 
-  if (isTechnicalDebugTurn(text, n) || intent === "technical_debug" || /loop|fallback|final|bridge|compose|chatengine|transport|authority/.test(why)) {
-    return "Technical transport note: the Marion response path rejected a loop-prone or incomplete final reply. The next fix is to verify the active runtime file path, then confirm MarionBridge returns finalEnvelope.reply before the widget renders.";
-  }
-
-  if (isGreetingOnlyTurn(text)) {
-    return "Hi Mac. Nyx is live, and Marion is the response authority behind this turn. Send the next command and I’ll keep the path clean, grounded, and non-looping.";
-  }
-
-  if (/who are you|what are you|identity|marion/.test(lower(text))) {
-    return "I’m Nyx — the live interface for Sandblast. Marion is the deeper response authority behind me, responsible for intent, context, and final-answer shaping.";
-  }
-
-  return "Nyx is live. The previous reply path was incomplete, so I’m holding the output clean instead of recycling a fallback. Send the next command and I’ll route it through Marion again.";
+  return "";
 }
 
 function finalizeRenderableReply(reply, norm, authority, reason) {
   const cleaned = cleanReplyForUser(reply);
   if (cleaned && !isBlockedLoopingSupportReply(cleaned) && !isConversationDiagnosticFallbackReply(cleaned)) return cleaned;
   return buildIndexSafeTransportReply(norm, reason || authority || "reply_sanitized", { blockedReply: cleaned });
+}
+
+function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
+  const n = isObj(norm) ? norm : {};
+  const lane = cleanText(n.lane || "general") || "general";
+  const traceId = cleanText(n.traceId || makeTraceId("chat"));
+  const err = cleanText(error || "conversation_authority_empty") || "conversation_authority_empty";
+  const safeDetail = cleanText(detail || "Marion did not return a trusted final envelope.");
+  const emergencyReply = isHighRiskSupportSignal(null, n.text || "") ? buildIndexSafeTransportReply(n, err, extra) : "";
+  const canEmitEmergency = !!emergencyReply;
+
+  return {
+    ok: canEmitEmergency,
+    final: canEmitEmergency,
+    finalized: canEmitEmergency,
+    handled: true,
+    marionFinal: false,
+    awaitingMarion: !canEmitEmergency,
+    suppressUserFacingReply: !canEmitEmergency,
+    emit: canEmitEmergency,
+    blocked: !canEmitEmergency,
+    error: err,
+    detail: safeDetail,
+    reply: emergencyReply,
+    text: emergencyReply,
+    short: emergencyReply,
+    output: emergencyReply,
+    answer: emergencyReply,
+    response: emergencyReply,
+    finalEnvelope: {
+      reply: emergencyReply,
+      text: emergencyReply,
+      displayReply: emergencyReply,
+      spokenText: emergencyReply,
+      final: canEmitEmergency,
+      marionFinal: false,
+      handled: true,
+      authority: canEmitEmergency ? "index_crisis_safety" : "none",
+      contractVersion: "nyx.marion.final/1.0"
+    },
+    payload: {
+      reply: emergencyReply,
+      text: emergencyReply,
+      message: emergencyReply,
+      spokenText: emergencyReply,
+      final: canEmitEmergency,
+      marionFinal: false,
+      awaitingMarion: !canEmitEmergency,
+      suppressUserFacingReply: !canEmitEmergency,
+      emit: canEmitEmergency,
+      blocked: !canEmitEmergency,
+      error: err
+    },
+    speech: {
+      enabled: canEmitEmergency,
+      silent: !canEmitEmergency,
+      silentAudio: !canEmitEmergency,
+      text: emergencyReply,
+      textDisplay: emergencyReply,
+      textSpeak: emergencyReply,
+      presenceProfile: canEmitEmergency ? "supportive" : "receptive",
+      nyxStateHint: canEmitEmergency ? "supportive" : "receptive"
+    },
+    lane,
+    laneId: lane,
+    sessionLane: lane,
+    marionIntent: n.marionIntent || undefined,
+    marionRouting: n.marionRouting || undefined,
+    traceId,
+    requestId: makeTraceId("req"),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only",
+      transportOnly: true,
+      noSupportDecision: !canEmitEmergency,
+      noEmotionDecision: !canEmitEmergency,
+      noHttp502: true,
+      status: Number(status || 200),
+      falseFinalPurged: true,
+      replyAuthority: canEmitEmergency ? "index_crisis_safety" : "none",
+      semanticAuthority: "marion_required",
+      suppressUserFacingReply: !canEmitEmergency,
+      emit: canEmitEmergency,
+      blocked: !canEmitEmergency,
+      ...(isObj(extra) ? extra : {})
+    }
+  };
 }
 
 function makeTraceId(prefix) {
@@ -779,7 +857,7 @@ function routeUrl(pathname) {
 }
 
 const CFG = {
-  apiTokenHeader: process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token",
+  apiTokenHeader: lower(process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token"),
   apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
   requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
   voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
@@ -2934,9 +3012,19 @@ function readBearerToken(req) {
 }
 
 function readToken(req) {
-  const header = lower(CFG.apiTokenHeader || "x-sb-widget-token");
-  const byHeader = cleanText((req.headers && req.headers[header]) || req.get?.(CFG.apiTokenHeader) || "");
-  if (byHeader) return byHeader;
+  const headers = req && req.headers ? req.headers : {};
+  const configured = lower(CFG.apiTokenHeader || "x-sb-widget-token");
+  const candidates = uniq([
+    configured,
+    "x-sb-widget-token",
+    "x-sbnyx-widget-token",
+    "sb-widget-token",
+    "x-nyx-widget-token"
+  ]);
+  for (const name of candidates) {
+    const value = cleanText(headers[name] || (req.get && req.get(name)) || "");
+    if (value) return value;
+  }
   return readBearerToken(req);
 }
 
@@ -3515,12 +3603,49 @@ function shouldEnterSupportHold(text, emotion, engineResult, opts) {
 
 function normalizeReplyEnvelope(shaped, reply, metaPatch) {
   const out = isObj(shaped) ? { ...shaped } : { ok: true };
-  const finalReply = finalizeRenderableReply(reply || out.reply || out.payload?.reply || "", null, "normalizeReplyEnvelope", "final_render_guard");
+  const finalReply = finalizeRenderableReply(reply || out.reply || out.payload?.reply || "", out, "normalizeReplyEnvelope", "final_render_guard");
+  const canEmit = !!finalReply;
+  out.ok = canEmit && out.ok !== false;
+  out.final = canEmit;
+  out.finalized = canEmit;
+  out.handled = true;
+  out.marionFinal = canEmit && out.marionFinal === true;
+  out.awaitingMarion = !canEmit;
+  out.suppressUserFacingReply = !canEmit;
+  out.emit = canEmit;
+  out.blocked = !canEmit;
   out.reply = finalReply;
   out.text = finalReply;
   out.short = finalReply;
-  out.payload = { ...(isObj(out.payload) ? out.payload : {}), reply: finalReply, text: finalReply, message: finalReply, spokenText: cleanText(out.payload?.spokenText || finalReply) || finalReply, finalized: true };
-  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: true, finalizationGuard: true, indexSemanticAuthority: false, semanticAuthority: "chatEngine_or_marion", indexRole: "transport_orchestrator" });
+  out.answer = finalReply;
+  out.output = finalReply;
+  out.response = finalReply;
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    reply: finalReply,
+    text: finalReply,
+    message: finalReply,
+    spokenText: cleanText(out.payload?.spokenText || finalReply) || finalReply,
+    finalized: canEmit,
+    final: canEmit,
+    marionFinal: canEmit && out.marionFinal === true,
+    awaitingMarion: !canEmit,
+    suppressUserFacingReply: !canEmit,
+    emit: canEmit,
+    blocked: !canEmit
+  };
+  out.finalEnvelope = {
+    ...(isObj(out.finalEnvelope) ? out.finalEnvelope : {}),
+    reply: finalReply,
+    text: finalReply,
+    displayReply: finalReply,
+    spokenText: cleanText(out.finalEnvelope?.spokenText || finalReply) || finalReply,
+    final: canEmit,
+    marionFinal: canEmit && out.marionFinal === true,
+    handled: true,
+    authority: canEmit ? cleanText(out.finalEnvelope?.authority || out.meta?.replyAuthority || "marionFinalEnvelope") : "none"
+  };
+  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: canEmit, finalizationGuard: true, falseFinalPurged: !canEmit, indexSemanticAuthority: false, semanticAuthority: canEmit ? "chatEngine_or_marion" : "marion_required", indexRole: "transport_orchestrator", suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit });
   return out;
 }
 
@@ -6090,65 +6215,8 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
 const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
 
 function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
-  const n = isObj(norm) ? norm : {};
-  const safeDetail = cleanText(detail || "conversation response incomplete");
-  const requestedReply = cleanText((extra && extra.reply) || "");
-  const reply = finalizeRenderableReply(requestedReply, n, "index_safe_error", error || safeDetail);
-  return {
-    ok: false,
-    final: true,
-    handled: true,
-    marionFinal: false,
-    awaitingMarion: false,
-    error: cleanText(error || "conversation_authority_empty") || "conversation_authority_empty",
-    detail: safeDetail,
-    reply,
-    text: reply,
-    short: reply,
-    finalEnvelope: { reply, text: reply, displayReply: reply, spokenText: reply, final: true, marionFinal: false, handled: true },
-    output: reply,
-    answer: reply,
-    response: reply,
-    payload: {
-      reply,
-      text: reply,
-      message: reply,
-      spokenText: reply,
-      final: true,
-      awaitingMarion: false,
-      error: cleanText(error || "conversation_authority_empty") || "conversation_authority_empty"
-    },
-    speech: {
-      enabled: true,
-      silent: false,
-      silentAudio: false,
-      text: reply,
-      textDisplay: reply,
-      textSpeak: reply,
-      presenceProfile: "receptive",
-      nyxStateHint: "receptive"
-    },
-    lane: cleanText(n.lane || "general") || "general",
-    laneId: cleanText(n.lane || "general") || "general",
-    sessionLane: cleanText(n.lane || "general") || "general",
-    marionIntent: n.marionIntent || undefined,
-    marionRouting: n.marionRouting || undefined,
-    traceId: cleanText(n.traceId || makeTraceId("chat")),
-    requestId: makeTraceId("req"),
-    meta: {
-      v: INDEX_VERSION,
-      t: now(),
-      indexRole: "transport_only",
-      transportOnly: true,
-      noSupportDecision: true,
-      noEmotionDecision: true,
-      noHttp502: true,
-      status: Number(status || 200),
-      ...(isObj(extra) ? extra : {})
-    }
-  };
+  return buildConversationNonFinalPacket(norm, status, error, detail, extra);
 }
-
 
 app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   hardenCors(req, res);
@@ -6352,6 +6420,17 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   if (isBlockedLoopingSupportReply(reply)) {
     reply = buildIndexSafeTransportReply(norm, "marion_loop_reply_blocked", { authority, latencyMs: now() - startedAt });
   }
+  if (!cleanText(reply)) {
+    const safe = buildConversationSafeErrorReply(norm, 200, "conversation_authority_empty", "trusted_marion_final_reply_missing_after_sanitization", {
+      authority,
+      marionBridgePresent: !!marionBridgeMod,
+      chatEnginePresent: !!chatEngineMod,
+      falseFinalPurged: true,
+      latencyMs: now() - startedAt
+    });
+    setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", authority: "none", noHttp502: true, falseFinalPurged: true });
+    return res.status(200).json(safe);
+  }
 
   const duplicateGate = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority });
   if (duplicateGate.repeated && !isHighRiskSupportSignal(null, norm.text)) {
@@ -6393,11 +6472,16 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     traceId: norm.traceId,
     latencyMs: now() - startedAt
   });
-  selected.ok = selected.ok !== false;
-  selected.final = true;
-  selected.finalized = true;
+  const trustedFinalForOutput = !!cleanText(reply) && !isConversationDiagnosticFallbackReply(reply) && !isBlockedLoopingSupportReply(reply);
+  selected.ok = trustedFinalForOutput && selected.ok !== false;
+  selected.final = trustedFinalForOutput;
+  selected.finalized = trustedFinalForOutput;
   selected.handled = true;
-  selected.marionFinal = authority === "marion_bridge" && hasFreshMarionFinalEnvelope(selected);
+  selected.marionFinal = trustedFinalForOutput && (authority === "marion_bridge" || authority === "marion_bridge_legacy_reply");
+  selected.awaitingMarion = !trustedFinalForOutput;
+  selected.suppressUserFacingReply = !trustedFinalForOutput;
+  selected.emit = trustedFinalForOutput;
+  selected.blocked = !trustedFinalForOutput;
   selected.lane = selected.lane || norm.lane || "general";
   selected.laneId = selected.laneId || selected.lane;
   selected.sessionLane = selected.sessionLane || selected.lane;
@@ -6479,11 +6563,17 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   return res.status(200).json({
     ok: selected.ok !== false,
     final: true,
+    marionFinal: true,
+    handled: true,
+    awaitingMarion: false,
+    suppressUserFacingReply: false,
+    emit: true,
+    blocked: false,
     reply,
     text: reply,
     short: reply,
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
-    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: true, handled: true },
+    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: true, handled: true, authority: "marionFinalEnvelope", contractVersion: "nyx.marion.final/1.0" },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
     payload: selected.payload,
