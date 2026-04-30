@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.4 COORDINATOR-ONLY-STRICT-NO-PLACEHOLDER-FINALS-NO-UI-FALLBACK-SURFACE";
+const VERSION = "ChatEngine v3.6.5 COORDINATOR-ONLY-STRICT-TRUSTED-FINAL-EMIT-GATE";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -156,30 +156,32 @@ function compactSessionPatchForTransport(value = {}) {
 function finalTransportPacket(packet = {}) {
   const out = jsonSafe(packet);
   if (isPlainObject(out)) {
-    const reply = cleanText(out.reply || out.text || out.answer || out.output || out.response || out.message || safeObj(out.payload).reply || safeObj(out.finalEnvelope).reply);
-    const hasReply = !!reply && !isThinPlaceholderText(reply);
-    out.ok = out.ok !== false;
-    out.final = hasReply && out.final === true;
-    out.marionFinal = hasReply && out.marionFinal === true;
-    out.awaitingMarion = !hasReply;
+    const finalEnvelope = isFinalEnvelope(out);
+    const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
+    const reply = extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope });
+    const canEmit = !!reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
+    out.ok = canEmit && out.ok !== false;
+    out.final = canEmit && out.final === true;
+    out.marionFinal = canEmit && out.marionFinal === true;
+    out.awaitingMarion = !canEmit;
     out.transportSafe = true;
     out.socketReconnect = false;
-    out.suppressUserFacingReply = !hasReply;
-    out.emit = hasReply;
-    out.blocked = !hasReply;
-    if (!hasReply) {
-      out.reply = "";
-      out.text = "";
-      out.answer = "";
-      out.output = "";
-      out.response = "";
-      out.message = "";
-      out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
+    out.suppressUserFacingReply = !canEmit;
+    out.emit = canEmit;
+    out.blocked = !canEmit;
+    if (canEmit) {
+      out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply;
+      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+    } else {
+      out.ok = false; out.final = false; out.marionFinal = false; out.terminal = false;
+      out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
+      out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", answer: "", output: "", response: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
     }
     if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
     if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
     if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactSessionPatchForTransport(out.payload.sessionPatch);
-    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", suppressUserFacingReply: !hasReply, emit: hasReply, blocked: !hasReply };
+    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", trustedFinalEnvelope, finalEnvelope, suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit };
+    out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, trustedFinalEnvelope, finalEnvelope, suppressedUserFacingReply: !canEmit };
   }
   return out;
 }
@@ -808,9 +810,6 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       awaitingMarion,
       suppressUserFacingReply: true,
       emit: false,
-      blocked: true,
-      suppressUserFacingReply: true,
-      emit: false,
       blocked: true
     },
 
@@ -888,6 +887,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     final: true,
     marionFinal: true,
     handled: true,
+    suppressUserFacingReply: false,
+    emit: true,
+    blocked: false,
     status: "ok",
 
     reply,
@@ -913,7 +915,11 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       authoritativeReply: reply,
       spokenText: firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, reply.replace(/\n+/g, " ")),
       final: true,
-      marionFinal: true
+      marionFinal: true,
+      awaitingMarion: false,
+      suppressUserFacingReply: false,
+      emit: true,
+      blocked: false
     },
 
     bridge: Object.keys(safeObj(input.marion)).length ? safeObj(input.marion) : null,
