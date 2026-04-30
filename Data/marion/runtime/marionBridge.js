@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.4.4 STRICT-NO-PLACEHOLDER-FINALS-NO-UI-FALLBACK-SURFACE";
+const VERSION = "marionBridge v7.4.5 STRICT-TRUSTED-FINAL-EMIT-GATE";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const fs = require("fs");
@@ -106,39 +106,20 @@ function compactPatchForTransport(patch = {}) {
 function transportSafePacket(packet = {}) {
   const out = jsonSafe(packet);
   if (!isObj(out)) return out;
-  const reply = extractReply(out) || safeStr(out.reply || safeObj(out.finalEnvelope).reply);
-  if (reply) {
-    out.reply = reply;
-    out.text = reply;
-    out.answer = reply;
-    out.output = reply;
-    out.response = reply;
-    out.message = reply;
-    out.spokenText = safeStr(out.spokenText || reply);
-    out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, final: true, marionFinal: true };
+  const reply = extractReply(out) || safeStr(safeObj(out.finalEnvelope).reply);
+  const hasReply = !!reply && !isThinPlaceholderText(reply) && !isDiagnosticText(reply);
+  if (hasReply) {
+    out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = safeStr(out.spokenText || reply);
+    out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+  } else {
+    out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
+    out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", answer: "", output: "", response: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
   }
-  out.ok = out.ok !== false;
-  out.final = out.final === true;
-  out.marionFinal = out.marionFinal === true;
-  out.handled = true;
-  out.awaitingMarion = false;
-  out.transportSafe = true;
-  out.socketReconnect = false;
-  if (out.memoryPatch) out.memoryPatch = compactPatchForTransport(out.memoryPatch);
-  if (out.sessionPatch) out.sessionPatch = compactPatchForTransport(out.sessionPatch);
-  if (out.payload && out.payload.memoryPatch) out.payload.memoryPatch = compactPatchForTransport(out.payload.memoryPatch);
-  if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactPatchForTransport(out.payload.sessionPatch);
-  out.finalEnvelope = {
-    ...safeObj(out.finalEnvelope),
-    reply: reply || safeStr(safeObj(out.finalEnvelope).reply),
-    spokenText: safeStr(safeObj(out.finalEnvelope).spokenText || out.spokenText || reply),
-    final: true,
-    marionFinal: true,
-    handled: true,
-    contractVersion: safeStr(safeObj(out.finalEnvelope).contractVersion || "nyx.marion.final/1.0")
-  };
-  out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", finalDeliveryTiming: "single_terminal_packet" };
-  out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, jsonSanitized: true, finalDeliveryTiming: "single_terminal_packet" };
+  out.ok = hasReply && out.ok !== false; out.final = hasReply && out.final === true; out.marionFinal = hasReply && out.marionFinal === true; out.handled = true; out.awaitingMarion = !hasReply; out.terminal = hasReply ? out.terminal : false; out.suppressUserFacingReply = !hasReply; out.emit = hasReply; out.blocked = !hasReply; out.transportSafe = true; out.socketReconnect = false;
+  if (out.memoryPatch) out.memoryPatch = compactPatchForTransport(out.memoryPatch); if (out.sessionPatch) out.sessionPatch = compactPatchForTransport(out.sessionPatch); if (out.payload && out.payload.memoryPatch) out.payload.memoryPatch = compactPatchForTransport(out.payload.memoryPatch); if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactPatchForTransport(out.payload.sessionPatch);
+  out.finalEnvelope = { ...safeObj(out.finalEnvelope), reply: hasReply ? reply : "", spokenText: hasReply ? safeStr(safeObj(out.finalEnvelope).spokenText || out.spokenText || reply) : "", final: hasReply, marionFinal: hasReply, handled: true, contractVersion: safeStr(safeObj(out.finalEnvelope).contractVersion || "nyx.marion.final/1.0") };
+  out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", finalDeliveryTiming: "single_terminal_packet", suppressUserFacingReply: !hasReply, emit: hasReply, blocked: !hasReply };
+  out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, jsonSanitized: true, finalDeliveryTiming: "single_terminal_packet", suppressedUserFacingReply: !hasReply };
   return out;
 }
 
@@ -167,10 +148,10 @@ function transportSafeError(packet = {}) {
 function isDiagnosticText(value){const t=lower(value);return /marion[_ -]?final[_ -]?envelope[_ -]?missing|final envelope missing|diagnostic packet|non-final|no_final|composer_invalid|composer_reply_missing|final_envelope_unavailable|bridge_error|packet_invalid|contract_invalid/.test(t);} 
 function isRogueFallbackText(value){const t=lower(value);if(!t)return false;return /\b(i['’]?m here and tracking the turn|i am here and tracking the turn|nyx is live and tracking the turn|give me the next clear target|send a specific command|press reset|ready\.\s*send|i blocked a repeated fallback|i['’]?m here\.? what's next|i['’]?m here\.? what[’']?s next|i am here\.? what's next|i am here\.? what[’']?s next|holding the thread|tell me what continuity point|technical path confirmed|i['’]?ll inspect the route output|composer reply|final envelope|bridge return shape|state spine mutation|ready for the next test|online\. send next test|still connected\. send the next test)\b/i.test(t);}
 function isThinPlaceholderText(value){const t=lower(value);if(!t)return true;if(isDiagnosticText(t)||isRogueFallbackText(t))return true;if(t.length<18)return /^(ready|done|working|ok|okay|yes|no|next|continue|what next|i['’]?m here)$/i.test(t);return /^(i['’]?m here|i am here|still connected|online|ready)\b.*\b(next|test|continue|working on)\b/i.test(t)||/\b(i['’]?ll inspect|i will inspect|i['’]?m holding|i am holding)\b/i.test(t);}
-function neutralInterruptedReply(){return "The response path was interrupted before Marion completed the final reply. I’m holding this as a routing fault, not a user-facing emotional answer.";}
-function identityAnchorReply(){return "I’m Nyx — the interface you speak with. Marion is the deeper cognitive layer behind me: it reads the intent, tracks context, weighs the domain, and shapes the response I deliver. When you talk to me, you’re interacting with Nyx on the surface and Marion underneath the reasoning.";}
-function hotFallbackReply(reason,input={}){const text=lower(extractUserText(input));if(/who are you|what are you|how.*marion.*think|how.*you.*think|marion helps you think|identity|consciousness/.test(text))return identityAnchorReply();if(/bug|error|route|endpoint|index|diag|autopsy|line|loop|widget|frontend|backend|fix|script|file|final envelope|bridge/.test(text))return "I’m tracking the system path. The next move is to verify the normalized input, routed intent, composer output, final envelope creation, and State Spine mutation for this exact turn.";if(/sad|stress|overwhelm|depress|anx|hurt|alone|frustr|panic|grief/.test(text))return "I’m still with you. Let’s stay with the specific pressure instead of circling a generic response. What part of this is pressing hardest right now?";return "The response path was interrupted before Marion completed the final reply. I’m keeping the turn non-emotional and routing it back through the final-envelope path.";}
-function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");let reply=firstText(extractReply(contract));if(!reply)return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult)},normalized);const memoryPatch=safeObj(contract.memoryPatch);return{ok:true,final:true,handled:true,marionFinal:true,finalEnvelope:{reply,spokenText:firstText(contract.spokenText,reply),intent,domain,turnId:firstText(normalized.turnId),sessionId:firstText(normalized.sessionId),stateStage:firstText(memoryPatch.stateStage,contract.stateStage,"final"),replySignature:firstText(contract.replySignature,memoryPatch.replySignature,hashText(reply)),source:"marionBridge",authority:"marionFinalEnvelope",contractVersion:"nyx.marion.final/1.0",final:true,marionFinal:true},reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,payload:{reply,text:reply,message:reply,final:true,marionFinal:true},speech:{enabled:safeObj(contract.speech).enabled!==false,silent:false,silentAudio:false,textDisplay:reply,textSpeak:firstText(safeObj(contract.speech).textSpeak,reply),presenceProfile:firstText(safeObj(contract.speech).presenceProfile,"receptive"),nyxStateHint:firstText(safeObj(contract.speech).nyxStateHint,"receptive")},memoryPatch,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true,localFinalFallback:true},routed,diagnostics:{bridgeVersion:VERSION,routerCalled:true,composerCalled:!!Object.keys(safeObj(contract)).length,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,reason},meta:{version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,localFinalFallback:true,reason}};}
+function neutralInterruptedReply(){return "";}
+function identityAnchorReply(){return "";}
+function hotFallbackReply(_reason,_input={}){return "";}
+function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");let reply=firstText(extractReply(contract));if(!reply)return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult)},normalized);const memoryPatch=safeObj(contract.memoryPatch);return{ok:true,final:true,handled:true,marionFinal:true,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false,finalEnvelope:{reply,spokenText:firstText(contract.spokenText,reply),intent,domain,turnId:firstText(normalized.turnId),sessionId:firstText(normalized.sessionId),stateStage:firstText(memoryPatch.stateStage,contract.stateStage,"final"),replySignature:firstText(contract.replySignature,memoryPatch.replySignature,hashText(reply)),source:"marionBridge",authority:"marionFinalEnvelope",contractVersion:"nyx.marion.final/1.0",final:true,marionFinal:true},reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,payload:{reply,text:reply,message:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false},speech:{enabled:safeObj(contract.speech).enabled!==false,silent:false,silentAudio:false,textDisplay:reply,textSpeak:firstText(safeObj(contract.speech).textSpeak,reply),presenceProfile:firstText(safeObj(contract.speech).presenceProfile,"receptive"),nyxStateHint:firstText(safeObj(contract.speech).nyxStateHint,"receptive")},memoryPatch,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true,localFinalFallback:true},routed,diagnostics:{bridgeVersion:VERSION,routerCalled:true,composerCalled:!!Object.keys(safeObj(contract)).length,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,reason},meta:{version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,localFinalFallback:true,reason}};}
 function extractUserText(input={}){const src=safeObj(input),body=safeObj(src.body),payload=safeObj(src.payload),packet=safeObj(src.packet),synthesis=safeObj(packet.synthesis);return firstText(src.userQuery,src.text,src.query,src.message,body.userQuery,body.text,body.query,body.message,payload.userQuery,payload.text,payload.query,payload.message,synthesis.userQuery,synthesis.text);}
 function extractLane(input={}){const src=safeObj(input),body=safeObj(src.body),session=safeObj(src.session||body.session),meta=safeObj(src.meta||body.meta);return firstText(src.lane,src.sessionLane,body.lane,body.sessionLane,session.lane,meta.lane,"general")||"general";}
 function extractTurnId(input={}){const src=safeObj(input),body=safeObj(src.body),meta=safeObj(src.meta||body.meta);return firstText(src.turnId,src.requestId,src.traceId,src.id,body.turnId,body.requestId,body.traceId,meta.turnId,meta.requestId,meta.traceId);}
