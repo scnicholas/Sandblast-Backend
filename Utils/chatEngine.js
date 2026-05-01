@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.8 COORDINATOR-ONLY-FINAL-MIRROR-HARDLOCK";
+const VERSION = "ChatEngine v3.6.9 COORDINATOR-ONLY-FINAL-ENVELOPE-FIRST-MIRROR";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -170,8 +170,21 @@ function finalTransportPacket(packet = {}) {
     out.emit = canEmit;
     out.blocked = !canEmit;
     if (canEmit) {
-      out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply;
-      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+      const spokenText = firstText(out.spokenText, safeObj(out.finalEnvelope).spokenText, reply);
+      out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = spokenText;
+      out.finalEnvelope = {
+        ...safeObj(out.finalEnvelope),
+        reply,
+        text: reply,
+        displayReply: reply,
+        spokenText,
+        final: true,
+        marionFinal: true,
+        handled: true,
+        contractVersion: firstText(safeObj(out.finalEnvelope).contractVersion, FINAL_ENVELOPE_CONTRACT),
+        authority: firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope")
+      };
+      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, finalEnvelope: out.finalEnvelope, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
     } else {
       out.ok = false; out.final = false; out.marionFinal = false; out.terminal = false;
       out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
@@ -539,6 +552,12 @@ function extractReplyCandidate(input = {}) {
   const finalEnvelope = extractFinalEnvelope(src);
 
   const candidates = [
+    // Final envelope is the render authority. Wrapper fields can be stale mirrors
+    // from older transport layers, so the canonical envelope must win first.
+    { value: finalEnvelope.reply, path: "finalEnvelope.reply", diagnostic: false },
+    { value: finalEnvelope.text, path: "finalEnvelope.text", diagnostic: false },
+    { value: finalEnvelope.displayReply, path: "finalEnvelope.displayReply", diagnostic: false },
+    { value: finalEnvelope.spokenText, path: "finalEnvelope.spokenText", diagnostic: false },
     { value: src.reply, path: "src.reply", diagnostic: false },
     { value: src.text, path: "src.text", diagnostic: false },
     { value: src.answer, path: "src.answer", diagnostic: false },
@@ -546,7 +565,6 @@ function extractReplyCandidate(input = {}) {
     { value: src.response, path: "src.response", diagnostic: false },
     { value: src.message, path: "src.message", diagnostic: false },
     { value: src.spokenText, path: "src.spokenText", diagnostic: false },
-    { value: finalEnvelope.reply, path: "finalEnvelope.reply", diagnostic: false },
     { value: contract.reply, path: "contract.reply", diagnostic: false },
     { value: contract.text, path: "contract.text", diagnostic: false },
     { value: contract.answer, path: "contract.answer", diagnostic: false },
@@ -878,6 +896,20 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     safeObj(packet.meta).replySignature,
     hashText(reply)
   );
+  const sourceEnvelope = extractFinalEnvelope(input);
+  const spokenText = firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, safeObj(sourceEnvelope).spokenText, reply.replace(/\n+/g, " "));
+  const canonicalFinalEnvelope = Object.keys(sourceEnvelope).length ? {
+    ...sourceEnvelope,
+    reply,
+    text: reply,
+    displayReply: reply,
+    spokenText,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    contractVersion: firstText(sourceEnvelope.contractVersion, FINAL_ENVELOPE_CONTRACT),
+    authority: firstText(sourceEnvelope.authority, "marionFinalEnvelope")
+  } : undefined;
 
   return {
     ok: true,
@@ -920,7 +952,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     },
 
     bridge: Object.keys(safeObj(input.marion)).length ? safeObj(input.marion) : null,
-    finalEnvelope: Object.keys(extractFinalEnvelope(input)).length ? extractFinalEnvelope(input) : undefined,
+    finalEnvelope: canonicalFinalEnvelope,
     packet: Object.keys(packet).length ? packet : undefined,
     contract: Object.keys(contract).length ? contract : undefined,
 
