@@ -1,7 +1,10 @@
 "use strict";
 
-const VERSION = "marionBridge v7.5.0 CONVERSATION-QUALITY-FINAL-GATE";
+const VERSION = "marionBridge v7.5.1 USER-WARMTH-FINAL-AUTHORITY-GATE";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
+const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
+const WARM_NYX_CAPABILITY_REPLY = "I can help with chat, media, radio, News Canada, Roku, avatar controls, and backend diagnostics. Tell me where you’d like to start.";
 
 const fs = require("fs");
 const path = require("path");
@@ -164,21 +167,26 @@ function validateRouterResult(result={}){const src=safeObj(result),routing=safeO
 function extractReply(contract={}){const src=safeObj(contract),finalEnvelope=safeObj(src.finalEnvelope),payload=safeObj(src.payload),synthesis=safeObj(src.synthesis),packet=safeObj(src.packet),packetSynthesis=safeObj(packet.synthesis);const reply=firstText(finalEnvelope.reply,finalEnvelope.text,finalEnvelope.spokenText,src.reply,src.text,src.answer,src.output,src.response,src.message,src.spokenText,payload.reply,payload.text,payload.answer,payload.output,payload.message,synthesis.reply,synthesis.text,synthesis.answer,synthesis.output,synthesis.spokenText,packetSynthesis.reply,packetSynthesis.text,packetSynthesis.answer,packetSynthesis.output,packetSynthesis.spokenText);return isThinPlaceholderText(reply)?"":reply;}
 function validateComposeResult(contract={}){const issues=[],src=safeObj(contract),rawReply=firstText(safeObj(src.finalEnvelope).reply,src.reply,src.text,src.answer,src.output,src.response,src.message,src.spokenText,safeObj(src.payload).reply,safeObj(src.synthesis).reply,safeObj(safeObj(src.packet).synthesis).reply);if(!Object.keys(src).length)issues.push("compose_contract_missing");if(src.ok===false)issues.push("compose_not_ok");if(!extractReply(src))issues.push(isThinPlaceholderText(rawReply)?"compose_placeholder_reply":"compose_reply_missing");return{ok:issues.length===0,issues};}
 function buildErrorResult(reason,detail={},input={}){const normalized=safeObj(input);return{ok:false,final:false,handled:true,marionFinal:false,awaitingMarion:true,terminal:false,suppressUserFacingReply:true,emit:false,blocked:true,error:safeStr(reason||"bridge_error")||"bridge_error",reason:safeStr(reason||"bridge_error")||"bridge_error",detail:safeObj(detail),reply:"",text:"",output:"",response:"",message:"",payload:{reply:"",text:"",message:"",final:false,awaitingMarion:true,error:true,suppressUserFacingReply:true,emit:false,blocked:true},diagnostics:{bridgeVersion:VERSION,bridgeError:true,noUserFacingBridgeError:true,suppressUserFacingReply:true,emit:false,blocked:true,reason:safeStr(reason||"bridge_error"),detail:safeObj(detail)},meta:{version:VERSION,endpoint:CANONICAL_ENDPOINT,turnId:safeStr(normalized.turnId||""),final:false,marionFinal:false,awaitingMarion:true,suppressUserFacingReply:true,emit:false,blocked:true,replyAuthority:"none",reason:safeStr(reason||"bridge_error")}};}
-function isGreetingOnly(text){const t=lower(text).replace(/[.!?]+$/g,"").trim();return /^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+nyx|\s+nix|\s+vera)?$/.test(t);}
+function isGreetingOnly(text){const t=lower(text).replace(/[.!?]+$/g,"").trim();return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(\s+(nyx|nix|vera))?$/.test(t);}
+function isHowAreYouTurn(text){const t=lower(text).replace(/[.!?]+$/g,"").trim();return /^(how are you|how are you today|how are you doing|how are you feeling|you good|are you okay|are you ok)(\s+(nyx|nix|vera))?$/.test(t);}
+function isCapabilityQuestion(text){const t=lower(text);return /\b(what can you help with|what do you help with|what areas can you help with|what can you do|help me with|what are your lanes|what domains)\b/i.test(t);}
+function isIdentityQuestion(text){const t=lower(text);return /\b(who are you|what are you|what is nyx|who is nyx|what is marion|who is marion|how do you work|how does marion help|how marion helps|marion helps you think)\b/i.test(t);}
 function bridgeRecoveryReply(normalized={},routed={},reason="bridge_recovery"){
   const text=safeStr(normalized.userQuery||normalized.text||normalized.query||"");
   const routing=safeObj(routed.routing);
   const intent=safeStr(routing.intent||safeObj(routed.marionIntent).intent||safeObj(normalized.marionIntent).intent||"simple_chat");
-  if(isGreetingOnly(text))return "Hi Mac. Nyx is live, Marion is connected behind the response path, and I’ll keep the next command clean and grounded.";
-  if(intent==="identity_query"||/\b(who are you|what are you|marion|nyx)\b/i.test(text))return "I’m Nyx — the live Sandblast interface. Marion is the cognitive layer behind me, shaping intent, continuity, and final replies before I render them here.";
-  if(intent==="technical_debug"||/\b(loop|looping|debug|test|fallback|technical|route|bridge|composer|chat engine|state spine|api|backend|frontend|final envelope)\b/i.test(text))return "Technical response: the authorized chat route is active. The next correction is to keep MarionBridge as the single final authority, return one trusted finalEnvelope.reply, and prevent placeholder or diagnostic text from reaching the widget.";
-  if(intent==="emotional_support"||/\b(sad|stress|overwhelm|anxious|panic|hurt|alone|grief)\b/i.test(text))return "I have the thread. Let’s keep this small and specific: name the one pressure point that needs attention first.";
-  return "Nyx is live with Marion connected. Send the next command and I’ll keep the response specific, grounded, and non-repetitive.";
+  if(isGreetingOnly(text))return WARM_NYX_GREETING;
+  if(isHowAreYouTurn(text))return WARM_NYX_STATUS_REPLY;
+  if(isCapabilityQuestion(text))return WARM_NYX_CAPABILITY_REPLY;
+  if(intent==="identity_query"||isIdentityQuestion(text))return "I’m Nyx — the live Sandblast interface. Marion is the reasoning layer behind me: it helps with intent, context, memory, and final response shaping while I handle the conversation you see here.";
+  if(intent==="technical_debug"||/\b(loop|looping|debug|test|fallback|technical|route|bridge|composer|chat engine|state spine|api|backend|frontend|final envelope)\b/i.test(text))return "Technical read: MarionBridge should route once, compose once, wrap one trusted finalEnvelope.reply, and pass that packet forward without placeholder text, duplicate emission, or reply override.";
+  if(intent==="emotional_support"||/\b(sad|stress|overwhelm|anxious|panic|hurt|alone|grief)\b/i.test(text))return "I’m with you. Let’s keep this small and specific: what is the one pressure point that needs attention first?";
+  return "I’ve got you. Tell me what you want to work on, and I’ll keep the response clear and specific.";
 }
 function buildBridgeRecoveryFinal(normalized={},routed={},reason="bridge_recovery",detail={},loopGuardResult={}){
   const reply=bridgeRecoveryReply(normalized,routed,reason);
   const routing=safeObj(routed.routing);
-  const contract={ok:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,intent:safeStr(routing.intent||safeObj(routed.marionIntent).intent||"simple_chat"),domain:safeStr(routing.domain||normalized.domain||"general"),memoryPatch:{stateStage:"bridge_recovered_final",recoveryRequired:false,bridgeRecoveryReason:safeStr(reason),replySignature:hashText(reply)},sessionPatch:{stateStage:"bridge_recovered_final",recoveryRequired:false,bridgeRecoveryReason:safeStr(reason)},speech:{enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile:"receptive",nyxStateHint:"receptive"},meta:{bridgeRecovery:true,reason:safeStr(reason),detail:safeObj(detail)},diagnostics:{bridgeRecovery:true,reason:safeStr(reason),detail:safeObj(detail)}};
+  const contract={ok:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,intent:safeStr(routing.intent||safeObj(routed.marionIntent).intent||"simple_chat"),domain:safeStr(routing.domain||normalized.domain||"general"),memoryPatch:{stateStage:"bridge_recovered_final",recoveryRequired:false,bridgeRecoveryReason:safeStr(reason),replySignature:hashText(reply)},sessionPatch:{stateStage:"bridge_recovered_final",recoveryRequired:false,bridgeRecoveryReason:safeStr(reason)},speech:{enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile:"receptive",nyxStateHint:"receptive"},meta:{bridgeRecovery:true,bridgeRecoverySurface:"user_safe",reason:safeStr(reason),detail:safeObj(detail)},diagnostics:{bridgeRecovery:true,bridgeRecoverySurface:"user_safe",technicalLanguageSuppressed:!/(technical_debug)/i.test(safeStr(routing.intent||"")),reason:safeStr(reason),detail:safeObj(detail)}};
   return createLocalFinalEnvelope({normalized,routed,contract,reason,loopGuardResult});
 }
 
