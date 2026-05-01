@@ -12,7 +12,13 @@
       "i keep checking for a reply",
       "i can't stop thinking about what they meant"
     ],
-    "keywords": ["reassurance", "abandonment", "pulling away", "checking", "preoccupied"],
+    "keywords": [
+      "reassurance",
+      "abandonment",
+      "pulling away",
+      "checking",
+      "preoccupied"
+    ],
     "interpretation": "Possible attachment activation organized around uncertainty, closeness threat, and reassurance-seeking.",
     "supportMode": "soothe_and_structure",
     "routeBias": "clarify",
@@ -34,13 +40,22 @@
       "semanticFrame": "attachment_security",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "ground"]
+      "transitionTargets": [
+        "clarify",
+        "ground"
+      ]
     },
     "contraindications": [
       "Do not shame reassurance-seeking",
       "Do not prematurely declare the other person unsafe"
     ],
-    "tags": ["psychology", "attachment", "anxious", "relationship", "reassurance"]
+    "tags": [
+      "psychology",
+      "attachment",
+      "anxious",
+      "relationship",
+      "reassurance"
+    ]
   },
   {
     "id": "psy_attachment_patterns_002",
@@ -55,7 +70,13 @@
       "i shut down when people get too close",
       "i just disappear"
     ],
-    "keywords": ["withdraw", "distance", "alone", "need no one", "shut down"],
+    "keywords": [
+      "withdraw",
+      "distance",
+      "alone",
+      "need no one",
+      "shut down"
+    ],
     "interpretation": "Possible protective deactivation pattern with distance used to preserve control or reduce vulnerability.",
     "supportMode": "respectful_clarify_and_reconnect",
     "routeBias": "deepen",
@@ -77,13 +98,22 @@
       "semanticFrame": "protective_distance",
       "followupStyle": "reflective",
       "transitionReadiness": "medium",
-      "transitionTargets": ["deepen", "reconnect"]
+      "transitionTargets": [
+        "deepen",
+        "reconnect"
+      ]
     },
     "contraindications": [
       "Do not frame distance as moral failure",
       "Do not push intimacy before safety"
     ],
-    "tags": ["psychology", "attachment", "avoidant", "distance", "protective_pattern"]
+    "tags": [
+      "psychology",
+      "attachment",
+      "avoidant",
+      "distance",
+      "protective_pattern"
+    ]
   },
   {
     "id": "psy_attachment_patterns_003",
@@ -97,7 +127,13 @@
       "i don't trust it when it feels safe",
       "i panic when they leave and panic when they stay"
     ],
-    "keywords": ["push pull", "mixed signals", "panic", "closeness fear", "volatility"],
+    "keywords": [
+      "push pull",
+      "mixed signals",
+      "panic",
+      "closeness fear",
+      "volatility"
+    ],
     "interpretation": "Possible conflicting attachment impulses where closeness and threat feel fused.",
     "supportMode": "stabilize_and_name_pattern",
     "routeBias": "stabilize",
@@ -119,16 +155,21 @@
       "semanticFrame": "ambivalent_safety",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "clarify"]
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ]
     },
     "contraindications": [
       "Do not intensify attachment fear",
       "Do not oversimplify into one motive"
     ],
-    "tags": ["psychology", "attachment", "disorganized", "ambivalence", "stabilize"]
+    "tags": [
+      "psychology",
+      "attachment",
+      "disorganized",
+      "ambivalence",
+      "stabilize"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
