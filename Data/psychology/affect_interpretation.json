@@ -13,7 +13,13 @@
       "my mind won't stop",
       "everything is too much"
     ],
-    "keywords": ["overwhelm", "spiral", "panic", "flooded", "too much"],
+    "keywords": [
+      "overwhelm",
+      "spiral",
+      "panic",
+      "flooded",
+      "too much"
+    ],
     "interpretation": "Possible acute overload with narrowed tolerance for complexity and reduced cognitive bandwidth.",
     "supportMode": "soothe_and_structure",
     "routeBias": "stabilize",
@@ -37,14 +43,23 @@
       "semanticFrame": "stabilization",
       "followupStyle": "grounding",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "contain"]
+      "transitionTargets": [
+        "stabilize",
+        "contain"
+      ]
     },
     "contraindications": [
       "Do not over-question",
       "Do not jump to problem-solving too quickly",
       "Do not mirror panic intensity"
     ],
-    "tags": ["psychology", "affect", "overwhelm", "high_arousal", "stabilization"]
+    "tags": [
+      "psychology",
+      "affect",
+      "overwhelm",
+      "high_arousal",
+      "stabilization"
+    ]
   },
   {
     "id": "psy_affect_interpretation_002",
@@ -60,7 +75,13 @@
       "i can't get moving",
       "i feel empty"
     ],
-    "keywords": ["numb", "empty", "drained", "flat", "shutdown"],
+    "keywords": [
+      "numb",
+      "empty",
+      "drained",
+      "flat",
+      "shutdown"
+    ],
     "interpretation": "Possible emotional blunting or depleted activation with limited readiness for pressure-heavy engagement.",
     "supportMode": "validate_and_gently_activate",
     "routeBias": "clarify",
@@ -84,13 +105,22 @@
       "semanticFrame": "depletion_support",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["clarify", "activate"]
+      "transitionTargets": [
+        "clarify",
+        "activate"
+      ]
     },
     "contraindications": [
       "Do not frame as laziness",
       "Do not apply aggressive motivational pressure"
     ],
-    "tags": ["psychology", "affect", "shutdown", "low_activation", "depletion"]
+    "tags": [
+      "psychology",
+      "affect",
+      "shutdown",
+      "low_activation",
+      "depletion"
+    ]
   },
   {
     "id": "psy_affect_interpretation_003",
@@ -106,7 +136,13 @@
       "i ruin everything",
       "i hate myself"
     ],
-    "keywords": ["shame", "failure", "worthless", "not enough", "defective"],
+    "keywords": [
+      "shame",
+      "failure",
+      "worthless",
+      "not enough",
+      "defective"
+    ],
     "interpretation": "Possible shame-dominant framing where identity is being collapsed into a painful state or outcome.",
     "supportMode": "careful_nonshaming_reflection",
     "routeBias": "stabilize",
@@ -130,13 +166,22 @@
       "semanticFrame": "identity_protection",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "repair"]
+      "transitionTargets": [
+        "stabilize",
+        "repair"
+      ]
     },
     "contraindications": [
       "Do not agree with self-attack",
       "Do not use blunt challenge too early"
     ],
-    "tags": ["psychology", "affect", "shame", "self_evaluative", "repair"]
+    "tags": [
+      "psychology",
+      "affect",
+      "shame",
+      "self_evaluative",
+      "repair"
+    ]
   },
   {
     "id": "psy_affect_interpretation_004",
@@ -152,7 +197,13 @@
       "it finally feels manageable",
       "i think i can do this"
     ],
-    "keywords": ["better", "relief", "recovery", "back on track", "manageable"],
+    "keywords": [
+      "better",
+      "relief",
+      "recovery",
+      "back on track",
+      "manageable"
+    ],
     "interpretation": "Possible active recovery or improved regulation with readiness for forward motion.",
     "supportMode": "affirm_and_channel",
     "routeBias": "deepen_then_channel",
@@ -178,16 +229,21 @@
       "semanticFrame": "recovery",
       "followupStyle": "direct_answer_then_one_question",
       "transitionReadiness": "high",
-      "transitionTargets": ["channel", "maintain"]
+      "transitionTargets": [
+        "channel",
+        "maintain"
+      ]
     },
     "contraindications": [
       "Do not overcomplicate improvement",
       "Do not pull user backward into distress framing"
     ],
-    "tags": ["psychology", "affect", "recovery", "positive_shift", "momentum"]
+    "tags": [
+      "psychology",
+      "affect",
+      "recovery",
+      "positive_shift",
+      "momentum"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
