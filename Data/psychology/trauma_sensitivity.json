@@ -27,13 +27,22 @@
       "semanticFrame": "agency_preservation",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "contain"]
+      "transitionTargets": [
+        "stabilize",
+        "contain"
+      ]
     },
     "contraindications": [
       "Do not probe for specifics",
       "Do not romanticize resilience"
     ],
-    "tags": ["psychology", "trauma_sensitivity", "pacing", "agency", "safety"]
+    "tags": [
+      "psychology",
+      "trauma_sensitivity",
+      "pacing",
+      "agency",
+      "safety"
+    ]
   },
   {
     "id": "psy_trauma_sensitivity_002",
@@ -63,13 +72,22 @@
       "semanticFrame": "trigger_regulation",
       "followupStyle": "grounding",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "clarify"]
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ]
     },
     "contraindications": [
       "Do not call the user irrational",
       "Do not invalidate bodily alarm"
     ],
-    "tags": ["psychology", "trauma_sensitivity", "trigger", "regulation", "alarm_response"]
+    "tags": [
+      "psychology",
+      "trauma_sensitivity",
+      "trigger",
+      "regulation",
+      "alarm_response"
+    ]
   },
   {
     "id": "psy_trauma_sensitivity_003",
@@ -99,16 +117,21 @@
       "semanticFrame": "agency_preservation",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "low",
-      "transitionTargets": ["contain", "reconnect"]
+      "transitionTargets": [
+        "contain",
+        "reconnect"
+      ]
     },
     "contraindications": [
       "Do not overload with directives",
       "Do not push narrative depth for its own sake"
     ],
-    "tags": ["psychology", "trauma_sensitivity", "agency", "choice", "containment"]
+    "tags": [
+      "psychology",
+      "trauma_sensitivity",
+      "agency",
+      "choice",
+      "containment"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
