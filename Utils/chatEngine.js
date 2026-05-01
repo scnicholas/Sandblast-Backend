@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.6 COORDINATOR-ONLY-FINAL-LOOP-HARDLOCK";
+const VERSION = "ChatEngine v3.6.8 COORDINATOR-ONLY-FINAL-MIRROR-HARDLOCK";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -161,8 +161,8 @@ function finalTransportPacket(packet = {}) {
     const reply = extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope });
     const canEmit = !!reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
     out.ok = canEmit && out.ok !== false;
-    out.final = canEmit && out.final === true;
-    out.marionFinal = canEmit && out.marionFinal === true;
+    out.final = !!canEmit;
+    out.marionFinal = !!canEmit;
     out.awaitingMarion = !canEmit;
     out.transportSafe = true;
     out.socketReconnect = false;
