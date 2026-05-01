@@ -3,7 +3,7 @@
 /**
  * Utils/englishKnowledge.js
  *
- * English Knowledge Layer (v1.0.0)
+ * English Knowledge Layer (v1.1.0-hardened)
  * Deterministic, mediator-safe, bounded hint engine.
  *
  * Purpose:
@@ -34,20 +34,20 @@
  *   }
  */
 
-const ENGLISH_K_VERSION = "englishKnowledge v1.0.0";
+const ENGLISH_K_VERSION = "englishKnowledge v1.1.0-hardened";
 
 // Manifest-aligned pack names (must match manifest)
 const PACK_FILES = Object.freeze({
-  curriculum: "eng_curriculum_sequence_v1.json",
-  sources: "eng_sources_index_v1.json",
-  foundations: "eng_foundations_language_science_v1.json",
-  phonology: "eng_phonetics_phonology_v1.json",
-  morphology: "eng_morphology_word_formation_v1.json",
-  syntax: "eng_syntax_grammar_core_v1.json",
-  semantics: "eng_semantics_pragmatics_v1.json",
-  corpus: "eng_register_corpus_usage_v1.json",
-  writing: "eng_academic_writing_clarity_v1.json",
-  eap: "eng_eap_canada_case_studies_v1.json",
+  curriculum: "eng_curriculum_sequence_normalized.json",
+  sources: "eng_sources_index_normalized.json",
+  foundations: "eng_foundations_language_science_normalized.json",
+  phonology: "eng_phonetics_phonology_normalized.json",
+  morphology: "eng_morphology_word_formation_normalized.json",
+  syntax: "eng_syntax_grammar_core_normalized.json",
+  semantics: "eng_semantics_pragmatics_normalized.json",
+  corpus: "eng_register_corpus_usage_normalized.json",
+  writing: "eng_academic_writing_clarity_normalized.json",
+  eap: "eng_eap_canada_case_studies_normalized.json",
   faces: "eng_face_examples_v1.json",
   dialogue: "eng_dialogue_snippets_v1.json"
 });
@@ -86,13 +86,26 @@ function clamp01(n) {
 // -------------------------
 // classification logic
 // -------------------------
+function normalizeTokens(tokens, max = 32) {
+  const out = [];
+  const seen = new Set();
+  for (const tok of Array.isArray(tokens) ? tokens : []) {
+    const v = safeStr(tok, 64).trim().toLowerCase().replace(/\s+/g, "_");
+    if (!v || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function classifyFocus(tokens) {
-  const t = tokens || [];
+  const t = normalizeTokens(tokens);
 
   if (t.includes("phonology") || t.includes("pronunciation"))
     return { focus: "phonology", pack: PACK_FILES.phonology };
 
-  if (t.includes("morphology") || t.includes("word formation"))
+  if (t.includes("morphology") || t.includes("word_formation"))
     return { focus: "morphology", pack: PACK_FILES.morphology };
 
   if (t.includes("syntax") || t.includes("grammar"))
@@ -222,7 +235,7 @@ function deriveResponseCues(focus) {
 function getMarionHints(input = {}, ctx = {}) {
   try {
     const features = input.features || {};
-    const tokens = Array.isArray(input.tokens) ? input.tokens : [];
+    const tokens = normalizeTokens(input.tokens);
     const queryKey = safeStr(input.queryKey || "", 18);
 
     const { focus, pack } = classifyFocus(tokens);
@@ -247,8 +260,8 @@ function getMarionHints(input = {}, ctx = {}) {
       guardrails: uniq(guardrails, 6),
       exampleTypes: uniq(["worked_example", "contrast_pair", "micro_analysis"], 6),
       responseCues: uniq(responseCues, 6),
-      confidence: clamp01(0.75),
-      reason: "focus_classified"
+      confidence: clamp01(tokens.length ? 0.78 : 0.52),
+      reason: "focus_classified_manifest_v2"
     };
   } catch (e) {
     return {
