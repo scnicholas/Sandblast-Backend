@@ -159,9 +159,42 @@
         "fin_case_studies_v1"
       ]
     }
-  ]
-<<<<<<< HEAD
+  ],
+  "schemaVersion": "1.0-normalized",
+  "runtimeDomainKey": "finance",
+  "runtimeFolder": "Data/finance",
+  "manifestPath": "domains/finance/manifest.json",
+  "routing": {
+    "primaryLane": "finance",
+    "secondaryLanes": [
+      "law",
+      "strategy",
+      "ai",
+      "english"
+    ],
+    "safetyFirst": true,
+    "keywords": [
+      "finance",
+      "pricing",
+      "capital markets",
+      "risk",
+      "runway",
+      "unit economics",
+      "macro",
+      "micro",
+      "inflation",
+      "rates"
+    ]
+  },
+  "constraints": {
+    "noInvestmentAdvice": true,
+    "educationalOnly": true,
+    "assumptionDisclosureRequired": true,
+    "scenarioBasedReasoning": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "financeGateExplicit": true
+  }
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
