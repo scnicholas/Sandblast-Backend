@@ -12,11 +12,11 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.4.0 DIRECTIVE-EXECUTION-TEST2-HARDENED";
+const VERSION = "marionIntentRouter v2.5.0 SOCIAL-DOMAIN-COHESION-GATE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
-const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.4";
+const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.5";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const VALID_INTENTS = Object.freeze([
@@ -27,8 +27,10 @@ const VALID_INTENTS = Object.freeze([
   "music_query",
   "news_query",
   "roku_query",
+  "identity_query",
   "identity_or_memory",
   "directive_response",
+  "contextual_directive",
   "domain_question"
 ]);
 
@@ -40,8 +42,10 @@ const INTENT_TO_DOMAIN = Object.freeze({
   music_query: "music",
   news_query: "news",
   roku_query: "roku",
+  identity_query: "identity",
   identity_or_memory: "memory",
-  directive_response: "directive",
+  directive_response: "execution",
+  contextual_directive: "execution_context",
   domain_question: "general_reasoning"
 });
 
@@ -54,7 +58,9 @@ const DOMAIN_MODE = Object.freeze({
   news: "retrieval",
   roku: "platform",
   memory: "continuity",
-  directive: "execution",
+  identity: "identity",
+  execution: "execution",
+  execution_context: "contextual_execution",
   general_reasoning: "reasoning"
 });
 
@@ -67,7 +73,9 @@ const DOMAIN_DEPTH = Object.freeze({
   news: "normal",
   roku: "normal",
   memory: "continuity_deep",
-  directive: "direct_execution",
+  identity: "identity_baseline",
+  execution: "direct_execution",
+  execution_context: "contextual_precision",
   general_reasoning: "baseline_cognition"
 });
 
@@ -80,7 +88,9 @@ const PREFERRED_STYLE = Object.freeze({
   news: "clean_source_aware",
   roku: "platform_direct",
   memory: "identity_continuity",
-  directive: "short_direct_action",
+  identity: "identity_clear",
+  execution: "short_direct_action",
+  execution_context: "contextual_directive",
   general_reasoning: "reasoned_direct"
 });
 
@@ -164,17 +174,22 @@ function normalizeIntentName(v) {
     roku_query: "roku_query",
 
     memory: "identity_or_memory",
-    identity: "identity_or_memory",
-    identity_query: "identity_or_memory",
+    identity: "identity_query",
+    identity_query: "identity_query",
     identity_or_memory: "identity_or_memory",
     continuity: "identity_or_memory",
     state: "identity_or_memory",
     state_spine: "identity_or_memory",
     statespine: "identity_or_memory",
     spine: "identity_or_memory",
-    greeting: "identity_or_memory",
-    greetings: "identity_or_memory",
+    greeting: "simple_chat",
+    greetings: "simple_chat",
+    social: "simple_chat",
 
+    directive: "directive_response",
+    directive_response: "directive_response",
+    contextual_directive: "contextual_directive",
+    context_directive: "contextual_directive",
     question: "domain_question",
     domain_question: "domain_question",
     reasoning: "domain_question",
@@ -240,12 +255,53 @@ function detectSafetyLevel(text) {
   return "none";
 }
 
+function detectSocialIntent(text) {
+  const t = lower(text).replace(/[.!?]+$/g, "").trim();
+  if (!t) return "";
+  if (/^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(\s+(nyx|nix|vera|mac))?$/.test(t)) return "greeting";
+  if (/\b(how are you|how are you today|how's it going|how is it going|you doing okay|are you there)\b/i.test(t)) return "wellbeing_check";
+  if (/\b(what can you help with|what do you help with|what can you do|what are your areas|where can we start|help me start)\b/i.test(t)) return "capabilities_intro";
+  if (/\b(thank you|thanks|appreciate it|perfect|beautiful|good job)\b/i.test(t) && t.length < 120) return "courtesy";
+  return "";
+}
+
+function detectContextualDirectiveIntent(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return !!(
+    has(/\b(given that setup|given this setup|based on that|based on this|that setup|that architecture|that context|from there|in this case)\b/i, t) ||
+    has(/\b(final envelope|finalenvelope|session patch|sessionpatch|contract)\b.*\b(breaks|fails|lost|survives|risk|harden|first)\b/i, t) ||
+    has(/\b(what layer|which layer|harden first|biggest risk|desynchronization risk)\b/i, t)
+  );
+}
+
+function detectDomainIntroIntent(text) {
+  const t = lower(text);
+  if (!t) return "";
+  if (/\b(avatar|voice|tts|speech|nyx voice|avatar controls|micro[- ]?expression|head and shoulders)\b/i.test(t)) return "avatar_voice";
+  if (/\b(backend diagnostics|diagnostics|health check|route health|api status|server status)\b/i.test(t)) return "backend_diagnostics";
+  if (/\b(media|radio|linear tv|sandblast channel|campaign|audience|listeners)\b/i.test(t)) return "media_radio";
+  return "";
+}
+
 function detectSubIntent(text, intent) {
   const t = lower(text);
   if (!t) return "empty_input";
 
+  if (intent === "simple_chat") {
+    const social = detectSocialIntent(text);
+    if (social) return social;
+    const domainIntro = detectDomainIntroIntent(text);
+    if (domainIntro) return domainIntro;
+    return "plain_conversation";
+  }
+
+  if (intent === "identity_query") {
+    return "identity_baseline";
+  }
+
   if (intent === "identity_or_memory") {
-    if (has(/\b(who are you|what are you|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity)\b/i, t)) return "identity_baseline";
+    if (has(/\b(who are you|what are you|what is marion|who is marion|what is nyx|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity)\b/i, t)) return "identity_baseline";
     if (has(/\b(remember|last time|continue|carry forward|continuity|state spine|conversation state|turn state)\b/i, t)) return "memory_continuity";
     return "identity_or_memory";
   }
@@ -255,6 +311,10 @@ function detectSubIntent(text, intent) {
     if (has(/\b(autopsy|audit|gap refinement|critical fix|critical fixes|line[- ]?by[- ]?line)\b/i, t)) return "forensic_audit";
     if (has(/\b(integration|cohesion|cohesive|90%|ninety percent|baseline cognition|reasoning)\b/i, t)) return "cohesion_upgrade";
     return "technical_execution";
+  }
+
+  if (intent === "contextual_directive") {
+    return "contextual_precision";
   }
 
   if (intent === "directive_response") {
@@ -325,6 +385,29 @@ function inferIntentFromText(text) {
     };
   }
 
+  const socialIntent = detectSocialIntent(t);
+  if (socialIntent) {
+    return {
+      intent: "simple_chat",
+      confidence: socialIntent === "greeting" ? 0.96 : 0.9,
+      reason: `social_${socialIntent}`,
+      stateStageHint: "deliver",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
+  if (detectContextualDirectiveIntent(t)) {
+    return {
+      intent: "contextual_directive",
+      confidence: 0.93,
+      reason: "contextual_directive_terms",
+      stateStageHint: "execute_context",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
   /* Directive execution must outrank generic question and broad technical terms. */
   if (detectDirectiveIntent(t)) {
     return {
@@ -338,9 +421,9 @@ function inferIntentFromText(text) {
   }
 
   /* Identity baseline must outrank generic question and broad technical terms. */
-  if (has(/\b(who are you|what are you|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity|identity anchor)\b/i, t)) {
+  if (has(/\b(who are you|what are you|what is marion|who is marion|what is nyx|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity|identity anchor)\b/i, t)) {
     return {
-      intent: "identity_or_memory",
+      intent: "identity_query",
       confidence: 0.93,
       reason: "identity_baseline_terms",
       stateStageHint: "continuity",
@@ -360,11 +443,33 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|composemarionresponse|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|api\/chat|final envelope|contract|authority gate|script|file|harden|critical fix|critical fixes|download|zip|integration|cohesion|cohesive|90%|ninety percent|baseline cognition)\b/i, t)) {
+  if (detectContextualDirectiveIntent(t)) {
+    return {
+      intent: "contextual_directive",
+      confidence: 0.93,
+      reason: "contextual_directive_terms",
+      stateStageHint: "execute_context",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
+  if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|composemarionresponse|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|api\/chat|backend diagnostics|diagnostics route|health check|final envelope|contract|authority gate|script|file|harden|critical fix|critical fixes|download|zip|integration|cohesion|cohesive|90%|ninety percent|baseline cognition)\b/i, t)) {
     return {
       intent: "technical_debug",
       confidence: 0.92,
       reason: "technical_debug_or_cohesion_terms",
+      stateStageHint: "execution",
+      safetyLevel,
+      recoveryRequired: false
+    };
+  }
+
+  if (has(/\b(avatar|tts|speech|voice route|voice ready|avatar controls|micro[- ]?expression|head and shoulders)\b/i, t)) {
+    return {
+      intent: "technical_debug",
+      confidence: 0.82,
+      reason: "avatar_voice_technical_terms",
       stateStageHint: "execution",
       safetyLevel,
       recoveryRequired: false
@@ -458,6 +563,24 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     recoveryRequired = true;
   }
 
+  /* Social interaction wins over stale identity/greeting hints so greetings stay warm, not diagnostic. */
+  if (inferred.intent === "simple_chat" && /^social_/.test(inferred.reason) && intent !== "emotional_support") {
+    intent = "simple_chat";
+    confidence = Math.max(confidence, inferred.confidence);
+    reason = inferred.reason;
+    stateStageHint = "deliver";
+    recoveryRequired = false;
+  }
+
+  /* Contextual directive wins over stale simple/domain/technical intent. */
+  if (inferred.intent === "contextual_directive" && intent !== "emotional_support") {
+    intent = "contextual_directive";
+    confidence = Math.max(confidence, inferred.confidence);
+    reason = inferred.reason;
+    stateStageHint = "execute_context";
+    recoveryRequired = false;
+  }
+
   /* Directive execution wins over stale simple/domain/technical intent and must not be treated as clarification. */
   if (inferred.intent === "directive_response" && intent !== "emotional_support") {
     intent = "directive_response";
@@ -468,8 +591,8 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   }
 
   /* Identity baseline wins over stale simple/domain intent and must not be treated as generic Q&A. */
-  if (inferred.intent === "identity_or_memory" && intent !== "emotional_support") {
-    intent = "identity_or_memory";
+  if ((inferred.intent === "identity_query" || inferred.intent === "identity_or_memory") && intent !== "emotional_support") {
+    intent = inferred.intent;
     confidence = Math.max(confidence, inferred.confidence);
     reason = inferred.reason;
     stateStageHint = "continuity";
@@ -532,11 +655,11 @@ function buildRouting(marionIntent) {
     mode: DOMAIN_MODE[domain] || "conversation",
     depth: DOMAIN_DEPTH[domain] || "normal",
     cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation"),
-    useMemory: domain === "memory" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
+    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
     useDomainKnowledge: domain !== "general",
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
-    requiresHotFallback: true,
+    requiresHotFallback: false,
     directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
     blockRepeatedBridgeFallback: true,
     recoveryRequired: marionIntent.recoveryRequired,
@@ -610,6 +733,9 @@ module.exports = {
     extractText,
     extractExistingIntent,
     detectSafetyLevel,
+    detectSocialIntent,
+    detectContextualDirectiveIntent,
+    detectDomainIntroIntent,
     detectSubIntent,
     detectDirectiveIntent,
     buildRouting
