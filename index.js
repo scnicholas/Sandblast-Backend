@@ -30,7 +30,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39";
+const INDEX_VERSION = "index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -352,8 +352,9 @@ const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_MARION_FINAL_MARKERS = [
   REQUIRED_CHAT_ENGINE_SIGNATURE,
-  "marionBridge v6.5.1",
-  "composeMarionResponse v2.4",
+  "marionBridge v7.4",
+  "composeMarionResponse v3.7",
+  "nyx.marion.final/1.0",
   "nyx.marion.stateSpine/1.7",
   "nyx.marion.stateSpine/1.6"
 ];
@@ -509,13 +510,19 @@ function hasFreshMarionFinalEnvelope(value) {
 
 function buildLoopReplyBlockedReplacement(norm, authority) {
   // Transport-only hardlock:
-  // index.js must not invent a replacement reply. Returning a blank error contract
-  // forces the fault back to MarionBridge / MarionLoopGuard, where recovery belongs.
+  // index.js must not invent a replacement reply. Returning a blank non-final
+  // contract forces the fault back to MarionBridge / MarionLoopGuard, where
+  // recovery belongs, and prevents false-final packets from reaching Nyx.
   return {
     ok: false,
-    final: true,
+    final: false,
+    finalized: false,
     handled: true,
     marionFinal: false,
+    awaitingMarion: true,
+    suppressUserFacingReply: true,
+    emit: false,
+    blocked: true,
     recoveryInjected: false,
     reply: "",
     text: "",
@@ -526,6 +533,12 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       text: "",
       message: "",
       spokenText: "",
+      final: false,
+      marionFinal: false,
+      awaitingMarion: true,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true,
       loopReplyBlocked: true,
       recoveryInjected: false
     },
@@ -1095,8 +1108,11 @@ function resolveExpressRouterFromModule(mod) {
 }
 
 const marionBridgeMod = tryRequireMany([
-  // Prefer root/runtime-local patched bridge first. Data runtime remains supported,
-  // but must not silently override freshly deployed bridge files during loop repair.
+  // RUNTIME-COHESION-FINAL-AUTHORITY-V40:
+  // Prefer the active Data runtime bridge first so index.js, MarionBridge,
+  // ComposeMarionResponse, and ChatEngine share one live authority path.
+  "./Data/marion/runtime/marionBridge",
+  "./Data/marion/runtime/marionBridge.js",
   "./marionBridge",
   "./marionBridge.js",
   "./runtime/marionBridge",
@@ -1104,9 +1120,7 @@ const marionBridgeMod = tryRequireMany([
   "./utils/marionBridge",
   "./utils/marionBridge.js",
   "./Utils/marionBridge",
-  "./Utils/marionBridge.js",
-  "./Data/marion/runtime/marionBridge",
-  "./Data/marion/runtime/marionBridge.js"
+  "./Utils/marionBridge.js"
 ]);
 
 const marionIntentRouterMod = tryRequireMany([
@@ -4368,6 +4382,24 @@ function normalizeMarionBridgeResult(raw, input) {
     requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
     finalMarkers,
     hardlockCompatible: true,
+    finalEnvelope: {
+      ...(isObj(base.finalEnvelope) ? base.finalEnvelope : {}),
+      reply,
+      text: reply,
+      displayReply: reply,
+      spokenText: cleanText((isObj(base.finalEnvelope) && base.finalEnvelope.spokenText) || base.spokenText || reply),
+      final: true,
+      marionFinal: true,
+      handled: true,
+      authority: "marionFinalEnvelope",
+      source: "marionBridge",
+      contractVersion: "nyx.marion.final/1.0",
+      signature,
+      marionFinalSignature: signature,
+      requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
+      finalMarkers,
+      hardlockCompatible: true
+    },
     meta,
     payload,
     packet,
