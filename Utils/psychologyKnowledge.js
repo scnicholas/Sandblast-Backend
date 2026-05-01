@@ -3,12 +3,12 @@
 /**
  * Utils/psychologyKnowledge.js
  *
- * v1.3.0 (SYNERGY BRIDGE++++ + DETERMINISM++++ + NYX PSYCHE PROFILE++++ + SAFETY TIER++++)
+ * v1.4.0-hardened (SPLIT-PATH + ARRAY-PACK SUPPORT + SAFETY FALLBACK)
  *
  * Psychology Knowledge Retrieval Layer
  *
  * Responsibilities:
- *  - Load domain packs from /Data/Domains/psychology/packs
+ *  - Load domain packs from /Data/psychology or legacy /Data/Domains/psychology/packs
  *  - Cache packs (mtime-based)
  *  - Provide deterministic retrieval functions
  *  - Detect safety escalation signals (legacy text-based)
@@ -33,13 +33,19 @@ const path = require("path");
 // CONFIG
 // =========================
 
+const PSYCHOLOGY_K_VERSION = "psychologyKnowledge v1.4.0-hardened";
+
 const DOMAIN_DIR_CANDIDATES = [
   process.env.NYX_PSYCHOLOGY_PACK_DIR,
+  path.resolve(__dirname, "..", "Data", "psychology"),
   path.resolve(__dirname, "..", "Data", "Domains", "psychology", "packs"),
   path.resolve(__dirname, "..", "data", "domains", "psychology", "packs"),
   path.resolve(__dirname, "..", "data", "Domains", "psychology", "packs"),
+  path.resolve(__dirname, "Data", "psychology"),
   path.resolve(__dirname, "Data", "Domains", "psychology", "packs"),
-  path.resolve(__dirname, "data", "domains", "psychology", "packs")
+  path.resolve(__dirname, "data", "domains", "psychology", "packs"),
+  path.resolve(process.cwd(), "Data", "psychology"),
+  path.resolve(process.cwd(), "Data", "Domains", "psychology", "packs")
 ].filter(Boolean);
 
 function resolveDomainDir() {
@@ -56,16 +62,23 @@ const DOMAIN_DIR = resolveDomainDir();
 // Pack weights let you bias retrieval across packs (domain-level calibration).
 // Higher weight = more likely to surface when scores tie.
 const PACK_WEIGHTS = Object.freeze({
+  "crisis_flags.json": 4.4,
+  "affect_interpretation.json": 3.0,
+  "support_strategies.json": 2.8,
+  "trauma_sensitivity.json": 3.2,
+  "attachment_patterns.json": 2.2,
+  "cognitive_distortions.json": 2.4,
+  "psy_clinical_safety_v2.json": 4.0,
   "psy_clinical_safety_v1.json": 4.0,
-  "psy_foundations_v1.json": 2.0,
-  "psy_cognitive_v1.json": 2.2,
-  "psy_development_v1.json": 1.8,
-  "psy_social_v1.json": 1.8,
-  "psy_research_methods_v1.json": 1.4,
-  "psy_interventions_skills_v1.json": 2.4,
-  "psy_biases_and_fallacies_v1.json": 1.7,
-  "psy_dialogue_snippets_v1.json": 1.2,
-  "psy_face_examples_v1.json": 1.0,
+  "psy_foundations_v2.json": 2.0,
+  "psy_cognitive_v2.json": 2.2,
+  "psy_development_v2.json": 1.8,
+  "psy_social_v2.json": 1.8,
+  "psy_research_methods_v2.json": 1.4,
+  "psy_interventions_skills_v2.json": 2.4,
+  "psy_biases_and_fallacies_v2.json": 1.7,
+  "psy_dialogue_snippets_v2.json": 1.2,
+  "psy_face_examples_v2.json": 1.0,
 });
 
 // Item-type weights (within-pack calibration).
@@ -123,10 +136,25 @@ function isObject(x) {
   return x && typeof x === "object" && !Array.isArray(x);
 }
 
+function stripGitConflictBlocks(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const out = [];
+  let inConflict = false;
+  let keepHead = false;
+  for (const line of lines) {
+    if (line.startsWith("<<<<<<<")) { inConflict = true; keepHead = true; continue; }
+    if (inConflict && line.startsWith("=======")) { keepHead = false; continue; }
+    if (inConflict && line.startsWith(">>>>>>>")) { inConflict = false; keepHead = false; continue; }
+    if (!inConflict || keepHead) out.push(line);
+  }
+  return out.join("\n");
+}
+
 function safeReadJSON(file) {
   try {
     const txt = fs.readFileSync(file, "utf8");
-    const clean = txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const noBom = txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const clean = stripGitConflictBlocks(noBom);
     return JSON.parse(clean);
   } catch (_e) {
     return null;
@@ -316,6 +344,19 @@ function extractItemsFromPack(file, pack) {
   const packId = getPackId(pack, file);
   const out = [];
 
+
+
+  function inferArrayItemType(raw) {
+    const sub = safeStr(raw?.subdomain || raw?.type || "", 64).toLowerCase();
+    const mode = safeStr(raw?.supportMode || "", 64).toLowerCase();
+    const risk = safeStr(raw?.riskLevel || "", 32).toLowerCase();
+    if (sub.includes("crisis") || risk === "critical" || risk === "high") return "guardrail";
+    if (sub.includes("support") || mode) return "skill";
+    if (sub.includes("distortion") || sub.includes("bias")) return "bias";
+    if (sub.includes("attachment") || sub.includes("affect") || sub.includes("trauma")) return "framework";
+    return "theory";
+  }
+
   function getHints(raw) {
     if (!isObject(raw)) return {};
     if (isObject(raw.retrievalHints)) return raw.retrievalHints;
@@ -330,8 +371,16 @@ function extractItemsFromPack(file, pack) {
     const hints = getHints(raw);
 
     const tags = Array.isArray(raw.tags) ? raw.tags : (Array.isArray(hints.tags) ? hints.tags : []);
-    const keywords = Array.isArray(hints.keywords) ? hints.keywords : (Array.isArray(raw.keywords) ? raw.keywords : []);
-    const intentSignals = Array.isArray(hints.intentSignals) ? hints.intentSignals : (Array.isArray(raw.intentSignals) ? raw.intentSignals : []);
+    const keywords = []
+      .concat(Array.isArray(hints.keywords) ? hints.keywords : [])
+      .concat(Array.isArray(raw.keywords) ? raw.keywords : [])
+      .concat(Array.isArray(raw.signals) ? raw.signals : [])
+      .concat(raw.topic ? [raw.topic] : []);
+    const intentSignals = []
+      .concat(Array.isArray(hints.intentSignals) ? hints.intentSignals : [])
+      .concat(Array.isArray(raw.intentSignals) ? raw.intentSignals : [])
+      .concat(raw.routeBias ? [raw.routeBias] : [])
+      .concat(raw.supportMode ? [raw.supportMode] : []);
     const needs = Array.isArray(hints.needs) ? hints.needs : (Array.isArray(raw.needs) ? raw.needs : []);
     const focusHints = Array.isArray(hints.focusHints) ? hints.focusHints : [];
     const stanceHints = Array.isArray(hints.stanceHints) ? hints.stanceHints : [];
@@ -351,9 +400,9 @@ function extractItemsFromPack(file, pack) {
       stanceHints: uniqBounded(stanceHints, 6, 40),
 
       // optional shaping fields (kept bounded)
-      principles: uniqBounded(raw.principles || [], 6, 70),
-      guardrails: uniqBounded(raw.guardrails || [], 6, 70),
-      frameworks: uniqBounded(raw.frameworks || raw.framework || [], 6, 40),
+      principles: uniqBounded(raw.principles || raw.responseGuidance || [], 6, 70),
+      guardrails: uniqBounded(raw.guardrails || raw.contraindications || [], 6, 70),
+      frameworks: uniqBounded(raw.frameworks || raw.framework || (raw.interpretation ? [raw.interpretation] : []), 6, 80),
 
       // raw payload kept, but never returned wholesale to Marion/Nyx (we only take atoms)
       payload: raw,
@@ -362,6 +411,11 @@ function extractItemsFromPack(file, pack) {
       packFile: file,
       packVersion: getPackVersion(pack),
     });
+  }
+
+  if (Array.isArray(pack)) {
+    for (const entry of pack) pushItem(inferArrayItemType(entry), entry);
+    return out;
   }
 
   // Known containers
@@ -447,6 +501,30 @@ function detectSafetySignals(text) {
   const input = normalizeText(text);
   const clinicalPack = loadPack("psy_clinical_safety_v1.json");
   if (!clinicalPack || !isObject(clinicalPack.riskSignals)) {
+    const crisisPack = loadPack("crisis_flags.json");
+    if (Array.isArray(crisisPack)) {
+      let highest = null;
+      for (const item of crisisPack) {
+        const patterns = []
+          .concat(Array.isArray(item.signals) ? item.signals : [])
+          .concat(Array.isArray(item.keywords) ? item.keywords : []);
+        for (const pattern of patterns) {
+          const p = normalizeText(pattern);
+          if (p && input.includes(p)) {
+            const priority = item.riskLevel === "critical" ? 100 : item.riskLevel === "high" ? 80 : 50;
+            if (!highest || priority > highest.priority) {
+              highest = {
+                id: safeStr(item.id || item.topic || "crisis_flag", 80),
+                label: safeStr(item.title || item.topic || "Safety flag", 120),
+                mode: safeStr(item.supportMode || "crisis_escalation", 64),
+                priority
+              };
+            }
+          }
+        }
+      }
+      if (highest) return { detected: true, mode: highest.mode, signal: highest };
+    }
     return { detected: false, mode: "NON_CLINICAL", signal: null };
   }
 
@@ -807,16 +885,22 @@ function getMarionHints(input) {
   }
 
   const packs = {
-    foundations: idx.packMeta["psy_foundations_v1.json"]?.packId || "psy_foundations_v1",
-    clinicalSafety: idx.packMeta["psy_clinical_safety_v1.json"]?.packId || "psy_clinical_safety_v1",
-    biases: idx.packMeta["psy_biases_and_fallacies_v1.json"]?.packId || "psy_biases_and_fallacies_v1",
-    cognitive: idx.packMeta["psy_cognitive_v1.json"]?.packId || "psy_cognitive_v1",
-    development: idx.packMeta["psy_development_v1.json"]?.packId || "psy_development_v1",
-    social: idx.packMeta["psy_social_v1.json"]?.packId || "psy_social_v1",
-    research: idx.packMeta["psy_research_methods_v1.json"]?.packId || "psy_research_methods_v1",
-    interventions: idx.packMeta["psy_interventions_skills_v1.json"]?.packId || "psy_interventions_skills_v1",
-    dialogue: idx.packMeta["psy_dialogue_snippets_v1.json"]?.packId || "psy_dialogue_snippets_v1",
-    faceExamples: idx.packMeta["psy_face_examples_v1.json"]?.packId || "psy_face_examples_v1",
+    affectInterpretation: idx.packMeta["affect_interpretation.json"]?.packId || "affect_interpretation",
+    attachmentPatterns: idx.packMeta["attachment_patterns.json"]?.packId || "attachment_patterns",
+    cognitiveDistortions: idx.packMeta["cognitive_distortions.json"]?.packId || "cognitive_distortions",
+    crisisFlags: idx.packMeta["crisis_flags.json"]?.packId || "crisis_flags",
+    supportStrategies: idx.packMeta["support_strategies.json"]?.packId || "support_strategies",
+    traumaSensitivity: idx.packMeta["trauma_sensitivity.json"]?.packId || "trauma_sensitivity",
+    foundations: idx.packMeta["psy_foundations_v2.json"]?.packId || idx.packMeta["psy_foundations_v1.json"]?.packId || "psy_foundations_v2",
+    clinicalSafety: idx.packMeta["psy_clinical_safety_v2.json"]?.packId || idx.packMeta["psy_clinical_safety_v1.json"]?.packId || "psy_clinical_safety_v2",
+    biases: idx.packMeta["psy_biases_and_fallacies_v2.json"]?.packId || idx.packMeta["psy_biases_and_fallacies_v1.json"]?.packId || "psy_biases_and_fallacies_v2",
+    cognitive: idx.packMeta["psy_cognitive_v2.json"]?.packId || idx.packMeta["psy_cognitive_v1.json"]?.packId || "psy_cognitive_v2",
+    development: idx.packMeta["psy_development_v2.json"]?.packId || idx.packMeta["psy_development_v1.json"]?.packId || "psy_development_v2",
+    social: idx.packMeta["psy_social_v2.json"]?.packId || idx.packMeta["psy_social_v1.json"]?.packId || "psy_social_v2",
+    research: idx.packMeta["psy_research_methods_v2.json"]?.packId || idx.packMeta["psy_research_methods_v1.json"]?.packId || "psy_research_methods_v2",
+    interventions: idx.packMeta["psy_interventions_skills_v2.json"]?.packId || idx.packMeta["psy_interventions_skills_v1.json"]?.packId || "psy_interventions_skills_v2",
+    dialogue: idx.packMeta["psy_dialogue_snippets_v2.json"]?.packId || idx.packMeta["psy_dialogue_snippets_v1.json"]?.packId || "psy_dialogue_snippets_v2",
+    faceExamples: idx.packMeta["psy_face_examples_v2.json"]?.packId || idx.packMeta["psy_face_examples_v1.json"]?.packId || "psy_face_examples_v2",
   };
 
   const conf = confidenceFromScores(scored);
@@ -966,6 +1050,8 @@ function getNyxPsycheProfile(input) {
 // =========================
 
 module.exports = {
+  PSYCHOLOGY_K_VERSION,
+  DOMAIN_DIR,
   // Marion-safe API
   getMarionHints,
   query,
