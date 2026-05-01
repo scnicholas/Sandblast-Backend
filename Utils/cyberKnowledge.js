@@ -29,31 +29,66 @@ const path = require("path");
 // CONFIG
 // =========================
 
-const DOMAIN_DIR = path.resolve(
-  __dirname,
-  "..",
-  "Data",
-  "Domains",
-  "cybersecurity",
-  "packs"
-);
+const DOMAIN_DIR_CANDIDATES = [
+  process.env.NYX_CYBER_PACK_DIR,
+  path.resolve(__dirname, "..", "Data", "cyber"),
+  path.resolve(__dirname, "..", "Data", "cybersecurity"),
+  path.resolve(__dirname, "..", "Data", "Domains", "cyber", "packs"),
+  path.resolve(__dirname, "..", "Data", "Domains", "cybersecurity", "packs"),
+  path.resolve(process.cwd(), "Data", "cyber"),
+  path.resolve(process.cwd(), "Data", "cybersecurity"),
+  path.resolve(process.cwd(), "Data", "Domains", "cybersecurity", "packs")
+].filter(Boolean);
 
-const CYBER_K_VERSION = "cyberKnowledge v1.0.0";
+function resolveDomainDir() {
+  for (const candidate of DOMAIN_DIR_CANDIDATES) {
+    try {
+      if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    } catch (_e) {}
+  }
+  return DOMAIN_DIR_CANDIDATES[0];
+}
+
+const DOMAIN_DIR = resolveDomainDir();
+
+const CYBER_K_VERSION = "cyberKnowledge v1.1.0-hardened";
 
 // canonical pack files we expect (but loader is tolerant)
 const PACK_FILES = Object.freeze({
-  safetyPosture: "cyber_safety_and_posture_v1.json",
-  sourceLadder: "cyber_source_ladder_v1.json",
-  foundations: "cyber_foundations_v1.json",
-  identityAccess: "cyber_identity_access_v1.json",
-  endpointCloud: "cyber_endpoint_cloud_v1.json",
-  incidentResponse: "cyber_incident_response_v1.json",
-  networkWeb: "cyber_network_web_v1.json",
-  privacyData: "cyber_privacy_data_protection_v1.json",
-  securityCulture: "cyber_security_culture_v1.json",
+  safetyPosture: "cyber_safety_and_posture_v2_normalized.json",
+  sourceLadder: "cyber_source_ladder_v2_normalized.json",
+  foundations: "cyber_foundations_v2_normalized.json",
+  identityAccess: "cyber_identity_access_v2_normalized.json",
+  endpointCloud: "cyber_endpoint_cloud_v2_normalized.json",
+  incidentResponse: "cyber_incident_response_v2_normalized.json",
+  networkWeb: "cyber_network_web_v2_normalized.json",
+  privacyData: "cyber_privacy_data_protection_v2_normalized.json",
+  securityCulture: "cyber_security_culture_v2_normalized.json",
   // examples
   faceExamples: "cyber_face_examples_v1.json"
 });
+
+const PACK_FILE_ALIASES = Object.freeze({
+  "cyber_safety_and_posture_v2_normalized.json": ["cyber_safety_and_posture_v1.json"],
+  "cyber_source_ladder_v2_normalized.json": ["cyber_source_ladder_v1.json"],
+  "cyber_foundations_v2_normalized.json": ["cyber_foundations_v1.json"],
+  "cyber_identity_access_v2_normalized.json": ["cyber_identity_access_v1.json"],
+  "cyber_endpoint_cloud_v2_normalized.json": ["cyber_endpoint_cloud_v1.json"],
+  "cyber_incident_response_v2_normalized.json": ["cyber_incident_response_v1.json"],
+  "cyber_network_web_v2_normalized.json": ["cyber_network_web_v1.json"],
+  "cyber_privacy_data_protection_v2_normalized.json": ["cyber_privacy_data_protection_v1.json"],
+  "cyber_security_culture_v2_normalized.json": ["cyber_security_culture_v1.json"]
+});
+
+function resolvePackFileName(fileName) {
+  const candidates = [fileName].concat(PACK_FILE_ALIASES[fileName] || []);
+  for (const name of candidates) {
+    const full = path.join(DOMAIN_DIR, name);
+    const stat = safeStat(full);
+    if (stat && stat.isFile()) return name;
+  }
+  return fileName;
+}
 
 // =========================
 // INTERNAL CACHE
@@ -72,10 +107,25 @@ function isObject(x) {
   return x && typeof x === "object" && !Array.isArray(x);
 }
 
+function stripGitConflictBlocks(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const out = [];
+  let inConflict = false;
+  let keepHead = false;
+  for (const line of lines) {
+    if (line.startsWith("<<<<<<<")) { inConflict = true; keepHead = true; continue; }
+    if (inConflict && line.startsWith("=======")) { keepHead = false; continue; }
+    if (inConflict && line.startsWith(">>>>>>>")) { inConflict = false; keepHead = false; continue; }
+    if (!inConflict || keepHead) out.push(line);
+  }
+  return out.join("\n");
+}
+
 function safeReadJSON(file) {
   try {
     const txt = fs.readFileSync(file, "utf8");
-    const clean = txt && txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const noBom = txt && txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const clean = stripGitConflictBlocks(noBom);
     return JSON.parse(clean);
   } catch (_e) {
     return null;
@@ -144,21 +194,22 @@ function clamp01(n) {
 // =========================
 
 function loadPack(fileName) {
-  const fullPath = path.join(DOMAIN_DIR, fileName);
+  const resolvedName = resolvePackFileName(fileName);
+  const fullPath = path.join(DOMAIN_DIR, resolvedName);
   const stat = safeStat(fullPath);
   if (!stat || !stat.isFile()) return null;
 
   const mtime = Number(stat.mtimeMs || 0);
 
-  if (_packCache.packs[fileName] && _packCache.mtimeMap[fileName] === mtime) {
-    return _packCache.packs[fileName];
+  if (_packCache.packs[resolvedName] && _packCache.mtimeMap[resolvedName] === mtime) {
+    return _packCache.packs[resolvedName];
   }
 
   const data = safeReadJSON(fullPath);
   if (!data) return null;
 
-  _packCache.packs[fileName] = data;
-  _packCache.mtimeMap[fileName] = mtime;
+  _packCache.packs[resolvedName] = data;
+  _packCache.mtimeMap[resolvedName] = mtime;
 
   return data;
 }
@@ -571,10 +622,12 @@ module.exports = {
   CYBER_K_VERSION,
   PACK_FILES,
   loadPack,
+  DOMAIN_DIR,
   loadAllPacks,
   postureSummary,
   detectAdversarialIntentByText,
   scorePackCandidates,
   getMarionHints,
-  queryCyber
+  queryCyber,
+  query: getMarionHints
 };
