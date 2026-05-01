@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.2.3 DEEP-CONTINUITY-REPETITION-RELEASE";
+const SPINE_VERSION = "stateSpine v2.3.0 CONVERSATION-QUALITY-CONTINUITY";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
