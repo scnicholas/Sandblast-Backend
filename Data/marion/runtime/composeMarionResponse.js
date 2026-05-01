@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.7.4 RUNTIME-FINAL-AUTHORITY-FLUIDITY";
+const VERSION = "composeMarionResponse v3.7.5 RUNTIME-FINAL-AUTHORITY-FLUIDITY";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const VALID_INTENTS = Object.freeze(["simple_chat","technical_debug","emotional_support","business_strategy","music_query","news_query","roku_query","identity_query","identity_or_memory","directive_response","contextual_directive","domain_question"]);
