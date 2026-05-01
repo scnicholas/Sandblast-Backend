@@ -3,7 +3,7 @@
 /**
  * Sandblast Backend — index.js
  *
- * index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION
+ * index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -22,6 +22,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 let compression = null;
 try {
@@ -30,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.4sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41";
+const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -554,14 +555,14 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       loopReplyBlocked: true,
       recoveryInjected: false,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.4sb",
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.5sb",
       correction: "rogue_fallback_purged"
     },
     diagnostics: {
       loopReplyBlocked: true,
       recoveryInjected: false,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
-      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.4sb",
+      hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.5sb",
       reason: "index_transport_only_refused_to_invent_recovery"
     }
   };
@@ -871,11 +872,12 @@ function routeUrl(pathname) {
 
 const CFG = {
   apiTokenHeader: lower(process.env.SB_WIDGET_TOKEN_HEADER || process.env.SBNYX_WIDGET_TOKEN_HEADER || "x-sb-widget-token"),
-  apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || "",
+  apiToken: process.env.SB_WIDGET_TOKEN || process.env.SBNYX_WIDGET_TOKEN || process.env.SB_API_KEY || process.env.SANDBLAST_API_KEY || process.env.CHAT_API_KEY || process.env.NYX_API_KEY || process.env.WIDGET_API_KEY || "",
   requireVoiceRouteToken: boolEnv("SB_REQUIRE_VOICE_ROUTE_TOKEN", false),
   voiceRouteEnabled: boolEnv("SB_VOICE_ROUTE_ENABLED", true),
   preserveMixerVoice: boolEnv("SB_PRESERVE_MIXER_VOICE", true),
   corsAllowCredentials: boolEnv("SB_CORS_ALLOW_CREDENTIALS", true),
+  conversationOriginBypass: boolEnv("SB_CONVERSATION_ORIGIN_BYPASS", true),
   corsAllowedOrigins: parseOrigins(
     process.env.SB_CORS_ALLOWED_ORIGINS ||
     "https://www.sandblast.channel,https://sandblast.channel,http://localhost:3000,http://127.0.0.1:3000"
@@ -1513,30 +1515,30 @@ function removeNewsCanadaFeedBoilerplate(value) {
 
 function stripUnsafeFeedAttrs(html) {
   return safeStr(html)
-    .replace(/\s(?:style|srcset|sizes|fetchpriority|decoding|loading|class|id|link_thumbnail)=(["']).*?/gi, "")
-    .replace(/\s(?:data-[a-z0-9_-]+)=(["']).*?/gi, "");
+    .replace(/\s(?:style|srcset|sizes|fetchpriority|decoding|loading|class|id|link_thumbnail)=(["']).*?\1/gi, "")
+    .replace(/\s(?:data-[a-z0-9_-]+)=(["']).*?\1/gi, "");
 }
 
 function extractFirstHtmlImageUrl(html) {
   const sanitized = stripUnsafeFeedAttrs(html);
-  const match = /<img[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  const match = /<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
   return cleanText(match && match[1] || "");
 }
 
 function extractHtmlVideoSrc(html) {
   const sanitized = stripUnsafeFeedAttrs(html);
-  const sourceMatch = /<source[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  const sourceMatch = /<source\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
   if (sourceMatch && cleanText(sourceMatch[1])) return cleanText(sourceMatch[1]);
-  const videoMatch = /<video[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
+  const videoMatch = /<video\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i.exec(sanitized);
   return cleanText(videoMatch && videoMatch[1] || "");
 }
 
 function extractFirstHtmlParagraph(html) {
   const sanitized = stripUnsafeFeedAttrs(html);
-  const matches = sanitized.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || [];
+  const matches = sanitized.match(/<p\b[^>]*>[\s\S]*?<\/p>/gi) || [];
   for (const block of matches) {
     const text = removeNewsCanadaFeedBoilerplate(stripTags(block));
-    if (text && !/^the post/i.test(text)) return text;
+    if (text && !/^the post\b/i.test(text)) return text;
   }
   return removeNewsCanadaFeedBoilerplate(stripTags(sanitized));
 }
@@ -1596,8 +1598,8 @@ function parseNewsCanadaRssXml(xmlText, feedUrl) {
     return { items, parserMode: "blocked_unsafe_xml_doctype" };
   }
 
-  const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
-  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry[\s\S]*?<\/entry>/gi) || []);
+  const itemBlocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+  const entryBlocks = itemBlocks.length ? [] : (xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || []);
   const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
 
   if (blocks.length) {
@@ -3025,16 +3027,39 @@ function readBearerToken(req) {
   return cleanText(auth.replace(/^bearer\s+/i, ""));
 }
 
-function readToken(req) {
-  const headers = req && req.headers ? req.headers : {};
+function tokenCandidateNames() {
   const configured = lower(CFG.apiTokenHeader || "x-sb-widget-token");
-  const candidates = uniq([
+  return uniq([
     configured,
     "x-sb-widget-token",
     "x-sbnyx-widget-token",
     "sb-widget-token",
-    "x-nyx-widget-token"
+    "x-nyx-widget-token",
+    "x-api-key",
+    "x-sandblast-key",
+    "x-sandblast-api-key",
+    "x-nyx-api-key",
+    "x-widget-key",
+    "x-chat-api-key"
   ]);
+}
+
+function safeTokenEquals(got, expected) {
+  const a = cleanText(got || "");
+  const b = cleanText(expected || "");
+  if (!a || !b) return false;
+  try {
+    const ab = Buffer.from(a);
+    const bb = Buffer.from(b);
+    return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+  } catch (_) {
+    return a === b;
+  }
+}
+
+function readToken(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const candidates = tokenCandidateNames();
   for (const name of candidates) {
     const value = cleanText(headers[name] || (req.get && req.get(name)) || "");
     if (value) return value;
@@ -3042,12 +3067,20 @@ function readToken(req) {
   return readBearerToken(req);
 }
 
-function denyUnauthorized(res) {
-  hardenCors(null, res);
+function denyUnauthorized(req, res) {
+  hardenCors(req, res);
   return res.status(401).json({
     ok: false,
     error: "unauthorized",
-    meta: { v: INDEX_VERSION, t: now() }
+    detail: "Request did not provide a valid chat/widget token.",
+    traceId: cleanText(req && req.sbTraceId || req && req.headers && req.headers["x-sb-trace-id"] || makeTraceId("auth")),
+    auth: {
+      configured: !!CFG.apiToken,
+      expectedHeaders: tokenCandidateNames(),
+      bearerAccepted: true,
+      originBypassEnabled: !!CFG.conversationOriginBypass
+    },
+    meta: { v: INDEX_VERSION, t: now(), authGate: "index.enforceToken" }
   });
 }
 
@@ -3085,15 +3118,15 @@ function sendConversationMethodDiagnostic(req, res) {
 
 function enforceToken(req, res, next) {
   if (req.method === "OPTIONS") return next();
-  if (isConversationRoutePath(req)) {
+  if (isConversationRoutePath(req) && CFG.conversationOriginBypass) {
     const origin = cleanText((req && req.headers && req.headers.origin) || "");
     const referer = cleanText((req && req.headers && req.headers.referer) || "");
     if (isSandblastOrigin(origin) || isSandblastOrigin(referer)) return next();
   }
   if (!CFG.apiToken) return next();
   const got = readToken(req);
-  if (got && got === CFG.apiToken) return next();
-  return denyUnauthorized(res);
+  if (safeTokenEquals(got, CFG.apiToken)) return next();
+  return denyUnauthorized(req, res);
 }
 
 function enforceVoiceRouteAccess(req, res, next) {
@@ -6143,6 +6176,12 @@ app.get("/api/health", (req, res) => {
     marionRuntime: getMarionRuntimeDiagnostics(),
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
+    auth: {
+      tokenConfigured: !!CFG.apiToken,
+      tokenHeader: CFG.apiTokenHeader,
+      acceptedTokenHeaders: tokenCandidateNames(),
+      conversationOriginBypass: !!CFG.conversationOriginBypass
+    },
     backendPublicBase: getBackendPublicBase(),
     audioContract: {
       version: "audio-first-v1",
