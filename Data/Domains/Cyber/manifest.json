@@ -111,5 +111,45 @@
       "keywordCount": 71,
       "intentSignalCount": 55
     }
-  ]
+  ],
+  "domain": "cyber",
+  "schemaVersion": "2.1-normalized",
+  "runtimeDomainKey": "cyber",
+  "runtimeFolder": "Data/cyber",
+  "manifestPath": "domains/cyber/manifest.json",
+  "routing": {
+    "primaryLane": "cyber",
+    "secondaryLanes": [
+      "ai",
+      "law",
+      "privacy",
+      "risk",
+      "english"
+    ],
+    "safetyFirst": true,
+    "defensiveOnly": true
+  },
+  "constraints": {
+    "defensiveCyberOnly": true,
+    "noExploitInstructions": true,
+    "privacyMinimization": true,
+    "incidentSafetyFirst": true
+  },
+  "defaultLoadOrder": [
+    "cyber_safety_and_posture_v2_normalized.json",
+    "cyber_foundations_v2_normalized.json",
+    "cyber_source_ladder_v2_normalized.json",
+    "cyber_identity_access_v2_normalized.json",
+    "cyber_endpoint_cloud_v2_normalized.json",
+    "cyber_network_web_v2_normalized.json",
+    "cyber_privacy_data_protection_v2_normalized.json",
+    "cyber_incident_response_v2_normalized.json",
+    "cyber_security_culture_v2_normalized.json"
+  ],
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "domainKeyAdded": true,
+    "defensiveConstraintsExplicit": true
+  }
 }
