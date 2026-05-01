@@ -78,7 +78,8 @@
         "contracts_v2",
         "law_contracts",
         "law_contracts_v2"
-      ]
+      ],
+      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
     },
     {
       "file": "law_torts_v1.json",
@@ -114,7 +115,8 @@
         "law_source_ladder",
         "law_source_ladder_v2",
         "source_ladder_v2"
-      ]
+      ],
+      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
     },
     {
       "file": "law_contracts_sources_index_v1.json",
@@ -126,11 +128,48 @@
         "contracts_sources_index_v2",
         "law_contracts_sources_index",
         "law_contracts_sources_index_v2"
-      ]
+      ],
+      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
     }
-  ]
-<<<<<<< HEAD
+  ],
+  "schemaVersion": "1.0-normalized",
+  "runtimeDomainKey": "law",
+  "runtimeFolder": "Data/law",
+  "manifestPath": "domains/law/manifest.json",
+  "routing": {
+    "primaryLane": "law",
+    "secondaryLanes": [
+      "finance",
+      "ai",
+      "cyber",
+      "strategy",
+      "english"
+    ],
+    "safetyFirst": true,
+    "jurisdictionRequired": true,
+    "keywords": [
+      "law",
+      "legal",
+      "contract",
+      "tort",
+      "criminal",
+      "charter",
+      "constitutional",
+      "case law",
+      "statute",
+      "jurisdiction"
+    ]
+  },
+  "constraints": {
+    "noLegalAdvice": true,
+    "educationalOnly": true,
+    "jurisdictionDisclosureRequired": true,
+    "sourceLadderRequired": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "legalGateExplicit": true,
+    "jurisdictionExplicit": true
+  }
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
