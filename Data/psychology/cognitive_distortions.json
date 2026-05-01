@@ -12,7 +12,12 @@
       "it's going to be a disaster",
       "there's no way this ends well"
     ],
-    "keywords": ["worst case", "disaster", "ruin everything", "fall apart"],
+    "keywords": [
+      "worst case",
+      "disaster",
+      "ruin everything",
+      "fall apart"
+    ],
     "interpretation": "Possible threat amplification with future-oriented worst-case projection.",
     "supportMode": "soothe_and_structure",
     "routeBias": "stabilize",
@@ -28,13 +33,21 @@
       "semanticFrame": "threat_reduction",
       "followupStyle": "direct_answer_then_one_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["ground", "clarify"]
+      "transitionTargets": [
+        "ground",
+        "clarify"
+      ]
     },
     "contraindications": [
       "Do not use dismissive optimism",
       "Do not argue aggressively"
     ],
-    "tags": ["psychology", "cognitive_distortion", "catastrophizing", "anxiety"]
+    "tags": [
+      "psychology",
+      "cognitive_distortion",
+      "catastrophizing",
+      "anxiety"
+    ]
   },
   {
     "id": "psy_cognitive_distortions_002",
@@ -49,7 +62,12 @@
       "it's all bad",
       "nothing about this is good"
     ],
-    "keywords": ["perfect or worthless", "all bad", "total failure", "nothing good"],
+    "keywords": [
+      "perfect or worthless",
+      "all bad",
+      "total failure",
+      "nothing good"
+    ],
     "interpretation": "Possible binary evaluation pattern that narrows flexibility and inflates failure meaning.",
     "supportMode": "clarify_and_reframe",
     "routeBias": "clarify",
@@ -65,13 +83,21 @@
       "semanticFrame": "cognitive_flexibility",
       "followupStyle": "gentle_next_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "challenge"]
+      "transitionTargets": [
+        "clarify",
+        "challenge"
+      ]
     },
     "contraindications": [
       "Do not lecture",
       "Do not mirror black-and-white framing"
     ],
-    "tags": ["psychology", "cognitive_distortion", "binary_thinking", "reframe"]
+    "tags": [
+      "psychology",
+      "cognitive_distortion",
+      "binary_thinking",
+      "reframe"
+    ]
   },
   {
     "id": "psy_cognitive_distortions_003",
@@ -85,7 +111,11 @@
       "i know they meant it as a jab",
       "everyone can tell i'm failing"
     ],
-    "keywords": ["they think", "everyone can tell", "i know what they meant"],
+    "keywords": [
+      "they think",
+      "everyone can tell",
+      "i know what they meant"
+    ],
     "interpretation": "Possible projection of internal fear into assumed external judgment.",
     "supportMode": "clarify_and_reality_test",
     "routeBias": "clarify",
@@ -101,13 +131,21 @@
       "semanticFrame": "evidence_vs_inference",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "challenge"]
+      "transitionTargets": [
+        "clarify",
+        "challenge"
+      ]
     },
     "contraindications": [
       "Do not shame the inference",
       "Do not overvalidate the assumption as fact"
     ],
-    "tags": ["psychology", "cognitive_distortion", "mind_reading", "social_anxiety"]
+    "tags": [
+      "psychology",
+      "cognitive_distortion",
+      "mind_reading",
+      "social_anxiety"
+    ]
   },
   {
     "id": "psy_cognitive_distortions_004",
@@ -122,7 +160,12 @@
       "i never get it right",
       "it's always the same"
     ],
-    "keywords": ["always", "never", "nothing ever", "same every time"],
+    "keywords": [
+      "always",
+      "never",
+      "nothing ever",
+      "same every time"
+    ],
     "interpretation": "Possible globalizing pattern that turns limited evidence into broad inevitability.",
     "supportMode": "clarify_and_sequence",
     "routeBias": "clarify",
@@ -138,15 +181,19 @@
       "semanticFrame": "specificity_restore",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "ground"]
+      "transitionTargets": [
+        "clarify",
+        "ground"
+      ]
     },
     "contraindications": [
       "Do not answer with simplistic contradiction only"
     ],
-    "tags": ["psychology", "cognitive_distortion", "overgeneralization", "specificity"]
+    "tags": [
+      "psychology",
+      "cognitive_distortion",
+      "overgeneralization",
+      "specificity"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
