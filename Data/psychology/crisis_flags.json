@@ -13,7 +13,12 @@
       "everyone would be better off without me",
       "i can't keep myself safe"
     ],
-    "keywords": ["die", "hurt myself", "not be here", "can't stay safe"],
+    "keywords": [
+      "die",
+      "hurt myself",
+      "not be here",
+      "can't stay safe"
+    ],
     "interpretation": "Immediate safety concern requiring crisis-oriented handling.",
     "supportMode": "crisis_escalation",
     "routeBias": "stabilize",
@@ -36,14 +41,23 @@
       "semanticFrame": "immediate_safety",
       "followupStyle": "action_gate",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "escalate"]
+      "transitionTargets": [
+        "stabilize",
+        "escalate"
+      ]
     },
     "contraindications": [
       "Do not continue casual conversation",
       "Do not intellectualize the situation",
       "Do not provide abstract-only comfort"
     ],
-    "tags": ["psychology", "crisis", "self_harm", "suicide_risk", "safety"]
+    "tags": [
+      "psychology",
+      "crisis",
+      "self_harm",
+      "suicide_risk",
+      "safety"
+    ]
   },
   {
     "id": "psy_crisis_flags_002",
@@ -58,7 +72,12 @@
       "i can't control what i'm about to do",
       "someone is going to get hurt"
     ],
-    "keywords": ["hurt someone", "snap", "can't control", "someone will get hurt"],
+    "keywords": [
+      "hurt someone",
+      "snap",
+      "can't control",
+      "someone will get hurt"
+    ],
     "interpretation": "Possible imminent harm escalation requiring immediate de-escalation and safety response.",
     "supportMode": "crisis_escalation",
     "routeBias": "stabilize",
@@ -80,13 +99,22 @@
       "semanticFrame": "immediate_safety",
       "followupStyle": "action_gate",
       "transitionReadiness": "low",
-      "transitionTargets": ["contain", "escalate"]
+      "transitionTargets": [
+        "contain",
+        "escalate"
+      ]
     },
     "contraindications": [
       "Do not normalize violent ideation",
       "Do not continue regular support mode"
     ],
-    "tags": ["psychology", "crisis", "violence_risk", "containment", "safety"]
+    "tags": [
+      "psychology",
+      "crisis",
+      "violence_risk",
+      "containment",
+      "safety"
+    ]
   },
   {
     "id": "psy_crisis_flags_003",
@@ -102,7 +130,13 @@
       "i can't calm down",
       "i'm freaking out"
     ],
-    "keywords": ["can't breathe", "losing it", "not real", "freaking out", "panic"],
+    "keywords": [
+      "can't breathe",
+      "losing it",
+      "not real",
+      "freaking out",
+      "panic"
+    ],
     "interpretation": "Possible acute dysregulation requiring immediate grounding and low-complexity response.",
     "supportMode": "acute_regulation",
     "routeBias": "stabilize",
@@ -124,16 +158,21 @@
       "semanticFrame": "acute_regulation",
       "followupStyle": "grounding",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "contain"]
+      "transitionTargets": [
+        "stabilize",
+        "contain"
+      ]
     },
     "contraindications": [
       "Do not overload with analysis",
       "Do not ask multi-part questions"
     ],
-    "tags": ["psychology", "crisis_flag", "panic", "dysregulation", "grounding"]
+    "tags": [
+      "psychology",
+      "crisis_flag",
+      "panic",
+      "dysregulation",
+      "grounding"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
