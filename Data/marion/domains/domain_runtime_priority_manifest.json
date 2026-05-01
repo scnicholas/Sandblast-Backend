@@ -1,0 +1,63 @@
+{
+  "bundle": "nyx_marion_domain_priority_runtime_bundle_v1_0",
+  "normalizedAt": "2026-05-01",
+  "targetRuntime": "Marion/Nyx",
+  "domainPriority": [
+    "psychology",
+    "english"
+  ],
+  "routingPolicy": {
+    "primaryDomain": "psychology",
+    "secondaryDomain": "english",
+    "safetyFirst": true,
+    "clinicalSafetyBeforeInterpretation": true,
+    "languageFluidityAfterSafety": true,
+    "notes": [
+      "Psychology routes should check crisis/safety and trauma sensitivity before interpretive support.",
+      "English routes should shape clarity, register, grammar, and flow after psychology safety gates pass.",
+      "Do not let English polish override crisis, high-distress, or trauma-sensitive containment behavior."
+    ]
+  },
+  "uploadedManifests": {
+    "psychology": "psychology_manifest.normalized.json",
+    "english": "english_manifest.normalized.json"
+  },
+  "providedPsychologyUtilityPacks": [
+    {
+      "packId": "psy_crisis_flags_runtime_overlay",
+      "file": "crisis_flags.normalized.json",
+      "loadStage": "01_safety_gate"
+    },
+    {
+      "packId": "psy_trauma_sensitivity_runtime_overlay",
+      "file": "trauma_sensitivity.normalized.json",
+      "loadStage": "02_trauma_pacing"
+    },
+    {
+      "packId": "psy_affect_interpretation_runtime_overlay",
+      "file": "affect_interpretation.normalized.json",
+      "loadStage": "03_affect_read"
+    },
+    {
+      "packId": "psy_attachment_patterns_runtime_overlay",
+      "file": "attachment_patterns.normalized.json",
+      "loadStage": "04_relational_patterning"
+    },
+    {
+      "packId": "psy_cognitive_distortions_runtime_overlay",
+      "file": "cognitive_distortions.normalized.json",
+      "loadStage": "05_cognitive_reframe"
+    },
+    {
+      "packId": "psy_support_strategies_runtime_overlay",
+      "file": "support_strategies.normalized.json",
+      "loadStage": "06_response_strategy"
+    }
+  ],
+  "forensicNormalization": {
+    "jsonParseValidated": true,
+    "gitConflictMarkersRemoved": true,
+    "deterministicPrettyPrint": true,
+    "hashesIncludedInReport": true
+  }
+}
