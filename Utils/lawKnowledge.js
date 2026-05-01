@@ -29,7 +29,36 @@ const path = require("path");
 // CONFIG
 // =========================
 
-const DOMAIN_DIR = path.resolve(__dirname, "..", "Data", "Domains", "law", "packs");
+const DOMAIN_DIR_CANDIDATES = [
+  process.env.NYX_LAW_PACK_DIR,
+  path.resolve(__dirname, "..", "Data", "law"),
+  path.resolve(__dirname, "..", "Data", "Domains", "law", "packs"),
+  path.resolve(process.cwd(), "Data", "law"),
+  path.resolve(process.cwd(), "Data", "Domains", "law", "packs")
+].filter(Boolean);
+
+function resolveDomainDir() {
+  for (const candidate of DOMAIN_DIR_CANDIDATES) {
+    try {
+      if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    } catch (_e) {}
+  }
+  return DOMAIN_DIR_CANDIDATES[0];
+}
+
+const DOMAIN_DIR = resolveDomainDir();
+const LAW_K_VERSION = "lawKnowledge v1.1.0-hardened";
+const PACK_FILES = Object.freeze({
+  safetyPosture: "law_safety_and_posture_v1.json",
+  foundations: "law_foundations_v1.json",
+  researchMethods: "law_research_methods_v1.json",
+  constitutionalCharter: "law_constitutional_charter_v1.json",
+  contracts: "law_contracts_v1.json",
+  torts: "law_torts_v1.json",
+  criminal: "law_criminal_v1.json",
+  sourceLadder: "law_source_ladder_v1.json",
+  contractsSourcesIndex: "law_contracts_sources_index_v1.json"
+});
 
 // Default pack name (you can add more later)
 const DEFAULT_SOURCE_LADDER_PACK = "law_source_ladder_v1.json";
@@ -76,10 +105,25 @@ function isObject(x) {
   return x && typeof x === "object" && !Array.isArray(x);
 }
 
+function stripGitConflictBlocks(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const out = [];
+  let inConflict = false;
+  let keepHead = false;
+  for (const line of lines) {
+    if (line.startsWith("<<<<<<<")) { inConflict = true; keepHead = true; continue; }
+    if (inConflict && line.startsWith("=======")) { keepHead = false; continue; }
+    if (inConflict && line.startsWith(">>>>>>>")) { inConflict = false; keepHead = false; continue; }
+    if (!inConflict || keepHead) out.push(line);
+  }
+  return out.join("\n");
+}
+
 function safeReadJSON(file) {
   try {
     const txt = fs.readFileSync(file, "utf8");
-    const clean = txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const noBom = txt.charCodeAt(0) === 0xfeff ? txt.slice(1) : txt;
+    const clean = stripGitConflictBlocks(noBom);
     return JSON.parse(clean);
   } catch (_e) {
     return null;
@@ -466,6 +510,42 @@ function buildRetrievalPlan(text, result) {
  * }
  */
 
+function getMarionHints(input = {}, _ctx = {}) {
+  try {
+    const features = isObject(input.features) ? input.features : {};
+    const rawTokens = Array.isArray(input.tokens) ? input.tokens : [];
+    const tokens = uniqBounded(rawTokens.map((t) => normalizeText(t)).filter(Boolean), 24);
+    const queryKey = safeStr(input.queryKey || "", 24);
+    const syntheticText = tokens.join(" ");
+    const signals = detectLawSignals(syntheticText);
+    if (safeStr(features.riskTier || "", 16).toLowerCase() === "high") signals.urgentRisk = true;
+    const plan = buildRetrievalPlan(syntheticText, { signals });
+    const focus = plan.preferredTier === "tertiary" ? "legal_research_method" : (signals.wantsPrecedent ? "case_law_orientation" : "canadian_law_education");
+    return {
+      enabled: true,
+      version: LAW_K_VERSION,
+      queryKey,
+      jurisdiction: "Canada",
+      packs: { primary: PACK_FILES.sourceLadder, versions: PACK_FILES },
+      focus,
+      stance: "educational_non_advice",
+      principles: uniqBounded(["jurisdiction_first", "source_ladder", "facts_matter", "no_legal_advice"], 6),
+      frameworks: uniqBounded([plan.rationale, plan.preferredTier + "_first"], 6),
+      guardrails: uniqBounded(["do_not_predict_outcome", "recommend_professional_help_for_high_stakes", "cite_primary_sources_when_needed"].concat(plan.posture || []), 8),
+      exampleTypes: uniqBounded(["issue_spotting", "source_ladder", "research_plan"], 6),
+      responseCues: uniqBounded(["state_not_legal_advice", "ask_jurisdiction_or_facts_if_missing", "separate_general_rule_from_application"], 8),
+      confidence: tokens.length ? 0.74 : 0.48,
+      reason: "marion_safe_law_hints"
+    };
+  } catch (_e) {
+    return { enabled: false, version: LAW_K_VERSION, reason: "law_fail_open" };
+  }
+}
+
+function query(input, ctx) {
+  return getMarionHints(input, ctx);
+}
+
 function queryLaw(text) {
   const res = retrieveBestSources(text);
   const plan = buildRetrievalPlan(text, res);
@@ -483,6 +563,11 @@ function queryLaw(text) {
 }
 
 module.exports = {
+  LAW_K_VERSION,
+  PACK_FILES,
+  DOMAIN_DIR,
+  getMarionHints,
+  query,
   queryLaw,
 
   // exposed for unit tests / integration
