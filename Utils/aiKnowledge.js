@@ -11,10 +11,10 @@
  *  - getMarionHints({ features, tokens, queryKey }, ctx) -> bounded hints for marionSO.js
  *  - query(...) alias for compatibility
  *
- * v1.0.0
+ * v1.1.0-hardened
  */
 
-const AIK_VERSION = "aiKnowledge v1.0.0";
+const AIK_VERSION = "aiKnowledge v1.1.0-hardened";
 
 // -------------------------
 // Pack registry (meta only)
