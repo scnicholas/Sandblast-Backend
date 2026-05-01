@@ -26,13 +26,21 @@
       "semanticFrame": "stabilization",
       "followupStyle": "ground_then_narrow",
       "transitionReadiness": "low",
-      "transitionTargets": ["stabilize", "clarify"]
+      "transitionTargets": [
+        "stabilize",
+        "clarify"
+      ]
     },
     "contraindications": [
       "Do not over-explain",
       "Do not stack multiple suggestions"
     ],
-    "tags": ["psychology", "support_strategy", "stabilize", "grounding"]
+    "tags": [
+      "psychology",
+      "support_strategy",
+      "stabilize",
+      "grounding"
+    ]
   },
   {
     "id": "psy_support_strategies_002",
@@ -61,13 +69,21 @@
       "semanticFrame": "clarity_building",
       "followupStyle": "single_direct_question",
       "transitionReadiness": "medium",
-      "transitionTargets": ["clarify", "challenge"]
+      "transitionTargets": [
+        "clarify",
+        "challenge"
+      ]
     },
     "contraindications": [
       "Do not sound interrogative",
       "Do not rush to conclusions"
     ],
-    "tags": ["psychology", "support_strategy", "clarify", "reflection"]
+    "tags": [
+      "psychology",
+      "support_strategy",
+      "clarify",
+      "reflection"
+    ]
   },
   {
     "id": "psy_support_strategies_003",
@@ -95,13 +111,22 @@
       "semanticFrame": "momentum_preservation",
       "followupStyle": "direct_answer_then_one_question",
       "transitionReadiness": "high",
-      "transitionTargets": ["channel", "maintain"]
+      "transitionTargets": [
+        "channel",
+        "maintain"
+      ]
     },
     "contraindications": [
       "Do not overinflate confidence unrealistically",
       "Do not drag the user back into distress framing"
     ],
-    "tags": ["psychology", "support_strategy", "affirmation", "momentum", "recovery"]
+    "tags": [
+      "psychology",
+      "support_strategy",
+      "affirmation",
+      "momentum",
+      "recovery"
+    ]
   },
   {
     "id": "psy_support_strategies_004",
@@ -128,16 +153,21 @@
       "semanticFrame": "repair",
       "followupStyle": "reflective",
       "transitionReadiness": "low",
-      "transitionTargets": ["repair", "stabilize"]
+      "transitionTargets": [
+        "repair",
+        "stabilize"
+      ]
     },
     "contraindications": [
       "Do not moralize",
       "Do not use hard challenge too early"
     ],
-    "tags": ["psychology", "support_strategy", "repair", "shame", "nonshaming"]
+    "tags": [
+      "psychology",
+      "support_strategy",
+      "repair",
+      "shame",
+      "nonshaming"
+    ]
   }
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
