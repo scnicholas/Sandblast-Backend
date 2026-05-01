@@ -13,23 +13,23 @@
  *   getMarionHints({ features, tokens, queryKey }, ctx)
  *   PACK_FILES (for fallback meta)
  *
- * v1.0.0
+ * v1.1.0-hardened
  */
 
-const FINANCE_VERSION = "financeKnowledge v1.0.0";
+const FINANCE_VERSION = "financeKnowledge v1.1.0-hardened";
 
 // -------------------------
 // Pack registry (must mirror manifest order)
 // -------------------------
 const PACK_FILES = Object.freeze({
-  micro: "fin_micro_foundations_v1.json",
-  macro: "fin_macro_principles_v1.json",
-  unit: "fin_unit_economics_v1.json",
-  pricing: "fin_pricing_models_v1.json",
-  capital: "fin_capital_markets_v1.json",
-  risk: "fin_risk_management_v1.json",
-  policy: "fin_public_policy_links_v1.json",
-  cases: "fin_case_studies_v1.json",
+  micro: "fin_micro_foundations_v1_normalized.json",
+  macro: "fin_macro_principles_v1_normalized.json",
+  unit: "fin_unit_economics_v1_normalized.json",
+  pricing: "fin_pricing_models_v1_normalized.json",
+  capital: "fin_capital_markets_v1_normalized.json",
+  risk: "fin_risk_management_v1_normalized.json",
+  policy: "fin_public_policy_links_v1_normalized.json",
+  cases: "fin_case_studies_v1_normalized.json",
   faces: "fin_face_examples_v1.json",
   dialogue: "fin_dialogue_snippets_v1.json"
 });
@@ -56,8 +56,21 @@ function uniqBounded(arr, max = 8) {
   return out;
 }
 
+function normalizeTokens(tokens, max = 32) {
+  const out = [];
+  const seen = new Set();
+  for (const tok of Array.isArray(tokens) ? tokens : []) {
+    const v = safeStr(tok, 64).trim().toLowerCase().replace(/\s+/g, "_");
+    if (!v || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function tokenIncludes(tokens, word) {
-  return Array.isArray(tokens) && tokens.includes(word);
+  return Array.isArray(tokens) && tokens.includes(String(word || "").toLowerCase());
 }
 
 // -------------------------
@@ -111,7 +124,7 @@ function routePrimaryPack(tokens = []) {
 function getMarionHints(input = {}, ctx = {}) {
   try {
     const features = input.features || {};
-    const tokens = input.tokens || [];
+    const tokens = normalizeTokens(input.tokens);
     const queryKey = safeStr(input.queryKey || "", 24);
 
     const primaryPack = routePrimaryPack(tokens);
@@ -173,8 +186,8 @@ function getMarionHints(input = {}, ctx = {}) {
         "quantify_tradeoffs",
         "separate_short_term_and_long_term"
       ],
-      confidence: 0.75,
-      reason: "token_routed_finance_pack"
+      confidence: tokens.length ? 0.78 : 0.52,
+      reason: "token_routed_finance_pack_manifest_v1_normalized"
     };
   } catch (err) {
     return {
@@ -184,8 +197,13 @@ function getMarionHints(input = {}, ctx = {}) {
   }
 }
 
+function query(input, ctx) {
+  return getMarionHints(input, ctx);
+}
+
 module.exports = {
   FINANCE_VERSION,
   PACK_FILES,
-  getMarionHints
+  getMarionHints,
+  query
 };
