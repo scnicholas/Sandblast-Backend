@@ -12,11 +12,11 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.6.0 KNOWLEDGE-DOMAIN-LANE-GATE";
+const VERSION = "marionIntentRouter v2.6.0 KNOWLEDGE-DOMAIN-HANDOFF-GATE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
-const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.6";
+const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.5";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const VALID_INTENTS = Object.freeze([
@@ -92,6 +92,42 @@ const PREFERRED_STYLE = Object.freeze({
   execution: "short_direct_action",
   execution_context: "contextual_directive",
   general_reasoning: "reasoned_direct"
+});
+
+const VALID_KNOWLEDGE_DOMAINS = Object.freeze([
+  "psychology",
+  "english",
+  "ai",
+  "cyber",
+  "law",
+  "finance"
+]);
+
+const KNOWLEDGE_OPERATIONAL_DOMAIN = Object.freeze({
+  psychology: "emotional",
+  english: "english",
+  ai: "ai",
+  cyber: "cyber",
+  law: "law",
+  finance: "finance"
+});
+
+const KNOWLEDGE_DOMAIN_MODE = Object.freeze({
+  psychology: "support_then_advance",
+  english: "language_fluency",
+  ai: "ai_architecture_reasoning",
+  cyber: "defensive_cybersecurity",
+  law: "educational_law_information",
+  finance: "scenario_finance_reasoning"
+});
+
+const KNOWLEDGE_DOMAIN_DEPTH = Object.freeze({
+  psychology: "deep_forward",
+  english: "polished_language",
+  ai: "forensic",
+  cyber: "forensic",
+  law: "balanced",
+  finance: "balanced"
 });
 
 function safeStr(v) {
@@ -348,62 +384,85 @@ function detectDirectiveIntent(text) {
 }
 
 
-const KNOWLEDGE_DOMAIN_PRIORITY = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
-
-const KNOWLEDGE_DOMAIN_PATTERNS = Object.freeze({
-  psychology: /\b(psychology|cognitive distortion|cognitive distortions|attachment|trauma|trauma[- ]?sensitive|affect|overwhelm|spiraling|panic|shame|shutdown|support strategy|crisis flag|emotional pattern|mental model)\b/i,
-  english: /\b(grammar|syntax|semantics|pragmatics|phonology|phonetics|morphology|english|writing clarity|academic writing|register|make this sound|polish this|language flow|word formation)\b/i,
-  ai: /\b(artificial intelligence|\bai\b|machine learning|\bml\b|llm|rag|embedding|agent|agents|multi[- ]?agent|orchestration|prompt|model training|inference|alignment|ai governance)\b/i,
-  cyber: /\b(cyber|cybersecurity|infosec|security posture|defensive security|incident response|breach|ransomware|phishing|mfa|iam|endpoint|cloud security|network security|prompt injection|data poisoning)\b/i,
-  law: /\b(law|legal|statute|regulation|case law|precedent|contract|contracts|tort|torts|criminal law|charter|constitutional|jurisdiction|legal research|legal memo)\b/i,
-  finance: /\b(finance|financial|economics|microeconomics|macroeconomics|pricing|unit economics|ltv|cac|payback|capital markets|runway|valuation|risk management|liquidity|interest rates|inflation)\b/i
-});
+function normalizeKnowledgeDomainName(value) {
+  const raw = lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const aliases = Object.freeze({
+    psychology: "psychology",
+    psych: "psychology",
+    emotional: "psychology",
+    emotion: "psychology",
+    support: "psychology",
+    english: "english",
+    language: "english",
+    grammar: "english",
+    writing: "english",
+    syntax: "english",
+    ai: "ai",
+    artificial_intelligence: "ai",
+    machine_learning: "ai",
+    ml: "ai",
+    cyber: "cyber",
+    cybersecurity: "cyber",
+    security: "cyber",
+    infosec: "cyber",
+    law: "law",
+    legal: "law",
+    canada_law: "law",
+    finance: "finance",
+    financial: "finance",
+    economics: "finance",
+    pricing: "finance"
+  });
+  return aliases[raw] || (VALID_KNOWLEDGE_DOMAINS.includes(raw) ? raw : "");
+}
 
 function detectKnowledgeDomain(text) {
   const t = lower(text);
-  if (!t) return "";
-  const scores = [];
-  for (const domain of KNOWLEDGE_DOMAIN_PRIORITY) {
-    const rx = KNOWLEDGE_DOMAIN_PATTERNS[domain];
-    rx.lastIndex = 0;
-    const hit = rx.test(t);
-    if (!hit) continue;
-    let score = 1;
-    if (domain === "psychology" && detectSafetyLevel(t) !== "none") score += 10;
-    if (domain === "english" && /\b(make this sound|polish|rewrite|grammar|tone|clarity)\b/i.test(t)) score += 3;
-    if (domain === "cyber" && /\b(defensive|incident|breach|phishing|ransomware|mfa|iam)\b/i.test(t)) score += 3;
-    if (domain === "law" && /\b(jurisdiction|case law|statute|legal research|legal advice)\b/i.test(t)) score += 3;
-    if (domain === "finance" && /\b(unit economics|ltv|cac|pricing|valuation|runway)\b/i.test(t)) score += 3;
-    if (domain === "ai" && /\b(agent|rag|llm|embedding|orchestration|prompt)\b/i.test(t)) score += 3;
-    scores.push({ domain, score });
+  if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
+
+  const explicit = [
+    { k: "psychology", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(psychology|psych|emotional support)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "english", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(english|english language|language|grammar|writing)\s+(domain|lane|knowledge|pack|setup)\b/i },
+    { k: "ai", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(ai|artificial intelligence)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "cyber", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(cyber|cybersecurity|security)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "law", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(law|legal|canadian law)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "finance", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(finance|financial|economics|pricing)\s+(domain|lane|knowledge|pack)\b/i }
+  ];
+  for (const item of explicit) {
+    if (has(item.rx, t)) return { knowledgeDomain: item.k, explicit: true, reason: "explicit_domain_phrase" };
   }
-  scores.sort((a, b) => b.score - a.score || KNOWLEDGE_DOMAIN_PRIORITY.indexOf(a.domain) - KNOWLEDGE_DOMAIN_PRIORITY.indexOf(b.domain));
-  return scores[0] ? scores[0].domain : "";
+
+  if (/\b(rewrite|polish|grammar|syntax|tone|professional clarity|business english|make this paragraph|make this sentence|language flow|wording|copyedit|proofread)\b/i.test(t)) {
+    return { knowledgeDomain: "english", explicit: false, reason: "english_language_terms" };
+  }
+  if (/\b(overwhelmed|spiraling|panic|numb|shutdown|attachment|shame|trauma|stabilize first|cognitive distortion|support strategy)\b/i.test(t)) {
+    return { knowledgeDomain: "psychology", explicit: false, reason: "psychology_support_terms" };
+  }
+  if (/\b(ai agent|artificial intelligence|llm|rag|embedding|tool routing|agent orchestration|machine learning|prompt injection defense for ai)\b/i.test(t)) {
+    return { knowledgeDomain: "ai", explicit: false, reason: "ai_terms" };
+  }
+  if (/\b(cyber|cybersecurity|hardening|prompt injection|phishing|malware|ransomware|mfa|incident response|threat model|defensive security)\b/i.test(t)) {
+    return { knowledgeDomain: "cyber", explicit: false, reason: "cyber_terms" };
+  }
+  if (/\b(legal advice|legal information|law in canada|canadian law|contract law|tort|criminal law|charter|case law|statute|jurisdiction)\b/i.test(t)) {
+    return { knowledgeDomain: "law", explicit: false, reason: "law_terms" };
+  }
+  if (/\b(unit economics|ltv|cac|pricing tiers|capital markets|cash flow|runway|margin|finance|financial|investment advice|scenario analysis)\b/i.test(t)) {
+    return { knowledgeDomain: "finance", explicit: false, reason: "finance_terms" };
+  }
+  return { knowledgeDomain: "", explicit: false, reason: "none" };
 }
 
-function intentForKnowledgeDomain(domain, text, safetyLevel = "none") {
-  if (domain === "psychology" && safetyLevel !== "none") return "emotional_support";
-  return domain ? "domain_question" : "";
-}
-
-function knowledgeDomainSubIntent(domain, text) {
-  const t = lower(text);
-  if (domain === "psychology") {
-    if (detectSafetyLevel(t) === "crisis") return "psychology_crisis_safety";
-    if (/\b(overwhelm|spiral|panic|shutdown|shame|attachment|trauma)\b/i.test(t)) return "psychology_support_routing";
-    return "psychology_knowledge";
-  }
-  if (domain === "english") return /\b(make this sound|polish|rewrite|clarity|tone)\b/i.test(t) ? "english_fluency_shaping" : "english_knowledge";
-  if (domain === "cyber") return "cyber_defensive_only";
-  if (domain === "law") return "law_educational_research";
-  if (domain === "finance") return "finance_scenario_reasoning";
-  if (domain === "ai") return "ai_architecture_reasoning";
-  return "knowledge_domain";
+function operationalDomainForKnowledge(knowledgeDomain, fallbackIntent = "domain_question") {
+  const k = normalizeKnowledgeDomainName(knowledgeDomain);
+  if (!k) return INTENT_TO_DOMAIN[fallbackIntent] || "general_reasoning";
+  return KNOWLEDGE_OPERATIONAL_DOMAIN[k] || "general_reasoning";
 }
 
 function inferIntentFromText(text) {
   const t = lower(text);
   const safetyLevel = detectSafetyLevel(t);
+  const knowledge = detectKnowledgeDomain(t);
 
   if (!t) {
     return {
@@ -412,7 +471,10 @@ function inferIntentFromText(text) {
       reason: "empty_text",
       stateStageHint: "deliver",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -424,7 +486,10 @@ function inferIntentFromText(text) {
       reason: "crisis_distress_terms",
       stateStageHint: "recovery",
       safetyLevel,
-      recoveryRequired: true
+      recoveryRequired: true,
+      knowledgeDomain: knowledge.knowledgeDomain || (safetyLevel === "crisis" || safetyLevel === "distress" ? "psychology" : ""),
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason || "safety_psychology"
     };
   }
 
@@ -435,7 +500,24 @@ function inferIntentFromText(text) {
       reason: "emotional_distress_terms",
       stateStageHint: "recovery",
       safetyLevel,
-      recoveryRequired: true
+      recoveryRequired: true,
+      knowledgeDomain: knowledge.knowledgeDomain || (safetyLevel === "crisis" || safetyLevel === "distress" ? "psychology" : ""),
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason || "safety_psychology"
+    };
+  }
+
+  if (knowledge.knowledgeDomain && safetyLevel === "none") {
+    return {
+      intent: "domain_question",
+      confidence: knowledge.explicit ? 0.97 : 0.86,
+      reason: knowledge.reason || "knowledge_domain_terms",
+      stateStageHint: "reason",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -447,7 +529,10 @@ function inferIntentFromText(text) {
       reason: `social_${socialIntent}`,
       stateStageHint: "deliver",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -458,7 +543,10 @@ function inferIntentFromText(text) {
       reason: "contextual_directive_terms",
       stateStageHint: "execute_context",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -470,7 +558,10 @@ function inferIntentFromText(text) {
       reason: "directive_execution_terms",
       stateStageHint: "execute",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -482,7 +573,10 @@ function inferIntentFromText(text) {
       reason: "identity_baseline_terms",
       stateStageHint: "continuity",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -493,7 +587,10 @@ function inferIntentFromText(text) {
       reason: "memory_continuity_terms",
       stateStageHint: "continuity",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -504,21 +601,10 @@ function inferIntentFromText(text) {
       reason: "contextual_directive_terms",
       stateStageHint: "execute_context",
       safetyLevel,
-      recoveryRequired: false
-    };
-  }
-
-  const knowledgeDomain = detectKnowledgeDomain(t);
-  if (knowledgeDomain) {
-    const knowledgeIntent = intentForKnowledgeDomain(knowledgeDomain, t, safetyLevel);
-    return {
-      intent: knowledgeIntent,
-      confidence: knowledgeDomain === "psychology" ? 0.94 : 0.88,
-      reason: `${knowledgeDomain}_knowledge_domain_terms`,
-      stateStageHint: knowledgeIntent === "emotional_support" ? "recovery" : "reason",
-      safetyLevel,
-      recoveryRequired: knowledgeIntent === "emotional_support",
-      knowledgeDomain
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -529,7 +615,10 @@ function inferIntentFromText(text) {
       reason: "technical_debug_or_cohesion_terms",
       stateStageHint: "execution",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -540,7 +629,10 @@ function inferIntentFromText(text) {
       reason: "avatar_voice_technical_terms",
       stateStageHint: "execution",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -551,7 +643,10 @@ function inferIntentFromText(text) {
       reason: "music_terms",
       stateStageHint: "retrieve",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -562,7 +657,10 @@ function inferIntentFromText(text) {
       reason: "news_terms",
       stateStageHint: "retrieve",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -573,7 +671,10 @@ function inferIntentFromText(text) {
       reason: "roku_terms",
       stateStageHint: "deliver",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -584,7 +685,10 @@ function inferIntentFromText(text) {
       reason: "business_terms",
       stateStageHint: "strategy",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -595,7 +699,10 @@ function inferIntentFromText(text) {
       reason: "general_question",
       stateStageHint: "reason",
       safetyLevel,
-      recoveryRequired: false
+      recoveryRequired: false,
+      knowledgeDomain: knowledge.knowledgeDomain,
+      knowledgeDomainExplicit: !!knowledge.explicit,
+      knowledgeDomainReason: knowledge.reason
     };
   }
 
@@ -613,6 +720,9 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   const src = safeObj(rawInput);
   const inferred = inferIntentFromText(fallbackText);
   const explicit = normalizeIntentName(src.intent || src.type || src.name || "");
+  const detectedKnowledge = detectKnowledgeDomain(fallbackText);
+  const explicitKnowledge = normalizeKnowledgeDomainName(src.knowledgeDomain || src.domainKnowledge || src.primaryKnowledgeDomain || safeObj(src.routing).knowledgeDomain || "");
+  const knowledgeDomain = explicitKnowledge || inferred.knowledgeDomain || detectedKnowledge.knowledgeDomain || "";
 
   let intent = explicit && explicit !== "simple_chat" ? explicit : inferred.intent;
   let confidence = clamp01(src.confidence, inferred.confidence);
@@ -620,7 +730,14 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let stateStageHint = safeStr(src.stateStageHint || src.stage || inferred.stateStageHint || "deliver");
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
-  let knowledgeDomain = safeStr(src.knowledgeDomain || src.domainLane || src.primaryDomain || inferred.knowledgeDomain || detectKnowledgeDomain(fallbackText));
+
+  if (knowledgeDomain && inferred.intent !== "emotional_support" && intent === "simple_chat") {
+    intent = "domain_question";
+    confidence = Math.max(confidence, detectedKnowledge.explicit || inferred.knowledgeDomainExplicit ? 0.97 : 0.86);
+    reason = detectedKnowledge.reason || inferred.knowledgeDomainReason || "knowledge_domain_promoted";
+    stateStageHint = "reason";
+    recoveryRequired = false;
+  }
 
   /* Distress language wins over stale explicit/general intent. */
   if (inferred.intent === "emotional_support") {
@@ -684,7 +801,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     stateStageHint = stateStageHint || "reason";
   }
 
-  const subIntent = safeStr(src.subIntent || src.subintent || (knowledgeDomain ? knowledgeDomainSubIntent(knowledgeDomain, fallbackText) : detectSubIntent(fallbackText, intent)));
+  const subIntent = safeStr(src.subIntent || src.subintent || detectSubIntent(fallbackText, intent));
 
   return {
     activate: intent !== "simple_chat",
@@ -694,28 +811,29 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     reason,
     stateStageHint,
     safetyLevel,
-    knowledgeDomain,
-    primaryDomain: knowledgeDomain || (INTENT_TO_DOMAIN[intent] || "general_reasoning"),
     recoveryRequired,
     loopSafe: true,
     allowGenericFallback: false,
     requiresFinalEnvelope: true,
     requiresComposer: true,
     identityAnchorRequired: subIntent === "identity_baseline",
-    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || !!knowledgeDomain || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
+    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
     directiveExecutionRequired: intent === "directive_response",
+    knowledgeDomain,
+    knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
+    knowledgeDomainReason: inferred.knowledgeDomainReason || detectedKnowledge.reason || "",
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
 
 function buildRouting(marionIntent) {
-  const domain = marionIntent.knowledgeDomain || marionIntent.primaryDomain || INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
-  const style = PREFERRED_STYLE[domain] || (marionIntent.knowledgeDomain ? "knowledge_grounded" : "direct");
+  const knowledgeDomain = normalizeKnowledgeDomainName(marionIntent.knowledgeDomain || "");
+  const baseDomain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
+  const domain = knowledgeDomain ? operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent) : baseDomain;
+  const style = (knowledgeDomain && knowledgeDomain === domain ? (KNOWLEDGE_DOMAIN_MODE[knowledgeDomain] || PREFERRED_STYLE[domain]) : PREFERRED_STYLE[domain]) || "direct";
 
   return {
     domain,
-    knowledgeDomain: marionIntent.knowledgeDomain || "",
-    primaryDomain: marionIntent.primaryDomain || domain,
     intent: marionIntent.intent,
     subIntent: marionIntent.subIntent,
     endpoint: CANONICAL_ENDPOINT,
@@ -725,11 +843,15 @@ function buildRouting(marionIntent) {
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     stateStageHint: marionIntent.stateStageHint,
-    mode: DOMAIN_MODE[domain] || "conversation",
-    depth: DOMAIN_DEPTH[domain] || "normal",
+    mode: (knowledgeDomain && KNOWLEDGE_DOMAIN_MODE[knowledgeDomain]) || DOMAIN_MODE[domain] || "conversation",
+    depth: (knowledgeDomain && KNOWLEDGE_DOMAIN_DEPTH[knowledgeDomain]) || DOMAIN_DEPTH[domain] || "normal",
     cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation"),
-    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || domain === "psychology" || marionIntent.subIntent === "identity_baseline",
-    useDomainKnowledge: domain !== "general" || !!marionIntent.knowledgeDomain,
+    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
+    useDomainKnowledge: domain !== "general" || !!knowledgeDomain,
+    knowledgeDomain,
+    knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
+    knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
+    domainRoute: knowledgeDomain ? { knowledgeDomain, operationalDomain: domain, reason: safeStr(marionIntent.knowledgeDomainReason || "knowledge_domain_handoff"), explicit: !!marionIntent.knowledgeDomainExplicit } : null,
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
     requiresHotFallback: false,
@@ -737,7 +859,6 @@ function buildRouting(marionIntent) {
     blockRepeatedBridgeFallback: true,
     recoveryRequired: marionIntent.recoveryRequired,
     safetyLevel: marionIntent.safetyLevel,
-    safetyGate: domain === "cyber" ? "defensive_only" : domain === "law" ? "educational_no_legal_advice" : domain === "finance" ? "educational_no_investment_advice" : domain === "psychology" ? "clinical_safety_first" : "none",
     identityAnchorRequired: !!marionIntent.identityAnchorRequired,
     baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
     preferredStyle: style,
@@ -773,7 +894,6 @@ function routeMarionIntent(packet = {}) {
     meta: {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
-      knowledgeDomain: marionIntent.knowledgeDomain || "",
       triggerSource: marionIntent.source,
       textPresent: Boolean(text),
       singleIntentAuthority: true,
@@ -802,6 +922,8 @@ module.exports = {
   normalizeIntentName,
   inferIntentFromText,
   detectDirectiveIntent,
+  detectKnowledgeDomain,
+  normalizeKnowledgeDomainName,
   normalizeIntent,
   routeMarionIntent,
   _internal: {
@@ -814,8 +936,8 @@ module.exports = {
     detectSubIntent,
     detectDirectiveIntent,
     detectKnowledgeDomain,
-    knowledgeDomainSubIntent,
-    intentForKnowledgeDomain,
+    normalizeKnowledgeDomainName,
+    operationalDomainForKnowledge,
     buildRouting
   }
 };
