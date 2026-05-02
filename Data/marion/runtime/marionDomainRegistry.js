@@ -13,15 +13,12 @@
  * - Preserve final-envelope and State Spine cohesion metadata for downstream runtime layers.
  */
 
-const VERSION = "marionDomainRegistry v1.2.0 KNOWLEDGE-DOMAIN-RUNTIME-SPLIT-GATE";
+const VERSION = "marionDomainRegistry v1.2.0 KNOWLEDGE-DOMAIN-HANDOFF-GATE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
-
-const fs = require("fs");
-const path = require("path");
 
 const DOMAIN_ALIASES = Object.freeze({
   chat: "general",
@@ -96,7 +93,18 @@ const DOMAIN_ALIASES = Object.freeze({
 
   contextual_directive: "execution_context",
   execution_context: "execution_context",
-  context: "execution_context"
+  context: "execution_context",
+
+  psychology: "psychology",
+  english: "english",
+  ai: "ai",
+  artificial_intelligence: "ai",
+  cyber: "cyber",
+  cybersecurity: "cyber",
+  law: "law",
+  legal: "law",
+  finance: "finance",
+  financial: "finance"
 });
 
 const INTENT_TO_DOMAIN = Object.freeze({
@@ -309,264 +317,110 @@ const MARION_DOMAINS = Object.freeze({
 });
 
 
-const KNOWLEDGE_DOMAIN_ORDER = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
+const KNOWLEDGE_DOMAIN_PRIORITY = Object.freeze([
+  "psychology",
+  "english",
+  "ai",
+  "cyber",
+  "law",
+  "finance"
+]);
 
-const KNOWLEDGE_DOMAIN_DEFS = Object.freeze({
+const KNOWLEDGE_DOMAINS = Object.freeze({
   psychology: Object.freeze({
     domain: "psychology",
+    operationalDomain: "emotional",
     label: "Psychology",
     userFacingLabel: "psychology",
-    capability: "Psychology-aware affect interpretation, cognitive patterns, attachment signals, crisis flags, support strategies, and trauma-sensitive response shaping.",
-    examples: Object.freeze(["I feel overwhelmed.", "Help me understand this emotional pattern.", "What support mode fits this state?"]),
-    mode: "psychology_safety_first",
+    capability: "Affect interpretation, stabilization, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma-sensitive pacing.",
+    mode: "safety_first_psychology",
     depth: "high",
-    preferredStyle: "stabilize_then_clarify",
-    useMemory: true,
+    preferredStyle: "contain_then_clarify",
+    safetyFirst: true,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "clinical_safety_first",
-    manifestFolder: "psychology",
-    dataFolder: "psychology",
-    utilFile: "psychologyKnowledge.js"
+    dataRootHint: "Data/psychology",
+    manifestHint: "domains/psychology/manifest.json"
   }),
   english: Object.freeze({
     domain: "english",
+    operationalDomain: "general_reasoning",
     label: "English",
     userFacingLabel: "English language",
-    capability: "Language fluency, grammar, register, clarity, academic writing, phonology, morphology, semantics, and pragmatic response shaping.",
-    examples: Object.freeze(["Make this sound polished.", "Improve the tone.", "Explain the grammar." ]),
+    capability: "Grammar, syntax, register, clarity, tone, professional revision, language flow, and polished expression.",
     mode: "language_fluency",
     depth: "balanced",
-    preferredStyle: "clear_fluent",
-    useMemory: false,
+    preferredStyle: "clear_polished",
+    safetyFirst: false,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "none",
-    manifestFolder: "english",
-    dataFolder: "english",
-    utilFile: "englishKnowledge.js"
+    dataRootHint: "Data/english",
+    manifestHint: "domains/english/manifest.json"
   }),
   ai: Object.freeze({
     domain: "ai",
+    operationalDomain: "general_reasoning",
     label: "Artificial Intelligence",
     userFacingLabel: "AI",
-    capability: "AI foundations, agents, orchestration, RAG, governance, AI security, human factors, marketing applications, and case-study reasoning.",
-    examples: Object.freeze(["Design an AI agent.", "Explain RAG.", "Audit the AI routing layer." ]),
+    capability: "AI systems, agents, orchestration, RAG, governance, applied AI, and AI architecture reasoning.",
     mode: "ai_architecture_reasoning",
-    depth: "technical",
+    depth: "forensic",
     preferredStyle: "implementation_grade",
-    useMemory: true,
+    safetyFirst: false,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "non_advice_defensive_privacy",
-    manifestFolder: "ai",
-    dataFolder: "ai",
-    utilFile: "aiKnowledge.js"
+    dataRootHint: "Data/ai",
+    manifestHint: "domains/ai/manifest.json"
   }),
   cyber: Object.freeze({
     domain: "cyber",
+    operationalDomain: "general_reasoning",
     label: "Cybersecurity",
     userFacingLabel: "cybersecurity",
-    capability: "Defensive-only cybersecurity posture, source ladder routing, identity/access, endpoint/cloud, network/web, privacy, incident response, and culture guidance.",
-    examples: Object.freeze(["Harden this system.", "Check incident response posture.", "Review access-control risk." ]),
+    capability: "Defensive cybersecurity, hardening, incident response, identity access, privacy, cloud, network, and web security posture.",
     mode: "defensive_cybersecurity",
-    depth: "risk_aware",
-    preferredStyle: "defensive_precise",
-    useMemory: false,
+    depth: "forensic",
+    preferredStyle: "defensive_only",
+    safetyFirst: true,
+    defensiveOnly: true,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "defensive_only",
-    manifestFolder: "cyber",
-    dataFolder: "cyber",
-    utilFile: "cyberKnowledge.js"
+    dataRootHint: "Data/cyber",
+    manifestHint: "domains/cyber/manifest.json"
   }),
   law: Object.freeze({
     domain: "law",
+    operationalDomain: "general_reasoning",
     label: "Law",
-    userFacingLabel: "law",
-    capability: "Canada-first legal education, source-ladder routing, research methods, foundations, contracts, torts, criminal law, and constitutional/Charter concepts.",
-    examples: Object.freeze(["Explain the legal framework.", "How should I research this law issue?", "What source level should I use?" ]),
-    mode: "educational_legal_research",
-    depth: "source_ladder",
-    preferredStyle: "jurisdiction_clear",
-    useMemory: false,
+    userFacingLabel: "Canadian law information",
+    capability: "Educational Canadian legal information, source ladders, research posture, and jurisdiction-aware explanation without legal advice.",
+    mode: "educational_law_information",
+    depth: "balanced",
+    preferredStyle: "jurisdiction_aware",
+    safetyFirst: true,
+    noLegalAdvice: true,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "educational_no_legal_advice",
-    manifestFolder: "law",
-    dataFolder: "law",
-    utilFile: "lawKnowledge.js"
+    dataRootHint: "Data/law",
+    manifestHint: "domains/law/manifest.json"
   }),
   finance: Object.freeze({
     domain: "finance",
+    operationalDomain: "general_reasoning",
     label: "Finance",
     userFacingLabel: "finance",
-    capability: "Finance education, micro/macro principles, unit economics, pricing models, capital markets, risk management, policy links, and scenario-based reasoning.",
-    examples: Object.freeze(["Analyze unit economics.", "Explain pricing tradeoffs.", "Build a scenario model." ]),
+    capability: "Scenario-based finance, pricing, unit economics, capital markets, risk, policy links, and assumption-disclosed business economics.",
     mode: "scenario_finance_reasoning",
-    depth: "analytical",
+    depth: "balanced",
     preferredStyle: "assumption_disclosed",
-    useMemory: false,
+    safetyFirst: true,
+    noInvestmentAdvice: true,
     useDomainKnowledge: true,
-    exposeToUser: true,
     requiresFinalEnvelope: true,
-    endpoint: CANONICAL_ENDPOINT,
-    safetyGate: "educational_no_investment_advice",
-    manifestFolder: "finance",
-    dataFolder: "finance",
-    utilFile: "financeKnowledge.js"
+    dataRootHint: "Data/finance",
+    manifestHint: "domains/finance/manifest.json"
   })
 });
-
-const KNOWLEDGE_DOMAIN_ALIASES = Object.freeze({
-  artificial_intelligence: "ai", machine_learning: "ai", ml: "ai", llm: "ai", rag: "ai", agent: "ai", agents: "ai",
-  cybersecurity: "cyber", security: "cyber", infosec: "cyber", defensive_security: "cyber",
-  legal: "law", canada_law: "law", canadian_law: "law",
-  economics: "finance", financial: "finance", pricing: "finance", capital_markets: "finance",
-  grammar: "english", language: "english", writing: "english", linguistics: "english",
-  emotional: "psychology", psychology_support: "psychology", mental_model: "psychology"
-});
-
-const PROJECT_ROOT_CANDIDATES = Object.freeze([
-  process.env.NYX_BACKEND_ROOT,
-  process.cwd(),
-  path.resolve(__dirname),
-  path.resolve(__dirname, "..")
-].filter(Boolean));
-
-function pathExists(filePath) {
-  try { return !!(filePath && fs.existsSync(filePath)); } catch (_err) { return false; }
-}
-
-function dirExists(filePath) {
-  try { return !!(filePath && fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()); } catch (_err) { return false; }
-}
-
-function fileExists(filePath) {
-  try { return !!(filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()); } catch (_err) { return false; }
-}
-
-function firstExisting(paths, fallback = "") {
-  for (const p of Array.isArray(paths) ? paths : []) if (pathExists(p)) return p;
-  return fallback || (Array.isArray(paths) && paths[0]) || "";
-}
-
-function resolveRuntimeRoots() {
-  const roots = PROJECT_ROOT_CANDIDATES;
-  const domainRootCandidates = [process.env.NYX_DOMAIN_ROOT];
-  const dataRootCandidates = [process.env.NYX_DATA_ROOT];
-  const utilsRootCandidates = [process.env.NYX_UTILS_ROOT];
-  for (const root of roots) {
-    domainRootCandidates.push(path.resolve(root, "domains"));
-    dataRootCandidates.push(path.resolve(root, "Data"));
-    dataRootCandidates.push(path.resolve(root, "data"));
-    utilsRootCandidates.push(path.resolve(root, "Utils"));
-    utilsRootCandidates.push(path.resolve(root, "utils"));
-  }
-  return {
-    domainRoot: firstExisting(domainRootCandidates.filter(Boolean), path.resolve(process.cwd(), "domains")),
-    dataRoot: firstExisting(dataRootCandidates.filter(Boolean), path.resolve(process.cwd(), "Data")),
-    utilsRoot: firstExisting(utilsRootCandidates.filter(Boolean), path.resolve(process.cwd(), "Utils"))
-  };
-}
-
-function resolveDomainPaths(domain) {
-  const key = resolveKnowledgeDomainKey(domain);
-  const def = KNOWLEDGE_DOMAIN_DEFS[key];
-  const roots = resolveRuntimeRoots();
-  const manifestPath = def ? path.join(roots.domainRoot, def.manifestFolder, "manifest.json") : "";
-  const manifestNormalizedPath = def ? path.join(roots.domainRoot, def.manifestFolder, "manifest.normalized.json") : "";
-  const dataPath = def ? path.join(roots.dataRoot, def.dataFolder) : "";
-  const utilPath = def ? path.join(roots.utilsRoot, def.utilFile) : "";
-  return {
-    domain: key,
-    domainRoot: roots.domainRoot,
-    dataRoot: roots.dataRoot,
-    utilsRoot: roots.utilsRoot,
-    priorityManifestPath: path.join(roots.domainRoot, "domain_runtime_priority_manifest.normalized.json"),
-    manifestPath: fileExists(manifestPath) ? manifestPath : manifestPath,
-    manifestNormalizedPath,
-    activeManifestPath: fileExists(manifestPath) ? manifestPath : (fileExists(manifestNormalizedPath) ? manifestNormalizedPath : manifestPath),
-    dataPath,
-    utilPath,
-    exists: {
-      priorityManifest: fileExists(path.join(roots.domainRoot, "domain_runtime_priority_manifest.normalized.json")),
-      manifest: fileExists(manifestPath) || fileExists(manifestNormalizedPath),
-      data: dirExists(dataPath),
-      util: fileExists(utilPath)
-    }
-  };
-}
-
-function resolveKnowledgeDomainKey(value) {
-  const raw = normalizeKey(value);
-  if (!raw) return "";
-  if (KNOWLEDGE_DOMAIN_DEFS[raw]) return raw;
-  if (KNOWLEDGE_DOMAIN_ALIASES[raw] && KNOWLEDGE_DOMAIN_DEFS[KNOWLEDGE_DOMAIN_ALIASES[raw]]) return KNOWLEDGE_DOMAIN_ALIASES[raw];
-  return "";
-}
-
-function getKnowledgeDomainConfig(domain) {
-  const key = resolveKnowledgeDomainKey(domain);
-  if (!key) return null;
-  const config = cloneDomainConfig(KNOWLEDGE_DOMAIN_DEFS[key]);
-  const paths = resolveDomainPaths(key);
-  return {
-    ...config,
-    resolvedDomain: key,
-    requestedDomain: safeStr(domain),
-    registryVersion: VERSION,
-    stateSpineSchema: STATE_SPINE_SCHEMA,
-    stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
-    finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
-    supported: true,
-    runtimeSplit: {
-      manifestsInDomains: true,
-      payloadsInData: true,
-      utilsInUtils: true,
-      domainRoot: paths.domainRoot,
-      dataRoot: paths.dataRoot,
-      utilsRoot: paths.utilsRoot,
-      priorityManifestPath: paths.priorityManifestPath,
-      manifestPath: paths.activeManifestPath,
-      dataPath: paths.dataPath,
-      utilPath: paths.utilPath,
-      exists: paths.exists
-    }
-  };
-}
-
-function getDomainRuntimeHealth(domain) {
-  const key = resolveKnowledgeDomainKey(domain);
-  if (!key) return { ok: false, domain: safeStr(domain), reason: "unsupported_knowledge_domain" };
-  const cfg = getKnowledgeDomainConfig(key);
-  const exists = cfg.runtimeSplit.exists;
-  return {
-    ok: !!(exists.manifest && exists.data && exists.util),
-    domain: key,
-    safetyGate: cfg.safetyGate,
-    manifestFound: !!exists.manifest,
-    payloadFolderFound: !!exists.data,
-    utilBridgeFound: !!exists.util,
-    priorityManifestFound: !!exists.priorityManifest,
-    paths: {
-      manifest: cfg.runtimeSplit.manifestPath,
-      data: cfg.runtimeSplit.dataPath,
-      util: cfg.runtimeSplit.utilPath,
-      priorityManifest: cfg.runtimeSplit.priorityManifestPath
-    }
-  };
-}
 
 function safeStr(v) {
   return v == null ? "" : String(v).replace(/\s+/g, " ").trim();
@@ -587,19 +441,16 @@ function cloneDomainConfig(config) {
 function resolveDomainKey(value, fallback = "general_reasoning") {
   const raw = normalizeKey(value);
   if (!raw) return normalizeKey(fallback) || "general_reasoning";
-  if (MARION_DOMAINS[raw]) return raw;
-  if (DOMAIN_ALIASES[raw] && MARION_DOMAINS[DOMAIN_ALIASES[raw]]) return DOMAIN_ALIASES[raw];
-  const knowledgeKey = resolveKnowledgeDomainKey(raw);
-  if (knowledgeKey) return knowledgeKey;
-  return MARION_DOMAINS[fallback] || KNOWLEDGE_DOMAIN_DEFS[fallback] ? fallback : "general_reasoning";
+  if (MARION_DOMAINS[raw] || KNOWLEDGE_DOMAINS[raw]) return raw;
+  if (DOMAIN_ALIASES[raw] && (MARION_DOMAINS[DOMAIN_ALIASES[raw]] || KNOWLEDGE_DOMAINS[DOMAIN_ALIASES[raw]])) return DOMAIN_ALIASES[raw];
+  return MARION_DOMAINS[fallback] ? fallback : "general_reasoning";
 }
 
 function getDomainConfig(domain, options = {}) {
   const opts = safeObj(options);
   const key = resolveDomainKey(domain, safeStr(opts.fallbackDomain || "general_reasoning"));
-  const knowledgeConfig = getKnowledgeDomainConfig(key);
-  if (knowledgeConfig) return knowledgeConfig;
-  const config = cloneDomainConfig(MARION_DOMAINS[key]);
+  const sourceConfig = MARION_DOMAINS[key] || KNOWLEDGE_DOMAINS[key] || MARION_DOMAINS.general_reasoning;
+  const config = cloneDomainConfig(sourceConfig);
   return {
     ...config,
     resolvedDomain: key,
@@ -614,8 +465,6 @@ function getDomainConfig(domain, options = {}) {
 
 function getDomainForIntent(intent) {
   const key = normalizeKey(intent);
-  const knowledgeKey = resolveKnowledgeDomainKey(key);
-  if (knowledgeKey) return knowledgeKey;
   return INTENT_TO_DOMAIN[key] || DOMAIN_ALIASES[key] || "general_reasoning";
 }
 
@@ -625,15 +474,14 @@ function getDomainConfigForIntent(intent, options = {}) {
 
 function isSupportedDomain(domain) {
   const key = normalizeKey(domain);
-  return !!(key && (MARION_DOMAINS[key] || (DOMAIN_ALIASES[key] && MARION_DOMAINS[DOMAIN_ALIASES[key]]) || resolveKnowledgeDomainKey(key)));
+  return !!(key && (MARION_DOMAINS[key] || KNOWLEDGE_DOMAINS[key] || (DOMAIN_ALIASES[key] && (MARION_DOMAINS[DOMAIN_ALIASES[key]] || KNOWLEDGE_DOMAINS[DOMAIN_ALIASES[key]]))));
 }
 
 function listDomains(options = {}) {
   const opts = safeObj(options);
   const includeHidden = opts.includeHidden === true;
-  const staticDomains = Object.keys(MARION_DOMAINS).map((key) => cloneDomainConfig(MARION_DOMAINS[key]));
-  const knowledgeDomains = KNOWLEDGE_DOMAIN_ORDER.map((key) => getKnowledgeDomainConfig(key)).filter(Boolean);
-  return [...staticDomains, ...knowledgeDomains]
+  return Object.keys(MARION_DOMAINS)
+    .map((key) => cloneDomainConfig(MARION_DOMAINS[key]))
     .filter((cfg) => includeHidden || cfg.exposeToUser !== false);
 }
 
@@ -642,7 +490,7 @@ function getCapabilityIntro() {
     .map((cfg) => safeStr(cfg.userFacingLabel || cfg.label))
     .filter(Boolean);
 
-  const preferredOrder = ["chat", "psychology", "English language", "AI", "cybersecurity", "law", "finance", "media and radio", "News Canada", "Roku", "backend diagnostics", "business strategy", "reasoning"];
+  const preferredOrder = ["chat", "media and radio", "News Canada", "Roku", "backend diagnostics", "business strategy", "reasoning"];
   const ordered = preferredOrder.filter((label) => labels.includes(label));
   const extras = labels.filter((label) => !ordered.includes(label));
   const finalLabels = [...ordered, ...extras];
@@ -670,8 +518,6 @@ function buildRoutingFromDomain(domain, intent = "domain_question", overrides = 
     capability: config.capability,
     userFacingLabel: config.userFacingLabel,
     exposeToUser: !!config.exposeToUser,
-    safetyGate: safeStr(config.safetyGate || "none"),
-    runtimeSplit: safeObj(config.runtimeSplit),
     cohesion: {
       registryCompatible: true,
       bridgeCompatible: true,
@@ -683,28 +529,80 @@ function buildRoutingFromDomain(domain, intent = "domain_question", overrides = 
   };
 }
 
+
+function resolveKnowledgeDomain(value, fallback = "") {
+  const raw = normalizeKey(value);
+  if (!raw) return normalizeKey(fallback);
+  if (KNOWLEDGE_DOMAINS[raw]) return raw;
+  if (raw === "artificial_intelligence") return "ai";
+  if (raw === "cybersecurity") return "cyber";
+  if (raw === "legal") return "law";
+  return "";
+}
+
+function getKnowledgeDomainConfig(domain, options = {}) {
+  const opts = safeObj(options);
+  const key = resolveKnowledgeDomain(domain, safeStr(opts.fallbackDomain || ""));
+  if (!key || !KNOWLEDGE_DOMAINS[key]) {
+    return {
+      supported: false,
+      requestedDomain: safeStr(domain),
+      resolvedDomain: "",
+      registryVersion: VERSION
+    };
+  }
+  const config = cloneDomainConfig(KNOWLEDGE_DOMAINS[key]);
+  return {
+    ...config,
+    supported: true,
+    resolvedDomain: key,
+    requestedDomain: safeStr(domain),
+    registryVersion: VERSION,
+    stateSpineSchema: STATE_SPINE_SCHEMA,
+    stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
+    finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT
+  };
+}
+
+function listKnowledgeDomains() {
+  return KNOWLEDGE_DOMAIN_PRIORITY.map((key) => cloneDomainConfig(KNOWLEDGE_DOMAINS[key])).filter(Boolean);
+}
+
+function buildKnowledgeRoute(domain, overrides = {}) {
+  const config = getKnowledgeDomainConfig(domain);
+  const o = safeObj(overrides);
+  if (!config.supported) return { supported: false, knowledgeDomain: "" };
+  return {
+    supported: true,
+    knowledgeDomain: config.resolvedDomain,
+    operationalDomain: safeStr(o.operationalDomain || config.operationalDomain || "general_reasoning"),
+    mode: safeStr(o.mode || config.mode),
+    depth: safeStr(o.depth || config.depth),
+    preferredStyle: safeStr(o.preferredStyle || config.preferredStyle),
+    useDomainKnowledge: true,
+    safetyFirst: !!config.safetyFirst,
+    noLegalAdvice: !!config.noLegalAdvice,
+    noInvestmentAdvice: !!config.noInvestmentAdvice,
+    defensiveOnly: !!config.defensiveOnly,
+    capability: config.capability,
+    dataRootHint: config.dataRootHint,
+    manifestHint: config.manifestHint,
+    registryVersion: VERSION
+  };
+}
+
 function getHealth() {
   const keys = Object.keys(MARION_DOMAINS);
   const missing = [];
   for (const intent of Object.keys(INTENT_TO_DOMAIN)) {
     if (!MARION_DOMAINS[INTENT_TO_DOMAIN[intent]]) missing.push(intent);
   }
-  const knowledgeHealth = KNOWLEDGE_DOMAIN_ORDER.map((domain) => getDomainRuntimeHealth(domain));
   return {
     ok: missing.length === 0,
     version: VERSION,
-    domainCount: keys.length + KNOWLEDGE_DOMAIN_ORDER.length,
-    domains: [...keys, ...KNOWLEDGE_DOMAIN_ORDER],
-    knowledgeDomainOrder: KNOWLEDGE_DOMAIN_ORDER,
-    knowledgeDomains: knowledgeHealth,
-    splitArchitecture: {
-      manifestsRoot: resolveRuntimeRoots().domainRoot,
-      dataRoot: resolveRuntimeRoots().dataRoot,
-      utilsRoot: resolveRuntimeRoots().utilsRoot,
-      manifestsInDomains: true,
-      payloadsInData: true,
-      utilsInUtils: true
-    },
+    domainCount: keys.length,
+    domains: keys,
+    knowledgeDomains: KNOWLEDGE_DOMAIN_PRIORITY,
     intentCoverage: Object.keys(INTENT_TO_DOMAIN).length,
     missingIntentDomains: missing,
     endpoint: CANONICAL_ENDPOINT,
@@ -721,27 +619,27 @@ module.exports = {
   FINAL_ENVELOPE_CONTRACT,
   CANONICAL_ENDPOINT,
   MARION_DOMAINS,
+  KNOWLEDGE_DOMAINS,
+  KNOWLEDGE_DOMAIN_PRIORITY,
   DOMAIN_ALIASES,
   INTENT_TO_DOMAIN,
   getDomainConfig,
   getDomainForIntent,
   getDomainConfigForIntent,
   isSupportedDomain,
+  resolveKnowledgeDomain,
+  getKnowledgeDomainConfig,
+  listKnowledgeDomains,
+  buildKnowledgeRoute,
   listDomains,
   getCapabilityIntro,
   buildRoutingFromDomain,
   getHealth,
-  KNOWLEDGE_DOMAIN_ORDER,
-  KNOWLEDGE_DOMAIN_DEFS,
-  resolveRuntimeRoots,
-  resolveDomainPaths,
-  getDomainRuntimeHealth,
-  getKnowledgeDomainConfig,
   _internal: {
     safeStr,
     normalizeKey,
     resolveDomainKey,
-    resolveKnowledgeDomainKey,
+    resolveKnowledgeDomain,
     cloneDomainConfig
   }
 };
