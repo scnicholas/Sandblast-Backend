@@ -12,11 +12,11 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.5.0 SOCIAL-DOMAIN-COHESION-GATE";
+const VERSION = "marionIntentRouter v2.6.0 KNOWLEDGE-DOMAIN-LANE-GATE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
-const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.5";
+const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.6";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const VALID_INTENTS = Object.freeze([
@@ -347,6 +347,60 @@ function detectDirectiveIntent(text) {
   );
 }
 
+
+const KNOWLEDGE_DOMAIN_PRIORITY = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
+
+const KNOWLEDGE_DOMAIN_PATTERNS = Object.freeze({
+  psychology: /\b(psychology|cognitive distortion|cognitive distortions|attachment|trauma|trauma[- ]?sensitive|affect|overwhelm|spiraling|panic|shame|shutdown|support strategy|crisis flag|emotional pattern|mental model)\b/i,
+  english: /\b(grammar|syntax|semantics|pragmatics|phonology|phonetics|morphology|english|writing clarity|academic writing|register|make this sound|polish this|language flow|word formation)\b/i,
+  ai: /\b(artificial intelligence|\bai\b|machine learning|\bml\b|llm|rag|embedding|agent|agents|multi[- ]?agent|orchestration|prompt|model training|inference|alignment|ai governance)\b/i,
+  cyber: /\b(cyber|cybersecurity|infosec|security posture|defensive security|incident response|breach|ransomware|phishing|mfa|iam|endpoint|cloud security|network security|prompt injection|data poisoning)\b/i,
+  law: /\b(law|legal|statute|regulation|case law|precedent|contract|contracts|tort|torts|criminal law|charter|constitutional|jurisdiction|legal research|legal memo)\b/i,
+  finance: /\b(finance|financial|economics|microeconomics|macroeconomics|pricing|unit economics|ltv|cac|payback|capital markets|runway|valuation|risk management|liquidity|interest rates|inflation)\b/i
+});
+
+function detectKnowledgeDomain(text) {
+  const t = lower(text);
+  if (!t) return "";
+  const scores = [];
+  for (const domain of KNOWLEDGE_DOMAIN_PRIORITY) {
+    const rx = KNOWLEDGE_DOMAIN_PATTERNS[domain];
+    rx.lastIndex = 0;
+    const hit = rx.test(t);
+    if (!hit) continue;
+    let score = 1;
+    if (domain === "psychology" && detectSafetyLevel(t) !== "none") score += 10;
+    if (domain === "english" && /\b(make this sound|polish|rewrite|grammar|tone|clarity)\b/i.test(t)) score += 3;
+    if (domain === "cyber" && /\b(defensive|incident|breach|phishing|ransomware|mfa|iam)\b/i.test(t)) score += 3;
+    if (domain === "law" && /\b(jurisdiction|case law|statute|legal research|legal advice)\b/i.test(t)) score += 3;
+    if (domain === "finance" && /\b(unit economics|ltv|cac|pricing|valuation|runway)\b/i.test(t)) score += 3;
+    if (domain === "ai" && /\b(agent|rag|llm|embedding|orchestration|prompt)\b/i.test(t)) score += 3;
+    scores.push({ domain, score });
+  }
+  scores.sort((a, b) => b.score - a.score || KNOWLEDGE_DOMAIN_PRIORITY.indexOf(a.domain) - KNOWLEDGE_DOMAIN_PRIORITY.indexOf(b.domain));
+  return scores[0] ? scores[0].domain : "";
+}
+
+function intentForKnowledgeDomain(domain, text, safetyLevel = "none") {
+  if (domain === "psychology" && safetyLevel !== "none") return "emotional_support";
+  return domain ? "domain_question" : "";
+}
+
+function knowledgeDomainSubIntent(domain, text) {
+  const t = lower(text);
+  if (domain === "psychology") {
+    if (detectSafetyLevel(t) === "crisis") return "psychology_crisis_safety";
+    if (/\b(overwhelm|spiral|panic|shutdown|shame|attachment|trauma)\b/i.test(t)) return "psychology_support_routing";
+    return "psychology_knowledge";
+  }
+  if (domain === "english") return /\b(make this sound|polish|rewrite|clarity|tone)\b/i.test(t) ? "english_fluency_shaping" : "english_knowledge";
+  if (domain === "cyber") return "cyber_defensive_only";
+  if (domain === "law") return "law_educational_research";
+  if (domain === "finance") return "finance_scenario_reasoning";
+  if (domain === "ai") return "ai_architecture_reasoning";
+  return "knowledge_domain";
+}
+
 function inferIntentFromText(text) {
   const t = lower(text);
   const safetyLevel = detectSafetyLevel(t);
@@ -454,6 +508,20 @@ function inferIntentFromText(text) {
     };
   }
 
+  const knowledgeDomain = detectKnowledgeDomain(t);
+  if (knowledgeDomain) {
+    const knowledgeIntent = intentForKnowledgeDomain(knowledgeDomain, t, safetyLevel);
+    return {
+      intent: knowledgeIntent,
+      confidence: knowledgeDomain === "psychology" ? 0.94 : 0.88,
+      reason: `${knowledgeDomain}_knowledge_domain_terms`,
+      stateStageHint: knowledgeIntent === "emotional_support" ? "recovery" : "reason",
+      safetyLevel,
+      recoveryRequired: knowledgeIntent === "emotional_support",
+      knowledgeDomain
+    };
+  }
+
   if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|composemarionresponse|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|api\/chat|backend diagnostics|diagnostics route|health check|final envelope|contract|authority gate|script|file|harden|critical fix|critical fixes|download|zip|integration|cohesion|cohesive|90%|ninety percent|baseline cognition)\b/i, t)) {
     return {
       intent: "technical_debug",
@@ -552,6 +620,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let stateStageHint = safeStr(src.stateStageHint || src.stage || inferred.stateStageHint || "deliver");
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
+  let knowledgeDomain = safeStr(src.knowledgeDomain || src.domainLane || src.primaryDomain || inferred.knowledgeDomain || detectKnowledgeDomain(fallbackText));
 
   /* Distress language wins over stale explicit/general intent. */
   if (inferred.intent === "emotional_support") {
@@ -615,7 +684,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     stateStageHint = stateStageHint || "reason";
   }
 
-  const subIntent = safeStr(src.subIntent || src.subintent || detectSubIntent(fallbackText, intent));
+  const subIntent = safeStr(src.subIntent || src.subintent || (knowledgeDomain ? knowledgeDomainSubIntent(knowledgeDomain, fallbackText) : detectSubIntent(fallbackText, intent)));
 
   return {
     activate: intent !== "simple_chat",
@@ -625,24 +694,28 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     reason,
     stateStageHint,
     safetyLevel,
+    knowledgeDomain,
+    primaryDomain: knowledgeDomain || (INTENT_TO_DOMAIN[intent] || "general_reasoning"),
     recoveryRequired,
     loopSafe: true,
     allowGenericFallback: false,
     requiresFinalEnvelope: true,
     requiresComposer: true,
     identityAnchorRequired: subIntent === "identity_baseline",
-    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
+    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || !!knowledgeDomain || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
     directiveExecutionRequired: intent === "directive_response",
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
 
 function buildRouting(marionIntent) {
-  const domain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
-  const style = PREFERRED_STYLE[domain] || "direct";
+  const domain = marionIntent.knowledgeDomain || marionIntent.primaryDomain || INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
+  const style = PREFERRED_STYLE[domain] || (marionIntent.knowledgeDomain ? "knowledge_grounded" : "direct");
 
   return {
     domain,
+    knowledgeDomain: marionIntent.knowledgeDomain || "",
+    primaryDomain: marionIntent.primaryDomain || domain,
     intent: marionIntent.intent,
     subIntent: marionIntent.subIntent,
     endpoint: CANONICAL_ENDPOINT,
@@ -655,8 +728,8 @@ function buildRouting(marionIntent) {
     mode: DOMAIN_MODE[domain] || "conversation",
     depth: DOMAIN_DEPTH[domain] || "normal",
     cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation"),
-    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
-    useDomainKnowledge: domain !== "general",
+    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || domain === "psychology" || marionIntent.subIntent === "identity_baseline",
+    useDomainKnowledge: domain !== "general" || !!marionIntent.knowledgeDomain,
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
     requiresHotFallback: false,
@@ -664,6 +737,7 @@ function buildRouting(marionIntent) {
     blockRepeatedBridgeFallback: true,
     recoveryRequired: marionIntent.recoveryRequired,
     safetyLevel: marionIntent.safetyLevel,
+    safetyGate: domain === "cyber" ? "defensive_only" : domain === "law" ? "educational_no_legal_advice" : domain === "finance" ? "educational_no_investment_advice" : domain === "psychology" ? "clinical_safety_first" : "none",
     identityAnchorRequired: !!marionIntent.identityAnchorRequired,
     baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
     preferredStyle: style,
@@ -699,6 +773,7 @@ function routeMarionIntent(packet = {}) {
     meta: {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
+      knowledgeDomain: marionIntent.knowledgeDomain || "",
       triggerSource: marionIntent.source,
       textPresent: Boolean(text),
       singleIntentAuthority: true,
@@ -738,6 +813,9 @@ module.exports = {
     detectDomainIntroIntent,
     detectSubIntent,
     detectDirectiveIntent,
+    detectKnowledgeDomain,
+    knowledgeDomainSubIntent,
+    intentForKnowledgeDomain,
     buildRouting
   }
 };
