@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.3.0 MANIFEST-PACK-WIRING-GUARD";
+const VERSION = "marionDomainRegistry v1.4.0 DATA-DOMAINS-PATH-HARDENED-MANIFEST-PACK-GUARD";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -427,34 +427,34 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
 
 const DOMAIN_FILE_CANDIDATES = Object.freeze({
   psychology: Object.freeze({
-    manifests: Object.freeze(["domains/psychology/manifest.json", "domains/psychology/psychology.manifest.json", "domains/psychology.json", "Data/psychology/manifest.json", "Data/psychology/psychology.manifest.json", "Data/marion/domains/psychology/manifest.json", "Data/marion/knowledge/psychology/manifest.json"]),
-    roots: Object.freeze(["Data/psychology", "domains/psychology", "Data/marion/domains/psychology", "Data/marion/knowledge/psychology"]),
-    packs: Object.freeze(["Data/psychology/psychology.json", "Data/psychology/knowledge.json", "Data/psychology/domain.json", "Data/psychology/pack.json", "domains/psychology/knowledge.json", "domains/psychology/domain.json", "Data/marion/knowledge/psychology.json"])
+    manifests: Object.freeze(["Data/Domains/psychology/manifest.json", "Data/Domains/Psychology/manifest.json", "domains/psychology/manifest.json", "domains/psychology/psychology.manifest.json", "domains/psychology.json", "Data/psychology/manifest.json", "Data/psychology/psychology.manifest.json", "Data/marion/domains/psychology/manifest.json", "Data/marion/knowledge/psychology/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/psychology", "Data/Domains/Psychology", "Data/psychology", "Data/Psychology", "Data/Emotion", "Data/Emotions", "domains/psychology", "Data/marion/domains/psychology", "Data/marion/knowledge/psychology"]),
+    packs: Object.freeze(["Data/Domains/psychology/psychology.json", "Data/Domains/psychology/knowledge.json", "Data/Domains/psychology/domain.json", "Data/Domains/psychology/pack.json", "Data/psychology/psychology.json", "Data/psychology/knowledge.json", "Data/psychology/domain.json", "Data/psychology/pack.json", "domains/psychology/knowledge.json", "domains/psychology/domain.json", "Data/marion/knowledge/psychology.json"])
   }),
   english: Object.freeze({
-    manifests: Object.freeze(["domains/english/manifest.json", "domains/english/english.manifest.json", "domains/english.json", "Data/english/manifest.json", "Data/marion/domains/english/manifest.json", "Data/marion/knowledge/english/manifest.json"]),
-    roots: Object.freeze(["domains/english", "Data/english", "Data/marion/domains/english", "Data/marion/knowledge/english"]),
-    packs: Object.freeze(["domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json"])
+    manifests: Object.freeze(["Data/Domains/english/manifest.json", "Data/Domains/English/manifest.json", "domains/english/manifest.json", "domains/english/english.manifest.json", "domains/english.json", "Data/english/manifest.json", "Data/English/manifest.json", "Data/marion/domains/english/manifest.json", "Data/marion/knowledge/english/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/english", "Data/Domains/English", "domains/english", "Data/english", "Data/English", "Data/marion/domains/english", "Data/marion/knowledge/english"]),
+    packs: Object.freeze(["Data/Domains/english/english.json", "Data/Domains/english/knowledge.json", "Data/Domains/english/domain.json", "Data/Domains/english/pack.json", "domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json"])
   }),
   ai: Object.freeze({
-    manifests: Object.freeze(["domains/ai/manifest.json", "domains/ai/ai.manifest.json", "Data/ai/manifest.json", "Data/marion/domains/ai/manifest.json", "Data/marion/knowledge/ai/manifest.json"]),
-    roots: Object.freeze(["Data/ai", "domains/ai", "Data/marion/domains/ai", "Data/marion/knowledge/ai"]),
-    packs: Object.freeze(["Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json"])
+    manifests: Object.freeze(["Data/Domains/ai/manifest.json", "Data/Domains/AI/manifest.json", "domains/ai/manifest.json", "domains/AI/manifest.json", "domains/ai/ai.manifest.json", "Data/ai/manifest.json", "Data/AI/manifest.json", "Data/marion/domains/ai/manifest.json", "Data/marion/knowledge/ai/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/ai", "Data/Domains/AI", "Data/ai", "Data/AI", "domains/ai", "domains/AI", "Data/marion/domains/ai", "Data/marion/knowledge/ai"]),
+    packs: Object.freeze(["Data/Domains/ai/ai.json", "Data/Domains/ai/knowledge.json", "Data/Domains/ai/domain.json", "Data/Domains/AI/ai.json", "Data/Domains/AI/knowledge.json", "Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json"])
   }),
   cyber: Object.freeze({
-    manifests: Object.freeze(["domains/cyber/manifest.json", "domains/cyber/cyber.manifest.json", "domains/cybersecurity/manifest.json", "Data/cyber/manifest.json", "Data/cybersecurity/manifest.json", "Data/marion/domains/cyber/manifest.json", "Data/marion/knowledge/cyber/manifest.json"]),
-    roots: Object.freeze(["Data/cyber", "Data/cybersecurity", "domains/cyber", "domains/cybersecurity", "Data/marion/domains/cyber", "Data/marion/knowledge/cyber"]),
-    packs: Object.freeze(["Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json"])
+    manifests: Object.freeze(["Data/Domains/Cyber/manifest.json", "Data/Domains/cyber/manifest.json", "domains/Cyber/manifest.json", "domains/cyber/manifest.json", "domains/cyber/cyber.manifest.json", "domains/cybersecurity/manifest.json", "Data/Cyber/manifest.json", "Data/cyber/manifest.json", "Data/cybersecurity/manifest.json", "Data/marion/domains/cyber/manifest.json", "Data/marion/knowledge/cyber/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/Cyber", "Data/Domains/cyber", "Data/Cyber", "Data/cyber", "Data/cybersecurity", "domains/Cyber", "domains/cyber", "domains/cybersecurity", "Data/marion/domains/cyber", "Data/marion/knowledge/cyber"]),
+    packs: Object.freeze(["Data/Domains/Cyber/cyber.json", "Data/Domains/Cyber/knowledge.json", "Data/Domains/Cyber/domain.json", "Data/Domains/cyber/cyber.json", "Data/Domains/cyber/knowledge.json", "Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json"])
   }),
   law: Object.freeze({
-    manifests: Object.freeze(["domains/law/manifest.json", "domains/legal/manifest.json", "Data/law/manifest.json", "Data/legal/manifest.json", "Data/marion/domains/law/manifest.json", "Data/marion/knowledge/law/manifest.json"]),
-    roots: Object.freeze(["Data/law", "Data/legal", "domains/law", "domains/legal", "Data/marion/domains/law", "Data/marion/knowledge/law"]),
-    packs: Object.freeze(["Data/law/law.json", "Data/law/knowledge.json", "Data/law/domain.json", "domains/law/knowledge.json", "Data/marion/knowledge/law.json"])
+    manifests: Object.freeze(["Data/Domains/law/manifest.json", "Data/Domains/Law/manifest.json", "domains/law/manifest.json", "domains/legal/manifest.json", "Data/law/manifest.json", "Data/Law/manifest.json", "Data/legal/manifest.json", "Data/marion/domains/law/manifest.json", "Data/marion/knowledge/law/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/law", "Data/Domains/Law", "Data/law", "Data/Law", "Data/legal", "domains/law", "domains/legal", "Data/marion/domains/law", "Data/marion/knowledge/law"]),
+    packs: Object.freeze(["Data/Domains/law/law.json", "Data/Domains/law/knowledge.json", "Data/Domains/law/domain.json", "Data/law/law.json", "Data/law/knowledge.json", "Data/law/domain.json", "domains/law/knowledge.json", "Data/marion/knowledge/law.json"])
   }),
   finance: Object.freeze({
-    manifests: Object.freeze(["domains/finance/manifest.json", "domains/finance/finance.manifest.json", "Data/finance/manifest.json", "Data/marion/domains/finance/manifest.json", "Data/marion/knowledge/finance/manifest.json"]),
-    roots: Object.freeze(["Data/finance", "domains/finance", "Data/marion/domains/finance", "Data/marion/knowledge/finance"]),
-    packs: Object.freeze(["Data/finance/finance.json", "Data/finance/knowledge.json", "Data/finance/domain.json", "domains/finance/knowledge.json", "Data/marion/knowledge/finance.json"])
+    manifests: Object.freeze(["Data/Domains/finance/manifest.json", "Data/Domains/Finance/manifest.json", "domains/finance/manifest.json", "domains/finance/finance.manifest.json", "Data/finance/manifest.json", "Data/Finance/manifest.json", "Data/marion/domains/finance/manifest.json", "Data/marion/knowledge/finance/manifest.json"]),
+    roots: Object.freeze(["Data/Domains/finance", "Data/Domains/Finance", "Data/finance", "Data/Finance", "domains/finance", "Data/marion/domains/finance", "Data/marion/knowledge/finance"]),
+    packs: Object.freeze(["Data/Domains/finance/finance.json", "Data/Domains/finance/knowledge.json", "Data/Domains/finance/domain.json", "Data/finance/finance.json", "Data/finance/knowledge.json", "Data/finance/domain.json", "domains/finance/knowledge.json", "Data/marion/knowledge/finance.json"])
   })
 });
 
@@ -585,6 +585,55 @@ function listJsonFiles(rootCandidates, options = {}) {
   return out;
 }
 
+
+function basenameNoExt(value) {
+  return path.basename(safeStr(value)).replace(/\.json$/i, "");
+}
+
+function candidateNearManifest(manifestPath, relativeValue) {
+  const base = safeStr(relativeValue);
+  const manifest = safeStr(manifestPath);
+  if (!base) return "";
+  if (path.isAbsolute(base)) return base;
+  if (!manifest) return base;
+  const fullManifest = path.isAbsolute(manifest) ? manifest : toAbsolutePath(manifest);
+  return path.normalize(path.join(path.dirname(fullManifest), base));
+}
+
+function manifestDeclaredPackCandidates(manifestResult = {}) {
+  const out = [];
+  const manifest = safeObj(manifestResult.data || manifestResult.manifest);
+  const manifestPath = manifestResult.absolutePath || manifestResult.path || "";
+  const keys = [
+    "pack", "packPath", "packFile", "knowledgePack", "knowledgePackPath", "knowledgeFile",
+    "data", "dataPath", "dataFile", "files", "dataFiles", "jsonFiles", "sources", "resources"
+  ];
+
+  function collect(value) {
+    if (!value) return;
+    if (typeof value === "string") {
+      if (/\.json$/i.test(value)) out.push(candidateNearManifest(manifestPath, value));
+      return;
+    }
+    if (Array.isArray(value)) { for (const item of value) collect(item); return; }
+    if (typeof value === "object") {
+      const obj = safeObj(value);
+      const direct = obj.path || obj.file || obj.href || obj.src || obj.url;
+      if (direct) collect(direct);
+      for (const key of keys) if (Object.prototype.hasOwnProperty.call(obj, key)) collect(obj[key]);
+    }
+  }
+
+  for (const key of keys) collect(manifest[key]);
+  return uniqueList(out);
+}
+
+function compactJsonPreview(data, limit = 12) {
+  const obj = safeObj(data);
+  const keys = Object.keys(obj).slice(0, limit);
+  return { type: Array.isArray(data) ? "array" : (data && typeof data === "object" ? "object" : typeof data), keys, itemCount: Array.isArray(data) ? data.length : undefined };
+}
+
 function getDomainFileCandidates(domain) {
   const key = resolveKnowledgeDomain(domain) || resolveDomainKey(domain, "general_reasoning");
   const configured = safeObj(DOMAIN_FILE_CANDIDATES[key]);
@@ -595,8 +644,8 @@ function getDomainFileCandidates(domain) {
     packs: [`Data/${key}/${key}.json`, `Data/${key}/knowledge.json`, `Data/${key}/domain.json`, `domains/${key}/knowledge.json`, `Data/marion/knowledge/${key}.json`]
   } : { manifests: [], roots: [], packs: [] };
   return {
-    manifests: uniqueList([config.manifestHint, ...safeArray(configured.manifests), ...generic.manifests]),
-    roots: uniqueList([config.dataRootHint, ...safeArray(configured.roots), ...generic.roots]),
+    manifests: uniqueList([...safeArray(configured.manifests), config.manifestHint, ...generic.manifests]),
+    roots: uniqueList([...safeArray(configured.roots), config.dataRootHint, ...generic.roots]),
     packs: uniqueList([...safeArray(configured.packs), ...generic.packs])
   };
 }
@@ -756,8 +805,11 @@ function getDomainManifest(domain, options = {}) {
     knowledgeDomain: key,
     requestedDomain: safeStr(domain),
     ok: !!loaded.ok,
+    loaded: !!loaded.ok,
     manifest: loaded.ok ? loaded.data : null,
+    data: loaded.ok ? loaded.data : null,
     path: loaded.path || "",
+    absolutePath: loaded.absolutePath || "",
     candidates: candidates.manifests,
     errors: safeArray(loaded.errors).concat(loaded.ok ? [] : (loaded.error ? [{ error: loaded.error }] : [])),
     registryVersion: VERSION
@@ -767,10 +819,11 @@ function getDomainManifest(domain, options = {}) {
 function getDomainKnowledgePack(domain, options = {}) {
   const opts = safeObj(options);
   const key = resolveKnowledgeDomain(domain);
-  if (!key) return { supported: false, knowledgeDomain: "", requestedDomain: safeStr(domain), ok: false, manifest: null, dataFiles: [], errors: [{ error: "unsupported_knowledge_domain" }], registryVersion: VERSION };
+  if (!key) return { supported: false, knowledgeDomain: "", requestedDomain: safeStr(domain), ok: false, loaded: false, manifest: null, dataFiles: [], files: [], errors: [{ error: "unsupported_knowledge_domain" }], registryVersion: VERSION };
   const candidates = getDomainFileCandidates(key);
   const manifestResult = getDomainManifest(key, opts);
-  const explicitPackFiles = candidates.packs.filter(fileExists).map((p) => toAbsolutePath(p));
+  const manifestPackFiles = manifestResult.ok ? manifestDeclaredPackCandidates({ data: manifestResult.manifest, path: manifestResult.path, absolutePath: manifestResult.absolutePath }) : [];
+  const explicitPackFiles = uniqueList([...candidates.packs, ...manifestPackFiles]).filter(fileExists).map((p) => toAbsolutePath(p));
   const directoryJsonFiles = listJsonFiles(candidates.roots, opts).filter((full) => !/manifest\.json$/i.test(full));
   const files = uniqueList([...explicitPackFiles, ...directoryJsonFiles]);
   const dataFiles = [];
@@ -778,21 +831,26 @@ function getDomainKnowledgePack(domain, options = {}) {
   const maxFiles = Number.isFinite(Number(opts.maxFiles)) ? Math.max(1, Math.min(200, Number(opts.maxFiles))) : 60;
   for (const file of files.slice(0, maxFiles)) {
     const loaded = readJsonFile(file, opts);
-    if (loaded.ok) dataFiles.push({ path: loaded.path, size: loaded.size, mtimeMs: loaded.mtimeMs, data: loaded.data });
+    if (loaded.ok) dataFiles.push({ name: basenameNoExt(loaded.path), path: loaded.path, size: loaded.size, mtimeMs: loaded.mtimeMs, preview: compactJsonPreview(loaded.data), data: loaded.data });
     else errors.push({ path: loaded.path || relPath(file), error: loaded.error });
   }
   if (!manifestResult.ok && manifestResult.errors.length) errors.push(...manifestResult.errors.map((e) => ({ ...e, source: "manifest" })));
+  const loaded = manifestResult.ok || dataFiles.length > 0;
   return {
     supported: true,
     knowledgeDomain: key,
     requestedDomain: safeStr(domain),
-    ok: manifestResult.ok || dataFiles.length > 0,
+    ok: loaded,
+    loaded,
+    manifestLoaded: !!manifestResult.ok,
+    packLoaded: dataFiles.length > 0,
     manifest: manifestResult.manifest,
     manifestPath: manifestResult.path,
     dataFiles,
+    files: dataFiles,
     fileCount: dataFiles.length,
     errors,
-    candidates,
+    candidates: { ...candidates, manifestDeclaredPacks: manifestPackFiles },
     registryVersion: VERSION
   };
 }
@@ -919,6 +977,8 @@ module.exports = {
     readJsonFile,
     findFirstJson,
     listJsonFiles,
+    manifestDeclaredPackCandidates,
+    compactJsonPreview,
     toAbsolutePath,
     relPath
   }
