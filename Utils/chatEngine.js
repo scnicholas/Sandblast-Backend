@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.6.9 COORDINATOR-ONLY-FINAL-ENVELOPE-FIRST-MIRROR";
+const VERSION = "ChatEngine v3.7.0 COORDINATOR-ONLY-USER-FACING-REPLY-GATE";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -211,7 +211,12 @@ const INTERNAL_BLOCKER_PATTERNS = Object.freeze([
   /bridge_rejected/i,
   /marion_contract_invalid/i,
   /compose_marion_response_unavailable/i,
-  /packet_invalid/i
+  /packet_invalid/i,
+  /technical response:\s*the marion path must return one trusted final reply only/i,
+  /the marion path must return one trusted final reply only/i,
+  /blocking generic placeholder language/i,
+  /keeping the reply bound to the routed intent/i,
+  /final envelope,? and session-state update/i
 ]);
 
 const SHORT_BLOCKER_WORD_PATTERNS = Object.freeze([
@@ -256,7 +261,12 @@ function isRogueFallbackText(value) {
   return ROGUE_FALLBACK_REPLY_PATTERNS.some((rx) => rx.test(text));
 }
 
-
+function isMetadataLeakText(value) {
+  const text = cleanText(value);
+  if (!text) return false;
+  return /(routeKind|speechHints|presenceProfile|nyxStateHint|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority)\s*[=:]/i.test(text) ||
+    /(textSpeak|textToSynth|autoPlay|provider|when=post_reply|strategy=single_shot|compatibilityRoute|healthEndpoint)\s*[=:]/i.test(text);
+}
 
 function isThinPlaceholderText(value) {
   const text = cleanText(value);
@@ -277,6 +287,7 @@ function isInternalBlockerText(value, context = {}) {
   if (!text) return false;
 
   if (isRogueFallbackText(text)) return true;
+  if (isMetadataLeakText(text)) return true;
   if (INTERNAL_BLOCKER_PATTERNS.some((rx) => rx.test(text))) return true;
 
   const envelopeTrusted = !!context.envelopeTrusted;
@@ -603,21 +614,62 @@ function extractReplyCandidate(input = {}) {
 }
 
 function extractFinalReply(input = {}, trust = {}) {
-  const candidate = extractReplyCandidate(input);
-  if (!candidate.value) return "";
-  if (isThinPlaceholderText(candidate.value)) return "";
-  const envelopeTrusted = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
-  const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
+  const candidates = [];
+  const first = extractReplyCandidate(input);
+  if (first.value) candidates.push(first);
 
-  if (isInternalBlockerText(candidate.value, {
-    envelopeTrusted,
-    finalEnvelope,
-    fromDiagnosticPath: candidate.diagnostic
-  })) {
-    return "";
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const marion = safeObj(src.marion || payload.marion || meta.marion);
+  const contract = extractMarionContract(src);
+  const contractPayload = safeObj(contract.payload);
+  const packet = extractPacket(src);
+  const synthesis = safeObj(packet.synthesis);
+  const finalEnvelope = extractFinalEnvelope(src);
+
+  const extraCandidates = [
+    { value: finalEnvelope.reply, path: "finalEnvelope.reply", diagnostic: false },
+    { value: finalEnvelope.text, path: "finalEnvelope.text", diagnostic: false },
+    { value: finalEnvelope.displayReply, path: "finalEnvelope.displayReply", diagnostic: false },
+    { value: src.reply, path: "src.reply", diagnostic: false },
+    { value: src.text, path: "src.text", diagnostic: false },
+    { value: src.answer, path: "src.answer", diagnostic: false },
+    { value: src.output, path: "src.output", diagnostic: false },
+    { value: src.response, path: "src.response", diagnostic: false },
+    { value: contract.reply, path: "contract.reply", diagnostic: false },
+    { value: contract.text, path: "contract.text", diagnostic: false },
+    { value: contractPayload.reply, path: "contract.payload.reply", diagnostic: false },
+    { value: contractPayload.text, path: "contract.payload.text", diagnostic: false },
+    { value: marion.reply, path: "marion.reply", diagnostic: false },
+    { value: marion.text, path: "marion.text", diagnostic: false },
+    { value: payload.reply, path: "payload.reply", diagnostic: false },
+    { value: payload.text, path: "payload.text", diagnostic: false },
+    { value: packet.reply, path: "packet.reply", diagnostic: false },
+    { value: packet.text, path: "packet.text", diagnostic: false },
+    { value: synthesis.reply, path: "packet.synthesis.reply", diagnostic: true },
+    { value: synthesis.text, path: "packet.synthesis.text", diagnostic: true }
+  ];
+  for (const c of extraCandidates) {
+    const text = cleanText(c.value);
+    if (text && !candidates.some((x) => x.path === c.path && x.value === text)) candidates.push({ ...c, value: text });
   }
 
-  return candidate.value;
+  const envelopeTrusted = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
+  const finalEnvelopePresent = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
+
+  for (const candidate of candidates) {
+    if (!candidate.value) continue;
+    if (isThinPlaceholderText(candidate.value)) continue;
+    if (isInternalBlockerText(candidate.value, {
+      envelopeTrusted,
+      finalEnvelope: finalEnvelopePresent,
+      fromDiagnosticPath: candidate.diagnostic
+    })) continue;
+    return candidate.value;
+  }
+
+  return "";
 }
 
 function extractIntent(input = {}) {
@@ -1278,6 +1330,7 @@ if (typeof module !== "undefined") {
       isInternalBlockerText,
       isRogueFallbackText,
       isThinPlaceholderText,
+      isMetadataLeakText,
       hasRejectedLoopReply,
       hasFinalFailureMarker,
       jsonSafe,
