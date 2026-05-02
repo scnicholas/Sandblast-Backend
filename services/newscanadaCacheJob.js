@@ -55,4 +55,8 @@ function stopNewsCanadaCacheJob() {
 module.exports = {
   startNewsCanadaCacheJob,
   stopNewsCanadaCacheJob
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> bac0eac3 (Refactor emotion folder and update paths)

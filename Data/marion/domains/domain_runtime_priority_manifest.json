@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "bundle": "nyx_marion_domain_priority_runtime_bundle_v1_0",
   "normalizedAt": "2026-05-01",
   "targetRuntime": "Marion/Nyx",
@@ -59,5 +60,71 @@
     "gitConflictMarkersRemoved": true,
     "deterministicPrettyPrint": true,
     "hashesIncludedInReport": true
+=======
+  "manifestVersion": "2.2.0-normalized",
+  "updatedAt": "2026-05-01",
+  "targetRuntime": "Marion/Nyx",
+  "structuralMode": "split_manifest_and_data_roots",
+  "domainRoot": "domains",
+  "dataRoot": "Data",
+  "domainPrecedence": [
+    {
+      "domain": "psychology",
+      "manifestPath": "domains/psychology/manifest.json",
+      "dataPath": "Data/psychology",
+      "priority": 10,
+      "safetyFirst": true
+    },
+    {
+      "domain": "english",
+      "manifestPath": "domains/english/manifest.json",
+      "dataPath": "Data/english",
+      "priority": 20,
+      "safetyFirst": false
+    },
+    {
+      "domain": "ai",
+      "manifestPath": "domains/ai/manifest.json",
+      "dataPath": "Data/ai",
+      "priority": 30,
+      "safetyFirst": true
+    },
+    {
+      "domain": "cyber",
+      "manifestPath": "domains/cyber/manifest.json",
+      "dataPath": "Data/cyber",
+      "priority": 40,
+      "safetyFirst": true
+    },
+    {
+      "domain": "finance",
+      "manifestPath": "domains/finance/manifest.json",
+      "dataPath": "Data/finance",
+      "priority": 50,
+      "safetyFirst": true
+    },
+    {
+      "domain": "law",
+      "manifestPath": "domains/law/manifest.json",
+      "dataPath": "Data/law",
+      "priority": 60,
+      "safetyFirst": true
+    }
+  ],
+  "globalConstraints": {
+    "clinicalSafetyBeforePsychologyInterpretation": true,
+    "englishAsStyleAndFluencySupport": true,
+    "lawEducationalOnly": true,
+    "financeEducationalOnlyNoInvestmentAdvice": true,
+    "cyberDefensiveOnly": true,
+    "privacyMinimization": true
+  },
+  "loaderContract": {
+    "readPriorityManifestFirst": true,
+    "resolveManifestsFromDomainRoot": true,
+    "resolveKnowledgePacksFromDataRoot": true,
+    "failClosedOnSafetyGateMissing": true,
+    "reportHealthForLoadedFailedAndMissingPacks": true
+>>>>>>> a6112a3d (Integrate Marion domain runtime knowledge lanes)
   }
 }

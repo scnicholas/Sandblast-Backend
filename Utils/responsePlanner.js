@@ -97,4 +97,8 @@ module.exports = {
   VERSION,
   SHAPES,
   planResponse
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> bac0eac3 (Refactor emotion folder and update paths)

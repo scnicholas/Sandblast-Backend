@@ -303,4 +303,8 @@ module.exports = {
   CONTRACT_VERSION,
   normalizeCommand,
   isNormalizedMarionPacket
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> bac0eac3 (Refactor emotion folder and update paths)
