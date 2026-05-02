@@ -12,12 +12,33 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.6.0 KNOWLEDGE-DOMAIN-HANDOFF-GATE";
+const VERSION = "marionIntentRouter v2.7.0 KNOWLEDGE-DOMAIN-REGISTRY-COHESION-HARDENED";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.5";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+
+const DOMAIN_REGISTRY_REQUIRE_CANDIDATES = Object.freeze([
+  "./marionDomainRegistry.js",
+  "./marionDomainRegistry",
+  "./Data/marion/runtime/marionDomainRegistry.js",
+  "./Data/marion/runtime/marionDomainRegistry",
+  "../runtime/marionDomainRegistry.js",
+  "../runtime/marionDomainRegistry"
+]);
+
+function tryRequireOptional(paths) {
+  for (const p of Array.isArray(paths) ? paths : []) {
+    try {
+      const mod = require(p);
+      if (mod) return mod;
+    } catch (_) {}
+  }
+  return null;
+}
+
+const domainRegistryMod = tryRequireOptional(DOMAIN_REGISTRY_REQUIRE_CANDIDATES);
 
 const VALID_INTENTS = Object.freeze([
   "simple_chat",
@@ -61,7 +82,13 @@ const DOMAIN_MODE = Object.freeze({
   identity: "identity",
   execution: "execution",
   execution_context: "contextual_execution",
-  general_reasoning: "reasoning"
+  general_reasoning: "reasoning",
+  english: "language_fluency",
+  psychology: "support_then_advance",
+  ai: "ai_architecture_reasoning",
+  cyber: "defensive_cybersecurity",
+  law: "educational_law_information",
+  finance: "scenario_finance_reasoning"
 });
 
 const DOMAIN_DEPTH = Object.freeze({
@@ -76,7 +103,13 @@ const DOMAIN_DEPTH = Object.freeze({
   identity: "identity_baseline",
   execution: "direct_execution",
   execution_context: "contextual_precision",
-  general_reasoning: "baseline_cognition"
+  general_reasoning: "baseline_cognition",
+  english: "polished_language",
+  psychology: "deep_forward",
+  ai: "forensic",
+  cyber: "forensic",
+  law: "balanced",
+  finance: "balanced"
 });
 
 const PREFERRED_STYLE = Object.freeze({
@@ -91,7 +124,13 @@ const PREFERRED_STYLE = Object.freeze({
   identity: "identity_clear",
   execution: "short_direct_action",
   execution_context: "contextual_directive",
-  general_reasoning: "reasoned_direct"
+  general_reasoning: "reasoned_direct",
+  english: "clear_polished",
+  psychology: "contain_then_clarify",
+  ai: "implementation_grade",
+  cyber: "defensive_only",
+  law: "jurisdiction_aware",
+  finance: "assumption_disclosed"
 });
 
 const VALID_KNOWLEDGE_DOMAINS = Object.freeze([
@@ -416,17 +455,78 @@ function normalizeKnowledgeDomainName(value) {
   return aliases[raw] || (VALID_KNOWLEDGE_DOMAINS.includes(raw) ? raw : "");
 }
 
+function registryKnowledgeRoute(domain) {
+  const key = normalizeKnowledgeDomainName(domain);
+  if (!key || !domainRegistryMod) return null;
+  try {
+    if (typeof domainRegistryMod.buildKnowledgeRoute === "function") {
+      const route = domainRegistryMod.buildKnowledgeRoute(key);
+      if (route && route.supported !== false) return route;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function registryKnowledgeWiring(domain) {
+  const key = normalizeKnowledgeDomainName(domain);
+  if (!key || !domainRegistryMod) return null;
+  try {
+    if (typeof domainRegistryMod.getDomainWiringStatus === "function") {
+      const status = domainRegistryMod.getDomainWiringStatus(key, { includePack: false });
+      if (status && status.supported !== false) return status;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function registryKnowledgeConfig(domain) {
+  const key = normalizeKnowledgeDomainName(domain);
+  if (!key || !domainRegistryMod) return null;
+  try {
+    if (typeof domainRegistryMod.getKnowledgeDomainConfig === "function") {
+      const cfg = domainRegistryMod.getKnowledgeDomainConfig(key);
+      if (cfg && cfg.supported !== false) return cfg;
+    }
+    if (typeof domainRegistryMod.getDomainConfig === "function") {
+      const cfg = domainRegistryMod.getDomainConfig(key);
+      if (cfg && cfg.supported !== false) return cfg;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function isKnowledgeDomainActivationRequest(text) {
+  return /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(english language|english|psychology|psych|emotion|emotional|ai|artificial intelligence|cybersecurity|cyber|law|legal|finance|financial)\s+(domain|lane|knowledge|pack|setup)\b/i.test(lower(text));
+}
+
+function domainTestPhrase(text) {
+  const t = lower(text);
+  const pairs = [
+    ["psychology", /\b(psychology|psych|emotion|emotional)\s+(domain|lane)\s+test(\s+only)?\b/i],
+    ["english", /\b(english|language|grammar|writing)\s+(domain|lane)\s+test(\s+only)?\b/i],
+    ["ai", /\b(ai|artificial intelligence)\s+(domain|lane)\s+test(\s+only)?\b/i],
+    ["cyber", /\b(cyber|cybersecurity|security)\s+(domain|lane)\s+test(\s+only)?\b/i],
+    ["law", /\b(law|legal)\s+(domain|lane)\s+test(\s+only)?\b/i],
+    ["finance", /\b(finance|financial|economics)\s+(domain|lane)\s+test(\s+only)?\b/i]
+  ];
+  for (const [key, rx] of pairs) if (rx.test(t)) return key;
+  return "";
+}
+
 function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
 
+  const domainTest = domainTestPhrase(t);
+  if (domainTest) return { knowledgeDomain: domainTest, explicit: true, reason: "domain_test_phrase" };
+
   const explicit = [
-    { k: "psychology", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(psychology|psych|emotional support)\s+(domain|lane|knowledge|pack)\b/i },
-    { k: "english", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(english|english language|language|grammar|writing)\s+(domain|lane|knowledge|pack|setup)\b/i },
-    { k: "ai", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(ai|artificial intelligence)\s+(domain|lane|knowledge|pack)\b/i },
-    { k: "cyber", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(cyber|cybersecurity|security)\s+(domain|lane|knowledge|pack)\b/i },
-    { k: "law", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(law|legal|canadian law)\s+(domain|lane|knowledge|pack)\b/i },
-    { k: "finance", rx: /\b(use|route|activate|load|switch to|run)\s+(the\s+)?(finance|financial|economics|pricing)\s+(domain|lane|knowledge|pack)\b/i }
+    { k: "psychology", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(psychology|psych|emotional support)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "english", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(english|english language|language|grammar|writing)\s+(domain|lane|knowledge|pack|setup)\b/i },
+    { k: "ai", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(ai|artificial intelligence)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "cyber", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(cyber|cybersecurity|security)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "law", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(law|legal|canadian law)\s+(domain|lane|knowledge|pack)\b/i },
+    { k: "finance", rx: /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(finance|financial|economics|pricing)\s+(domain|lane|knowledge|pack)\b/i }
   ];
   for (const item of explicit) {
     if (has(item.rx, t)) return { knowledgeDomain: item.k, explicit: true, reason: "explicit_domain_phrase" };
@@ -822,15 +922,33 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     knowledgeDomain,
     knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
     knowledgeDomainReason: inferred.knowledgeDomainReason || detectedKnowledge.reason || "",
+    knowledgeDomainActivationRequest: isKnowledgeDomainActivationRequest(fallbackText),
     source: safeStr(src.source || "marionIntentRouter")
   };
 }
 
 function buildRouting(marionIntent) {
   const knowledgeDomain = normalizeKnowledgeDomainName(marionIntent.knowledgeDomain || "");
+  const registryRoute = registryKnowledgeRoute(knowledgeDomain);
+  const registryWiring = registryKnowledgeWiring(knowledgeDomain);
+  const registryConfig = registryKnowledgeConfig(knowledgeDomain);
   const baseDomain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
-  const domain = knowledgeDomain ? operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent) : baseDomain;
-  const style = (knowledgeDomain && knowledgeDomain === domain ? (KNOWLEDGE_DOMAIN_MODE[knowledgeDomain] || PREFERRED_STYLE[domain]) : PREFERRED_STYLE[domain]) || "direct";
+  const domain = knowledgeDomain ? safeStr((registryRoute && registryRoute.operationalDomain) || operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent)) : baseDomain;
+  const mode = (registryRoute && registryRoute.mode) || (knowledgeDomain && KNOWLEDGE_DOMAIN_MODE[knowledgeDomain]) || DOMAIN_MODE[domain] || "conversation";
+  const depth = (registryRoute && registryRoute.depth) || (knowledgeDomain && KNOWLEDGE_DOMAIN_DEPTH[knowledgeDomain]) || DOMAIN_DEPTH[domain] || "normal";
+  const preferredStyle = (registryRoute && registryRoute.preferredStyle) || (registryConfig && registryConfig.preferredStyle) || (knowledgeDomain && PREFERRED_STYLE[knowledgeDomain]) || PREFERRED_STYLE[domain] || "direct";
+  const domainRoute = knowledgeDomain ? {
+    knowledgeDomain,
+    operationalDomain: domain,
+    reason: safeStr(marionIntent.knowledgeDomainReason || "knowledge_domain_handoff"),
+    explicit: !!marionIntent.knowledgeDomainExplicit,
+    activationRequest: !!marionIntent.knowledgeDomainActivationRequest,
+    registryVersion: safeStr((registryRoute && registryRoute.registryVersion) || (registryConfig && registryConfig.registryVersion) || ""),
+    manifestFound: !!(registryWiring && registryWiring.manifestFound),
+    manifestPath: safeStr(registryWiring && registryWiring.manifestPath),
+    packFilesFound: Number(registryWiring && registryWiring.packFilesFound) || 0,
+    wiringReady: !!(registryWiring && registryWiring.ready)
+  } : null;
 
   return {
     domain,
@@ -843,15 +961,16 @@ function buildRouting(marionIntent) {
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     stateStageHint: marionIntent.stateStageHint,
-    mode: (knowledgeDomain && KNOWLEDGE_DOMAIN_MODE[knowledgeDomain]) || DOMAIN_MODE[domain] || "conversation",
-    depth: (knowledgeDomain && KNOWLEDGE_DOMAIN_DEPTH[knowledgeDomain]) || DOMAIN_DEPTH[domain] || "normal",
-    cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : DOMAIN_MODE[domain] || "conversation"),
-    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || marionIntent.subIntent === "identity_baseline",
+    mode,
+    depth,
+    cognitiveMode: marionIntent.directiveExecutionRequired ? "directive_execution" : (marionIntent.baselineCognitionRequired ? "baseline_cognition" : mode),
+    useMemory: domain === "memory" || domain === "identity" || domain === "emotional" || domain === "psychology" || marionIntent.subIntent === "identity_baseline",
     useDomainKnowledge: domain !== "general" || !!knowledgeDomain,
     knowledgeDomain,
     knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
     knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
-    domainRoute: knowledgeDomain ? { knowledgeDomain, operationalDomain: domain, reason: safeStr(marionIntent.knowledgeDomainReason || "knowledge_domain_handoff"), explicit: !!marionIntent.knowledgeDomainExplicit } : null,
+    knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
+    domainRoute,
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
     requiresHotFallback: false,
@@ -861,19 +980,21 @@ function buildRouting(marionIntent) {
     safetyLevel: marionIntent.safetyLevel,
     identityAnchorRequired: !!marionIntent.identityAnchorRequired,
     baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
-    preferredStyle: style,
+    preferredStyle,
+    registryKnowledgeAvailable: !!(registryWiring && (registryWiring.ready || registryWiring.manifestFound || registryWiring.packFilesFound > 0)),
     cohesion: {
       targetPercent: 90,
       bridgeCompatible: true,
       composerCompatible: true,
       stateSpineCompatible: true,
+      registryCompatible: true,
       finalEnvelopeRequired: true,
       directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
-      noDiagnosticUserSurface: true
+      noDiagnosticUserSurface: true,
+      noUnsupportedDomainLeak: true
     }
   };
 }
-
 function routeMarionIntent(packet = {}) {
   const text = extractText(packet);
   const src = safeObj(packet);
@@ -905,7 +1026,9 @@ function routeMarionIntent(packet = {}) {
       directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
       identityAnchorRequired: !!marionIntent.identityAnchorRequired,
       baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
-      directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
+      knowledgeDomain: marionIntent.knowledgeDomain || "",
+      knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
+      registryKnowledgeAvailable: !!routing.registryKnowledgeAvailable,
       noUserFacingDiagnostics: true
     }
   };
@@ -938,6 +1061,11 @@ module.exports = {
     detectKnowledgeDomain,
     normalizeKnowledgeDomainName,
     operationalDomainForKnowledge,
+    registryKnowledgeRoute,
+    registryKnowledgeWiring,
+    registryKnowledgeConfig,
+    isKnowledgeDomainActivationRequest,
+    domainTestPhrase,
     buildRouting
   }
 };
