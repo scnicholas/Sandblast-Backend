@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.7.0 COORDINATOR-ONLY-DOMAIN-ROUTER-COMPOSER-GATE";
+const VERSION = "ChatEngine v3.6.9 COORDINATOR-ONLY-FINAL-ENVELOPE-FIRST-MIRROR";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -43,56 +43,6 @@ const LEGACY_TRUST_FLAGS = Object.freeze([
   "freshMarionFinal",
   "singleFinalAuthority"
 ]);
-
-const ROUTER_REQUIRE_CANDIDATES = Object.freeze([
-  "./marionIntentRouter.js",
-  "./marionIntentRouter",
-  "./Data/marion/runtime/marionIntentRouter.js",
-  "./Data/marion/runtime/marionIntentRouter",
-  "../runtime/marionIntentRouter.js",
-  "../runtime/marionIntentRouter"
-]);
-
-const COMPOSER_REQUIRE_CANDIDATES = Object.freeze([
-  "./composeMarionResponse.js",
-  "./composeMarionResponse",
-  "./Data/marion/runtime/composeMarionResponse.js",
-  "./Data/marion/runtime/composeMarionResponse",
-  "../runtime/composeMarionResponse.js",
-  "../runtime/composeMarionResponse"
-]);
-
-function tryRequireOptional(paths) {
-  for (const p of Array.isArray(paths) ? paths : []) {
-    try {
-      const mod = require(p);
-      if (mod) return mod;
-    } catch (_err) {}
-  }
-  return null;
-}
-
-const intentRouterMod = tryRequireOptional(ROUTER_REQUIRE_CANDIDATES);
-const composerMod = tryRequireOptional(COMPOSER_REQUIRE_CANDIDATES);
-
-function canCoordinateFromRawInput(input = {}) {
-  const src = typeof input === "string" ? { text: input } : safeObj(input);
-  if (src.disableCoordinatorCompose === true || safeObj(src.meta).disableCoordinatorCompose === true) return false;
-  if (isFinalEnvelope(src) || hasTrustedFinalEnvelope(src, src)) return false;
-  return !!extractUserText(src);
-}
-
-function coordinateRouteAndCompose(input = {}) {
-  const src = typeof input === "string" ? { text: input } : safeObj(input);
-  if (!intentRouterMod || typeof intentRouterMod.routeMarionIntent !== "function") return null;
-  if (!composerMod || typeof (composerMod.composeMarionResponse || composerMod.run) !== "function") return null;
-  const routed = intentRouterMod.routeMarionIntent(src);
-  const composeFn = composerMod.composeMarionResponse || composerMod.run;
-  const composed = composeFn(routed, { ...src, routing: safeObj(routed.routing), marionIntent: safeObj(routed.marionIntent) });
-  if (composed && typeof composed.then === "function") return null;
-  return composed || null;
-}
-
 
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -1111,41 +1061,23 @@ class ChatEngine {
       const finalEnvelope = isFinalEnvelope(src);
       const trustedFinalEnvelope = hasTrustedFinalEnvelope(src, src);
       const rogueFallbackPresent = hasRejectedLoopReply(src);
-      let reply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
-      let workingSource = src;
-      let workingFinalEnvelope = finalEnvelope;
-      let workingTrustedFinalEnvelope = trustedFinalEnvelope;
-      let workingRogueFallbackPresent = rogueFallbackPresent;
+      const reply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
 
-      if ((!workingFinalEnvelope || !workingTrustedFinalEnvelope || !reply || workingRogueFallbackPresent) && canCoordinateFromRawInput(src)) {
-        const composed = coordinateRouteAndCompose(src);
-        if (composed) {
-          workingSource = composed;
-          workingFinalEnvelope = isFinalEnvelope(workingSource);
-          workingTrustedFinalEnvelope = hasTrustedFinalEnvelope(workingSource, workingSource);
-          workingRogueFallbackPresent = hasRejectedLoopReply(workingSource);
-          reply = extractFinalReply(workingSource, { finalEnvelope: workingFinalEnvelope, trustedFinalEnvelope: workingTrustedFinalEnvelope });
-          trace.stages.push({ stage: "coordinateRouteAndCompose", ok: !!reply && workingFinalEnvelope && workingTrustedFinalEnvelope });
-        } else {
-          trace.stages.push({ stage: "coordinateRouteAndCompose", ok: false, reason: "router_or_composer_unavailable_or_async" });
-        }
-      }
-
-      trace.stages.push({ stage: "detectFinalEnvelope", ok: workingFinalEnvelope });
-      trace.stages.push({ stage: "detectTrustedFinalEnvelope", ok: workingTrustedFinalEnvelope });
+      trace.stages.push({ stage: "detectFinalEnvelope", ok: finalEnvelope });
+      trace.stages.push({ stage: "detectTrustedFinalEnvelope", ok: trustedFinalEnvelope });
       trace.stages.push({ stage: "extractFinalReply", ok: !!reply, replyPreview: clipText(reply, 120) });
-      trace.stages.push({ stage: "detectRogueFallbackReply", ok: !workingRogueFallbackPresent });
+      trace.stages.push({ stage: "detectRogueFallbackReply", ok: !rogueFallbackPresent });
 
-      if (!workingFinalEnvelope || !workingTrustedFinalEnvelope || !reply || workingRogueFallbackPresent) {
-        const reason = classifyMissingFinalReason({ finalEnvelope: workingFinalEnvelope, trustedFinalEnvelope: workingTrustedFinalEnvelope, replyPresent: !!reply, rogueFallbackPresent: workingRogueFallbackPresent });
+      if (!finalEnvelope || !trustedFinalEnvelope || !reply || rogueFallbackPresent) {
+        const reason = classifyMissingFinalReason({ finalEnvelope, trustedFinalEnvelope, replyPresent: !!reply, rogueFallbackPresent });
         const rejectionCount = this.incrementRejection(turnId);
         const terminal = false;
 
         const errorContract = buildBlankErrorContract(reason, {
-          finalEnvelope: workingFinalEnvelope,
-          trustedFinalEnvelope: workingTrustedFinalEnvelope,
+          finalEnvelope,
+          trustedFinalEnvelope,
           replyPresent: !!reply,
-          rogueFallbackPresent: workingRogueFallbackPresent,
+          rogueFallbackPresent,
           rejectionCount,
           rejectionThreshold: this.config.rejectionThreshold
         }, src, { terminal });
@@ -1153,10 +1085,10 @@ class ChatEngine {
         this.pushRejectionLog({
           at: Date.now(),
           code: reason,
-          finalEnvelope: workingFinalEnvelope,
-          trustedFinalEnvelope: workingTrustedFinalEnvelope,
+          finalEnvelope,
+          trustedFinalEnvelope,
           replyPresent: !!reply,
-          rogueFallbackPresent: workingRogueFallbackPresent,
+          rogueFallbackPresent,
           turnId,
           rejectionCount,
           terminal
@@ -1171,7 +1103,7 @@ class ChatEngine {
 
       this.clearRejection(turnId);
 
-      const result = buildStructuredFinalReply(workingSource, { finalEnvelope: workingFinalEnvelope, trustedFinalEnvelope: workingTrustedFinalEnvelope });
+      const result = buildStructuredFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
       this.updateState(src, result);
 
       trace.accepted = true;
@@ -1352,9 +1284,7 @@ if (typeof module !== "undefined") {
       finalTransportPacket,
       compactSessionPatchForTransport,
       stableTurnKey,
-      hasTrustedBridgeOrComposerMarker,
-      canCoordinateFromRawInput,
-      coordinateRouteAndCompose
+      hasTrustedBridgeOrComposerMarker
     }
   };
 }
