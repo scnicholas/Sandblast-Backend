@@ -13,7 +13,10 @@
  * - Preserve final-envelope and State Spine cohesion metadata for downstream runtime layers.
  */
 
-const VERSION = "marionDomainRegistry v1.2.0 KNOWLEDGE-DOMAIN-HANDOFF-GATE";
+const fs = require("fs");
+const path = require("path");
+
+const VERSION = "marionDomainRegistry v1.3.0 MANIFEST-PACK-WIRING-GUARD";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -422,6 +425,41 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
   })
 });
 
+const DOMAIN_FILE_CANDIDATES = Object.freeze({
+  psychology: Object.freeze({
+    manifests: Object.freeze(["domains/psychology/manifest.json", "domains/psychology/psychology.manifest.json", "domains/psychology.json", "Data/psychology/manifest.json", "Data/psychology/psychology.manifest.json", "Data/marion/domains/psychology/manifest.json", "Data/marion/knowledge/psychology/manifest.json"]),
+    roots: Object.freeze(["Data/psychology", "domains/psychology", "Data/marion/domains/psychology", "Data/marion/knowledge/psychology"]),
+    packs: Object.freeze(["Data/psychology/psychology.json", "Data/psychology/knowledge.json", "Data/psychology/domain.json", "Data/psychology/pack.json", "domains/psychology/knowledge.json", "domains/psychology/domain.json", "Data/marion/knowledge/psychology.json"])
+  }),
+  english: Object.freeze({
+    manifests: Object.freeze(["domains/english/manifest.json", "domains/english/english.manifest.json", "domains/english.json", "Data/english/manifest.json", "Data/marion/domains/english/manifest.json", "Data/marion/knowledge/english/manifest.json"]),
+    roots: Object.freeze(["domains/english", "Data/english", "Data/marion/domains/english", "Data/marion/knowledge/english"]),
+    packs: Object.freeze(["domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json"])
+  }),
+  ai: Object.freeze({
+    manifests: Object.freeze(["domains/ai/manifest.json", "domains/ai/ai.manifest.json", "Data/ai/manifest.json", "Data/marion/domains/ai/manifest.json", "Data/marion/knowledge/ai/manifest.json"]),
+    roots: Object.freeze(["Data/ai", "domains/ai", "Data/marion/domains/ai", "Data/marion/knowledge/ai"]),
+    packs: Object.freeze(["Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json"])
+  }),
+  cyber: Object.freeze({
+    manifests: Object.freeze(["domains/cyber/manifest.json", "domains/cyber/cyber.manifest.json", "domains/cybersecurity/manifest.json", "Data/cyber/manifest.json", "Data/cybersecurity/manifest.json", "Data/marion/domains/cyber/manifest.json", "Data/marion/knowledge/cyber/manifest.json"]),
+    roots: Object.freeze(["Data/cyber", "Data/cybersecurity", "domains/cyber", "domains/cybersecurity", "Data/marion/domains/cyber", "Data/marion/knowledge/cyber"]),
+    packs: Object.freeze(["Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json"])
+  }),
+  law: Object.freeze({
+    manifests: Object.freeze(["domains/law/manifest.json", "domains/legal/manifest.json", "Data/law/manifest.json", "Data/legal/manifest.json", "Data/marion/domains/law/manifest.json", "Data/marion/knowledge/law/manifest.json"]),
+    roots: Object.freeze(["Data/law", "Data/legal", "domains/law", "domains/legal", "Data/marion/domains/law", "Data/marion/knowledge/law"]),
+    packs: Object.freeze(["Data/law/law.json", "Data/law/knowledge.json", "Data/law/domain.json", "domains/law/knowledge.json", "Data/marion/knowledge/law.json"])
+  }),
+  finance: Object.freeze({
+    manifests: Object.freeze(["domains/finance/manifest.json", "domains/finance/finance.manifest.json", "Data/finance/manifest.json", "Data/marion/domains/finance/manifest.json", "Data/marion/knowledge/finance/manifest.json"]),
+    roots: Object.freeze(["Data/finance", "domains/finance", "Data/marion/domains/finance", "Data/marion/knowledge/finance"]),
+    packs: Object.freeze(["Data/finance/finance.json", "Data/finance/knowledge.json", "Data/finance/domain.json", "domains/finance/knowledge.json", "Data/marion/knowledge/finance.json"])
+  })
+});
+
+const FILE_CACHE = new Map();
+
 function safeStr(v) {
   return v == null ? "" : String(v).replace(/\s+/g, " ").trim();
 }
@@ -432,6 +470,135 @@ function normalizeKey(value) {
 
 function safeObj(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function uniqueList(values) {
+  return Array.from(new Set(safeArray(values).map(safeStr).filter(Boolean)));
+}
+
+function repoRootCandidates() {
+  return uniqueList([
+    process.cwd(),
+    path.resolve(__dirname, "../../.."),
+    path.resolve(__dirname, "../../../.."),
+    path.resolve(__dirname, ".."),
+    path.resolve(__dirname)
+  ]);
+}
+
+function toAbsolutePath(candidate) {
+  const raw = safeStr(candidate);
+  if (!raw) return "";
+  if (path.isAbsolute(raw)) return path.normalize(raw);
+  for (const root of repoRootCandidates()) {
+    const full = path.normalize(path.join(root, raw));
+    try { if (fs.existsSync(full)) return full; } catch (_) {}
+  }
+  return path.normalize(path.join(process.cwd(), raw));
+}
+
+function relPath(fullPath) {
+  const file = safeStr(fullPath);
+  if (!file) return "";
+  try { return path.relative(process.cwd(), file).replace(/\\/g, "/") || file.replace(/\\/g, "/"); } catch (_) { return file.replace(/\\/g, "/"); }
+}
+
+function fileExists(candidate) {
+  try {
+    const full = toAbsolutePath(candidate);
+    return !!(full && fs.existsSync(full) && fs.statSync(full).isFile());
+  } catch (_) { return false; }
+}
+
+function dirExists(candidate) {
+  try {
+    const full = toAbsolutePath(candidate);
+    return !!(full && fs.existsSync(full) && fs.statSync(full).isDirectory());
+  } catch (_) { return false; }
+}
+
+function readJsonFile(candidate, options = {}) {
+  const opts = safeObj(options);
+  const full = toAbsolutePath(candidate);
+  if (!full) return { ok: false, path: "", error: "empty_path" };
+  try {
+    const stat = fs.statSync(full);
+    if (!stat.isFile()) return { ok: false, path: relPath(full), error: "not_file" };
+    const maxBytes = Number.isFinite(Number(opts.maxBytes)) ? Number(opts.maxBytes) : 2 * 1024 * 1024;
+    if (stat.size > maxBytes) return { ok: false, path: relPath(full), error: "json_file_too_large", size: stat.size };
+    const cacheKey = `${full}:${stat.mtimeMs}:${stat.size}`;
+    if (FILE_CACHE.has(cacheKey)) return FILE_CACHE.get(cacheKey);
+    const raw = fs.readFileSync(full, "utf8");
+    const json = JSON.parse(raw);
+    const result = { ok: true, path: relPath(full), absolutePath: full, size: stat.size, mtimeMs: stat.mtimeMs, data: json };
+    FILE_CACHE.set(cacheKey, result);
+    return result;
+  } catch (err) {
+    return { ok: false, path: relPath(full), error: safeStr(err && err.message || err) };
+  }
+}
+
+function findFirstJson(candidates, options = {}) {
+  const errors = [];
+  for (const candidate of uniqueList(candidates)) {
+    if (!fileExists(candidate)) continue;
+    const loaded = readJsonFile(candidate, options);
+    if (loaded.ok) return { ...loaded, errors };
+    errors.push({ path: loaded.path || candidate, error: loaded.error });
+  }
+  return { ok: false, path: "", data: null, errors, error: errors.length ? "candidate_json_invalid" : "candidate_not_found" };
+}
+
+function listJsonFiles(rootCandidates, options = {}) {
+  const opts = safeObj(options);
+  const maxFiles = Number.isFinite(Number(opts.maxFiles)) ? Math.max(1, Math.min(200, Number(opts.maxFiles))) : 60;
+  const maxDepth = Number.isFinite(Number(opts.maxDepth)) ? Math.max(0, Math.min(6, Number(opts.maxDepth))) : 4;
+  const seen = new Set();
+  const out = [];
+
+  function walk(dir, depth) {
+    if (out.length >= maxFiles || depth > maxDepth) return;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    for (const entry of entries) {
+      if (out.length >= maxFiles) return;
+      if (!entry || entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (/^(node_modules|\.git|dist|build|coverage)$/i.test(entry.name)) continue;
+        walk(full, depth + 1);
+      } else if (entry.isFile() && /\.json$/i.test(entry.name)) {
+        const key = path.normalize(full).toLowerCase();
+        if (!seen.has(key)) { seen.add(key); out.push(full); }
+      }
+    }
+  }
+
+  for (const root of uniqueList(rootCandidates)) {
+    if (!dirExists(root)) continue;
+    walk(toAbsolutePath(root), 0);
+  }
+  return out;
+}
+
+function getDomainFileCandidates(domain) {
+  const key = resolveKnowledgeDomain(domain) || resolveDomainKey(domain, "general_reasoning");
+  const configured = safeObj(DOMAIN_FILE_CANDIDATES[key]);
+  const config = KNOWLEDGE_DOMAINS[key] || MARION_DOMAINS[key] || {};
+  const generic = key ? {
+    manifests: [`domains/${key}/manifest.json`, `Data/${key}/manifest.json`, `Data/marion/domains/${key}/manifest.json`, `Data/marion/knowledge/${key}/manifest.json`],
+    roots: [`Data/${key}`, `domains/${key}`, `Data/marion/domains/${key}`, `Data/marion/knowledge/${key}`],
+    packs: [`Data/${key}/${key}.json`, `Data/${key}/knowledge.json`, `Data/${key}/domain.json`, `domains/${key}/knowledge.json`, `Data/marion/knowledge/${key}.json`]
+  } : { manifests: [], roots: [], packs: [] };
+  return {
+    manifests: uniqueList([config.manifestHint, ...safeArray(configured.manifests), ...generic.manifests]),
+    roots: uniqueList([config.dataRootHint, ...safeArray(configured.roots), ...generic.roots]),
+    packs: uniqueList([...safeArray(configured.packs), ...generic.packs])
+  };
 }
 
 function cloneDomainConfig(config) {
@@ -459,7 +626,9 @@ function getDomainConfig(domain, options = {}) {
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
-    supported: !!MARION_DOMAINS[key]
+    supported: !!(MARION_DOMAINS[key] || KNOWLEDGE_DOMAINS[key]),
+    isKnowledgeDomain: !!KNOWLEDGE_DOMAINS[key],
+    operationalDomain: safeStr(sourceConfig.operationalDomain || key)
   };
 }
 
@@ -480,9 +649,13 @@ function isSupportedDomain(domain) {
 function listDomains(options = {}) {
   const opts = safeObj(options);
   const includeHidden = opts.includeHidden === true;
-  return Object.keys(MARION_DOMAINS)
-    .map((key) => cloneDomainConfig(MARION_DOMAINS[key]))
+  const includeKnowledge = opts.includeKnowledge === true;
+  const runtimeDomains = Object.keys(MARION_DOMAINS)
+    .map((key) => ({ ...cloneDomainConfig(MARION_DOMAINS[key]), resolvedDomain: key, supported: true, isKnowledgeDomain: false }))
     .filter((cfg) => includeHidden || cfg.exposeToUser !== false);
+  if (!includeKnowledge) return runtimeDomains;
+  const knowledge = listKnowledgeDomains().map((cfg) => ({ ...cfg, supported: true, isKnowledgeDomain: true, exposeToUser: true }));
+  return [...runtimeDomains, ...knowledge];
 }
 
 function getCapabilityIntro() {
@@ -532,11 +705,11 @@ function buildRoutingFromDomain(domain, intent = "domain_question", overrides = 
 
 function resolveKnowledgeDomain(value, fallback = "") {
   const raw = normalizeKey(value);
-  if (!raw) return normalizeKey(fallback);
-  if (KNOWLEDGE_DOMAINS[raw]) return raw;
-  if (raw === "artificial_intelligence") return "ai";
-  if (raw === "cybersecurity") return "cyber";
-  if (raw === "legal") return "law";
+  const fb = normalizeKey(fallback);
+  const alias = DOMAIN_ALIASES[raw] || raw;
+  const fbAlias = DOMAIN_ALIASES[fb] || fb;
+  if (alias && KNOWLEDGE_DOMAINS[alias]) return alias;
+  if (!alias && fbAlias && KNOWLEDGE_DOMAINS[fbAlias]) return fbAlias;
   return "";
 }
 
@@ -564,8 +737,100 @@ function getKnowledgeDomainConfig(domain, options = {}) {
   };
 }
 
-function listKnowledgeDomains() {
-  return KNOWLEDGE_DOMAIN_PRIORITY.map((key) => cloneDomainConfig(KNOWLEDGE_DOMAINS[key])).filter(Boolean);
+function listKnowledgeDomains(options = {}) {
+  const opts = safeObj(options);
+  return KNOWLEDGE_DOMAIN_PRIORITY.map((key) => {
+    const cfg = { ...cloneDomainConfig(KNOWLEDGE_DOMAINS[key]), supported: true, resolvedDomain: key, isKnowledgeDomain: true };
+    if (opts.includeWiring === true) cfg.wiring = getDomainWiringStatus(key, { includePack: false });
+    return cfg;
+  }).filter(Boolean);
+}
+
+function getDomainManifest(domain, options = {}) {
+  const key = resolveKnowledgeDomain(domain);
+  if (!key) return { supported: false, knowledgeDomain: "", requestedDomain: safeStr(domain), ok: false, manifest: null, path: "", error: "unsupported_knowledge_domain" };
+  const candidates = getDomainFileCandidates(key);
+  const loaded = findFirstJson(candidates.manifests, options);
+  return {
+    supported: true,
+    knowledgeDomain: key,
+    requestedDomain: safeStr(domain),
+    ok: !!loaded.ok,
+    manifest: loaded.ok ? loaded.data : null,
+    path: loaded.path || "",
+    candidates: candidates.manifests,
+    errors: safeArray(loaded.errors).concat(loaded.ok ? [] : (loaded.error ? [{ error: loaded.error }] : [])),
+    registryVersion: VERSION
+  };
+}
+
+function getDomainKnowledgePack(domain, options = {}) {
+  const opts = safeObj(options);
+  const key = resolveKnowledgeDomain(domain);
+  if (!key) return { supported: false, knowledgeDomain: "", requestedDomain: safeStr(domain), ok: false, manifest: null, dataFiles: [], errors: [{ error: "unsupported_knowledge_domain" }], registryVersion: VERSION };
+  const candidates = getDomainFileCandidates(key);
+  const manifestResult = getDomainManifest(key, opts);
+  const explicitPackFiles = candidates.packs.filter(fileExists).map((p) => toAbsolutePath(p));
+  const directoryJsonFiles = listJsonFiles(candidates.roots, opts).filter((full) => !/manifest\.json$/i.test(full));
+  const files = uniqueList([...explicitPackFiles, ...directoryJsonFiles]);
+  const dataFiles = [];
+  const errors = [];
+  const maxFiles = Number.isFinite(Number(opts.maxFiles)) ? Math.max(1, Math.min(200, Number(opts.maxFiles))) : 60;
+  for (const file of files.slice(0, maxFiles)) {
+    const loaded = readJsonFile(file, opts);
+    if (loaded.ok) dataFiles.push({ path: loaded.path, size: loaded.size, mtimeMs: loaded.mtimeMs, data: loaded.data });
+    else errors.push({ path: loaded.path || relPath(file), error: loaded.error });
+  }
+  if (!manifestResult.ok && manifestResult.errors.length) errors.push(...manifestResult.errors.map((e) => ({ ...e, source: "manifest" })));
+  return {
+    supported: true,
+    knowledgeDomain: key,
+    requestedDomain: safeStr(domain),
+    ok: manifestResult.ok || dataFiles.length > 0,
+    manifest: manifestResult.manifest,
+    manifestPath: manifestResult.path,
+    dataFiles,
+    fileCount: dataFiles.length,
+    errors,
+    candidates,
+    registryVersion: VERSION
+  };
+}
+
+function getDomainWiringStatus(domain, options = {}) {
+  const key = resolveKnowledgeDomain(domain);
+  if (!key) return { supported: false, requestedDomain: safeStr(domain), knowledgeDomain: "", manifestFound: false, packFilesFound: 0, ready: false, errors: ["unsupported_knowledge_domain"] };
+  const manifest = getDomainManifest(key, options);
+  const pack = options.includePack === false ? null : getDomainKnowledgePack(key, options);
+  const candidates = getDomainFileCandidates(key);
+  const packCount = pack ? pack.fileCount : listJsonFiles(candidates.roots, { maxFiles: 200 }).filter((p) => !/manifest\.json$/i.test(p)).length + candidates.packs.filter(fileExists).length;
+  const errors = [];
+  if (!manifest.ok) errors.push("manifest_missing_or_invalid");
+  if (packCount < 1) errors.push("knowledge_pack_missing");
+  return {
+    supported: true,
+    knowledgeDomain: key,
+    manifestFound: !!manifest.ok,
+    manifestPath: manifest.path || "",
+    packFilesFound: packCount,
+    ready: !!(manifest.ok && packCount > 0),
+    errors,
+    candidates,
+    registryVersion: VERSION
+  };
+}
+
+function getKnowledgeWiringHealth(options = {}) {
+  const statuses = {};
+  for (const key of KNOWLEDGE_DOMAIN_PRIORITY) statuses[key] = getDomainWiringStatus(key, { ...safeObj(options), includePack: false });
+  const missing = Object.keys(statuses).filter((key) => !statuses[key].ready);
+  return { ok: missing.length === 0, missing, statuses, registryVersion: VERSION };
+}
+
+function isDomainEnabled(domain) {
+  const key = resolveKnowledgeDomain(domain) || resolveDomainKey(domain, "general_reasoning");
+  const cfg = MARION_DOMAINS[key] || KNOWLEDGE_DOMAINS[key];
+  return !!(cfg && cfg.enabled !== false && (cfg.requiresFinalEnvelope !== false));
 }
 
 function buildKnowledgeRoute(domain, overrides = {}) {
@@ -587,6 +852,8 @@ function buildKnowledgeRoute(domain, overrides = {}) {
     capability: config.capability,
     dataRootHint: config.dataRootHint,
     manifestHint: config.manifestHint,
+    manifest: getDomainManifest(config.resolvedDomain, { maxBytes: 1024 * 1024 }),
+    wiring: getDomainWiringStatus(config.resolvedDomain, { includePack: false }),
     registryVersion: VERSION
   };
 }
@@ -597,12 +864,14 @@ function getHealth() {
   for (const intent of Object.keys(INTENT_TO_DOMAIN)) {
     if (!MARION_DOMAINS[INTENT_TO_DOMAIN[intent]]) missing.push(intent);
   }
+  const knowledgeWiring = getKnowledgeWiringHealth({ includePack: false });
   return {
     ok: missing.length === 0,
     version: VERSION,
     domainCount: keys.length,
     domains: keys,
     knowledgeDomains: KNOWLEDGE_DOMAIN_PRIORITY,
+    knowledgeWiring,
     intentCoverage: Object.keys(INTENT_TO_DOMAIN).length,
     missingIntentDomains: missing,
     endpoint: CANONICAL_ENDPOINT,
@@ -631,6 +900,11 @@ module.exports = {
   getKnowledgeDomainConfig,
   listKnowledgeDomains,
   buildKnowledgeRoute,
+  getDomainManifest,
+  getDomainKnowledgePack,
+  getDomainWiringStatus,
+  getKnowledgeWiringHealth,
+  isDomainEnabled,
   listDomains,
   getCapabilityIntro,
   buildRoutingFromDomain,
@@ -640,6 +914,12 @@ module.exports = {
     normalizeKey,
     resolveDomainKey,
     resolveKnowledgeDomain,
-    cloneDomainConfig
+    cloneDomainConfig,
+    getDomainFileCandidates,
+    readJsonFile,
+    findFirstJson,
+    listJsonFiles,
+    toAbsolutePath,
+    relPath
   }
 };
