@@ -1,169 +1,25 @@
 {
   "domain": "finance",
-  "normalizedOn": "2026-04-08",
-  "defaultLoadOrder": [
-    "fin_micro_foundations_v1",
-    "fin_macro_principles_v1",
-    "fin_unit_economics_v1",
-    "fin_pricing_models_v1",
-    "fin_capital_markets_v1",
-    "fin_risk_management_v1",
-    "fin_public_policy_links_v1",
-    "fin_case_studies_v1",
-    "fin_sources_index_v1"
-  ],
-  "runtimeGate": "scenario_based_reasoning_with_assumption_disclosure",
-  "packs": [
-    {
-      "id": "fin_micro_foundations_v1",
-      "file": "fin_micro_foundations_v1_normalized.json",
-      "aliases": [
-        "micro",
-        "microeconomics",
-        "demand",
-        "elasticity",
-        "market structure"
-      ],
-      "crossPackHints": [
-        "fin_pricing_models_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_macro_principles_v1",
-      "file": "fin_macro_principles_v1_normalized.json",
-      "aliases": [
-        "macro",
-        "macroeconomics",
-        "inflation",
-        "rates",
-        "credit conditions"
-      ],
-      "crossPackHints": [
-        "fin_capital_markets_v1",
-        "fin_public_policy_links_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_unit_economics_v1",
-      "file": "fin_unit_economics_v1_normalized.json",
-      "aliases": [
-        "unit economics",
-        "ltv",
-        "cac",
-        "payback",
-        "retention"
-      ],
-      "crossPackHints": [
-        "fin_pricing_models_v1",
-        "fin_micro_foundations_v1",
-        "fin_capital_markets_v1"
-      ]
-    },
-    {
-      "id": "fin_pricing_models_v1",
-      "file": "fin_pricing_models_v1_normalized.json",
-      "aliases": [
-        "pricing",
-        "pricing models",
-        "pricing strategy",
-        "segmentation"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_capital_markets_v1",
-      "file": "fin_capital_markets_v1_normalized.json",
-      "aliases": [
-        "capital markets",
-        "debt",
-        "equity",
-        "runway",
-        "cost of capital"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_risk_management_v1",
-      "file": "fin_risk_management_v1_normalized.json",
-      "aliases": [
-        "risk",
-        "risk management",
-        "liquidity risk",
-        "stress test"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_capital_markets_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_public_policy_links_v1",
-      "file": "fin_public_policy_links_v1_normalized.json",
-      "aliases": [
-        "policy",
-        "public policy",
-        "monetary policy",
-        "fiscal policy",
-        "regulatory policy"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_case_studies_v1",
-      "file": "fin_case_studies_v1_normalized.json",
-      "aliases": [
-        "cases",
-        "case studies",
-        "diagnostics",
-        "patterns"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_macro_principles_v1",
-        "fin_unit_economics_v1",
-        "fin_pricing_models_v1",
-        "fin_capital_markets_v1",
-        "fin_risk_management_v1",
-        "fin_public_policy_links_v1"
-      ]
-    },
-    {
-      "id": "fin_sources_index_v1",
-      "file": "fin_sources_index_v1_normalized.json",
-      "aliases": [
-        "sources",
-        "references",
-        "anchors",
-        "official sources"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_macro_principles_v1",
-        "fin_unit_economics_v1",
-        "fin_pricing_models_v1",
-        "fin_capital_markets_v1",
-        "fin_risk_management_v1",
-        "fin_public_policy_links_v1",
-        "fin_case_studies_v1"
-      ]
-    }
-  ],
-  "schemaVersion": "1.0-normalized",
+  "schemaVersion": "1.1.0-hardened",
+  "manifestVersion": "1.1.0-hardened",
+  "updatedAt": "2026-05-02",
+  "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "finance",
-  "runtimeFolder": "Data/finance",
-  "manifestPath": "domains/finance/manifest.json",
+  "runtimeFolder": "Data/Domains/finance",
+  "manifestPath": "Data/Domains/finance/manifest.json",
+  "defaultLoadOrder": [
+    "packs/fin_micro_foundations_v1.json",
+    "packs/fin_macro_principles_v1.json",
+    "packs/fin_unit_economics_v1.json",
+    "packs/fin_pricing_models_v1.json",
+    "packs/fin_capital_markets_v1.json",
+    "packs/fin_risk_management_v1.json",
+    "packs/fin_public_policy_links_v1.json",
+    "packs/fin_case_studies_v1.json",
+    "packs/fin_sources_index_v1.json",
+    "examples/fin_dialogue_snippets_v1.json",
+    "examples/fin_face_examples_v1.json"
+  ],
   "routing": {
     "primaryLane": "finance",
     "secondaryLanes": [
@@ -172,19 +28,24 @@
       "ai",
       "english"
     ],
-    "safetyFirst": true,
     "keywords": [
       "finance",
+      "cash flow",
+      "profit",
       "pricing",
+      "unit economics",
+      "ltv",
+      "cac",
+      "runway",
+      "margin",
       "capital markets",
       "risk",
-      "runway",
-      "unit economics",
       "macro",
       "micro",
       "inflation",
       "rates"
-    ]
+    ],
+    "safetyFirst": true
   },
   "constraints": {
     "noInvestmentAdvice": true,
@@ -192,9 +53,155 @@
     "assumptionDisclosureRequired": true,
     "scenarioBasedReasoning": true
   },
-  "normalizationStatus": {
+  "packs": [
+    {
+      "packId": "microFoundations",
+      "file": "packs/fin_micro_foundations_v1.json",
+      "aliases": [
+        "micro",
+        "demand",
+        "elasticity",
+        "market_structure"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "macroPrinciples",
+      "file": "packs/fin_macro_principles_v1.json",
+      "aliases": [
+        "macro",
+        "inflation",
+        "rates",
+        "credit_conditions"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "unitEconomics",
+      "file": "packs/fin_unit_economics_v1.json",
+      "aliases": [
+        "unit_economics",
+        "ltv",
+        "cac",
+        "payback",
+        "retention"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "pricingModels",
+      "file": "packs/fin_pricing_models_v1.json",
+      "aliases": [
+        "pricing",
+        "segmentation",
+        "models"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "capitalMarkets",
+      "file": "packs/fin_capital_markets_v1.json",
+      "aliases": [
+        "capital_markets",
+        "debt",
+        "equity",
+        "runway"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "riskManagement",
+      "file": "packs/fin_risk_management_v1.json",
+      "aliases": [
+        "risk",
+        "liquidity",
+        "stress_test"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "publicPolicy",
+      "file": "packs/fin_public_policy_links_v1.json",
+      "aliases": [
+        "policy",
+        "monetary_policy",
+        "fiscal_policy"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "caseStudies",
+      "file": "packs/fin_case_studies_v1.json",
+      "aliases": [
+        "cases",
+        "diagnostics",
+        "patterns"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "sourcesIndex",
+      "file": "packs/fin_sources_index_v1.json",
+      "aliases": [
+        "sources",
+        "references",
+        "anchors"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    }
+  ],
+  "examples": [
+    {
+      "exampleId": "dialogue",
+      "file": "examples/fin_dialogue_snippets_v1.json",
+      "aliases": [
+        "dialogue",
+        "snippets"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "faces",
+      "file": "examples/fin_face_examples_v1.json",
+      "aliases": [
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
+  ],
+  "integrity": {
     "jsonValid": true,
-    "conflictMarkersRemoved": 1,
-    "financeGateExplicit": true
-  }
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
+  },
+  "notes": [
+    "Manifest file references corrected from *_normalized.json to actual inventory filenames.",
+    "Conflicted duplicate manifest source was not used for finance output; clean finance manifest retained and hardened."
+  ]
 }
