@@ -1,76 +1,209 @@
 {
-  "bundle": "english_domain_normalized_runtime_bundle_v2_1",
   "domain": "english",
-  "normalizedAt": "2026-04-07",
+  "schemaVersion": "2.2.0-hardened",
+  "manifestVersion": "2.2.0-hardened",
+  "updatedAt": "2026-05-02",
   "targetRuntime": "Marion/Nyx",
+  "runtimeDomainKey": "english",
+  "runtimeFolder": "Data/Domains/english",
+  "manifestPath": "Data/Domains/english/manifest.json",
   "defaultLoadOrder": [
-    "eng_foundations_language_science_v2",
-    "eng_syntax_grammar_core_v2",
-    "eng_register_corpus_usage_v2",
-    "eng_semantics_pragmatics_v2",
-    "eng_academic_writing_clarity_v2",
-    "eng_phonetics_phonology_v2",
-    "eng_morphology_word_formation_v2",
-    "eng_eap_canada_case_studies_v2",
-    "eng_curriculum_sequence_v2",
-    "eng_sources_index_v2"
+    "packs/eng_foundations_language_science_v1.json",
+    "packs/eng_syntax_grammar_core_v1.json",
+    "packs/eng_register_corpus_usage_v1.json",
+    "packs/eng_semantics_pragmatics_v1.json",
+    "packs/eng_academic_writing_clarity_v1.json",
+    "packs/eng_phonetics_phonology_v1.json",
+    "packs/eng_morphology_word_formation_v1.json",
+    "packs/eng_eap_canada_case_studies_v1.json",
+    "packs/eng_curriculum_sequence_v1.json",
+    "packs/eng_sources_index_v1.json",
+    "examples/eng_dialogue_snippets_v1.json",
+    "examples/eng_face_examples_v1.json"
   ],
+  "routing": {
+    "primaryLane": "english",
+    "secondaryLanes": [
+      "psychology",
+      "strategy",
+      "ai",
+      "law"
+    ],
+    "keywords": [
+      "english",
+      "grammar",
+      "syntax",
+      "rewrite",
+      "polish",
+      "tone",
+      "register",
+      "clarity",
+      "wording",
+      "copyedit",
+      "proofread",
+      "semantics",
+      "pragmatics",
+      "academic writing",
+      "professional writing"
+    ],
+    "safetyFirst": false
+  },
+  "constraints": {
+    "preserveUserMeaning": true,
+    "doNotInventFacts": true,
+    "styleDisclosureWhenTransforming": true
+  },
   "packs": [
     {
-      "packId": "eng_academic_writing_clarity_v2",
-      "file": "eng_academic_writing_clarity_normalized.json",
-      "title": "Academic Writing, Clarity, and Revision"
+      "packId": "foundations",
+      "file": "packs/eng_foundations_language_science_v1.json",
+      "aliases": [
+        "foundations",
+        "language_science"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_curriculum_sequence_v2",
-      "file": "eng_curriculum_sequence_normalized.json",
-      "title": "English / Linguistics Curriculum Sequence"
+      "packId": "syntaxGrammar",
+      "file": "packs/eng_syntax_grammar_core_v1.json",
+      "aliases": [
+        "syntax",
+        "grammar",
+        "sentence_structure"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_eap_canada_case_studies_v2",
-      "file": "eng_eap_canada_case_studies_normalized.json",
-      "title": "Canadian EAP Case Studies"
+      "packId": "registerCorpus",
+      "file": "packs/eng_register_corpus_usage_v1.json",
+      "aliases": [
+        "register",
+        "corpus",
+        "usage",
+        "tone"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_foundations_language_science_v2",
-      "file": "eng_foundations_language_science_normalized.json",
-      "title": "Foundations of Language Science"
+      "packId": "semanticsPragmatics",
+      "file": "packs/eng_semantics_pragmatics_v1.json",
+      "aliases": [
+        "semantics",
+        "pragmatics",
+        "meaning"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_morphology_word_formation_v2",
-      "file": "eng_morphology_word_formation_normalized.json",
-      "title": "Morphology and Word Formation"
+      "packId": "academicWriting",
+      "file": "packs/eng_academic_writing_clarity_v1.json",
+      "aliases": [
+        "academic",
+        "clarity",
+        "revision"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_phonetics_phonology_v2",
-      "file": "eng_phonetics_phonology_normalized.json",
-      "title": "Phonetics and Phonology"
+      "packId": "phoneticsPhonology",
+      "file": "packs/eng_phonetics_phonology_v1.json",
+      "aliases": [
+        "phonetics",
+        "phonology"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_register_corpus_usage_v2",
-      "file": "eng_register_corpus_usage_normalized.json",
-      "title": "Register and Corpus-Informed Usage"
+      "packId": "morphology",
+      "file": "packs/eng_morphology_word_formation_v1.json",
+      "aliases": [
+        "morphology",
+        "word_formation"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_semantics_pragmatics_v2",
-      "file": "eng_semantics_pragmatics_normalized.json",
-      "title": "Semantics and Pragmatics"
+      "packId": "eapCanadaCases",
+      "file": "packs/eng_eap_canada_case_studies_v1.json",
+      "aliases": [
+        "eap",
+        "canada",
+        "case_studies"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_sources_index_v2",
-      "file": "eng_sources_index_normalized.json",
-      "title": "English Sources Index"
+      "packId": "curriculum",
+      "file": "packs/eng_curriculum_sequence_v1.json",
+      "aliases": [
+        "curriculum",
+        "sequence"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "eng_syntax_grammar_core_v2",
-      "file": "eng_syntax_grammar_core_normalized.json",
-      "title": "Syntax and Grammar Core"
+      "packId": "sourcesIndex",
+      "file": "packs/eng_sources_index_v1.json",
+      "aliases": [
+        "sources",
+        "references"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     }
   ],
+  "examples": [
+    {
+      "exampleId": "dialogue",
+      "file": "examples/eng_dialogue_snippets_v1.json",
+      "aliases": [
+        "snippets",
+        "dialogue"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "faces",
+      "file": "examples/eng_face_examples_v1.json",
+      "aliases": [
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
+  ],
+  "integrity": {
+    "jsonValid": true,
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
+  },
   "notes": [
-    "Normalized pack aliases and retrieval metadata were added.",
-    "Curriculum pack references were aligned to _v2 runtime IDs.",
-    "Anchors were synthesized from reference texts where the field was empty.",
-    "No source URLs were fabricated; only uploaded/source-index-backed references were retained."
+    "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files."
   ]
 }
