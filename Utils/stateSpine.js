@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.4.0 CONTEXT-CARRY-FINAL-COHESION";
+const SPINE_VERSION = "stateSpine v2.5.0 GREETING-PSYCHE-STATE-BRIDGE";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -40,6 +40,98 @@ const STATE_STAGES = Object.freeze([
   "error",
   "open"
 ]);
+
+const GREETING_INTENTS = Object.freeze([
+  "basic_greeting",
+  "time_greeting",
+  "casual_greeting",
+  "social_checkin",
+  "presence_check",
+  "mic_check",
+  "system_test",
+  "returning_user",
+  "continuation_request",
+  "help_request",
+  "quick_question",
+  "problem_report",
+  "emotional_checkin",
+  "distress_signal",
+  "frustration_signal",
+  "sadness_signal",
+  "anxiety_signal",
+  "loneliness_signal",
+  "anger_signal",
+  "confusion_signal",
+  "direction_request",
+  "planning_request",
+  "creation_request",
+  "debug_request",
+  "business_strategy",
+  "creative_request",
+  "motivation_request",
+  "playful_greeting",
+  "formal_greeting",
+  "skeptical_opening",
+  "urgency_signal",
+  "positive_feedback",
+  "repair_opening",
+  "uncertainty_signal",
+  "voice_toggle_request",
+  "media_request",
+  "reset_request"
+]);
+
+const GREETING_DISTRESS_INTENTS = Object.freeze([
+  "emotional_checkin",
+  "distress_signal",
+  "frustration_signal",
+  "sadness_signal",
+  "anxiety_signal",
+  "loneliness_signal",
+  "anger_signal"
+]);
+
+const GREETING_TONE_TO_PRESENCE = Object.freeze({
+  neutral_warm: "warm",
+  polite: "receptive",
+  warm_fresh_start: "warm",
+  warm_professional: "receptive",
+  calm_grounded: "receptive",
+  casual: "engaged",
+  relational: "warm",
+  reassuring: "receptive",
+  diagnostic: "focused",
+  returning: "warm",
+  focused: "focused",
+  supportive: "supportive",
+  efficient: "focused",
+  serious: "focused",
+  empathetic: "supportive",
+  calming: "supportive",
+  validating: "supportive",
+  gentle_supportive: "supportive",
+  grounding: "supportive",
+  compassionate: "supportive",
+  contained: "supportive",
+  clarifying: "focused",
+  guiding: "receptive",
+  strategic: "focused",
+  creative_focused: "engaged",
+  technical: "focused",
+  executive: "focused",
+  imaginative: "engaged",
+  encouraging: "warm",
+  playful: "engaged",
+  formal: "receptive",
+  steady_confident: "focused",
+  urgent: "focused",
+  warm_appreciative: "warm",
+  forgiving: "warm",
+  patient: "receptive",
+  voice_control: "focused",
+  media_control: "focused",
+  reset_control: "focused"
+});
 
 function normalizeStateStage(value, fallback = "open") {
   const raw = safeStr(value || fallback || "open").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -96,6 +188,171 @@ function canonicalIntent(value, fallback) {
   const raw = safeStr(value || fallback || "ADVANCE").trim();
   if (!raw) return "ADVANCE";
   return raw.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase() || "ADVANCE";
+}
+
+function canonicalGreetingIntent(value) {
+  const raw = safeStr(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return raw;
+}
+
+function normalizeGreetingTone(value) {
+  const tone = safeStr(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return tone || "";
+}
+
+function normalizeGreetingEnergy(value) {
+  const energy = safeStr(value || "").trim().toLowerCase();
+  if (/urgent|high|hot|elevated|strong/.test(energy)) return "high";
+  if (/medium|mid|normal|active/.test(energy)) return "medium";
+  if (/low|soft|calm|quiet/.test(energy)) return "low";
+  return energy || "";
+}
+
+function normalizeInputSource(value) {
+  const source = safeStr(value || "").trim().toLowerCase();
+  if (/voice|mic|speech|audio/.test(source)) return "voice";
+  if (/text|typed|keyboard/.test(source)) return "text";
+  return source || "";
+}
+
+function greetingPresenceFromTone(tone, fallback = "receptive") {
+  const normalized = normalizeGreetingTone(tone);
+  return GREETING_TONE_TO_PRESENCE[normalized] || fallback || "receptive";
+}
+
+function isKnownGreetingIntent(value) {
+  const intent = canonicalGreetingIntent(value);
+  return !!(intent && GREETING_INTENTS.includes(intent));
+}
+
+function isDistressGreetingIntent(value) {
+  const intent = canonicalGreetingIntent(value);
+  return !!(intent && GREETING_DISTRESS_INTENTS.includes(intent));
+}
+
+function collectGreetingCandidateObjects(params = {}, inbound = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const meta = isPlainObject(p.meta) ? p.meta : {};
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const body = isPlainObject(src.body) ? src.body : {};
+  const session = isPlainObject(src.session) ? src.session : {};
+  const turnSignals = isPlainObject(src.turnSignals) ? src.turnSignals : {};
+  const ui = isPlainObject(src.ui) ? src.ui : {};
+  const client = isPlainObject(src.client) ? src.client : {};
+  const cog = isPlainObject(src.cog) ? src.cog : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : (isPlainObject(src.packet) ? src.packet : {});
+  const packetMeta = isPlainObject(packet.meta) ? packet.meta : {};
+  const packetSessionPatch = isPlainObject(packet.sessionPatch) ? packet.sessionPatch : {};
+  const packetMarionIntent = isPlainObject(packet.marionIntent) ? packet.marionIntent : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const finalEnvelope = extractFinalEnvelopeObject(p);
+  return [
+    p.greeting, p.greetingSignal, p.greetingIntent, p.greetingState,
+    meta.greeting, meta.greetingSignal, meta.greetingIntent,
+    src.greeting, src.greetingSignal, src.greetingIntent,
+    payload.greeting, payload.greetingSignal, payload.greetingIntent,
+    body.greeting, body.greetingSignal, body.greetingIntent,
+    session.greeting, session.greetingSignal, session.greetingIntent,
+    turnSignals.greeting, turnSignals.greetingSignal,
+    ui.greeting, ui.greetingSignal,
+    client.greeting, client.greetingSignal,
+    cog.greeting, cog.greetingSignal,
+    marion.greeting, marion.greetingSignal, marion.greetingIntent,
+    packet, packetMeta, packetSessionPatch, packetMarionIntent,
+    memoryPatch, finalEnvelope
+  ].filter((x) => isPlainObject(x));
+}
+
+function extractGreetingSignals(inbound = {}, params = {}) {
+  const src = isPlainObject(inbound) ? inbound : {};
+  const p = isPlainObject(params) ? params : {};
+  const marion = extractMarionObject(p);
+  const packet = isPlainObject(marion.packet) ? marion.packet : (isPlainObject(src.packet) ? src.packet : {});
+  const packetSessionPatch = isPlainObject(packet.sessionPatch) ? packet.sessionPatch : {};
+  const packetMarionIntent = isPlainObject(packet.marionIntent) ? packet.marionIntent : {};
+  const memoryPatch = extractComposerMemoryPatch(p);
+  const finalEnvelope = extractFinalEnvelopeObject(p);
+  const candidates = collectGreetingCandidateObjects(p, src);
+
+  const id = firstNonEmpty(
+    p.greetingId, src.greetingId, src?.turnSignals?.greetingId,
+    packetSessionPatch.lastGreetingId, packetSessionPatch.greetingId,
+    packet.id, memoryPatch.lastGreetingId, finalEnvelope.greetingId
+  );
+
+  const intent = canonicalGreetingIntent(firstNonEmpty(
+    p.lastGreetingIntent, p.greetingIntent, p.intent,
+    src.lastGreetingIntent, src.greetingIntent, src?.turnSignals?.lastGreetingIntent, src?.turnSignals?.greetingIntent,
+    src?.session?.lastGreetingIntent, src?.session?.greetingIntent,
+    packetSessionPatch.lastGreetingIntent, packetSessionPatch.greetingIntent,
+    packetMarionIntent.intent, packet.intent,
+    memoryPatch.lastGreetingIntent, memoryPatch.greetingIntent,
+    finalEnvelope.lastGreetingIntent, finalEnvelope.greetingIntent
+  ));
+
+  const tone = normalizeGreetingTone(firstNonEmpty(
+    p.lastGreetingTone, p.greetingTone, p.presenceProfile,
+    src.lastGreetingTone, src.greetingTone, src.presenceProfile, src?.turnSignals?.lastGreetingTone, src?.turnSignals?.greetingTone,
+    src?.session?.lastGreetingTone, src?.session?.greetingTone,
+    packetSessionPatch.lastGreetingTone, packetSessionPatch.greetingTone, packetSessionPatch.presenceProfile,
+    packetMarionIntent.tone, packet.tone,
+    memoryPatch.lastGreetingTone, memoryPatch.greetingTone, memoryPatch.presenceProfile,
+    finalEnvelope.lastGreetingTone, finalEnvelope.greetingTone, finalEnvelope.presenceProfile
+  ));
+
+  const energy = normalizeGreetingEnergy(firstNonEmpty(
+    p.lastInputEnergy, p.greetingEnergy, p.energy,
+    src.lastInputEnergy, src.greetingEnergy, src.energy, src?.turnSignals?.lastInputEnergy, src?.turnSignals?.greetingEnergy,
+    src?.session?.lastInputEnergy, src?.session?.greetingEnergy,
+    packetSessionPatch.lastInputEnergy, packetSessionPatch.greetingEnergy, packet.energy,
+    memoryPatch.lastInputEnergy, memoryPatch.greetingEnergy,
+    finalEnvelope.lastInputEnergy, finalEnvelope.greetingEnergy
+  ));
+
+  const source = normalizeInputSource(firstNonEmpty(
+    p.inputSource, p.source,
+    src.inputSource, src.source, src?.ui?.inputSource, src?.ui?.source, src?.client?.inputSource, src?.client?.source,
+    src?.session?.inputSource, src?.session?.source,
+    packetSessionPatch.inputSource, packetSessionPatch.source,
+    memoryPatch.inputSource, memoryPatch.source,
+    finalEnvelope.inputSource, finalEnvelope.source
+  ));
+
+  const packetType = safeStr(packet.type || "").toLowerCase();
+  const route = safeStr(packetMarionIntent.route || marion.route || p.route || src.route || "").toLowerCase();
+  const matchedByObject = candidates.some((candidate) => {
+    const candidateIntent = canonicalGreetingIntent(firstNonEmpty(candidate.intent, candidate.lastGreetingIntent, candidate.greetingIntent));
+    const candidateType = safeStr(candidate.type || "").toLowerCase();
+    const candidateRoute = safeStr(candidate.route || "").toLowerCase();
+    return candidateType === "greeting" || candidateRoute === "greeting_intent" || isKnownGreetingIntent(candidateIntent);
+  });
+  const matched = !!(
+    packetType === "greeting" ||
+    route === "greeting_intent" ||
+    isKnownGreetingIntent(intent) ||
+    /^general\.greet_|^greet_/i.test(id) ||
+    matchedByObject
+  );
+
+  const normalizedIntent = isKnownGreetingIntent(intent) ? intent : (matched ? (intent || "basic_greeting") : "");
+  const normalizedTone = tone || (matched ? "neutral_warm" : "");
+  const normalizedEnergy = energy || (isDistressGreetingIntent(normalizedIntent) ? "high" : (matched ? "low" : ""));
+  const presenceProfile = matched ? greetingPresenceFromTone(normalizedTone, isDistressGreetingIntent(normalizedIntent) ? "supportive" : "receptive") : "";
+
+  return {
+    matched,
+    id: safeStr(id || ""),
+    intent: normalizedIntent,
+    tone: normalizedTone,
+    energy: normalizedEnergy,
+    source,
+    presenceProfile,
+    isDistress: isDistressGreetingIntent(normalizedIntent),
+    isVoice: source === "voice",
+    route: matched ? "greeting_intent" : ""
+  };
 }
 
 function firstNonEmpty() {
@@ -570,6 +827,19 @@ function createState(seed = {}) {
       responseMode: "steady",
       updatedAt: 0
     },
+    greeting: {
+      active: false,
+      lastId: "",
+      lastIntent: "",
+      lastTone: "",
+      lastEnergy: "",
+      lastSource: "",
+      lastPresenceProfile: "",
+      seenCount: 0,
+      voiceCount: 0,
+      distressCount: 0,
+      updatedAt: 0
+    },
     marionCohesion: {
       composerObserved: false,
       marionFinalObserved: false,
@@ -682,6 +952,19 @@ function coerceState(input) {
       lastTopics: Array.isArray(src?.continuityThread?.lastTopics) ? src.continuityThread.lastTopics.slice(0, 6).map((x) => safeStr(x)) : [],
       responseMode: safeStr(src?.continuityThread?.responseMode || "steady") || "steady",
       updatedAt: Number(src?.continuityThread?.updatedAt || 0) || 0
+    },
+    greeting: {
+      active: !!src?.greeting?.active,
+      lastId: safeStr(src?.greeting?.lastId || ""),
+      lastIntent: canonicalGreetingIntent(src?.greeting?.lastIntent || ""),
+      lastTone: normalizeGreetingTone(src?.greeting?.lastTone || ""),
+      lastEnergy: normalizeGreetingEnergy(src?.greeting?.lastEnergy || ""),
+      lastSource: normalizeInputSource(src?.greeting?.lastSource || ""),
+      lastPresenceProfile: safeStr(src?.greeting?.lastPresenceProfile || ""),
+      seenCount: clampInt(src?.greeting?.seenCount, 0, 0, 999999),
+      voiceCount: clampInt(src?.greeting?.voiceCount, 0, 0, 999999),
+      distressCount: clampInt(src?.greeting?.distressCount, 0, 0, 999999),
+      updatedAt: Number(src?.greeting?.updatedAt || 0) || 0
     },
     marionCohesion: {
       composerObserved: !!src?.marionCohesion?.composerObserved,
@@ -943,17 +1226,20 @@ function normalizeEmotionSignals(inbound, prevState, params = {}) {
 
 
 
-function normalizeEmotionalEngineSignals(inbound, prevState) {
+function normalizeEmotionalEngineSignals(inbound, prevState, params = {}) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
   const prev = coerceState(prevState);
+  const greeting = extractGreetingSignals(inbound, params);
   const prevEngine = isPlainObject(prev.emotionalEngine) ? prev.emotionalEngine : createState().emotionalEngine;
-  const primaryState = safeStr(sig.enginePrimaryState || prevEngine.primaryState || "focused").toLowerCase() || "focused";
-  const secondaryState = safeStr(sig.engineSecondaryState || prevEngine.secondaryState || "steady").toLowerCase() || "steady";
-  const continuityScore = Math.max(0, Math.min(1, Number(sig.engineContinuityScore ?? prevEngine.continuityScore ?? 0.35) || 0.35));
+  const greetingPresence = greeting.matched ? greeting.presenceProfile : "";
+  const primaryState = safeStr(sig.enginePrimaryState || greetingPresence || prevEngine.primaryState || "focused").toLowerCase() || "focused";
+  const secondaryState = safeStr(sig.engineSecondaryState || (greeting.matched ? greeting.intent : "") || prevEngine.secondaryState || "steady").toLowerCase() || "steady";
+  const baseContinuityScore = greeting.matched ? Math.max(Number(prevEngine.continuityScore || 0.35), greeting.isDistress ? 0.68 : 0.46) : (Number(prevEngine.continuityScore ?? 0.35) || 0.35);
+  const continuityScore = Math.max(0, Math.min(1, Number(sig.engineContinuityScore ?? baseContinuityScore) || 0.35));
   const placeholder = safeStr(sig.enginePlaceholder || prevEngine.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…";
   const lastActionLabels = Array.isArray(sig.engineActionLabels) ? sig.engineActionLabels.slice(0, 6).map((x) => safeStr(x)) : prevEngine.lastActionLabels;
-  const presenceState = safeStr(sig.enginePresenceState || prevEngine.presenceState || primaryState || "receptive").toLowerCase() || "receptive";
-  const listenerMode = safeStr(sig.engineListenerMode || prevEngine.listenerMode || "attuned").toLowerCase() || "attuned";
+  const presenceState = safeStr(sig.enginePresenceState || greetingPresence || prevEngine.presenceState || primaryState || "receptive").toLowerCase() || "receptive";
+  const listenerMode = safeStr(sig.engineListenerMode || (greeting.matched ? "greeting_attuned" : "") || prevEngine.listenerMode || "attuned").toLowerCase() || "attuned";
   const stateStreak = safeStr(prevEngine.primaryState || "") === primaryState
     ? clampInt(prevEngine.stateStreak, 0, 0, 999999) + 1
     : 0;
@@ -965,16 +1251,18 @@ function inferConversationPhase(prevState, inbound, plannerDecision) {
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev);
+  const greeting = extractGreetingSignals(inbound, { decision: plannerDecision });
   const plannerStage = safeStr(plannerDecision?.stage || "").toLowerCase();
 
   if (audio.shouldStop) return "recovery";
   if (prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs()) return "recovery";
 
   const activeHold = clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0;
-  const activeSupportLock = !!(emo.supportLockSignal || prev.support.lockActive || activeHold);
+  const activeSupportLock = !!(emo.supportLockSignal || prev.support.lockActive || activeHold || greeting.isDistress);
   if (activeSupportLock || plannerStage === "recovery" || plannerStage === "terminal_stop") return "recovery";
 
   if (technical) return "execution";
+  if (greeting.matched) return "active";
   return inferPhaseFromStage(prev.stage, false);
 }
 
@@ -985,6 +1273,7 @@ function decideNextMove(prevState, inbound) {
   const technical = isTechnicalInbound(inbound);
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev);
+  const greeting = extractGreetingSignals(inbound, {});
   const terminalStopActive = prev.audio.terminalStopUntil && prev.audio.terminalStopUntil > nowMs();
 
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
@@ -1033,7 +1322,17 @@ function decideNextMove(prevState, inbound) {
     };
   }
 
-  if (emo.supportLockSignal || emo.highDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE" || repeatedSupportHold) {
+  if (greeting.matched && !greeting.isDistress) {
+    return {
+      move: "ADVANCE",
+      stage: "deliver",
+      rationale: `greeting_intent_${greeting.intent || "basic_greeting"}`,
+      speak: "",
+      _plannerMode: "greeting"
+    };
+  }
+
+  if (emo.supportLockSignal || emo.highDistress || greeting.isDistress || safeStr(inbound?.cog?.intent || "").toUpperCase() === "STABILIZE" || repeatedSupportHold) {
     return {
       move: "STABILIZE",
       stage: "recovery",
@@ -1172,7 +1471,9 @@ function finalizeTurn(params = {}) {
   }
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev, params);
-  const engineSignals = normalizeEmotionalEngineSignals(inbound, prev);
+  const greeting = extractGreetingSignals(inbound, params);
+  const engineSignals = normalizeEmotionalEngineSignals(inbound, prev, params);
+  const greetingDistress = !!greeting.isDistress;
   const trustedFinalCompletion = !!(
     !audio.shouldStop &&
     (marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState) &&
@@ -1206,6 +1507,7 @@ function finalizeTurn(params = {}) {
   );
   const supportLockActive = !releaseSupportLock && !technicalBypassSupportLock && !!(
     emo.supportLockSignal ||
+    greetingDistress ||
     stage === "terminal_stop" ||
     safeStr(intent) === "STABILIZE" ||
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
@@ -1254,11 +1556,11 @@ function finalizeTurn(params = {}) {
     holdTurns,
     reason: (supportLockActive || holdTurns > 0) ? safeStr(decision.rationale || prev.support.reason || intent || "support_lock") : "",
     shouldSuppressMenus: !!emo.shouldSuppressMenus,
-    supportMode: safeStr(emo.supportMode || prev.support.supportMode || ""),
-    archetype: safeStr(inbound?.turnSignals?.emotionArchetype || prev.support.archetype || ""),
-    questionStyle: safeStr(emo.questionStyle || prev.support.questionStyle || ""),
-    emotionKey: safeStr(emo.emotionKey || prev.support.emotionKey || ""),
-    emotionCluster: safeStr(emo.emotionCluster || prev.support.emotionCluster || "")
+    supportMode: safeStr(emo.supportMode || (greetingDistress ? "greeting_support" : "") || prev.support.supportMode || ""),
+    archetype: safeStr(inbound?.turnSignals?.emotionArchetype || (greeting.matched ? greeting.intent : "") || prev.support.archetype || ""),
+    questionStyle: safeStr(emo.questionStyle || (greetingDistress ? "single_grounding_question" : "") || prev.support.questionStyle || ""),
+    emotionKey: safeStr(emo.emotionKey || (greetingDistress ? greeting.intent : "") || prev.support.emotionKey || ""),
+    emotionCluster: safeStr(emo.emotionCluster || (greetingDistress ? greeting.tone : "") || prev.support.emotionCluster || "")
   };
 
   const volatility = audio.shouldStop || progressionLock || repetition.noProgressCount >= 1 || support.lockActive
@@ -1281,9 +1583,9 @@ function finalizeTurn(params = {}) {
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
-    unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
-    lastTopics: [safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
-    responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
+    unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
+    lastTopics: [safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || "")].filter(Boolean).slice(0, 6),
+    responseMode: safeStr(emo.supportMode || (greeting.matched ? "greeting_intent" : "") || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
     loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
@@ -1356,7 +1658,30 @@ function finalizeTurn(params = {}) {
       volatility: emo.resolvedEmotionSummary.volatility,
       updatedAt: nowMs(),
       source: "stateSpine.finalizeTurn"
-    } : (prev.emotionalContinuity || null),
+    } : (greetingDistress ? {
+      active: true,
+      primary: greeting.intent,
+      secondary: greeting.tone,
+      intensity: greeting.energy === "high" ? 0.72 : 0.58,
+      confidence: 0.72,
+      stability: 0.48,
+      volatility: greeting.energy === "high" ? 0.62 : 0.42,
+      updatedAt: nowMs(),
+      source: "stateSpine.greetingIntent"
+    } : (prev.emotionalContinuity || null)),
+    greeting: greeting.matched ? {
+      active: true,
+      lastId: safeStr(greeting.id || prev.greeting?.lastId || ""),
+      lastIntent: safeStr(greeting.intent || prev.greeting?.lastIntent || ""),
+      lastTone: safeStr(greeting.tone || prev.greeting?.lastTone || ""),
+      lastEnergy: safeStr(greeting.energy || prev.greeting?.lastEnergy || ""),
+      lastSource: safeStr(greeting.source || prev.greeting?.lastSource || ""),
+      lastPresenceProfile: safeStr(greeting.presenceProfile || prev.greeting?.lastPresenceProfile || ""),
+      seenCount: clampInt(prev.greeting?.seenCount, 0, 0, 999999) + 1,
+      voiceCount: clampInt(prev.greeting?.voiceCount, 0, 0, 999999) + (greeting.isVoice ? 1 : 0),
+      distressCount: clampInt(prev.greeting?.distressCount, 0, 0, 999999) + (greetingDistress ? 1 : 0),
+      updatedAt: nowMs()
+    } : prev.greeting,
     marionCohesion: {
       composerObserved: !!Object.keys(memoryPatch).length,
       marionFinalObserved: marionFinalSignal,
@@ -1391,6 +1716,8 @@ function assertTurnUpdated(prevState, nextState) {
     !!next?.support?.lockActive !== !!prev?.support?.lockActive ||
     clampInt(next?.repetition?.sameEmotionCount, 0, 0, 999999) !== clampInt(prev?.repetition?.sameEmotionCount, 0, 0, 999999) ||
     safeStr(next?.marionCohesion?.lastMarionFinalSignature || "") !== safeStr(prev?.marionCohesion?.lastMarionFinalSignature || "") ||
+    safeStr(next?.greeting?.lastIntent || "") !== safeStr(prev?.greeting?.lastIntent || "") ||
+    clampInt(next?.greeting?.seenCount, 0, 0, 999999) !== clampInt(prev?.greeting?.seenCount, 0, 0, 999999) ||
     !!next?.marionCohesion?.shouldAdvanceState !== !!prev?.marionCohesion?.shouldAdvanceState;
 }
 
@@ -1482,6 +1809,10 @@ module.exports = {
   normalizeAudioSignal,
   normalizeEmotionSignals,
   normalizeEmotionalEngineSignals,
+  extractGreetingSignals,
+  greetingPresenceFromTone,
+  isKnownGreetingIntent,
+  isDistressGreetingIntent,
   extractResolvedEmotionState,
   summarizeResolvedEmotionState,
   compactStateSummary,
