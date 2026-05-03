@@ -761,5 +761,14 @@
     "normalizedAt": "2026-04-07",
     "normalizationPass": "cyber_pack_marion_readiness_v1",
     "originalFilename": "cyber_identity_access_v2.json"
+  },
+  "runtimePath": "Data/Domains/Cyber/packs/cyber_identity_access_v2.json",
+  "runtimeDomainKey": "cyber",
+  "safetyBoundary": "defensive_cybersecurity_only_no_exploit_guidance",
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
 }
