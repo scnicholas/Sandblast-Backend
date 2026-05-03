@@ -7,7 +7,10 @@
     "type": "enterprise_risk_framework",
     "analytical": true,
     "non_investment_advice": true,
-    "defensive_orientation": true
+    "defensive_orientation": true,
+    "not_personal_financial_advice": true,
+    "educationalOnly": true,
+    "assumptionDisclosureRequired": true
   },
   "corePrinciples": [
     "Risk is the probability of adverse deviation from expected outcomes.",
@@ -286,9 +289,63 @@
   "referenceUseRules": [],
   "learningModules": [],
   "caseStudiesV2": [],
-  "projectsV2": []
-<<<<<<< HEAD
+  "projectsV2": [],
+  "runtimeDomainKey": "finance",
+  "runtimePath": "Data/Domains/finance/packs/fin_risk_management_v1.json",
+  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "retrievalIndex": {
+    "domain": "finance",
+    "packId": "fin_risk_management_v1",
+    "runtimePath": "Data/Domains/finance/packs/fin_risk_management_v1.json",
+    "aliases": [
+      "risk",
+      "risk management",
+      "liquidity risk",
+      "stress test",
+      "fin_risk_management_v1",
+      "fin risk management v1"
+    ],
+    "preferredQueryTerms": [
+      "fin_risk_management_v1",
+      "finance",
+      "enterprise_risk_framework",
+      "Risk is the probability of adverse deviation from expected outcomes.",
+      "Liquidity risk can destroy otherwise solvent businesses.",
+      "Leverage amplifies both gains and losses.",
+      "Unknown risks are more dangerous than measured risks.",
+      "Resilience requires redundancy, liquidity, and optionality.",
+      "Risk must be managed at the system level, not just at the transaction level.",
+      "market_risk",
+      "credit_risk",
+      "liquidity_risk",
+      "operational_risk",
+      "regulatory_risk",
+      "strategic_risk",
+      "What risk could permanently impair the business?",
+      "What scenario causes liquidity failure?",
+      "How correlated are your main risk exposures?",
+      "Where are you overconfident in assumptions?",
+      "If revenue dropped 30 percent, what breaks first?",
+      "stress_testing_saas_revenue_under_rate_hikes",
+      "analyzing_leverage_risk_for_small_business",
+      "designing_liquidity_buffer_strategy",
+      "evaluating_currency_exposure_for_exporter",
+      "building_enterprise_risk_dashboard"
+    ],
+    "crossPackHints": [
+      "fin_macro_principles_v1",
+      "fin_capital_markets_v1",
+      "fin_unit_economics_v1"
+    ],
+    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryExplicit": true,
+    "validatedForMarionRegistry": true
+  }
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
