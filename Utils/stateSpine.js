@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.3.0 CONVERSATION-QUALITY-CONTINUITY";
+const SPINE_VERSION = "stateSpine v2.4.0 CONTEXT-CARRY-FINAL-COHESION";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -493,6 +493,13 @@ function createState(seed = {}) {
     stage,
     phase: inferPhaseFromStage(stage, false),
     domain: lane,
+    lastUserText: "",
+    lastAssistantReply: "",
+    lastKnowledgeDomain: "",
+    lastTopic: "",
+    conversationSummary: "",
+    carryForwardSummary: "",
+    turnDepth: 0,
     lastIntent: "",
     lastAction: "",
     lastUserHash: "",
@@ -596,6 +603,13 @@ function coerceState(input) {
     stage: safeStr(src.stage || base.stage) || "open",
     phase: safeStr(src.phase || inferPhaseFromStage(src.stage || base.stage, !!src.progressionLock)) || "active",
     domain: safeStr(src.domain || src.lane || base.domain) || "general",
+    lastUserText: oneLine(src.lastUserText || base.lastUserText || ""),
+    lastAssistantReply: oneLine(src.lastAssistantReply || base.lastAssistantReply || ""),
+    lastKnowledgeDomain: safeStr(src.lastKnowledgeDomain || base.lastKnowledgeDomain || ""),
+    lastTopic: oneLine(src.lastTopic || base.lastTopic || ""),
+    conversationSummary: oneLine(src.conversationSummary || base.conversationSummary || ""),
+    carryForwardSummary: oneLine(src.carryForwardSummary || base.carryForwardSummary || ""),
+    turnDepth: clampInt(src.turnDepth, base.turnDepth || 0, 0, 999999),
     lastIntent: safeStr(src.lastIntent || ""),
     lastAction: safeStr(src.lastAction || ""),
     lastUserHash: safeStr(src.lastUserHash || ""),
@@ -1086,6 +1100,37 @@ function hasMarionFinalSignal(params = {}) {
   );
 }
 
+
+function compactStateSummary(value, max = 760) {
+  const s = oneLine(value);
+  if (!s) return "";
+  return s.length > max ? `${s.slice(0, max).replace(/\s+\S*$/, " ").trim()}.` : s;
+}
+
+function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
+  const text = `${extractInboundText(inbound)} ${memoryPatch.lastTopic || ""} ${memoryPatch.carryForwardSummary || ""}`.toLowerCase();
+  if (/sponsor|investor|business value|premium|pitch/.test(text)) return "AI media interface commercial value";
+  if (/nyx|nexus|marion|ai media|interface|emotionally aware|intelligent/.test(text)) return "AI media interface continuity";
+  if (/cash flow|profit|finance/.test(text)) return "finance";
+  if (/legal|law/.test(text)) return "law";
+  if (/least privilege|cyber|security/.test(text)) return "cyber";
+  if (/tool routing|ai agent/.test(text)) return "AI agents";
+  return oneLine(memoryPatch.lastTopic || lane || "conversation");
+}
+
+function buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain, lane }) {
+  const prior = firstNonEmpty(memoryPatch.carryForwardSummary, prev.carryForwardSummary, prev.conversationSummary);
+  const topic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane));
+  const current = compactStateSummary(speak, 420);
+  const parts = [];
+  if (topic) parts.push(`Topic: ${topic}`);
+  if (intent) parts.push(`Intent: ${intent}`);
+  if (domain || lane) parts.push(`Domain: ${domain || lane}`);
+  if (prior) parts.push(`Prior: ${compactStateSummary(prior, 360)}`);
+  if (current) parts.push(`Current: ${current}`);
+  return compactStateSummary(parts.join(" | "), 900);
+}
+
 function finalizeTurn(params = {}) {
   const prev = coerceState(params.prevState);
   const inbound = isPlainObject(params.inbound) ? params.inbound : {};
@@ -1095,6 +1140,7 @@ function finalizeTurn(params = {}) {
   const marion = extractMarionObject(params);
   const composerIntent = firstNonEmpty(memoryPatch.lastIntent, marion.intent, params.intent, params.marionCog?.intent);
   const composerDomain = firstNonEmpty(memoryPatch.lastDomain, marion.domain, params.domain, lane);
+  const composerKnowledgeDomain = firstNonEmpty(memoryPatch.lastKnowledgeDomain, marion.knowledgeDomain, params.knowledgeDomain, "");
   const marionReply = extractComposerReply(params);
   let stage = normalizeStateStage(decision.stage || params.stage || prev.stage || "final", "final");
   const intent = canonicalIntent(composerIntent || decision.move || extractIntent(inbound));
@@ -1233,10 +1279,10 @@ function finalizeTurn(params = {}) {
   };
 
   const continuityThread = {
-    depthLevel: Math.max(1, Math.max(repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
+    depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
-    lastTopics: [safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
+    lastTopics: [safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || "")].filter(Boolean).slice(0, 6),
     responseMode: safeStr(emo.supportMode || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
@@ -1244,11 +1290,23 @@ function finalizeTurn(params = {}) {
     updatedAt: nowMs()
   };
 
+  const nextTurnDepth = trustedFinalCompletion ? Math.max(1, clampInt(memoryPatch.turnDepth, 0, 0, 999999) || (deepeningInbound ? clampInt(prev.turnDepth, 0, 0, 999999) + 1 : 1)) : clampInt(prev.turnDepth, 0, 0, 999999);
+  const nextTopic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane), prev.lastTopic);
+  const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
+  const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
+
   return {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
     domain: safeStr(composerDomain || lane) || lane,
+    lastUserText: oneLine(inboundText || memoryPatch.lastUserText || prev.lastUserText),
+    lastAssistantReply: trustedFinalCompletion ? speak : prev.lastAssistantReply,
+    lastKnowledgeDomain: composerKnowledgeDomain || prev.lastKnowledgeDomain || "",
+    lastTopic: nextTopic,
+    conversationSummary: nextConversationSummary,
+    carryForwardSummary: nextCarryForwardSummary,
+    turnDepth: nextTurnDepth,
     stage: normalizeStateStage(stage, "final"),
     phase: inferPhaseFromStage(normalizeStateStage(stage, "final"), progressionLock),
     lastIntent: intent,
@@ -1425,6 +1483,9 @@ module.exports = {
   normalizeEmotionSignals,
   normalizeEmotionalEngineSignals,
   extractResolvedEmotionState,
-  summarizeResolvedEmotionState
+  summarizeResolvedEmotionState,
+  compactStateSummary,
+  deriveStateTopic,
+  buildStateCarryForwardSummary
 };
 module.exports.default = module.exports;
