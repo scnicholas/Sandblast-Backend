@@ -308,9 +308,10 @@
     "preservedStructuralIntegrity": true
   },
   "aliases": [
+    "english_sources_index",
     "eng_sources_index_v1",
-    "eng_sources_index_v2",
-    "english_sources_index"
+    "eng_sources_index_v1.json",
+    "eng_sources_index_v2"
   ],
   "pathwayHints": {
     "domain": "english",
@@ -351,9 +352,73 @@
       "filename_version_mismatch"
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  },
+  "runtimeDomainKey": "english",
+  "runtimePath": "Data/Domains/english/packs/eng_sources_index_v1.json",
+  "retrievalIndex": {
+    "domain": "english",
+    "packId": "eng_sources_index_v2",
+    "runtimePath": "Data/Domains/english/packs/eng_sources_index_v1.json",
+    "keywords": [
+      "english",
+      "sources",
+      "index",
+      "comprehensive",
+      "reference",
+      "texts",
+      "open",
+      "resources",
+      "and",
+      "guidance",
+      "used",
+      "across",
+      "the",
+      "domain",
+      "layer",
+      "eng",
+      "canada",
+      "corpus",
+      "grammar",
+      "plain language",
+      "style",
+      "s_biber_lgswe",
+      "s_eap_canada_survey",
+      "s_quark_cgel",
+      "s_swan_peu",
+      "s_williams_style"
+    ],
+    "routeAliases": [
+      "english_sources_index",
+      "eng_sources_index_v1",
+      "eng_sources_index_v1.json",
+      "eng_sources_index_v2"
+    ],
+    "sourceCoverage": {
+      "anchorCount": 5,
+      "referenceCount": 14,
+      "anchorsResolved": true,
+      "missingAnchorKeys": []
+    }
+  },
+  "safetyBoundary": {
+    "type": "language_education_and_revision_support",
+    "preserveUserMeaning": true,
+    "avoidOverCorrection": true,
+    "avoidFabricatingSources": true,
+    "copyrightSafe": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryAdded": true,
+    "issuesAddressed": [
+      "git_conflict_markers_removed",
+      "unresolved_git_conflict_markers_removed"
+    ],
+    "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
