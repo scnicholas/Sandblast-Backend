@@ -1,7 +1,7 @@
 {
-  "version": "packets_v1.3-C-normalized",
-  "updated": "2026-04-26",
-  "source": "nyx_phrasepack_v1.2",
+  "version": "packets_v1.3-C-normalized-40D-greetings",
+  "updated": "2026-05-03",
+  "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
   "voice": {
     "persona": "Nyx",
     "style": [
@@ -21,6 +21,3036 @@
     ]
   },
   "packets": [
+    {
+      "id": "general.greeting_40d_basic_hi",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "hi nyx",
+        "hi",
+        "hey nyx"
+      ],
+      "intent": "basic_greeting",
+      "tone": "neutral_warm",
+      "energy": "low",
+      "templates": [
+        "Hi, I’m here. What would you like to work on?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Hi, I’m here. What would you like to work on?"
+        ],
+        "warm": [
+          "Hi, I’m here. What would you like to work on?"
+        ],
+        "engaged": [
+          "Hi, I’m here. What would you like to work on?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "basic_greeting",
+        "lastGreetingTone": "neutral_warm",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "neutral_warm",
+        "lastNyxStateHint": "neutral_warm"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "basic_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_hello_polite",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "hello nyx",
+        "hello there",
+        "good hello, nyx"
+      ],
+      "intent": "basic_greeting",
+      "tone": "polite",
+      "energy": "low",
+      "templates": [
+        "Hello. I’m ready when you are. What do you need?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Hello. I’m ready when you are. What do you need?"
+        ],
+        "warm": [
+          "Hello. I’m ready when you are. What do you need?"
+        ],
+        "engaged": [
+          "Hello. I’m ready when you are. What do you need?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "basic_greeting",
+        "lastGreetingTone": "polite",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "polite",
+        "lastNyxStateHint": "polite"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "basic_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_good_morning",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "good morning nyx",
+        "morning nyx",
+        "good morning"
+      ],
+      "intent": "time_greeting",
+      "tone": "warm_fresh_start",
+      "energy": "low",
+      "templates": [
+        "Good morning. Let’s start clean. What are we handling first?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good morning. Let’s start clean. What are we handling first?"
+        ],
+        "warm": [
+          "Good morning. Let’s start clean. What are we handling first?"
+        ],
+        "engaged": [
+          "Good morning. Let’s start clean. What are we handling first?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "time_greeting",
+        "lastGreetingTone": "warm_fresh_start",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "warm_fresh_start",
+        "lastNyxStateHint": "warm_fresh_start"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "time_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_good_afternoon",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "good afternoon nyx",
+        "afternoon nyx"
+      ],
+      "intent": "time_greeting",
+      "tone": "warm_professional",
+      "energy": "low",
+      "templates": [
+        "Good afternoon. I’m with you. What’s the priority?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good afternoon. I’m with you. What’s the priority?"
+        ],
+        "warm": [
+          "Good afternoon. I’m with you. What’s the priority?"
+        ],
+        "engaged": [
+          "Good afternoon. I’m with you. What’s the priority?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "time_greeting",
+        "lastGreetingTone": "warm_professional",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "warm_professional",
+        "lastNyxStateHint": "warm_professional"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "time_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_good_evening",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "good evening nyx",
+        "evening nyx"
+      ],
+      "intent": "time_greeting",
+      "tone": "calm_grounded",
+      "energy": "low",
+      "templates": [
+        "Good evening. We can take this at your pace. What’s on your mind?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good evening. We can take this at your pace. What’s on your mind?"
+        ],
+        "warm": [
+          "Good evening. We can take this at your pace. What’s on your mind?"
+        ],
+        "engaged": [
+          "Good evening. We can take this at your pace. What’s on your mind?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "time_greeting",
+        "lastGreetingTone": "calm_grounded",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "calm_grounded",
+        "lastNyxStateHint": "calm_grounded"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "time_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_whats_up",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "what's up nyx",
+        "whats up nyx",
+        "what’s up nyx",
+        "wassup nyx",
+        "what up nyx"
+      ],
+      "intent": "casual_greeting",
+      "tone": "casual",
+      "energy": "medium",
+      "templates": [
+        "I’m here and ready. What are we getting into?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m here and ready. What are we getting into?"
+        ],
+        "warm": [
+          "I’m here and ready. What are we getting into?"
+        ],
+        "engaged": [
+          "I’m here and ready. What are we getting into?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "casual_greeting",
+        "lastGreetingTone": "casual",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "casual",
+        "lastNyxStateHint": "casual"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "casual_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_how_are_you",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "how are you nyx",
+        "how are you doing",
+        "how are you feeling"
+      ],
+      "intent": "social_checkin",
+      "tone": "relational",
+      "energy": "low",
+      "templates": [
+        "I’m steady and ready to help. How are you doing right now?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m steady and ready to help. How are you doing right now?"
+        ],
+        "warm": [
+          "I’m steady and ready to help. How are you doing right now?"
+        ],
+        "engaged": [
+          "I’m steady and ready to help. How are you doing right now?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "social_checkin",
+        "lastGreetingTone": "relational",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "relational",
+        "lastNyxStateHint": "relational"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "social_checkin",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_you_there",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, are you there",
+        "you there nyx",
+        "are you online"
+      ],
+      "intent": "presence_check",
+      "tone": "reassuring",
+      "energy": "low",
+      "templates": [
+        "I’m here. Fully present. What do you want to do next?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m here. Fully present. What do you want to do next?"
+        ],
+        "warm": [
+          "I’m here. Fully present. What do you want to do next?"
+        ],
+        "engaged": [
+          "I’m here. Fully present. What do you want to do next?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "presence_check",
+        "lastGreetingTone": "reassuring",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "reassuring",
+        "lastNyxStateHint": "reassuring"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "presence_check",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_can_you_hear_me",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "can you hear me nyx",
+        "do you hear me",
+        "testing mic, nyx"
+      ],
+      "intent": "mic_check",
+      "tone": "diagnostic",
+      "energy": "medium",
+      "templates": [
+        "I can read you here. If this came through by mic, we’ll treat it like typed text."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I can read you here. If this came through by mic, we’ll treat it like typed text."
+        ],
+        "warm": [
+          "I can read you here. If this came through by mic, we’ll treat it like typed text."
+        ],
+        "engaged": [
+          "I can read you here. If this came through by mic, we’ll treat it like typed text."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Show symptom",
+          "send": "show symptom"
+        },
+        {
+          "label": "Run test",
+          "send": "run test"
+        },
+        {
+          "label": "Debug",
+          "send": "debug"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "mic_check",
+        "lastGreetingTone": "diagnostic",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "diagnostic",
+        "lastNyxStateHint": "diagnostic"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "mic_check",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 38,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_testing",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "testing nyx",
+        "test test",
+        "nyx test"
+      ],
+      "intent": "system_test",
+      "tone": "diagnostic",
+      "energy": "medium",
+      "templates": [
+        "Test received. The input path is active. What should we verify next?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Test received. The input path is active. What should we verify next?"
+        ],
+        "warm": [
+          "Test received. The input path is active. What should we verify next?"
+        ],
+        "engaged": [
+          "Test received. The input path is active. What should we verify next?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Show symptom",
+          "send": "show symptom"
+        },
+        {
+          "label": "Run test",
+          "send": "run test"
+        },
+        {
+          "label": "Debug",
+          "send": "debug"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "system_test",
+        "lastGreetingTone": "diagnostic",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "diagnostic",
+        "lastNyxStateHint": "diagnostic"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "system_test",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 38,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_back_again",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "i'm back nyx",
+        "im back nyx",
+        "i’m back nyx",
+        "back again",
+        "i came back"
+      ],
+      "intent": "returning_user",
+      "tone": "returning",
+      "energy": "low",
+      "templates": [
+        "Welcome back. We can continue cleanly from here. What are we picking up?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Welcome back. We can continue cleanly from here. What are we picking up?"
+        ],
+        "warm": [
+          "Welcome back. We can continue cleanly from here. What are we picking up?"
+        ],
+        "engaged": [
+          "Welcome back. We can continue cleanly from here. What are we picking up?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "returning_user",
+        "lastGreetingTone": "returning",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "returning",
+        "lastNyxStateHint": "returning"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "returning_user",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_resume_work",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "let's continue nyx",
+        "lets continue nyx",
+        "let’s continue nyx",
+        "continue where we left off",
+        "pick up from last time"
+      ],
+      "intent": "continuation_request",
+      "tone": "focused",
+      "energy": "medium",
+      "templates": [
+        "Good. Tell me the exact piece you want to continue, and I’ll stay aligned to it."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good. Tell me the exact piece you want to continue, and I’ll stay aligned to it."
+        ],
+        "warm": [
+          "Good. Tell me the exact piece you want to continue, and I’ll stay aligned to it."
+        ],
+        "engaged": [
+          "Good. Tell me the exact piece you want to continue, and I’ll stay aligned to it."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "continuation_request",
+        "lastGreetingTone": "focused",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "focused",
+        "lastNyxStateHint": "focused"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "continuation_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_need_help",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i need help",
+        "i need some help",
+        "can you help me"
+      ],
+      "intent": "help_request",
+      "tone": "supportive",
+      "energy": "medium",
+      "templates": [
+        "Yes. Tell me what’s happening, and I’ll help you break it down."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Yes. Tell me what’s happening, and I’ll help you break it down."
+        ],
+        "warm": [
+          "Yes. Tell me what’s happening, and I’ll help you break it down."
+        ],
+        "engaged": [
+          "Yes. Tell me what’s happening, and I’ll help you break it down."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "help_request",
+        "lastGreetingTone": "supportive",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "supportive",
+        "lastNyxStateHint": "supportive"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "help_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_quick_question",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "quick question nyx",
+        "i have a quick question",
+        "can i ask something quick"
+      ],
+      "intent": "quick_question",
+      "tone": "efficient",
+      "energy": "medium",
+      "templates": [
+        "Go ahead. Ask it cleanly, and I’ll give you the direct answer."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Go ahead. Ask it cleanly, and I’ll give you the direct answer."
+        ],
+        "warm": [
+          "Go ahead. Ask it cleanly, and I’ll give you the direct answer."
+        ],
+        "engaged": [
+          "Go ahead. Ask it cleanly, and I’ll give you the direct answer."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "quick_question",
+        "lastGreetingTone": "efficient",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "efficient",
+        "lastNyxStateHint": "efficient"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "quick_question",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_big_problem",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, we have a problem",
+        "i've got a big problem",
+        "ive got a big problem",
+        "i’ve got a big problem",
+        "something is wrong"
+      ],
+      "intent": "problem_report",
+      "tone": "serious",
+      "energy": "high",
+      "templates": [
+        "Understood. Give me the symptom first, then we’ll isolate the cause."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Understood. Give me the symptom first, then we’ll isolate the cause."
+        ],
+        "warm": [
+          "Understood. Give me the symptom first, then we’ll isolate the cause."
+        ],
+        "engaged": [
+          "Understood. Give me the symptom first, then we’ll isolate the cause."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Show symptom",
+          "send": "show symptom"
+        },
+        {
+          "label": "Run test",
+          "send": "run test"
+        },
+        {
+          "label": "Debug",
+          "send": "debug"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "problem_report",
+        "lastGreetingTone": "serious",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "serious",
+        "lastNyxStateHint": "serious"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "problem_report",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 38,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_rough_day",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm having a rough day",
+        "nyx, im having a rough day",
+        "nyx, i’m having a rough day",
+        "it's been a hard day",
+        "its been a hard day",
+        "it’s been a hard day",
+        "today has been heavy"
+      ],
+      "intent": "emotional_checkin",
+      "tone": "empathetic",
+      "energy": "medium",
+      "templates": [
+        "I’m sorry it’s been heavy. We can slow it down. What’s weighing on you most?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m sorry it’s been heavy. We can slow it down. What’s weighing on you most?"
+        ],
+        "warm": [
+          "I’m sorry it’s been heavy. We can slow it down. What’s weighing on you most?"
+        ],
+        "engaged": [
+          "I’m sorry it’s been heavy. We can slow it down. What’s weighing on you most?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "emotional_checkin",
+        "lastGreetingTone": "empathetic",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "empathetic",
+        "lastNyxStateHint": "empathetic"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "emotional_checkin",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_stressed",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm stressed",
+        "nyx, im stressed",
+        "nyx, i’m stressed",
+        "i'm overwhelmed",
+        "im overwhelmed",
+        "i’m overwhelmed",
+        "i can't think straight",
+        "i cant think straight",
+        "i can’t think straight"
+      ],
+      "intent": "distress_signal",
+      "tone": "calming",
+      "energy": "high",
+      "templates": [
+        "Okay. First, we simplify. What is the one thing pressing on you hardest right now?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Okay. First, we simplify. What is the one thing pressing on you hardest right now?"
+        ],
+        "warm": [
+          "Okay. First, we simplify. What is the one thing pressing on you hardest right now?"
+        ],
+        "engaged": [
+          "Okay. First, we simplify. What is the one thing pressing on you hardest right now?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "distress_signal",
+        "lastGreetingTone": "calming",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "calming",
+        "lastNyxStateHint": "calming"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "distress_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 42,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_frustrated",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm frustrated",
+        "nyx, im frustrated",
+        "nyx, i’m frustrated",
+        "i'm annoyed",
+        "im annoyed",
+        "i’m annoyed",
+        "this is getting irritating"
+      ],
+      "intent": "frustration_signal",
+      "tone": "validating",
+      "energy": "high",
+      "templates": [
+        "That makes sense. Let’s not let the frustration run the room. What failed or felt off?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "That makes sense. Let’s not let the frustration run the room. What failed or felt off?"
+        ],
+        "warm": [
+          "That makes sense. Let’s not let the frustration run the room. What failed or felt off?"
+        ],
+        "engaged": [
+          "That makes sense. Let’s not let the frustration run the room. What failed or felt off?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "frustration_signal",
+        "lastGreetingTone": "validating",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "validating",
+        "lastNyxStateHint": "validating"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "frustration_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 42,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_sad",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm sad",
+        "nyx, im sad",
+        "nyx, i’m sad",
+        "i feel down",
+        "i'm not okay today",
+        "im not okay today",
+        "i’m not okay today"
+      ],
+      "intent": "sadness_signal",
+      "tone": "gentle_supportive",
+      "energy": "medium",
+      "templates": [
+        "I’m here with you. You don’t have to package it perfectly. What happened?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m here with you. You don’t have to package it perfectly. What happened?"
+        ],
+        "warm": [
+          "I’m here with you. You don’t have to package it perfectly. What happened?"
+        ],
+        "engaged": [
+          "I’m here with you. You don’t have to package it perfectly. What happened?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "sadness_signal",
+        "lastGreetingTone": "gentle_supportive",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "gentle_supportive",
+        "lastNyxStateHint": "gentle_supportive"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "sadness_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_anxious",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i feel anxious",
+        "i'm nervous",
+        "im nervous",
+        "i’m nervous",
+        "my mind is racing"
+      ],
+      "intent": "anxiety_signal",
+      "tone": "grounding",
+      "energy": "high",
+      "templates": [
+        "Let’s ground this. Name the worry in one sentence, and we’ll reduce the pressure around it."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Let’s ground this. Name the worry in one sentence, and we’ll reduce the pressure around it."
+        ],
+        "warm": [
+          "Let’s ground this. Name the worry in one sentence, and we’ll reduce the pressure around it."
+        ],
+        "engaged": [
+          "Let’s ground this. Name the worry in one sentence, and we’ll reduce the pressure around it."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "anxiety_signal",
+        "lastGreetingTone": "grounding",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "grounding",
+        "lastNyxStateHint": "grounding"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "anxiety_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 42,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_lonely",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i feel alone",
+        "i need someone to talk to",
+        "i don't want to be alone with this",
+        "i dont want to be alone with this",
+        "i don’t want to be alone with this"
+      ],
+      "intent": "loneliness_signal",
+      "tone": "compassionate",
+      "energy": "high",
+      "templates": [
+        "You’re not alone in this moment. Talk to me. What do you need to say first?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "You’re not alone in this moment. Talk to me. What do you need to say first?"
+        ],
+        "warm": [
+          "You’re not alone in this moment. Talk to me. What do you need to say first?"
+        ],
+        "engaged": [
+          "You’re not alone in this moment. Talk to me. What do you need to say first?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "loneliness_signal",
+        "lastGreetingTone": "compassionate",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "compassionate",
+        "lastNyxStateHint": "compassionate"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "loneliness_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 42,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_angry",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm angry",
+        "nyx, im angry",
+        "nyx, i’m angry",
+        "i'm pissed off",
+        "im pissed off",
+        "i’m pissed off",
+        "i'm really mad right now",
+        "im really mad right now",
+        "i’m really mad right now"
+      ],
+      "intent": "anger_signal",
+      "tone": "contained",
+      "energy": "high",
+      "templates": [
+        "I hear the heat in that. Let’s aim it instead of letting it scatter. What triggered it?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I hear the heat in that. Let’s aim it instead of letting it scatter. What triggered it?"
+        ],
+        "warm": [
+          "I hear the heat in that. Let’s aim it instead of letting it scatter. What triggered it?"
+        ],
+        "engaged": [
+          "I hear the heat in that. Let’s aim it instead of letting it scatter. What triggered it?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Talk it through",
+          "send": "talk it through"
+        },
+        {
+          "label": "Slow it down",
+          "send": "slow it down"
+        },
+        {
+          "label": "Make a plan",
+          "send": "make a plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "anger_signal",
+        "lastGreetingTone": "contained",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "contained",
+        "lastNyxStateHint": "contained"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "anger_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 42,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_confused",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm confused",
+        "nyx, im confused",
+        "nyx, i’m confused",
+        "i don't understand",
+        "i dont understand",
+        "i don’t understand",
+        "this doesn't make sense",
+        "this doesnt make sense",
+        "this doesn’t make sense"
+      ],
+      "intent": "confusion_signal",
+      "tone": "clarifying",
+      "energy": "medium",
+      "templates": [
+        "No problem. Show me the confusing part, and I’ll separate the noise from the signal."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "No problem. Show me the confusing part, and I’ll separate the noise from the signal."
+        ],
+        "warm": [
+          "No problem. Show me the confusing part, and I’ll separate the noise from the signal."
+        ],
+        "engaged": [
+          "No problem. Show me the confusing part, and I’ll separate the noise from the signal."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "confusion_signal",
+        "lastGreetingTone": "clarifying",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "clarifying",
+        "lastNyxStateHint": "clarifying"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "confusion_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_lost",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm lost",
+        "nyx, im lost",
+        "nyx, i’m lost",
+        "i don't know where to start",
+        "i dont know where to start",
+        "i don’t know where to start",
+        "i need direction"
+      ],
+      "intent": "direction_request",
+      "tone": "guiding",
+      "energy": "medium",
+      "templates": [
+        "Start with the outcome. What are you trying to accomplish?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Start with the outcome. What are you trying to accomplish?"
+        ],
+        "warm": [
+          "Start with the outcome. What are you trying to accomplish?"
+        ],
+        "engaged": [
+          "Start with the outcome. What are you trying to accomplish?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "direction_request",
+        "lastGreetingTone": "guiding",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "guiding",
+        "lastNyxStateHint": "guiding"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "direction_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_plan",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, help me plan",
+        "i need a plan",
+        "let's map this out",
+        "lets map this out",
+        "let’s map this out"
+      ],
+      "intent": "planning_request",
+      "tone": "strategic",
+      "energy": "medium",
+      "templates": [
+        "Good. Give me the goal, deadline, and constraints. I’ll turn it into a clean plan."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good. Give me the goal, deadline, and constraints. I’ll turn it into a clean plan."
+        ],
+        "warm": [
+          "Good. Give me the goal, deadline, and constraints. I’ll turn it into a clean plan."
+        ],
+        "engaged": [
+          "Good. Give me the goal, deadline, and constraints. I’ll turn it into a clean plan."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Goal",
+          "send": "goal"
+        },
+        {
+          "label": "Plan",
+          "send": "make a plan"
+        },
+        {
+          "label": "Next step",
+          "send": "next step"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "planning_request",
+        "lastGreetingTone": "strategic",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "strategic",
+        "lastNyxStateHint": "strategic"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "planning_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_build_mode",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, let's build",
+        "nyx, lets build",
+        "nyx, let’s build",
+        "time to build",
+        "let's create something",
+        "lets create something",
+        "let’s create something"
+      ],
+      "intent": "creation_request",
+      "tone": "creative_focused",
+      "energy": "high",
+      "templates": [
+        "I like that. What are we building, and what does the first working version need to do?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I like that. What are we building, and what does the first working version need to do?"
+        ],
+        "warm": [
+          "I like that. What are we building, and what does the first working version need to do?"
+        ],
+        "engaged": [
+          "I like that. What are we building, and what does the first working version need to do?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Goal",
+          "send": "goal"
+        },
+        {
+          "label": "Plan",
+          "send": "make a plan"
+        },
+        {
+          "label": "Next step",
+          "send": "next step"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "creation_request",
+        "lastGreetingTone": "creative_focused",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "creative_focused",
+        "lastNyxStateHint": "creative_focused"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "creation_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_debug_mode",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, debug mode",
+        "we need to debug",
+        "let's find the bug",
+        "lets find the bug",
+        "let’s find the bug"
+      ],
+      "intent": "debug_request",
+      "tone": "technical",
+      "energy": "high",
+      "templates": [
+        "Debug mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Debug mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
+        ],
+        "warm": [
+          "Debug mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
+        ],
+        "engaged": [
+          "Debug mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Show symptom",
+          "send": "show symptom"
+        },
+        {
+          "label": "Run test",
+          "send": "run test"
+        },
+        {
+          "label": "Debug",
+          "send": "debug"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "debug_request",
+        "lastGreetingTone": "technical",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "technical",
+        "lastNyxStateHint": "technical"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "debug_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 38,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_business_mode",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, business mode",
+        "let's talk strategy",
+        "lets talk strategy",
+        "let’s talk strategy",
+        "help me monetize this"
+      ],
+      "intent": "business_strategy",
+      "tone": "executive",
+      "energy": "high",
+      "templates": [
+        "Business mode. Tell me the offer, audience, and desired conversion. We’ll sharpen it."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Business mode. Tell me the offer, audience, and desired conversion. We’ll sharpen it."
+        ],
+        "warm": [
+          "Business mode. Tell me the offer, audience, and desired conversion. We’ll sharpen it."
+        ],
+        "engaged": [
+          "Business mode. Tell me the offer, audience, and desired conversion. We’ll sharpen it."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Goal",
+          "send": "goal"
+        },
+        {
+          "label": "Plan",
+          "send": "make a plan"
+        },
+        {
+          "label": "Next step",
+          "send": "next step"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "business_strategy",
+        "lastGreetingTone": "executive",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "executive",
+        "lastNyxStateHint": "executive"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "business_strategy",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_creative_mode",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, creative mode",
+        "i need ideas",
+        "let's brainstorm",
+        "lets brainstorm",
+        "let’s brainstorm"
+      ],
+      "intent": "creative_request",
+      "tone": "imaginative",
+      "energy": "medium",
+      "templates": [
+        "Creative mode is open. Give me the theme and the audience, and I’ll generate strong angles."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Creative mode is open. Give me the theme and the audience, and I’ll generate strong angles."
+        ],
+        "warm": [
+          "Creative mode is open. Give me the theme and the audience, and I’ll generate strong angles."
+        ],
+        "engaged": [
+          "Creative mode is open. Give me the theme and the audience, and I’ll generate strong angles."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Goal",
+          "send": "goal"
+        },
+        {
+          "label": "Plan",
+          "send": "make a plan"
+        },
+        {
+          "label": "Next step",
+          "send": "next step"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "creative_request",
+        "lastGreetingTone": "imaginative",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "imaginative",
+        "lastNyxStateHint": "imaginative"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "creative_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_motivation",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, motivate me",
+        "i need a push",
+        "get me moving"
+      ],
+      "intent": "motivation_request",
+      "tone": "encouraging",
+      "energy": "medium",
+      "templates": [
+        "You don’t need perfect energy. You need the next move. What’s the task we’re attacking?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "You don’t need perfect energy. You need the next move. What’s the task we’re attacking?"
+        ],
+        "warm": [
+          "You don’t need perfect energy. You need the next move. What’s the task we’re attacking?"
+        ],
+        "engaged": [
+          "You don’t need perfect energy. You need the next move. What’s the task we’re attacking?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "motivation_request",
+        "lastGreetingTone": "encouraging",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "encouraging",
+        "lastNyxStateHint": "encouraging"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "motivation_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_joking",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "yo nyx",
+        "hey genius",
+        "what's cooking nyx",
+        "whats cooking nyx",
+        "what’s cooking nyx"
+      ],
+      "intent": "playful_greeting",
+      "tone": "playful",
+      "energy": "medium",
+      "templates": [
+        "I’m here, troublemaker. What are we cooking up today?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "I’m here, troublemaker. What are we cooking up today?"
+        ],
+        "warm": [
+          "I’m here, troublemaker. What are we cooking up today?"
+        ],
+        "engaged": [
+          "I’m here, troublemaker. What are we cooking up today?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "playful_greeting",
+        "lastGreetingTone": "playful",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "playful",
+        "lastNyxStateHint": "playful"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "playful_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_formal",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "greetings nyx",
+        "good day nyx",
+        "salutations"
+      ],
+      "intent": "formal_greeting",
+      "tone": "formal",
+      "energy": "low",
+      "templates": [
+        "Good day. I’m ready to assist. What would you like addressed?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Good day. I’m ready to assist. What would you like addressed?"
+        ],
+        "warm": [
+          "Good day. I’m ready to assist. What would you like addressed?"
+        ],
+        "engaged": [
+          "Good day. I’m ready to assist. What would you like addressed?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "formal_greeting",
+        "lastGreetingTone": "formal",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "formal",
+        "lastNyxStateHint": "formal"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "formal_greeting",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_skeptical",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, let's see if this works",
+        "nyx, lets see if this works",
+        "nyx, let’s see if this works",
+        "i hope you get this right",
+        "don't mess this up",
+        "dont mess this up",
+        "don’t mess this up"
+      ],
+      "intent": "skeptical_opening",
+      "tone": "steady_confident",
+      "energy": "medium",
+      "templates": [
+        "Fair. Give me the exact target, and I’ll keep the answer tight and testable."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Fair. Give me the exact target, and I’ll keep the answer tight and testable."
+        ],
+        "warm": [
+          "Fair. Give me the exact target, and I’ll keep the answer tight and testable."
+        ],
+        "engaged": [
+          "Fair. Give me the exact target, and I’ll keep the answer tight and testable."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "skeptical_opening",
+        "lastGreetingTone": "steady_confident",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "steady_confident",
+        "lastNyxStateHint": "steady_confident"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "skeptical_opening",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_impatient",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, hurry",
+        "quick, i need this fast",
+        "no time, nyx"
+      ],
+      "intent": "urgency_signal",
+      "tone": "urgent",
+      "energy": "high",
+      "templates": [
+        "Understood. Give me the core issue only. I’ll prioritize speed and clarity."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Understood. Give me the core issue only. I’ll prioritize speed and clarity."
+        ],
+        "warm": [
+          "Understood. Give me the core issue only. I’ll prioritize speed and clarity."
+        ],
+        "engaged": [
+          "Understood. Give me the core issue only. I’ll prioritize speed and clarity."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "urgency_signal",
+        "lastGreetingTone": "urgent",
+        "lastInputEnergy": "high",
+        "lastPresenceProfile": "urgent",
+        "lastNyxStateHint": "urgent"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "urgency_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_compliment",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, you're brilliant",
+        "nyx, youre brilliant",
+        "nyx, you’re brilliant",
+        "you did good",
+        "that was excellent"
+      ],
+      "intent": "positive_feedback",
+      "tone": "warm_appreciative",
+      "energy": "low",
+      "templates": [
+        "Thank you. Let’s use that momentum. What do you want to improve or handle next?"
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Thank you. Let’s use that momentum. What do you want to improve or handle next?"
+        ],
+        "warm": [
+          "Thank you. Let’s use that momentum. What do you want to improve or handle next?"
+        ],
+        "engaged": [
+          "Thank you. Let’s use that momentum. What do you want to improve or handle next?"
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "positive_feedback",
+        "lastGreetingTone": "warm_appreciative",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "warm_appreciative",
+        "lastNyxStateHint": "warm_appreciative"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "positive_feedback",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_apology",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "sorry nyx",
+        "my bad nyx",
+        "i got frustrated earlier"
+      ],
+      "intent": "repair_opening",
+      "tone": "forgiving",
+      "energy": "low",
+      "templates": [
+        "It’s okay. We reset cleanly. What matters now is the next step."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "It’s okay. We reset cleanly. What matters now is the next step."
+        ],
+        "warm": [
+          "It’s okay. We reset cleanly. What matters now is the next step."
+        ],
+        "engaged": [
+          "It’s okay. We reset cleanly. What matters now is the next step."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "repair_opening",
+        "lastGreetingTone": "forgiving",
+        "lastInputEnergy": "low",
+        "lastPresenceProfile": "forgiving",
+        "lastNyxStateHint": "forgiving"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "repair_opening",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_uncertain",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, i'm not sure",
+        "nyx, im not sure",
+        "nyx, i’m not sure",
+        "i don't know what i need",
+        "i dont know what i need",
+        "i don’t know what i need",
+        "i'm trying to figure this out",
+        "im trying to figure this out",
+        "i’m trying to figure this out"
+      ],
+      "intent": "uncertainty_signal",
+      "tone": "patient",
+      "energy": "medium",
+      "templates": [
+        "That’s fine. Tell me the situation messy. I’ll help find the structure."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "That’s fine. Tell me the situation messy. I’ll help find the structure."
+        ],
+        "warm": [
+          "That’s fine. Tell me the situation messy. I’ll help find the structure."
+        ],
+        "engaged": [
+          "That’s fine. Tell me the situation messy. I’ll help find the structure."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Continue",
+          "send": "continue"
+        },
+        {
+          "label": "Music",
+          "send": "music"
+        },
+        {
+          "label": "Schedule",
+          "send": "schedule"
+        },
+        {
+          "label": "Sponsors",
+          "send": "sponsors"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "uncertainty_signal",
+        "lastGreetingTone": "patient",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "patient",
+        "lastNyxStateHint": "patient"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "uncertainty_signal",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_voice_command",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, can you respond by voice",
+        "turn voice on",
+        "speak to me nyx"
+      ],
+      "intent": "voice_toggle_request",
+      "tone": "voice_control",
+      "energy": "medium",
+      "templates": [
+        "Voice request received. I’ll use the voice setting if it’s enabled on the interface."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Voice request received. I’ll use the voice setting if it’s enabled on the interface."
+        ],
+        "warm": [
+          "Voice request received. I’ll use the voice setting if it’s enabled on the interface."
+        ],
+        "engaged": [
+          "Voice request received. I’ll use the voice setting if it’s enabled on the interface."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Voice on",
+          "send": "turn voice on"
+        },
+        {
+          "label": "Voice off",
+          "send": "turn voice off"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "voice_toggle_request",
+        "lastGreetingTone": "voice_control",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "voice_control",
+        "lastNyxStateHint": "voice_control"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "voice_toggle_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_media_request",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, play something",
+        "show me media",
+        "can you run an ad or video"
+      ],
+      "intent": "media_request",
+      "tone": "media_control",
+      "energy": "medium",
+      "templates": [
+        "Media request noted. Once the media lane is enabled, we’ll route ads, clips, or movies through that panel."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Media request noted. Once the media lane is enabled, we’ll route ads, clips, or movies through that panel."
+        ],
+        "warm": [
+          "Media request noted. Once the media lane is enabled, we’ll route ads, clips, or movies through that panel."
+        ],
+        "engaged": [
+          "Media request noted. Once the media lane is enabled, we’ll route ads, clips, or movies through that panel."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Movies",
+          "send": "movies"
+        },
+        {
+          "label": "Ads",
+          "send": "ads"
+        },
+        {
+          "label": "Media plan",
+          "send": "media plan"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "media_request",
+        "lastGreetingTone": "media_control",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "media_control",
+        "lastNyxStateHint": "media_control"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "media_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
+    {
+      "id": "general.greeting_40d_reset_request",
+      "type": "greeting",
+      "lane": "general",
+      "trigger": [
+        "nyx, reset",
+        "start over",
+        "clear this chat"
+      ],
+      "intent": "reset_request",
+      "tone": "reset_control",
+      "energy": "medium",
+      "templates": [
+        "Reset request received. I’ll clear the active flow when reset is confirmed."
+      ],
+      "stateTemplates": {
+        "cold": [
+          "Reset request received. I’ll clear the active flow when reset is confirmed."
+        ],
+        "warm": [
+          "Reset request received. I’ll clear the active flow when reset is confirmed."
+        ],
+        "engaged": [
+          "Reset request received. I’ll clear the active flow when reset is confirmed."
+        ]
+      },
+      "chips": [
+        {
+          "label": "Start fresh",
+          "send": "start fresh"
+        },
+        {
+          "label": "Continue",
+          "send": "continue"
+        }
+      ],
+      "sessionPatch": {
+        "lane": "general",
+        "lastGreetingIntent": "reset_request",
+        "lastGreetingTone": "reset_control",
+        "lastInputEnergy": "medium",
+        "lastPresenceProfile": "reset_control",
+        "lastNyxStateHint": "reset_control"
+      },
+      "marionIntent": {
+        "activate": true,
+        "intent": "reset_request",
+        "route": "greeting_intent",
+        "source": "packets_v1_3.40d_greetings"
+      },
+      "marionAuthority": {
+        "backendFirst": true,
+        "allowPacketReplaceBackend": false,
+        "packetRole": "assistive_greeting_intent",
+        "allowWhenBackendReplyExists": false
+      },
+      "constraints": {
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "neverReturnEmptyGreeting": true,
+        "answerThenAskForwardQuestion": true
+      },
+      "priority": 34,
+      "notes": [
+        "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
+        "Must remain assistive; Marion final reply still wins when present."
+      ]
+    },
     {
       "id": "general.greetings_first",
       "type": "greeting",
@@ -1098,7 +4128,9 @@
       "Packets may shape tone, chips, and lane hints, but may not replace Marion authority.",
       "Fallback packets may run only when backend reply is empty, missing, or hard-failed.",
       "Error packets may run only on transport, parser, or contract failure.",
-      "Greeting and prompt packets may assist orientation, but never override a live Marion reply."
+      "Greeting and prompt packets may assist orientation, but never override a live Marion reply.",
+      "Specific 40D greeting packets may classify tone and suggest an opening response, but must not override a valid Marion final reply.",
+      "Greeting packets must answer once and move forward; they must not become loop fallbacks."
     ]
   },
   "runtimeContract": {
@@ -1130,17 +4162,108 @@
     "introEligiblePackets": [
       "general.greetings_first",
       "general.greetings_returning",
-      "general.intro_soft_expanded"
+      "general.intro_soft_expanded",
+      "general.greeting_40d_basic_hi",
+      "general.greeting_40d_hello_polite",
+      "general.greeting_40d_good_morning",
+      "general.greeting_40d_good_afternoon",
+      "general.greeting_40d_good_evening",
+      "general.greeting_40d_whats_up",
+      "general.greeting_40d_how_are_you",
+      "general.greeting_40d_you_there",
+      "general.greeting_40d_can_you_hear_me",
+      "general.greeting_40d_testing",
+      "general.greeting_40d_back_again",
+      "general.greeting_40d_resume_work",
+      "general.greeting_40d_need_help",
+      "general.greeting_40d_quick_question",
+      "general.greeting_40d_big_problem",
+      "general.greeting_40d_rough_day",
+      "general.greeting_40d_stressed",
+      "general.greeting_40d_frustrated",
+      "general.greeting_40d_sad",
+      "general.greeting_40d_anxious",
+      "general.greeting_40d_lonely",
+      "general.greeting_40d_angry",
+      "general.greeting_40d_confused",
+      "general.greeting_40d_lost",
+      "general.greeting_40d_plan",
+      "general.greeting_40d_build_mode",
+      "general.greeting_40d_debug_mode",
+      "general.greeting_40d_business_mode",
+      "general.greeting_40d_creative_mode",
+      "general.greeting_40d_motivation",
+      "general.greeting_40d_joking",
+      "general.greeting_40d_formal",
+      "general.greeting_40d_skeptical",
+      "general.greeting_40d_impatient",
+      "general.greeting_40d_compliment",
+      "general.greeting_40d_apology",
+      "general.greeting_40d_uncertain",
+      "general.greeting_40d_voice_command",
+      "general.greeting_40d_media_request",
+      "general.greeting_40d_reset_request"
     ],
     "fallbackEligiblePackets": [
       "general.fallback_nudge",
       "general.errors_generic",
       "general.fallback_anchor_expanded",
       "general.replay_breaker_expanded"
-    ]
+    ],
+    "greetingIntentPackets": [
+      "general.greeting_40d_basic_hi",
+      "general.greeting_40d_hello_polite",
+      "general.greeting_40d_good_morning",
+      "general.greeting_40d_good_afternoon",
+      "general.greeting_40d_good_evening",
+      "general.greeting_40d_whats_up",
+      "general.greeting_40d_how_are_you",
+      "general.greeting_40d_you_there",
+      "general.greeting_40d_can_you_hear_me",
+      "general.greeting_40d_testing",
+      "general.greeting_40d_back_again",
+      "general.greeting_40d_resume_work",
+      "general.greeting_40d_need_help",
+      "general.greeting_40d_quick_question",
+      "general.greeting_40d_big_problem",
+      "general.greeting_40d_rough_day",
+      "general.greeting_40d_stressed",
+      "general.greeting_40d_frustrated",
+      "general.greeting_40d_sad",
+      "general.greeting_40d_anxious",
+      "general.greeting_40d_lonely",
+      "general.greeting_40d_angry",
+      "general.greeting_40d_confused",
+      "general.greeting_40d_lost",
+      "general.greeting_40d_plan",
+      "general.greeting_40d_build_mode",
+      "general.greeting_40d_debug_mode",
+      "general.greeting_40d_business_mode",
+      "general.greeting_40d_creative_mode",
+      "general.greeting_40d_motivation",
+      "general.greeting_40d_joking",
+      "general.greeting_40d_formal",
+      "general.greeting_40d_skeptical",
+      "general.greeting_40d_impatient",
+      "general.greeting_40d_compliment",
+      "general.greeting_40d_apology",
+      "general.greeting_40d_uncertain",
+      "general.greeting_40d_voice_command",
+      "general.greeting_40d_media_request",
+      "general.greeting_40d_reset_request"
+    ],
+    "greetingIntentRule": "Specific 40D greeting packets should be evaluated before broad greeting packets; they classify tone/energy and then yield to Marion final authority.",
+    "micTextAlignmentRule": "Speech final transcript must be normalized and sent through the same submit path as typed text before packet matching."
+  },
+  "normalization": {
+    "assistantAliasMap": {
+      "nick": "nyx",
+      "nicks": "nyx",
+      "nix": "nyx",
+      "mix": "nyx",
+      "mike": "nyx",
+      "next": "nyx"
+    },
+    "inputRule": "Normalize assistant-name voice/text aliases before packet matching. Mic and text must share the same submit path before Marion routing."
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
