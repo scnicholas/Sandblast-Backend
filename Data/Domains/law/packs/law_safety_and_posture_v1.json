@@ -313,5 +313,22 @@
       "law_torts_v1"
     ],
     "sourceIntegrity": "moderate"
+  },
+  "runtimePath": "Data/Domains/law/packs/law_safety_and_posture_v1.json",
+  "runtimeDomainKey": "law",
+  "safetyBoundary": "general_legal_information_only_not_legal_advice",
+  "retrievalIndex": {
+    "aliases": [
+      "law_safety_and_posture_v1",
+      "law",
+      "policy"
+    ],
+    "source": "batch2_hardening_v1_1"
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
 }
