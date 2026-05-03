@@ -215,6 +215,7 @@
   "aliases": [
     "canadian_eap_case_studies",
     "eng_eap_canada_case_studies_v1",
+    "eng_eap_canada_case_studies_v1.json",
     "eng_eap_canada_case_studies_v2"
   ],
   "pathwayHints": {
@@ -254,9 +255,66 @@
       "filename_version_mismatch"
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  },
+  "runtimeDomainKey": "english",
+  "runtimePath": "Data/Domains/english/packs/eng_eap_canada_case_studies_v1.json",
+  "retrievalIndex": {
+    "domain": "english",
+    "packId": "eng_eap_canada_case_studies_v2",
+    "runtimePath": "Data/Domains/english/packs/eng_eap_canada_case_studies_v1.json",
+    "keywords": [
+      "canadian",
+      "eap",
+      "case",
+      "studies",
+      "higher-education",
+      "english-for-academic-purposes",
+      "workflows",
+      "interventions",
+      "evidence",
+      "collection",
+      "and",
+      "applied",
+      "language-support",
+      "design",
+      "eng",
+      "canada",
+      "s_eap_canada_survey",
+      "s_eap_action_research",
+      "s_uoft_writingadvice"
+    ],
+    "routeAliases": [
+      "canadian_eap_case_studies",
+      "eng_eap_canada_case_studies_v1",
+      "eng_eap_canada_case_studies_v1.json",
+      "eng_eap_canada_case_studies_v2"
+    ],
+    "sourceCoverage": {
+      "anchorCount": 3,
+      "referenceCount": 4,
+      "anchorsResolved": true,
+      "missingAnchorKeys": []
+    }
+  },
+  "safetyBoundary": {
+    "type": "language_education_and_revision_support",
+    "preserveUserMeaning": true,
+    "avoidOverCorrection": true,
+    "avoidFabricatingSources": true,
+    "copyrightSafe": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryAdded": true,
+    "issuesAddressed": [
+      "git_conflict_markers_removed",
+      "unresolved_git_conflict_markers_removed"
+    ],
+    "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
