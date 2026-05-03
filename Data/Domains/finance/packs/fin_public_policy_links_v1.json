@@ -7,7 +7,10 @@
     "type": "policy_finance_bridge",
     "analytical": true,
     "non_partisan": true,
-    "not_legal_or_investment_advice": true
+    "not_legal_or_investment_advice": true,
+    "not_personal_financial_advice": true,
+    "educationalOnly": true,
+    "assumptionDisclosureRequired": true
   },
   "corePrinciple": "Public policy shapes incentives. Incentives shape capital flows. Capital flows shape economic outcomes.",
   "policyCategories": [
@@ -595,9 +598,95 @@
     ],
     "marionPriority": 7,
     "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  },
+  "runtimeDomainKey": "finance",
+  "runtimePath": "Data/Domains/finance/packs/fin_public_policy_links_v1.json",
+  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "retrievalIndex": {
+    "domain": "finance",
+    "packId": "fin_public_policy_links_v1",
+    "runtimePath": "Data/Domains/finance/packs/fin_public_policy_links_v1.json",
+    "aliases": [
+      "policy",
+      "public policy",
+      "monetary policy",
+      "fiscal policy",
+      "regulatory policy",
+      "fin_public_policy_links_v1",
+      "fin public policy links v1"
+    ],
+    "preferredQueryTerms": [
+      "fin_public_policy_links_v1",
+      "finance",
+      "policy_finance_bridge",
+      "Which policy lever most directly affects your cost of capital?",
+      "Is your revenue demand-sensitive to fiscal stimulus or contraction?",
+      "How exposed is your supply chain to trade shifts?",
+      "What regulatory change could structurally alter your margin profile?",
+      "How resilient is your balance sheet under tighter credit?",
+      "mapping_interest_rate_policy_to_saas_valuation",
+      "analyzing_trade_policy_impact_on_import_retailer",
+      "assessing_tax_policy_shift_on_cashflow",
+      "evaluating_regulatory_change_on_fintech_margin",
+      "building_policy_risk_scenario_for_board_review",
+      "Corporate Finance Institute — Capital Markets Overview",
+      "open_learning",
+      "OpenStax Principles of Economics 3e",
+      "open_textbook",
+      "Open Textbook Library finance/economics catalog",
+      "open_textbook_index",
+      "CFA Institute Research Foundation publications",
+      "professional_research",
+      "Bank of Canada monetary policy and interest rates",
+      "central_bank",
+      "Statistics Canada economic indicators",
+      "official_statistics",
+      "U.S. Federal Reserve FRED economic data",
+      "official_data_platform",
+      "IMF Finance & Development",
+      "institutional_magazine",
+      "World Bank Data and research explainers",
+      "multilateral_data",
+      "OECD economic outlook and policy materials",
+      "multilateral_policy_research",
+      "Financial Times markets and markets data",
+      "business_press_plus_market_data",
+      "Wall Street Journal Markets",
+      "business_press",
+      "The Economist finance and economics coverage",
+      "business_magazine",
+      "Bloomberg Markets concepts and explainers",
+      "financial_media",
+      "SEC EDGAR",
+      "regulatory_filings",
+      "SEDAR+",
+      "TMX and major exchange education/data pages",
+      "exchange_reference",
+      "financial_statement_reading",
+      "markets_news_interpretation",
+      "case_method_finance",
+      "assistant_finance_language_control",
+      "rate_hikes_hit_small_business",
+      "tariff_input_shock",
+      "tax_credit_growth_plan",
+      "policy_transmission_mapper",
+      "software_project",
+      "board_policy_risk_pack",
+      "analysis_module"
+    ],
+    "crossPackHints": [
+      "fin_macro_principles_v1",
+      "fin_risk_management_v1"
+    ],
+    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryExplicit": true,
+    "validatedForMarionRegistry": true
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
