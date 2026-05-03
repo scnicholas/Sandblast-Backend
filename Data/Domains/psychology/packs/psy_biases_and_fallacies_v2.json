@@ -572,9 +572,92 @@
       "Escalate to safety-first handling when risk signals are present.",
       "Use source index for trust weighting and bibliographic routing."
     ]
+  },
+  "runtimeDomainKey": "psychology",
+  "runtimePath": "Data/Domains/psychology/packs/psy_biases_and_fallacies_v2.json",
+  "manifestPackKey": "psyBiasesAndFallacies",
+  "safetyBoundary": {
+    "stance": "educational_nonclinical_support_only",
+    "noDiagnosis": true,
+    "noTherapyOrMedicalDirective": true,
+    "crisisEscalationRequired": true,
+    "minimizeSensitivePersonalData": true
+  },
+  "retrievalIndex": {
+    "domain": "psychology",
+    "packId": "psy_biases_and_fallacies_v2",
+    "aliases": [],
+    "keywords": [
+      "decision-making",
+      "critical-thinking",
+      "business",
+      "self-reflection",
+      "debate",
+      "strategy",
+      "only seeing what I want",
+      "echo chamber",
+      "biased research",
+      "am I being biased",
+      "why do I ignore criticism",
+      "it feels common",
+      "everyone is doing it",
+      "news makes it seem",
+      "why does this feel bigger than it is",
+      "first number",
+      "initial offer",
+      "price expectation",
+      "did that first number affect me",
+      "already invested",
+      "too much time spent",
+      "can’t quit now",
+      "should I let this go",
+      "overconfident",
+      "I know enough",
+      "they don’t see their flaws",
+      "why are beginners so confident",
+      "fear of losing",
+      "risk avoidance",
+      "can’t afford to fail",
+      "why am I so afraid of small losses",
+      "psy_biases_and_fallacies_v1",
+      "psy_biases_and_fallacies_v2"
+    ],
+    "primaryFields": [
+      "packId",
+      "domain",
+      "version",
+      "description",
+      "updatedAt",
+      "scope",
+      "biases",
+      "reasoningFallacies",
+      "applicationRules",
+      "meta",
+      "academicLevel",
+      "referencePolicy",
+      "sourceArchitecture",
+      "assistantApplication",
+      "doctoralModules",
+      "doctoralExamScaffolds",
+      "advancedDomains",
+      "caseStudies",
+      "projects",
+      "assessmentFamilies",
+      "textReferenceMap",
+      "runtimeMetadata",
+      "crossPackLinks",
+      "marionPathway",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary"
+    ]
+  },
+  "normalizationStatus": {
+    "status": "hardened_for_marion_registry_compose_ingestion",
+    "conflictMarkersRemoved": true,
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
