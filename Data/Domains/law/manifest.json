@@ -1,141 +1,25 @@
 {
   "domain": "law",
-  "normalizedAt": "2026-04-08",
-  "jurisdiction": "Canada",
-  "defaultLoadOrder": [
-    "law_safety_and_posture_v1.json",
-    "law_foundations_v1.json",
-    "law_research_methods_v1.json",
-    "law_constitutional_charter_v1.json",
-    "law_contracts_v1.json",
-    "law_torts_v1.json",
-    "law_criminal_v1.json",
-    "law_source_ladder_v1.json",
-    "law_contracts_sources_index_v1.json"
-  ],
-  "runtimeNotes": [
-    "Load safety_and_posture first as refusal/gating spine.",
-    "Load foundations and research_methods early for jurisdiction and source routing.",
-    "Contracts/source ladder files carry internal v2 lineage and need alias compatibility.",
-    "Keep educational-only and non-advice posture explicit across the domain."
-  ],
-  "packs": [
-    {
-      "file": "law_safety_and_posture_v1.json",
-      "packId": "law_safety_and_posture_v1",
-      "packType": "policy",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "law_safety_and_posture",
-        "law_safety_and_posture_v1",
-        "safety_and_posture_v1"
-      ]
-    },
-    {
-      "file": "law_foundations_v1.json",
-      "packId": "law_foundations_v1",
-      "packType": "framework",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "foundations_v1",
-        "law_foundations",
-        "law_foundations_v1"
-      ]
-    },
-    {
-      "file": "law_research_methods_v1.json",
-      "packId": "law_research_methods_v1",
-      "packType": "methods",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "law_research_methods",
-        "law_research_methods_v1",
-        "research_methods_v1"
-      ]
-    },
-    {
-      "file": "law_constitutional_charter_v1.json",
-      "packId": "law_constitutional_charter_v1",
-      "packType": "framework",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "constitutional_charter_v1",
-        "law_constitutional_charter",
-        "law_constitutional_charter_v1"
-      ]
-    },
-    {
-      "file": "law_contracts_v1.json",
-      "packId": "law_contracts_v2",
-      "packType": "curriculum_and_retrieval",
-      "version": "2.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "contracts_v2",
-        "law_contracts",
-        "law_contracts_v2"
-      ],
-      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
-    },
-    {
-      "file": "law_torts_v1.json",
-      "packId": "law_torts_v1",
-      "packType": "theories",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "law_torts",
-        "law_torts_v1",
-        "torts_v1"
-      ]
-    },
-    {
-      "file": "law_criminal_v1.json",
-      "packId": "law_criminal_v1",
-      "packType": "framework",
-      "version": "1.0.0",
-      "jurisdiction": "CA",
-      "aliases": [
-        "criminal_v1",
-        "law_criminal",
-        "law_criminal_v1"
-      ]
-    },
-    {
-      "file": "law_source_ladder_v1.json",
-      "packId": "law_source_ladder_v2",
-      "packType": "sources",
-      "version": "2.0.0",
-      "jurisdiction": "Canada",
-      "aliases": [
-        "law_source_ladder",
-        "law_source_ladder_v2",
-        "source_ladder_v2"
-      ],
-      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
-    },
-    {
-      "file": "law_contracts_sources_index_v1.json",
-      "packId": "law_contracts_sources_index_v2",
-      "packType": "sources",
-      "version": "2.0.0",
-      "jurisdiction": "Canada",
-      "aliases": [
-        "contracts_sources_index_v2",
-        "law_contracts_sources_index",
-        "law_contracts_sources_index_v2"
-      ],
-      "compatibilityAliasReason": "file uses v1 filename while packId carries v2 internal lineage; preserved for loader compatibility"
-    }
-  ],
-  "schemaVersion": "1.0-normalized",
+  "schemaVersion": "1.1.0-hardened",
+  "manifestVersion": "1.1.0-hardened",
+  "updatedAt": "2026-05-02",
+  "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "law",
-  "runtimeFolder": "Data/law",
-  "manifestPath": "domains/law/manifest.json",
+  "runtimeFolder": "Data/Domains/law",
+  "manifestPath": "Data/Domains/law/manifest.json",
+  "defaultLoadOrder": [
+    "packs/law_safety_and_posture_v1.json",
+    "packs/law_foundations_v1.json",
+    "packs/law_research_methods_v1.json",
+    "packs/law_constitutional_charter_v1.json",
+    "packs/law_contracts_v1.json",
+    "packs/law_torts_v1.json",
+    "packs/law_criminal_v1.json",
+    "packs/law_source_ladder_v1.json",
+    "packs/law_contracts_sources_index_v1.json",
+    "examples/law_dialogue_snippets_v1.json",
+    "examples/law_face_examples_v1.json"
+  ],
   "routing": {
     "primaryLane": "law",
     "secondaryLanes": [
@@ -145,11 +29,12 @@
       "strategy",
       "english"
     ],
-    "safetyFirst": true,
-    "jurisdictionRequired": true,
     "keywords": [
       "law",
       "legal",
+      "legal information",
+      "legal advice",
+      "canadian law",
       "contract",
       "tort",
       "criminal",
@@ -157,8 +42,10 @@
       "constitutional",
       "case law",
       "statute",
-      "jurisdiction"
-    ]
+      "jurisdiction",
+      "source ladder"
+    ],
+    "safetyFirst": true
   },
   "constraints": {
     "noLegalAdvice": true,
@@ -166,10 +53,147 @@
     "jurisdictionDisclosureRequired": true,
     "sourceLadderRequired": true
   },
-  "normalizationStatus": {
+  "packs": [
+    {
+      "packId": "safetyPosture",
+      "file": "packs/law_safety_and_posture_v1.json",
+      "aliases": [
+        "safety",
+        "posture",
+        "non_advice"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "foundations",
+      "file": "packs/law_foundations_v1.json",
+      "aliases": [
+        "foundations",
+        "legal_system",
+        "canada"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "researchMethods",
+      "file": "packs/law_research_methods_v1.json",
+      "aliases": [
+        "research",
+        "methods",
+        "source_use"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "constitutionalCharter",
+      "file": "packs/law_constitutional_charter_v1.json",
+      "aliases": [
+        "constitutional",
+        "charter"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "contracts",
+      "file": "packs/law_contracts_v1.json",
+      "aliases": [
+        "contracts",
+        "agreement",
+        "obligations"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "torts",
+      "file": "packs/law_torts_v1.json",
+      "aliases": [
+        "torts",
+        "civil_liability"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "criminal",
+      "file": "packs/law_criminal_v1.json",
+      "aliases": [
+        "criminal",
+        "offences"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "sourceLadder",
+      "file": "packs/law_source_ladder_v1.json",
+      "aliases": [
+        "sources",
+        "ladder",
+        "authority"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "contractsSourcesIndex",
+      "file": "packs/law_contracts_sources_index_v1.json",
+      "aliases": [
+        "contracts",
+        "sources",
+        "index"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    }
+  ],
+  "examples": [
+    {
+      "exampleId": "dialogue",
+      "file": "examples/law_dialogue_snippets_v1.json",
+      "aliases": [
+        "dialogue",
+        "snippets"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "faces",
+      "file": "examples/law_face_examples_v1.json",
+      "aliases": [
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
+  ],
+  "integrity": {
     "jsonValid": true,
-    "conflictMarkersRemoved": 1,
-    "legalGateExplicit": true,
-    "jurisdictionExplicit": true
-  }
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
+  },
+  "notes": [
+    "Compatibility aliases retained for packs whose internal lineage may be v2 while actual filenames remain v1."
+  ],
+  "jurisdiction": "Canada"
 }
