@@ -404,24 +404,98 @@
     }
   },
   "qualityAudit": {
-    "status": "needs_source_attachment",
+    "status": "hardened_runtime_valid_pending_source_attachment",
     "strengths": [
       "Valid JSON and coherent top-level object structure.",
-      "Strong doctrinal coverage and better source stack than the other packs."
+      "Strong doctrinal coverage and better source stack than the other packs.",
+      "Runtime path and registry-consumption metadata are now explicit."
     ],
     "issues": [
-      "Manifest pack version for ethicsLaw is 1.0.0 while file version is 1.1.0.",
-      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file.",
+      "Direct source URLs/DOIs/ISBNs are still pending where not already present; no source identifiers were fabricated."
     ],
     "recommendedActions": [
       "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
       "Keep manifest and pack versions synchronized.",
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
+    ],
+    "criticalFixesApplied": [
+      "Removed unresolved Git conflict markers.",
+      "Confirmed valid JSON parse after hardening.",
+      "Added canonical runtimeDomainKey/runtimeFolder/runtimePath metadata.",
+      "Added retrievalIndex for registry and Compose consumption.",
+      "Added explicit safetyBoundary aligned to layer risk."
     ]
+  },
+  "canonicalDomain": "ai",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "runtimePath": "Data/Domains/ai/packs/ai_ethics_law_v1.json",
+  "packFileName": "ai_ethics_law_v1.json",
+  "safetyBoundary": "educational_ai_law_policy_not_legal_advice",
+  "retrievalIndex": {
+    "domain": "ai",
+    "layer": "ethics_law",
+    "manifestPackKey": "ethicsLaw",
+    "routeAliases": [
+      "ethics",
+      "law",
+      "governance",
+      "policy",
+      "compliance"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ai_psychology",
+      "ai_marketing",
+      "ai_cybersecurity",
+      "case_studies"
+    ],
+    "primaryTerms": [
+      "algorithmic_bias_and_discrimination",
+      "explainability_and_due_process",
+      "accountability_and_liability",
+      "data_governance_and_information_fiduciaries",
+      "ai_regulation_and_administrative_governance",
+      "privacy_surveillance_and_biometric_governance",
+      "alignment_safety_and_human_oversight",
+      "intellectual_property_and_authorship",
+      "patent_inventorship_and_ai_assisted_innovation",
+      "copyright_training_and_output_questions",
+      "trade_secret_and_model_confidentiality",
+      "consumer_protection_and_deceptive_ai_claims",
+      "platform_governance_and_content_moderation",
+      "employment_law_and_automated_decision_systems",
+      "health_law_and_clinical_ai_governance",
+      "financial_regulation_and_algorithmic_decision_systems",
+      "criminal_justice_and_risk_assessment_tools",
+      "torts_product_liability_and_negligence",
+      "civil_rights_and_equal_protection_issues",
+      "international_and_comparative_ai_governance",
+      "risk_assessment",
+      "regulatory_compliance",
+      "harm_mitigation",
+      "ethical_agent_design",
+      "litigation_issue_spotting",
+      "contracting_and_procurement_review",
+      "product_counsel_analysis",
+      "policy_and_governance_design",
+      "human_rights_assessment",
+      "professional_responsibility_and_safe_deployment"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 3,
+    "runtimePathAligned": true,
+    "registryCompatible": true,
+    "composeConsumable": true,
+    "sourceAttachmentPending": true,
+    "hardenedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
