@@ -548,9 +548,21 @@
       "Escalate to safety-first handling when risk signals are present.",
       "Use source index for trust weighting and bibliographic routing."
     ]
+  },
+  "runtimePath": "Data/Domains/psychology/packs/psy_clinical_safety_v2.json",
+  "runtimeDomainKey": "psychology",
+  "safetyBoundary": "educational_support_only_no_diagnosis_or_therapy",
+  "retrievalIndex": {
+    "aliases": [
+      "psy_clinical_safety_v2",
+      "psychology"
+    ],
+    "source": "batch2_hardening_v1_1"
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
