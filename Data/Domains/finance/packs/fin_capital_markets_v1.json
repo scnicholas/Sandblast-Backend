@@ -6,7 +6,10 @@
   "posture": {
     "type": "educational_decision_support",
     "adviceBoundary": "not_legal_or_investment_advice",
-    "requireAssumptions": true
+    "requireAssumptions": true,
+    "not_personal_financial_advice": true,
+    "educationalOnly": true,
+    "assumptionDisclosureRequired": true
   },
   "principles": [
     "Capital always has a cost explicit or implicit.",
@@ -584,9 +587,98 @@
     ],
     "marionPriority": 5,
     "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  },
+  "runtimeDomainKey": "finance",
+  "runtimePath": "Data/Domains/finance/packs/fin_capital_markets_v1.json",
+  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "retrievalIndex": {
+    "domain": "finance",
+    "packId": "fin_capital_markets_v1",
+    "runtimePath": "Data/Domains/finance/packs/fin_capital_markets_v1.json",
+    "aliases": [
+      "capital markets",
+      "debt",
+      "equity",
+      "runway",
+      "cost of capital",
+      "fin_capital_markets_v1",
+      "fin capital markets v1"
+    ],
+    "preferredQueryTerms": [
+      "fin_capital_markets_v1",
+      "finance",
+      "educational_decision_support",
+      "debt_service_exceeds_30_percent_operating_cashflow",
+      "single_investor_dominance",
+      "bridge_financing_dependency",
+      "runway_below_six_months",
+      "duration_mismatch_between_assets_and_funding",
+      "do_not_provide_specific_legal_structuring_advice",
+      "encourage_professional_consultation_for_securities_and_tax",
+      "avoid_deterministic_valuation_predictions",
+      "clarify_assumptions_before_modeling",
+      "separate_need_capital_from_want_capital",
+      "growth_without_margin",
+      "stable_cashflow_low_growth",
+      "founder_control_priority",
+      "operational_gap_capital",
+      "Corporate Finance Institute — Capital Markets Overview",
+      "open_learning",
+      "OpenStax Principles of Economics 3e",
+      "open_textbook",
+      "Open Textbook Library finance/economics catalog",
+      "open_textbook_index",
+      "CFA Institute Research Foundation publications",
+      "professional_research",
+      "Bank of Canada monetary policy and interest rates",
+      "central_bank",
+      "Statistics Canada economic indicators",
+      "official_statistics",
+      "U.S. Federal Reserve FRED economic data",
+      "official_data_platform",
+      "IMF Finance & Development",
+      "institutional_magazine",
+      "World Bank Data and research explainers",
+      "multilateral_data",
+      "OECD economic outlook and policy materials",
+      "multilateral_policy_research",
+      "Financial Times markets and markets data",
+      "business_press_plus_market_data",
+      "Wall Street Journal Markets",
+      "business_press",
+      "The Economist finance and economics coverage",
+      "business_magazine",
+      "Bloomberg Markets concepts and explainers",
+      "financial_media",
+      "SEC EDGAR",
+      "regulatory_filings",
+      "SEDAR+",
+      "TMX and major exchange education/data pages",
+      "exchange_reference",
+      "financial_statement_reading",
+      "markets_news_interpretation",
+      "case_method_finance",
+      "assistant_finance_language_control",
+      "dilutive_growth_round",
+      "rate_shock_refinancing",
+      "public_listing_window",
+      "cap_table_simulator",
+      "software_project",
+      "capital_stack_visualizer"
+    ],
+    "crossPackHints": [
+      "fin_macro_principles_v1",
+      "fin_risk_management_v1"
+    ],
+    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryExplicit": true,
+    "validatedForMarionRegistry": true
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
