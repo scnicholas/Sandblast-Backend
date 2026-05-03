@@ -166,8 +166,9 @@
     "preservedStructuralIntegrity": true
   },
   "aliases": [
-    "eng_semantics_pragmatics_v1",
+    "eng_semantics_pragmatics_v1.json",
     "eng_semantics_pragmatics_v2",
+    "eng_semantics_pragmatics_v1",
     "semantics_and_pragmatics"
   ],
   "pathwayHints": {
@@ -209,9 +210,66 @@
       "filename_version_mismatch"
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  },
+  "runtimeDomainKey": "english",
+  "runtimePath": "Data/Domains/english/packs/eng_semantics_pragmatics_v1.json",
+  "retrievalIndex": {
+    "domain": "english",
+    "packId": "eng_semantics_pragmatics_v2",
+    "runtimePath": "Data/Domains/english/packs/eng_semantics_pragmatics_v1.json",
+    "keywords": [
+      "semantics",
+      "and",
+      "pragmatics",
+      "encoded",
+      "meaning",
+      "contextual",
+      "inference",
+      "stance",
+      "politeness",
+      "ambiguity",
+      "discourse",
+      "interpretation",
+      "eng",
+      "implicature",
+      "relations",
+      "semantic",
+      "s_ncte_qagrammar",
+      "s_uoft_writingadvice",
+      "s_williams_style"
+    ],
+    "routeAliases": [
+      "eng_semantics_pragmatics_v1.json",
+      "eng_semantics_pragmatics_v2",
+      "eng_semantics_pragmatics_v1",
+      "semantics_and_pragmatics"
+    ],
+    "sourceCoverage": {
+      "anchorCount": 3,
+      "referenceCount": 3,
+      "anchorsResolved": true,
+      "missingAnchorKeys": []
+    }
+  },
+  "safetyBoundary": {
+    "type": "language_education_and_revision_support",
+    "preserveUserMeaning": true,
+    "avoidOverCorrection": true,
+    "avoidFabricatingSources": true,
+    "copyrightSafe": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryAdded": true,
+    "issuesAddressed": [
+      "git_conflict_markers_removed",
+      "unresolved_git_conflict_markers_removed"
+    ],
+    "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
