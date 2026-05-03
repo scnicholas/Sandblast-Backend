@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41";
+const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -1172,6 +1172,19 @@ const stateSpineMod = tryRequireMany([
   "./Utils/stateSpine.js"
 ]);
 
+const nyxPackRuntimeAdapterMod = tryRequireMany([
+  "./Data/marion/runtime/nyx_pack_runtime_adapter",
+  "./Data/marion/runtime/nyx_pack_runtime_adapter.js",
+  "./nyx_pack_runtime_adapter",
+  "./nyx_pack_runtime_adapter.js",
+  "./runtime/nyx_pack_runtime_adapter",
+  "./runtime/nyx_pack_runtime_adapter.js",
+  "./utils/nyx_pack_runtime_adapter",
+  "./utils/nyx_pack_runtime_adapter.js",
+  "./Utils/nyx_pack_runtime_adapter",
+  "./Utils/nyx_pack_runtime_adapter.js"
+]);
+
 // PHASE-3 ACTIVE-FLOW DISABLE:
 // SiteBridge / psycheBridge must not participate in the live Marion response path.
 // Keep this null so diagnostics remain safe and no duplicate bridge layer can re-enter.
@@ -1185,6 +1198,278 @@ const s2sMod = tryRequireMany([
   "./Utils/s2s",
   "./Utils/s2s.js"
 ]);
+
+
+
+let nyxPacketPackCache = null;
+let nyxPacketPackCacheAt = 0;
+
+function candidateNyxPacketPackFiles() {
+  return uniq([
+    path.join(__dirname, "Data", "marion", "runtime", "packets_v1_3.json"),
+    path.join(__dirname, "Data", "marion", "runtime", "packets.json"),
+    path.join(__dirname, "Data", "marion", "conversational_packs", "packets_v1_3.json"),
+    path.join(__dirname, "Data", "marion", "conversational_packs", "packets.json"),
+    path.join(__dirname, "Data", "marion", "packs", "packets_v1_3.json"),
+    path.join(__dirname, "Data", "marion", "packs", "packets.json"),
+    path.join(__dirname, "packets_v1_3.json"),
+    path.join(__dirname, "packets.json")
+  ]);
+}
+
+function looksLikeNyxPacketPack(value) {
+  const pack = isObj(value) ? value : {};
+  const packets = Array.isArray(pack.packets) ? pack.packets : [];
+  if (!packets.length) return false;
+  return packets.some((packet) => {
+    const id = cleanText(packet && packet.id || "");
+    const type = cleanText(packet && packet.type || "");
+    return /^general\.greetings_first$/i.test(id) ||
+      /^greeting\.40d\./i.test(id) ||
+      /greeting/i.test(type);
+  });
+}
+
+function findNyxPacketPackFile() {
+  for (const file of candidateNyxPacketPackFiles()) {
+    try {
+      if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (looksLikeNyxPacketPack(parsed)) return file;
+    } catch (_) {}
+  }
+
+  const root = path.join(__dirname, "Data", "marion");
+  const stack = [root];
+  let checked = 0;
+  while (stack.length && checked < 360) {
+    const dir = stack.pop();
+    try {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (!/node_modules|\.git/i.test(entry.name)) stack.push(full);
+          continue;
+        }
+        if (!entry.isFile() || !/\.json$/i.test(entry.name)) continue;
+        if (!/(packet|phrase|conversation|greet|pack)/i.test(entry.name)) continue;
+        checked += 1;
+        try {
+          const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
+          if (looksLikeNyxPacketPack(parsed)) return full;
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  return "";
+}
+
+function getNyxPacketPack() {
+  const ttlMs = 15000;
+  if (nyxPacketPackCache && (now() - nyxPacketPackCacheAt < ttlMs)) return nyxPacketPackCache;
+  const file = findNyxPacketPackFile();
+  if (!file) {
+    nyxPacketPackCache = { ok: false, packets: [], meta: { source: "missing", searched: candidateNyxPacketPackFiles().map((p) => path.relative(__dirname, p)) } };
+    nyxPacketPackCacheAt = now();
+    return nyxPacketPackCache;
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    nyxPacketPackCache = {
+      ...(isObj(parsed) ? parsed : {}),
+      ok: true,
+      __file: file,
+      __relativeFile: path.relative(__dirname, file)
+    };
+    nyxPacketPackCacheAt = now();
+    return nyxPacketPackCache;
+  } catch (err) {
+    nyxPacketPackCache = { ok: false, packets: [], meta: { source: "parse_failed", file: path.relative(__dirname, file), error: cleanText(err && (err.message || err)) } };
+    nyxPacketPackCacheAt = now();
+    return nyxPacketPackCache;
+  }
+}
+
+function packetBridgeInputSource(norm) {
+  const body = isObj(norm && norm.body) ? norm.body : {};
+  const payload = isObj(norm && norm.payload) ? norm.payload : {};
+  return cleanText(
+    norm && norm.inputSource ||
+    body.inputSource ||
+    payload.inputSource ||
+    body.source ||
+    payload.source ||
+    "text"
+  ).toLowerCase() || "text";
+}
+
+function resolveNyxPacketBridge(norm, selected, marion, priorTurn) {
+  if (!nyxPackRuntimeAdapterMod || typeof nyxPackRuntimeAdapterMod.resolveNyxPacket !== "function") {
+    return { ok: false, source: "adapter_unavailable", packet: null, chips: [] };
+  }
+  const pack = getNyxPacketPack();
+  if (!looksLikeNyxPacketPack(pack)) {
+    return { ok: false, source: "pack_unavailable", packet: null, chips: [], packFile: cleanText(pack && pack.__relativeFile || "") };
+  }
+  const source = packetBridgeInputSource(norm);
+  const session = {
+    ...(isObj(priorTurn) ? priorTurn : {}),
+    ...(isObj(norm && norm.body && norm.body.session) ? norm.body.session : {}),
+    lane: cleanText(norm && norm.lane || "general") || "general",
+    inputSource: source,
+    source
+  };
+  const ctx = {
+    text: cleanText(norm && norm.text || ""),
+    message: cleanText(norm && norm.text || ""),
+    userText: cleanText(norm && norm.text || ""),
+    lane: cleanText(norm && norm.lane || "general") || "general",
+    intent: "greeting",
+    source,
+    inputSource: source,
+    session,
+    backendPayload: isObj(selected) ? selected : (isObj(marion) ? marion : {}),
+    freshMarionFinal: hasFreshMarionFinalEnvelope(selected || marion || {}),
+    backendFailed: false,
+    replayDetected: false,
+    seed: replyHash(`${cleanText(norm && norm.text || "")}:${cleanText(norm && norm.turnId || "")}`)
+  };
+  try {
+    const bridge = nyxPackRuntimeAdapterMod.resolveNyxPacket(pack, ctx);
+    return {
+      ...(isObj(bridge) ? bridge : {}),
+      ok: true,
+      packFile: cleanText(pack.__relativeFile || ""),
+      inputSource: source
+    };
+  } catch (err) {
+    console.log("[Sandblast][packetBridge:error]", { traceId: cleanText(norm && norm.traceId || ""), error: cleanText(err && (err.stack || err.message || err)) });
+    return { ok: false, source: "packet_bridge_error", packet: null, chips: [], error: cleanText(err && (err.message || err)) };
+  }
+}
+
+function mergePatchObject(base, patch) {
+  return {
+    ...(isObj(base) ? base : {}),
+    ...(isObj(patch) ? patch : {})
+  };
+}
+
+function extractGreetingBridgeFields(packetBridge, norm) {
+  const bridge = isObj(packetBridge) ? packetBridge : {};
+  const sessionPatch = isObj(bridge.sessionPatch) ? bridge.sessionPatch : {};
+  const memoryPatch = isObj(bridge.memoryPatch) ? bridge.memoryPatch : {};
+  const memoryGreeting = isObj(memoryPatch.greeting) ? memoryPatch.greeting : {};
+  const directGreeting = isObj(bridge.greeting) ? bridge.greeting : {};
+  const id = cleanText(directGreeting.id || bridge.matchedPacketId || bridge.packetId || bridge.packet || sessionPatch.lastGreetingId || memoryGreeting.lastId || "");
+  const intent = cleanText(directGreeting.intent || bridge.intent || sessionPatch.lastGreetingIntent || memoryGreeting.lastIntent || "");
+  const tone = cleanText(directGreeting.tone || bridge.tone || sessionPatch.lastGreetingTone || memoryGreeting.lastTone || "");
+  const energy = cleanText(directGreeting.energy || bridge.energy || sessionPatch.lastInputEnergy || memoryGreeting.lastEnergy || "");
+  const source = cleanText(directGreeting.inputSource || directGreeting.source || bridge.inputSource || sessionPatch.lastGreetingSource || packetBridgeInputSource(norm));
+  const presenceProfile = cleanText(directGreeting.presenceProfile || bridge.presenceProfile || sessionPatch.presenceProfile || memoryGreeting.lastPresenceProfile || "");
+  if (!(id || intent || tone || energy || presenceProfile)) return { active: false };
+  return {
+    active: true,
+    id,
+    intent,
+    tone,
+    energy,
+    source,
+    inputSource: source,
+    presenceProfile
+  };
+}
+
+function applyPacketBridgeToSelected(selected, packetBridge, norm) {
+  if (!isObj(selected) || !isObj(packetBridge) || packetBridge.ok === false) return selected;
+  const greeting = extractGreetingBridgeFields(packetBridge, norm);
+  const hasGreeting = !!greeting.active;
+  const sessionPatch = mergePatchObject(selected.sessionPatch, packetBridge.sessionPatch);
+  const memoryPatch = mergePatchObject(selected.memoryPatch, packetBridge.memoryPatch);
+  if (hasGreeting) {
+    sessionPatch.greeting = mergePatchObject(sessionPatch.greeting, greeting);
+    memoryPatch.greeting = mergePatchObject(memoryPatch.greeting, {
+      active: true,
+      lastId: greeting.id,
+      lastIntent: greeting.intent,
+      lastTone: greeting.tone,
+      lastEnergy: greeting.energy,
+      lastSource: greeting.inputSource,
+      lastPresenceProfile: greeting.presenceProfile,
+      updatedAt: now()
+    });
+    if (greeting.intent) sessionPatch.lastGreetingIntent = greeting.intent;
+    if (greeting.tone) sessionPatch.lastGreetingTone = greeting.tone;
+    if (greeting.energy) sessionPatch.lastInputEnergy = greeting.energy;
+    if (greeting.inputSource) sessionPatch.lastGreetingSource = greeting.inputSource;
+    if (greeting.presenceProfile) {
+      sessionPatch.presenceProfile = greeting.presenceProfile;
+      sessionPatch.nyxStateHint = greeting.presenceProfile;
+    }
+  }
+
+  const matchedPacketId = cleanText(packetBridge.matchedPacketId || packetBridge.packetId || packetBridge.packet || greeting.id || "");
+  const matchedPacketType = cleanText(packetBridge.matchedPacketType || packetBridge.packetType || (hasGreeting ? "greeting" : "") || "");
+  const presenceProfile = cleanText(packetBridge.presenceProfile || greeting.presenceProfile || sessionPatch.presenceProfile || "");
+  const nyxStateHint = cleanText(packetBridge.nyxStateHint || presenceProfile || sessionPatch.nyxStateHint || "");
+
+  const payload = {
+    ...(isObj(selected.payload) ? selected.payload : {}),
+    matchedPacketId: matchedPacketId || undefined,
+    matchedPacketType: matchedPacketType || undefined,
+    packetId: matchedPacketId || undefined,
+    greeting: hasGreeting ? greeting : undefined,
+    sessionPatch,
+    memoryPatch,
+    presenceProfile: presenceProfile || undefined,
+    nyxStateHint: nyxStateHint || undefined,
+    packetBridge: {
+      active: !!(matchedPacketId || hasGreeting),
+      source: cleanText(packetBridge.source || "packet_bridge"),
+      packFile: cleanText(packetBridge.packFile || ""),
+      backendFirstPreserved: true
+    }
+  };
+
+  const speech = {
+    ...(isObj(selected.speech) ? selected.speech : {}),
+    presenceProfile: cleanText(selected.speech && selected.speech.presenceProfile || presenceProfile || "") || undefined,
+    nyxStateHint: cleanText(selected.speech && selected.speech.nyxStateHint || nyxStateHint || "") || undefined
+  };
+
+  const ui = {
+    ...(isObj(selected.ui) ? selected.ui : {}),
+    presenceProfile: cleanText(selected.ui && selected.ui.presenceProfile || presenceProfile || "") || undefined,
+    nyxStateHint: cleanText(selected.ui && selected.ui.nyxStateHint || nyxStateHint || "") || undefined
+  };
+
+  return {
+    ...selected,
+    matchedPacketId: matchedPacketId || selected.matchedPacketId,
+    matchedPacketType: matchedPacketType || selected.matchedPacketType,
+    packetId: matchedPacketId || selected.packetId,
+    greeting: hasGreeting ? greeting : selected.greeting,
+    lastGreetingIntent: hasGreeting ? greeting.intent : selected.lastGreetingIntent,
+    lastGreetingTone: hasGreeting ? greeting.tone : selected.lastGreetingTone,
+    lastInputEnergy: hasGreeting ? greeting.energy : selected.lastInputEnergy,
+    presenceProfile: presenceProfile || selected.presenceProfile,
+    nyxStateHint: nyxStateHint || selected.nyxStateHint,
+    sessionPatch,
+    memoryPatch,
+    payload,
+    speech,
+    ui,
+    meta: {
+      ...(isObj(selected.meta) ? selected.meta : {}),
+      packetStateBridgeActive: !!(matchedPacketId || hasGreeting),
+      matchedPacketId: matchedPacketId || undefined,
+      matchedPacketType: matchedPacketType || undefined,
+      packetBridgePackFile: cleanText(packetBridge.packFile || "") || undefined,
+      packetBridgePreservedMarionAuthority: true
+    }
+  };
+}
 
 
 function getMarionEmotionRuntimeHealth() {
@@ -1235,6 +1520,9 @@ function getMarionRuntimeDiagnostics() {
     marionEmotionRuntimeHealth: emotionHealth,
     chatEngineVersion: cleanText(chatEngineMod && chatEngineMod.VERSION || ""),
     stateSpineVersion: cleanText(stateSpineMod && stateSpineMod.SPINE_VERSION || ""),
+    nyxPackRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
+    nyxPackRuntimeAdapterHasResolver: !!(nyxPackRuntimeAdapterMod && typeof nyxPackRuntimeAdapterMod.resolveNyxPacket === "function"),
+    nyxPacketPack: (() => { const pack = getNyxPacketPack(); return { ok: !!(pack && pack.ok !== false && looksLikeNyxPacketPack(pack)), file: cleanText(pack && pack.__relativeFile || ""), count: Array.isArray(pack && pack.packets) ? pack.packets.length : 0 }; })(),
     marionIntentRouterLoaded: !!marionIntentRouterMod,
     marionIntentRouterHasRoute: !!(marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function"),
     marionDomainRegistryLoaded: !!marionDomainRegistryMod,
@@ -3259,6 +3547,13 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
   const packet = isObj(marion && marion.packet) ? marion.packet : {};
   const audio = isObj(shaped && shaped.audio) ? shaped.audio : {};
   const speech = isObj(shaped && shaped.speech) ? shaped.speech : (isObj(shaped && shaped.payload && shaped.payload.speech) ? shaped.payload.speech : {});
+  const sessionPatch = isObj(shaped && shaped.sessionPatch) ? shaped.sessionPatch : {};
+  const memoryPatch = isObj(shaped && shaped.memoryPatch) ? shaped.memoryPatch : {};
+  const greeting = isObj(shaped && shaped.greeting) ? shaped.greeting :
+    (isObj(sessionPatch.greeting) ? sessionPatch.greeting :
+    (isObj(memoryPatch.greeting) ? memoryPatch.greeting :
+    (isObj(shaped && shaped.payload && shaped.payload.greeting) ? shaped.payload.greeting : {})));
+  const inputSource = cleanText(norm && (norm.inputSource || norm.source) || greeting.inputSource || greeting.source || "text").toLowerCase() || "text";
   const turnSignals = {
     emotionSupportMode: cleanText(contract.support_mode || contract.supportMode || continuity.responseMode || ""),
     emotionPrimary: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || ""),
@@ -3274,6 +3569,15 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
     engineContinuityScore: Number(continuity.depthLevel ? Math.min(1, 0.35 + (Number(continuity.depthLevel || 1) * 0.12)) : 0.35),
     enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblast…"),
     engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : [],
+    greetingActive: !!(greeting.active || greeting.intent || sessionPatch.lastGreetingIntent),
+    greetingId: cleanText(greeting.id || sessionPatch.lastGreetingId || memoryPatch.lastGreetingId || ""),
+    greetingIntent: cleanText(greeting.intent || sessionPatch.lastGreetingIntent || memoryPatch.lastGreetingIntent || ""),
+    greetingTone: cleanText(greeting.tone || sessionPatch.lastGreetingTone || memoryPatch.lastGreetingTone || ""),
+    greetingEnergy: cleanText(greeting.energy || sessionPatch.lastInputEnergy || memoryPatch.lastInputEnergy || ""),
+    greetingSource: cleanText(greeting.inputSource || greeting.source || sessionPatch.lastGreetingSource || inputSource),
+    greetingPresenceProfile: cleanText(greeting.presenceProfile || sessionPatch.presenceProfile || sessionPatch.nyxStateHint || ""),
+    inputSource,
+    source: inputSource,
     ttsAction: cleanText(audio.action || ""),
     ttsShouldStop: !!audio.shouldStop,
     ttsRetryable: !!audio.retryable,
@@ -3290,8 +3594,15 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
   return {
     text: norm && norm.text || "",
     lane: cleanText(norm && norm.lane || contract.domain || "general") || "general",
+    source: inputSource,
+    inputSource,
+    greeting,
+    sessionPatch,
+    memoryPatch,
+    matchedPacketId: cleanText(shaped && (shaped.matchedPacketId || shaped.packetId) || ""),
+    matchedPacketType: cleanText(shaped && shaped.matchedPacketType || ""),
     action: cleanText(norm && norm.payload && norm.payload.action || norm && norm.body && norm.body.action || ""),
-    payload: isObj(norm && norm.payload) ? norm.payload : {},
+    payload: isObj(norm && norm.payload) ? { ...norm.payload, greeting, sessionPatch, memoryPatch } : { greeting, sessionPatch, memoryPatch },
     emotion: {
       primaryEmotion: cleanText(contract.emotional_state || continuity.activeEmotion || emotion?.label || "neutral") || "neutral",
       supportFlags: {
@@ -3433,7 +3744,12 @@ function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, 
       composer: marionContract,
       contract: marionContract,
       result: shaped,
-      memoryPatch: isObj(marionContract && marionContract.memoryPatch) ? marionContract.memoryPatch : (isObj(marion && marion.memoryPatch) ? marion.memoryPatch : {}),
+      memoryPatch: {
+        ...(isObj(marionContract && marionContract.memoryPatch) ? marionContract.memoryPatch : {}),
+        ...(isObj(marion && marion.memoryPatch) ? marion.memoryPatch : {}),
+        ...(isObj(shaped && shaped.memoryPatch) ? shaped.memoryPatch : {}),
+        ...(isObj(shaped && shaped.sessionPatch && shaped.sessionPatch.memoryPatch) ? shaped.sessionPatch.memoryPatch : {})
+      },
       marionFinalSignature: cleanText((marion && (marion.marionFinalSignature || marion.signature)) || (marionContract && (marionContract.marionFinalSignature || marionContract.signature)) || ""),
       updateReason: cleanText(decision.rationale || "")
     });
@@ -3470,6 +3786,8 @@ function normalizePayload(req) {
     mode: cleanText(payload.mode || body.mode || ""),
     turnId: cleanText(payload.turnId || body.turnId || req.headers["x-sb-turn-id"] || "") || makeTraceId("turn"),
     traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
+    source: cleanText(body.source || payload.source || body.inputSource || payload.inputSource || req.headers["x-sb-input-source"] || "text").toLowerCase() || "text",
+    inputSource: cleanText(body.inputSource || payload.inputSource || body.source || payload.source || req.headers["x-sb-input-source"] || "text").toLowerCase() || "text",
     client: isObj(body.client) ? body.client : {}
   };
 }
@@ -6389,6 +6707,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     sessionId,
     turnId: norm.turnId,
     payload: norm.payload,
+    source: norm.source,
+    inputSource: norm.inputSource,
     marionIntent: norm.marionIntent,
     routing: norm.marionRouting,
     requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
@@ -6562,6 +6882,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   selected.marionIntent = norm.marionIntent;
   selected.marionRouting = norm.marionRouting;
 
+  const packetBridge = resolveNyxPacketBridge(norm, selected, marion, priorTurn);
+  selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
+
   const speech = buildSpeechContract(selected, norm);
   selected = ensureAudioContractFromSpeech(attachVoiceRoute(selected), speech);
   selected.speech = speech;
@@ -6654,6 +6977,17 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     bridge: selected.bridge || null,
     marionIntent: norm.marionIntent,
     marionRouting: norm.marionRouting,
+    matchedPacketId: selected.matchedPacketId || undefined,
+    matchedPacketType: selected.matchedPacketType || undefined,
+    packetId: selected.packetId || undefined,
+    greeting: selected.greeting || undefined,
+    lastGreetingIntent: selected.lastGreetingIntent || (selected.sessionPatch && selected.sessionPatch.lastGreetingIntent) || undefined,
+    lastGreetingTone: selected.lastGreetingTone || (selected.sessionPatch && selected.sessionPatch.lastGreetingTone) || undefined,
+    lastInputEnergy: selected.lastInputEnergy || (selected.sessionPatch && selected.sessionPatch.lastInputEnergy) || undefined,
+    presenceProfile: selected.presenceProfile || (selected.speech && selected.speech.presenceProfile) || undefined,
+    nyxStateHint: selected.nyxStateHint || (selected.speech && selected.speech.nyxStateHint) || undefined,
+    inputSource: norm.inputSource,
+    source: norm.source,
     ctx: selected.ctx || {},
     ui: selected.ui || {},
     directives: Array.isArray(selected.directives) ? selected.directives : [],
@@ -6661,6 +6995,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     followUpsStrings: Array.isArray(selected.followUpsStrings) ? selected.followUpsStrings : [],
     emotionalTurn: selected.emotionalTurn || undefined,
     sessionPatch: selected.sessionPatch || selected.memoryPatch || {},
+    memoryPatch: selected.memoryPatch || {},
     cog: selected.cog || { intent: (norm.marionIntent && norm.marionIntent.intent) || "simple_chat", mode: "finalized", publicMode: true },
     requestId: selected.requestId,
     traceId: selected.traceId,
@@ -6680,6 +7015,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       requiredFreshSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       latencyMs: now() - startedAt,
       loggingSpine: trace,
+      packetStateBridge: {
+        active: !!(selected.meta && selected.meta.packetStateBridgeActive),
+        matchedPacketId: selected.matchedPacketId || "",
+        matchedPacketType: selected.matchedPacketType || "",
+        packFile: cleanText(selected.meta && selected.meta.packetBridgePackFile || "")
+      },
       audioContract: {
         version: "audio-first-v1",
         endpoint: routeUrl("/api/tts"),
