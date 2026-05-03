@@ -240,5 +240,22 @@
       "which law applies",
       "who has authority"
     ]
+  },
+  "runtimePath": "Data/Domains/law/packs/law_foundations_v1.json",
+  "runtimeDomainKey": "law",
+  "safetyBoundary": "general_legal_information_only_not_legal_advice",
+  "retrievalIndex": {
+    "aliases": [
+      "law_foundations_v1",
+      "law",
+      "framework"
+    ],
+    "source": "batch2_hardening_v1_1"
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
 }
