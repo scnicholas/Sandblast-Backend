@@ -367,24 +367,107 @@
     }
   },
   "qualityAudit": {
-    "status": "needs_source_attachment",
+    "status": "hardened_runtime_valid_pending_source_attachment",
     "strengths": [
       "Valid JSON and coherent top-level object structure.",
-      "Clear bridge into human-centered AI, trust calibration, and conversational design."
+      "Clear bridge into human-centered AI, trust calibration, and conversational design.",
+      "Runtime path and registry-consumption metadata are now explicit."
     ],
     "issues": [
-      "Manifest pack version for aiPsychology is 1.0.0 while file version is 1.1.0.",
-      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file.",
+      "Direct source URLs/DOIs/ISBNs are still pending where not already present; no source identifiers were fabricated."
     ],
     "recommendedActions": [
       "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
       "Keep manifest and pack versions synchronized.",
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
+    ],
+    "criticalFixesApplied": [
+      "Removed unresolved Git conflict markers.",
+      "Confirmed valid JSON parse after hardening.",
+      "Added canonical runtimeDomainKey/runtimeFolder/runtimePath metadata.",
+      "Added retrievalIndex for registry and Compose consumption.",
+      "Added explicit safetyBoundary aligned to layer risk."
     ]
+  },
+  "canonicalDomain": "ai",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "runtimePath": "Data/Domains/ai/packs/ai_ai_psychology_v1.json",
+  "packFileName": "ai_ai_psychology_v1.json",
+  "safetyBoundary": "non_clinical_human_ai_psychology_no_diagnosis",
+  "retrievalIndex": {
+    "domain": "ai",
+    "layer": "ai_psychology",
+    "manifestPackKey": "aiPsychology",
+    "routeAliases": [
+      "psychology",
+      "cognitive_science",
+      "hai",
+      "trust",
+      "behavior"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "ai_marketing",
+      "case_studies"
+    ],
+    "primaryTerms": [
+      "computational_cognitive_modeling",
+      "cognitive_architectures",
+      "human_ai_interaction",
+      "human_ai_collaboration",
+      "trust_in_automation_and_ai",
+      "reliance_calibration_and_overreliance",
+      "behavioral_prediction",
+      "decision_support_and_judgment",
+      "emotion_detection_and_affective_computing",
+      "cognitive_load_modeling",
+      "attention_memory_and_reasoning_models",
+      "bounded_rationality_and_heuristics",
+      "explainability_and_mental_models",
+      "human_in_the_loop_and_human_centered_design",
+      "persuasion_manipulation_and_behavioral_influence",
+      "clinical_and_mental_health_cautions",
+      "educational_and_adaptive_ai",
+      "ethical_psychology_of_ai_use",
+      "measurement_validity_and_psychometrics_for_ai",
+      "social_cognition_and_anthropomorphism_in_ai_systems",
+      "adaptive_interfaces",
+      "educational_ai",
+      "cognitive_assistants",
+      "decision_support_systems",
+      "human_ai_teaming",
+      "clinical_screening_support",
+      "affective_user_modeling",
+      "behavior_change_support_systems",
+      "workplace_ai_augmentation",
+      "safety_critical_human_machine_coordination",
+      "computational_cognitive_models",
+      "bounded_rationality",
+      "human_in_the_loop_design",
+      "computational_psychology",
+      "cognitive_science",
+      "judgment_and_decision_making",
+      "trust_calibration",
+      "human_factors",
+      "affective_computing",
+      "psychometrics_and_measurement"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 3,
+    "runtimePathAligned": true,
+    "registryCompatible": true,
+    "composeConsumable": true,
+    "sourceAttachmentPending": true,
+    "hardenedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
