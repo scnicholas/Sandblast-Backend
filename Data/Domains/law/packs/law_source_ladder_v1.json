@@ -409,5 +409,47 @@
   "retrievalHints": {
     "keywords": [],
     "intentSignals": []
+  },
+  "runtimeDomainKey": "law",
+  "runtimePath": "Data/Domains/law/packs/law_source_ladder_v1.json",
+  "manifestPackKey": "lawSourceLadder",
+  "safetyBoundary": {
+    "stance": "general_legal_information_only_not_legal_advice",
+    "jurisdiction": "Canada",
+    "requiresProvinceForProcedure": true,
+    "noOutcomeGuarantees": true,
+    "professionalReferralForHighStakes": true
+  },
+  "retrievalIndex": {
+    "domain": "law",
+    "packId": "law_source_ladder_v2",
+    "aliases": [],
+    "keywords": [],
+    "primaryFields": [
+      "packId",
+      "domain",
+      "layer",
+      "version",
+      "jurisdiction",
+      "updatedAt",
+      "purpose",
+      "sourceLadder",
+      "contractsFocus",
+      "retrievalRules",
+      "runtime",
+      "packType",
+      "retrievalHints",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary"
+    ]
+  },
+  "normalizationStatus": {
+    "status": "hardened_for_marion_registry_compose_ingestion",
+    "conflictMarkersRemoved": true,
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-05-03"
   }
 }
