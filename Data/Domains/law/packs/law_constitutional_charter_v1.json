@@ -227,5 +227,73 @@
       "is this law constitutional",
       "who has authority"
     ]
+  },
+  "runtimeDomainKey": "law",
+  "runtimePath": "Data/Domains/law/packs/law_constitutional_charter_v1.json",
+  "manifestPackKey": "lawConstitutionalCharter",
+  "safetyBoundary": {
+    "stance": "general_legal_information_only_not_legal_advice",
+    "jurisdiction": "Canada",
+    "requiresProvinceForProcedure": true,
+    "noOutcomeGuarantees": true,
+    "professionalReferralForHighStakes": true
+  },
+  "retrievalIndex": {
+    "domain": "law",
+    "packId": "law_constitutional_charter_v1",
+    "aliases": [],
+    "keywords": [
+      "constitutional supremacy",
+      "section 52",
+      "invalid law",
+      "is this law constitutional",
+      "division of powers",
+      "section 91",
+      "section 92",
+      "federal jurisdiction",
+      "who has authority",
+      "can province do this",
+      "charter rights",
+      "section 2",
+      "section 7",
+      "freedom of expression",
+      "are my rights violated",
+      "section 1",
+      "oakes test",
+      "minimal impairment",
+      "proportionality",
+      "can government limit",
+      "section 24",
+      "remedy",
+      "exclude evidence",
+      "what happens if rights violated",
+      "notwithstanding clause",
+      "section 33",
+      "override",
+      "can government override"
+    ],
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "description",
+      "topics",
+      "meta",
+      "runtime",
+      "packType",
+      "retrievalHints",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary"
+    ]
+  },
+  "normalizationStatus": {
+    "status": "hardened_for_marion_registry_compose_ingestion",
+    "conflictMarkersRemoved": true,
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-05-03"
   }
 }
