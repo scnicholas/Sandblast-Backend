@@ -6,7 +6,9 @@
   "posture": {
     "type": "educational_pricing_framework",
     "applied_reasoning": true,
-    "not_personal_financial_advice": true
+    "not_personal_financial_advice": true,
+    "educationalOnly": true,
+    "assumptionDisclosureRequired": true
   },
   "corePrinciples": [
     "Pricing is a strategy lever, not a math exercise.",
@@ -754,9 +756,97 @@
     ],
     "marionPriority": 4,
     "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice"
+  },
+  "runtimeDomainKey": "finance",
+  "runtimePath": "Data/Domains/finance/packs/fin_pricing_models_v1.json",
+  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "retrievalIndex": {
+    "domain": "finance",
+    "packId": "fin_pricing_models_v1",
+    "runtimePath": "Data/Domains/finance/packs/fin_pricing_models_v1.json",
+    "aliases": [
+      "pricing",
+      "pricing models",
+      "pricing strategy",
+      "segmentation",
+      "fin_pricing_models_v1",
+      "fin pricing models v1"
+    ],
+    "preferredQueryTerms": [
+      "fin_pricing_models_v1",
+      "finance",
+      "educational_pricing_framework",
+      "Pricing is a strategy lever, not a math exercise.",
+      "Value-based pricing dominates cost-plus when differentiation exists.",
+      "Unit economics must work at the margin (contribution margin > 0 at target CAC).",
+      "Good pricing is legible: customers understand what they pay and why.",
+      "Always test: price sensitivity is discovered, not assumed.",
+      "van_westendorp",
+      "conjoint",
+      "ab_price_test",
+      "sales_discovery",
+      "bill_shock_complaints",
+      "high_refund_rates",
+      "high_dispute_or_chargeback_rates",
+      "customers_confused_about_billing",
+      "What value metric best represents delivered value?",
+      "Which segment is the default tier designed for?",
+      "What is the main churn driver and how does pricing interact with it?",
+      "Where can customers get surprised (fees, renewals, overages)?",
+      "Does discounting improve retention or just win low-quality customers?",
+      "Corporate Finance Institute — Capital Markets Overview",
+      "open_learning",
+      "OpenStax Principles of Economics 3e",
+      "open_textbook",
+      "Open Textbook Library finance/economics catalog",
+      "open_textbook_index",
+      "CFA Institute Research Foundation publications",
+      "professional_research",
+      "Bank of Canada monetary policy and interest rates",
+      "central_bank",
+      "Statistics Canada economic indicators",
+      "official_statistics",
+      "U.S. Federal Reserve FRED economic data",
+      "official_data_platform",
+      "IMF Finance & Development",
+      "institutional_magazine",
+      "World Bank Data and research explainers",
+      "multilateral_data",
+      "OECD economic outlook and policy materials",
+      "multilateral_policy_research",
+      "Financial Times markets and markets data",
+      "business_press_plus_market_data",
+      "Wall Street Journal Markets",
+      "business_press",
+      "The Economist finance and economics coverage",
+      "business_magazine",
+      "Bloomberg Markets concepts and explainers",
+      "financial_media",
+      "SEC EDGAR",
+      "regulatory_filings",
+      "SEDAR+",
+      "TMX and major exchange education/data pages",
+      "exchange_reference",
+      "financial_statement_reading",
+      "markets_news_interpretation",
+      "case_method_finance",
+      "assistant_finance_language_control",
+      "freemium_cost_sink",
+      "outcome_fee_dispute"
+    ],
+    "crossPackHints": [
+      "fin_micro_foundations_v1",
+      "fin_unit_economics_v1"
+    ],
+    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryExplicit": true,
+    "validatedForMarionRegistry": true
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
