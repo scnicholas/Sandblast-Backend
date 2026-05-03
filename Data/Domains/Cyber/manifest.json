@@ -1,171 +1,26 @@
 {
-  "domain": "finance",
-  "normalizedOn": "2026-04-08",
-  "defaultLoadOrder": [
-    "fin_micro_foundations_v1",
-    "fin_macro_principles_v1",
-    "fin_unit_economics_v1",
-    "fin_pricing_models_v1",
-    "fin_capital_markets_v1",
-    "fin_risk_management_v1",
-    "fin_public_policy_links_v1",
-    "fin_case_studies_v1",
-    "fin_sources_index_v1"
-  ],
-  "runtimeGate": "scenario_based_reasoning_with_assumption_disclosure",
-  "packs": [
-    {
-      "id": "fin_micro_foundations_v1",
-      "file": "fin_micro_foundations_v1_normalized.json",
-      "aliases": [
-        "micro",
-        "microeconomics",
-        "demand",
-        "elasticity",
-        "market structure"
-      ],
-      "crossPackHints": [
-        "fin_pricing_models_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_macro_principles_v1",
-      "file": "fin_macro_principles_v1_normalized.json",
-      "aliases": [
-        "macro",
-        "macroeconomics",
-        "inflation",
-        "rates",
-        "credit conditions"
-      ],
-      "crossPackHints": [
-        "fin_capital_markets_v1",
-        "fin_public_policy_links_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_unit_economics_v1",
-      "file": "fin_unit_economics_v1_normalized.json",
-      "aliases": [
-        "unit economics",
-        "ltv",
-        "cac",
-        "payback",
-        "retention"
-      ],
-      "crossPackHints": [
-        "fin_pricing_models_v1",
-        "fin_micro_foundations_v1",
-        "fin_capital_markets_v1"
-      ]
-    },
-    {
-      "id": "fin_pricing_models_v1",
-      "file": "fin_pricing_models_v1_normalized.json",
-      "aliases": [
-        "pricing",
-        "pricing models",
-        "pricing strategy",
-        "segmentation"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_capital_markets_v1",
-      "file": "fin_capital_markets_v1_normalized.json",
-      "aliases": [
-        "capital markets",
-        "debt",
-        "equity",
-        "runway",
-        "cost of capital"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_risk_management_v1",
-      "file": "fin_risk_management_v1_normalized.json",
-      "aliases": [
-        "risk",
-        "risk management",
-        "liquidity risk",
-        "stress test"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_capital_markets_v1",
-        "fin_unit_economics_v1"
-      ]
-    },
-    {
-      "id": "fin_public_policy_links_v1",
-      "file": "fin_public_policy_links_v1_normalized.json",
-      "aliases": [
-        "policy",
-        "public policy",
-        "monetary policy",
-        "fiscal policy",
-        "regulatory policy"
-      ],
-      "crossPackHints": [
-        "fin_macro_principles_v1",
-        "fin_risk_management_v1"
-      ]
-    },
-    {
-      "id": "fin_case_studies_v1",
-      "file": "fin_case_studies_v1_normalized.json",
-      "aliases": [
-        "cases",
-        "case studies",
-        "diagnostics",
-        "patterns"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_macro_principles_v1",
-        "fin_unit_economics_v1",
-        "fin_pricing_models_v1",
-        "fin_capital_markets_v1",
-        "fin_risk_management_v1",
-        "fin_public_policy_links_v1"
-      ]
-    },
-    {
-      "id": "fin_sources_index_v1",
-      "file": "fin_sources_index_v1_normalized.json",
-      "aliases": [
-        "sources",
-        "references",
-        "anchors",
-        "official sources"
-      ],
-      "crossPackHints": [
-        "fin_micro_foundations_v1",
-        "fin_macro_principles_v1",
-        "fin_unit_economics_v1",
-        "fin_pricing_models_v1",
-        "fin_capital_markets_v1",
-        "fin_risk_management_v1",
-        "fin_public_policy_links_v1",
-        "fin_case_studies_v1"
-      ]
-    }
-  ],
-<<<<<<< HEAD
   "domain": "cyber",
-  "schemaVersion": "2.1-normalized",
+  "schemaVersion": "2.2.0-hardened",
+  "manifestVersion": "2.2.0-hardened",
+  "updatedAt": "2026-05-02",
+  "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "cyber",
-  "runtimeFolder": "Data/cyber",
-  "manifestPath": "domains/cyber/manifest.json",
+  "runtimeFolder": "Data/Domains/Cyber",
+  "manifestPath": "Data/Domains/Cyber/manifest.json",
+  "defaultLoadOrder": [
+    "packs/cyber_safety_and_posture_v2.json",
+    "packs/cyber_foundations_v2.json",
+    "packs/cyber_source_ladder_v2.json",
+    "packs/cyber_identity_access_v2.json",
+    "packs/cyber_endpoint_cloud_v1.json",
+    "packs/cyber_endpoint_cloud_v2.json",
+    "packs/cyber_network_web_v2.json",
+    "packs/cyber_privacy_data_protection_v2.json",
+    "packs/cyber_incident_response_v2.json",
+    "packs/cyber_security_culture_v2.json",
+    "examples/cyber_face_examples_v1.json",
+    "examples/cyber_safety_and_posture_v1.json"
+  ],
   "routing": {
     "primaryLane": "cyber",
     "secondaryLanes": [
@@ -175,68 +30,190 @@
       "risk",
       "english"
     ],
-    "safetyFirst": true,
-    "defensiveOnly": true
+    "keywords": [
+      "cyber",
+      "cybersecurity",
+      "least privilege",
+      "identity access",
+      "mfa",
+      "threat model",
+      "incident response",
+      "endpoint",
+      "cloud",
+      "network security",
+      "web security",
+      "privacy",
+      "data protection",
+      "defensive security",
+      "hardening"
+    ],
+    "safetyFirst": true
   },
   "constraints": {
     "defensiveCyberOnly": true,
     "noExploitInstructions": true,
     "privacyMinimization": true,
-    "incidentSafetyFirst": true
+    "incidentSafetyFirst": true,
+    "leastPrivilegeDefault": true
   },
-  "defaultLoadOrder": [
-    "cyber_safety_and_posture_v2_normalized.json",
-    "cyber_foundations_v2_normalized.json",
-    "cyber_source_ladder_v2_normalized.json",
-    "cyber_identity_access_v2_normalized.json",
-    "cyber_endpoint_cloud_v2_normalized.json",
-    "cyber_network_web_v2_normalized.json",
-    "cyber_privacy_data_protection_v2_normalized.json",
-    "cyber_incident_response_v2_normalized.json",
-    "cyber_security_culture_v2_normalized.json"
+  "packs": [
+    {
+      "packId": "safetyPosture",
+      "file": "packs/cyber_safety_and_posture_v2.json",
+      "aliases": [
+        "safety",
+        "posture",
+        "defensive_only"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "foundations",
+      "file": "packs/cyber_foundations_v2.json",
+      "aliases": [
+        "foundations",
+        "core_security",
+        "fundamentals"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "sourceLadder",
+      "file": "packs/cyber_source_ladder_v2.json",
+      "aliases": [
+        "sources",
+        "evidence",
+        "trust_ladder"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "identityAccess",
+      "file": "packs/cyber_identity_access_v2.json",
+      "aliases": [
+        "identity",
+        "access",
+        "least_privilege",
+        "mfa",
+        "iam"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "endpointCloudV1",
+      "file": "packs/cyber_endpoint_cloud_v1.json",
+      "aliases": [
+        "endpoint",
+        "cloud",
+        "legacy_compat"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "endpointCloudV2",
+      "file": "packs/cyber_endpoint_cloud_v2.json",
+      "aliases": [
+        "endpoint",
+        "cloud",
+        "modern_posture"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "networkWeb",
+      "file": "packs/cyber_network_web_v2.json",
+      "aliases": [
+        "network",
+        "web",
+        "application_security"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "privacyDataProtection",
+      "file": "packs/cyber_privacy_data_protection_v2.json",
+      "aliases": [
+        "privacy",
+        "data_protection",
+        "minimization"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "incidentResponse",
+      "file": "packs/cyber_incident_response_v2.json",
+      "aliases": [
+        "incident_response",
+        "triage",
+        "containment"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    },
+    {
+      "packId": "securityCulture",
+      "file": "packs/cyber_security_culture_v2.json",
+      "aliases": [
+        "culture",
+        "training",
+        "behavior"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
+    }
   ],
-  "normalizationStatus": {
+  "examples": [
+    {
+      "exampleId": "faces",
+      "file": "examples/cyber_face_examples_v1.json",
+      "aliases": [
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "safetyPostureExamples",
+      "file": "examples/cyber_safety_and_posture_v1.json",
+      "aliases": [
+        "examples",
+        "safe_posture"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
+  ],
+  "integrity": {
     "jsonValid": true,
-    "conflictMarkersRemoved": 0,
-    "domainKeyAdded": true,
-    "defensiveConstraintsExplicit": true
-=======
-  "schemaVersion": "1.0-normalized",
-  "runtimeDomainKey": "finance",
-  "runtimeFolder": "Data/finance",
-  "manifestPath": "domains/finance/manifest.json",
-  "routing": {
-    "primaryLane": "finance",
-    "secondaryLanes": [
-      "law",
-      "strategy",
-      "ai",
-      "english"
-    ],
-    "safetyFirst": true,
-    "keywords": [
-      "finance",
-      "pricing",
-      "capital markets",
-      "risk",
-      "runway",
-      "unit economics",
-      "macro",
-      "micro",
-      "inflation",
-      "rates"
-    ]
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
   },
-  "constraints": {
-    "noInvestmentAdvice": true,
-    "educationalOnly": true,
-    "assumptionDisclosureRequired": true,
-    "scenarioBasedReasoning": true
-  },
-  "normalizationStatus": {
-    "jsonValid": true,
-    "conflictMarkersRemoved": 1,
-    "financeGateExplicit": true
->>>>>>> a6112a3d (Integrate Marion domain runtime knowledge lanes)
-  }
+  "notes": [
+    "Folder casing preserved as Data/Domains/Cyber.",
+    "Rebuilt from conflicted manifest source and current inventory."
+  ]
 }
