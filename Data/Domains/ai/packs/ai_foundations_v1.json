@@ -181,9 +181,22 @@
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
     ]
+  },
+  "runtimePath": "Data/Domains/ai/packs/ai_foundations_v1.json",
+  "runtimeDomainKey": "ai",
+  "safetyBoundary": "educational_ai_systems_reasoning_with_governance_awareness",
+  "retrievalIndex": {
+    "aliases": [
+      "ai_foundations",
+      "artificial_intelligence",
+      "foundations"
+    ],
+    "source": "batch2_hardening_v1_1"
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
