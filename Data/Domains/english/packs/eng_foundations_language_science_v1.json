@@ -202,9 +202,10 @@
     "preservedStructuralIntegrity": true
   },
   "aliases": [
-    "eng_foundations_language_science_v1",
     "eng_foundations_language_science_v2",
-    "foundations_of_language_science"
+    "eng_foundations_language_science_v1.json",
+    "foundations_of_language_science",
+    "eng_foundations_language_science_v1"
   ],
   "pathwayHints": {
     "domain": "english",
@@ -252,9 +253,74 @@
       "filename_version_mismatch"
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  },
+  "runtimeDomainKey": "english",
+  "runtimePath": "Data/Domains/english/packs/eng_foundations_language_science_v1.json",
+  "retrievalIndex": {
+    "domain": "english",
+    "packId": "eng_foundations_language_science_v2",
+    "runtimePath": "Data/Domains/english/packs/eng_foundations_language_science_v1.json",
+    "keywords": [
+      "foundations",
+      "language",
+      "science",
+      "foundational",
+      "concepts",
+      "for",
+      "describing",
+      "english",
+      "system",
+      "levels",
+      "analysis",
+      "form-function",
+      "reasoning",
+      "description",
+      "versus",
+      "prescription",
+      "and",
+      "evidence-minded",
+      "eng",
+      "descriptive",
+      "form",
+      "function",
+      "prescriptive",
+      "units",
+      "s_quark_cgel",
+      "s_biber_lgswe",
+      "s_ncte_qagrammar"
+    ],
+    "routeAliases": [
+      "eng_foundations_language_science_v2",
+      "eng_foundations_language_science_v1.json",
+      "foundations_of_language_science",
+      "eng_foundations_language_science_v1"
+    ],
+    "sourceCoverage": {
+      "anchorCount": 3,
+      "referenceCount": 5,
+      "anchorsResolved": true,
+      "missingAnchorKeys": []
+    }
+  },
+  "safetyBoundary": {
+    "type": "language_education_and_revision_support",
+    "preserveUserMeaning": true,
+    "avoidOverCorrection": true,
+    "avoidFabricatingSources": true,
+    "copyrightSafe": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryAdded": true,
+    "issuesAddressed": [
+      "git_conflict_markers_removed",
+      "unresolved_git_conflict_markers_removed"
+    ],
+    "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
