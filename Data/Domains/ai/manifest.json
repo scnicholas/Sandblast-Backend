@@ -1,126 +1,23 @@
 {
-  "domain": "artificial_intelligence",
-  "domainVersion": "1.2.0-normalized",
-  "updatedAt": "2026-02-12",
+  "domain": "ai",
+  "schemaVersion": "1.4.0-hardened",
+  "manifestVersion": "1.4.0-hardened",
+  "updatedAt": "2026-05-02",
+  "targetRuntime": "Marion/Nyx",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "manifestPath": "Data/Domains/ai/manifest.json",
   "defaultLoadOrder": [
-    "ai_foundations_v1.json",
-    "ai_agents_systems_v1.json",
-    "ai_ethics_law_v1.json",
-    "ai_ai_psychology_v1.json",
-    "ai_ai_cybersecurity_v1.json",
-    "ai_ai_marketing_v1.json",
-    "ai_case_studies_v1.json",
-    "ai_face_examples_v1.json",
-    "ai_dialogue_snippets_v1.json"
+    "packs/ai_foundations_v1.json",
+    "packs/ai_agents_systems_v1.json",
+    "packs/ai_ethics_law_v1.json",
+    "packs/ai_ai_psychology_v1.json",
+    "packs/ai_ai_cybersecurity_v1.json",
+    "packs/ai_ai_marketing_v1.json",
+    "packs/ai_case_studies_v1.json",
+    "examples/ai_dialogue_snippets_v1.json",
+    "examples/ai_face_examples_v1.json"
   ],
-  "packs": {
-    "foundations": {
-      "file": "ai_foundations_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "intro",
-        "core",
-        "ml",
-        "probability",
-        "search",
-        "rl"
-      ],
-      "presentInUpload": true
-    },
-    "agentsSystems": {
-      "file": "ai_agents_systems_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "agents",
-        "multi-agent",
-        "planning",
-        "state",
-        "orchestration"
-      ],
-      "presentInUpload": true
-    },
-    "ethicsLaw": {
-      "file": "ai_ethics_law_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "ethics",
-        "governance",
-        "privacy",
-        "bias",
-        "compliance",
-        "law"
-      ],
-      "presentInUpload": true
-    },
-    "aiPsychology": {
-      "file": "ai_ai_psychology_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "hci",
-        "cog",
-        "human-in-the-loop",
-        "behavior",
-        "decision-support"
-      ],
-      "presentInUpload": true
-    },
-    "aiCybersecurity": {
-      "file": "ai_ai_cybersecurity_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "security",
-        "defensive",
-        "anomaly",
-        "adversarial-ml",
-        "threat"
-      ],
-      "presentInUpload": true
-    },
-    "aiMarketing": {
-      "file": "ai_ai_marketing_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "marketing",
-        "recommendation",
-        "segmentation",
-        "attribution",
-        "clv"
-      ],
-      "presentInUpload": true
-    },
-    "caseStudies": {
-      "file": "ai_case_studies_v1.json",
-      "version": "1.1.0",
-      "tags": [
-        "cases",
-        "applied",
-        "lessons",
-        "real-world"
-      ],
-      "presentInUpload": true
-    },
-    "faces": {
-      "file": "ai_face_examples_v1.json",
-      "version": "1.0.0",
-      "tags": [
-        "archetypes",
-        "personas",
-        "roles"
-      ],
-      "presentInUpload": false
-    },
-    "dialogue": {
-      "file": "ai_dialogue_snippets_v1.json",
-      "version": "1.0.0",
-      "tags": [
-        "snippets",
-        "prompting",
-        "questions",
-        "coaching"
-      ],
-      "presentInUpload": false
-    }
-  },
   "routing": {
     "primaryLane": "ai",
     "secondaryLanes": [
@@ -138,200 +35,162 @@
       "ml",
       "deep learning",
       "neural network",
-      "reinforcement learning",
-      "rl",
       "agent",
       "multi-agent",
       "planning",
-      "optimization",
-      "bayesian",
-      "probability",
-      "inference",
-      "model",
-      "training",
-      "inference-time",
-      "alignment",
-      "bias",
-      "explainability",
-      "governance",
-      "llm",
-      "prompt",
+      "tool routing",
+      "orchestration",
       "rag",
-      "embedding"
-    ]
+      "embedding",
+      "llm",
+      "governance",
+      "alignment",
+      "explainability"
+    ],
+    "safetyFirst": true
   },
   "constraints": {
     "noInvestmentAdvice": true,
     "noLegalAdvice": true,
     "noMedicalAdvice": true,
     "defensiveCyberOnly": true,
-    "privacyMinimization": true
+    "privacyMinimization": true,
+    "humanOversightRecommended": true
   },
-  "notes": [
-    "Folder name should be 'ai' (Data/ai/).",
-    "Manifest keys are stable; pack filenames match defaultLoadOrder.",
-    "Designed for Marion hinting + lane routing without storing raw user text."
-  ],
-  "schemaVersion": "1.2.0-normalized",
-  "packRegistry": [
+  "packs": [
     {
-      "packKey": "foundations",
-      "file": "ai_foundations_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "foundations",
-      "routeAliases": [
-        "foundations",
+      "packId": "foundations",
+      "file": "packs/ai_foundations_v1.json",
+      "aliases": [
+        "intro",
         "core_ai",
-        "fundamentals"
+        "fundamentals",
+        "ml"
       ],
-      "crossLinks": [
-        "agents_systems",
-        "ethics_law",
-        "ai_psychology",
-        "ai_cybersecurity",
-        "ai_marketing",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "agentsSystems",
-      "file": "ai_agents_systems_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "agents_systems",
-      "routeAliases": [
+      "packId": "agentsSystems",
+      "file": "packs/ai_agents_systems_v1.json",
+      "aliases": [
         "agents",
         "systems",
         "orchestration",
         "multi_agent",
-        "planning"
+        "planning",
+        "tool_routing"
       ],
-      "crossLinks": [
-        "foundations",
-        "ai_cybersecurity",
-        "ai_psychology",
-        "ethics_law",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "ethicsLaw",
-      "file": "ai_ethics_law_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "ethics_law",
-      "routeAliases": [
+      "packId": "ethicsLaw",
+      "file": "packs/ai_ethics_law_v1.json",
+      "aliases": [
         "ethics",
         "law",
         "governance",
         "policy",
         "compliance"
       ],
-      "crossLinks": [
-        "agents_systems",
-        "ai_psychology",
-        "ai_marketing",
-        "ai_cybersecurity",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "aiPsychology",
-      "file": "ai_ai_psychology_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "ai_psychology",
-      "routeAliases": [
-        "psychology",
+      "packId": "aiPsychology",
+      "file": "packs/ai_ai_psychology_v1.json",
+      "aliases": [
+        "hci",
         "cognitive_science",
-        "hai",
         "trust",
-        "behavior"
+        "behavior",
+        "decision_support"
       ],
-      "crossLinks": [
-        "agents_systems",
-        "ethics_law",
-        "ai_marketing",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "aiCybersecurity",
-      "file": "ai_ai_cybersecurity_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "ai_cybersecurity",
-      "routeAliases": [
+      "packId": "aiCybersecurity",
+      "file": "packs/ai_ai_cybersecurity_v1.json",
+      "aliases": [
         "cybersecurity",
         "ai_security",
         "defensive_ai_security",
         "prompt_injection"
       ],
-      "crossLinks": [
-        "agents_systems",
-        "ethics_law",
-        "foundations",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "aiMarketing",
-      "file": "ai_ai_marketing_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "ai_marketing",
-      "routeAliases": [
+      "packId": "aiMarketing",
+      "file": "packs/ai_ai_marketing_v1.json",
+      "aliases": [
         "marketing",
         "growth",
         "personalization",
         "attribution",
         "crm"
       ],
-      "crossLinks": [
-        "ai_psychology",
-        "ethics_law",
-        "foundations",
-        "case_studies"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packKey": "caseStudies",
-      "file": "ai_case_studies_v1.json",
-      "presentInUpload": true,
-      "packVersion": "1.1.0",
-      "layer": "case_studies",
-      "routeAliases": [
+      "packId": "caseStudies",
+      "file": "packs/ai_case_studies_v1.json",
+      "aliases": [
         "cases",
         "applied_cases",
         "examples"
       ],
-      "crossLinks": [
-        "foundations",
-        "agents_systems",
-        "ethics_law",
-        "ai_psychology",
-        "ai_cybersecurity",
-        "ai_marketing"
-      ]
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     }
   ],
-  "missingDependencies": [
-    "ai_dialogue_snippets_v1.json",
-    "ai_face_examples_v1.json"
+  "examples": [
+    {
+      "exampleId": "dialogue",
+      "file": "examples/ai_dialogue_snippets_v1.json",
+      "aliases": [
+        "snippets",
+        "prompting",
+        "questions",
+        "coaching"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "faces",
+      "file": "examples/ai_face_examples_v1.json",
+      "aliases": [
+        "archetypes",
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
   ],
-  "normalizationNotes": [
-    "Manifest versions were out of sync with uploaded pack versions; uploaded packs are 1.1.0 while manifest references 1.0.0.",
-    "Case-study domain labels were mapped to runtime layer aliases for safer retrieval.",
-    "Direct source links were not attached in the uploaded packs; bibliographic metadata remains but link completeness is pending."
-  ],
-  "runtimeDomainKey": "ai",
-  "runtimeFolder": "Data/ai",
-  "manifestPath": "domains/ai/manifest.json",
-  "normalizationStatus": {
+  "integrity": {
     "jsonValid": true,
-    "conflictMarkersRemoved": 0,
-    "versionAlignmentApplied": true,
-    "safetyConstraintsExplicit": true
-  }
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
+  },
+  "notes": [
+    "Runtime domain normalized from artificial_intelligence to ai for router/registry cohesion.",
+    "All file references aligned to Data/Domains/ai actual inventory."
+  ]
 }
