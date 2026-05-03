@@ -381,24 +381,96 @@
     }
   },
   "qualityAudit": {
-    "status": "needs_source_attachment",
+    "status": "hardened_runtime_valid_pending_source_attachment",
     "strengths": [
       "Valid JSON and coherent top-level object structure.",
-      "Good defensive posture and threat taxonomy for production hardening."
+      "Good defensive posture and threat taxonomy for production hardening.",
+      "Runtime path and registry-consumption metadata are now explicit."
     ],
     "issues": [
-      "Manifest pack version for aiCybersecurity is 1.0.0 while file version is 1.1.0.",
-      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file."
+      "Bibliographic/source structures are present, but direct source URLs/DOIs/ISBNs are not attached in-file.",
+      "Direct source URLs/DOIs/ISBNs are still pending where not already present; no source identifiers were fabricated."
     ],
     "recommendedActions": [
       "Attach authoritative source URLs, DOI, ISBN, or publisher identifiers to reference entries.",
       "Keep manifest and pack versions synchronized.",
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
+    ],
+    "criticalFixesApplied": [
+      "Removed unresolved Git conflict markers.",
+      "Confirmed valid JSON parse after hardening.",
+      "Added canonical runtimeDomainKey/runtimeFolder/runtimePath metadata.",
+      "Added retrievalIndex for registry and Compose consumption.",
+      "Added explicit safetyBoundary aligned to layer risk."
     ]
+  },
+  "canonicalDomain": "ai",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "runtimePath": "Data/Domains/ai/packs/ai_ai_cybersecurity_v1.json",
+  "packFileName": "ai_ai_cybersecurity_v1.json",
+  "safetyBoundary": "defensive_only_ai_security_no_offensive_procedures",
+  "retrievalIndex": {
+    "domain": "ai",
+    "layer": "ai_cybersecurity",
+    "manifestPackKey": "aiCybersecurity",
+    "routeAliases": [
+      "cybersecurity",
+      "ai_security",
+      "defensive_ai_security",
+      "prompt_injection"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "foundations",
+      "case_studies"
+    ],
+    "primaryTerms": [
+      "secure_ai_system_development_lifecycle",
+      "threat_modeling_for_ai_systems",
+      "adversarial_machine_learning",
+      "data_poisoning",
+      "evasion_and_inference_attacks",
+      "model_extraction_and_model_theft",
+      "backdoor_and_trojan_detection",
+      "prompt_injection_and_indirect_prompt_injection",
+      "training_data_poisoning",
+      "retrieval_augmented_generation_security",
+      "agent_tool_use_security",
+      "memory_and_context_manipulation",
+      "model_denial_of_service",
+      "supply_chain_and_dependency_risk",
+      "model_hardening_and_robustness",
+      "secure_deployment_and_runtime_monitoring",
+      "incident_response_for_ai_systems",
+      "governance_assurance_and_risk_management",
+      "privacy_and_data_integrity_protection",
+      "ai_red_teaming_and_security_evaluation",
+      "defensive_only_design",
+      "secure_by_design_ai_systems",
+      "model_hardening",
+      "adversarial_attack_mitigation",
+      "data_integrity_protection",
+      "secure_training_pipelines",
+      "secure_inference_and_serving",
+      "guardrails_and_runtime_controls",
+      "defensive_red_teaming",
+      "trustworthy_monitoring_and_auditability"
+    ],
+    "sourceCoverage": {
+      "hasBibliographicReferences": true,
+      "hasDirectUrlsOrPersistentIds": false
+    }
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 3,
+    "runtimePathAligned": true,
+    "registryCompatible": true,
+    "composeConsumable": true,
+    "sourceAttachmentPending": true,
+    "hardenedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
