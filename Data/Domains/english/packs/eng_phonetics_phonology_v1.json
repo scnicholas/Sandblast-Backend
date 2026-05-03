@@ -132,9 +132,10 @@
     "preservedStructuralIntegrity": true
   },
   "aliases": [
-    "eng_phonetics_phonology_v1",
+    "eng_phonetics_phonology_v1.json",
+    "phonetics_and_phonology",
     "eng_phonetics_phonology_v2",
-    "phonetics_and_phonology"
+    "eng_phonetics_phonology_v1"
   ],
   "pathwayHints": {
     "domain": "english",
@@ -174,9 +175,65 @@
       "filename_version_mismatch"
     ],
     "notes": "Normalized for consistent Marion retrieval, alias routing, and source coverage tracking."
+  },
+  "runtimeDomainKey": "english",
+  "runtimePath": "Data/Domains/english/packs/eng_phonetics_phonology_v1.json",
+  "retrievalIndex": {
+    "domain": "english",
+    "packId": "eng_phonetics_phonology_v2",
+    "runtimePath": "Data/Domains/english/packs/eng_phonetics_phonology_v1.json",
+    "keywords": [
+      "phonetics",
+      "and",
+      "phonology",
+      "speech",
+      "sound",
+      "production",
+      "patterning",
+      "for",
+      "intelligibility",
+      "rhythm",
+      "contrast",
+      "pronunciation-aware",
+      "explanation",
+      "eng",
+      "essentials",
+      "patterns",
+      "s_ncte_qagrammar",
+      "s_purdue_owl_generalwriting"
+    ],
+    "routeAliases": [
+      "eng_phonetics_phonology_v1.json",
+      "phonetics_and_phonology",
+      "eng_phonetics_phonology_v2",
+      "eng_phonetics_phonology_v1"
+    ],
+    "sourceCoverage": {
+      "anchorCount": 2,
+      "referenceCount": 2,
+      "anchorsResolved": true,
+      "missingAnchorKeys": []
+    }
+  },
+  "safetyBoundary": {
+    "type": "language_education_and_revision_support",
+    "preserveUserMeaning": true,
+    "avoidOverCorrection": true,
+    "avoidFabricatingSources": true,
+    "copyrightSafe": true
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 1,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "retrievalIndexAdded": true,
+    "safetyBoundaryAdded": true,
+    "issuesAddressed": [
+      "git_conflict_markers_removed",
+      "unresolved_git_conflict_markers_removed"
+    ],
+    "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
+    "normalizedAt": "2026-05-03"
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
