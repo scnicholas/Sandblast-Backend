@@ -1,17 +1,24 @@
 {
   "domain": "psychology",
-  "manifestVersion": "2.1.0-normalized",
-  "updatedAt": "2026-04-08",
+  "schemaVersion": "2.2.0-hardened",
+  "manifestVersion": "2.2.0-hardened",
+  "updatedAt": "2026-05-02",
+  "targetRuntime": "Marion/Nyx",
+  "runtimeDomainKey": "psychology",
+  "runtimeFolder": "Data/Domains/psychology",
+  "manifestPath": "Data/Domains/psychology/manifest.json",
   "defaultLoadOrder": [
-    "psy_clinical_safety_v2",
-    "psy_foundations_v2",
-    "psy_cognitive_v2",
-    "psy_biases_and_fallacies_v2",
-    "psy_social_v2",
-    "psy_development_v2",
-    "psy_interventions_skills_v2",
-    "psy_research_methods_v2",
-    "psy_sources_index_v2"
+    "packs/psy_clinical_safety_v2.json",
+    "packs/psy_foundations_v2.json",
+    "packs/psy_cognitive_v2.json",
+    "packs/psy_biases_and_fallacies_v2.json",
+    "packs/psy_social_v2.json",
+    "packs/psy_development_v2.json",
+    "packs/psy_interventions_skills_v2.json",
+    "packs/psy_research_methods_v2.json",
+    "packs/psy_sources_index_v2.json",
+    "examples/psy_dialogue_snippets_v1.json",
+    "examples/psy_face_examples_v1.json"
   ],
   "routing": {
     "primaryLane": "psychology",
@@ -21,57 +28,165 @@
       "ai",
       "law"
     ],
-    "safetyFirst": true,
-    "notes": [
-      "Always check clinical safety before interpretive or self-improvement guidance.",
-      "Use sources index for bibliographic confidence and trust ordering."
-    ]
+    "keywords": [
+      "psychology",
+      "cognitive distortion",
+      "emotional regulation",
+      "emotion",
+      "attachment",
+      "trauma",
+      "bias",
+      "fallacy",
+      "social psychology",
+      "development",
+      "intervention",
+      "clinical safety"
+    ],
+    "safetyFirst": true
+  },
+  "constraints": {
+    "noMedicalAdvice": true,
+    "notTherapy": true,
+    "clinicalSafetyFirst": true,
+    "crisisEscalationRequired": true,
+    "educationalSupportOnly": true
   },
   "packs": [
     {
-      "packId": "psy_clinical_safety_v2",
-      "file": "psy_clinical_safety_v2.json",
-      "normalized": true
+      "packId": "clinicalSafety",
+      "file": "packs/psy_clinical_safety_v2.json",
+      "aliases": [
+        "clinical_safety",
+        "crisis",
+        "scope"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_foundations_v2",
-      "file": "psy_foundations_v2.json",
-      "normalized": true
+      "packId": "foundations",
+      "file": "packs/psy_foundations_v2.json",
+      "aliases": [
+        "foundations",
+        "core_psychology"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_cognitive_v2",
-      "file": "psy_cognitive_v2.json",
-      "normalized": true
+      "packId": "cognitive",
+      "file": "packs/psy_cognitive_v2.json",
+      "aliases": [
+        "cognitive",
+        "distortion",
+        "thinking_patterns"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_biases_and_fallacies_v2",
-      "file": "psy_biases_and_fallacies_v2.json",
-      "normalized": true
+      "packId": "biasesFallacies",
+      "file": "packs/psy_biases_and_fallacies_v2.json",
+      "aliases": [
+        "biases",
+        "fallacies"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_social_v2",
-      "file": "psy_social_v2.json",
-      "normalized": true
+      "packId": "social",
+      "file": "packs/psy_social_v2.json",
+      "aliases": [
+        "social",
+        "interpersonal"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_development_v2",
-      "file": "psy_development_v2.json",
-      "normalized": true
+      "packId": "development",
+      "file": "packs/psy_development_v2.json",
+      "aliases": [
+        "development"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_interventions_skills_v2",
-      "file": "psy_interventions_skills_v2.json",
-      "normalized": true
+      "packId": "interventionsSkills",
+      "file": "packs/psy_interventions_skills_v2.json",
+      "aliases": [
+        "skills",
+        "interventions",
+        "coping"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_research_methods_v2",
-      "file": "psy_research_methods_v2.json",
-      "normalized": true
+      "packId": "researchMethods",
+      "file": "packs/psy_research_methods_v2.json",
+      "aliases": [
+        "research",
+        "methods"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     },
     {
-      "packId": "psy_sources_index_v2",
-      "file": "psy_sources_index_v2.json",
-      "normalized": true
+      "packId": "sourcesIndex",
+      "file": "packs/psy_sources_index_v2.json",
+      "aliases": [
+        "sources",
+        "references"
+      ],
+      "presentInUpload": true,
+      "required": true,
+      "loadType": "knowledge_pack"
     }
+  ],
+  "examples": [
+    {
+      "exampleId": "dialogue",
+      "file": "examples/psy_dialogue_snippets_v1.json",
+      "aliases": [
+        "dialogue",
+        "snippets"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    },
+    {
+      "exampleId": "faces",
+      "file": "examples/psy_face_examples_v1.json",
+      "aliases": [
+        "personas",
+        "roles"
+      ],
+      "presentInUpload": true,
+      "required": false,
+      "loadType": "example_pack"
+    }
+  ],
+  "integrity": {
+    "jsonValid": true,
+    "pathAlignedToDataDomains": true,
+    "manifestSelfPathAligned": true,
+    "packReferencesUseActualInventoryFilenames": true,
+    "conflictMarkersRemoved": true,
+    "casingPreserved": true
+  },
+  "notes": [
+    "Clinical safety kept first in load order; support lane remains educational and non-clinical."
   ]
 }
