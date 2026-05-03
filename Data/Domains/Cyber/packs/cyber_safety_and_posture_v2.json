@@ -394,28 +394,32 @@
     "defensiveOnly": true
   },
   "retrievalIndex": {
+    "domain": "cyber",
+    "packId": "cyber_safety_and_posture_v2",
+    "packType": "safety_posture",
     "keywords": [
-      "break into account",
+      "hack",
+      "exploit",
       "bypass",
+      "payload",
+      "malware",
+      "phish",
       "credential theft",
       "evade edr",
-      "exploit",
-      "hack",
+      "break into account",
       "illegal access",
-      "malware",
-      "payload",
-      "phish"
-    ],
-    "intentSignals": [
-      "break into",
-      "deploy ransomware",
-      "disable detection",
       "get into account",
+      "break into",
       "steal password",
-      "write exploit"
+      "write exploit",
+      "disable detection",
+      "deploy ransomware",
+      "cyber_safety_and_posture",
+      "cyber_safety_and_posture_v2",
+      "safety_posture"
     ],
-    "keywordCount": 10,
-    "intentSignalCount": 6
+    "keywordCount": 19,
+    "priority": "high"
   },
   "governanceNotes": [
     "Operate in defensive-only mode; do not generate offensive, intrusive, or exploit-enabling guidance.",
@@ -427,5 +431,28 @@
     "normalizedAt": "2026-04-07",
     "normalizationPass": "cyber_pack_marion_readiness_v1",
     "originalFilename": "cyber_safety_and_posture_v2.json"
+  },
+  "runtimeDomainKey": "cyber",
+  "runtimeFolder": "Data/Domains/Cyber",
+  "runtimePath": "Data/Domains/Cyber/packs/cyber_safety_and_posture_v2.json",
+  "manifestPath": "Data/Domains/Cyber/manifest.json",
+  "schemaVersion": "2.0-hardened",
+  "safetyBoundary": {
+    "mode": "defensive_only",
+    "noExploitInstructions": true,
+    "noCredentialTheft": true,
+    "noBypassOrEvasionInstructions": true,
+    "noMalwareAssistance": true,
+    "allow": "defensive education, architecture hardening, policy, monitoring, incident response, governance, recovery, and safe tabletop analysis",
+    "redirect": "Refuse harmful operational content and redirect to prevention, detection, containment, recovery, or authorized-lab framing."
+  },
+  "normalizationStatus": {
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimeDomainKeyAdded": true,
+    "runtimePathAdded": true,
+    "safetyBoundaryConfirmed": true,
+    "retrievalIndexAdded": true,
+    "defensiveOnlyConfirmed": true
   }
 }
