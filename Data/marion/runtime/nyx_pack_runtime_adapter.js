@@ -1,28 +1,41 @@
 "use strict";
 /**
- * nyx_pack_runtime_adapter.js v1.1.0 GREETING-STATE-BRIDGE
+ * nyx_pack_runtime_adapter.js v1.2.0 COMMERCIAL-HARDENED-PACKET-BRIDGE
  * Purpose: Allow Nyx language/packet packs to serve as intro/fallback/greeting
  * support without overriding Marion. Backend-first remains the authority model.
  *
  * Critical behavior:
- * - Marion reply wins when a valid backend reply exists.
- * - Packet matches may still contribute sessionPatch / memoryPatch / greeting
- *   metadata so stateSpine can preserve tone, intent, energy, and source.
+ * - Marion reply wins when a valid, non-replayed backend reply exists.
+ * - Packet matches may contribute sessionPatch / memoryPatch / greeting metadata
+ *   so stateSpine can preserve tone, intent, energy, and source.
  * - Mic and text are normalized before packet matching so voice misreads such as
  *   Nick/Nix/Mix/Mike/Next can still reach Nyx greeting packets.
+ * - Packet fallback cannot free-fire without a trigger, intent, replay, or backend
+ *   failure signal. This prevents stale/default packets from hijacking live turns.
  */
 
-const ADAPTER_VERSION = "nyx_pack_runtime_adapter v1.1.0 GREETING-STATE-BRIDGE";
+const ADAPTER_VERSION = "nyx_pack_runtime_adapter v1.2.0 COMMERCIAL-HARDENED-PACKET-BRIDGE";
 
-const ASSISTANT_ALIAS_RE = /\b(nick|nicks|nix|mix|mike|next)\b/gi;
-const GREETING_DISTRESS_RE = /\b(stress|stressed|overwhelm|overwhelmed|anxious|anxiety|panic|sad|alone|lonely|hurt|angry|mad|frustrated|rough day|hard day|not okay|can't think|cannot think)\b/i;
+const ASSISTANT_ALIAS_RE = /\b(nick|nicks|nix|mix|mike)\b/gi;
+const CONTEXTUAL_NEXT_ALIAS_RE = /(^|\b(?:hi|hey|hello|morning|good morning|good afternoon|good evening)\s+|^\s*)next(?=\s*(?:[,.:;!?]|$|can\b|could\b|please\b|help\b|are\b|do\b|turn\b|play\b|show\b|tell\b|debug\b|run\b|respond\b|speak\b))/gi;
+const SMART_APOSTROPHE_RE = /[’‘`]/g;
+const UNSAFE_PATCH_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+const MAX_PATCH_DEPTH = 4;
+const MAX_PATCH_ARRAY = 24;
+const MAX_PATCH_STRING = 500;
+const MAX_BRIDGE_TEXT = 240;
+const MAX_SIG = 180;
+const LOOP_FALLBACK_RE = /^(?:i['’]?m here\.?\s*)?(?:what['’]?s next\??|what do you want to do next\??)$/i;
+const GREETING_DISTRESS_RE = /\b(stress|stressed|overwhelm|overwhelmed|anxious|anxiety|panic|sad|alone|lonely|hurt|angry|mad|frustrated|rough day|hard day|not okay|can['’]?t think|cannot think)\b/i;
 
 function safeStr(value) {
   return value === null || value === undefined ? "" : String(value);
 }
 
 function isPlainObject(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function firstNonEmpty() {
@@ -40,6 +53,31 @@ function readPath(obj, path) {
     cur = cur[key];
   }
   return cur;
+}
+
+function sanitizePatchValue(value, depth = 0) {
+  if (depth > MAX_PATCH_DEPTH) return undefined;
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") return value.slice(0, MAX_PATCH_STRING);
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, MAX_PATCH_ARRAY)
+      .map((item) => sanitizePatchValue(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+  if (!isPlainObject(value)) return undefined;
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (UNSAFE_PATCH_KEYS.has(key)) continue;
+    const clean = sanitizePatchValue(child, depth + 1);
+    if (clean !== undefined) out[key] = clean;
+  }
+  return out;
+}
+
+function sanitizePatchObject(value) {
+  return isPlainObject(value) ? sanitizePatchValue(value, 0) || {} : {};
 }
 
 function textOfBackend(payload) {
@@ -60,18 +98,26 @@ function textOfBackend(payload) {
 }
 
 function normalizeAssistantAliases(text) {
-  return safeStr(text).replace(ASSISTANT_ALIAS_RE, "Nyx");
+  return safeStr(text)
+    .replace(ASSISTANT_ALIAS_RE, "Nyx")
+    .replace(CONTEXTUAL_NEXT_ALIAS_RE, (match, prefix) => `${prefix || ""}Nyx`);
 }
 
 function normalizeSig(text) {
-  return normalizeAssistantAliases(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 180);
+  return normalizeAssistantAliases(text)
+    .replace(SMART_APOSTROPHE_RE, "'")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .slice(0, MAX_SIG);
 }
 
 function normalizeMatchText(text) {
   return normalizeAssistantAliases(text)
     .toLowerCase()
-    .replace(/[’]/g, "'")
+    .replace(SMART_APOSTROPHE_RE, "'")
     .replace(/[^a-z0-9#' ]+/g, " ")
+    .replace(/\bnyx\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -81,9 +127,25 @@ function isReplay(text, session) {
   return !!(sig && session && session.__lastOutSig && sig === session.__lastOutSig);
 }
 
+function isUnsafeBackendLoop(text, ctx = {}) {
+  if (ctx.enforceLoopHardlock === false || ctx.freshMarionFinal) return false;
+  const normalized = normalizeAssistantAliases(text).trim();
+  return LOOP_FALLBACK_RE.test(normalized);
+}
+
+function hashText(text) {
+  const s = safeStr(text);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
 function pick(arr, seed) {
   if (!Array.isArray(arr) || !arr.length) return "";
-  const n = Math.abs(Number(seed || Date.now())) % arr.length;
+  const n = Math.abs(Number.isFinite(Number(seed)) ? Number(seed) : hashText(seed || "nyx")) % arr.length;
   return arr[n];
 }
 
@@ -98,7 +160,7 @@ function packetId(packet) {
 function isGreetingPacket(packet) {
   const type = packetType(packet);
   const id = packetId(packet).toLowerCase();
-  return type === "greeting" || id.indexOf("greet") !== -1 || id.indexOf("greeting") !== -1;
+  return type === "greeting" || id.includes("greet") || id.includes("greeting");
 }
 
 function getInputText(ctx = {}) {
@@ -122,11 +184,57 @@ function getInputSource(ctx = {}) {
   return firstNonEmpty(ctx.inputSource, ctx.source, inbound.inputSource, inbound.source, payload.inputSource, payload.source, meta.inputSource, meta.source, "text").toLowerCase();
 }
 
-function canUsePacket(packet, ctx) {
-  const c = packet.constraints || {};
-  const a = packet.marionAuthority || {};
+function escapeRegExp(text) {
+  return safeStr(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasInternalTrigger(packet, marker) {
+  return Array.isArray(packet && packet.trigger) && packet.trigger.includes(marker);
+}
+
+function phraseMatches(input, trigger) {
+  if (!input || !trigger || trigger.startsWith("__")) return false;
+  if (input === trigger) return true;
+  const escaped = escapeRegExp(trigger);
+  const singleToken = !/\s/.test(trigger);
+  const re = singleToken
+    ? new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i")
+    : new RegExp(`(^|\\s)${escaped}(?=\\s|$)`, "i");
+  return re.test(input);
+}
+
+function triggerMatches(packet, ctx) {
+  if (!packet || !Array.isArray(packet.trigger)) return false;
+  const input = normalizeMatchText(getInputText(ctx));
+  if (!input) return false;
+  for (const item of packet.trigger) {
+    const trigger = normalizeMatchText(item);
+    if (phraseMatches(input, trigger)) return true;
+  }
+  return false;
+}
+
+function internalIntentMatches(packet, ctx = {}) {
+  const intent = safeStr(ctx.intent).toLowerCase();
+  if (intent === "intro" && hasInternalTrigger(packet, "__intro__")) return true;
+  if (intent === "fallback" && (hasInternalTrigger(packet, "__fallback__") || hasInternalTrigger(packet, "__fallback_anchor__"))) return true;
+  if ((ctx.replayDetected || intent === "replay") && hasInternalTrigger(packet, "__replay_detected__")) return true;
+  if ((ctx.backendFailed || intent === "error") && hasInternalTrigger(packet, "__error__")) return true;
+  if (intent === "mode_prompt" && hasInternalTrigger(packet, "__mode_prompt__")) return true;
+  if (intent === "schedule_need_city" && hasInternalTrigger(packet, "__schedule_need_city__")) return true;
+  if (intent === "schedule_need_show" && hasInternalTrigger(packet, "__schedule_need_show__")) return true;
+  if (intent === "sponsors_need_goal" && hasInternalTrigger(packet, "__sponsors_need_goal__")) return true;
+  if (intent === "sponsors_need_budget" && hasInternalTrigger(packet, "__sponsors_need_budget__")) return true;
+  if (intent === "movies_need_title_or_genre" && hasInternalTrigger(packet, "__movies_need_title_or_genre__")) return true;
+  return false;
+}
+
+function canUsePacket(packet, ctx = {}) {
+  if (!isPlainObject(packet)) return false;
+  const c = isPlainObject(packet.constraints) ? packet.constraints : {};
+  const a = isPlainObject(packet.marionAuthority) ? packet.marionAuthority : {};
   const backendText = textOfBackend(ctx.backendPayload);
-  const backendPresent = !!backendText;
+  const backendPresent = !!backendText && !isUnsafeBackendLoop(backendText, ctx);
 
   if ((a.backendFirst || c.honorMarionFirst) && backendPresent) return false;
   if ((a.allowWhenBackendReplyExists === false || c.requireNoBackendReply) && backendPresent) return false;
@@ -139,40 +247,21 @@ function canUsePacket(packet, ctx) {
   return true;
 }
 
-function canMatchPacketSignal(packet, ctx) {
-  const c = packet.constraints || {};
+function canMatchPacketSignal(packet, ctx = {}) {
+  const c = isPlainObject(packet && packet.constraints) ? packet.constraints : {};
   if (c.requireReplayDetected && !ctx.replayDetected) return false;
   if (c.requireNoFreshMarionFinal && ctx.freshMarionFinal) return false;
   if (c.requireBackendFailure && !ctx.backendFailed) return false;
   return true;
 }
 
-function triggerMatches(packet, ctx) {
-  if (!packet || !Array.isArray(packet.trigger)) return false;
-  const rawInput = getInputText(ctx);
-  const input = normalizeMatchText(rawInput);
-  if (!input) return false;
-
-  for (const item of packet.trigger) {
-    const trigger = normalizeMatchText(item);
-    if (!trigger || trigger.indexOf("__") === 0) continue;
-    if (input === trigger) return true;
-    if (input.indexOf(trigger) !== -1) return true;
-    if (trigger.indexOf(" ") === -1 && new RegExp(`(^|\\s)${escapeRegExp(trigger)}(\\s|$)`, "i").test(input)) return true;
-  }
-  return false;
-}
-
-function escapeRegExp(text) {
-  return safeStr(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function scorePacket(packet, ctx) {
   let score = Number(packet.priority || 0) || 0;
   if (isGreetingPacket(packet)) score += 1000;
   if (triggerMatches(packet, ctx)) score += 500;
+  if (internalIntentMatches(packet, ctx)) score += 450;
   if (packetType(packet) === safeStr(ctx.intent).toLowerCase()) score += 80;
-  const triggerCount = Array.isArray(packet.trigger) ? packet.trigger.length : 0;
+  const triggerCount = Array.isArray(packet.trigger) ? packet.trigger.filter((t) => !safeStr(t).startsWith("__")).length : 0;
   score += Math.min(triggerCount, 30);
   return score;
 }
@@ -185,15 +274,23 @@ function findSignalPacket(pack, ctx) {
     .sort((a, b) => scorePacket(b, localCtx) - scorePacket(a, localCtx))[0] || null;
 }
 
+function canReplyWithoutTextTrigger(packet, ctx = {}) {
+  const type = packetType(packet);
+  if (internalIntentMatches(packet, ctx)) return true;
+  if ((ctx.backendFailed || ctx.replayDetected) && (type === "fallback" || type === "error")) return true;
+  return false;
+}
+
 function findReplyPacket(pack, ctx, desiredTypes) {
   const packets = Array.isArray(pack && pack.packets) ? pack.packets.slice() : [];
   return packets
     .filter((p) => desiredTypes.includes(packetType(p)) && canUsePacket(p, ctx))
+    .filter((p) => triggerMatches(p, ctx) || canReplyWithoutTextTrigger(p, ctx))
     .sort((a, b) => scorePacket(b, ctx) - scorePacket(a, ctx))[0] || null;
 }
 
 function renderTemplate(template, ctx) {
-  return String(template || "")
+  return safeStr(template)
     .replaceAll("{year}", ctx.session?.lastMusicYear || ctx.year || "")
     .replaceAll("{city}", ctx.session?.city || ctx.city || "")
     .replaceAll("{mode}", ctx.session?.activeMusicMode || ctx.mode || "");
@@ -208,18 +305,18 @@ function presenceFromGreeting(packet, inputText) {
   if (/debug|technical|diagnostic/.test(combined)) return "curious";
   if (/business|executive|strategy|urgent/.test(combined)) return "engaged";
   if (/playful|casual|joking/.test(combined)) return "warm";
-  return safeStr(packet.presenceProfile || packet.sessionPatch?.presenceProfile || "warm") || "warm";
+  return safeStr(packet.presenceProfile || packet.sessionPatch?.presenceProfile || packet.sessionPatch?.lastPresenceProfile || "warm") || "warm";
 }
 
 function buildGreetingBridge(packet, ctx = {}) {
   if (!packet || !isGreetingPacket(packet)) return null;
   const inputSource = getInputSource(ctx);
   const text = getInputText(ctx);
-  const sessionPatch = isPlainObject(packet.sessionPatch) ? { ...packet.sessionPatch } : {};
+  const sessionPatch = sanitizePatchObject(packet.sessionPatch);
   const intent = firstNonEmpty(packet.intent, sessionPatch.lastGreetingIntent, sessionPatch.greetingIntent, packet.id);
-  const tone = firstNonEmpty(packet.tone, sessionPatch.lastGreetingTone, sessionPatch.greetingTone, packet.presenceProfile);
+  const tone = firstNonEmpty(packet.tone, sessionPatch.lastGreetingTone, sessionPatch.greetingTone, packet.presenceProfile, sessionPatch.lastPresenceProfile);
   const energy = firstNonEmpty(packet.energy, sessionPatch.lastInputEnergy, sessionPatch.greetingEnergy, "medium");
-  const presenceProfile = firstNonEmpty(packet.presenceProfile, sessionPatch.presenceProfile, presenceFromGreeting(packet, text));
+  const presenceProfile = firstNonEmpty(packet.presenceProfile, sessionPatch.presenceProfile, sessionPatch.lastPresenceProfile, presenceFromGreeting(packet, text));
   return {
     active: true,
     id: packet.id || "",
@@ -231,13 +328,13 @@ function buildGreetingBridge(packet, ctx = {}) {
     source: inputSource,
     inputSource,
     presenceProfile,
-    text: safeStr(text).slice(0, 240)
+    text: safeStr(text).slice(0, MAX_BRIDGE_TEXT)
   };
 }
 
 function buildPacketPatches(packet, ctx = {}) {
-  const sessionPatch = isPlainObject(packet && packet.sessionPatch) ? { ...packet.sessionPatch } : {};
-  const memoryPatch = isPlainObject(packet && packet.memoryPatch) ? { ...packet.memoryPatch } : {};
+  const sessionPatch = sanitizePatchObject(packet && packet.sessionPatch);
+  const memoryPatch = sanitizePatchObject(packet && packet.memoryPatch);
   const greeting = buildGreetingBridge(packet, ctx);
 
   if (greeting) {
@@ -246,7 +343,9 @@ function buildPacketPatches(packet, ctx = {}) {
     sessionPatch.lastGreetingTone = greeting.tone;
     sessionPatch.lastInputEnergy = greeting.energy;
     sessionPatch.lastGreetingSource = greeting.inputSource;
+    sessionPatch.lastPresenceProfile = greeting.presenceProfile;
     sessionPatch.presenceProfile = greeting.presenceProfile;
+    sessionPatch.lastNyxStateHint = greeting.presenceProfile;
     sessionPatch.nyxStateHint = greeting.presenceProfile;
 
     memoryPatch.greeting = {
@@ -270,7 +369,7 @@ function buildPacketPatches(packet, ctx = {}) {
 
 function applyPacketPatchToSession(session, patch = {}) {
   if (!session || typeof session !== "object") return;
-  Object.assign(session, patch.sessionPatch || {});
+  Object.assign(session, sanitizePatchObject(patch.sessionPatch));
   if (patch.greeting) {
     session.greeting = {
       ...(isPlainObject(session.greeting) ? session.greeting : {}),
@@ -288,21 +387,30 @@ function applyPacketPatchToSession(session, patch = {}) {
 
 function markPacketUsed(session, packet, reply) {
   if (!session || !packet) return;
-  session.__usedPackets = session.__usedPackets || {};
+  session.__usedPackets = isPlainObject(session.__usedPackets) ? session.__usedPackets : {};
   session.__usedPackets[packet.id] = true;
   if (reply) session.__lastOutSig = normalizeSig(reply);
 }
 
+function desiredTypesFor(ctx = {}) {
+  const intent = safeStr(ctx.intent).toLowerCase();
+  if (intent === "intro") return ["intro", "greeting"];
+  if (intent === "fallback" || intent === "replay") return ["fallback", "error"];
+  if (intent === "error") return ["error", "fallback"];
+  return ["greeting", "prompt", "intro", "fallback", "error", "help", "goodbye", "nav"];
+}
+
 function resolveNyxPacket(pack, ctx = {}) {
   const backendText = textOfBackend(ctx.backendPayload);
-  const replayDetected = backendText ? isReplay(backendText, ctx.session) : !!ctx.replayDetected;
+  const backendUnsafeLoop = backendText ? isUnsafeBackendLoop(backendText, ctx) : false;
+  const replayDetected = backendText ? (isReplay(backendText, ctx.session) || backendUnsafeLoop) : !!ctx.replayDetected;
   const localCtx = { ...ctx, replayDetected };
 
   const signalPacket = findSignalPacket(pack, localCtx);
   const signalPatch = signalPacket ? buildPacketPatches(signalPacket, localCtx) : { greeting: null, sessionPatch: {}, memoryPatch: {} };
   if (signalPacket) applyPacketPatchToSession(localCtx.session, signalPatch);
 
-  if (backendText && !isReplay(backendText, localCtx.session)) {
+  if (backendText && !backendUnsafeLoop && !isReplay(backendText, localCtx.session)) {
     if (localCtx.session) localCtx.session.__lastOutSig = normalizeSig(backendText);
     return {
       source: "marion",
@@ -318,11 +426,12 @@ function resolveNyxPacket(pack, ctx = {}) {
       presenceProfile: signalPatch.greeting?.presenceProfile || signalPatch.sessionPatch?.presenceProfile || "",
       nyxStateHint: signalPatch.greeting?.presenceProfile || signalPatch.sessionPatch?.nyxStateHint || "",
       backendFirst: true,
+      replayDetected: false,
       adapterVersion: ADAPTER_VERSION
     };
   }
 
-  const desired = ctx.intent === "intro" ? ["intro", "greeting"] : ctx.intent === "fallback" ? ["fallback", "error"] : ["greeting", "prompt", "intro", "fallback", "error"];
+  const desired = desiredTypesFor(localCtx);
   const chosen = signalPacket && canUsePacket(signalPacket, localCtx) ? signalPacket : findReplyPacket(pack, localCtx, desired);
   if (!chosen) {
     return {
@@ -331,10 +440,13 @@ function resolveNyxPacket(pack, ctx = {}) {
       packet: signalPacket ? signalPacket.id : null,
       packetId: signalPacket ? signalPacket.id : "",
       matchedPacketId: signalPacket ? signalPacket.id : "",
+      matchedPacketType: signalPacket ? packetType(signalPacket) : "",
       chips: signalPacket?.chips || [],
       greeting: signalPatch.greeting,
       sessionPatch: signalPatch.sessionPatch,
       memoryPatch: signalPatch.memoryPatch,
+      backendFirst: false,
+      replayDetected,
       adapterVersion: ADAPTER_VERSION
     };
   }
@@ -342,9 +454,28 @@ function resolveNyxPacket(pack, ctx = {}) {
   const state = localCtx.session?.state || "cold";
   const stateTemplates = chosen.stateTemplates && chosen.stateTemplates[state];
   const templates = stateTemplates || chosen.templates || [];
-  const reply = renderTemplate(pick(templates, localCtx.seed), localCtx).trim();
-  const chosenPatch = chosen === signalPacket ? signalPatch : buildPacketPatches(chosen, localCtx);
+  const seed = firstNonEmpty(localCtx.seed, `${packetId(chosen)}:${getInputText(localCtx)}:${localCtx.session?.turnId || localCtx.session?.turn || ""}`);
+  const reply = renderTemplate(pick(templates, seed), localCtx).trim();
+  const replyReplay = reply && isReplay(reply, localCtx.session);
+  if (!reply || (chosen.constraints?.doNotLoop && replyReplay && !internalIntentMatches(chosen, localCtx))) {
+    return {
+      source: "empty",
+      reply: "",
+      packet: chosen.id,
+      packetId: chosen.id,
+      matchedPacketId: chosen.id,
+      matchedPacketType: packetType(chosen),
+      chips: chosen.chips || [],
+      greeting: signalPatch.greeting,
+      sessionPatch: signalPatch.sessionPatch,
+      memoryPatch: signalPatch.memoryPatch,
+      backendFirst: false,
+      replayDetected: true,
+      adapterVersion: ADAPTER_VERSION
+    };
+  }
 
+  const chosenPatch = chosen === signalPacket ? signalPatch : buildPacketPatches(chosen, localCtx);
   applyPacketPatchToSession(localCtx.session, chosenPatch);
   markPacketUsed(localCtx.session, chosen, reply);
 
@@ -362,6 +493,7 @@ function resolveNyxPacket(pack, ctx = {}) {
     presenceProfile: chosenPatch.greeting?.presenceProfile || chosenPatch.sessionPatch?.presenceProfile || "",
     nyxStateHint: chosenPatch.greeting?.presenceProfile || chosenPatch.sessionPatch?.nyxStateHint || "",
     backendFirst: false,
+    replayDetected,
     adapterVersion: ADAPTER_VERSION
   };
 }
@@ -373,10 +505,13 @@ module.exports = {
   normalizeMatchText,
   normalizeAssistantAliases,
   isReplay,
+  isUnsafeBackendLoop,
   canUsePacket,
   canMatchPacketSignal,
   triggerMatches,
+  internalIntentMatches,
   findSignalPacket,
+  findReplyPacket,
   buildGreetingBridge,
   buildPacketPatches,
   applyPacketPatchToSession,
