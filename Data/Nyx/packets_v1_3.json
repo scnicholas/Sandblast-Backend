@@ -1,5 +1,5 @@
 {
-  "version": "packets_v1.3-C-normalized-40D-greetings",
+  "version": "packets_v1.3-D-commercial-hardened-greeting-bridge",
   "updated": "2026-05-03",
   "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
   "voice": {
@@ -89,7 +89,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -165,7 +166,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -241,7 +243,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -316,7 +319,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -391,7 +395,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -469,7 +474,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -545,7 +551,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -621,7 +628,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -693,7 +701,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 38,
       "notes": [
@@ -765,7 +774,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 38,
       "notes": [
@@ -843,7 +853,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -921,7 +932,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -997,7 +1009,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1073,7 +1086,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1147,7 +1161,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 38,
       "notes": [
@@ -1223,7 +1238,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1301,7 +1317,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 42,
       "notes": [
@@ -1377,7 +1394,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 42,
       "notes": [
@@ -1453,7 +1471,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1527,7 +1546,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 42,
       "notes": [
@@ -1601,7 +1621,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 42,
       "notes": [
@@ -1679,7 +1700,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 42,
       "notes": [
@@ -1761,7 +1783,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1841,7 +1864,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1915,7 +1939,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -1991,7 +2016,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2065,7 +2091,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 38,
       "notes": [
@@ -2139,7 +2166,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2213,7 +2241,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2289,7 +2318,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2367,7 +2397,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2443,7 +2474,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2523,7 +2555,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2599,7 +2632,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2677,7 +2711,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2753,7 +2788,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2835,7 +2871,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2903,7 +2940,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -2975,7 +3013,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -3043,7 +3082,8 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
-        "answerThenAskForwardQuestion": true
+        "answerThenAskForwardQuestion": true,
+        "requireTriggerForReply": true
       },
       "priority": 34,
       "notes": [
@@ -3056,14 +3096,12 @@
       "type": "greeting",
       "lane": "general",
       "trigger": [
-        "hi",
         "hello",
         "hey",
         "yo",
         "hiya",
         "sup",
         "gm",
-        "good morning",
         "goodmorning",
         "good afternoon",
         "goodafternoon",
@@ -3109,7 +3147,9 @@
       ],
       "constraints": {
         "oncePerSession": true,
-        "honorMarionFirst": true
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
       },
       "sessionPatch": {
         "lane": "general"
@@ -3119,7 +3159,12 @@
         "allowPacketReplaceBackend": false,
         "packetRole": "assistive",
         "allowWhenBackendReplyExists": false
-      }
+      },
+      "auditNotes": [
+        "Duplicate trigger pruned: 'hi'; first owned by general.greeting_40d_basic_hi",
+        "Duplicate trigger pruned: 'good morning'; first owned by general.greeting_40d_good_morning"
+      ],
+      "priority": 0
     },
     {
       "id": "general.greetings_returning",
@@ -3127,7 +3172,6 @@
       "lane": "general",
       "trigger": [
         "welcome back",
-        "back again",
         "im back",
         "i'm back",
         "were back",
@@ -3173,7 +3217,9 @@
       ],
       "constraints": {
         "oncePerSession": true,
-        "honorMarionFirst": true
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
       },
       "sessionPatch": {
         "lane": "general"
@@ -3183,7 +3229,11 @@
         "allowPacketReplaceBackend": false,
         "packetRole": "assistive",
         "allowWhenBackendReplyExists": false
-      }
+      },
+      "auditNotes": [
+        "Duplicate trigger pruned: 'back again'; first owned by general.greeting_40d_back_again"
+      ],
+      "priority": 0
     },
     {
       "id": "general.capabilities_quick",
@@ -3231,8 +3281,11 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
+      },
+      "priority": 0
     },
     {
       "id": "general.goodbyes_soft",
@@ -3279,8 +3332,11 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
+      },
+      "priority": 0
     },
     {
       "id": "general.fallback_nudge",
@@ -3341,7 +3397,10 @@
         "fallbackOnly": true,
         "requireBackendEmpty": true,
         "requireNoBackendReply": true,
-        "requireHardFailureOrNoReply": true
+        "requireHardFailureOrNoReply": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
       },
       "priority": -100,
       "notes": [
@@ -3407,7 +3466,10 @@
         "honorMarionFirst": true,
         "errorOnly": true,
         "requireBackendFailure": true,
-        "requireNoBackendReply": true
+        "requireNoBackendReply": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
       },
       "priority": -90,
       "notes": [
@@ -3472,7 +3534,9 @@
       ],
       "constraints": {
         "requireNoYear": true,
-        "honorMarionFirst": true
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
       },
       "sessionPatch": {
         "lane": "music"
@@ -3482,7 +3546,8 @@
         "allowPacketReplaceBackend": false,
         "packetRole": "assistive",
         "allowWhenBackendReplyExists": false
-      }
+      },
+      "priority": 0
     },
     {
       "id": "music.mode_prompt_has_year",
@@ -3523,8 +3588,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "music.nav_next_year",
@@ -3553,8 +3622,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "music.nav_another_year",
@@ -3592,8 +3665,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "sponsors.open",
@@ -3644,8 +3721,11 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
+      },
+      "priority": 0
     },
     {
       "id": "sponsors.need_goal",
@@ -3686,8 +3766,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "sponsors.need_budget",
@@ -3724,8 +3808,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "schedule.open",
@@ -3780,8 +3868,11 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
+      },
+      "priority": 0
     },
     {
       "id": "schedule.need_city",
@@ -3822,8 +3913,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "schedule.need_show_or_now",
@@ -3855,8 +3950,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "movies.open",
@@ -3918,8 +4017,11 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true
+      },
+      "priority": 0
     },
     {
       "id": "movies.need_title_or_genre",
@@ -3959,8 +4061,12 @@
         "allowWhenBackendReplyExists": false
       },
       "constraints": {
-        "honorMarionFirst": true
-      }
+        "honorMarionFirst": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
+      },
+      "priority": 0
     },
     {
       "id": "general.intro_soft_expanded",
@@ -4012,7 +4118,10 @@
       },
       "constraints": {
         "honorMarionFirst": true,
-        "oncePerSession": true
+        "oncePerSession": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
       },
       "priority": 0
     },
@@ -4067,7 +4176,10 @@
         "fallbackOnly": true,
         "requireBackendEmpty": true,
         "requireNoBackendReply": true,
-        "requireHardFailureOrNoReply": true
+        "requireHardFailureOrNoReply": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
       },
       "priority": -110
     },
@@ -4113,7 +4225,10 @@
         "honorMarionFirst": true,
         "fallbackOnly": true,
         "requireReplayDetected": true,
-        "requireNoFreshMarionFinal": true
+        "requireNoFreshMarionFinal": true,
+        "doNotLoop": true,
+        "requireTriggerForReply": true,
+        "internalTriggerOnly": true
       },
       "priority": -105
     }
@@ -4134,126 +4249,13 @@
     ]
   },
   "runtimeContract": {
-    "consumerExpectation": "packet-matcher must honor marionAuthorityLock fields",
-    "backendFieldsPreferred": [
-      "reply",
-      "text",
-      "answer",
-      "output",
-      "response",
-      "payload.reply",
-      "payload.text",
-      "payload.message",
-      "packet.reply",
-      "packet.answer",
-      "packet.output",
-      "packet.synthesis.reply",
-      "packet.synthesis.answer",
-      "packet.synthesis.text",
-      "packet.synthesis.output"
-    ],
-    "fallbackOnlyWhen": [
-      "no_backend_reply",
-      "backend_transport_failure",
-      "backend_contract_failure"
-    ],
-    "requiredRuntimeGuardFile": "nyx_pack_runtime_adapter.js",
-    "replayProtectionRequired": true,
-    "introEligiblePackets": [
-      "general.greetings_first",
-      "general.greetings_returning",
-      "general.intro_soft_expanded",
-      "general.greeting_40d_basic_hi",
-      "general.greeting_40d_hello_polite",
-      "general.greeting_40d_good_morning",
-      "general.greeting_40d_good_afternoon",
-      "general.greeting_40d_good_evening",
-      "general.greeting_40d_whats_up",
-      "general.greeting_40d_how_are_you",
-      "general.greeting_40d_you_there",
-      "general.greeting_40d_can_you_hear_me",
-      "general.greeting_40d_testing",
-      "general.greeting_40d_back_again",
-      "general.greeting_40d_resume_work",
-      "general.greeting_40d_need_help",
-      "general.greeting_40d_quick_question",
-      "general.greeting_40d_big_problem",
-      "general.greeting_40d_rough_day",
-      "general.greeting_40d_stressed",
-      "general.greeting_40d_frustrated",
-      "general.greeting_40d_sad",
-      "general.greeting_40d_anxious",
-      "general.greeting_40d_lonely",
-      "general.greeting_40d_angry",
-      "general.greeting_40d_confused",
-      "general.greeting_40d_lost",
-      "general.greeting_40d_plan",
-      "general.greeting_40d_build_mode",
-      "general.greeting_40d_debug_mode",
-      "general.greeting_40d_business_mode",
-      "general.greeting_40d_creative_mode",
-      "general.greeting_40d_motivation",
-      "general.greeting_40d_joking",
-      "general.greeting_40d_formal",
-      "general.greeting_40d_skeptical",
-      "general.greeting_40d_impatient",
-      "general.greeting_40d_compliment",
-      "general.greeting_40d_apology",
-      "general.greeting_40d_uncertain",
-      "general.greeting_40d_voice_command",
-      "general.greeting_40d_media_request",
-      "general.greeting_40d_reset_request"
-    ],
-    "fallbackEligiblePackets": [
-      "general.fallback_nudge",
-      "general.errors_generic",
-      "general.fallback_anchor_expanded",
-      "general.replay_breaker_expanded"
-    ],
-    "greetingIntentPackets": [
-      "general.greeting_40d_basic_hi",
-      "general.greeting_40d_hello_polite",
-      "general.greeting_40d_good_morning",
-      "general.greeting_40d_good_afternoon",
-      "general.greeting_40d_good_evening",
-      "general.greeting_40d_whats_up",
-      "general.greeting_40d_how_are_you",
-      "general.greeting_40d_you_there",
-      "general.greeting_40d_can_you_hear_me",
-      "general.greeting_40d_testing",
-      "general.greeting_40d_back_again",
-      "general.greeting_40d_resume_work",
-      "general.greeting_40d_need_help",
-      "general.greeting_40d_quick_question",
-      "general.greeting_40d_big_problem",
-      "general.greeting_40d_rough_day",
-      "general.greeting_40d_stressed",
-      "general.greeting_40d_frustrated",
-      "general.greeting_40d_sad",
-      "general.greeting_40d_anxious",
-      "general.greeting_40d_lonely",
-      "general.greeting_40d_angry",
-      "general.greeting_40d_confused",
-      "general.greeting_40d_lost",
-      "general.greeting_40d_plan",
-      "general.greeting_40d_build_mode",
-      "general.greeting_40d_debug_mode",
-      "general.greeting_40d_business_mode",
-      "general.greeting_40d_creative_mode",
-      "general.greeting_40d_motivation",
-      "general.greeting_40d_joking",
-      "general.greeting_40d_formal",
-      "general.greeting_40d_skeptical",
-      "general.greeting_40d_impatient",
-      "general.greeting_40d_compliment",
-      "general.greeting_40d_apology",
-      "general.greeting_40d_uncertain",
-      "general.greeting_40d_voice_command",
-      "general.greeting_40d_media_request",
-      "general.greeting_40d_reset_request"
-    ],
-    "greetingIntentRule": "Specific 40D greeting packets should be evaluated before broad greeting packets; they classify tone/energy and then yield to Marion final authority.",
-    "micTextAlignmentRule": "Speech final transcript must be normalized and sent through the same submit path as typed text before packet matching."
+    "backendFirst": true,
+    "packetRole": "assistive_intent_state_bridge",
+    "allowPacketReplaceBackend": false,
+    "requireTriggerForUserFacingPacketReply": true,
+    "allowInternalMagicTriggersOnlyByRuntimeIntent": true,
+    "statePatchSanitizedByAdapter": true,
+    "doNotLoop": true
   },
   "normalization": {
     "assistantAliasMap": {
@@ -4265,5 +4267,12 @@
       "next": "nyx"
     },
     "inputRule": "Normalize assistant-name voice/text aliases before packet matching. Mic and text must share the same submit path before Marion routing."
+  },
+  "hardening": "COMMERCIAL-HARDENED-PACKET-BRIDGE: backend-first, trigger-gated replies, sanitized state patches, duplicate-trigger pruning, replay-safe fallback contract",
+  "auditSummary": {
+    "packetCount": 61,
+    "duplicateIds": [],
+    "duplicateUserTriggersAfterPrune": [],
+    "emptyTemplatePackets": []
   }
 }
