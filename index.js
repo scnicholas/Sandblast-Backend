@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44";
+const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -1324,6 +1324,206 @@ function packetBridgeInputSource(norm) {
   ).toLowerCase() || "text";
 }
 
+function normalizeNyxPacketBridgeText(text) {
+  const raw = cleanText(text || "");
+  if (!raw) return "";
+  const t = raw
+    .replace(/[’]/g, "'")
+    .replace(/^\s*(nick|nicks|nix|mix|mike)\b/i, "Nyx")
+    .replace(/\s+/g, " ")
+    .trim();
+  const alias = "(?:nyx|nick|nicks|nix|mix|mike)";
+  const emotionMap = [
+    ["stressed", "nyx, i'm stressed"],
+    ["stress", "nyx, i'm stressed"],
+    ["overwhelmed", "i'm overwhelmed"],
+    ["anxious", "nyx, i feel anxious"],
+    ["nervous", "i'm nervous"],
+    ["frustrated", "nyx, i'm frustrated"],
+    ["annoyed", "i'm annoyed"],
+    ["sad", "nyx, i'm sad"],
+    ["down", "i feel down"],
+    ["angry", "nyx, i'm angry"],
+    ["mad", "i'm really mad right now"],
+    ["confused", "nyx, i'm confused"],
+    ["lonely", "nyx, i feel alone"],
+    ["alone", "nyx, i feel alone"]
+  ];
+  for (const [word, canonical] of emotionMap) {
+    const rx = new RegExp(`^${alias}[, ]+(?:i\\s*(?:am|m)\\s+|i['\\u2019]?m\\s+|im\\s+)?${word}$`, "i");
+    if (rx.test(t)) return canonical;
+  }
+  if (new RegExp(`^${alias}[, ]+(?:we\\s+have\\s+a\\s+problem|something\\s+is\\s+wrong|problem)$`, "i").test(t)) return "nyx, we have a problem";
+  return t;
+}
+
+function packetBridgeMarionIntent(packetBridge, norm) {
+  const bridge = isObj(packetBridge) ? packetBridge : {};
+  const greeting = extractGreetingBridgeFields(bridge, norm);
+  const rawIntent = cleanText(greeting.intent || bridge.intent || bridge.sessionPatch && bridge.sessionPatch.lastGreetingIntent || "");
+  const rawTone = cleanText(greeting.tone || bridge.tone || bridge.sessionPatch && bridge.sessionPatch.lastGreetingTone || "");
+  const rawPresence = cleanText(greeting.presenceProfile || bridge.presenceProfile || bridge.nyxStateHint || "");
+  const combined = lower(`${rawIntent} ${rawTone} ${rawPresence} ${cleanText(norm && norm.text || "")}`);
+  if (!rawIntent && !rawTone && !rawPresence) return null;
+
+  let intent = "simple_chat";
+  let domain = "general";
+  let confidence = 0.62;
+  if (/(distress|anxiety|sadness|loneliness|anger|frustration|emotional|stressed|overwhelmed|support|calming|grounding|compassionate|empathetic|validating|contained)/i.test(combined)) {
+    intent = "emotional_support";
+    domain = "emotional";
+    confidence = 0.86;
+  } else if (/(problem_report|system_test|mic_check|diagnostic|debug|technical|confusion)/i.test(combined)) {
+    intent = "technical_debug";
+    domain = "technical";
+    confidence = 0.78;
+  } else if (/(continuation|returning|quick_question|presence_check|basic_greeting|time_greeting|casual_greeting|social_checkin|help_request)/i.test(combined)) {
+    intent = rawIntent || "simple_chat";
+    domain = "general";
+    confidence = 0.7;
+  }
+
+  return {
+    activate: intent !== "simple_chat" || !!rawIntent,
+    intent,
+    confidence,
+    reason: "nyx_packet_preclassification",
+    source: "nyx_packet_runtime_adapter",
+    triggerSource: cleanText(bridge.inputSource || packetBridgeInputSource(norm) || "text"),
+    domain,
+    routeDomain: domain,
+    packetIntent: rawIntent,
+    packetTone: rawTone,
+    packetPresenceProfile: rawPresence,
+    matchedPacketId: cleanText(bridge.matchedPacketId || bridge.packetId || bridge.packet || greeting.id || "")
+  };
+}
+
+function buildPacketBridgeRouting(packetIntent, lane) {
+  const pi = isObj(packetIntent) ? packetIntent : {};
+  const domain = cleanText(pi.domain || pi.routeDomain || "general") || "general";
+  return {
+    domain,
+    routeDomain: domain,
+    intent: cleanText(pi.intent || "simple_chat") || "simple_chat",
+    lane: cleanText(lane || "general") || "general",
+    mode: domain === "emotional" ? "supportive_reasoning" : domain === "technical" ? "diagnostic" : "balanced",
+    depth: domain === "emotional" ? "high" : domain === "technical" ? "forensic" : "balanced",
+    useDomainKnowledge: domain !== "general",
+    useMemory: domain === "emotional" || domain === "memory",
+    triggerSource: cleanText(pi.triggerSource || pi.source || "nyx_packet_preclassification")
+  };
+}
+
+function applyPacketBridgePreclassification(norm, packetBridge) {
+  if (!isObj(norm) || !isObj(packetBridge) || packetBridge.ok === false) return null;
+  const packetIntent = packetBridgeMarionIntent(packetBridge, norm);
+  if (!packetIntent || !packetIntent.activate) return null;
+  norm.packetPreBridge = packetBridge;
+  norm.packetPreclassification = packetIntent;
+  norm.marionIntent = {
+    ...(isObj(norm.marionIntent) ? norm.marionIntent : {}),
+    ...packetIntent,
+    previousIntent: cleanText(norm.marionIntent && norm.marionIntent.intent || "")
+  };
+  norm.marionRouting = {
+    ...(isObj(norm.marionRouting) ? norm.marionRouting : {}),
+    ...buildPacketBridgeRouting(packetIntent, norm.lane)
+  };
+  norm.domainHint = cleanText(norm.domainHint || packetIntent.domain || "");
+  norm.intentHint = cleanText(norm.intentHint || packetIntent.intent || "");
+  return packetIntent;
+}
+
+function buildPacketBridgeFallbackSelected(norm, packetBridge) {
+  const bridge = isObj(packetBridge) ? packetBridge : {};
+  const reply = finalizeRenderableReply(bridge.reply || "", norm, "nyx_packet_bridge", "packet_bridge_no_marion");
+  if (!reply || isBlockedLoopingSupportReply(reply) || isConversationDiagnosticFallbackReply(reply)) return null;
+  const greeting = extractGreetingBridgeFields(bridge, norm);
+  const sessionPatch = isObj(bridge.sessionPatch) ? { ...bridge.sessionPatch } : {};
+  const memoryPatch = isObj(bridge.memoryPatch) ? { ...bridge.memoryPatch } : {};
+  const presenceProfile = cleanText(bridge.presenceProfile || greeting.presenceProfile || sessionPatch.presenceProfile || "warm") || "warm";
+  const matchedPacketId = cleanText(bridge.matchedPacketId || bridge.packetId || bridge.packet || greeting.id || "");
+  const matchedPacketType = cleanText(bridge.matchedPacketType || (matchedPacketId ? "greeting" : "") || "");
+  return {
+    ok: true,
+    final: true,
+    finalized: true,
+    handled: true,
+    marionFinal: false,
+    packetFinal: true,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    spokenText: reply,
+    finalEnvelope: {
+      reply,
+      text: reply,
+      displayReply: reply,
+      spokenText: reply,
+      final: true,
+      marionFinal: false,
+      handled: true,
+      authority: "nyx_packet_bridge_no_marion",
+      contractVersion: "nyx.packet.bridge/1.0"
+    },
+    payload: {
+      reply,
+      text: reply,
+      message: reply,
+      spokenText: reply,
+      final: true,
+      marionFinal: false,
+      packetFinal: true,
+      matchedPacketId,
+      matchedPacketType,
+      greeting: greeting.active ? greeting : undefined,
+      sessionPatch,
+      memoryPatch,
+      presenceProfile,
+      nyxStateHint: cleanText(bridge.nyxStateHint || presenceProfile)
+    },
+    matchedPacketId,
+    matchedPacketType,
+    packetId: matchedPacketId,
+    greeting: greeting.active ? greeting : undefined,
+    sessionPatch,
+    memoryPatch,
+    presenceProfile,
+    nyxStateHint: cleanText(bridge.nyxStateHint || presenceProfile),
+    speech: {
+      enabled: true,
+      silent: false,
+      text: reply,
+      textDisplay: reply,
+      textSpeak: reply,
+      presenceProfile,
+      nyxStateHint: cleanText(bridge.nyxStateHint || presenceProfile)
+    },
+    lane: cleanText(norm && norm.lane || "general") || "general",
+    laneId: cleanText(norm && norm.lane || "general") || "general",
+    sessionLane: cleanText(norm && norm.lane || "general") || "general",
+    traceId: cleanText(norm && norm.traceId || makeTraceId("packet")),
+    requestId: makeTraceId("req"),
+    meta: {
+      v: INDEX_VERSION,
+      t: now(),
+      indexRole: "transport_only_packet_assist",
+      transportOnly: true,
+      replyAuthority: "nyx_packet_bridge_no_marion",
+      semanticAuthority: "packet_greeting_assistive",
+      packetStateBridgeActive: true,
+      packetBridgePackFile: cleanText(bridge.packFile || ""),
+      matchedPacketId,
+      matchedPacketType,
+      marionAuthorityPreserved: true,
+      usedOnlyBecauseMarionFinalMissing: true
+    }
+  };
+}
+
 function resolveNyxPacketBridge(norm, selected, marion, priorTurn) {
   if (!nyxPackRuntimeAdapterMod || typeof nyxPackRuntimeAdapterMod.resolveNyxPacket !== "function") {
     return { ok: false, source: "adapter_unavailable", packet: null, chips: [] };
@@ -1340,10 +1540,12 @@ function resolveNyxPacketBridge(norm, selected, marion, priorTurn) {
     inputSource: source,
     source
   };
+  const packetMatchText = normalizeNyxPacketBridgeText(norm && norm.text || "");
   const ctx = {
-    text: cleanText(norm && norm.text || ""),
-    message: cleanText(norm && norm.text || ""),
-    userText: cleanText(norm && norm.text || ""),
+    text: packetMatchText,
+    message: packetMatchText,
+    userText: packetMatchText,
+    originalText: cleanText(norm && norm.text || ""),
     lane: cleanText(norm && norm.lane || "general") || "general",
     intent: "greeting",
     source,
@@ -6702,6 +6904,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
+  const prePacketBridge = resolveNyxPacketBridge(norm, null, null, priorTurn);
+  const prePacketIntent = applyPacketBridgePreclassification(norm, prePacketBridge);
+
   const marionCommandPacket = marionCommandNormalizerMod && typeof marionCommandNormalizerMod.normalizeCommand === "function"
     ? marionCommandNormalizerMod.normalizeCommand({
         text: norm.text,
@@ -6726,7 +6931,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     traceId: norm.traceId,
     sessionId,
     turnId: norm.turnId,
-    payload: norm.payload,
+    payload: { ...(isObj(norm.payload) ? norm.payload : {}), packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : undefined },
     source: norm.source,
     inputSource: norm.inputSource,
     marionIntent: norm.marionIntent,
@@ -6740,6 +6945,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     meta: {
       source: "index_transport_only",
       indexRole: "transport_only",
+      packetPreclassification: isObj(prePacketIntent) ? prePacketIntent : undefined,
+      packetBridgeVersion: cleanText(nyxPackRuntimeAdapterMod && nyxPackRuntimeAdapterMod.ADAPTER_VERSION || ""),
       noSupportDecision: true,
       noEmotionDecision: true,
       normalizerVersion: cleanText(marionCommandNormalizerMod && marionCommandNormalizerMod.VERSION || ""),
@@ -6809,6 +7016,15 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   if (!selected && loopReplyWasBlocked) {
     errorDetail = cleanText(errorDetail || "marion_loop_reply_blocked_transport_only");
+  }
+
+  if (!selected && isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.reply || "")) {
+    const packetSelected = buildPacketBridgeFallbackSelected(norm, prePacketBridge);
+    if (packetSelected) {
+      selected = packetSelected;
+      authority = "nyx_packet_bridge_no_marion";
+      errorDetail = cleanText(errorDetail || "marion_final_missing_packet_bridge_used");
+    }
   }
 
   if (!selected) {
@@ -6902,7 +7118,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   selected.marionIntent = norm.marionIntent;
   selected.marionRouting = norm.marionRouting;
 
-  const packetBridge = resolveNyxPacketBridge(norm, selected, marion, priorTurn);
+  const packetBridge = (isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.matchedPacketId || prePacketBridge.packetId || prePacketBridge.packet || ""))
+    ? prePacketBridge
+    : resolveNyxPacketBridge(norm, selected, marion, priorTurn);
   selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
 
   const speech = buildSpeechContract(selected, norm);
@@ -6963,7 +7181,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     reply,
     emotionLabel: "",
     continuity: isObj(selected.payload && selected.payload.continuity) ? selected.payload.continuity : {},
-    memoryPatch: isObj(selected.memoryPatch) ? selected.memoryPatch : (isObj(selected.sessionPatch && selected.sessionPatch.memoryPatch) ? selected.sessionPatch.memoryPatch : {})
+    memoryPatch: isObj(selected.memoryPatch) ? selected.memoryPatch : (isObj(selected.sessionPatch && selected.sessionPatch.memoryPatch) ? selected.sessionPatch.memoryPatch : {}),
+    sessionPatch: isObj(selected.sessionPatch) ? selected.sessionPatch : {},
+    packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : {}
   });
 
   console.log("[Sandblast][chatRoute:transportFinal]", {
@@ -6977,7 +7197,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   return res.status(200).json({
     ok: selected.ok !== false,
     final: true,
-    marionFinal: true,
+    marionFinal: !!selected.marionFinal,
     handled: true,
     awaitingMarion: false,
     suppressUserFacingReply: false,
@@ -6987,7 +7207,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     text: reply,
     short: reply,
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
-    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: true, handled: true, authority: "marionFinalEnvelope", contractVersion: "nyx.marion.final/1.0" },
+    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0" },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
     payload: selected.payload,
@@ -7035,6 +7255,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       requiredFreshSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       latencyMs: now() - startedAt,
       loggingSpine: trace,
+      packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : undefined,
       packetStateBridge: {
         active: !!(selected.meta && selected.meta.packetStateBridgeActive),
         matchedPacketId: selected.matchedPacketId || "",
