@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47";
+const INDEX_VERSION = "index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48";
 const SERVER_BOOT_AT = Date.now();
 
 function clampNumberEnv(name, fallback, min, max) {
@@ -714,7 +714,7 @@ function isConversationDiagnosticFallbackReply(value) {
 function isGreetingOnlyTurn(text) {
   const t = lower(cleanText(text || "")).replace(/[.!?]+$/g, "").trim();
   if (!t) return false;
-  return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(\s+(nyx|nix|vera|mac))?$/.test(t);
+  return /^(hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(\s+(nyx|nick|nicks|nix|mix|mike|vera|mac))?$/.test(t) || /^(nyx|nick|nicks|nix|mix|mike)$/.test(t);
 }
 
 function buildIndexSafeTransportReply(norm, reason, extra) {
@@ -1523,6 +1523,98 @@ function buildPacketBridgeFallbackSelected(norm, packetBridge) {
     }
   };
 }
+
+const PACKET_FINAL_SELECTION_GENERIC_REPLY_PATTERNS = [
+  /tell me the exact target\b.*\bspecific,? user-facing answer/i,
+  /i['’]?m carrying the previous answer forward rather than restarting/i,
+  /the next move is to build from the established priority/i,
+  /give me the exact piece you want to continue/i,
+  /tell me the exact piece you want to continue/i,
+  /send the exact file, route, or response you want checked next/i,
+  /i need one specific command to continue (cleanly|clearly)/i,
+  /ready\.?\s*send (your next message|the next instruction|the specific file)/i
+];
+
+function isGenericContinuationSelectionReply(value) {
+  const text = cleanText(value || "");
+  if (!text) return false;
+  const key = lower(text).replace(/\s+/g, " ").trim();
+  return PACKET_FINAL_SELECTION_GENERIC_REPLY_PATTERNS.some((rx) => rx.test(text) || rx.test(key));
+}
+
+function packetBridgeSelectionIntent(packetBridge, norm) {
+  const bridge = isObj(packetBridge) ? packetBridge : {};
+  const greeting = extractGreetingBridgeFields(bridge, norm);
+  const sessionPatch = isObj(bridge.sessionPatch) ? bridge.sessionPatch : {};
+  const pre = isObj(norm && norm.packetPreclassification) ? norm.packetPreclassification : {};
+  return lower(cleanText(
+    greeting.intent || bridge.intent || sessionPatch.lastGreetingIntent || pre.packetIntent || pre.intent || ""
+  ));
+}
+
+function isPacketBridgeGreetingOrSignalIntent(intent) {
+  const key = lower(intent || "");
+  return !!key && /^(basic_greeting|time_greeting|casual_greeting|social_checkin|presence_check|mic_check|system_test|returning_user|continuation_request|help_request|quick_question|problem_report|emotional_checkin|distress_signal|frustration_signal|sadness_signal|anxiety_signal|loneliness_signal|anger_signal|confusion_signal)$/.test(key);
+}
+
+function isPacketBridgeAssistiveTurn(norm, packetBridge) {
+  if (!isObj(packetBridge) || packetBridge.ok === false) return false;
+  if (!cleanText(packetBridge.reply || "")) return false;
+  const matchedPacketId = cleanText(packetBridge.matchedPacketId || packetBridge.packetId || packetBridge.packet || "");
+  const intent = packetBridgeSelectionIntent(packetBridge, norm);
+  const normalizedInput = normalizeNyxPacketBridgeText(norm && norm.text || "");
+  if (isGreetingOnlyTurn(norm && norm.text || "") || isGreetingOnlyTurn(normalizedInput)) return true;
+  if (isPacketBridgeGreetingOrSignalIntent(intent) && matchedPacketId) return true;
+  return /^general\.greeting_40d_/i.test(matchedPacketId);
+}
+
+function shouldUsePacketBridgeFinalSelectionGuard(norm, packetBridge, selectedReply) {
+  if (!isPacketBridgeAssistiveTurn(norm, packetBridge)) return false;
+  if (!isGenericContinuationSelectionReply(selectedReply)) return false;
+  const packetReply = cleanText(packetBridge && packetBridge.reply || "");
+  if (!packetReply || isBlockedLoopingSupportReply(packetReply) || isConversationDiagnosticFallbackReply(packetReply)) return false;
+  return true;
+}
+
+function applyPacketBridgeFinalSelectionGuard(norm, selected, packetBridge, marion, selectedReply) {
+  if (!shouldUsePacketBridgeFinalSelectionGuard(norm, packetBridge, selectedReply)) return null;
+  const guarded = buildPacketBridgeFallbackSelected(norm, packetBridge);
+  if (!guarded) return null;
+  const originalReply = cleanText(selectedReply || selected && (selected.reply || selected.text || selected.payload && selected.payload.reply) || "");
+  const matchedPacketId = cleanText(packetBridge.matchedPacketId || packetBridge.packetId || packetBridge.packet || guarded.matchedPacketId || "");
+  guarded.bridge = marion || selected && selected.bridge || null;
+  guarded.meta = {
+    ...(isObj(guarded.meta) ? guarded.meta : {}),
+    replyAuthority: "nyx_packet_bridge_greeting_guard",
+    semanticAuthority: "packet_bridge_final_selection_guard",
+    packetGreetingFinalSelectionGuard: true,
+    originalMarionReplySuppressed: clipText(originalReply, 260),
+    originalMarionReplyWasGenericContinuation: true,
+    matchedPacketId,
+    correction: "generic_marion_continuation_overrode_packet_signal",
+    marionAuthorityPreserved: true,
+    marionFinal: false,
+    packetFinal: true
+  };
+  guarded.payload = {
+    ...(isObj(guarded.payload) ? guarded.payload : {}),
+    packetGreetingFinalSelectionGuard: true,
+    originalMarionReplySuppressed: clipText(originalReply, 260),
+    matchedPacketId,
+    marionFinal: false,
+    packetFinal: true
+  };
+  guarded.finalEnvelope = {
+    ...(isObj(guarded.finalEnvelope) ? guarded.finalEnvelope : {}),
+    authority: "nyx_packet_bridge_greeting_guard",
+    marionFinal: false,
+    packetFinal: true
+  };
+  guarded.marionFinal = false;
+  guarded.packetFinal = true;
+  return guarded;
+}
+
 
 function resolveNyxPacketBridge(norm, selected, marion, priorTurn) {
   if (!nyxPackRuntimeAdapterMod || typeof nyxPackRuntimeAdapterMod.resolveNyxPacket !== "function") {
@@ -3986,7 +4078,11 @@ function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
   const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
-  const text = cleanText(body.text || payload.text || payload.query || (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || "");
+  const text = cleanText(
+    body.text || body.message || body.query || body.userText ||
+    payload.text || payload.message || payload.query || payload.userText ||
+    (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || ""
+  );
   const rawMarionIntent = isObj(body.marionIntent) ? body.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : {});
   const lane = cleanText(payload.lane || body.lane || "general").toLowerCase() || "general";
   const routedMarionIntent = routeMarionIntentThroughRuntime(normalizeIncomingMarionIntent(rawMarionIntent, text), lane, text);
@@ -7024,6 +7120,16 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       selected = packetSelected;
       authority = "nyx_packet_bridge_no_marion";
       errorDetail = cleanText(errorDetail || "marion_final_missing_packet_bridge_used");
+    }
+  }
+
+  if (selected && isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.reply || "")) {
+    const selectedReplyForGuard = cleanText(selected.reply || selected.text || selected.answer || selected.output || selected.payload && selected.payload.reply || "");
+    const guardedSelected = applyPacketBridgeFinalSelectionGuard(norm, selected, prePacketBridge, marion, selectedReplyForGuard);
+    if (guardedSelected) {
+      selected = guardedSelected;
+      authority = "nyx_packet_bridge_greeting_guard";
+      errorDetail = cleanText(errorDetail || "generic_marion_continuation_replaced_by_packet_bridge");
     }
   }
 
