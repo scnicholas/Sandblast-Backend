@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.17.0 GREETING-POSTURE-SHAPER-40D";
+const VERSION = "composeMarionResponse v3.18.0 GREETING-POSTURE-MIC-TOLERANCE-40D";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const VALID_INTENTS = Object.freeze(["simple_chat","technical_debug","emotional_support","business_strategy","music_query","news_query","roku_query","identity_query","identity_or_memory","directive_response","contextual_directive","domain_question"]);
@@ -233,7 +233,39 @@ function resolveIntent(routed={},input={}){const r=safeObj(routed),i=safeObj(inp
 function resolveDomain(routed={},input={},intent="simple_chat"){const r=safeObj(routed),i=safeObj(input),text=extractText(routed,input),knowledgeDomain=resolveKnowledgeDomain(routed,input,text);if(knowledgeDomain&&intent!=="emotional_support")return knowledgeDomain;const raw=normalizeDomain(r.primaryDomain||r.domain||(r.routing&&r.routing.domain)||i.domain||i.requestedDomain||(i.routing&&i.routing.domain),intent);if((!raw||raw==="general")&&intent!=="simple_chat")return INTENT_TO_DOMAIN[intent]||raw||"general";return raw||INTENT_TO_DOMAIN[intent]||"general";}
 function resolveTurnId(routed={},input={}){return firstText(input.turnId,input.sourceTurnId,input.packetId,routed.turnId,routed.packetId,input.meta&&input.meta.turnId,routed.meta&&routed.meta.turnId,`compose_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);}
 function resolvePreviousMemory(input={}){const previousMemory=safeObj(input.previousMemory||input.memory||input.turnMemory);const state=safeObj(input.conversationState||input.state||previousMemory.stateSpine||previousMemory.conversationState);return{previousMemory,state,repetition:safeObj(state.repetition||previousMemory.repetition)};}
-function detectDistress(text){const t=lower(text);const crisis=/\b(suicide|self[- ]?harm|kill myself|don['’]?t want to live|dont want to live|end my life|hurt myself)\b/i.test(t);const high=crisis||/\b(panic attack|panic|depressed|hopeless|overwhelmed|crying|heartbroken|grief|breaking down)\b/i.test(t);const emotional=high||/\b(sad|lonely|hurt|anxious|afraid|stressed|upset|lost|empty|off today|exhausted|exhausting|mentally drained|drained|burned out|burnt out|worn down)\b/i.test(t);return{crisis,high,emotional};}
+function normalizeInboundTextForPosture(text){
+  let t=lower(text);
+  if(!t)return"";
+  return t
+    .replace(/[\u2018\u2019]/g,"'")
+    .replace(/\b(nick|nicks|nix|mix|mike|next)\b/g,"nyx")
+    .replace(/\bstress+ed+ed\b/g,"stressed")
+    .replace(/\bstress+ed\b/g,"stressed")
+    .replace(/\bstres+ed\b/g,"stressed")
+    .replace(/\bstresseded\b/g,"stressed")
+    .replace(/\bstresssed\b/g,"stressed")
+    .replace(/\bstresed\b/g,"stressed")
+    .replace(/\bstrest\b/g,"stressed")
+    .replace(/\bfrusterated\b/g,"frustrated")
+    .replace(/\bfrustratied\b/g,"frustrated")
+    .replace(/\boverwhelmeded\b/g,"overwhelmed")
+    .replace(/\boverwelmed\b/g,"overwhelmed")
+    .replace(/\banxius\b/g,"anxious")
+    .replace(/\banxous\b/g,"anxious")
+    .replace(/\bpanicing\b/g,"panicking")
+    .replace(/\bneed\s+help\s+me\b/g,"need help")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function detectGreetingDistressSignal(text){
+  const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
+  const addressed=/\b(nyx|vera)\b/.test(t)||/^(hi|hey|hello|yo|please)\b/.test(t);
+  const emotional=/\b(i am|i'm|im|feeling|feel|getting|got|really|so|very)?\s*(stressed|overwhelmed|anxious|panicking|sad|lonely|hurt|upset|lost|empty|exhausted|drained|burned out|burnt out|worn down)\b/.test(t);
+  const help=/\b(i need help|need help|help me|can you help|i could use help)\b/.test(t);
+  const frustration=/\b(frustrated|angry|mad|furious|irritated|annoyed)\b/.test(t);
+  return {active:!!(addressed&&(emotional||help||frustration)),emotional,help,frustration,text:t};
+}
+function detectDistress(text){const t=normalizeInboundTextForPosture(text);const crisis=/\b(suicide|self[- ]?harm|kill myself|don['’]?t want to live|dont want to live|end my life|hurt myself)\b/i.test(t);const high=crisis||/\b(panic attack|panic|panicking|depressed|hopeless|overwhelmed|crying|heartbroken|grief|breaking down)\b/i.test(t);const emotional=high||/\b(sad|lonely|hurt|anxious|afraid|stressed|upset|lost|empty|off today|exhausted|exhausting|mentally drained|drained|burned out|burnt out|worn down)\b/i.test(t);return{crisis,high,emotional};}
 
 function normalizeResolvedEmotion(input={}){
   const direct=safeObj(input.resolvedEmotion||input.emotionState||input.emotionalState);
@@ -251,7 +283,7 @@ function normalizeResolvedEmotion(input={}){
   return {present:true,carried:!!fromPrevious,state,primary:lower(emotion.primary||"neutral")||"neutral",secondary:lower(emotion.secondary||nuance.subtype||"unclear")||"unclear",intensity:Number.isFinite(Number(emotion.intensity))?Math.max(0,Math.min(1,Number(emotion.intensity))):0,confidence:Number.isFinite(Number(emotion.confidence))?Math.max(0,Math.min(1,Number(emotion.confidence))):0,tone:firstText(support.tone,"steady"),timingProfile:safeObj(support.timing_profile),actionMode:firstText(guard.action_mode,"supportive_monitoring"),safeToContinue:guard.safe_to_continue!==false,escalationNeeded:!!guard.escalation_needed,constraints:safeArray(handoff.response_constraints),nyxContract:safeObj(handoff.nyx_contract)};
 }
 function hasEmotionalContinuityCue(text){
-  const t=lower(text);
+  const t=normalizeInboundTextForPosture(text);
   return /\b(still|again|same|too much|trying|can[’']?t shake|not better|keeps happening|it continues|it has not stopped|it hasn[’']?t stopped|i[’']?m trying|i am trying|feels like|this feeling|exhausting|exhausted|mentally|drained|burned out|burnt out|worn down|tired of this)\b/i.test(t);
 }
 function resolveEffectiveEmotion(input={}, currentEmotion){
@@ -286,9 +318,9 @@ function previousEmotionalContinuity(input={}){
 }
 function emotionalProgressionProfile(text,input={},emotion={}){
   const continuity=previousEmotionalContinuity(input);
-  const t=lower(text);
+  const t=normalizeInboundTextForPosture(text);
   const cue=hasEmotionalContinuityCue(text);
-  const pressure=/too much|overwhelm|pressure|can[’']?t|cannot|trying|still|again|same|not better|heavy|hard/i.test(t);
+  const pressure=/too much|overwhelm|overwhelmed|stressed|anxious|pressure|can[’']?t|cannot|trying|still|again|same|not better|heavy|hard/i.test(t);
   const carryDepth=Math.max(continuity.carryDepth||0, emotion.carried?1:0, cue?1:0);
   const active=!!(emotion.present||continuity.active||pressure);
   const primary=lower(emotion.primary||continuity.primary||"neutral")||"neutral";
@@ -346,11 +378,11 @@ function emotionNyxHint(intent,emotion){
 function isBlockedLoopReply(value){const text=lower(value).replace(/[.!?]+$/g,"");if(!text)return true;return BLOCKED_LOOP_PATTERNS.some(rx=>rx.test(text));}
 
 function isGreetingOnly(text){
-  const t=lower(text).replace(/[.!?]+$/g,"").trim();
+  const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(hi|hello|hey|yo|hiya|morning|afternoon|evening|good morning|good afternoon|good evening)(\s+(nyx|nix|vera))?$/.test(t);
 }
 function isHowAreYouTurn(text){
-  const t=lower(text).replace(/[.!?]+$/g,"").trim();
+  const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(how are you|how are you today|how are you doing|how are you doing today|how is nyx|how are things)(\s+(nyx|nix|vera))?$/.test(t);
 }
 function isCapabilityQuestion(text){
@@ -358,7 +390,7 @@ function isCapabilityQuestion(text){
   return /\b(what can you do|what can you help with|what areas can you help with|what do you help with|what can nyx do|what can nix do|capabilities|show me the lanes|show me your lanes)\b/i.test(t);
 }
 function isCasualGreetingTurn(text){
-  const t=lower(text).replace(/[.!?]+$/g,"").trim();
+  const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(what[’\']?s up|wassup|what up|sup|yo|hey there|how[’\']s it going|how is it going|how are things)(\s+(nyx|nix|nick|mix|mike|vera))?$/.test(t);
 }
 function isGreetingPostureTurn(text){
@@ -387,6 +419,19 @@ function buildWarmSocialReply(text,input={}){
   if(isCapabilityQuestion(text))return registryCapabilityIntro();
   return "Tell me what you want to work on, and I’ll keep it clear, useful, and easy to build from.";
 }
+function inferGreetingPostureFromText(text="",input={}){
+  const source=firstText(safeObj(input).inputSource,safeObj(input).source,"text");
+  const distress=detectGreetingDistressSignal(text);
+  if(distress.active){
+    if(distress.frustration)return {active:true,id:"compose.greeting_40d_frustration_normalized",intent:"frustration_signal",tone:"contained",energy:"high",presenceProfile:"contained",matchedType:"greeting",source,inputSource:source};
+    if(distress.help&&!distress.emotional)return {active:true,id:"compose.greeting_40d_help_normalized",intent:"help_request",tone:"steady",energy:"medium",presenceProfile:"supportive",matchedType:"greeting",source,inputSource:source};
+    return {active:true,id:"compose.greeting_40d_distress_normalized",intent:"distress_signal",tone:"calming",energy:"high",presenceProfile:"supportive",matchedType:"greeting",source,inputSource:source};
+  }
+  if(isCasualGreetingTurn(text))return {active:true,id:"compose.greeting_40d_casual_normalized",intent:"casual_greeting",tone:"casual",energy:"medium",presenceProfile:"warm",matchedType:"greeting",source,inputSource:source};
+  if(isHowAreYouTurn(text))return {active:true,id:"compose.greeting_40d_social_checkin_normalized",intent:"social_checkin",tone:"warm",energy:"medium",presenceProfile:"warm",matchedType:"greeting",source,inputSource:source};
+  if(isGreetingOnly(text))return {active:true,id:"compose.greeting_40d_basic_normalized",intent:"basic_greeting",tone:"neutral_warm",energy:"low",presenceProfile:"warm",matchedType:"greeting",source,inputSource:source};
+  return {active:false};
+}
 function extractGreetingPosture(input={},routed={},text=""){
   const i=safeObj(input),r=safeObj(routed),ip=safeObj(i.payload),rp=safeObj(r.payload),is=safeObj(i.sessionPatch),rs=safeObj(r.sessionPatch),im=safeObj(i.memoryPatch),rm=safeObj(r.memoryPatch);
   const direct=safeObj(i.greeting||r.greeting||ip.greeting||rp.greeting||is.greeting||rs.greeting||safeObj(im.greeting)||safeObj(rm.greeting));
@@ -397,7 +442,11 @@ function extractGreetingPosture(input={},routed={},text=""){
   const energy=firstText(direct.energy,i.lastInputEnergy,r.lastInputEnergy,ip.lastInputEnergy,rp.lastInputEnergy,is.lastInputEnergy,rs.lastInputEnergy,safeObj(im.greeting).lastEnergy,safeObj(rm.greeting).lastEnergy);
   const presenceProfile=firstText(direct.presenceProfile,i.presenceProfile,r.presenceProfile,ip.presenceProfile,rp.presenceProfile,is.presenceProfile,rs.presenceProfile,safeObj(im.greeting).lastPresenceProfile,safeObj(rm.greeting).lastPresenceProfile);
   const active=!!(direct.active||matchedType==="greeting"||/^general\.greeting_40d_|^greeting\.40d\./i.test(id)||intent||tone||energy||isGreetingPostureTurn(text));
-  return {active,id,intent,tone,energy,presenceProfile,matchedType};
+  if(active){
+    if(!(id||intent||tone||energy||presenceProfile))return inferGreetingPostureFromText(text,input);
+    return {active,id,intent,tone,energy,presenceProfile,matchedType};
+  }
+  return inferGreetingPostureFromText(text,input);
 }
 function isFreshGreetingPosture(posture,text=""){
   if(!posture||!posture.active)return false;
@@ -408,6 +457,7 @@ function buildGreetingPostureReply(posture={},text="",input={}){
   const intent=lower(posture.intent||"");
   if(/^(distress_signal|emotional_checkin|anxiety_signal|sadness_signal|loneliness_signal)$/.test(intent))return "Okay. First, we simplify. What is the one thing pressing on you hardest right now?";
   if(intent==="frustration_signal"||intent==="anger_signal")return "I hear the pressure in that. Let’s aim it instead of letting it scatter. What triggered it?";
+  if(intent==="help_request")return "I’m here. Tell me the first piece you need help with, and we’ll make it manageable.";
   if(intent==="casual_greeting"||isCasualGreetingTurn(text))return "I’m here and ready. What are we getting into?";
   if(intent==="social_checkin"||isHowAreYouTurn(text))return "I’m steady and ready to help. How are you doing right now?";
   if(intent==="presence_check")return "I’m here. Fully present. What do you want to do next?";
@@ -419,7 +469,10 @@ function buildGreetingPostureReply(posture={},text="",input={}){
 function applyGreetingPostureQuality(reply,intent,text,input={},routed={}){
   const posture=extractGreetingPosture(input,routed,text);
   const gi=lower(posture.intent||"");
-  if(posture.active&&!continuationCue(text)&&/^(distress_signal|emotional_checkin|anxiety_signal|sadness_signal|loneliness_signal|frustration_signal|anger_signal)$/.test(gi))return buildGreetingPostureReply(posture,text,input);
+  const normalizedDistress=detectGreetingDistressSignal(text);
+  if((posture.active||normalizedDistress.active)&&!continuationCue(text)&&/^(distress_signal|emotional_checkin|anxiety_signal|sadness_signal|loneliness_signal|frustration_signal|anger_signal|help_request)$/.test(gi||inferGreetingPostureFromText(text,input).intent||"")){
+    return buildGreetingPostureReply(posture.active?posture:inferGreetingPostureFromText(text,input),text,input);
+  }
   if(isFreshGreetingPosture(posture,text))return buildGreetingPostureReply(posture,text,input);
   return reply;
 }
@@ -532,4 +585,4 @@ function buildAwaitingMarionContract(reason="compose_reply_missing",detail={},ct
 function ensureFinalReply(packet={},ctx={}){const p=safeObj(packet),intent=ctx.intent||normalizeIntent(p.intent),domain=ctx.domain||normalizeDomain(p.domain,intent),turnId=ctx.turnId||firstText(p.turnId,p.finalEnvelope&&p.finalEnvelope.turnId),text=ctx.text||"",input=safeObj(ctx.input),knowledgeDomain=normalizeKnowledgeDomain(ctx.knowledgeDomain||p.knowledgeDomain||safeObj(p.finalEnvelope).knowledgeDomain||resolveKnowledgeDomain(p,input,text)),domainHints=safeObj(ctx.domainHints||p.domainHints||safeObj(p.finalEnvelope).domainHints),domainRoute=safeObj(ctx.domainRoute||p.domainRoute||safeObj(p.finalEnvelope).domainRoute);let reply=sanitizeUserFacingReply(firstText(p.finalEnvelope&&p.finalEnvelope.reply,p.reply,p.text,p.answer,p.output,p.response,p.message,p.spokenText),intent,text,input);if(!isUsableFinalReply(reply)){return buildAwaitingMarionContract("compose_reply_missing_or_blocked",{replyPreview:safeStr(reply).slice(0,160),intent,domain}, {intent,domain,turnId,text,input});}const finalEnvelope=assertFinalEnvelope(buildFinalEnvelope(reply,intent,domain,turnId,{knowledgeDomain,domainHints,domainRoute}));const resolvedEmotion=normalizeResolvedEmotion(input);const presence=firstText(safeObj(p.speech).presenceProfile,safeObj(p.ui).presenceProfile,p.presenceProfile,emotionPresenceProfile(intent,resolvedEmotion));const hint=firstText(safeObj(p.speech).nyxStateHint,safeObj(p.ui).nyxStateHint,p.nyxStateHint,emotionNyxHint(intent,resolvedEmotion));return{...p,ok:true,final:true,marionFinal:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,knowledgeDomain,domainHints,domainRoute,finalEnvelope,displayReply:reply,hotFallbackApplied:false,finalAuthorityGuaranteed:true,presenceProfile:presence,nyxStateHint:hint,speech:{...safeObj(p.speech),enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile:presence,nyxStateHint:hint},ui:{...safeObj(p.ui),nyxStateHint:hint,presenceProfile:presence,openOverlay:false},meta:{...safeObj(p.meta),finalEnvelopePresent:true,replyAuthority:"composeMarionResponse.ensureFinalReply",cognitionComplete:true,syntheticFallbackSuppressed:true},diagnostics:{...safeObj(p.diagnostics),hardFinalCognitionComplete:true,hotFallbackApplied:false,finalAuthorityGuaranteed:true,syntheticFallbackSuppressed:true}};}
 function composeMarionResponse(routed={},input={}){const text=extractText(routed,input);const contextCarry=extractContextCarry(input,routed);const enrichedInput={...safeObj(input),contextCarry};const greetingPosture=extractGreetingPosture(enrichedInput,routed,text);let resolvedEmotion=normalizeResolvedEmotion(enrichedInput);resolvedEmotion=resolveEffectiveEmotion(enrichedInput,resolvedEmotion);let intent=resolveIntent(routed,enrichedInput);intent=protectsContextFromOverride(intent,text,enrichedInput,routed);const knowledgeDomain=resolveKnowledgeDomain(routed,enrichedInput,text);if(shouldEmotionInfluenceIntent(intent,resolvedEmotion,text))intent="emotional_support";const domain=resolveDomain({...safeObj(routed),knowledgeDomain},enrichedInput,intent),turnId=resolveTurnId(routed,enrichedInput),{previousMemory,state}=resolvePreviousMemory(enrichedInput),routing=safeObj(routed.routing||enrichedInput.routing),domainHints=knowledgeDomainHints(knowledgeDomain,routed,enrichedInput),domainRoute=safeObj((domainHints&&domainHints.route)||routing.domainRoute),recoveryRequested=isRecoveryRequested(enrichedInput,routed);let rawReply=buildReply(intent,text,enrichedInput,routed),reply=safeReply(rawReply,intent,text,enrichedInput),duplicateDetected=false;const priorReplySig=firstText(previousMemory.replySignature,previousMemory.lastReplySignature,state.lastAssistantHash),replySignature=hashText(reply),replyStateSignature=stateHashText(reply),deepContinuityTurn=isDeepContinuityTurn(text,enrichedInput,routed);if(!recoveryRequested&&priorReplySig&&(priorReplySig===replySignature||priorReplySig===replyStateSignature)){duplicateDetected=true;if(deepContinuityTurn){const progressed=forceCognitionCompleteReply(intent,text,{...enrichedInput,forceRecovery:false,recoveryRequired:false,previousDuplicateReply:reply});if(isUsableFinalReply(progressed)&&hashText(progressed)!==priorReplySig&&stateHashText(progressed)!==priorReplySig){rawReply=progressed;reply=progressed;}else{duplicateDetected=false;}}else{rawReply=recoveryReply(intent,text,{...enrichedInput,forceRecovery:true,lastLoopReasons:["duplicate_composer_reply"]});reply=safeReply(rawReply,intent,text,{...enrichedInput,forceRecovery:true});}}reply=knowledgeDomain?((knowledgeDomain==="english")?(sanitizeUserFacingReply(rawReply,intent,text,enrichedInput)||knowledgeDomainReply(knowledgeDomain,text,enrichedInput,routed)):applyConversationQuality((sanitizeUserFacingReply(rawReply,intent,text,enrichedInput)||knowledgeDomainReply(knowledgeDomain,text,enrichedInput,routed)),intent,text,enrichedInput,routed)):applyConversationQuality(reply,intent,text,enrichedInput,routed);reply=applyGreetingPostureQuality(reply,intent,text,enrichedInput,routed);const recoveryRequired=(recoveryRequested||duplicateDetected)&&!deepContinuityTurn,memoryPatch=buildMemoryPatch({intent,domain,knowledgeDomain,text,reply,previousMemory,state,recoveryRequired,turnId,input:enrichedInput,routed,contextCarry});memoryPatch.resolvedEmotion=resolvedEmotion.present?resolvedEmotion.state:null;memoryPatch.emotionRuntimeObserved=!!resolvedEmotion.present;memoryPatch.emotionalContinuity=resolvedEmotion.present?{primary:resolvedEmotion.primary,secondary:resolvedEmotion.secondary,intensity:resolvedEmotion.intensity,confidence:resolvedEmotion.confidence,carried:!!resolvedEmotion.carried,continuityPreserved:!!resolvedEmotion.continuityPreserved,updatedAt:Date.now()}:null;memoryPatch.lastEmotionState=resolvedEmotion.present?resolvedEmotion.state:null;const progressionProfile=emotionalProgressionProfile(text,enrichedInput,resolvedEmotion);memoryPatch.emotionalProgression=progressionProfile.active?{phase:progressionProfile.phase,momentum:progressionProfile.momentum,carryDepth:progressionProfile.carryDepth,pressure:!!progressionProfile.pressure,needsDeepening:progressionProfile.phase==="deepen",updatedAt:Date.now()}:null;memoryPatch.conversationVector={emotionalContinuityActive:!!progressionProfile.active,contextCarryPresent:!!contextCarry,knowledgeDomain:knowledgeDomain||"",knowledgeDomainActive:!!knowledgeDomain,turnDepth:memoryPatch.turnDepth,carryForwardSummary:memoryPatch.carryForwardSummary,replyAuthority:"composeMarionResponse",finalEnvelopeRequired:true};if(greetingPosture&&greetingPosture.active){memoryPatch.greeting={active:true,lastId:greetingPosture.id,lastIntent:greetingPosture.intent,lastTone:greetingPosture.tone,lastEnergy:greetingPosture.energy,lastPresenceProfile:greetingPosture.presenceProfile,updatedAt:Date.now()};if(greetingPosture.intent)memoryPatch.lastGreetingIntent=greetingPosture.intent;if(greetingPosture.tone)memoryPatch.lastGreetingTone=greetingPosture.tone;if(greetingPosture.energy)memoryPatch.lastInputEnergy=greetingPosture.energy;}const presenceProfile=firstText(greetingPosture.presenceProfile,emotionPresenceProfile(intent,resolvedEmotion)),nyxStateHint=firstText(greetingPosture.presenceProfile,emotionNyxHint(intent,resolvedEmotion)),domainConfig=registryDomainConfig(domain),domainLabel=registryDomainLabel(domain);const base={ok:true,composedOnce:true,finalizedBy:"composeMarionResponse",version:VERSION,composerVersion:VERSION,domain,intent,knowledgeDomain,domainHints,domainRoute,stateStage:memoryPatch.stateStage,routing:{...routing,domain,intent,knowledgeDomain,domainHints,domainRoute,endpoint:routing.endpoint||"marion://routeMarion.primary"},reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,replySignature:memoryPatch.replySignature,replyStateSignature:memoryPatch.replyStateSignature,memoryPatch,sessionPatch:memoryPatch,resolvedEmotion:resolvedEmotion.present?resolvedEmotion.state:null,emotionRuntimeObserved:!!resolvedEmotion.present,speech:{enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile,nyxStateHint,timingProfile:resolvedEmotion.timingProfile||{}},ui:{nyxStateHint,presenceProfile,openOverlay:false,domainLabel},meta:{domainRegistryLoaded:!!domainRegistryMod,domainLabel,knowledgeDomain,domainHints,domainRoute,domainMode:firstText(domainConfig.mode,""),domainDepth:firstText(domainConfig.depth,"")},diagnostics:{composerVersion:VERSION,singleEmission:true,knowledgeDomain,knowledgeDomainActive:!!knowledgeDomain,finalAuthority:"marionFinalEnvelope",composerDoesFinalize:true,hotFallbackGenerator:true,hardFinalCognitionComplete:true,identityAnchor:intent==="identity_query",directiveExecution:intent==="directive_response"||intent==="contextual_directive",contextualDirective:intent==="contextual_directive",contextCarryPresent:!!contextCarry,contextCarryHash:contextCarry?stateHashText(contextCarry):"",domainRegistryLoaded:!!domainRegistryMod,domainLabel,domainMode:firstText(domainConfig.mode,""),domainDepth:firstText(domainConfig.depth,""),emotionRuntimeObserved:!!resolvedEmotion.present,emotionPrimary:resolvedEmotion.primary,emotionSecondary:resolvedEmotion.secondary,emotionIntensity:resolvedEmotion.intensity,emotionSafeToContinue:resolvedEmotion.safeToContinue,testSuiteHardened:true,blockedLoopReplySanitized:isBlockedLoopReply(rawReply),recoveryRequired,duplicateBroken:duplicateDetected,replySignature:memoryPatch.replySignature,replyStateSignature:memoryPatch.replyStateSignature,stateSchema:STATE_SPINE_SCHEMA,stateSchemaCompat:STATE_SPINE_SCHEMA_COMPAT}};return ensureFinalReply(base,{intent,domain,knowledgeDomain,domainHints,domainRoute,text,input:{...enrichedInput,resolvedEmotion:resolvedEmotion.present?resolvedEmotion.state:null,emotionalContinuity:memoryPatch.emotionalContinuity},turnId});}
 async function run(routed={},input={}){return composeMarionResponse(routed,input);}
-module.exports={VERSION,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,ensureFinalReply,assertFinalEnvelope,_internal:{normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,detectKnowledgeDomain,resolveKnowledgeDomain,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,continuationCue,continuityContext,buildCarryForwardSummary,continuationAwareReply,continuationAwareBusinessReply,deriveTopic}};
+module.exports={VERSION,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,ensureFinalReply,assertFinalEnvelope,_internal:{normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,normalizeInboundTextForPosture,detectGreetingDistressSignal,inferGreetingPostureFromText,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,detectKnowledgeDomain,resolveKnowledgeDomain,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,continuationCue,continuityContext,buildCarryForwardSummary,continuationAwareReply,continuationAwareBusinessReply,deriveTopic}};
