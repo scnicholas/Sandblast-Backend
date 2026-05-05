@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.7.0 COORDINATOR-ONLY-USER-FACING-REPLY-GATE";
+const VERSION = "ChatEngine v3.7.1 COORDINATOR-ONLY-STATE-CREATIVE-COMPAT-HARDENED";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -127,6 +127,84 @@ function jsonSafe(value, depth = 0, seen = new WeakSet()) {
   try { return JSON.parse(JSON.stringify(value)); } catch (_err) { return String(value); }
 }
 
+function clampNumber(value, fallback = 0, min = 0, max = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function compactStringList(value, maxItems = 8, maxChars = 160) {
+  return safeArray(value)
+    .map((item) => clipText(item, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function compactCreativeCognitiveCarry(value = {}) {
+  const carry = safeObj(value);
+  if (!Object.keys(carry).length) return {};
+  const suppression = safeObj(carry.suppression || carry.suppressionFlags || carry.guards);
+  const scope = safeObj(carry.scope || carry.route || carry.routing);
+  return {
+    active: carry.active !== false,
+    layer: clipText(firstText(carry.layer, carry.name, carry.module, "creative_cognitive"), 80),
+    mode: clipText(firstText(carry.mode, carry.intentMode, carry.carryMode), 80),
+    suggestion: clipText(firstText(carry.suggestion, carry.nextSuggestion, carry.creativeSuggestion, carry.prompt), 520),
+    rationale: clipText(firstText(carry.rationale, carry.reason, carry.why), 360),
+    confidence: clampNumber(carry.confidence, 0, 0, 1),
+    carryDepth: Math.max(0, Math.min(50, Math.trunc(Number(carry.carryDepth || carry.depth || 0) || 0))),
+    scope: {
+      intent: clipText(firstText(scope.intent, carry.intent), 80),
+      domain: clipText(firstText(scope.domain, carry.domain), 80),
+      lane: clipText(firstText(scope.lane, carry.lane), 80)
+    },
+    suppression: {
+      greetingSuppressed: !!suppression.greetingSuppressed,
+      voiceSuppressed: !!suppression.voiceSuppressed,
+      systemCheckSuppressed: !!suppression.systemCheckSuppressed,
+      reason: clipText(firstText(suppression.reason, suppression.suppressionReason), 160)
+    },
+    tags: compactStringList(carry.tags || carry.labels || carry.signals, 8, 80),
+    updatedAt: Number(carry.updatedAt || carry.at || 0) || 0
+  };
+}
+
+function extractCreativeCognitiveCarryFromPatch(patch = {}) {
+  const src = safeObj(patch);
+  const stateBridge = safeObj(src.stateBridge);
+  const candidates = [
+    src.creativeCognitiveCarry,
+    src.creativeCarry,
+    src.cognitiveCarry,
+    src.creativeSuggestionCarry,
+    stateBridge.creativeCognitiveCarry,
+    stateBridge.creativeCarry,
+    stateBridge.cognitiveCarry
+  ];
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate) && Object.keys(candidate).length) return compactCreativeCognitiveCarry(candidate);
+  }
+  return {};
+}
+
+function compactStateBridgeForTransport(value = {}) {
+  const bridge = safeObj(value);
+  if (!Object.keys(bridge).length) return {};
+  const carry = extractCreativeCognitiveCarryFromPatch({ stateBridge: bridge });
+  const out = {
+    composedOnce: !!bridge.composedOnce,
+    shouldAdvanceState: !!bridge.shouldAdvanceState,
+    finalEnvelopeTrusted: !!bridge.finalEnvelopeTrusted,
+    loopPhraseRejected: !!bridge.loopPhraseRejected,
+    statePatchRequired: !!bridge.statePatchRequired,
+    carryForwardSummary: clipText(firstText(bridge.carryForwardSummary, bridge.summary), 520),
+    continuityTopic: clipText(firstText(bridge.continuityTopic, bridge.topic), 160),
+    updatedAt: Number(bridge.updatedAt || 0) || 0
+  };
+  if (Object.keys(carry).length) out.creativeCognitiveCarry = carry;
+  return out;
+}
+
 function compactSessionPatchForTransport(value = {}) {
   const patch = jsonSafe(safeObj(value));
   const emotion = safeObj(patch.resolvedEmotion || patch.emotionState || patch.lastEmotionState);
@@ -150,6 +228,23 @@ function compactSessionPatchForTransport(value = {}) {
     patch.emotionState = compactEmotion;
     patch.lastEmotionState = compactEmotion;
   }
+
+  const carry = extractCreativeCognitiveCarryFromPatch(patch);
+  if (Object.keys(carry).length) {
+    patch.creativeCognitiveCarry = carry;
+    patch.creativeCarry = carry;
+    patch.cognitiveCarry = carry;
+  }
+
+  if (isPlainObject(patch.stateBridge) && Object.keys(patch.stateBridge).length) {
+    patch.stateBridge = compactStateBridgeForTransport(patch.stateBridge);
+  }
+
+  if (typeof patch.carryForwardSummary === "string") patch.carryForwardSummary = clipText(patch.carryForwardSummary, 900);
+  if (typeof patch.conversationSummary === "string") patch.conversationSummary = clipText(patch.conversationSummary, 900);
+  if (typeof patch.lastAssistantReply === "string") patch.lastAssistantReply = clipText(patch.lastAssistantReply, 900);
+  if (typeof patch.lastUserText === "string") patch.lastUserText = clipText(patch.lastUserText, 900);
+
   return patch;
 }
 
@@ -264,8 +359,8 @@ function isRogueFallbackText(value) {
 function isMetadataLeakText(value) {
   const text = cleanText(value);
   if (!text) return false;
-  return /(routeKind|speechHints|presenceProfile|nyxStateHint|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority)\s*[=:]/i.test(text) ||
-    /(textSpeak|textToSynth|autoPlay|provider|when=post_reply|strategy=single_shot|compatibilityRoute|healthEndpoint)\s*[=:]/i.test(text);
+  return /\b(routeKind|speechHints|presenceProfile|nyxStateHint|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority)\s*[=:]/i.test(text) ||
+    /\b(textSpeak|textToSynth|autoPlay|provider|when=post_reply|strategy=single_shot|compatibilityRoute|healthEndpoint)\s*[=:]/i.test(text);
 }
 
 function isThinPlaceholderText(value) {
@@ -834,8 +929,8 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
   const domain = extractDomain(input);
   const turnId = extractTurnId(input);
   const userQuery = extractUserText(input);
-  const terminal = false;
-  const awaitingMarion = true;
+  const terminal = options && options.terminal === true;
+  const awaitingMarion = !terminal;
 
   return {
     ok: false,
@@ -940,6 +1035,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   const userQuery = extractUserText(input);
   const followUpsStrings = extractFollowUps(input);
   const sessionPatch = compactSessionPatchForTransport(extractSessionPatch(input));
+  const creativeCognitiveCarry = extractCreativeCognitiveCarryFromPatch(sessionPatch);
   const contract = extractMarionContract(input);
   const packet = extractPacket(input);
   const replySignature = firstText(
@@ -1015,6 +1111,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     followUps: followUpsStrings.map((text) => ({ label: text, text })),
     followUpsStrings,
     sessionPatch,
+    creativeCognitiveCarry: Object.keys(creativeCognitiveCarry).length ? creativeCognitiveCarry : null,
     resolvedEmotion: input.resolvedEmotion || sessionPatch.resolvedEmotion || sessionPatch.lastEmotionState || null,
     emotionRuntime: input.emotionRuntime || null,
     emotionSummary: input.emotionSummary || safeObj(input.diagnostics).emotionSummary || null,
@@ -1041,7 +1138,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       replySignature,
       source: "chatEngine_passthrough",
       trustedFinalEnvelope,
-      finalEnvelope
+      finalEnvelope,
+      stateSpineCompatible: true,
+      creativeCognitiveCarryCompatible: true
     },
 
     diagnostics: {
@@ -1054,6 +1153,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       acceptedFinalEnvelope: true,
       trustedFinalEnvelope,
       finalEnvelope,
+      stateSpineCompatible: true,
+      creativeCognitiveCarryCompatible: true,
+      creativeCognitiveCarryObserved: !!Object.keys(creativeCognitiveCarry).length,
       replyPreview: clipText(reply, 160)
     },
 
@@ -1181,7 +1283,17 @@ class ChatEngine {
     const key = cleanText(turnId || "unknown_turn") || "unknown_turn";
     const current = Number(this.state.rejectionByTurn.get(key) || 0) + 1;
     this.state.rejectionByTurn.set(key, current);
+    this.pruneRejectionMap();
     return current;
+  }
+
+  pruneRejectionMap() {
+    const max = Math.max(20, this.config.maxRejectionLog || 200);
+    while (this.state.rejectionByTurn.size > max) {
+      const firstKey = this.state.rejectionByTurn.keys().next().value;
+      if (!firstKey) break;
+      this.state.rejectionByTurn.delete(firstKey);
+    }
   }
 
   clearRejection(turnId) {
@@ -1197,6 +1309,7 @@ class ChatEngine {
       replyAuthority: "marion_final",
       reply: cleanText(result.reply || ""),
       replySignature: cleanText(result.meta && result.meta.replySignature || hashText(result.reply || "")),
+      creativeCognitiveCarryObserved: !!result.creativeCognitiveCarry,
       timestamp: Date.now()
     };
 
@@ -1336,6 +1449,9 @@ if (typeof module !== "undefined") {
       jsonSafe,
       finalTransportPacket,
       compactSessionPatchForTransport,
+      compactCreativeCognitiveCarry,
+      extractCreativeCognitiveCarryFromPatch,
+      compactStateBridgeForTransport,
       stableTurnKey,
       hasTrustedBridgeOrComposerMarker
     }
