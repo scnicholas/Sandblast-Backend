@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.7.1 COORDINATOR-ONLY-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "ChatEngine v3.7.2 COORDINATOR-ONLY-FINAL-PIPELINE-COHESION-HARMONIZED";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -253,7 +253,7 @@ function finalTransportPacket(packet = {}) {
   if (isPlainObject(out)) {
     const finalEnvelope = isFinalEnvelope(out);
     const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
-    const reply = extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope });
+    const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
     const canEmit = !!reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
     out.ok = canEmit && out.ok !== false;
     out.final = !!canEmit;
@@ -1027,7 +1027,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
 function buildStructuredFinalReply(input = {}, trust = {}) {
   const trustedFinalEnvelope = typeof trust.trustedFinalEnvelope === "boolean" ? trust.trustedFinalEnvelope : hasTrustedFinalEnvelope(input, trust);
   const finalEnvelope = typeof trust.finalEnvelope === "boolean" ? trust.finalEnvelope : isFinalEnvelope(input);
-  const reply = extractFinalReply(input, { ...trust, trustedFinalEnvelope, finalEnvelope });
+  const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(input, { ...trust, trustedFinalEnvelope, finalEnvelope }));
   const lane = extractLane(input);
   const intent = extractIntent(input);
   const domain = extractDomain(input);
@@ -1164,6 +1164,71 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
 }
 
 
+
+const FINAL_PIPELINE_COHESION_BLOCKLIST = Object.freeze([
+  /finalEnvelope\s*[=:]/i,
+  /sessionPatch\s*[=:]/i,
+  /routeKind\s*[=:]/i,
+  /speechHints\s*[=:]/i,
+  /presenceProfile\s*[=:]/i,
+  /transportSafe\s*[=:]/i,
+  /replyAuthority\s*[=:]/i,
+  /marionFinal\s*[=:]/i,
+  /nyxStateHint\s*[=:]/i,
+  /memoryPatch\s*[=:]/i,
+  /diagnostic packet/i,
+  /trusted final envelope/i
+]);
+
+function sanitizeFinalUserFacingReplyForCohesion(value) {
+  let text = cleanText(value);
+  if (!text) return "";
+  if (FINAL_PIPELINE_COHESION_BLOCKLIST.some((rx) => rx.test(text))) return "";
+  text = text.replace(/\b(MARION::FINAL::[^\s]+|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})\b/g, "").replace(/\s+/g, " ").trim();
+  if (isRogueFallbackText(text) || isMetadataLeakText(text) || isInternalBlockerText(text, { finalEnvelope: false, envelopeTrusted: false })) return "";
+  return text;
+}
+
+function finalPipelineCohesionProfile(source = {}) {
+  const src = safeObj(source);
+  const finalEnvelope = isFinalEnvelope(src);
+  const trustedFinalEnvelope = hasTrustedFinalEnvelope(src, src);
+  const rawReply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
+  const reply = sanitizeFinalUserFacingReplyForCohesion(rawReply);
+  return {
+    version: VERSION,
+    coordinatorOnly: true,
+    finalEnvelope,
+    trustedFinalEnvelope,
+    replyPresent: !!reply,
+    rogueFallbackPresent: hasRejectedLoopReply(src),
+    finalFailurePresent: hasFinalFailureMarker(src, 0),
+    stateSpineSchema: STATE_SPINE_SCHEMA,
+    stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
+    canEmit: !!(reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(src) && !hasFinalFailureMarker(src, 0)),
+    updatedAt: Date.now()
+  };
+}
+
+function normalizeCoordinatorOutputForPipeline(packet = {}) {
+  const out = jsonSafe(packet);
+  if (!isPlainObject(out)) return out;
+  const profile = finalPipelineCohesionProfile(out);
+  out.meta = { ...safeObj(out.meta), finalPipelineCohesion: profile, coordinatorOnly: true, transportSafe: true };
+  out.diagnostics = { ...safeObj(out.diagnostics), finalPipelineCohesion: profile };
+  if (profile.canEmit) {
+    const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope: true, trustedFinalEnvelope: true }));
+    out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply;
+    if (isPlainObject(out.payload)) {
+      out.payload.reply = reply; out.payload.text = reply; out.payload.answer = reply; out.payload.output = reply; out.payload.response = reply; out.payload.message = reply;
+    }
+    if (isPlainObject(out.finalEnvelope)) {
+      out.finalEnvelope.reply = reply; out.finalEnvelope.text = reply; out.finalEnvelope.displayReply = reply;
+    }
+  }
+  return out;
+}
+
 function stableTurnKey(input = {}) {
   const turnId = extractTurnId(input);
   if (turnId) return cleanText(turnId);
@@ -1264,7 +1329,7 @@ class ChatEngine {
       trace.responsePreview = clipText(result.reply, 160);
       this.pushPipelineTrace(trace);
 
-      return finalTransportPacket(result);
+      return normalizeCoordinatorOutputForPipeline(finalTransportPacket(result));
     } catch (err) {
       const errorContract = buildBlankErrorContract("chat_engine_coordinator_fault", {
         message: this.safeError(err)
@@ -1428,6 +1493,8 @@ if (typeof module !== "undefined") {
     reply,
     extractMarionFields,
     shouldLockMarionAuthority,
+    finalPipelineCohesionProfile,
+    normalizeCoordinatorOutputForPipeline,
     _internal: {
       isFinalEnvelope,
       isAuthoritativeMarionFinalLocation,
@@ -1453,7 +1520,10 @@ if (typeof module !== "undefined") {
       extractCreativeCognitiveCarryFromPatch,
       compactStateBridgeForTransport,
       stableTurnKey,
-      hasTrustedBridgeOrComposerMarker
+      hasTrustedBridgeOrComposerMarker,
+      sanitizeFinalUserFacingReplyForCohesion,
+      finalPipelineCohesionProfile,
+      normalizeCoordinatorOutputForPipeline
     }
   };
 }
