@@ -12,12 +12,13 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.7.1 TECHNICAL-HARDENING-ROUTE-FIX + CREATIVE-COGNITIVE-COMPAT";
+const VERSION = "marionIntentRouter v2.7.2 PIPELINE-FORENSIC-NORMALIZATION + TECHNICAL-HARDENING-ROUTE-FIX + CREATIVE-COGNITIVE-COMPAT";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const INTENT_CONTRACT_VERSION = "nyx.marion.intent/2.5";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
 const DOMAIN_REGISTRY_REQUIRE_CANDIDATES = Object.freeze([
   "./marionDomainRegistry.js",
@@ -201,6 +202,19 @@ function compactWhitespace(v) {
   return safeStr(v);
 }
 
+
+function normalizeRouterVoiceTextParity(text="") {
+  return safeStr(text)
+    .replace(/\b(nick|nix|mix|mike)\b/gi, "Nyx")
+    .replace(/\b(state\s+line|state\s+sign|statespine|state\s+spine)\b/gi, "State Spine")
+    .replace(/\b(chad\s+engine|chat\s+engine)\b/gi, "ChatEngine")
+    .replace(/\b(mary\s+bridge|marian\s+bridge|marion\s+bridge)\b/gi, "MarionBridge")
+    .replace(/\b(compose\s+marion\s+response|composed\s+marion\s+response|compose\s+marian\s+response|composed\s+marian\s+response|compose\s+mailing\s+response|composed\s+mailing\s+response)\b/gi, "ComposeMarionResponse")
+    .replace(/\b(nex\s+steps|neck\s+steps)\b/gi, "Next steps")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeIntentName(v) {
   const raw = lower(v).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
@@ -283,7 +297,7 @@ function extractText(packet = {}) {
   const turn = safeObj(p.turn || body.turn);
   const message = safeObj(p.message && typeof p.message === "object" ? p.message : {});
 
-  return compactWhitespace(
+  return normalizeRouterVoiceTextParity(compactWhitespace(
     p.text ||
     p.query ||
     p.userQuery ||
@@ -304,7 +318,7 @@ function extractText(packet = {}) {
     message.text ||
     session.lastUserText ||
     ""
-  );
+  ));
 }
 
 function extractExistingIntent(packet = {}) {
@@ -997,6 +1011,8 @@ function buildRouting(marionIntent) {
     subIntent: marionIntent.subIntent,
     endpoint: CANONICAL_ENDPOINT,
     contractVersion: INTENT_CONTRACT_VERSION,
+  PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  routerForensicNormalizationStatus,
     expectsComposer: "composeMarionResponse",
     expectedComposerContract: "finalEnvelope.reply.required",
     stateSpineSchema: STATE_SPINE_SCHEMA,
@@ -1079,8 +1095,25 @@ function routeMarionIntent(packet = {}) {
   };
 }
 
+
+function routerForensicNormalizationStatus(){
+  return {
+    version: PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+    routerVersion: VERSION,
+    intentContractVersion: INTENT_CONTRACT_VERSION,
+    canonicalEndpoint: CANONICAL_ENDPOINT,
+    validIntentCount: VALID_INTENTS.length,
+    knowledgeDomainCount: VALID_KNOWLEDGE_DOMAINS.length,
+    authority: "router.single-canonical-intent",
+    stateSchema: STATE_SPINE_SCHEMA,
+    stateSchemaCompat: STATE_SPINE_SCHEMA_COMPAT
+  };
+}
+
 module.exports = {
   VERSION,
+  PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  routerForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
   INTENT_CONTRACT_VERSION,
@@ -1115,6 +1148,8 @@ module.exports = {
     registryKnowledgeConfig,
     isKnowledgeDomainActivationRequest,
     domainTestPhrase,
-    buildRouting
+    buildRouting,
+    normalizeRouterVoiceTextParity,
+    routerForensicNormalizationStatus
   }
 };
