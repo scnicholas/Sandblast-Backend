@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.7.0 KNOWLEDGE-DOMAIN-REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v2.7.1 TECHNICAL-HARDENING-ROUTE-FIX + CREATIVE-COGNITIVE-COMPAT";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -359,6 +359,20 @@ function detectDomainIntroIntent(text) {
   return "";
 }
 
+function detectBackendTechnicalContext(text) {
+  const t = lower(text);
+  if (!t) return false;
+  const backendAnchor = /\b(nyx|marion|backend|chatengine|chat engine|marionbridge|marion bridge|intent router|marion intent router|composemarionresponse|compose marion response|state spine|statespine|state-spine|final envelope|finalenvelope|session patch|sessionpatch|reply authority|transport|coordinator|composer|bridge|router|runtime|utils|api\/chat|endpoint|contract|packet|script|file|code-level|code level)\b/i.test(t);
+  const technicalAction = /\b(autopsy|audit|line[- ]?by[- ]?line|critical fix|critical fixes|fix|patch|harden|hardening|stabilize|refine|regression|smoke test|compatibility|cohesion|routing|handoff|continuity|carry-forward|carry forward|final-authority|authority preservation|structural integrity)\b/i.test(t);
+  return !!(backendAnchor && technicalAction);
+}
+
+function detectCreativeCognitiveCarryContext(text) {
+  const t = lower(text);
+  if (!t) return false;
+  return /\b(creative cognitive|cognitive carry|creative carry|creative suggestion|cognitive intelligence|intelligence layer|reflective prompt|suggestion module)\b/i.test(t);
+}
+
 function detectSubIntent(text, intent) {
   const t = lower(text);
   if (!t) return "empty_input";
@@ -541,8 +555,11 @@ function detectKnowledgeDomain(text) {
   if (/\b(ai agent|artificial intelligence|llm|rag|embedding|tool routing|agent orchestration|machine learning|prompt injection defense for ai)\b/i.test(t)) {
     return { knowledgeDomain: "ai", explicit: false, reason: "ai_terms" };
   }
-  if (/\b(cyber|cybersecurity|hardening|prompt injection|phishing|malware|ransomware|mfa|incident response|threat model|defensive security)\b/i.test(t)) {
+  if (/\b(cyber|cybersecurity|prompt injection|phishing|malware|ransomware|mfa|incident response|threat model|defensive security)\b/i.test(t)) {
     return { knowledgeDomain: "cyber", explicit: false, reason: "cyber_terms" };
+  }
+  if (/\bhardening\b/i.test(t) && !detectBackendTechnicalContext(t)) {
+    return { knowledgeDomain: "cyber", explicit: false, reason: "cyber_hardening_terms" };
   }
   if (/\b(legal advice|legal information|law in canada|canadian law|contract law|tort|criminal law|charter|case law|statute|jurisdiction)\b/i.test(t)) {
     return { knowledgeDomain: "law", explicit: false, reason: "law_terms" };
@@ -604,6 +621,20 @@ function inferIntentFromText(text) {
       knowledgeDomain: knowledge.knowledgeDomain || (safetyLevel === "crisis" || safetyLevel === "distress" ? "psychology" : ""),
       knowledgeDomainExplicit: !!knowledge.explicit,
       knowledgeDomainReason: knowledge.reason || "safety_psychology"
+    };
+  }
+
+  if (detectBackendTechnicalContext(t) && safetyLevel === "none") {
+    return {
+      intent: "technical_debug",
+      confidence: detectCreativeCognitiveCarryContext(t) ? 0.96 : 0.94,
+      reason: detectCreativeCognitiveCarryContext(t) ? "backend_technical_creative_cognitive_context" : "backend_technical_hardening_context",
+      stateStageHint: "execution",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: "technical_context_overrides_broad_knowledge_domain"
     };
   }
 
@@ -822,7 +853,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   const explicit = normalizeIntentName(src.intent || src.type || src.name || "");
   const detectedKnowledge = detectKnowledgeDomain(fallbackText);
   const explicitKnowledge = normalizeKnowledgeDomainName(src.knowledgeDomain || src.domainKnowledge || src.primaryKnowledgeDomain || safeObj(src.routing).knowledgeDomain || "");
-  const knowledgeDomain = explicitKnowledge || inferred.knowledgeDomain || detectedKnowledge.knowledgeDomain || "";
+  let knowledgeDomain = explicitKnowledge || inferred.knowledgeDomain || detectedKnowledge.knowledgeDomain || "";
 
   let intent = explicit && explicit !== "simple_chat" ? explicit : inferred.intent;
   let confidence = clamp01(src.confidence, inferred.confidence);
@@ -830,6 +861,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let stateStageHint = safeStr(src.stateStageHint || src.stage || inferred.stateStageHint || "deliver");
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
+
+  if (detectBackendTechnicalContext(fallbackText) && inferred.intent !== "emotional_support") {
+    intent = "technical_debug";
+    confidence = Math.max(confidence, detectCreativeCognitiveCarryContext(fallbackText) ? 0.96 : 0.94);
+    reason = detectCreativeCognitiveCarryContext(fallbackText) ? "backend_technical_creative_cognitive_context" : "backend_technical_hardening_context";
+    stateStageHint = "execution";
+    recoveryRequired = false;
+    knowledgeDomain = "";
+  }
 
   if (knowledgeDomain && inferred.intent !== "emotional_support" && intent === "simple_chat") {
     intent = "domain_question";
@@ -917,7 +957,8 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     requiresFinalEnvelope: true,
     requiresComposer: true,
     identityAnchorRequired: subIntent === "identity_baseline",
-    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline",
+    baselineCognitionRequired: intent === "domain_question" || intent === "directive_response" || subIntent === "baseline_reasoning" || subIntent === "cohesion_upgrade" || subIntent === "identity_baseline" || detectCreativeCognitiveCarryContext(fallbackText),
+    creativeCognitiveCarryRequired: detectCreativeCognitiveCarryContext(fallbackText),
     directiveExecutionRequired: intent === "directive_response",
     knowledgeDomain,
     knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
@@ -980,6 +1021,8 @@ function buildRouting(marionIntent) {
     safetyLevel: marionIntent.safetyLevel,
     identityAnchorRequired: !!marionIntent.identityAnchorRequired,
     baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
+    creativeCognitiveCompatible: true,
+    creativeCognitiveCarryRequired: !!marionIntent.creativeCognitiveCarryRequired,
     preferredStyle,
     registryKnowledgeAvailable: !!(registryWiring && (registryWiring.ready || registryWiring.manifestFound || registryWiring.packFilesFound > 0)),
     cohesion: {
@@ -987,6 +1030,7 @@ function buildRouting(marionIntent) {
       bridgeCompatible: true,
       composerCompatible: true,
       stateSpineCompatible: true,
+      creativeCognitiveCompatible: true,
       registryCompatible: true,
       finalEnvelopeRequired: true,
       directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
@@ -1026,6 +1070,7 @@ function routeMarionIntent(packet = {}) {
       directiveExecutionRequired: !!marionIntent.directiveExecutionRequired,
       identityAnchorRequired: !!marionIntent.identityAnchorRequired,
       baselineCognitionRequired: !!marionIntent.baselineCognitionRequired,
+      creativeCognitiveCarryRequired: !!marionIntent.creativeCognitiveCarryRequired,
       knowledgeDomain: marionIntent.knowledgeDomain || "",
       knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
       registryKnowledgeAvailable: !!routing.registryKnowledgeAvailable,
@@ -1046,6 +1091,8 @@ module.exports = {
   inferIntentFromText,
   detectDirectiveIntent,
   detectKnowledgeDomain,
+  detectBackendTechnicalContext,
+  detectCreativeCognitiveCarryContext,
   normalizeKnowledgeDomainName,
   normalizeIntent,
   routeMarionIntent,
@@ -1059,6 +1106,8 @@ module.exports = {
     detectSubIntent,
     detectDirectiveIntent,
     detectKnowledgeDomain,
+    detectBackendTechnicalContext,
+    detectCreativeCognitiveCarryContext,
     normalizeKnowledgeDomainName,
     operationalDomainForKnowledge,
     registryKnowledgeRoute,
