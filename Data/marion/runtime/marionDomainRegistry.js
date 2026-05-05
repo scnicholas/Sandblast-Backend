@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.4.0 DATA-DOMAINS-PATH-HARDENED-MANIFEST-PACK-GUARD";
+const VERSION = "marionDomainRegistry v1.4.1 PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -459,6 +459,12 @@ const DOMAIN_FILE_CANDIDATES = Object.freeze({
 });
 
 const FILE_CACHE = new Map();
+const MAX_FILE_CACHE_ENTRIES = 96;
+const MAX_JSON_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_LIST_JSON_FILES = 200;
+const MAX_LIST_JSON_DEPTH = 6;
+const BLOCKED_PATH_SEGMENTS = Object.freeze(["node_modules", ".git", "dist", "build", "coverage"]);
+const CREATIVE_COGNITIVE_COMPAT_VERSION = "nyx.marion.creativeCognitiveCarry/1.0";
 
 function safeStr(v) {
   return v == null ? "" : String(v).replace(/\s+/g, " ").trim();
@@ -487,18 +493,56 @@ function repoRootCandidates() {
     path.resolve(__dirname, "../../../.."),
     path.resolve(__dirname, ".."),
     path.resolve(__dirname)
-  ]);
+  ]).map((root) => path.resolve(root));
+}
+
+function isRemotePath(value) {
+  return /^(https?:|file:|data:|javascript:|\\\\)/i.test(safeStr(value));
+}
+
+function hasBlockedPathSegment(value) {
+  const parts = safeStr(value).replace(/\\/g, "/").split("/").filter(Boolean);
+  return parts.some((part) => BLOCKED_PATH_SEGMENTS.includes(part));
+}
+
+function isInsideRoot(file, root) {
+  try {
+    const resolvedFile = path.resolve(file);
+    const resolvedRoot = path.resolve(root);
+    const rel = path.relative(resolvedRoot, resolvedFile);
+    return rel === "" || (!!rel && !rel.startsWith("..") && !path.isAbsolute(rel));
+  } catch (_) {
+    return false;
+  }
+}
+
+function isInsideAnyRepoRoot(file) {
+  return repoRootCandidates().some((root) => isInsideRoot(file, root));
+}
+
+function pruneFileCache() {
+  while (FILE_CACHE.size > MAX_FILE_CACHE_ENTRIES) {
+    const firstKey = FILE_CACHE.keys().next().value;
+    if (!firstKey) break;
+    FILE_CACHE.delete(firstKey);
+  }
 }
 
 function toAbsolutePath(candidate) {
   const raw = safeStr(candidate);
-  if (!raw) return "";
-  if (path.isAbsolute(raw)) return path.normalize(raw);
-  for (const root of repoRootCandidates()) {
-    const full = path.normalize(path.join(root, raw));
+  if (!raw || raw.indexOf("\0") !== -1 || isRemotePath(raw) || hasBlockedPathSegment(raw)) return "";
+  const roots = repoRootCandidates();
+  if (path.isAbsolute(raw)) {
+    const absolute = path.normalize(raw);
+    return isInsideAnyRepoRoot(absolute) ? absolute : "";
+  }
+  for (const root of roots) {
+    const full = path.normalize(path.resolve(root, raw));
+    if (!isInsideRoot(full, root)) continue;
     try { if (fs.existsSync(full)) return full; } catch (_) {}
   }
-  return path.normalize(path.join(process.cwd(), raw));
+  const fallback = path.normalize(path.resolve(process.cwd(), raw));
+  return isInsideAnyRepoRoot(fallback) ? fallback : "";
 }
 
 function relPath(fullPath) {
@@ -528,7 +572,7 @@ function readJsonFile(candidate, options = {}) {
   try {
     const stat = fs.statSync(full);
     if (!stat.isFile()) return { ok: false, path: relPath(full), error: "not_file" };
-    const maxBytes = Number.isFinite(Number(opts.maxBytes)) ? Number(opts.maxBytes) : 2 * 1024 * 1024;
+    const maxBytes = Number.isFinite(Number(opts.maxBytes)) ? Math.max(1, Math.min(Number(opts.maxBytes), MAX_JSON_FILE_BYTES)) : MAX_JSON_FILE_BYTES;
     if (stat.size > maxBytes) return { ok: false, path: relPath(full), error: "json_file_too_large", size: stat.size };
     const cacheKey = `${full}:${stat.mtimeMs}:${stat.size}`;
     if (FILE_CACHE.has(cacheKey)) return FILE_CACHE.get(cacheKey);
@@ -536,6 +580,7 @@ function readJsonFile(candidate, options = {}) {
     const json = JSON.parse(raw);
     const result = { ok: true, path: relPath(full), absolutePath: full, size: stat.size, mtimeMs: stat.mtimeMs, data: json };
     FILE_CACHE.set(cacheKey, result);
+    pruneFileCache();
     return result;
   } catch (err) {
     return { ok: false, path: relPath(full), error: safeStr(err && err.message || err) };
@@ -555,8 +600,8 @@ function findFirstJson(candidates, options = {}) {
 
 function listJsonFiles(rootCandidates, options = {}) {
   const opts = safeObj(options);
-  const maxFiles = Number.isFinite(Number(opts.maxFiles)) ? Math.max(1, Math.min(200, Number(opts.maxFiles))) : 60;
-  const maxDepth = Number.isFinite(Number(opts.maxDepth)) ? Math.max(0, Math.min(6, Number(opts.maxDepth))) : 4;
+  const maxFiles = Number.isFinite(Number(opts.maxFiles)) ? Math.max(1, Math.min(MAX_LIST_JSON_FILES, Number(opts.maxFiles))) : 60;
+  const maxDepth = Number.isFinite(Number(opts.maxDepth)) ? Math.max(0, Math.min(MAX_LIST_JSON_DEPTH, Number(opts.maxDepth))) : 4;
   const seen = new Set();
   const out = [];
 
@@ -569,7 +614,7 @@ function listJsonFiles(rootCandidates, options = {}) {
       if (!entry || entry.name.startsWith(".")) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (/^(node_modules|\.git|dist|build|coverage)$/i.test(entry.name)) continue;
+        if (BLOCKED_PATH_SEGMENTS.includes(entry.name)) continue;
         walk(full, depth + 1);
       } else if (entry.isFile() && /\.json$/i.test(entry.name)) {
         const key = path.normalize(full).toLowerCase();
@@ -593,11 +638,13 @@ function basenameNoExt(value) {
 function candidateNearManifest(manifestPath, relativeValue) {
   const base = safeStr(relativeValue);
   const manifest = safeStr(manifestPath);
-  if (!base) return "";
-  if (path.isAbsolute(base)) return base;
-  if (!manifest) return base;
-  const fullManifest = path.isAbsolute(manifest) ? manifest : toAbsolutePath(manifest);
-  return path.normalize(path.join(path.dirname(fullManifest), base));
+  if (!base || base.indexOf("\0") !== -1 || isRemotePath(base) || hasBlockedPathSegment(base)) return "";
+  if (path.isAbsolute(base)) return toAbsolutePath(base);
+  if (!manifest) return toAbsolutePath(base);
+  const fullManifest = path.isAbsolute(manifest) ? toAbsolutePath(manifest) : toAbsolutePath(manifest);
+  if (!fullManifest) return toAbsolutePath(base);
+  const candidate = path.normalize(path.resolve(path.dirname(fullManifest), base));
+  return isInsideAnyRepoRoot(candidate) ? candidate : "";
 }
 
 function manifestDeclaredPackCandidates(manifestResult = {}) {
@@ -746,7 +793,26 @@ function buildRoutingFromDomain(domain, intent = "domain_question", overrides = 
       composerCompatible: true,
       routerCompatible: true,
       finalEnvelopeRequired: true,
-      noUnsupportedDomainLeak: true
+      noUnsupportedDomainLeak: true,
+      stateSpineCompatible: true,
+      creativeCognitiveCompatible: true,
+      creativeCognitiveCompatVersion: CREATIVE_COGNITIVE_COMPAT_VERSION
+    },
+    stateBridge: {
+      schema: STATE_SPINE_SCHEMA,
+      compatibleSchema: STATE_SPINE_SCHEMA_COMPAT,
+      registryVersion: VERSION,
+      domain,
+      useMemory: typeof o.useMemory === "boolean" ? o.useMemory : !!config.useMemory,
+      useDomainKnowledge: typeof o.useDomainKnowledge === "boolean" ? o.useDomainKnowledge : !!config.useDomainKnowledge
+    },
+    creativeCognitive: {
+      compatible: true,
+      version: CREATIVE_COGNITIVE_COMPAT_VERSION,
+      domain,
+      preferredStyle: safeStr(o.preferredStyle || config.preferredStyle),
+      depth: safeStr(o.depth || config.depth),
+      suppressWhenUnsupported: true
     }
   };
 }
@@ -912,6 +978,20 @@ function buildKnowledgeRoute(domain, overrides = {}) {
     manifestHint: config.manifestHint,
     manifest: getDomainManifest(config.resolvedDomain, { maxBytes: 1024 * 1024 }),
     wiring: getDomainWiringStatus(config.resolvedDomain, { includePack: false }),
+    stateBridge: {
+      schema: STATE_SPINE_SCHEMA,
+      compatibleSchema: STATE_SPINE_SCHEMA_COMPAT,
+      registryVersion: VERSION,
+      knowledgeDomain: config.resolvedDomain,
+      operationalDomain: safeStr(o.operationalDomain || config.operationalDomain || "general_reasoning")
+    },
+    creativeCognitive: {
+      compatible: true,
+      version: CREATIVE_COGNITIVE_COMPAT_VERSION,
+      knowledgeDomain: config.resolvedDomain,
+      operationalDomain: safeStr(o.operationalDomain || config.operationalDomain || "general_reasoning"),
+      suppressWhenUnsupported: true
+    },
     registryVersion: VERSION
   };
 }
@@ -945,6 +1025,7 @@ module.exports = {
   STATE_SPINE_SCHEMA_COMPAT,
   FINAL_ENVELOPE_CONTRACT,
   CANONICAL_ENDPOINT,
+  CREATIVE_COGNITIVE_COMPAT_VERSION,
   MARION_DOMAINS,
   KNOWLEDGE_DOMAINS,
   KNOWLEDGE_DOMAIN_PRIORITY,
@@ -980,6 +1061,10 @@ module.exports = {
     manifestDeclaredPackCandidates,
     compactJsonPreview,
     toAbsolutePath,
-    relPath
+    relPath,
+    isRemotePath,
+    isInsideRoot,
+    isInsideAnyRepoRoot,
+    pruneFileCache
   }
 };
