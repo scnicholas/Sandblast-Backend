@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.5.2 FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionBridge v7.5.3 PIPELINE-FORENSIC-NORMALIZATION + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -11,6 +11,7 @@ const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
 const fs = require("fs");
 const path = require("path");
@@ -19,6 +20,9 @@ function tryRequireMany(paths){for(const p of Array.isArray(paths)?paths:[]){try
 function dependencyStatus(name,loaded){const item=loaded&&typeof loaded==="object"?loaded:{};return{name,ok:!!item.mod,requested:item.requested||"",resolvedPath:item.resolvedPath||"",exists:item.resolvedPath?fs.existsSync(item.resolvedPath):false};}
 
 const COMPOSER_REQUIRE_CANDIDATES = Object.freeze([
+  path.join(__dirname,"composeMarionResponse.js"),
+  path.join(__dirname,"Data","marion","runtime","composeMarionResponse.js"),
+  path.join(process.cwd(),"Data","marion","runtime","composeMarionResponse.js"),
   "./composeMarionResponse.js",
   "./composeMarionResponse",
   "./Data/marion/runtime/composeMarionResponse.js",
@@ -409,4 +413,22 @@ async function handle(input={}){return processWithMarion(input);}
 async function route(input={}){return processWithMarion(input);}
 async function retrieveLayer2Signals(input={}){const normalized=normalizeInbound(input);if(!normalized.ok)return{ok:false,issues:normalized.issues,userQuery:normalized.userQuery,diagnostics:{bridgeVersion:VERSION}};const routed=fallbackRoute(normalized);return{ok:true,userQuery:normalized.userQuery,routed,diagnostics:{bridgeVersion:VERSION,noLegacyRetrievers:true}};}
 function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMarion,retrieveLayer2Signals};}
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape}};
+
+function bridgeForensicNormalizationStatus(){
+  return {
+    version: PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+    bridgeVersion: VERSION,
+    canonicalEndpoint: CANONICAL_ENDPOINT,
+    composerResolvedPath: DEPENDENCY_STATUS.composer.resolvedPath,
+    composerExists: !!DEPENDENCY_STATUS.composer.exists,
+    routerResolvedPath: DEPENDENCY_STATUS.intentRouter.resolvedPath,
+    routerExists: !!DEPENDENCY_STATUS.intentRouter.exists,
+    finalEnvelopeResolvedPath: DEPENDENCY_STATUS.finalEnvelope.resolvedPath,
+    finalEnvelopeExists: !!DEPENDENCY_STATUS.finalEnvelope.exists,
+    authority: "bridge.wrapFinal -> marionFinalEnvelope",
+    stateSchema: STATE_SPINE_SCHEMA,
+    stateSchemaCompat: STATE_SPINE_SCHEMA_COMPAT
+  };
+}
+
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus}};
