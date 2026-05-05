@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.5.1 STATE-CONTINUITY-HARDENED + CREATIVE-COGNITIVE-CARRY";
+const SPINE_VERSION = "stateSpine v2.5.2 STATE-CONTINUITY-PIPELINE-COHESION-HARMONIZED";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -1526,6 +1526,46 @@ function buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, inte
   return compactStateSummary(parts.join(" | "), 900);
 }
 
+
+function isFreshOperationalOrTechnicalTurn(inbound = {}, params = {}) {
+  const text = oneLine(extractInboundText(inbound)).toLowerCase();
+  const intent = safeStr(params.intent || params.marionCog?.intent || extractIntent(inbound)).toUpperCase();
+  return !!(
+    isSystemCheckInbound(inbound) ||
+    intent === "TECHNICAL_DEBUG" ||
+    /\b(smoke test|regression|node --check|syntax|git add|git commit|git push|commit and push|replace the file|downloadable zip|full autopsy|line[- ]?by[- ]?line|critical fixes?|state spine|chatengine|marionbridge|composemarionresponse|intent router|domain registry|backend technical test)\b/i.test(text)
+  );
+}
+
+function normalizeStateForPipelineCohesion(nextState = {}, context = {}) {
+  const next = coerceState(nextState);
+  const inbound = isPlainObject(context.inbound) ? context.inbound : {};
+  const params = isPlainObject(context.params) ? context.params : {};
+  const freshWorkTurn = isFreshOperationalOrTechnicalTurn(inbound, params);
+  const hasTrustedFinal = !!(context.trustedFinalCompletion || context.trustedFinalEnvelope || context.trustedFinalShape || hasMarionFinalSignal(params) || hasTrustedFinalShape(params) || hasTrustedMarionFinalEnvelope(params));
+  const technical = isTechnicalInbound(inbound) || shouldTechnicalBypassSupportLock(inbound, context.decision || {}, params);
+  const normalizedStage = hasTrustedFinal ? "final" : normalizeStateStage(next.stage, "open");
+  return {
+    ...next,
+    stage: normalizedStage,
+    phase: inferPhaseFromStage(normalizedStage, false),
+    progressionLock: hasTrustedFinal ? false : !!next.progressionLock,
+    support: freshWorkTurn ? { ...next.support, lockActive: false, holdTurns: 0, quietTurns: 0, reason: "", shouldSuppressMenus: false } : next.support,
+    emotionalContinuity: freshWorkTurn ? null : next.emotionalContinuity,
+    repetition: hasTrustedFinal ? { ...next.repetition, noProgressCount: 0, fallbackCount: 0 } : next.repetition,
+    marionCohesion: {
+      ...next.marionCohesion,
+      finalPipelineCohesion: true,
+      finalEnvelopeTrusted: !!(next.marionCohesion?.finalEnvelopeTrusted || hasTrustedFinal),
+      shouldAdvanceState: !!(next.marionCohesion?.shouldAdvanceState || hasTrustedFinal),
+      technicalBypassSupportLock: !!technical,
+      staleContextSuppressed: !!freshWorkTurn,
+      updatedAt: nowMs()
+    },
+    lastUpdatedAt: nowMs()
+  };
+}
+
 function finalizeTurn(params = {}) {
   const prev = coerceState(params.prevState);
   const inbound = isPlainObject(params.inbound) ? params.inbound : {};
@@ -1696,7 +1736,7 @@ function finalizeTurn(params = {}) {
   const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
 
-  return {
+  const nextState = {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
@@ -1800,6 +1840,8 @@ function finalizeTurn(params = {}) {
     },
     lastUpdatedAt: nowMs()
   };
+
+  return normalizeStateForPipelineCohesion(nextState, { inbound, params, decision, trustedFinalCompletion, trustedFinalEnvelope, trustedFinalShape });
 }
 
 function assertTurnUpdated(prevState, nextState) {
@@ -1922,6 +1964,8 @@ module.exports = {
   summarizeResolvedEmotionState,
   compactStateSummary,
   deriveStateTopic,
-  buildStateCarryForwardSummary
+  buildStateCarryForwardSummary,
+  isFreshOperationalOrTechnicalTurn,
+  normalizeStateForPipelineCohesion
 };
 module.exports.default = module.exports;
