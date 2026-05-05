@@ -16,7 +16,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.4.1 PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.4.2 PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -46,6 +47,11 @@ const DOMAIN_ALIASES = Object.freeze({
   pipeline: "technical",
   autopsy: "technical",
   audit: "technical",
+  compose_marion_response: "technical",
+  composed_marion_response: "technical",
+  compose_marian_response: "technical",
+  composed_marian_response: "technical",
+  compose_mailing_response: "technical",
 
   emotion: "emotional",
   support: "emotional",
@@ -719,6 +725,8 @@ function getDomainConfig(domain, options = {}) {
     resolvedDomain: key,
     requestedDomain: safeStr(domain),
     registryVersion: VERSION,
+  PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  getPipelineForensicNormalizationStatus,
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
@@ -1019,8 +1027,26 @@ function getHealth() {
   };
 }
 
+
+function getPipelineForensicNormalizationStatus(){
+  return {
+    version: PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+    registryVersion: VERSION,
+    stateSchema: STATE_SPINE_SCHEMA,
+    stateSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
+    finalEnvelopeContract: FINAL_ENVELOPE_CONTRACT,
+    canonicalEndpoint: CANONICAL_ENDPOINT,
+    authority: "domain-registry.canonical-domain-map",
+    domainCount: Object.keys(MARION_DOMAINS).length,
+    knowledgeDomainCount: Object.keys(KNOWLEDGE_DOMAINS).length,
+    supportedKnowledgeDomains: KNOWLEDGE_DOMAIN_PRIORITY.slice()
+  };
+}
+
 module.exports = {
   VERSION,
+  PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  getPipelineForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
   FINAL_ENVELOPE_CONTRACT,
@@ -1065,6 +1091,7 @@ module.exports = {
     isRemotePath,
     isInsideRoot,
     isInsideAnyRepoRoot,
-    pruneFileCache
+    pruneFileCache,
+    getPipelineForensicNormalizationStatus
   }
 };
