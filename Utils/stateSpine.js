@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.5.0 GREETING-PSYCHE-STATE-BRIDGE";
+const SPINE_VERSION = "stateSpine v2.5.1 STATE-CONTINUITY-HARDENED + CREATIVE-COGNITIVE-CARRY";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -29,6 +29,10 @@ const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   "nyx.marion.intent/2.1"
 ]);
 const TERMINAL_AUDIO_STOP_MS = 30000;
+const MAX_STATE_TEXT = 1200;
+const MAX_STATE_SUMMARY = 1800;
+const MAX_STATE_ARRAY_ITEMS = 8;
+const MAX_SIGNATURE_TEXT = 512;
 
 const STATE_STAGES = Object.freeze([
   "intake",
@@ -38,6 +42,7 @@ const STATE_STAGES = Object.freeze([
   "final",
   "recover",
   "error",
+  "terminal_stop",
   "open"
 ]);
 
@@ -141,7 +146,8 @@ function normalizeStateStage(value, fallback = "open") {
   if (raw === "route") return "routed";
   if (raw === "composed" || raw === "deliver" || raw === "advance" || /^domain_depth_/.test(raw)) return "final";
   if (raw === "execution") return "compose";
-  if (raw === "terminal_stop" || raw === "terminal_error" || raw === "fault") return "error";
+  if (raw === "terminal_error" || raw === "fault") return "error";
+  if (raw === "terminal_stop" || raw === "terminal") return "terminal_stop";
   if (STATE_STAGES.includes(raw)) return raw;
   const fb = safeStr(fallback || "open").trim().toLowerCase();
   if (fb && fb !== raw) return normalizeStateStage(fb, "open");
@@ -168,6 +174,25 @@ function clampInt(v, def, min, max) {
 
 function oneLine(s) {
   return safeStr(s).replace(/\s+/g, " ").trim();
+}
+
+function boundedOneLine(value, max = MAX_STATE_TEXT) {
+  const text = oneLine(value);
+  const limit = clampInt(max, MAX_STATE_TEXT, 32, 20000);
+  if (!text) return "";
+  return text.length > limit ? text.slice(0, limit).replace(/\s+\S*$/, " ").trim() : text;
+}
+
+function boundedArray(value, maxItems = MAX_STATE_ARRAY_ITEMS, maxText = 180) {
+  const arr = Array.isArray(value) ? value : [];
+  return arr
+    .map((x) => boundedOneLine(x, maxText))
+    .filter(Boolean)
+    .slice(0, clampInt(maxItems, MAX_STATE_ARRAY_ITEMS, 1, 32));
+}
+
+function boundedSignature(value) {
+  return boundedOneLine(value, MAX_SIGNATURE_TEXT);
 }
 
 function hashText(v) {
@@ -827,6 +852,17 @@ function createState(seed = {}) {
       responseMode: "steady",
       updatedAt: 0
     },
+    creativeCognitive: {
+      active: false,
+      lastMode: "",
+      lastIntent: "",
+      lastSuggestionHash: "",
+      lastSuggestionSummary: "",
+      suggestionCount: 0,
+      suppressedOnGreeting: false,
+      suppressedOnSystemCheck: false,
+      updatedAt: 0
+    },
     greeting: {
       active: false,
       lastId: "",
@@ -873,20 +909,20 @@ function coerceState(input) {
     stage: safeStr(src.stage || base.stage) || "open",
     phase: safeStr(src.phase || inferPhaseFromStage(src.stage || base.stage, !!src.progressionLock)) || "active",
     domain: safeStr(src.domain || src.lane || base.domain) || "general",
-    lastUserText: oneLine(src.lastUserText || base.lastUserText || ""),
-    lastAssistantReply: oneLine(src.lastAssistantReply || base.lastAssistantReply || ""),
+    lastUserText: boundedOneLine(src.lastUserText || base.lastUserText || "", MAX_STATE_TEXT),
+    lastAssistantReply: boundedOneLine(src.lastAssistantReply || base.lastAssistantReply || "", MAX_STATE_TEXT),
     lastKnowledgeDomain: safeStr(src.lastKnowledgeDomain || base.lastKnowledgeDomain || ""),
-    lastTopic: oneLine(src.lastTopic || base.lastTopic || ""),
-    conversationSummary: oneLine(src.conversationSummary || base.conversationSummary || ""),
-    carryForwardSummary: oneLine(src.carryForwardSummary || base.carryForwardSummary || ""),
+    lastTopic: boundedOneLine(src.lastTopic || base.lastTopic || "", 320),
+    conversationSummary: boundedOneLine(src.conversationSummary || base.conversationSummary || "", MAX_STATE_SUMMARY),
+    carryForwardSummary: boundedOneLine(src.carryForwardSummary || base.carryForwardSummary || "", MAX_STATE_SUMMARY),
     turnDepth: clampInt(src.turnDepth, base.turnDepth || 0, 0, 999999),
-    lastIntent: safeStr(src.lastIntent || ""),
-    lastAction: safeStr(src.lastAction || ""),
-    lastUserHash: safeStr(src.lastUserHash || ""),
-    lastAssistantHash: safeStr(src.lastAssistantHash || ""),
-    lastMove: safeStr(src.lastMove || ""),
-    lastRationale: safeStr(src.lastRationale || ""),
-    lastPlannerMode: safeStr(src.lastPlannerMode || ""),
+    lastIntent: boundedOneLine(src.lastIntent || "", 120),
+    lastAction: boundedOneLine(src.lastAction || "", 160),
+    lastUserHash: boundedSignature(src.lastUserHash || ""),
+    lastAssistantHash: boundedSignature(src.lastAssistantHash || ""),
+    lastMove: boundedOneLine(src.lastMove || "", 160),
+    lastRationale: boundedOneLine(src.lastRationale || "", 320),
+    lastPlannerMode: boundedOneLine(src.lastPlannerMode || "", 120),
     progressionLock: !!src.progressionLock,
     volatility: safeStr(src.volatility || "stable") || "stable",
     turns: {
@@ -941,17 +977,28 @@ function coerceState(input) {
       continuityScore: Math.max(0, Math.min(1, Number(src?.emotionalEngine?.continuityScore ?? 0.35) || 0.35)),
       stateStreak: clampInt(src?.emotionalEngine?.stateStreak, 0, 0, 999999),
       placeholder: safeStr(src?.emotionalEngine?.placeholder || "Ask Nyx anything about Sandblast…") || "Ask Nyx anything about Sandblast…",
-      lastActionLabels: Array.isArray(src?.emotionalEngine?.lastActionLabels) ? src.emotionalEngine.lastActionLabels.slice(0, 6).map((x) => safeStr(x)) : [],
+      lastActionLabels: boundedArray(src?.emotionalEngine?.lastActionLabels, 6, 120),
       presenceState: safeStr(src?.emotionalEngine?.presenceState || "receptive") || "receptive",
       listenerMode: safeStr(src?.emotionalEngine?.listenerMode || "attuned") || "attuned"
     },
     continuityThread: {
       depthLevel: clampInt(src?.continuityThread?.depthLevel, 1, 1, 999999),
       threadContinuation: !!src?.continuityThread?.threadContinuation,
-      unresolvedSignals: Array.isArray(src?.continuityThread?.unresolvedSignals) ? src.continuityThread.unresolvedSignals.slice(0, 6).map((x) => safeStr(x)) : [],
-      lastTopics: Array.isArray(src?.continuityThread?.lastTopics) ? src.continuityThread.lastTopics.slice(0, 6).map((x) => safeStr(x)) : [],
-      responseMode: safeStr(src?.continuityThread?.responseMode || "steady") || "steady",
+      unresolvedSignals: boundedArray(src?.continuityThread?.unresolvedSignals, 6, 160),
+      lastTopics: boundedArray(src?.continuityThread?.lastTopics, 6, 160),
+      responseMode: boundedOneLine(src?.continuityThread?.responseMode || "steady", 160) || "steady",
       updatedAt: Number(src?.continuityThread?.updatedAt || 0) || 0
+    },
+    creativeCognitive: {
+      active: !!src?.creativeCognitive?.active,
+      lastMode: boundedOneLine(src?.creativeCognitive?.lastMode || "", 120),
+      lastIntent: boundedOneLine(src?.creativeCognitive?.lastIntent || "", 160),
+      lastSuggestionHash: boundedSignature(src?.creativeCognitive?.lastSuggestionHash || ""),
+      lastSuggestionSummary: boundedOneLine(src?.creativeCognitive?.lastSuggestionSummary || "", 640),
+      suggestionCount: clampInt(src?.creativeCognitive?.suggestionCount, 0, 0, 999999),
+      suppressedOnGreeting: !!src?.creativeCognitive?.suppressedOnGreeting,
+      suppressedOnSystemCheck: !!src?.creativeCognitive?.suppressedOnSystemCheck,
+      updatedAt: Number(src?.creativeCognitive?.updatedAt || 0) || 0
     },
     greeting: {
       active: !!src?.greeting?.active,
@@ -1226,6 +1273,55 @@ function normalizeEmotionSignals(inbound, prevState, params = {}) {
 
 
 
+function isSystemCheckInbound(inbound = {}) {
+  const text = oneLine(extractInboundText(inbound)).toLowerCase();
+  return /\b(voice test|mic test|microphone test|system check|can you hear me|hear me|continuity check)\b/i.test(text);
+}
+
+function extractCreativeCognitiveSignals(inbound = {}, params = {}, prevState = {}) {
+  const prev = coerceState(prevState);
+  const src = isPlainObject(inbound) ? inbound : {};
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const meta = isPlainObject(src.meta) ? src.meta : {};
+  const memoryPatch = extractComposerMemoryPatch(params);
+  const finalEnvelope = extractFinalEnvelopeObject(params);
+  const marion = extractMarionObject(params);
+  const candidates = [
+    params.creativeCognitive, params.cognitiveLayer, params.creativeSuggestion,
+    src.creativeCognitive, src.cognitiveLayer, src.creativeSuggestion,
+    payload.creativeCognitive, payload.cognitiveLayer, payload.creativeSuggestion,
+    meta.creativeCognitive, meta.cognitiveLayer, meta.creativeSuggestion,
+    memoryPatch.creativeCognitive, memoryPatch.cognitiveLayer, memoryPatch.creativeSuggestion,
+    finalEnvelope.creativeCognitive, finalEnvelope.cognitiveLayer, finalEnvelope.creativeSuggestion,
+    marion.creativeCognitive, marion.cognitiveLayer, marion.creativeSuggestion
+  ].filter((x) => isPlainObject(x));
+  const merged = candidates.reduce((acc, item) => ({ ...acc, ...item }), {});
+  const suggestion = firstNonEmpty(
+    merged.suggestion, merged.recommendation, merged.nextMove, merged.summary, merged.text, merged.reply, merged.value,
+    memoryPatch.lastCreativeSuggestion, memoryPatch.creativeSuggestionText, finalEnvelope.creativeSuggestionText
+  );
+  const mode = firstNonEmpty(merged.mode, merged.layer, merged.type, memoryPatch.creativeMode, finalEnvelope.creativeMode);
+  const intent = firstNonEmpty(merged.intent, merged.reason, memoryPatch.creativeIntent, finalEnvelope.creativeIntent);
+  const greeting = extractGreetingSignals(src, params);
+  const suppressedOnGreeting = !!(greeting.matched && !greeting.isDistress);
+  const suppressedOnSystemCheck = isSystemCheckInbound(src);
+  const active = !!(suggestion || mode || intent || merged.active === true || merged.enabled === true) && !suppressedOnGreeting && !suppressedOnSystemCheck;
+  const rawSummary = boundedOneLine(suggestion || intent || mode || "", 640);
+  const summary = active ? rawSummary : boundedOneLine(prev.creativeCognitive?.lastSuggestionSummary || "", 640);
+  return {
+    active,
+    lastMode: boundedOneLine(mode || prev.creativeCognitive?.lastMode || "", 120),
+    lastIntent: boundedOneLine(intent || prev.creativeCognitive?.lastIntent || "", 160),
+    lastSuggestionHash: summary ? hashText(summary.toLowerCase()) : boundedSignature(prev.creativeCognitive?.lastSuggestionHash || ""),
+    lastSuggestionSummary: summary,
+    suggestionCount: active ? clampInt(prev.creativeCognitive?.suggestionCount, 0, 0, 999999) + 1 : clampInt(prev.creativeCognitive?.suggestionCount, 0, 0, 999999),
+    suppressedOnGreeting,
+    suppressedOnSystemCheck,
+    updatedAt: active || suppressedOnGreeting || suppressedOnSystemCheck ? nowMs() : Number(prev.creativeCognitive?.updatedAt || 0) || 0
+  };
+}
+
+
 function normalizeEmotionalEngineSignals(inbound, prevState, params = {}) {
   const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
   const prev = coerceState(prevState);
@@ -1447,12 +1543,12 @@ function finalizeTurn(params = {}) {
   const speak = oneLine(safeStr(decision.speak || marionReply || params.assistantSummary || params.assistantText || params.reply || ""));
   const inboundText = extractInboundText(inbound);
   const userHash = firstNonEmpty(memoryPatch.userSignature, memoryPatch.lastUserSignature, hashUserTextForComposer(inboundText));
-  const assistantHash = hashText(speak.toLowerCase());
+  const assistantHash = speak ? hashText(speak.toLowerCase()) : "";
   const sameLane = lane === prev.lane;
   const sameStage = stage === prev.stage;
   const sameIntent = intent === prev.lastIntent;
   const sameUser = !!(userHash && prev.lastUserHash && userHash === prev.lastUserHash);
-  const sameAssistant = !!(assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
+  const sameAssistant = !!(speak && assistantHash && prev.lastAssistantHash && assistantHash === prev.lastAssistantHash);
   const marionFinalSignal = hasMarionFinalSignal(params);
   const trustedFinalEnvelope = hasTrustedMarionFinalEnvelope(params);
   const trustedFinalShape = hasTrustedFinalShape(params);
@@ -1473,6 +1569,7 @@ function finalizeTurn(params = {}) {
   const emo = normalizeEmotionSignals(inbound, prev, params);
   const greeting = extractGreetingSignals(inbound, params);
   const engineSignals = normalizeEmotionalEngineSignals(inbound, prev, params);
+  const creativeCognitive = extractCreativeCognitiveSignals(inbound, params, prev);
   const greetingDistress = !!greeting.isDistress;
   const trustedFinalCompletion = !!(
     !audio.shouldStop &&
@@ -1489,7 +1586,9 @@ function finalizeTurn(params = {}) {
   if (trustedFinalCompletion && stage === "open") stage = "final";
   if (deepeningTrustedFinalCompletion && (stage === "recover" || stage === "recovery" || stage === "open" || stage === "compose")) stage = "final";
 
-  const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : 0;
+  const existingTerminalStopActive = Number(prev.audio?.terminalStopUntil || 0) > nowMs();
+  const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : (existingTerminalStopActive && !trustedFinalCompletion ? Number(prev.audio.terminalStopUntil || 0) : 0);
+  if (existingTerminalStopActive && !trustedFinalCompletion && !technicalBypassSupportLock && stage !== "terminal_stop") stage = "terminal_stop";
   const releaseSupportLock = !!(
     stage !== "terminal_stop" &&
     !audio.shouldStop &&
@@ -1508,7 +1607,7 @@ function finalizeTurn(params = {}) {
   const supportLockActive = !releaseSupportLock && !technicalBypassSupportLock && !!(
     emo.supportLockSignal ||
     greetingDistress ||
-    stage === "terminal_stop" ||
+    stage === "terminal_stop" || existingTerminalStopActive ||
     safeStr(intent) === "STABILIZE" ||
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
@@ -1583,8 +1682,8 @@ function finalizeTurn(params = {}) {
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
-    unresolvedSignals: [safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || "")].filter(Boolean).slice(0, 6),
-    lastTopics: [safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || "")].filter(Boolean).slice(0, 6),
+    unresolvedSignals: boundedArray([safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || ""), safeStr(creativeCognitive.lastIntent || "")], 6, 160),
+    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
     responseMode: safeStr(emo.supportMode || (greeting.matched ? "greeting_intent" : "") || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
@@ -1602,12 +1701,12 @@ function finalizeTurn(params = {}) {
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
     domain: safeStr(composerDomain || lane) || lane,
-    lastUserText: oneLine(inboundText || memoryPatch.lastUserText || prev.lastUserText),
-    lastAssistantReply: trustedFinalCompletion ? speak : prev.lastAssistantReply,
+    lastUserText: boundedOneLine(inboundText || memoryPatch.lastUserText || prev.lastUserText, MAX_STATE_TEXT),
+    lastAssistantReply: trustedFinalCompletion ? boundedOneLine(speak, MAX_STATE_TEXT) : prev.lastAssistantReply,
     lastKnowledgeDomain: composerKnowledgeDomain || prev.lastKnowledgeDomain || "",
-    lastTopic: nextTopic,
-    conversationSummary: nextConversationSummary,
-    carryForwardSummary: nextCarryForwardSummary,
+    lastTopic: boundedOneLine(nextTopic, 320),
+    conversationSummary: boundedOneLine(nextConversationSummary, MAX_STATE_SUMMARY),
+    carryForwardSummary: boundedOneLine(nextCarryForwardSummary, MAX_STATE_SUMMARY),
     turnDepth: nextTurnDepth,
     stage: normalizeStateStage(stage, "final"),
     phase: inferPhaseFromStage(normalizeStateStage(stage, "final"), progressionLock),
@@ -1616,13 +1715,13 @@ function finalizeTurn(params = {}) {
     lastMove: safeStr(decision.move || intent),
     lastRationale: safeStr(decision.rationale || ""),
     lastPlannerMode: plannerMode,
-    lastUserHash: userHash,
-    lastAssistantHash: assistantHash,
+    lastUserHash: boundedSignature(userHash),
+    lastAssistantHash: trustedFinalCompletion && assistantHash ? boundedSignature(assistantHash) : prev.lastAssistantHash,
     progressionLock,
     volatility,
     turns: {
       user: clampInt(prev.turns.user, 0, 0, 999999) + 1,
-      assistant: clampInt(prev.turns.assistant, 0, 0, 999999) + 1
+      assistant: trustedFinalCompletion ? clampInt(prev.turns.assistant, 0, 0, 999999) + 1 : clampInt(prev.turns.assistant, 0, 0, 999999)
     },
     repetition,
     support,
@@ -1648,6 +1747,7 @@ function finalizeTurn(params = {}) {
     resolvedEmotion: emo.resolvedEmotion || prev.resolvedEmotion || {},
     emotionState: emo.resolvedEmotion || prev.emotionState || {},
     lastEmotionState: emo.resolvedEmotion || prev.lastEmotionState || {},
+    creativeCognitive,
     emotionalContinuity: emo.resolvedEmotionSummary && emo.resolvedEmotionSummary.present ? {
       active: true,
       primary: emo.resolvedEmotionSummary.primary,
@@ -1685,11 +1785,11 @@ function finalizeTurn(params = {}) {
     marionCohesion: {
       composerObserved: !!Object.keys(memoryPatch).length,
       marionFinalObserved: marionFinalSignal,
-      lastComposerIntent: safeStr(memoryPatch.lastIntent || marion.intent || ""),
-      lastComposerDomain: safeStr(memoryPatch.lastDomain || marion.domain || ""),
-      lastComposerUserSignature: safeStr(memoryPatch.userSignature || memoryPatch.lastUserSignature || ""),
-      lastComposerReplySignature: safeStr(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
-      lastMarionFinalSignature: firstNonEmpty(marionFinalSignature, memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature),
+      lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
+      lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
+      lastComposerUserSignature: boundedSignature(memoryPatch.userSignature || memoryPatch.lastUserSignature || ""),
+      lastComposerReplySignature: boundedSignature(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
+      lastMarionFinalSignature: boundedSignature(firstNonEmpty(marionFinalSignature, memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature)),
       finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
       loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
       loopBreakTrustedFinal,
@@ -1782,6 +1882,9 @@ module.exports = {
   REQUIRED_CHAT_ENGINE_SIGNATURE,
   normalizeStateStage,
   TERMINAL_AUDIO_STOP_MS,
+  MAX_STATE_TEXT,
+  MAX_STATE_SUMMARY,
+  MAX_STATE_ARRAY_ITEMS,
   createState,
   coerceState,
   inferConversationPhase,
@@ -1809,6 +1912,8 @@ module.exports = {
   normalizeAudioSignal,
   normalizeEmotionSignals,
   normalizeEmotionalEngineSignals,
+  extractCreativeCognitiveSignals,
+  isSystemCheckInbound,
   extractGreetingSignals,
   greetingPresenceFromTone,
   isKnownGreetingIntent,
