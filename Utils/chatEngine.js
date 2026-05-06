@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.7.2 COORDINATOR-ONLY-FINAL-PIPELINE-COHESION-HARMONIZED";
+const VERSION = "ChatEngine v3.7.3 COORDINATOR-ONLY-STALE-FAILURE-ISOLATION-HARDENED";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -608,15 +608,23 @@ function hasFinalFailureMarker(value, depth = 0) {
   const reason = lower(value.reason || completion.reason || value.status || value.error || value.code || "");
   if (/soft_recovery_reply_not_final|reply_not_actionable|marion_final_error|composer_invalid|compose_reply_missing|missing_reply|not_final_yet/.test(reason)) return true;
 
-  return Object.keys(value).some((key) => hasFinalFailureMarker(value[key], depth + 1));
+  return Object.keys(value).some((key) => {
+    // Do not let stale diagnostics/history from a prior rejected turn poison a current valid final envelope.
+    if (/^(diagnostics|debug|trace|pipelineTrace|rejectionLog|previousMemory|history|memory|session|state)$/i.test(key)) return false;
+    return hasFinalFailureMarker(value[key], depth + 1);
+  });
 }
 
 function hasTrustedFinalEnvelope(source = {}, options = {}) {
   const finalEnvelope = isFinalEnvelope(source);
   if (!finalEnvelope) return false;
 
-  // Never trust known rogue fallback text or retry/recovery envelopes, even if some wrapper has final flags.
+  // Never trust known rogue fallback text. Stale failure markers are isolated below so a valid current finalEnvelope can still emit.
   if (hasRejectedLoopReply(source)) return false;
+
+  const finalEnv = extractFinalEnvelope(source);
+  if (cleanText(finalEnv.reply) && !hasFinalFailureMarker(finalEnv, 0) && (finalEnv.authority === "marionFinalEnvelope" || finalEnv.source === "marion" || finalEnv.source === "composeMarionResponse" || finalEnv.source === "marionBridge")) return true;
+
   if (hasFinalFailureMarker(source, 0)) return false;
 
   const strictSignature = objectContainsTrustedFinalSignature(source, 0);
@@ -631,9 +639,6 @@ function hasTrustedFinalEnvelope(source = {}, options = {}) {
     safeObj(source.meta).trustedTransport === true ||
     safeObj(source.payload).trustedTransport === true
   );
-
-  const finalEnv = extractFinalEnvelope(source);
-  if (cleanText(finalEnv.reply) && !hasFinalFailureMarker(finalEnv, 0) && (finalEnv.authority === "marionFinalEnvelope" || finalEnv.source === "marion" || finalEnv.source === "composeMarionResponse" || finalEnv.source === "marionBridge")) return true;
 
   // Version-gated trust: accept known-good final contracts when explicit legacy/internal
   // trust is present, even if the newer final signature is not mirrored.
@@ -1195,6 +1200,8 @@ function finalPipelineCohesionProfile(source = {}) {
   const trustedFinalEnvelope = hasTrustedFinalEnvelope(src, src);
   const rawReply = extractFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
   const reply = sanitizeFinalUserFacingReplyForCohesion(rawReply);
+  const currentFinalEnvelope = extractFinalEnvelope(src);
+  const finalFailurePresent = hasFinalFailureMarker(currentFinalEnvelope, 0) || (!trustedFinalEnvelope && hasFinalFailureMarker(src, 0));
   return {
     version: VERSION,
     coordinatorOnly: true,
@@ -1202,10 +1209,10 @@ function finalPipelineCohesionProfile(source = {}) {
     trustedFinalEnvelope,
     replyPresent: !!reply,
     rogueFallbackPresent: hasRejectedLoopReply(src),
-    finalFailurePresent: hasFinalFailureMarker(src, 0),
+    finalFailurePresent,
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
-    canEmit: !!(reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(src) && !hasFinalFailureMarker(src, 0)),
+    canEmit: !!(reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(src) && !finalFailurePresent),
     updatedAt: Date.now()
   };
 }
