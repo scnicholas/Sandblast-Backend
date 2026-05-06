@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.5.2 STATE-CONTINUITY-PIPELINE-COHESION-HARMONIZED";
+const SPINE_VERSION = "stateSpine v2.5.3 LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -1602,8 +1602,8 @@ function finalizeTurn(params = {}) {
   const deepeningInbound = isDeepeningInbound(inbound, params);
   const trustedDeepeningCompletion = isTrustedDeepeningCompletion(params, inbound);
   const technicalBypassSupportLock = shouldTechnicalBypassSupportLock(inbound, decision, params);
-  if ((marionFinalSignal || trustedFinalShape || composerAdvancedState || technicalBypassSupportLock) && stage === "recovery" && technical) {
-    stage = "execution";
+  if ((marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState || technicalBypassSupportLock) && (stage === "recovery" || stage === "recover" || stage === "open" || stage === "compose") && technical) {
+    stage = "final";
   }
   const audio = normalizeAudioSignal(inbound);
   const emo = normalizeEmotionSignals(inbound, prev, params);
@@ -1661,10 +1661,10 @@ function finalizeTurn(params = {}) {
 
   const repetition = {
     sameLaneCount: sameLane ? prev.repetition.sameLaneCount + 1 : 0,
-    sameStageCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameStage ? prev.repetition.sameStageCount + 1 : 0),
-    sameIntentCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameIntent ? prev.repetition.sameIntentCount + 1 : 0),
-    sameUserHashCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameUser ? prev.repetition.sameUserHashCount + 1 : 0),
-    sameAssistantHashCount: (deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? 0 : (sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0),
+    sameStageCount: trustedFinalCompletion ? 0 : (sameStage ? prev.repetition.sameStageCount + 1 : 0),
+    sameIntentCount: trustedFinalCompletion ? 0 : (sameIntent ? prev.repetition.sameIntentCount + 1 : 0),
+    sameUserHashCount: trustedFinalCompletion ? 0 : (sameUser ? prev.repetition.sameUserHashCount + 1 : 0),
+    sameAssistantHashCount: trustedFinalCompletion ? 0 : (sameAssistant ? prev.repetition.sameAssistantHashCount + 1 : 0),
     sameEmotionCount: emo.sameEmotionCount,
     sameSupportModeCount: emo.sameSupportModeCount,
     sameArchetypeCount: emo.sameArchetypeCount,
