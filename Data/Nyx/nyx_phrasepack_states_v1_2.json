@@ -1,6 +1,6 @@
 {
   "pack": "nyx_phrasepack_states_v1",
-  "version": "1.1.0-normalized",
+  "version": "1.2.0-normalized-anti-loop-state-advance",
   "description": "Canonical Nyx language patterns for conversational fluidity across Cold, Warm, and Engaged states. Designed to restore authority, flow, and presence without code changes. Expanded and normalized for intro/fallback routing.",
   "rules": {
     "state_progression": [
@@ -10,7 +10,10 @@
     ],
     "no_backward_transition": true,
     "never_silent": true,
-    "advance_on_guard": true
+    "advance_on_guard": true,
+    "max_same_state_phrase_per_session": 1,
+    "state_advance_requires_new_information_or_action": true,
+    "do_not_use_presence_only_line_as_fallback": true
   },
   "states": {
     "cold": {
@@ -28,10 +31,10 @@
       },
       "phrases": [
         "Good morning. Take a breath—this is a good place to start.",
-        "I’m here. You don’t need to rush this.",
+        "We can start calmly. Name the pressure point and I’ll help narrow it.",
         "Let’s begin where the pressure actually is.",
         "Settle in. We’ll take this one clean step at a time.",
-        "I’m with you. We can shape this as we go."
+        "We can shape this as we go, but the next move needs one clear anchor."
       ],
       "continuity_lines": [
         "It doesn’t have to be fully formed yet. We’ll refine it."
@@ -139,10 +142,10 @@
   "fallback": {
     "on_guard_trigger": [
       "That didn’t change the direction—here’s what does.",
-      "We’re still moving. Let’s continue."
+      "We’re still moving; the next line needs a new action, not a repeat."
     ],
     "on_replay_detected": [
-      "We’ve been here already. Let’s advance."
+      "We’ve already touched this. The next move is to change the state, not the wording."
     ],
     "expanded_30": [
       "That did not advance the signal. We redirect cleanly.",
@@ -175,16 +178,46 @@
       "We preserve presence without replay.",
       "The loop breaks when the packet yields authority.",
       "One firm line, then back to Marion."
+    ],
+    "operational_recovery_additions": [
+      "That reply did not advance the state. The next move is to choose: cause, fix, or test.",
+      "We stop the repeat here. The useful move is one concrete correction.",
+      "The tone can stay warm, but the answer needs new information.",
+      "If this is a backend miss, say so once and ask for a shorter prompt.",
+      "If this is a state carry issue, drop the prior lane and answer the current turn."
     ]
   },
   "routing_contract": {
     "introEligible": true,
     "fallbackEligible": true,
     "fallback_condition": "backend_empty_or_replay_detected_only",
-    "advance_on_guard": true
+    "advance_on_guard": true,
+    "maxFallbackUsePerSession": 2,
+    "stateAdvanceRequired": true
+  },
+  "audit": {
+    "audit_date": "2026-05-06",
+    "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+    "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+    "critical_fixes_applied": [
+      "removed unresolved git conflict markers where present",
+      "added state-advance and anti-replay contracts",
+      "added public/internal diagnostic boundary",
+      "added emotional specificity and next-step operational bridges",
+      "added guarded backend-empty behavior"
+    ],
+    "status": "normalized_and_runtime_ready"
+  },
+  "anti_loop_state_controls": {
+    "cold": "Use for entry only. Never repeat after a backend answer or diagnostic reply.",
+    "warm": "Use for orientation only when it adds a new direction.",
+    "engaged": "Use for execution when the next action is explicit.",
+    "guard_recovery": "Must include a state change: summarize, choose, test, or ask one narrowing question.",
+    "reject_presence_only_recovery": [
+      "I’m here",
+      "I’m with you",
+      "Let’s continue",
+      "What’s next"
+    ]
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
