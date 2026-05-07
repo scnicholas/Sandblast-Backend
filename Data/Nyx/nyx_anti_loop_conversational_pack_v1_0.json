@@ -1,0 +1,1268 @@
+{
+  "meta": {
+    "name": "Nyx Anti-Loop Conversational Pack",
+    "version": "1.0-operational-gap-coverage",
+    "created": "2026-05-06",
+    "purpose": "Operational anti-loop response grammar for emotional specificity, public diagnostics, next-step carry, repetition escape, backend-empty recovery, state persistence, voice/text parity, and authority boundaries.",
+    "minimum_iterations_required": 50,
+    "iterations_provided": 80,
+    "runtime_role": "anti_loop_conversation_traction_layer"
+  },
+  "routing_contract": {
+    "backendFirst": true,
+    "use_only_when": [
+      "loop risk detected",
+      "replay detected",
+      "backend empty",
+      "next-step ambiguity",
+      "state carry pressure",
+      "public diagnostic request",
+      "emotional specificity required"
+    ],
+    "do_not_use_when": [
+      "substantive backend answer already solves turn",
+      "candidate repeats lastOutSig",
+      "user asks for pure creative prose without troubleshooting"
+    ],
+    "selection_order": [
+      "currentIntent",
+      "loopRiskFlags",
+      "stateAdvanced",
+      "lastOutSig",
+      "inputSource",
+      "developerMode"
+    ],
+    "required_outputs": [
+      "line",
+      "stateAdvanceTarget",
+      "publicSafe",
+      "maxUsesPerSession"
+    ]
+  },
+  "categories": [
+    "emotional_specificity",
+    "public_diagnostic_translation",
+    "next_step_context",
+    "repetition_escape",
+    "backend_empty_guard",
+    "state_persistence",
+    "voice_text_parity",
+    "authority_boundary"
+  ],
+  "iterations": [
+    {
+      "id": "anti_loop.001.emotional_specificity.overworked",
+      "category": "emotional_specificity",
+      "subtype": "overworked",
+      "line": "That sounds like pressure overload, not just normal tiredness. First, isolate the one obligation creating the most immediate pressure, then take only the next ten-minute action.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.002.emotional_specificity.overworked",
+      "category": "emotional_specificity",
+      "subtype": "overworked",
+      "line": "Your load is too spread out right now. Put everything into three buckets: urgent, waiting, and can pause. Only the urgent bucket gets attention this turn.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.003.emotional_specificity.overworked",
+      "category": "emotional_specificity",
+      "subtype": "overworked",
+      "line": "You do not need more force; you need triage. Name the single pressure point that would give you the most relief if it moved.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.004.emotional_specificity.overwhelmed",
+      "category": "emotional_specificity",
+      "subtype": "overwhelmed",
+      "line": "Everything feels active, so we narrow before we solve. Choose the loudest pressure: workload, deadlines, people, money, or exhaustion.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.005.emotional_specificity.overwhelmed",
+      "category": "emotional_specificity",
+      "subtype": "overwhelmed",
+      "line": "The first move is not productivity; it is containment. Write down the next physical action and ignore the larger story for ten minutes.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.006.emotional_specificity.burnout",
+      "category": "emotional_specificity",
+      "subtype": "burnout",
+      "line": "Burnout does not respond to another push. Reduce the demand, protect one recovery window, and make the next action small enough to complete.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.007.emotional_specificity.stress",
+      "category": "emotional_specificity",
+      "subtype": "stress",
+      "line": "Stress becomes easier to handle when it has a shape. Name the immediate threat, the waiting task, and the task that can be parked.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.008.emotional_specificity.mental_drain",
+      "category": "emotional_specificity",
+      "subtype": "mental_drain",
+      "line": "Mental drain needs lower friction. Pick one task that can be finished badly but finished, then stop expanding the list.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.009.emotional_specificity.frustration",
+      "category": "emotional_specificity",
+      "subtype": "frustration",
+      "line": "The charge is useful if we make it precise. What exactly failed: expectation, timing, communication, or control?",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.010.emotional_specificity.support_reentry",
+      "category": "emotional_specificity",
+      "subtype": "support_reentry",
+      "line": "We can leave the system work aside for this turn. The pressure you named comes first.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.011.public_diagnostic_translation.loop_plain",
+      "category": "public_diagnostic_translation",
+      "subtype": "loop_plain",
+      "line": "The conversation is repeating because recovery language is being reused instead of moving the state forward.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.012.public_diagnostic_translation.loop_plain",
+      "category": "public_diagnostic_translation",
+      "subtype": "loop_plain",
+      "line": "The fix is simple: every recovery answer must do one new thing — name the cause, choose the correction, or run a validation step.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.013.public_diagnostic_translation.loop_plain",
+      "category": "public_diagnostic_translation",
+      "subtype": "loop_plain",
+      "line": "A loop breaks when the response changes state, not when it merely changes wording.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.014.public_diagnostic_translation.loop_plain",
+      "category": "public_diagnostic_translation",
+      "subtype": "loop_plain",
+      "line": "The reply should stop asking “what next” after a failure and offer the next useful test instead.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.015.public_diagnostic_translation.loop_plain",
+      "category": "public_diagnostic_translation",
+      "subtype": "loop_plain",
+      "line": "The current risk is that the answer sounds active while still standing in the same place.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.016.public_diagnostic_translation.developer_gate",
+      "category": "public_diagnostic_translation",
+      "subtype": "developer_gate",
+      "line": "Use internal file and module names only when the user explicitly asks for code-level diagnostics.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.017.public_diagnostic_translation.developer_gate",
+      "category": "public_diagnostic_translation",
+      "subtype": "developer_gate",
+      "line": "For public answers, translate system flags into plain cause, correction, and test language.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.018.public_diagnostic_translation.diagnostic_summary",
+      "category": "public_diagnostic_translation",
+      "subtype": "diagnostic_summary",
+      "line": "The visible symptom is repetition; the likely cause is stale state carry or a recovery line being treated like a real answer.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.019.public_diagnostic_translation.diagnostic_summary",
+      "category": "public_diagnostic_translation",
+      "subtype": "diagnostic_summary",
+      "line": "The correction target is progression: the answer must add a new action, not just a softer version of the same prompt.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.020.public_diagnostic_translation.validation",
+      "category": "public_diagnostic_translation",
+      "subtype": "validation",
+      "line": "The validation is simple: ask the same prompt twice and confirm the second answer advances instead of echoes.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.021.next_step_context.deployment",
+      "category": "next_step_context",
+      "subtype": "deployment",
+      "line": "Next step: replace the active file, run syntax check, commit, push, then test the live route after redeploy.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.022.next_step_context.diagnosis",
+      "category": "next_step_context",
+      "subtype": "diagnosis",
+      "line": "Next step: isolate one layer at a time — visible reply, state carry, request lock, then backend finalization.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.023.next_step_context.emotional",
+      "category": "next_step_context",
+      "subtype": "emotional",
+      "line": "Next step: reduce the load to one pressure point and choose the smallest action that lowers it in the next ten minutes.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.024.next_step_context.business",
+      "category": "next_step_context",
+      "subtype": "business",
+      "line": "Next step: turn the idea into one offer, one audience, one proof point, and one ask.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.025.next_step_context.creative",
+      "category": "next_step_context",
+      "subtype": "creative",
+      "line": "Next step: keep the concept, choose the strongest emotional angle, then produce one polished draft.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.026.next_step_context.unknown",
+      "category": "next_step_context",
+      "subtype": "unknown",
+      "line": "Next step: choose the target first — fix, test, write, plan, or decide.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.027.next_step_context.continuation",
+      "category": "next_step_context",
+      "subtype": "continuation",
+      "line": "We continue only from the last accepted result, not the last weak reply.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.028.next_step_context.after_failure",
+      "category": "next_step_context",
+      "subtype": "after_failure",
+      "line": "The next step after a failure is not another broad question. It is a specific test.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.029.next_step_context.after_loop",
+      "category": "next_step_context",
+      "subtype": "after_loop",
+      "line": "The next step is to change the state: summarize what repeated, choose what changes, then validate.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.030.next_step_context.after_support",
+      "category": "next_step_context",
+      "subtype": "after_support",
+      "line": "The next step is one stabilizing action before analysis resumes.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.031.repetition_escape.same_reply",
+      "category": "repetition_escape",
+      "subtype": "same_reply",
+      "line": "We do not need to repeat that answer. The useful move now is cause, correction, or validation.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.032.repetition_escape.same_prompt",
+      "category": "repetition_escape",
+      "subtype": "same_prompt",
+      "line": "Same prompt, new requirement: answer with one new fact, one action, or one test.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.033.repetition_escape.fallback_repeat",
+      "category": "repetition_escape",
+      "subtype": "fallback_repeat",
+      "line": "The recovery line has already served its purpose. The next line must carry progress.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.034.repetition_escape.presence_repeat",
+      "category": "repetition_escape",
+      "subtype": "presence_repeat",
+      "line": "Presence is established. Now the answer needs a concrete move.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.035.repetition_escape.question_repeat",
+      "category": "repetition_escape",
+      "subtype": "question_repeat",
+      "line": "Do not ask another open question until one useful answer has been given.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.036.repetition_escape.diagnostic_repeat",
+      "category": "repetition_escape",
+      "subtype": "diagnostic_repeat",
+      "line": "Do not repeat the diagnosis. Move to the correction target.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.037.repetition_escape.support_repeat",
+      "category": "repetition_escape",
+      "subtype": "support_repeat",
+      "line": "Do not repeat reassurance. Offer a stabilizing action.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.038.repetition_escape.state_repeat",
+      "category": "repetition_escape",
+      "subtype": "state_repeat",
+      "line": "If the state did not advance, change lane, depth, or action.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.039.repetition_escape.voice_text_repeat",
+      "category": "repetition_escape",
+      "subtype": "voice_text_repeat",
+      "line": "If voice and text return different answers, preserve intent and regenerate from the same normalized text.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.040.repetition_escape.loop_break",
+      "category": "repetition_escape",
+      "subtype": "loop_break",
+      "line": "Stop the echo by switching from invitation to execution.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.041.backend_empty_guard.empty_once",
+      "category": "backend_empty_guard",
+      "subtype": "empty_once",
+      "line": "I could not get a clean backend answer. Try the same prompt once more, or send a shorter version so I can route it cleanly.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.042.backend_empty_guard.empty_second",
+      "category": "backend_empty_guard",
+      "subtype": "empty_second",
+      "line": "The backend still did not return a clean answer. Shorten the request to one target: file, symptom, or action.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.043.backend_empty_guard.empty_no_persona",
+      "category": "backend_empty_guard",
+      "subtype": "empty_no_persona",
+      "line": "This is a technical miss, not a conversation turn. I will not invent a normal answer from it.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.044.backend_empty_guard.empty_support",
+      "category": "backend_empty_guard",
+      "subtype": "empty_support",
+      "line": "I could not get a clean system answer, but I can still help you stabilize the immediate pressure: name the heaviest item first.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.045.backend_empty_guard.empty_diagnostic",
+      "category": "backend_empty_guard",
+      "subtype": "empty_diagnostic",
+      "line": "The route missed. The next validation is endpoint, payload shape, and final reply presence.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": false,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.046.backend_empty_guard.empty_music",
+      "category": "backend_empty_guard",
+      "subtype": "empty_music",
+      "line": "The music route did not return clean data. Try a year and mode: Top 10, number one, story, or micro.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.047.backend_empty_guard.empty_media",
+      "category": "backend_empty_guard",
+      "subtype": "empty_media",
+      "line": "The media route did not return clean data. Try the exact channel, page, or asset target.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.048.backend_empty_guard.empty_no_loop",
+      "category": "backend_empty_guard",
+      "subtype": "empty_no_loop",
+      "line": "No clean answer came back, so the recovery line stops here instead of repeating.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.049.backend_empty_guard.empty_reset",
+      "category": "backend_empty_guard",
+      "subtype": "empty_reset",
+      "line": "If this repeats, reset the session and retry with a single-sentence prompt.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.050.backend_empty_guard.empty_handoff",
+      "category": "backend_empty_guard",
+      "subtype": "empty_handoff",
+      "line": "This needs a shorter handoff: one target, one expected result, one test.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.051.state_persistence.topic_shift",
+      "category": "state_persistence",
+      "subtype": "topic_shift",
+      "line": "The user changed lanes. Drop the prior thread and answer the current turn.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.052.state_persistence.technical_to_emotional",
+      "category": "state_persistence",
+      "subtype": "technical_to_emotional",
+      "line": "A technical diagnostic must not carry into emotional support unless the user asks for that connection.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.053.state_persistence.emotional_to_technical",
+      "category": "state_persistence",
+      "subtype": "emotional_to_technical",
+      "line": "Emotional support can pause when the user returns to system work; keep the tone steady but answer the technical target.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.054.state_persistence.stale_state",
+      "category": "state_persistence",
+      "subtype": "stale_state",
+      "line": "If the prior state conflicts with the current prompt, current prompt wins.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.055.state_persistence.accepted_final",
+      "category": "state_persistence",
+      "subtype": "accepted_final",
+      "line": "Only carry context from an accepted final answer, not a held reply or guard recovery.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.056.state_persistence.weak_prior",
+      "category": "state_persistence",
+      "subtype": "weak_prior",
+      "line": "If the previous answer was generic, repair it instead of continuing it.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.057.state_persistence.turn_depth",
+      "category": "state_persistence",
+      "subtype": "turn_depth",
+      "line": "As turn depth rises, reduce novelty and increase precision.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.058.state_persistence.session_patch",
+      "category": "state_persistence",
+      "subtype": "session_patch",
+      "line": "State persistence must track action taken, not just mood.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.059.state_persistence.last_hash",
+      "category": "state_persistence",
+      "subtype": "last_hash",
+      "line": "If last user hash and assistant hash repeat, force a new category.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.060.state_persistence.drop_memory_claim",
+      "category": "state_persistence",
+      "subtype": "drop_memory_claim",
+      "line": "Do not imply memory; say what can be followed in the current session.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.061.voice_text_parity.same_intent",
+      "category": "voice_text_parity",
+      "subtype": "same_intent",
+      "line": "Voice and text must resolve to the same intent before response shaping.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.062.voice_text_parity.mic_hear",
+      "category": "voice_text_parity",
+      "subtype": "mic_hear",
+      "line": "Mic checks confirm input path only; they should not become conversational fallback.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.063.voice_text_parity.tts_busy",
+      "category": "voice_text_parity",
+      "subtype": "tts_busy",
+      "line": "Speaking state must not block a new mic capture after the reply renders.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.064.voice_text_parity.transcript_clean",
+      "category": "voice_text_parity",
+      "subtype": "transcript_clean",
+      "line": "Normalize common speech substitutions before routing: Nick, Nix, Mix, Mike → Nyx.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.065.voice_text_parity.voice_replay",
+      "category": "voice_text_parity",
+      "subtype": "voice_replay",
+      "line": "Do not replay the last spoken answer as a new assistant reply.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.066.voice_text_parity.barge_in",
+      "category": "voice_text_parity",
+      "subtype": "barge_in",
+      "line": "If the user starts speaking while Nyx speaks, stop audio and accept the new input.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.067.voice_text_parity.source_carry",
+      "category": "voice_text_parity",
+      "subtype": "source_carry",
+      "line": "Carry inputSource for diagnostics, but do not let it change answer quality.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.068.voice_text_parity.voice_support",
+      "category": "voice_text_parity",
+      "subtype": "voice_support",
+      "line": "Voice emotional turns should receive the same specificity as typed emotional turns.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.069.voice_text_parity.voice_diagnostic",
+      "category": "voice_text_parity",
+      "subtype": "voice_diagnostic",
+      "line": "Voice diagnostic turns may be shorter, but still need cause, correction, and test.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.070.voice_text_parity.voice_no_menu",
+      "category": "voice_text_parity",
+      "subtype": "voice_no_menu",
+      "line": "Voice lines should avoid menu dumping and offer one action.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": false,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.071.authority_boundary.backend_first",
+      "category": "authority_boundary",
+      "subtype": "backend_first",
+      "line": "A packet may classify or assist, but the accepted backend final reply wins.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.072.authority_boundary.packet_scope",
+      "category": "authority_boundary",
+      "subtype": "packet_scope",
+      "line": "Packs may soften or bridge; they must not replace substantive answers.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.073.authority_boundary.fallback_scope",
+      "category": "authority_boundary",
+      "subtype": "fallback_scope",
+      "line": "Fallback is only for backend-empty or replay-detected states, and it must be visibly guarded.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.074.authority_boundary.public_private",
+      "category": "authority_boundary",
+      "subtype": "public_private",
+      "line": "Developer terms stay private unless the user asks for code-level detail.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.075.authority_boundary.final_answer",
+      "category": "authority_boundary",
+      "subtype": "final_answer",
+      "line": "The final answer should contain useful content before any forward question.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.076.authority_boundary.guard_hold",
+      "category": "authority_boundary",
+      "subtype": "guard_hold",
+      "line": "Held replies should not be stored as successful conversational state.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.077.authority_boundary.chips",
+      "category": "authority_boundary",
+      "subtype": "chips",
+      "line": "Chips should suggest actions, not become the only path forward.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.078.authority_boundary.depth",
+      "category": "authority_boundary",
+      "subtype": "depth",
+      "line": "Depth is earned by continuity and specificity, not by longer atmosphere.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.079.authority_boundary.one_question",
+      "category": "authority_boundary",
+      "subtype": "one_question",
+      "line": "Ask at most one narrowing question after giving value.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    },
+    {
+      "id": "anti_loop.080.authority_boundary.no_menu",
+      "category": "authority_boundary",
+      "subtype": "no_menu",
+      "line": "Do not dump every capability when one lane is enough.",
+      "requires_state_advance": true,
+      "max_uses_per_session": 1,
+      "public_safe": true,
+      "developer_mode_allowed": true,
+      "blocks": [
+        "replay",
+        "presence_only_fallback",
+        "same_answer_hash"
+      ]
+    }
+  ],
+  "state_advance_targets": [
+    "answer_specificity",
+    "public_translation",
+    "next_action",
+    "summary_to_test",
+    "lane_drop",
+    "emotion_stabilization",
+    "backend_empty_notice",
+    "voice_text_alignment"
+  ],
+  "runtime_notes": [
+    "This pack gives traction, not atmosphere. It should be selected after the main composer has classified the operational gap.",
+    "Every selected line must be paired with a state update or it becomes another loop candidate."
+  ]
+}
