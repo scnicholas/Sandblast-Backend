@@ -14,7 +14,8 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.5.3 LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.6.0 CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -1362,6 +1363,63 @@ function inferConversationPhase(prevState, inbound, plannerDecision) {
   return inferPhaseFromStage(prev.stage, false);
 }
 
+
+function detectConversationalPackTrack({ inbound = {}, prev = {}, decision = {}, params = {}, speak = "" } = {}) {
+  const text = oneLine(extractInboundText(inbound)).toLowerCase();
+  const prior = oneLine(prev.lastAssistantReply || "").toLowerCase();
+  const rationale = oneLine(decision.rationale || params.updateReason || "").toLowerCase();
+  const technical = isTechnicalInbound(inbound) || /\b(loop|diagnostic|audit|autopsy|backend|frontend|widget|state spine|chatengine|final envelope|packet|regression)\b/i.test(text);
+  const developerDiagnostic = technical && /\b(file|code|module|line[- ]?by[- ]?line|raw|developer|internal|exact fix)\b/i.test(text);
+  const emotional = /\b(overworked|overwhelmed|stressed|burned out|burnt out|drained|exhausted|anxious|panic|sad|hurt|lonely|frustrated|angry|too much|can't think|cant think)\b/i.test(text);
+  const nextStep = /\b(next step|next move|what should (we|i) do|where do we go|continue)\b/i.test(text);
+  const backendEmpty = /\b(backend.*empty|no final|reply held|bridge held|backend reply unavailable|missing final|contract missing|packet missing)\b/i.test(rationale + " " + speak);
+  const repeated = !!(
+    Number(prev.repetition?.noProgressCount || 0) > 0 ||
+    Number(prev.repetition?.sameAssistantHashCount || 0) > 0 ||
+    (speak && prior && hashText(speak.toLowerCase()) === prev.lastAssistantHash)
+  );
+  if (backendEmpty) return "backend_empty_guard";
+  if (emotional) return "emotional_specificity";
+  if (technical && developerDiagnostic) return "developer_diagnostic";
+  if (technical) return "public_diagnostic_translation";
+  if (nextStep) return "next_step_context";
+  if (repeated) return "repetition_escape";
+  return "atmosphere_continuity";
+}
+
+function deriveConversationalPackRuntimeSelector({ prevState = {}, inbound = {}, decision = {}, params = {}, speak = "" } = {}) {
+  const prev = coerceState(prevState);
+  const track = detectConversationalPackTrack({ inbound, prev, decision, params, speak });
+  const turnCount = clampInt(prev.turns?.user, 0, 0, 999999);
+  const depthBand = turnCount >= 31 ? "deep" : turnCount >= 16 ? "late" : turnCount >= 6 ? "mid" : "early";
+  const noProgress = clampInt(prev.repetition?.noProgressCount, 0, 0, 999999);
+  const sameAssistant = clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999);
+  const fallback = clampInt(prev.repetition?.fallbackCount, 0, 0, 999999);
+  const replayRisk = Math.max(
+    noProgress >= 3 ? 0.92 : noProgress >= 2 ? 0.72 : noProgress ? 0.45 : 0,
+    sameAssistant >= 2 ? 0.82 : sameAssistant ? 0.42 : 0,
+    fallback >= 2 ? 0.64 : fallback ? 0.35 : 0
+  );
+  const antiLoopEligible = track !== "atmosphere_continuity" || replayRisk >= 0.35;
+  const atmosphereEligible = track === "atmosphere_continuity" && replayRisk < 0.35;
+  return {
+    version: CONVERSATIONAL_PACK_COHESION_VERSION,
+    active: true,
+    track,
+    depthBand,
+    replayRisk,
+    antiLoopEligible,
+    atmosphereEligible,
+    publicDiagnostic: track === "public_diagnostic_translation",
+    stateAdvanceRequired: antiLoopEligible,
+    staleCarrySuppressed: track === "emotional_specificity" || track === "public_diagnostic_translation" || track === "developer_diagnostic",
+    maxAtmosphereLines: depthBand === "early" ? 1 : 2,
+    requiredReplyShape: antiLoopEligible ? "acknowledge_classify_answer_advance" : "statement_first_continuity",
+    source: "stateSpine.deriveConversationalPackRuntimeSelector",
+    updatedAt: nowMs()
+  };
+}
+
 function decideNextMove(prevState, inbound) {
   const prev = coerceState(prevState);
   const userHash = hashText(oneLine(extractInboundText(inbound)).toLowerCase());
@@ -1377,6 +1435,7 @@ function decideNextMove(prevState, inbound) {
   const repeatedSupportHold = clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0;
   const loopPressure = Number(prev?.repetition?.noProgressCount || 0) >= 2 || Number(prev?.repetition?.sameAssistantHashCount || 0) >= 2;
   const mentionsLooping = !!(emo.mentionsLooping || ((sameUser && sameIntent) && loopPressure) || loopPressure);
+  const packRuntime = deriveConversationalPackRuntimeSelector({ prevState: prev, inbound, decision: {}, params: {}, speak: "" });
 
   if (audio.shouldStop || terminalStopActive) {
     return {
@@ -1384,7 +1443,8 @@ function decideNextMove(prevState, inbound) {
       stage: "terminal_stop",
       rationale: audio.reason ? `audio_terminal_${audio.reason}` : "audio_terminal_stop",
       speak: "",
-      _plannerMode: "audio_terminal"
+      _plannerMode: "audio_terminal",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1394,7 +1454,8 @@ function decideNextMove(prevState, inbound) {
       stage: technical ? "execution" : "deliver",
       rationale: audio.reason ? `audio_downgrade_${audio.reason}` : "audio_downgrade",
       speak: "",
-      _plannerMode: technical ? "execution" : "audio_downgrade"
+      _plannerMode: technical ? "execution" : "audio_downgrade",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1404,7 +1465,8 @@ function decideNextMove(prevState, inbound) {
       stage: "execution",
       rationale: audio.reason ? `audio_retry_${audio.reason}` : "audio_retry",
       speak: "",
-      _plannerMode: "audio_retry"
+      _plannerMode: "audio_retry",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1414,7 +1476,8 @@ function decideNextMove(prevState, inbound) {
       stage: "execution",
       rationale: mentionsLooping ? "technical_loop_escape_support_hold_released" : "technical_execution",
       speak: "",
-      _plannerMode: "execution"
+      _plannerMode: "execution",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1424,7 +1487,8 @@ function decideNextMove(prevState, inbound) {
       stage: "deliver",
       rationale: `greeting_intent_${greeting.intent || "basic_greeting"}`,
       speak: "",
-      _plannerMode: "greeting"
+      _plannerMode: "greeting",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1434,7 +1498,8 @@ function decideNextMove(prevState, inbound) {
       stage: "recovery",
       rationale: mentionsLooping ? "support_lock_loop_guard" : "emotion_stabilize",
       speak: "",
-      _plannerMode: "support"
+      _plannerMode: "support",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1444,7 +1509,8 @@ function decideNextMove(prevState, inbound) {
       stage: "recovery",
       rationale: "route_exhaustion_guard",
       speak: "",
-      _plannerMode: "stabilize"
+      _plannerMode: "stabilize",
+      conversationalPack: packRuntime
     };
   }
 
@@ -1453,7 +1519,8 @@ function decideNextMove(prevState, inbound) {
     stage: technical ? "execution" : "deliver",
     rationale: "normal_progression",
     speak: "",
-    _plannerMode: technical ? "execution" : "advance"
+    _plannerMode: technical ? "execution" : "advance",
+    conversationalPack: packRuntime
   };
 }
 
@@ -1544,6 +1611,7 @@ function normalizeStateForPipelineCohesion(nextState = {}, context = {}) {
   const freshWorkTurn = isFreshOperationalOrTechnicalTurn(inbound, params);
   const hasTrustedFinal = !!(context.trustedFinalCompletion || context.trustedFinalEnvelope || context.trustedFinalShape || hasMarionFinalSignal(params) || hasTrustedFinalShape(params) || hasTrustedMarionFinalEnvelope(params));
   const technical = isTechnicalInbound(inbound) || shouldTechnicalBypassSupportLock(inbound, context.decision || {}, params);
+  const packCohesion = next.packCohesion || next.conversationalPack || deriveConversationalPackRuntimeSelector({ prevState: next, inbound, decision: context.decision || {}, params, speak: next.lastAssistantReply || "" });
   const normalizedStage = hasTrustedFinal ? "final" : normalizeStateStage(next.stage, "open");
   return {
     ...next,
@@ -1551,7 +1619,9 @@ function normalizeStateForPipelineCohesion(nextState = {}, context = {}) {
     phase: inferPhaseFromStage(normalizedStage, false),
     progressionLock: hasTrustedFinal ? false : !!next.progressionLock,
     support: freshWorkTurn ? { ...next.support, lockActive: false, holdTurns: 0, quietTurns: 0, reason: "", shouldSuppressMenus: false } : next.support,
-    emotionalContinuity: freshWorkTurn ? null : next.emotionalContinuity,
+    emotionalContinuity: (freshWorkTurn || packCohesion.staleCarrySuppressed) ? null : next.emotionalContinuity,
+    conversationalPack: packCohesion,
+    packCohesion,
     repetition: hasTrustedFinal ? { ...next.repetition, noProgressCount: 0, fallbackCount: 0 } : next.repetition,
     marionCohesion: {
       ...next.marionCohesion,
@@ -1559,7 +1629,8 @@ function normalizeStateForPipelineCohesion(nextState = {}, context = {}) {
       finalEnvelopeTrusted: !!(next.marionCohesion?.finalEnvelopeTrusted || hasTrustedFinal),
       shouldAdvanceState: !!(next.marionCohesion?.shouldAdvanceState || hasTrustedFinal),
       technicalBypassSupportLock: !!technical,
-      staleContextSuppressed: !!freshWorkTurn,
+      staleContextSuppressed: !!(freshWorkTurn || packCohesion.staleCarrySuppressed),
+      packCohesion,
       updatedAt: nowMs()
     },
     lastUpdatedAt: nowMs()
@@ -1581,6 +1652,7 @@ function finalizeTurn(params = {}) {
   const intent = canonicalIntent(composerIntent || decision.move || extractIntent(inbound));
   const actionTaken = safeStr(params.actionTaken || inbound.action || inbound?.payload?.action || "");
   const speak = oneLine(safeStr(decision.speak || marionReply || params.assistantSummary || params.assistantText || params.reply || ""));
+  const conversationalPack = deriveConversationalPackRuntimeSelector({ prevState: prev, inbound, decision, params, speak });
   const inboundText = extractInboundText(inbound);
   const userHash = firstNonEmpty(memoryPatch.userSignature, memoryPatch.lastUserSignature, hashUserTextForComposer(inboundText));
   const assistantHash = speak ? hashText(speak.toLowerCase()) : "";
@@ -1728,6 +1800,7 @@ function finalizeTurn(params = {}) {
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
     loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
+    packCohesion: conversationalPack,
     updatedAt: nowMs()
   };
 
@@ -1788,6 +1861,8 @@ function finalizeTurn(params = {}) {
     emotionState: emo.resolvedEmotion || prev.emotionState || {},
     lastEmotionState: emo.resolvedEmotion || prev.lastEmotionState || {},
     creativeCognitive,
+    conversationalPack,
+    packCohesion: conversationalPack,
     emotionalContinuity: emo.resolvedEmotionSummary && emo.resolvedEmotionSummary.present ? {
       active: true,
       primary: emo.resolvedEmotionSummary.primary,
@@ -1836,6 +1911,7 @@ function finalizeTurn(params = {}) {
       statePatchRequired: !!(marion?.nyxDirective?.statePatchRequired || memoryPatch?.stateBridge?.expectedStateMutation),
       shouldAdvanceState: composerAdvancedState,
       noProgressCount: clampInt(memoryPatch.noProgressCount, repetition.noProgressCount, 0, 999999),
+      packCohesion: conversationalPack,
       updatedAt: nowMs()
     },
     lastUpdatedAt: nowMs()
@@ -1966,6 +2042,9 @@ module.exports = {
   deriveStateTopic,
   buildStateCarryForwardSummary,
   isFreshOperationalOrTechnicalTurn,
-  normalizeStateForPipelineCohesion
+  normalizeStateForPipelineCohesion,
+  CONVERSATIONAL_PACK_COHESION_VERSION,
+  detectConversationalPackTrack,
+  deriveConversationalPackRuntimeSelector
 };
 module.exports.default = module.exports;
