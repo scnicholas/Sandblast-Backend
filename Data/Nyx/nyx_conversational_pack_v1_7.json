@@ -1,21 +1,38 @@
 {
   "meta": {
     "name": "Nyx Conversational Pack (Canonical)",
-    "version": "1.6-C-NORMALIZED",
+    "version": "1.7-C-ATMOSPHERE-CONTINUITY-ANTI-LOOP-READY",
     "purpose": "Long-form conversational gravity only",
     "constraints": [
       "statement-first",
       "no menu exposure",
       "no self-disclosure pressure",
       "no onboarding use",
-      "reflection throttle: max 1 per session"
+      "reflection throttle: max 1 per session",
+      "do not answer operational prompts with atmosphere-only lines",
+      "do not reuse a line if lastOutSig matches current candidate",
+      "must pair any fallback use with a state advance or concrete next action",
+      "backend final reply always wins"
     ],
     "normalized_from": "1.5-C",
-    "runtime_role": "intro_or_long_form_gravity_support_only",
+    "runtime_role": "intro_or_long_form_gravity_support_only_with_guarded_state_advance_bridges",
     "forensic_notes": [
       "Converted to normalized expansion without changing original line intent.",
       "Not suitable as hard fallback unless wrapped by backend-empty guard."
-    ]
+    ],
+    "audit": {
+      "audit_date": "2026-05-06",
+      "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+      "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+      "critical_fixes_applied": [
+        "removed unresolved git conflict markers where present",
+        "added state-advance and anti-replay contracts",
+        "added public/internal diagnostic boundary",
+        "added emotional specificity and next-step operational bridges",
+        "added guarded backend-empty behavior"
+      ],
+      "status": "normalized_and_runtime_ready"
+    }
   },
   "lines": [
     "Hey — I’m Nyx. We don’t need a destination right away.",
@@ -73,16 +90,41 @@
   ],
   "routing_contract": {
     "introEligible": true,
-    "fallbackEligible": "only_if_backend_empty_and_runtime_guarded",
+    "fallbackEligible": "only_if_backend_empty_and_runtime_guarded_and_state_advance_available",
     "required_guard_file": "nyx_pack_runtime_adapter.js",
     "do_not_use_for": [
       "onboarding_menu",
       "backend_reply_replacement",
       "identity_memory_claims"
+    ],
+    "stateAdvanceRequired": true,
+    "maxSameLinePerSession": 1,
+    "reject_if": [
+      "backend_reply_present",
+      "lastOutSig_matches_candidate",
+      "technical_diagnostic_requires_specificity",
+      "emotional_turn_requires_concrete_support"
+    ]
+  },
+  "operational_bridges": {
+    "use_only_when": "backend has no accepted final reply OR composer explicitly requests a style bridge after producing a substantive answer",
+    "anti_loop_rule": "atmosphere line may soften an answer but must not replace the answer",
+    "state_advance_lines": [
+      "The atmosphere is set; now the next move needs a concrete anchor.",
+      "We can keep the tone and still choose one practical step.",
+      "The thread has enough weight now; the useful move is to name the next action.",
+      "This does not need a restart. It needs one clean direction.",
+      "The quiet part can stay, but the response has to move."
+    ],
+    "emotional_support_softeners": [
+      "The pressure can be named without carrying all of it at once.",
+      "A smaller next action is allowed to be enough for this turn.",
+      "The load does not need to be solved before it is separated."
+    ],
+    "public_diagnostic_softeners": [
+      "The pattern is visible now: the reply needs progression, not another variation.",
+      "A loop breaks when the answer changes state instead of changing wording.",
+      "The next check is whether the response moved the user forward."
     ]
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
