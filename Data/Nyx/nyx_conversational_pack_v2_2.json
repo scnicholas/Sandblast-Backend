@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "Nyx Conversational Pack",
-    "version": "2.1-C-NORMALIZED",
+    "version": "2.2-C-ADAPTIVE-ENDURANCE-ANTI-REPLAY-READY",
     "phase": "Phase Two — Adaptive Endurance",
     "purpose": "Dynamic conversational depth based on session progression and listener behavior",
     "design_rules": [
@@ -14,7 +14,20 @@
       "Reflection throttle: max 1 per session"
     ],
     "normalized_from": "2.0-C",
-    "runtime_role": "adaptive_depth_language_support"
+    "runtime_role": "adaptive_depth_language_support",
+    "audit": {
+      "audit_date": "2026-05-06",
+      "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+      "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+      "critical_fixes_applied": [
+        "removed unresolved git conflict markers where present",
+        "added state-advance and anti-replay contracts",
+        "added public/internal diagnostic boundary",
+        "added emotional specificity and next-step operational bridges",
+        "added guarded backend-empty behavior"
+      ],
+      "status": "normalized_and_runtime_ready"
+    }
   },
   "session_depth_markers": {
     "early": "0–5 turns",
@@ -211,10 +224,67 @@
       "session.lane",
       "backendReplyPresent",
       "lastOutSig"
+    ],
+    "stateAdvanceRequiredForRecovery": true,
+    "maxAdaptivePromptPerDepthBand": 2,
+    "dropContinuityOnTopicShift": true
+  },
+  "runtime_selector_contract": {
+    "required_inputs": [
+      "session.turnCount",
+      "session.lane",
+      "backendReplyPresent",
+      "lastOutSig",
+      "lastAssistantIntent",
+      "currentIntent",
+      "stateAdvanced",
+      "inputSource"
+    ],
+    "outputs": [
+      "depthBand",
+      "styleBias",
+      "allowContinuityLine",
+      "allowFallbackLine",
+      "requiresConcreteAction",
+      "dropPriorThread"
+    ],
+    "rules": [
+      "if backendReplyPresent is true, adaptive lines may only decorate or bridge; they may not replace the answer",
+      "if lastOutSig matches candidate, choose a different category and require a concrete action",
+      "if currentIntent differs from lastAssistantIntent, drop continuity unless user explicitly says continue",
+      "if inputSource changes from text to voice, preserve intent but do not reuse the last answer text"
+    ]
+  },
+  "anti_replay_progression": {
+    "early": [
+      "Answer first, then orient. Do not ask for a cue before giving value.",
+      "If the first answer is thin, add one concrete example before asking anything."
+    ],
+    "mid": [
+      "Bridge from prior context only if it adds a new action.",
+      "Do not recycle atmosphere when the user asks for execution."
+    ],
+    "late": [
+      "Use fewer words and more precision.",
+      "Carry the thread only if the last answer advanced state."
+    ],
+    "deep": [
+      "Continuity should feel quiet, not repetitive.",
+      "If repetition appears, shift to summary, decision, or test."
+    ]
+  },
+  "operational_gap_bridges": {
+    "next_step": [
+      "The next step is not another prompt; it is the smallest action that changes state.",
+      "Use the last successful answer as context only if it points to a concrete move."
+    ],
+    "emotional": [
+      "Name the pressure, reduce the scope, then offer one stabilizing action.",
+      "Avoid abstract presence lines when the user names a real burden."
+    ],
+    "diagnostic": [
+      "Translate internal loop flags into public language unless developer mode is explicit.",
+      "A useful diagnostic names cause, correction target, and validation step."
     ]
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
