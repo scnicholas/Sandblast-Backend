@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.21.2 ANTI-LOOP-PACK-CONSUMPTION-WIRING + PUBLIC-DIAGNOSTIC-TRANSLATION + EMOTIONAL-SPECIFICITY-GOVERNOR + NEXT-STEP-CONTEXT-GOVERNOR + EMBEDDED-DIAGNOSTIC-LOOP-DETECTION-LAYER + LOOP-ORIGIN-FORENSIC-NORMALIZATION-FIX + FINAL-PIPELINE-FORENSIC-NORMALIZATION + FINAL-REGRESSION-HARMONIZER + REPLY-CONTRACT-MINIMALISM-GOVERNOR + VOICE-TEXT-PARITY-GOVERNOR + EMOTIONAL-CONTINUITY-CALIBRATION-GOVERNOR + MEMORY-CARRY-BOUNDARY-GOVERNOR + TECHNICAL-DIAGNOSIS-PRECISION-GOVERNOR + RESPONSE-COMPRESSION-GOVERNOR + DIRECTIVE-EXECUTION-CLARITY-GOVERNOR + DOMAIN-ANSWER-DEPTH-GOVERNOR + ANSWER-SPECIFICITY-GOVERNOR + CREATIVE-SUGGESTION-TIMING-GOVERNOR + CONVERSATION-CONTINUITY-FOLLOWUP-GOVERNOR + INTENT-SPECIFIC-DEPTH-GOVERNOR + VALIDATION-SUPPRESSION + BACKEND-TECHNICAL-DOMAIN-LOCK";
+const VERSION = "composeMarionResponse v3.21.3 POST-TEST-NEXT-STEP-GOVERNOR + ANTI-LOOP-PACK-CONSUMPTION-WIRING + PUBLIC-DIAGNOSTIC-TRANSLATION + EMOTIONAL-SPECIFICITY-GOVERNOR + NEXT-STEP-CONTEXT-GOVERNOR + EMBEDDED-DIAGNOSTIC-LOOP-DETECTION-LAYER + LOOP-ORIGIN-FORENSIC-NORMALIZATION-FIX + FINAL-PIPELINE-FORENSIC-NORMALIZATION + FINAL-REGRESSION-HARMONIZER + REPLY-CONTRACT-MINIMALISM-GOVERNOR + VOICE-TEXT-PARITY-GOVERNOR + EMOTIONAL-CONTINUITY-CALIBRATION-GOVERNOR + MEMORY-CARRY-BOUNDARY-GOVERNOR + TECHNICAL-DIAGNOSIS-PRECISION-GOVERNOR + RESPONSE-COMPRESSION-GOVERNOR + DIRECTIVE-EXECUTION-CLARITY-GOVERNOR + DOMAIN-ANSWER-DEPTH-GOVERNOR + ANSWER-SPECIFICITY-GOVERNOR + CREATIVE-SUGGESTION-TIMING-GOVERNOR + CONVERSATION-CONTINUITY-FOLLOWUP-GOVERNOR + INTENT-SPECIFIC-DEPTH-GOVERNOR + VALIDATION-SUPPRESSION + BACKEND-TECHNICAL-DOMAIN-LOCK";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -635,11 +635,31 @@ function emotionalSpecificityPackReply(text="",input={}){
   if(distress.emotional)return packLine("emotional_specificity","general",text,"That sounds heavy, and I’m going to keep this practical. Name the pressure, shrink the scope, and handle one small step before trying to solve the whole thing.")+" What is pressing hardest right now?";
   return"";
 }
+function isPostTestResultNextStepTurn(text=""){
+  const t=lower(text);
+  return /\b(based on (the )?(current|this|that) (test )?result|based on this result|current test result|after this test|after that test|what does this test show|what does this show|did this pass|did that pass|what failed|what passed|from this result|given this result|given the result)\b/i.test(t);
+}
+function inferPostTestVerdict(input={},routed={}){
+  const prev=previousAssistantText(input),carry=contextCarrySummary(input,routed),source=lower(`${prev} ${carry}`);
+  const passed=[];const failed=[];
+  if(/emotional|overworked|pressure overload|ten-minute action|normal tiredness/i.test(source))passed.push("emotional-support specificity");
+  if(/loop audit|cause:|correction:|validation:|public/i.test(source))passed.push("public loop-audit translation");
+  if(/no blank|no busy|no hard loop|not hard-looping|hard loop/i.test(source))passed.push("hard-loop suppression");
+  if(/generic next step|deployment checklist|replace the active compose file|node --check|render redeploy/i.test(source))failed.push("next-step context freshness");
+  return{passed,failed,carry};
+}
+function postTestResultNextStepReply(text="",input={},routed={}){
+  const verdict=inferPostTestVerdict(input,routed);
+  const passed=verdict.passed.length?`Passed: ${verdict.passed.join(", ")}. `:"The current test result is usable. ";
+  const failed=verdict.failed.length?`Remaining issue: ${verdict.failed.join(", ")}. `:"Remaining issue: confirm this holds across one more controlled turn. ";
+  return `${passed}${failed}Next step: run one text/mic parity test with “I am overworked,” then run “Run a loop audit on this conversation path.” If both replies stay concrete, public-facing, and non-repetitive, freeze this Compose layer and move to loader-path verification for the anti-loop pack.`;
+}
 function nextStepContextPackReply(text="",input={},routed={}){
   const prev=previousAssistantText(input),carry=contextCarrySummary(input,routed),p=lower(prev),t=lower(text);
-  if(/commit|push|render|deploy|replace the active file|node --check|syntax/i.test(p+t))return"Next step: replace the active Compose file, run node --check against the exact deployed path, commit only that file, pull --rebase, push, then wait for Render to redeploy before testing Nyx again.";
-  if(/loop audit|diagnostic|loop|fallback|reply shaping|composer|conversation path/i.test(p+t))return"Next step: patch the composer so public loop audits use the anti-loop pack’s public diagnostic track, then rerun the same loop-audit prompt and confirm the answer gives cause, correction, and validation without internal wording.";
+  if(isPostTestResultNextStepTurn(text))return postTestResultNextStepReply(text,input,routed);
   if(/overworked|emotional|support|pressure|heaviest|overwhelmed/i.test(p+t))return"Next step: choose the single pressure point creating the most immediate load, reduce it to one ten-minute action, and leave the rest out of scope until that action is finished.";
+  if(/loop audit|diagnostic|loop|fallback|reply shaping|composer|conversation path/i.test(p+t))return"Next step: rerun the loop-audit prompt once, then verify the answer names one cause, one correction, and one validation step in public language without reusing a recovery phrase.";
+  if(/commit|push|render|deploy|replace the active file|node --check|syntax/i.test(p+t))return"Next step: replace the active Compose file, run node --check against the exact deployed path, commit only that file, pull --rebase, push, then wait for Render to redeploy before testing Nyx again.";
   if(carry)return`Next step: keep the current thread anchored to ${carry}, then test one controlled turn instead of widening the patch.`;
   return packLine("next_step_context","general",text,"Next step: choose one active target, run one controlled test, and only widen the patch after the reply changes state instead of repeating the same recovery shape.");
 }
@@ -701,13 +721,14 @@ function stripContractMachinery(value=""){
   out=out.replace(/\b(final envelope|session patch|route kind|speech hints|presence profile|transport safe|reply authority|marion final|nyx state hint|memory patch|diagnostic packet|trusted final envelope)\b/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:!?])/g,"$1").trim();
 }
-function compactOperationalReplyForContract(text="",intent=""){
+function compactOperationalReplyForContract(text="",intent="",input={},routed={}){
   const t=lower(text),dk=(typeof directiveExecutionKind==="function")?directiveExecutionKind(text):"none";
+  if(typeof isPostTestResultNextStepTurn==="function"&&isPostTestResultNextStepTurn(text))return postTestResultNextStepReply(text,input,routed);
   if(/show me the test|run (the )?test|smoke test/i.test(t)||dk==="test_run")return "Run the focused PowerShell test, inspect the status flags, then read reply for the expected behavior.";
   if(/commit and push|git add|git commit|git push|pull --rebase/i.test(t)||dk==="git_deploy")return "git status\ngit add .\\Data\\marion\\runtime\\composeMarionResponse.js\ngit commit -m \"Harden Marion pipeline cohesion\"\ngit pull --rebase origin main\ngit push origin main";
   if(/validate syntax|node --check|syntax/i.test(t)||dk==="syntax_validate")return "node --check .\\Data\\marion\\runtime\\composeMarionResponse.js";
   if(/replace the file|resend|downloadable zip|zipped file/i.test(t)||dk==="replace_file"||dk==="file_package")return "1. Unzip the package.\n2. Replace .\\Data\\marion\\runtime\\composeMarionResponse.js.\n3. Run node --check.\n4. Commit and push.\n5. Wait for Render, then run smoke and regression tests.";
-  if(/next steps?|what should/i.test(t)||dk==="next_step")return "1. Replace the active Compose file.\n2. Run node --check.\n3. Commit and push.\n4. Wait for Render redeploy.\n5. Run smoke, technical, and cyber controls.";
+  if(/next steps?|what should/i.test(t)||dk==="next_step")return nextStepContextPackReply(text,input,routed);
   return "1. Do the requested action.\n2. Validate the result.\n3. Commit only after the test passes.";
 }
 function applyReplyContractMinimalismGovernor(reply="",intent="",text="",input={}){
@@ -717,11 +738,11 @@ function applyReplyContractMinimalismGovernor(reply="",intent="",text="",input={
   let out=stripContractMachinery(reply);
   if(profile.leak&&!out)return buildFinalLoopRecoveryReply(intent,text,input);
   if(profile.operational){
-    const compact=compactOperationalReplyForContract(text,intent);
+    const compact=compactOperationalReplyForContract(text,intent,input,{});
     out=compact;
     out=out.replace(/\s*Creative suggestion:\s*[^.?!]*(?:[.?!]|$)/gi,"").trim();
   }
-  return sanitizeUserFacingReply(out,intent,text,input)||compactOperationalReplyForContract(text,intent);
+  return sanitizeUserFacingReply(out,intent,text,input)||compactOperationalReplyForContract(text,intent,input,{});
 }
 
 function finalRegressionPriorityProfile(text="",input={},intent="",knowledgeDomain=""){
@@ -1006,7 +1027,7 @@ function applyPipelineForensicNormalization(reply="",intent="",domain="",knowled
   if(isNyxMarionBackendTechnicalContext(text)&&!isExplicitCybersecurityRequest(text)&&/cybersecurity reduces risk|defensive posture|least privilege/i.test(out)){
     out=technicalReply(text,input);
   }
-  if(replyContractMinimalismKind(text)==="operational_minimal")out=compactOperationalReplyForContract(text,intent);
+  if(replyContractMinimalismKind(text)==="operational_minimal")out=compactOperationalReplyForContract(text,intent,input,routed);
   const pack=applyConversationalPackConsumption(out,intent,text,input,routed);
   out=pack.reply||out;
   return sanitizeUserFacingReply(out,intent,text,input)||buildFinalLoopRecoveryReply(intent,text,input);
