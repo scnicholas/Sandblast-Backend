@@ -1,5 +1,5 @@
 {
-  "version": "nyx_phrasepack_v1.3-normalized",
+  "version": "nyx_phrasepack_v1.4-normalized-lane-scoped-anti-loop",
   "updated": "2026-04-26",
   "voice": {
     "persona": "Nyx",
@@ -35,7 +35,10 @@
       "Prefer 1–3 short lines.",
       "End with a clear next action when user intent is ambiguous.",
       "Avoid repeating 'year' twice in the same message unless necessary."
-    ]
+    ],
+    "lane_scope_required": true,
+    "do_not_use_music_year_lines_outside_music_intent": true,
+    "max_same_template_per_session": 1
   },
   "buckets": {
     "general": {
@@ -306,12 +309,73 @@
         "Give me a title, or a direction.",
         "Genre + decade is enough. I’ll handle the rest."
       ]
+    },
+    "general_assistant": {
+      "greetings": [
+        "Hi. I’m Nyx. What are we working on first?",
+        "Good to see you. Give me the strongest signal and I’ll help shape it.",
+        "I’m ready. Start with the priority, symptom, or goal."
+      ],
+      "next_step": [
+        "The next step is to choose the one action that changes the state, not the one that adds more noise.",
+        "Give me the last result or symptom, and I’ll turn it into the next concrete move.",
+        "If we are continuing, the next move is test, fix, or refine — choose the strongest one."
+      ],
+      "soft_recovery": [
+        "That came in wide. I’ll narrow it: are we fixing, testing, writing, planning, or deciding?",
+        "The reply needs an anchor before it can deepen. Give me the symptom, target, or goal.",
+        "We can recover cleanly. One concrete detail is enough."
+      ],
+      "no_loop_repair": [
+        "We do not need to repeat the same answer. The useful move is cause, correction, or validation.",
+        "The prior line has served its purpose. Now the answer needs a new action.",
+        "Same signal, new angle: define the target, change the state, then validate."
+      ]
+    },
+    "emotional_support_operational": {
+      "overworked": [
+        "That sounds like pressure overload, not just tiredness. First, isolate the one obligation causing the most immediate pressure, then take only the next ten-minute action.",
+        "Your system is carrying too many open loops at once. Put the load into one column: urgent, waiting, or can pause.",
+        "Overworked means the load needs triage before motivation. Pick the one thing that would reduce pressure fastest."
+      ],
+      "overwhelmed": [
+        "We simplify first. Name the one pressure point that is loudest, and everything else waits for one turn.",
+        "When everything feels active, the first win is narrowing. Choose work volume, deadlines, people, money, or exhaustion."
+      ],
+      "burned_out": [
+        "Burnout does not respond well to more force. Reduce the demand, protect one recovery window, and make the next action small enough to actually do."
+      ]
+    },
+    "public_diagnostic": {
+      "loop_plain_language": [
+        "The loop is happening because the conversation is repeating recovery language instead of advancing the state.",
+        "The fix is to make each recovery answer do one new thing: name the cause, choose the correction, or run a validation step.",
+        "The system should stop asking “what next” after a failure and instead offer the next useful test."
+      ],
+      "developer_mode_gate": [
+        "Use internal module names only when the user asks for files, code, backend, or developer diagnostics.",
+        "For normal users, translate loop flags into plain cause, fix, and test language."
+      ]
     }
   },
   "routing_contract": {
-    "introEligible": true,
-    "fallbackEligible": true,
-    "packetSource": "packets_v1 normalized adapter should compile from buckets or use packets directly",
-    "requiredGuard": "honor backendFirst/marionAuthorityLock"
+    "music_biased_general_lines": "use only when music/radio/year intent is detected",
+    "general_assistant_bucket_priority": "use general_assistant before legacy general when intent is not music",
+    "backendFirst": true,
+    "packetMayNotReplaceBackendReply": true,
+    "stateAdvanceRequiredForFallback": true
+  },
+  "audit": {
+    "audit_date": "2026-05-06",
+    "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+    "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+    "critical_fixes_applied": [
+      "removed unresolved git conflict markers where present",
+      "added state-advance and anti-replay contracts",
+      "added public/internal diagnostic boundary",
+      "added emotional specificity and next-step operational bridges",
+      "added guarded backend-empty behavior"
+    ],
+    "status": "normalized_and_runtime_ready"
   }
 }
