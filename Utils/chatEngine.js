@@ -19,7 +19,8 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.7.3 COORDINATOR-ONLY-STALE-FAILURE-ISOLATION-HARDENED";
+const VERSION = "ChatEngine v3.8.0 COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1194,6 +1195,81 @@ function sanitizeFinalUserFacingReplyForCohesion(value) {
   return text;
 }
 
+
+function extractConversationalPackBridge(source = {}) {
+  const src = safeObj(source);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const diagnostics = safeObj(src.diagnostics);
+  const finalEnvelope = extractFinalEnvelope(src);
+  const sessionPatch = safeObj(src.sessionPatch || payload.sessionPatch || finalEnvelope.sessionPatch || {});
+  const memoryPatch = safeObj(src.memoryPatch || payload.memoryPatch || finalEnvelope.memoryPatch || {});
+  const candidates = [
+    src.conversationalPack,
+    src.packCohesion,
+    src.packRuntime,
+    payload.conversationalPack,
+    payload.packCohesion,
+    meta.conversationalPack,
+    meta.packCohesion,
+    diagnostics.conversationalPack,
+    diagnostics.packCohesion,
+    sessionPatch.conversationalPack,
+    sessionPatch.packCohesion,
+    memoryPatch.conversationalPack,
+    memoryPatch.packCohesion,
+    safeObj(sessionPatch.marionCohesion).packCohesion
+  ];
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate) && Object.keys(candidate).length) return candidate;
+  }
+  return {};
+}
+
+function normalizeConversationalPackBridge(source = {}) {
+  const bridge = safeObj(extractConversationalPackBridge(source));
+  const rawTrack = lower(firstText(bridge.track, bridge.route, bridge.mode, bridge.kind));
+  const allowedTracks = new Set([
+    "emotional_specificity",
+    "public_diagnostic_translation",
+    "developer_diagnostic",
+    "next_step_context",
+    "repetition_escape",
+    "backend_empty_guard",
+    "state_persistence_correction",
+    "atmosphere_continuity"
+  ]);
+  const track = allowedTracks.has(rawTrack) ? rawTrack : "atmosphere_continuity";
+  const replayRisk = clampNumber(bridge.replayRisk ?? bridge.risk ?? 0, 0, 0, 1);
+  return {
+    version: CONVERSATIONAL_PACK_COHESION_VERSION,
+    active: bridge.active !== false,
+    track,
+    depthBand: firstText(bridge.depthBand, bridge.depth, "early"),
+    antiLoopEligible: !!(bridge.antiLoopEligible || track !== "atmosphere_continuity" || replayRisk >= 0.35),
+    atmosphereEligible: bridge.atmosphereEligible !== false && track === "atmosphere_continuity" && replayRisk < 0.35,
+    stateAdvanceRequired: bridge.stateAdvanceRequired !== false && (track !== "atmosphere_continuity" || replayRisk >= 0.35),
+    publicDiagnostic: !!bridge.publicDiagnostic,
+    replayRisk,
+    staleCarrySuppressed: !!bridge.staleCarrySuppressed,
+    source: firstText(bridge.source, "chatEngine.packBridge")
+  };
+}
+
+function conversationPackCohesionProfile(source = {}) {
+  const pack = normalizeConversationalPackBridge(source);
+  const reply = extractFinalReply(source, { finalEnvelope: isFinalEnvelope(source), trustedFinalEnvelope: hasTrustedFinalEnvelope(source, source) });
+  const loopy = isRogueFallbackText(reply) || isThinPlaceholderText(reply) || isMetadataLeakText(reply);
+  return {
+    ...pack,
+    coordinatorOnly: true,
+    replyLoopRisk: !!loopy,
+    canUseAtmosphere: !!(pack.atmosphereEligible && !loopy),
+    requiresActionBearingReply: !!(pack.antiLoopEligible || pack.stateAdvanceRequired || loopy),
+    updatedAt: Date.now()
+  };
+}
+
 function finalPipelineCohesionProfile(source = {}) {
   const src = safeObj(source);
   const finalEnvelope = isFinalEnvelope(src);
@@ -1202,6 +1278,7 @@ function finalPipelineCohesionProfile(source = {}) {
   const reply = sanitizeFinalUserFacingReplyForCohesion(rawReply);
   const currentFinalEnvelope = extractFinalEnvelope(src);
   const finalFailurePresent = hasFinalFailureMarker(currentFinalEnvelope, 0) || (!trustedFinalEnvelope && hasFinalFailureMarker(src, 0));
+  const packCohesion = conversationPackCohesionProfile(src);
   return {
     version: VERSION,
     coordinatorOnly: true,
@@ -1212,6 +1289,7 @@ function finalPipelineCohesionProfile(source = {}) {
     finalFailurePresent,
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
+    packCohesion,
     canEmit: !!(reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(src) && !finalFailurePresent),
     updatedAt: Date.now()
   };
@@ -1221,8 +1299,8 @@ function normalizeCoordinatorOutputForPipeline(packet = {}) {
   const out = jsonSafe(packet);
   if (!isPlainObject(out)) return out;
   const profile = finalPipelineCohesionProfile(out);
-  out.meta = { ...safeObj(out.meta), finalPipelineCohesion: profile, coordinatorOnly: true, transportSafe: true };
-  out.diagnostics = { ...safeObj(out.diagnostics), finalPipelineCohesion: profile };
+  out.meta = { ...safeObj(out.meta), finalPipelineCohesion: profile, packCohesion: profile.packCohesion, coordinatorOnly: true, transportSafe: true };
+  out.diagnostics = { ...safeObj(out.diagnostics), finalPipelineCohesion: profile, packCohesion: profile.packCohesion };
   if (profile.canEmit) {
     const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope: true, trustedFinalEnvelope: true }));
     out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply;
@@ -1502,6 +1580,10 @@ if (typeof module !== "undefined") {
     shouldLockMarionAuthority,
     finalPipelineCohesionProfile,
     normalizeCoordinatorOutputForPipeline,
+    CONVERSATIONAL_PACK_COHESION_VERSION,
+    extractConversationalPackBridge,
+    normalizeConversationalPackBridge,
+    conversationPackCohesionProfile,
     _internal: {
       isFinalEnvelope,
       isAuthoritativeMarionFinalLocation,
@@ -1530,7 +1612,10 @@ if (typeof module !== "undefined") {
       hasTrustedBridgeOrComposerMarker,
       sanitizeFinalUserFacingReplyForCohesion,
       finalPipelineCohesionProfile,
-      normalizeCoordinatorOutputForPipeline
+      normalizeCoordinatorOutputForPipeline,
+      extractConversationalPackBridge,
+      normalizeConversationalPackBridge,
+      conversationPackCohesionProfile
     }
   };
 }
