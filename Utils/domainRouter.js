@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.1.0 STATE-SPINE-COHESION-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.2.0 DOMAIN-ISOLATION-CANONICAL-NAMES";
 
 // -------------------------
 // helpers
@@ -78,7 +78,7 @@ const DOMAIN_ENUM = Object.freeze({
   CYBER: "cyber",
   EN: "english",
   LAW: "law",
-  FIN: "fin",
+  FIN: "finance",
   STRAT: "strategy",
   AI: "ai",
   MKT: "marketing", // optional if you add later
@@ -365,7 +365,7 @@ function scoreDomains(norm, session, cog, opts = {}) {
     signals: uniq(signals, 10),
     stateSpinePatch: {
       source: "domainRouter",
-      schema: "nyx.marion.stateSpine/1.6",
+      schema: "nyx.marion.stateSpine/1.7",
       shouldAdvanceState: false,
       domainScores: normalized.scores,
       confidence: normalized.confidence
@@ -401,15 +401,18 @@ function routeDomain(norm, session, cog, opts = {}) {
       endpoint: "marion://routeMarion.primary",
       bridgeCompatible: true,
       composerCompatible: true,
-      stateSpineCompatible: true
+      stateSpineCompatible: true,
+      bootstrapGuardCompatible: true,
+      noCrossDomainBleed: true
     },
     stateSpinePatch: {
       source: "domainRouter",
-      schema: "nyx.marion.stateSpine/1.6",
+      schema: "nyx.marion.stateSpine/1.7",
       shouldAdvanceState: false,
       domain: canonicalizeDomain(pick.primary),
       secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
-      confidence: scored.confidence ? scored.confidence[pick.primary] : 0
+      confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
+      isolation: { noCrossDomainBleed: true, primaryLocked: true }
     }
   };
 }
