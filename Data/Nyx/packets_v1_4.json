@@ -1,5 +1,5 @@
 {
-  "version": "packets_v1.3-D-commercial-hardened-greeting-bridge",
+  "version": "packets_v1.4-D-commercial-hardened-greeting-bridge-anti-loop-scoped",
   "updated": "2026-05-03",
   "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
   "voice": {
@@ -34,17 +34,17 @@
       "tone": "neutral_warm",
       "energy": "low",
       "templates": [
-        "Hi, I’m here. What would you like to work on?"
+        "Hi. I’m Nyx. What are we working on first?"
       ],
       "stateTemplates": {
         "cold": [
-          "Hi, I’m here. What would you like to work on?"
+          "Hi. I’m Nyx. What are we working on first?"
         ],
         "warm": [
-          "Hi, I’m here. What would you like to work on?"
+          "Hi. I’m Nyx. What are we working on first?"
         ],
         "engaged": [
-          "Hi, I’m here. What would you like to work on?"
+          "Hi. I’m Nyx. What are we working on first?"
         ]
       },
       "chips": [
@@ -90,13 +90,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_hello_polite",
@@ -167,13 +177,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_good_morning",
@@ -244,13 +264,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_good_afternoon",
@@ -320,13 +350,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_good_evening",
@@ -396,13 +436,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_whats_up",
@@ -419,17 +469,17 @@
       "tone": "casual",
       "energy": "medium",
       "templates": [
-        "I’m here and ready. What are we getting into?"
+        "Ready. What are we getting into first?"
       ],
       "stateTemplates": {
         "cold": [
-          "I’m here and ready. What are we getting into?"
+          "Ready. What are we getting into first?"
         ],
         "warm": [
-          "I’m here and ready. What are we getting into?"
+          "Ready. What are we getting into first?"
         ],
         "engaged": [
-          "I’m here and ready. What are we getting into?"
+          "Ready. What are we getting into first?"
         ]
       },
       "chips": [
@@ -475,13 +525,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_how_are_you",
@@ -552,13 +612,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_you_there",
@@ -573,17 +643,17 @@
       "tone": "reassuring",
       "energy": "low",
       "templates": [
-        "I’m here. Fully present. What do you want to do next?"
+        "Connection is active. Give me the target and I’ll move it forward."
       ],
       "stateTemplates": {
         "cold": [
-          "I’m here. Fully present. What do you want to do next?"
+          "Connection is active. Give me the target and I’ll move it forward."
         ],
         "warm": [
-          "I’m here. Fully present. What do you want to do next?"
+          "Connection is active. Give me the target and I’ll move it forward."
         ],
         "engaged": [
-          "I’m here. Fully present. What do you want to do next?"
+          "Connection is active. Give me the target and I’ll move it forward."
         ]
       },
       "chips": [
@@ -629,13 +699,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_can_you_hear_me",
@@ -702,13 +782,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_testing",
@@ -775,13 +865,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_back_again",
@@ -798,17 +898,17 @@
       "tone": "returning",
       "energy": "low",
       "templates": [
-        "Welcome back. We can continue cleanly from here. What are we picking up?"
+        "Welcome back. Give me the piece we are picking up, and I’ll keep it aligned."
       ],
       "stateTemplates": {
         "cold": [
-          "Welcome back. We can continue cleanly from here. What are we picking up?"
+          "Welcome back. Give me the piece we are picking up, and I’ll keep it aligned."
         ],
         "warm": [
-          "Welcome back. We can continue cleanly from here. What are we picking up?"
+          "Welcome back. Give me the piece we are picking up, and I’ll keep it aligned."
         ],
         "engaged": [
-          "Welcome back. We can continue cleanly from here. What are we picking up?"
+          "Welcome back. Give me the piece we are picking up, and I’ll keep it aligned."
         ]
       },
       "chips": [
@@ -854,13 +954,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_resume_work",
@@ -933,13 +1043,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_need_help",
@@ -1010,13 +1130,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_quick_question",
@@ -1087,13 +1217,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_big_problem",
@@ -1162,13 +1302,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_rough_day",
@@ -1239,13 +1389,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_stressed",
@@ -1318,13 +1478,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_frustrated",
@@ -1395,13 +1565,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_sad",
@@ -1472,13 +1652,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_anxious",
@@ -1547,13 +1737,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_lonely",
@@ -1622,13 +1822,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_angry",
@@ -1701,13 +1911,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_confused",
@@ -1784,13 +2004,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_lost",
@@ -1865,13 +2095,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_plan",
@@ -1940,13 +2180,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_build_mode",
@@ -2017,13 +2267,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_debug_mode",
@@ -2092,13 +2352,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_business_mode",
@@ -2167,13 +2437,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_creative_mode",
@@ -2242,13 +2522,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_motivation",
@@ -2319,13 +2609,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_joking",
@@ -2398,13 +2698,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_formal",
@@ -2475,13 +2785,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_skeptical",
@@ -2556,13 +2876,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_impatient",
@@ -2633,13 +2963,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_compliment",
@@ -2712,13 +3052,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_apology",
@@ -2789,13 +3139,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_uncertain",
@@ -2872,13 +3232,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_voice_command",
@@ -2941,13 +3311,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_media_request",
@@ -3014,13 +3394,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greeting_40d_reset_request",
@@ -3083,13 +3473,23 @@
         "doNotLoop": true,
         "neverReturnEmptyGreeting": true,
         "answerThenAskForwardQuestion": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
         "Specific 40D greeting packet: intended to classify opening tone and move forward without fallback looping.",
         "Must remain assistive; Marion final reply still wins when present."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greetings_first",
@@ -3149,7 +3549,12 @@
         "oncePerSession": true,
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "general"
@@ -3164,7 +3569,12 @@
         "Duplicate trigger pruned: 'hi'; first owned by general.greeting_40d_basic_hi",
         "Duplicate trigger pruned: 'good morning'; first owned by general.greeting_40d_good_morning"
       ],
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.greetings_returning",
@@ -3219,7 +3629,12 @@
         "oncePerSession": true,
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "general"
@@ -3233,7 +3648,12 @@
       "auditNotes": [
         "Duplicate trigger pruned: 'back again'; first owned by general.greeting_40d_back_again"
       ],
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.capabilities_quick",
@@ -3283,9 +3703,19 @@
       "constraints": {
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.goodbyes_soft",
@@ -3334,9 +3764,19 @@
       "constraints": {
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.fallback_nudge",
@@ -3400,14 +3840,24 @@
         "requireHardFailureOrNoReply": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -100,
       "notes": [
         "Use only when Marion produced no usable reply.",
         "Do not fire on ambiguity alone.",
         "Do not replace a valid backend response."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.errors_generic",
@@ -3469,13 +3919,23 @@
         "requireNoBackendReply": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -90,
       "notes": [
         "Use only for transport or contract failure.",
         "Do not fire when Marion returned a usable reply."
-      ]
+      ],
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "music.ask_year",
@@ -3536,7 +3996,12 @@
         "requireNoYear": true,
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "music"
@@ -3547,7 +4012,12 @@
         "packetRole": "assistive",
         "allowWhenBackendReplyExists": false
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "music.mode_prompt_has_year",
@@ -3591,9 +4061,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "music.nav_next_year",
@@ -3625,9 +4105,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "music.nav_another_year",
@@ -3668,9 +4158,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "sponsors.open",
@@ -3723,9 +4223,19 @@
       "constraints": {
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "sponsors.need_goal",
@@ -3769,9 +4279,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "sponsors.need_budget",
@@ -3811,9 +4331,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "schedule.open",
@@ -3870,9 +4400,19 @@
       "constraints": {
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "schedule.need_city",
@@ -3916,9 +4456,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "schedule.need_show_or_now",
@@ -3953,9 +4503,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "movies.open",
@@ -4019,9 +4579,19 @@
       "constraints": {
         "honorMarionFirst": true,
         "doNotLoop": true,
-        "requireTriggerForReply": true
+        "requireTriggerForReply": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "movies.need_title_or_genre",
@@ -4064,9 +4634,19 @@
         "honorMarionFirst": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.intro_soft_expanded",
@@ -4121,9 +4701,19 @@
         "oncePerSession": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": 0
+      "priority": 0,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.fallback_anchor_expanded",
@@ -4179,9 +4769,19 @@
         "requireHardFailureOrNoReply": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": -110
+      "priority": -110,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "general.replay_breaker_expanded",
@@ -4228,9 +4828,19 @@
         "requireNoFreshMarionFinal": true,
         "doNotLoop": true,
         "requireTriggerForReply": true,
-        "internalTriggerOnly": true
+        "internalTriggerOnly": true,
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true,
+        "suppressIfBackendReplyExists": true,
+        "suppressIfLastAssistantSigMatches": true,
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
-      "priority": -105
+      "priority": -105,
+      "antiLoop": {
+        "stateAdvanceRequired": true,
+        "publicFacingOnly": true,
+        "noPresenceOnlyFallback": true
+      }
     }
   ],
   "marionAuthorityLock": {
@@ -4274,5 +4884,73 @@
     "duplicateIds": [],
     "duplicateUserTriggersAfterPrune": [],
     "emptyTemplatePackets": []
-  }
+  },
+  "audit": {
+    "audit_date": "2026-05-06",
+    "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+    "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+    "critical_fixes_applied": [
+      "removed unresolved git conflict markers where present",
+      "added state-advance and anti-replay contracts",
+      "added public/internal diagnostic boundary",
+      "added emotional specificity and next-step operational bridges",
+      "added guarded backend-empty behavior"
+    ],
+    "status": "normalized_and_runtime_ready"
+  },
+  "antiLoopRuntimeContract": {
+    "backendFirst": true,
+    "allowPacketReplaceBackend": false,
+    "maxPacketReplyUsePerSession": 1,
+    "requiresStateAdvance": true,
+    "ifRepeatedUse": "advance_bridge_or_suppress",
+    "doNotUseAfter": [
+      "backend_reply_present",
+      "assistant_reply_repeated",
+      "technical_diagnostic_turn",
+      "emotional_turn_requires_specific_support"
+    ],
+    "publicReplyRule": "no internal file/module/packet names unless developer diagnostic mode is explicit"
+  },
+  "operational_bridge_packets": [
+    {
+      "id": "general.next_step_context_repair",
+      "type": "bridge",
+      "lane": "general",
+      "intent": "next_step_context",
+      "templates": [
+        "The next step depends on the last accepted result. If we are continuing, choose one: test, fix, refine, or deploy."
+      ],
+      "constraints": {
+        "maxUsesPerSession": 2,
+        "requiresStateAdvance": true
+      }
+    },
+    {
+      "id": "general.public_loop_audit_plain",
+      "type": "bridge",
+      "lane": "general",
+      "intent": "public_loop_audit",
+      "templates": [
+        "The loop risk is repetition without progress. The correction is to make the next answer change state: cause, fix, or validation."
+      ],
+      "constraints": {
+        "maxUsesPerSession": 2,
+        "requiresStateAdvance": true
+      }
+    },
+    {
+      "id": "emotional.overworked_specificity",
+      "type": "bridge",
+      "lane": "emotional",
+      "intent": "distress_signal",
+      "templates": [
+        "That sounds like pressure overload, not just normal tiredness. Pick the one obligation creating the most immediate pressure, then take only the next ten-minute action."
+      ],
+      "constraints": {
+        "maxUsesPerSession": 1,
+        "requiresStateAdvance": true
+      }
+    }
+  ]
 }
