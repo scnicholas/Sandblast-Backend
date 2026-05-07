@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "Nyx Conversational Pack",
-    "version": "3.2-C-NORMALIZED",
+    "version": "3.3-C-CONTINUITY-RETURN-ANTI-STICKY-STATE-READY",
     "phase": "Phase Three — Continuity & Return (Canonical)",
     "purpose": "Returnable, companionable continuity using conversation-state cues (non-identity), graceful re-entry, and long-form pacing.",
     "design_rules": [
@@ -20,7 +20,20 @@
       "reentry_prompt_max_per_return": 1
     },
     "normalized_from": "3.1-C",
-    "runtime_role": "continuity_and_return_language_support"
+    "runtime_role": "continuity_and_return_language_support",
+    "audit": {
+      "audit_date": "2026-05-06",
+      "audit_scope": "line-by-line structural, routing, repetition, continuity, and anti-loop readiness pass",
+      "forensic_result": "packs have strong atmosphere and continuity but required operational anti-loop grammar, public diagnostic translation, state-advance gates, and guarded fallback use",
+      "critical_fixes_applied": [
+        "removed unresolved git conflict markers where present",
+        "added state-advance and anti-replay contracts",
+        "added public/internal diagnostic boundary",
+        "added emotional specificity and next-step operational bridges",
+        "added guarded backend-empty behavior"
+      ],
+      "status": "normalized_and_runtime_ready"
+    }
   },
   "continuity_signals": {
     "inputs": [
@@ -255,5 +268,33 @@
     "requires_memory_safety": true,
     "never_claim_persistent_memory": true,
     "required_guard_file": "nyx_pack_runtime_adapter.js"
-  }
+  },
+  "continuity_pressure_limits": {
+    "drop_continuity_when": [
+      "currentIntent changes from technical to emotional",
+      "currentIntent changes from emotional to technical",
+      "user says start fresh/reset/change topic",
+      "lastAssistantReply was diagnostic and current user gives emotional distress",
+      "lastAssistantReply was generic or held by guard"
+    ],
+    "allow_continuity_when": [
+      "user explicitly says continue/resume/next step",
+      "last reply had accepted final authority and non-empty action",
+      "same lane and no replay detected"
+    ],
+    "max_return_language_per_session": 1,
+    "max_reentry_prompt_per_return": 1,
+    "requires_last_out_sig_change": true
+  },
+  "topic_shift_bridges": {
+    "technical_to_emotional": "We can leave the system work aside for this turn. The pressure you named comes first.",
+    "emotional_to_technical": "We can move back into the system work now and keep the thread precise.",
+    "generic_to_action": "The tone is already set. The next move is the concrete action."
+  },
+  "public_continuity_rules": [
+    "Never imply personal memory when only session state is available.",
+    "If the prior turn was weak, do not continue it; repair it.",
+    "If the user asks for next step, select from prior accepted action, not prior mood.",
+    "If the user expresses distress, replace continuity language with support specificity."
+  ]
 }
