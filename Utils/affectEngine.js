@@ -1,7 +1,8 @@
 
 "use strict";
 
-const VERSION = "affectEngine v3.5.0 BRIDGE-HARDENED NORMALIZED-HANDOFF + YEAR-SPEECH + AUTHORITY-SURFACING";
+const VERSION = "affectEngine v3.6.0 PACK-COHESION-HANDOFF + ANTI-LOOP-AFFECT-BRIDGE + BRIDGE-HARDENED NORMALIZED-HANDOFF + YEAR-SPEECH";
+const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 
 const DEFAULTS = {
   vendor: "generic",
@@ -688,13 +689,68 @@ function inferAffectState(input = {}) {
       allowEmotionOverride: false
     };
   }
-  return buildAffectState({
+  const packContext = extractConversationPackSignals(input);
+  return applyPackCohesionToAffectState(buildAffectState({
     lockedEmotion,
     strategy,
     lane: safeStr(input.lane) || "Default",
     memory: input.memory && typeof input.memory === "object" ? input.memory : {},
     opts: mergeDeep({}, DEFAULTS, input.opts || {})
-  });
+  }), packContext);
+}
+
+
+function extractConversationPackSignals(input = {}) {
+  const src = input && typeof input === "object" ? input : {};
+  const session = src.session && typeof src.session === "object" ? src.session : {};
+  const memory = src.memory && typeof src.memory === "object" ? src.memory : {};
+  const prevUnified = memory.prevUnifiedTurn && typeof memory.prevUnifiedTurn === "object" ? memory.prevUnifiedTurn : {};
+  const pack = src.conversationalPack || src.packRuntime || session.conversationalPack || memory.conversationalPack || {};
+  const text = safeStr(src.userText || src.text || src.message || src.query || session.lastUserText || "").toLowerCase();
+  const turnCount = clamp(num(session.turnCount ?? session.turns?.user ?? prevUnified.turnCount, 0), 0, 999999);
+  const depthBand = turnCount >= 31 ? "deep" : turnCount >= 16 ? "late" : turnCount >= 6 ? "mid" : "early";
+  const technical = /\b(loop|autopsy|audit|diagnostic|backend|frontend|widget|state spine|chatengine|final envelope|packet|regression|syntax|node --check)\b/i.test(text);
+  const emotional = /\b(overworked|overwhelmed|stressed|burned out|burnt out|drained|anxious|panic|sad|hurt|lonely|frustrated|angry|exhausted)\b/i.test(text);
+  const nextStep = /\b(next step|next move|what should (we|i) do|where do we go|continue)\b/i.test(text);
+  const repetition = src.repetition && typeof src.repetition === "object" ? src.repetition : session.repetition || {};
+  const repeated = !!(pack.repeated || pack.replayRisk || num(repetition.noProgressCount, 0) > 0 || num(repetition.sameAssistantHashCount, 0) > 0);
+  const publicDiagnostic = technical && !/\b(file|code|module|line[- ]?by[- ]?line|raw|developer|internal)\b/i.test(text);
+  const track = emotional ? "emotional_specificity" : publicDiagnostic ? "public_diagnostic_translation" : nextStep ? "next_step_context" : repeated ? "repetition_escape" : "atmosphere_continuity";
+  return {
+    version: CONVERSATIONAL_PACK_COHESION_VERSION,
+    active: true,
+    depthBand,
+    track,
+    publicDiagnostic,
+    emotional,
+    nextStep,
+    repeated,
+    antiLoopEligible: emotional || technical || nextStep || repeated,
+    atmosphereEligible: !technical && !repeated,
+    stateAdvanceRequired: emotional || technical || nextStep || repeated,
+    maxAtmosphereLines: depthBand === "early" ? 1 : 2,
+    source: safeStr(pack.source || "affectEngine.packCohesion")
+  };
+}
+
+function applyPackCohesionToAffectState(affectState = {}, packContext = {}) {
+  const out = affectState && typeof affectState === "object" ? { ...affectState } : {};
+  out.packCohesion = packContext;
+  if (packContext.track === "emotional_specificity") {
+    out.intent = "soothe";
+    out.style = out.style === "neutral" ? "therapist_adjacent" : out.style;
+    out.risk_flag = out.risk_flag || "none";
+  }
+  if (packContext.track === "public_diagnostic_translation") {
+    out.intent = "clarify";
+    out.style = "neutral";
+    out.dominance = clamp(Math.max(num(out.dominance, 0), 0.66), 0, 1);
+  }
+  if (packContext.track === "repetition_escape") {
+    out.intent = "clarify";
+    out.dominance = clamp(Math.max(num(out.dominance, 0), 0.7), 0, 1);
+  }
+  return out;
 }
 
 function runAffectEngine(input = {}) {
@@ -720,7 +776,9 @@ function runAffectEngine(input = {}) {
     };
   }
 
-  const affectState = buildAffectState({ lockedEmotion, strategy, lane, memory, opts });
+  const packContext = extractConversationPackSignals(input);
+  let affectState = buildAffectState({ lockedEmotion, strategy, lane, memory, opts });
+  affectState = applyPackCohesionToAffectState(affectState, packContext);
   const { styleKey, styleProfile } = selectStyleProfile({ affectState, strategy, lane, opts });
   const rawTtsProfile = normalizeTtsProfile(styleProfile.tts, opts.vendor);
   const ttsProfile = smoothTtsProfile({ ttsProfile: rawTtsProfile, memory, presetKey: styleKey });
@@ -732,6 +790,7 @@ function runAffectEngine(input = {}) {
   const speechHints = buildSpeechHints({ styleKey, lane, affectState, strategy, opts });
   const pronunciationMap = buildPronunciationMap({ opts });
   const unifiedTurn = buildUnifiedTurn({ affectState, strategy, guidedPrompt, memory, lane });
+  unifiedTurn.packCohesion = packContext;
   const nextMemory = updateAffectMemory({ memory, affectState, ttsProfile, presetKey: styleKey });
   nextMemory.prevUnifiedTurn = unifiedTurn;
 
@@ -753,12 +812,14 @@ function runAffectEngine(input = {}) {
       version: VERSION,
       marionAuthorityRecommended: true,
       spokenTextReady: !!spokenText,
-      supportMode: strategy.supportModeCandidate
+      supportMode: strategy.supportModeCandidate,
+      packCohesion: packContext
     },
     debug: {
       ...affectState.debug,
       handoffNormalized: true,
-      supportMode: strategy.supportModeCandidate
+      supportMode: strategy.supportModeCandidate,
+      packCohesion: packContext
     }
   };
 }
@@ -775,5 +836,8 @@ module.exports = {
   placeholderForState,
   buildSpeechHints,
   buildPronunciationMap,
-  expandCoreContractions
+  expandCoreContractions,
+  CONVERSATIONAL_PACK_COHESION_VERSION,
+  extractConversationPackSignals,
+  applyPackCohesionToAffectState
 };
