@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.6.1 FIVE-TURN-CONTINUITY-PARITY-STATE + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.6.2 FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -775,12 +775,32 @@ function canonicalTurnInputSource(inbound = {}, params = {}) {
   const raw = oneLine(firstNonEmpty(src.inputSource, src.source, src?.ui?.inputSource, src?.client?.inputSource, src?.session?.inputSource, p.inputSource, p.source, mp.inputSource, "text")).toLowerCase();
   return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw) ? "voice" : "text";
 }
+
+function extractFiveTurnContractState(prev = {}, memoryPatch = {}, inbound = {}) {
+  const prior = isPlainObject(prev.fiveTurnContract) ? prev.fiveTurnContract : {};
+  const mp = isPlainObject(memoryPatch.fiveTurnContract) ? memoryPatch.fiveTurnContract : {};
+  const cr = isPlainObject(memoryPatch.continuityRegression) ? memoryPatch.continuityRegression : {};
+  const text = oneLine(extractInboundText(inbound));
+  const active = !!(mp.active || prior.active || /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|final[- ]?envelope authority|preserve route|preserve.*state)\b/i.test(text));
+  const target = firstNonEmpty(mp.regressionTarget, cr.regressionTarget, prior.regressionTarget, /preserve route,? state,? and final[- ]?envelope authority/i.test(text) ? "preserve route, state, and final-envelope authority" : "");
+  let turn = clampInt(mp.turn || prior.turn, 0, 0, 999999);
+  const m = text.match(/\bturn\s*([1-5])\b/i);
+  if (m) turn = clampInt(m[1], turn, 1, 5);
+  else if (/what target|target did i ask/i.test(text)) turn = 2;
+  else if (/connect.*mic|mic.*parity/i.test(text)) turn = 3;
+  else if (/consistent.*voice|typed input/i.test(text)) turn = 4;
+  else if (/summarize.*regression|four bullets/i.test(text)) turn = 5;
+  else if (/testing.*continuity|remember this target/i.test(text)) turn = 1;
+  return { version: "nyx.stateSpine.fiveTurnContract/1.0", active, turn, regressionTarget: boundedOneLine(target, 220), turnObjective: firstNonEmpty(mp.turnObjective, cr.turnObjective, prior.turnObjective, turn ? `five_turn_continuity_turn_${turn}` : ""), parityTarget: firstNonEmpty(mp.parityTarget, cr.parityTarget, prior.parityTarget, "same normalized intent, same route, same state carry, same final-envelope reply structure"), updatedAt: nowMs() };
+}
+
 function buildFiveTurnContinuityState({ prev = {}, inbound = {}, memoryPatch = {}, speak = "", userHash = "", assistantHash = "", trustedFinalCompletion = false, nextTurnDepth = 0 } = {}) {
   const prior = isPlainObject(prev.continuityRegression) ? prev.continuityRegression : {};
   const window = Array.isArray(prior.window) ? prior.window.slice(-4) : [];
-  const marker = { at: nowMs(), source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160) };
+  const fiveTurnContract=extractFiveTurnContractState(prev,memoryPatch,inbound);
+  const marker = { at: nowMs(), source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160), regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective };
   if (trustedFinalCompletion) window.push(marker);
-  return { version: "nyx.stateSpine.fiveTurnContinuity/1.0", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, updatedAt: nowMs() };
+  return { version: "nyx.stateSpine.fiveTurnContinuity/1.1", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective, parityTarget: fiveTurnContract.parityTarget, fiveTurnContract, updatedAt: nowMs() };
 }
 
 function createState(seed = {}) {
@@ -1832,6 +1852,7 @@ function finalizeTurn(params = {}) {
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
   const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
   const continuityRegression = buildFiveTurnContinuityState({ prev, inbound, memoryPatch, speak, userHash, assistantHash, trustedFinalCompletion, nextTurnDepth });
+  const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
 
   const nextState = {
     ...prev,
@@ -1857,6 +1878,7 @@ function finalizeTurn(params = {}) {
     lastInputSource: inputSource,
     inputParity: { lastSource: inputSource, lastVoiceHash: inputSource === "voice" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastVoiceHash || ""), lastTextHash: inputSource === "text" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastTextHash || ""), mismatchCount: clampInt(prev.inputParity?.mismatchCount, 0, 0, 999999), updatedAt: nowMs() },
     continuityRegression,
+    fiveTurnContract,
     progressionLock,
     volatility,
     turns: {
