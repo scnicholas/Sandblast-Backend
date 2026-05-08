@@ -19,7 +19,7 @@
 
 'use strict';
 
-const VERSION = 'emotionalGovernor v1.1.0 NO-LOOP-CONTINUITY-GOVERNOR';
+const VERSION = 'emotionalGovernor v1.2.0 FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY-GOVERNOR';
 
 const LOOP_RISK_PHRASES = Object.freeze([
   "i'm here with you",
@@ -32,7 +32,9 @@ const LOOP_RISK_PHRASES = Object.freeze([
   'what part of this is pressing',
   'what feels hardest to carry',
   'let us slow it down',
-  "let's slow it down"
+  "let's slow it down",
+  'what feels heaviest right now',
+  'one step at a time'
 ]);
 
 function clamp01(value, fallback = 0) {
@@ -55,6 +57,30 @@ function cloneJson(value) {
 
 function normalizeText(value) {
   return String(value == null ? '' : value).toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, ' ').trim();
+}
+
+
+function normalizeInputSource(value) {
+  const raw = normalizeText(value);
+  if (/voice|speech|mic|audio|headset/.test(raw)) return 'voice';
+  if (/text|typed|keyboard|manual/.test(raw)) return 'text';
+  return raw || 'text';
+}
+
+function hashContinuityText(value) {
+  const source = normalizeText(value).replace(/[^a-z0-9]+/g, ' ').trim();
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function recentSourceDrift(context = {}) {
+  const current = normalizeInputSource(context.inputSource || context.source || 'text');
+  const previous = normalizeInputSource(context.previousInputSource || context.lastInputSource || '');
+  return !!(current && previous && current !== previous);
 }
 
 function countRecentPhraseUse(recentReplies = [], phrases = LOOP_RISK_PHRASES) {
@@ -83,6 +109,16 @@ function normalizeGovernedShape(next) {
   next.guard = isObj(next.guard) ? next.guard : {};
   next.marion_handoff = isObj(next.marion_handoff) ? next.marion_handoff : {};
   next.marion_handoff.response_constraints = Array.isArray(next.marion_handoff.response_constraints) ? next.marion_handoff.response_constraints : [];
+  next.state_spine_patch = {
+    source: 'emotionalGovernor',
+    schema: 'nyx.marion.stateSpine/1.7',
+    shouldAdvanceState: true,
+    inputSource,
+    turnHash,
+    micTextParity: true,
+    emotionalContinuitySafe: true,
+    sourceDrift
+  };
   return next;
 }
 
@@ -93,6 +129,9 @@ function governResolvedState(state = {}, context = {}) {
   const primary = normalizeText(next.emotion && next.emotion.primary) || 'neutral';
   const secondary = normalizeText((next.emotion && next.emotion.secondary) || next.nuance.subtype) || 'unclear';
   const phraseLoopCount = countRecentPhraseUse(context.recentReplies || []);
+  const inputSource = normalizeInputSource(context.inputSource || context.source || 'text');
+  const sourceDrift = recentSourceDrift(context);
+  const turnHash = hashContinuityText(context.userText || context.text || context.lastUserText || '');
   const applied = [];
   const fatigueLike = /exhaust|burnout|fatigue|drain|overwhelm|strain/.test(`${primary} ${secondary}`);
 
@@ -108,6 +147,13 @@ function governResolvedState(state = {}, context = {}) {
     next.support.followup = false;
     uniquePush(next.marion_handoff.response_constraints, 'no_more_than_one_containment_sentence_before_next_user_signal');
     applied.push('very_high_intensity_followup_suppression');
+  }
+
+  if (sourceDrift) {
+    uniquePush(next.marion_handoff.response_constraints, 'preserve_same_emotional_depth_across_voice_and_text');
+    uniquePush(next.marion_handoff.response_constraints, 'do_not_shorten_voice_path_below_text_path');
+    next.support.timing_profile.input_source = inputSource;
+    applied.push('mic_text_emotional_parity_stabilizer');
   }
 
   if (phraseLoopCount >= 1) {
@@ -143,9 +189,23 @@ function governResolvedState(state = {}, context = {}) {
     applied,
     phrase_loop_count: phraseLoopCount,
     continuity_safe: true,
+    input_source: inputSource,
+    turn_hash: turnHash,
+    mic_text_parity: true,
+    source_drift: sourceDrift,
     governed_at: new Date().toISOString()
+  };
+  next.state_spine_patch = {
+    source: 'emotionalGovernor',
+    schema: 'nyx.marion.stateSpine/1.7',
+    shouldAdvanceState: true,
+    inputSource,
+    turnHash,
+    micTextParity: true,
+    emotionalContinuitySafe: true,
+    sourceDrift
   };
   return next;
 }
 
-module.exports = { VERSION, LOOP_RISK_PHRASES, countRecentPhraseUse, governResolvedState, _internal: { normalizeText, cloneJson } };
+module.exports = { VERSION, LOOP_RISK_PHRASES, countRecentPhraseUse, governResolvedState, normalizeInputSource, hashContinuityText, recentSourceDrift, _internal: { normalizeText, cloneJson, normalizeInputSource, hashContinuityText, recentSourceDrift } };
