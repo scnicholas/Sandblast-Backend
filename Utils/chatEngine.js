@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.8.1 FIVE-TURN-CONTINUITY-PARITY-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const VERSION = "ChatEngine v3.8.2 FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -256,8 +256,8 @@ function transportInputSource(packet = {}) {
   return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw) ? "voice" : "text";
 }
 function continuityTransportMarker(packet = {}, reply = "") {
-  const p = safeObj(packet), sp = safeObj(p.sessionPatch || p.memoryPatch || safeObj(p.payload).sessionPatch);
-  return { version: "nyx.chatEngine.fiveTurnContinuity/1.0", inputSource: transportInputSource(packet), turnDepth: Number(sp.turnDepth || 0) || 0, continuityEligible: (Number(sp.turnDepth || 0) || 0) >= 1 && (Number(sp.turnDepth || 0) || 0) <= 5, userHash: firstText(sp.lastUserHash, sp.stateUserHash, sp.userSignature), replyHash: firstText(sp.lastAssistantHash, sp.replyStateSignature, sp.replySignature, hashText(reply)), updatedAt: Date.now() };
+  const p = safeObj(packet), payload = safeObj(p.payload), sp = safeObj(p.sessionPatch || p.memoryPatch || payload.sessionPatch), cr = safeObj(sp.continuityRegression), ft = safeObj(sp.fiveTurnContract || cr.fiveTurnContract || payload.fiveTurnContract);
+  return { version: "nyx.chatEngine.fiveTurnContinuity/1.1", inputSource: transportInputSource(packet), turnDepth: Number(sp.turnDepth || 0) || 0, continuityEligible: (Number(sp.turnDepth || 0) || 0) >= 1 && (Number(sp.turnDepth || 0) || 0) <= 5, userHash: firstText(sp.lastUserHash, sp.stateUserHash, sp.userSignature), replyHash: firstText(sp.lastAssistantHash, sp.replyStateSignature, sp.replySignature, hashText(reply)), regressionTarget: firstText(ft.regressionTarget, cr.regressionTarget), turnObjective: firstText(ft.turnObjective, cr.turnObjective), parityTarget: firstText(ft.parityTarget, cr.parityTarget), fiveTurnContract: ft, updatedAt: Date.now() };
 }
 
 function finalTransportPacket(packet = {}) {
