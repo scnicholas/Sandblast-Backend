@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.8.0 COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const VERSION = "ChatEngine v3.8.1 FIVE-TURN-CONTINUITY-PARITY-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -249,6 +249,17 @@ function compactSessionPatchForTransport(value = {}) {
   return patch;
 }
 
+
+function transportInputSource(packet = {}) {
+  const p = safeObj(packet), meta = safeObj(p.meta), payload = safeObj(p.payload), sessionPatch = safeObj(p.sessionPatch || p.memoryPatch || payload.sessionPatch);
+  const raw = lower(firstText(p.inputSource, p.source, payload.inputSource, payload.source, sessionPatch.inputSource, meta.inputSource, meta.source, "text"));
+  return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw) ? "voice" : "text";
+}
+function continuityTransportMarker(packet = {}, reply = "") {
+  const p = safeObj(packet), sp = safeObj(p.sessionPatch || p.memoryPatch || safeObj(p.payload).sessionPatch);
+  return { version: "nyx.chatEngine.fiveTurnContinuity/1.0", inputSource: transportInputSource(packet), turnDepth: Number(sp.turnDepth || 0) || 0, continuityEligible: (Number(sp.turnDepth || 0) || 0) >= 1 && (Number(sp.turnDepth || 0) || 0) <= 5, userHash: firstText(sp.lastUserHash, sp.stateUserHash, sp.userSignature), replyHash: firstText(sp.lastAssistantHash, sp.replyStateSignature, sp.replySignature, hashText(reply)), updatedAt: Date.now() };
+}
+
 function finalTransportPacket(packet = {}) {
   const out = jsonSafe(packet);
   if (isPlainObject(out)) {
@@ -256,6 +267,7 @@ function finalTransportPacket(packet = {}) {
     const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
     const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
     const canEmit = !!reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
+    const continuityTransport = continuityTransportMarker(out, reply);
     out.ok = canEmit && out.ok !== false;
     out.final = !!canEmit;
     out.marionFinal = !!canEmit;
@@ -289,8 +301,8 @@ function finalTransportPacket(packet = {}) {
     if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
     if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
     if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactSessionPatchForTransport(out.payload.sessionPatch);
-    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", trustedFinalEnvelope, finalEnvelope, suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit };
-    out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, trustedFinalEnvelope, finalEnvelope, suppressedUserFacingReply: !canEmit };
+    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", trustedFinalEnvelope, finalEnvelope, suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit, inputSource: continuityTransport.inputSource, continuityTransport };
+    out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, trustedFinalEnvelope, finalEnvelope, suppressedUserFacingReply: !canEmit, continuityTransport };
   }
   return out;
 }
@@ -1604,6 +1616,8 @@ if (typeof module !== "undefined") {
       hasFinalFailureMarker,
       jsonSafe,
       finalTransportPacket,
+      transportInputSource,
+      continuityTransportMarker,
       compactSessionPatchForTransport,
       compactCreativeCognitiveCarry,
       extractCreativeCognitiveCarryFromPatch,
