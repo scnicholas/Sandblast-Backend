@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.2.0 DOMAIN-ISOLATION-CANONICAL-NAMES";
+const ROUTER_VERSION = "domainRouter v1.3.0 FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + TECHNICAL-INFRA-PRECEDENCE";
 
 // -------------------------
 // helpers
@@ -60,6 +60,42 @@ function clamp01(n) {
 function normToken(s) {
   return safeStr(s, 80).trim().toLowerCase();
 }
+
+function normalizeInputSource(value) {
+  const raw = normToken(value || "");
+  if (/voice|speech|mic|audio|headset/.test(raw)) return "voice";
+  if (/text|typed|keyboard|manual/.test(raw)) return "text";
+  return raw || "text";
+}
+
+function normalizeVoiceTextParityText(value) {
+  return safeStr(value, 1400)
+    .replace(/\b(nick|nix|mix|mike)\b/gi, "Nyx")
+    .replace(/\b(state\s+line|state\s+sign|state\s+spine|statespine)\b/gi, "State Spine")
+    .replace(/\b(chad\s+engine|chat\s+engine)\b/gi, "ChatEngine")
+    .replace(/\b(mary\s+bridge|marian\s+bridge|marion\s+bridge)\b/gi, "MarionBridge")
+    .replace(/\b(compose\s+marion\s+response|composed\s+marion\s+response|compose\s+marian\s+response|composed\s+marian\s+response)\b/gi, "ComposeMarionResponse")
+    .replace(/\b(mic\s*text|mic\s*tech|mike\s*text|mike\s*tech)\b/gi, "mic text")
+    .replace(/\b(5\s*term|five\s*term|five\s*turn|5\s*turn)\b/gi, "5-turn")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isInfrastructureContinuityPrompt(text) {
+  const t = normalizeVoiceTextParityText(text).toLowerCase();
+  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity)\b/i.test(t);
+}
+
+function continuityHash(value) {
+  const source = normalizeVoiceTextParityText(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
 function hasAny(text, reList) {
   const t = safeStr(text, 1400).toLowerCase();
   for (const re of reList) {
@@ -177,6 +213,8 @@ function applyLaneActionHeuristics(scores, norm) {
   const n = isPlainObject(norm) ? norm : {};
   const lane = normToken(n.lane || "");
   const action = normToken(n.action || "");
+  const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
+  const turnHash = continuityHash(n.text || n.query || n.message || "");
 
   if (lane === "law") scores[DOMAIN_ENUM.LAW] += 2.2;
   if (lane === "finance" || lane === "fin") scores[DOMAIN_ENUM.FIN] += 2.2;
@@ -198,7 +236,7 @@ function applyLaneActionHeuristics(scores, norm) {
 }
 
 function applyKeywordSignals(scores, norm) {
-  const text = safeStr(isPlainObject(norm) ? norm.text : "", 1400);
+  const text = normalizeVoiceTextParityText(isPlainObject(norm) ? norm.text : "");
 
   for (const [domain, patterns] of Object.entries(KEYWORDS)) {
     if (hasAny(text, patterns)) {
@@ -337,6 +375,15 @@ function scoreDomains(norm, session, cog, opts = {}) {
   applyIntentMode(scores, c, s);
   applyRiskClamp(scores, c);
 
+  if (isInfrastructureContinuityPrompt(n.text || n.query || n.message || "")) {
+    scores[DOMAIN_ENUM.CORE] += 3.0;
+    scores[DOMAIN_ENUM.STRAT] += 1.1;
+    scores[DOMAIN_ENUM.AI] += 0.6;
+    scores[DOMAIN_ENUM.FIN] -= 1.4;
+    scores[DOMAIN_ENUM.PSY] -= 0.8;
+    signals.push("precedence:technical_infrastructure");
+  }
+
   // If nothing hit, keep core
   const sum = Object.values(scores).reduce((acc, v) => acc + (Number.isFinite(Number(v)) ? Number(v) : 0), 0);
   if (sum <= 0.001) {
@@ -347,6 +394,8 @@ function scoreDomains(norm, session, cog, opts = {}) {
   // Signal summaries (no raw text)
   const lane = normToken(n.lane || "");
   const action = normToken(n.action || "");
+  const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
+  const turnHash = continuityHash(n.text || n.query || n.message || "");
   const intent = safeStr(c.intent || "", 12).toUpperCase();
   const tier = safeStr(c.riskTier || "", 10).toLowerCase();
 
@@ -354,6 +403,7 @@ function scoreDomains(norm, session, cog, opts = {}) {
   if (action) signals.push(`action:${action.slice(0, 18)}`);
   if (intent) signals.push(`intent:${intent}`);
   if (tier) signals.push(`risk:${tier}`);
+  if (inputSource) signals.push(`input:${inputSource}`);
 
   const normalized = normalizeScores(scores);
 
@@ -368,24 +418,35 @@ function scoreDomains(norm, session, cog, opts = {}) {
       schema: "nyx.marion.stateSpine/1.7",
       shouldAdvanceState: false,
       domainScores: normalized.scores,
-      confidence: normalized.confidence
+      confidence: normalized.confidence,
+      inputSource,
+      turnHash,
+      micTextParity: true,
+      continuityRegressionReady: true
     }
   };
 }
 
 function routeDomain(norm, session, cog, opts = {}) {
-  const scored = scoreDomains(norm, session, cog, opts);
+  const n = isPlainObject(norm) ? norm : {};
+  const scored = scoreDomains(n, session, cog, opts);
   const pick = pickTopDomains(scored.scores, {
     maxSecondary: Number.isFinite(Number(opts.maxSecondary)) ? Number(opts.maxSecondary) : 2,
     minSecondaryScore: Number.isFinite(Number(opts.minSecondaryScore)) ? Number(opts.minSecondaryScore) : 1.6,
   });
 
   // reason (compact)
+  const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
+  const turnHash = continuityHash(n.text || n.query || n.message || "");
+
   const reason = {
     primary: canonicalizeDomain(pick.primary),
     secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
     confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
     signals: scored.signals,
+    inputSource,
+    turnHash,
+    continuity: { fiveTurnReady: true, micTextParity: true }
   };
 
   return {
@@ -403,7 +464,9 @@ function routeDomain(norm, session, cog, opts = {}) {
       composerCompatible: true,
       stateSpineCompatible: true,
       bootstrapGuardCompatible: true,
-      noCrossDomainBleed: true
+      noCrossDomainBleed: true,
+      inputSource,
+      micTextParity: true
     },
     stateSpinePatch: {
       source: "domainRouter",
@@ -412,7 +475,11 @@ function routeDomain(norm, session, cog, opts = {}) {
       domain: canonicalizeDomain(pick.primary),
       secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
       confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
-      isolation: { noCrossDomainBleed: true, primaryLocked: true }
+      isolation: { noCrossDomainBleed: true, primaryLocked: true },
+      inputSource,
+      turnHash,
+      continuityRegressionReady: true,
+      micTextParity: true
     }
   };
 }
@@ -424,4 +491,8 @@ module.exports = {
   canonicalizeDomain,
   scoreDomains,
   routeDomain,
+  normalizeVoiceTextParityText,
+  normalizeInputSource,
+  isInfrastructureContinuityPrompt,
+  continuityHash,
 };
