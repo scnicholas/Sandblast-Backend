@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.6.0 CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.6.1 FIVE-TURN-CONTINUITY-PARITY-STATE + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -767,6 +767,22 @@ function hasTrustedFinalShape(params = {}) {
   return !!((hasFinalFlag || bridgeAdvance || composedOnce) && isActionableComposerReply(reply));
 }
 
+
+function canonicalTurnInputSource(inbound = {}, params = {}) {
+  const src = isPlainObject(inbound) ? inbound : {};
+  const p = isPlainObject(params) ? params : {};
+  const mp = extractComposerMemoryPatch(params);
+  const raw = oneLine(firstNonEmpty(src.inputSource, src.source, src?.ui?.inputSource, src?.client?.inputSource, src?.session?.inputSource, p.inputSource, p.source, mp.inputSource, "text")).toLowerCase();
+  return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw) ? "voice" : "text";
+}
+function buildFiveTurnContinuityState({ prev = {}, inbound = {}, memoryPatch = {}, speak = "", userHash = "", assistantHash = "", trustedFinalCompletion = false, nextTurnDepth = 0 } = {}) {
+  const prior = isPlainObject(prev.continuityRegression) ? prev.continuityRegression : {};
+  const window = Array.isArray(prior.window) ? prior.window.slice(-4) : [];
+  const marker = { at: nowMs(), source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160) };
+  if (trustedFinalCompletion) window.push(marker);
+  return { version: "nyx.stateSpine.fiveTurnContinuity/1.0", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, updatedAt: nowMs() };
+}
+
 function createState(seed = {}) {
   const lane = safeStr(seed.lane || "general") || "general";
   const stage = safeStr(seed.stage || "open") || "open";
@@ -787,6 +803,9 @@ function createState(seed = {}) {
     lastAction: "",
     lastUserHash: "",
     lastAssistantHash: "",
+    lastInputSource: "",
+    inputParity: { lastSource: "", lastVoiceHash: "", lastTextHash: "", mismatchCount: 0, updatedAt: 0 },
+    continuityRegression: { version: "nyx.stateSpine.fiveTurnContinuity/1.0", active: true, depth: 0, window: [], windowSize: 0, inputSource: "", parityLock: true, updatedAt: 0 },
     lastMove: "",
     lastRationale: "",
     lastPlannerMode: "",
@@ -921,6 +940,9 @@ function coerceState(input) {
     lastAction: boundedOneLine(src.lastAction || "", 160),
     lastUserHash: boundedSignature(src.lastUserHash || ""),
     lastAssistantHash: boundedSignature(src.lastAssistantHash || ""),
+    lastInputSource: oneLine(src.lastInputSource || ""),
+    inputParity: isPlainObject(src.inputParity) ? src.inputParity : base.inputParity,
+    continuityRegression: isPlainObject(src.continuityRegression) ? src.continuityRegression : base.continuityRegression,
     lastMove: boundedOneLine(src.lastMove || "", 160),
     lastRationale: boundedOneLine(src.lastRationale || "", 320),
     lastPlannerMode: boundedOneLine(src.lastPlannerMode || "", 120),
@@ -1808,6 +1830,8 @@ function finalizeTurn(params = {}) {
   const nextTopic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane), prev.lastTopic);
   const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
+  const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
+  const continuityRegression = buildFiveTurnContinuityState({ prev, inbound, memoryPatch, speak, userHash, assistantHash, trustedFinalCompletion, nextTurnDepth });
 
   const nextState = {
     ...prev,
@@ -1830,6 +1854,9 @@ function finalizeTurn(params = {}) {
     lastPlannerMode: plannerMode,
     lastUserHash: boundedSignature(userHash),
     lastAssistantHash: trustedFinalCompletion && assistantHash ? boundedSignature(assistantHash) : prev.lastAssistantHash,
+    lastInputSource: inputSource,
+    inputParity: { lastSource: inputSource, lastVoiceHash: inputSource === "voice" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastVoiceHash || ""), lastTextHash: inputSource === "text" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastTextHash || ""), mismatchCount: clampInt(prev.inputParity?.mismatchCount, 0, 0, 999999), updatedAt: nowMs() },
+    continuityRegression,
     progressionLock,
     volatility,
     turns: {
