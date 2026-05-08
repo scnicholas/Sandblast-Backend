@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.7.2 PIPELINE-FORENSIC-NORMALIZATION + TECHNICAL-HARDENING-ROUTE-FIX + CREATIVE-COGNITIVE-COMPAT";
+const VERSION = "marionIntentRouter v2.8.0 FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + INFRA-PRECEDENCE-LOCK";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -211,8 +211,33 @@ function normalizeRouterVoiceTextParity(text="") {
     .replace(/\b(mary\s+bridge|marian\s+bridge|marion\s+bridge)\b/gi, "MarionBridge")
     .replace(/\b(compose\s+marion\s+response|composed\s+marion\s+response|compose\s+marian\s+response|composed\s+marian\s+response|compose\s+mailing\s+response|composed\s+mailing\s+response)\b/gi, "ComposeMarionResponse")
     .replace(/\b(nex\s+steps|neck\s+steps)\b/gi, "Next steps")
+    .replace(/\b(mic\s*tech|mike\s*tech|mike\s*text|mic\s*text)\b/gi, "mic text")
+    .replace(/\b(5\s*term|five\s*term|five\s*turn|5\s*turn)\b/gi, "5-turn")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+
+function normalizeInputSource(value) {
+  const raw = lower(value);
+  if (/voice|speech|mic|audio|headset/.test(raw)) return "voice";
+  if (/text|typed|keyboard|manual/.test(raw)) return "text";
+  return raw || "text";
+}
+
+function isInfrastructureContinuityPrompt(text) {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity)\b/i.test(t);
+}
+
+function turnContinuityHash(value) {
+  const source = lower(normalizeRouterVoiceTextParity(value)).replace(/[^a-z0-9]+/g, " ").trim();
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
 }
 
 function normalizeIntentName(v) {
@@ -638,6 +663,21 @@ function inferIntentFromText(text) {
     };
   }
 
+  if (isInfrastructureContinuityPrompt(t) && safetyLevel === "none") {
+    return {
+      intent: "technical_debug",
+      confidence: 0.98,
+      reason: "infrastructure_continuity_precedence",
+      stateStageHint: "execution",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: "technical_infrastructure_overrides_domain_keywords",
+      routeLock: true
+    };
+  }
+
   if (detectBackendTechnicalContext(t) && safetyLevel === "none") {
     return {
       intent: "technical_debug",
@@ -876,6 +916,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
 
+  if (isInfrastructureContinuityPrompt(fallbackText) && inferred.intent !== "emotional_support") {
+    intent = "technical_debug";
+    confidence = Math.max(confidence, 0.98);
+    reason = "infrastructure_continuity_precedence";
+    stateStageHint = "execution";
+    recoveryRequired = false;
+    knowledgeDomain = "";
+  }
+
   if (detectBackendTechnicalContext(fallbackText) && inferred.intent !== "emotional_support") {
     intent = "technical_debug";
     confidence = Math.max(confidence, detectCreativeCognitiveCarryContext(fallbackText) ? 0.96 : 0.94);
@@ -978,7 +1027,12 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
     knowledgeDomainReason: inferred.knowledgeDomainReason || detectedKnowledge.reason || "",
     knowledgeDomainActivationRequest: isKnowledgeDomainActivationRequest(fallbackText),
-    source: safeStr(src.source || "marionIntentRouter")
+    source: safeStr(src.source || "marionIntentRouter"),
+    inputSource: normalizeInputSource(src.inputSource || src.source || "text"),
+    routeLock: !!(src.routeLock || inferred.routeLock || isInfrastructureContinuityPrompt(fallbackText)),
+    turnHash: turnContinuityHash(fallbackText),
+    micTextParity: true,
+    continuityRegressionReady: true
   };
 }
 
@@ -1027,6 +1081,12 @@ function buildRouting(marionIntent) {
     knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
     knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
     knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
+    routeLock: !!marionIntent.routeLock,
+    noCrossDomainBleed: true,
+    inputSource: normalizeInputSource(marionIntent.inputSource || "text"),
+    turnHash: safeStr(marionIntent.turnHash || ""),
+    micTextParity: true,
+    continuityRegressionReady: true,
     domainRoute,
     requireFreshComposerEnvelope: true,
     requiresFinalEnvelope: true,
@@ -1062,6 +1122,8 @@ function routeMarionIntent(packet = {}) {
 
   const marionIntent = normalizeIntent(existingIntent, text);
   const routing = buildRouting(marionIntent);
+  const inputSource = normalizeInputSource(src.inputSource || safeObj(src.session).inputSource || marionIntent.inputSource || "text");
+  const turnHash = turnContinuityHash(text);
 
   return {
     ok: true,
@@ -1072,6 +1134,19 @@ function routeMarionIntent(packet = {}) {
     intentContractVersion: INTENT_CONTRACT_VERSION,
     marionIntent,
     routing,
+    stateSpinePatch: {
+      source: "marionIntentRouter",
+      schema: STATE_SPINE_SCHEMA,
+      shouldAdvanceState: true,
+      stateStage: marionIntent.stateStageHint || "classified",
+      intent: marionIntent.intent,
+      subIntent: marionIntent.subIntent,
+      inputSource,
+      turnHash,
+      micTextParity: true,
+      continuityRegressionReady: true,
+      routeLock: !!marionIntent.routeLock
+    },
     meta: {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
@@ -1090,7 +1165,12 @@ function routeMarionIntent(packet = {}) {
       knowledgeDomain: marionIntent.knowledgeDomain || "",
       knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
       registryKnowledgeAvailable: !!routing.registryKnowledgeAvailable,
-      noUserFacingDiagnostics: true
+      noUserFacingDiagnostics: true,
+      inputSource,
+      turnHash,
+      micTextParity: true,
+      continuityRegressionReady: true,
+      routeLock: !!marionIntent.routeLock
     }
   };
 }
@@ -1129,6 +1209,9 @@ module.exports = {
   normalizeKnowledgeDomainName,
   normalizeIntent,
   routeMarionIntent,
+  normalizeInputSource,
+  isInfrastructureContinuityPrompt,
+  turnContinuityHash,
   _internal: {
     extractText,
     extractExistingIntent,
@@ -1150,6 +1233,9 @@ module.exports = {
     domainTestPhrase,
     buildRouting,
     normalizeRouterVoiceTextParity,
+    normalizeInputSource,
+    isInfrastructureContinuityPrompt,
+    turnContinuityHash,
     routerForensicNormalizationStatus
   }
 };
