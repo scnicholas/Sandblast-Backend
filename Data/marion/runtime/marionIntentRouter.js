@@ -12,7 +12,8 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.9.1 FINANCE-CONFIDENCE-PRECISION + DOMAIN-CONFIDENCE-SCORING + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v3.0.0 DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -1040,21 +1041,69 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
 }
 
 
+function confidenceBand(confidence) {
+  const c = clamp01(confidence, 0);
+  if (c >= 0.92) return "high";
+  if (c >= 0.72) return "medium";
+  if (c >= 0.52) return "low";
+  return "weak";
+}
+
+function addDomainCandidate(map, domain, score, reason, knowledgeDomain = "") {
+  const key = knowledgeDomain ? normalizeKnowledgeDomainName(knowledgeDomain) : safeStr(domain || "").replace(/[^a-z0-9_]+/gi, "_").toLowerCase();
+  const normalized = key;
+  if (!normalized) return;
+  const current = map.get(normalized) || { domain: normalized, confidence: 0, reasons: [], knowledgeDomain: "" };
+  current.confidence = Math.max(current.confidence, clamp01(score, 0));
+  if (reason) current.reasons.push(safeStr(reason));
+  if (knowledgeDomain) current.knowledgeDomain = normalizeKnowledgeDomainName(knowledgeDomain);
+  map.set(normalized, current);
+}
+
+function domainSignalCandidates(text = "", intentPacket = {}) {
+  const t = lower(text), p = safeObj(intentPacket), map = new Map();
+  const intent = normalizeIntentName(p.intent || "") || "domain_question";
+  const baseDomain = INTENT_TO_DOMAIN[intent] || "general_reasoning";
+  const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || "");
+  addDomainCandidate(map, baseDomain, knowledgeDomain ? Math.max(0.45, clamp01(p.confidence, 0.48) - 0.06) : clamp01(p.confidence, 0.48), `intent:${intent}`);
+  if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
+  if (/(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)/i.test(t)) addDomainCandidate(map, "technical", 0.96, "technical_terms");
+  if (/(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
+  if (/(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
+  if (/(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence)/i.test(t)) addDomainCandidate(map, "ai", 0.86, "ai_terms", "ai");
+  if (/(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
+  if (/(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
+  if (/(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
+  if (/(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
+  if (/(news canada|rss|feed|story|headline|wp rest|editorial)/i.test(t)) addDomainCandidate(map, "news", 0.84, "news_terms");
+  if (/(roku|ott|linear tv|streaming app|channel app)/i.test(t)) addDomainCandidate(map, "roku", 0.84, "roku_terms");
+  return Array.from(map.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 6).map((c) => ({...c, confidence: clamp01(c.confidence, 0), reasons: Array.from(new Set(c.reasons)).slice(0, 4)}));
+}
+
 function intentConfidenceProfile(intentPacket = {}, text = "") {
   const p = safeObj(intentPacket);
-  const c = clamp01(p.confidence, 0);
-  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || c >= 0.82);
-  const ambiguous = !routeLocked && c < 0.62;
+  const candidates = domainSignalCandidates(text, p);
+  const top = candidates[0] || { domain: INTENT_TO_DOMAIN[p.intent] || "general_reasoning", confidence: clamp01(p.confidence, 0), reasons: ["intent_confidence"] };
+  const second = candidates[1] || null;
+  const c = Math.max(clamp01(p.confidence, 0), clamp01(top.confidence, 0));
+  const margin = second ? Math.max(0, c - clamp01(second.confidence, 0)) : c;
+  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
+  const ambiguous = !routeLocked && (c < 0.62 || (second && margin < 0.08));
+  const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || top.knowledgeDomain || "");
   return {
-    version: "nyx.intentDomainConfidence/1.0",
+    version: DOMAIN_CONFIDENCE_VERSION,
     confidence: c,
-    band: c >= 0.92 ? "high" : (c >= 0.72 ? "medium" : "low"),
+    band: confidenceBand(c),
+    margin,
     ambiguous,
     routeLocked,
-    reason: safeStr(p.reason || "intent_confidence"),
+    reason: safeStr(p.reason || (top.reasons && top.reasons[0]) || "intent_domain_confidence"),
     primaryIntent: safeStr(p.intent || "simple_chat"),
-    knowledgeDomain: safeStr(p.knowledgeDomain || ""),
-    failClosed: ambiguous && !p.knowledgeDomain
+    primaryDomain: safeStr(top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning"),
+    selectedDomain: safeStr(top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning"),
+    knowledgeDomain,
+    candidates,
+    failClosed: ambiguous && !routeLocked
   };
 }
 
@@ -1089,6 +1138,7 @@ function buildRouting(marionIntent) {
     endpoint: CANONICAL_ENDPOINT,
     contractVersion: INTENT_CONTRACT_VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  DOMAIN_CONFIDENCE_VERSION,
   routerForensicNormalizationStatus,
     expectsComposer: "composeMarionResponse",
     expectedComposerContract: "finalEnvelope.reply.required",
@@ -1108,7 +1158,9 @@ function buildRouting(marionIntent) {
     routeConfidence: confidenceProfile.confidence,
     routeConfidenceBand: confidenceProfile.band,
     routeAmbiguous: confidenceProfile.ambiguous,
-    routeLock: !!marionIntent.routeLock,
+    routeLock: !!(marionIntent.routeLock || confidenceProfile.routeLocked),
+    routeFailClosed: !!confidenceProfile.failClosed,
+    candidateDomains: confidenceProfile.candidates || [],
     noCrossDomainBleed: true,
     inputSource: normalizeInputSource(marionIntent.inputSource || "text"),
     turnHash: safeStr(marionIntent.turnHash || ""),
@@ -1172,7 +1224,8 @@ function routeMarionIntent(packet = {}) {
       turnHash,
       micTextParity: true,
       continuityRegressionReady: true,
-      routeLock: !!marionIntent.routeLock,
+      routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
+      routeFailClosed: !!safeObj(routing.domainConfidence).failClosed,
       domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text)
     },
     meta: {
@@ -1199,7 +1252,8 @@ function routeMarionIntent(packet = {}) {
       turnHash,
       micTextParity: true,
       continuityRegressionReady: true,
-      routeLock: !!marionIntent.routeLock
+      routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
+      routeFailClosed: !!safeObj(routing.domainConfidence).failClosed
     }
   };
 }
@@ -1222,6 +1276,7 @@ function routerForensicNormalizationStatus(){
 module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  DOMAIN_CONFIDENCE_VERSION,
   routerForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -1241,6 +1296,8 @@ module.exports = {
   normalizeInputSource,
   isInfrastructureContinuityPrompt,
   turnContinuityHash,
+  confidenceBand,
+  domainSignalCandidates,
   intentConfidenceProfile,
   _internal: {
     extractText,
@@ -1252,6 +1309,8 @@ module.exports = {
     detectSubIntent,
     detectDirectiveIntent,
     detectKnowledgeDomain,
+    confidenceBand,
+    domainSignalCandidates,
     detectBackendTechnicalContext,
     detectCreativeCognitiveCarryContext,
     normalizeKnowledgeDomainName,
