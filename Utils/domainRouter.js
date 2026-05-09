@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.4.0 DOMAIN-CONFIDENCE-SCORING + FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + TECHNICAL-INFRA-PRECEDENCE";
+const ROUTER_VERSION = "domainRouter v1.4.1 FINANCE-CONFIDENCE-PRECISION + DOMAIN-CONFIDENCE-SCORING + FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + TECHNICAL-INFRA-PRECEDENCE";
 
 // -------------------------
 // helpers
@@ -140,8 +140,8 @@ const KEYWORDS = Object.freeze({
     /\b(pytorch|tensorflow|keras|hugging ?face|onnx|openai|anthropic|gemini|llama|mistral)\b/,
   ],
   [DOMAIN_ENUM.FIN]: [
-    /\b(finance|economics|pricing|revenue|profit|margin|cash ?flow|forecast|budget|breakeven|roi|npv|irr|capm|wacc|beta|discount rate)\b/,
-    /\b(ltv|cac|unit economics|cohort|churn|arpu|mrr|arr|gross margin)\b/,
+    /\b(finance|economics|pricing|revenue|profit|margin|cash[-\s]?flow|forecast|budget|breakeven|roi|npv|irr|capm|wacc|beta|discount rate)\b/,
+    /\b(cash[-\s]?flow risk|cash[-\s]?flow impact|cash[-\s]?flow pressure|business decision|working capital|financial resilience|runway|burn rate|ltv|cac|unit economics|cohort|churn|arpu|mrr|arr|gross margin)\b/,
     /\b(bonds?|equities|stocks?|capital markets|yield curve|rates?|inflation|gdp|fiscal|monetary)\b/,
   ],
   [DOMAIN_ENUM.LAW]: [
@@ -226,7 +226,7 @@ function applyLaneActionHeuristics(scores, norm) {
 
   // action routing (your ecosystem uses lots of actions; keep generic)
   if (/contract|nda|terms|policy/.test(action)) scores[DOMAIN_ENUM.LAW] += 1.4;
-  if (/budget|pricing|unit|invoice|forecast|finance/.test(action)) scores[DOMAIN_ENUM.FIN] += 1.4;
+  if (/budget|pricing|unit|invoice|forecast|finance|cash|cashflow|cash_flow|runway|margin|risk/.test(action)) scores[DOMAIN_ENUM.FIN] += 1.4;
   if (/phish|breach|malware|security/.test(action)) scores[DOMAIN_ENUM.CYBER] += 1.4;
   if (/rewrite|edit|proof|summarize/.test(action)) scores[DOMAIN_ENUM.EN] += 1.2;
   if (/strategy|roadmap|milestone|kpi/.test(action)) scores[DOMAIN_ENUM.STRAT] += 1.1;
@@ -246,6 +246,17 @@ function applyKeywordSignals(scores, norm) {
 
   // Extra boosts for cross-domain coupling phrases
   const t = text.toLowerCase();
+
+  // Finance precision: cash-flow/risk language should outrank generic business/strategy wording.
+  if (/\b(cash[-\s]?flow risk|cash[-\s]?flow impact|cash[-\s]?flow pressure|cash[-\s]?flow runway|working capital|business runway|financial resilience|runway|burn rate|unit economics|gross margin)\b/.test(t)) {
+    scores[DOMAIN_ENUM.FIN] += 2.4;
+    scores[DOMAIN_ENUM.STRAT] -= 0.35;
+    scores[DOMAIN_ENUM.CORE] -= 0.15;
+  }
+  if (/\b(business decision|decision threshold|scenario analysis|cost pressure|demand pressure)\b/.test(t) && /\b(cash[-\s]?flow|runway|margin|unit economics|finance|financial)\b/.test(t)) {
+    scores[DOMAIN_ENUM.FIN] += 1.5;
+    scores[DOMAIN_ENUM.STRAT] -= 0.25;
+  }
   if (/\b(ai and law|ai.*law|law.*ai)\b/.test(t)) {
     scores[DOMAIN_ENUM.AI] += 0.8;
     scores[DOMAIN_ENUM.LAW] += 0.8;
