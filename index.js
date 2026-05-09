@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.7sb FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48";
+const INDEX_VERSION = "index.js v2.18.7sb FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 
@@ -1573,6 +1573,35 @@ function packetBridgeSelectionIntent(packetBridge, norm) {
 function isPacketBridgeGreetingOrSignalIntent(intent) {
   const key = lower(intent || "");
   return !!key && /^(basic_greeting|time_greeting|casual_greeting|social_checkin|presence_check|mic_check|system_test|returning_user|continuation_request|help_request|quick_question|problem_report|emotional_checkin|distress_signal|frustration_signal|sadness_signal|anxiety_signal|loneliness_signal|anger_signal|confusion_signal)$/.test(key);
+}
+
+function isSubstantiveMarionTurnText(text) {
+  const t = cleanText(text || "");
+  const key = lower(t);
+  if (!key) return false;
+  if (isGreetingOnlyTurn(t)) return false;
+  if (/^(test|system test|mic test|mic check|voice test|ping|health check|status check)$/i.test(key)) return false;
+  const hasTaskVerb = /\b(explain|describe|compare|rewrite|audit|autopsy|fix|diagnose|debug|validate|verify|route|publish|build|create|analyze|summarize|plan|strategy|calculate|show|give|state)\b/i.test(key);
+  const hasDomainSignal = /\b(cash[- ]?flow|profit|finance|financial|route status|telemetry|domain confidence|final render|final envelope|marion|nyx|composemarionresponse|state spine|chatengine|marionbridge|index\.js|api\/chat|roku|news canada|rss|radio|playlist|business|sponsor|legal|law|cyber|cybersecurity|ai agent|tool routing|english|rewrite|psychology)\b/i.test(key);
+  return t.length >= 36 && (hasTaskVerb || hasDomainSignal);
+}
+
+function isPacketBridgeDiagnosticHandshake(packetBridge) {
+  const bridge = isObj(packetBridge) ? packetBridge : {};
+  const intent = lower(cleanText(bridge.intent || bridge.sessionPatch && bridge.sessionPatch.lastGreetingIntent || ""));
+  const reply = lower(cleanText(bridge.reply || bridge.text || bridge.message || ""));
+  const packetId = lower(cleanText(bridge.matchedPacketId || bridge.packetId || bridge.packet || ""));
+  return !!(
+    /\b(system_test|mic_check|presence_check|problem_report|quick_question)\b/i.test(intent) ||
+    /\b(system[_-]?test|mic[_-]?check|presence[_-]?check|input[_-]?path|diagnostic)\b/i.test(packetId) ||
+    /\btest received\b|\binput path is active\b|\bwhat should we verify next\b/i.test(reply)
+  );
+}
+
+function shouldBypassPacketBridgeForSubstantiveMarionTurn(norm, packetBridge) {
+  if (!isObj(norm) || !isObj(packetBridge) || packetBridge.ok === false) return false;
+  if (!isSubstantiveMarionTurnText(norm.text || "")) return false;
+  return isPacketBridgeDiagnosticHandshake(packetBridge);
 }
 
 function isPacketBridgeAssistiveTurn(norm, packetBridge) {
@@ -7078,7 +7107,18 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
-  const prePacketBridge = resolveNyxPacketBridge(norm, null, null, priorTurn);
+  const prePacketBridgeRaw = resolveNyxPacketBridge(norm, null, null, priorTurn);
+  const packetBridgeBypassedForMarion = shouldBypassPacketBridgeForSubstantiveMarionTurn(norm, prePacketBridgeRaw);
+  if (packetBridgeBypassedForMarion) {
+    console.log("[Sandblast][packetBridge:bypassForMarionTurn]", {
+      traceId: norm.traceId,
+      reason: "substantive_marion_turn_over_diagnostic_packet_handshake",
+      text: clipText(norm.text, 180),
+      packetIntent: cleanText(prePacketBridgeRaw && (prePacketBridgeRaw.intent || prePacketBridgeRaw.sessionPatch && prePacketBridgeRaw.sessionPatch.lastGreetingIntent) || ""),
+      matchedPacketId: cleanText(prePacketBridgeRaw && (prePacketBridgeRaw.matchedPacketId || prePacketBridgeRaw.packetId || prePacketBridgeRaw.packet) || "")
+    });
+  }
+  const prePacketBridge = packetBridgeBypassedForMarion ? null : prePacketBridgeRaw;
   const prePacketIntent = applyPacketBridgePreclassification(norm, prePacketBridge);
 
   const marionCommandPacket = marionCommandNormalizerMod && typeof marionCommandNormalizerMod.normalizeCommand === "function"
@@ -7120,6 +7160,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       source: "index_transport_only",
       indexRole: "transport_only",
       packetPreclassification: isObj(prePacketIntent) ? prePacketIntent : undefined,
+      packetBridgeBypassedForMarion: !!packetBridgeBypassedForMarion,
+      packetBridgeBypassReason: packetBridgeBypassedForMarion ? "substantive_marion_turn_over_diagnostic_packet_handshake" : "",
       packetBridgeVersion: cleanText(nyxPackRuntimeAdapterMod && nyxPackRuntimeAdapterMod.ADAPTER_VERSION || ""),
       noSupportDecision: true,
       noEmotionDecision: true,
