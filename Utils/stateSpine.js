@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.6.2 FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.7.0 DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -239,6 +239,12 @@ function normalizeInputSource(value) {
   if (/voice|mic|speech|audio/.test(source)) return "voice";
   if (/text|typed|keyboard/.test(source)) return "text";
   return source || "";
+}
+
+function normalizeDomainConfidenceCarry(value) {
+  const v = isPlainObject(value) ? value : {};
+  const confidence = Number(v.confidence);
+  return { version: safeStr(v.version || "nyx.domainConfidenceCarry/1.0"), confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0, band: boundedOneLine(v.band || "", 32), ambiguous: !!v.ambiguous, routeLocked: !!v.routeLocked, primary: boundedOneLine(v.primary || v.primaryIntent || "", 64), reason: boundedOneLine(v.reason || "", 160) };
 }
 
 function greetingPresenceFromTone(tone, fallback = "receptive") {
