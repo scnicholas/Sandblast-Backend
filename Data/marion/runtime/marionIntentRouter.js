@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.8.0 FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + INFRA-PRECEDENCE-LOCK";
+const VERSION = "marionIntentRouter v2.8.1 MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -227,7 +227,7 @@ function normalizeInputSource(value) {
 
 function isInfrastructureContinuityPrompt(text) {
   const t = lower(normalizeRouterVoiceTextParity(text));
-  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity)\b/i.test(t);
+  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|domain route|domain routing|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity|same route|same state|same final|response consistency)\b/i.test(t) || /\b(broken|invalid|failed|missing)\b.*\b(psychology|english|finance|general|domain)\b.*\b(affect|fallback|bleed|load|route)\b/i.test(t) || /\b(should not|must not|cannot)\b.*\b(affect|fall back|fallback|bleed)\b.*\b(english|finance|general|psychology)\b/i.test(t);
 }
 
 function turnContinuityHash(value) {
@@ -569,6 +569,7 @@ function domainTestPhrase(text) {
 function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
+  if (isInfrastructureContinuityPrompt(t)) return { knowledgeDomain: "", explicit: false, reason: "technical_infrastructure_precedence" };
 
   const domainTest = domainTestPhrase(t);
   if (domainTest) return { knowledgeDomain: domainTest, explicit: true, reason: "domain_test_phrase" };
