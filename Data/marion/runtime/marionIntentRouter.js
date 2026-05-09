@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.9.0 DOMAIN-CONFIDENCE-SCORING + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v2.9.1 FINANCE-CONFIDENCE-PRECISION + DOMAIN-CONFIDENCE-SCORING + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -604,8 +604,8 @@ function detectKnowledgeDomain(text) {
   if (/\b(legal advice|legal information|law in canada|canadian law|contract law|tort|criminal law|charter|case law|statute|jurisdiction)\b/i.test(t)) {
     return { knowledgeDomain: "law", explicit: false, reason: "law_terms" };
   }
-  if (/\b(unit economics|ltv|cac|pricing tiers|capital markets|cash flow|runway|margin|finance|financial|investment advice|scenario analysis)\b/i.test(t)) {
-    return { knowledgeDomain: "finance", explicit: false, reason: "finance_terms" };
+  if (/\b(cash[-\s]?flow risk|cash[-\s]?flow impact|cash[-\s]?flow pressure|cash[-\s]?flow runway|business runway|financial resilience|working capital|burn rate|unit economics|ltv|cac|pricing tiers|capital markets|cash[-\s]?flow|runway|margin|gross margin|finance|financial|investment advice|scenario analysis)\b/i.test(t)) {
+    return { knowledgeDomain: "finance", explicit: false, reason: "finance_confidence_terms" };
   }
   return { knowledgeDomain: "", explicit: false, reason: "none" };
 }
