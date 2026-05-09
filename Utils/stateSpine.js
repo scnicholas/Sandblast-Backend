@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.8.0 FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.9.0 DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -165,6 +165,10 @@ function isPlainObject(x) {
     (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null);
 }
 
+function safeObj(x) {
+  return isPlainObject(x) ? x : {};
+}
+
 function clampInt(v, def, min, max) {
   const n = Number(v);
   if (!Number.isFinite(n)) return def;
@@ -231,6 +235,7 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
     domain: safeStr(domain),
     lane: safeStr(lane),
     inputSource: canonicalTurnInputSource(inbound, params),
+    domainConfidence: normalizeDomainConfidenceCarry(isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence),
     replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
     marionFinalObserved: !!hasMarionFinalSignal(params),
     finalEnvelopeTrusted: !!(hasTrustedMarionFinalEnvelope(params) || hasTrustedFinalShape(params)),
@@ -274,7 +279,44 @@ function normalizeInputSource(value) {
 function normalizeDomainConfidenceCarry(value) {
   const v = isPlainObject(value) ? value : {};
   const confidence = Number(v.confidence);
-  return { version: safeStr(v.version || "nyx.domainConfidenceCarry/1.0"), confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0, band: boundedOneLine(v.band || "", 32), ambiguous: !!v.ambiguous, routeLocked: !!v.routeLocked, primary: boundedOneLine(v.primary || v.primaryIntent || "", 64), reason: boundedOneLine(v.reason || "", 160) };
+  const margin = Number(v.margin);
+  const c = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+  const m = Number.isFinite(margin) ? Math.max(0, Math.min(1, margin)) : 0;
+  const routeLocked = !!(v.routeLocked || v.routeLock || c >= 0.82);
+  const ambiguous = !!(v.ambiguous || (!routeLocked && (c < 0.62 || (m > 0 && m < 0.08))));
+  return {
+    version: safeStr(v.version || "nyx.marion.domainConfidence/1.1"),
+    confidence: c,
+    band: boundedOneLine(v.band || (c >= 0.92 ? "high" : c >= 0.72 ? "medium" : c >= 0.52 ? "low" : "weak"), 32),
+    margin: m,
+    ambiguous,
+    routeLocked,
+    failClosed: !!(v.failClosed || (ambiguous && !routeLocked)),
+    primary: boundedOneLine(v.primary || v.primaryIntent || v.primaryDomain || v.selectedDomain || "", 64),
+    primaryDomain: boundedOneLine(v.primaryDomain || v.selectedDomain || v.domain || "", 64),
+    knowledgeDomain: boundedOneLine(v.knowledgeDomain || "", 64),
+    reason: boundedOneLine(v.reason || "", 160),
+    candidates: Array.isArray(v.candidates) ? v.candidates.slice(0, 6).map((x) => isPlainObject(x) ? { domain: boundedOneLine(x.domain || x.primaryDomain || "", 64), confidence: Math.max(0, Math.min(1, Number(x.confidence) || 0)), reasons: boundedArray(x.reasons || [], 4, 80) } : null).filter(Boolean) : []
+  };
+}
+
+function extractDomainConfidenceCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const candidates = [
+    mp.domainConfidence,
+    mp?.stateBridge?.domainConfidence,
+    p.domainConfidence,
+    p?.routing?.domainConfidence,
+    p?.marionIntent?.domainConfidence,
+    p?.marionCog?.domainConfidence,
+    src.domainConfidence,
+    src?.routing?.domainConfidence,
+    src?.sessionPatch?.domainConfidence
+  ];
+  for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeDomainConfidenceCarry(item);
+  return normalizeDomainConfidenceCarry({ confidence: 0, reason: "domain_confidence_absent" });
 }
 
 function greetingPresenceFromTone(tone, fallback = "receptive") {
@@ -1893,6 +1935,7 @@ function finalizeTurn(params = {}) {
   const continuityRegression = buildFiveTurnContinuityState({ prev, inbound, memoryPatch, speak, userHash, assistantHash, trustedFinalCompletion, nextTurnDepth });
   const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
+  const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
 
   const nextState = {
     ...prev,
@@ -1920,6 +1963,7 @@ function finalizeTurn(params = {}) {
     continuityRegression,
     fiveTurnContract,
     runtimeTelemetry,
+    domainConfidence: domainConfidenceCarry,
     progressionLock,
     volatility,
     turns: {
@@ -1991,6 +2035,8 @@ function finalizeTurn(params = {}) {
       composerObserved: !!Object.keys(memoryPatch).length,
       finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
       runtimeTelemetry,
+      domainConfidence: domainConfidenceCarry,
+      domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
       marionFinalObserved: marionFinalSignal,
       lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
