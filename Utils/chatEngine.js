@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.8.2 FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const VERSION = "ChatEngine v3.9.0 FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -27,6 +27,7 @@ const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
+const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -86,6 +87,38 @@ function hashText(value) {
     hash |= 0;
   }
   return String(hash >>> 0);
+}
+
+
+function extractRuntimeTelemetry(source = {}) {
+  const src=safeObj(source), payload=safeObj(src.payload), meta=safeObj(src.meta), diagnostics=safeObj(src.diagnostics), finalEnvelope=extractFinalEnvelope(src), contract=extractMarionContract(src), packet=extractPacket(src);
+  const rt=safeObj(src.runtimeTelemetry||payload.runtimeTelemetry||meta.runtimeTelemetry||diagnostics.runtimeTelemetry||finalEnvelope.runtimeTelemetry||contract.runtimeTelemetry||safeObj(packet.meta).runtimeTelemetry);
+  if (Object.keys(rt).length) return rt;
+  return {};
+}
+function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",trustedFinalEnvelope=false,finalEnvelope=false,canEmit=false,error=""}={}){
+  const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta);
+  return {
+    ...inherited,
+    version: FINAL_RUNTIME_TELEMETRY_VERSION,
+    source,
+    stage: canEmit ? "final" : "awaiting_marion",
+    finalAuthority: canEmit ? "marionFinalEnvelope" : "marion_required",
+    replyAuthority: canEmit ? "chatEngine_passthrough" : "none",
+    coordinatorOnly: true,
+    canEmit: !!canEmit,
+    error: cleanText(error || inherited.error || ""),
+    intent: extractIntent(src),
+    domain: extractDomain(src),
+    lane: extractLane(src),
+    turnId: extractTurnId(src),
+    inputSource: firstText(src.inputSource,src.source,safeObj(src.session).inputSource,inherited.inputSource,"text"),
+    replySignature: reply ? hashText(reply) : firstText(inherited.replySignature,packetMeta.replySignature,""),
+    trustedFinalEnvelope: !!trustedFinalEnvelope,
+    finalEnvelope: !!finalEnvelope,
+    engineVersion: VERSION,
+    updatedAt: Date.now()
+  };
 }
 
 function safeStringify(value, max = 4000) {
@@ -949,6 +982,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
   const userQuery = extractUserText(input);
   const terminal = options && options.terminal === true;
   const awaitingMarion = !terminal;
+  const runtimeTelemetry = buildChatRuntimeTelemetry({source:"chatEngine.buildMissingFinalResult",input,reply:"",trustedFinalEnvelope:false,finalEnvelope:false,canEmit:false,error:reason});
 
   return {
     ok: false,
@@ -1006,6 +1040,8 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
 
     meta: {
       engineVersion: VERSION,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
       stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
@@ -1024,6 +1060,8 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
 
     diagnostics: {
       engineVersion: VERSION,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
       stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
@@ -1074,7 +1112,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     marionFinal: true,
     handled: true,
     contractVersion: firstText(sourceEnvelope.contractVersion, FINAL_ENVELOPE_CONTRACT),
-    authority: firstText(sourceEnvelope.authority, "marionFinalEnvelope")
+    authority: firstText(sourceEnvelope.authority, "marionFinalEnvelope"),
+    finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+    runtimeTelemetry
   } : undefined;
 
   return {
@@ -1130,6 +1170,8 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     followUpsStrings,
     sessionPatch,
     creativeCognitiveCarry: Object.keys(creativeCognitiveCarry).length ? creativeCognitiveCarry : null,
+    finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+    runtimeTelemetry,
     resolvedEmotion: input.resolvedEmotion || sessionPatch.resolvedEmotion || sessionPatch.lastEmotionState || null,
     emotionRuntime: input.emotionRuntime || null,
     emotionSummary: input.emotionSummary || safeObj(input.diagnostics).emotionSummary || null,
@@ -1144,6 +1186,8 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     meta: {
       ...safeObj(input.meta),
       engineVersion: VERSION,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry,
       chatEngineSignature: CHAT_ENGINE_SIGNATURE,
       stateSpineSchema: STATE_SPINE_SCHEMA,
       stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
@@ -1576,6 +1620,7 @@ function shouldLockMarionAuthority(source = {}) {
 if (typeof module !== "undefined") {
   module.exports = {
     VERSION,
+    FINAL_RUNTIME_TELEMETRY_VERSION,
     CHAT_ENGINE_SIGNATURE,
     MARION_FINAL_SIGNATURE_PREFIX,
     STATE_SPINE_SCHEMA,
@@ -1592,6 +1637,8 @@ if (typeof module !== "undefined") {
     shouldLockMarionAuthority,
     finalPipelineCohesionProfile,
     normalizeCoordinatorOutputForPipeline,
+    extractRuntimeTelemetry,
+    buildChatRuntimeTelemetry,
     CONVERSATIONAL_PACK_COHESION_VERSION,
     extractConversationalPackBridge,
     normalizeConversationalPackBridge,
