@@ -16,7 +16,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.5.0 DOMAIN-CONFIDENCE-MAP + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -726,6 +727,7 @@ function getDomainConfig(domain, options = {}) {
     requestedDomain: safeStr(domain),
     registryVersion: VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  DOMAIN_CONFIDENCE_VERSION,
   getPipelineForensicNormalizationStatus,
     stateSpineSchema: STATE_SPINE_SCHEMA,
     stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
@@ -1029,10 +1031,59 @@ function getHealth() {
 
 
 
+function confidenceBand(confidence) {
+  const c = Math.max(0, Math.min(1, Number(confidence) || 0));
+  if (c >= 0.92) return "high";
+  if (c >= 0.72) return "medium";
+  if (c >= 0.52) return "low";
+  return "weak";
+}
+
+function normalizeDomainConfidenceProfile(value = {}, fallback = {}) {
+  const v = safeObj(value), f = safeObj(fallback);
+  const confidence = Math.max(0, Math.min(1, Number(v.confidence ?? f.confidence ?? 0) || 0));
+  const margin = Math.max(0, Math.min(1, Number(v.margin ?? f.margin ?? 0) || 0));
+  const primaryDomain = resolveDomainKey(v.primaryDomain || v.domain || f.primaryDomain || f.domain || "general_reasoning");
+  const knowledgeDomain = resolveKnowledgeDomain(v.knowledgeDomain || f.knowledgeDomain || "");
+  const routeLocked = !!(v.routeLocked || v.routeLock || f.routeLocked || confidence >= 0.82);
+  const ambiguous = !!(v.ambiguous || (!routeLocked && (confidence < 0.62 || (margin > 0 && margin < 0.08))));
+  return {
+    version: DOMAIN_CONFIDENCE_VERSION,
+    confidence,
+    band: safeStr(v.band || confidenceBand(confidence)),
+    margin,
+    ambiguous,
+    routeLocked,
+    failClosed: !!(v.failClosed || (ambiguous && !routeLocked)),
+    primaryDomain,
+    operationalDomain: safeStr(v.operationalDomain || f.operationalDomain || (knowledgeDomain ? safeObj(KNOWLEDGE_DOMAINS[knowledgeDomain]).operationalDomain : primaryDomain)),
+    knowledgeDomain,
+    reason: safeStr(v.reason || f.reason || "registry_domain_confidence"),
+    candidates: safeArray(v.candidates || f.candidates).slice(0, 6)
+  };
+}
+
 function getDomainConfidenceDefaults(domain){
   const key = resolveDomainKey(domain);
-  const cfg = cloneDomainConfig(key);
-  return { version: "nyx.registryDomainConfidence/1.0", domain: key, supported: !!cfg, minConfidence: key === "technical" ? 0.34 : 0.42, minMargin: key === "technical" ? 0.1 : 0.16, failClosed: !cfg, useDomainKnowledge: !!(cfg && cfg.useDomainKnowledge), requiresFinalEnvelope: !!(cfg && cfg.requiresFinalEnvelope !== false) };
+  const cfg = getDomainConfig(key);
+  const supported = !!(cfg && cfg.supported !== false);
+  const minConfidence = key === "technical" ? 0.34 : (cfg.isKnowledgeDomain ? 0.5 : 0.42);
+  const minMargin = key === "technical" ? 0.1 : 0.16;
+  return normalizeDomainConfidenceProfile({
+    version: DOMAIN_CONFIDENCE_VERSION,
+    domain: key,
+    primaryDomain: key,
+    operationalDomain: safeStr(cfg.operationalDomain || key),
+    supported,
+    confidence: supported ? minConfidence : 0,
+    margin: minMargin,
+    ambiguous: !supported,
+    routeLocked: false,
+    failClosed: !supported,
+    useDomainKnowledge: !!(cfg && cfg.useDomainKnowledge),
+    requiresFinalEnvelope: !!(cfg && cfg.requiresFinalEnvelope !== false),
+    reason: supported ? "registry_default_threshold" : "unsupported_domain"
+  });
 }
 
 function getPipelineForensicNormalizationStatus(){
@@ -1053,6 +1104,7 @@ function getPipelineForensicNormalizationStatus(){
 module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
+  DOMAIN_CONFIDENCE_VERSION,
   getPipelineForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -1081,6 +1133,8 @@ module.exports = {
   getCapabilityIntro,
   buildRoutingFromDomain,
   getHealth,
+  confidenceBand,
+  normalizeDomainConfidenceProfile,
   getDomainConfidenceDefaults,
   _internal: {
     safeStr,
