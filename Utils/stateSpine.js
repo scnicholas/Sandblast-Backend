@@ -325,15 +325,16 @@ function normalizeProgressionShapingGuardCarry(value) {
   return {
     version: safeStr(v.version || "nyx.marion.progressionShapingGuard/1.0"),
     active: !!v.active,
-    domain: boundedOneLine(v.domain || v.primaryDomain || v.knowledgeDomain || "", 64),
-    phase: boundedOneLine(v.phase || "", 64),
-    turn: clampInt(v.turn, 0, 0, 5),
-    priorDomain: boundedOneLine(v.priorDomain || "", 64),
-    reason: boundedOneLine(v.reason || "", 160),
+    lockedDomain: boundedOneLine(v.lockedDomain || v.domain || "", 64),
+    lockedTopic: boundedOneLine(v.lockedTopic || v.topic || "", 180),
+    turn: clampInt(v.turn, 0, 0, 99),
+    mode: boundedOneLine(v.mode || "", 64),
+    blockedFallback: !!v.blockedFallback,
+    blockedDomainDrift: !!v.blockedDomainDrift,
+    reason: boundedOneLine(v.reason || "", 180),
     updatedAt: nowMs()
   };
 }
-
 function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPatch = {}) {
   const p = isPlainObject(params) ? params : {};
   const src = isPlainObject(inbound) ? inbound : {};
@@ -342,10 +343,10 @@ function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPa
     mp.progressionShapingGuard,
     mp?.stateBridge?.progressionShapingGuard,
     p.progressionShapingGuard,
-    p?.routing?.progressionShapingGuard,
-    p?.marionIntent?.progressionShapingGuard,
+    p?.runtimeTelemetry?.progressionShapingGuard,
     src.progressionShapingGuard,
-    src?.sessionPatch?.progressionShapingGuard
+    src?.sessionPatch?.progressionShapingGuard,
+    src?.runtimeTelemetry?.progressionShapingGuard
   ];
   for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeProgressionShapingGuardCarry(item);
   return normalizeProgressionShapingGuardCarry({ active: false, reason: "progression_guard_absent" });
@@ -940,6 +941,7 @@ function createState(seed = {}) {
     lastRationale: "",
     lastPlannerMode: "",
     progressionLock: false,
+    progressionShapingGuard: normalizeProgressionShapingGuardCarry({ active: false, reason: "initial_state" }),
     volatility: "stable",
     turns: { user: 0, assistant: 0 },
     repetition: {
@@ -1968,7 +1970,7 @@ function finalizeTurn(params = {}) {
   const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
-  const progressionShapingGuardCarry = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
+  const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
 
   const nextState = {
     ...prev,
@@ -1997,8 +1999,8 @@ function finalizeTurn(params = {}) {
     fiveTurnContract,
     runtimeTelemetry,
     domainConfidence: domainConfidenceCarry,
-    progressionShapingGuard: progressionShapingGuardCarry,
     progressionLock,
+    progressionShapingGuard,
     volatility,
     turns: {
       user: clampInt(prev.turns.user, 0, 0, 999999) + 1,
@@ -2071,7 +2073,8 @@ function finalizeTurn(params = {}) {
       runtimeTelemetry,
       domainConfidence: domainConfidenceCarry,
       domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
-      progressionShapingGuard: progressionShapingGuardCarry,
+      progressionShapingGuard,
+      progressionShapingGuardActive: !!progressionShapingGuard.active,
       marionFinalObserved: marionFinalSignal,
       lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
@@ -2221,10 +2224,6 @@ module.exports = {
   detectConversationalPackTrack,
   deriveConversationalPackRuntimeSelector,
   extractRuntimeTelemetryFromTurn,
-  buildStateRuntimeTelemetry,
-  normalizeDomainConfidenceCarry,
-  extractDomainConfidenceCarry,
-  normalizeProgressionShapingGuardCarry,
-  extractProgressionShapingGuardCarry
+  buildStateRuntimeTelemetry
 };
 module.exports.default = module.exports;
