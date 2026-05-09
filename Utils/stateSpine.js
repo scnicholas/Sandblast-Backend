@@ -14,8 +14,9 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.7.0 DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.8.0 FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
+const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -209,6 +210,35 @@ function hashText(v) {
 function nowMs() {
   return Date.now();
 }
+
+function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
+  const p=isPlainObject(params)?params:{}, src=isPlainObject(inbound)?inbound:{}, marion=extractMarionObject(p), memoryPatch=extractComposerMemoryPatch(p);
+  const candidates=[p.runtimeTelemetry,src.runtimeTelemetry,safeObj(src.meta).runtimeTelemetry,safeObj(src.diagnostics).runtimeTelemetry,safeObj(src.finalEnvelope).runtimeTelemetry,safeObj(marion.finalEnvelope).runtimeTelemetry,marion.runtimeTelemetry,memoryPatch.runtimeTelemetry,safeObj(memoryPatch.stateBridge).runtimeTelemetry];
+  for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return item;
+  return {};
+}
+function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalCompletion=false,stage="",intent="",domain="",lane=""}={}){
+  const inherited=extractRuntimeTelemetryFromTurn(params,inbound);
+  return {
+    ...inherited,
+    version: FINAL_RUNTIME_TELEMETRY_VERSION,
+    source: "stateSpine.finalizeTurn",
+    stage: normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),
+    finalAuthority: trustedFinalCompletion ? "marionFinalEnvelope" : "pending",
+    replyAuthority: trustedFinalCompletion ? "stateSpine_observed_final" : "none",
+    canEmit: !!trustedFinalCompletion,
+    intent: safeStr(intent),
+    domain: safeStr(domain),
+    lane: safeStr(lane),
+    inputSource: canonicalTurnInputSource(inbound, params),
+    replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
+    marionFinalObserved: !!hasMarionFinalSignal(params),
+    finalEnvelopeTrusted: !!(hasTrustedMarionFinalEnvelope(params) || hasTrustedFinalShape(params)),
+    spineVersion: SPINE_VERSION,
+    updatedAt: nowMs()
+  };
+}
+
 
 function canonicalIntent(value, fallback) {
   const raw = safeStr(value || fallback || "ADVANCE").trim();
@@ -922,6 +952,7 @@ function createState(seed = {}) {
       distressCount: 0,
       updatedAt: 0
     },
+    runtimeTelemetry: { version: FINAL_RUNTIME_TELEMETRY_VERSION, source: "stateSpine.createState", stage: normalizeStateStage(stage, "open"), canEmit: false, updatedAt: 0 },
     marionCohesion: {
       composerObserved: false,
       marionFinalObserved: false,
@@ -969,6 +1000,7 @@ function coerceState(input) {
     lastInputSource: oneLine(src.lastInputSource || ""),
     inputParity: isPlainObject(src.inputParity) ? src.inputParity : base.inputParity,
     continuityRegression: isPlainObject(src.continuityRegression) ? src.continuityRegression : base.continuityRegression,
+    runtimeTelemetry: isPlainObject(src.runtimeTelemetry) ? src.runtimeTelemetry : base.runtimeTelemetry,
     lastMove: boundedOneLine(src.lastMove || "", 160),
     lastRationale: boundedOneLine(src.lastRationale || "", 320),
     lastPlannerMode: boundedOneLine(src.lastPlannerMode || "", 120),
@@ -1452,6 +1484,7 @@ function deriveConversationalPackRuntimeSelector({ prevState = {}, inbound = {},
   const atmosphereEligible = track === "atmosphere_continuity" && replayRisk < 0.35;
   return {
     version: CONVERSATIONAL_PACK_COHESION_VERSION,
+  FINAL_RUNTIME_TELEMETRY_VERSION,
     active: true,
     track,
     depthBand,
@@ -1859,6 +1892,7 @@ function finalizeTurn(params = {}) {
   const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
   const continuityRegression = buildFiveTurnContinuityState({ prev, inbound, memoryPatch, speak, userHash, assistantHash, trustedFinalCompletion, nextTurnDepth });
   const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
+  const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
 
   const nextState = {
     ...prev,
@@ -1885,6 +1919,7 @@ function finalizeTurn(params = {}) {
     inputParity: { lastSource: inputSource, lastVoiceHash: inputSource === "voice" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastVoiceHash || ""), lastTextHash: inputSource === "text" ? boundedSignature(userHash) : boundedSignature(prev.inputParity?.lastTextHash || ""), mismatchCount: clampInt(prev.inputParity?.mismatchCount, 0, 0, 999999), updatedAt: nowMs() },
     continuityRegression,
     fiveTurnContract,
+    runtimeTelemetry,
     progressionLock,
     volatility,
     turns: {
@@ -1954,6 +1989,8 @@ function finalizeTurn(params = {}) {
     } : prev.greeting,
     marionCohesion: {
       composerObserved: !!Object.keys(memoryPatch).length,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry,
       marionFinalObserved: marionFinalSignal,
       lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
@@ -2099,7 +2136,10 @@ module.exports = {
   isFreshOperationalOrTechnicalTurn,
   normalizeStateForPipelineCohesion,
   CONVERSATIONAL_PACK_COHESION_VERSION,
+  FINAL_RUNTIME_TELEMETRY_VERSION,
   detectConversationalPackTrack,
-  deriveConversationalPackRuntimeSelector
+  deriveConversationalPackRuntimeSelector,
+  extractRuntimeTelemetryFromTurn,
+  buildStateRuntimeTelemetry
 };
 module.exports.default = module.exports;
