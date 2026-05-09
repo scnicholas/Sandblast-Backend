@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v2.8.1 MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v2.9.0 DOMAIN-CONFIDENCE-SCORING + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -1032,13 +1032,35 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     inputSource: normalizeInputSource(src.inputSource || src.source || "text"),
     routeLock: !!(src.routeLock || inferred.routeLock || isInfrastructureContinuityPrompt(fallbackText)),
     turnHash: turnContinuityHash(fallbackText),
+    turnText: fallbackText,
     micTextParity: true,
-    continuityRegressionReady: true
+    continuityRegressionReady: true,
+    domainConfidence: intentConfidenceProfile({ ...src, confidence, intent, knowledgeDomain, reason, routeLock: !!(src.routeLock || inferred.routeLock || isInfrastructureContinuityPrompt(fallbackText)) }, fallbackText)
+  };
+}
+
+
+function intentConfidenceProfile(intentPacket = {}, text = "") {
+  const p = safeObj(intentPacket);
+  const c = clamp01(p.confidence, 0);
+  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || c >= 0.82);
+  const ambiguous = !routeLocked && c < 0.62;
+  return {
+    version: "nyx.intentDomainConfidence/1.0",
+    confidence: c,
+    band: c >= 0.92 ? "high" : (c >= 0.72 ? "medium" : "low"),
+    ambiguous,
+    routeLocked,
+    reason: safeStr(p.reason || "intent_confidence"),
+    primaryIntent: safeStr(p.intent || "simple_chat"),
+    knowledgeDomain: safeStr(p.knowledgeDomain || ""),
+    failClosed: ambiguous && !p.knowledgeDomain
   };
 }
 
 function buildRouting(marionIntent) {
   const knowledgeDomain = normalizeKnowledgeDomainName(marionIntent.knowledgeDomain || "");
+  const confidenceProfile = intentConfidenceProfile(marionIntent, marionIntent.turnText || "");
   const registryRoute = registryKnowledgeRoute(knowledgeDomain);
   const registryWiring = registryKnowledgeWiring(knowledgeDomain);
   const registryConfig = registryKnowledgeConfig(knowledgeDomain);
@@ -1082,6 +1104,10 @@ function buildRouting(marionIntent) {
     knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
     knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
     knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
+    domainConfidence: confidenceProfile,
+    routeConfidence: confidenceProfile.confidence,
+    routeConfidenceBand: confidenceProfile.band,
+    routeAmbiguous: confidenceProfile.ambiguous,
     routeLock: !!marionIntent.routeLock,
     noCrossDomainBleed: true,
     inputSource: normalizeInputSource(marionIntent.inputSource || "text"),
@@ -1146,11 +1172,13 @@ function routeMarionIntent(packet = {}) {
       turnHash,
       micTextParity: true,
       continuityRegressionReady: true,
-      routeLock: !!marionIntent.routeLock
+      routeLock: !!marionIntent.routeLock,
+      domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text)
     },
     meta: {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
+      domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
       triggerSource: marionIntent.source,
       textPresent: Boolean(text),
       singleIntentAuthority: true,
@@ -1213,6 +1241,7 @@ module.exports = {
   normalizeInputSource,
   isInfrastructureContinuityPrompt,
   turnContinuityHash,
+  intentConfidenceProfile,
   _internal: {
     extractText,
     extractExistingIntent,
