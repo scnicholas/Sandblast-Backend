@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.9.0 DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.10.0 PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -317,6 +317,38 @@ function extractDomainConfidenceCarry(params = {}, inbound = {}, memoryPatch = {
   ];
   for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeDomainConfidenceCarry(item);
   return normalizeDomainConfidenceCarry({ confidence: 0, reason: "domain_confidence_absent" });
+}
+
+
+function normalizeProgressionShapingGuardCarry(value) {
+  const v = isPlainObject(value) ? value : {};
+  return {
+    version: safeStr(v.version || "nyx.marion.progressionShapingGuard/1.0"),
+    active: !!v.active,
+    domain: boundedOneLine(v.domain || v.primaryDomain || v.knowledgeDomain || "", 64),
+    phase: boundedOneLine(v.phase || "", 64),
+    turn: clampInt(v.turn, 0, 0, 5),
+    priorDomain: boundedOneLine(v.priorDomain || "", 64),
+    reason: boundedOneLine(v.reason || "", 160),
+    updatedAt: nowMs()
+  };
+}
+
+function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const candidates = [
+    mp.progressionShapingGuard,
+    mp?.stateBridge?.progressionShapingGuard,
+    p.progressionShapingGuard,
+    p?.routing?.progressionShapingGuard,
+    p?.marionIntent?.progressionShapingGuard,
+    src.progressionShapingGuard,
+    src?.sessionPatch?.progressionShapingGuard
+  ];
+  for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeProgressionShapingGuardCarry(item);
+  return normalizeProgressionShapingGuardCarry({ active: false, reason: "progression_guard_absent" });
 }
 
 function greetingPresenceFromTone(tone, fallback = "receptive") {
@@ -1936,6 +1968,7 @@ function finalizeTurn(params = {}) {
   const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
+  const progressionShapingGuardCarry = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
 
   const nextState = {
     ...prev,
@@ -1964,6 +1997,7 @@ function finalizeTurn(params = {}) {
     fiveTurnContract,
     runtimeTelemetry,
     domainConfidence: domainConfidenceCarry,
+    progressionShapingGuard: progressionShapingGuardCarry,
     progressionLock,
     volatility,
     turns: {
@@ -2037,6 +2071,7 @@ function finalizeTurn(params = {}) {
       runtimeTelemetry,
       domainConfidence: domainConfidenceCarry,
       domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
+      progressionShapingGuard: progressionShapingGuardCarry,
       marionFinalObserved: marionFinalSignal,
       lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
@@ -2186,6 +2221,10 @@ module.exports = {
   detectConversationalPackTrack,
   deriveConversationalPackRuntimeSelector,
   extractRuntimeTelemetryFromTurn,
-  buildStateRuntimeTelemetry
+  buildStateRuntimeTelemetry,
+  normalizeDomainConfidenceCarry,
+  extractDomainConfidenceCarry,
+  normalizeProgressionShapingGuardCarry,
+  extractProgressionShapingGuardCarry
 };
 module.exports.default = module.exports;
