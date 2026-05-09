@@ -2,7 +2,7 @@
 
 /**
  * runtime/domainRetriever.js
- * domainRetriever v1.2.0 LOAD-PATH-VERIFY + DOMAIN-ISOLATION-GUARD
+ * domainRetriever v1.3.0 DOMAIN-CONFIDENCE-EVIDENCE + LOAD-PATH-VERIFY + DOMAIN-ISOLATION-GUARD
  *
  * Purpose:
  * - Retrieve evidence only from the requested canonical domain.
@@ -14,7 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "domainRetriever v1.2.0 LOAD-PATH-VERIFY + DOMAIN-ISOLATION-GUARD";
+const VERSION = "domainRetriever v1.3.0 DOMAIN-CONFIDENCE-EVIDENCE + LOAD-PATH-VERIFY + DOMAIN-ISOLATION-GUARD";
 const RUNTIME_ROOT = __dirname;
 const MARION_ROOT = path.resolve(RUNTIME_ROOT, "..");
 const MAX_WALK_DEPTH = 4;
@@ -274,6 +274,12 @@ function _scoreRecord(query, record, requestedDomain, context = {}) {
   return { score: Number(Math.max(0, score).toFixed(4)), reasons, overlap, diagnostics: { recordDomain, recoveryMode, continuityHealth, hasMeaningfulText } };
 }
 
+function _evidenceConfidenceProfile(scoreBundle = {}, domain = "general") {
+  const score = Number(scoreBundle.score || 0);
+  const confidence = _clamp(score / 20);
+  return { version: "nyx.domainEvidenceConfidence/1.0", domain: _canonicalDomain(domain), confidence, band: confidence >= 0.75 ? "high" : (confidence >= 0.42 ? "medium" : "low"), reasons: _safeArray(scoreBundle.reasons).slice(0, 6).map((r) => _trim(_safeObj(r).type || r)) };
+}
+
 function _normalizeEvidence(record, domain, scoreBundle, idx) {
   const normalizedRecord = _safeObj(record);
   const rawScore = Number(scoreBundle.score || 0);
@@ -292,7 +298,7 @@ function _normalizeEvidence(record, domain, scoreBundle, idx) {
     tags: _uniqStrings([domain, _trim(normalizedRecord.subdomain), _trim(normalizedRecord.topic), _trim(normalizedRecord.category), ..._flattenStrings(normalizedRecord.tags)]),
     recency: Number.isFinite(Number(normalizedRecord.recency)) ? _clamp(Number(normalizedRecord.recency)) : 0,
     emotionalRelevance: Number.isFinite(Number(normalizedRecord.emotionalRelevance)) ? _clamp(Number(normalizedRecord.emotionalRelevance)) : 0.15,
-    metadata: { reasons: scoreBundle.reasons, overlap: scoreBundle.overlap, file: normalizedRecord.__file || null, fileIndex: Number.isFinite(Number(normalizedRecord.__index)) ? normalizedRecord.__index : null, sourceMode: normalizedRecord.__sourceMode || "compiled", domainKey: normalizedRecord.__domainKey || domain, diagnostics: _safeObj(scoreBundle.diagnostics) }
+    metadata: { domainConfidence: _evidenceConfidenceProfile(scoreBundle, domain), reasons: scoreBundle.reasons, overlap: scoreBundle.overlap, file: normalizedRecord.__file || null, fileIndex: Number.isFinite(Number(normalizedRecord.__index)) ? normalizedRecord.__index : null, sourceMode: normalizedRecord.__sourceMode || "compiled", domainKey: normalizedRecord.__domainKey || domain, diagnostics: _safeObj(scoreBundle.diagnostics) }
   };
 }
 
@@ -347,5 +353,5 @@ module.exports = {
   retrieve: retrieveDomain,
   getDomainHealth,
   getHealth,
-  _internal: { _canonicalDomain, _domainConfig, _loadDomainRecords, _safeResolveUnderRoot, _isInsideRoot }
+  _internal: { _canonicalDomain, _domainConfig, _loadDomainRecords, _safeResolveUnderRoot, _isInsideRoot, _evidenceConfidenceProfile }
 };
