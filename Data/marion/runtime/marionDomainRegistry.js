@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.4.2 PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.5.0 DOMAIN-CONFIDENCE-MAP + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1028,6 +1028,13 @@ function getHealth() {
 }
 
 
+
+function getDomainConfidenceDefaults(domain){
+  const key = resolveDomainKey(domain);
+  const cfg = cloneDomainConfig(key);
+  return { version: "nyx.registryDomainConfidence/1.0", domain: key, supported: !!cfg, minConfidence: key === "technical" ? 0.34 : 0.42, minMargin: key === "technical" ? 0.1 : 0.16, failClosed: !cfg, useDomainKnowledge: !!(cfg && cfg.useDomainKnowledge), requiresFinalEnvelope: !!(cfg && cfg.requiresFinalEnvelope !== false) };
+}
+
 function getPipelineForensicNormalizationStatus(){
   return {
     version: PIPELINE_FORENSIC_NORMALIZATION_VERSION,
@@ -1074,6 +1081,7 @@ module.exports = {
   getCapabilityIntro,
   buildRoutingFromDomain,
   getHealth,
+  getDomainConfidenceDefaults,
   _internal: {
     safeStr,
     normalizeKey,
