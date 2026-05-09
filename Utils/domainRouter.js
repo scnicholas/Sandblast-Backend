@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.3.1 MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const ROUTER_VERSION = "domainRouter v1.4.0 DOMAIN-CONFIDENCE-SCORING + FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + TECHNICAL-INFRA-PRECEDENCE";
 
 // -------------------------
 // helpers
@@ -83,7 +83,7 @@ function normalizeVoiceTextParityText(value) {
 
 function isInfrastructureContinuityPrompt(text) {
   const t = normalizeVoiceTextParityText(text).toLowerCase();
-  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|domain route|domain routing|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity|same route|same state|response consistency)\b/i.test(t) || /\b(broken|invalid|failed|missing)\b.*\b(psychology|english|finance|general|domain)\b.*\b(affect|fallback|bleed|load|route)\b/i.test(t) || /\b(should not|must not|cannot)\b.*\b(affect|fall back|fallback|bleed)\b.*\b(english|finance|general|psychology)\b/i.test(t);
+  return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|domain route|domain routing|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity|same route|same state|same final|response consistency)\b/i.test(t) || /\b(broken|invalid|failed|missing)\b.*\b(psychology|english|finance|general|domain)\b.*\b(affect|fallback|bleed|load|route)\b/i.test(t) || /\b(should not|must not|cannot)\b.*\b(affect|fall back|fallback|bleed)\b.*\b(english|finance|general|psychology)\b/i.test(t);
 }
 
 function continuityHash(value) {
@@ -340,6 +340,36 @@ function normalizeScores(scores) {
   return { scores: out, confidence: conf };
 }
 
+
+function domainConfidenceProfile(scores, text = "", opts = {}) {
+  const entries = Object.entries(scores || {})
+    .map(([domain, score]) => [canonicalizeDomain(domain), Number(score) || 0])
+    .sort((a, b) => b[1] - a[1]);
+  const primary = entries.length ? entries[0][0] : DOMAIN_ENUM.CORE;
+  const secondary = entries.length > 1 ? entries[1][0] : "";
+  const top = entries.length ? Math.max(0, entries[0][1]) : 0;
+  const runnerUp = entries.length > 1 ? Math.max(0, entries[1][1]) : 0;
+  const total = entries.reduce((sum, item) => sum + Math.max(0, item[1]), 0) || 1;
+  const confidence = clamp01(top / total);
+  const margin = clamp01((top - runnerUp) / (top || 1));
+  const infrastructure = isInfrastructureContinuityPrompt(text);
+  const minConfidence = Number.isFinite(Number(opts.minConfidence)) ? Number(opts.minConfidence) : 0.34;
+  const minMargin = Number.isFinite(Number(opts.minMargin)) ? Number(opts.minMargin) : 0.14;
+  const ambiguous = !infrastructure && (confidence < minConfidence || margin < minMargin);
+  return {
+    version: "nyx.domainConfidenceScoring/1.0",
+    primary,
+    secondary,
+    confidence: Number(confidence.toFixed(4)),
+    margin: Number(margin.toFixed(4)),
+    ambiguous,
+    routeLocked: infrastructure || (!ambiguous && confidence >= minConfidence),
+    fallbackDomain: ambiguous ? DOMAIN_ENUM.CORE : primary,
+    top: entries.slice(0, 4).map(([domain, score]) => ({ domain, score: Number(score.toFixed ? score.toFixed(4) : score) })),
+    reason: infrastructure ? "technical_infrastructure_precedence" : (ambiguous ? "low_margin_or_low_confidence" : "highest_weighted_domain")
+  };
+}
+
 function pickTopDomains(scores, opts) {
   const o = isPlainObject(opts) ? opts : {};
   const maxSecondary = clamp01(o.maxSecondary) ? Math.trunc(o.maxSecondary) : 2;
@@ -406,12 +436,14 @@ function scoreDomains(norm, session, cog, opts = {}) {
   if (inputSource) signals.push(`input:${inputSource}`);
 
   const normalized = normalizeScores(scores);
+  const domainConfidence = domainConfidenceProfile(normalized.scores, n.text || n.query || n.message || "", o);
 
   return {
     ok: true,
     routerVersion: ROUTER_VERSION,
     scores: normalized.scores,
     confidence: normalized.confidence,
+    domainConfidence,
     signals: uniq(signals, 10),
     stateSpinePatch: {
       source: "domainRouter",
@@ -419,6 +451,7 @@ function scoreDomains(norm, session, cog, opts = {}) {
       shouldAdvanceState: false,
       domainScores: normalized.scores,
       confidence: normalized.confidence,
+      domainConfidence,
       inputSource,
       turnHash,
       micTextParity: true,
@@ -430,14 +463,11 @@ function scoreDomains(norm, session, cog, opts = {}) {
 function routeDomain(norm, session, cog, opts = {}) {
   const n = isPlainObject(norm) ? norm : {};
   const scored = scoreDomains(n, session, cog, opts);
-  let pick = pickTopDomains(scored.scores, {
+  const domainConfidence = scored.domainConfidence || domainConfidenceProfile(scored.scores, n.text || n.query || n.message || "", opts);
+  const pick = domainConfidence.ambiguous ? { primary: domainConfidence.fallbackDomain, secondary: [] } : pickTopDomains(scored.scores, {
     maxSecondary: Number.isFinite(Number(opts.maxSecondary)) ? Number(opts.maxSecondary) : 2,
     minSecondaryScore: Number.isFinite(Number(opts.minSecondaryScore)) ? Number(opts.minSecondaryScore) : 1.6,
   });
-  if (isInfrastructureContinuityPrompt(n.text || n.query || n.message || "")) {
-    pick = { primary: DOMAIN_ENUM.CORE, secondary: [] };
-    scored.signals = uniq([...(scored.signals || []), "forced:technical_infrastructure_core"], 10);
-  }
 
   // reason (compact)
   const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
@@ -450,7 +480,8 @@ function routeDomain(norm, session, cog, opts = {}) {
     signals: scored.signals,
     inputSource,
     turnHash,
-    continuity: { fiveTurnReady: true, micTextParity: true }
+    continuity: { fiveTurnReady: true, micTextParity: true },
+    domainConfidence
   };
 
   return {
@@ -470,7 +501,8 @@ function routeDomain(norm, session, cog, opts = {}) {
       bootstrapGuardCompatible: true,
       noCrossDomainBleed: true,
       inputSource,
-      micTextParity: true
+      micTextParity: true,
+      domainConfidence
     },
     stateSpinePatch: {
       source: "domainRouter",
@@ -479,6 +511,7 @@ function routeDomain(norm, session, cog, opts = {}) {
       domain: canonicalizeDomain(pick.primary),
       secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
       confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
+      domainConfidence,
       isolation: { noCrossDomainBleed: true, primaryLocked: true },
       inputSource,
       turnHash,
@@ -499,4 +532,5 @@ module.exports = {
   normalizeInputSource,
   isInfrastructureContinuityPrompt,
   continuityHash,
+  domainConfidenceProfile,
 };
