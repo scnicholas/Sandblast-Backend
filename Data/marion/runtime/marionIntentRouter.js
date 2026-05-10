@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.2.0 ROKU-PUBLISHING-LANE-LOCK + CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v3.3.0 NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-PUBLISHING-LANE-LOCK + CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -244,6 +244,16 @@ function isRokuPublishingRequest(text = "") {
   return /\b(roku|ott|channel app|roku app|tv app|streaming app)\b/i.test(t) && /\b(publish|publishing|submit|submission|developer|package|pkg|channel|feed|stream|playback|deeplink|deep link|certification|screenshots|artwork|manifest|sideload|beta|private channel|public channel|app path|before submission|checked before submission|next steps|nyx steps)\b/i.test(t);
 }
 
+function isNewsMediaPositioningRequest(text = "") {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  if (!t) return false;
+  if (/\b(rewrite|revise|edit|proofread|polish|copyedit|grammar|tone|professional(?:ly)?|make this .*sound|wording|language flow)\b/i.test(t)) return false;
+  const brandHit = /\b(news canada|newscanada|sandblast media|sandblast channel|media page|news page)\b/i.test(t);
+  const positioningHit = /\b(positioning|position|shape|trust|reliable|credib(?:le|ility)|current|fresh|freshness|useful|usefulness|story hierarchy|headline hierarchy|source path|update cadence|older stories|editorial|content trust|visitor trust|page feels|feels reliable)\b/i.test(t);
+  const retrievalOnly = /\b(feed issue|rss error|rss route|wp rest|story url|headline url|fetch|parse|diagnostics|route result)\b/i.test(t) && !/\b(positioning|trust|reliable|credible|useful|current|fresh)\b/i.test(t);
+  return brandHit && positioningHit && !retrievalOnly;
+}
+
 function turnContinuityHash(value) {
   const source = lower(normalizeRouterVoiceTextParity(value)).replace(/[^a-z0-9]+/g, " ").trim();
   let hash = 2166136261;
@@ -473,7 +483,7 @@ function detectSubIntent(text, intent) {
   if (intent === "emotional_support") return "emotional_containment";
   if (intent === "business_strategy") return "commercial_strategy";
   if (intent === "music_query") return "music_retrieval";
-  if (intent === "news_query") return "news_retrieval";
+  if (intent === "news_query") return isNewsMediaPositioningRequest(text) ? "media_positioning" : "news_retrieval";
   if (intent === "roku_query") return "roku_platform";
   return "plain_conversation";
 }
@@ -751,6 +761,20 @@ function inferIntentFromText(text) {
     };
   }
 
+  if (isNewsMediaPositioningRequest(t)) {
+    return {
+      intent: "news_query",
+      confidence: 0.95,
+      reason: "news_media_positioning_terms",
+      stateStageHint: "strategy",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: ""
+    };
+  }
+
   /* Directive execution must outrank generic question and broad technical terms. */
   if (detectDirectiveIntent(t)) {
     return {
@@ -862,6 +886,20 @@ function inferIntentFromText(text) {
       knowledgeDomain: knowledge.knowledgeDomain,
       knowledgeDomainExplicit: !!knowledge.explicit,
       knowledgeDomainReason: knowledge.reason
+    };
+  }
+
+  if (isNewsMediaPositioningRequest(t)) {
+    return {
+      intent: "news_query",
+      confidence: 0.95,
+      reason: "news_media_positioning_terms",
+      stateStageHint: "strategy",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: ""
     };
   }
 
@@ -1095,16 +1133,17 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || "");
   addDomainCandidate(map, baseDomain, knowledgeDomain ? Math.max(0.45, clamp01(p.confidence, 0.48) - 0.06) : clamp01(p.confidence, 0.48), `intent:${intent}`);
   if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
-  if (/\b(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)\b/i.test(t)) addDomainCandidate(map, "technical", 0.96, "technical_terms");
+  if (/\b(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)\b/i.test(t) && !(knowledgeDomain && !detectBackendTechnicalContext(t))) addDomainCandidate(map, "technical", 0.96, "technical_terms");
   if (/\b(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)\b/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
   if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
   else if (/\b(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)\b/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
-  if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence)\b/i.test(t)) addDomainCandidate(map, "ai", 0.86, "ai_terms", "ai");
+  if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence|confidence scoring)\b/i.test(t)) addDomainCandidate(map, "ai", 0.94, "ai_terms", "ai");
   if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
   if (/\b(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)\b/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
   if (/\b(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
   if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
-  if (/\b(news canada|rss|feed|story|headline|wp rest|editorial)\b/i.test(t)) addDomainCandidate(map, "news", 0.84, "news_terms");
+  if (isNewsMediaPositioningRequest(t)) addDomainCandidate(map, "news", 0.95, "news_media_positioning_signal");
+  if (/\b(news canada|rss|feed|story|headline|wp rest|editorial)\b/i.test(t)) addDomainCandidate(map, "news", isNewsMediaPositioningRequest(t) ? 0.95 : 0.84, isNewsMediaPositioningRequest(t) ? "news_media_positioning_terms" : "news_terms");
   if (/\b(roku|ott|linear tv|streaming app|channel app)\b/i.test(t)) addDomainCandidate(map, "roku", 0.84, "roku_terms");
   if (isRokuPublishingRequest(t)) addDomainCandidate(map, "roku", 0.96, "roku_publishing_submission_terms");
   return Array.from(map.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 6).map((c) => ({...c, confidence: clamp01(c.confidence, 0), reasons: Array.from(new Set(c.reasons)).slice(0, 4)}));
@@ -1117,7 +1156,7 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
   const second = candidates[1] || null;
   const c = Math.max(clamp01(p.confidence, 0), clamp01(top.confidence, 0));
   const margin = second ? Math.max(0, c - clamp01(second.confidence, 0)) : c;
-  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
+  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
   const ambiguous = !routeLocked && (c < 0.62 || (second && margin < 0.08));
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || top.knowledgeDomain || "");
   return {
@@ -1324,6 +1363,7 @@ module.exports = {
   normalizeIntent,
   routeMarionIntent,
   isContinuationCompressionInstruction,
+  isNewsMediaPositioningRequest,
   normalizeInputSource,
   isInfrastructureContinuityPrompt,
   turnContinuityHash,
