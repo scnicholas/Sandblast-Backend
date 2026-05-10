@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.11.0 PROGRESSION-SHAPING-GUARD-RUNTIME-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.12.0 CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -223,7 +223,6 @@ function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
 }
 function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalCompletion=false,stage="",intent="",domain="",lane=""}={}){
   const inherited=extractRuntimeTelemetryFromTurn(params,inbound);
-  const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, extractComposerMemoryPatch(params));
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
@@ -237,8 +236,6 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
     lane: safeStr(lane),
     inputSource: canonicalTurnInputSource(inbound, params),
     domainConfidence: normalizeDomainConfidenceCarry(isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence),
-    progressionShapingGuard,
-    progressionShapingGuardActive: !!progressionShapingGuard.active,
     replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
     marionFinalObserved: !!hasMarionFinalSignal(params),
     finalEnvelopeTrusted: !!(hasTrustedMarionFinalEnvelope(params) || hasTrustedFinalShape(params)),
@@ -334,6 +331,9 @@ function normalizeProgressionShapingGuardCarry(value) {
     mode: boundedOneLine(v.mode || "", 64),
     blockedFallback: !!v.blockedFallback,
     blockedDomainDrift: !!v.blockedDomainDrift,
+    compressionIntent: !!v.compressionIntent,
+    compressionMode: boundedOneLine(v.compressionMode || v.mode || "", 64),
+    finalRuleCompression: !!v.finalRuleCompression,
     reason: boundedOneLine(v.reason || "", 180),
     updatedAt: nowMs()
   };
@@ -349,7 +349,11 @@ function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPa
     p?.runtimeTelemetry?.progressionShapingGuard,
     src.progressionShapingGuard,
     src?.sessionPatch?.progressionShapingGuard,
-    src?.runtimeTelemetry?.progressionShapingGuard
+    src?.runtimeTelemetry?.progressionShapingGuard,
+    mp.continuationCompressionGuard,
+    mp?.stateBridge?.continuationCompressionGuard,
+    p.continuationCompressionGuard,
+    src.continuationCompressionGuard
   ];
   for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeProgressionShapingGuardCarry(item);
   return normalizeProgressionShapingGuardCarry({ active: false, reason: "progression_guard_absent" });
