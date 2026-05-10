@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.7sb FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50";
+const INDEX_VERSION = "index.js v2.18.7sb FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 
@@ -5718,6 +5718,9 @@ function attachVoiceRoute(base) {
 
 function normalizeVoiceRouteResponse(out) {
   if (!isObj(out)) return null;
+  const textSpeak = cleanReplyForUser(out.textSpeak || out.spokenText || out.text || out.textDisplay || "");
+  const textDisplay = cleanReplyForUser(out.textDisplay || out.displayReply || out.text || textSpeak || "");
+  const text = cleanReplyForUser(out.text || textDisplay || textSpeak || "");
   return {
     enabled: out.enabled !== false,
     endpoint: cleanText(out.endpoint || "/api/tts") || "/api/tts",
@@ -5731,7 +5734,19 @@ function normalizeVoiceRouteResponse(out) {
     contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
     deterministicAudio: out.deterministicAudio !== false,
     failOpenChat: out.failOpenChat !== false,
-    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id"
+    traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id",
+    text,
+    textDisplay: textDisplay || text,
+    displayReply: textDisplay || text,
+    textSpeak: textSpeak || textDisplay || text,
+    spokenText: textSpeak || textDisplay || text,
+    routeKind: cleanText(out.routeKind || "main") || "main",
+    intro: out.intro === true,
+    source: cleanText(out.source || "chat") || "chat",
+    speechHints: isObj(out.speechHints) ? out.speechHints : {},
+    presenceProfile: cleanText(out.presenceProfile || "") || undefined,
+    voiceStyle: cleanText(out.voiceStyle || "") || undefined,
+    nyxStateHint: cleanText(out.nyxStateHint || "") || undefined
   };
 }
 
@@ -7491,11 +7506,35 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     reply,
     text: reply,
     short: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    displayReply: reply,
+    spokenText: cleanText(speech && speech.textSpeak || reply || ""),
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
     finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
-    payload: { ...(isObj(selected.payload) ? selected.payload : {}), finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
+    payload: {
+      ...(isObj(selected.payload) ? selected.payload : {}),
+      reply,
+      text: reply,
+      message: reply,
+      displayReply: reply,
+      spokenText: cleanText(speech && speech.textSpeak || reply || ""),
+      textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
+      textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
+      final: true,
+      finalized: true,
+      marionFinal: !!selected.marionFinal,
+      handled: true,
+      emit: true,
+      blocked: false,
+      suppressUserFacingReply: false,
+      awaitingMarion: false,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry
+    },
     finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
     runtimeTelemetry,
     lane: selected.lane || norm.lane || "general",
@@ -7562,13 +7601,18 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     audio: selected.audio || undefined,
     ttsProfile: selected.ttsProfile || undefined,
     playback: {
-      ready: !!(selected.audio && selected.audio.enabled !== false && cleanText(selected.audio.textToSynth || "")),
+      ready: !!cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || reply || ""),
       autoPlay: !!(selected.audio && selected.audio.autoPlay !== false),
       route: routeUrl("/api/tts"),
       compatibilityRoute: routeUrl("/tts"),
       health: routeUrl("/api/tts/health"),
       compatibilityHealth: routeUrl("/tts/health"),
-      textSpeak: cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || ""),
+      textSpeak: cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || reply || ""),
+      provider: cleanText(selected.audio && selected.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+    },
+    tts: {
+      ready: !!cleanText(speech && speech.textSpeak || reply || ""),
+      textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
       provider: cleanText(selected.audio && selected.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
     },
     voiceRoute: selected.voiceRoute || undefined
