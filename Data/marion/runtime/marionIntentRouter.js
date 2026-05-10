@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.1.0 CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v3.2.0 ROKU-PUBLISHING-LANE-LOCK + CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -211,6 +211,7 @@ function normalizeRouterVoiceTextParity(text="") {
     .replace(/\b(chad\s+engine|chat\s+engine)\b/gi, "ChatEngine")
     .replace(/\b(mary\s+bridge|marian\s+bridge|marion\s+bridge)\b/gi, "MarionBridge")
     .replace(/\b(compose\s+marion\s+response|composed\s+marion\s+response|compose\s+marian\s+response|composed\s+marian\s+response|compose\s+mailing\s+response|composed\s+mailing\s+response)\b/gi, "ComposeMarionResponse")
+    .replace(/\b(nyx|nix|nick)\s+steps\s+for\s+(publishing|submission|submitting)\b/gi, "Next steps for $2")
     .replace(/\b(nex\s+steps|neck\s+steps)\b/gi, "Next steps")
     .replace(/\b(mic\s*tech|mike\s*tech|mike\s*text|mic\s*text)\b/gi, "mic text")
     .replace(/\b(5\s*term|five\s*term|five\s*turn|5\s*turn)\b/gi, "5-turn")
@@ -235,6 +236,12 @@ function isContinuationCompressionInstruction(text) {
   const t = lower(normalizeRouterVoiceTextParity(text));
   if (!t) return false;
   return /\bcontinue from (?:the )?(?:last|previous) answer\b/i.test(t) && /\b(compress|one sentence|single sentence|final rule|without repeating|previous wording|same idea|shorten)\b/i.test(t);
+}
+
+function isRokuPublishingRequest(text = "") {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  if (!t) return false;
+  return /\b(roku|ott|channel app|roku app|tv app|streaming app)\b/i.test(t) && /\b(publish|publishing|submit|submission|developer|package|pkg|channel|feed|stream|playback|deeplink|deep link|certification|screenshots|artwork|manifest|sideload|beta|private channel|public channel|app path|before submission|checked before submission|next steps|nyx steps)\b/i.test(t);
 }
 
 function turnContinuityHash(value) {
@@ -802,6 +809,20 @@ function inferIntentFromText(text) {
     };
   }
 
+  if (isRokuPublishingRequest(t)) {
+    return {
+      intent: "roku_query",
+      confidence: 0.96,
+      reason: "roku_publishing_submission_terms",
+      stateStageHint: "deliver",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: ""
+    };
+  }
+
   if (has(/\b(index\.js|marionbridge|marion bridge|intent router|manual intent router|normalizer|packet|packets|phrase pack|phrase packs|compose|composer|composemarionresponse|state spine|statespine|state-spine|autopsy|audit|gap refinement|line[- ]?by[- ]?line|syntax|debug|bug|loop|looping|route|endpoint|api\/chat|backend diagnostics|diagnostics route|health check|final envelope|contract|authority gate|script|file|harden|critical fix|critical fixes|download|zip|integration|cohesion|cohesive|90%|ninety percent|baseline cognition)\b/i, t)) {
     return {
       intent: "technical_debug",
@@ -861,8 +882,8 @@ function inferIntentFromText(text) {
   if (has(/\b(roku|tv app|linear tv|streaming|channel app|ott)\b/i, t)) {
     return {
       intent: "roku_query",
-      confidence: 0.84,
-      reason: "roku_terms",
+      confidence: isRokuPublishingRequest(t) ? 0.96 : 0.86,
+      reason: isRokuPublishingRequest(t) ? "roku_publishing_submission_terms" : "roku_terms",
       stateStageHint: "deliver",
       safetyLevel,
       recoveryRequired: false,
@@ -1074,17 +1095,18 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || "");
   addDomainCandidate(map, baseDomain, knowledgeDomain ? Math.max(0.45, clamp01(p.confidence, 0.48) - 0.06) : clamp01(p.confidence, 0.48), `intent:${intent}`);
   if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
-  if (/(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)/i.test(t)) addDomainCandidate(map, "technical", 0.96, "technical_terms");
-  if (/(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
+  if (/\b(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)\b/i.test(t)) addDomainCandidate(map, "technical", 0.96, "technical_terms");
+  if (/\b(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)\b/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
   if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
-  else if (/(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
-  if (/(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence)/i.test(t)) addDomainCandidate(map, "ai", 0.86, "ai_terms", "ai");
-  if (/(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
-  if (/(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
-  if (/(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
-  if (/(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
-  if (/(news canada|rss|feed|story|headline|wp rest|editorial)/i.test(t)) addDomainCandidate(map, "news", 0.84, "news_terms");
-  if (/(roku|ott|linear tv|streaming app|channel app)/i.test(t)) addDomainCandidate(map, "roku", 0.84, "roku_terms");
+  else if (/\b(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)\b/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
+  if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence)\b/i.test(t)) addDomainCandidate(map, "ai", 0.86, "ai_terms", "ai");
+  if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
+  if (/\b(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)\b/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
+  if (/\b(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
+  if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
+  if (/\b(news canada|rss|feed|story|headline|wp rest|editorial)\b/i.test(t)) addDomainCandidate(map, "news", 0.84, "news_terms");
+  if (/\b(roku|ott|linear tv|streaming app|channel app)\b/i.test(t)) addDomainCandidate(map, "roku", 0.84, "roku_terms");
+  if (isRokuPublishingRequest(t)) addDomainCandidate(map, "roku", 0.96, "roku_publishing_submission_terms");
   return Array.from(map.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 6).map((c) => ({...c, confidence: clamp01(c.confidence, 0), reasons: Array.from(new Set(c.reasons)).slice(0, 4)}));
 }
 
