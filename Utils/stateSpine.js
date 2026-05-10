@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.12.0 CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.13.0 FIVE-TURN-CONTINUITY-ADVANCEMENT-CARRY + CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -899,15 +899,15 @@ function extractFiveTurnContractState(prev = {}, memoryPatch = {}, inbound = {})
   const mp = isPlainObject(memoryPatch.fiveTurnContract) ? memoryPatch.fiveTurnContract : {};
   const cr = isPlainObject(memoryPatch.continuityRegression) ? memoryPatch.continuityRegression : {};
   const text = oneLine(extractInboundText(inbound));
-  const active = !!(mp.active || prior.active || /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|final[- ]?envelope authority|preserve route|preserve.*state)\b/i.test(text));
+  const active = !!(mp.active || prior.active || /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|testing continuity|project is sandblast|stronger user engagement|what should we improve first|now connect.*roku|summarize the plan|mic\/?text|mic text|mytext|final[- ]?envelope authority|preserve route|preserve.*state)\b/i.test(text));
   const target = firstNonEmpty(mp.regressionTarget, cr.regressionTarget, prior.regressionTarget, /preserve route,? state,? and final[- ]?envelope authority/i.test(text) ? "preserve route, state, and final-envelope authority" : "");
   let turn = clampInt(mp.turn || prior.turn, 0, 0, 999999);
   const m = text.match(/\bturn\s*([1-5])\b/i);
   if (m) turn = clampInt(m[1], turn, 1, 5);
-  else if (/what target|target did i ask/i.test(text)) turn = 2;
-  else if (/connect.*mic|mic.*parity/i.test(text)) turn = 3;
-  else if (/consistent.*voice|typed input/i.test(text)) turn = 4;
-  else if (/summarize.*regression|four bullets/i.test(text)) turn = 5;
+  else if (/project is sandblast|stronger user engagement|what target|target did i ask/i.test(text)) turn = 2;
+  else if (/what should we improve first|improve first|connect.*mic|mic.*parity/i.test(text)) turn = 3;
+  else if (/now connect.*roku|connect.*roku|consistent.*voice|typed input/i.test(text)) turn = 4;
+  else if (/summarize.*plan|summarize.*regression|three steps|four bullets/i.test(text)) turn = 5;
   else if (/testing.*continuity|remember this target/i.test(text)) turn = 1;
   return { version: "nyx.stateSpine.fiveTurnContract/1.0", active, turn, regressionTarget: boundedOneLine(target, 220), turnObjective: firstNonEmpty(mp.turnObjective, cr.turnObjective, prior.turnObjective, turn ? `five_turn_continuity_turn_${turn}` : ""), parityTarget: firstNonEmpty(mp.parityTarget, cr.parityTarget, prior.parityTarget, "same normalized intent, same route, same state carry, same final-envelope reply structure"), updatedAt: nowMs() };
 }
@@ -1735,7 +1735,7 @@ function compactStateSummary(value, max = 760) {
 
 function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
   const text = `${extractInboundText(inbound)} ${memoryPatch.lastTopic || ""} ${memoryPatch.carryForwardSummary || ""}`.toLowerCase();
-  if (/sponsor|investor|business value|premium|pitch/.test(text)) return "AI media interface commercial value";
+  if (/sandblast|user engagement|conversion path|roku|sponsor|investor|business value|premium|pitch/.test(text)) return "Sandblast engagement and Roku conversion path";
   if (/nyx|nexus|marion|ai media|interface|emotionally aware|intelligent/.test(text)) return "AI media interface continuity";
   if (/cash flow|profit|finance/.test(text)) return "finance";
   if (/legal|law/.test(text)) return "law";
@@ -1745,14 +1745,17 @@ function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
 }
 
 function buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain, lane }) {
+  const inboundText = oneLine(extractInboundText(inbound));
   const prior = firstNonEmpty(memoryPatch.carryForwardSummary, prev.carryForwardSummary, prev.conversationSummary);
   const topic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane));
-  const current = compactStateSummary(speak, 420);
+  const current = compactStateSummary(speak, 360);
+  const projectLine = /sandblast|user engagement|roku|conversion path/i.test(`${inboundText} ${prior}`) ? "Active project: Sandblast user engagement / Roku conversion path" : "";
   const parts = [];
+  if (projectLine) parts.push(projectLine);
   if (topic) parts.push(`Topic: ${topic}`);
   if (intent) parts.push(`Intent: ${intent}`);
   if (domain || lane) parts.push(`Domain: ${domain || lane}`);
-  if (prior) parts.push(`Prior: ${compactStateSummary(prior, 360)}`);
+  if (prior) parts.push(`Prior: ${compactStateSummary(prior, 260)}`);
   if (current) parts.push(`Current: ${current}`);
   return compactStateSummary(parts.join(" | "), 900);
 }
