@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.13.0 FIVE-TURN-CONTINUITY-ADVANCEMENT-CARRY + CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.14.0 PROGRESSION-SHAPING-REGRESSION-CARRY + FIVE-TURN-CONTINUITY-ADVANCEMENT-CARRY + CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -904,11 +904,11 @@ function extractFiveTurnContractState(prev = {}, memoryPatch = {}, inbound = {})
   let turn = clampInt(mp.turn || prior.turn, 0, 0, 999999);
   const m = text.match(/\bturn\s*([1-5])\b/i);
   if (m) turn = clampInt(m[1], turn, 1, 5);
-  else if (/project is sandblast|stronger user engagement|what target|target did i ask/i.test(text)) turn = 2;
-  else if (/what should we improve first|improve first|connect.*mic|mic.*parity/i.test(text)) turn = 3;
-  else if (/now connect.*roku|connect.*roku|consistent.*voice|typed input/i.test(text)) turn = 4;
-  else if (/summarize.*plan|summarize.*regression|three steps|four bullets/i.test(text)) turn = 5;
-  else if (/testing.*continuity|remember this target/i.test(text)) turn = 1;
+  else if (/project is sandblast|stronger user engagement|convert more roku viewers|what target|target did i ask/i.test(text)) turn = 2;
+  else if (/what should we improve first|improve first|give me the first move|first move|connect.*mic|mic.*parity/i.test(text)) turn = 3;
+  else if (/now connect.*roku|connect.*roku|make it sharper|make it commercial|consistent.*voice|typed input/i.test(text)) turn = 4;
+  else if (/summarize.*plan|summarize.*regression|three steps|four bullets|user[- ]facing message|turn it into a user/i.test(text)) turn = 5;
+  else if (/testing.*continuity|remember this target|refining progression shaping|progression shaping/i.test(text)) turn = 1;
   return { version: "nyx.stateSpine.fiveTurnContract/1.0", active, turn, regressionTarget: boundedOneLine(target, 220), turnObjective: firstNonEmpty(mp.turnObjective, cr.turnObjective, prior.turnObjective, turn ? `five_turn_continuity_turn_${turn}` : ""), parityTarget: firstNonEmpty(mp.parityTarget, cr.parityTarget, prior.parityTarget, "same normalized intent, same route, same state carry, same final-envelope reply structure"), updatedAt: nowMs() };
 }
 
@@ -1733,9 +1733,25 @@ function compactStateSummary(value, max = 760) {
   return s.length > max ? `${s.slice(0, max).replace(/\s+\S*$/, " ").trim()}.` : s;
 }
 
+
+function sanitizeStateProgressionCarry(value = "") {
+  let out = oneLine(value);
+  if (!out) return "";
+  out = out.replace(/\bContinuing from [^:]{0,180}:\s*/gi, "");
+  out = out.replace(/\bThe next move is to answer the current (request|step) directly,?\s*/gi, "");
+  out = out.replace(/\band advance one concrete (move|step),?\s*/gi, "");
+  out = out.replace(/\bnot restate the prior broad framing\.?/gi, "");
+  out = out.replace(/\bdo not repeat broad framing\.?/gi, "");
+  out = out.replace(/\bprogression[- ]?shaping guard\b/gi, "answer refinement");
+  return out.replace(/\s+/g, " ").trim();
+}
+function isProgressionRegressionInboundText(text = "") {
+  return /\b(refining progression shaping|progression shaping|convert more roku viewers into active users|give me the first move|make it sharper|make it commercial|user[- ]facing message|turn it into a user[- ]facing message)\b/i.test(oneLine(text));
+}
+
 function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
   const text = `${extractInboundText(inbound)} ${memoryPatch.lastTopic || ""} ${memoryPatch.carryForwardSummary || ""}`.toLowerCase();
-  if (/sandblast|user engagement|conversion path|roku|sponsor|investor|business value|premium|pitch/.test(text)) return "Sandblast engagement and Roku conversion path";
+  if (/sandblast|user engagement|conversion path|roku|sponsor|investor|business value|premium|pitch|progression shaping|active users|first move|make it sharper|user-facing/.test(text)) return "Sandblast engagement and Roku conversion path";
   if (/nyx|nexus|marion|ai media|interface|emotionally aware|intelligent/.test(text)) return "AI media interface continuity";
   if (/cash flow|profit|finance/.test(text)) return "finance";
   if (/legal|law/.test(text)) return "law";
@@ -1746,16 +1762,18 @@ function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
 
 function buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain, lane }) {
   const inboundText = oneLine(extractInboundText(inbound));
-  const prior = firstNonEmpty(memoryPatch.carryForwardSummary, prev.carryForwardSummary, prev.conversationSummary);
+  const priorRaw = firstNonEmpty(memoryPatch.carryForwardSummary, prev.carryForwardSummary, prev.conversationSummary);
+  const prior = sanitizeStateProgressionCarry(priorRaw);
   const topic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane));
-  const current = compactStateSummary(speak, 360);
-  const projectLine = /sandblast|user engagement|roku|conversion path/i.test(`${inboundText} ${prior}`) ? "Active project: Sandblast user engagement / Roku conversion path" : "";
+  const current = sanitizeStateProgressionCarry(compactStateSummary(speak, 360));
+  const projectLine = /sandblast|user engagement|roku|conversion path|active users|progression shaping/i.test(`${inboundText} ${prior}`) ? "Active project: Sandblast user engagement / Roku conversion path" : "";
   const parts = [];
   if (projectLine) parts.push(projectLine);
+  if (isProgressionRegressionInboundText(inboundText)) parts.push("Regression: progression shaping sequence");
   if (topic) parts.push(`Topic: ${topic}`);
   if (intent) parts.push(`Intent: ${intent}`);
   if (domain || lane) parts.push(`Domain: ${domain || lane}`);
-  if (prior) parts.push(`Prior: ${compactStateSummary(prior, 260)}`);
+  if (prior) parts.push(`Prior: ${compactStateSummary(prior, 220)}`);
   if (current) parts.push(`Current: ${current}`);
   return compactStateSummary(parts.join(" | "), 900);
 }
