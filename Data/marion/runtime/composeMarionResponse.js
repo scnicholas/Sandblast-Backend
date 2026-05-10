@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.0 CONTINUITY-ADVANCEMENT-GUARD + FIVE-TURN-CONTEXT-CARRY-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + NEWS-MEDIA-RESPONSE-DEPTH-CALIBRATION-LOCK + ROKU-RESPONSE-DEPTH-CALIBRATION-LOCK + RESPONSE-DEPTH-CALIBRATION-LOCK + NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-LANE-LOCK-PUBLIC-DIAGNOSTIC-CLEANUP + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY";
+const VERSION = "composeMarionResponse v3.36.0 PROGRESSION-SHAPING-EXECUTION-GUARD + CONTINUITY-ADVANCEMENT-GUARD + FIVE-TURN-CONTEXT-CARRY-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + NEWS-MEDIA-RESPONSE-DEPTH-CALIBRATION-LOCK + ROKU-RESPONSE-DEPTH-CALIBRATION-LOCK + RESPONSE-DEPTH-CALIBRATION-LOCK + NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-LANE-LOCK-PUBLIC-DIAGNOSTIC-CLEANUP + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1199,10 +1199,44 @@ function stripDuplicateStrategicOpener(reply=""){
   out=out.replace(/\b(The next move is to convert that into one offer, one audience, and one measurable action\.)\s+\1\b/gi,"$1");
   return out;
 }
+
+function progressionRefinementContext(input={},routed={},text=""){
+  const ctx=continuityContext(input,routed,text);
+  const raw=[ctx.carry,ctx.prevUser,ctx.prevReply,text].filter(Boolean).join(" ");
+  const t=lower(raw);
+  const active=/sandblast|roku|conversion path|active users|viewer|viewers|user engagement|commercial|user-facing|first move|make it sharper|progression shaping/i.test(t);
+  return {...ctx,raw,t,active};
+}
+function progressionShapingExecutionReply(text,input={},routed={}){
+  const ctx=progressionRefinementContext(input,routed,text), t=lower(text), thread=ctx.t;
+  const sandblast=/sandblast|roku|conversion path|active users|viewer|viewers|user engagement/i.test(thread);
+  if(!sandblast)return"";
+  if(/\bproject is\b.*\bsandblast\b|\bgoal is\b.*\bconvert more roku viewers\b|\bconvert more roku viewers into active users\b/i.test(t))return"Locked in: Sandblast-to-Roku conversion is the active thread. The refinement path is simple: first move, sharper execution, commercial framing, then user-facing copy.";
+  if(/\b(give me the first move|first move|where should we start|what should we improve first|improve first)\b/i.test(t))return"The first move is to tighten the Roku conversion path: tell viewers exactly what Sandblast gives them, why it is worth staying for, and what action to take next — watch, install, follow, or contact.";
+  if(/\bmake it sharper\b|\bsharper\b|\btighten it\b|\bmake that sharper\b/i.test(t))return"Sharper: make every Roku surface push one clear action. The landing message should sell the experience, the preview copy should create curiosity, and the call-to-action should move the viewer toward watching, installing, following, or contacting Sandblast.";
+  if(/\bnow make it commercial\b|\bmake it commercial\b|\bcommercial angle\b|\bcommercially\b/i.test(t))return"Commercially, the angle is retention and sponsor value: Sandblast is not just offering classic TV and movies; it is building a media surface that keeps viewers engaged long enough to create attention, recall, repeat visits, and sponsor-ready outcomes.";
+  if(/\bturn it into a user[- ]facing message\b|\buser[- ]facing\b|\bviewer[- ]facing\b|\bcopy\b/i.test(t))return"User-facing message: Watch classic TV and movies, discover Sandblast, and step into a channel built to keep you watching. Open the Roku app, start with one show, and let the experience pull you deeper.";
+  if(/\bsummarize\b|\bthree steps\b|\b3 steps\b/i.test(t))return"1. Tighten the Roku conversion path so viewers immediately understand the Sandblast offer. 2. Turn every Roku surface into one clear action: watch, install, follow, or contact. 3. Package the result commercially as attention, retention, recall, and sponsor-ready engagement.";
+  return"";
+}
+function sanitizeProgressionCarryText(value=""){
+  let out=safeStr(value);
+  if(!out)return"";
+  out=out.replace(/\bContinuing from [^:]{0,160}:\s*/gi,"");
+  out=out.replace(/\bThe next move is to answer the current (request|step) directly,?\s*/gi,"");
+  out=out.replace(/\band advance one concrete (move|step),?\s*/gi,"");
+  out=out.replace(/\bnot restate the prior broad framing\.?/gi,"");
+  out=out.replace(/\bdo not repeat broad framing\.?/gi,"");
+  out=out.replace(/\bprogression[- ]?shaping guard\b/gi,"answer refinement");
+  return out.replace(/\s+/g," ").trim();
+}
+
 function continuationAwareBusinessReply(text,input={},routed={}){
   const ctx=continuityContext(input,routed,text);
   const t=lower(text), thread=lower([ctx.carry,ctx.prevUser,ctx.prevReply,text].filter(Boolean).join(" "));
-  const sandblastEngagement=/sandblast|user engagement|engagement|roku|media interface|sponsor|audience/.test(thread);
+  const sandblastEngagement=/sandblast|user engagement|engagement|roku|media interface|sponsor|audience|conversion path|active users|viewer|viewers/.test(thread);
+  const progressionReply=progressionShapingExecutionReply(text,input,routed);
+  if(progressionReply)return progressionReply;
   if(/\bproject is\b.*\bsandblast\b|\bgoal is\b.*\bengagement\b/i.test(t))return "Locked in: Sandblast user engagement is the active thread. The next answer should move from broad strategy into one concrete conversion path: clarify the offer, show the value fast, and make the contact, watch, or install action obvious.";
   if(/\bwhat should we improve first|what should we improve|improve first|where should we start\b/i.test(t)&&sandblastEngagement)return "Improve the conversion path first: make visitors understand what Sandblast offers, why it matters, and what action to take next. The practical fix is one clear offer line, one proof point, and one obvious call-to-action before adding more features or broader campaign language.";
   if(/\b(now )?connect (that|this).*roku|roku app|connect.*roku\b/i.test(t)&&sandblastEngagement)return "For the Roku app, turn that conversion path into three visible surfaces: the app landing message, the channel preview copy, and the install/watch call-to-action. Roku should not just say Sandblast has content; it should show a premium classic TV/movie experience and give the user one reason to open, watch, and return.";
@@ -1212,15 +1246,17 @@ function continuationAwareBusinessReply(text,input={},routed={}){
   if(/premium|investor[- ]?facing/.test(t))return"Investor-facing version: this is a differentiated AI media layer that turns Sandblast from a passive content surface into an interactive intelligence platform. The value is defensibility: proprietary conversation flow, domain-aware guidance, emotional continuity, and sponsor-ready engagement data can create a product experience that is harder to copy than a standard radio stream or static media site.";
   if(/sponsor|business value|commercial value/.test(t))return businessAudienceAttentionReply(text);
   if(/prioriti[sz]e|next three|three upgrades/.test(t))return"I’d prioritize three upgrades: first, context carry so Nyx remembers the user’s goal across turns; second, emotional calibration so the interface responds with the right level of warmth without becoming generic; third, domain synthesis so Marion can connect technical, business, media, and user-experience reasoning in one answer. That order improves usefulness first, then trust, then commercial differentiation.";
-  if(ctx.active)return`Continuing from ${ctx.topic||"the Sandblast thread"}: answer the current step directly, then advance one concrete move. The commercial move is to clarify the offer, package the proof point, and attach one measurable action so the reply does not repeat broad framing.`;
+  if(ctx.active)return progressionShapingExecutionReply(text,input,routed)||"The next practical move is to turn the active thread into one visible action: clarify the offer, show the proof point, and attach a measurable call-to-action the user can follow immediately.";
   return stripDuplicateStrategicOpener("Commercially, the clean move is to define the offer, identify the sponsor’s audience, package the AI interface as a premium engagement layer, and tie it to measurable outcomes like retention, clicks, listening time, or campaign recall.");
 }
-function followUpAnchor(ctx){const topic=ctx.topic||"the current thread";const prior=ctx.carry||ctx.prevReply||ctx.prevUser;return prior?`Continuing from ${topic}: ${prior}`:`Continuing from ${topic}`;}
+function followUpAnchor(ctx){const topic=ctx.topic||"the current thread";return `On ${topic}`;}
 function continuationAwareReply(intent,text,input={},routed={}){
   const posture=extractGreetingPosture(input,routed,text);
   if(posture&&posture.active&&!continuationCue(text))return"";
   const ctx=continuityContext(input,routed,text);
   if(!ctx.active)return"";
+  const directProgression=progressionShapingExecutionReply(text,input,routed);
+  if(directProgression)return directProgression;
   const t=lower(text),anchor=followUpAnchor(ctx),thread=lower([ctx.carry,ctx.prevUser,ctx.prevReply,text].filter(Boolean).join(" "));
   const sandblastEngagement=/sandblast|user engagement|engagement|roku|conversion path|media interface|sponsor|audience/.test(thread);
   if(sandblastEngagement&&/\b(what should we improve first|what should we improve|improve first|where should we start)\b/i.test(t))return continuationAwareBusinessReply(text,input,routed);
@@ -1232,8 +1268,8 @@ function continuationAwareReply(intent,text,input={},routed={}){
   if(/premium|investor[- ]?facing/.test(t))return"Premium framing: Nyx and Marion turn the media interface into an intelligent engagement layer, not just a chat widget. The value is defensibility: continuity, domain-aware guidance, emotional calibration, and sponsor-ready interaction paths create a product experience that is harder to copy than static media.";
   if(intent==="technical_debug"||/state spine|chatengine|marionbridge|compose|intent router|domain registry|backend|code-level|hardening|refinement/.test(t))return`${anchor}. The safest next refinement is to gate the follow-up governor behind explicit continuation cues and bounded carry summaries, so a phrase like “next steps” can use prior context while a fresh unrelated prompt cannot be hijacked by old state. That matters because it preserves continuity without recreating sticky fallback memory.`;
   if(intent==="emotional_support")return`${anchor}. The safest follow-up is to keep one pressure point in focus, reflect it briefly, and ask one grounded question instead of widening the emotional scope. That keeps continuity supportive without making the response clingy or repetitive.`;
-  if(intent==="contextual_directive"||intent==="directive_response")return`${anchor}. The next move is one specific action: apply the prior rule, verify the output once, and only deepen if the user asks for more detail.`;
-  return`${anchor}. The next move is to answer the current request directly and advance one concrete step, not restate the prior broad framing.`;
+  if(intent==="contextual_directive"||intent==="directive_response")return`${anchor}, the next practical action is to apply the prior context once, verify the output, and give the user one clear result.`;
+  return`${anchor}, the useful move is one specific answer that carries the thread forward instead of widening the scope.`;
 }
 
 function hotFallbackReply(intent,text,input={}){const distress=detectDistress(text),emotion=resolveEffectiveEmotion(input,normalizeResolvedEmotion(input));if((intent==="emotional_support"||distress.emotional||(emotion.present&&emotion.primary!=="neutral"&&hasEmotionalContinuityCue(text)))&&!distress.crisis)return emotionalReply(text,input);if(intent==="contextual_directive")return contextualDirectiveReply(text,input);if(intent==="directive_response")return directiveReply(text,input);if(intent==="identity_query")return identityReply(text,input);if(intent==="technical_debug")return buildFinalLoopRecoveryReply(intent,text,input);if(intent==="emotional_support"||distress.emotional){if(distress.crisis)return"Your safety comes first. If you might hurt yourself or you’re in immediate danger, contact emergency services or a local crisis line now.";return"I’m with you. Let’s slow it down and stay with the specific pressure point instead of repeating a flat support line.";}if(intent==="business_strategy")return"Let’s keep this commercial: define the offer, identify the buyer psychology, package the value, and turn it into the next execution step.";if(intent==="music_query")return"Music lane is ready. Give me the year, artist, chart, or story angle and I’ll route it cleanly.";if(intent==="news_query")return isNewsMediaPositioningRequest(text)?newsMediaPositioningReply(text):"News Canada lane is ready. Give me the story, headline, or feed issue and I’ll keep the source path clean.";if(intent==="roku_query")return"Roku lane is ready. Tell me whether we’re checking the app path, live TV lane, content feed, or deployment issue.";return"";}
@@ -1250,7 +1286,7 @@ function recoveryReply(intent,text,input={}){
 
 
 
-const PROGRESSION_LEAK_RX = /\b(do the requested action|validate the result|commit only after|run the validation|return the final answer|continuity target carried|apply one controlling rule|controlling rule is|operator instruction|internal execution|target carried:)\b/i;
+const PROGRESSION_LEAK_RX = /(do the requested action|validate the result|commit only after|run the validation|return the final answer|continuity target carried|apply one controlling rule|controlling rule is|operator instruction|internal execution|target carried:|answer the current (request|step) directly|advance one concrete (move|step)|not restate the prior broad framing|do not repeat broad framing|progression[- ]?shaping guard|current request directly and advance)/i;
 function progressionShapingProfile(reply="",intent="",text="",input={},routed={}){
   const r=safeStr(reply),t=lower(text),carry=contextCarrySummary(input,routed);
   const parity=isMicTextParityPrompt(text),isolation=isDomainIsolationPrompt(text),practical=isPracticalNyxConsistencyPrompt(text);
@@ -1263,10 +1299,14 @@ function progressionShapingProfile(reply="",intent="",text="",input={},routed={}
 function naturalizeExecutionLanguage(reply="",intent="",text="",input={},routed={}){
   let out=safeStr(reply);
   if(!out)return out;
+  out=sanitizeProgressionCarryText(out);
   out=out.replace(/\bContinuity target carried:?\s*/gi,"").replace(/\bDo the requested action,?\s*/gi,"").replace(/\bvalidate the result,?\s*/gi,"check the result").replace(/\bcommit only after the test passes\b/gi,"keep changes only after the check passes").replace(/\bApply one controlling rule, then give the next action cleanly\.?/gi,"Use the existing context, answer the current question, and move the work one step forward.").replace(/\bThe controlling rule is to preserve one response authority and one final envelope\.?/gi,"The answer should stay tied to one clear route and one visible response.");
+  out=sanitizeProgressionCarryText(out);
   return out.replace(/\s+/g," ").trim();
 }
 function progressionShapingReply(reply="",intent="",text="",input={},routed={}){
+  const directProgression=progressionShapingExecutionReply(text,input,routed);
+  if(directProgression)return directProgression;
   const p=progressionShapingProfile(reply,intent,text,input,routed);
   if(p.parity)return "Mic and text should preserve the same route and state because both inputs represent the same user intent after normalization. Voice may carry an inputSource of voice and typed input may carry text, but the domain choice, continuity state, final reply authority, and rendered answer should remain aligned so Nyx behaves consistently across both paths.";
   if(p.isolation)return domainIsolationDirectReply(text);
@@ -1274,7 +1314,7 @@ function progressionShapingReply(reply="",intent="",text="",input={},routed={}){
   let out=naturalizeExecutionLanguage(reply,intent,text,input,routed);
   if(!out||p.leak){
     if(intent==="technical_debug")out="The next useful move is to keep the answer user-facing: name the route or component, explain why it matters, and give one verification step without exposing internal packet language.";
-    else if(intent==="directive_response"||intent==="contextual_directive")out="Use the existing context, answer the current request directly, and give one practical next move without resetting the thread.";
+    else if(intent==="directive_response"||intent==="contextual_directive")out="Use the existing context and give one practical result without resetting the thread.";
     else out=safeStr(reply);
   }
   if(p.thin&&intent==="directive_response")out=`${out} Keep the scope narrow: one prompt, one expected behavior, one observed mismatch, one fix.`;
