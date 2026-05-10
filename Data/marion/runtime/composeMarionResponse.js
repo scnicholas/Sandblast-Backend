@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.32.0 ROKU-RESPONSE-DEPTH-CALIBRATION-LOCK + RESPONSE-DEPTH-CALIBRATION-LOCK + NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-LANE-LOCK-PUBLIC-DIAGNOSTIC-CLEANUP + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY";
+const VERSION = "composeMarionResponse v3.33.0 NEWS-MEDIA-RESPONSE-DEPTH-CALIBRATION-LOCK + ROKU-RESPONSE-DEPTH-CALIBRATION-LOCK + RESPONSE-DEPTH-CALIBRATION-LOCK + NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-LANE-LOCK-PUBLIC-DIAGNOSTIC-CLEANUP + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1076,8 +1076,20 @@ function isNewsMediaPositioningRequest(text=""){
   const retrievalOnly=/\b(feed issue|rss error|rss route|wp rest|story url|headline url|fetch|parse|diagnostics|route result)\b/i.test(t)&&!/\b(positioning|trust|reliable|credible|useful|current|fresh)\b/i.test(t);
   return brandHit&&positioningHit&&!retrievalOnly;
 }
-function newsMediaPositioningReply(text=""){
+function newsMediaPositioningCompactReply(text=""){
+  return "The News Canada page should feel maintained, current, and trustworthy at a glance. Use clear headlines, visible update cues, clean story hierarchy, and stable older stories so visitors know the page is active, not abandoned.";
+}
+function newsMediaPositioningWorkingReply(text=""){
   return "For News Canada and the Sandblast media page, the positioning should make reliability visible before the visitor has to think about it: lead with clear headlines, current story cards, readable timestamps or update cues, and a clean hierarchy that separates featured stories, recent updates, and media highlights. Keep older stories visible until they are replaced so the page never feels empty, but frame them as stable coverage rather than stale content. The trust move is to show source cleanliness, consistent refresh behavior, useful summaries, and a calm layout that tells visitors this is a maintained media surface, not a random feed.";
+}
+function newsMediaPositioningDeepReply(text=""){
+  return "A deeper News Canada trust strategy should make freshness, structure, and source discipline visible in layers: lead with the most current or featured story, separate recent updates from evergreen media highlights, show readable update cues, and keep older stories present until replacement content is ready. The page should never look empty or randomly assembled; it should look maintained, editorially intentional, and useful. The practical rule is to align story freshness, visual hierarchy, source cleanliness, summaries, and visitor confidence so the page feels like a stable Sandblast media surface rather than a loose feed.";
+}
+function newsMediaPositioningReply(text=""){
+  const depth=responseDepthProfile(text);
+  if(depth==="compact")return newsMediaPositioningCompactReply(text);
+  if(depth==="deep")return newsMediaPositioningDeepReply(text);
+  return newsMediaPositioningWorkingReply(text);
 }
 
 function isHighConfidenceOperationalLaneRequest(text="", intent="", routed={}){
