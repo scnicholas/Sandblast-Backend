@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.0.0 DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v3.1.0 CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -229,6 +229,12 @@ function normalizeInputSource(value) {
 function isInfrastructureContinuityPrompt(text) {
   const t = lower(normalizeRouterVoiceTextParity(text));
   return /\b(bootstrap|guard|manifest|declared path|root path|domain isolation|domain route|domain routing|fail[-\s]?closed|silent fallback|cross[-\s]?domain bleed|domain bleed|domain path|final envelope|state spine|5-turn|five-turn|continuity regression|mic text parity|input source parity|same route|same state|same final|response consistency)\b/i.test(t) || /\b(broken|invalid|failed|missing)\b.*\b(psychology|english|finance|general|domain)\b.*\b(affect|fallback|bleed|load|route)\b/i.test(t) || /\b(should not|must not|cannot)\b.*\b(affect|fall back|fallback|bleed)\b.*\b(english|finance|general|psychology)\b/i.test(t);
+}
+
+function isContinuationCompressionInstruction(text) {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  if (!t) return false;
+  return /\bcontinue from (?:the )?(?:last|previous) answer\b/i.test(t) && /\b(compress|one sentence|single sentence|final rule|without repeating|previous wording|same idea|shorten)\b/i.test(t);
 }
 
 function turnContinuityHash(value) {
@@ -571,6 +577,7 @@ function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
   if (isInfrastructureContinuityPrompt(t)) return { knowledgeDomain: "", explicit: false, reason: "technical_infrastructure_precedence" };
+  if (isContinuationCompressionInstruction(t)) return { knowledgeDomain: "", explicit: false, reason: "continuation_compression_precedence" };
 
   const domainTest = domainTestPhrase(t);
   if (domainTest) return { knowledgeDomain: domainTest, explicit: true, reason: "domain_test_phrase" };
@@ -587,7 +594,7 @@ function detectKnowledgeDomain(text) {
     if (has(item.rx, t)) return { knowledgeDomain: item.k, explicit: true, reason: "explicit_domain_phrase" };
   }
 
-  if (/\b(rewrite|polish|grammar|syntax|tone|professional clarity|business english|make this paragraph|make this sentence|language flow|wording|copyedit|proofread)\b/i.test(t)) {
+  if (!isContinuationCompressionInstruction(t) && /\b(rewrite|polish|grammar|syntax|tone|professional clarity|business english|make this paragraph|make this sentence|language flow|wording|copyedit|proofread)\b/i.test(t)) {
     return { knowledgeDomain: "english", explicit: false, reason: "english_language_terms" };
   }
   if (/\b(overwhelmed|spiraling|panic|numb|shutdown|attachment|shame|trauma|stabilize first|cognitive distortion|support strategy)\b/i.test(t)) {
@@ -1069,7 +1076,8 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
   if (/(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)/i.test(t)) addDomainCandidate(map, "technical", 0.96, "technical_terms");
   if (/(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
-  if (/(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
+  if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
+  else if (/(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
   if (/(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence)/i.test(t)) addDomainCandidate(map, "ai", 0.86, "ai_terms", "ai");
   if (/(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
   if (/(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
@@ -1293,6 +1301,7 @@ module.exports = {
   normalizeKnowledgeDomainName,
   normalizeIntent,
   routeMarionIntent,
+  isContinuationCompressionInstruction,
   normalizeInputSource,
   isInfrastructureContinuityPrompt,
   turnContinuityHash,
