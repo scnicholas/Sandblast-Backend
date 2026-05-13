@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.6.2 TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionBridge v7.6.3 OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -131,6 +131,7 @@ function canonicalTechnicalTargetFromText(text=""){
     [/\b(marion\s*bridge|marionbridge)\b/i,()=>mk("marionBridge","MarionBridge","marionBridge.js","Data/marion/runtime/marionBridge.js","bridge/handoff authority","node --check Data/marion/runtime/marionBridge.js")],
     [/\b(state\s*spine|statespine|state-spine)\b/i,()=>mk("stateSpine","StateSpine","stateSpine.js","Utils/stateSpine.js","continuity/state carry","node --check Utils/stateSpine.js")],
     [/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i,()=>mk("marionIntentRouter","MarionIntentRouter","marionIntentRouter.js","Data/marion/runtime/marionIntentRouter.js","intent routing","node --check Data/marion/runtime/marionIntentRouter.js")],
+    [/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i,()=>mk("marionCommandNormalizer","MarionCommandNormalizer","marionCommandNormalizer.js","Data/marion/runtime/marionCommandNormalizer.js","normalizer/packet stability","node --check Data/marion/runtime/marionCommandNormalizer.js")],
     [/\b(domain\s*router|domainrouter)\b/i,()=>mk("domainRouter","DomainRouter","domainRouter.js","Utils/domainRouter.js","knowledge-domain routing","node --check Utils/domainRouter.js")],
     [/\b(marion\s*domain\s*registry|domain\s*registry|mariondomainregistry)\b/i,()=>mk("marionDomainRegistry","MarionDomainRegistry","marionDomainRegistry.js","Data/marion/runtime/marionDomainRegistry.js","domain registry","node --check Data/marion/runtime/marionDomainRegistry.js")],
     [/\b(index\.js|index\s*js|server\s*route|api\/chat|\/api\/chat)\b/i,()=>mk("index","index.js","index.js","index.js","outer transport/API route","node --check index.js")]
