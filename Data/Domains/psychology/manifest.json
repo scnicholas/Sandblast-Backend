@@ -1,8 +1,8 @@
 {
   "domain": "psychology",
-  "schemaVersion": "2.2.0-hardened",
-  "manifestVersion": "2.2.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "2.2.1-hardened",
+  "manifestVersion": "2.2.1-hardened",
+  "updatedAt": "2026-05-12",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "psychology",
   "runtimeFolder": "Data/Domains/psychology",
@@ -42,14 +42,22 @@
       "intervention",
       "clinical safety"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "confidencePolicy": {
+      "confidenceFloor": 0.62,
+      "mixedIntentRequiresSecondaryLaneCheck": true,
+      "safetyLaneOverridesGeneralLane": true,
+      "lowConfidenceFallback": "general_with_domain_probe",
+      "preserveFinalEnvelope": true
+    }
   },
   "constraints": {
     "noMedicalAdvice": true,
     "notTherapy": true,
     "clinicalSafetyFirst": true,
     "crisisEscalationRequired": true,
-    "educationalSupportOnly": true
+    "educationalSupportOnly": true,
+    "noDiagnosis": true
   },
   "packs": [
     {
@@ -184,9 +192,27 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "loadOrderReferencesDeclaredInventory": true,
+    "requiredPacksPresentInLoadOrder": true,
+    "duplicateDefaultLoadOrderEntries": false,
+    "uniquePackIds": true,
+    "uniqueExampleIds": true,
+    "routingPrimaryLaneMatchesDomain": true,
+    "runtimeDomainKeyMatchesDomain": true
   },
   "notes": [
-    "Clinical safety kept first in load order; support lane remains educational and non-clinical."
-  ]
+    "Clinical safety kept first in load order; support lane remains educational and non-clinical.",
+    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
+  ],
+  "runtimeGuards": {
+    "mode": "educational_support_only",
+    "failClosedOnMissingRequiredPacks": true,
+    "safetyPackMustLoadFirst": true,
+    "crisisEscalationRequired": true,
+    "finalAnswerMustAvoidDiagnosis": true,
+    "preserveFinalEnvelope": true,
+    "domainIsolationRequired": true,
+    "bootstrapGuardRequired": true
+  }
 }
