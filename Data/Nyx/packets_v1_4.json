@@ -1,7 +1,7 @@
 {
-  "version": "packets_v1.4-D-commercial-hardened-greeting-bridge-anti-loop-scoped",
-  "updated": "2026-05-03",
-  "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
+  "version": "packets_v1.4-E-outer-scheduler-bypass-technical-target-lock",
+  "updated": "2026-05-13",
+  "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3 + outer scheduler bypass technical target lock patch",
   "voice": {
     "persona": "Nyx",
     "style": [
@@ -4351,24 +4351,28 @@
       "lane": "schedule",
       "trigger": [
         "schedule",
+        "show schedule",
+        "check schedule",
+        "open schedule",
         "what's playing",
         "whats playing",
         "playing now",
         "what's on",
         "whats on",
-        "now",
-        "today",
-        "tonight",
+        "what's on now",
+        "whats on now",
+        "current schedule",
+        "today's schedule",
+        "todays schedule",
+        "tonight's schedule",
+        "tonights schedule",
+        "what time is it",
         "what time",
-        "time in",
-        "in london",
-        "in toronto",
-        "in new york",
-        "in los angeles"
+        "time in"
       ],
       "templates": [
-        "Schedule depends on where you are.\nWhich city?",
-        "Tell me the city/timezone.\nThen: Now / Next / Later."
+        "For schedule, tell me the city or timezone.",
+        "I can check the schedule once you give me the city or timezone."
       ],
       "chips": [
         {
@@ -4405,14 +4409,34 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold"
+        "ifRepeatedUse": "advance_bridge_or_hold",
+        "requireExplicitScheduleTrigger": true,
+        "blockIfTechnicalTarget": true,
+        "suppressIfTechnicalIntent": true,
+        "suppressIfCurrentTextNamesKnownModule": true,
+        "forbiddenStandaloneTriggers": [
+          "now",
+          "today",
+          "tonight",
+          "in london",
+          "in toronto",
+          "in new york",
+          "in los angeles"
+        ],
+        "minimumTriggerStrength": "explicit_schedule_or_time_query"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true
-      }
+        "noPresenceOnlyFallback": true,
+        "technicalTargetBypassRequired": true,
+        "noStandaloneNowCapture": true
+      },
+      "notes": [
+        "Patched: removed broad standalone triggers that captured technical follow-ups such as 'Now give me a full autopsy on MarionBridge.'",
+        "Schedule packet must only fire on explicit schedule/time wording and must yield to Marion technical target lock."
+      ]
     },
     {
       "id": "schedule.need_city",
@@ -4422,8 +4446,8 @@
         "__schedule_need_city__"
       ],
       "templates": [
-        "City sets the clock.\nName it.",
-        "One location is enough.\nWhich city?"
+        "For schedule, name the city or timezone.",
+        "One location is enough for schedule lookup."
       ],
       "chips": [
         {
@@ -4461,13 +4485,17 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold"
+        "ifRepeatedUse": "advance_bridge_or_hold",
+        "blockIfTechnicalTarget": true,
+        "suppressIfTechnicalIntent": true,
+        "suppressIfCurrentTextNamesKnownModule": true
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true
+        "noPresenceOnlyFallback": true,
+        "technicalTargetBypassRequired": true
       }
     },
     {
@@ -4873,17 +4901,24 @@
       "nicks": "nyx",
       "nix": "nyx",
       "mix": "nyx",
-      "mike": "nyx",
-      "next": "nyx"
+      "mike": "nyx"
     },
-    "inputRule": "Normalize assistant-name voice/text aliases before packet matching. Mic and text must share the same submit path before Marion routing."
+    "inputRule": "Normalize assistant-name voice/text aliases before packet matching, but never normalize command words such as now/next/later into assistant names. Mic and text must share the same submit path before Marion routing.",
+    "technicalTargetPrecedenceRule": "Explicit Marion/Nyx module targets with autopsy/audit/check/review/patch/fix language must bypass schedule/date/time packet prompts and route to Marion technical_debug."
   },
   "hardening": "COMMERCIAL-HARDENED-PACKET-BRIDGE: backend-first, trigger-gated replies, sanitized state patches, duplicate-trigger pruning, replay-safe fallback contract",
   "auditSummary": {
     "packetCount": 61,
     "duplicateIds": [],
     "duplicateUserTriggersAfterPrune": [],
-    "emptyTemplatePackets": []
+    "emptyTemplatePackets": [],
+    "criticalFixesApplied": [
+      "Removed standalone schedule triggers: now, today, tonight, in london, in toronto, in new york, in los angeles.",
+      "Added schedule packet suppression when current text names a known Marion/Nyx technical module.",
+      "Removed unsafe assistant alias mapping: next -> nyx.",
+      "Added root technicalTargetBypassGuard for explicit technical autopsy/audit requests.",
+      "Reworded schedule city prompts so they cannot appear as generic follow-up replies."
+    ]
   },
   "audit": {
     "audit_date": "2026-05-06",
@@ -4896,7 +4931,10 @@
       "added emotional specificity and next-step operational bridges",
       "added guarded backend-empty behavior"
     ],
-    "status": "normalized_and_runtime_ready"
+    "status": "patched",
+    "latestAutopsy": "Full JSON autopsy found the active schedule packet could capture standalone 'now' before Marion technical routing. This caused 'Now give me a full autopsy on MarionBridge' to trigger a city/timezone prompt.",
+    "lineByLineAuditMethod": "Validated JSON parse, scanned all packets for schedule/city/timezone reply strings, inspected matching packet objects, corrected broad triggers and authority constraints, then revalidated JSON serialization.",
+    "criticalRisk": "schedule.open used bare trigger 'now' and city-only triggers, allowing non-schedule follow-up requests to be intercepted."
   },
   "antiLoopRuntimeContract": {
     "backendFirst": true,
@@ -4952,5 +4990,70 @@
         "requiresStateAdvance": true
       }
     }
-  ]
+  ],
+  "technicalTargetBypassGuard": {
+    "version": "nyx.packets.technicalTargetBypass/1.0",
+    "active": true,
+    "purpose": "Prevent schedule/date/time prompt packets from intercepting explicit Marion/Nyx technical autopsy/audit follow-ups.",
+    "knownTargets": {
+      "chatEngine": "Utils/chatEngine.js",
+      "marionBridge": "Data/marion/runtime/marionBridge.js",
+      "composeMarionResponse": "Data/marion/runtime/composeMarionResponse.js",
+      "stateSpine": "Utils/stateSpine.js",
+      "marionIntentRouter": "Data/marion/runtime/marionIntentRouter.js",
+      "domainRouter": "Utils/domainRouter.js",
+      "marionDomainRegistry": "Data/marion/runtime/marionDomainRegistry.js",
+      "index": "index.js",
+      "apiChat": "index.js"
+    },
+    "targetTerms": [
+      "ChatEngine",
+      "chat engine",
+      "MarionBridge",
+      "marion bridge",
+      "ComposeMarionResponse",
+      "compose marion response",
+      "StateSpine",
+      "state spine",
+      "marionIntentRouter",
+      "intent router",
+      "domainRouter",
+      "domain router",
+      "marionDomainRegistry",
+      "domain registry",
+      "index.js",
+      "api/chat",
+      "/api/chat"
+    ],
+    "technicalActionTerms": [
+      "full autopsy",
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "line by line",
+      "critical fix",
+      "critical fixes",
+      "check",
+      "inspect",
+      "review",
+      "patch",
+      "harden",
+      "fix"
+    ],
+    "bypassLanes": [
+      "schedule",
+      "calendar",
+      "time",
+      "reminder"
+    ],
+    "rule": "If current text contains a known technical target and a technical action term, suppress schedule/time packets and preserve Marion technical_debug routing.",
+    "currentUserTargetBeats": [
+      "previousMemory",
+      "previousTopic",
+      "schedulePacket",
+      "genericNextNowLaterPrompt",
+      "assistantAliasMap",
+      "stateCarry"
+    ]
+  }
 }
