@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.0 CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.1 TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -225,6 +225,27 @@ function normalizeInputSource(value) {
   if (/voice|speech|mic|audio|headset/.test(raw)) return "voice";
   if (/text|typed|keyboard|manual/.test(raw)) return "text";
   return raw || "text";
+}
+
+
+function canonicalTechnicalTargetFromText(text = "") {
+  const t = safeStr(text || "");
+  const mk = (targetKey, targetName, targetFile, targetPath, layer = "runtime") => ({ version: "nyx.marion.technicalTargetLock/1.1", targetKey, targetName, targetFile, targetPath, layer, explicit: true, source: "current_user_text", locked: true, technicalFollowUpLock: true, blockScheduleInterception: true });
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js", "transport");
+  if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js", "bridge");
+  if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
+  if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
+  if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
+  if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
+  return {};
+}
+function isTechnicalFollowUpIntent(text = "") {
+  const t = safeStr(text || "");
+  const target = canonicalTechnicalTargetFromText(t);
+  if (!target || !target.targetPath) return false;
+  return /\b(now|next|then|also|again|from there|after that|one more)\b/i.test(t) || /\b(full autopsy|autopsy|audit|line[-\s]?by[-\s]?line|critical fix|critical fixes|check|inspect|review|patch|harden|run)\b/i.test(t);
 }
 
 function isInfrastructureContinuityPrompt(text) {
@@ -645,6 +666,8 @@ function inferIntentFromText(text) {
   const t = lower(text);
   const safetyLevel = detectSafetyLevel(t);
   const knowledge = detectKnowledgeDomain(t);
+  const technicalTargetLock = canonicalTechnicalTargetFromText(text);
+  const technicalFollowUpLock = isTechnicalFollowUpIntent(text);
 
   if (!t) {
     return {
@@ -686,6 +709,24 @@ function inferIntentFromText(text) {
       knowledgeDomain: knowledge.knowledgeDomain || (safetyLevel === "crisis" || safetyLevel === "distress" ? "psychology" : ""),
       knowledgeDomainExplicit: !!knowledge.explicit,
       knowledgeDomainReason: knowledge.reason || "safety_psychology"
+    };
+  }
+
+  if (technicalTargetLock && technicalTargetLock.targetPath && safetyLevel === "none") {
+    return {
+      intent: "technical_debug",
+      confidence: 0.99,
+      reason: technicalFollowUpLock ? "technical_followup_target_lock" : "technical_target_lock",
+      stateStageHint: "execution",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: "technical_target_overrides_location_schedule_and_stale_memory",
+      routeLock: true,
+      technicalTargetLock,
+      technicalFollowUpLock: !!technicalFollowUpLock,
+      blockScheduleInterception: true
     };
   }
 
@@ -974,6 +1015,8 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   const inferred = inferIntentFromText(fallbackText);
   const explicit = normalizeIntentName(src.intent || src.type || src.name || "");
   const detectedKnowledge = detectKnowledgeDomain(fallbackText);
+  const technicalTargetLock = safeObj(src.technicalTargetLock || canonicalTechnicalTargetFromText(fallbackText));
+  const technicalFollowUpLock = !!(src.technicalFollowUpLock || isTechnicalFollowUpIntent(fallbackText));
   const explicitKnowledge = normalizeKnowledgeDomainName(src.knowledgeDomain || src.domainKnowledge || src.primaryKnowledgeDomain || safeObj(src.routing).knowledgeDomain || "");
   let knowledgeDomain = explicitKnowledge || inferred.knowledgeDomain || detectedKnowledge.knowledgeDomain || "";
 
@@ -983,6 +1026,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   let stateStageHint = safeStr(src.stateStageHint || src.stage || inferred.stateStageHint || "deliver");
   let safetyLevel = safeStr(src.safetyLevel || inferred.safetyLevel || "none");
   let recoveryRequired = Boolean(src.recoveryRequired || inferred.recoveryRequired);
+
+  if (technicalTargetLock && technicalTargetLock.targetPath && inferred.intent !== "emotional_support") {
+    intent = "technical_debug";
+    confidence = Math.max(confidence, 0.99);
+    reason = technicalFollowUpLock ? "technical_followup_target_lock" : "technical_target_lock";
+    stateStageHint = "execution";
+    recoveryRequired = false;
+    knowledgeDomain = "";
+  }
 
   if (isInfrastructureContinuityPrompt(fallbackText) && inferred.intent !== "emotional_support") {
     intent = "technical_debug";
@@ -1094,6 +1146,9 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     knowledgeDomain,
     knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
     knowledgeDomainReason: inferred.knowledgeDomainReason || detectedKnowledge.reason || "",
+    technicalTargetLock,
+    technicalFollowUpLock: !!technicalFollowUpLock,
+    blockScheduleInterception: !!(technicalTargetLock && technicalTargetLock.targetPath),
     knowledgeDomainActivationRequest: isKnowledgeDomainActivationRequest(fallbackText),
     source: safeStr(src.source || "marionIntentRouter"),
     inputSource: normalizeInputSource(src.inputSource || src.source || "text"),
@@ -1223,6 +1278,9 @@ function buildRouting(marionIntent) {
     knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
     knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
     knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
+    technicalTargetLock: safeObj(marionIntent.technicalTargetLock),
+    technicalFollowUpLock: !!marionIntent.technicalFollowUpLock,
+    blockScheduleInterception: !!marionIntent.blockScheduleInterception,
     domainConfidence: confidenceProfile,
     routeConfidence: confidenceProfile.confidence,
     routeConfidenceBand: confidenceProfile.band,
@@ -1366,6 +1424,8 @@ module.exports = {
   isContinuationCompressionInstruction,
   isNewsMediaPositioningRequest,
   normalizeInputSource,
+  canonicalTechnicalTargetFromText,
+  isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
   turnContinuityHash,
   confidenceBand,
@@ -1395,6 +1455,8 @@ module.exports = {
     buildRouting,
     normalizeRouterVoiceTextParity,
     normalizeInputSource,
+    canonicalTechnicalTargetFromText,
+    isTechnicalFollowUpIntent,
     isInfrastructureContinuityPrompt,
     turnContinuityHash,
     routerForensicNormalizationStatus
