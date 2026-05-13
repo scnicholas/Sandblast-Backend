@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.1 FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.14.2 TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -897,13 +897,37 @@ function canonicalTurnInputSource(inbound = {}, params = {}) {
   return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw) ? "voice" : "text";
 }
 
+
+function canonicalTechnicalTargetFromText(text=""){
+  const t=oneLine(text);
+  const mk=(targetKey,targetName,targetFile,targetPath)=>({version:"nyx.marion.technicalTargetLock/1.0",targetKey,targetName,targetFile,targetPath,explicit:true,source:"current_user_text",locked:true});
+  if(/\b(chat\s*engine|chatengine)\b/i.test(t))return mk("chatengine","ChatEngine","chatEngine.js","Utils/chatEngine.js");
+  if(/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t))return mk("composeMarionResponse","ComposeMarionResponse","composeMarionResponse.js","Data/marion/runtime/composeMarionResponse.js");
+  if(/\b(marion\s*bridge|marionbridge)\b/i.test(t))return mk("marionBridge","MarionBridge","marionBridge.js","Data/marion/runtime/marionBridge.js");
+  if(/\b(state\s*spine|statespine|state-spine)\b/i.test(t))return mk("stateSpine","StateSpine","stateSpine.js","Utils/stateSpine.js");
+  if(/\b(intent\s*router|marionintentrouter)\b/i.test(t))return mk("marionIntentRouter","MarionIntentRouter","marionIntentRouter.js","Data/marion/runtime/marionIntentRouter.js");
+  if(/\b(domain\s*router|domainrouter)\b/i.test(t))return mk("domainRouter","DomainRouter","domainRouter.js","Utils/domainRouter.js");
+  if(/\b(domain\s*registry|mariondomainregistry)\b/i.test(t))return mk("marionDomainRegistry","MarionDomainRegistry","marionDomainRegistry.js","Data/marion/runtime/marionDomainRegistry.js");
+  if(/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t))return mk("index","index.js","index.js","index.js");
+  return null;
+}
+function extractTechnicalTargetLockState(prev={},memoryPatch={},inbound={}){
+  const current=canonicalTechnicalTargetFromText(extractInboundText(inbound));
+  if(current)return current;
+  const mp=isPlainObject(memoryPatch)?memoryPatch:{}, prior=isPlainObject(prev)?prev:{};
+  const candidates=[mp.technicalTargetLock,mp?.stateBridge?.technicalTargetLock,prior.technicalTargetLock,prior?.stateBridge?.technicalTargetLock];
+  for(const item of candidates){if(isPlainObject(item)&&item.targetPath)return item;}
+  return {};
+}
+
 function extractFiveTurnContractState(prev = {}, memoryPatch = {}, inbound = {}) {
   const prior = isPlainObject(prev.fiveTurnContract) ? prev.fiveTurnContract : {};
   const mp = isPlainObject(memoryPatch.fiveTurnContract) ? memoryPatch.fiveTurnContract : {};
   const cr = isPlainObject(memoryPatch.continuityRegression) ? memoryPatch.continuityRegression : {};
   const text = oneLine(extractInboundText(inbound));
   const active = !!(mp.active || prior.active || /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|testing continuity|project is sandblast|stronger user engagement|what should we improve first|now connect.*roku|summarize the plan|mic\/?text|mic text|mytext|final[- ]?envelope authority|preserve route|preserve.*state)\b/i.test(text));
-  const target = firstNonEmpty(mp.regressionTarget, cr.regressionTarget, prior.regressionTarget, /preserve route,? state,? and final[- ]?envelope authority/i.test(text) ? "preserve route, state, and final-envelope authority" : "");
+  const technicalTargetLock=extractTechnicalTargetLockState(prev,memoryPatch,inbound);
+  const target = firstNonEmpty(safeObj(technicalTargetLock).targetPath, mp.regressionTarget, cr.regressionTarget, prior.regressionTarget, /preserve route,? state,? and final[- ]?envelope authority/i.test(text) ? "preserve route, state, and final-envelope authority" : "");
   let turn = clampInt(mp.turn || prior.turn, 0, 0, 999999);
   const m = text.match(/\bturn\s*([1-5])\b/i);
   if (m) turn = clampInt(m[1], turn, 1, 5);
@@ -912,16 +936,17 @@ function extractFiveTurnContractState(prev = {}, memoryPatch = {}, inbound = {})
   else if (/now connect.*roku|connect.*roku|make it sharper|make it commercial|consistent.*voice|typed input/i.test(text)) turn = 4;
   else if (/summarize.*plan|summarize.*regression|three steps|four bullets|user[- ]facing message|turn it into a user/i.test(text)) turn = 5;
   else if (/testing.*continuity|remember this target|refining progression shaping|progression shaping/i.test(text)) turn = 1;
-  return { version: "nyx.stateSpine.fiveTurnContract/1.0", active, turn, regressionTarget: boundedOneLine(target, 220), turnObjective: firstNonEmpty(mp.turnObjective, cr.turnObjective, prior.turnObjective, turn ? `five_turn_continuity_turn_${turn}` : ""), parityTarget: firstNonEmpty(mp.parityTarget, cr.parityTarget, prior.parityTarget, "same normalized intent, same route, same state carry, same final-envelope reply structure"), updatedAt: nowMs() };
+  return { version: "nyx.stateSpine.fiveTurnContract/1.0", active, turn, technicalTargetLock, regressionTarget: boundedOneLine(target, 220), turnObjective: firstNonEmpty(mp.turnObjective, cr.turnObjective, prior.turnObjective, turn ? `five_turn_continuity_turn_${turn}` : ""), parityTarget: firstNonEmpty(mp.parityTarget, cr.parityTarget, prior.parityTarget, "same normalized intent, same route, same state carry, same final-envelope reply structure"), updatedAt: nowMs() };
 }
 
 function buildFiveTurnContinuityState({ prev = {}, inbound = {}, memoryPatch = {}, speak = "", userHash = "", assistantHash = "", trustedFinalCompletion = false, nextTurnDepth = 0 } = {}) {
   const prior = isPlainObject(prev.continuityRegression) ? prev.continuityRegression : {};
   const window = Array.isArray(prior.window) ? prior.window.slice(-4) : [];
   const fiveTurnContract=extractFiveTurnContractState(prev,memoryPatch,inbound);
-  const marker = { at: nowMs(), source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160), regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective };
+  const technicalTargetLock=extractTechnicalTargetLockState(prev,memoryPatch,inbound);
+  const marker = { at: nowMs(), technicalTargetLock, source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160), regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective };
   if (trustedFinalCompletion) window.push(marker);
-  return { version: "nyx.stateSpine.fiveTurnContinuity/1.1", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective, parityTarget: fiveTurnContract.parityTarget, fiveTurnContract, updatedAt: nowMs() };
+  return { version: "nyx.stateSpine.fiveTurnContinuity/1.1", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective, parityTarget: fiveTurnContract.parityTarget, fiveTurnContract, technicalTargetLock, updatedAt: nowMs() };
 }
 
 function createState(seed = {}) {
