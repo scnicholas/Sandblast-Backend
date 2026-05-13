@@ -95,7 +95,7 @@ function buildBridgeRuntimeTelemetry({source="marionBridge",normalized={},routed
 
 
 function canonicalInputSource(input={}){const src=safeObj(input),payload=safeObj(src.payload),body=safeObj(src.body),session=safeObj(src.session),ui=safeObj(src.ui),client=safeObj(src.client);const raw=lower(firstText(src.inputSource,src.source,src.triggerSource,src.modality,payload.inputSource,payload.source,body.inputSource,body.source,session.inputSource,session.source,ui.inputSource,ui.source,client.inputSource,client.source,"text"));return /^(voice|mic|microphone|speech|spoken|audio)$/.test(raw)?"voice":"text";}
-function normalizeParityText(value=""){return safeStr(value).replace(/(nick\.?s|nickster|nick|nix|mix|mike)/gi,"Nyx").replace(/api/gi,"API").replace(/ui/gi,"UI").replace(/url/gi,"URL").replace(/\s+/g," ").trim();}
+function normalizeParityText(value=""){return safeStr(value).replace(/\b(nick\.?s|nickster|nick|nix|mix|mike)\b/gi,"Nyx").replace(/\bapi\b/gi,"API").replace(/\bui\b/gi,"UI").replace(/\burl\b/gi,"URL").replace(/\s+/g," ").trim();}
 function buildContinuityTurnKey(text,sessionId,turnId){return hashText([normalizeParityText(text),safeStr(sessionId),safeStr(turnId)].join("|"));}
 
 function jsonSafe(value, depth = 0, seen = new WeakSet()) {
