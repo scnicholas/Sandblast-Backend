@@ -1,8 +1,8 @@
 {
   "domain": "cyber",
-  "schemaVersion": "2.2.0-hardened",
-  "manifestVersion": "2.2.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "2.2.1-hardened",
+  "manifestVersion": "2.2.1-hardened",
+  "updatedAt": "2026-05-12",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "cyber",
   "runtimeFolder": "Data/Domains/Cyber",
@@ -12,7 +12,6 @@
     "packs/cyber_foundations_v2.json",
     "packs/cyber_source_ladder_v2.json",
     "packs/cyber_identity_access_v2.json",
-    "packs/cyber_endpoint_cloud_v1.json",
     "packs/cyber_endpoint_cloud_v2.json",
     "packs/cyber_network_web_v2.json",
     "packs/cyber_privacy_data_protection_v2.json",
@@ -47,7 +46,14 @@
       "defensive security",
       "hardening"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "confidencePolicy": {
+      "confidenceFloor": 0.62,
+      "mixedIntentRequiresSecondaryLaneCheck": true,
+      "safetyLaneOverridesGeneralLane": true,
+      "lowConfidenceFallback": "general_with_domain_probe",
+      "preserveFinalEnvelope": true
+    }
   },
   "constraints": {
     "defensiveCyberOnly": true,
@@ -116,8 +122,10 @@
         "legacy_compat"
       ],
       "presentInUpload": true,
-      "required": true,
-      "loadType": "knowledge_pack"
+      "required": false,
+      "loadType": "compatibility_pack",
+      "supersededBy": "packs/cyber_endpoint_cloud_v2.json",
+      "loadPolicy": "manual_compatibility_only"
     },
     {
       "packId": "endpointCloudV2",
@@ -196,6 +204,7 @@
       "exampleId": "safetyPostureExamples",
       "file": "examples/cyber_safety_and_posture_v1.json",
       "aliases": [
+        "defensive_examples",
         "examples",
         "safe_posture"
       ],
@@ -210,10 +219,29 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "loadOrderReferencesDeclaredInventory": true,
+    "requiredPacksPresentInLoadOrder": true,
+    "duplicateDefaultLoadOrderEntries": false,
+    "uniquePackIds": true,
+    "uniqueExampleIds": true,
+    "routingPrimaryLaneMatchesDomain": true,
+    "runtimeDomainKeyMatchesDomain": true
   },
   "notes": [
     "Folder casing preserved as Data/Domains/Cyber.",
-    "Rebuilt from conflicted manifest source and current inventory."
-  ]
+    "Rebuilt from conflicted manifest source and current inventory.",
+    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks.",
+    "2026-05-12 autopsy patch: endpoint_cloud v1 retained as optional compatibility pack; v2 is the default required runtime pack."
+  ],
+  "runtimeGuards": {
+    "mode": "defensive_security_only",
+    "failClosedOnMissingRequiredPacks": true,
+    "noExploitInstructions": true,
+    "privacyMinimization": true,
+    "leastPrivilegeDefault": true,
+    "preserveFinalEnvelope": true,
+    "domainIsolationRequired": true,
+    "bootstrapGuardRequired": true
+  }
 }
