@@ -16,7 +16,7 @@
  * before it reaches MarionBridge, marionIntentRouter, or StateSpine.
  */
 
-const VERSION = "marionCommandNormalizer v1.0.0 MARION-PACKET-STABILITY";
+const VERSION = "marionCommandNormalizer v1.1.0 TECHNICAL-FOLLOWUP-SCHEDULER-BYPASS + MARION-PACKET-STABILITY";
 
 const DEFAULT_SOURCE = "nyx-widget";
 const DEFAULT_CHANNEL = "chat";
@@ -129,6 +129,41 @@ function detectEmotionalSignal(text) {
   };
 }
 
+
+function canonicalTechnicalTargetFromText(text = "") {
+  const t = safeStr(text || "");
+  const mk = (targetKey, targetName, targetFile, targetPath, layer = "runtime") => ({
+    version: "nyx.marion.technicalTargetLock/1.2",
+    targetKey,
+    targetName,
+    targetFile,
+    targetPath,
+    layer,
+    explicit: true,
+    source: "current_user_text",
+    locked: true,
+    technicalFollowUpLock: true,
+    blockScheduleInterception: true
+  });
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js", "transport");
+  if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js", "bridge");
+  if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
+  if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
+  if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
+  if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
+  if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
+  return {};
+}
+
+function isTechnicalFollowUpIntent(text = "") {
+  const t = safeStr(text || "");
+  const target = canonicalTechnicalTargetFromText(t);
+  if (!target || !target.targetPath) return false;
+  return /\b(now|next|then|also|again|from there|after that|one more)\b/i.test(t) || /\b(full autopsy|autopsy|audit|line[-\s]?by[-\s]?line|critical fix|critical fixes|check|inspect|review|patch|harden|run|fix|update)\b/i.test(t);
+}
+
 function detectTechnicalSignal(text) {
   const t = safeLower(text);
 
@@ -231,6 +266,8 @@ function normalizeCommand(input = {}) {
 
   const emotionalSignal = detectEmotionalSignal(userText);
   const technicalSignal = detectTechnicalSignal(userText);
+  const technicalTargetLock = canonicalTechnicalTargetFromText(userText);
+  const technicalFollowUpLock = isTechnicalFollowUpIntent(userText);
   const inputKind = inferInputKind(userText);
 
   const packet = {
@@ -259,7 +296,9 @@ function normalizeCommand(input = {}) {
 
     signals: {
       emotional: emotionalSignal,
-      technical: technicalSignal
+      technical: technicalSignal,
+      technicalTargetLock,
+      technicalFollowUpLock
     },
 
     state: {
@@ -269,7 +308,9 @@ function normalizeCommand(input = {}) {
 
     routingHints: {
       preferEmotional: emotionalSignal.detected,
-      preferTechnical: technicalSignal.detected,
+      preferTechnical: technicalSignal.detected || technicalFollowUpLock,
+      forceTechnical: technicalFollowUpLock,
+      blockScheduleInterception: technicalFollowUpLock,
       requiresRecovery: previousState.loopCount > 0,
       allowFallback: true,
       allowLoopBlock: true
@@ -280,7 +321,10 @@ function normalizeCommand(input = {}) {
       bridgeCompatible: true,
       intentRouterCompatible: true,
       stateSpineCompatible: true,
-      composerCompatible: true
+      composerCompatible: true,
+      technicalTargetLock,
+      technicalFollowUpLock,
+      blockScheduleInterception: technicalFollowUpLock
     }
   };
 
@@ -302,9 +346,7 @@ module.exports = {
   VERSION,
   CONTRACT_VERSION,
   normalizeCommand,
-  isNormalizedMarionPacket
-<<<<<<< HEAD
+  isNormalizedMarionPacket,
+  canonicalTechnicalTargetFromText,
+  isTechnicalFollowUpIntent
 };
-=======
-};
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
