@@ -37,6 +37,9 @@ function isPlainObject(x) {
     (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null)
   );
 }
+function safeObj(x) {
+  return isPlainObject(x) ? x : {};
+}
 function uniq(arr, max = 8) {
   const out = [];
   const seen = new Set();
@@ -368,7 +371,7 @@ function domainConfidenceProfile(scores, text = "", opts = {}) {
   const minMargin = Number.isFinite(Number(opts.minMargin)) ? Number(opts.minMargin) : 0.14;
   const ambiguous = !infrastructure && (confidence < minConfidence || margin < minMargin);
   return {
-    version: "nyx.domainConfidenceScoring/1.0",
+    version: "nyx.domainConfidenceScoring/1.1",
     primary,
     secondary,
     confidence: Number(confidence.toFixed(4)),
