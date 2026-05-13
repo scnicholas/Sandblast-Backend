@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.7sb FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51";
+const INDEX_VERSION = "index.js v2.18.8sb TECHNICAL-FOLLOWUP-INTENT-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 
@@ -606,13 +606,52 @@ function canonicalMarionIntent(value) {
   return MARION_INTENT_ALIAS[raw] || raw;
 }
 
+
+function canonicalTechnicalTargetFromText(text = "") {
+  const t = cleanText(text || "");
+  const mk = (targetKey, targetName, targetFile, targetPath, layer = "runtime") => ({
+    version: "nyx.marion.technicalTargetLock/1.1",
+    targetKey,
+    targetName,
+    targetFile,
+    targetPath,
+    layer,
+    explicit: true,
+    source: "current_user_text",
+    locked: true,
+    technicalFollowUpLock: true,
+    blockScheduleInterception: true
+  });
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js", "transport");
+  if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js", "bridge");
+  if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
+  if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
+  if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
+  if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
+  return {};
+}
+
+function isTechnicalFollowUpIntent(text = "") {
+  const t = cleanText(text || "");
+  if (!t) return false;
+  const target = canonicalTechnicalTargetFromText(t);
+  if (!target || !target.targetPath) return false;
+  return /\b(now|next|then|also|again|from there|after that|one more)\b/i.test(t) || /\b(full autopsy|autopsy|audit|line[-\s]?by[-\s]?line|critical fix|critical fixes|check|inspect|review|patch|harden|run)\b/i.test(t);
+}
+
 function normalizeIncomingMarionIntent(raw, fallbackText) {
   const src = isObj(raw) ? raw : {};
   const intent = canonicalMarionIntent(src.intent || src.type || "");
   const text = lower(fallbackText || "");
+  const technicalTargetLock = canonicalTechnicalTargetFromText(fallbackText || "");
+  const technicalFollowUpLock = isTechnicalFollowUpIntent(fallbackText || "");
   let inferred = intent;
+  if (technicalTargetLock && technicalTargetLock.targetPath && intent !== "emotional_support") inferred = "technical_debug";
   if (!inferred || inferred === "simple_chat") {
-    if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
+    if (technicalFollowUpLock || (technicalTargetLock && technicalTargetLock.targetPath)) inferred = "technical_debug";
+    else if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
     else if (/(sad|stressed|overwhelmed|depressed|anxious|hurt|alone|frustrated|panic|grief)/i.test(text)) inferred = "emotional_support";
     else if (/(pricing|sponsor|media kit|monetize|pitch|funding|investor|sales|proposal|revenue)/i.test(text)) inferred = "business_strategy";
     else if (/(top\s*10|song|artist|album|chart|music|radio|playlist)/i.test(text)) inferred = "music_query";
@@ -625,7 +664,7 @@ function normalizeIncomingMarionIntent(raw, fallbackText) {
   const activate = typeof src.activate === "boolean" ? src.activate : inferred !== "simple_chat";
   const n = Number(src.confidence);
   const confidence = Number.isFinite(n) ? clamp(n, 0, 1) : (activate ? 0.66 : 0.4);
-  const domain = cleanText(src.domain || src.routeDomain || MARION_DOMAIN_BY_INTENT[inferred] || "general") || "general";
+  const domain = technicalTargetLock && technicalTargetLock.targetPath ? "technical" : (cleanText(src.domain || src.routeDomain || MARION_DOMAIN_BY_INTENT[inferred] || "general") || "general");
   return {
     activate,
     intent: inferred,
@@ -634,7 +673,10 @@ function normalizeIncomingMarionIntent(raw, fallbackText) {
     source: cleanText(src.source || src.triggerSource || (isObj(raw) ? "widget" : "index")) || "index",
     triggerSource: cleanText(src.triggerSource || src.source || (isObj(raw) ? "widget" : "index")) || "index",
     domain,
-    routeDomain: domain
+    routeDomain: domain,
+    technicalTargetLock,
+    technicalFollowUpLock: !!technicalFollowUpLock,
+    blockScheduleInterception: !!(technicalTargetLock && technicalTargetLock.targetPath)
   };
 }
 
@@ -662,7 +704,10 @@ function buildMarionIntentRouting(intentPacket, lane) {
     depth,
     useDomainKnowledge: domain !== "general",
     useMemory: domain === "memory" || mi.intent === "identity_or_memory",
-    triggerSource: mi.triggerSource || mi.source || "index"
+    triggerSource: mi.triggerSource || mi.source || "index",
+    technicalTargetLock: safeObj(mi.technicalTargetLock),
+    technicalFollowUpLock: !!mi.technicalFollowUpLock,
+    blockScheduleInterception: !!mi.blockScheduleInterception
   };
 }
 
@@ -674,7 +719,10 @@ function routeMarionIntentThroughRuntime(intentPacket, lane, text) {
         text: cleanText(text || ""),
         lane: cleanText(lane || "general") || "general",
         marionIntent: normalized,
-        session: { lane: cleanText(lane || "general") || "general" }
+        technicalTargetLock: safeObj(normalized.technicalTargetLock),
+        technicalFollowUpLock: !!normalized.technicalFollowUpLock,
+        blockScheduleInterception: !!normalized.blockScheduleInterception,
+        session: { lane: cleanText(lane || "general") || "general", technicalTargetLock: safeObj(normalized.technicalTargetLock) }
       });
       if (isObj(routed)) {
         return {
@@ -4138,6 +4186,9 @@ function normalizePayload(req) {
     marionIntent,
     marionRouting,
     marionRuntimeRoutingMeta: isObj(routedMarionIntent.meta) ? routedMarionIntent.meta : {},
+    technicalTargetLock: safeObj(marionIntent.technicalTargetLock || marionRouting.technicalTargetLock),
+    technicalFollowUpLock: !!(marionIntent.technicalFollowUpLock || marionRouting.technicalFollowUpLock),
+    blockScheduleInterception: !!(marionIntent.blockScheduleInterception || marionRouting.blockScheduleInterception),
     lane,
     year: cleanText(payload.year || body.year || ""),
     mode: cleanText(payload.mode || body.mode || ""),
