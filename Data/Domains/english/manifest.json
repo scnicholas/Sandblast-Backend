@@ -1,8 +1,8 @@
 {
   "domain": "english",
-  "schemaVersion": "2.2.0-hardened",
-  "manifestVersion": "2.2.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "2.2.1-hardened",
+  "manifestVersion": "2.2.1-hardened",
+  "updatedAt": "2026-05-12",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "english",
   "runtimeFolder": "Data/Domains/english",
@@ -46,12 +46,20 @@
       "academic writing",
       "professional writing"
     ],
-    "safetyFirst": false
+    "safetyFirst": false,
+    "confidencePolicy": {
+      "confidenceFloor": 0.62,
+      "mixedIntentRequiresSecondaryLaneCheck": true,
+      "safetyLaneOverridesGeneralLane": true,
+      "lowConfidenceFallback": "general_with_domain_probe",
+      "preserveFinalEnvelope": true
+    }
   },
   "constraints": {
     "preserveUserMeaning": true,
     "doNotInventFacts": true,
-    "styleDisclosureWhenTransforming": true
+    "styleDisclosureWhenTransforming": true,
+    "preserveVoiceWhenRequested": true
   },
   "packs": [
     {
@@ -201,9 +209,27 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "loadOrderReferencesDeclaredInventory": true,
+    "requiredPacksPresentInLoadOrder": true,
+    "duplicateDefaultLoadOrderEntries": false,
+    "uniquePackIds": true,
+    "uniqueExampleIds": true,
+    "routingPrimaryLaneMatchesDomain": true,
+    "runtimeDomainKeyMatchesDomain": true
   },
   "notes": [
-    "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files."
-  ]
+    "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files.",
+    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
+  ],
+  "runtimeGuards": {
+    "mode": "language_transformation_support",
+    "failClosedOnMissingRequiredPacks": true,
+    "preserveUserMeaning": true,
+    "doNotInventFacts": true,
+    "styleDisclosureWhenTransforming": true,
+    "preserveFinalEnvelope": true,
+    "domainIsolationRequired": true,
+    "bootstrapGuardRequired": true
+  }
 }
