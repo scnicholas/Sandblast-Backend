@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.2 OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.3 IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -225,6 +225,11 @@ function normalizeInputSource(value) {
   if (/voice|speech|mic|audio|headset/.test(raw)) return "voice";
   if (/text|typed|keyboard|manual/.test(raw)) return "text";
   return raw || "text";
+}
+
+function isIdentityNameQuestion(text = "") {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  return /\b(who are you|what are you|what(?:\'|’)s your name|what is your name|your name|what should i call you|are you nyx|is your name nyx|your identity|your role)\b/i.test(t);
 }
 
 
@@ -1323,6 +1328,10 @@ function buildRouting(marionIntent) {
   };
 }
 function routeMarionIntent(packet = {}) {
+  const __identityText = extractText(packet);
+  if (isIdentityNameQuestion(__identityText)) {
+    return { ok:true, marionIntent:{ activate:true, intent:"identity_query", confidence:0.96, reason:"identity_reset_name_anchor", source:"marionIntentRouter", identityAnchorRequired:true }, routing:{ domain:"identity", intent:"identity_query", mode:"identity", depth:"identity_baseline", endpoint:CANONICAL_ENDPOINT, domainConfidence:{ version:DOMAIN_CONFIDENCE_VERSION, confidence:0.96, band:"high", routeLocked:true, primaryDomain:"identity", reason:"identity_reset_name_anchor" } }, meta:{ routerVersion:VERSION, identityResetAnchor:true } };
+  }
   const text = extractText(packet);
   const src = safeObj(packet);
   const existingIntent = extractExistingIntent(src);
