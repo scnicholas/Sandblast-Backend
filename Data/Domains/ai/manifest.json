@@ -1,8 +1,8 @@
 {
   "domain": "ai",
-  "schemaVersion": "1.4.0-hardened",
-  "manifestVersion": "1.4.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "1.4.1-hardened",
+  "manifestVersion": "1.4.1-hardened",
+  "updatedAt": "2026-05-12",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "ai",
   "runtimeFolder": "Data/Domains/ai",
@@ -47,7 +47,14 @@
       "alignment",
       "explainability"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "confidencePolicy": {
+      "confidenceFloor": 0.62,
+      "mixedIntentRequiresSecondaryLaneCheck": true,
+      "safetyLaneOverridesGeneralLane": true,
+      "lowConfidenceFallback": "general_with_domain_probe",
+      "preserveFinalEnvelope": true
+    }
   },
   "constraints": {
     "noInvestmentAdvice": true,
@@ -55,7 +62,8 @@
     "noMedicalAdvice": true,
     "defensiveCyberOnly": true,
     "privacyMinimization": true,
-    "humanOversightRecommended": true
+    "humanOversightRecommended": true,
+    "sourceDisclosureWhenCurrentClaims": true
   },
   "packs": [
     {
@@ -187,10 +195,28 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "loadOrderReferencesDeclaredInventory": true,
+    "requiredPacksPresentInLoadOrder": true,
+    "duplicateDefaultLoadOrderEntries": false,
+    "uniquePackIds": true,
+    "uniqueExampleIds": true,
+    "routingPrimaryLaneMatchesDomain": true,
+    "runtimeDomainKeyMatchesDomain": true
   },
   "notes": [
     "Runtime domain normalized from artificial_intelligence to ai for router/registry cohesion.",
-    "All file references aligned to Data/Domains/ai actual inventory."
-  ]
+    "All file references aligned to Data/Domains/ai actual inventory.",
+    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
+  ],
+  "runtimeGuards": {
+    "mode": "ai_education_and_systems_support",
+    "failClosedOnMissingRequiredPacks": true,
+    "humanOversightRecommended": true,
+    "privacyMinimization": true,
+    "defensiveCyberOnly": true,
+    "preserveFinalEnvelope": true,
+    "domainIsolationRequired": true,
+    "bootstrapGuardRequired": true
+  }
 }
