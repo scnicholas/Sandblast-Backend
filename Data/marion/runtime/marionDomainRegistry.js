@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.7.0 MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -349,8 +349,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/psychology",
-    manifestHint: "domains/psychology/manifest.json"
+    dataRootHint: "Data/Domains/psychology",
+    manifestHint: "Data/Domains/psychology/manifest.json"
   }),
   english: Object.freeze({
     domain: "english",
@@ -364,8 +364,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: false,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/english",
-    manifestHint: "domains/english/manifest.json"
+    dataRootHint: "Data/Domains/english",
+    manifestHint: "Data/Domains/english/manifest.json"
   }),
   ai: Object.freeze({
     domain: "ai",
@@ -379,8 +379,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: false,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/ai",
-    manifestHint: "domains/ai/manifest.json"
+    dataRootHint: "Data/Domains/ai",
+    manifestHint: "Data/Domains/ai/manifest.json"
   }),
   cyber: Object.freeze({
     domain: "cyber",
@@ -395,8 +395,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     defensiveOnly: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/cyber",
-    manifestHint: "domains/cyber/manifest.json"
+    dataRootHint: "Data/Domains/Cyber",
+    manifestHint: "Data/Domains/Cyber/manifest.json"
   }),
   law: Object.freeze({
     domain: "law",
@@ -411,8 +411,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     noLegalAdvice: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/law",
-    manifestHint: "domains/law/manifest.json"
+    dataRootHint: "Data/Domains/law",
+    manifestHint: "Data/Domains/law/manifest.json"
   }),
   finance: Object.freeze({
     domain: "finance",
@@ -427,8 +427,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     noInvestmentAdvice: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/finance",
-    manifestHint: "domains/finance/manifest.json"
+    dataRootHint: "Data/Domains/finance",
+    manifestHint: "Data/Domains/finance/manifest.json"
   })
 });
 
