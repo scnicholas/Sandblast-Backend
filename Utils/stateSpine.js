@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.0 PROGRESSION-SHAPING-REGRESSION-CARRY + FIVE-TURN-CONTINUITY-ADVANCEMENT-CARRY + CONTINUATION-COMPRESSION-GUARD-CARRY + PROGRESSION-SHAPING-GUARD-CARRY + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + DOMAIN-CONFIDENCE-CARRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + LOOP-ORIGIN-FINAL-STAGE-NORMALIZED";
+const SPINE_VERSION = "stateSpine v2.14.1 FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -735,7 +735,7 @@ function hasExplicitFinalEnvelopeContract(params = {}) {
     candidate &&
     isPlainObject(candidate) &&
     candidate.contractVersion === FINAL_ENVELOPE_CONTRACT &&
-    candidate.source === "marion" &&
+    /^(marion|composeMarionResponse|marionBridge)$/i.test(safeStr(candidate.source || candidate.authority || "marion")) &&
     candidate.signature === FINAL_SIGNATURE &&
     candidate.final === true &&
     candidate.marionFinal === true
@@ -772,10 +772,13 @@ function hasTrustedMarionFinalEnvelope(params = {}) {
   const sig = extractMarionFinalSignature(p);
   const reply = extractComposerReply(p);
 
+  const finalEnvelope = extractFinalEnvelopeObject(p);
   const marionSideFinal = !!(
     p.marionFinal ||
     inbound.marionFinal ||
     meta.marionFinal ||
+    finalEnvelope.marionFinal ||
+    finalEnvelope.final ||
     marion.marionFinal ||
     packet.marionFinal ||
     packetMeta.marionFinal ||
