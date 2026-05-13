@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.1 FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const VERSION = "ChatEngine v3.9.2 TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -113,6 +113,7 @@ function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",truste
     lane: extractLane(src),
     turnId: extractTurnId(src),
     inputSource: firstText(src.inputSource,src.source,safeObj(src.session).inputSource,inherited.inputSource,"text"),
+    technicalTargetLock: safeObj(src.technicalTargetLock || safeObj(src.sessionPatch).technicalTargetLock || safeObj(packetMeta).technicalTargetLock || inherited.technicalTargetLock),
     replySignature: reply ? hashText(reply) : firstText(inherited.replySignature,packetMeta.replySignature,""),
     trustedFinalEnvelope: !!trustedFinalEnvelope,
     finalEnvelope: !!finalEnvelope,
@@ -225,6 +226,7 @@ function compactStateBridgeForTransport(value = {}) {
   const bridge = safeObj(value);
   if (!Object.keys(bridge).length) return {};
   const carry = extractCreativeCognitiveCarryFromPatch({ stateBridge: bridge });
+  const technicalTargetLock = safeObj(bridge.technicalTargetLock || bridge.targetLock);
   const out = {
     composedOnce: !!bridge.composedOnce,
     shouldAdvanceState: !!bridge.shouldAdvanceState,
@@ -235,6 +237,7 @@ function compactStateBridgeForTransport(value = {}) {
     continuityTopic: clipText(firstText(bridge.continuityTopic, bridge.topic), 160),
     updatedAt: Number(bridge.updatedAt || 0) || 0
   };
+  if (Object.keys(technicalTargetLock).length) out.technicalTargetLock = technicalTargetLock;
   if (Object.keys(carry).length) out.creativeCognitiveCarry = carry;
   return out;
 }
