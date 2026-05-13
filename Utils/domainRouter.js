@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.4.1 FINANCE-CONFIDENCE-PRECISION + DOMAIN-CONFIDENCE-SCORING + FIVE-TURN-CONTINUITY + MIC-TEXT-PARITY + TECHNICAL-INFRA-PRECEDENCE";
+const ROUTER_VERSION = "domainRouter v1.5.0 CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -112,6 +112,7 @@ function hasAny(text, reList) {
 // -------------------------
 const DOMAIN_ENUM = Object.freeze({
   CORE: "core", // generic fallback
+  TECH: "technical", // backend/runtime diagnostics
   MUSIC: "music", // (if you use it)
   PSY: "psychology",
   CYBER: "cyber",
@@ -124,6 +125,7 @@ const DOMAIN_ENUM = Object.freeze({
 });
 
 const DEFAULT_DOMAIN_ORDER = Object.freeze([
+  DOMAIN_ENUM.TECH,
   DOMAIN_ENUM.AI,
   DOMAIN_ENUM.FIN,
   DOMAIN_ENUM.LAW,
@@ -138,6 +140,9 @@ const DEFAULT_DOMAIN_ORDER = Object.freeze([
 // keyword maps (lightweight)
 // -------------------------
 const KEYWORDS = Object.freeze({
+  [DOMAIN_ENUM.TECH]: [
+    /\b(full autopsy|line[-\s]?by[-\s]?line audit|critical fix|critical fixes|backend|frontend|widget|marion|nyx|state spine|statespine|chatengine|intent router|domain registry|domainrouter|composemarionresponse|final envelope|telemetry|pipeline|bootstrap guard|manifest|structural integrity)\b/,
+  ],
   [DOMAIN_ENUM.AI]: [
     /\b(artificial intelligence|machine learning|deep learning|neural|transformer|llm|prompt|rag|embedding|vector|fine[-\s]?tune|agent(s)?|tool use|reasoning|inference|model eval|alignment|rlhf|policy)\b/,
     /\b(pytorch|tensorflow|keras|hugging ?face|onnx|openai|anthropic|gemini|llama|mistral)\b/,
@@ -152,7 +157,7 @@ const KEYWORDS = Object.freeze({
     /\b(ethics|ethical|duty of care|fiduciary|negligence|damages)\b/,
   ],
   [DOMAIN_ENUM.CYBER]: [
-    /\b(cyber|security|infosec|phish|malware|ransom|breach|exploit|vulnerability|patch|zero[-\s]?day|ddos|xss|sql injection|auth|mfa)\b/,
+    /\b(cyber|cybersecurity|security|infosec|phish|malware|ransom|breach|exploit|vulnerability|patch|zero[-\s]?day|ddos|xss|sql injection|auth|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/,
   ],
   [DOMAIN_ENUM.PSY]: [
     /\b(psychology|cognitive|behavior|bias(es)?|therapy|trauma|attachment|emotion regulation|mental health|clinical)\b/,
@@ -179,6 +184,13 @@ const RISK_TIER = Object.freeze({
 const DOMAIN_ALIASES = Object.freeze({
   general: DOMAIN_ENUM.CORE,
   core: DOMAIN_ENUM.CORE,
+  technical: DOMAIN_ENUM.TECH,
+  diagnostics: DOMAIN_ENUM.TECH,
+  backend: DOMAIN_ENUM.TECH,
+  autopsy: DOMAIN_ENUM.TECH,
+  audit: DOMAIN_ENUM.TECH,
+  router: DOMAIN_ENUM.TECH,
+  manifest: DOMAIN_ENUM.TECH,
   emotion: DOMAIN_ENUM.PSY,
   psychology: DOMAIN_ENUM.PSY,
   psych: DOMAIN_ENUM.PSY,
@@ -219,6 +231,7 @@ function applyLaneActionHeuristics(scores, norm) {
   const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
   const turnHash = continuityHash(n.text || n.query || n.message || "");
 
+  if (lane === "technical" || lane === "debug" || lane === "diagnostics") scores[DOMAIN_ENUM.TECH] += 2.6;
   if (lane === "law") scores[DOMAIN_ENUM.LAW] += 2.2;
   if (lane === "finance" || lane === "fin") scores[DOMAIN_ENUM.FIN] += 2.2;
   if (lane === "cyber") scores[DOMAIN_ENUM.CYBER] += 2.2;
@@ -228,6 +241,7 @@ function applyLaneActionHeuristics(scores, norm) {
   if (lane === "ai" || lane === "artificial_intelligence") scores[DOMAIN_ENUM.AI] += 2.4;
 
   // action routing (your ecosystem uses lots of actions; keep generic)
+  if (/autopsy|audit|debug|diagnostic|router|manifest|bootstrap|runtime|pipeline|final|envelope|state/.test(action)) scores[DOMAIN_ENUM.TECH] += 1.8;
   if (/contract|nda|terms|policy/.test(action)) scores[DOMAIN_ENUM.LAW] += 1.4;
   if (/budget|pricing|unit|invoice|forecast|finance|cash|cashflow|cash_flow|runway|margin|risk/.test(action)) scores[DOMAIN_ENUM.FIN] += 1.4;
   if (/phish|breach|malware|security/.test(action)) scores[DOMAIN_ENUM.CYBER] += 1.4;
@@ -286,6 +300,11 @@ function applyIntentMode(scores, cog, session) {
 
   const intent = safeStr(c.intent || "", 12).toUpperCase();
   const mode = safeStr(c.mode || s.macMode || "", 16).toLowerCase();
+
+  if (intent === "TECHNICAL_DEBUG" || intent === "DEBUG" || intent === "DIAGNOSTIC") {
+    scores[DOMAIN_ENUM.TECH] += 2.2;
+    scores[DOMAIN_ENUM.CORE] += 0.4;
+  }
 
   // Stabilize -> bias to psychology + english + core
   if (intent === "STABILIZE") {
@@ -378,6 +397,8 @@ function domainConfidenceProfile(scores, text = "", opts = {}) {
     margin: Number(margin.toFixed(4)),
     ambiguous,
     routeLocked: infrastructure || (!ambiguous && confidence >= minConfidence),
+    failClosed: !!ambiguous,
+    primaryDomain: primary,
     fallbackDomain: ambiguous ? DOMAIN_ENUM.CORE : primary,
     top: entries.slice(0, 4).map(([domain, score]) => ({ domain, score: Number(score.toFixed ? score.toFixed(4) : score) })),
     reason: infrastructure ? "technical_infrastructure_precedence" : (ambiguous ? "low_margin_or_low_confidence" : "highest_weighted_domain")
@@ -420,9 +441,10 @@ function scoreDomains(norm, session, cog, opts = {}) {
   applyRiskClamp(scores, c);
 
   if (isInfrastructureContinuityPrompt(n.text || n.query || n.message || "")) {
-    scores[DOMAIN_ENUM.CORE] += 3.0;
-    scores[DOMAIN_ENUM.STRAT] += 1.1;
-    scores[DOMAIN_ENUM.AI] += 0.6;
+    scores[DOMAIN_ENUM.TECH] += 3.6;
+    scores[DOMAIN_ENUM.CORE] += 0.8;
+    scores[DOMAIN_ENUM.STRAT] += 0.4;
+    scores[DOMAIN_ENUM.AI] += 0.4;
     scores[DOMAIN_ENUM.FIN] -= 1.4;
     scores[DOMAIN_ENUM.PSY] -= 0.8;
     signals.push("precedence:technical_infrastructure");
@@ -504,6 +526,8 @@ function routeDomain(norm, session, cog, opts = {}) {
     primary: canonicalizeDomain(pick.primary),
     secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
     reason,
+    domainConfidence,
+    confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
     signals: scored.signals,
     routing: {
       domain: canonicalizeDomain(pick.primary),
