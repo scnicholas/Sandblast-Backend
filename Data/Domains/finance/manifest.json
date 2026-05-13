@@ -1,8 +1,8 @@
 {
   "domain": "finance",
-  "schemaVersion": "1.1.0-hardened",
-  "manifestVersion": "1.1.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "1.1.1-hardened",
+  "manifestVersion": "1.1.1-hardened",
+  "updatedAt": "2026-05-12",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "finance",
   "runtimeFolder": "Data/Domains/finance",
@@ -45,13 +45,21 @@
       "inflation",
       "rates"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "confidencePolicy": {
+      "confidenceFloor": 0.62,
+      "mixedIntentRequiresSecondaryLaneCheck": true,
+      "safetyLaneOverridesGeneralLane": true,
+      "lowConfidenceFallback": "general_with_domain_probe",
+      "preserveFinalEnvelope": true
+    }
   },
   "constraints": {
     "noInvestmentAdvice": true,
     "educationalOnly": true,
     "assumptionDisclosureRequired": true,
-    "scenarioBasedReasoning": true
+    "scenarioBasedReasoning": true,
+    "noPersonalFinancialAdvice": true
   },
   "packs": [
     {
@@ -198,10 +206,28 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "loadOrderReferencesDeclaredInventory": true,
+    "requiredPacksPresentInLoadOrder": true,
+    "duplicateDefaultLoadOrderEntries": false,
+    "uniquePackIds": true,
+    "uniqueExampleIds": true,
+    "routingPrimaryLaneMatchesDomain": true,
+    "runtimeDomainKeyMatchesDomain": true
   },
   "notes": [
     "Manifest file references corrected from *_normalized.json to actual inventory filenames.",
-    "Conflicted duplicate manifest source was not used for finance output; clean finance manifest retained and hardened."
-  ]
+    "Conflicted duplicate manifest source was not used for finance output; clean finance manifest retained and hardened.",
+    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
+  ],
+  "runtimeGuards": {
+    "mode": "financial_education_only",
+    "failClosedOnMissingRequiredPacks": true,
+    "assumptionDisclosureRequired": true,
+    "scenarioBasedReasoning": true,
+    "finalAnswerMustAvoidInvestmentAdvice": true,
+    "preserveFinalEnvelope": true,
+    "domainIsolationRequired": true,
+    "bootstrapGuardRequired": true
+  }
 }
