@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.2 TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.14.3 TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -900,7 +900,7 @@ function canonicalTurnInputSource(inbound = {}, params = {}) {
 
 function canonicalTechnicalTargetFromText(text=""){
   const t=oneLine(text);
-  const mk=(targetKey,targetName,targetFile,targetPath)=>({version:"nyx.marion.technicalTargetLock/1.0",targetKey,targetName,targetFile,targetPath,explicit:true,source:"current_user_text",locked:true});
+  const mk=(targetKey,targetName,targetFile,targetPath)=>({version:"nyx.marion.technicalTargetLock/1.0",targetKey,targetName,targetFile,targetPath,explicit:true,source:"current_user_text",locked:true,technicalFollowUpLock:true,blockScheduleInterception:true});
   if(/\b(chat\s*engine|chatengine)\b/i.test(t))return mk("chatengine","ChatEngine","chatEngine.js","Utils/chatEngine.js");
   if(/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t))return mk("composeMarionResponse","ComposeMarionResponse","composeMarionResponse.js","Data/marion/runtime/composeMarionResponse.js");
   if(/\b(marion\s*bridge|marionbridge)\b/i.test(t))return mk("marionBridge","MarionBridge","marionBridge.js","Data/marion/runtime/marionBridge.js");
