@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.5.0 CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.1 TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -82,6 +82,24 @@ function normalizeVoiceTextParityText(value) {
     .replace(/\b(5\s*term|five\s*term|five\s*turn|5\s*turn)\b/gi, "5-turn")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+
+function canonicalTechnicalTargetFromText(text = "") {
+  const t = safeStr(text, 1400);
+  const mk = (targetKey, targetName, targetFile, targetPath) => ({ version: "nyx.marion.technicalTargetLock/1.1", targetKey, targetName, targetFile, targetPath, explicit: true, source: "current_user_text", locked: true, technicalFollowUpLock: true, blockScheduleInterception: true });
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js");
+  if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js");
+  if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js");
+  if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js");
+  if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js");
+  return {};
+}
+function isTechnicalFollowUpIntent(text = "") {
+  const target = canonicalTechnicalTargetFromText(text);
+  return !!(target && target.targetPath && (/\b(now|next|then|also|again|after that|from there)\b/i.test(text) || /\b(full autopsy|autopsy|audit|line[-\s]?by[-\s]?line|check|inspect|review|patch|harden|run)\b/i.test(text)));
 }
 
 function isInfrastructureContinuityPrompt(text) {
@@ -254,6 +272,13 @@ function applyLaneActionHeuristics(scores, norm) {
 
 function applyKeywordSignals(scores, norm) {
   const text = normalizeVoiceTextParityText(isPlainObject(norm) ? norm.text : "");
+  const technicalTargetLock = canonicalTechnicalTargetFromText(text);
+  if (technicalTargetLock && technicalTargetLock.targetPath) {
+    scores[DOMAIN_ENUM.TECH] += 4.8;
+    scores[DOMAIN_ENUM.CORE] -= 0.6;
+    scores[DOMAIN_ENUM.EN] -= 0.4;
+    scores[DOMAIN_ENUM.STRAT] -= 0.4;
+  }
 
   for (const [domain, patterns] of Object.entries(KEYWORDS)) {
     if (hasAny(text, patterns)) {
@@ -531,6 +556,9 @@ function routeDomain(norm, session, cog, opts = {}) {
     signals: scored.signals,
     routing: {
       domain: canonicalizeDomain(pick.primary),
+      technicalTargetLock: safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")),
+      technicalFollowUpLock: !!(n.technicalFollowUpLock || isTechnicalFollowUpIntent(n.text || n.query || n.message || "")),
+      blockScheduleInterception: !!safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")).targetPath,
       intent: safeStr((isPlainObject(cog) ? cog.intent : "") || "ADVANCE", 40) || "ADVANCE",
       endpoint: "marion://routeMarion.primary",
       bridgeCompatible: true,
@@ -568,6 +596,8 @@ module.exports = {
   routeDomain,
   normalizeVoiceTextParityText,
   normalizeInputSource,
+  canonicalTechnicalTargetFromText,
+  isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
   continuityHash,
   domainConfidenceProfile,
