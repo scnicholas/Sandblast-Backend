@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.1 TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.2 OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -236,6 +236,7 @@ function canonicalTechnicalTargetFromText(text = "") {
   if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
   if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
+  if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
   if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
   if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
   if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
