@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.0 FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
+const VERSION = "ChatEngine v3.9.1 FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -1102,6 +1102,15 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   );
   const sourceEnvelope = extractFinalEnvelope(input);
   const spokenText = firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, safeObj(sourceEnvelope).spokenText, reply.replace(/\n+/g, " "));
+  const runtimeTelemetry = buildChatRuntimeTelemetry({
+    source: "chatEngine.buildStructuredFinalReply",
+    input,
+    reply,
+    trustedFinalEnvelope,
+    finalEnvelope,
+    canEmit: true,
+    error: ""
+  });
   const canonicalFinalEnvelope = Object.keys(sourceEnvelope).length ? {
     ...sourceEnvelope,
     reply,
