@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.3.0 NEWS-MEDIA-POSITIONING-LANE-LOCK + ROKU-PUBLISHING-LANE-LOCK + CONTINUATION-COMPRESSION-PRECEDENCE + DOMAIN-CONFIDENCE-SCORING-AUTHORITY + FINANCE-PRECISION + MIC-TEXT-PARITY-DOMAIN-ISOLATION-PRECEDENCE";
+const VERSION = "marionIntentRouter v3.4.0 CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -620,7 +620,7 @@ function detectKnowledgeDomain(text) {
   if (/\b(ai agent|artificial intelligence|llm|rag|embedding|tool routing|agent orchestration|machine learning|prompt injection defense for ai)\b/i.test(t)) {
     return { knowledgeDomain: "ai", explicit: false, reason: "ai_terms" };
   }
-  if (/\b(cyber|cybersecurity|prompt injection|phishing|malware|ransomware|mfa|incident response|threat model|defensive security)\b/i.test(t)) {
+  if (/\b(cyber|cybersecurity|prompt injection|phishing|malware|ransomware|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/i.test(t)) {
     return { knowledgeDomain: "cyber", explicit: false, reason: "cyber_terms" };
   }
   if (/\bhardening\b/i.test(t) && !detectBackendTechnicalContext(t)) {
@@ -1138,7 +1138,7 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
   else if (/\b(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)\b/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
   if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence|confidence scoring)\b/i.test(t)) addDomainCandidate(map, "ai", 0.94, "ai_terms", "ai");
-  if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|incident response|threat model|defensive security)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.86, "cyber_terms", "cyber");
+  if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.92, "cyber_terms", "cyber");
   if (/\b(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)\b/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
   if (/\b(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
   if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
@@ -1282,6 +1282,7 @@ function routeMarionIntent(packet = {}) {
     intentContractVersion: INTENT_CONTRACT_VERSION,
     marionIntent,
     routing,
+    domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
     stateSpinePatch: {
       source: "marionIntentRouter",
       schema: STATE_SPINE_SCHEMA,
