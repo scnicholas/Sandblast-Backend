@@ -185,13 +185,28 @@
       "pii",
       "encryption",
       "compliance",
-      "retention policy"
+      "retention policy",
+      "data classification",
+      "data minimization",
+      "data lifecycle",
+      "consent",
+      "transparency",
+      "encryption at rest",
+      "audit logging",
+      "privacy by design",
+      "data lifecycle management",
+      "consent & transparency",
+      "access control & logging",
+      "encryption & data protection"
     ],
     "intentSignals": [
       "secure data",
       "compliance",
       "protect information",
-      "governance"
+      "governance",
+      "definition",
+      "defensive explanation",
+      "risk reduction"
     ]
   },
   "governanceModules": [
@@ -475,12 +490,29 @@
   "schemaVersion": "2.0-hardened",
   "safetyBoundary": {
     "mode": "defensive_only",
-    "noExploitInstructions": true,
-    "noCredentialTheft": true,
-    "noBypassOrEvasionInstructions": true,
+    "noExploitGuidance": true,
+    "noBypassInstructions": true,
     "noMalwareAssistance": true,
-    "allow": "defensive education, architecture hardening, policy, monitoring, incident response, governance, recovery, and safe tabletop analysis",
-    "redirect": "Refuse harmful operational content and redirect to prevention, detection, containment, recovery, or authorized-lab framing."
+    "noCredentialProcessing": true,
+    "humanOversightRequired": true,
+    "allowedResponseModes": [
+      "definition",
+      "risk_explanation",
+      "secure_architecture",
+      "control_review",
+      "policy_guidance",
+      "incident_response",
+      "hardening_checklist",
+      "training_or_tabletop"
+    ],
+    "disallowedResponseModes": [
+      "intrusion_steps",
+      "exploit_chain",
+      "malware_creation",
+      "credential_abuse",
+      "evasion_or_persistence",
+      "live_targeting"
+    ]
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -490,5 +522,346 @@
     "safetyBoundaryConfirmed": true,
     "retrievalIndexAdded": true,
     "defensiveOnlyConfirmed": true
-  }
+  },
+  "runtimeSchema": "cyber_domain_runtime_v2_2",
+  "domainAliases": [
+    "cyber",
+    "cybersecurity",
+    "defensive cybersecurity",
+    "information security",
+    "security"
+  ],
+  "answerPolicy": {
+    "directDefinitionFirst": true,
+    "knownTermMustAnswer": true,
+    "answerThenClarifyWhenAmbiguous": true,
+    "avoidGenericFallbackForKnownCyberTerms": true,
+    "blockTechnicalDebugLanguageUnlessExplicitBackendRequest": true,
+    "shortDefinitionMaxSentences": 3,
+    "defaultTone": "defensive, clear, operationally safe",
+    "requiredShapeForDefinition": [
+      "one clear definition",
+      "defensive significance",
+      "one practical safe control or clarification if needed"
+    ]
+  },
+  "ambiguityPolicy": {
+    "enabled": true,
+    "strategy": "bridge_definition_plus_domain_options",
+    "knownOverlapBehavior": "Do not fail closed into generic fallback. Provide a brief neutral definition, name the possible domain angles, then ask one targeted clarification question.",
+    "crossDomainPairs": {
+      "cyber_law": "Ask whether the user means security controls/risk reduction or legal/compliance obligations.",
+      "cyber_finance": "Ask whether the user means security risk, fraud/financial exposure, or business impact.",
+      "cyber_ai": "Ask whether the user means security architecture, AI system safety, prompt injection, or model/tool behavior.",
+      "cyber_psychology": "Ask whether the user means human-risk/security culture or psychological behavior.",
+      "cyber_english": "Ask whether the user wants the cybersecurity definition or the plain-language wording/usage meaning."
+    }
+  },
+  "runtimeGuards": {
+    "definitionRoutingLock": true,
+    "blockGenericFallback": true,
+    "blockScheduleInterception": true,
+    "blockAutopsyTemplateUnlessTechnicalModuleNamed": true,
+    "suppressIfBackendReplyExists": true,
+    "defensiveOnly": true,
+    "neverProvideExploitSteps": true,
+    "redactSecretsAndAdviseRotation": true,
+    "knownCyberTermsRouteToCyber": true,
+    "v1CompatibilityMustNotOverrideV2": true
+  },
+  "definitionRouting": {
+    "lockName": "Cyber Definition Routing Lock",
+    "enabled": true,
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "forceDomainWhenKnownTerm": "cyber",
+    "fallbackBehavior": "answer_then_clarify_not_generic_fallback",
+    "technicalDebugOverrideRequires": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "route",
+      "diagnostic"
+    ]
+  },
+  "runtimeDefinitionIndex": [
+    {
+      "term": "Data Classification",
+      "definition": "Data classification labels information by sensitivity so storage, access, encryption, retention, and sharing controls match the risk.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "data classification"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Data Minimization",
+      "definition": "Data minimization means collecting, using, and retaining only the data needed for a defined purpose.",
+      "aliases": [
+        "privacy minimization",
+        "minimization"
+      ],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "data minimization",
+          "privacy minimization",
+          "minimization"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Data Lifecycle",
+      "definition": "The data lifecycle covers collection, storage, use, sharing, archival, and deletion, with controls applied at each stage.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "data lifecycle"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Consent",
+      "definition": "Consent is the user’s informed agreement to data collection or use where required by policy or law.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "consent"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Transparency",
+      "definition": "Transparency means users can understand what data is collected, why it is used, how it is protected, and what choices they have.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "transparency"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Encryption at Rest",
+      "definition": "Encryption at rest protects stored data so unauthorized access to storage media does not automatically reveal readable information.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "encryption at rest"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Audit Logging",
+      "definition": "Audit logging records sensitive access or system activity so misuse, errors, and compliance issues can be investigated.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "audit logging"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Privacy by Design",
+      "definition": "Privacy by design means privacy, minimization, consent, and protection are considered early in product and system design rather than patched on later.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "privacy by design"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Data Lifecycle Management",
+      "definition": "Govern data from creation to destruction.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "data lifecycle management"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Consent & Transparency",
+      "definition": "Users should understand what data is collected and why.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "consent & transparency"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Access Control & Logging",
+      "definition": "Restrict and monitor access to sensitive information.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "access control & logging"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Encryption & Data Protection",
+      "definition": "Protect data at rest and in transit using strong encryption.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_privacy_data_protection_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "encryption & data protection"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    }
+  ],
+  "normalizationMeta": {
+    "normalizedAt": "2026-05-13",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "cyber_domain_runtime_v2_2",
+    "preservedStructuralIntegrity": true,
+    "patchesApplied": [
+      "Cyber Definition Routing Lock",
+      "Defensive-Only Answer Policy",
+      "Generic Fallback Suppression for Known Cyber Terms",
+      "Endpoint Cloud V1/V2 Compatibility Guard",
+      "Runtime Definition Index Injection"
+    ]
+  },
+  "compatibilityPolicy": {
+    "role": "required_current_cyber_pack",
+    "loadByDefault": true,
+    "mustNotBeOverriddenByLegacyPack": true
+  },
+  "aliases": [
+    "cyber_privacy_data_protection_v2.json",
+    "cyber_privacy_data_protection_v2",
+    "cyber_privacy_data_protection"
+  ]
 }
