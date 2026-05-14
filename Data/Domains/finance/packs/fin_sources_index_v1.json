@@ -262,111 +262,72 @@
   "runtimeDomainKey": "finance",
   "runtimePath": "Data/Domains/finance/packs/fin_sources_index_v1.json",
   "manifestPackKey": "fin_sources_index_v1",
-  "safetyBoundary": "educational_decision_support_not_personalized_investment_or_legal_advice",
+  "safetyBoundary": {
+    "stance": "educational_and_scenario_based_finance_information_only",
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "requiresAssumptionDisclosure": true,
+    "noDeterministicForecasts": true,
+    "professionalReferralForTaxLegalSecuritiesOrHighStakes": true,
+    "userFacingBoundary": "I can provide educational finance frameworks and scenario reasoning, but not personal financial, legal, tax, or investment advice."
+  },
   "retrievalIndex": {
+    "version": "finance.retrievalIndex/1.0",
     "domain": "finance",
     "packId": "fin_sources_index_v1",
-    "canonicalPackId": "fin_sources_index_v2",
-    "routeAliases": [
-      "sources",
-      "finance sources",
-      "source index",
-      "official sources",
-      "filings",
-      "market data",
-      "reference map"
-    ],
-    "preferredQueryTerms": [
-      "10-K",
-      "10-Q",
-      "Bank of Canada monetary policy and interest rates",
-      "Bloomberg Markets concepts and explainers",
-      "CFA Institute Research Foundation publications",
-      "Corporate Finance Institute — Capital Markets Overview",
-      "Financial Times markets and markets data",
-      "GDP",
-      "IMF Finance & Development",
-      "MD&A",
-      "OECD economic outlook and policy materials",
-      "Open Textbook Library finance/economics catalog",
-      "OpenStax Principles of Economics 3e",
-      "SEC EDGAR",
-      "SEDAR+",
-      "Statistics Canada economic indicators",
-      "TMX and major exchange education/data pages",
-      "The Economist finance and economics coverage",
-      "U.S. Federal Reserve FRED economic data",
-      "Wall Street Journal Markets",
-      "World Bank Data and research explainers",
-      "asset management",
-      "bond math",
-      "bonds",
-      "canadian context",
-      "canadian issuer filings",
-      "capital markets",
-      "capital raises",
-      "case context",
-      "commodities",
-      "competition",
-      "corporate finance",
-      "cost of capital",
-      "country context",
-      "credit conditions",
-      "cross-border economics",
-      "currencies",
-      "curriculum design",
-      "development finance",
-      "earnings context",
-      "earnings reactions",
-      "equities",
-      "equity vs debt",
-      "ethics",
-      "explanatory articles",
-      "filings",
-      "finance",
-      "global development",
-      "global macro",
-      "household finance",
-      "index data context",
-      "industry case context",
+    "aliases": [
+      "fin_sources_index_v1",
+      "cash_flow",
+      "profit",
+      "margin",
+      "unit_economics",
+      "runway",
+      "cost_of_capital",
       "inflation",
-      "labour",
-      "listing context",
-      "macro",
-      "macro history",
-      "macroeconomics",
-      "market data",
-      "market mechanics",
-      "market narrative",
-      "market structure",
-      "microeconomics",
-      "official sources",
-      "policy",
-      "portfolio thinking",
-      "productivity",
-      "prospectuses",
-      "rates",
-      "reference",
-      "risk events",
-      "risk factors",
-      "sector data",
-      "sources",
-      "stress testing inputs",
-      "supplemental reading",
-      "synthesis",
-      "time series"
+      "liquidity",
+      "elasticity",
+      "risk_management"
     ],
-    "crossPackHints": [
-      "fin_micro_foundations_v1",
-      "fin_macro_principles_v1",
-      "fin_unit_economics_v1",
-      "fin_pricing_models_v1",
-      "fin_capital_markets_v1",
-      "fin_risk_management_v1",
-      "fin_public_policy_links_v1",
-      "fin_case_studies_v1"
+    "keywords": [
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "runway",
+      "cost of capital",
+      "inflation",
+      "liquidity",
+      "elasticity",
+      "risk management"
     ],
-    "priority": 999
+    "intentSignals": [
+      "What is cash flow?",
+      "What is profit?",
+      "What is margin?",
+      "What is unit economics?",
+      "What is runway?",
+      "What is cost of capital?",
+      "What is inflation?",
+      "What is liquidity?",
+      "What is elasticity?",
+      "What is risk management?"
+    ],
+    "definitionTerms": [
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "runway",
+      "cost of capital",
+      "inflation",
+      "liquidity",
+      "elasticity",
+      "risk management"
+    ],
+    "answerReadiness": {
+      "definitionSurfaceCount": 10,
+      "genericFallbackAllowed": false
+    }
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -377,5 +338,343 @@
     "safetyBoundaryAdded": true,
     "sourceIndexPreserved": true,
     "validatedAt": "2026-05-03"
+  },
+  "packId": "fin_sources_index_v1",
+  "updatedAt": "2026-05-13",
+  "patchVersion": "finance.definitionInventoryLock/1.0",
+  "definitionAnswerContract": {
+    "version": "finance.definitionAnswerContract/1.0",
+    "routeAs": "domain_question",
+    "knowledgeDomain": "finance",
+    "mustAnswerKnownDefinitions": true,
+    "answerPattern": [
+      "direct definition",
+      "plain-language financial implication",
+      "assumption or boundary note when relevant"
+    ],
+    "forbidGenericFallbackPhrases": [
+      "I need one more concrete detail to route this cleanly",
+      "I’ll keep this broad and practical",
+      "failure mode",
+      "validation step"
+    ],
+    "forbidPersonalAdvice": true,
+    "fallbackWhenUnknown": "give brief general finance framing, then ask one targeted clarification about metric, scenario, or time horizon"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "finance.runtimeDefinitionRouting/1.0",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "domainLock": "finance",
+    "precedence": "definition_query_before_technical_debug_unless_explicit_backend_or_file_audit",
+    "blockTechnicalHijackUnless": [
+      "autopsy",
+      "line-by-line audit",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "code",
+      "route",
+      "endpoint",
+      "Marion",
+      "Nyx module"
+    ],
+    "knownFinanceTerms": [
+      "adverse selection",
+      "burn rate",
+      "cac",
+      "capital stack",
+      "cash flow",
+      "contribution margin",
+      "cost of capital",
+      "credit risk",
+      "credit spread",
+      "customer acquisition cost",
+      "debt",
+      "demand shock",
+      "dilution",
+      "elasticity",
+      "equity",
+      "expected shortfall",
+      "financial stability policy",
+      "fiscal policy",
+      "freemium",
+      "gross margin",
+      "hybrid capital",
+      "inflation",
+      "interest rates",
+      "leverage",
+      "lifetime value",
+      "liquidity",
+      "liquidity risk",
+      "ltv",
+      "marginal cost",
+      "marginal revenue",
+      "market risk",
+      "monetary policy",
+      "moral hazard",
+      "operating leverage",
+      "operational risk",
+      "opportunity cost",
+      "payback period",
+      "pricing model",
+      "regulatory policy",
+      "regulatory risk",
+      "risk management",
+      "runway",
+      "seat-based pricing",
+      "strategic risk",
+      "subscription pricing",
+      "trade policy",
+      "unit economics",
+      "usage-based pricing",
+      "value at risk",
+      "value-based pricing"
+    ],
+    "overlapTerms": {
+      "risk": [
+        "finance",
+        "law",
+        "cyber",
+        "business"
+      ],
+      "compliance": [
+        "finance",
+        "law",
+        "cyber"
+      ],
+      "validation": [
+        "finance",
+        "ai",
+        "cyber",
+        "law"
+      ],
+      "confidence": [
+        "finance",
+        "psychology",
+        "ai"
+      ],
+      "liquidity": [
+        "finance",
+        "capital_markets"
+      ],
+      "leverage": [
+        "finance",
+        "business"
+      ],
+      "margin": [
+        "finance",
+        "business"
+      ],
+      "value": [
+        "finance",
+        "business",
+        "law"
+      ],
+      "capital": [
+        "finance",
+        "business"
+      ],
+      "policy": [
+        "finance",
+        "law",
+        "business"
+      ],
+      "security": [
+        "finance",
+        "cyber"
+      ],
+      "stress test": [
+        "finance",
+        "cyber",
+        "business"
+      ],
+      "model": [
+        "finance",
+        "ai",
+        "business"
+      ],
+      "forecast": [
+        "finance",
+        "business",
+        "ai"
+      ],
+      "assumption": [
+        "finance",
+        "law",
+        "ai"
+      ],
+      "exposure": [
+        "finance",
+        "law",
+        "cyber"
+      ]
+    }
+  },
+  "definitionSurface": [
+    {
+      "term": "cash flow",
+      "normalizedTerm": "cash flow",
+      "definition": "Cash flow is the movement of money into and out of a business over a period; it determines whether obligations can be paid in real time, even when accounting profit looks healthy.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is cash flow?",
+        "Define cash flow.",
+        "Explain cash flow."
+      ]
+    },
+    {
+      "term": "profit",
+      "normalizedTerm": "profit",
+      "definition": "Profit is the economic surplus left after costs are subtracted from revenue under accounting rules.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is profit?",
+        "Define profit.",
+        "Explain profit."
+      ]
+    },
+    {
+      "term": "margin",
+      "normalizedTerm": "margin",
+      "definition": "Margin expresses profit or contribution as a percentage of revenue, showing how efficiently revenue converts into surplus.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is margin?",
+        "Define margin.",
+        "Explain margin."
+      ]
+    },
+    {
+      "term": "unit economics",
+      "normalizedTerm": "unit economics",
+      "definition": "Unit economics measure the revenue, cost, and contribution tied to one customer, transaction, seat, or contract.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is unit economics?",
+        "Define unit economics.",
+        "Explain unit economics."
+      ]
+    },
+    {
+      "term": "runway",
+      "normalizedTerm": "runway",
+      "definition": "Runway estimates how long a business can operate before available cash is depleted, usually based on cash on hand and monthly burn.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is runway?",
+        "Define runway.",
+        "Explain runway."
+      ]
+    },
+    {
+      "term": "cost of capital",
+      "normalizedTerm": "cost of capital",
+      "definition": "Cost of capital is the required return expected by funders and investors for providing debt or equity capital.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is cost of capital?",
+        "Define cost of capital.",
+        "Explain cost of capital."
+      ]
+    },
+    {
+      "term": "inflation",
+      "normalizedTerm": "inflation",
+      "definition": "Inflation is a sustained rise in the general price level that changes costs, purchasing power, pricing behavior, and margins.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is inflation?",
+        "Define inflation.",
+        "Explain inflation."
+      ]
+    },
+    {
+      "term": "liquidity",
+      "normalizedTerm": "liquidity",
+      "definition": "Liquidity is the ease of accessing cash or capital when needed without severe delay, discount, or disruption.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is liquidity?",
+        "Define liquidity.",
+        "Explain liquidity."
+      ]
+    },
+    {
+      "term": "elasticity",
+      "normalizedTerm": "elasticity",
+      "definition": "Elasticity measures how responsive demand or supply is to changes in price, income, or related variables.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is elasticity?",
+        "Define elasticity.",
+        "Explain elasticity."
+      ]
+    },
+    {
+      "term": "risk management",
+      "normalizedTerm": "risk management",
+      "definition": "Risk management is the process of identifying, measuring, mitigating, and monitoring uncertainty that could damage financial performance or resilience.",
+      "domain": "finance",
+      "sourcePack": "fin_sources_index_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is risk management?",
+        "Define risk management.",
+        "Explain risk management."
+      ]
+    }
+  ],
+  "validation": {
+    "jsonValid": true,
+    "validatedAt": "2026-05-13",
+    "lineAuditPass": true,
+    "sourceHash": "4f620f10a2600c31",
+    "patchedHash": "5586621fae44714e"
   }
 }
