@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.5.2 SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.3 CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -128,6 +128,8 @@ function definitionKnowledgeDomainFromText(text = "") {
   if (!isDefinitionQuery(t)) return "";
   if (canonicalTechnicalTargetFromText(t).targetPath) return "";
   if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return "";
+  const crossDomainProfile = crossDomainSecondaryLaneProfile(t);
+  if (crossDomainProfile && crossDomainProfile.primary) return crossDomainProfile.primary;
   const domainTerms = [
     [DOMAIN_ENUM.LAW, /\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance)\b/i],
     [DOMAIN_ENUM.FIN, /\b(cash[-\s]?flow|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience)\b/i],
@@ -138,6 +140,23 @@ function definitionKnowledgeDomainFromText(text = "") {
   ];
   for (const [domain, rx] of domainTerms) if (rx.test(t)) return domain;
   return "";
+}
+
+
+function crossDomainSecondaryLaneProfile(text = "") {
+  const t = normalizeVoiceTextParityText(text).toLowerCase();
+  if (!t || canonicalTechnicalTargetFromText(t).targetPath) return null;
+  if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return null;
+  const aiContext = /\b(ai product|ai system|ai agent|ai model|artificial intelligence product|artificial intelligence system|llm product|model product|recommendation system|machine learning system)\b/i.test(t);
+  if (aiContext && /\b(security|cyber|prompt injection|threat|vulnerability|attack|abuse|hardening|access control|secrets|input validation)\b/i.test(t)) return { primary:DOMAIN_ENUM.AI, secondary:[DOMAIN_ENUM.CYBER], reason:"ai_product_security_secondary_cyber", confidence:0.97, answerMode:"direct_with_secondary_context" };
+  if (aiContext && /\b(business|finance|financial|cash[-\s]?flow|revenue|pricing|margin|cost|runway|market|commercial)\b/i.test(t)) return { primary:DOMAIN_ENUM.AI, secondary:[DOMAIN_ENUM.FIN], reason:"ai_product_business_secondary_finance", confidence:0.94, answerMode:"direct_with_secondary_context" };
+  if (aiContext && /\b(compliance|regulatory|regulation|legal|law|governance|audit|liability|privacy|consent|data protection|risk)\b/i.test(t)) return { primary:DOMAIN_ENUM.AI, secondary:[DOMAIN_ENUM.LAW], reason:"ai_product_compliance_secondary_law", confidence:0.97, answerMode:"direct_with_secondary_context" };
+  if (/\bcash[-\s]?flow risk\b/i.test(t) && /\b(legal dispute|lawsuit|litigation|claim|settlement|court|legal)\b/i.test(t)) return { primary:DOMAIN_ENUM.FIN, secondary:[DOMAIN_ENUM.LAW], reason:"finance_cashflow_legal_secondary", confidence:0.95, answerMode:"direct_with_secondary_context" };
+  if (/\b(rewrite|translate|make|put)\b/i.test(t) && /\blegal clause\b/i.test(t) && /\bplain english|plain language|clear english\b/i.test(t)) return { primary:DOMAIN_ENUM.EN, secondary:[DOMAIN_ENUM.LAW], reason:"english_plain_language_legal_secondary", confidence:0.94, answerMode:"direct_with_secondary_context" };
+  if (/\b(cognitive bias|cognitive distortion|bias)\b/i.test(t) && /\b(ai|recommendation system|model|algorithm|machine learning)\b/i.test(t)) return { primary:DOMAIN_ENUM.AI, secondary:[DOMAIN_ENUM.PSY], reason:"ai_recommendation_psychology_secondary", confidence:0.95, answerMode:"direct_with_secondary_context" };
+  if (/\b(prompt injection)\b/i.test(t) && /\bplain english|plain language|non[-\s]?technical|business owner\b/i.test(t)) return { primary:DOMAIN_ENUM.CYBER, secondary:[DOMAIN_ENUM.AI,DOMAIN_ENUM.EN], reason:"cyber_prompt_injection_plain_english", confidence:0.95, answerMode:"direct_with_secondary_context" };
+  if (/\bleast privilege\b/i.test(t) && /\bnon[-\s]?technical|business owner|plain english|plain language\b/i.test(t)) return { primary:DOMAIN_ENUM.CYBER, secondary:[DOMAIN_ENUM.EN], reason:"cyber_least_privilege_plain_english", confidence:0.95, answerMode:"direct_with_secondary_context" };
+  return null;
 }
 
 function hasAny(text, reList) {
@@ -494,6 +513,14 @@ function scoreDomains(norm, session, cog, opts = {}) {
 
   applyLaneActionHeuristics(scores, n);
   applyKeywordSignals(scores, n);
+  const crossDomainProfile = crossDomainSecondaryLaneProfile(n.text || n.query || n.message || "");
+  if (crossDomainProfile && crossDomainProfile.primary) {
+    scores[crossDomainProfile.primary] += 4.2;
+    for (const secondary of (crossDomainProfile.secondary || [])) {
+      if (scores[secondary] !== undefined) scores[secondary] += 2.1;
+    }
+    signals.push(`cross_domain:${crossDomainProfile.reason}`);
+  }
   const definitionDomain = definitionKnowledgeDomainFromText(n.text || n.query || n.message || "");
   if (definitionDomain) signals.push(`definition:${definitionDomain}`);
   applyIntentMode(scores, c, s);
@@ -559,10 +586,11 @@ function routeDomain(norm, session, cog, opts = {}) {
   const n = isPlainObject(norm) ? norm : {};
   const scored = scoreDomains(n, session, cog, opts);
   const domainConfidence = scored.domainConfidence || domainConfidenceProfile(scored.scores, n.text || n.query || n.message || "", opts);
-  const pick = domainConfidence.ambiguous ? { primary: domainConfidence.fallbackDomain, secondary: [] } : pickTopDomains(scored.scores, {
+  const crossDomainProfile = crossDomainSecondaryLaneProfile(n.text || n.query || n.message || "");
+  const pick = (crossDomainProfile && crossDomainProfile.primary) ? { primary: crossDomainProfile.primary, secondary: crossDomainProfile.secondary || [] } : (domainConfidence.ambiguous ? { primary: domainConfidence.fallbackDomain, secondary: [] } : pickTopDomains(scored.scores, {
     maxSecondary: Number.isFinite(Number(opts.maxSecondary)) ? Number(opts.maxSecondary) : 2,
     minSecondaryScore: Number.isFinite(Number(opts.minSecondaryScore)) ? Number(opts.minSecondaryScore) : 1.6,
-  });
+  }));
 
   // reason (compact)
   const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
@@ -590,6 +618,9 @@ function routeDomain(norm, session, cog, opts = {}) {
     signals: scored.signals,
     routing: {
       domain: canonicalizeDomain(pick.primary),
+      secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
+      answerMode: crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : "",
+      crossDomainProfile: crossDomainProfile || null,
       technicalTargetLock: safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")),
       technicalFollowUpLock: !!(n.technicalFollowUpLock || isTechnicalFollowUpIntent(n.text || n.query || n.message || "")),
       blockScheduleInterception: !!safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")).targetPath,
