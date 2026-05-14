@@ -2,7 +2,7 @@
   "packId": "psy_sources_index_v2",
   "domain": "psychology",
   "version": 2,
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-05-13",
   "description": "Cross-domain bibliography and source index for the psychology v2 bundle. Includes textbooks, handbook-style references, library-oriented resources, official guidelines, and evidence infrastructure.",
   "referencePolicy": {
     "verbatimContentEmbedded": false,
@@ -15,42 +15,237 @@
       "sourceType": "guideline",
       "access": "public",
       "authority": "APA",
-      "notes": "Useful for curriculum goals and learning outcomes."
+      "notes": "Useful for curriculum goals and learning outcomes.",
+      "retrievalHints": {
+        "keywords": [
+          "APA Guidelines for the Undergraduate Psychology Major 3.0",
+          "apa guidelines for the undergraduate psychology major 3 0",
+          "Useful for curriculum goals and learning outcomes"
+        ],
+        "intentSignals": [
+          "what is apa guidelines for the undergraduate psychology major 3.0",
+          "define apa guidelines for the undergraduate psychology major 3.0",
+          "explain apa guidelines for the undergraduate psychology major 3.0"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "APA Guidelines for the Undergraduate Psychology Major 3.0",
+        "canonicalKey": "apa_guidelines_for_the_undergraduate_psychology_major_3_0",
+        "definition": "Useful for curriculum goals and learning outcomes.",
+        "acceptedPrompts": [
+          "What is APA Guidelines for the Undergraduate Psychology Major 3.0?",
+          "Define APA Guidelines for the Undergraduate Psychology Major 3.0.",
+          "Explain APA Guidelines for the Undergraduate Psychology Major 3.0."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "title": "APA Competency Benchmarks / Benchmarks Evaluation System",
       "sourceType": "competency_framework",
       "access": "public",
       "authority": "APA",
-      "notes": "Useful for doctoral/professional competency framing."
+      "notes": "Useful for doctoral/professional competency framing.",
+      "retrievalHints": {
+        "keywords": [
+          "APA Competency Benchmarks / Benchmarks Evaluation System",
+          "apa competency benchmarks benchmarks evaluation system",
+          "Useful for doctoral/professional competency framing"
+        ],
+        "intentSignals": [
+          "what is apa competency benchmarks / benchmarks evaluation system",
+          "define apa competency benchmarks / benchmarks evaluation system",
+          "explain apa competency benchmarks / benchmarks evaluation system"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "APA Competency Benchmarks / Benchmarks Evaluation System",
+        "canonicalKey": "apa_competency_benchmarks_benchmarks_evaluation_system",
+        "definition": "Useful for doctoral/professional competency framing.",
+        "acceptedPrompts": [
+          "What is APA Competency Benchmarks / Benchmarks Evaluation System?",
+          "Define APA Competency Benchmarks / Benchmarks Evaluation System.",
+          "Explain APA Competency Benchmarks / Benchmarks Evaluation System."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "title": "APA Standards of Accreditation for Health Service Psychology",
       "sourceType": "accreditation_standard",
       "access": "public",
       "authority": "APA",
-      "notes": "Useful for training structure and competence expectations."
+      "notes": "Useful for training structure and competence expectations.",
+      "retrievalHints": {
+        "keywords": [
+          "APA Standards of Accreditation for Health Service Psychology",
+          "Useful for training structure and competence expectations"
+        ],
+        "intentSignals": [
+          "what is apa standards of accreditation for health service psychology",
+          "define apa standards of accreditation for health service psychology",
+          "explain apa standards of accreditation for health service psychology"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "APA Standards of Accreditation for Health Service Psychology",
+        "canonicalKey": "apa_standards_of_accreditation_for_health_service_psychology",
+        "definition": "Useful for training structure and competence expectations.",
+        "acceptedPrompts": [
+          "What is APA Standards of Accreditation for Health Service Psychology?",
+          "Define APA Standards of Accreditation for Health Service Psychology.",
+          "Explain APA Standards of Accreditation for Health Service Psychology."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "title": "NIH OBSSR mixed methods and behavioral/social sciences research resources",
       "sourceType": "methods_resource",
       "access": "public",
       "authority": "NIH/OBSSR",
-      "notes": "Useful for research design and mixed-methods rigor."
+      "notes": "Useful for research design and mixed-methods rigor.",
+      "retrievalHints": {
+        "keywords": [
+          "NIH OBSSR mixed methods and behavioral/social sciences research resources",
+          "nih obssr mixed methods and behavioral social sciences research resources",
+          "Useful for research design and mixed-methods rigor"
+        ],
+        "intentSignals": [
+          "what is nih obssr mixed methods and behavioral/social sciences research resources",
+          "define nih obssr mixed methods and behavioral/social sciences research resources",
+          "explain nih obssr mixed methods and behavioral/social sciences research resources"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "NIH OBSSR mixed methods and behavioral/social sciences research resources",
+        "canonicalKey": "nih_obssr_mixed_methods_and_behavioral_social_sciences_research_resources",
+        "definition": "Useful for research design and mixed-methods rigor.",
+        "acceptedPrompts": [
+          "What is NIH OBSSR mixed methods and behavioral/social sciences research resources?",
+          "Define NIH OBSSR mixed methods and behavioral/social sciences research resources.",
+          "Explain NIH OBSSR mixed methods and behavioral/social sciences research resources."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "title": "OpenStax Psychology 2e",
       "sourceType": "open_textbook",
       "access": "public",
       "authority": "OpenStax",
-      "notes": "Useful for baseline concepts and plain-language refreshers."
+      "notes": "Useful for baseline concepts and plain-language refreshers.",
+      "retrievalHints": {
+        "keywords": [
+          "OpenStax Psychology 2e",
+          "Useful for baseline concepts and plain-language refreshers"
+        ],
+        "intentSignals": [
+          "what is openstax psychology 2e",
+          "define openstax psychology 2e",
+          "explain openstax psychology 2e"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "OpenStax Psychology 2e",
+        "canonicalKey": "openstax_psychology_2e",
+        "definition": "Useful for baseline concepts and plain-language refreshers.",
+        "acceptedPrompts": [
+          "What is OpenStax Psychology 2e?",
+          "Define OpenStax Psychology 2e.",
+          "Explain OpenStax Psychology 2e."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "title": "NCBI Bookshelf behavioral and social sciences volumes",
       "sourceType": "open_reference",
       "access": "public",
       "authority": "NIH/NCBI",
-      "notes": "Useful for broad interdisciplinary context."
+      "notes": "Useful for broad interdisciplinary context.",
+      "retrievalHints": {
+        "keywords": [
+          "NCBI Bookshelf behavioral and social sciences volumes",
+          "Useful for broad interdisciplinary context"
+        ],
+        "intentSignals": [
+          "what is ncbi bookshelf behavioral and social sciences volumes",
+          "define ncbi bookshelf behavioral and social sciences volumes",
+          "explain ncbi bookshelf behavioral and social sciences volumes"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "openAndOfficialSources",
+        "term": "NCBI Bookshelf behavioral and social sciences volumes",
+        "canonicalKey": "ncbi_bookshelf_behavioral_and_social_sciences_volumes",
+        "definition": "Useful for broad interdisciplinary context.",
+        "acceptedPrompts": [
+          "What is NCBI Bookshelf behavioral and social sciences volumes?",
+          "Define NCBI Bookshelf behavioral and social sciences volumes.",
+          "Explain NCBI Bookshelf behavioral and social sciences volumes."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "textbooksAndHandbooks": [
@@ -60,7 +255,39 @@
         "Schacter, Gilbert, Wegner, Nock — Psychology",
         "OpenStax Psychology 2e",
         "APA Handbook of Research Methods in Psychology"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "foundations",
+          "Schacter, Gilbert, Wegner, Nock — Psychology"
+        ],
+        "intentSignals": [
+          "what is foundations",
+          "define foundations",
+          "explain foundations"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "foundations",
+        "canonicalKey": "foundations",
+        "definition": "Schacter, Gilbert, Wegner, Nock — Psychology",
+        "acceptedPrompts": [
+          "What is foundations?",
+          "Define foundations.",
+          "Explain foundations."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "area": "cognitive",
@@ -68,7 +295,55 @@
         "Eysenck & Keane — Cognitive Psychology",
         "Goldstein — Cognitive Psychology",
         "Kahneman — Thinking, Fast and Slow"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "cognitive",
+          "Eysenck & Keane — Cognitive Psychology"
+        ],
+        "intentSignals": [
+          "what is cognitive",
+          "define cognitive",
+          "explain cognitive"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "cognitive",
+        "canonicalKey": "cognitive",
+        "definition": "Eysenck & Keane — Cognitive Psychology",
+        "acceptedPrompts": [
+          "What is cognitive?",
+          "Define cognitive.",
+          "Explain cognitive."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      },
+      "ambiguityClarification": {
+        "version": "nyx.marion.ambiguityClarification/1.0",
+        "overlapDetected": true,
+        "policy": "brief_answer_then_domain_choice",
+        "candidates": [
+          {
+            "term": "cognitive intelligence",
+            "overlapDomains": [
+              "psychology",
+              "ai"
+            ],
+            "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
+            "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
+          }
+        ]
+      }
     },
     {
       "area": "development",
@@ -76,7 +351,39 @@
         "Berk — Development Through the Lifespan",
         "Siegler et al. — How Children Develop",
         "Shaffer & Kipp — Developmental Psychology"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "development",
+          "Berk — Development Through the Lifespan"
+        ],
+        "intentSignals": [
+          "what is development",
+          "define development",
+          "explain development"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "development",
+        "canonicalKey": "development",
+        "definition": "Berk — Development Through the Lifespan",
+        "acceptedPrompts": [
+          "What is development?",
+          "Define development.",
+          "Explain development."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "area": "social",
@@ -84,7 +391,39 @@
         "Aronson, Wilson, Sommers — Social Psychology",
         "Hogg & Vaughan — Social Psychology",
         "Fiske & Taylor — Social Cognition"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "social",
+          "Aronson, Wilson, Sommers — Social Psychology"
+        ],
+        "intentSignals": [
+          "what is social",
+          "define social",
+          "explain social"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "social",
+        "canonicalKey": "social",
+        "definition": "Aronson, Wilson, Sommers — Social Psychology",
+        "acceptedPrompts": [
+          "What is social?",
+          "Define social.",
+          "Explain social."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "area": "research_methods",
@@ -92,7 +431,40 @@
         "Shadish, Cook, & Campbell — Experimental and Quasi-Experimental Designs",
         "Kazdin — Research Design in Clinical Psychology",
         "Creswell & Creswell — Research Design"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "research_methods",
+          "research methods",
+          "Shadish, Cook, & Campbell — Experimental and Quasi-Experimental Designs"
+        ],
+        "intentSignals": [
+          "what is research_methods",
+          "define research_methods",
+          "explain research_methods"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "research_methods",
+        "canonicalKey": "research_methods",
+        "definition": "Shadish, Cook, & Campbell — Experimental and Quasi-Experimental Designs",
+        "acceptedPrompts": [
+          "What is research_methods?",
+          "Define research_methods.",
+          "Explain research_methods."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "area": "biases_fallacies",
@@ -100,7 +472,57 @@
         "Kahneman — Thinking, Fast and Slow",
         "Stanovich — Rationality and the Reflective Mind",
         "Nisbett & Ross — Human Inference"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "biases_fallacies",
+          "biases fallacies",
+          "Kahneman — Thinking, Fast and Slow"
+        ],
+        "intentSignals": [
+          "what is biases_fallacies",
+          "define biases_fallacies",
+          "explain biases_fallacies"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "biases_fallacies",
+        "canonicalKey": "biases_fallacies",
+        "definition": "Kahneman — Thinking, Fast and Slow",
+        "acceptedPrompts": [
+          "What is biases_fallacies?",
+          "Define biases_fallacies.",
+          "Explain biases_fallacies."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      },
+      "ambiguityClarification": {
+        "version": "nyx.marion.ambiguityClarification/1.0",
+        "overlapDetected": true,
+        "policy": "brief_answer_then_domain_choice",
+        "candidates": [
+          {
+            "term": "bias",
+            "overlapDomains": [
+              "psychology",
+              "ai",
+              "research_methods"
+            ],
+            "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
+            "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
+          }
+        ]
+      }
     },
     {
       "area": "interventions_skills",
@@ -108,7 +530,40 @@
         "Miller & Rollnick — Motivational Interviewing",
         "Beck — Cognitive Behavior Therapy",
         "Hayes, Strosahl, & Wilson — ACT basics/clinical frame"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "interventions_skills",
+          "interventions skills",
+          "Miller & Rollnick — Motivational Interviewing"
+        ],
+        "intentSignals": [
+          "what is interventions_skills",
+          "define interventions_skills",
+          "explain interventions_skills"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "interventions_skills",
+        "canonicalKey": "interventions_skills",
+        "definition": "Miller & Rollnick — Motivational Interviewing",
+        "acceptedPrompts": [
+          "What is interventions_skills?",
+          "Define interventions_skills.",
+          "Explain interventions_skills."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "area": "clinical_safety",
@@ -116,7 +571,40 @@
         "DSM-5-TR (classification reference only)",
         "APA practice guideline materials",
         "Suicide-risk and crisis-response public guidelines"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "clinical_safety",
+          "clinical safety",
+          "DSM-5-TR (classification reference only)"
+        ],
+        "intentSignals": [
+          "what is clinical_safety",
+          "define clinical_safety",
+          "explain clinical_safety"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "textbooksAndHandbooks",
+        "term": "clinical_safety",
+        "canonicalKey": "clinical_safety",
+        "definition": "DSM-5-TR (classification reference only)",
+        "acceptedPrompts": [
+          "What is clinical_safety?",
+          "Define clinical_safety.",
+          "Explain clinical_safety."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "assessmentFamilies": [
@@ -127,28 +615,160 @@
         "Stroop-type tasks",
         "go/no-go and task-switching paradigms"
       ],
-      "restriction": "task paradigms describable; proprietary implementation details may vary"
+      "restriction": "task paradigms describable; proprietary implementation details may vary",
+      "retrievalHints": {
+        "keywords": [
+          "cognitive_tasks",
+          "cognitive tasks",
+          "working-memory span tasks"
+        ],
+        "intentSignals": [
+          "what is cognitive_tasks",
+          "define cognitive_tasks",
+          "explain cognitive_tasks"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "assessmentFamilies",
+        "term": "cognitive_tasks",
+        "canonicalKey": "cognitive_tasks",
+        "definition": "working-memory span tasks",
+        "acceptedPrompts": [
+          "What is cognitive_tasks?",
+          "Define cognitive_tasks.",
+          "Explain cognitive_tasks."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "family": "self_report_scales",
       "examples": [
         "wellbeing, stress, affect, personality, social attitudes"
       ],
-      "restriction": "do not embed proprietary items or keys unless openly licensed"
+      "restriction": "do not embed proprietary items or keys unless openly licensed",
+      "retrievalHints": {
+        "keywords": [
+          "self_report_scales",
+          "self report scales",
+          "wellbeing, stress, affect, personality, social attitudes"
+        ],
+        "intentSignals": [
+          "what is self_report_scales",
+          "define self_report_scales",
+          "explain self_report_scales"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "assessmentFamilies",
+        "term": "self_report_scales",
+        "canonicalKey": "self_report_scales",
+        "definition": "wellbeing, stress, affect, personality, social attitudes",
+        "acceptedPrompts": [
+          "What is self_report_scales?",
+          "Define self_report_scales.",
+          "Explain self_report_scales."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "family": "developmental_assessment",
       "examples": [
         "executive-function tasks, attachment interviews, observational coding"
       ],
-      "restriction": "use descriptive metadata, not restricted administration kits"
+      "restriction": "use descriptive metadata, not restricted administration kits",
+      "retrievalHints": {
+        "keywords": [
+          "developmental_assessment",
+          "developmental assessment",
+          "executive-function tasks, attachment interviews, observational coding"
+        ],
+        "intentSignals": [
+          "what is developmental_assessment",
+          "define developmental_assessment",
+          "explain developmental_assessment"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "assessmentFamilies",
+        "term": "developmental_assessment",
+        "canonicalKey": "developmental_assessment",
+        "definition": "executive-function tasks, attachment interviews, observational coding",
+        "acceptedPrompts": [
+          "What is developmental_assessment?",
+          "Define developmental_assessment.",
+          "Explain developmental_assessment."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "family": "clinical_screening",
       "examples": [
         "depression, anxiety, suicide-risk screeners"
       ],
-      "restriction": "assistant may discuss purpose and limits but must not diagnose or self-administer restricted tools as a substitute for care"
+      "restriction": "assistant may discuss purpose and limits but must not diagnose or self-administer restricted tools as a substitute for care",
+      "retrievalHints": {
+        "keywords": [
+          "clinical_screening",
+          "clinical screening",
+          "depression, anxiety, suicide-risk screeners"
+        ],
+        "intentSignals": [
+          "what is clinical_screening",
+          "define clinical_screening",
+          "explain clinical_screening"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_sources_index_v2",
+        "section": "assessmentFamilies",
+        "term": "clinical_screening",
+        "canonicalKey": "clinical_screening",
+        "definition": "depression, anxiety, suicide-risk screeners",
+        "acceptedPrompts": [
+          "What is clinical_screening?",
+          "Define clinical_screening.",
+          "Explain clinical_screening."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "evidenceRules": [
@@ -158,19 +778,25 @@
     "For assistant output, keep mechanism claims proportional to evidence strength."
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI",
-    "normalizedFor": [
-      "Marion",
-      "Nyx"
-    ],
+    "normalizedBy": "OpenAI ChatGPT",
+    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
     "retrievalPriority": "high",
     "canonicalPackId": "psy_sources_index_v2",
-    "sourceFilename": "psy_sources_index_v2.json",
+    "sourceFilename": "psy_sources_index_v2(2).json",
     "aliases": [
       "psy_sources_index_v1",
-      "psy_sources_index_v2"
+      "psy_sources_index_v2",
+      "sources",
+      "bibliography",
+      "references",
+      "evidence rules",
+      "source index"
     ],
-    "pathwayRole": "source_router"
+    "pathwayRole": "source_router",
+    "definitionInventoryReady": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
+    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
+    "commercialRegressionGuard": true
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2"
@@ -190,10 +816,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/packs/psy_sources_index_v2.json",
-  "manifestPackKey": "psySourcesIndex",
+  "runtimePath": "Data/Domains/psychology/psy_sources_index_v2.json",
+  "manifestPackKey": "psy_sources_index_v2",
   "safetyBoundary": {
-    "stance": "educational_nonclinical_support_only",
+    "stance": "educational_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -202,10 +828,41 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_sources_index_v2",
-    "aliases": [],
+    "aliases": [
+      "sources",
+      "bibliography",
+      "references",
+      "evidence rules",
+      "source index",
+      "psy_sources_index_v2",
+      "psy sources index v2"
+    ],
     "keywords": [
       "psy_sources_index_v1",
-      "psy_sources_index_v2"
+      "psy_sources_index_v2",
+      "sources",
+      "bibliography",
+      "references",
+      "evidence rules",
+      "source index",
+      "APA Guidelines for the Undergraduate Psychology Major 3.0",
+      "APA Competency Benchmarks / Benchmarks Evaluation System",
+      "APA Standards of Accreditation for Health Service Psychology",
+      "NIH OBSSR mixed methods and behavioral/social sciences research resources",
+      "OpenStax Psychology 2e",
+      "NCBI Bookshelf behavioral and social sciences volumes",
+      "cognitive_tasks",
+      "self_report_scales",
+      "developmental_assessment",
+      "clinical_screening",
+      "foundations",
+      "cognitive",
+      "development",
+      "social",
+      "research_methods",
+      "biases_fallacies",
+      "interventions_skills",
+      "clinical_safety"
     ],
     "primaryFields": [
       "packId",
@@ -224,14 +881,296 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "name",
+      "id",
+      "oneLiner",
+      "definitionSurface",
+      "retrievalHints",
+      "coreMechanism",
+      "coreClaims",
+      "keyPoints",
+      "actionablePrinciples",
+      "applicationRules"
+    ],
+    "definitionQueryPriority": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-05-13",
+    "definitionInventoryPatched": true,
+    "lineAuditCompleted": true,
+    "genericFallbackBlocked": true,
+    "overlapClarificationReady": true
+  },
+  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
+  "definitionAnswerContract": {
+    "version": "nyx.marion.definitionAnswerContract/1.0",
+    "active": true,
+    "acceptedQuestionForms": [
+      "what is {term}",
+      "what are {term}",
+      "define {term}",
+      "explain {term}",
+      "meaning of {term}"
+    ],
+    "requiredAnswerShape": [
+      "direct definition",
+      "psychology context",
+      "one practical/actionable note when appropriate"
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
+      "The specific technical move is to name the active component."
+    ],
+    "domainLock": "psychology",
+    "allowAmbiguityClarification": true,
+    "ambiguityShape": [
+      "short neutral definition",
+      "possible domain interpretations",
+      "one targeted clarification question"
+    ],
+    "safetyBoundary": {
+      "educationalOnly": true,
+      "noDiagnosis": true,
+      "noTherapyReplacement": true,
+      "crisisEscalationRequired": true
+    }
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
+    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
+    "technicalOverrideRequiresExplicitBackendTerms": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "patch",
+      "file",
+      "script",
+      "backend",
+      "ChatEngine",
+      "MarionBridge",
+      "StateSpine",
+      "ComposeMarionResponse"
+    ],
+    "domain": "psychology",
+    "packId": "psy_sources_index_v2",
+    "sourceFilename": "psy_sources_index_v2(2).json",
+    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
+    "crossDomainOverlapMap": {
+      "cognitive intelligence": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
+        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
+      },
+      "reasoning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "law"
+        ],
+        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
+        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
+      },
+      "bias": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "research_methods"
+        ],
+        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
+        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
+      },
+      "validation": {
+        "overlapDomains": [
+          "psychology",
+          "research_methods",
+          "ai",
+          "cyber"
+        ],
+        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
+        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
+      },
+      "resilience": {
+        "overlapDomains": [
+          "psychology",
+          "business",
+          "finance"
+        ],
+        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
+        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
+      },
+      "identity": {
+        "overlapDomains": [
+          "psychology",
+          "social",
+          "development",
+          "identity_query"
+        ],
+        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
+        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
+      },
+      "attention": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
+        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
+      },
+      "learning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "education"
+        ],
+        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
+        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
+      },
+      "confidence": {
+        "overlapDomains": [
+          "psychology",
+          "statistics",
+          "ai",
+          "finance"
+        ],
+        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
+        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
+      },
+      "compliance": {
+        "overlapDomains": [
+          "psychology",
+          "law",
+          "cyber",
+          "business"
+        ],
+        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
+        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
+      }
+    }
+  },
+  "definitionInventory": {
+    "version": "nyx.marion.definitionInventory/1.0",
+    "domain": "psychology",
+    "packId": "psy_sources_index_v2",
+    "termCount": 18,
+    "items": [
+      {
+        "term": "APA Guidelines for the Undergraduate Psychology Major 3.0",
+        "canonicalKey": "apa_guidelines_for_the_undergraduate_psychology_major_3_0",
+        "definition": "Useful for curriculum goals and learning outcomes.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "APA Competency Benchmarks / Benchmarks Evaluation System",
+        "canonicalKey": "apa_competency_benchmarks_benchmarks_evaluation_system",
+        "definition": "Useful for doctoral/professional competency framing.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "APA Standards of Accreditation for Health Service Psychology",
+        "canonicalKey": "apa_standards_of_accreditation_for_health_service_psychology",
+        "definition": "Useful for training structure and competence expectations.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "NIH OBSSR mixed methods and behavioral/social sciences research resources",
+        "canonicalKey": "nih_obssr_mixed_methods_and_behavioral_social_sciences_research_resources",
+        "definition": "Useful for research design and mixed-methods rigor.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "OpenStax Psychology 2e",
+        "canonicalKey": "openstax_psychology_2e",
+        "definition": "Useful for baseline concepts and plain-language refreshers.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "NCBI Bookshelf behavioral and social sciences volumes",
+        "canonicalKey": "ncbi_bookshelf_behavioral_and_social_sciences_volumes",
+        "definition": "Useful for broad interdisciplinary context.",
+        "section": "openAndOfficialSources"
+      },
+      {
+        "term": "cognitive_tasks",
+        "canonicalKey": "cognitive_tasks",
+        "definition": "working-memory span tasks",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "self_report_scales",
+        "canonicalKey": "self_report_scales",
+        "definition": "wellbeing, stress, affect, personality, social attitudes",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "developmental_assessment",
+        "canonicalKey": "developmental_assessment",
+        "definition": "executive-function tasks, attachment interviews, observational coding",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "clinical_screening",
+        "canonicalKey": "clinical_screening",
+        "definition": "depression, anxiety, suicide-risk screeners",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "foundations",
+        "canonicalKey": "foundations",
+        "definition": "Schacter, Gilbert, Wegner, Nock — Psychology",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "cognitive",
+        "canonicalKey": "cognitive",
+        "definition": "Eysenck & Keane — Cognitive Psychology",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "development",
+        "canonicalKey": "development",
+        "definition": "Berk — Development Through the Lifespan",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "social",
+        "canonicalKey": "social",
+        "definition": "Aronson, Wilson, Sommers — Social Psychology",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "research_methods",
+        "canonicalKey": "research_methods",
+        "definition": "Shadish, Cook, & Campbell — Experimental and Quasi-Experimental Designs",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "biases_fallacies",
+        "canonicalKey": "biases_fallacies",
+        "definition": "Kahneman — Thinking, Fast and Slow",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "interventions_skills",
+        "canonicalKey": "interventions_skills",
+        "definition": "Miller & Rollnick — Motivational Interviewing",
+        "section": "textbooksAndHandbooks"
+      },
+      {
+        "term": "clinical_safety",
+        "canonicalKey": "clinical_safety",
+        "definition": "DSM-5-TR (classification reference only)",
+        "section": "textbooksAndHandbooks"
+      }
+    ]
   }
 }
