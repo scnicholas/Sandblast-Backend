@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level clinical-safety and scope-boundary pack for psychology content: risk routing, crisis language handling, assessment boundaries, and non-diagnostic safeguards.",
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-05-13",
   "scope": [
     "general",
     "education",
@@ -130,6 +130,39 @@
       "handoff": {
         "suggestProfessionalHelp": true,
         "urgency": "immediate"
+      },
+      "retrievalHints": {
+        "keywords": [
+          "playbook_crisis",
+          "playbook crisis",
+          "Immediate safety and connection to real-world emergency help"
+        ],
+        "intentSignals": [
+          "what is playbook_crisis",
+          "define playbook_crisis",
+          "explain playbook_crisis"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "responsePlaybooks",
+        "term": "playbook_crisis",
+        "canonicalKey": "playbook_crisis",
+        "definition": "Immediate safety and connection to real-world emergency help.",
+        "acceptedPrompts": [
+          "What is playbook_crisis?",
+          "Define playbook_crisis.",
+          "Explain playbook_crisis."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -154,6 +187,39 @@
       "handoff": {
         "suggestProfessionalHelp": true,
         "urgency": "high"
+      },
+      "retrievalHints": {
+        "keywords": [
+          "playbook_high_support",
+          "playbook high support",
+          "Stabilize, reduce isolation, encourage professional help, offer small next steps"
+        ],
+        "intentSignals": [
+          "what is playbook_high_support",
+          "define playbook_high_support",
+          "explain playbook_high_support"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "responsePlaybooks",
+        "term": "playbook_high_support",
+        "canonicalKey": "playbook_high_support",
+        "definition": "Stabilize, reduce isolation, encourage professional help, offer small next steps.",
+        "acceptedPrompts": [
+          "What is playbook_high_support?",
+          "Define playbook_high_support.",
+          "Explain playbook_high_support."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -176,6 +242,39 @@
       "handoff": {
         "suggestProfessionalHelp": true,
         "urgency": "medium"
+      },
+      "retrievalHints": {
+        "keywords": [
+          "playbook_grounding",
+          "playbook grounding",
+          "Reduce acute panic/dissociation intensity with simple grounding and safety check"
+        ],
+        "intentSignals": [
+          "what is playbook_grounding",
+          "define playbook_grounding",
+          "explain playbook_grounding"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "responsePlaybooks",
+        "term": "playbook_grounding",
+        "canonicalKey": "playbook_grounding",
+        "definition": "Reduce acute panic/dissociation intensity with simple grounding and safety check.",
+        "acceptedPrompts": [
+          "What is playbook_grounding?",
+          "Define playbook_grounding.",
+          "Explain playbook_grounding."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     }
   ],
@@ -183,32 +282,230 @@
     {
       "id": "diagnosis_prohibition",
       "type": "hard",
-      "instruction": "Never diagnose. Use probabilistic language only if needed (e.g., 'could be consistent with'), and prefer general explanations."
+      "instruction": "Never diagnose. Use probabilistic language only if needed (e.g., 'could be consistent with'), and prefer general explanations.",
+      "retrievalHints": {
+        "keywords": [
+          "diagnosis_prohibition",
+          "diagnosis prohibition",
+          "Never diagnose"
+        ],
+        "intentSignals": [
+          "what is diagnosis_prohibition",
+          "define diagnosis_prohibition",
+          "explain diagnosis_prohibition"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "diagnosis_prohibition",
+        "canonicalKey": "diagnosis_prohibition",
+        "definition": "Never diagnose. Use probabilistic language only if needed (e.g., 'could be consistent with'), and prefer general explanations.",
+        "acceptedPrompts": [
+          "What is diagnosis_prohibition?",
+          "Define diagnosis_prohibition.",
+          "Explain diagnosis_prohibition."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "treatment_prohibition",
       "type": "hard",
-      "instruction": "Never provide treatment plans as if you are a clinician. You may suggest general wellbeing practices and encourage professional consultation."
+      "instruction": "Never provide treatment plans as if you are a clinician. You may suggest general wellbeing practices and encourage professional consultation.",
+      "retrievalHints": {
+        "keywords": [
+          "treatment_prohibition",
+          "treatment prohibition",
+          "Never provide treatment plans as if you are a clinician"
+        ],
+        "intentSignals": [
+          "what is treatment_prohibition",
+          "define treatment_prohibition",
+          "explain treatment_prohibition"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "treatment_prohibition",
+        "canonicalKey": "treatment_prohibition",
+        "definition": "Never provide treatment plans as if you are a clinician. You may suggest general wellbeing practices and encourage professional consultation.",
+        "acceptedPrompts": [
+          "What is treatment_prohibition?",
+          "Define treatment_prohibition.",
+          "Explain treatment_prohibition."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "self_harm_methods_prohibition",
       "type": "hard",
-      "instruction": "Do not provide instructions, methods, or optimization advice related to self-harm or harming others."
+      "instruction": "Do not provide instructions, methods, or optimization advice related to self-harm or harming others.",
+      "retrievalHints": {
+        "keywords": [
+          "self_harm_methods_prohibition",
+          "self harm methods prohibition",
+          "Do not provide instructions, methods, or optimization advice related to self-harm or harming others"
+        ],
+        "intentSignals": [
+          "what is self_harm_methods_prohibition",
+          "define self_harm_methods_prohibition",
+          "explain self_harm_methods_prohibition"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "self_harm_methods_prohibition",
+        "canonicalKey": "self_harm_methods_prohibition",
+        "definition": "Do not provide instructions, methods, or optimization advice related to self-harm or harming others.",
+        "acceptedPrompts": [
+          "What is self_harm_methods_prohibition?",
+          "Define self_harm_methods_prohibition.",
+          "Explain self_harm_methods_prohibition."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "minimal_questions_in_crisis",
       "type": "soft",
-      "instruction": "If high-risk signals are detected, ask only minimal questions required for safety (e.g., 'Are you safe right now?')."
+      "instruction": "If high-risk signals are detected, ask only minimal questions required for safety (e.g., 'Are you safe right now?').",
+      "retrievalHints": {
+        "keywords": [
+          "minimal_questions_in_crisis",
+          "minimal questions in crisis",
+          "If high-risk signals are detected, ask only minimal questions required for safety (e"
+        ],
+        "intentSignals": [
+          "what is minimal_questions_in_crisis",
+          "define minimal_questions_in_crisis",
+          "explain minimal_questions_in_crisis"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "minimal_questions_in_crisis",
+        "canonicalKey": "minimal_questions_in_crisis",
+        "definition": "If high-risk signals are detected, ask only minimal questions required for safety (e.g., 'Are you safe right now?').",
+        "acceptedPrompts": [
+          "What is minimal_questions_in_crisis?",
+          "Define minimal_questions_in_crisis.",
+          "Explain minimal_questions_in_crisis."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "avoid_over_personalization",
       "type": "soft",
-      "instruction": "Avoid mirroring or repeating highly sensitive user details. Summarize at a high level."
+      "instruction": "Avoid mirroring or repeating highly sensitive user details. Summarize at a high level.",
+      "retrievalHints": {
+        "keywords": [
+          "avoid_over_personalization",
+          "avoid over personalization",
+          "Avoid mirroring or repeating highly sensitive user details"
+        ],
+        "intentSignals": [
+          "what is avoid_over_personalization",
+          "define avoid_over_personalization",
+          "explain avoid_over_personalization"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "avoid_over_personalization",
+        "canonicalKey": "avoid_over_personalization",
+        "definition": "Avoid mirroring or repeating highly sensitive user details. Summarize at a high level.",
+        "acceptedPrompts": [
+          "What is avoid_over_personalization?",
+          "Define avoid_over_personalization.",
+          "Explain avoid_over_personalization."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "escalate_on_imminent",
       "type": "hard",
-      "instruction": "If imminent danger is detected, prioritize crisis guidance and emergency escalation over other tasks."
+      "instruction": "If imminent danger is detected, prioritize crisis guidance and emergency escalation over other tasks.",
+      "retrievalHints": {
+        "keywords": [
+          "escalate_on_imminent",
+          "escalate on imminent",
+          "If imminent danger is detected, prioritize crisis guidance and emergency escalation over other tasks"
+        ],
+        "intentSignals": [
+          "what is escalate_on_imminent",
+          "define escalate_on_imminent",
+          "explain escalate_on_imminent"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_clinical_safety_v2",
+        "section": "policyRules",
+        "term": "escalate_on_imminent",
+        "canonicalKey": "escalate_on_imminent",
+        "definition": "If imminent danger is detected, prioritize crisis guidance and emergency escalation over other tasks.",
+        "acceptedPrompts": [
+          "What is escalate_on_imminent?",
+          "Define escalate_on_imminent.",
+          "Explain escalate_on_imminent."
+        ],
+        "answerMode": "safety_bounded_directive",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "retrievalRouting": {
@@ -516,19 +813,26 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI",
-    "normalizedFor": [
-      "Marion",
-      "Nyx"
-    ],
+    "normalizedBy": "OpenAI ChatGPT",
+    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
     "retrievalPriority": "critical",
     "canonicalPackId": "psy_clinical_safety_v2",
-    "sourceFilename": "psy_clinical_safety_v2.json",
+    "sourceFilename": "psy_clinical_safety_v2(3).json",
     "aliases": [
       "psy_clinical_safety_v1",
-      "psy_clinical_safety_v2"
+      "psy_clinical_safety_v2",
+      "clinical safety",
+      "crisis",
+      "risk signals",
+      "non diagnostic",
+      "scope boundary",
+      "support safety"
     ],
-    "pathwayRole": "safety_gate"
+    "pathwayRole": "safety_gate",
+    "definitionInventoryReady": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
+    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
+    "commercialRegressionGuard": true
   },
   "crossPackLinks": [
     "psy_sources_index_v2",
@@ -549,20 +853,292 @@
       "Use source index for trust weighting and bibliographic routing."
     ]
   },
-  "runtimePath": "Data/Domains/psychology/packs/psy_clinical_safety_v2.json",
+  "runtimePath": "Data/Domains/psychology/psy_clinical_safety_v2.json",
   "runtimeDomainKey": "psychology",
-  "safetyBoundary": "educational_support_only_no_diagnosis_or_therapy",
+  "safetyBoundary": {
+    "stance": "educational_support_only",
+    "noDiagnosis": true,
+    "noTherapyOrMedicalDirective": true,
+    "crisisEscalationRequired": true,
+    "minimizeSensitivePersonalData": true
+  },
   "retrievalIndex": {
     "aliases": [
       "psy_clinical_safety_v2",
-      "psychology"
+      "psychology",
+      "clinical safety",
+      "crisis",
+      "risk signals",
+      "non diagnostic",
+      "scope boundary",
+      "support safety",
+      "psy clinical safety v2"
     ],
-    "source": "batch2_hardening_v1_1"
+    "source": "batch2_hardening_v1_1",
+    "domain": "psychology",
+    "packId": "psy_clinical_safety_v2",
+    "keywords": [
+      "clinical safety",
+      "crisis",
+      "risk signals",
+      "non diagnostic",
+      "scope boundary",
+      "support safety",
+      "general",
+      "education",
+      "self-improvement",
+      "wellbeing",
+      "crisis_safety",
+      "boundaries",
+      "diagnosis_prohibition",
+      "treatment_prohibition",
+      "self_harm_methods_prohibition",
+      "minimal_questions_in_crisis",
+      "avoid_over_personalization",
+      "escalate_on_imminent",
+      "playbook_crisis",
+      "playbook_high_support",
+      "playbook_grounding"
+    ],
+    "primaryFields": [
+      "name",
+      "id",
+      "oneLiner",
+      "definitionSurface",
+      "retrievalHints",
+      "coreMechanism",
+      "coreClaims",
+      "keyPoints",
+      "actionablePrinciples",
+      "applicationRules"
+    ],
+    "definitionQueryPriority": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
   },
   "normalizationStatus": {
     "jsonValid": true,
     "conflictMarkersRemoved": 1,
     "runtimePathConfirmed": true,
-    "batch2Hardened": true
+    "batch2Hardened": true,
+    "status": "hardened",
+    "validatedJson": true,
+    "definitionInventoryPatched": true,
+    "lineAuditCompleted": true,
+    "genericFallbackBlocked": true,
+    "overlapClarificationReady": true,
+    "normalizedAt": "2026-05-13"
+  },
+  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
+  "definitionAnswerContract": {
+    "version": "nyx.marion.definitionAnswerContract/1.0",
+    "active": true,
+    "acceptedQuestionForms": [
+      "what is {term}",
+      "what are {term}",
+      "define {term}",
+      "explain {term}",
+      "meaning of {term}"
+    ],
+    "requiredAnswerShape": [
+      "direct definition",
+      "psychology context",
+      "one practical/actionable note when appropriate"
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
+      "The specific technical move is to name the active component."
+    ],
+    "domainLock": "psychology",
+    "allowAmbiguityClarification": true,
+    "ambiguityShape": [
+      "short neutral definition",
+      "possible domain interpretations",
+      "one targeted clarification question"
+    ],
+    "safetyBoundary": {
+      "educationalOnly": true,
+      "noDiagnosis": true,
+      "noTherapyReplacement": true,
+      "crisisEscalationRequired": true
+    }
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
+    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
+    "technicalOverrideRequiresExplicitBackendTerms": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "patch",
+      "file",
+      "script",
+      "backend",
+      "ChatEngine",
+      "MarionBridge",
+      "StateSpine",
+      "ComposeMarionResponse"
+    ],
+    "domain": "psychology",
+    "packId": "psy_clinical_safety_v2",
+    "sourceFilename": "psy_clinical_safety_v2(3).json",
+    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
+    "crossDomainOverlapMap": {
+      "cognitive intelligence": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
+        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
+      },
+      "reasoning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "law"
+        ],
+        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
+        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
+      },
+      "bias": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "research_methods"
+        ],
+        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
+        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
+      },
+      "validation": {
+        "overlapDomains": [
+          "psychology",
+          "research_methods",
+          "ai",
+          "cyber"
+        ],
+        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
+        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
+      },
+      "resilience": {
+        "overlapDomains": [
+          "psychology",
+          "business",
+          "finance"
+        ],
+        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
+        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
+      },
+      "identity": {
+        "overlapDomains": [
+          "psychology",
+          "social",
+          "development",
+          "identity_query"
+        ],
+        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
+        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
+      },
+      "attention": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
+        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
+      },
+      "learning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "education"
+        ],
+        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
+        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
+      },
+      "confidence": {
+        "overlapDomains": [
+          "psychology",
+          "statistics",
+          "ai",
+          "finance"
+        ],
+        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
+        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
+      },
+      "compliance": {
+        "overlapDomains": [
+          "psychology",
+          "law",
+          "cyber",
+          "business"
+        ],
+        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
+        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
+      }
+    }
+  },
+  "manifestPackKey": "psy_clinical_safety_v2",
+  "definitionInventory": {
+    "version": "nyx.marion.definitionInventory/1.0",
+    "domain": "psychology",
+    "packId": "psy_clinical_safety_v2",
+    "termCount": 9,
+    "items": [
+      {
+        "term": "diagnosis_prohibition",
+        "canonicalKey": "diagnosis_prohibition",
+        "definition": "Never diagnose. Use probabilistic language only if needed (e.g., 'could be consistent with'), and prefer general explanations.",
+        "section": "policyRules"
+      },
+      {
+        "term": "treatment_prohibition",
+        "canonicalKey": "treatment_prohibition",
+        "definition": "Never provide treatment plans as if you are a clinician. You may suggest general wellbeing practices and encourage professional consultation.",
+        "section": "policyRules"
+      },
+      {
+        "term": "self_harm_methods_prohibition",
+        "canonicalKey": "self_harm_methods_prohibition",
+        "definition": "Do not provide instructions, methods, or optimization advice related to self-harm or harming others.",
+        "section": "policyRules"
+      },
+      {
+        "term": "minimal_questions_in_crisis",
+        "canonicalKey": "minimal_questions_in_crisis",
+        "definition": "If high-risk signals are detected, ask only minimal questions required for safety (e.g., 'Are you safe right now?').",
+        "section": "policyRules"
+      },
+      {
+        "term": "avoid_over_personalization",
+        "canonicalKey": "avoid_over_personalization",
+        "definition": "Avoid mirroring or repeating highly sensitive user details. Summarize at a high level.",
+        "section": "policyRules"
+      },
+      {
+        "term": "escalate_on_imminent",
+        "canonicalKey": "escalate_on_imminent",
+        "definition": "If imminent danger is detected, prioritize crisis guidance and emergency escalation over other tasks.",
+        "section": "policyRules"
+      },
+      {
+        "term": "playbook_crisis",
+        "canonicalKey": "playbook_crisis",
+        "definition": "Immediate safety and connection to real-world emergency help.",
+        "section": "responsePlaybooks"
+      },
+      {
+        "term": "playbook_high_support",
+        "canonicalKey": "playbook_high_support",
+        "definition": "Stabilize, reduce isolation, encourage professional help, offer small next steps.",
+        "section": "responsePlaybooks"
+      },
+      {
+        "term": "playbook_grounding",
+        "canonicalKey": "playbook_grounding",
+        "definition": "Reduce acute panic/dissociation intensity with simple grounding and safety check.",
+        "section": "responsePlaybooks"
+      }
+    ]
   }
 }
