@@ -520,88 +520,120 @@
   },
   "runtimeDomainKey": "finance",
   "runtimePath": "Data/Domains/finance/packs/fin_macro_principles_v1.json",
-  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "safetyBoundary": {
+    "stance": "educational_and_scenario_based_finance_information_only",
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "requiresAssumptionDisclosure": true,
+    "noDeterministicForecasts": true,
+    "professionalReferralForTaxLegalSecuritiesOrHighStakes": true,
+    "userFacingBoundary": "I can provide educational finance frameworks and scenario reasoning, but not personal financial, legal, tax, or investment advice."
+  },
   "retrievalIndex": {
+    "version": "finance.retrievalIndex/1.0",
     "domain": "finance",
     "packId": "fin_macro_principles_v1",
-    "runtimePath": "Data/Domains/finance/packs/fin_macro_principles_v1.json",
     "aliases": [
-      "macro",
-      "macroeconomics",
+      "fin_macro_principles_v1",
+      "real_rate",
+      "credit_spread",
+      "liquidity",
+      "tightening_cycle",
+      "demand_shock",
       "inflation",
-      "rates",
-      "credit conditions",
-      "fin_macro_principles_v1",
-      "fin macro principles v1"
+      "interest_rates",
+      "unemployment",
+      "three_variable_model",
+      "demand_vs_cost_shock_diagnosis",
+      "transmission_channels",
+      "scenariobands",
+      "cash_flow",
+      "profit",
+      "margin",
+      "unit_economics",
+      "runway",
+      "cost_of_capital",
+      "elasticity",
+      "risk_management"
     ],
-    "preferredQueryTerms": [
-      "fin_macro_principles_v1",
-      "finance",
-      "educational_macro_framework",
-      "Inflation changes behavior, not just prices.",
-      "Interest rates determine the price of time and risk.",
-      "Credit availability amplifies economic cycles.",
-      "Policy changes create second-order effects.",
-      "Labor markets are sticky and lag adjustments.",
-      "Liquidity conditions shape asset valuations.",
-      "Expectations drive short-term market volatility.",
-      "rapid_interest_rate_hikes",
-      "widening_credit_spreads",
-      "persistent_high_inflation",
-      "tightening_bank_lending",
-      "declining_consumer_confidence",
-      "Is this demand-driven or cost-driven?",
-      "Are customers financing purchases?",
-      "Do you have variable-rate debt exposure?",
-      "What happens if revenue declines 20 percent?",
-      "How quickly can you adjust pricing?",
-      "avoid_point_forecasts",
-      "separate_nominal_and_real_values",
-      "assume_policy_lags",
-      "clarify_assumptions_before_modeling",
-      "do_not_provide_specific_market_predictions",
-      "Corporate Finance Institute — Capital Markets Overview",
-      "open_learning",
-      "OpenStax Principles of Economics 3e",
-      "open_textbook",
-      "Open Textbook Library finance/economics catalog",
-      "open_textbook_index",
-      "CFA Institute Research Foundation publications",
-      "professional_research",
-      "Bank of Canada monetary policy and interest rates",
-      "central_bank",
-      "Statistics Canada economic indicators",
-      "official_statistics",
-      "U.S. Federal Reserve FRED economic data",
-      "official_data_platform",
-      "IMF Finance & Development",
-      "institutional_magazine",
-      "World Bank Data and research explainers",
-      "multilateral_data",
-      "OECD economic outlook and policy materials",
-      "multilateral_policy_research",
-      "Financial Times markets and markets data",
-      "business_press_plus_market_data",
-      "Wall Street Journal Markets",
-      "business_press",
-      "The Economist finance and economics coverage",
-      "business_magazine",
-      "Bloomberg Markets concepts and explainers",
-      "financial_media",
-      "SEC EDGAR",
-      "regulatory_filings",
-      "SEDAR+",
-      "TMX and major exchange education/data pages",
-      "exchange_reference",
-      "financial_statement_reading",
-      "markets_news_interpretation"
+    "keywords": [
+      "Real Rate",
+      "real_rate",
+      "Credit Spread",
+      "credit_spread",
+      "Liquidity",
+      "Tightening Cycle",
+      "tightening_cycle",
+      "Demand Shock",
+      "demand_shock",
+      "Inflation",
+      "Interest Rates",
+      "interest_rates",
+      "Unemployment",
+      "Three Variable Model",
+      "three_variable_model",
+      "Demand Vs Cost Shock Diagnosis",
+      "demand_vs_cost_shock_diagnosis",
+      "Transmission Channels",
+      "transmission_channels",
+      "Scenariobands",
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "runway",
+      "cost of capital",
+      "elasticity",
+      "risk management"
     ],
-    "crossPackHints": [
-      "fin_capital_markets_v1",
-      "fin_public_policy_links_v1",
-      "fin_risk_management_v1"
+    "intentSignals": [
+      "What is Real Rate?",
+      "What is Credit Spread?",
+      "What is Liquidity?",
+      "What is Tightening Cycle?",
+      "What is Demand Shock?",
+      "What is Inflation?",
+      "What is Interest Rates?",
+      "What is Unemployment?",
+      "What is Three Variable Model?",
+      "What is Demand Vs Cost Shock Diagnosis?",
+      "What is Transmission Channels?",
+      "What is Scenariobands?",
+      "What is cash flow?",
+      "What is profit?",
+      "What is margin?",
+      "What is unit economics?",
+      "What is runway?",
+      "What is cost of capital?",
+      "What is elasticity?",
+      "What is risk management?"
     ],
-    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+    "definitionTerms": [
+      "Real Rate",
+      "Credit Spread",
+      "Liquidity",
+      "Tightening Cycle",
+      "Demand Shock",
+      "Inflation",
+      "Interest Rates",
+      "Unemployment",
+      "Three Variable Model",
+      "Demand Vs Cost Shock Diagnosis",
+      "Transmission Channels",
+      "Scenariobands",
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "runway",
+      "cost of capital",
+      "elasticity",
+      "risk management"
+    ],
+    "answerReadiness": {
+      "definitionSurfaceCount": 21,
+      "genericFallbackAllowed": false
+    }
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -611,5 +643,548 @@
     "retrievalIndexAdded": true,
     "safetyBoundaryExplicit": true,
     "validatedForMarionRegistry": true
+  },
+  "packId": "fin_macro_principles_v1",
+  "manifestPackKey": "fin_macro_principles_v1",
+  "updatedAt": "2026-05-13",
+  "patchVersion": "finance.definitionInventoryLock/1.0",
+  "definitionAnswerContract": {
+    "version": "finance.definitionAnswerContract/1.0",
+    "routeAs": "domain_question",
+    "knowledgeDomain": "finance",
+    "mustAnswerKnownDefinitions": true,
+    "answerPattern": [
+      "direct definition",
+      "plain-language financial implication",
+      "assumption or boundary note when relevant"
+    ],
+    "forbidGenericFallbackPhrases": [
+      "I need one more concrete detail to route this cleanly",
+      "I’ll keep this broad and practical",
+      "failure mode",
+      "validation step"
+    ],
+    "forbidPersonalAdvice": true,
+    "fallbackWhenUnknown": "give brief general finance framing, then ask one targeted clarification about metric, scenario, or time horizon"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "finance.runtimeDefinitionRouting/1.0",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "domainLock": "finance",
+    "precedence": "definition_query_before_technical_debug_unless_explicit_backend_or_file_audit",
+    "blockTechnicalHijackUnless": [
+      "autopsy",
+      "line-by-line audit",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "code",
+      "route",
+      "endpoint",
+      "Marion",
+      "Nyx module"
+    ],
+    "knownFinanceTerms": [
+      "adverse selection",
+      "burn rate",
+      "cac",
+      "capital stack",
+      "cash flow",
+      "contribution margin",
+      "cost of capital",
+      "credit risk",
+      "credit spread",
+      "customer acquisition cost",
+      "debt",
+      "demand shock",
+      "dilution",
+      "elasticity",
+      "equity",
+      "expected shortfall",
+      "financial stability policy",
+      "fiscal policy",
+      "freemium",
+      "gross margin",
+      "hybrid capital",
+      "inflation",
+      "interest rates",
+      "leverage",
+      "lifetime value",
+      "liquidity",
+      "liquidity risk",
+      "ltv",
+      "marginal cost",
+      "marginal revenue",
+      "market risk",
+      "monetary policy",
+      "moral hazard",
+      "operating leverage",
+      "operational risk",
+      "opportunity cost",
+      "payback period",
+      "pricing model",
+      "regulatory policy",
+      "regulatory risk",
+      "risk management",
+      "runway",
+      "seat-based pricing",
+      "strategic risk",
+      "subscription pricing",
+      "trade policy",
+      "unit economics",
+      "usage-based pricing",
+      "value at risk",
+      "value-based pricing"
+    ],
+    "overlapTerms": {
+      "risk": [
+        "finance",
+        "law",
+        "cyber",
+        "business"
+      ],
+      "compliance": [
+        "finance",
+        "law",
+        "cyber"
+      ],
+      "validation": [
+        "finance",
+        "ai",
+        "cyber",
+        "law"
+      ],
+      "confidence": [
+        "finance",
+        "psychology",
+        "ai"
+      ],
+      "liquidity": [
+        "finance",
+        "capital_markets"
+      ],
+      "leverage": [
+        "finance",
+        "business"
+      ],
+      "margin": [
+        "finance",
+        "business"
+      ],
+      "value": [
+        "finance",
+        "business",
+        "law"
+      ],
+      "capital": [
+        "finance",
+        "business"
+      ],
+      "policy": [
+        "finance",
+        "law",
+        "business"
+      ],
+      "security": [
+        "finance",
+        "cyber"
+      ],
+      "stress test": [
+        "finance",
+        "cyber",
+        "business"
+      ],
+      "model": [
+        "finance",
+        "ai",
+        "business"
+      ],
+      "forecast": [
+        "finance",
+        "business",
+        "ai"
+      ],
+      "assumption": [
+        "finance",
+        "law",
+        "ai"
+      ],
+      "exposure": [
+        "finance",
+        "law",
+        "cyber"
+      ]
+    }
+  },
+  "definitionSurface": [
+    {
+      "term": "Real Rate",
+      "normalizedTerm": "real rate",
+      "definition": "interest rate adjusted for inflation",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Real Rate?",
+        "Define Real Rate.",
+        "Explain Real Rate."
+      ],
+      "aliases": [
+        "real_rate"
+      ]
+    },
+    {
+      "term": "Credit Spread",
+      "normalizedTerm": "credit spread",
+      "definition": "difference between risky and safe interest rates",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Credit Spread?",
+        "Define Credit Spread.",
+        "Explain Credit Spread."
+      ],
+      "aliases": [
+        "credit_spread"
+      ]
+    },
+    {
+      "term": "Liquidity",
+      "normalizedTerm": "liquidity",
+      "definition": "ease of accessing capital",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Liquidity?",
+        "Define Liquidity.",
+        "Explain Liquidity."
+      ],
+      "aliases": [
+        "liquidity"
+      ]
+    },
+    {
+      "term": "Tightening Cycle",
+      "normalizedTerm": "tightening cycle",
+      "definition": "period of rising interest rates",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Tightening Cycle?",
+        "Define Tightening Cycle.",
+        "Explain Tightening Cycle."
+      ],
+      "aliases": [
+        "tightening_cycle"
+      ]
+    },
+    {
+      "term": "Demand Shock",
+      "normalizedTerm": "demand shock",
+      "definition": "sudden drop in consumer or business spending",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Demand Shock?",
+        "Define Demand Shock.",
+        "Explain Demand Shock."
+      ],
+      "aliases": [
+        "demand_shock"
+      ]
+    },
+    {
+      "term": "Inflation",
+      "normalizedTerm": "inflation",
+      "definition": "Sustained increase in general price levels.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "macro_variable",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Inflation?",
+        "Define Inflation.",
+        "Explain Inflation."
+      ],
+      "aliases": [
+        "inflation"
+      ]
+    },
+    {
+      "term": "Interest Rates",
+      "normalizedTerm": "interest rates",
+      "definition": "Cost of borrowing money over time.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "macro_variable",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Interest Rates?",
+        "Define Interest Rates.",
+        "Explain Interest Rates."
+      ],
+      "aliases": [
+        "interest_rates"
+      ]
+    },
+    {
+      "term": "Unemployment",
+      "normalizedTerm": "unemployment",
+      "definition": "Percentage of labor force without jobs.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "macro_variable",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Unemployment?",
+        "Define Unemployment.",
+        "Explain Unemployment."
+      ],
+      "aliases": [
+        "unemployment"
+      ]
+    },
+    {
+      "term": "Liquidity",
+      "normalizedTerm": "liquidity",
+      "definition": "Ease of accessing capital and transacting.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "macro_variable",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Liquidity?",
+        "Define Liquidity.",
+        "Explain Liquidity."
+      ],
+      "aliases": [
+        "liquidity"
+      ]
+    },
+    {
+      "term": "Three Variable Model",
+      "normalizedTerm": "three variable model",
+      "definition": "Three Variable Model is a finance framework organized around inflation, unemployment, interest rates.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Three Variable Model?",
+        "Define Three Variable Model.",
+        "Explain Three Variable Model."
+      ],
+      "aliases": [
+        "three_variable_model"
+      ]
+    },
+    {
+      "term": "Demand Vs Cost Shock Diagnosis",
+      "normalizedTerm": "demand vs cost shock diagnosis",
+      "definition": "Demand Vs Cost Shock Diagnosis is a finance framework organized around if revenue drops and costs stable then demand shock, if costs rise and revenue stable then cost shock.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Demand Vs Cost Shock Diagnosis?",
+        "Define Demand Vs Cost Shock Diagnosis.",
+        "Explain Demand Vs Cost Shock Diagnosis."
+      ],
+      "aliases": [
+        "demand_vs_cost_shock_diagnosis"
+      ]
+    },
+    {
+      "term": "Transmission Channels",
+      "normalizedTerm": "transmission channels",
+      "definition": "Transmission Channels is a finance framework organized around rates to credit, credit to spending, spending to revenue.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Transmission Channels?",
+        "Define Transmission Channels.",
+        "Explain Transmission Channels."
+      ],
+      "aliases": [
+        "transmission_channels"
+      ]
+    },
+    {
+      "term": "Scenariobands",
+      "normalizedTerm": "scenariobands",
+      "definition": "Scenariobands is a finance framework organized around base case, downside case, upside case.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Scenariobands?",
+        "Define Scenariobands.",
+        "Explain Scenariobands."
+      ],
+      "aliases": [
+        "scenarioBands"
+      ]
+    },
+    {
+      "term": "cash flow",
+      "normalizedTerm": "cash flow",
+      "definition": "Cash flow is the movement of money into and out of a business over a period; it determines whether obligations can be paid in real time, even when accounting profit looks healthy.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is cash flow?",
+        "Define cash flow.",
+        "Explain cash flow."
+      ]
+    },
+    {
+      "term": "profit",
+      "normalizedTerm": "profit",
+      "definition": "Profit is the economic surplus left after costs are subtracted from revenue under accounting rules.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is profit?",
+        "Define profit.",
+        "Explain profit."
+      ]
+    },
+    {
+      "term": "margin",
+      "normalizedTerm": "margin",
+      "definition": "Margin expresses profit or contribution as a percentage of revenue, showing how efficiently revenue converts into surplus.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is margin?",
+        "Define margin.",
+        "Explain margin."
+      ]
+    },
+    {
+      "term": "unit economics",
+      "normalizedTerm": "unit economics",
+      "definition": "Unit economics measure the revenue, cost, and contribution tied to one customer, transaction, seat, or contract.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is unit economics?",
+        "Define unit economics.",
+        "Explain unit economics."
+      ]
+    },
+    {
+      "term": "runway",
+      "normalizedTerm": "runway",
+      "definition": "Runway estimates how long a business can operate before available cash is depleted, usually based on cash on hand and monthly burn.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is runway?",
+        "Define runway.",
+        "Explain runway."
+      ]
+    },
+    {
+      "term": "cost of capital",
+      "normalizedTerm": "cost of capital",
+      "definition": "Cost of capital is the required return expected by funders and investors for providing debt or equity capital.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is cost of capital?",
+        "Define cost of capital.",
+        "Explain cost of capital."
+      ]
+    },
+    {
+      "term": "elasticity",
+      "normalizedTerm": "elasticity",
+      "definition": "Elasticity measures how responsive demand or supply is to changes in price, income, or related variables.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is elasticity?",
+        "Define elasticity.",
+        "Explain elasticity."
+      ]
+    },
+    {
+      "term": "risk management",
+      "normalizedTerm": "risk management",
+      "definition": "Risk management is the process of identifying, measuring, mitigating, and monitoring uncertainty that could damage financial performance or resilience.",
+      "domain": "finance",
+      "sourcePack": "fin_macro_principles_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is risk management?",
+        "Define risk management.",
+        "Explain risk management."
+      ]
+    }
+  ],
+  "validation": {
+    "jsonValid": true,
+    "validatedAt": "2026-05-13",
+    "lineAuditPass": true,
+    "sourceHash": "7e6994cb9104162b",
+    "patchedHash": "c6281c5619b5d0ac"
   }
 }
