@@ -590,87 +590,118 @@
   },
   "runtimeDomainKey": "finance",
   "runtimePath": "Data/Domains/finance/packs/fin_capital_markets_v1.json",
-  "safetyBoundary": "educational_and_decision_support_only_not_personalized_investment_or_legal_advice",
+  "safetyBoundary": {
+    "stance": "educational_and_scenario_based_finance_information_only",
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "requiresAssumptionDisclosure": true,
+    "noDeterministicForecasts": true,
+    "professionalReferralForTaxLegalSecuritiesOrHighStakes": true,
+    "userFacingBoundary": "I can provide educational finance frameworks and scenario reasoning, but not personal financial, legal, tax, or investment advice."
+  },
   "retrievalIndex": {
+    "version": "finance.retrievalIndex/1.0",
     "domain": "finance",
     "packId": "fin_capital_markets_v1",
-    "runtimePath": "Data/Domains/finance/packs/fin_capital_markets_v1.json",
     "aliases": [
-      "capital markets",
+      "fin_capital_markets_v1",
+      "burn_rate",
+      "runway",
+      "dilution",
+      "cost_of_capital",
+      "leverage",
       "debt",
       "equity",
-      "runway",
-      "cost of capital",
-      "fin_capital_markets_v1",
-      "fin capital markets v1"
+      "hybrid",
+      "capitaldecisiontree",
+      "costofcapital",
+      "runwaymodel",
+      "dilutionlogic",
+      "capitalstack",
+      "cash_flow",
+      "profit",
+      "margin",
+      "unit_economics",
+      "inflation",
+      "liquidity",
+      "elasticity",
+      "risk_management"
     ],
-    "preferredQueryTerms": [
-      "fin_capital_markets_v1",
-      "finance",
-      "educational_decision_support",
-      "debt_service_exceeds_30_percent_operating_cashflow",
-      "single_investor_dominance",
-      "bridge_financing_dependency",
-      "runway_below_six_months",
-      "duration_mismatch_between_assets_and_funding",
-      "do_not_provide_specific_legal_structuring_advice",
-      "encourage_professional_consultation_for_securities_and_tax",
-      "avoid_deterministic_valuation_predictions",
-      "clarify_assumptions_before_modeling",
-      "separate_need_capital_from_want_capital",
-      "growth_without_margin",
-      "stable_cashflow_low_growth",
-      "founder_control_priority",
-      "operational_gap_capital",
-      "Corporate Finance Institute — Capital Markets Overview",
-      "open_learning",
-      "OpenStax Principles of Economics 3e",
-      "open_textbook",
-      "Open Textbook Library finance/economics catalog",
-      "open_textbook_index",
-      "CFA Institute Research Foundation publications",
-      "professional_research",
-      "Bank of Canada monetary policy and interest rates",
-      "central_bank",
-      "Statistics Canada economic indicators",
-      "official_statistics",
-      "U.S. Federal Reserve FRED economic data",
-      "official_data_platform",
-      "IMF Finance & Development",
-      "institutional_magazine",
-      "World Bank Data and research explainers",
-      "multilateral_data",
-      "OECD economic outlook and policy materials",
-      "multilateral_policy_research",
-      "Financial Times markets and markets data",
-      "business_press_plus_market_data",
-      "Wall Street Journal Markets",
-      "business_press",
-      "The Economist finance and economics coverage",
-      "business_magazine",
-      "Bloomberg Markets concepts and explainers",
-      "financial_media",
-      "SEC EDGAR",
-      "regulatory_filings",
-      "SEDAR+",
-      "TMX and major exchange education/data pages",
-      "exchange_reference",
-      "financial_statement_reading",
-      "markets_news_interpretation",
-      "case_method_finance",
-      "assistant_finance_language_control",
-      "dilutive_growth_round",
-      "rate_shock_refinancing",
-      "public_listing_window",
-      "cap_table_simulator",
-      "software_project",
-      "capital_stack_visualizer"
+    "keywords": [
+      "Burn Rate",
+      "burn_rate",
+      "Runway",
+      "Dilution",
+      "Cost Of Capital",
+      "cost_of_capital",
+      "Leverage",
+      "Debt",
+      "Equity",
+      "Hybrid",
+      "Capitaldecisiontree",
+      "Costofcapital",
+      "Runwaymodel",
+      "Dilutionlogic",
+      "Capitalstack",
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "inflation",
+      "liquidity",
+      "elasticity",
+      "risk management"
     ],
-    "crossPackHints": [
-      "fin_macro_principles_v1",
-      "fin_risk_management_v1"
+    "intentSignals": [
+      "What is Burn Rate?",
+      "What is Runway?",
+      "What is Dilution?",
+      "What is Cost Of Capital?",
+      "What is Leverage?",
+      "What is Debt?",
+      "What is Equity?",
+      "What is Hybrid?",
+      "What is Capitaldecisiontree?",
+      "What is Costofcapital?",
+      "What is Runwaymodel?",
+      "What is Dilutionlogic?",
+      "What is Capitalstack?",
+      "What is cash flow?",
+      "What is profit?",
+      "What is margin?",
+      "What is unit economics?",
+      "What is inflation?",
+      "What is liquidity?",
+      "What is elasticity?",
+      "What is risk management?"
     ],
-    "answerUse": "Use for educational finance explanations, scenario framing, assumptions, risk flags, and business decision support; do not provide personalized investment, legal, tax, or securities advice."
+    "definitionTerms": [
+      "Burn Rate",
+      "Runway",
+      "Dilution",
+      "Cost Of Capital",
+      "Leverage",
+      "Debt",
+      "Equity",
+      "Hybrid",
+      "Capitaldecisiontree",
+      "Costofcapital",
+      "Runwaymodel",
+      "Dilutionlogic",
+      "Capitalstack",
+      "cash flow",
+      "profit",
+      "margin",
+      "unit economics",
+      "inflation",
+      "liquidity",
+      "elasticity",
+      "risk management"
+    ],
+    "answerReadiness": {
+      "definitionSurfaceCount": 21,
+      "genericFallbackAllowed": false
+    }
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -680,5 +711,549 @@
     "retrievalIndexAdded": true,
     "safetyBoundaryExplicit": true,
     "validatedForMarionRegistry": true
+  },
+  "packId": "fin_capital_markets_v1",
+  "manifestPackKey": "fin_capital_markets_v1",
+  "updatedAt": "2026-05-13",
+  "patchVersion": "finance.definitionInventoryLock/1.0",
+  "definitionAnswerContract": {
+    "version": "finance.definitionAnswerContract/1.0",
+    "routeAs": "domain_question",
+    "knowledgeDomain": "finance",
+    "mustAnswerKnownDefinitions": true,
+    "answerPattern": [
+      "direct definition",
+      "plain-language financial implication",
+      "assumption or boundary note when relevant"
+    ],
+    "forbidGenericFallbackPhrases": [
+      "I need one more concrete detail to route this cleanly",
+      "I’ll keep this broad and practical",
+      "failure mode",
+      "validation step"
+    ],
+    "forbidPersonalAdvice": true,
+    "fallbackWhenUnknown": "give brief general finance framing, then ask one targeted clarification about metric, scenario, or time horizon"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "finance.runtimeDefinitionRouting/1.0",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "domainLock": "finance",
+    "precedence": "definition_query_before_technical_debug_unless_explicit_backend_or_file_audit",
+    "blockTechnicalHijackUnless": [
+      "autopsy",
+      "line-by-line audit",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "code",
+      "route",
+      "endpoint",
+      "Marion",
+      "Nyx module"
+    ],
+    "knownFinanceTerms": [
+      "adverse selection",
+      "burn rate",
+      "cac",
+      "capital stack",
+      "cash flow",
+      "contribution margin",
+      "cost of capital",
+      "credit risk",
+      "credit spread",
+      "customer acquisition cost",
+      "debt",
+      "demand shock",
+      "dilution",
+      "elasticity",
+      "equity",
+      "expected shortfall",
+      "financial stability policy",
+      "fiscal policy",
+      "freemium",
+      "gross margin",
+      "hybrid capital",
+      "inflation",
+      "interest rates",
+      "leverage",
+      "lifetime value",
+      "liquidity",
+      "liquidity risk",
+      "ltv",
+      "marginal cost",
+      "marginal revenue",
+      "market risk",
+      "monetary policy",
+      "moral hazard",
+      "operating leverage",
+      "operational risk",
+      "opportunity cost",
+      "payback period",
+      "pricing model",
+      "regulatory policy",
+      "regulatory risk",
+      "risk management",
+      "runway",
+      "seat-based pricing",
+      "strategic risk",
+      "subscription pricing",
+      "trade policy",
+      "unit economics",
+      "usage-based pricing",
+      "value at risk",
+      "value-based pricing"
+    ],
+    "overlapTerms": {
+      "risk": [
+        "finance",
+        "law",
+        "cyber",
+        "business"
+      ],
+      "compliance": [
+        "finance",
+        "law",
+        "cyber"
+      ],
+      "validation": [
+        "finance",
+        "ai",
+        "cyber",
+        "law"
+      ],
+      "confidence": [
+        "finance",
+        "psychology",
+        "ai"
+      ],
+      "liquidity": [
+        "finance",
+        "capital_markets"
+      ],
+      "leverage": [
+        "finance",
+        "business"
+      ],
+      "margin": [
+        "finance",
+        "business"
+      ],
+      "value": [
+        "finance",
+        "business",
+        "law"
+      ],
+      "capital": [
+        "finance",
+        "business"
+      ],
+      "policy": [
+        "finance",
+        "law",
+        "business"
+      ],
+      "security": [
+        "finance",
+        "cyber"
+      ],
+      "stress test": [
+        "finance",
+        "cyber",
+        "business"
+      ],
+      "model": [
+        "finance",
+        "ai",
+        "business"
+      ],
+      "forecast": [
+        "finance",
+        "business",
+        "ai"
+      ],
+      "assumption": [
+        "finance",
+        "law",
+        "ai"
+      ],
+      "exposure": [
+        "finance",
+        "law",
+        "cyber"
+      ]
+    }
+  },
+  "definitionSurface": [
+    {
+      "term": "Burn Rate",
+      "normalizedTerm": "burn rate",
+      "definition": "monthly net cash outflow",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Burn Rate?",
+        "Define Burn Rate.",
+        "Explain Burn Rate."
+      ],
+      "aliases": [
+        "burn_rate"
+      ]
+    },
+    {
+      "term": "Runway",
+      "normalizedTerm": "runway",
+      "definition": "months until cash depletion",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Runway?",
+        "Define Runway.",
+        "Explain Runway."
+      ],
+      "aliases": [
+        "runway"
+      ]
+    },
+    {
+      "term": "Dilution",
+      "normalizedTerm": "dilution",
+      "definition": "reduction in ownership percentage",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Dilution?",
+        "Define Dilution.",
+        "Explain Dilution."
+      ],
+      "aliases": [
+        "dilution"
+      ]
+    },
+    {
+      "term": "Cost Of Capital",
+      "normalizedTerm": "cost of capital",
+      "definition": "required return by funders",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Cost Of Capital?",
+        "Define Cost Of Capital.",
+        "Explain Cost Of Capital."
+      ],
+      "aliases": [
+        "cost_of_capital"
+      ]
+    },
+    {
+      "term": "Leverage",
+      "normalizedTerm": "leverage",
+      "definition": "use of borrowed funds to amplify returns",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "glossary",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Leverage?",
+        "Define Leverage.",
+        "Explain Leverage."
+      ],
+      "aliases": [
+        "leverage"
+      ]
+    },
+    {
+      "term": "Debt",
+      "normalizedTerm": "debt",
+      "definition": "Debt capital is characterized by fixed repayment, no ownership dilution, requires cashflow stability.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "capital_category",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Debt?",
+        "Define Debt.",
+        "Explain Debt."
+      ],
+      "aliases": [
+        "debt"
+      ]
+    },
+    {
+      "term": "Equity",
+      "normalizedTerm": "equity",
+      "definition": "Equity capital is characterized by ownership dilution, no mandatory repayment, investor expected high return.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "capital_category",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Equity?",
+        "Define Equity.",
+        "Explain Equity."
+      ],
+      "aliases": [
+        "equity"
+      ]
+    },
+    {
+      "term": "Hybrid",
+      "normalizedTerm": "hybrid",
+      "definition": "Hybrid capital is characterized by blend debt and equity features, delayed valuation possible, structured conversion terms.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "capital_category",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Hybrid?",
+        "Define Hybrid.",
+        "Explain Hybrid."
+      ],
+      "aliases": [
+        "hybrid"
+      ]
+    },
+    {
+      "term": "Capitaldecisiontree",
+      "normalizedTerm": "capitaldecisiontree",
+      "definition": "Capitaldecisiontree is a finance framework organized around if cashflow stable consider debt, if growth high and scalable equity aligned, if control priority minimize dilution.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Capitaldecisiontree?",
+        "Define Capitaldecisiontree.",
+        "Explain Capitaldecisiontree."
+      ],
+      "aliases": [
+        "capitalDecisionTree"
+      ]
+    },
+    {
+      "term": "Costofcapital",
+      "normalizedTerm": "costofcapital",
+      "definition": "Costofcapital is a finance framework organized around cost of debt interest rate adjusted, cost of equity expected return, weighted cost of capital blended rate.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Costofcapital?",
+        "Define Costofcapital.",
+        "Explain Costofcapital."
+      ],
+      "aliases": [
+        "costOfCapital"
+      ]
+    },
+    {
+      "term": "Runwaymodel",
+      "normalizedTerm": "runwaymodel",
+      "definition": "Runwaymodel is a finance framework used to structure scenario analysis and decision support.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Runwaymodel?",
+        "Define Runwaymodel.",
+        "Explain Runwaymodel."
+      ],
+      "aliases": [
+        "runwayModel"
+      ],
+      "formula": "runway_months = cash_on_hand / monthly_burn"
+    },
+    {
+      "term": "Dilutionlogic",
+      "normalizedTerm": "dilutionlogic",
+      "definition": "Dilutionlogic is a finance framework organized around post money ownership = pre money value / post money value, dilution compounds across rounds.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Dilutionlogic?",
+        "Define Dilutionlogic.",
+        "Explain Dilutionlogic."
+      ],
+      "aliases": [
+        "dilutionLogic"
+      ]
+    },
+    {
+      "term": "Capitalstack",
+      "normalizedTerm": "capitalstack",
+      "definition": "Capitalstack is a finance framework organized around senior secured debt, subordinated debt, mezzanine.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "framework",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is Capitalstack?",
+        "Define Capitalstack.",
+        "Explain Capitalstack."
+      ],
+      "aliases": [
+        "capitalStack"
+      ]
+    },
+    {
+      "term": "cash flow",
+      "normalizedTerm": "cash flow",
+      "definition": "Cash flow is the movement of money into and out of a business over a period; it determines whether obligations can be paid in real time, even when accounting profit looks healthy.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is cash flow?",
+        "Define cash flow.",
+        "Explain cash flow."
+      ]
+    },
+    {
+      "term": "profit",
+      "normalizedTerm": "profit",
+      "definition": "Profit is the economic surplus left after costs are subtracted from revenue under accounting rules.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is profit?",
+        "Define profit.",
+        "Explain profit."
+      ]
+    },
+    {
+      "term": "margin",
+      "normalizedTerm": "margin",
+      "definition": "Margin expresses profit or contribution as a percentage of revenue, showing how efficiently revenue converts into surplus.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is margin?",
+        "Define margin.",
+        "Explain margin."
+      ]
+    },
+    {
+      "term": "unit economics",
+      "normalizedTerm": "unit economics",
+      "definition": "Unit economics measure the revenue, cost, and contribution tied to one customer, transaction, seat, or contract.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is unit economics?",
+        "Define unit economics.",
+        "Explain unit economics."
+      ]
+    },
+    {
+      "term": "inflation",
+      "normalizedTerm": "inflation",
+      "definition": "Inflation is a sustained rise in the general price level that changes costs, purchasing power, pricing behavior, and margins.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is inflation?",
+        "Define inflation.",
+        "Explain inflation."
+      ]
+    },
+    {
+      "term": "liquidity",
+      "normalizedTerm": "liquidity",
+      "definition": "Liquidity is the ease of accessing cash or capital when needed without severe delay, discount, or disruption.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is liquidity?",
+        "Define liquidity.",
+        "Explain liquidity."
+      ]
+    },
+    {
+      "term": "elasticity",
+      "normalizedTerm": "elasticity",
+      "definition": "Elasticity measures how responsive demand or supply is to changes in price, income, or related variables.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is elasticity?",
+        "Define elasticity.",
+        "Explain elasticity."
+      ]
+    },
+    {
+      "term": "risk management",
+      "normalizedTerm": "risk management",
+      "definition": "Risk management is the process of identifying, measuring, mitigating, and monitoring uncertainty that could damage financial performance or resilience.",
+      "domain": "finance",
+      "sourcePack": "fin_capital_markets_v1",
+      "category": "core_finance_definition",
+      "answerShape": "direct_definition_then_business_implication",
+      "educationalBoundary": "educational_finance_information_not_personal_financial_or_investment_advice",
+      "definitionPrompts": [
+        "What is risk management?",
+        "Define risk management.",
+        "Explain risk management."
+      ]
+    }
+  ],
+  "validation": {
+    "jsonValid": true,
+    "validatedAt": "2026-05-13",
+    "lineAuditPass": true,
+    "sourceHash": "bf0e25d6f148d770",
+    "patchedHash": "fcdb142361bd6b53"
   }
 }
