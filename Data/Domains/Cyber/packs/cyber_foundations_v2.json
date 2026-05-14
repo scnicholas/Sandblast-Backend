@@ -468,13 +468,32 @@
       "zero trust",
       "threat modeling",
       "risk",
-      "controls"
+      "controls",
+      "cia triad",
+      "defense in depth",
+      "assume breach",
+      "secure by default",
+      "attack surface",
+      "vulnerability",
+      "threat",
+      "threat actor / capability / intent",
+      "intrusion kill chain (high-level)",
+      "zero trust (outcomes view)",
+      "asset",
+      "control",
+      "identity & access management (iam)",
+      "logging & telemetry",
+      "vulnerability & patch management",
+      "backups & recovery"
     ],
     "intentSignals": [
       "explain",
       "framework",
       "baseline",
-      "start here"
+      "start here",
+      "definition",
+      "defensive explanation",
+      "risk reduction"
     ]
   },
   "curriculumArchitecture": {
@@ -825,11 +844,524 @@
   },
   "runtimePath": "Data/Domains/Cyber/packs/cyber_foundations_v2.json",
   "runtimeDomainKey": "cyber",
-  "safetyBoundary": "defensive_cybersecurity_only_no_exploit_guidance",
+  "safetyBoundary": {
+    "mode": "defensive_only",
+    "noExploitGuidance": true,
+    "noBypassInstructions": true,
+    "noMalwareAssistance": true,
+    "noCredentialProcessing": true,
+    "humanOversightRequired": true,
+    "allowedResponseModes": [
+      "definition",
+      "risk_explanation",
+      "secure_architecture",
+      "control_review",
+      "policy_guidance",
+      "incident_response",
+      "hardening_checklist",
+      "training_or_tabletop"
+    ],
+    "disallowedResponseModes": [
+      "intrusion_steps",
+      "exploit_chain",
+      "malware_creation",
+      "credential_abuse",
+      "evasion_or_persistence",
+      "live_targeting"
+    ]
+  },
   "normalizationStatus": {
     "jsonValid": true,
     "conflictMarkersRemoved": 0,
     "runtimePathConfirmed": true,
     "batch2Hardened": true
-  }
+  },
+  "runtimeSchema": "cyber_domain_runtime_v2_2",
+  "domainAliases": [
+    "cyber",
+    "cybersecurity",
+    "defensive cybersecurity",
+    "information security",
+    "security"
+  ],
+  "answerPolicy": {
+    "directDefinitionFirst": true,
+    "knownTermMustAnswer": true,
+    "answerThenClarifyWhenAmbiguous": true,
+    "avoidGenericFallbackForKnownCyberTerms": true,
+    "blockTechnicalDebugLanguageUnlessExplicitBackendRequest": true,
+    "shortDefinitionMaxSentences": 3,
+    "defaultTone": "defensive, clear, operationally safe",
+    "requiredShapeForDefinition": [
+      "one clear definition",
+      "defensive significance",
+      "one practical safe control or clarification if needed"
+    ]
+  },
+  "ambiguityPolicy": {
+    "enabled": true,
+    "strategy": "bridge_definition_plus_domain_options",
+    "knownOverlapBehavior": "Do not fail closed into generic fallback. Provide a brief neutral definition, name the possible domain angles, then ask one targeted clarification question.",
+    "crossDomainPairs": {
+      "cyber_law": "Ask whether the user means security controls/risk reduction or legal/compliance obligations.",
+      "cyber_finance": "Ask whether the user means security risk, fraud/financial exposure, or business impact.",
+      "cyber_ai": "Ask whether the user means security architecture, AI system safety, prompt injection, or model/tool behavior.",
+      "cyber_psychology": "Ask whether the user means human-risk/security culture or psychological behavior.",
+      "cyber_english": "Ask whether the user wants the cybersecurity definition or the plain-language wording/usage meaning."
+    }
+  },
+  "runtimeGuards": {
+    "definitionRoutingLock": true,
+    "blockGenericFallback": true,
+    "blockScheduleInterception": true,
+    "blockAutopsyTemplateUnlessTechnicalModuleNamed": true,
+    "suppressIfBackendReplyExists": true,
+    "defensiveOnly": true,
+    "neverProvideExploitSteps": true,
+    "redactSecretsAndAdviseRotation": true,
+    "knownCyberTermsRouteToCyber": true,
+    "v1CompatibilityMustNotOverrideV2": true
+  },
+  "definitionRouting": {
+    "lockName": "Cyber Definition Routing Lock",
+    "enabled": true,
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "forceDomainWhenKnownTerm": "cyber",
+    "fallbackBehavior": "answer_then_clarify_not_generic_fallback",
+    "technicalDebugOverrideRequires": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "route",
+      "diagnostic"
+    ]
+  },
+  "runtimeDefinitionIndex": [
+    {
+      "term": "CIA Triad",
+      "definition": "The CIA Triad is the security model of confidentiality, integrity, and availability: protect data from unauthorized disclosure, keep it accurate and trustworthy, and keep systems usable when needed.",
+      "aliases": [
+        "confidentiality integrity availability",
+        "security triad"
+      ],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "cia triad",
+          "confidentiality integrity availability",
+          "security triad"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Least Privilege",
+      "definition": "Least privilege means granting each user, service, token, or process only the access needed for its task and only for the time required.",
+      "aliases": [
+        "minimum privilege",
+        "limited access",
+        "least-privilege"
+      ],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "least privilege",
+          "minimum privilege",
+          "limited access",
+          "least-privilege"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Defense in Depth",
+      "definition": "Defense in depth means using multiple overlapping controls so one failure does not become a full compromise.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "defense in depth"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Assume Breach",
+      "definition": "Assume breach means designing as if compromise may happen, then optimizing for containment, monitoring, and recovery.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "assume breach"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Secure by Default",
+      "definition": "Secure by default means a system starts in a safe configuration without requiring users or operators to manually remove risky exposure.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "secure by default"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Attack Surface",
+      "definition": "Attack surface is the full set of ways an attacker could interact with or reach a system, including APIs, users, endpoints, identities, and integrations.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "attack surface"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Vulnerability",
+      "definition": "A vulnerability is a weakness that could be exploited to violate confidentiality, integrity, availability, privacy, or safety.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "vulnerability"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Threat",
+      "definition": "A threat is a potential cause of harm, usually understood as an actor, event, or condition with capability and intent.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "threat"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Risk",
+      "definition": "Cyber risk is the likelihood and impact of a threat exploiting a weakness against an asset or business process.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "risk"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Zero Trust",
+      "definition": "Zero trust is a security model that continuously verifies identity, device posture, context, and authorization instead of assuming trust from network location.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "zero trust"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Threat Actor / Capability / Intent",
+      "definition": "Model threats by who might attack, what they can do, and why they’d do it.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "threat actor / capability / intent"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Intrusion Kill Chain (high-level)",
+      "definition": "A generic sequence of attack stages (recon to actions on objectives) to plan detections and controls.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "intrusion kill chain (high-level)"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Zero Trust (outcomes view)",
+      "definition": "Continuously verify and minimize trust: strong identity, device posture, least privilege, segmentation, and telemetry.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "zero trust (outcomes view)"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Asset",
+      "definition": "Anything of value to protect: data, systems, credentials, people, reputation.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "asset"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Control",
+      "definition": "A safeguard that reduces risk (prevent, detect, respond, recover).",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "control"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Identity & Access Management (IAM)",
+      "definition": "Authentication, authorization, lifecycle management, and monitoring of identities.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "identity & access management (iam)"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Logging & Telemetry",
+      "definition": "Visibility is a prerequisite for detection and response; logs should be meaningful and protected.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "logging & telemetry"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Vulnerability & Patch Management",
+      "definition": "Identify, prioritize, and remediate known weaknesses in a disciplined cadence.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "vulnerability & patch management"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Backups & Recovery",
+      "definition": "Resilience against ransomware and failures depends on tested backups and recovery procedures.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_foundations_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "backups & recovery"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    }
+  ],
+  "normalizationMeta": {
+    "normalizedAt": "2026-05-13",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "cyber_domain_runtime_v2_2",
+    "preservedStructuralIntegrity": true,
+    "patchesApplied": [
+      "Cyber Definition Routing Lock",
+      "Defensive-Only Answer Policy",
+      "Generic Fallback Suppression for Known Cyber Terms",
+      "Endpoint Cloud V1/V2 Compatibility Guard",
+      "Runtime Definition Index Injection"
+    ]
+  },
+  "compatibilityPolicy": {
+    "role": "required_current_cyber_pack",
+    "loadByDefault": true,
+    "mustNotBeOverriddenByLegacyPack": true
+  },
+  "aliases": [
+    "cyber_foundations_v2.json",
+    "cyber_foundations_v2",
+    "cyber_foundations"
+  ]
 }
