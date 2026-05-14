@@ -20,7 +20,7 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
-const ROUTER_VERSION = "domainRouter v1.5.1 TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.2 SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -115,6 +115,29 @@ function continuityHash(value) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(16);
+}
+
+
+function isDefinitionQuery(text = "") {
+  const t = normalizeVoiceTextParityText(text).toLowerCase();
+  return !!t && (/\b(what\s+is|what\s+are|define|definition\s+of|meaning\s+of|explain|explain\s+the\s+term|explain\s+the\s+word|describe)\b/i.test(t) || /\?$/.test(t));
+}
+
+function definitionKnowledgeDomainFromText(text = "") {
+  const t = normalizeVoiceTextParityText(text).toLowerCase();
+  if (!isDefinitionQuery(t)) return "";
+  if (canonicalTechnicalTargetFromText(t).targetPath) return "";
+  if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return "";
+  const domainTerms = [
+    [DOMAIN_ENUM.LAW, /\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance)\b/i],
+    [DOMAIN_ENUM.FIN, /\b(cash[-\s]?flow|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience)\b/i],
+    [DOMAIN_ENUM.PSY, /\b(cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|cognitive|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour)\b/i],
+    [DOMAIN_ENUM.AI, /\b(tool routing|rag|retrieval augmented generation|llm|large language model|embedding|agent orchestration|ai agent|artificial intelligence|machine learning|model inference|prompt injection in ai)\b/i],
+    [DOMAIN_ENUM.CYBER, /\b(least privilege|mfa|multi[-\s]?factor|iam|identity access|zero trust|incident response|threat model|input validation|secrets rotation|phishing|ransomware|endpoint security|cloud security|network security|data protection|privacy minimization)\b/i],
+    [DOMAIN_ENUM.EN, /\b(sentence clarity|syntax|grammar|tone|wording|language flow|professional clarity|plain language|copyedit|proofread)\b/i]
+  ];
+  for (const [domain, rx] of domainTerms) if (rx.test(t)) return domain;
+  return "";
 }
 
 function hasAny(text, reList) {
@@ -284,6 +307,15 @@ function applyKeywordSignals(scores, norm) {
     if (hasAny(text, patterns)) {
       scores[domain] += 2.0;
     }
+  }
+
+  // Definition query lock: known six-domain terms outrank generic technical/debug scoring.
+  const definitionDomain = definitionKnowledgeDomainFromText(text);
+  if (definitionDomain) {
+    scores[definitionDomain] += 5.8;
+    scores[DOMAIN_ENUM.TECH] -= 2.4;
+    scores[DOMAIN_ENUM.CORE] -= 1.2;
+    scores[DOMAIN_ENUM.STRAT] -= 0.6;
   }
 
   // Extra boosts for cross-domain coupling phrases
@@ -462,6 +494,8 @@ function scoreDomains(norm, session, cog, opts = {}) {
 
   applyLaneActionHeuristics(scores, n);
   applyKeywordSignals(scores, n);
+  const definitionDomain = definitionKnowledgeDomainFromText(n.text || n.query || n.message || "");
+  if (definitionDomain) signals.push(`definition:${definitionDomain}`);
   applyIntentMode(scores, c, s);
   applyRiskClamp(scores, c);
 
