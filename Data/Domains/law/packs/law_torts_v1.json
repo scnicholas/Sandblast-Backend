@@ -91,7 +91,9 @@
           "injury",
           "fault",
           "liable",
-          "sue"
+          "sue",
+          "negligence: the 4-element frame",
+          "tort negligence elements"
         ],
         "intentSignals": [
           "do i have a case",
@@ -99,6 +101,63 @@
           "who is responsible",
           "what can i claim"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_negligence_elements",
+        "sourcePath": "theories[0]",
+        "term": "Negligence: the 4-element frame",
+        "aliases": [
+          "Negligence: the 4-element frame",
+          "tort negligence elements",
+          "negligence",
+          "careless",
+          "accident",
+          "injury",
+          "fault",
+          "liable",
+          "sue",
+          "do i have a case",
+          "can i sue",
+          "who is responsible",
+          "what can i claim"
+        ],
+        "definition": "Negligence generally asks whether someone owed a duty of care, breached the standard of care, caused the harm, and whether compensable damages resulted.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is negligence: the 4-element frame?",
+          "what is tort negligence elements?",
+          "what is negligence?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "negligence",
+              "domains": [
+                "law",
+                "psychology/social blame"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -130,13 +189,76 @@
           "duty of care",
           "foreseeable",
           "should have known",
-          "responsibility"
+          "responsibility",
+          "duty of care: foreseeability + relationship + policy limits",
+          "tort duty of care foreseeability"
         ],
         "intentSignals": [
           "do they owe me",
           "were they required",
           "should they have prevented"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_duty_of_care_foreseeability",
+        "sourcePath": "theories[1]",
+        "term": "Duty of care: foreseeability + relationship + policy limits",
+        "aliases": [
+          "Duty of care: foreseeability + relationship + policy limits",
+          "tort duty of care foreseeability",
+          "duty of care",
+          "foreseeable",
+          "should have known",
+          "responsibility",
+          "do they owe me",
+          "were they required",
+          "should they have prevented"
+        ],
+        "definition": "Duty of care usually turns on whether harm was reasonably foreseeable in a sufficiently close relationship, sometimes constrained by broader policy concerns.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is duty of care: foreseeability + relationship + policy limits?",
+          "what is tort duty of care foreseeability?",
+          "what is duty of care?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "duty",
+              "domains": [
+                "law",
+                "ethics",
+                "business"
+              ]
+            },
+            {
+              "term": "foreseeability",
+              "domains": [
+                "law",
+                "risk management"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -169,13 +291,70 @@
           "reasonable",
           "should have",
           "precautions",
-          "warning sign"
+          "warning sign",
+          "standard of care: contextual reasonableness",
+          "tort standard of care contextual"
         ],
         "intentSignals": [
           "were they negligent",
           "did they breach",
           "did they do enough"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_standard_of_care_contextual",
+        "sourcePath": "theories[2]",
+        "term": "Standard of care: contextual reasonableness",
+        "aliases": [
+          "Standard of care: contextual reasonableness",
+          "tort standard of care contextual",
+          "standard of care",
+          "reasonable",
+          "should have",
+          "precautions",
+          "warning sign",
+          "were they negligent",
+          "did they breach",
+          "did they do enough"
+        ],
+        "definition": "Breach is measured against what a reasonable person (or professional) would do in the same circumstances, including risk magnitude and practicality of precautions.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is standard of care: contextual reasonableness?",
+          "what is tort standard of care contextual?",
+          "what is standard of care?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "standard",
+              "domains": [
+                "law",
+                "research",
+                "quality control"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -208,13 +387,70 @@
           "because of",
           "chain",
           "resulted in",
-          "remote"
+          "remote",
+          "causation + remoteness: linking act to harm",
+          "tort causation remoteness"
         ],
         "intentSignals": [
           "is that their fault",
           "can i prove",
           "they started it"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_causation_remoteness",
+        "sourcePath": "theories[3]",
+        "term": "Causation + remoteness: linking act to harm",
+        "aliases": [
+          "Causation + remoteness: linking act to harm",
+          "tort causation remoteness",
+          "caused",
+          "because of",
+          "chain",
+          "resulted in",
+          "remote",
+          "is that their fault",
+          "can i prove",
+          "they started it"
+        ],
+        "definition": "Even if there was carelessness, liability typically requires a causal link to the harm and limits for remote/unforeseeable consequences.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is causation + remoteness: linking act to harm?",
+          "what is tort causation remoteness?",
+          "what is caused?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "causation",
+              "domains": [
+                "law",
+                "research",
+                "psychology"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -247,13 +483,70 @@
           "compensation",
           "how much",
           "settlement",
-          "pain and suffering"
+          "pain and suffering",
+          "damages: what can be claimed (high level)",
+          "tort damages overview"
         ],
         "intentSignals": [
           "what can i claim",
           "what is it worth",
           "how do i calculate"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_damages_overview",
+        "sourcePath": "theories[4]",
+        "term": "Damages: what can be claimed (high level)",
+        "aliases": [
+          "Damages: what can be claimed (high level)",
+          "tort damages overview",
+          "damages",
+          "compensation",
+          "how much",
+          "settlement",
+          "pain and suffering",
+          "what can i claim",
+          "what is it worth",
+          "how do i calculate"
+        ],
+        "definition": "Civil claims typically focus on compensating proven losses. Heads of damage vary: out-of-pocket losses, lost income, repair costs, and (in some contexts) non-pecuniary pain/suffering.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is damages: what can be claimed (high level)?",
+          "what is tort damages overview?",
+          "what is damages?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "damages",
+              "domains": [
+                "law",
+                "finance",
+                "insurance"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -286,13 +579,78 @@
           "shared fault",
           "partial fault",
           "waiver",
-          "assumption of risk"
+          "assumption of risk",
+          "defences: contributory negligence + assumption of risk",
+          "tort defences contrib negl"
         ],
         "intentSignals": [
           "is it my fault too",
           "does this reduce",
           "can they blame me"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_defences_contrib_negl",
+        "sourcePath": "theories[5]",
+        "term": "Defences: contributory negligence + assumption of risk",
+        "aliases": [
+          "Defences: contributory negligence + assumption of risk",
+          "tort defences contrib negl",
+          "contributory negligence",
+          "shared fault",
+          "partial fault",
+          "waiver",
+          "assumption of risk",
+          "is it my fault too",
+          "does this reduce",
+          "can they blame me"
+        ],
+        "definition": "Even if negligence exists, responsibility can be reduced if the claimant contributed to the harm, or (rarely) if they truly accepted the risk knowingly and voluntarily.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is defences: contributory negligence + assumption of risk?",
+          "what is tort defences contrib negl?",
+          "what is contributory negligence?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "risk",
+              "domains": [
+                "law",
+                "finance",
+                "cyber",
+                "business"
+              ]
+            },
+            {
+              "term": "negligence",
+              "domains": [
+                "law",
+                "psychology/social blame"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -326,13 +684,71 @@
           "hit",
           "grabbed",
           "detained",
-          "wouldn't let me leave"
+          "wouldn't let me leave",
+          "intentional torts: assault, battery, false imprisonment (overview)",
+          "tort intentional torts basics"
         ],
         "intentSignals": [
           "can i sue",
           "is that allowed",
           "what are my rights"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_intentional_torts_basics",
+        "sourcePath": "theories[6]",
+        "term": "Intentional torts: assault, battery, false imprisonment (overview)",
+        "aliases": [
+          "Intentional torts: assault, battery, false imprisonment (overview)",
+          "tort intentional torts basics",
+          "assault",
+          "battery",
+          "hit",
+          "grabbed",
+          "detained",
+          "wouldn't let me leave",
+          "can i sue",
+          "is that allowed",
+          "what are my rights"
+        ],
+        "definition": "Intentional torts focus on deliberate interference with bodily integrity or liberty (not just carelessness).",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is intentional torts: assault, battery, false imprisonment (overview)?",
+          "what is tort intentional torts basics?",
+          "what is assault?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "rights",
+              "domains": [
+                "law",
+                "ethics",
+                "platform policy"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -376,13 +792,71 @@
           "false",
           "posted",
           "review",
-          "accused"
+          "accused",
+          "defamation: basics + practical triage",
+          "tort defamation canada overview"
         ],
         "intentSignals": [
           "can i sue them",
           "is this defamation",
           "can i get it removed"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_defamation_canada_overview",
+        "sourcePath": "theories[7]",
+        "term": "Defamation: basics + practical triage",
+        "aliases": [
+          "Defamation: basics + practical triage",
+          "tort defamation canada overview",
+          "defamation",
+          "libel",
+          "slander",
+          "false",
+          "posted",
+          "review",
+          "accused",
+          "can i sue them",
+          "is this defamation",
+          "can i get it removed"
+        ],
+        "definition": "Defamation generally concerns false statements that harm reputation. Practical triage: what was said, to whom, is it identifiable, and what’s the evidence of publication and harm.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is defamation: basics + practical triage?",
+          "what is tort defamation canada overview?",
+          "what is defamation?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "defamation",
+              "domains": [
+                "law",
+                "media/reputation"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -417,13 +891,63 @@
           "odour",
           "vibration",
           "runoff",
-          "neighbour"
+          "neighbour",
+          "private nuisance: interference with land enjoyment",
+          "tort nuisance overview"
         ],
         "intentSignals": [
           "what can i do",
           "can i force them",
           "is it illegal"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_nuisance_overview",
+        "sourcePath": "theories[8]",
+        "term": "Private nuisance: interference with land enjoyment",
+        "aliases": [
+          "Private nuisance: interference with land enjoyment",
+          "tort nuisance overview",
+          "nuisance",
+          "noise",
+          "smell",
+          "odour",
+          "vibration",
+          "runoff",
+          "neighbour",
+          "what can i do",
+          "can i force them",
+          "is it illegal"
+        ],
+        "definition": "Nuisance is about unreasonable interference with the use/enjoyment of property (noise, smoke, odours, vibrations, flooding, etc.), balancing reasonableness in context.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is private nuisance: interference with land enjoyment?",
+          "what is tort nuisance overview?",
+          "what is nuisance?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -455,13 +979,61 @@
           "on my property",
           "entered",
           "won't stay off",
-          "boundary"
+          "boundary",
+          "trespass to land: unauthorized entry",
+          "tort trespass overview"
         ],
         "intentSignals": [
           "can i stop them",
           "can i call police",
           "what are my options"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_trespass_overview",
+        "sourcePath": "theories[9]",
+        "term": "Trespass to land: unauthorized entry",
+        "aliases": [
+          "Trespass to land: unauthorized entry",
+          "tort trespass overview",
+          "trespass",
+          "on my property",
+          "entered",
+          "won't stay off",
+          "boundary",
+          "can i stop them",
+          "can i call police",
+          "what are my options"
+        ],
+        "definition": "Trespass generally involves intentional entry onto land without permission. Remedies can include damages and sometimes injunctions depending on facts and persistence.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is trespass to land: unauthorized entry?",
+          "what is tort trespass overview?",
+          "what is trespass?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -494,13 +1066,71 @@
           "occupier",
           "store",
           "ice",
-          "wet floor"
+          "wet floor",
+          "occupiers’ liability: premises safety (overview)",
+          "tort occupiers liability overview"
         ],
         "intentSignals": [
           "are they liable",
           "can i claim",
           "what do i do next"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_occupiers_liability_overview",
+        "sourcePath": "theories[10]",
+        "term": "Occupiers’ liability: premises safety (overview)",
+        "aliases": [
+          "Occupiers’ liability: premises safety (overview)",
+          "tort occupiers liability overview",
+          "slip and fall",
+          "premises",
+          "occupier",
+          "store",
+          "ice",
+          "wet floor",
+          "are they liable",
+          "can i claim",
+          "what do i do next"
+        ],
+        "definition": "Occupiers’ liability generally concerns reasonable care to keep premises reasonably safe for visitors; details often vary by province’s statute and context (commercial vs residential).",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is occupiers’ liability: premises safety (overview)?",
+          "what is tort occupiers liability overview?",
+          "what is slip and fall?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "liability",
+              "domains": [
+                "law",
+                "finance",
+                "cyber"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -534,13 +1164,79 @@
           "recall",
           "faulty",
           "broke",
-          "injured me"
+          "injured me",
+          "product liability: defect + warning + causation",
+          "tort product liability overview"
         ],
         "intentSignals": [
           "can i sue the manufacturer",
           "who is responsible",
           "what should i keep"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_product_liability_overview",
+        "sourcePath": "theories[11]",
+        "term": "Product liability: defect + warning + causation",
+        "aliases": [
+          "Product liability: defect + warning + causation",
+          "tort product liability overview",
+          "defective",
+          "product liability",
+          "recall",
+          "faulty",
+          "broke",
+          "injured me",
+          "can i sue the manufacturer",
+          "who is responsible",
+          "what should i keep"
+        ],
+        "definition": "Product liability often turns on whether a product was defective or lacked adequate warnings, and whether that caused the harm. Proof and chain-of-custody can matter a lot.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is product liability: defect + warning + causation?",
+          "what is tort product liability overview?",
+          "what is defective?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "liability",
+              "domains": [
+                "law",
+                "finance",
+                "cyber"
+              ]
+            },
+            {
+              "term": "causation",
+              "domains": [
+                "law",
+                "research",
+                "psychology"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -574,13 +1270,62 @@
           "told me",
           "guaranteed",
           "promised",
-          "relied on"
+          "relied on",
+          "negligent misrepresentation: careless statements + reliance",
+          "tort negligent misrepresentation overview"
         ],
         "intentSignals": [
           "can i sue",
           "they misled me",
           "false claims"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_negligent_misrepresentation_overview",
+        "sourcePath": "theories[12]",
+        "term": "Negligent misrepresentation: careless statements + reliance",
+        "aliases": [
+          "Negligent misrepresentation: careless statements + reliance",
+          "tort negligent misrepresentation overview",
+          "misrepresentation",
+          "lied",
+          "told me",
+          "guaranteed",
+          "promised",
+          "relied on",
+          "can i sue",
+          "they misled me",
+          "false claims"
+        ],
+        "definition": "Negligent misrepresentation is a high-level frame where someone makes a careless statement, you reasonably rely on it, and you suffer loss as a result (context-sensitive and fact-heavy).",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is negligent misrepresentation: careless statements + reliance?",
+          "what is tort negligent misrepresentation overview?",
+          "what is misrepresentation?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -613,13 +1358,61 @@
           "mental suffering",
           "harassment",
           "threats",
-          "traumatized"
+          "traumatized",
+          "intentional infliction of mental suffering (high-level)",
+          "tort intentional infliction emotional distress"
         ],
         "intentSignals": [
           "can i sue",
           "what are my options",
           "how do i stop this"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_intentional_infliction_emotional_distress",
+        "sourcePath": "theories[13]",
+        "term": "Intentional infliction of mental suffering (high-level)",
+        "aliases": [
+          "Intentional infliction of mental suffering (high-level)",
+          "tort intentional infliction emotional distress",
+          "emotional distress",
+          "mental suffering",
+          "harassment",
+          "threats",
+          "traumatized",
+          "can i sue",
+          "what are my options",
+          "how do i stop this"
+        ],
+        "definition": "Some civil claims involve serious, wrongful conduct causing severe emotional harm. The threshold is typically high and very fact-specific; documentation is important.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is intentional infliction of mental suffering (high-level)?",
+          "what is tort intentional infliction emotional distress?",
+          "what is emotional distress?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -652,13 +1445,77 @@
           "employee",
           "staff",
           "security",
-          "company responsible"
+          "company responsible",
+          "vicarious liability: responsibility for others’ acts (overview)",
+          "tort vicarious liability overview"
         ],
         "intentSignals": [
           "can i sue the company",
           "who do i go after",
           "is the employer responsible"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_vicarious_liability_overview",
+        "sourcePath": "theories[14]",
+        "term": "Vicarious liability: responsibility for others’ acts (overview)",
+        "aliases": [
+          "Vicarious liability: responsibility for others’ acts (overview)",
+          "tort vicarious liability overview",
+          "employer liable",
+          "employee",
+          "staff",
+          "security",
+          "company responsible",
+          "can i sue the company",
+          "who do i go after",
+          "is the employer responsible"
+        ],
+        "definition": "Sometimes an organization can be responsible for the wrongful acts of its employees/agents when the relationship and context connect the act to the enterprise.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is vicarious liability: responsibility for others’ acts (overview)?",
+          "what is tort vicarious liability overview?",
+          "what is employer liable?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "liability",
+              "domains": [
+                "law",
+                "finance",
+                "cyber"
+              ]
+            },
+            {
+              "term": "security",
+              "domains": [
+                "law",
+                "cyber"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -691,13 +1548,61 @@
           "too late",
           "time limit",
           "deadline",
-          "years ago"
+          "years ago",
+          "limitations guardrail: timing matters (non-specific)",
+          "tort limitation periods guardrail"
         ],
         "intentSignals": [
           "can i still sue",
           "is it expired",
           "how long do i have"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_limitation_periods_guardrail",
+        "sourcePath": "theories[15]",
+        "term": "Limitations guardrail: timing matters (non-specific)",
+        "aliases": [
+          "Limitations guardrail: timing matters (non-specific)",
+          "tort limitation periods guardrail",
+          "limitation",
+          "too late",
+          "time limit",
+          "deadline",
+          "years ago",
+          "can i still sue",
+          "is it expired",
+          "how long do i have"
+        ],
+        "definition": "Most civil claims have limitation periods that vary by province and by claim type. Timing can be decisive, so always identify event date(s) and verify the limitation rules officially.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is limitations guardrail: timing matters (non-specific)?",
+          "what is tort limitation periods guardrail?",
+          "what is limitation?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -730,13 +1635,78 @@
           "make them stop",
           "ongoing",
           "cease and desist",
-          "remove it"
+          "remove it",
+          "remedies: damages vs injunctions (overview)",
+          "tort remedies injunctions overview"
         ],
         "intentSignals": [
           "how do i stop",
           "can a court order",
           "what is the remedy"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_torts_v1",
+        "sourceId": "tort_remedies_injunctions_overview",
+        "sourcePath": "theories[16]",
+        "term": "Remedies: damages vs injunctions (overview)",
+        "aliases": [
+          "Remedies: damages vs injunctions (overview)",
+          "tort remedies injunctions overview",
+          "injunction",
+          "make them stop",
+          "ongoing",
+          "cease and desist",
+          "remove it",
+          "how do i stop",
+          "can a court order",
+          "what is the remedy"
+        ],
+        "definition": "Some disputes are mainly about stopping conduct (injunction) rather than money. The right remedy depends on ongoing harm and adequacy of damages.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is remedies: damages vs injunctions (overview)?",
+          "what is tort remedies injunctions overview?",
+          "what is injunction?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "remedy",
+              "domains": [
+                "law",
+                "psychology",
+                "business"
+              ]
+            },
+            {
+              "term": "damages",
+              "domains": [
+                "law",
+                "finance",
+                "insurance"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     }
   ],
@@ -836,32 +1806,22 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "privacyMinimization": true
   },
   "retrievalIndex": {
+    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_torts_v1",
-    "aliases": [],
+    "sourceFile": "law_torts_v1.json",
+    "definitionSurfaceCount": 17,
     "keywords": [
+      "negligence: the 4-element frame",
+      "tort negligence elements",
       "negligence",
-      "injury",
-      "accident",
-      "defamation",
-      "libel",
-      "slander",
-      "nuisance",
-      "trespass",
-      "assault",
-      "battery",
-      "false imprisonment",
-      "product liability",
-      "occupier",
-      "premises",
-      "dog bite",
-      "emotional distress",
-      "misrepresentation",
-      "economic loss",
       "careless",
+      "accident",
+      "injury",
       "fault",
       "liable",
       "sue",
@@ -869,6 +1829,8 @@
       "can i sue",
       "who is responsible",
       "what can i claim",
+      "duty of care: foreseeability + relationship + policy limits",
+      "tort duty of care foreseeability",
       "duty of care",
       "foreseeable",
       "should have known",
@@ -876,6 +1838,8 @@
       "do they owe me",
       "were they required",
       "should they have prevented",
+      "standard of care: contextual reasonableness",
+      "tort standard of care contextual",
       "standard of care",
       "reasonable",
       "should have",
@@ -884,6 +1848,8 @@
       "were they negligent",
       "did they breach",
       "did they do enough",
+      "causation + remoteness: linking act to harm",
+      "tort causation remoteness",
       "caused",
       "because of",
       "chain",
@@ -892,6 +1858,8 @@
       "is that their fault",
       "can i prove",
       "they started it",
+      "damages: what can be claimed (high level)",
+      "tort damages overview",
       "damages",
       "compensation",
       "how much",
@@ -899,6 +1867,8 @@
       "pain and suffering",
       "what is it worth",
       "how do i calculate",
+      "defences: contributory negligence + assumption of risk",
+      "tort defences contrib negl",
       "contributory negligence",
       "shared fault",
       "partial fault",
@@ -907,12 +1877,21 @@
       "is it my fault too",
       "does this reduce",
       "can they blame me",
+      "intentional torts: assault, battery, false imprisonment (overview)",
+      "tort intentional torts basics",
+      "assault",
+      "battery",
       "hit",
       "grabbed",
       "detained",
       "wouldn't let me leave",
       "is that allowed",
       "what are my rights",
+      "defamation: basics + practical triage",
+      "tort defamation canada overview",
+      "defamation",
+      "libel",
+      "slander",
       "false",
       "posted",
       "review",
@@ -920,6 +1899,9 @@
       "can i sue them",
       "is this defamation",
       "can i get it removed",
+      "private nuisance: interference with land enjoyment",
+      "tort nuisance overview",
+      "nuisance",
       "noise",
       "smell",
       "odour",
@@ -929,67 +1911,140 @@
       "what can i do",
       "can i force them",
       "is it illegal",
+      "trespass to land: unauthorized entry",
+      "tort trespass overview",
+      "trespass",
       "on my property",
-      "entered",
-      "won't stay off",
-      "boundary",
+      "entered"
+    ],
+    "intentSignals": [
+      "do i have a case",
+      "can i sue",
+      "who is responsible",
+      "what can i claim",
+      "do they owe me",
+      "were they required",
+      "should they have prevented",
+      "were they negligent",
+      "did they breach",
+      "did they do enough",
+      "is that their fault",
+      "can i prove",
+      "they started it",
+      "what is it worth",
+      "how do i calculate",
+      "is it my fault too",
+      "does this reduce",
+      "can they blame me",
+      "is that allowed",
+      "what are my rights",
+      "can i sue them",
+      "is this defamation",
+      "can i get it removed",
+      "what can i do",
+      "can i force them",
+      "is it illegal",
       "can i stop them",
       "can i call police",
       "what are my options",
-      "slip and fall",
-      "store",
-      "ice",
-      "wet floor",
       "are they liable",
       "can i claim",
       "what do i do next",
-      "defective",
-      "recall",
-      "faulty",
-      "broke",
-      "injured me",
       "can i sue the manufacturer",
       "what should i keep",
-      "lied",
-      "told me",
-      "guaranteed",
-      "promised",
-      "relied on",
       "they misled me",
       "false claims",
-      "mental suffering",
-      "harassment",
-      "threats",
-      "traumatized",
       "how do i stop this",
-      "employer liable"
+      "can i sue the company",
+      "who do i go after",
+      "is the employer responsible",
+      "can i still sue",
+      "is it expired",
+      "how long do i have",
+      "how do i stop",
+      "can a court order",
+      "what is the remedy"
     ],
-    "primaryFields": [
-      "packId",
-      "version",
-      "domain",
-      "jurisdiction",
-      "packType",
-      "description",
-      "defaults",
-      "topLevelRouting",
-      "theories",
-      "contextRules",
-      "faces",
-      "meta",
-      "runtime",
-      "retrievalHints",
-      "runtimeDomainKey",
-      "runtimePath",
-      "manifestPackKey",
-      "safetyBoundary"
-    ]
+    "definitionTerms": [
+      "Negligence: the 4-element frame",
+      "Duty of care: foreseeability + relationship + policy limits",
+      "Standard of care: contextual reasonableness",
+      "Causation + remoteness: linking act to harm",
+      "Damages: what can be claimed (high level)",
+      "Defences: contributory negligence + assumption of risk",
+      "Intentional torts: assault, battery, false imprisonment (overview)",
+      "Defamation: basics + practical triage",
+      "Private nuisance: interference with land enjoyment",
+      "Trespass to land: unauthorized entry",
+      "Occupiers’ liability: premises safety (overview)",
+      "Product liability: defect + warning + causation",
+      "Negligent misrepresentation: careless statements + reliance",
+      "Intentional infliction of mental suffering (high-level)",
+      "Vicarious liability: responsibility for others’ acts (overview)",
+      "Limitations guardrail: timing matters (non-specific)",
+      "Remedies: damages vs injunctions (overview)"
+    ],
+    "noGenericFallback": true,
+    "definitionQueryWinsBeforeTechnicalFallback": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
-    "conflictMarkersRemoved": true,
+    "status": "hardened_for_six_domain_definition_inventory",
     "validatedJson": true,
-    "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
+    "criticalUpdatesApplied": [
+      "definition_surface_normalization",
+      "law_definition_routing_lock",
+      "safety_boundary_hardening",
+      "retrieval_index_expansion"
+    ],
+    "normalizedAt": "2026-05-13"
+  },
+  "retrievalAliases": [
+    "law_torts_v1",
+    "law_torts_v2"
+  ],
+  "definitionAnswerContract": {
+    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
+    "domain": "law",
+    "jurisdictionDefault": "Canada",
+    "answerMode": "direct_definition_plus_framework",
+    "mustInclude": [
+      "plain meaning",
+      "legal information posture when relevant",
+      "jurisdiction caveat when procedure/deadlines/court steps are involved"
+    ],
+    "mustNotInclude": [
+      "generic technical fallback",
+      "outcome guarantee",
+      "personalized legal advice",
+      "unsupported deadlines"
+    ],
+    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.definitionRoutingLock/1.0",
+    "intent": "domain_question",
+    "knowledgeDomain": "law",
+    "primaryLane": "law",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "explain",
+      "meaning of"
+    ],
+    "blockTechnicalFallbackUnless": [
+      "autopsy",
+      "audit",
+      "patch",
+      "backend",
+      "script",
+      "route",
+      "debug",
+      "file",
+      "line-by-line"
+    ],
+    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
   }
 }
