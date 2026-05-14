@@ -29,18 +29,26 @@
       "law"
     ],
     "keywords": [
-      "psychology",
-      "cognitive distortion",
-      "emotional regulation",
-      "emotion",
       "attachment",
-      "trauma",
-      "bias",
-      "fallacy",
-      "social psychology",
       "development",
+      "emotional shutdown",
+      "behavior",
+      "psychology",
+      "fallacy",
+      "anxiety",
+      "cognitive intelligence",
+      "social psychology",
+      "cognitive load",
+      "emotional regulation",
+      "cognition",
+      "panic",
       "intervention",
-      "clinical safety"
+      "clinical safety",
+      "cognitive distortion",
+      "bias",
+      "mental model",
+      "emotion",
+      "trauma"
     ],
     "safetyFirst": true,
     "confidencePolicy": {
@@ -214,5 +222,27 @@
     "preserveFinalEnvelope": true,
     "domainIsolationRequired": true,
     "bootstrapGuardRequired": true
+  },
+  "definitionRoutingLock": {
+    "enabled": true,
+    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
+    "rule": "definition_query_domain_lock_before_technical_debug",
+    "definitionTerms": [
+      "cognitive distortion",
+      "emotional regulation",
+      "attachment",
+      "trauma",
+      "bias",
+      "cognition",
+      "cognitive intelligence",
+      "cognitive load",
+      "emotional shutdown",
+      "anxiety",
+      "panic",
+      "behavior",
+      "mental model"
+    ],
+    "technicalOverrideRequiresExplicitDevLanguage": true,
+    "preserveFinalEnvelope": true
   }
 }
