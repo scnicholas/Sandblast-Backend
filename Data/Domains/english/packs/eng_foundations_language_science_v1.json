@@ -1,6 +1,6 @@
 {
   "id": "eng_foundations_language_science_v2",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "title": "Foundations of Language Science",
   "description": "Foundational concepts for describing English as a system: levels of analysis, form-function reasoning, description versus prescription, and evidence-minded analysis.",
   "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
@@ -196,43 +196,110 @@
     "version": "2.0.0"
   },
   "normalizationMeta": {
-    "normalizedAt": "2026-04-07",
+    "normalizedAt": "2026-05-13",
     "targetRuntime": "Marion/Nyx",
-    "schemaProfile": "english_domain_runtime_v2_1",
-    "preservedStructuralIntegrity": true
+    "schemaProfile": "english_domain_runtime_v2_2",
+    "preservedStructuralIntegrity": true,
+    "lineAuditPass": "full-file structural and runtime retrieval audit",
+    "criticalPatch": "six_domain_definition_routing_lock_english_pack_hardening"
   },
   "aliases": [
-    "eng_foundations_language_science_v2",
+    "eng_foundations_language_science_v1",
     "eng_foundations_language_science_v1.json",
-    "foundations_of_language_science",
-    "eng_foundations_language_science_v1"
+    "eng_foundations_language_science_v2",
+    "foundations_of_language_science"
   ],
   "pathwayHints": {
     "domain": "english",
     "primaryIntent": "foundations_of_language_science",
     "keywords": [
       "analysis",
+      "and audience limitations",
+      "and discourse",
+      "and evidence-minded analysis",
+      "and function",
+      "audience",
+      "avoid category mistakes across sound",
+      "avoid mixing levels",
+      "claim",
+      "clause",
       "concepts",
+      "context",
+      "corpora",
+      "depending on task",
       "describing",
       "description",
+      "description before prescription",
+      "description versus prescription",
       "descriptive",
+      "descriptive grammar",
+      "descriptive vs prescriptive",
+      "dialect",
+      "discourse",
+      "each level has structure",
+      "eng",
       "english",
+      "evidence and limits",
+      "evidence can be intuitive judgments",
       "evidence-minded",
+      "example",
+      "explain why a form is marked",
+      "explanation",
       "form",
       "form-function",
+      "form-function reasoning",
       "foundational",
       "foundations",
+      "foundations of language science",
+      "from",
       "function",
+      "function reasoning",
+      "good analysis links form",
+      "iption first",
+      "is used",
+      "ish as a system",
+      "label the level you",
+      "laim",
       "language",
+      "language science",
       "levels",
+      "levels of analysis",
+      "meaning",
+      "morpheme",
+      "ontext",
+      "or references",
+      "or usage references",
+      "phrase",
       "prescription",
       "prescriptive",
+      "prescriptive grammar",
+      "re analyzing before making a claim",
       "reasoning",
+      "register",
+      "rror",
+      "s used across contexts",
       "science",
+      "sentence",
+      "separate",
+      "should be used",
+      "sound",
+      "state dialect",
+      "state limitations",
+      "structure",
+      "support claims with examples",
       "system",
+      "to function",
       "units",
-      "versus"
-    ]
+      "units of analysis",
+      "unmarked in a given context",
+      "use",
+      "versus",
+      "what it does",
+      "with evidence",
+      "word",
+      "write micro-arguments"
+    ],
+    "runtimeDomainKey": "english"
   },
   "sourceCoverage": {
     "anchorCount": 3,
@@ -245,7 +312,8 @@
     "modules": 3,
     "caseStudies": 1,
     "projects": 1,
-    "referenceTextsUsed": 5
+    "referenceTextsUsed": 5,
+    "definitionTerms": 5
   },
   "auditSummary": {
     "gradeBeforeNormalization": null,
@@ -322,5 +390,152 @@
     ],
     "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
     "normalizedAt": "2026-05-03"
+  },
+  "runtimeSchema": "english_domain_runtime_v2_2",
+  "updated": "2026-05-13",
+  "runtimeDefinitionIndex": {
+    "version": "english.runtimeDefinitionIndex/1.0",
+    "domain": "english",
+    "answerStyle": "direct_definition_then_optional_example",
+    "definitionTerms": [
+      {
+        "term": "language science",
+        "aliases": [
+          "language science",
+          "language_science"
+        ],
+        "definition": "Language science is the systematic study of how language is structured, used, learned, and interpreted.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_foundations_language_science_v2"
+      },
+      {
+        "term": "descriptive grammar",
+        "aliases": [
+          "descriptive grammar",
+          "descriptive_grammar"
+        ],
+        "definition": "Descriptive grammar explains how language is actually used across contexts rather than only prescribing preferred forms.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_foundations_language_science_v2"
+      },
+      {
+        "term": "prescriptive grammar",
+        "aliases": [
+          "prescriptive grammar",
+          "prescriptive_grammar"
+        ],
+        "definition": "Prescriptive grammar states preferred or socially expected rules for language use in particular contexts.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_foundations_language_science_v2"
+      },
+      {
+        "term": "form-function reasoning",
+        "aliases": [
+          "form function reasoning",
+          "form-function reasoning",
+          "form-function_reasoning"
+        ],
+        "definition": "Form-function reasoning links a language structure to what it does in meaning, interaction, or discourse.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_foundations_language_science_v2"
+      },
+      {
+        "term": "units of analysis",
+        "aliases": [
+          "units of analysis",
+          "units_of_analysis"
+        ],
+        "definition": "Units of analysis are the levels used to study language, such as sound, morpheme, word, phrase, clause, sentence, and discourse.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_foundations_language_science_v2"
+      }
+    ],
+    "fallbackRule": "If term appears here, answer directly. Do not ask for more detail unless the user requests a specific register, example, or comparison."
+  },
+  "answerPolicy": {
+    "version": "english.definitionRoutingLock/1.0",
+    "domain": "english",
+    "priority": "definition_queries_before_generic_fallback",
+    "rules": [
+      "If the user asks 'what is', 'define', 'meaning of', or 'explain' plus a known English term, answer directly from this domain before generic fallback.",
+      "Do not route English definition questions into technical_debug unless the user explicitly asks for backend, code, file, audit, autopsy, patch, route, script, endpoint, deployment, or validation.",
+      "If a term overlaps with another domain, give a brief neutral definition, name the possible English interpretation, and ask one targeted clarification question.",
+      "Preserve meaning first; revise form second; never over-correct when the user asks for explanation rather than rewriting.",
+      "No user-facing generic fallback such as 'I need one more concrete detail' when the term is present in this pack. Use answer + clarification instead."
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical",
+      "Reply held.",
+      "Backend reply unavailable."
+    ]
+  },
+  "ambiguityPolicy": {
+    "version": "english.ambiguityPolicy/1.0",
+    "method": "answer_plus_targeted_clarification",
+    "overlapTerms": [
+      {
+        "term": "clarity",
+        "interpretations": [
+          "English: sentence-level and reader-centered clarity",
+          "business/UX: product or message clarity"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "syntax",
+        "interpretations": [
+          "English: grammar and sentence structure",
+          "technical: programming syntax"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "semantics",
+        "interpretations": [
+          "English/linguistics: meaning in language",
+          "technical/AI: meaning representation or data semantics"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "register",
+        "interpretations": [
+          "English: style variation by context",
+          "technical: stored value/state register"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "agency",
+        "interpretations": [
+          "English/pragmatics: who is acting or responsible",
+          "psychology/AI: autonomy or decision capacity"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "validation",
+        "interpretations": [
+          "English: checking wording/usage against context",
+          "technical/cyber: checking data or system behavior"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      }
+    ],
+    "neverDeadEnd": true
+  },
+  "runtimeGuards": {
+    "definitionBeforeTechnicalFallback": true,
+    "blockGenericFallbackForKnownTerms": true,
+    "preserveMeaningBeforeCorrection": true,
+    "noMenuDumping": true,
+    "noTechLeak": true,
+    "commercialRuntimeSafe": true
   }
 }
