@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.7.2 SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY + MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
+const VERSION = "marionDomainRegistry v1.7.3 CROSS-DOMAIN-SECONDARY-LANE-SCORING + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY + MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -1101,6 +1101,17 @@ function getPipelineForensicNormalizationStatus(){
   };
 }
 
+
+const CROSS_DOMAIN_SECONDARY_LANE_MATRIX = Object.freeze({
+  ai_compliance: Object.freeze({ primary:"ai", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain compliance risk for an AI product.","Explain privacy risk for an AI product.","Explain legal risk for an AI product."]) }),
+  ai_security: Object.freeze({ primary:"ai", secondary:Object.freeze(["cyber"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain security risk for an AI product.","Explain prompt injection risk in an AI system."]) }),
+  ai_business: Object.freeze({ primary:"ai", secondary:Object.freeze(["finance"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain business risk for an AI product."]) }),
+  finance_law: Object.freeze({ primary:"finance", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain cash-flow risk in a legal dispute."]) }),
+  english_law: Object.freeze({ primary:"english", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Rewrite this legal clause in plain English."]) }),
+  ai_psychology: Object.freeze({ primary:"ai", secondary:Object.freeze(["psychology"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain cognitive bias in an AI recommendation system."]) })
+});
+function getCrossDomainSecondaryLaneMatrix(){return CROSS_DOMAIN_SECONDARY_LANE_MATRIX;}
+
 module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
@@ -1136,6 +1147,8 @@ module.exports = {
   confidenceBand,
   normalizeDomainConfidenceProfile,
   getDomainConfidenceDefaults,
+  CROSS_DOMAIN_SECONDARY_LANE_MATRIX,
+  getCrossDomainSecondaryLaneMatrix,
   _internal: {
     safeStr,
     normalizeKey,
