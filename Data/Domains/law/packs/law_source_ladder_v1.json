@@ -418,38 +418,108 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "privacyMinimization": true
   },
   "retrievalIndex": {
+    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_source_ladder_v2",
-    "aliases": [],
-    "keywords": [],
-    "primaryFields": [
-      "packId",
-      "domain",
-      "layer",
-      "version",
-      "jurisdiction",
-      "updatedAt",
-      "purpose",
-      "sourceLadder",
-      "contractsFocus",
-      "retrievalRules",
-      "runtime",
-      "packType",
-      "retrievalHints",
-      "runtimeDomainKey",
-      "runtimePath",
-      "manifestPackKey",
-      "safetyBoundary"
-    ]
+    "sourceFile": "law_source_ladder_v1.json",
+    "definitionSurfaceCount": 0,
+    "keywords": [
+      "justice laws website (government of canada)",
+      "law primary justice laws gc",
+      "supreme court of canada judgments",
+      "law primary scc judgments",
+      "canlii",
+      "law primary canlii",
+      "provincial / territorial legislation portals (e.g., ontario e-laws)",
+      "law primary provincial legislation portals",
+      "swan, adamski & na — canadian contract law",
+      "law secondary swan adamski na contracts",
+      "fridman — the law of contract in canada",
+      "law secondary fridman contract",
+      "waddams — the law of contracts",
+      "law secondary waddams contract",
+      "mccamus — the law of contracts",
+      "law secondary mccamus contracts",
+      "contracts casebooks and cases/commentaries collections",
+      "law secondary casebooks contracts",
+      "canadian encyclopedic digest / halsbury-style encyclopedic sources",
+      "law secondary ced halsbury",
+      "law society of ontario licensing examination competencies and guides",
+      "law tertiary lso competencies",
+      "nca assigned requirements and exam outlines",
+      "law tertiary nca syllabi",
+      "law library guides / legal research guides",
+      "law tertiary library guides",
+      "law review articles and commentary",
+      "law tertiary law review articles"
+    ],
+    "intentSignals": [],
+    "definitionTerms": [],
+    "noGenericFallback": true,
+    "definitionQueryWinsBeforeTechnicalFallback": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
-    "conflictMarkersRemoved": true,
+    "status": "hardened_for_six_domain_definition_inventory",
     "validatedJson": true,
-    "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
+    "criticalUpdatesApplied": [
+      "definition_surface_normalization",
+      "law_definition_routing_lock",
+      "safety_boundary_hardening",
+      "retrieval_index_expansion"
+    ],
+    "normalizedAt": "2026-05-13"
+  },
+  "retrievalAliases": [
+    "law_source_ladder_v1",
+    "law_source_ladder_v2"
+  ],
+  "definitionAnswerContract": {
+    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
+    "domain": "law",
+    "jurisdictionDefault": "Canada",
+    "answerMode": "direct_definition_plus_framework",
+    "mustInclude": [
+      "plain meaning",
+      "legal information posture when relevant",
+      "jurisdiction caveat when procedure/deadlines/court steps are involved"
+    ],
+    "mustNotInclude": [
+      "generic technical fallback",
+      "outcome guarantee",
+      "personalized legal advice",
+      "unsupported deadlines"
+    ],
+    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.definitionRoutingLock/1.0",
+    "intent": "domain_question",
+    "knowledgeDomain": "law",
+    "primaryLane": "law",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "explain",
+      "meaning of"
+    ],
+    "blockTechnicalFallbackUnless": [
+      "autopsy",
+      "audit",
+      "patch",
+      "backend",
+      "script",
+      "route",
+      "debug",
+      "file",
+      "line-by-line"
+    ],
+    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
   }
 }
