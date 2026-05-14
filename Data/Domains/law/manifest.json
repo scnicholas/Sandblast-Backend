@@ -30,20 +30,29 @@
       "english"
     ],
     "keywords": [
-      "law",
+      "consideration in contract",
+      "liability",
+      "case law",
+      "legal consideration",
+      "contract law",
+      "statute",
+      "constitutional",
+      "charter",
+      "canadian law",
+      "jurisdiction",
+      "contract",
+      "criminal",
+      "tort",
+      "source ladder",
+      "negligence",
+      "fiduciary",
+      "compliance",
+      "legal advice",
+      "due process",
       "legal",
       "legal information",
-      "legal advice",
-      "canadian law",
-      "contract",
-      "tort",
-      "criminal",
-      "charter",
-      "constitutional",
-      "case law",
-      "statute",
-      "jurisdiction",
-      "source ladder"
+      "law",
+      "contract consideration"
     ],
     "safetyFirst": true,
     "confidencePolicy": {
@@ -221,5 +230,30 @@
     "preserveFinalEnvelope": true,
     "domainIsolationRequired": true,
     "bootstrapGuardRequired": true
+  },
+  "definitionRoutingLock": {
+    "enabled": true,
+    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
+    "rule": "definition_query_domain_lock_before_technical_debug",
+    "definitionTerms": [
+      "contract consideration",
+      "legal consideration",
+      "consideration in contract",
+      "contract",
+      "contract law",
+      "statute",
+      "jurisdiction",
+      "legal information",
+      "legal advice",
+      "liability",
+      "negligence",
+      "fiduciary",
+      "tort",
+      "case law",
+      "compliance",
+      "due process"
+    ],
+    "technicalOverrideRequiresExplicitDevLanguage": true,
+    "preserveFinalEnvelope": true
   }
 }
